@@ -119,12 +119,6 @@ export class LocalStorageDriver implements StorageDriver {
     await fsp.rm(this.#resolve(key), { force: true })
   }
 
-  async move(fromKey: string, toKey: string): Promise<void> {
-    const to = this.#resolve(toKey)
-    await fsp.mkdir(path.dirname(to), { recursive: true })
-    await fsp.rename(this.#resolve(fromKey), to)
-  }
-
   async rangeSource(key: string, mime: string): Promise<RangeSource | null> {
     const absolute = this.#resolve(key)
     const stat = await this.stat(key)
@@ -134,7 +128,8 @@ export class LocalStorageDriver implements StorageDriver {
       mime,
       etag: stat.etag,
       lastModified: stat.modifiedAt,
-      open: (start, end) => fs.createReadStream(absolute, { start, end }),
+      open: (start, end, signal) =>
+        Promise.resolve(fs.createReadStream(absolute, { start, end, signal })),
     }
   }
 

@@ -33,7 +33,7 @@ const platform: CoverPlatform = {
   // A phone always has somewhere to put a cover.
   canKeep: () => true,
 
-  // Synchronous, which is the point: `coversNow()` holds the kept covers on the
+  // Synchronous, which is the point: `coverFor()` knows the kept covers on the
   // very first read, before a row has drawn a letter tile in their place.
   prime: found => {
     try {
@@ -125,7 +125,6 @@ export function keptCovers(limit: number): Promise<readonly string[]> {
 
 export const subscribeCovers = store.subscribeCovers
 export const coversVersion = store.coversVersion
-export const coversNow = store.coversNow
 export const coverFor = store.coverFor
 export const ensureServerCover = store.ensureServerCover
 export const ensureCover = store.ensureCover

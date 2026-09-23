@@ -14,14 +14,11 @@ import {
   SetSongTagsSchema,
   SettingsSchema,
   SkipEventSchema,
-  SmartRulesSchema,
   SongPatchSchema,
   UpdatePlaylistSchema,
-  describeSmartRules,
   extractUrls,
+  forgottenGems,
   similarSongs,
-  livePlaylistSongs,
-  toCloudRules,
   type Settings,
 } from '@selfmp3/shared'
 import { z } from 'zod'
@@ -99,7 +96,6 @@ export function createCloudRoutes(
     cloudManifest,
     cloudMotion,
     cloudPlaylistSongs,
-    currentSongs,
     loadCloudLibrary,
     recordChanges,
   } = library
@@ -132,6 +128,21 @@ export function createCloudRoutes(
         if (!seed) throw notFound('song')
         const limit = Math.min(Math.max(Number(query.get('limit')) || 20, 1), 100)
         return { songId: seed.id, songs: similarSongs(seed, library.songs, limit) }
+      },
+    ],
+    [
+      'GET',
+      '/api/library/gems',
+      async ({ session, query }) => {
+        const { library } = await loadCloudLibrary(session)
+        const limit = Math.min(Math.max(Number(query.get('limit')) || 20, 1), 100)
+        const { gems, minDays, total } = forgottenGems(library.songs, { limit })
+        return {
+          songs: gems.map(gem => gem.song),
+          minDays,
+          total,
+          generatedAt: new Date().toISOString(),
+        }
       },
     ],
     [
@@ -462,33 +473,6 @@ export function createCloudRoutes(
       async ({ session }) => {
         const view = await loadCloudLibrary(session)
         return { songs: [...view.uids.songs].map(([id, uid]) => ({ id, uid })) }
-      },
-    ],
-
-    [
-      'POST',
-      '/api/playlists/preview',
-      async ({ session, body }) => {
-        const { rules } = z.object({ rules: SmartRulesSchema.nullable() }).parse(body)
-        if (!rules) return { songIds: [], description: 'No rules yet' }
-        const view = await loadCloudLibrary(session)
-        const uids = view.uids
-        const songIdOf = new Map([...uids.songs].map(([songId, uid]) => [uid, songId]))
-        const songs = currentSongs()
-        const matched = livePlaylistSongs(
-          toCloudRules(rules, tagId => uids.tags.get(tagId) ?? null),
-          songs,
-        )
-        return {
-          songIds: matched.flatMap(uid => {
-            const songId = songIdOf.get(uid)
-            return songId === undefined ? [] : [songId]
-          }),
-          description: describeSmartRules(
-            rules,
-            new Map(view.library.tags.map(tag => [tag.id, tag.name])),
-          ),
-        }
       },
     ],
   ]

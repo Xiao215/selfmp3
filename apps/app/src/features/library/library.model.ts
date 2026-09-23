@@ -71,8 +71,6 @@ interface LibraryModel {
   /** The server did not answer; what is shown is the kept copy. */
   unreachable: boolean
   emptyReason: LibraryEmptyReason
-  setQuery: (query: string) => void
-  clearQuery: () => void
   setSort: (field: SongSortField) => void
   toggleDirection: () => void
   /** Turn a tag on or off. Every chosen tag adds its songs to the list. */
@@ -111,14 +109,6 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
    * of the library redrew whenever the screen did, whatever had changed.
    * `setFilter` is a state setter, so none of these ever needs remaking.
    */
-  const setQuery = useCallback(
-    (query: string) => setFilter(current => ({ ...current, query })),
-    [setFilter],
-  )
-  const clearQuery = useCallback(
-    () => setFilter(current => ({ ...current, query: '' })),
-    [setFilter],
-  )
   const setSort = useCallback(
     (sort: SongSortField) => setFilter(current => ({ ...current, sort })),
     [setFilter],
@@ -157,8 +147,6 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       loading: isPending,
       unreachable: isError,
       emptyReason: emptyReason({ isError, total: songs.length, shown: visible.length }),
-      setQuery,
-      clearQuery,
       setSort,
       toggleDirection,
       toggleTag: toggleTagId,
@@ -179,8 +167,6 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       allMatched,
       isPending,
       isError,
-      setQuery,
-      clearQuery,
       setSort,
       toggleDirection,
       toggleTagId,
@@ -281,13 +267,8 @@ export function matchNote(tagCount: number, allMatched: number, shown: number): 
   return `${allMatched} have ${what}, and come first`
 }
 
-/**
- * The heading over a search or filter that matched nothing: the query itself,
- * in quotes, so a typo is visible where the songs would have been.
- */
-export function noMatchesTitle(query: string, tagFiltered: boolean): string {
-  const trimmed = query.trim()
-  if (trimmed) return `Nothing matches “${trimmed}”`
+/** The heading over a filter that matched nothing: search has its own page and its own words. */
+export function noMatchesTitle(tagFiltered: boolean): string {
   return tagFiltered ? 'Nothing matches these tags' : 'Nothing matches'
 }
 

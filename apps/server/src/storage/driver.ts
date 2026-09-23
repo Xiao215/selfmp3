@@ -30,8 +30,6 @@ export interface StorageDriver {
 
   delete(key: string): Promise<void>
 
-  move(fromKey: string, toKey: string): Promise<void>
-
   /**
    * A range-capable source for streaming. Returning null means the object is
    * gone, which the caller turns into a 404.

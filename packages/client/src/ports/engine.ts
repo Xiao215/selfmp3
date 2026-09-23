@@ -19,8 +19,6 @@ export interface EngineState {
   readonly playing: boolean
   readonly currentTime: number
   readonly duration: number
-  /** How far ahead the buffer reaches, in seconds. */
-  readonly buffered: number
   readonly volume: number
   readonly muted: boolean
   readonly rate: number
@@ -55,20 +53,17 @@ export interface FrequencyAnalyser {
  * the way the phone's About section does for crossfade today. Declaring them
  * beats feature-detection at each call site, which is how one platform ends up
  * silently missing a control nobody noticed it could have.
+ *
+ * Only what a screen consults is here. A flag nothing reads is not a
+ * capability but a comment, and belongs in the engine that has it.
  */
 export interface EngineCapabilities {
   /** Overlap two songs. The browser can; track-player cannot. */
   readonly crossfade: boolean
   /** Drive a live visualiser — `analyser()` returns null without this. */
   readonly analyser: boolean
-  /** Change speed without changing pitch. */
-  readonly pitchLock: boolean
   /** Loop A to B to within a frame, with a count-in before each restart. */
   readonly loop: boolean
-  /** Put metadata and transport controls on the lock screen or in the car. */
-  readonly lockScreen: boolean
-  /** The platform owns the queue, so handing it songs ahead is its job. */
-  readonly nativeQueue: boolean
 }
 
 /**
@@ -103,7 +98,13 @@ export interface LoadOptions {
   readonly startAt?: number
 }
 
-/** What an engine needs from whoever owns the queue. */
+/**
+ * What an engine needs from whoever owns the queue.
+ *
+ * Handed over through `PlaybackEngine.connect` and held privately by each
+ * engine: the port has no assignable members for these, so there is one way
+ * to wire an engine and one place to read how.
+ */
 export interface EngineWiring {
   /** Called when a song finishes on its own, so the queue can advance. */
   onTrackEnd: (() => void) | null
@@ -111,9 +112,20 @@ export interface EngineWiring {
   nextTrackId: (() => number | null) | null
   /** Where to fetch a song. Null falls back to the engine's own default. */
   streamUrl: ((songId: number) => string) | null
-  /** What has to ride with the request for it; see `PlaybackEngine.streamHeaders`. */
+  /**
+   * The headers a song's request has to carry, or null when it needs none.
+   *
+   * For the one address that is no use bare: a bucket song, behind a doorman
+   * that reads a bearer header and nothing else. Only an engine that can send
+   * headers reads this — a phone's player takes them with each track. A
+   * browser's `<audio>` element cannot, which is why its bucket addresses are
+   * the app's own and a service worker signs for them; that engine never asks.
+   */
   streamHeaders: ((songId: number) => Readonly<Record<string, string>> | null) | null
-  /** What to show where the platform draws the now-playing card. */
+  /**
+   * What to show for a song where the platform draws the now-playing card.
+   * Null, or a null answer, means the engine shows what it can work out.
+   */
   trackMetadata: ((songId: number) => TrackMetadata | null) | null
   /** Every progress tick, for counting a play. */
   onProgress: ((currentTime: number, duration: number) => void) | null
@@ -161,7 +173,7 @@ export interface PlaybackEngine {
   /**
    * Point the engine at whoever owns the queue.
    *
-   * A method rather than four assignable properties, and not only for tidiness:
+   * A method rather than six assignable properties, and not only for tidiness:
    * a provider that assigns to an engine it created during render is mutating
    * render-owned state, which the React Compiler stops — rightly, since the
    * thing being mutated looks to it like a value React manages. Handing the
@@ -172,33 +184,4 @@ export interface PlaybackEngine {
    * are unchanged; passing null for one clears it.
    */
   connect(wiring: Partial<EngineWiring>): () => void
-
-  /*
-   * The wiring itself, readable and assignable for an engine's own use. A
-   * provider should call `connect` rather than touch these.
-   */
-
-  /** Called when a song finishes on its own, so the queue can advance. */
-  onTrackEnd: (() => void) | null
-  /** What to preload, for gapless and crossfade. Null means nothing follows. */
-  nextTrackId: (() => number | null) | null
-  /** Where to fetch a song. Null falls back to the engine's own default. */
-  streamUrl: ((songId: number) => string) | null
-  /**
-   * The headers a song's request has to carry, or null when it needs none.
-   *
-   * For the one address that is no use bare: a bucket song, behind a doorman
-   * that reads a bearer header and nothing else. Only an engine that can send
-   * headers reads this — a phone's player takes them with each track. A
-   * browser's `<audio>` element cannot, which is why its bucket addresses are
-   * the app's own and a service worker signs for them; that engine never asks.
-   */
-  streamHeaders: ((songId: number) => Readonly<Record<string, string>> | null) | null
-  /**
-   * What to show for a song where the platform draws the now-playing card.
-   * Null, or a null answer, means the engine shows what it can work out.
-   */
-  trackMetadata: ((songId: number) => TrackMetadata | null) | null
-  /** Every progress tick, for counting a play. */
-  onProgress: ((currentTime: number, duration: number) => void) | null
 }

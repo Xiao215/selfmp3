@@ -251,10 +251,7 @@ export function createCloudSession(
 
     /** What the doorman says about the account now; the stored session follows. */
     async refreshSession(session: CloudSession): Promise<CloudSession> {
-      const response = await doormanFetch(session, '/v1/me')
-      const next: CloudSession = { ...session, me: DoormanMeSchema.parse(await response.json()) }
-      await saveSession(next)
-      return next
+      return keepAnswer(session, await doormanFetch(session, '/v1/me'))
     },
 
     /** Connect a bucket to the account. The doorman tries the key, then keeps it. */

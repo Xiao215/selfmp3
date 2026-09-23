@@ -35,6 +35,9 @@ export function Toggle({
       testID={testID}
       onPress={() => onChange(!value)}
       disabled={disabled}
+      // The track is 42 by 24; the slop brings the target up to the 44-point
+      // minimum without changing what is drawn.
+      hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
       role="switch"
       aria-checked={value}
       accessibilityState={{ checked: value, disabled }}

@@ -1,6 +1,6 @@
 import { once } from 'node:events'
 import { createWriteStream } from 'node:fs'
-import { mkdir, readdir, rename, rm, stat, statfs } from 'node:fs/promises'
+import { mkdir, readdir, rename, rm, stat, statfs, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { app, net, shell } from 'electron'
@@ -194,14 +194,7 @@ export async function fetchTo(
   const target = await writablePathFor(kind, name)
   const response = await net.fetch(url, { headers: headers ?? {} })
   if (!response.ok) throw new Error(`${response.status} from ${hostOf(url)}`)
-  const bytes = Buffer.from(await response.arrayBuffer())
-  const part = `${target}.part`
-  await new Promise<void>((resolve, reject) => {
-    const sink = createWriteStream(part)
-    sink.on('error', reject)
-    sink.end(bytes, () => resolve())
-  })
-  await rename(part, target)
+  await replaceWith(target, Buffer.from(await response.arrayBuffer()))
 }
 
 /**
@@ -212,13 +205,16 @@ export async function fetchTo(
  * of either.
  */
 export async function writeText(kind: FileKind, name: string, text: string): Promise<void> {
-  const target = await writablePathFor(kind, name)
+  await replaceWith(await writablePathFor(kind, name), Buffer.from(text, 'utf8'))
+}
+
+/**
+ * The whole file at once, through `.part` and a rename, so `target` is only
+ * ever the old contents or the new ones.
+ */
+async function replaceWith(target: string, bytes: Buffer): Promise<void> {
   const part = `${target}.part`
-  await new Promise<void>((resolve, reject) => {
-    const sink = createWriteStream(part)
-    sink.on('error', reject)
-    sink.end(Buffer.from(text, 'utf8'), () => resolve())
-  })
+  await writeFile(part, bytes)
   await rename(part, target)
 }
 

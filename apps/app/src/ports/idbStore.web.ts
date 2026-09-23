@@ -35,12 +35,22 @@ function openDb(): Promise<IDBDatabase> {
   return dbPromise
 }
 
+/*
+ * Every transaction below settles on the same three events. `abort` is the
+ * one that is easy to leave out: a transaction the browser aborts (storage
+ * pressure, a tab closing the database) fires neither `complete` nor `error`
+ * on the request, and a promise waiting on those alone hangs forever — which
+ * had sign-out, waiting on a delete, never finish.
+ */
+
 export async function readStored(key: string): Promise<unknown> {
   const db = await openDb()
   return new Promise<unknown>((resolve, reject) => {
-    const request = db.transaction(STORE, 'readonly').objectStore(STORE).get(key)
-    request.onsuccess = () => resolve((request.result as unknown) ?? null)
-    request.onerror = () => reject(request.error ?? new Error('IndexedDB read failed'))
+    const tx = db.transaction(STORE, 'readonly')
+    const request = tx.objectStore(STORE).get(key)
+    tx.oncomplete = () => resolve((request.result as unknown) ?? null)
+    tx.onerror = () => reject(tx.error ?? new Error('IndexedDB read failed'))
+    tx.onabort = () => reject(tx.error ?? new Error('IndexedDB read aborted'))
   })
 }
 
@@ -88,6 +98,7 @@ export async function deleteStoredPrefix(prefix: string): Promise<void> {
     tx.objectStore(STORE).delete(IDBKeyRange.bound(prefix, `${prefix}￿`))
     tx.oncomplete = () => resolve()
     tx.onerror = () => reject(tx.error ?? new Error('IndexedDB delete failed'))
+    tx.onabort = () => reject(tx.error ?? new Error('IndexedDB delete aborted'))
   })
 }
 
@@ -98,5 +109,6 @@ export async function deleteStored(key: string): Promise<void> {
     tx.objectStore(STORE).delete(key)
     tx.oncomplete = () => resolve()
     tx.onerror = () => reject(tx.error ?? new Error('IndexedDB delete failed'))
+    tx.onabort = () => reject(tx.error ?? new Error('IndexedDB delete aborted'))
   })
 }

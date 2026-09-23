@@ -1,4 +1,4 @@
-import type { LyricsLanguage, ParsedLyrics } from '@selfmp3/shared'
+import { clamp, type LyricsLanguage, type ParsedLyrics } from '@selfmp3/shared'
 
 /**
  * Now Playing's rules, with nothing drawn: where things sit on a computer's
@@ -136,9 +136,6 @@ export function romanName(language: LyricsLanguage): 'Romaji' | 'Pinyin' {
   return language === 'ja' ? 'Romaji' : 'Pinyin'
 }
 
-const clamp = (min: number, value: number, max: number): number =>
-  Math.max(min, Math.min(max, value))
-
 export interface StageGeometry {
   /** Left of the cover, and the gap between it and the words. */
   readonly pad: number
@@ -167,15 +164,15 @@ export function stageGeometry(width: number, height: number, inset = 0): StageGe
   return {
     stacked,
     inset,
-    pad: clamp(28, width * 0.05, 72),
-    gutter: clamp(28, width * 0.05, 72),
-    right: clamp(20, width * 0.04, 56),
+    pad: clamp(width * 0.05, 28, 72),
+    gutter: clamp(width * 0.05, 28, 72),
+    right: clamp(width * 0.04, 20, 56),
     cover: stacked
-      ? clamp(200, width * 0.36, 320)
+      ? clamp(width * 0.36, 200, 320)
       : Math.max(180, Math.min(400, width * 0.34, height - 290)),
-    title: clamp(22, width * 0.022, 30),
-    lyric: clamp(22, width * 0.023, 32),
-    focusLyric: clamp(30, width * 0.039, 54),
+    title: clamp(width * 0.022, 22, 30),
+    lyric: clamp(width * 0.023, 22, 32),
+    focusLyric: clamp(width * 0.039, 30, 54),
   }
 }
 

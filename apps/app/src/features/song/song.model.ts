@@ -1,4 +1,4 @@
-import { formatDuration, type AudioFeatures, type Song } from '@selfmp3/shared'
+import { formatDuration, fromSqliteTime, type AudioFeatures, type Song } from '@selfmp3/shared'
 
 /**
  * The words and numbers on a song's own page (docs/ui-mock `P15`), worked out
@@ -19,13 +19,9 @@ export function songLink(id: number): string {
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-/**
- * A date from the server or the bucket. SQLite writes `2026-09-01 10:00:00`
- * in UTC with no zone, which `Date` would read as local time; the same fix
- * `formatRelative` makes.
- */
+/** A date from the server or the bucket, read as UTC (`fromSqliteTime`). */
 function parseWhen(value: string): Date {
-  return new Date(value.includes('T') ? value : `${value.replace(' ', 'T')}Z`)
+  return new Date(fromSqliteTime(value))
 }
 
 /** How long ago, in the words a person uses: "today", "3 weeks ago", "a year ago". */

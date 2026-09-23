@@ -13,9 +13,9 @@ import {
   ANALYSIS_SAMPLE_RATE,
   MOTION_SAMPLE_RATE,
   MotionBuilder,
-  analyzePcm,
   type MotionCurveData,
 } from './dsp.js'
+import { analyzePcmInWorker } from './analysisWorker.js'
 import type { MotionStore } from './motionStore.js'
 
 /**
@@ -43,6 +43,10 @@ const CLIP_OFFSET_SECONDS = 30
 const MIN_SECONDS_FOR_OFFSET = CLIP_OFFSET_SECONDS + 60
 
 const DECODE_TIMEOUT_MS = 60_000
+/** The DSP over a two-minute clip takes well under a second; a worker that hangs gets this. */
+const ANALYSE_TIMEOUT_MS = 30_000
+/** The folder a fetched song waits in while ffmpeg reads it: `incoming/analyse-XXXXXX/`. */
+const TEMP_PREFIX = 'analyse-'
 /** The motion curve covers this much of a song at most: a DJ set's first quarter hour. */
 const MOTION_MAX_SECONDS = 15 * 60
 /** Decoding a whole song takes longer than a clip; still bounded, for a file that hangs ffmpeg. */
@@ -158,6 +162,7 @@ export class AnalysisService {
     this.#running = true
 
     try {
+      await this.#sweepLeftovers()
       while (!this.#stopped) {
         if (this.#busy()) {
           // Come back once the important work is done. One timer, not one per
@@ -238,7 +243,9 @@ export class AnalysisService {
           return null
         }),
       ])
-      const features = analyzePcm(pcm, ANALYSIS_SAMPLE_RATE)
+      // Pure CPU for a few hundred milliseconds, off the thread that answers
+      // the phone: a seek that landed during it used to wait for it.
+      const features = await analyzePcmInWorker(pcm, ANALYSIS_SAMPLE_RATE, ANALYSE_TIMEOUT_MS)
 
       // The curve before the row: a row at this version is what says the song
       // is done, so a crash between the two re-analyses it rather than
@@ -292,9 +299,38 @@ export class AnalysisService {
 
     const staging = stagingDir(this.#config)
     await fsp.mkdir(staging, { recursive: true })
-    const file = path.join(staging, `analyse-${Date.now()}${path.extname(key)}`)
+    // A folder of its own, so what a kill leaves behind is one name to sweep.
+    const dir = await fsp.mkdtemp(path.join(staging, TEMP_PREFIX))
+    const file = path.join(dir, `audio${path.extname(key)}`)
     await fsp.writeFile(file, data)
-    return { file, cleanup: () => fsp.rm(file, { force: true }).catch(() => undefined) }
+    return {
+      file,
+      cleanup: () => fsp.rm(dir, { recursive: true, force: true }).catch(() => undefined),
+    }
+  }
+
+  /**
+   * Once per run, before the first song: whatever a previous run's kill left
+   * in the staging folder — a whole song per folder, which adds up.
+   */
+  #swept = false
+  async #sweepLeftovers(): Promise<void> {
+    if (this.#swept) return
+    this.#swept = true
+    const staging = stagingDir(this.#config)
+    let names: string[]
+    try {
+      names = await fsp.readdir(staging)
+    } catch {
+      return
+    }
+    await Promise.all(
+      names
+        .filter(name => name.startsWith(TEMP_PREFIX))
+        .map(name =>
+          fsp.rm(path.join(staging, name), { recursive: true, force: true }).catch(() => undefined),
+        ),
+    )
   }
 }
 

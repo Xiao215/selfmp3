@@ -25,7 +25,7 @@ const CHROMA_HOP = 2048
 const MIN_BPM = 60
 const MAX_BPM = 200
 
-interface PcmFeatures {
+export interface PcmFeatures {
   bpm: number | null
   /** 0–1, how strongly the beat lag stood out in the autocorrelation. */
   beatStrength: number

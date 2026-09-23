@@ -23,7 +23,6 @@ const IDLE: EngineState = {
   playing: false,
   currentTime: 0,
   duration: 0,
-  buffered: 0,
   volume: 1,
   muted: false,
   rate: 1,
@@ -40,10 +39,7 @@ const mockEngine = {
   capabilities: {
     crossfade: false,
     analyser: false,
-    pitchLock: false,
     loop: false,
-    lockScreen: false,
-    nativeQueue: false,
   },
   state: IDLE,
   currentSongId: null as number | null,
@@ -70,12 +66,6 @@ const mockEngine = {
     Object.assign(mockWiring, wiring)
     return () => undefined
   },
-  onTrackEnd: null,
-  nextTrackId: null,
-  streamUrl: null,
-  streamHeaders: null,
-  trackMetadata: null,
-  onProgress: null,
 } satisfies PlaybackEngine
 
 jest.mock('../ports/engine', () => ({ createEngine: () => mockEngine }))
@@ -103,7 +93,6 @@ jest.mock('../replica', () => ({
 }))
 jest.mock('../offline/covers', () => ({
   coverFor: () => undefined,
-  coversNow: () => new Map(),
   coversVersion: () => 0,
   subscribeCovers: () => () => undefined,
   KEPT_COVER_SIZE: 640,

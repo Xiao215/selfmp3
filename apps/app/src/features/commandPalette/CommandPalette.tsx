@@ -49,9 +49,17 @@ import {
   type RecentItem,
 } from './commandPalette.model'
 
-interface Entry {
+/** One selectable row: what it is drawn as, what it is read out as, and what Enter does. */
+interface Row {
   readonly key: string
+  readonly label: string
   readonly run: () => void
+  readonly node: ReactNode
+}
+
+interface RowGroup {
+  readonly title: string
+  readonly rows: readonly Row[]
 }
 
 /**
@@ -155,82 +163,6 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
       ? `recent-song-${recent.song.id}`
       : `recent-playlist-${recent.playlist.id}`
 
-  /** One flat list of everything selectable, so arrow keys work across groups. */
-  /**
-   * One flat list of everything selectable, so arrow keys work across groups,
-   * in the order the groups are drawn (`C05`): what was played lately, then
-   * artists and tags, songs, lines of lyrics, playlists, and the commands last.
-   */
-  const entriesFor = (found: PaletteResults): Entry[] => [
-    ...found.recent.map(recent => ({ key: recentKey(recent), run: () => runRecent(recent) })),
-    ...found.artists.map(artist => ({
-      key: `artist-${artist.key}`,
-      run: () => router.navigate(artistLink(artist.name)),
-    })),
-    ...found.tags.map(tag => ({
-      key: `tag-${tag.id}`,
-      // A tag is a place (docs/UI-MIGRATION.md, Phase 4): the hit opens its
-      // page, and counts as a use so the rail keeps it near the top.
-      run: () => {
-        noteTagUsed(tag.id)
-        router.navigate(tagLink(tag.name))
-      },
-    })),
-    ...found.songs.map(song => ({ key: `song-${song.id}`, run: () => playSong(song.id) })),
-    ...lyricHits.map(hit => ({ key: `lyric-${hit.songId}`, run: () => playSong(hit.songId) })),
-    ...found.playlists.map(playlist => ({
-      key: `playlist-${playlist.id}`,
-      run: () => openPlaylist(playlist.id),
-    })),
-    ...found.commands.map(command => ({ key: command.id, run: () => runCommand(command.id) })),
-  ]
-  const entries = entriesFor(results)
-  const active = Math.min(highlighted, Math.max(0, entries.length - 1))
-  // Keep the highlighted row in view as the arrow keys move through a long list.
-  const rows = useRef(new Map<number, unknown>())
-  useEffect(() => {
-    const row = rows.current.get(active) as
-      { scrollIntoView?: (options: { block: 'nearest' }) => void } | undefined
-    row?.scrollIntoView?.({ block: 'nearest' })
-  }, [active])
-
-  const activate = (index: number): void => {
-    entries[index]?.run()
-    onClose()
-  }
-
-  let cursor = 0
-  const item = (content: ReactNode, key: string, label: string): ReactNode => {
-    const index = cursor++
-    const on = index === active
-    return (
-      <Pressable
-        key={key}
-        ref={node => {
-          rows.current.set(index, node)
-        }}
-        role="option"
-        aria-selected={on}
-        accessibilityLabel={label}
-        onHoverIn={() => setHighlighted(index)}
-        onPress={() => activate(index)}
-        style={[styles.item, on && styles.itemOn]}
-      >
-        {content}
-      </Pressable>
-    )
-  }
-  const group = (title: string, count: number, children: ReactNode): ReactNode =>
-    count > 0 ? (
-      <View style={styles.group} key={title}>
-        <View style={styles.groupTitle}>
-          <Text style={styles.groupText}>{title.toUpperCase()}</Text>
-          <Text style={[styles.groupText, styles.groupCount]}>{count}</Text>
-        </View>
-        {children}
-      </View>
-    ) : null
-
   const icon = (Glyph: typeof Music): ReactNode => (
     <Glyph size={16} color={theme.colors.textSecondary} />
   )
@@ -244,6 +176,242 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     'shuffle-all': icon(Shuffle),
     'rescan-library': icon(Refresh),
   }
+
+  /**
+   * The rows in the order they are drawn (`C05`): what was played lately, then
+   * artists and tags, songs, lines of lyrics, playlists, and the commands last.
+   * One list carrying both what a row does and what it looks like, so the
+   * arrow keys, Enter, the count and the drawing all follow the same order
+   * rather than two kept in step by hand.
+   */
+  const groupsFor = (found: PaletteResults): RowGroup[] => [
+    {
+      title: 'Recent',
+      rows: found.recent.map(recent =>
+        recent.kind === 'song'
+          ? {
+              key: recentKey(recent),
+              label: `${recent.song.title}, ${recent.song.artist || 'Unknown artist'}`,
+              run: () => runRecent(recent),
+              node: (
+                <>
+                  <Cover
+                    uri={artFor(recent.song)}
+                    title={recent.song.album || recent.song.title}
+                    size={28}
+                  />
+                  <View style={styles.labelBox}>
+                    <Text style={styles.label} numberOfLines={1}>
+                      {recent.song.title}
+                    </Text>
+                    <Text style={styles.sub} numberOfLines={1}>
+                      {recent.song.artist || 'Unknown artist'}
+                    </Text>
+                  </View>
+                  <Text style={styles.hint}>
+                    {recent.song.id === currentSongId ? 'playing now' : 'song'}
+                  </Text>
+                </>
+              ),
+            }
+          : {
+              key: recentKey(recent),
+              label: recent.playlist.name,
+              run: () => runRecent(recent),
+              node: (
+                <>
+                  {icon(ListMusic)}
+                  <Text style={styles.label} numberOfLines={1}>
+                    {recent.playlist.name}
+                  </Text>
+                  <Text style={styles.hint}>playlist</Text>
+                </>
+              ),
+            },
+      ),
+    },
+    {
+      title: 'Artists and tags',
+      rows: [
+        ...found.artists.map(artist => ({
+          key: `artist-${artist.key}`,
+          label: `${artist.name}, artist`,
+          run: () => router.navigate(artistLink(artist.name)),
+          node: (
+            <>
+              <View style={styles.figure}>{icon(User)}</View>
+              <Text style={styles.label} numberOfLines={1}>
+                {artist.name}
+              </Text>
+              <Text style={styles.hint}>
+                {artist.songIds.length} {artist.songIds.length === 1 ? 'song' : 'songs'} · artist
+              </Text>
+            </>
+          ),
+        })),
+        ...found.tags.map(tag => ({
+          key: `tag-${tag.id}`,
+          label: `${tag.name}, tag`,
+          // A tag is a place (docs/UI-MIGRATION.md, Phase 4): the hit opens its
+          // page, and counts as a use so the rail keeps it near the top.
+          run: () => {
+            noteTagUsed(tag.id)
+            router.navigate(tagLink(tag.name))
+          },
+          node: (
+            <>
+              <View style={styles.figure}>
+                <View style={[styles.dot, { backgroundColor: tagColors(tag.hue).dot }]} />
+              </View>
+              <Text style={styles.label} numberOfLines={1}>
+                {tag.name}
+              </Text>
+              <Text style={styles.hint}>
+                {tag.songCount} {tag.songCount === 1 ? 'song' : 'songs'} · tag
+              </Text>
+            </>
+          ),
+        })),
+      ],
+    },
+    {
+      title: 'Songs',
+      rows: found.songs.map(song => ({
+        key: `song-${song.id}`,
+        label: `${song.title}, ${song.artist || 'Unknown artist'}`,
+        run: () => playSong(song.id),
+        node: (
+          <>
+            <Cover uri={artFor(song)} title={song.album || song.title} size={28} />
+            <View style={styles.labelBox}>
+              <Text style={styles.label} numberOfLines={1}>
+                {song.title}
+              </Text>
+              <Text style={styles.sub} numberOfLines={1}>
+                {song.artist || 'Unknown artist'}
+              </Text>
+            </View>
+            <Text style={styles.hint}>{formatDuration(song.duration)}</Text>
+          </>
+        ),
+      })),
+    },
+    {
+      title: 'Lyrics',
+      rows: lyricHits.map(hit => ({
+        key: `lyric-${hit.songId}`,
+        label: `${hit.title}: ${hit.before}${hit.match}${hit.after}`,
+        run: () => playSong(hit.songId),
+        node: (
+          <>
+            {icon(Mic)}
+            <View style={styles.labelBox}>
+              <Text style={styles.label} numberOfLines={1}>
+                {hit.before}
+                {hit.match ? (
+                  <Text style={[styles.mark, { color: accent.accent }]}>{hit.match}</Text>
+                ) : null}
+                {hit.after}
+              </Text>
+              <Text style={styles.sub} numberOfLines={1}>
+                {hit.title}
+                {hit.artist ? ` · ${hit.artist}` : ''}
+              </Text>
+            </View>
+          </>
+        ),
+      })),
+    },
+    {
+      title: 'Playlists',
+      rows: found.playlists.map(playlist => ({
+        key: `playlist-${playlist.id}`,
+        label: playlist.name,
+        run: () => openPlaylist(playlist.id),
+        node: (
+          <>
+            {icon(ListMusic)}
+            <Text style={styles.label} numberOfLines={1}>
+              {playlist.name}
+            </Text>
+            <Text style={styles.hint}>{playlist.songCount} songs</Text>
+          </>
+        ),
+      })),
+    },
+    {
+      title: 'Actions',
+      rows: found.commands.map(command => ({
+        key: command.id,
+        label: command.label,
+        run: () => runCommand(command.id),
+        node: (
+          <>
+            {commandIcon[command.id]}
+            <Text style={styles.label} numberOfLines={1}>
+              {command.label}
+            </Text>
+            {command.hint ? <Text style={styles.hint}>{command.hint}</Text> : null}
+          </>
+        ),
+      })),
+    },
+  ]
+  const groups = groupsFor(results)
+  const rows = groups.flatMap(group => group.rows)
+  const active = Math.min(highlighted, Math.max(0, rows.length - 1))
+  // Keep the highlighted row in view as the arrow keys move through a long list.
+  const rowNodes = useRef(new Map<number, unknown>())
+  useEffect(() => {
+    const row = rowNodes.current.get(active) as
+      { scrollIntoView?: (options: { block: 'nearest' }) => void } | undefined
+    row?.scrollIntoView?.({ block: 'nearest' })
+  }, [active])
+
+  const activate = (index: number): void => {
+    rows[index]?.run()
+    onClose()
+  }
+
+  const drawRow = (row: Row, index: number): ReactNode => {
+    const on = index === active
+    return (
+      <Pressable
+        key={row.key}
+        ref={node => {
+          rowNodes.current.set(index, node)
+        }}
+        role="option"
+        aria-selected={on}
+        accessibilityLabel={row.label}
+        onHoverIn={() => setHighlighted(index)}
+        onPress={() => activate(index)}
+        style={[styles.item, on && styles.itemOn]}
+      >
+        {row.node}
+      </Pressable>
+    )
+  }
+  // Each group's rows are numbered on from the last group's, so a row's index
+  // here is its index in `rows`.
+  const drawnGroups: ReactNode[] = []
+  let from = 0
+  for (const group of groups) {
+    if (group.rows.length > 0) {
+      const first = from
+      drawnGroups.push(
+        <View style={styles.group} key={group.title}>
+          <View style={styles.groupTitle}>
+            <Text style={styles.groupText}>{group.title.toUpperCase()}</Text>
+            <Text style={[styles.groupText, styles.groupCount]}>{group.rows.length}</Text>
+          </View>
+          {group.rows.map((row, offset) => drawRow(row, first + offset))}
+        </View>,
+      )
+    }
+    from += group.rows.length
+  }
+
   // What the results below were found for, so the count and "nothing matches"
   // never describe a query the list has not caught up with.
   const trimmed = shownQuery.trim()
@@ -280,7 +448,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
               const key = event.nativeEvent.key
               if (key !== 'ArrowDown' && key !== 'ArrowUp') return
               ;(event as unknown as { preventDefault: () => void }).preventDefault()
-              setHighlighted(stepIndex(active, key === 'ArrowDown' ? 1 : -1, entries.length))
+              setHighlighted(stepIndex(active, key === 'ArrowDown' ? 1 : -1, rows.length))
             }}
             onSubmitEditing={() => {
               // Enter straight after a letter can beat the deferred results to
@@ -288,7 +456,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
               // of that — the highlight is back at the top after any letter.
               if (shownQuery === query) activate(active)
               else {
-                entriesFor(resultsFor(query))[0]?.run()
+                groupsFor(resultsFor(query))
+                  .flatMap(group => group.rows)[0]
+                  ?.run()
                 onClose()
               }
             }}
@@ -304,7 +474,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           />
           {trimmed ? (
             <Text style={styles.count} accessibilityLiveRegion="polite">
-              {entries.length} {entries.length === 1 ? 'result' : 'results'}
+              {rows.length} {rows.length === 1 ? 'result' : 'results'}
             </Text>
           ) : null}
         </View>
@@ -316,168 +486,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           contentContainerStyle={styles.results}
           keyboardShouldPersistTaps="handled"
         >
-          {group(
-            'Recent',
-            results.recent.length,
-            results.recent.map(recent =>
-              recent.kind === 'song'
-                ? item(
-                    <>
-                      <Cover
-                        uri={artFor(recent.song)}
-                        title={recent.song.album || recent.song.title}
-                        size={28}
-                      />
-                      <View style={styles.labelBox}>
-                        <Text style={styles.label} numberOfLines={1}>
-                          {recent.song.title}
-                        </Text>
-                        <Text style={styles.sub} numberOfLines={1}>
-                          {recent.song.artist || 'Unknown artist'}
-                        </Text>
-                      </View>
-                      <Text style={styles.hint}>
-                        {recent.song.id === currentSongId ? 'playing now' : 'song'}
-                      </Text>
-                    </>,
-                    recentKey(recent),
-                    `${recent.song.title}, ${recent.song.artist || 'Unknown artist'}`,
-                  )
-                : item(
-                    <>
-                      {icon(ListMusic)}
-                      <Text style={styles.label} numberOfLines={1}>
-                        {recent.playlist.name}
-                      </Text>
-                      <Text style={styles.hint}>playlist</Text>
-                    </>,
-                    recentKey(recent),
-                    recent.playlist.name,
-                  ),
-            ),
-          )}
-          {group(
-            'Artists and tags',
-            results.artists.length + results.tags.length,
-            <>
-              {results.artists.map(artist =>
-                item(
-                  <>
-                    <View style={styles.figure}>{icon(User)}</View>
-                    <Text style={styles.label} numberOfLines={1}>
-                      {artist.name}
-                    </Text>
-                    <Text style={styles.hint}>
-                      {artist.songIds.length} {artist.songIds.length === 1 ? 'song' : 'songs'} ·
-                      artist
-                    </Text>
-                  </>,
-                  `artist-${artist.key}`,
-                  `${artist.name}, artist`,
-                ),
-              )}
-              {results.tags.map(tag =>
-                item(
-                  <>
-                    <View style={styles.figure}>
-                      <View style={[styles.dot, { backgroundColor: tagColors(tag.hue).dot }]} />
-                    </View>
-                    <Text style={styles.label} numberOfLines={1}>
-                      {tag.name}
-                    </Text>
-                    <Text style={styles.hint}>
-                      {tag.songCount} {tag.songCount === 1 ? 'song' : 'songs'} · tag
-                    </Text>
-                  </>,
-                  `tag-${tag.id}`,
-                  `${tag.name}, tag`,
-                ),
-              )}
-            </>,
-          )}
-          {group(
-            'Songs',
-            results.songs.length,
-            results.songs.map(song =>
-              item(
-                <>
-                  <Cover uri={artFor(song)} title={song.album || song.title} size={28} />
-                  <View style={styles.labelBox}>
-                    <Text style={styles.label} numberOfLines={1}>
-                      {song.title}
-                    </Text>
-                    <Text style={styles.sub} numberOfLines={1}>
-                      {song.artist || 'Unknown artist'}
-                    </Text>
-                  </View>
-                  <Text style={styles.hint}>{formatDuration(song.duration)}</Text>
-                </>,
-                `song-${song.id}`,
-                `${song.title}, ${song.artist || 'Unknown artist'}`,
-              ),
-            ),
-          )}
-          {group(
-            'Lyrics',
-            lyricHits.length,
-            lyricHits.map(hit =>
-              item(
-                <>
-                  {icon(Mic)}
-                  <View style={styles.labelBox}>
-                    <Text style={styles.label} numberOfLines={1}>
-                      {hit.before}
-                      {hit.match ? (
-                        <Text style={[styles.mark, { color: accent.accent }]}>{hit.match}</Text>
-                      ) : null}
-                      {hit.after}
-                    </Text>
-                    <Text style={styles.sub} numberOfLines={1}>
-                      {hit.title}
-                      {hit.artist ? ` · ${hit.artist}` : ''}
-                    </Text>
-                  </View>
-                </>,
-                `lyric-${hit.songId}`,
-                `${hit.title}: ${hit.before}${hit.match}${hit.after}`,
-              ),
-            ),
-          )}
-          {group(
-            'Playlists',
-            results.playlists.length,
-            results.playlists.map(playlist =>
-              item(
-                <>
-                  {icon(ListMusic)}
-                  <Text style={styles.label} numberOfLines={1}>
-                    {playlist.name}
-                  </Text>
-                  <Text style={styles.hint}>{playlist.songCount} songs</Text>
-                </>,
-                `playlist-${playlist.id}`,
-                playlist.name,
-              ),
-            ),
-          )}
-          {group(
-            'Actions',
-            results.commands.length,
-            results.commands.map(command =>
-              item(
-                <>
-                  {commandIcon[command.id]}
-                  <Text style={styles.label} numberOfLines={1}>
-                    {command.label}
-                  </Text>
-                  {command.hint ? <Text style={styles.hint}>{command.hint}</Text> : null}
-                </>,
-                command.id,
-                command.label,
-              ),
-            ),
-          )}
-          {trimmed && entries.length === 0 ? (
+          {drawnGroups}
+          {trimmed && rows.length === 0 ? (
             <Text style={styles.empty}>
               Nothing matches “{trimmed}”.{'\n'}
               {/* A cloud library has no lyric index to search. */}

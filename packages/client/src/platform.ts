@@ -30,18 +30,12 @@ export interface ClientResponse {
   readonly ok: boolean
   readonly status: number
   json(): Promise<unknown>
-  text(): Promise<string>
 }
 
 export interface ClientRequestInit {
   method?: string
   headers?: Record<string, string>
   body?: string
-  /**
-   * Structural, rather than the DOM's `AbortSignal`, which this package cannot
-   * name. Both platforms' real signals satisfy it.
-   */
-  signal?: unknown
 }
 
 export type ClientFetch = (url: string, init?: ClientRequestInit) => Promise<ClientResponse>

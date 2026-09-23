@@ -53,7 +53,7 @@ describe('ServerAway', () => {
     )
     expect(screen.getByText(/Looking a song up goes through your server/)).toBeTruthy()
 
-    fireEvent.press(screen.getByTestId('metadata-server-look-again'))
+    await fireEvent.press(screen.getByTestId('metadata-server-look-again'))
     expect(lookAgain).toHaveBeenCalledTimes(1)
   })
 })

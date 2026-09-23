@@ -50,21 +50,15 @@ const capabilities: EngineCapabilities = {
   crossfade: false,
   // No Web Audio graph to tap; the visualiser stays a browser thing.
   analyser: false,
-  // iOS preserves pitch when the rate changes; Android's player does not.
-  // Declared from the platform the port is compiled for, not asked at runtime.
-  pitchLock: true,
   // Progress arrives once a second from track-player, so a loop would land up to
   // a second past B. Not offered rather than offered badly.
   loop: false,
-  lockScreen: true,
-  nativeQueue: true,
 }
 
 const IDLE: EngineState = {
   playing: false,
   currentTime: 0,
   duration: 0,
-  buffered: 0,
   volume: 1,
   muted: false,
   rate: 1,
@@ -74,6 +68,16 @@ const IDLE: EngineState = {
   loopA: null,
   loopB: null,
   countingIn: false,
+}
+
+/** No queue owner yet: every question the engine asks goes unanswered. */
+const UNWIRED: EngineWiring = {
+  onTrackEnd: null,
+  nextTrackId: null,
+  streamUrl: null,
+  streamHeaders: null,
+  trackMetadata: null,
+  onProgress: null,
 }
 
 /** A Track that remembers which song it came from. */
@@ -116,13 +120,8 @@ class NativeEngine implements PlaybackEngine {
   #cardShown = new Map<number, string>()
   #volume = 1
   #muted = false
-
-  onTrackEnd: (() => void) | null = null
-  nextTrackId: (() => number | null) | null = null
-  streamUrl: ((songId: number) => string) | null = null
-  streamHeaders: ((songId: number) => Readonly<Record<string, string>> | null) | null = null
-  trackMetadata: ((songId: number) => TrackMetadata | null) | null = null
-  onProgress: ((currentTime: number, duration: number) => void) | null = null
+  /** Whoever owns the queue, as handed over through `connect`. */
+  #wiring: EngineWiring = UNWIRED
 
   constructor() {
     void this.#wire()
@@ -240,7 +239,7 @@ class NativeEngine implements PlaybackEngine {
 
   async #refreshNowPlaying(songId: number): Promise<void> {
     if (this.#destroyed || this.#loading || this.#currentSongId !== songId) return
-    const meta = this.trackMetadata?.(songId)
+    const meta = this.#wiring.trackMetadata?.(songId)
     if (!meta) return
     const key = cardKey(meta)
     if (this.#cardShown.get(songId) === key) return
@@ -298,7 +297,7 @@ class NativeEngine implements PlaybackEngine {
 
   setPreservesPitch(): void {
     // iOS decides this per track through `pitchAlgorithm`, and Android cannot
-    // do it at all. Declared in `capabilities.pitchLock` rather than toggled.
+    // do it at all. Nothing to toggle.
   }
 
   setLoop(): void {
@@ -325,17 +324,10 @@ class NativeEngine implements PlaybackEngine {
 
   /** See `PlaybackEngine.connect`. */
   connect(wiring: Partial<EngineWiring>): () => void {
-    const previous: Partial<EngineWiring> = {
-      onTrackEnd: this.onTrackEnd,
-      nextTrackId: this.nextTrackId,
-      streamUrl: this.streamUrl,
-      streamHeaders: this.streamHeaders,
-      trackMetadata: this.trackMetadata,
-      onProgress: this.onProgress,
-    }
-    Object.assign(this, wiring)
+    const previous = this.#wiring
+    this.#wiring = { ...previous, ...wiring }
     return () => {
-      Object.assign(this, previous)
+      this.#wiring = previous
     }
   }
 
@@ -357,7 +349,7 @@ class NativeEngine implements PlaybackEngine {
     this.#subscriptions.push(
       TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, ({ position, duration }) => {
         this.#patch({ currentTime: position, duration })
-        this.onProgress?.(position, duration)
+        this.#wiring.onProgress?.(position, duration)
       }),
     )
 
@@ -382,7 +374,7 @@ class NativeEngine implements PlaybackEngine {
         // usually agrees, and `load` then recognises this song and leaves it be.
         this.#currentSongId = songId
         this.#queuedNextId = null
-        this.onTrackEnd?.()
+        this.#wiring.onTrackEnd?.()
       }),
     )
 
@@ -390,7 +382,7 @@ class NativeEngine implements PlaybackEngine {
       TrackPlayer.addEventListener(Event.PlaybackQueueEnded, () => {
         if (this.#loading) return
         // Nothing was lent, so the song simply ran out.
-        this.onTrackEnd?.()
+        this.#wiring.onTrackEnd?.()
       }),
     )
   }
@@ -404,7 +396,7 @@ class NativeEngine implements PlaybackEngine {
    */
   async #topUpLookahead(): Promise<void> {
     if (this.#destroyed) return
-    const nextId = this.nextTrackId?.() ?? null
+    const nextId = this.#wiring.nextTrackId?.() ?? null
     if (nextId === this.#queuedNextId) return
 
     try {
@@ -428,14 +420,14 @@ class NativeEngine implements PlaybackEngine {
   }
 
   #trackFor(songId: number): SongTrack | null {
-    const url = this.streamUrl?.(songId)
+    const url = this.#wiring.streamUrl?.(songId)
     if (!url) return null
-    const meta = this.trackMetadata?.(songId) ?? null
+    const meta = this.#wiring.trackMetadata?.(songId) ?? null
     if (meta) this.#cardShown.set(songId, cardKey(meta))
     // The player sends these with every request it makes for the track, ranges
     // included — which is what lets a bucket song stream from behind the
     // doorman instead of having to be on the disk first.
-    const headers = this.streamHeaders?.(songId) ?? null
+    const headers = this.#wiring.streamHeaders?.(songId) ?? null
     return {
       songId,
       id: String(songId),

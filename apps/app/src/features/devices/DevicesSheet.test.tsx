@@ -137,7 +137,7 @@ describe('DevicesSheet from a cloud library', () => {
     expect(screen.getByText('Playing something not in your bucket')).toBeTruthy()
     const row = screen.getByRole('menuitem', { name: /iPhone/ })
     expect(row).toBeDisabled()
-    fireEvent.press(row)
+    await fireEvent.press(row)
     expect(mockPlayHere).not.toHaveBeenCalled()
   })
 
@@ -150,7 +150,7 @@ describe('DevicesSheet from a cloud library', () => {
     ).toBeTruthy()
     const push = screen.getByRole('menuitem', { name: 'Play there instead' })
     expect(push).toBeDisabled()
-    fireEvent.press(push)
+    await fireEvent.press(push)
     expect(mockPlayOn).not.toHaveBeenCalled()
   })
 })

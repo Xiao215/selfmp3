@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
@@ -99,6 +99,16 @@ function SheetPanel({
   const { player, rows, remove, tagsOf, openTag } = edits
   const [progress] = useState(() => new Animated.Value(0))
   const [pull] = useState(() => new Animated.Value(0))
+  // The dim's opacity, a native node built once: the curve runs past 1 on the
+  // way up; the dim does not.
+  const [dim] = useState(() =>
+    progress.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
+  )
+  // The sheet's rise, rebuilt only when the window's height changes the distance.
+  const rise = useMemo(
+    () => Animated.add(progress.interpolate(overshootRange(height, 4)), pull),
+    [progress, pull, height],
+  )
   useEscape(shown, closeQueueSheet, { layer: true })
 
   useEffect(() => {
@@ -217,19 +227,7 @@ function SheetPanel({
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <Animated.View
-        style={[
-          styles.backdrop,
-          {
-            // The curve runs past 1 on the way up; the dim does not.
-            opacity: progress.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, 1],
-              extrapolate: 'clamp',
-            }),
-          },
-        ]}
-      >
+      <Animated.View style={[styles.backdrop, { opacity: dim }]}>
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={closeQueueSheet}
@@ -245,11 +243,7 @@ function SheetPanel({
           {
             top: insets.top + SHEET_TOP,
             paddingBottom: insets.bottom + space.md,
-            transform: [
-              {
-                translateY: Animated.add(progress.interpolate(overshootRange(height, 4)), pull),
-              },
-            ],
+            transform: [{ translateY: rise }],
           },
         ]}
       >

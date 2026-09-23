@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { IdSchema } from './common.js'
+import { HueSchema, IdSchema } from './common.js'
 
 /**
  * Tags are the primary way the library is organised — they replace folders,
@@ -8,8 +8,7 @@ import { IdSchema } from './common.js'
 export const TagSchema = z.object({
   id: IdSchema,
   name: z.string(),
-  /** Hue 0-359, derived once at creation so a tag's colour never shifts. */
-  hue: z.number().int().min(0).max(359),
+  hue: HueSchema,
   songCount: z.number().int().nonnegative(),
 })
 export type Tag = z.infer<typeof TagSchema>
@@ -32,13 +31,13 @@ export const TagNameSchema = z
 
 export const CreateTagSchema = z.object({
   name: TagNameSchema,
-  hue: z.number().int().min(0).max(359).optional(),
+  hue: HueSchema.optional(),
 })
 export type CreateTag = z.infer<typeof CreateTagSchema>
 
 export const RenameTagSchema = z.object({
   name: TagNameSchema.optional(),
-  hue: z.number().int().min(0).max(359).optional(),
+  hue: HueSchema.optional(),
 })
 export type RenameTag = z.infer<typeof RenameTagSchema>
 

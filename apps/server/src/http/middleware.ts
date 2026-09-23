@@ -10,7 +10,14 @@ import { isLocalRequest } from './local.js'
  * Cross-cutting middleware: request logging, auth, CORS and security headers.
  */
 
-/** Log every request once it completes, with its status and duration. */
+/**
+ * Log every request once it completes, with its status and duration.
+ *
+ * The token travels as `?token=` on media URLs (`bearerAuth` below), so the
+ * query is logged with that value blanked rather than as it came: a log is
+ * read, pasted and kept, and the secret that guards the library has no place
+ * in it.
+ */
 export function requestLogger(logger: Logger): RequestHandler {
   return (req: Request, res: Response, next: NextFunction): void => {
     const startedAt = process.hrtime.bigint()
@@ -18,7 +25,7 @@ export function requestLogger(logger: Logger): RequestHandler {
       const ms = Number(process.hrtime.bigint() - startedAt) / 1e6
       // Range requests on a single track are noisy and uninteresting.
       const noisy = req.path.startsWith('/api/stream/') || req.path.startsWith('/api/art/')
-      const line = `${req.method} ${req.originalUrl} ${res.statusCode}`
+      const line = `${req.method} ${loggedUrl(req.originalUrl)} ${res.statusCode}`
       const fields = { ms: ms.toFixed(1) }
       if (noisy) logger.debug(line, fields)
       else if (res.statusCode >= 500) logger.error(line, fields)
@@ -26,6 +33,16 @@ export function requestLogger(logger: Logger): RequestHandler {
     })
     next()
   }
+}
+
+/** The request's URL with the token, if it carried one, blanked. */
+export function loggedUrl(originalUrl: string): string {
+  const at = originalUrl.indexOf('?')
+  if (at === -1) return originalUrl
+  const query = new URLSearchParams(originalUrl.slice(at + 1))
+  if (!query.has('token')) return originalUrl
+  query.set('token', '…')
+  return `${originalUrl.slice(0, at)}?${query.toString()}`
 }
 
 /**

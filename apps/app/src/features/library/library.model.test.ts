@@ -32,14 +32,10 @@ describe('saying the library cannot be reached', () => {
   })
 })
 
-describe('a search that matched nothing', () => {
-  it('quotes the query', () => {
-    expect(noMatchesTitle('  yorushika ', true)).toBe('Nothing matches “yorushika”')
-  })
-
-  it('blames the tags when nothing was typed', () => {
-    expect(noMatchesTitle('', true)).toBe('Nothing matches these tags')
-    expect(noMatchesTitle(' ', false)).toBe('Nothing matches')
+describe('a filter that matched nothing', () => {
+  it('blames the tags when some are chosen', () => {
+    expect(noMatchesTitle(true)).toBe('Nothing matches these tags')
+    expect(noMatchesTitle(false)).toBe('Nothing matches')
   })
 })
 

@@ -7,7 +7,6 @@ import {
   formatBytes,
   formatRelative,
   newUid,
-  parseEndpoint,
   type CloudConnect,
   type CloudStatus,
 } from '@selfmp3/shared'
@@ -20,6 +19,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { CloudUpload, More, Refresh, Trash, X } from '../../ui/components/Icons'
 import { Popover } from '../../ui/components/Popover'
 import { SheetItem } from '../../ui/components/Sheet'
+import { addressReady, needsRegion, type AddressFields } from '../welcome/storage.model'
 import { Lead, Meter, Notice, Panel, partStyles, Row } from './SettingsParts'
 
 /**
@@ -390,31 +390,26 @@ function BucketForm({
   const action = account ? connectStorage : connect
   const initial = status.target
 
-  const [endpoint, setEndpoint] = useState(initial?.endpoint.replace(/^https:\/\//, '') ?? '')
-  const [region, setRegion] = useState(initial?.region ?? '')
-  const [bucket, setBucket] = useState(initial?.bucket ?? '')
-  const [prefix, setPrefix] = useState(initial?.prefix ?? 'selfmp3')
-  const [keyId, setKeyId] = useState('')
-  const [applicationKey, setApplicationKey] = useState('')
-
-  const parsed = endpoint.trim() ? parseEndpoint(endpoint) : null
-  const needsRegion = parsed !== null && parsed.region === null
-  const complete =
-    parsed !== null &&
-    bucket.trim() !== '' &&
-    keyId.trim() !== '' &&
-    applicationKey.trim() !== '' &&
-    (!needsRegion || region.trim() !== '')
+  // The same form as Where it lives, judged by the same rules (storage.model).
+  const [address, setAddress] = useState<AddressFields>({
+    endpoint: initial?.endpoint.replace(/^https:\/\//, '') ?? '',
+    region: initial?.region ?? '',
+    bucket: initial?.bucket ?? '',
+    prefix: initial?.prefix ?? 'selfmp3',
+    keyId: '',
+    applicationKey: '',
+  })
+  const complete = addressReady(address)
 
   const submit = (): void => {
     if (!complete || action.isPending) return
     const input: CloudConnect = {
-      endpoint,
-      bucket,
-      prefix,
-      keyId,
-      applicationKey,
-      ...(needsRegion ? { region } : {}),
+      endpoint: address.endpoint,
+      bucket: address.bucket,
+      prefix: address.prefix,
+      keyId: address.keyId,
+      applicationKey: address.applicationKey,
+      ...(needsRegion(address.endpoint) ? { region: address.region } : {}),
     }
     action.mutate(input, { onSuccess: onDone })
   }
@@ -456,36 +451,46 @@ function BucketForm({
         key once, as you make it.
       </Text>
 
-      {field('Endpoint', 'On the bucket’s page in B2.', endpoint, setEndpoint, {
-        placeholder: 's3.us-west-004.backblazeb2.com',
-      })}
-      {needsRegion
+      {field(
+        'Endpoint',
+        'On the bucket’s page in B2.',
+        address.endpoint,
+        endpoint => setAddress({ ...address, endpoint }),
+        { placeholder: 's3.us-west-004.backblazeb2.com' },
+      )}
+      {needsRegion(address.endpoint)
         ? field(
             'Region',
             'As your provider names it. For Cloudflare R2 it is auto.',
-            region,
-            setRegion,
+            address.region,
+            region => setAddress({ ...address, region }),
           )
         : null}
-      {field('Bucket', 'Its name, not its ID.', bucket, setBucket, {
-        placeholder: 'selfmp3-yourname',
-      })}
-      {field('Folder', 'Everything goes under this folder in the bucket.', prefix, setPrefix)}
+      {field(
+        'Bucket',
+        'Its name, not its ID.',
+        address.bucket,
+        bucket => setAddress({ ...address, bucket }),
+        { placeholder: 'selfmp3-yourname' },
+      )}
+      {field('Folder', 'Everything goes under this folder in the bucket.', address.prefix, prefix =>
+        setAddress({ ...address, prefix }),
+      )}
       {field(
         'Key ID',
         initial
           ? `Currently ${initial.keyIdHint} — enter it again, or a new one.`
           : 'B2 calls it keyID, and shows it beside the key.',
-        keyId,
-        setKeyId,
+        address.keyId,
+        keyId => setAddress({ ...address, keyId }),
       )}
       {field(
         'Application key',
         account
           ? 'B2 shows it once, when the key is made. It goes to the doorman, sealed.'
           : 'B2 shows it once, when the key is made. It stays on this server.',
-        applicationKey,
-        setApplicationKey,
+        address.applicationKey,
+        applicationKey => setAddress({ ...address, applicationKey }),
         { secret: true },
       )}
 

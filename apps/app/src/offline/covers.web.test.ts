@@ -81,22 +81,22 @@ describe('covers on the web platforms', () => {
   it("reads a server's kept covers once, and announces them", async () => {
     kept.add('12-r1.jpg')
     kept.add('not-a-cover.txt')
-    const { coversNow, coverFor, subscribeCovers } = await covers()
+    const { coverFor, subscribeCovers } = await covers()
     const heard: number[] = []
     subscribeCovers(changed => heard.push(...changed))
-    expect(coversNow().size).toBe(0)
+    expect(coverFor(12)).toBeUndefined()
     await vi.waitFor(() => expect(coverFor(12)).toBe('app://selfmp3/_media/covers/12-r1.jpg'))
     await vi.waitFor(() => expect(heard).toEqual([12]))
-    coversNow()
+    coverFor(12)
     expect(port.list).toHaveBeenCalledTimes(1)
   })
 
   it('forgets everything at sign-out, and stays forgotten while the folder is still being cleared', async () => {
     kept.add('12-r1.jpg')
-    const { coversNow, coverFor, ensureCover, forgetCovers } = await covers()
+    const { coverFor, ensureCover, forgetCovers } = await covers()
     await ensureCover(7)
     await vi.waitFor(() => expect(coverFor(12)).toBeDefined())
-    expect(coversNow().size).toBe(2)
+    expect(coverFor(7)).toBeDefined()
 
     let finishClearing = () => undefined as void
     clearing = new Promise<void>(resolve => {
@@ -104,14 +104,14 @@ describe('covers on the web platforms', () => {
     })
     const forgetting = forgetCovers()
     // The clear has not landed; a render asks in the meantime.
-    expect(coversNow().size).toBe(0)
+    expect(coverFor(7)).toBeUndefined()
+    expect(coverFor(12)).toBeUndefined()
     await Promise.resolve()
-    expect(coversNow().size).toBe(0)
+    expect(coverFor(7)).toBeUndefined()
     finishClearing()
     await forgetting
 
     expect(port.forget).toHaveBeenCalledTimes(1)
-    expect(coversNow().size).toBe(0)
     expect(coverFor(7)).toBeUndefined()
     expect(coverFor(12)).toBeUndefined()
     // Another account's song 7 is fetched afresh, not answered from memory.

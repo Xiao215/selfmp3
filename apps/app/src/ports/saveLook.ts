@@ -23,7 +23,7 @@ export async function saveLook(
   // Named after the period, as the web's download is: the capture's own name is an id.
   const named = new File(Paths.cache, fileName)
   if (named.exists) named.delete()
-  shot.move(named)
+  await shot.move(named)
   if (!(await Sharing.isAvailableAsync())) throw new Error('This device cannot share an image.')
   await Sharing.shareAsync(named.uri, { mimeType: 'image/png', UTI: 'public.png' })
 }

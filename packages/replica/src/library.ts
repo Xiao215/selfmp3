@@ -14,7 +14,6 @@ import {
   unfoldedLogKeys,
   type Change,
   type CloudSnapshot,
-  type CloudSong,
   type LogFile,
   type SyncLibrary,
   type SyncManifest,
@@ -152,7 +151,6 @@ export interface CloudLibraryApi {
     build: (ctx: EditContext) => { changes: readonly Change[]; answer: (view: CloudLibrary) => T },
     options?: RecordOptions,
   ) => Promise<T>
-  currentSongs: () => CloudSong[]
   pendingCloudChanges: () => number
   flushCloudChanges: () => Promise<void>
   cloudPlaylistSongs: (playlistId: number) => Promise<readonly number[]>
@@ -630,11 +628,6 @@ export function createCloudLibrary(
     })
   }
 
-  /** The library's songs as smart rules read them, newest first — the order a snapshot has. */
-  function currentSongs(): CloudSong[] {
-    return replica ? [...replica.library.songs.values()] : []
-  }
-
   /** How many changes made here have not reached the bucket yet. */
   function pendingCloudChanges(): number {
     return replica ? localChanges(replica.outbox).length : 0
@@ -857,17 +850,11 @@ export function createCloudLibrary(
     written = null
     if (flushTimer) clearTimeout(flushTimer)
     flushTimer = null
-    for (const key of [
-      IDS_KEY,
-      FILES_KEY,
-      PLAYLISTS_KEY,
-      STATE_KEY,
-      BASE_KEY,
-      LOGS_KEY,
-      OUTBOX_KEY,
-    ]) {
-      await store.write(key, null).catch(() => undefined)
-    }
+    await Promise.all(
+      [IDS_KEY, FILES_KEY, PLAYLISTS_KEY, STATE_KEY, BASE_KEY, LOGS_KEY, OUTBOX_KEY].map(key =>
+        store.remove(key).catch(() => undefined),
+      ),
+    )
     await platform.textCache?.clear().catch(() => undefined)
   }
 
@@ -900,7 +887,6 @@ export function createCloudLibrary(
     onCloudLibraryChanged,
     cloudLibraryVersion,
     recordChanges,
-    currentSongs,
     pendingCloudChanges,
     flushCloudChanges,
     cloudPlaylistSongs,

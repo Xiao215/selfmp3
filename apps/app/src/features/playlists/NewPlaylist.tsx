@@ -5,7 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { plural, formatLongDuration, type Tag } from '@selfmp3/shared'
-import { clientApi, queryKeys, radius, space, useLibrary } from '@selfmp3/client'
+import { clientApi, failureText, queryKeys, radius, space, useLibrary } from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
@@ -111,7 +111,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
       finish(created.id)
     } catch (caught) {
       // The name stays in the box, so trying again is one tap.
-      setError(`Couldn’t make “${trimmed}”: ${(caught as Error).message}`)
+      setError(failureText(`Couldn’t make “${trimmed}”`, caught))
     } finally {
       setBusy(false)
     }

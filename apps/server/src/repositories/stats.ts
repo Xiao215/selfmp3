@@ -62,15 +62,19 @@ export class StatsRepository {
     return result.changes > 0
   }
 
-  /** SQL fragment plus params limiting events to the requested window. */
-  #window(range: StatsRange): { clause: string; params: unknown[] } {
+  /**
+   * SQL fragment plus params limiting events to the requested window. `alias`
+   * is the events table's, `e.`, where the query joins songs to it.
+   */
+  #window(range: StatsRange, alias = ''): { clause: string; params: unknown[] } {
     const days = RANGE_DAYS[range]
     if (days === null) return { clause: '1 = 1', params: [] }
-    return { clause: "played_at >= datetime('now', ?)", params: [`-${days} days`] }
+    return { clause: `${alias}played_at >= datetime('now', ?)`, params: [`-${days} days`] }
   }
 
   build(range: StatsRange): Stats {
     const { clause, params } = this.#window(range)
+    const joined = this.#window(range, 'e.')
 
     const totals = this.#db
       .prepare<unknown[], { plays: number; ms: number | null; songs: number }>(
@@ -134,7 +138,7 @@ export class StatsRepository {
         `SELECT COALESCE(NULLIF(s.artist, ''), 'Unknown artist') AS key,
                 COUNT(*) AS plays, COALESCE(SUM(e.ms_played), 0) AS ms
            FROM play_events e JOIN songs s ON s.id = e.song_id
-          WHERE ${clause.replace(/played_at/g, 'e.played_at')}
+          WHERE ${joined.clause}
           GROUP BY key ORDER BY plays DESC, key LIMIT 10`,
       )
       .all(...params)
@@ -146,7 +150,7 @@ export class StatsRepository {
            FROM play_events e
            JOIN song_tags st ON st.song_id = e.song_id
            JOIN tags t ON t.id = st.tag_id
-          WHERE ${clause.replace(/played_at/g, 'e.played_at')}
+          WHERE ${joined.clause}
           GROUP BY t.id ORDER BY plays DESC, key LIMIT 10`,
       )
       .all(...params)
@@ -167,7 +171,7 @@ export class StatsRepository {
         `SELECT s.id AS song_id, s.title, s.artist, s.has_art,
                 COUNT(*) AS plays, COALESCE(SUM(e.ms_played), 0) AS ms
            FROM play_events e JOIN songs s ON s.id = e.song_id
-          WHERE ${clause.replace(/played_at/g, 'e.played_at')}
+          WHERE ${joined.clause}
           GROUP BY s.id ORDER BY plays DESC, s.title LIMIT 20`,
       )
       .all(...params)

@@ -26,6 +26,8 @@ export function useNowPlaying(
   player: PlayerApi,
   progress: ProgressStore,
   artwork: string | null,
+  /** Playback speed, which the card's own clock runs at. */
+  rate: number,
 ): void {
   const latest = useRef(player)
   useEffect(() => {
@@ -49,7 +51,7 @@ export function useNowPlaying(
     return () => mediaSession.setActions(null)
   }, [])
 
-  const { current, isPlaying, rate } = player
+  const { current, isPlaying } = player
 
   useEffect(() => {
     mediaSession.setNowPlaying(

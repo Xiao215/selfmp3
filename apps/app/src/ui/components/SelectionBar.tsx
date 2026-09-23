@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   clientApi,
+  failureText,
   isDownloaded,
   queryKeys,
   radius,
@@ -187,7 +188,7 @@ export function SelectionBar({
       onDone()
       router.push({ pathname: '/playlists/[id]', params: { id: String(created.id), rename: '1' } })
     } catch (caught) {
-      showToast(`Couldn’t make the playlist: ${(caught as Error).message}`, 'error')
+      showToast(failureText('Couldn’t make the playlist', caught), 'error')
     }
   }
 

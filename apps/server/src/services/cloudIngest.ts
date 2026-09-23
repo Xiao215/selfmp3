@@ -2,6 +2,7 @@ import {
   SONG_FIELDS,
   compareChanges,
   fromCloudRules,
+  playlistRules,
   hlcTime,
   hlcWins,
   parseHlc,
@@ -232,8 +233,7 @@ export class CloudIngest {
           uid: change.uid,
           name: change.name,
           description: change.description,
-          kind: change.kind,
-          rules: change.kind === 'live' && change.rules ? this.#localRules(change.rules) : null,
+          ...playlistRules(change.kind, change.rules && this.#localRules(change.rules)),
           pinned: change.pinned,
           createdAt: toSqliteTime(hlcTime(change.hlc)),
         })

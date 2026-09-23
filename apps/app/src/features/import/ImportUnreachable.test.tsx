@@ -50,7 +50,7 @@ const METRICS = {
 
 describe('Import, when the server it found stops answering', () => {
   const via = { baseUrl: 'https://music.example.com', token: 't' }
-  const draw = (onUnreachable: () => void): void => {
+  const draw = async (onUnreachable: () => void): Promise<void> => {
     // Nothing is collected on a timer: a pending one keeps jest from exiting.
     const client = new QueryClient({
       defaultOptions: {
@@ -59,7 +59,7 @@ describe('Import, when the server it found stops answering', () => {
       },
     })
     // "Tag it" holds a sheet, which reads the insets a device would give it.
-    render(
+    await render(
       <SafeAreaProvider initialMetrics={METRICS}>
         <QueryClientProvider client={client}>
           <ImportScreen via={via} onUnreachable={onUnreachable} />
@@ -69,10 +69,10 @@ describe('Import, when the server it found stops answering', () => {
   }
   const lookUp = async (): Promise<void> => {
     await act(async () => {
-      fireEvent.changeText(screen.getByLabelText('Links to import'), 'https://youtu.be/abc')
+      await fireEvent.changeText(screen.getByLabelText('Links to import'), 'https://youtu.be/abc')
     })
     await act(async () => {
-      fireEvent.press(screen.getByText('Look it up'))
+      await fireEvent.press(screen.getByText('Look it up'))
     })
   }
 

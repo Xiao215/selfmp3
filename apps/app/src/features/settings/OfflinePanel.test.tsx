@@ -183,7 +183,7 @@ describe('the buttons that delete things', () => {
 
     const button = screen.getByRole('button', { name: 'Removing…' })
     expect(button).toBeDisabled()
-    fireEvent.press(button)
+    await fireEvent.press(button)
     expect(onConfirm).not.toHaveBeenCalled()
   })
 
@@ -195,7 +195,7 @@ describe('the buttons that delete things', () => {
     // Both buttons are the same "Removing…" now; neither may fire.
     for (const button of screen.getAllByRole('button', { name: 'Removing…' })) {
       expect(button).toBeDisabled()
-      fireEvent.press(button)
+      await fireEvent.press(button)
     }
     expect(removeFiles).not.toHaveBeenCalled()
   })
@@ -205,7 +205,7 @@ describe('the buttons that delete things', () => {
     mockDownloads = downloads([1, 2, 90], { removeFiles })
     await draw()
 
-    fireEvent.press(screen.getByRole('button', { name: 'Remove leftover files' }))
+    await fireEvent.press(screen.getByRole('button', { name: 'Remove leftover files' }))
     expect(removeFiles).toHaveBeenCalledWith([1, 2, 90])
   })
 })

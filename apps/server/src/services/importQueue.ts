@@ -260,6 +260,13 @@ export class ImportQueueService {
       this.#cloud.kick()
     } catch (error) {
       if (controller.signal.aborted) {
+        // Stopped by a shutdown, not by a person: the job goes back in the
+        // queue, and the next boot's `resetOrphaned` picks it up where a
+        // cancelled one would stay cancelled for good.
+        if (this.#stopped) {
+          this.#imports.update(job.id, { status: 'queued', step: 'waiting', error: null })
+          return
+        }
         this.#imports.update(job.id, { status: 'cancelled', step: 'finished', error: null })
         this.#cloud.kick()
         return

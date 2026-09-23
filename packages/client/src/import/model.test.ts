@@ -32,8 +32,6 @@ describe('how a job’s row is tinted', () => {
   })
 })
 
-describe('isSquareCover', () => {})
-
 describe('matchingTag', () => {
   const tags = [
     { id: 1, name: 'reference' },

@@ -483,6 +483,9 @@ function readStored(keys: readonly string[]): Promise<unknown[]> {
       if (!open.result.objectStoreNames.contains(DB_STORE)) open.result.createObjectStore(DB_STORE)
     }
     open.onerror = () => reject(open.error ?? new Error('could not open IndexedDB'))
+    // Another tab holding an older version open keeps this one waiting: an
+    // answer, not a hang.
+    open.onblocked = () => reject(new Error('IndexedDB is open elsewhere at an older version'))
     open.onsuccess = () => {
       const db = open.result
       if (!db.objectStoreNames.contains(DB_STORE)) {
@@ -497,10 +500,14 @@ function readStored(keys: readonly string[]): Promise<unknown[]> {
         db.close()
         resolve(requests.map(request => (request.result as unknown) ?? null))
       }
-      transaction.onerror = () => {
+      // A transaction that errors or is aborted settles here too; left
+      // unhandled, the promise would wait forever.
+      const failed = (fallback: string) => () => {
         db.close()
-        reject(transaction.error ?? new Error('IndexedDB read failed'))
+        reject(transaction.error ?? new Error(fallback))
       }
+      transaction.onerror = failed('IndexedDB read failed')
+      transaction.onabort = failed('IndexedDB read aborted')
     }
   })
 }

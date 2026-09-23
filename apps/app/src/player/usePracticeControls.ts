@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { clamp01 } from '@selfmp3/shared'
 import { tapLoop, type PlaybackEngine } from '@selfmp3/client'
 
 import { prefs } from '../ports/prefs'
@@ -20,6 +21,8 @@ const COUNT_IN_KEY = 'countin'
 interface PracticeControls {
   readonly countIn: boolean
   readonly setVolume: (volume: number) => void
+  /** Up or down from where the level is now, for a key or a menu item. */
+  readonly stepVolume: (delta: number) => void
   readonly toggleMute: () => void
   readonly setRate: (rate: number) => void
   readonly tapLoopPoint: (which: 'A' | 'B') => void
@@ -37,6 +40,10 @@ export function usePracticeControls(engine: PlaybackEngine): PracticeControls {
       prefs.set(VOLUME_KEY, String(volume))
     },
     [engine],
+  )
+  const stepVolume = useCallback(
+    (delta: number) => setVolume(clamp01(engine.state.volume + delta)),
+    [engine, setVolume],
   )
   const toggleMute = useCallback(() => engine.setMuted(!engine.state.muted), [engine])
   const setRate = useCallback((rate: number) => engine.setRate(rate), [engine])
@@ -90,6 +97,7 @@ export function usePracticeControls(engine: PlaybackEngine): PracticeControls {
     () => ({
       countIn,
       setVolume,
+      stepVolume,
       toggleMute,
       setRate,
       tapLoopPoint,
@@ -100,6 +108,7 @@ export function usePracticeControls(engine: PlaybackEngine): PracticeControls {
     [
       countIn,
       setVolume,
+      stepVolume,
       toggleMute,
       setRate,
       tapLoopPoint,

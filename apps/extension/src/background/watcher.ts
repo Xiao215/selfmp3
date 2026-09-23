@@ -74,20 +74,30 @@ export function createWatcher({
   /** Reads that failed since the last one that did not. */
   let misses = 0
 
-  const read = async (): Promise<Batch[]> => {
-    const parsed = BatchesSchema.safeParse(await store.read(KEY))
+  const parse = (stored: unknown): Batch[] => {
+    const parsed = BatchesSchema.safeParse(stored)
     return parsed.success ? parsed.data : []
   }
 
-  const write = (batches: readonly Batch[]): Promise<void> => store.write(KEY, batches)
+  const read = async (): Promise<Batch[]> => parse(await store.read(KEY))
+
+  /**
+   * Change the batch list in one IndexedDB transaction, never by reading it,
+   * deciding, and writing the decision back. A tick holds its decision across
+   * a request to the server — fifteen seconds, when the server is slow — and
+   * an import started in that gap is written into the same key by `add`. A
+   * write of what the tick had read would have quietly dropped it.
+   */
+  const change = async (apply: (current: Batch[]) => Batch[]): Promise<Batch[]> =>
+    parse(await store.update(KEY, current => apply(parse(current))))
 
   async function tick(): Promise<void> {
-    const remembered = await read()
     // Age is judged before the queue is asked, so a server that stays away
     // cannot keep a batch — and the polling for it — alive past a day.
     const stale = now().getTime() - STALE_MS
-    const batches = remembered.filter(batch => new Date(batch.startedAt).getTime() > stale)
-    if (batches.length !== remembered.length) await write(batches)
+    const batches = await change(remembered =>
+      remembered.filter(batch => new Date(batch.startedAt).getTime() > stale),
+    )
     if (batches.length === 0) {
       going = 0
       await badge(badgeText(0, failed))
@@ -105,14 +115,18 @@ export function createWatcher({
     }
     misses = 0
 
-    for (const batch of finished(current, batches)) {
+    const done = finished(current, batches)
+    for (const batch of done) {
       if (batch.failed.length > 0) failed = true
       const notice = noticeFor(batch)
       if (notice) notify(notice)
     }
 
-    const left = batches.filter(batch => !finished(current, [batch]).length)
-    if (left.length !== batches.length) await write(left)
+    const doneIds = new Set(done.map(each => each.batch.id))
+    const left =
+      doneIds.size === 0
+        ? batches
+        : await change(current => current.filter(batch => !doneIds.has(batch.id)))
     going = stillGoing(current, left)
     await badge(badgeText(going, failed))
   }
@@ -120,8 +134,7 @@ export function createWatcher({
   return {
     async add(jobs, label) {
       if (jobs.length === 0) return
-      const batches = await read()
-      await write([
+      await change(batches => [
         ...batches,
         {
           id: jobs[0]?.id ?? String(now().getTime()),

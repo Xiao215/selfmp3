@@ -5,10 +5,11 @@ import { CamelotSchema } from './audioFeatures.js'
 /**
  * Smart playlist rules.
  *
- * Each rule is a discriminated union member so the compiler can prove every
- * branch is handled when the server turns rules into SQL. Adding a new field
- * here produces a type error in the compiler until the SQL side handles it,
- * which is exactly the safety net we want for something that builds queries.
+ * Each rule is a member of a union discriminated on `field`, so zod can say
+ * which rule a bad one failed as, and the evaluators' switches over `field`
+ * end in `assertNever`: adding a member here stops the SQL compiler and the
+ * in-memory matcher compiling until both handle it, which is exactly the
+ * safety net wanted for something that builds queries.
  */
 
 export const TextRuleSchema = z.object({
@@ -35,8 +36,8 @@ export type NumberRule = z.infer<typeof NumberRuleSchema>
 export const DateRuleSchema = z.object({
   field: z.enum(['addedAt', 'lastPlayedAt']),
   op: z.enum(['inLastDays', 'notInLastDays', 'never']),
-  /** Ignored when op is 'never'. */
-  days: z.number().int().min(1).max(3650).optional(),
+  /** The window, when op is not 'never' — which ignores it. Thirty days unless said. */
+  days: z.number().int().min(1).max(3650).default(30),
 })
 export type DateRule = z.infer<typeof DateRuleSchema>
 
@@ -67,7 +68,7 @@ export const KeyRuleSchema = z.object({
 })
 export type KeyRule = z.infer<typeof KeyRuleSchema>
 
-export const SmartRuleSchema = z.union([
+export const SmartRuleSchema = z.discriminatedUnion('field', [
   TextRuleSchema,
   TagRuleSchema,
   NumberRuleSchema,

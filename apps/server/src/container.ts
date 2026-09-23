@@ -9,7 +9,6 @@ import { PlaylistRepository } from './repositories/playlists.js'
 import { SettingsRepository } from './repositories/settings.js'
 import { StatsRepository } from './repositories/stats.js'
 import { WrappedRepository } from './repositories/wrapped.js'
-import { GemsRepository } from './repositories/gems.js'
 import { ImportRepository } from './repositories/imports.js'
 import { AudioFeaturesRepository } from './repositories/audioFeatures.js'
 import { MetadataService } from './services/metadata.js'
@@ -80,11 +79,8 @@ export interface Container {
   readonly settings: SettingsRepository
   readonly stats: StatsRepository
   readonly wrapped: WrappedRepository
-  readonly gems: GemsRepository
   readonly imports: ImportRepository
-  readonly lyricsSearch: LyricsSearchRepository
   readonly audioFeatures: AudioFeaturesRepository
-  readonly deviceRepo: DeviceRepository
   readonly cloudRepo: CloudRepository
   readonly syncRepo: SyncRepository
 
@@ -112,7 +108,6 @@ export interface Container {
   /** The one way a song leaves the library, whatever asked for it. */
   readonly songRemoval: SongRemovalService
   readonly analysis: AnalysisService
-  readonly events: EventHub
   readonly devices: DeviceService
   readonly cloudSync: CloudSyncService
   /** Stamps edits made here, so they combine with other devices' (docs/SYNC.md). */
@@ -166,7 +161,6 @@ export function createContainer(configured: Config): Container {
   const settings = new SettingsRepository(db)
   const stats = new StatsRepository(db)
   const wrapped = new WrappedRepository(db)
-  const gems = new GemsRepository(db)
   const imports = new ImportRepository(db)
   const lyricsSearch = new LyricsSearchRepository(db)
   const audioFeatures = new AudioFeaturesRepository(db)
@@ -431,11 +425,8 @@ export function createContainer(configured: Config): Container {
     settings,
     stats,
     wrapped,
-    gems,
     imports,
-    lyricsSearch,
     audioFeatures,
-    deviceRepo,
     cloudRepo,
     syncRepo,
     metadata,
@@ -459,7 +450,6 @@ export function createContainer(configured: Config): Container {
     lyricsIndex,
     songRemoval,
     analysis,
-    events,
     devices,
     cloudSync,
     edits,

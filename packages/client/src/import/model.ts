@@ -1,5 +1,6 @@
 import {
   extractUrls,
+  fromSqliteTime,
   IMPORT_STEP_LABELS,
   type ImportEnqueue,
   type ImportEnqueueItem,
@@ -191,7 +192,7 @@ export function queueControls(jobs: readonly Pick<ImportJob, 'status' | 'step'>[
 
 /** A server's `2026-09-14 08:30:00` is UTC without saying so; an ISO time says so. */
 function stampDate(stamp: string): Date {
-  return new Date(stamp.includes('T') ? stamp : `${stamp.replace(' ', 'T')}Z`)
+  return new Date(fromSqliteTime(stamp))
 }
 
 /** "13 added today", or "13 added" once any of them is from an earlier day. */

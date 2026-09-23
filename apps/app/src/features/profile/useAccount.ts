@@ -1,9 +1,8 @@
-import { useQuery } from '@tanstack/react-query'
 import { useCloudStatus } from '@selfmp3/client'
 import type { CloudAccount } from '@selfmp3/shared'
 
 import { useConnection } from '../../connection/ConnectionProvider'
-import { session as cloud } from '../../replica'
+import { useCloudSession } from './useCloudSession'
 
 /**
  * Whose library this is: the Google account, with its name and its picture.
@@ -15,14 +14,10 @@ import { session as cloud } from '../../replica'
  */
 export function useAccount(): CloudAccount | null {
   const { fromCloud } = useConnection()
-  const mine = useQuery({
-    queryKey: ['cloud', 'account'],
-    queryFn: async () => (await cloud.loadSession())?.me ?? null,
-    staleTime: 60_000,
-  })
-  // Only a device that talks to a server: on the cloud there is none to ask.
-  const server = useCloudStatus()
+  const me = useCloudSession().data
+  // Only a device that talks to a server: on the cloud there is none to ask,
+  // and `GET /api/cloud` would be a 501 polled forever.
+  const server = useCloudStatus(!fromCloud)
   const theirs = fromCloud ? null : (server.data?.account ?? null)
-  const me = mine.data
   return me ? { email: me.email, name: me.name, picture: me.picture } : theirs
 }

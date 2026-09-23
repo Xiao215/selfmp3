@@ -3,7 +3,6 @@ import { z } from 'zod'
 import {
   AddToPlaylistSchema,
   CreatePlaylistSchema,
-  describeSmartRules,
   IdSchema,
   RemoveFromPlaylistSchema,
   ReorderPlaylistSchema,
@@ -33,9 +32,6 @@ export function playlistRoutes(container: Container): Router {
   router.post(
     '/playlists',
     route({ body: CreatePlaylistSchema }, ({ body }) => {
-      if (body.kind === 'live' && !body.rules) {
-        throw HttpError.badRequest('a live playlist needs a rule set')
-      }
       const created = container.playlists.create(body)
       container.bumpLibraryVersion()
       return created
@@ -60,8 +56,14 @@ export function playlistRoutes(container: Container): Router {
     '/playlists/:id',
     route({ params: ParamsWithId, body: UpdatePlaylistSchema }, ({ params, body }) => {
       const playlist = requirePlaylist(params.id)
+      // The kind is not a field of the patch: a manual playlist has no rules
+      // to set, and a live one is made manual by `stopFollowing`, not by
+      // taking its rules away.
       if (body.rules !== undefined && playlist.kind === 'manual' && body.rules !== null) {
         throw HttpError.badRequest('a manual playlist cannot have rules')
+      }
+      if (body.rules === null && playlist.kind === 'live') {
+        throw HttpError.badRequest('a live playlist needs a rule set; stop following it instead')
       }
       const updated = container.playlists.update(params.id, body)
       container.edits.playlist(
@@ -193,43 +195,6 @@ export function playlistRoutes(container: Container): Router {
       container.bumpLibraryVersion()
       return { ok: true as const }
     }),
-  )
-
-  /**
-   * Preview a rule set before saving it.
-   *
-   * Lets the rule builder show "matches 43 songs" as you type,
-   * which is the difference between guessing at rules and understanding them.
-   */
-  router.post(
-    '/playlists/preview',
-    route(
-      {
-        body: z.object({
-          rules: z.lazy(() => CreatePlaylistSchema.shape.rules),
-        }),
-      },
-      ({ body }) => {
-        if (!body.rules) return { songIds: [], description: 'No rules yet' }
-
-        const tagNames = new Map(container.tags.all().map(tag => [tag.id, tag.name]))
-        const songIds = container.playlists.songIds({
-          id: 0,
-          name: 'preview',
-          description: '',
-          kind: 'live',
-          rules: body.rules,
-          songCount: 0,
-          totalDuration: 0,
-          pinned: false,
-          createdAt: '',
-          updatedAt: '',
-          lastPlayedAt: null,
-        })
-
-        return { songIds, description: describeSmartRules(body.rules, tagNames) }
-      },
-    ),
   )
 
   return router

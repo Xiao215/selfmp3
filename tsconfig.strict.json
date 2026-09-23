@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  /*
+   * The strictness every workspace shares, and nothing else.
+   *
+   * On its own so that a project which cannot extend `tsconfig.base.json` —
+   * the universal app, whose module system and libraries are Expo's — can
+   * still take the strictness from here as the second entry of its `extends`,
+   * rather than spelling the flags out again and missing the next one added.
+   */
+  "compilerOptions": {
+    /* Every one of these has caught a real bug at some point. */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "useUnknownInCatchVariables": true,
+    "allowUnusedLabels": false
+
+    /*
+     * Two strict flags are deliberately NOT enabled:
+     *
+     * `exactOptionalPropertyTypes` — it fights the DOM lib, where passing an
+     * explicit `undefined` to an optional field (RequestInit.headers, and
+     * friends) is idiomatic and correct but becomes an error.
+     *
+     * `allowUnreachableCode: false` — it flags the defensive `throw` after an
+     * exhaustive switch, which is exactly the code that keeps a future union
+     * member from silently falling through. ESLint catches genuinely dead code.
+     */
+  }
+}

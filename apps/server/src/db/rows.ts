@@ -1,4 +1,4 @@
-import { CoverSwatchSchema } from '@selfmp3/shared'
+import { CoverSwatchSchema, LyricsKindSchema } from '@selfmp3/shared'
 import type { CoverSwatch, LyricsKind, Song, AudioFeatures, Tag } from '@selfmp3/shared'
 
 /**
@@ -88,10 +88,8 @@ export interface PlaylistRow {
   total_duration?: number
 }
 
-const LYRICS_KINDS = new Set<LyricsKind>(['none', 'plain', 'synced'])
-
 function toLyricsKind(value: string): LyricsKind {
-  return LYRICS_KINDS.has(value as LyricsKind) ? (value as LyricsKind) : 'none'
+  return LyricsKindSchema.catch('none').parse(value)
 }
 
 /**

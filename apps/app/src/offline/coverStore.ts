@@ -53,7 +53,7 @@ export interface CoverPlatform {
    * Read what earlier launches kept, once, calling `found` for each.
    *
    * Called synchronously on a phone, where the directory read is synchronous
-   * and the first `coversNow()` has to already hold them — otherwise the first
+   * and the first `coverFor()` has to already know them — otherwise the first
    * render draws the server's address and swaps in the kept file a moment
    * later, a flicker on every cover, every launch. On web the listing is a
    * shell call, so `found` arrives afterwards and is announced instead.
@@ -78,7 +78,6 @@ interface CoverStore {
   readonly subscribeCovers: ReturnType<typeof createCoverChanges>['subscribe']
   /** Bumped once per announcement: how a reader tells it missed one. */
   readonly coversVersion: () => number
-  readonly coversNow: () => ReadonlyMap<number, string>
   readonly coverFor: (songId: number) => string | undefined
   readonly ensureServerCover: (
     songId: number,
@@ -140,18 +139,7 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
     }
   }
 
-  const coversNow = (): ReadonlyMap<number, string> => {
-    prime()
-    const map = new Map<number, string>()
-    for (const [songId, uri] of known) if (uri) map.set(songId, uri)
-    for (const [songId, { uri }] of served) map.set(songId, uri)
-    return map
-  }
-
-  /**
-   * One song's entry in `coversNow()`, without copying the rest: a kept server
-   * cover before a cloud one, as the map is built.
-   */
+  /** The cover kept here for one song: a kept server cover before a cloud one. */
   const coverFor = (songId: number): string | undefined => {
     prime()
     return served.get(songId)?.uri ?? (known.get(songId) || undefined)
@@ -279,7 +267,6 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
   return {
     subscribeCovers: changes.subscribe,
     coversVersion: changes.version,
-    coversNow,
     coverFor,
     ensureServerCover,
     ensureCover,

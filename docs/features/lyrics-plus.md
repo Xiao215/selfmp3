@@ -32,10 +32,8 @@ The switch is a preference of each device rather than a synced setting
 text — edit the `.lrc` and the cache misses automatically. Like cover art, the
 folder is disposable.
 
-```
-GET /api/songs/:id/lyrics/romanized
-→ { language: 'zh'|'ja'|'none', synced, lines: [{ time, text, romanized }] }
-```
+The romanized lines travel inside the lyrics answer itself, as its `romanized`
+field (`GET /api/songs/:id/lyrics`); there is no separate route for them.
 
 ## Search by lyric
 
@@ -80,7 +78,6 @@ GET /api/songs/:id/lyrics
   usual; the flag is left alone.
 - A flagged song with no local lyrics answers `404 instrumental` without
   touching the network. When lrclib is the one saying so, the flag is set first.
-  `GET /api/songs/:id/lyrics/romanized` behaves the same way.
 - `?refresh=1` skips the sidecar and always asks online — YouTube Music's timed
   lyrics, then lrclib: lyrics found are written as a sidecar and clear the flag
   (no screen in the app asks for this any more); an instrumental answer sets it and returns

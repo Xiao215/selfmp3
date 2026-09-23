@@ -8,7 +8,7 @@ import { findAll, findKey, runs, WEB_CLIENT, type YouTubeMusicApi } from './yout
  */
 
 /** The search's "Songs" filter: studio tracks only, no videos or playlists. */
-export const SONGS_ONLY = 'EgWKAQIIAWoMEA4QChADEAQQCRAF'
+const SONGS_ONLY = 'EgWKAQIIAWoMEA4QChADEAQQCRAF'
 
 /**
  * How far the track's length may be from the file's for it to be the same
@@ -16,7 +16,7 @@ export const SONGS_ONLY = 'EgWKAQIIAWoMEA4QChADEAQQCRAF'
  * whole seconds, rounded up (a 248.06 s download shows as 4:09), so a track
  * shown as L seconds is anywhere from L − 1 to L long.
  */
-export const LENGTH_TOLERANCE_S = 1
+const LENGTH_TOLERANCE_S = 1
 
 /** The one kind of entry whose timings match a download: the studio audio, not a video. */
 export const AUDIO_TRACK = 'MUSIC_VIDEO_TYPE_ATV'

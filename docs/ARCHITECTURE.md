@@ -158,8 +158,10 @@ user input, so it follows two rules absolutely:
 2. Every user **identifier** (column, sort field, direction) is looked up in a fixed map. If
    it is not in the map, it does not exist.
 
-Because the rule types are a discriminated union, adding a variant to the shared schema
-makes this file stop compiling until the new case is handled. The tests run the generated
+The rule types are a discriminated union and every switch over them ends in
+`assertNever`, so adding a variant to the shared schema makes this file — and the
+in-memory matcher in `packages/shared/src/smartRules.ts` — stop compiling until the new
+case is handled. The tests run the generated
 SQL against a real in-memory database — asserting on the SQL *string* would be brittle and
 would not prove the query is even valid.
 
@@ -344,9 +346,8 @@ Each is an interface in `packages/client`, implemented twice in `apps/app/src/po
 | `Files` | reveal a song's file | server endpoint (on the server itself only) | unavailable, declared |
 | `Media session` | lock-screen metadata | `navigator.mediaSession` | track-player metadata |
 
-The engine port declares capabilities — `crossfade`, `analyser`, `pitchLock`,
-`lockScreen`, `nativeQueue` — and the practice panel, the visualiser and the
-settings page read them. A control for something the platform cannot do is not
+The engine port declares capabilities — `crossfade`, `analyser`, `loop` — and
+the practice panel, the visualiser and the settings page read them. A control for something the platform cannot do is not
 rendered, and the settings page says why, the way the phone's About section
 does for crossfade today.
 
@@ -428,8 +429,8 @@ Run `npm run check` for typecheck + lint + tests.
 errors. They will take you to every place that needs updating.
 
 **A new smart-playlist rule:** add the variant to `SmartRuleSchema`, then fix
-`compileRule` and `describeSmartRules` — the exhaustive switch will not compile until you
-do. Add a test that runs it against the in-memory database.
+`compileRule` (server) and `matcher` (shared) — each switch ends in `assertNever`, so
+neither compiles until you do. Add a test that runs it against the in-memory database.
 
 **A new storage backend:** implement `StorageDriver`, register it in `storage/index.ts`,
 add the config branch. Nothing else changes.

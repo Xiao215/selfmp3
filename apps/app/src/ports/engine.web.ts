@@ -1,5 +1,4 @@
 import type {
-  TrackMetadata,
   EngineCapabilities,
   EngineWiring,
   EngineState as PortEngineState,
@@ -35,7 +34,6 @@ export interface EngineState {
   readonly playing: boolean
   readonly currentTime: number
   readonly duration: number
-  readonly buffered: number
   readonly volume: number
   readonly muted: boolean
   readonly rate: number
@@ -55,7 +53,6 @@ const INITIAL_STATE: EngineState = {
   playing: false,
   currentTime: 0,
   duration: 0,
-  buffered: 0,
   volume: 1,
   muted: false,
   rate: 1,
@@ -68,6 +65,16 @@ const INITIAL_STATE: EngineState = {
 }
 
 type Listener = (state: EngineState) => void
+
+/** No queue owner yet: every question the engine asks goes unanswered. */
+const UNWIRED: EngineWiring = {
+  onTrackEnd: null,
+  nextTrackId: null,
+  streamUrl: null,
+  streamHeaders: null,
+  trackMetadata: null,
+  onProgress: null,
+}
 
 /** How early to start preloading the next track, in seconds. */
 const PRELOAD_LEAD = 20
@@ -83,29 +90,20 @@ const LOOP_TICK_MS = 30
 const MIN_LOOP_SECONDS = 0.5
 
 class AudioEngine implements PlaybackEngine {
-  /**
-   * What a browser can do, which is most of it.
-   *
-   * No lock screen: `navigator.mediaSession` is its own port, not this one.
-   * No native queue: the queue is this app's, and the engine is handed one
-   * song at a time plus a hint about the next.
-   */
+  /** What a browser can do, which is all of it. */
   readonly capabilities: EngineCapabilities = {
     crossfade: true,
     analyser: true,
-    pitchLock: true,
     loop: true,
-    lockScreen: false,
-    nativeQueue: false,
   }
 
   /** Where to fetch a song. Unset is a wiring mistake, not a fallback. */
   #urlFor(songId: number): string {
-    const url = this.streamUrl?.(songId)
+    const url = this.#wiring.streamUrl?.(songId)
     if (!url) {
       throw new Error(
         `no streamUrl configured; cannot play song ${songId}. ` +
-          'Whoever owns the queue sets engine.streamUrl.',
+          'Whoever owns the queue connects `streamUrl`.',
       )
     }
     return url
@@ -144,41 +142,24 @@ class AudioEngine implements PlaybackEngine {
   #audioContext: AudioContext | null = null
   #analyser: AnalyserNode | null = null
 
-  /** Called when the current track finishes and the engine wants the next one. */
-  onTrackEnd: (() => void) | null = null
-  /** Called when the engine needs to know what to preload. */
-  nextTrackId: (() => number | null) | null = null
-  /** Where a song's audio lives; the provider knows each song's `rev`. */
-  streamUrl: ((songId: number) => string) | null = null
   /**
-   * Accepted and unused: an `<audio>` element sends no headers of anyone's
-   * choosing. A bucket song's address here is the app's own, and the service
-   * worker attaches the doorman's bearer on the way out (ports/bucketMedia.web.ts).
+   * Whoever owns the queue, as handed over through `connect`.
+   *
+   * Two of its answers go unread here. `streamHeaders`: an `<audio>` element
+   * sends no headers of anyone's choosing, so a bucket song's address is the
+   * app's own and the service worker attaches the doorman's bearer on the way
+   * out (ports/bucketMedia.web.ts). `trackMetadata`: a browser draws its own
+   * now-playing UI, so there is no card for the operating system to fill in;
+   * `navigator.mediaSession` is the obvious next reader of it.
    */
-  streamHeaders: ((songId: number) => Readonly<Record<string, string>> | null) | null = null
-  /**
-   * Accepted and unused: a browser draws its own now-playing UI, so there is
-   * no card for the operating system to fill in. It is here because the port
-   * declares it for the platforms that do — and because `navigator.mediaSession`
-   * is the obvious next user of it, when the media-session port lands.
-   */
-  trackMetadata: ((songId: number) => TrackMetadata | null) | null = null
-  /** Called on every meaningful position change, for play-count tracking. */
-  onProgress: ((currentTime: number, duration: number) => void) | null = null
+  #wiring: EngineWiring = UNWIRED
 
   /** See `PlaybackEngine.connect`. */
   connect(wiring: Partial<EngineWiring>): () => void {
-    const previous: Partial<EngineWiring> = {
-      onTrackEnd: this.onTrackEnd,
-      nextTrackId: this.nextTrackId,
-      streamUrl: this.streamUrl,
-      streamHeaders: this.streamHeaders,
-      trackMetadata: this.trackMetadata,
-      onProgress: this.onProgress,
-    }
-    Object.assign(this, wiring)
+    const previous = this.#wiring
+    this.#wiring = { ...previous, ...wiring }
     return () => {
-      Object.assign(this, previous)
+      this.#wiring = previous
     }
   }
 
@@ -283,7 +264,6 @@ class AudioEngine implements PlaybackEngine {
     this.#update({
       error: null,
       currentTime: alreadyPlaying ? this.#primary.currentTime : startAt,
-      buffered: 0,
     })
 
     if (autoplay) await this.play()
@@ -313,11 +293,6 @@ class AudioEngine implements PlaybackEngine {
     if (this.#state.countingIn) this.#update({ countingIn: false })
     this.#abortCrossfade()
     this.#primary.pause()
-  }
-
-  async toggle(): Promise<void> {
-    if (this.#primary.paused) await this.play()
-    else this.pause()
   }
 
   /**
@@ -500,11 +475,6 @@ class AudioEngine implements PlaybackEngine {
     this.#listeners.clear()
   }
 
-  /** The element the Media Session API should be told about. */
-  get element(): HTMLAudioElement {
-    return this.#primary
-  }
-
   // --- internals -----------------------------------------------------------
 
   #attach(element: HTMLAudioElement): void {
@@ -571,7 +541,7 @@ class AudioEngine implements PlaybackEngine {
     const currentTime = this.#primary.currentTime
     const duration = Number.isFinite(this.#primary.duration) ? this.#primary.duration : 0
     this.#update({ currentTime, duration })
-    this.onProgress?.(currentTime, duration)
+    this.#wiring.onProgress?.(currentTime, duration)
 
     if (duration <= 0) return
     const remaining = duration - currentTime
@@ -613,11 +583,11 @@ class AudioEngine implements PlaybackEngine {
     // With crossfade the handover has already happened, so ignore the ended
     // event from the element that faded out.
     if (this.#handoverArmed && this.#crossfadeSeconds > 0) return
-    this.onTrackEnd?.()
+    this.#wiring.onTrackEnd?.()
   }
 
   #preload(): void {
-    const nextId = this.nextTrackId?.() ?? null
+    const nextId = this.#wiring.nextTrackId?.() ?? null
     if (nextId === null || nextId === this.#currentId) return
 
     this.#preloadedId = nextId
@@ -664,7 +634,7 @@ class AudioEngine implements PlaybackEngine {
         this.#handedOverId = this.#preloadedId
         this.#preloadedId = null
         this.#handoverArmed = false
-        this.onTrackEnd?.()
+        this.#wiring.onTrackEnd?.()
       }
     }, FADE_TICK_MS)
     return true

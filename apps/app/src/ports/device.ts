@@ -1,3 +1,4 @@
+import * as Crypto from 'expo-crypto'
 import { Platform } from 'react-native'
 import type { DeviceKind } from '@selfmp3/shared'
 
@@ -51,12 +52,9 @@ function defaultName(): string {
 }
 
 function generateId(): string {
-  const bytes = new Uint8Array(16)
-  // `crypto` is present in Hermes and in every browser this runs in; the
-  // fallback is only so a missing one cannot stop the app identifying itself.
-  const source = (globalThis as { crypto?: { getRandomValues?: (a: Uint8Array) => void } }).crypto
-  if (source?.getRandomValues) source.getRandomValues(bytes)
-  else for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256)
+  // Hermes has no `crypto.getRandomValues`; expo-crypto asks the platform, as
+  // `cloudPlatform.randomBytes` does for the sign-in attempt id.
+  const bytes = Crypto.getRandomBytes(16)
   return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
 }
 

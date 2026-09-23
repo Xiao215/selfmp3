@@ -1,3 +1,5 @@
+import { clamp01, fromSqliteTime } from '@selfmp3/shared'
+
 /**
  * The facts about a song, put into words and drawings.
  *
@@ -35,9 +37,6 @@ interface WaveShape {
   readonly cycles: number
 }
 
-const clamp01 = (value: number): number =>
-  Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0
-
 /**
  * The energy waveform's shape, straight from a 0–1 energy: taller and denser
  * as a song gets more intense. Height leaves room for the stroke; the floor
@@ -45,7 +44,8 @@ const clamp01 = (value: number): number =>
  * rather than "calm".
  */
 export function waveShape(energy: number, height: number, strokeWidth = 1.5): WaveShape {
-  const e = clamp01(energy)
+  // A feature the analyser never wrote is calm, not a NaN-shaped wave.
+  const e = clamp01(Number.isFinite(energy) ? energy : 0)
   const room = height / 2 - strokeWidth / 2 - 0.25
   return {
     amplitude: room * (0.15 + 0.85 * e),
@@ -98,7 +98,7 @@ export function sourceName(url: string): string {
 
 /** The database's `YYYY-MM-DD HH:MM:SS` (UTC) as "10 Sep 2026". */
 export function formatAddedDate(value: string): string {
-  const date = new Date(value.includes('T') ? value : `${value.replace(' ', 'T')}Z`)
+  const date = new Date(fromSqliteTime(value))
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 }

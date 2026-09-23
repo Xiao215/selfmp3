@@ -1,10 +1,10 @@
-import fs from 'node:fs'
 import { Router } from 'express'
 import { z } from 'zod'
 import { NameSchema, type ArtistBackdrop } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
+import { sendStoredImage } from '../http/sendStoredImage.js'
 
 /**
  * An artist's picture (services/artistBackdrops.ts).
@@ -33,26 +33,7 @@ export function artistRoutes(container: Container): Router {
     route({ query: ByName }, async ({ query, req, res }) => {
       const kept = container.artistBackdrops.kept(query.name)
       if (!kept) throw HttpError.notFound('no picture for this artist')
-
-      const stat = fs.statSync(kept.path)
-      const etag = `"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`
-      const caching = {
-        'Content-Type': kept.contentType,
-        ETag: etag,
-        'Cache-Control': 'private, max-age=604800',
-      }
-      if (req.headers['if-none-match'] === etag) {
-        res.set(caching).status(304).end()
-        return undefined
-      }
-
-      // Awaited, and the headers handed to `sendFile`, for the reasons the
-      // cover route gives (routes/media.ts).
-      await new Promise<void>((resolve, reject) => {
-        res.sendFile(kept.path, { dotfiles: 'allow', headers: caching }, error =>
-          error ? reject(error) : resolve(),
-        )
-      })
+      await sendStoredImage(req, res, kept)
       return undefined
     }),
   )

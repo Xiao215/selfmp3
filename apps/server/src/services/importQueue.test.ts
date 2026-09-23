@@ -79,6 +79,11 @@ describe('ImportQueueService, when a download fails', { timeout: 90_000 }, () =>
     fs.writeFileSync(path.join(dir, 'stderr.txt'), `ERROR: [youtube] 6I1SNW0tVYk: ${message}\n`)
   }
 
+  /** Make the stand-in hang instead, as a download does until it is killed. */
+  function ytDlpHangs(): void {
+    fs.writeFileSync(path.join(dir, 'hang'), '')
+  }
+
   /** How many times the stand-in was asked to download something. */
   function downloads(): number {
     const log = path.join(dir, 'calls.log')
@@ -98,6 +103,7 @@ describe('ImportQueueService, when a download fails', { timeout: 90_000 }, () =>
       `#!/bin/sh
 if [ "$1" = "--version" ]; then echo 2026.08.19; exit 0; fi
 echo call >> "${dir}/calls.log"
+if [ -f "${dir}/hang" ]; then exec sleep 60; fi
 cat "${dir}/stderr.txt" >&2
 exit 1
 `,
@@ -165,6 +171,29 @@ exit 1
     if (!job) throw new Error('nothing was queued')
     return job.id
   }
+
+  it('puts a job back in the queue when the server stops under it', async () => {
+    ytDlpHangs()
+    const id = enqueueOne()
+
+    queue.kick()
+    await until(() => imports.byId(id)?.status === 'running')
+    queue.stop()
+    await until(() => imports.byId(id)?.status !== 'running')
+    // Nobody cancelled it: the next boot's `resetOrphaned` finds it waiting.
+    expect(imports.byId(id)).toMatchObject({ status: 'queued', step: 'waiting', error: null })
+  })
+
+  it('marks a job cancelled when a person cancels it mid-download', async () => {
+    ytDlpHangs()
+    const id = enqueueOne()
+
+    queue.kick()
+    await until(() => imports.byId(id)?.status === 'running')
+    expect(queue.cancel(id)).toBe(true)
+    await until(() => imports.byId(id)?.status !== 'running')
+    expect(imports.byId(id)).toMatchObject({ status: 'cancelled', step: 'finished' })
+  })
 
   it('leaves a broken song failed, and does not try it again', async () => {
     ytDlpFailsWith('Private video. Sign in if you have been granted access to this video')

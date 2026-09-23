@@ -116,7 +116,7 @@ describe('what the menu offers', () => {
   it('opens the song’s own page from Song details', async () => {
     await draw()
 
-    fireEvent.press(screen.getByRole('menuitem', { name: 'Song details' }))
+    await fireEvent.press(screen.getByRole('menuitem', { name: 'Song details' }))
     expect(mockNavigate).toHaveBeenCalledWith('/song/4')
   })
 })
@@ -130,13 +130,13 @@ describe('removing a song where the copy goes with it', () => {
   it('is one confirmed action that takes the download too', async () => {
     await draw()
 
-    fireEvent.press(screen.getByRole('menuitem', { name: 'Remove from library…' }))
+    await fireEvent.press(screen.getByRole('menuitem', { name: 'Remove from library…' }))
     // The sheet draws through the overlay host, so the confirmation lands a
     // tick later; `find` waits for it where `get` would read the menu as it was.
     const confirm = await screen.findByRole('menuitem', { name: 'Remove from library' })
     expect(screen.getByText(/The download on this device goes too/)).toBeTruthy()
 
-    fireEvent.press(confirm)
+    await fireEvent.press(confirm)
     expect(mockDropDownloads).toHaveBeenCalledWith([4])
     expect(mockDeleteSong).toHaveBeenCalledWith(4)
   })
@@ -144,7 +144,7 @@ describe('removing a song where the copy goes with it', () => {
   it('still offers dropping the download on its own', async () => {
     await draw()
 
-    fireEvent.press(screen.getByRole('button', { name: 'Remove download' }))
+    await fireEvent.press(screen.getByRole('button', { name: 'Remove download' }))
     expect(mockRemoveByHand).toHaveBeenCalledWith([4])
     expect(mockDeleteSong).not.toHaveBeenCalled()
   })
@@ -153,7 +153,7 @@ describe('removing a song where the copy goes with it', () => {
     mockIndex = { version: 1, entries: {} }
     await draw()
 
-    fireEvent.press(screen.getByRole('menuitem', { name: 'Remove from library…' }))
+    await fireEvent.press(screen.getByRole('menuitem', { name: 'Remove from library…' }))
     await screen.findByRole('menuitem', { name: 'Remove from library' })
     expect(screen.queryByText(/The download on this device goes too/)).toBeNull()
   })

@@ -18,7 +18,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Nothing is packaged that does not typecheck, lint and pass its tests: a
+  # release is the last place to find out. Spelled out rather than inherited,
+  # because this workflow grants nothing by default and a called workflow gets
+  # no more than its caller allows.
+  check:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/check.yml
+
   build:
+    needs: check
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

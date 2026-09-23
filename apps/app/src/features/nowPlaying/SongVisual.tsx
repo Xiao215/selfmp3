@@ -16,8 +16,8 @@ import Svg, {
   Stop,
 } from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
-import { radius } from '@selfmp3/client'
-import { usePlayer } from '../../player/PlayerProvider'
+import { radius, rgba } from '@selfmp3/client'
+import { usePlayer, usePracticeState } from '../../player/PlayerProvider'
 import type { MotionSampler } from './motionSource.model'
 import { useMotionReduced } from '../../ui/motion'
 import { useVisualLook } from './useVisualLook'
@@ -40,7 +40,6 @@ import {
   horizonColors,
   RING_FROM,
   RING_TO,
-  rgbCss,
   rippleDisc,
   sunPlace,
   type VisualColors,
@@ -110,7 +109,8 @@ export function SongVisual({
   })
 
   // The clock: each progress tick (and a seek, which arrives as one), play and pause, and the rate.
-  const { subscribeProgress, getPosition, isPlaying, rate } = player
+  const { subscribeProgress, getPosition, isPlaying } = player
+  const { rate } = usePracticeState()
   useEffect(() => {
     clock.tick(getPosition(), performance.now())
     return subscribeProgress(() => clock.tick(getPosition(), performance.now()))
@@ -155,7 +155,7 @@ export function SongVisual({
   return (
     <View
       pointerEvents="none"
-      style={[styles.fill, { backgroundColor: rgbCss(edge) }, rounded && styles.rounded]}
+      style={[styles.fill, { backgroundColor: rgba(edge) }, rounded && styles.rounded]}
       onLayout={event => {
         const { width, height } = event.nativeEvent.layout
         setSize(current =>
@@ -309,16 +309,16 @@ function Horizon({ size, colors, frame }: StyleProps): ReactNode {
   const glow = sun.d * 2.6
   const sunStyle = useAnimatedStyle(() => ({ transform: [{ scale: frame.value[SUN_AT] ?? 1 }] }))
   const glowStyle = useAnimatedStyle(() => ({ opacity: frame.value[SUN_AT + 1] ?? 0.5 }))
-  const sunInk = rgbCss(look.sun)
+  const sunInk = rgba(look.sun)
   return (
     <>
       <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
         <Defs>
           <LinearGradient id="horizon-sky" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={rgbCss(look.sky[0])} stopOpacity={1} />
-            <Stop offset="0.42" stopColor={rgbCss(look.sky[1])} stopOpacity={1} />
-            <Stop offset="0.74" stopColor={rgbCss(look.sky[2])} stopOpacity={1} />
-            <Stop offset="1" stopColor={rgbCss(look.sky[3])} stopOpacity={1} />
+            <Stop offset="0" stopColor={rgba(look.sky[0])} stopOpacity={1} />
+            <Stop offset="0.42" stopColor={rgba(look.sky[1])} stopOpacity={1} />
+            <Stop offset="0.74" stopColor={rgba(look.sky[2])} stopOpacity={1} />
+            <Stop offset="1" stopColor={rgba(look.sky[3])} stopOpacity={1} />
           </LinearGradient>
         </Defs>
         <Rect x="0" y="0" width="100%" height="100%" fill="url(#horizon-sky)" />
@@ -359,15 +359,15 @@ function Horizon({ size, colors, frame }: StyleProps): ReactNode {
           key={index}
           index={index}
           size={size}
-          ink={rgbCss(look.hills[index]!)}
+          ink={rgba(look.hills[index]!)}
           frame={frame}
         />
       ))}
       <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
         <Defs>
           <LinearGradient id="horizon-foot" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0.6" stopColor={rgbCss(look.foot)} stopOpacity={0} />
-            <Stop offset="0.86" stopColor={rgbCss(look.foot)} stopOpacity={1} />
+            <Stop offset="0.6" stopColor={rgba(look.foot)} stopOpacity={0} />
+            <Stop offset="0.86" stopColor={rgba(look.foot)} stopOpacity={1} />
           </LinearGradient>
         </Defs>
         <Rect x="0" y="0" width="100%" height="100%" fill="url(#horizon-foot)" />
@@ -466,7 +466,7 @@ function Ripples({
   const disc = rippleDisc(size.width, size.height)
   const halo = disc * 1.9
   const [middle, edge] = colors.ground
-  const haloInk = rgbCss(colors.inks[0])
+  const haloInk = rgba(colors.inks[0])
   const haloStyle = useAnimatedStyle(() => ({ opacity: frame.value[HALO_AT] ?? 0 }))
   const discStyle = useAnimatedStyle(() => ({
     transform: [{ scale: frame.value[DISC_AT] ?? 1 }],
@@ -476,16 +476,16 @@ function Ripples({
       <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
         <Defs>
           <RadialGradient id="ripples-ground" cx="50%" cy="50%" r="70%">
-            <Stop offset="0" stopColor={rgbCss(middle)} stopOpacity={1} />
-            <Stop offset="1" stopColor={rgbCss(edge)} stopOpacity={1} />
+            <Stop offset="0" stopColor={rgba(middle)} stopOpacity={1} />
+            <Stop offset="1" stopColor={rgba(edge)} stopOpacity={1} />
           </RadialGradient>
           <RadialGradient id="ripples-wash-a" cx="20%" cy="18%" r="60%">
-            <Stop offset="0" stopColor={rgbCss(colors.inks[0])} stopOpacity={0.2} />
-            <Stop offset="1" stopColor={rgbCss(colors.inks[0])} stopOpacity={0} />
+            <Stop offset="0" stopColor={rgba(colors.inks[0])} stopOpacity={0.2} />
+            <Stop offset="1" stopColor={rgba(colors.inks[0])} stopOpacity={0} />
           </RadialGradient>
           <RadialGradient id="ripples-wash-b" cx="82%" cy="84%" r="60%">
-            <Stop offset="0" stopColor={rgbCss(colors.inks[1])} stopOpacity={0.16} />
-            <Stop offset="1" stopColor={rgbCss(colors.inks[1])} stopOpacity={0} />
+            <Stop offset="0" stopColor={rgba(colors.inks[1])} stopOpacity={0.16} />
+            <Stop offset="1" stopColor={rgba(colors.inks[1])} stopOpacity={0} />
           </RadialGradient>
         </Defs>
         <Rect x="0" y="0" width="100%" height="100%" fill="url(#ripples-ground)" />
@@ -509,7 +509,7 @@ function Ripples({
             key={slot}
             slot={slot}
             reach={disc}
-            ink={rgbCss(colors.inks[RING_INKS[slot % RING_INKS.length]!])}
+            ink={rgba(colors.inks[RING_INKS[slot % RING_INKS.length]!])}
             frame={frame}
             ringWidths={ringWidths}
           />
@@ -520,9 +520,9 @@ function Ripples({
           <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
             <Defs>
               <RadialGradient id="ripples-disc" cx="42%" cy="38%" r="70%">
-                <Stop offset="0" stopColor={rgbCss(colors.inks[2])} stopOpacity={1} />
-                <Stop offset="0.7" stopColor={rgbCss(colors.inks[0])} stopOpacity={1} />
-                <Stop offset="1" stopColor={rgbCss(colors.inks[1])} stopOpacity={1} />
+                <Stop offset="0" stopColor={rgba(colors.inks[2])} stopOpacity={1} />
+                <Stop offset="0.7" stopColor={rgba(colors.inks[0])} stopOpacity={1} />
+                <Stop offset="1" stopColor={rgba(colors.inks[1])} stopOpacity={1} />
               </RadialGradient>
             </Defs>
             <Circle cx="50%" cy="50%" r="50%" fill="url(#ripples-disc)" />

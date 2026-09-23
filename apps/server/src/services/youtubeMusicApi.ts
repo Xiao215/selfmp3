@@ -27,8 +27,6 @@ export class YouTubeMusicApi {
   }
 
   async post(endpoint: string, body: object, client: object = WEB_CLIENT): Promise<unknown> {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
     try {
       const response = await this.#fetch(`${API}${endpoint}?prettyPrint=false`, {
         method: 'POST',
@@ -39,7 +37,7 @@ export class YouTubeMusicApi {
           Cookie: 'SOCS=CAI',
         },
         body: JSON.stringify({ ...body, context: { client } }),
-        signal: controller.signal,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
       if (!response.ok) return null
       return await response.json()
@@ -49,8 +47,6 @@ export class YouTubeMusicApi {
         message: error instanceof Error ? error.message : String(error),
       })
       return null
-    } finally {
-      clearTimeout(timer)
     }
   }
 }

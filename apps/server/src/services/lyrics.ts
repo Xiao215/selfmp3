@@ -224,12 +224,10 @@ export class LyricsService {
   }
 
   async #getJson<T>(url: string): Promise<T | null> {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
     try {
       const response = await this.#fetch(url, {
         headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-        signal: controller.signal,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
       if (!response.ok) return null
       return (await response.json()) as T
@@ -238,8 +236,6 @@ export class LyricsService {
         message: error instanceof Error ? error.message : String(error),
       })
       return null
-    } finally {
-      clearTimeout(timer)
     }
   }
 

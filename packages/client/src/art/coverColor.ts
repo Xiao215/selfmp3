@@ -1,4 +1,4 @@
-import { rgbToOklch, type CoverTone } from '@selfmp3/shared'
+import { clamp, rgbToOklch, type CoverTone } from '@selfmp3/shared'
 import { oklchToHex } from '../theme/oklch.js'
 import { hslToRgb } from './palette.js'
 import { currentColorScheme, type ColorScheme } from '../theme/tokens.js'
@@ -22,9 +22,6 @@ export interface SongColors {
   /** For text and the equaliser on the rows. */
   readonly tint: string
 }
-
-const clamp = (value: number, low: number, high: number): number =>
-  Math.min(high, Math.max(low, value))
 
 /**
  * The letter tile's colour, for a song with no cover: `Cover` draws it as

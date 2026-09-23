@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 /*
  * The cover policy on a phone, over a fake of the expo-file-system classes it
  * uses. What differs from the web twin, and is pinned here: priming reads the
- * kept covers synchronously, so the *first* `coversNow()` already has them —
+ * kept covers synchronously, so the *first* `coverFor()` already knows them —
  * that is what stops the flicker on every launch — and forgetting removes both
  * folders, the cache and the document store, along with what memory held.
  */
@@ -73,8 +73,8 @@ describe('covers on a phone', () => {
   it("has a server's kept covers on the very first read, before any row asks", async () => {
     disk.add('file:///document/covers')
     disk.add('file:///document/covers/12-r1.jpg')
-    const { coversNow } = await covers()
-    expect(coversNow().get(12)).toBe('file:///document/covers/12-r1.jpg')
+    const { coverFor } = await covers()
+    expect(coverFor(12)).toBe('file:///document/covers/12-r1.jpg')
   })
 
   it('fetches a cloud cover once for however many rows ask at the same time', async () => {
@@ -90,13 +90,13 @@ describe('covers on a phone', () => {
   it('forgets everything at sign-out: memory and both folders', async () => {
     disk.add('file:///document/covers')
     disk.add('file:///document/covers/12-r1.jpg')
-    const { coversNow, coverFor, ensureCover, forgetCovers } = await covers()
+    const { coverFor, ensureCover, forgetCovers } = await covers()
     await ensureCover(7)
-    expect(coversNow().size).toBe(2)
+    expect(coverFor(7)).toBeDefined()
+    expect(coverFor(12)).toBeDefined()
 
     await forgetCovers()
 
-    expect(coversNow().size).toBe(0)
     expect(coverFor(7)).toBeUndefined()
     expect(disk.size).toBe(0)
     // Another account's song 7 is fetched afresh, not answered from memory.

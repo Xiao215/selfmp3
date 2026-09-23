@@ -84,10 +84,71 @@ const ALLOWED = new Map([
 const DECLARATION =
   /^export (?:async )?(?:function|const|class|interface|type|enum) ([A-Za-z_$][\w$]*)/gm
 
+/**
+ * The second pass: members of a surface, not exports.
+ *
+ * The pass above sees `export interface Container` as one name, and that name
+ * is read everywhere. What it cannot see is that `Container.libraryVersion`
+ * or `StorageDriver.move` has no reader at all — a member of an interface or
+ * of a returned object literal is never exported on its own, so nothing here
+ * ever asked about it, and a dozen dead members sat behind exactly that.
+ *
+ * So the surfaces whose members are only ever reached as `x.<member>` are
+ * listed by hand, each with the expression that spells its members, the
+ * region of the file they sit in, and where their readers can be. A member is
+ * read when a file there, outside the surface's own module, reaches it as
+ * `.member` or takes it by destructuring (`const { config, logger } =
+ * container`). An implementation of the interface spells the name too, as
+ * `member(` or `member:` — which is why a bare word is not enough, and why the
+ * declaring file itself does not count. Readers are confined to the workspaces
+ * that can hold the surface because `.move` is also what a phone's file API is
+ * called with: the server's storage driver has no reader in apps/app, and a
+ * search that looked there would have vouched for a dead member.
+ */
+const SURFACES = [
+  {
+    // The object literal `createApi` returns: the client's whole API.
+    file: 'packages/client/src/api/api.ts',
+    within: [/^ {2}return \{$/m, /^ {2}\}$/m],
+    member: /^ {4}(\w+): /gm,
+    readers: ['packages/client/', 'apps/app/', 'apps/desktop/', 'apps/extension/'],
+  },
+  {
+    // The composition root's interface.
+    file: 'apps/server/src/container.ts',
+    within: [/^export interface Container \{$/m, /^\}$/m],
+    member: /^ {2}(?:readonly )?(\w+)[(:]/gm,
+    readers: ['apps/server/'],
+  },
+  {
+    // The storage abstraction and its stat, both implemented by two drivers.
+    file: 'apps/server/src/storage/driver.ts',
+    member: /^ {2}(?:readonly )?(\w+)[(:]/gm,
+    readers: ['apps/server/'],
+  },
+  {
+    // Every interface of the playback port: state, capabilities, wiring, engine.
+    file: 'packages/client/src/ports/engine.ts',
+    member: /^ {2}(?:readonly )?(\w+)\??[(:]/gm,
+    readers: ['packages/client/', 'apps/app/'],
+  },
+]
+
+/**
+ * Members nothing reads, and meant to be. Keyed `file#member`, with the
+ * reason, like ALLOWED above.
+ */
+const ALLOWED_MEMBERS = new Map([])
+
 /** `x.web.ts` and `x.desktop.ts` are the same module as `x.ts`, to the bundler. */
 const identity = file => file.replace(/\.(web|desktop|native|ios|android)(?=\.tsx?$)/, '')
 
-const files = execFileSync('git', ['ls-files', '*.ts', '*.tsx'], { encoding: 'utf8' })
+// Tracked and not-yet-tracked alike: a file just written can be the only reader.
+const files = execFileSync(
+  'git',
+  ['ls-files', '--cached', '--others', '--exclude-standard', '*.ts', '*.tsx'],
+  { encoding: 'utf8' },
+)
   .split('\n')
   .filter(file => file && (file.startsWith('apps/') || file.startsWith('packages/')))
 
@@ -127,18 +188,58 @@ for (const [key, members] of groups) {
   }
 }
 
-if (found.length === 0) {
-  console.log('No exports are unread outside their own module.')
+const members = []
+for (const { file, within, member, readers } of SURFACES) {
+  const text = source.get(file)
+  if (text === undefined) throw new Error(`${file} is listed in SURFACES and not in the tree`)
+  let region = text
+  if (within) {
+    const start = text.search(within[0])
+    if (start < 0) throw new Error(`${file}: the start of its surface was not found`)
+    const end = text.slice(start).search(within[1])
+    region = end < 0 ? text.slice(start) : text.slice(start, start + end)
+  }
+  const names = new Set([...region.matchAll(member)].map(([, name]) => name))
+  for (const name of names) {
+    if (ALLOWED_MEMBERS.has(`${file}#${name}`)) continue
+    const reached = new RegExp(`\\.${name}\\b|\\{[^}]*\\b${name}\\b[^}]*\\}\\s*=`)
+    const outside = [...source].some(
+      ([other, body]) =>
+        readers.some(prefix => other.startsWith(prefix)) &&
+        identity(other) !== identity(file) &&
+        !other.includes('.test.') &&
+        reached.test(body),
+    )
+    if (!outside) members.push({ name, file })
+  }
+}
+
+if (found.length === 0 && members.length === 0) {
+  console.log('No exports are unread outside their own module, and no member goes unreached.')
   process.exit(0)
 }
 
-console.error(`${found.length} export${found.length === 1 ? '' : 's'} nothing reads:\n`)
-for (const { name, where } of found.sort((a, b) => a.name.localeCompare(b.name))) {
-  console.error(`  ${name.padEnd(24)} ${where.join(', ')}`)
+if (found.length > 0) {
+  console.error(`${found.length} export${found.length === 1 ? '' : 's'} nothing reads:\n`)
+  for (const { name, where } of found.sort((a, b) => a.name.localeCompare(b.name))) {
+    console.error(`  ${name.padEnd(24)} ${where.join(', ')}`)
+  }
+  console.error(
+    '\nDelete it, or stop exporting it if its own file still uses it.\n' +
+      'If it is a port contract both twins implement, add it to ALLOWED in this\n' +
+      'script with the reason.',
+  )
 }
-console.error(
-  '\nDelete it, or stop exporting it if its own file still uses it.\n' +
-    'If it is a port contract both twins implement, add it to ALLOWED in this\n' +
-    'script with the reason.',
-)
+
+if (members.length > 0) {
+  console.error(`\n${members.length} member${members.length === 1 ? '' : 's'} nothing reaches:\n`)
+  for (const { name, file } of members.sort((a, b) => a.name.localeCompare(b.name))) {
+    console.error(`  ${name.padEnd(24)} ${file}`)
+  }
+  console.error(
+    '\nDelete it from the surface and from whatever implements it.\n' +
+      'If it is kept on purpose, add `file#member` to ALLOWED_MEMBERS in this\n' +
+      'script with the reason.',
+  )
+}
 process.exit(1)

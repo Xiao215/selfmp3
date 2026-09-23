@@ -18,6 +18,8 @@
  * key, a headset, a lock screen — so a jump is the same jump everywhere.
  */
 export const SEEK_STEP_SECONDS = 10
+/** What one press of volume up or down moves the level by, on a 0–1 scale. */
+export const VOLUME_STEP = 0.05
 
 /** Where the song has got to. Read it only where a scrubber or a synced line needs it. */
 export interface PlayerProgress {
@@ -126,6 +128,47 @@ export function samePlayback(a: SongPlaybackState, b: SongPlaybackState): boolea
 }
 
 /**
+ * The level, as the engine has it. Its own store because a drag of the volume
+ * slider and the sleep timer's fade each set it many times a second, and
+ * nothing but the volume control draws it.
+ */
+export interface VolumeState {
+  /** 0–1; the bar's slider and the web's share one scale. */
+  readonly volume: number
+  readonly muted: boolean
+}
+
+export function sameVolume(a: VolumeState, b: VolumeState): boolean {
+  return a.volume === b.volume && a.muted === b.muted
+}
+
+/**
+ * The practice tools' state: the loop, its count-in, and the speed with
+ * whether the pitch follows it. Read by the practice panel and the two chips
+ * that say a loop or a speed is on; the count-in flips on every restart of
+ * the loop, which is why it does not ride in `PlayerApi`.
+ */
+export interface PracticeState {
+  readonly loopA: number | null
+  readonly loopB: number | null
+  /** The pause before a loop starts again, while it is happening. */
+  readonly countingIn: boolean
+  /** Playback speed: 1 is normal. */
+  readonly rate: number
+  readonly preservesPitch: boolean
+}
+
+export function samePractice(a: PracticeState, b: PracticeState): boolean {
+  return (
+    a.loopA === b.loopA &&
+    a.loopB === b.loopB &&
+    a.countingIn === b.countingIn &&
+    a.rate === b.rate &&
+    a.preservesPitch === b.preservesPitch
+  )
+}
+
+/**
  * One row's view of the player: `playing` or `paused` for the loaded song, and
  * null for every other row. A primitive, so a song change wakes the two rows
  * whose answer changed and a pause wakes one — not the whole list.
@@ -141,15 +184,15 @@ export function songPlayback(
 /**
  * Whether two engine states differ in anything but the clock.
  *
- * The clock — the position, the duration, how much is buffered — goes to the
- * progress store. Everything else (playing, volume, loop points…) is rare, and
+ * The clock — the position and the duration — goes to the progress store. Everything else (playing, volume, loop points…) is rare, and
  * is what the provider still keeps in state.
  */
-export function differsBesidesClock<
-  T extends { currentTime: number; duration: number; buffered: number },
->(a: T, b: T): boolean {
+export function differsBesidesClock<T extends { currentTime: number; duration: number }>(
+  a: T,
+  b: T,
+): boolean {
   for (const key of Object.keys(b) as (keyof T)[]) {
-    if (key === 'currentTime' || key === 'duration' || key === 'buffered') continue
+    if (key === 'currentTime' || key === 'duration') continue
     if (a[key] !== b[key]) return true
   }
   return false

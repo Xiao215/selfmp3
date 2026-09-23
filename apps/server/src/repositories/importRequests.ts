@@ -1,4 +1,4 @@
-import type { CloudImport } from '@selfmp3/shared'
+import { CloudImportSchema, type CloudImport } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
 
 type ImportRequestState = CloudImport['state']
@@ -31,8 +31,6 @@ interface RequestRow {
   updated_at: string
 }
 
-const STATES = new Set<string>(['waiting', 'working', 'done', 'failed', 'cancelled'])
-
 function uidList(raw: string): string[] {
   try {
     const parsed: unknown = JSON.parse(raw)
@@ -52,7 +50,7 @@ function toRequest(row: RequestRow): ImportRequest {
     playlistUid: row.playlist_uid,
     requestedBy: row.requested_by,
     requestedAt: row.requested_at,
-    state: STATES.has(row.state) ? (row.state as ImportRequestState) : 'failed',
+    state: CloudImportSchema.shape.state.catch('failed').parse(row.state),
     title: row.title,
     songUids: uidList(row.song_uids),
     error: row.error,

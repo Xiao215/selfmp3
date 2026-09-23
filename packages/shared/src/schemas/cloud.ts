@@ -1,10 +1,9 @@
 import { z } from 'zod'
 import { CoverToneSchema } from './song.js'
 import { HLC_PATTERN } from '../hlc.js'
-import { IdSchema, SongSortFieldSchema, SortDirectionSchema } from './common.js'
+import { HueSchema, IdSchema, SongSortFieldSchema, SortDirectionSchema } from './common.js'
 import { SignInCodeSchema } from './doorman.js'
 import { AudioFeaturesSchema } from './audioFeatures.js'
-import { PlaylistKindSchema } from './playlist.js'
 import {
   BoolRuleSchema,
   DateRuleSchema,
@@ -129,7 +128,7 @@ export type CloudSong = z.infer<typeof CloudSongSchema>
 export const CloudTagSchema = z.object({
   uid: UidSchema,
   name: z.string(),
-  hue: z.number().int().min(0).max(359),
+  hue: HueSchema,
   /** Per field: name, hue. */
   stamps: StampsSchema.optional(),
 })
@@ -147,7 +146,7 @@ export const CloudTagRuleSchema = z.object({
 })
 export type CloudTagRule = z.infer<typeof CloudTagRuleSchema>
 
-export const CloudSmartRuleSchema = z.union([
+export const CloudSmartRuleSchema = z.discriminatedUnion('field', [
   TextRuleSchema,
   CloudTagRuleSchema,
   NumberRuleSchema,
@@ -167,13 +166,10 @@ export const CloudSmartRulesSchema = z.object({
 })
 export type CloudSmartRules = z.infer<typeof CloudSmartRulesSchema>
 
-export const CloudPlaylistSchema = z.object({
+const CloudPlaylistBaseSchema = z.object({
   uid: UidSchema,
   name: z.string(),
   description: z.string(),
-  kind: PlaylistKindSchema,
-  /** Null for a manual playlist. */
-  rules: CloudSmartRulesSchema.nullable(),
   pinned: z.boolean(),
   /**
    * In order. For a smart playlist, the songs its rules matched when the
@@ -188,6 +184,12 @@ export const CloudPlaylistSchema = z.object({
   /** Per song, whether it was last added to the playlist or taken out. */
   songStamps: StampsSchema.optional(),
 })
+
+/** As `PlaylistSchema`: a manual playlist has no rules, a live one always has a set. */
+export const CloudPlaylistSchema = z.discriminatedUnion('kind', [
+  CloudPlaylistBaseSchema.extend({ kind: z.literal('manual'), rules: z.null() }),
+  CloudPlaylistBaseSchema.extend({ kind: z.literal('live'), rules: CloudSmartRulesSchema }),
+])
 export type CloudPlaylist = z.infer<typeof CloudPlaylistSchema>
 
 /**

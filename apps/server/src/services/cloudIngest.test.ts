@@ -107,9 +107,11 @@ describe('CloudIngest', () => {
       lyricsKind: fields.lyrics ? 'synced' : 'none',
       sourceUrl: null,
     })
-    // Distinct times, oldest first, the way a library fills up.
+    // Distinct times, newest first: the order a server that adopted a bucket
+    // gave its ids out in, since a snapshot lists the newest song first. So a
+    // sort that fell back on row ids would disagree with a device's.
     db.prepare("UPDATE songs SET added_at = datetime('2026-08-01', ?) WHERE id = ?").run(
-      `+${n} hours`,
+      `-${n} hours`,
       id,
     )
     cloud.saveState({

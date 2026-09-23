@@ -1,4 +1,5 @@
-import type { Device } from '@selfmp3/shared'
+import { z } from 'zod'
+import { DeviceSchema, type Device } from '@selfmp3/shared'
 
 /**
  * The last device list this device was given, kept so Settings › Devices has
@@ -12,12 +13,15 @@ import type { Device } from '@selfmp3/shared'
 /** Where the list is kept, in this device's small preferences. */
 export const LAST_KNOWN_DEVICES_KEY = 'devices.lastKnown'
 
-interface KnownDevice {
-  readonly id: string
-  readonly name: string
-  readonly kind: Device['kind']
-  readonly lastSeenAt: number
-}
+/** A row as it is written: the shared device shape, less everything that goes stale. */
+const KnownDeviceSchema = DeviceSchema.pick({ id: true, name: true, kind: true, lastSeenAt: true })
+type KnownDevice = z.infer<typeof KnownDeviceSchema>
+
+/** What is on disk: the rows, and when the answer came. */
+const StoredSchema = z.object({
+  savedAt: z.number(),
+  devices: z.array(KnownDeviceSchema),
+})
 
 /** What is written: the rows, and when the answer came. */
 export function serializeKnownDevices(devices: readonly Device[], savedAt: number): string {
@@ -38,21 +42,15 @@ export function parseKnownDevices(
   raw: string | null,
 ): { savedAt: number; devices: readonly KnownDevice[] } | null {
   if (!raw) return null
+  let stored: unknown
   try {
-    const parsed = JSON.parse(raw) as { savedAt?: unknown; devices?: unknown }
-    if (typeof parsed.savedAt !== 'number' || !Array.isArray(parsed.devices)) return null
-    const devices = parsed.devices.filter(
-      (row): row is KnownDevice =>
-        typeof row === 'object' &&
-        row !== null &&
-        typeof (row as KnownDevice).id === 'string' &&
-        typeof (row as KnownDevice).name === 'string' &&
-        typeof (row as KnownDevice).lastSeenAt === 'number',
-    )
-    return devices.length > 0 ? { savedAt: parsed.savedAt, devices } : null
+    stored = JSON.parse(raw)
   } catch {
     return null
   }
+  const result = StoredSchema.safeParse(stored)
+  if (!result.success || result.data.devices.length === 0) return null
+  return result.data
 }
 
 /** Nothing playing: what a kept row says about playback, since none of it was kept. */

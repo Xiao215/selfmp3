@@ -119,22 +119,18 @@ describe('MetadataLookupService', () => {
       )
     })
 
-    it('honours the abort signal, so a hung server cannot stall the request', async () => {
+    it('gives up on a hung server when the request times out', async () => {
+      // A fetch that never answers, and only ends when its signal says so —
+      // as the real one does. Real timers: `AbortSignal.timeout` keeps its
+      // own, out of reach of a fake clock, so the timeout is made short instead.
       const fetch = ((_url: string, init?: RequestInit) =>
         new Promise<Response>((_resolve, reject) => {
           init?.signal?.addEventListener('abort', () => reject(new Error('aborted')))
         })) as FetchLike
-      vi.useFakeTimers()
-      try {
-        const service = new MetadataLookupService(loud, [
-          new ItunesProvider({ fetch, logger: loud }),
-        ])
-        const pending = service.lookup(query)
-        await vi.advanceTimersByTimeAsync(8_500)
-        expect(await pending).toEqual([])
-      } finally {
-        vi.useRealTimers()
-      }
+      const service = new MetadataLookupService(loud, [
+        new ItunesProvider({ fetch, logger: loud, timeoutMs: 20 }),
+      ])
+      expect(await service.lookup(query)).toEqual([])
     })
 
     it('keeps the other provider when one throws outright', async () => {

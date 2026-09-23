@@ -1,3 +1,5 @@
+import { fromSqliteTime } from './sync.js'
+
 /**
  * Formatting helpers shared by the server (log lines, scan summaries) and
  * every client. Pure functions, no dependencies, fully unit tested.
@@ -49,10 +51,7 @@ export function formatRelative(at: string | null, now?: Date): string
 export function formatRelative(at: number, now?: Date): string
 export function formatRelative(at: string | number | null, now = new Date()): string {
   if (at === null || at === '') return 'never'
-  const then =
-    typeof at === 'number'
-      ? new Date(at)
-      : new Date(at.includes('T') ? at : at.replace(' ', 'T') + 'Z')
+  const then = typeof at === 'number' ? new Date(at) : new Date(fromSqliteTime(at))
   const ms = now.getTime() - then.getTime()
   if (!Number.isFinite(ms)) return 'never'
   if (ms < 0) return 'just now'

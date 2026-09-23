@@ -33,10 +33,17 @@ const OverlayContext = createContext<OverlayApi | null>(null)
 export function OverlayProvider({ children }: { children: ReactNode }): ReactNode {
   const [nodes, setNodes] = useState<readonly { id: string; node: ReactNode }[]>([])
 
+  // An entry keeps its place: the host paints in the order overlays opened,
+  // which is the order `useEscape` closes them in. Moving a re-rendered one
+  // to the end put whichever owner rendered last on top, so a popover under a
+  // sheet came over it the moment its screen re-rendered.
   const set = useCallback((id: string, node: ReactNode) => {
     setNodes(current => {
-      const next = current.filter(entry => entry.id !== id)
-      next.push({ id, node })
+      const index = current.findIndex(entry => entry.id === id)
+      if (index === -1) return [...current, { id, node }]
+      if (current[index]?.node === node) return current
+      const next = [...current]
+      next[index] = { id, node }
       return next
     })
   }, [])

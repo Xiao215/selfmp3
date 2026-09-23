@@ -3,6 +3,7 @@ import path from 'node:path'
 import {
   audioKey,
   fromCloudRules,
+  playlistRules,
   sanitizeFilename,
   type CloudPlaylist,
   type CloudSnapshot,
@@ -365,10 +366,10 @@ export class CloudAdopt {
         uid: list.uid,
         name: list.name,
         description: list.description,
-        kind: list.kind,
-        rules: list.rules
-          ? fromCloudRules(list.rules, uid => this.#sync.tag(uid)?.id ?? null)
-          : null,
+        ...playlistRules(
+          list.kind,
+          list.rules && fromCloudRules(list.rules, uid => this.#sync.tag(uid)?.id ?? null),
+        ),
         pinned: list.pinned,
         createdAt: list.createdAt,
       })

@@ -173,7 +173,7 @@ describe('Import review, on a phone', () => {
   it('unticks a song, keeps it listed, and ticks it back', async () => {
     await draw()
     await act(async () => {
-      fireEvent.press(screen.getByLabelText('Deselect 怪物'))
+      await fireEvent.press(screen.getByLabelText('Deselect 怪物'))
     })
     expect(screen.getByLabelText('Select 怪物')).toBeTruthy()
     expect(screen.getByText('怪物')).toBeTruthy()
@@ -183,7 +183,7 @@ describe('Import review, on a phone', () => {
     expect(screen.getByLabelText('Select all').props['accessibilityState'].checked).toBe('mixed')
 
     await act(async () => {
-      fireEvent.press(screen.getByLabelText('Select 怪物'))
+      await fireEvent.press(screen.getByLabelText('Select 怪物'))
     })
     expect(screen.getByLabelText('Deselect 怪物')).toBeTruthy()
     expect(screen.getByText('Import 2 songs')).toBeTruthy()
@@ -192,15 +192,15 @@ describe('Import review, on a phone', () => {
   it('still opens an unticked song, to hear it before deciding', async () => {
     await draw()
     await act(async () => {
-      fireEvent.press(screen.getByLabelText('Deselect 怪物'))
+      await fireEvent.press(screen.getByLabelText('Deselect 怪物'))
     })
     await act(async () => {
-      fireEvent.press(screen.getByLabelText('怪物, YOASOBI'))
+      await fireEvent.press(screen.getByLabelText('怪物, YOASOBI'))
     })
     expect(screen.getByLabelText('Title of track 3')).toBeTruthy()
     // And unticking the open one leaves it open.
     await act(async () => {
-      fireEvent.press(screen.getByLabelText('Deselect 群青'))
+      await fireEvent.press(screen.getByLabelText('Deselect 群青'))
     })
     expect(screen.getByLabelText('Title of track 3')).toBeTruthy()
     expect(screen.getByText('Import 0 songs')).toBeTruthy()
@@ -209,14 +209,14 @@ describe('Import review, on a phone', () => {
   it('unticks every song from the head, and ticks them all back', async () => {
     await draw()
     await act(async () => {
-      fireEvent.press(screen.getByLabelText('Deselect all'))
+      await fireEvent.press(screen.getByLabelText('Deselect all'))
     })
     expect(screen.getByTestId('import-count').props['children']).toBe('0 of 3 in')
     expect(screen.getByText('Import 0 songs')).toBeTruthy()
     expect(screen.getByLabelText('Select 群青')).toBeTruthy()
 
     await act(async () => {
-      fireEvent.press(screen.getByLabelText('Select all'))
+      await fireEvent.press(screen.getByLabelText('Select all'))
     })
     expect(screen.getByText('Import 2 songs')).toBeTruthy()
     // Still nothing for the song that is yours already.
@@ -239,7 +239,7 @@ describe('Import review, on a phone', () => {
     )
     const view = await render(page('http://192.168.1.20:4600'))
     await act(async () => {
-      fireEvent.press(screen.getByLabelText('Deselect 群青'))
+      await fireEvent.press(screen.getByLabelText('Deselect 群青'))
     })
     await view.rerender(page('http://100.64.0.5:4600'))
     expect(screen.getByText('THE BOOK')).toBeTruthy()
@@ -255,16 +255,16 @@ describe('Import review, on a phone', () => {
   it('shows a ticked tag as a chip, and sends it', async () => {
     await draw()
     await act(async () => {
-      fireEvent.press(screen.getByTestId('import-add-tag'))
+      await fireEvent.press(screen.getByTestId('import-add-tag'))
     })
     await act(async () => {
-      fireEvent.press(screen.getByRole('checkbox', { name: 'jpop' }))
+      await fireEvent.press(screen.getByRole('checkbox', { name: 'jpop' }))
     })
     // The chip is the button; the row in the picker above it is the checkbox.
     expect(screen.getByRole('button', { name: 'jpop' })).toBeTruthy()
 
     await act(async () => {
-      fireEvent.press(screen.getByTestId('import-commit'))
+      await fireEvent.press(screen.getByTestId('import-commit'))
     })
     expect(mockEnqueue.mock.calls[0][0].tagIds).toEqual([7])
   })
@@ -272,13 +272,13 @@ describe('Import review, on a phone', () => {
   it('makes a new tag where the import is going, and chips it', async () => {
     await draw()
     await act(async () => {
-      fireEvent.press(screen.getByTestId('import-add-tag'))
+      await fireEvent.press(screen.getByTestId('import-add-tag'))
     })
     await act(async () => {
-      fireEvent.changeText(screen.getByLabelText('Search or create a tag'), 'citypop')
+      await fireEvent.changeText(screen.getByLabelText('Search or create a tag'), 'citypop')
     })
     await act(async () => {
-      fireEvent.press(screen.getByLabelText('Create citypop'))
+      await fireEvent.press(screen.getByLabelText('Create citypop'))
     })
     expect(mockCreateTag).toHaveBeenCalledWith('citypop')
     expect(screen.getByRole('button', { name: 'citypop' })).toBeTruthy()
@@ -287,17 +287,17 @@ describe('Import review, on a phone', () => {
   it('opens a song to rename it, album and all, and sends the new names with no playlist', async () => {
     await draw()
     await act(async () => {
-      fireEvent.press(screen.getByLabelText('群青, YOASOBI'))
+      await fireEvent.press(screen.getByLabelText('群青, YOASOBI'))
     })
     await act(async () => {
-      fireEvent.changeText(screen.getByLabelText('Artist of track 2'), 'YOASOBI feat. 合唱')
+      await fireEvent.changeText(screen.getByLabelText('Artist of track 2'), 'YOASOBI feat. 合唱')
     })
     await act(async () => {
-      fireEvent.changeText(screen.getByLabelText('Album of track 2'), 'THE BOOK')
+      await fireEvent.changeText(screen.getByLabelText('Album of track 2'), 'THE BOOK')
     })
 
     await act(async () => {
-      fireEvent.press(screen.getByTestId('import-commit'))
+      await fireEvent.press(screen.getByTestId('import-commit'))
     })
     expect(mockEnqueue).toHaveBeenCalledTimes(1)
     const request = mockEnqueue.mock.calls[0][0]

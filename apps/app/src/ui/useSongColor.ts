@@ -4,8 +4,38 @@ import { hueFromString, pickCoverTone, type CoverTone, type Song } from '@selfmp
 import { readCoverPixels } from '../ports/coverPixels'
 import { useAccent } from './accent'
 
-/* Covers read on this device, one read per cover revision for the session. */
+/* Covers read on this device: one read per key for the session. */
 const tones = new Map<string, CoverTone | null>()
+
+/**
+ * The colour read from a cover on this device, or null until it has been —
+ * and null for good where the platform cannot read pixels.
+ *
+ * `key` is what the answer is remembered by: a song's id and revision, or the
+ * bare address of a cover the library does not hold yet. `read` false leaves
+ * the cover alone — the server has already said what colour it is, or the row
+ * is not the one playing. A cover that failed to load is not remembered, so
+ * it is tried afresh the next time it is asked for.
+ */
+function useCoverTone(key: string | null, uri: string | null, read: boolean): CoverTone | null {
+  const [, setRead] = useState(0)
+  const unread = read && key !== null && uri !== null && !tones.has(key)
+
+  useEffect(() => {
+    if (!unread || !key || !uri) return undefined
+    let cancelled = false
+    void readCoverPixels(uri).then(pixels => {
+      if (!pixels) return
+      tones.set(key, pickCoverTone(pixels))
+      if (!cancelled) setRead(count => count + 1)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [unread, key, uri])
+
+  return key ? (tones.get(key) ?? null) : null
+}
 
 /**
  * The colours to draw a playing song in: from its cover where it has one, from
@@ -21,33 +51,17 @@ const tones = new Map<string, CoverTone | null>()
  */
 export function useSongColor(song: Song | null, uri: string | null): SongColors {
   const accent = useAccent()
-  const key = song ? `${song.id}:${song.rev}` : ''
-  const [, setRead] = useState(0)
   const sent = song?.coverTone ?? null
-  const unread = song !== null && song.hasArt && sent === null && uri !== null && !tones.has(key)
-
-  useEffect(() => {
-    if (!unread || !uri) return undefined
-    let cancelled = false
-    void readCoverPixels(uri).then(pixels => {
-      // Not remembered when nothing could be read: a cover that failed to load
-      // is tried afresh the next time the song plays.
-      if (!pixels) return
-      tones.set(key, pickCoverTone(pixels))
-      if (!cancelled) setRead(count => count + 1)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [unread, key, uri])
+  const read = useCoverTone(
+    song ? `${song.id}:${song.rev}` : null,
+    uri,
+    song !== null && song.hasArt && sent === null,
+  )
 
   if (song && !song.hasArt) return songColors(tileTone(hueFromString(song.album || song.title)))
-  const tone = sent ?? (song ? tones.get(key) : null)
+  const tone = sent ?? read
   return tone ? songColors(tone) : { color: accent.accent, tint: accent.accent }
 }
-
-/* Covers read by address alone, for songs that are not songs yet. */
-const tonesByUri = new Map<string, CoverTone | null>()
 
 /**
  * The colours of a cover the library does not hold: a song on the import
@@ -57,22 +71,6 @@ const tonesByUri = new Map<string, CoverTone | null>()
  */
 export function useCoverColor(uri: string | null): SongColors {
   const accent = useAccent()
-  const [, setRead] = useState(0)
-  const unread = uri !== null && !tonesByUri.has(uri)
-
-  useEffect(() => {
-    if (!unread || !uri) return undefined
-    let cancelled = false
-    void readCoverPixels(uri).then(pixels => {
-      if (!pixels) return
-      tonesByUri.set(uri, pickCoverTone(pixels))
-      if (!cancelled) setRead(count => count + 1)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [unread, uri])
-
-  const tone = uri ? tonesByUri.get(uri) : null
+  const tone = useCoverTone(uri, uri, true)
   return tone ? songColors(tone) : { color: accent.accent, tint: accent.accent }
 }

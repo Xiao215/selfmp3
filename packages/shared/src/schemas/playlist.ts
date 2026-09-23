@@ -5,13 +5,36 @@ import { SmartRulesSchema } from './smart.js'
 export const PlaylistKindSchema = z.enum(['manual', 'live'])
 export type PlaylistKind = z.infer<typeof PlaylistKindSchema>
 
-export const PlaylistSchema = z.object({
+/**
+ * What kind of playlist it is, and so whether it has rules: a manual one has
+ * none and a live one always has a set. One union rather than two fields, so
+ * "a live playlist with no rules" is not a value anything has to guard against.
+ */
+export const ManualPlaylistRulesSchema = z.object({ kind: z.literal('manual'), rules: z.null() })
+export const LivePlaylistRulesSchema = z.object({
+  kind: z.literal('live'),
+  rules: SmartRulesSchema,
+})
+export type PlaylistRules = z.infer<
+  typeof ManualPlaylistRulesSchema | typeof LivePlaylistRulesSchema
+>
+
+/**
+ * The two fields as a row or a change carries them, one at a time: live only
+ * with a rule set, and manual otherwise. Generic over the rules because the
+ * bucket names tags by uid (`CloudSmartRules`) where a server names them by id.
+ */
+export function playlistRules<R>(
+  kind: PlaylistKind,
+  rules: R | null,
+): { kind: 'manual'; rules: null } | { kind: 'live'; rules: R } {
+  return kind === 'live' && rules ? { kind: 'live', rules } : { kind: 'manual', rules: null }
+}
+
+const PlaylistBaseSchema = z.object({
   id: IdSchema,
   name: z.string(),
   description: z.string(),
-  kind: PlaylistKindSchema,
-  /** Null for manual playlists; the rule set for live ones. */
-  rules: SmartRulesSchema.nullable(),
   songCount: z.number().int().nonnegative(),
   /** Total seconds, so the UI can show "1 hr 12 min" without fetching songs. */
   totalDuration: z.number().nonnegative(),
@@ -26,14 +49,22 @@ export const PlaylistSchema = z.object({
    */
   lastPlayedAt: z.string().nullable().default(null),
 })
+
+export const PlaylistSchema = z.discriminatedUnion('kind', [
+  PlaylistBaseSchema.merge(ManualPlaylistRulesSchema),
+  PlaylistBaseSchema.merge(LivePlaylistRulesSchema),
+])
 export type Playlist = z.infer<typeof PlaylistSchema>
 
-export const CreatePlaylistSchema = z.object({
+const CreatePlaylistBaseSchema = z.object({
   name: NameSchema,
   description: z.string().trim().max(500).default(''),
-  kind: PlaylistKindSchema.default('manual'),
-  rules: SmartRulesSchema.nullable().default(null),
 })
+
+export const CreatePlaylistSchema = z.discriminatedUnion('kind', [
+  CreatePlaylistBaseSchema.merge(ManualPlaylistRulesSchema),
+  CreatePlaylistBaseSchema.merge(LivePlaylistRulesSchema),
+])
 export type CreatePlaylist = z.infer<typeof CreatePlaylistSchema>
 
 export const UpdatePlaylistSchema = z

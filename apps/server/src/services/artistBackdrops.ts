@@ -52,7 +52,7 @@ const BACKDROP_SIZE = { width: 1200, height: 500 }
 
 const REQUEST_TIMEOUT_MS = 10_000
 
-export interface KeptBackdrop {
+interface KeptBackdrop {
   readonly path: string
   readonly contentType: 'image/jpeg'
   /** Names this copy, for the address it is drawn from; changes with the file. */
@@ -139,10 +139,13 @@ export class ArtistBackdropService {
       .slice(0, SONGS_ASKED)
     if (songs.length === 0) return null
 
+    // Each song is one request to the search; they go out together.
+    const results = await Promise.all(songs.map(song => this.#hitsFor(name, song)))
+    if (results.some(hits => hits === null)) return undefined
+
     const pages = new Map<string, { songs: number; named: boolean }>()
-    for (const song of songs) {
-      const hits = await this.#hitsFor(name, song)
-      if (hits === null) return undefined
+    for (const hits of results) {
+      if (hits === null) continue
       const counted = new Set<string>()
       for (const hit of hits) {
         const page = pages.get(hit.page) ?? { songs: 0, named: false }
@@ -193,10 +196,8 @@ export class ArtistBackdropService {
   }
 
   async #download(url: string): Promise<Buffer | null> {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
     try {
-      const response = await this.#fetch(url, { signal: controller.signal })
+      const response = await this.#fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
       if (!response.ok) return null
       return Buffer.from(await response.arrayBuffer())
     } catch (error) {
@@ -204,8 +205,6 @@ export class ArtistBackdropService {
         message: error instanceof Error ? error.message : String(error),
       })
       return null
-    } finally {
-      clearTimeout(timer)
     }
   }
 

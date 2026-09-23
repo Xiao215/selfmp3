@@ -2,6 +2,7 @@ import {
   listeningPersonality,
   personalityLine,
   WRAPPED_RANGE_DAYS,
+  fromSqliteTime,
   type TopEntry,
   type TopSong,
   type Wrapped,
@@ -231,7 +232,7 @@ function toMinutes(ms: number | null): number {
 
 /** SQLite's "YYYY-MM-DD HH:MM:SS" (UTC) as an ISO string. */
 function toIso(sqlite: string): string {
-  const parsed = Date.parse(sqlite.includes('T') ? sqlite : `${sqlite.replace(' ', 'T')}Z`)
+  const parsed = fromSqliteTime(sqlite)
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : sqlite
 }
 

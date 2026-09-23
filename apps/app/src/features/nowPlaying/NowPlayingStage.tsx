@@ -17,7 +17,7 @@ import type { NativeStackNavigationProp } from 'expo-router'
 import Svg, { Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
 import type { Rgb } from '@selfmp3/client'
-import { fonts, radius, tempoMark, useLibrary, withAlpha } from '@selfmp3/client'
+import { fonts, radius, rgba, tempoMark, useLibrary, withAlpha } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { leaveStage, setStageExit } from '../../shell/stageExit'
@@ -55,7 +55,7 @@ import { coverPose, stackedTabsTop, stageCover, wordsFrame, wordsPose } from './
 import { SongVisual } from './SongVisual'
 import { useMotionSampler } from './useMotionSampler'
 import { useSongVisual } from './visualChoice'
-import { motionCaption, rgbCss, VISUAL_NAMES } from './visuals.model'
+import { motionCaption, VISUAL_NAMES } from './visuals.model'
 import { VisualStyleMenu } from './VisualStyleMenu'
 import { useCoverPalette } from './useCoverPalette'
 import { useIdle } from './useIdle'
@@ -174,9 +174,9 @@ function CoverGlow({ palette }: { palette: readonly Rgb[] }): ReactNode {
       <Defs>
         {blooms.map((bloom, index) => (
           <RadialGradient key={index} id={`${id}${index}`} cx="0.5" cy="0.5" r="0.5">
-            <Stop offset="0" stopColor={rgbCss(bloom.ink)} stopOpacity={bloom.alpha} />
-            <Stop offset="0.55" stopColor={rgbCss(bloom.ink)} stopOpacity={bloom.alpha * 0.55} />
-            <Stop offset="1" stopColor={rgbCss(bloom.ink)} stopOpacity={0} />
+            <Stop offset="0" stopColor={rgba(bloom.ink)} stopOpacity={bloom.alpha} />
+            <Stop offset="0.55" stopColor={rgba(bloom.ink)} stopOpacity={bloom.alpha * 0.55} />
+            <Stop offset="1" stopColor={rgba(bloom.ink)} stopOpacity={0} />
           </RadialGradient>
         ))}
       </Defs>
@@ -257,6 +257,12 @@ function Stage({
   // 2026-09-21).
   const navigation = useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>()
   const [shown] = useState(() => new Animated.Value(stackMoves ? 1 : 0))
+  // The page's arrival, as native nodes built once: made in the render, each
+  // render dropped and rebuilt the animated node behind the whole page.
+  const [arrival] = useState(() => ({
+    translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }),
+    scale: shown.interpolate({ inputRange: [0, 1], outputRange: [0.985, 1] }),
+  }))
   useEffect(() => {
     if (stackMoves) {
       // The navigator says when its slide starts and when it is over. Only it
@@ -402,10 +408,7 @@ function Stage({
         styles.stagePage,
         {
           opacity: shown,
-          transform: [
-            { translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) },
-            { scale: shown.interpolate({ inputRange: [0, 1], outputRange: [0.985, 1] }) },
-          ],
+          transform: [{ translateY: arrival.translateY }, { scale: arrival.scale }],
         },
       ]}
       accessibilityLabel={`Now playing: ${song.title}`}

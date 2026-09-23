@@ -22,14 +22,14 @@ describe('Button', () => {
   it('calls back when pressed', async () => {
     const onPress = jest.fn()
     await render(<Button label="Play" onPress={onPress} />)
-    fireEvent.press(screen.getByRole('button', { name: 'Play' }))
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }))
     expect(onPress).toHaveBeenCalledTimes(1)
   })
 
   it('does nothing when it is disabled', async () => {
     const onPress = jest.fn()
     await render(<Button label="Play" onPress={onPress} disabled />)
-    fireEvent.press(screen.getByRole('button', { name: 'Play' }))
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }))
     expect(onPress).not.toHaveBeenCalled()
   })
 
@@ -38,7 +38,7 @@ describe('Button', () => {
     // reason it must not fire again is that the first press is still running.
     const onPress = jest.fn()
     await render(<Button label="Sign in" onPress={onPress} busy />)
-    fireEvent.press(screen.getByRole('button', { name: 'Sign in' }))
+    await fireEvent.press(screen.getByRole('button', { name: 'Sign in' }))
     expect(onPress).not.toHaveBeenCalled()
   })
 })

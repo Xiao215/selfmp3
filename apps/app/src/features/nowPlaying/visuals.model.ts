@@ -1,5 +1,5 @@
-import { oklchToHex, type Rgb } from '@selfmp3/client'
-import type { CoverSwatch, AudioFeatures } from '@selfmp3/shared'
+import { hexToRgb, oklchToHex, type Rgb } from '@selfmp3/client'
+import { clamp, type CoverSwatch, type AudioFeatures } from '@selfmp3/shared'
 
 /**
  * What a song with no lyrics shows where the words would be: the rules, with
@@ -132,7 +132,7 @@ export function visualColors(
   if (palette && palette.length > 0) return paletteColors(palette, hue)
   const h = keyedHue(hue, camelot)
   const at = (lightness: number, chroma: number, turn: number): Rgb =>
-    hexRgb(oklchToHex(lightness, chroma, (h + turn + 360) % 360))
+    hexToRgb(oklchToHex(lightness, chroma, (h + turn + 360) % 360))
   return {
     inks: [at(0.78, 0.14, 0), at(0.72, 0.15, 32), at(0.84, 0.1, -28)],
     ground: [at(0.22, 0.05, 0), at(0.12, 0.03, 0)],
@@ -144,8 +144,6 @@ const INK_HUE_SPREAD = 35
 
 const hueDistance = (a: number, b: number): number => Math.abs(((a - b + 540) % 360) - 180)
 const wrapHue = (h: number): number => ((h % 360) + 360) % 360
-const clamp = (value: number, low: number, high: number): number =>
-  Math.max(low, Math.min(high, value))
 
 /**
  * A dark ground's hue, kept out of yellow-green. Between about 65° and 125°
@@ -193,7 +191,7 @@ function paletteColors(palette: readonly CoverSwatch[], leadHue: number): Visual
     return clamp((near ? near.c : 0.05) * 2.4, 0.1, 0.16)
   }
   const at = (lightness: number, chroma: number, h: number): Rgb =>
-    hexRgb(oklchToHex(lightness, chroma, h))
+    hexToRgb(oklchToHex(lightness, chroma, h))
 
   const byDepth = [...palette].sort((a, b) => a.l - b.l)
   const deep = byDepth.find(swatch => swatch.c >= 0.015) ?? byDepth[0]
@@ -208,9 +206,6 @@ function paletteColors(palette: readonly CoverSwatch[], leadHue: number): Visual
     ground: [at(0.19, gc, gh), at(0.1, gc * 0.6, gh)],
   }
 }
-
-export const rgbCss = ([r, g, b]: Rgb, alpha = 1): string =>
-  `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${alpha})`
 
 /** `a` moved `t` of the way to `b`, channel by channel. */
 function mixRgb(a: Rgb, b: Rgb, t: number): Rgb {
@@ -273,10 +268,6 @@ export function rippleDisc(width: number, height: number): number {
  */
 export const RING_FROM = 0.55
 export const RING_TO = 2.3
-
-function hexRgb(hex: string): Rgb {
-  return [1, 3, 5].map(at => parseInt(hex.slice(at, at + 2), 16)) as unknown as Rgb
-}
 
 /* ------------------------------------------------------------------ motion */
 

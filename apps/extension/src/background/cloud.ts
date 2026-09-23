@@ -66,7 +66,7 @@ export function createCloud(store: KeyValueStore, fetchImpl: typeof fetch): Clou
       cloudRequest,
       onCloudLibraryChanged: library.onCloudLibraryChanged,
     }),
-    fetch: (url, init) => fetchImpl(url, init as RequestInit),
+    fetch: (url, init) => fetchImpl(url, init),
   })
 
   return {

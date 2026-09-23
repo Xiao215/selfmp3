@@ -87,7 +87,7 @@ describe('a playlist row is a library row', () => {
 
     // Lifted and a drop target are drawing, not behaviour; what matters is
     // that asking for them changes nothing else about the row.
-    plain.rerender(<SongRow {...playlistRow({ lifted: true, dropTarget: 'below' })} />)
+    await plain.rerender(<SongRow {...playlistRow({ lifted: true, dropTarget: 'below' })} />)
     expect(screen.getByLabelText(`More actions for ${song.title}`)).toBeTruthy()
   })
 
@@ -95,7 +95,7 @@ describe('a playlist row is a library row', () => {
     const onMore = jest.fn()
     await render(<SongRow {...playlistRow({ onMore, onLongPress: null })} />)
 
-    fireEvent(screen.getByLabelText(`${song.title}, ${song.artist}`), 'longPress')
+    await fireEvent(screen.getByLabelText(`${song.title}, ${song.artist}`), 'longPress')
     expect(onMore).not.toHaveBeenCalled()
   })
 
@@ -103,7 +103,7 @@ describe('a playlist row is a library row', () => {
     const onMore = jest.fn()
     await render(<SongRow {...playlistRow({ onMore, onLongPress: undefined })} />)
 
-    fireEvent(screen.getByLabelText(`${song.title}, ${song.artist}`), 'longPress')
+    await fireEvent(screen.getByLabelText(`${song.title}, ${song.artist}`), 'longPress')
     expect(onMore).toHaveBeenCalled()
   })
 
@@ -111,7 +111,7 @@ describe('a playlist row is a library row', () => {
     const onLongPress = jest.fn()
     await render(<SongRow {...playlistRow({ onLongPress })} />)
 
-    fireEvent(screen.getByLabelText(`${song.title}, ${song.artist}`), 'longPress')
+    await fireEvent(screen.getByLabelText(`${song.title}, ${song.artist}`), 'longPress')
     expect(onLongPress).toHaveBeenCalledWith(song)
   })
 })

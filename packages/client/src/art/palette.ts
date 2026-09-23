@@ -103,12 +103,14 @@ export function tonePalette({ hue, chroma }: CoverTone): [Rgb, Rgb, Rgb] {
   ]
 }
 
-function hexToRgb(hex: string): Rgb {
+/** `#rrggbb` as its three channels. */
+export function hexToRgb(hex: string): Rgb {
   const byte = (at: number): number => parseInt(hex.slice(at, at + 2), 16)
   return [byte(1), byte(3), byte(5)]
 }
 
-export const rgba = ([r, g, b]: Rgb, alpha: number): string =>
+/** A CSS colour from the three channels, opaque unless told otherwise. */
+export const rgba = ([r, g, b]: Rgb, alpha = 1): string =>
   `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${alpha})`
 
 /* The page is dark, so the glow colours must be light enough to glow. */

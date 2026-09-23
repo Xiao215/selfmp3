@@ -1,9 +1,5 @@
-import {
-  DoormanStorageSchema,
-  newCloudDeviceId,
-  type CloudLyrics,
-  type DoormanStorage,
-} from '@selfmp3/shared'
+import { z } from 'zod'
+import { DoormanStorageSchema, newCloudDeviceId, type CloudLyrics } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
 
 /**
@@ -12,17 +8,22 @@ import type { Db } from '../db/index.js'
  * has already uploaded. See docs/SYNC.md.
  */
 
-/** Where the bucket is and the key that opens it. Lives in `secrets`. */
-export interface CloudConnection {
+/**
+ * Where the bucket is and the key that opens it. Lives in `secrets`, and is
+ * read back through this schema: a row this build cannot make sense of reads
+ * as "not connected", never as a crash at boot.
+ */
+const CloudConnectionSchema = z.object({
   /** `https://s3.us-west-004.backblazeb2.com` */
-  readonly endpoint: string
-  readonly region: string
-  readonly bucket: string
+  endpoint: z.string(),
+  region: z.string(),
+  bucket: z.string(),
   /** The folder everything goes under, without slashes at either end. Empty for the root. */
-  readonly prefix: string
-  readonly keyId: string
-  readonly applicationKey: string
-}
+  prefix: z.string(),
+  keyId: z.string(),
+  applicationKey: z.string(),
+})
+export type CloudConnection = Readonly<z.infer<typeof CloudConnectionSchema>>
 
 /** What was uploaded for one song, and from which state of it. */
 export interface CloudSongState {
@@ -64,21 +65,23 @@ export interface SongFileInfo {
 /**
  * Signed in through the doorman: a session for your Google account, which the
  * doorman exchanges for access to the bucket that belongs to it. No bucket
- * key is held here in this mode.
+ * key is held here in this mode. Read back like the connection: a corrupt row
+ * reads as signed out.
  */
-export interface DoormanSession {
+const DoormanSessionSchema = z.object({
   /** The doorman it was issued by; a session means nothing to any other. */
-  readonly url: string
-  readonly token: string
-  readonly email: string
-  readonly name: string | null
-  readonly picture: string | null
+  url: z.string(),
+  token: z.string(),
+  email: z.string(),
+  name: z.string().nullable().catch(null),
+  picture: z.string().nullable().catch(null),
   /**
    * The bucket the doorman last said belongs to the account, so a restart
    * can carry on publishing before the doorman has been asked again.
    */
-  readonly storage: DoormanStorage | null
-}
+  storage: DoormanStorageSchema.nullable().catch(null),
+})
+export type DoormanSession = Readonly<z.infer<typeof DoormanSessionSchema>>
 
 /** Which bucket and folder the upload bookkeeping describes. */
 interface CloudTarget {
@@ -239,23 +242,7 @@ export class CloudRepository {
 
   connection(): CloudConnection | null {
     const row = this.#getSecret.get(CONNECTION_SECRET)
-    if (!row) return null
-    try {
-      const parsed = JSON.parse(row.value) as Partial<CloudConnection>
-      if (
-        typeof parsed.endpoint === 'string' &&
-        typeof parsed.region === 'string' &&
-        typeof parsed.bucket === 'string' &&
-        typeof parsed.prefix === 'string' &&
-        typeof parsed.keyId === 'string' &&
-        typeof parsed.applicationKey === 'string'
-      ) {
-        return parsed as CloudConnection
-      }
-    } catch {
-      // A corrupt row reads as "not connected", never as a crash at boot.
-    }
-    return null
+    return row ? readSecret(CloudConnectionSchema, row.value) : null
   }
 
   /**
@@ -282,28 +269,7 @@ export class CloudRepository {
 
   doormanSession(): DoormanSession | null {
     const row = this.#getSecret.get(DOORMAN_SECRET)
-    if (!row) return null
-    try {
-      const parsed = JSON.parse(row.value) as Partial<DoormanSession>
-      if (
-        typeof parsed.url === 'string' &&
-        typeof parsed.token === 'string' &&
-        typeof parsed.email === 'string'
-      ) {
-        const storage = DoormanStorageSchema.safeParse(parsed.storage)
-        return {
-          url: parsed.url,
-          token: parsed.token,
-          email: parsed.email,
-          name: typeof parsed.name === 'string' ? parsed.name : null,
-          picture: typeof parsed.picture === 'string' ? parsed.picture : null,
-          storage: storage.success ? storage.data : null,
-        }
-      }
-    } catch {
-      // As for the connection: corrupt reads as signed out.
-    }
-    return null
+    return row ? readSecret(DoormanSessionSchema, row.value) : null
   }
 
   /** Signed in through the doorman. It replaces a direct connection. */
@@ -542,4 +508,16 @@ function toState(row: CloudSongRow): CloudSongState {
     motionSig: row.motion_sig,
     uploadedAt: row.uploaded_at,
   }
+}
+
+/** A stored JSON secret through its schema; anything else reads as absent. */
+function readSecret<S extends z.ZodTypeAny>(schema: S, value: string): z.output<S> | null {
+  let json: unknown
+  try {
+    json = JSON.parse(value)
+  } catch {
+    return null
+  }
+  const parsed = schema.safeParse(json)
+  return parsed.success ? (parsed.data as z.output<S>) : null
 }

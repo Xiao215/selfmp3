@@ -1,14 +1,13 @@
-import fs from 'node:fs'
-import { PassThrough } from 'node:stream'
 import { Router } from 'express'
 import { z } from 'zod'
-import { BooleanQuerySchema, IdSchema, type Song } from '@selfmp3/shared'
+import { BooleanQuerySchema, IdSchema, fromSqliteTime, type Song } from '@selfmp3/shared'
 import type { CloudStore } from '../bucket/store.js'
 import type { Container } from '../container.js'
 import type { CloudSongState } from '../repositories/cloud.js'
 import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
 import { sendRange, type RangeSource } from '../http/range.js'
+import { sendStoredImage } from '../http/sendStoredImage.js'
 
 const ParamsWithId = z.object({ id: IdSchema })
 
@@ -33,19 +32,11 @@ function bucketSource(store: CloudStore, song: Song, state: CloudSongState): Ran
     sizeBytes: state.audioSize,
     mime: song.mime,
     etag: `"${state.audioKey.replace(/^audio\//, '').replace(/\.[^.]+$/, '')}"`,
-    lastModified: new Date(`${state.uploadedAt.replace(' ', 'T')}Z`),
-    open: (start, end) => {
-      const out = new PassThrough()
-      store
-        .range(state.audioKey, start, end)
-        .then(body => {
-          if (!body) out.destroy(new Error('the bucket has no such file'))
-          else body.pipe(out)
-        })
-        .catch((error: unknown) => {
-          out.destroy(error instanceof Error ? error : new Error(String(error)))
-        })
-      return out
+    lastModified: new Date(fromSqliteTime(state.uploadedAt)),
+    open: async (start, end, signal) => {
+      const body = await store.range(state.audioKey, start, end, signal)
+      if (!body) throw new Error('the bucket has no such file')
+      return body
     },
   }
 }
@@ -123,39 +114,7 @@ export function mediaRoutes(container: Container): Router {
             ? container.covers.find(params.id)
             : await container.covers.thumbnail(params.id, snapArtSize(query.size))
         if (!cover) throw HttpError.notFound('no cover art')
-
-        const stat = fs.statSync(cover.path)
-        const etag = `"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`
-
-        const caching = {
-          'Content-Type': cover.contentType,
-          ETag: etag,
-          'Cache-Control': 'private, max-age=604800',
-        }
-
-        if (req.headers['if-none-match'] === etag) {
-          res.set(caching).status(304).end()
-          return undefined
-        }
-
-        // Awaited deliberately: sendFile is asynchronous, so returning straight
-        // away would let the route wrapper see `headersSent === false` and send
-        // a 204 on top of the image.
-        //
-        // `dotfiles: 'allow'` because the path is the server's own, never the
-        // request's, and `send` otherwise answers 404 for any path with a
-        // dot-segment in it — so a data directory under `~/.local/share` (the
-        // Linux default) or any other hidden folder served no covers at all.
-        //
-        // The caching headers go through `headers`, which Express sets only once
-        // the file is really being sent. Set up front, a send that failed went out
-        // with a week's max-age, and the app's cache went on serving itself that
-        // failure in place of the cover long after the server had it.
-        await new Promise<void>((resolve, reject) => {
-          res.sendFile(cover.path, { dotfiles: 'allow', headers: caching }, error =>
-            error ? reject(error) : resolve(),
-          )
-        })
+        await sendStoredImage(req, res, cover)
         return undefined
       },
     ),

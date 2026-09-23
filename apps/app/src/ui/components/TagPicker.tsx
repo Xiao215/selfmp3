@@ -4,6 +4,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { fuzzyRank, TAG_NAME_MAX, type Song, type Tag } from '@selfmp3/shared'
 import {
+  failureText,
   HIT_TARGET,
   radius,
   space,
@@ -166,7 +167,7 @@ export function TagSearchList({
       onChange(next)
     } catch (caught) {
       // The name stays in the box, so trying again is one tap.
-      setError(`Couldn’t create “${name}”: ${(caught as Error).message}`)
+      setError(failureText(`Couldn’t create “${name}”`, caught))
     } finally {
       setMaking(false)
     }

@@ -1,5 +1,12 @@
 import crypto from 'node:crypto'
-import type { ImportEnqueueItem, ImportJob, ImportStatus, ImportStep } from '@selfmp3/shared'
+import {
+  ImportStatusSchema,
+  ImportStepSchema,
+  type ImportEnqueueItem,
+  type ImportJob,
+  type ImportStatus,
+  type ImportStep,
+} from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
 
 /**
@@ -31,18 +38,6 @@ interface ImportJobRow {
   updated_at: string
 }
 
-const STATUSES = new Set<ImportStatus>(['queued', 'running', 'done', 'error', 'cancelled'])
-const STEPS = new Set<ImportStep>([
-  'waiting',
-  'resolving',
-  'downloading',
-  'converting',
-  'lyrics',
-  'saving',
-  'uploading',
-  'finished',
-])
-
 function toJob(row: ImportJobRow): ImportJob {
   let tagIds: number[] = []
   try {
@@ -55,8 +50,10 @@ function toJob(row: ImportJobRow): ImportJob {
   return {
     id: row.id,
     url: row.url,
-    status: STATUSES.has(row.status as ImportStatus) ? (row.status as ImportStatus) : 'error',
-    step: STEPS.has(row.step as ImportStep) ? (row.step as ImportStep) : 'waiting',
+    // A row from a build that knew other names reads as failed and waiting,
+    // never as a broken queue.
+    status: ImportStatusSchema.catch('error').parse(row.status),
+    step: ImportStepSchema.catch('waiting').parse(row.step),
     progress: row.progress,
     title: row.title,
     artist: row.artist,

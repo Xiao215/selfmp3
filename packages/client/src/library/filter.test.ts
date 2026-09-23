@@ -118,13 +118,6 @@ describe('tag filtering', () => {
       const plain = fuzzyRank(query, library, text)
       expect(searchSongs(query, library), query).toEqual(plain)
       expect(topSongs(query, library, 2), query).toEqual(plain.slice(0, 2).map(m => m.item))
-      if (query) {
-        const filter = { ...byTitle, query }
-        expect(
-          filterSongs(library, filter, () => false),
-          query,
-        ).toEqual(plain.map(m => m.item))
-      }
     }
   })
 

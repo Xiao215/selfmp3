@@ -5,12 +5,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { LayoutChangeEvent } from 'react-native'
 import { usePathname, useRouter } from 'expo-router'
+import { clamp01 } from '@selfmp3/shared'
 import { warmCoverPalette } from '../features/nowPlaying/useCoverPalette'
 import { loopRegionPercent, radius, space, type, withAlpha, useToggleLoved } from '@selfmp3/client'
 import { DevicesSheet } from '../features/devices/DevicesSheet'
 import { toggleQueueSheet, useQueueSheetOpen } from '../features/queue/queueSheet.store'
 import { useArt } from '../offline/useArt'
-import { usePlayer, usePlayerProgress, usePlayerStalled } from '../player/PlayerProvider'
+import {
+  usePlayer,
+  usePlayerProgress,
+  usePlayerStalled,
+  usePlayerVolume,
+  usePracticeState,
+} from '../player/PlayerProvider'
+import { VOLUME_STEP } from '../player/progress.model'
 import { useSongColor } from '../ui/useSongColor'
 import { Cover } from '../ui/components/Cover'
 import { ProgressWash } from '../ui/components/ProgressWash'
@@ -79,6 +87,7 @@ export function PlayerBar(): ReactNode {
   // Not the position: that is `PlayedWash` and `BarSeek`'s, so a tick redraws
   // those two and not the rest of the bar.
   const player = usePlayer()
+  const practice = usePracticeState()
   const artFor = useArt()
   const router = useRouter()
   const toggleLoved = useToggleLoved()
@@ -221,8 +230,8 @@ export function PlayerBar(): ReactNode {
         </View>
         <View style={styles.progress}>
           <BarSeek
-            loopA={player.loopA}
-            loopB={player.loopB}
+            loopA={practice.loopA}
+            loopB={practice.loopB}
             onSeek={player.seekTo}
             color={songColor.color}
           />
@@ -231,11 +240,11 @@ export function PlayerBar(): ReactNode {
 
       <View style={styles.right}>
         <View style={styles.group} role="group" aria-label="Playback">
-          {player.rate !== 1 ? (
+          {practice.rate !== 1 ? (
             <ValuePill
               Icon={Metronome}
-              value={`${player.rate}×`}
-              label={`Practice tools, speed ${player.rate}×`}
+              value={`${practice.rate}×`}
+              label={`Practice tools, speed ${practice.rate}×`}
               caption="Practice: speed"
               onPress={() => setPracticeOpen(!practiceOpen, 'speed')}
             />
@@ -243,12 +252,12 @@ export function PlayerBar(): ReactNode {
             <IconButton
               onPress={() => setPracticeOpen(!practiceOpen)}
               label="Practice tools"
-              active={practiceOpen || player.loopB !== null}
+              active={practiceOpen || practice.loopB !== null}
             >
               <Metronome
                 size={17}
                 color={
-                  practiceOpen || player.loopB !== null
+                  practiceOpen || practice.loopB !== null
                     ? songColor.color
                     : theme.colors.textSecondary
                 }
@@ -453,23 +462,24 @@ function SleepButton(): ReactNode {
 function VolumeControl({ compact }: { compact: boolean }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
+  const level = usePlayerVolume()
   const lit = usePlayingColor()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<View>(null)
-  const muted = player.muted || player.volume === 0
-  const percent = Math.round(player.volume * 100)
+  const muted = level.muted || level.volume === 0
+  const percent = Math.round(level.volume * 100)
   const Icon = muted ? VolumeMute : Volume
 
   const mute = (
     <IconButton
       onPress={player.toggleMute}
-      label={player.muted ? 'Unmute' : 'Mute'}
-      active={player.muted}
+      label={level.muted ? 'Unmute' : 'Mute'}
+      active={level.muted}
     >
       <Icon size={17} color={theme.colors.textSecondary} />
     </IconButton>
   )
-  const slider = <VolumeSlider value={player.volume} onChange={player.setVolume} />
+  const slider = <VolumeSlider value={level.volume} onChange={player.setVolume} />
 
   if (!compact) {
     return (
@@ -485,9 +495,9 @@ function VolumeControl({ compact }: { compact: boolean }): ReactNode {
       <IconButton
         onPress={() => setOpen(value => !value)}
         label={`Volume: ${percent}%`}
-        active={player.muted}
+        active={level.muted}
       >
-        <Icon size={17} color={player.muted ? lit : theme.colors.textSecondary} />
+        <Icon size={17} color={level.muted ? lit : theme.colors.textSecondary} />
       </IconButton>
       <Popover
         open={open}
@@ -502,13 +512,16 @@ function VolumeControl({ compact }: { compact: boolean }): ReactNode {
         {/* A fader rising out of its button: the level on top, mute at its foot. */}
         <View style={styles.volumePopover}>
           <Text style={styles.readout}>{percent}%</Text>
-          <VolumeSlider value={player.volume} onChange={player.setVolume} vertical />
+          <VolumeSlider value={level.volume} onChange={player.setVolume} vertical />
           {mute}
         </View>
       </Popover>
     </View>
   )
 }
+
+/** What a screen reader can do to the fader; each swipe is one `VOLUME_STEP`. */
+const VOLUME_ACTIONS = [{ name: 'increment' }, { name: 'decrement' }] as const
 
 /**
  * A thin track that fills with the playing song's colour. Flat beside the
@@ -555,6 +568,14 @@ function VolumeSlider({
       accessibilityRole="adjustable"
       accessibilityLabel="Volume"
       accessibilityValue={{ min: 0, max: 100, now: Math.round(value * 100) }}
+      accessibilityActions={VOLUME_ACTIONS}
+      onAccessibilityAction={event =>
+        onChange(
+          clamp01(
+            value + (event.nativeEvent.actionName === 'increment' ? VOLUME_STEP : -VOLUME_STEP),
+          ),
+        )
+      }
       {...tip(vertical ? undefined : `Volume: ${Math.round(value * 100)}%`)}
       {...responder.panHandlers}
     >

@@ -37,7 +37,7 @@ const song = (id: number, patch: Partial<Song> = {}): Song => ({
   ...patch,
 })
 
-const playlist = (id: number, patch: Partial<Playlist> = {}): Playlist => ({
+const playlist = (id: number, patch: Partial<Omit<Playlist, 'kind' | 'rules'>> = {}): Playlist => ({
   id,
   name: `Playlist ${id}`,
   description: '',

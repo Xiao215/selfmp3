@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EMPTY_SMART_RULES, type Playlist, type SmartRules } from '@selfmp3/shared'
+import { EMPTY_SMART_RULES, playlistRules, type Playlist, type SmartRules } from '@selfmp3/shared'
 
 import {
   copyName,
@@ -45,12 +45,17 @@ describe('a day as a person says it', () => {
   })
 })
 
-const playlist = (name: string, patch: Partial<Playlist> = {}): Playlist => ({
+/** A manual playlist unless the patch says live, whose rules then travel with it. */
+type PlaylistPatch = Partial<Omit<Playlist, 'kind' | 'rules'>> & {
+  kind?: Playlist['kind']
+  rules?: SmartRules | null
+}
+
+const playlist = (name: string, { kind, rules, ...patch }: PlaylistPatch = {}): Playlist => ({
   id: name.length,
   name,
   description: '',
-  kind: 'manual',
-  rules: null,
+  ...playlistRules(kind ?? 'manual', rules ?? null),
   songCount: 0,
   totalDuration: 0,
   pinned: false,

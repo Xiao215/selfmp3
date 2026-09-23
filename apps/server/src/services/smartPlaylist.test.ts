@@ -28,7 +28,8 @@ function makeDb(): Database.Database {
       has_art INTEGER NOT NULL DEFAULT 0,
       lyrics_kind TEXT NOT NULL DEFAULT 'none',
       added_at TEXT NOT NULL DEFAULT (datetime('now')),
-      last_played_at TEXT
+      last_played_at TEXT,
+      uid TEXT
     );
     CREATE TABLE tags (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
     CREATE TABLE song_tags (song_id INTEGER, tag_id INTEGER, PRIMARY KEY (song_id, tag_id));

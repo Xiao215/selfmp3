@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   ActivityIndicator,
@@ -27,6 +27,7 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { card, serif } from '../../ui/surfaces'
 import { signOutWarning } from '../settings/signOut'
 import { useSignOut } from '../settings/useSignOut'
+import { useCloudSession } from '../profile/useCloudSession'
 import { afterWelcome } from './firstSync.model'
 import { storedFirstSync } from './firstSyncMemory'
 import {
@@ -78,21 +79,8 @@ export function StorageScreen(): ReactNode {
   const [helperOpen, setHelperOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [email, setEmail] = useState<string | null>(null)
   const [leaving, setLeaving] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    void cloud
-      .loadSession()
-      .then(session => {
-        if (!cancelled) setEmail(session?.me.email ?? null)
-      })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const email = useCloudSession().data?.email ?? null
 
   const ready = mode === 'backblaze' ? backblazeReady(keyId, applicationKey) : addressReady(address)
 

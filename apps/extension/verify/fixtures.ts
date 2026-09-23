@@ -1,10 +1,12 @@
-import type {
-  ImportPreview,
-  ImportPreviewItem,
-  Library,
-  Playlist,
-  Song,
-  Tag,
+import {
+  EMPTY_SMART_RULES,
+  playlistRules,
+  type ImportPreview,
+  type ImportPreviewItem,
+  type Library,
+  type Playlist,
+  type Song,
+  type Tag,
 } from '@selfmp3/shared'
 import type { KeyValueStore } from '../src/background/store.js'
 
@@ -53,8 +55,8 @@ const playlist = (id: number, name: string, kind: Playlist['kind'], pinned: bool
   id,
   name,
   description: '',
-  kind,
-  rules: null,
+  // A live playlist always has a rule set; the empty one matches everything.
+  ...playlistRules(kind, kind === 'live' ? EMPTY_SMART_RULES : null),
   songCount: 1,
   totalDuration: 200,
   pinned,

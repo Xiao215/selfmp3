@@ -52,7 +52,7 @@ describe('Chip', () => {
   it('calls back when tapped', async () => {
     const onPress = jest.fn()
     await render(<Chip label="yoasobi" selected={false} onPress={onPress} />)
-    fireEvent.press(screen.getByRole('button', { name: 'yoasobi' }))
+    await fireEvent.press(screen.getByRole('button', { name: 'yoasobi' }))
     expect(onPress).toHaveBeenCalledTimes(1)
   })
 })

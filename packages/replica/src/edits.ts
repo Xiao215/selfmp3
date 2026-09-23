@@ -214,9 +214,6 @@ export function createPlaylist(
   ctx: EditContext,
   input: CreatePlaylist,
 ): { changes: Change[]; uid: string } {
-  if (input.kind === 'live' && !input.rules) {
-    throw new CloudRouteError(400, 'a live playlist needs a rule set', 'bad_request')
-  }
   const uid = make(ctx)
   return {
     changes: [
@@ -227,7 +224,7 @@ export function createPlaylist(
         kind: input.kind,
         name: input.name,
         description: input.description,
-        rules: input.kind === 'live' && input.rules ? cloudRules(ctx, input.rules) : null,
+        rules: input.kind === 'live' ? cloudRules(ctx, input.rules) : null,
         pinned: false,
       },
     ],

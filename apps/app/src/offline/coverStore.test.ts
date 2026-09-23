@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  *
  * What the two platform tests cannot reach from outside: that a synchronous
  * prime is silent and an asynchronous one announces. A phone reads its folder
- * inline, so the first `coversNow()` already holds the kept covers and there is
+ * inline, so the first `coverFor()` already knows the kept covers and there is
  * nobody to tell; web answers from a shell call afterwards, so whoever has
  * already drawn a letter tile has to hear about it. One rule, and the
  * difference is only when the platform calls `found`.
@@ -62,7 +62,7 @@ describe('the cover store', () => {
     store.subscribeCovers(changed => heard.push(...changed))
 
     // Before any await: the phone's whole reason for priming inline.
-    expect(store.coversNow().get(12)).toBe('file:///12-r1.jpg')
+    expect(store.coverFor(12)).toBe('file:///12-r1.jpg')
 
     await aFrame()
     expect(heard).toEqual([])
@@ -79,7 +79,7 @@ describe('the cover store', () => {
     const heard: number[] = []
     store.subscribeCovers(changed => heard.push(...changed))
 
-    expect(store.coversNow().size).toBe(0)
+    expect(store.coverFor(12)).toBeUndefined()
     await aFrame()
     expect(store.coverFor(12)).toBe('file:///12-r1.jpg')
     expect(heard).toEqual([12])
@@ -129,7 +129,6 @@ describe('the cover store', () => {
 
     await store.ensureServerCover(7, 'r2', 'https://mac.example/art/7')
     expect(store.coverFor(7)).toBe('file:///7-r2.jpg')
-    expect(store.coversNow().get(7)).toBe('file:///7-r2.jpg')
   })
 
   it('asks a server for a cover once per address, however many rows draw it', async () => {
@@ -156,7 +155,7 @@ describe('the cover store', () => {
     await expect(
       store.ensureServerCover(7, 'r1', 'https://mac.example/art/7'),
     ).resolves.toBeUndefined()
-    expect(store.coversNow().size).toBe(0)
+    expect(store.coverFor(7)).toBeUndefined()
     expect(keepCloud).not.toHaveBeenCalled()
   })
 
@@ -171,12 +170,12 @@ describe('the cover store', () => {
       }),
     )
     await store.ensureCover(7)
-    expect(store.coversNow().size).toBe(2)
+    expect(store.coverFor(7)).toBeDefined()
+    expect(store.coverFor(12)).toBeDefined()
     expect(primes).toBe(1)
 
     await store.forgetCovers()
 
-    expect(store.coversNow().size).toBe(0)
     expect(store.coverFor(7)).toBeUndefined()
     expect(store.coverFor(12)).toBeUndefined()
     // The folder is empty once the clear settles; reading it again is what put

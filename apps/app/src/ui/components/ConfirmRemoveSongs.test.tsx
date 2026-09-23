@@ -47,7 +47,7 @@ describe('ConfirmRemoveSongs', () => {
     expect(screen.getByText(/deleted from this device/)).toBeTruthy()
     expect(screen.getByText(/on every device/)).toBeTruthy()
 
-    fireEvent.press(screen.getByRole('button', { name: 'Remove 2 songs' }))
+    await fireEvent.press(screen.getByRole('button', { name: 'Remove 2 songs' }))
     expect(onConfirm).toHaveBeenCalledTimes(1)
   })
 

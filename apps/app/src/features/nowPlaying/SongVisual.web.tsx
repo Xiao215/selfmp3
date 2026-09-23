@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
-import { radius, type Rgb } from '@selfmp3/client'
+import { radius, rgba, type Rgb } from '@selfmp3/client'
 import type { Song } from '@selfmp3/shared'
 import { usePlayer } from '../../player/PlayerProvider'
 import type { MotionSampler } from './motionSource.model'
@@ -24,7 +24,6 @@ import {
   horizonColors,
   RING_FROM,
   RING_TO,
-  rgbCss,
   rippleDisc,
   sunPlace,
   type VisualColors,
@@ -195,10 +194,10 @@ const DRAWINGS: Record<VisualKind, Drawing> = {
   horizon(ctx, w, h, c, _tu, m) {
     const look = horizonColors(c)
     const sky = ctx.createLinearGradient(0, 0, 0, h)
-    sky.addColorStop(0, rgbCss(look.sky[0]))
-    sky.addColorStop(0.42, rgbCss(look.sky[1]))
-    sky.addColorStop(0.74, rgbCss(look.sky[2]))
-    sky.addColorStop(1, rgbCss(look.sky[3]))
+    sky.addColorStop(0, rgba(look.sky[0]))
+    sky.addColorStop(0.42, rgba(look.sky[1]))
+    sky.addColorStop(0.74, rgba(look.sky[2]))
+    sky.addColorStop(1, rgba(look.sky[3]))
     ctx.fillStyle = sky
     ctx.fillRect(0, 0, w, h)
 
@@ -206,13 +205,13 @@ const DRAWINGS: Record<VisualKind, Drawing> = {
     const r = (sun.d / 2) * (0.94 + 0.08 * m.glow + 0.14 * m.swell)
     const glow = ctx.createRadialGradient(sun.x, sun.y, r * 0.6, sun.x, sun.y, sun.d * 1.3)
     const shine = Math.min(1, 0.35 + 0.4 * m.glow + 0.25 * m.flash)
-    glow.addColorStop(0, rgbCss(look.sun, 0.45 * shine))
-    glow.addColorStop(1, rgbCss(look.sun, 0))
+    glow.addColorStop(0, rgba(look.sun, 0.45 * shine))
+    glow.addColorStop(1, rgba(look.sun, 0))
     ctx.fillStyle = glow
     ctx.fillRect(0, 0, w, h)
     ctx.beginPath()
     ctx.arc(sun.x, sun.y, r, 0, Math.PI * 2)
-    ctx.fillStyle = rgbCss(look.sun)
+    ctx.fillStyle = rgba(look.sun)
     ctx.fill()
 
     HILL_LAYERS.forEach((layer, index) => {
@@ -239,13 +238,13 @@ const DRAWINGS: Record<VisualKind, Drawing> = {
       ctx.lineTo(xn, yn)
       ctx.lineTo(xn, h)
       ctx.closePath()
-      ctx.fillStyle = rgbCss(look.hills[index]!)
+      ctx.fillStyle = rgba(look.hills[index]!)
       ctx.fill()
     })
 
     const fade = ctx.createLinearGradient(0, h * 0.6, 0, h * 0.86)
-    fade.addColorStop(0, rgbCss(look.foot, 0))
-    fade.addColorStop(1, rgbCss(look.foot))
+    fade.addColorStop(0, rgba(look.foot, 0))
+    fade.addColorStop(1, rgba(look.foot))
     ctx.fillStyle = fade
     ctx.fillRect(0, h * 0.6, w, h * 0.4)
   },
@@ -254,8 +253,8 @@ const DRAWINGS: Record<VisualKind, Drawing> = {
   ripples(ctx, w, h, c, tu, m, cover) {
     const [middle, edge] = c.ground
     const ground = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.75)
-    ground.addColorStop(0, rgbCss(lighten(middle, m.flash * 0.05)))
-    ground.addColorStop(1, rgbCss(edge))
+    ground.addColorStop(0, rgba(lighten(middle, m.flash * 0.05)))
+    ground.addColorStop(1, rgba(edge))
     ctx.fillStyle = ground
     ctx.fillRect(0, 0, w, h)
     wash(ctx, w * 0.2, h * 0.18, Math.max(w, h) * 0.6, c.inks[0], 0.2)
@@ -271,7 +270,7 @@ const DRAWINGS: Record<VisualKind, Drawing> = {
       const scale = RING_FROM + (RING_TO - RING_FROM) * ringReach(ring, tu)
       ctx.beginPath()
       ctx.arc(cx, cy, (disc / 2) * scale, 0, Math.PI * 2)
-      ctx.strokeStyle = rgbCss(
+      ctx.strokeStyle = rgba(
         c.inks[RING_INKS[ring.id % RING_INKS.length]!],
         ringFade(ring, tu) * 0.85,
       )
@@ -288,12 +287,12 @@ const DRAWINGS: Record<VisualKind, Drawing> = {
       cy - r * 0.24,
       r * 1.4,
     )
-    fill.addColorStop(0, rgbCss(c.inks[2]))
-    fill.addColorStop(0.7, rgbCss(c.inks[0]))
-    fill.addColorStop(1, rgbCss(c.inks[1]))
+    fill.addColorStop(0, rgba(c.inks[2]))
+    fill.addColorStop(0.7, rgba(c.inks[0]))
+    fill.addColorStop(1, rgba(c.inks[1]))
     ctx.save()
     // P24's disc sits above the page on a deep, soft shadow.
-    ctx.shadowColor = rgbCss(edge, 0.6)
+    ctx.shadowColor = rgba(edge, 0.6)
     ctx.shadowBlur = 50
     ctx.shadowOffsetY = 20
     ctx.beginPath()
@@ -340,8 +339,8 @@ function wash(
   solid = 0,
 ): void {
   const glow = ctx.createRadialGradient(x, y, 0, x, y, radius)
-  glow.addColorStop(solid, rgbCss(ink, alpha))
-  glow.addColorStop(1, rgbCss(ink, 0))
+  glow.addColorStop(solid, rgba(ink, alpha))
+  glow.addColorStop(1, rgba(ink, 0))
   ctx.fillStyle = glow
   ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2)
 }

@@ -56,10 +56,15 @@ export class LocalCloudStore implements CloudStore {
     }
   }
 
-  async range(key: string, start: number, end: number): Promise<NodeJS.ReadableStream | null> {
+  async range(
+    key: string,
+    start: number,
+    end: number,
+    signal?: AbortSignal,
+  ): Promise<NodeJS.ReadableStream | null> {
     const file = this.#file(key)
     if (!(await this.head(key))) return null
-    return fs.createReadStream(file, { start, end })
+    return fs.createReadStream(file, { start, end, signal })
   }
 
   async put(key: string, body: Buffer, _options: CloudPutOptions): Promise<void> {

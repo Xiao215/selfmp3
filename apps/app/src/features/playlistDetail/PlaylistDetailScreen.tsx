@@ -18,6 +18,7 @@ import { plural, formatBytes, type Song } from '@selfmp3/shared'
 import {
   bytesToDownload,
   clientApi,
+  failureText,
   fonts,
   isDownloaded,
   queryKeys,
@@ -358,7 +359,7 @@ export function PlaylistDetailScreen(): ReactNode {
       showToast(`Made “${created.name}”`, 'good')
       router.push({ pathname: '/playlists/[id]', params: { id: String(created.id) } })
     } catch (caught) {
-      showToast(`Couldn’t copy “${playlist.name}”: ${(caught as Error).message}`, 'error')
+      showToast(failureText(`Couldn’t copy “${playlist.name}”`, caught), 'error')
     }
   }
 

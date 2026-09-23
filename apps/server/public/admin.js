@@ -88,34 +88,50 @@ async function request(path, options = {}) {
 
 // ---------------------------------------------------------------- shaping numbers
 
+/*
+ * The three below are `@selfmp3/shared`'s `formatBytes`, `formatRelative` and
+ * `plural`, written out again because this page has no build step to import
+ * them through. apps/server/src/http/admin.format.test.ts holds each to the
+ * original over a table of inputs, so a change to either side shows up as a
+ * failing test rather than as a page that reads differently from the app.
+ */
+
+/** `1536000` -> `1.5 MB`. Binary units, one decimal, no trailing `.0`. */
 function formatBytes(bytes) {
-  if (bytes < 1024) return `${bytes} B`
-  const units = ['kB', 'MB', 'GB', 'TB']
-  let value = bytes / 1024
-  let unit = 0
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024
-    unit += 1
-  }
-  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  const value = bytes / Math.pow(1024, exponent)
+  const unit = units[exponent] ?? 'B'
+  const rounded = exponent === 0 ? String(Math.round(value)) : value.toFixed(1).replace(/\.0$/, '')
+  return `${rounded} ${unit}`
 }
 
-function formatRelative(iso) {
-  if (!iso) return 'never'
-  const then = new Date(iso).getTime()
-  if (Number.isNaN(then)) return 'never'
-  const seconds = Math.round((Date.now() - then) / 1000)
-  if (seconds < 60) return 'just now'
-  const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
-  const days = Math.round(hours / 24)
-  return `${days} day${days === 1 ? '' : 's'} ago`
+/**
+ * Relative time that degrades gracefully: `just now`, `4h ago`, `12 Mar`.
+ *
+ * A string is a stamp — ISO, or SQLite's `YYYY-MM-DD HH:MM:SS`, which is UTC
+ * without saying so.
+ */
+function formatRelative(at, now = new Date()) {
+  if (at === null || at === '') return 'never'
+  const then = new Date(Date.parse(at.includes('T') ? at : `${at.replace(' ', 'T')}Z`))
+  const ms = now.getTime() - then.getTime()
+  if (!Number.isFinite(ms)) return 'never'
+  if (ms < 0) return 'just now'
+  const minutes = Math.floor(ms / 60_000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d ago`
+  return then.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 }
 
-function plural(count, word) {
-  return `${count} ${word}${count === 1 ? '' : 's'}`
+/** "1 song", "13 songs" — a count with the word that goes with it. */
+function plural(count, one, many) {
+  return `${count} ${count === 1 ? one : many}`
 }
 
 /** Text into markup. Every value below is the server's or the person's, never trusted raw. */
@@ -153,7 +169,7 @@ function renderLibrary() {
     row(
       'Songs',
       'In your bucket, which every device reads. This server keeps no copy of them.',
-      songs === null ? '—' : plural(songs, 'song'),
+      songs === null ? '—' : plural(songs, 'song', 'songs'),
     ),
   )
   if (health?.libraryPath) {
@@ -373,7 +389,7 @@ function connected(cloud) {
       <div>
         <p class="row-label">In the cloud</p>
         <p class="row-hint">${escape(
-          `${cloud.songs.inCloud} of ${plural(cloud.songs.total, 'song')} · ${formatBytes(
+          `${cloud.songs.inCloud} of ${plural(cloud.songs.total, 'song', 'songs')} · ${formatBytes(
             cloud.bytesInCloud,
           )} · last published ${formatRelative(cloud.lastSnapshotAt)}`,
         )}</p>

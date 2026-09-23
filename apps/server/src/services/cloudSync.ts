@@ -245,6 +245,7 @@ export class CloudSyncService {
    */
   #adopted = false
   #adopting: Promise<void> | null = null
+  #preparing: Promise<void> | null = null
 
   #running: Promise<void> | null = null
   #again = false
@@ -956,8 +957,19 @@ export class CloudSyncService {
    * Each step remembers it has run, so this costs one listing per bucket and
    * nothing thereafter. Adoption comes last because it needs the second step's
    * answer — which of the files the snapshot names the bucket still has.
+   *
+   * One flight at a time: a pass and a finishing import both come through
+   * here, and a flag tested before an await and set after it would let the
+   * second do the whole listing again while the first was still on it. So a
+   * caller that finds a preparation under way waits for that one instead.
    */
-  async #prepareBucket(store: CloudStore): Promise<void> {
+  #prepareBucket(store: CloudStore): Promise<void> {
+    return (this.#preparing ??= this.#prepareNow(store).finally(() => {
+      this.#preparing = null
+    }))
+  }
+
+  async #prepareNow(store: CloudStore): Promise<void> {
     await this.#ensureFormat(store)
     if (!this.#verified) {
       await this.#verify(store)

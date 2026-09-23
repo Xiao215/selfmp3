@@ -51,13 +51,7 @@ import { bucketMedia, configureBucketMedia } from '../ports/bucketMedia'
 import { prefs } from '../ports/prefs'
 import { recentUri } from '../ports/recentCopies'
 import { session as cloudSession } from '../replica'
-import {
-  coverFor,
-  coversNow,
-  coversVersion,
-  KEPT_COVER_SIZE,
-  subscribeCovers,
-} from '../offline/covers'
+import { coverFor, coversVersion, KEPT_COVER_SIZE, subscribeCovers } from '../offline/covers'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { createEngine } from '../ports/engine'
 import { usePracticeControls } from './usePracticeControls'
@@ -73,11 +67,15 @@ import {
   createValueStore,
   differsBesidesClock,
   samePlayback,
+  samePractice,
+  sameVolume,
   songPlayback,
   type PlayerProgress,
+  type PracticeState,
   type ProgressStore,
   type SongPlaybackState,
   type ValueStore,
+  type VolumeState,
 } from './progress.model'
 
 export type { PlayerProgress }
@@ -159,16 +157,14 @@ export interface PlayerApi {
   insertIntoQueue: (at: number, songIds: readonly number[]) => void
   /** Empty the queue and stop, as the web's bin in Up next does. */
   clearQueue: () => void
-  /** 0–1, as the engine has it; the bar's slider and the web's share one scale. */
-  readonly volume: number
-  readonly muted: boolean
-  /** Playback speed: 1 is normal. */
-  readonly rate: number
   /** When the sleep timer stops playback, or null when none is set. */
   readonly sleepTimerEndsAt: number | null
   /** The sleep timer waits for the song playing to end, rather than a clock. */
   readonly sleepAtSongEnd: boolean
+  /** The level itself is `usePlayerVolume()`'s: it moves too often to ride here. */
   setVolume: (volume: number) => void
+  /** Up or down by one step from where the level is now. */
+  stepVolume: (delta: number) => void
   toggleMute: () => void
   setRate: (rate: number) => void
   /**
@@ -188,13 +184,9 @@ export interface PlayerApi {
   setAutoMix: (on: boolean) => void
 
   // --- practice ------------------------------------------------------------
+  // The loop, the speed and the count-in as they stand are `usePracticeState()`'s.
   /** Whether this engine can loop A to B closely; a phone's cannot, yet. */
   readonly canLoop: boolean
-  readonly loopA: number | null
-  readonly loopB: number | null
-  /** The pause before a loop starts again, while it is happening. */
-  readonly countingIn: boolean
-  readonly preservesPitch: boolean
   /** Whether a restart of the loop waits one beat first. */
   readonly countIn: boolean
   /** Set A or B of the loop from where the song is now. */
@@ -216,12 +208,15 @@ const PlayerContext = createContext<PlayerApi | null>(null)
  * changes; each hook below subscribes to the one store it reads. `stalled`
  * lives here rather than in `PlayerApi` because every waiting/playing pair
  * from the network would otherwise re-render every screen and row that asks
- * for the player.
+ * for the player; the volume, because a drag of the slider sets it on every
+ * frame; the practice state, because a count-in flips on each loop restart.
  */
 interface PlayerStores {
   readonly progress: ProgressStore
   readonly playback: ValueStore<SongPlaybackState>
   readonly stalled: ValueStore<boolean>
+  readonly volume: ValueStore<VolumeState>
+  readonly practice: ValueStore<PracticeState>
 }
 
 const PlayerStoresContext = createContext<PlayerStores | null>(null)
@@ -244,6 +239,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     progress: createProgressStore(),
     playback: createValueStore<SongPlaybackState>({ songId: null, playing: false }, samePlayback),
     stalled: createValueStore(false),
+    volume: createValueStore(volumeOf(engine.state), sameVolume),
+    practice: createValueStore(practiceOf(engine.state), samePractice),
   }))
 
   const songsById = useMemo(() => {
@@ -360,6 +357,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       // Tagged with the song the engine is timing, so a tick the song being
       // left still had in it is not drawn as the new song's position.
       stores.progress.set(engine.currentSongId, state.currentTime, state.duration)
+      stores.volume.set(volumeOf(state))
+      stores.practice.set(practiceOf(state))
       if (!state.stalled) {
         forget()
         stores.stalled.set(false)
@@ -867,9 +866,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       removeFromQueue,
       reorderQueue,
       clearQueue,
-      volume: engineState.volume,
-      muted: engineState.muted,
-      rate: engineState.rate,
       sleepTimerEndsAt: sleep.endsAt,
       sleepAtSongEnd: sleep.atSongEnd,
       setSleepTimer: sleep.set,
@@ -878,26 +874,15 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       nextCrossfadeSeconds,
       setAutoMix,
       canLoop: engine.capabilities.loop,
-      loopA: engineState.loopA,
-      loopB: engineState.loopB,
-      countingIn: engineState.countingIn,
-      preservesPitch: engineState.preservesPitch,
       ...practice,
     }),
     [
-      engineState.volume,
-      engineState.muted,
-      engineState.rate,
       stores,
       sleep,
       engine,
       autoMix,
       nextCrossfadeSeconds,
       setAutoMix,
-      engineState.loopA,
-      engineState.loopB,
-      engineState.countingIn,
-      engineState.preservesPitch,
       practice,
       queue,
       resolved,
@@ -934,29 +919,29 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
    * Center on a phone through the engine, nothing in a tab that has no media
    * session. The artwork is chosen the same way for both (`nowPlayingArtwork`).
    *
-   * The kept covers are read when they change, not on every render: reading
-   * them builds a map of every cover on this device, and this provider used
-   * to do that for each of its renders to look one song up.
+   * The playing song's kept cover is read when the covers change, not on
+   * every render, and one song's rather than a map of every cover on the
+   * device to look one up in.
    */
   // Read again whenever a cover arrives. The covers already on disk are read in
   // at launch and announced once, and a subscription made in an effect could
   // miss that — then every song was shown with the server's address all
   // session. `useSyncExternalStore` checks the version again once subscribed.
   const coversSeen = useSyncExternalStore(subscribeCovers, coversVersion, coversVersion)
-  // `coversSeen` is not read, but it is why the map is read again.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const keptCovers = useMemo(() => coversNow(), [coversSeen])
+  // `coversSeen` is not read, but it is why the cover is looked up again.
+  const keptCover = useMemo(
+    () => (currentSong ? coverFor(currentSong.id) : undefined),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentSong, coversSeen],
+  )
   const nowPlayingArt = useMemo(
     () =>
       currentSong
-        ? nowPlayingArtwork(
-            currentSong,
-            artSources(keptCovers.get(currentSong.id), connection, fromCloud),
-          )
+        ? nowPlayingArtwork(currentSong, artSources(keptCover, connection, fromCloud))
         : null,
-    [currentSong, keptCovers, connection, fromCloud],
+    [currentSong, keptCover, connection, fromCloud],
   )
-  useNowPlaying(value, stores.progress, nowPlayingArt)
+  useNowPlaying(value, stores.progress, nowPlayingArt, engineState.rate)
   // The phone's card is the engine's: it hears here when the playing song's
   // cover arrives or its words change, and sends only what did.
   const currentTitle = currentSong?.title
@@ -986,6 +971,22 @@ function mediaSources(
     bucket: bucketMedia,
     server: connection ? serverRoutes(mediaUrlFor(connection), KEPT_COVER_SIZE) : null,
     fromCloud,
+  }
+}
+
+/** The engine's level, as the volume control draws it. */
+function volumeOf(state: EngineState): VolumeState {
+  return { volume: state.volume, muted: state.muted }
+}
+
+/** The engine's practice state, as the practice panel and its chips draw it. */
+function practiceOf(state: EngineState): PracticeState {
+  return {
+    loopA: state.loopA,
+    loopB: state.loopB,
+    countingIn: state.countingIn,
+    rate: state.rate,
+    preservesPitch: state.preservesPitch,
   }
 }
 
@@ -1052,6 +1053,21 @@ const STALL_SHOWS_AFTER_MS = 320
 export function usePlayerStalled(): boolean {
   const { stalled } = useStores()
   return useSyncExternalStore(stalled.subscribe, stalled.get, stalled.get)
+}
+
+/**
+ * The level and whether it is muted. Only the volume control should draw
+ * these: a drag of its slider sets them on every frame.
+ */
+export function usePlayerVolume(): VolumeState {
+  const { volume } = useStores()
+  return useSyncExternalStore(volume.subscribe, volume.get, volume.get)
+}
+
+/** The loop, the count-in, the speed and the pitch lock, as they stand. */
+export function usePracticeState(): PracticeState {
+  const { practice } = useStores()
+  return useSyncExternalStore(practice.subscribe, practice.get, practice.get)
 }
 
 /** For a row drawn outside any player, such as a test: nothing is ever loaded. */

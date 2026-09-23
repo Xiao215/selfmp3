@@ -10,7 +10,7 @@ import {
   transposeKey,
 } from '@selfmp3/shared'
 import { countInMs, PRACTICE_SPEEDS, radius } from '@selfmp3/client'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayer, usePracticeState } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
@@ -49,6 +49,7 @@ export function PracticePanel({
 }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
+  const practice = usePracticeState()
   const song = player.current
   const [open, setOpen] = useState(() =>
     section ? { ...INITIAL_OPEN, [section]: true } : INITIAL_OPEN,
@@ -98,11 +99,11 @@ export function PracticePanel({
 
   const bpm = song?.audioFeatures?.bpm ?? null
   const key = song?.audioFeatures?.key ?? null
-  const loopReady = player.loopA !== null && player.loopB !== null
-  const loopLength = loopReady ? Math.abs((player.loopB ?? 0) - (player.loopA ?? 0)) : 0
+  const loopReady = practice.loopA !== null && practice.loopB !== null
+  const loopLength = loopReady ? Math.abs((practice.loopB ?? 0) - (practice.loopA ?? 0)) : 0
   // Without pitch lock the speed drags the pitch, which is what a transposing
   // musician is trying to keep track of.
-  const rateShift = player.preservesPitch ? 0 : rateToSemitones(player.rate)
+  const rateShift = practice.preservesPitch ? 0 : rateToSemitones(practice.rate)
   const shownShift = semitones + Math.round(rateShift)
 
   const sub = song
@@ -144,8 +145,8 @@ export function PracticePanel({
               title="A–B loop"
               state={
                 loopReady
-                  ? `${formatDuration(player.loopA ?? 0)} – ${formatDuration(player.loopB ?? 0)}`
-                  : player.loopA !== null
+                  ? `${formatDuration(practice.loopA ?? 0)} – ${formatDuration(practice.loopB ?? 0)}`
+                  : practice.loopA !== null
                     ? 'set B'
                     : 'off'
               }
@@ -155,23 +156,23 @@ export function PracticePanel({
               <View style={styles.ab}>
                 <LoopButton
                   letter="A"
-                  time={player.loopA}
+                  time={practice.loopA}
                   onPress={() => player.tapLoopPoint('A')}
                 />
                 <LoopButton
                   letter="B"
-                  time={player.loopB}
+                  time={practice.loopB}
                   onPress={() => player.tapLoopPoint('B')}
                 />
                 <Button
                   label="Clear"
                   onPress={player.clearLoop}
-                  disabled={player.loopA === null && player.loopB === null}
+                  disabled={practice.loopA === null && practice.loopB === null}
                 />
               </View>
               <Text style={styles.hint}>
                 {loopReady
-                  ? `Looping ${loopLength.toFixed(1)}s${player.countingIn ? ' · counting in…' : ''}`
+                  ? `Looping ${loopLength.toFixed(1)}s${practice.countingIn ? ' · counting in…' : ''}`
                   : 'Tap A where the phrase starts, B where it ends. Play on either side of the region and it keeps playing until B.'}
               </Text>
               <View style={styles.check}>
@@ -190,16 +191,16 @@ export function PracticePanel({
           <GroupSection
             onTop={top => onGroupLayout('speed', top)}
             title="Speed"
-            state={`${player.rate}×`}
+            state={`${practice.rate}×`}
             open={open.speed}
             onToggle={() => toggle('speed')}
           >
-            <SpeedChoice value={player.rate} onChange={player.setRate} />
+            <SpeedChoice value={practice.rate} onChange={player.setRate} />
             {player.canLoop ? (
               <>
                 <View style={styles.check}>
                   <Toggle
-                    value={player.preservesPitch}
+                    value={practice.preservesPitch}
                     onChange={player.setPreservesPitch}
                     label="Pitch lock"
                   />
@@ -207,9 +208,9 @@ export function PracticePanel({
                     Pitch lock<Text style={styles.hint}> (keep the key when slowing down)</Text>
                   </Text>
                 </View>
-                {!player.preservesPitch && player.rate !== 1 ? (
+                {!practice.preservesPitch && practice.rate !== 1 ? (
                   <Text style={styles.hint}>
-                    Pitch follows the speed: {formatSemitones(rateToSemitones(player.rate))}{' '}
+                    Pitch follows the speed: {formatSemitones(rateToSemitones(practice.rate))}{' '}
                     semitones.
                   </Text>
                 ) : null}

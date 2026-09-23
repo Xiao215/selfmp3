@@ -2,6 +2,7 @@ import { gunzipSync } from 'node:zlib'
 import {
   CLOUD_FORMAT,
   CloudSnapshotSchema,
+  playlistRules,
   toCloudRules,
   type CloudPlaylist,
   type CloudServer,
@@ -139,9 +140,10 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
       uid,
       name: playlist.name,
       description: playlist.description,
-      kind: playlist.kind,
-      rules:
-        playlist.kind === 'live' && playlist.rules ? toCloudRules(playlist.rules, tagUid) : null,
+      ...playlistRules(
+        playlist.kind,
+        playlist.kind === 'live' ? toCloudRules(playlist.rules, tagUid) : null,
+      ),
       pinned: playlist.pinned,
       songUids: input.playlistSongIds(playlist).flatMap(id => {
         const songUid = published.get(id)

@@ -1,5 +1,6 @@
 import type { Song, SyncManifest } from '@selfmp3/shared'
 
+import type { ServerConnection } from '../connection/connection.js'
 import type { DownloadStorage, DownloadTransfer, TransferProgress } from '../ports/offline.js'
 import {
   entryIsCurrent,
@@ -21,8 +22,6 @@ export const PROGRESS_INTERVAL_MS = 250
 
 /** Waits before trying a failed song again: twice, and then it has failed. */
 const RETRY_DELAYS_MS = [2_000, 10_000]
-
-type Connection = Parameters<NonNullable<DownloadStorage['configure']>>[0]
 
 export interface DownloadQueueState {
   readonly index: DownloadIndex
@@ -139,11 +138,11 @@ export class DownloadQueue {
    * deleting every download over it would be the wrong kind of memorable.
    */
   configure(
-    connection: Connection,
+    connection: ServerConnection | null,
     songs: readonly Song[],
     options: { authoritative?: boolean } = {},
   ): void {
-    this.#storage.configure?.(connection, songs)
+    this.#storage.configure(connection, songs)
     const listed = new Set(songs.map(song => song.id))
     this.#forget(this.#state.queue.filter(id => !listed.has(id)))
     this.#songsById = new Map(songs.map(song => [song.id, song]))

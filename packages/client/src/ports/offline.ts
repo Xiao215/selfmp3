@@ -61,7 +61,7 @@ export interface DownloadStorage {
    * URL carries the song's `rev`, so without the song list the storage cannot
    * find, size or delete a song it has kept.
    */
-  configure?(connection: ServerConnection | null, songs: readonly Song[]): void
+  configure(connection: ServerConnection | null, songs: readonly Song[]): void
   /** Null when there is no index or it cannot be read; the queue starts empty. */
   readIndex(): Promise<DownloadIndex | null>
   writeIndex(index: DownloadIndex): Promise<void>

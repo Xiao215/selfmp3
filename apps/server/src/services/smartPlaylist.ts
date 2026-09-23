@@ -1,4 +1,5 @@
 import {
+  assertNever,
   compatibleCamelot,
   type SmartRule,
   type SmartRules,
@@ -16,9 +17,9 @@ import {
  *  2. Every user-supplied *identifier* (column name, sort field, direction) is
  *     looked up in a fixed map. If it is not in the map it does not exist.
  *
- * Because the rule types are a discriminated union, adding a new rule variant
- * to the shared schema makes this file stop compiling until it is handled —
- * the switch below is exhaustive and TypeScript enforces it.
+ * Because the rule types are a discriminated union and every switch below
+ * ends in `assertNever`, adding a new rule variant to the shared schema makes
+ * this file stop compiling until it is handled.
  */
 
 export interface CompiledQuery {
@@ -101,8 +102,9 @@ function compileRule(rule: SmartRule): CompiledQuery {
           return { sql: `${column} = ? COLLATE NOCASE`, params: [rule.value] }
         case 'startsWith':
           return { sql: `${column} LIKE ? ESCAPE '\\'`, params: [likePrefix(rule.value)] }
+        default:
+          return assertNever(rule)
       }
-      break
     }
 
     case 'tag': {
@@ -128,24 +130,21 @@ function compileRule(rule: SmartRule): CompiledQuery {
       switch (rule.op) {
         case 'never':
           return { sql: `${column} IS NULL`, params: [] }
-        case 'inLastDays': {
-          const days = rule.days ?? 30
+        case 'inLastDays':
           return {
             sql: `(${column} IS NOT NULL AND ${column} >= datetime('now', ?))`,
-            params: [`-${days} days`],
+            params: [`-${rule.days} days`],
           }
-        }
-        case 'notInLastDays': {
-          const days = rule.days ?? 30
+        case 'notInLastDays':
           // "Not played in the last N days" should include never-played songs,
           // which is what people actually mean by "forgotten".
           return {
             sql: `(${column} IS NULL OR ${column} < datetime('now', ?))`,
-            params: [`-${days} days`],
+            params: [`-${rule.days} days`],
           }
-        }
+        default:
+          return assertNever(rule)
       }
-      break
     }
 
     case 'loved':
@@ -181,11 +180,10 @@ function compileRule(rule: SmartRule): CompiledQuery {
         params: codes,
       }
     }
-  }
 
-  // Unreachable while the union is fully handled above; kept so an unhandled
-  // future variant fails loudly instead of silently matching everything.
-  throw new Error(`unsupported smart-playlist rule: ${JSON.stringify(rule)}`)
+    default:
+      return assertNever(rule)
+  }
 }
 
 /** Build the id query for a rule set. */
@@ -202,11 +200,13 @@ export function compileSmartRules(rules: SmartRules): CompiledQuery {
 
   const orderColumn = SORT_COLUMNS[rules.orderBy]
   const direction = rules.order === 'asc' ? 'ASC' : 'DESC'
-  // RANDOM() takes no direction, and nulls should sort last either way.
+  // RANDOM() takes no direction, and nulls should sort last either way. Ties
+  // break on when the song was added, then on its uid: the keys a device has
+  // too (`livePlaylistSongs`), so a limited list holds the same songs there.
   const orderBy =
     rules.orderBy === 'random'
       ? 'RANDOM()'
-      : `${orderColumn} ${direction} NULLS LAST, s.id ${direction}`
+      : `${orderColumn} ${direction} NULLS LAST, s.added_at ${direction} NULLS LAST, s.uid ${direction}`
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')} ` : ''
   let sql = `SELECT s.id FROM songs s ${where}ORDER BY ${orderBy}`

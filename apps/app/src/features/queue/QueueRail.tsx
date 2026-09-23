@@ -251,17 +251,23 @@ function Rail({
    * shrinks under it: the page widens and narrows over the same fifth of a
    * second instead of snapping at either end. A width is beyond the native
    * driver, and one value cannot be on the native driver for the slide and off
-   * it for the width, so both ways run on the JavaScript side — which is where
-   * a browser and the desktop app run every animation anyway.
+   * it for the width, so the two moves are two values: the room's width on the
+   * JavaScript side, and the floating rail's slide (an iPad in portrait, where
+   * a transform is all that moves) on the native driver, which a stalled
+   * JavaScript thread cannot stutter. Both run on every change, since which
+   * one is drawn can change under them with the window's width.
    */
   const [progress] = useState(() => new Animated.Value(0))
+  const [slid] = useState(() => new Animated.Value(0))
   useEffect(() => {
     if (shown) {
       spring(progress, 1, { native: false })
+      spring(slid, 1)
       return
     }
     timing(progress, 0, MOVE_MS.railOut, onGone, { easing: ease.in, native: false })
-  }, [shown, progress, onGone])
+    timing(slid, 0, MOVE_MS.railOut, undefined, { easing: ease.in })
+  }, [shown, progress, slid, onGone])
 
   /*
    * Made once, since an interpolation made each render is a new node each
@@ -278,7 +284,7 @@ function Rail({
     },
     over: {
       transform: [
-        { translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [RAIL_WIDTH, 0] }) },
+        { translateX: slid.interpolate({ inputRange: [0, 1], outputRange: [RAIL_WIDTH, 0] }) },
       ],
     },
   }))
@@ -327,7 +333,12 @@ function Rail({
         </View>
         <Text style={styles.summary}>{nextSummary(rows.next)}</Text>
 
-        <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+        <ScrollView
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          // A held row is being moved, not the list under it.
+          scrollEnabled={drag === null}
+        >
           {playing ? (
             <PlayingRow
               row={playing}

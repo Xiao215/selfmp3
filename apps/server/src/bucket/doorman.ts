@@ -28,6 +28,8 @@ interface RequestOptions {
   readonly headers?: Record<string, string>
   /** Hand a 404 back to the caller instead of throwing: "no such file" is an answer. */
   readonly allow404?: boolean
+  /** Call the request off: the player that asked for a range has moved on. */
+  readonly signal?: AbortSignal
 }
 
 export class DoormanClient {
@@ -88,7 +90,12 @@ export class DoormanClient {
 
     let response: Response
     try {
-      response = await this.#fetch(`${this.url}${path}`, { method, headers, body })
+      response = await this.#fetch(`${this.url}${path}`, {
+        method,
+        headers,
+        body,
+        signal: options.signal,
+      })
     } catch {
       throw new CloudError('network', `Could not reach the doorman at ${hostOf(this.url)}.`)
     }
@@ -140,13 +147,19 @@ class DoormanCloudStore implements CloudStore {
     return Buffer.from(await response.arrayBuffer())
   }
 
-  async range(key: string, start: number, end: number): Promise<NodeJS.ReadableStream | null> {
+  async range(
+    key: string,
+    start: number,
+    end: number,
+    signal?: AbortSignal,
+  ): Promise<NodeJS.ReadableStream | null> {
     // The doorman passes `Range` straight to the bucket and its 206 straight
     // back (docs/SYNC.md), which is how every browser tab streams already.
     const response = await this.#doorman.request('GET', filePath(key), {
       token: this.#token,
       allow404: true,
       headers: { Range: `bytes=${start}-${end}` },
+      signal,
     })
     if (response.status === 404) return null
     if (!response.body) return Readable.from([Buffer.from(await response.arrayBuffer())])

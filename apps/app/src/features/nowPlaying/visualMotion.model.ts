@@ -1,3 +1,4 @@
+import { clamp01 } from '@selfmp3/shared'
 import type { MotionSampler, MotionSourceKind } from './motionSource.model'
 import { valueNoise, type VisualFeel } from './visuals.model'
 
@@ -351,7 +352,3 @@ export class PlayheadClock {
 
 /** Seconds the clock may run past its last tick: a tick and a half. */
 export const PLAYHEAD_REACH = 1.5
-
-function clamp01(value: number): number {
-  return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0
-}

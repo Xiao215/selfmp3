@@ -1,32 +1,12 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
+  /* Strictness lives in tsconfig.strict.json, so the app can take it too. */
+  "extends": "./tsconfig.strict.json",
   "compilerOptions": {
     "target": "ES2023",
     "lib": ["ES2023"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-
-    /* Strictness. Every one of these has caught a real bug at some point. */
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "noPropertyAccessFromIndexSignature": true,
-    "useUnknownInCatchVariables": true,
-    "allowUnusedLabels": false,
-
-    /*
-     * Two strict flags are deliberately NOT enabled:
-     *
-     * `exactOptionalPropertyTypes` — it fights the DOM lib, where passing an
-     * explicit `undefined` to an optional field (RequestInit.headers, and
-     * friends) is idiomatic and correct but becomes an error.
-     *
-     * `allowUnreachableCode: false` — it flags the defensive `throw` after an
-     * exhaustive switch, which is exactly the code that keeps a future union
-     * member from silently falling through. ESLint catches genuinely dead code.
-     */
 
     /* Emit */
     "declaration": true,

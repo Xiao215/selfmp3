@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
 import { Readable } from 'node:stream'
+import type { S3Client } from '@aws-sdk/client-s3'
 import type { CloudConnection } from '../repositories/cloud.js'
-import { loadS3, streamToBuffer, type S3ClientLike, type S3Module } from '../storage/s3.js'
+import { loadS3, streamToBuffer, type S3Module } from '../storage/s3.js'
 
 /**
  * The cloud bucket, as the sync sees it: a handful of operations on keys
@@ -36,9 +37,16 @@ export interface CloudStore {
   /**
    * Bytes `start` to `end` of an object, inclusive as HTTP counts them, or
    * null when there is no such object. How a song this server no longer holds
-   * a copy of is streamed to a player (routes/media.ts).
+   * a copy of is streamed to a player (routes/media.ts) — which is why it can
+   * be called off: the player that asked has often skipped on by the time the
+   * bucket answers.
    */
-  range(key: string, start: number, end: number): Promise<NodeJS.ReadableStream | null>
+  range(
+    key: string,
+    start: number,
+    end: number,
+    signal?: AbortSignal,
+  ): Promise<NodeJS.ReadableStream | null>
 }
 
 /**
@@ -62,7 +70,7 @@ export class CloudError extends Error {
 export class S3CloudStore implements CloudStore {
   readonly description: string
   readonly #connection: CloudConnection
-  #ready: Promise<{ s3: S3Module; client: S3ClientLike }> | null = null
+  #ready: Promise<{ s3: S3Module; client: S3Client }> | null = null
 
   constructor(connection: CloudConnection) {
     this.#connection = connection
@@ -73,7 +81,7 @@ export class S3CloudStore implements CloudStore {
     this.description = `${host} · ${folder}`
   }
 
-  #client(): Promise<{ s3: S3Module; client: S3ClientLike }> {
+  #client(): Promise<{ s3: S3Module; client: S3Client }> {
     this.#ready ??= loadS3().then(({ s3 }) => ({
       s3,
       client: new s3.S3Client({
@@ -104,8 +112,7 @@ export class S3CloudStore implements CloudStore {
       const head = await client.send(
         new s3.HeadObjectCommand({ Bucket: this.#connection.bucket, Key: this.#key(key) }),
       )
-      const size = typeof head['ContentLength'] === 'number' ? head['ContentLength'] : 0
-      return { key, size }
+      return { key, size: head.ContentLength ?? 0 }
     } catch (error) {
       if (isNotFound(error)) return null
       throw this.#explain(error)
@@ -118,14 +125,19 @@ export class S3CloudStore implements CloudStore {
       const object = await client.send(
         new s3.GetObjectCommand({ Bucket: this.#connection.bucket, Key: this.#key(key) }),
       )
-      return await streamToBuffer(object['Body'])
+      return await streamToBuffer(object.Body)
     } catch (error) {
       if (isNotFound(error)) return null
       throw this.#explain(error)
     }
   }
 
-  async range(key: string, start: number, end: number): Promise<NodeJS.ReadableStream | null> {
+  async range(
+    key: string,
+    start: number,
+    end: number,
+    signal?: AbortSignal,
+  ): Promise<NodeJS.ReadableStream | null> {
     const { s3, client } = await this.#client()
     try {
       const object = await client.send(
@@ -134,8 +146,9 @@ export class S3CloudStore implements CloudStore {
           Key: this.#key(key),
           Range: `bytes=${start}-${end}`,
         }),
+        { abortSignal: signal },
       )
-      const body = object['Body']
+      const body = object.Body
       return body instanceof Readable ? body : Readable.from([await streamToBuffer(body)])
     } catch (error) {
       if (isNotFound(error)) return null
@@ -177,15 +190,12 @@ export class S3CloudStore implements CloudStore {
             ...(token ? { ContinuationToken: token } : {}),
           }),
         )
-        const contents = Array.isArray(page['Contents']) ? page['Contents'] : []
-        for (const item of contents as Array<Record<string, unknown>>) {
-          const full = item['Key']
-          if (typeof full !== 'string' || !full.startsWith(root)) continue
-          const size = typeof item['Size'] === 'number' ? item['Size'] : 0
-          objects.push({ key: full.slice(root.length), size })
+        for (const item of page.Contents ?? []) {
+          const full = item.Key
+          if (full === undefined || !full.startsWith(root)) continue
+          objects.push({ key: full.slice(root.length), size: item.Size ?? 0 })
         }
-        const next = page['NextContinuationToken']
-        token = page['IsTruncated'] === true && typeof next === 'string' ? next : undefined
+        token = page.IsTruncated ? page.NextContinuationToken : undefined
       } while (token)
     } catch (error) {
       throw this.#explain(error)

@@ -1,4 +1,7 @@
 import { Readable } from 'node:stream'
+import type * as S3 from '@aws-sdk/client-s3'
+import type * as Presigner from '@aws-sdk/s3-request-presigner'
+import type { S3Client, S3ClientConfig } from '@aws-sdk/client-s3'
 import { AUDIO_EXTENSIONS } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { RangeSource } from '../http/range.js'
@@ -10,43 +13,25 @@ import { normalizeKey, type StorageDriver, type StorageStat } from './driver.js'
  * The AWS SDK is an optional dependency: nobody running the default local
  * setup should have to install ~40 MB of client libraries they will never
  * load. It is imported dynamically, and a missing install produces an
- * actionable error rather than a module-resolution stack trace at boot.
+ * actionable error rather than a module-resolution stack trace at boot. Its
+ * types cost nothing at runtime, so those are the SDK's own.
  *
  * To switch:
  *   npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
  *   SELFMP3_STORAGE_DRIVER=s3 SELFMP3_S3_BUCKET=... npm start
  */
 
-export type S3ClientLike = {
-  send(command: unknown): Promise<Record<string, unknown>>
-}
-
-export interface S3Module {
-  S3Client: new (options: Record<string, unknown>) => S3ClientLike
-  GetObjectCommand: new (input: Record<string, unknown>) => unknown
-  PutObjectCommand: new (input: Record<string, unknown>) => unknown
-  HeadObjectCommand: new (input: Record<string, unknown>) => unknown
-  DeleteObjectCommand: new (input: Record<string, unknown>) => unknown
-  CopyObjectCommand: new (input: Record<string, unknown>) => unknown
-  ListObjectsV2Command: new (input: Record<string, unknown>) => unknown
-}
-
-interface PresignerModule {
-  getSignedUrl: (
-    client: unknown,
-    command: unknown,
-    options: { expiresIn: number },
-  ) => Promise<string>
-}
+export type S3Module = typeof S3
+type PresignerModule = typeof Presigner
 
 /** Also used by the cloud bucket client, `bucket/store.ts`. */
 export async function loadS3(): Promise<{ s3: S3Module; presigner: PresignerModule }> {
   try {
     const [s3, presigner] = await Promise.all([
-      import('@aws-sdk/client-s3') as Promise<unknown>,
-      import('@aws-sdk/s3-request-presigner') as Promise<unknown>,
+      import('@aws-sdk/client-s3'),
+      import('@aws-sdk/s3-request-presigner'),
     ])
-    return { s3: s3 as S3Module, presigner: presigner as PresignerModule }
+    return { s3, presigner }
   } catch {
     throw new Error(
       'The S3 storage driver needs the AWS SDK. Install it with:\n' +
@@ -60,8 +45,8 @@ export class S3StorageDriver implements StorageDriver {
   readonly #bucket: string
   readonly #ttl: number
   #modules: { s3: S3Module; presigner: PresignerModule } | null = null
-  #client: S3ClientLike | null = null
-  readonly #clientOptions: Record<string, unknown>
+  #client: S3Client | null = null
+  readonly #clientOptions: S3ClientConfig
 
   constructor(config: Config['s3']) {
     this.#bucket = config.bucket
@@ -80,7 +65,7 @@ export class S3StorageDriver implements StorageDriver {
     }
   }
 
-  async #ready(): Promise<{ s3: S3Module; presigner: PresignerModule; client: S3ClientLike }> {
+  async #ready(): Promise<{ s3: S3Module; presigner: PresignerModule; client: S3Client }> {
     this.#modules ??= await loadS3()
     this.#client ??= new this.#modules.s3.S3Client(this.#clientOptions)
     return { ...this.#modules, client: this.#client }
@@ -92,13 +77,11 @@ export class S3StorageDriver implements StorageDriver {
       const head = await client.send(
         new s3.HeadObjectCommand({ Bucket: this.#bucket, Key: normalizeKey(key) }),
       )
-      const size = typeof head['ContentLength'] === 'number' ? head['ContentLength'] : 0
-      const modified = head['LastModified']
-      const etag = typeof head['ETag'] === 'string' ? head['ETag'] : `"${size.toString(16)}"`
+      const size = head.ContentLength ?? 0
       return {
         sizeBytes: size,
-        modifiedAt: modified instanceof Date ? modified : new Date(0),
-        etag,
+        modifiedAt: head.LastModified ?? new Date(0),
+        etag: head.ETag ?? `"${size.toString(16)}"`,
       }
     } catch {
       return null
@@ -122,16 +105,13 @@ export class S3StorageDriver implements StorageDriver {
           ...(token ? { ContinuationToken: token } : {}),
         }),
       )
-      const contents = Array.isArray(page['Contents']) ? page['Contents'] : []
-      for (const item of contents as Array<Record<string, unknown>>) {
-        const key = item['Key']
-        if (typeof key !== 'string') continue
+      for (const item of page.Contents ?? []) {
+        const key = item.Key
+        if (key === undefined) continue
         const lower = key.toLowerCase()
         if (AUDIO_EXTENSIONS.some(suffix => lower.endsWith(suffix))) keys.push(key)
       }
-      const truncated = page['IsTruncated'] === true
-      const next = page['NextContinuationToken']
-      token = truncated && typeof next === 'string' ? next : undefined
+      token = page.IsTruncated ? page.NextContinuationToken : undefined
     } while (token)
 
     keys.sort((a, b) => a.localeCompare(b))
@@ -143,7 +123,7 @@ export class S3StorageDriver implements StorageDriver {
     const object = await client.send(
       new s3.GetObjectCommand({ Bucket: this.#bucket, Key: normalizeKey(key) }),
     )
-    return streamToBuffer(object['Body'])
+    return streamToBuffer(object.Body)
   }
 
   async write(key: string, data: Buffer | NodeJS.ReadableStream): Promise<void> {
@@ -159,27 +139,6 @@ export class S3StorageDriver implements StorageDriver {
     await client.send(new s3.DeleteObjectCommand({ Bucket: this.#bucket, Key: normalizeKey(key) }))
   }
 
-  async move(fromKey: string, toKey: string): Promise<void> {
-    const { s3, client } = await this.#ready()
-    const from = normalizeKey(fromKey)
-    await client.send(
-      new s3.CopyObjectCommand({
-        Bucket: this.#bucket,
-        /*
-         * Encoded, because this one goes over as a header rather than as a
-         * signed field. Every other key here is escaped by the SDK on the way
-         * out; this string is not, and Node refuses to put a non-ASCII
-         * character in a header at all — so moving "Café - Song.m4a" threw
-         * before it ever reached the bucket. The slashes stay as they are:
-         * they separate folders, they are not part of a name.
-         */
-        CopySource: `${this.#bucket}/${from.split('/').map(encodeURIComponent).join('/')}`,
-        Key: normalizeKey(toKey),
-      }),
-    )
-    await this.delete(from)
-  }
-
   async rangeSource(key: string, mime: string): Promise<RangeSource | null> {
     const stat = await this.stat(key)
     if (!stat) return null
@@ -192,31 +151,19 @@ export class S3StorageDriver implements StorageDriver {
       mime,
       etag: stat.etag,
       lastModified: stat.modifiedAt,
-      open: (start, end) => {
-        const passthrough = new Readable({ read() {} })
-        void (async () => {
-          try {
-            const object = await client.send(
-              new s3.GetObjectCommand({
-                Bucket: bucket,
-                Key: normalized,
-                Range: `bytes=${start}-${end}`,
-              }),
-            )
-            const body = object['Body']
-            if (body instanceof Readable) {
-              body.on('data', chunk => passthrough.push(chunk))
-              body.on('end', () => passthrough.push(null))
-              body.on('error', (error: Error) => passthrough.destroy(error))
-            } else {
-              passthrough.push(await streamToBuffer(body))
-              passthrough.push(null)
-            }
-          } catch (error) {
-            passthrough.destroy(error instanceof Error ? error : new Error(String(error)))
-          }
-        })()
-        return passthrough
+      open: async (start, end, signal) => {
+        const object = await client.send(
+          new s3.GetObjectCommand({
+            Bucket: bucket,
+            Key: normalized,
+            Range: `bytes=${start}-${end}`,
+          }),
+          { abortSignal: signal },
+        )
+        // The SDK's body is a Node stream here; handed on as it is, the
+        // response pulls from it at its own pace and closes it when it goes.
+        const body = object.Body
+        return body instanceof Readable ? body : Readable.from([await streamToBuffer(body)])
       },
     }
   }

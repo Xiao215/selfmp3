@@ -30,7 +30,7 @@ const APP_DIR_NAME = 'selfmp3'
 export function defaultDirs({
   home = os.homedir(),
   platform = process.platform,
-  profile = process.env['SELFMP3_PROFILE'] ?? '',
+  profile = '',
 }: {
   home?: string
   platform?: NodeJS.Platform
@@ -233,27 +233,11 @@ function readEnv(): unknown {
   }
 }
 
-/** Strip undefined so zod applies its defaults rather than seeing an explicit undefined. */
-function prune(value: unknown): unknown {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return value
-  const out: Record<string, unknown> = {}
-  for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
-    if (inner === undefined) continue
-    const cleaned = prune(inner)
-    if (cleaned === undefined) continue
-    if (typeof cleaned === 'object' && cleaned !== null && Object.keys(cleaned).length === 0) {
-      continue
-    }
-    out[key] = cleaned
-  }
-  return out
-}
-
 export function loadConfig(): Config {
   // This machine's `.env`, from this checkout or the main one, under whatever
   // the shell already set (dotenv.ts).
   loadDotEnv()
-  const parsed = ConfigSchema.safeParse(prune(readEnv()))
+  const parsed = ConfigSchema.safeParse(readEnv())
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map(issue => `  ${issue.path.join('.') || '(root)'}: ${issue.message}`)

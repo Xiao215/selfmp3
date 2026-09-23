@@ -44,6 +44,9 @@ export const ErrorBodySchema = z.object({
 })
 export type ErrorBody = z.infer<typeof ErrorBodySchema>
 
+/** A tag's colour, as a hue 0–359: derived once at creation so it never shifts. */
+export const HueSchema = z.number().int().min(0).max(359)
+
 /** Sort directions, shared by the library view and smart playlists. */
 export const SortDirectionSchema = z.enum(['asc', 'desc'])
 export type SortDirection = z.infer<typeof SortDirectionSchema>

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { formatDuration, fuzzyRank, type Song } from '@selfmp3/shared'
-import { radius, space, useAddToPlaylist, useLibrary } from '@selfmp3/client'
+import { failureText, radius, space, useAddToPlaylist, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useAccent } from '../../ui/accent'
@@ -105,7 +105,7 @@ export function AddSongsSheet({
       setAdded(new Set())
     } catch (caught) {
       // The picks stay, so trying again is one press.
-      setError(`Couldn’t make “${playlistName}”: ${(caught as Error).message}`)
+      setError(failureText(`Couldn’t make “${playlistName}”`, caught))
     } finally {
       setCreating(false)
     }

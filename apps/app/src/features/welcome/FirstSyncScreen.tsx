@@ -5,7 +5,6 @@ import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { fonts, radius, space, useLibrary } from '@selfmp3/client'
 import type { Song } from '@selfmp3/shared'
-import { session as cloud } from '../../replica'
 import {
   coverFor,
   coversVersion,
@@ -14,6 +13,7 @@ import {
   subscribeCovers,
 } from '../../offline/covers'
 import { useDownloads } from '../../offline/DownloadsProvider'
+import { useCloudSession } from '../profile/useCloudSession'
 import { useArt } from '../../offline/useArt'
 import { titleBarInset } from '../../ports/titleBarInset'
 import { useConnection } from '../../connection/ConnectionProvider'
@@ -54,7 +54,7 @@ export function FirstSyncScreen(): ReactNode {
   const { fromCloud, status } = useConnection()
   const library = useLibrary()
   const { prefs, setPrefs } = useDownloads()
-  const [name, setName] = useState<string | null>(null)
+  const name = useCloudSession().data?.name ?? null
 
   /*
    * Once, on arrival: remember this device has seen the page, and start the
@@ -73,19 +73,6 @@ export function FirstSyncScreen(): ReactNode {
     rememberFirstSyncSeen()
     setPrefs({ autoOnWifi: startsOn })
   }, [signedIn, setPrefs, startsOn])
-
-  useEffect(() => {
-    let cancelled = false
-    void cloud
-      .loadSession()
-      .then(session => {
-        if (!cancelled) setName(session?.me.name ?? null)
-      })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   const songs = useMemo(() => library.data?.songs ?? [], [library.data])
   const withArt = useMemo(() => songs.filter(song => song.hasArt), [songs])

@@ -1,14 +1,12 @@
-import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import type { DoormanStorage } from '@selfmp3/shared'
 import { useLibrary } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
-import { session as cloudSession } from '../../replica'
 import { Button } from '../../ui/components/Button'
 import { Refresh } from '../../ui/components/Icons'
+import { useCloudSession } from '../profile/useCloudSession'
 import { STORAGE_ROUTE, whereItIs } from '../welcome/storage.model'
 import { ButtonRow, Details, Panel, partStyles, Row } from './SettingsParts'
 import { type Confirming } from './settings.model'
@@ -43,20 +41,8 @@ export function ConnectionPanel({
   const library = useLibrary()
   const router = useRouter()
   // The bucket as the stored session has it; undefined until it has been read.
-  const [storage, setStorage] = useState<DoormanStorage | null | undefined>(undefined)
-  useEffect(() => {
-    if (!fromCloud) return
-    let cancelled = false
-    void cloudSession
-      .loadSession()
-      .then(session => {
-        if (!cancelled) setStorage(session?.me.storage ?? null)
-      })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
-  }, [fromCloud])
+  const me = useCloudSession()
+  const storage = me.isPending ? undefined : (me.data?.storage ?? null)
   return (
     <Panel title="Account" hint="on this device" anchor={anchor}>
       {fromCloud ? (

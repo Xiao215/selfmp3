@@ -26,11 +26,10 @@ import { pageKey, stepSide } from './pageStep'
 import { stackMoves } from '../ports/stackMoves'
 import { onDeepLinkRoute } from '../ports/deepLinks'
 import { usePlayer } from '../player/PlayerProvider'
-import { SEEK_STEP_SECONDS } from '../player/progress.model'
+import { SEEK_STEP_SECONDS, VOLUME_STEP } from '../player/progress.model'
 import { PracticePanel } from '../features/practice/PracticePanel'
 import { QueueRail } from '../features/queue/QueueRail'
 import { QueueSheet } from '../features/queue/QueueSheet'
-import { useQueueSheetOpen } from '../features/queue/queueSheet.store'
 import { ContentWidthContext } from './contentWidth'
 import { setPaletteOpen, usePaletteOpen } from './palette'
 import { practiceOpen, setPracticeOpen, usePracticeOpen, usePracticeSection } from './practicePanel'
@@ -141,7 +140,6 @@ function Frame({
   barHidden: boolean
   children: ReactNode
 }): ReactNode {
-  const queueOpen = useQueueSheetOpen()
   const [contentWidth, setContentWidth] = useState<number | null>(null)
   return (
     <View style={styles.root} testID={wide ? 'shell-wide' : chrome ? 'shell-compact' : undefined}>
@@ -169,7 +167,10 @@ function Frame({
       {!wide && chrome ? <MiniPlayer /> : null}
       {!wide && chrome ? <BottomNav /> : null}
       {wide ? null : <QueueSheet />}
-      {!wide && (chrome || queueOpen) ? <Toasts /> : null}
+      {/* On every compact page, chrome or not: a toast raised by a full-screen
+          page (Now Playing, the import review) has nowhere else to land, and
+          the row already drops to the foot when there is no chrome to sit on. */}
+      {wide ? null : <Toasts />}
     </View>
   )
 }
@@ -342,9 +343,6 @@ function DeepLinkRoutes(): ReactNode {
   return null
 }
 
-/** One notch of the volume keys, on the engine's 0–1 scale. */
-const VOLUME_STEP = 0.05
-
 /**
  * Everything the desktop's application menu can ask for.
  *
@@ -368,8 +366,8 @@ function MenuCommands(): ReactNode {
     'seek-back': () => player.seekBy(-SEEK_STEP_SECONDS),
     shuffle: () => player.toggleShuffle(),
     repeat: () => player.cycleRepeatMode(),
-    'volume-up': () => player.setVolume(Math.min(1, player.volume + VOLUME_STEP)),
-    'volume-down': () => player.setVolume(Math.max(0, player.volume - VOLUME_STEP)),
+    'volume-up': () => player.stepVolume(VOLUME_STEP),
+    'volume-down': () => player.stepVolume(-VOLUME_STEP),
     mute: () => player.toggleMute(),
   })
   return null

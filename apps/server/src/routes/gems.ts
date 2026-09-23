@@ -1,14 +1,15 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import type { ForgottenGems } from '@selfmp3/shared'
+import { forgottenGems, type ForgottenGems } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 
 /**
  * Forgotten gems: loved or well-played songs that have gone quiet.
  *
- * The repository ranks ids; the songs are resolved through the song
- * repository so the payload is the same `Song` shape the library uses.
+ * The rule is `forgottenGems` in `@selfmp3/shared`, run over the whole library
+ * here as a device runs it over its cloud library — one ranking, wherever the
+ * shelf is drawn.
  */
 export function gemsRoutes(container: Container): Router {
   const router = Router()
@@ -18,15 +19,13 @@ export function gemsRoutes(container: Container): Router {
     route(
       { query: z.object({ limit: z.coerce.number().int().min(1).max(100).default(20) }) },
       ({ query }): ForgottenGems => {
-        const minDays = container.gems.thresholdDays()
-        const songs = container.gems
-          .pick(minDays, query.limit)
-          .map(gem => container.songs.byId(gem.songId))
-          .filter(song => song !== null)
+        const { gems, minDays, total } = forgottenGems(container.songs.all(), {
+          limit: query.limit,
+        })
         return {
-          songs,
+          songs: gems.map(gem => gem.song),
           minDays,
-          total: container.gems.count(minDays),
+          total,
           generatedAt: new Date().toISOString(),
         }
       },

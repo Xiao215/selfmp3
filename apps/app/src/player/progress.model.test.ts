@@ -119,15 +119,12 @@ describe('what counts as the engine changing', () => {
     playing: true,
     currentTime: 10,
     duration: 200,
-    buffered: 40,
     volume: 1,
     loopA: null as number | null,
   }
 
   it('ignores the clock', () => {
-    expect(
-      differsBesidesClock(base, { ...base, currentTime: 11, duration: 201, buffered: 80 }),
-    ).toBe(false)
+    expect(differsBesidesClock(base, { ...base, currentTime: 11, duration: 201 })).toBe(false)
   })
 
   it('notices anything else', () => {

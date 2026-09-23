@@ -21,8 +21,15 @@ export interface RangeSource {
   readonly mime: string
   readonly etag: string
   readonly lastModified: Date
-  /** Inclusive byte offsets, as HTTP defines them. */
-  open(start: number, end: number): NodeJS.ReadableStream
+  /**
+   * Inclusive byte offsets, as HTTP defines them. Both real sources have to
+   * ask something before they have bytes — a bucket, a file's stat — so this
+   * is a promise of the stream, not the stream: `pipeline` then owns the real
+   * upstream, destroys it when the client goes, and an error before the first
+   * byte is a rejection here rather than an `'error'` event with nobody on it.
+   * `signal` is aborted when the client goes before the promise settles.
+   */
+  open(start: number, end: number, signal: AbortSignal): Promise<NodeJS.ReadableStream>
 }
 
 /** True when the client's cached copy is still good. */
@@ -95,12 +102,17 @@ export async function sendRange(req: Request, res: Response, source: RangeSource
     return
   }
 
-  const stream = source.open(answer.start, answer.end)
+  // A client seeking or skipping closes the response. The fetch behind it is
+  // called off with it rather than left to finish for nobody, and the stream
+  // it had already started is destroyed by `pipeline`.
+  const gone = new AbortController()
+  res.once('close', () => gone.abort())
   try {
+    const stream = await source.open(answer.start, answer.end, gone.signal)
     await pipeline(stream, res)
   } catch (error) {
-    // A client seeking or skipping aborts the request mid-stream. That is
-    // normal behaviour, not an error worth surfacing.
+    // That is normal behaviour, not an error worth surfacing.
+    if (gone.signal.aborted) return
     const code = (error as NodeJS.ErrnoException | undefined)?.code
     if (code === 'ERR_STREAM_PREMATURE_CLOSE' || code === 'EPIPE' || code === 'ECONNRESET') return
     throw error

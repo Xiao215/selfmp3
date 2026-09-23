@@ -26,7 +26,7 @@ import {
   withAlpha,
 } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
-import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
+import { usePlayer, usePlayerProgress, usePracticeState } from '../../player/PlayerProvider'
 import { useSongColor } from '../../ui/useSongColor'
 import { spring, timing, useEntrance } from '../../ui/motion'
 import { modalCoversScreen } from '../../ports/modalCoversScreen'
@@ -778,7 +778,7 @@ function MoreSheet({
   onDevices: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  const player = usePlayer()
+  const practice = usePracticeState()
   const { state: downloads, requestDownload, installed } = useDownloads()
   const held = isDownloaded(downloads.index, song.id)
   const then = (next: () => void) => (): void => {
@@ -790,7 +790,7 @@ function MoreSheet({
       <SheetItem
         icon={<Metronome size={18} color={theme.colors.textSecondary} />}
         label="Practice"
-        detail={player.rate !== 1 || player.loopB !== null ? `${player.rate}×` : undefined}
+        detail={practice.rate !== 1 || practice.loopB !== null ? `${practice.rate}×` : undefined}
         onPress={then(onPractice)}
       />
       {installed ? (
@@ -828,10 +828,11 @@ function MoreSheet({
  */
 function PhoneSeek({ color }: { color: string }): ReactNode {
   const player = usePlayer()
+  const { loopA, loopB } = usePracticeState()
   const progress = usePlayerProgress()
   return (
     <SeekBar
-      loop={loopRegionPercent(player.loopA, player.loopB, progress.duration)}
+      loop={loopRegionPercent(loopA, loopB, progress.duration)}
       color={color}
       position={progress.position}
       duration={progress.duration}

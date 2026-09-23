@@ -7,11 +7,12 @@ const device = (id: string, name: string, lastSeenAt: number, online = true) =>
 
 describe('the last known devices', () => {
   it('keeps what a row draws, and nothing about what was playing', () => {
-    const raw = serializeKnownDevices([device('a', 'Mac · Chrome', 100)], 500)
+    // Ids are the shared device shape's, so a row is read back through it.
+    const raw = serializeKnownDevices([device('mac-aaaa1111', 'Mac · Chrome', 100)], 500)
     expect(raw).not.toContain('songId')
     expect(parseKnownDevices(raw)).toEqual({
       savedAt: 500,
-      devices: [{ id: 'a', name: 'Mac · Chrome', kind: 'desktop', lastSeenAt: 100 }],
+      devices: [{ id: 'mac-aaaa1111', name: 'Mac · Chrome', kind: 'desktop', lastSeenAt: 100 }],
     })
   })
 

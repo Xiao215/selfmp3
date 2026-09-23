@@ -1,4 +1,4 @@
-import type { NextFunction, Request, RequestHandler, Response } from 'express'
+import type { Request, RequestHandler, Response } from 'express'
 import type { z } from 'zod'
 
 /**
@@ -7,8 +7,9 @@ import type { z } from 'zod'
  * Express handlers are `any` by default, which quietly undoes most of the
  * benefit of TypeScript at exactly the place untrusted data enters. This wraps
  * a handler with zod schemas for params, query and body, so inside the handler
- * every input is both validated and correctly typed — and an async throw is
- * forwarded to the error middleware instead of becoming an unhandled rejection.
+ * every input is both validated and correctly typed. The handler is `async`, so
+ * a throw — zod's on a bad input, or the handler's own — rejects the promise,
+ * and Express 5 hands a rejected handler to the error middleware itself.
  *
  * The generics are over the *schemas* rather than over bare `Params`/`Query`/
  * `Body` types. Writing `params?: z.ZodType<Params>` looks equivalent but is
@@ -54,32 +55,26 @@ export function route<
     >,
   ) => unknown,
 ): RequestHandler {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    void (async () => {
-      try {
-        const params = (schemas.params ? schemas.params.parse(req.params) : req.params) as Parsed<
-          P,
-          Record<string, string>
-        >
+  return async (req: Request, res: Response): Promise<void> => {
+    const params = (schemas.params ? schemas.params.parse(req.params) : req.params) as Parsed<
+      P,
+      Record<string, string>
+    >
 
-        const query = (schemas.query ? schemas.query.parse(req.query) : req.query) as Parsed<
-          Q,
-          Record<string, unknown>
-        >
+    const query = (schemas.query ? schemas.query.parse(req.query) : req.query) as Parsed<
+      Q,
+      Record<string, unknown>
+    >
 
-        const body = (schemas.body ? schemas.body.parse(req.body) : req.body) as Parsed<B, unknown>
+    const body = (schemas.body ? schemas.body.parse(req.body) : req.body) as Parsed<B, unknown>
 
-        const result = await handler({ params, query, body, req, res })
+    const result = await handler({ params, query, body, req, res })
 
-        if (res.headersSent) return
-        if (result === undefined) {
-          res.status(204).end()
-          return
-        }
-        res.json(result)
-      } catch (error) {
-        next(error)
-      }
-    })()
+    if (res.headersSent) return
+    if (result === undefined) {
+      res.status(204).end()
+      return
+    }
+    res.json(result)
   }
 }

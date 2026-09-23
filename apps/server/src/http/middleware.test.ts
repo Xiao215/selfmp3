@@ -3,7 +3,7 @@ import { EXTENSION_ORIGIN } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import type { Config } from '../config.js'
 import { HttpError } from './errors.js'
-import { APP_SITE_ORIGIN, cors, sameOriginWrites } from './middleware.js'
+import { APP_SITE_ORIGIN, cors, loggedUrl, sameOriginWrites } from './middleware.js'
 
 /**
  * The guard that keeps another website from writing to your library.
@@ -157,5 +157,18 @@ describe('cors', () => {
     expect(headersFor(undefined)['Vary']).toBe('Origin')
     expect(headersFor('https://elsewhere.example')['Vary']).toBe('Origin')
     expect(headersFor('https://elsewhere.example')['Access-Control-Allow-Origin']).toBeUndefined()
+  })
+})
+
+describe('loggedUrl', () => {
+  it('blanks the token a media URL carries, and nothing else', () => {
+    expect(loggedUrl('/api/stream/7?token=s3cret-s3cret&rev=abc')).toBe(
+      '/api/stream/7?token=%E2%80%A6&rev=abc',
+    )
+  })
+
+  it('leaves a URL without a token as it came', () => {
+    expect(loggedUrl('/api/library')).toBe('/api/library')
+    expect(loggedUrl('/api/art/3?size=320')).toBe('/api/art/3?size=320')
   })
 })

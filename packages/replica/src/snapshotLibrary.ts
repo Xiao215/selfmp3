@@ -1,5 +1,6 @@
 import {
   fromCloudRules,
+  playlistRules,
   type CloudSnapshot,
   type Library,
   type Playlist,
@@ -150,10 +151,10 @@ export function snapshotToLibrary(
       id,
       name: playlist.name,
       description: playlist.description,
-      kind: playlist.kind,
-      rules: playlist.rules
-        ? fromCloudRules(playlist.rules, uid => tagIdOf.get(uid) ?? null)
-        : null,
+      ...playlistRules(
+        playlist.kind,
+        playlist.rules && fromCloudRules(playlist.rules, uid => tagIdOf.get(uid) ?? null),
+      ),
       songCount: songIds.length,
       totalDuration: songIds.reduce((sum, songId) => sum + (durationOf.get(songId) ?? 0), 0),
       pinned: playlist.pinned,

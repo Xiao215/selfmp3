@@ -1,3 +1,5 @@
+import { clamp } from '@selfmp3/shared'
+
 /**
  * Practice helpers: pure functions behind the A–B loop and count-in, shared so
  * every platform's practice panel behaves the same.
@@ -65,8 +67,4 @@ export function tapLoop(
   if (which === 'A') return { a: time, b: current.b }
   if (current.a === null) return { a: time, b: null }
   return { a: current.a, b: time }
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value))
 }

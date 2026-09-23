@@ -6,6 +6,7 @@ import { formatDuration } from '@selfmp3/shared'
 import type { LoopRegion } from '@selfmp3/client'
 import { useAccent } from '../accent'
 import { space, type, withAlpha } from '@selfmp3/client'
+import { SEEK_STEP_SECONDS } from '../../player/progress.model'
 
 /**
  * Closer than this to a seek, the player is taken to be there. Wide enough for
@@ -14,6 +15,8 @@ import { space, type, withAlpha } from '@selfmp3/client'
 const SEEK_LANDED_SECONDS = 2.1
 /** How long a let-go position is held against an engine still reporting the old one. */
 const SEEK_SETTLE_MS = 1000
+/** What a screen reader can do to an adjustable: the same pair its sibling `Slider` offers. */
+const ADJUST_ACTIONS = [{ name: 'increment' }, { name: 'decrement' }] as const
 
 /**
  * Scrubber: a 6px track with a 16px thumb that is always there, in a hit area
@@ -111,6 +114,15 @@ export function SeekBar({
   const shown = dragging ?? held ?? position
   const ratio = duration > 0 ? Math.max(0, Math.min(1, shown / duration)) : 0
 
+  /** A screen reader's swipe up or down: a step along, as the keyboard seeks. */
+  const onAccessibilityAction = (event: { nativeEvent: { actionName: string } }): void => {
+    const step =
+      event.nativeEvent.actionName === 'increment' ? SEEK_STEP_SECONDS : -SEEK_STEP_SECONDS
+    const target = Math.max(0, Math.min(duration, shown + step))
+    setPending(target)
+    onSeek(target)
+  }
+
   const onLayout = (event: LayoutChangeEvent): void => {
     setWidth(event.nativeEvent.layout.width)
   }
@@ -136,6 +148,8 @@ export function SeekBar({
             aria-valuemin={0}
             aria-valuemax={Math.round(duration)}
             aria-valuenow={Math.round(shown)}
+            accessibilityActions={ADJUST_ACTIONS}
+            onAccessibilityAction={onAccessibilityAction}
             {...responder.panHandlers}
           >
             {loop ? (
@@ -198,6 +212,8 @@ export function SeekBar({
         aria-valuemin={0}
         aria-valuemax={Math.round(duration)}
         aria-valuenow={Math.round(shown)}
+        accessibilityActions={ADJUST_ACTIONS}
+        onAccessibilityAction={onAccessibilityAction}
         {...responder.panHandlers}
       >
         {loop ? (

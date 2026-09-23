@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 import { focusManager } from '@tanstack/react-query'
 import { PRESENCE_LOOK_AGAIN_MS, type Reach, type ServerConnection } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
@@ -90,7 +90,12 @@ export function usePresenceServer({
  * listener that would have to be written twice.
  */
 function useAppFocused(): boolean {
-  const [focused, setFocused] = useState(() => focusManager.isFocused())
-  useEffect(() => focusManager.subscribe(() => setFocused(focusManager.isFocused())), [])
-  return focused
+  return useSyncExternalStore(subscribeFocus, isFocused, isFocused)
 }
+
+// Module-level, so the store's identity never changes and a subscription is
+// made once. A wrapper rather than `focusManager.subscribe` itself: that one
+// hands its listener the new state, and the store wants a plain notify.
+const subscribeFocus = (listener: () => void): (() => void) =>
+  focusManager.subscribe(() => listener())
+const isFocused = (): boolean => focusManager.isFocused()

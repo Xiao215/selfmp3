@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
 import type { SmartRules, SortDirection, SongSortField } from '@selfmp3/shared'
-import { clientApi, queryKeys } from '@selfmp3/client'
+import { clientApi, failureText, queryKeys } from '@selfmp3/client'
 
 import { showToast } from '../../ui/toast'
 
@@ -82,14 +82,14 @@ export function useSaveTagsAsPlaylist(): {
                     .deletePlaylist(created.id)
                     .then(() => queryClient.invalidateQueries({ queryKey: queryKeys.library }))
                     .catch((caught: unknown) =>
-                      showToast(`Couldn’t undo that: ${(caught as Error).message}`, 'error'),
+                      showToast(failureText('Couldn’t undo that', caught), 'error'),
                     )
                 },
               },
             ],
           })
         } catch (caught) {
-          showToast(`Couldn’t save the playlist: ${(caught as Error).message}`, 'error')
+          showToast(failureText('Couldn’t save the playlist', caught), 'error')
         } finally {
           setSaving(false)
         }

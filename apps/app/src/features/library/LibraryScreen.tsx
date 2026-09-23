@@ -98,7 +98,7 @@ export function LibraryScreen(): ReactNode {
     () => visible.filter(song => selection.has(song.id)),
     [visible, selection],
   )
-  const narrowed = model.tagFiltered || filter.query.trim().length > 0 || filter.downloadedOnly
+  const narrowed = model.tagFiltered || filter.downloadedOnly
 
   const downloaded = useCallback(
     (songId: number) => isDownloaded(downloads.index, songId),
@@ -235,10 +235,9 @@ export function LibraryScreen(): ReactNode {
 
   /*
    * What stands where the songs would. A server that did not answer gets the
-   * card that can fix it; a search that found nothing names what was searched,
-   * says which tags it was searched inside, and offers the way out of each.
+   * card that can fix it; a filter that matched nothing says which tags it
+   * looked inside, and offers the way out.
    */
-  const query = filter.query.trim()
   const emptyState =
     model.emptyReason === 'unreachable' ? (
       <View style={styles.emptyCard}>
@@ -248,7 +247,7 @@ export function LibraryScreen(): ReactNode {
       <Text style={styles.empty}>{NO_LIBRARY_TEXT}</Text>
     ) : (
       <View style={styles.noMatches} testID="library-no-matches">
-        <Text style={styles.noMatchesTitle}>{noMatchesTitle(query, model.tagFiltered)}</Text>
+        <Text style={styles.noMatchesTitle}>{noMatchesTitle(model.tagFiltered)}</Text>
         {model.tagFiltered ? (
           <View style={styles.inside}>
             <Text style={styles.filteredBy}>You’re looking inside</Text>
@@ -265,13 +264,7 @@ export function LibraryScreen(): ReactNode {
           </View>
         ) : null}
         <View style={styles.noMatchesActions}>
-          {model.tagFiltered ? (
-            <Button
-              label={query ? 'Search all songs' : 'Show all songs'}
-              onPress={model.clearTags}
-            />
-          ) : null}
-          {query ? <Button label="Clear search" onPress={model.clearQuery} /> : null}
+          {model.tagFiltered ? <Button label="Show all songs" onPress={model.clearTags} /> : null}
         </View>
       </View>
     )
@@ -601,7 +594,7 @@ export function LibraryScreen(): ReactNode {
         />
       </View>
 
-      {model.tagFiltered || filter.query.trim() ? null : <GemsRow />}
+      {model.tagFiltered ? null : <GemsRow />}
 
       <SyncStatus />
 

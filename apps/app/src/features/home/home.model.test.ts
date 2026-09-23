@@ -44,8 +44,6 @@ describe('greeting', () => {
   })
 })
 
-describe('dateLine', () => {})
-
 describe('streakLine', () => {
   it('says a streak once there is one, and nothing otherwise', () => {
     expect(streakLine(3)).toBe('3 days in a row.')

@@ -73,6 +73,25 @@ function main(): void {
     logger.info(`its token is ${config.authToken} — set SELFMP3_AUTH_TOKEN to choose your own`)
   })
 
+  /*
+   * `listen` fails asynchronously, so the try/catch around `main` never sees a
+   * port that is already taken: with no listener the error is re-thrown and
+   * lands in the `uncaughtException` handler below, which reports a crash with
+   * a stack trace where the truth is one line. Exit non-zero either way: to a
+   * supervisor a clean exit means "done", and this is not done.
+   */
+  server.on('error', (error: NodeJS.ErrnoException) => {
+    if (error.code === 'EADDRINUSE') {
+      logger.error(
+        `port ${config.port} is already in use — another ${APP_NAME} is running, or set SELFMP3_PORT`,
+      )
+    } else {
+      logger.error('could not listen', { message: error.message, code: error.code })
+    }
+    container.close()
+    process.exit(1)
+  })
+
   // Streaming a track over a slow phone connection can legitimately take a
   // while; the defaults would cut it off.
   server.keepAliveTimeout = 65_000
@@ -102,7 +121,12 @@ function main(): void {
     logger.info('automatic rescan enabled', { everyMinutes: autoScanMinutes })
   }
 
-  const shutdown = (signal: string): void => {
+  /*
+   * `code` is what the process exits with once everything has closed: 0 for a
+   * signal, 1 for a crash. launchd and every other supervisor read that number
+   * as "restart me or not", and a crash that walked out with 0 stayed down.
+   */
+  const shutdown = (signal: string, code = 0): void => {
     if (shuttingDown) return
     shuttingDown = true
     logger.info(`received ${signal}, shutting down`)
@@ -118,7 +142,7 @@ function main(): void {
 
     server.close(() => {
       container.close()
-      process.exit(0)
+      process.exit(code)
     })
     server.closeIdleConnections()
 
@@ -143,7 +167,7 @@ function main(): void {
 
   process.on('uncaughtException', error => {
     logger.error('uncaught exception', { message: error.message, stack: error.stack })
-    shutdown('uncaughtException')
+    shutdown('uncaughtException', 1)
   })
 }
 

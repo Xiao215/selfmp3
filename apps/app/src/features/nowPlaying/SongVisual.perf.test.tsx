@@ -8,9 +8,15 @@ import { VISUAL_KINDS, visualFeel } from './visuals.model'
 jest.mock('../../player/PlayerProvider', () => ({
   usePlayer: () => ({
     isPlaying: true,
-    rate: 1,
     getPosition: () => 12,
     subscribeProgress: () => () => undefined,
+  }),
+  usePracticeState: () => ({
+    loopA: null,
+    loopB: null,
+    countingIn: false,
+    rate: 1,
+    preservesPitch: true,
   }),
 }))
 

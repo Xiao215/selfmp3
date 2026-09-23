@@ -1,10 +1,12 @@
 import { useMemo } from 'react'
 import {
-  plural,
+  type CreatePlaylist,
   EMPTY_SMART_RULES,
   formatLongDuration,
-  type CreatePlaylist,
+  fromSqliteTime,
   type Playlist,
+  playlistRules,
+  plural,
   type SmartRules,
 } from '@selfmp3/shared'
 import { useLibrary } from '@selfmp3/client'
@@ -104,7 +106,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
  * as UTC; a bucket's ISO carries its own. A stamp from the future is today.
  */
 export function relativeDay(value: string, now: Date): string | null {
-  const then = new Date(value.includes('T') ? value : `${value.replace(' ', 'T')}Z`)
+  const then = new Date(fromSqliteTime(value))
   if (Number.isNaN(then.getTime())) return null
   const midnight = (date: Date): number =>
     new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
@@ -236,8 +238,7 @@ export function newPlaylist(
   return {
     name: trimmed,
     description: options.description ?? '',
-    kind,
-    rules: kind === 'live' ? (options.rules ?? EMPTY_SMART_RULES) : null,
+    ...playlistRules(kind, kind === 'live' ? (options.rules ?? EMPTY_SMART_RULES) : null),
   }
 }
 

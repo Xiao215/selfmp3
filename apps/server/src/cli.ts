@@ -22,18 +22,6 @@ import { loadDotEnv } from './dotenv.js'
 
 const out = (line = ''): void => console.log(line)
 
-/**
- * The folders the server would use, found the way the server finds them —
- * this checkout's `.env`, then the environment, then the profile's defaults —
- * so `backup` copies the library the server serves and `doctor` reports on
- * it. Only found, never created: `loadConfig` does that, and a `doctor` run
- * before the first start should say the folders are missing, not make them.
- */
-function serverDirs(): { libraryDir: string; dataDir: string } {
-  loadDotEnv()
-  return resolveDirs()
-}
-
 const NOT_RUNNING = `the server is not running at %s.
 Start it in another terminal with one of:
     selfmp3 start
@@ -100,7 +88,7 @@ async function run(command: Command, baseUrl: string, token: string | null): Pro
 
     case 'backup': {
       const dest = path.resolve(command.dest)
-      const dirs = serverDirs()
+      const dirs = resolveDirs()
       out(`backing up to ${dest}`)
       let total = { files: 0, copied: 0, bytes: 0, copiedBytes: 0 }
       for (const [name, src] of [
@@ -133,7 +121,7 @@ async function run(command: Command, baseUrl: string, token: string | null): Pro
     case 'doctor': {
       out(`${APP_NAME} ${APP_VERSION}`)
       out()
-      const lines = await runDoctor(client, serverDirs())
+      const lines = await runDoctor(client, resolveDirs())
       for (const line of lines) {
         out(`  ${line.ok ? '✓' : '✗'} ${line.label.padEnd(8)} ${line.detail}`)
       }
@@ -146,6 +134,12 @@ async function run(command: Command, baseUrl: string, token: string | null): Pro
 }
 
 async function main(): Promise<void> {
+  // This checkout's `.env` first, as the server reads it first (config.ts):
+  // the port to talk to and the folders `backup` copies and `doctor` reports
+  // on come from it. Only read, never acted on — `loadConfig` makes folders;
+  // a `doctor` run before the first start should say they are missing.
+  loadDotEnv()
+
   let parsed
   try {
     parsed = parseCli(process.argv.slice(2))

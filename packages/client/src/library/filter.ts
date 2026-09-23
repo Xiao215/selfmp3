@@ -18,7 +18,6 @@ import {
  */
 
 export interface LibraryFilter {
-  readonly query: string
   /**
    * A song carrying *any* of these is shown: "chill" and "chinese" means both
    * kinds of song, not only the songs that are both. Each tag you add makes
@@ -36,7 +35,6 @@ export interface LibraryFilter {
 
 /** The app's opening view: newest first. */
 export const DEFAULT_FILTER: LibraryFilter = {
-  query: '',
   tagIds: [],
   sort: 'addedAt',
   descending: true,
@@ -146,12 +144,6 @@ export function filterSongs(
     result = result.filter(song => tagMatchCount(song, filter.tagIds) > 0)
   }
   if (filter.downloadedOnly) result = result.filter(song => isDownloaded(song.id))
-
-  if (filter.query.trim().length > 0) {
-    // A relevance-ranked search should not then be re-sorted by title; the
-    // ranking *is* the order.
-    return searchSongs(filter.query, result).map(match => match.item)
-  }
 
   // The shared comparison, so the phone and the desktop put the same library in
   // the same order. A separate local copy once drifted from this in four places.

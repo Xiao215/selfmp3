@@ -66,10 +66,9 @@ export async function playbackService(): Promise<void> {
     void TrackPlayer.seekBy(-interval)
   })
 
-  TrackPlayer.addEventListener(Event.RemoteDuck, async ({ paused, permanent }) => {
+  TrackPlayer.addEventListener(Event.RemoteDuck, ({ paused, permanent }) => {
     // A phone call or a navigation prompt. Permanent means the audio focus is
     // gone for good, so pause rather than wait for a resume that never comes.
-    if (permanent || paused) await TrackPlayer.pause()
-    else await TrackPlayer.play()
+    void (permanent || paused ? TrackPlayer.pause() : TrackPlayer.play())
   })
 }

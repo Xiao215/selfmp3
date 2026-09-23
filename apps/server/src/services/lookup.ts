@@ -36,6 +36,8 @@ interface MetadataProvider {
 interface ProviderDeps {
   readonly fetch: FetchLike
   readonly logger: Logger
+  /** How long one request may take; a test hands in a short one. */
+  readonly timeoutMs?: number
 }
 
 /**
@@ -43,12 +45,10 @@ interface ProviderDeps {
  * logging why — the callers all treat "no answer" as "no candidates".
  */
 async function getJson(deps: ProviderDeps, url: string): Promise<unknown> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
     const response = await deps.fetch(url, {
       headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-      signal: controller.signal,
+      signal: AbortSignal.timeout(deps.timeoutMs ?? REQUEST_TIMEOUT_MS),
     })
     if (!response.ok) {
       deps.logger.warn('lookup request failed', { url, status: response.status })
@@ -67,8 +67,6 @@ async function getJson(deps: ProviderDeps, url: string): Promise<unknown> {
       message: error instanceof Error ? error.message : String(error),
     })
     return null
-  } finally {
-    clearTimeout(timer)
   }
 }
 
@@ -157,14 +155,12 @@ export class MusicBrainzProvider implements MetadataProvider {
   async #findCoverArt(releaseIds: string[]): Promise<string | null> {
     for (const releaseId of releaseIds.slice(0, RELEASES_PER_RECORDING)) {
       const url = coverArtArchiveUrl(releaseId)
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
       try {
         const response = await this.#deps.fetch(url, {
           method: 'HEAD',
           redirect: 'manual',
           headers: { 'User-Agent': USER_AGENT },
-          signal: controller.signal,
+          signal: AbortSignal.timeout(this.#deps.timeoutMs ?? REQUEST_TIMEOUT_MS),
         })
         if (response.ok || (response.status >= 300 && response.status < 400)) return url
       } catch (error) {
@@ -172,8 +168,6 @@ export class MusicBrainzProvider implements MetadataProvider {
           url,
           message: error instanceof Error ? error.message : String(error),
         })
-      } finally {
-        clearTimeout(timer)
       }
     }
     return null

@@ -1,5 +1,7 @@
 import {
   SmartRulesSchema,
+  playlistRules,
+  type PlaylistRules,
   type CreatePlaylist,
   type Playlist,
   type SmartRules,
@@ -96,15 +98,20 @@ export class PlaylistRepository {
   }
 
   #toPlaylist(row: PlaylistRow): Playlist {
-    const kind = row.kind === 'live' ? 'live' : 'manual'
-    const rules = kind === 'live' ? this.#parseRules(row.rules) : null
+    // A live row whose rules will not parse reads as a manual playlist with
+    // nothing in it: visible, harmless, and the one shape a live playlist
+    // without rules cannot be.
+    const shape = playlistRules(
+      row.kind === 'live' ? 'live' : 'manual',
+      row.kind === 'live' ? this.#parseRules(row.rules) : null,
+    )
 
     // A live playlist's counts come from evaluating its rules, not from the
     // (always empty) items table.
     let songCount = row.song_count ?? 0
     let totalDuration = row.total_duration ?? 0
-    if (kind === 'live' && rules) {
-      const stats = this.#liveStats(rules)
+    if (shape.kind === 'live') {
+      const stats = this.#liveStats(shape.rules)
       songCount = stats.count
       totalDuration = stats.duration
     }
@@ -113,8 +120,7 @@ export class PlaylistRepository {
       id: row.id,
       name: row.name,
       description: row.description,
-      kind,
-      rules,
+      ...shape,
       songCount,
       totalDuration,
       pinned: row.pinned === 1,
@@ -157,15 +163,15 @@ export class PlaylistRepository {
   }
 
   /** A playlist made on another device: its uid, and dated by when it was made there. */
-  insertSynced(input: {
-    uid: string
-    name: string
-    description: string
-    kind: 'manual' | 'live'
-    rules: SmartRules | null
-    pinned: boolean
-    createdAt: string
-  }): number {
+  insertSynced(
+    input: {
+      uid: string
+      name: string
+      description: string
+      pinned: boolean
+      createdAt: string
+    } & PlaylistRules,
+  ): number {
     const info = this.#db
       .prepare(
         `INSERT INTO playlists (uid, name, description, kind, rules, pinned, created_at, updated_at)

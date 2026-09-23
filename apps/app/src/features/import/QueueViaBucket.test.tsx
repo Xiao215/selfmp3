@@ -46,13 +46,13 @@ const draw = async (): Promise<void> => {
 /** Typing, flushed: a state update from an event needs its own act under React 19. */
 const type = async (text: string): Promise<void> => {
   await act(async () => {
-    fireEvent.changeText(screen.getByTestId('queue-url'), text)
+    await fireEvent.changeText(screen.getByTestId('queue-url'), text)
   })
 }
 
 const submit = async (): Promise<void> => {
   await act(async () => {
-    fireEvent.press(screen.getByTestId('queue-submit'))
+    await fireEvent.press(screen.getByTestId('queue-submit'))
   })
 }
 

@@ -73,11 +73,9 @@ export class MigrateService {
   }
 
   async #fetchSpotifyEmbed(playlistId: string): Promise<string> {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), SPOTIFY_TIMEOUT_MS)
     try {
       const response = await fetch(`https://open.spotify.com/embed/playlist/${playlistId}`, {
-        signal: controller.signal,
+        signal: AbortSignal.timeout(SPOTIFY_TIMEOUT_MS),
         headers: { 'user-agent': 'Mozilla/5.0 (Macintosh) self.mp3', accept: 'text/html' },
       })
       if (!response.ok) throw new Error(`Spotify answered ${response.status}`)
@@ -89,8 +87,6 @@ export class MigrateService {
         `could not reach Spotify (${message}). Paste the tracks as text instead, or export a ` +
           'CSV with exportify.net and paste that.',
       )
-    } finally {
-      clearTimeout(timer)
     }
   }
 

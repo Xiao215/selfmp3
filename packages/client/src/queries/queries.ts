@@ -104,6 +104,8 @@ export const queryKeys = {
   analysis: ['analysis'] as const,
   devices: ['devices'] as const,
   cloud: ['cloud'] as const,
+  /** The stored doorman session's account, read on the device itself. */
+  cloudSession: ['cloud-session'] as const,
   /** A library's uids: `which` is this device's copy or the server being asked. */
   cloudUids: (which: 'device' | 'via-server', baseUrl?: string) =>
     ['cloud-uids', which, baseUrl] as const,
@@ -889,10 +891,11 @@ export function useDevices(streamConnected: boolean): UseQueryResult<DeviceList,
  * uploading, so the progress bar moves, and slowly otherwise, so a pass the
  * server starts by itself after an import still shows up.
  */
-export function useCloudStatus(): UseQueryResult<CloudStatus, Error> {
+export function useCloudStatus(enabled = true): UseQueryResult<CloudStatus, Error> {
   return useQuery({
     queryKey: queryKeys.cloud,
     queryFn: () => clientApi().cloudStatus(),
+    enabled,
     // Quickly while something is moving — an upload, or Google finishing a
     // sign-in in another tab — and slowly otherwise.
     refetchInterval: query =>

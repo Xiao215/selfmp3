@@ -8,6 +8,7 @@
 
 const expoConfig = require('eslint-config-expo/flat')
 const typescript = require('@typescript-eslint/eslint-plugin')
+const typescriptParser = require('@typescript-eslint/parser')
 
 module.exports = [
   ...expoConfig,
@@ -34,7 +35,7 @@ module.exports = [
   {
     // Config files run under Node, which gives them Node's globals;
     // eslint-config-expo does not assume those because the app itself has none.
-    files: ['*.config.ts'],
+    files: ['*.config.js', '*.config.ts'],
     languageOptions: {
       globals: {
         Buffer: 'readonly',
@@ -56,6 +57,31 @@ module.exports = [
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
+    },
+  },
+  {
+    /*
+     * The two rules the root config calls the #1 source of silent failures,
+     * type-aware and so needing a project: this workspace's own tsconfig,
+     * which is why the root config could not bring them here. Only what that
+     * tsconfig includes, `app/**` and `src/**` — `index.ts` and `sw/sw.ts` are
+     * in no reachable project (the worker has tsconfig.sw.json, for the
+     * WebWorker library), and a file the project service cannot place is a
+     * lint error rather than a linted file.
+     */
+    files: ['app/**/*.ts', 'app/**/*.tsx', 'src/**/*.ts', 'src/**/*.tsx'],
+    ignores: ['src/sw/**'],
+    plugins: { '@typescript-eslint': typescript },
+    languageOptions: {
+      parser: typescriptParser,
+      parserOptions: { projectService: true, tsconfigRootDir: __dirname },
+    },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': [
+        'error',
+        { checksVoidReturn: { attributes: false } },
       ],
     },
   },

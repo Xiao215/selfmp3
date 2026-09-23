@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { CloudDeviceIdSchema, CloudSmartRulesSchema, HlcSchema, UidSchema } from './cloud.js'
-import { NameSchema } from './common.js'
+import { HueSchema, NameSchema } from './common.js'
 import { PlaylistKindSchema } from './playlist.js'
 import { SongFieldsSchema } from './song.js'
 import { TagNameSchema } from './tag.js'
@@ -68,7 +68,7 @@ export const SongSkippedSchema = z.object({
 
 export const TagFieldsSchema = z.object({
   name: TagNameSchema,
-  hue: z.number().int().min(0).max(359),
+  hue: HueSchema,
 })
 export type TagFields = z.infer<typeof TagFieldsSchema>
 

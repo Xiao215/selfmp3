@@ -7,9 +7,9 @@ describe('the library filter store', () => {
   it('takes values and updaters the way useState does', () => {
     const store = createLibraryFilterStore()
     expect(store.get()).toBe(DEFAULT_FILTER)
-    store.set(current => ({ ...current, query: 'a' }))
-    store.set(current => ({ ...current, query: `${current.query}b` }))
-    expect(store.get().query).toBe('ab')
+    store.set(current => ({ ...current, downloadedOnly: true }))
+    store.set(current => ({ ...current, descending: !current.descending }))
+    expect(store.get()).toMatchObject({ downloadedOnly: true, descending: false })
     const replaced = { ...DEFAULT_FILTER, sort: 'title' as const }
     store.set(replaced)
     expect(store.get()).toBe(replaced)
@@ -26,15 +26,15 @@ describe('the library filter store', () => {
     store.set(clearTagFilter)
     expect(heard).toBe(2)
     stop()
-    store.set(current => ({ ...current, query: 'x' }))
+    store.set(current => ({ ...current, downloadedOnly: true }))
     expect(heard).toBe(2)
   })
 
-  it('keeps the tag list the same array while only the query changes', () => {
+  it('keeps the tag list the same array while only the sort changes', () => {
     const store = createLibraryFilterStore()
     store.set(current => toggleTag(current, 7))
     const { tagIds } = store.get()
-    store.set(current => ({ ...current, query: 'typing' }))
+    store.set(current => ({ ...current, sort: 'title' }))
     expect(store.get().tagIds).toBe(tagIds)
   })
 })

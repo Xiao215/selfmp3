@@ -25,8 +25,6 @@ import {
   AlreadyHaveResponseSchema,
   ImportPreviewSchema,
   ImportQueueSchema,
-  ImportShareResultSchema,
-  YtCookieTestSchema,
   LibrarySchema,
   ApplyMetadataResultSchema,
   FixCoversStatusSchema,
@@ -37,7 +35,6 @@ import {
   MigrateMatchJobSchema,
   MigrateParseResultSchema,
   LyricsSearchResponseSchema,
-  RomanizedLyricsSchema,
   PlaylistSchema,
   PlaylistSongsSchema,
   ScanResultSchema,
@@ -63,12 +60,10 @@ import {
   type DeviceHeartbeat,
   type ImportEnqueue,
   type ImportPreviewItem,
-  type ImportShareRequest,
   type MigrateEnqueue,
   type MigrateSourceTrack,
   type OfflineScope,
   type PlayEvent,
-  type SmartRules,
   type SongPatch,
   type StatsRange,
   type WrappedRange,
@@ -269,13 +264,6 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     analysisStatus: () => request('GET', '/api/library/analyze', AnalysisStatusSchema),
 
-    search: (query: string, limit = 50) =>
-      request(
-        'GET',
-        `/api/search?q=${encodeURIComponent(query)}&limit=${limit}`,
-        z.object({ songs: z.array(SongSchema) }),
-      ),
-
     // --- songs --------------------------------------------------------------
 
     patchSong: (id: number, patch: SongPatch) =>
@@ -293,18 +281,12 @@ export function createApi({ context, fetch }: ApiOptions) {
     recordSkip: (id: number, atSeconds: number, clientId?: string) =>
       request('POST', `/api/songs/${id}/skipped`, OkSchema, { atSeconds, clientId }),
 
-    /** Open Finder on the server's own machine with the song's file selected. */
-    revealSong: (id: number) => request('POST', `/api/songs/${id}/reveal`, OkSchema),
-
     lyrics: (id: number) => request('GET', `/api/songs/${id}/lyrics`, LyricsResponseSchema),
 
     /** How loud the song is and where its hits are, over time: a 404 coded `not-analysed` until analysis has run. */
     motion: (id: number) => request('GET', `/api/songs/${id}/motion`, MotionSchema),
 
     // --- lyrics+ ------------------------------------------------------------
-
-    romanizedLyrics: (id: number) =>
-      request('GET', `/api/songs/${id}/lyrics/romanized`, RomanizedLyricsSchema),
 
     lyricsSearch: (query: string, limit = 8) =>
       request(
@@ -390,14 +372,6 @@ export function createApi({ context, fetch }: ApiOptions) {
     /** The playlist was started, for the playlists page's "Recently played" order. */
     markPlaylistPlayed: (id: number) => request('POST', `/api/playlists/${id}/played`, OkSchema),
 
-    previewRules: (rules: SmartRules) =>
-      request(
-        'POST',
-        '/api/playlists/preview',
-        z.object({ songIds: z.array(z.number()), description: z.string() }),
-        { rules },
-      ),
-
     // --- import -------------------------------------------------------------
 
     importTools: (refresh = false) =>
@@ -427,11 +401,6 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     importEnqueue: (input: ImportEnqueue) =>
       request('POST', '/api/import/enqueue', ImportEnqueueResultSchema, input),
-
-    importShare: (input: ImportShareRequest) =>
-      request('POST', '/api/import/share', ImportShareResultSchema, input),
-
-    ytCookieTest: () => request('POST', '/api/import/youtube/test', YtCookieTestSchema),
 
     importQueue: () => request('GET', '/api/import/queue', ImportQueueSchema),
 

@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Stats } from '@selfmp3/shared'
-import { radius, useCloudStatus, useLibrary, type ServerConnection } from '@selfmp3/client'
+import { radius, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
 import { Cover } from '../../ui/components/Cover'
@@ -53,48 +53,31 @@ export function ProfileScreen(): ReactNode {
  * The card's numbers are the server's plays. A cloud library therefore has
  * them only while its server is within reach; without one the card says so,
  * and Stats, which it opens, explains the rest.
- *
- * Nor does a device reading the bucket know whose it is: the name is left to
- * a library with a server that asks Google.
  */
 function FromCloud(): ReactNode {
   const reach = useServerDirect()
-  return (
-    <WithStats
-      via={reach.state === 'reachable' ? reach.connection : undefined}
-      accountName={null}
-    />
-  )
+  return <WithStats via={reach.state === 'reachable' ? reach.connection : undefined} />
 }
 
-/** A server signed in to Google knows the account's name; without that, nobody's. */
+/** A server's own plays, always within reach. */
 function FromServer(): ReactNode {
-  const { data: cloud } = useCloudStatus()
-  return <WithStats via={undefined} accountName={cloud?.account?.name ?? null} />
+  return <WithStats via={undefined} />
 }
 
 /** From the window Stats opens on — the same cached answer, so the two agree. */
-function WithStats({
-  via,
-  accountName,
-}: {
-  via: ServerConnection | undefined
-  accountName: string | null
-}): ReactNode {
+function WithStats({ via }: { via: ServerConnection | undefined }): ReactNode {
   const { data: stats, isLoading } = useStatsFor(via, '30d')
-  return <ProfilePage stats={stats} loading={isLoading} via={via} accountName={accountName} />
+  return <ProfilePage stats={stats} loading={isLoading} via={via} />
 }
 
 function ProfilePage({
   stats,
   loading,
   via,
-  accountName,
 }: {
   stats: Stats | undefined
   loading: boolean
   via: ServerConnection | undefined
-  accountName: string | null
 }): ReactNode {
   const { wide } = useLayout()
   const rows = profileRows({ place: devicePlace(deviceKind()) })
@@ -106,7 +89,7 @@ function ProfilePage({
         testID="profile-screen"
       >
         <BackButton to="/" label="Home" testID="profile-back" />
-        <Person accountName={accountName} />
+        <Person />
         <Month card={monthCard(stats)} loading={loading} via={via} />
         <View>
           {rows.map(row => (
@@ -123,11 +106,13 @@ function ProfilePage({
 const AVATAR = 64
 
 /** The avatar, the name, and one line of what this device has. */
-function Person({ accountName }: { accountName: string | null }): ReactNode {
+function Person(): ReactNode {
+  // Whoever is signed in, from the session on a cloud device or from the
+  // server's own sign-in: the same source the avatar beside the name draws.
   const account = useAccount()
   const { fromCloud } = useConnection()
   const library = useLibrary()
-  const { name } = profileName(accountName)
+  const { name } = profileName(account?.name ?? null)
   const line = profileLine({
     songs: library.data?.songs.length,
     tags: library.data?.tags.length,

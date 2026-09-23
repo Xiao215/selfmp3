@@ -485,6 +485,17 @@ const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    // Adopting a bucket asks, once per song in the snapshot, which song here
+    // holds this audio file (`songWithAudio`), and a first sign-in asks which
+    // songs are this many bytes (`unsentSongsOfSize`). Neither column was
+    // indexed, so each ask scanned the table.
+    name: 'index cloud_songs.audio_key and songs.size_bytes',
+    sql: `
+      CREATE INDEX idx_cloud_songs_audio ON cloud_songs(audio_key);
+      CREATE INDEX idx_songs_size ON songs(size_bytes);
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

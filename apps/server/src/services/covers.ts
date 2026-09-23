@@ -168,10 +168,8 @@ export class CoverService {
     }
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
 
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 10_000)
     try {
-      const response = await fetch(url, { signal: controller.signal })
+      const response = await fetch(url, { signal: AbortSignal.timeout(10_000) })
       if (!response.ok) return false
 
       const declared = Number(response.headers.get('content-length') ?? Number.NaN)
@@ -192,8 +190,6 @@ export class CoverService {
       return true
     } catch {
       return false
-    } finally {
-      clearTimeout(timer)
     }
   }
 }

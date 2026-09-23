@@ -39,8 +39,4 @@ export class DeepLinks {
     const waiting = this.#pending.splice(0, this.#pending.length)
     for (const url of waiting) listener(url)
   }
-
-  forget(): void {
-    this.#listener = null
-  }
 }

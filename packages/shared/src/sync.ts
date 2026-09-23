@@ -2,12 +2,14 @@ import { MISSING_TAG_UID } from './cloud.js'
 import { hlcTime, hlcWins, parseHlc } from './hlc.js'
 import { CLOUD_FORMAT } from './schemas/cloud.js'
 import type {
+  CloudSmartRules,
   CloudImport,
   CloudPlaylist,
   CloudSnapshot,
   CloudSong,
   CloudTag,
 } from './schemas/cloud.js'
+import { playlistRules } from './schemas/playlist.js'
 import { SONG_FIELDS } from './schemas/song.js'
 import {
   ChangeSchema,
@@ -234,7 +236,8 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
       // A smart rule about the tag keeps meaning what it did: "has" matches
       // nothing now, "does not have" everything.
       for (const playlist of library.playlists.values()) {
-        if (!playlist.rules?.rules.some(rule => rule.field === 'tag' && rule.tagUid === uid)) {
+        if (playlist.kind !== 'live') continue
+        if (!playlist.rules.rules.some(rule => rule.field === 'tag' && rule.tagUid === uid)) {
           continue
         }
         library.playlists.set(playlist.uid, {
@@ -252,8 +255,7 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
         uid: change.uid,
         name: change.name,
         description: change.description,
-        kind: change.kind,
-        rules: change.kind === 'live' ? resolveRules(library, change.rules) : null,
+        ...playlistRules(change.kind, change.rules && resolveRules(library, change.rules)),
         pinned: change.pinned,
         songUids: [],
         createdAt: when,
@@ -271,7 +273,15 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
       for (const field of ['name', 'description', 'rules', 'pinned'] as const) {
         const value = change.fields[field]
         if (value === undefined || !hlcWins(change.hlc, stamps[field])) continue
-        next[field] = field === 'rules' ? resolveRules(library, change.fields.rules ?? null) : value
+        if (field === 'rules') {
+          // Only a live playlist has rules to edit, and it always has a set:
+          // there is nothing for a null to say to either kind.
+          const rules = change.fields.rules
+          if (playlist.kind !== 'live' || !rules) continue
+          next['rules'] = resolveRules(library, rules)
+        } else {
+          next[field] = value
+        }
         stamps[field] = change.hlc
         changed = true
       }
@@ -402,8 +412,7 @@ function tagNamed(library: SyncLibrary, name: string): CloudTag | null {
  * and a tag that is not in the library by `MISSING_TAG_UID` — as the server's
  * database, which keeps a tag's id and not its uid, would have it.
  */
-function resolveRules(library: SyncLibrary, rules: CloudPlaylist['rules']): CloudPlaylist['rules'] {
-  if (!rules) return null
+function resolveRules(library: SyncLibrary, rules: CloudSmartRules): CloudSmartRules {
   return {
     ...rules,
     rules: rules.rules.map(rule => {
@@ -430,6 +439,11 @@ function withoutKey<K extends string>(
 /** SQLite's own UTC format, `2026-09-11 14:22:05`, which the server's times are in. */
 export function toSqliteTime(ms: number): string {
   return new Date(ms).toISOString().slice(0, 19).replace('T', ' ')
+}
+
+/** The other way: a time in SQLite's format (or already ISO) as milliseconds. */
+export function fromSqliteTime(value: string): number {
+  return Date.parse(value.includes('T') ? value : `${value.replace(' ', 'T')}Z`)
 }
 
 function laterTime(time: string, hlc: string): string {

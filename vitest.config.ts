@@ -1,6 +1,29 @@
+import { fileURLToPath } from 'node:url'
 import { configDefaults, defineConfig } from 'vitest/config'
 
+const here = (path: string) => fileURLToPath(new URL(path, import.meta.url))
+
 export default defineConfig({
+  resolve: {
+    // The workspace packages, read from their source rather than their `dist`.
+    //
+    // Each package's `exports` points at `dist/`, which is what Node and tsc
+    // want. Left to that, a test that imports `@selfmp3/shared` ran whatever
+    // was compiled last, so `test:watch` checked stale code and `npm test` had
+    // to build the packages first. Vite resolves the packages' NodeNext
+    // `./foo.js` specifiers back to `./foo.ts` on its own. The longer, deeper
+    // entry comes before the bare package name, so it is matched first.
+    alias: [
+      { find: '@selfmp3/client/core', replacement: here('./packages/client/src/core.ts') },
+      { find: '@selfmp3/client', replacement: here('./packages/client/src/index.ts') },
+      { find: '@selfmp3/shared', replacement: here('./packages/shared/src/index.ts') },
+      { find: '@selfmp3/replica', replacement: here('./packages/replica/src/index.ts') },
+      {
+        find: '@selfmp3/desktop-bridge',
+        replacement: here('./packages/desktop-bridge/src/index.ts'),
+      },
+    ],
+  },
   test: {
     // Each workspace keeps its own tests next to the code they cover.
     include: [
@@ -21,6 +44,5 @@ export default defineConfig({
     exclude: [...configDefaults.exclude, 'apps/app/**/*.test.tsx'],
     environment: 'node',
     globals: false,
-    passWithNoTests: true,
   },
 })

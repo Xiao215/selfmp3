@@ -15,7 +15,7 @@ import { addressOf } from './backGesture'
 /** The phone's tabs, left to right, and Search's circle after them. */
 const PHONE_ORDER = ['/', '/library', '/playlists', '/search'] as const
 
-const OWN_ENTRANCE = ['/now-playing', '/welcome', '/first-sync']
+const OWN_ENTRANCE = ['/now-playing', '/welcome', '/storage', '/first-sync']
 
 /**
  * What a page change is counted by, or null for a page that does not count.

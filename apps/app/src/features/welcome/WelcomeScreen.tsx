@@ -61,8 +61,9 @@ import {
  * browser that signed in.
  *
  * Once signed in, this page does not route anywhere itself. The app now has a
- * library, and the root layout sends a device's first sign-in to First sync
- * and every other to Home, so that decision is made in one place.
+ * library — or an account with no bucket yet — and the root layout sends a
+ * fresh account to Where it lives, a device's first sign-in to First sync and
+ * every other to Home, so that decision is made in one place.
  */
 
 /** The page's own address in a browser; a phone has none. */
@@ -111,7 +112,7 @@ export function WelcomeScreen(): ReactNode {
     }
     try {
       const outcome = await cloud.claimSignIn(pending.attempt)
-      if (outcome.status === 'signed-in') signedInToCloud()
+      if (outcome.status === 'signed-in') signedInToCloud(outcome.session)
       else {
         const attempt = outcome.status === 'code' ? 'done' : 'pending'
         setStage(current => afterCheck(current, attempt, Date.now()))
@@ -147,7 +148,7 @@ export function WelcomeScreen(): ReactNode {
           return
         }
         const outcome = await cloud.claimSignIn(pending.attempt, code)
-        if (outcome.status === 'signed-in') signedInToCloud()
+        if (outcome.status === 'signed-in') signedInToCloud(outcome.session)
         else setStage({ kind: 'idle', message: 'Google hasn’t finished yet. Try again.' })
       } catch (error) {
         // A refused code ends the attempt: the doorman spends it either way.

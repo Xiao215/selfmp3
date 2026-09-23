@@ -197,6 +197,45 @@ describe('signing in', () => {
   })
 })
 
+describe('the bucket', () => {
+  const session = { doormanUrl: DOORMAN, token: TOKEN, me: ME }
+  const STORAGE = {
+    endpoint: 'https://s3.us-west-004.backblazeb2.com',
+    region: 'us-west-004',
+    bucket: 'my-music',
+    prefix: 'selfmp3',
+    keyIdHint: '004abc…',
+  }
+
+  it('connects a Backblaze key through the doorman, and keeps what it answers', async () => {
+    const p = platform(() => reply(200, { ...ME, storage: STORAGE }))
+    const cloud = createCloudSession(p)
+    const next = await cloud.connectBackblaze(session, { keyId: '004abc', applicationKey: 'K004' })
+    expect(next.me.storage).toEqual(STORAGE)
+    expect(p.calls[0]?.url).toBe(`${DOORMAN}/v1/storage/backblaze`)
+    expect(p.calls[0]?.init?.method).toBe('POST')
+    expect(p.store.seen.get(SESSION_KEY)).toEqual(next)
+  })
+
+  it('says when the doorman is too old to ask Backblaze', async () => {
+    const cloud = createCloudSession(platform(() => reply(404, { error: 'not found' })))
+    await expect(
+      cloud.connectBackblaze(session, { keyId: '004abc', applicationKey: 'K004' }),
+    ).rejects.toMatchObject({ status: 404, code: 'no-route' })
+  })
+
+  it('forgets the bucket at the doorman, and the session follows', async () => {
+    const p = platform(() => reply(200, ME))
+    const cloud = createCloudSession(p)
+    const withBucket = { ...session, me: { ...ME, storage: STORAGE } }
+    const next = await cloud.disconnectStorage(withBucket)
+    expect(next.me.storage).toBeNull()
+    expect(p.calls[0]?.url).toBe(`${DOORMAN}/v1/storage`)
+    expect(p.calls[0]?.init?.method).toBe('DELETE')
+    expect(p.store.seen.get(SESSION_KEY)).toEqual(next)
+  })
+})
+
 describe('talking to the doorman', () => {
   it('carries the session as a bearer token, and only when there is one', async () => {
     const p = platform(() => reply(200, {}))

@@ -6,7 +6,7 @@ import type { DeviceKind, Health, ScanResult } from '@selfmp3/shared'
  */
 
 /** Which destructive action is waiting to be confirmed, if any. */
-export type Confirming = 'remove-downloads' | 'redo-analysis' | 'sign-out' | null
+export type Confirming = 'remove-downloads' | 'redo-analysis' | 'sign-out' | 'forget-storage' | null
 
 export type SectionId =
   | 'playback'

@@ -1,9 +1,15 @@
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
+import { useRouter } from 'expo-router'
+import type { DoormanStorage } from '@selfmp3/shared'
 import { useLibrary } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
+import { session as cloudSession } from '../../replica'
 import { Button } from '../../ui/components/Button'
 import { Refresh } from '../../ui/components/Icons'
+import { STORAGE_ROUTE, whereItIs } from '../welcome/storage.model'
 import { ButtonRow, Details, Panel, partStyles, Row } from './SettingsParts'
 import { type Confirming } from './settings.model'
 
@@ -21,6 +27,10 @@ import { type Confirming } from './settings.model'
  * The address row below is for a development build, where `/onboarding` can
  * still point the app at a server so the simulator flows have a library without
  * a Google account.
+ *
+ * Storage is the account's bucket, as the doorman last said: a cloud device
+ * has no Settings → Cloud, and this is where the bucket connected on Where it
+ * lives can be changed or forgotten afterwards.
  */
 export function ConnectionPanel({
   anchor,
@@ -31,17 +41,61 @@ export function ConnectionPanel({
 }): ReactNode {
   const { connection, fromCloud } = useConnection()
   const library = useLibrary()
+  const router = useRouter()
+  // The bucket as the stored session has it; undefined until it has been read.
+  const [storage, setStorage] = useState<DoormanStorage | null | undefined>(undefined)
+  useEffect(() => {
+    if (!fromCloud) return
+    let cancelled = false
+    void cloudSession
+      .loadSession()
+      .then(session => {
+        if (!cancelled) setStorage(session?.me.storage ?? null)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [fromCloud])
   return (
     <Panel title="Account" hint="on this device" anchor={anchor}>
       {fromCloud ? (
-        <Row label="Signed in" hint="With Google — the library is the bucket’s.">
-          <Button
-            label="Sign out"
-            variant="danger"
-            onPress={() => onConfirm('sign-out')}
-            testID="cloud-sign-out"
-          />
-        </Row>
+        <>
+          <Row label="Signed in" hint="With Google — the library is the bucket’s.">
+            <Button
+              label="Sign out"
+              variant="danger"
+              onPress={() => onConfirm('sign-out')}
+              testID="cloud-sign-out"
+            />
+          </Row>
+          <Row
+            label="Storage"
+            hint={
+              storage === undefined
+                ? 'Loading…'
+                : storage === null
+                  ? 'No bucket yet.'
+                  : whereItIs(storage)
+            }
+          >
+            <View style={styles.pair}>
+              <Button
+                label={storage ? 'Change' : 'Connect'}
+                onPress={() => router.push(STORAGE_ROUTE as never)}
+                testID="cloud-storage-change"
+              />
+              {storage ? (
+                <Button
+                  label="Forget"
+                  variant="danger"
+                  onPress={() => onConfirm('forget-storage')}
+                  testID="cloud-storage-forget"
+                />
+              ) : null}
+            </View>
+          </Row>
+        </>
       ) : (
         <Row label="Address">
           <Text style={partStyles.valueText} numberOfLines={1}>
@@ -84,3 +138,7 @@ export function ConnectionPanel({
     </Panel>
   )
 }
+
+const styles = StyleSheet.create({
+  pair: { flexDirection: 'row', gap: 8 },
+})

@@ -18,6 +18,8 @@ import { z } from 'zod'
  *   POST   /v1/auth/signout-everywhere                 → every session of the account
  *   GET    /v1/me
  *   PUT    /v1/storage      CloudConnect               → connect your bucket
+ *   POST   /v1/storage/backblaze  { keyId, applicationKey, prefix? }
+ *                                                      → connect a Backblaze bucket from its key alone
  *   DELETE /v1/storage                                 → forget it
  *   GET    /v1/list?prefix=<p>&cursor=<c>
  *   GET | HEAD | PUT | DELETE  /v1/files/<key>
@@ -90,6 +92,22 @@ export const DoormanStorageSchema = z.object({
   keyIdHint: z.string(),
 })
 export type DoormanStorage = z.infer<typeof DoormanStorageSchema>
+
+/**
+ * A Backblaze bucket from its key alone (`POST /v1/storage/backblaze`).
+ *
+ * A key made for one bucket tells Backblaze which bucket that is, and
+ * Backblaze answers with the bucket's name and the address its S3 side
+ * listens at. So a person pastes the two strings B2 showed them and nothing
+ * else: the doorman asks, then tries the key the way `PUT /v1/storage` does.
+ * The folder is `selfmp3` unless said otherwise.
+ */
+export const DoormanBackblazeConnectSchema = z.object({
+  keyId: z.string().trim().min(1).max(200),
+  applicationKey: z.string().trim().min(1).max(200),
+  prefix: z.string().trim().max(100).optional(),
+})
+export type DoormanBackblazeConnect = z.infer<typeof DoormanBackblazeConnectSchema>
 
 /** Who is signed in, and the bucket that belongs to their Google account. */
 export const DoormanMeSchema = z.object({

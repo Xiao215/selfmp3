@@ -4,6 +4,7 @@ import {
   ErrorBodySchema,
   newUid,
   type CloudConnect,
+  type DoormanBackblazeConnect,
   type DoormanMe,
 } from '@selfmp3/shared'
 import type { CloudPlatform, CloudResponse } from './platform.js'
@@ -75,6 +76,10 @@ export interface CloudSessionApi {
   claimSignIn: (attempt: string, code?: string) => Promise<ClaimOutcome>
   refreshSession: (session: CloudSession) => Promise<CloudSession>
   connectStorage: (session: CloudSession, input: CloudConnect) => Promise<CloudSession>
+  /** Connect a Backblaze bucket from its key alone: the doorman asks Backblaze for the rest. */
+  connectBackblaze: (session: CloudSession, input: DoormanBackblazeConnect) => Promise<CloudSession>
+  /** Forget the account's bucket. The bucket and its files are left alone. */
+  disconnectStorage: (session: CloudSession) => Promise<CloudSession>
   signOut: (session: CloudSession) => Promise<void>
   doormanFetch: (
     session: CloudSession | null,
@@ -129,6 +134,13 @@ export function createCloudSession(
 
   async function saveSession(session: CloudSession): Promise<void> {
     await store.write(SESSION_KEY, session)
+  }
+
+  /** The doorman answers every change to the bucket with `/v1/me`; the stored session follows. */
+  async function keepAnswer(session: CloudSession, response: CloudResponse): Promise<CloudSession> {
+    const next: CloudSession = { ...session, me: DoormanMeSchema.parse(await response.json()) }
+    await saveSession(next)
+    return next
   }
 
   async function clearPendingSignIn(): Promise<void> {
@@ -248,9 +260,32 @@ export function createCloudSession(
     /** Connect a bucket to the account. The doorman tries the key, then keeps it. */
     async connectStorage(session: CloudSession, input: CloudConnect): Promise<CloudSession> {
       const response = await doormanFetch(session, '/v1/storage', { method: 'PUT', json: input })
-      const next: CloudSession = { ...session, me: DoormanMeSchema.parse(await response.json()) }
-      await saveSession(next)
-      return next
+      return keepAnswer(session, response)
+    },
+
+    async connectBackblaze(
+      session: CloudSession,
+      input: DoormanBackblazeConnect,
+    ): Promise<CloudSession> {
+      const response = await doormanFetch(session, '/v1/storage/backblaze', {
+        method: 'POST',
+        json: input,
+      })
+      // A doorman from before this route answers 404, which `doormanFetch`
+      // hands back as an answer. It is not one here: say what to do instead.
+      if (response.status === 404) {
+        throw new DoormanError(
+          404,
+          'The sign-in service needs updating before it can ask Backblaze. Enter the address yourself for now.',
+          'no-route',
+        )
+      }
+      return keepAnswer(session, response)
+    },
+
+    async disconnectStorage(session: CloudSession): Promise<CloudSession> {
+      const response = await doormanFetch(session, '/v1/storage', { method: 'DELETE' })
+      return keepAnswer(session, response)
     },
 
     async signOut(session: CloudSession): Promise<void> {

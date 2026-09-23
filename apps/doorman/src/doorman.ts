@@ -63,6 +63,7 @@ const ROUTES: Readonly<Record<string, Readonly<Record<string, Route>>>> = {
   '/v1/auth/signout-everywhere': { POST: auth.signOutEverywhere },
   '/v1/me': { GET: storage.me },
   '/v1/storage': { PUT: storage.connect, DELETE: storage.disconnect },
+  '/v1/storage/backblaze': { POST: storage.connectBackblaze },
   '/v1/list': { GET: files.list },
 }
 

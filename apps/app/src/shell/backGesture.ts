@@ -37,7 +37,7 @@ export function swipeBackAllowed(routeName: string): boolean {
  * revealing the library it just turned away, and one on First sync from going
  * back to a Welcome that has already let the person in.
  */
-const GATES = ['welcome', 'first-sync']
+const GATES = ['welcome', 'storage', 'first-sync']
 
 /**
  * The address a route name draws: `index` is `/`, `playlists/index` and

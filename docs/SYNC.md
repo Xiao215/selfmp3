@@ -511,9 +511,13 @@ Every push to `main` builds it and publishes it to GitHub Pages
 
 ### 4. Each device
 
-Open self.mp3, sign in with Google, and — the first time, on any device — paste the bucket's
-endpoint, name, key ID and key. The key goes to the doorman, sealed; no device keeps it. On
-the server that is *Settings → Cloud*; everywhere else it is the first thing the app asks for.
+Open self.mp3, sign in with Google, and — the first time, on any device — paste the bucket's key
+ID and application key on the page that follows, *Where it lives* (`POST /v1/storage/backblaze`).
+The doorman asks Backblaze which bucket the key opens and where; for another provider, *Not
+Backblaze?* takes the endpoint, name and region instead (`PUT /v1/storage`). The key goes to the
+doorman, sealed; no device keeps it. A second device signed in to the same account skips the
+page: the bucket is already the account's. Afterwards it is *Settings → Account → Storage*, to
+change or forget. On the server it is *Settings → Cloud*, where the full form still lives.
 
 ---
 

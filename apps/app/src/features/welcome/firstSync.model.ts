@@ -1,4 +1,5 @@
 import { formatBytes } from '@selfmp3/shared'
+import { STORAGE_ROUTE } from './storage.model'
 
 /**
  * First sync, without the screen (docs/ui-mock `P03`, `C02`): whether it is
@@ -22,7 +23,9 @@ export function firstSyncDue(stored: string | null): boolean {
 }
 
 /**
- * Where Welcome hands over to once the app has a library.
+ * Where Welcome hands over to once the app has a library — or an account
+ * whose library has nowhere to be yet, which goes to Where it lives first
+ * (`storage.model.ts`), and comes back through here once the bucket is there.
  *
  * First sync only follows a Google sign-in: the address typed in a development
  * build is the simulator tests' way in, and they expect the app itself next.
@@ -37,7 +40,9 @@ export function afterWelcome(
   fromCloud: boolean,
   stored: string | null,
   installed: boolean,
-): '/first-sync' | '/' {
+  needsStorage = false,
+): typeof STORAGE_ROUTE | '/first-sync' | '/' {
+  if (fromCloud && needsStorage) return STORAGE_ROUTE
   return installed && fromCloud && firstSyncDue(stored) ? '/first-sync' : '/'
 }
 

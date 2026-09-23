@@ -43,6 +43,63 @@ const FORMAT = {
   createdBy: 'mac-3f9a1c2e',
 }
 
+describe('/v1/storage/backblaze', () => {
+  it('connects the bucket from the key alone, asking Backblaze for the rest', async () => {
+    const { h, token } = await signedIn()
+    const response = await h.connectBackblaze(token)
+    expect(response.status).toBe(200)
+    expect(DoormanMeSchema.parse(await response.json()).storage).toEqual({
+      endpoint: `https://${B2_HOST}`,
+      region: 'us-west-004',
+      bucket: BUCKET,
+      prefix: 'selfmp3',
+      keyIdHint: '004abc…',
+    })
+    // Backblaze was asked with the key itself, and then the bucket was tried.
+    const asked = h.outside.find(seen => seen.url.host === 'api.backblazeb2.com')
+    expect(asked?.headers.get('authorization')).toMatch(/^Basic /)
+    expect(h.outside.some(seen => seen.url.host === B2_HOST)).toBe(true)
+    expect(h.bucket.objects.has('selfmp3/format.json')).toBe(true)
+  })
+
+  it('takes a folder of its own when one is given', async () => {
+    const { h, token } = await signedIn()
+    await h.connectBackblaze(token, { prefix: 'music/mine' })
+    expect((await me(h, token)).storage?.prefix).toBe('music/mine')
+  })
+
+  it('says when Backblaze does not know the key', async () => {
+    const { h, token } = await signedIn()
+    const words = await refusal(await h.connectBackblaze(token, { applicationKey: 'K004-wrong' }))
+    expect(words).toContain('does not know that key')
+    expect((await me(h, token)).storage).toBeNull()
+  })
+
+  it('refuses a key that opens every bucket on the account', async () => {
+    const { h, token } = await signedIn()
+    h.backblaze.buckets = null
+    const words = await refusal(await h.connectBackblaze(token))
+    expect(words).toContain('every bucket')
+    expect((await me(h, token)).storage).toBeNull()
+  })
+
+  it('refuses a key that cannot write', async () => {
+    const { h, token } = await signedIn()
+    h.backblaze.capabilities = ['listBuckets', 'listFiles', 'readFiles']
+    const words = await refusal(await h.connectBackblaze(token))
+    expect(words).toContain('Read and Write')
+  })
+
+  it('still tries the key against the bucket, as PUT /v1/storage does', async () => {
+    const { h, token } = await signedIn()
+    // Backblaze knows the key, but the bucket itself refuses it.
+    h.bucket.revoked = true
+    const response = await h.connectBackblaze(token)
+    expect(response.status).toBe(422)
+    expect((await me(h, token)).storage).toBeNull()
+  })
+})
+
 describe('/v1/me', () => {
   it('says who is signed in, and that there is no bucket yet', async () => {
     const { h, token } = await signedIn()

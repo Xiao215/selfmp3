@@ -15,7 +15,7 @@ import { useSyncExternalStore } from 'react'
  */
 
 /** Screens that own the whole display at every width: no tab bar, no mini player. */
-const FULL_SCREEN_ROUTES = ['/welcome', '/first-sync', '/now-playing']
+const FULL_SCREEN_ROUTES = ['/welcome', '/storage', '/first-sync', '/now-playing']
 
 /**
  * And, on a phone only, the pages it opens over its tabs rather than as one:

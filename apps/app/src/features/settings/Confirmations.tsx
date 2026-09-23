@@ -3,16 +3,11 @@ import { useRouter } from 'expo-router'
 import { useStartAnalysis } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { library as cloudLibrary, session as cloudSession } from '../../replica'
-import { forgetCovers } from '../../offline/covers'
-import { clearCachedLibrary } from '../../offline/libraryCache'
-import { clearCachedLyrics } from '../../offline/lyricsCache'
-import { clearCachedMotion } from '../../offline/motionCache'
-import { clearCachedPlaylists } from '../../offline/playlistCache'
-import { clearRecent } from '../../ports/recentCopies'
 import { useConnection } from '../../connection/ConnectionProvider'
+import { STORAGE_ROUTE } from '../welcome/storage.model'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
-import { SIGNED_OUT_ROUTE, signOutOfCloud, signOutWarning } from './signOut'
-import { usePlayer } from '../../player/PlayerProvider'
+import { signOutWarning } from './signOut'
+import { useSignOut } from './useSignOut'
 import { type Confirming } from './settings.model'
 
 export function Confirmations({
@@ -23,10 +18,10 @@ export function Confirmations({
   onDone: () => void
 }): ReactNode {
   const router = useRouter()
-  const { signedOutOfCloud } = useConnection()
-  const { removeAll, forgetExcluded, queue: downloadQueue } = useDownloads()
+  const { storageForgotten } = useConnection()
+  const { removeAll } = useDownloads()
   const startAnalysis = useStartAnalysis()
-  const player = usePlayer()
+  const signOut = useSignOut()
 
   const dialogs: Record<
     Exclude<Confirming, null>,
@@ -48,38 +43,20 @@ export function Confirmations({
       title: 'Sign out?',
       body: signOutWarning(cloudLibrary.pendingCloudChanges()),
       label: 'Sign out',
+      run: () => void signOut(),
+    },
+    'forget-storage': {
+      title: 'Forget the bucket?',
+      body: 'Your music stays in it, untouched. This device, and every other one signed in to your account, asks for a bucket again.',
+      label: 'Forget the bucket',
       run: () =>
-        void signOutOfCloud({
-          stopPlaying: () => player.clearQueue(),
-          sendPendingChanges: () => cloudLibrary.flushCloudChanges(),
-          endSession: async () => {
-            const session = await cloudSession.loadSession()
-            if (session) await cloudSession.signOut(session)
-          },
-          forgetLibrary: () => cloudLibrary.forgetCloudLibrary(),
-          removeDownloads: () => {
-            // The copies kept for having been played go with the downloads.
-            clearRecent()
-            return downloadQueue.removeAll()
-          },
-          forgetSavedLibrary: async () => {
-            await clearCachedLibrary()
-            // All found by id, and another account's library hands the same
-            // ids to other songs and playlists: anything kept would be the
-            // wrong words, curve, members or picture.
-            await Promise.all([
-              clearCachedPlaylists(),
-              clearCachedLyrics(),
-              clearCachedMotion(),
-              forgetCovers(),
-            ])
-          },
-          forgetExcluded,
-          done: () => {
-            signedOutOfCloud()
-            router.replace(SIGNED_OUT_ROUTE)
-          },
-        }),
+        void (async () => {
+          const session = await cloudSession.loadSession()
+          if (!session) return
+          await cloudSession.disconnectStorage(session)
+          storageForgotten()
+          router.replace(STORAGE_ROUTE)
+        })(),
     },
   }
   const dialog = confirming === null ? null : dialogs[confirming]

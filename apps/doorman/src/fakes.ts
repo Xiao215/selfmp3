@@ -24,6 +24,8 @@ export const EXTENSION_RETURN = `https://${EXTENSION_ID}.chromiumapp.org`
 export const CLIENT_ID = 'selfmp3-test.apps.googleusercontent.com'
 export const CLIENT_SECRET = 'test-google-client-secret'
 export const B2_HOST = 's3.us-west-004.backblazeb2.com'
+/** Where a key is asked what it opens (`b2_authorize_account`). */
+export const B2_API_HOST = 'api.backblazeb2.com'
 export const BUCKET = 'my-music'
 export const KEY_ID = '004abcdef0123456789'
 export const APPLICATION_KEY = 'K004-test-application-key'
@@ -377,6 +379,71 @@ function escapeXml(text: string): string {
     .replace(/'/g, '&apos;')
 }
 
+// --- Backblaze's own API -------------------------------------------------------
+
+/**
+ * `b2_authorize_account`, as B2's v4 answers it: Basic auth with the key,
+ * and the bucket a restricted key opens under `apiInfo.storageApi.allowed`.
+ * A test changes what the key may do by setting the fields.
+ */
+export class FakeBackblaze {
+  keyId = KEY_ID
+  applicationKey = APPLICATION_KEY
+  /** The buckets the key opens, as B2 lists them; null for a key that opens them all. */
+  buckets: Array<{ id: string; name: string }> | null = [{ id: 'b2id-my-music', name: BUCKET }]
+  capabilities = [
+    'listBuckets',
+    'listFiles',
+    'readFiles',
+    'shareFiles',
+    'writeFiles',
+    'deleteFiles',
+  ]
+  namePrefix: string | null = null
+  s3ApiUrl = `https://${B2_HOST}`
+
+  handle(request: Request): Response {
+    const url = new URL(request.url)
+    if (url.pathname !== '/b2api/v4/b2_authorize_account') {
+      return new Response('not found', { status: 404 })
+    }
+    const expected = `Basic ${toBase64(utf8(`${this.keyId}:${this.applicationKey}`))}`
+    if (request.headers.get('authorization') !== expected) {
+      return b2Json(
+        {
+          code: 'unauthorized',
+          message: 'The applicationKeyId and/or the applicationKey are wrong.',
+          status: 401,
+        },
+        401,
+      )
+    }
+    return b2Json({
+      accountId: 'acct-1234',
+      authorizationToken: 'b2-auth-token',
+      apiInfo: {
+        storageApi: {
+          apiUrl: 'https://api004.backblazeb2.com',
+          downloadUrl: 'https://f004.backblazeb2.com',
+          s3ApiUrl: this.s3ApiUrl,
+          allowed: {
+            capabilities: this.capabilities,
+            ...(this.buckets === null ? {} : { buckets: this.buckets }),
+            namePrefix: this.namePrefix,
+          },
+        },
+      },
+    })
+  }
+}
+
+function b2Json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  })
+}
+
 // --- The harness -----------------------------------------------------------------
 
 export interface Harness {
@@ -385,6 +452,7 @@ export interface Harness {
   readonly kv: FakeKv
   readonly google: FakeGoogle
   readonly bucket: FakeBucket
+  readonly backblaze: FakeBackblaze
   readonly clock: Clock
   /** Every request the doorman made to the outside, in order, with the options fetch was given. */
   readonly outside: Array<SeenRequest & { readonly init: FetchInit }>
@@ -396,6 +464,8 @@ export interface Harness {
   signIn(profile?: Partial<Profile>): Promise<string>
   /** Connect the test bucket, as the signed-in device. */
   connect(token: string, changes?: Record<string, unknown>): Promise<Response>
+  /** Connect it from the key alone, the way the page after sign-in does. */
+  connectBackblaze(token: string, changes?: Record<string, unknown>): Promise<Response>
 }
 
 export interface CallInit {
@@ -470,6 +540,7 @@ export function harness(): Harness {
   const kv = new FakeKv(clock)
   const google = new FakeGoogle()
   const bucket = new FakeBucket()
+  const backblaze = new FakeBackblaze()
   const outside: Harness['outside'] = []
 
   const internet: Fetch = async (address, init) => {
@@ -478,6 +549,7 @@ export function harness(): Harness {
     outside.push({ method: request.method, url, headers: new Headers(request.headers), init })
     if (url.host === 'oauth2.googleapis.com') return google.handle(request)
     if (url.host === B2_HOST) return bucket.handle(request)
+    if (url.host === B2_API_HOST) return backblaze.handle(request)
     throw new TypeError('fetch failed')
   }
 
@@ -549,5 +621,29 @@ export function harness(): Harness {
       },
     })
 
-  return { doorman, env, kv, google, bucket, clock, outside, logs, call, signIn, connect }
+  const connectBackblaze = (
+    token: string,
+    changes: Record<string, unknown> = {},
+  ): Promise<Response> =>
+    call('/v1/storage/backblaze', {
+      method: 'POST',
+      token,
+      json: { keyId: KEY_ID, applicationKey: APPLICATION_KEY, ...changes },
+    })
+
+  return {
+    doorman,
+    env,
+    kv,
+    google,
+    bucket,
+    backblaze,
+    clock,
+    outside,
+    logs,
+    call,
+    signIn,
+    connect,
+    connectBackblaze,
+  }
 }

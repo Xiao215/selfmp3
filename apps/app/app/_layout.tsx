@@ -29,6 +29,7 @@ import { Shell as Frame } from '../src/shell/Shell'
 import { addressOf, swipeBackAllowed } from '../src/shell/backGesture'
 import { stackAnimation } from '../src/shell/pageStep'
 import { afterWelcome } from '../src/features/welcome/firstSync.model'
+import { STORAGE_ROUTE } from '../src/features/welcome/storage.model'
 import { installedApp } from '../src/ports/install'
 import { storedFirstSync } from '../src/features/welcome/firstSyncMemory'
 import { useLayout } from '../src/shell/useLayout'
@@ -169,7 +170,7 @@ export default function RootLayout(): ReactNode {
 
 function Shell(): ReactNode {
   const { theme } = useUnistyles()
-  const { status, fromCloud } = useConnection()
+  const { status, fromCloud, needsStorage } = useConnection()
   const router = useRouter()
   const pathname = usePathname()
   const { wide } = useLayout()
@@ -202,15 +203,29 @@ function Shell(): ReactNode {
     if (status === 'missing' && pathname !== '/welcome') router.replace('/welcome')
   }, [status, pathname, router])
 
-  // Welcome with a library is done: a device's first Google sign-in goes on to
-  // First sync, once, and anything else — a later sign-in, an address typed in
+  // Welcome with a library is done: an account with no bucket yet goes to
+  // Where it lives, a device's first Google sign-in goes on to First sync,
+  // once, and anything else — a later sign-in, an address typed in
   // development, a link to Welcome from inside the app — goes Home. Decided
   // here rather than on Welcome, so no second redirect can race it.
   useEffect(() => {
     if (status === 'ready' && pathname === '/welcome') {
-      router.replace(afterWelcome(fromCloud, storedFirstSync(), installedApp))
+      router.replace(afterWelcome(fromCloud, storedFirstSync(), installedApp, needsStorage))
     }
-  }, [status, pathname, fromCloud, router])
+  }, [status, pathname, fromCloud, needsStorage, router])
+
+  // An account with no bucket has no library to show: whatever page this is,
+  // Where it lives comes first. Welcome is left alone, being on its way there.
+  useEffect(() => {
+    if (
+      status === 'ready' &&
+      needsStorage &&
+      pathname !== STORAGE_ROUTE &&
+      pathname !== '/welcome'
+    ) {
+      router.replace(STORAGE_ROUTE)
+    }
+  }, [status, needsStorage, pathname, router])
 
   // On a computer Now Playing covers the sidebar and keeps the player bar.
   const stage = wide && pathname === '/now-playing'

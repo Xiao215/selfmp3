@@ -10,6 +10,7 @@ import {
   jobAction,
   jobSubtitle,
   jobTone,
+  landed,
   linkHint,
   matchingTag,
   queueActivity,
@@ -256,5 +257,39 @@ describe('a kept review told again what the library has', () => {
     const unticked = { ...review, chosen: new Set([1]) }
     const next = refreshAlreadyHave(unticked, [false, false, false])
     expect([...next.chosen].sort()).toEqual([0, 1])
+  })
+})
+
+describe('which imports have just landed', () => {
+  const jobs = (...each: [string, ImportJob['status']][]) =>
+    each.map(([id, status]) => ({ id, status }))
+
+  it('counts a job done now that was not done at the last read', () => {
+    const first = landed(new Set(), jobs(['a', 'running'], ['b', 'done']))
+    expect(first.landed).toBe(1)
+    const second = landed(first.done, jobs(['a', 'done'], ['b', 'done']))
+    expect(second.landed).toBe(1)
+    expect([...second.done]).toEqual(['a', 'b'])
+  })
+
+  it('lands nothing from a queue read for the first time, however much is on it', () => {
+    const first = landed(null, jobs(['a', 'done'], ['b', 'done']))
+    expect(first.landed).toBe(0)
+    expect([...first.done]).toEqual(['a', 'b'])
+  })
+
+  it('does not count a failure, a cancel, or a job still going', () => {
+    const before = new Set<string>()
+    expect(landed(before, jobs(['a', 'error'], ['b', 'cancelled'], ['c', 'running'])).landed).toBe(
+      0,
+    )
+  })
+
+  it('counts nothing twice, and forgets a job the server cleared', () => {
+    const first = landed(new Set(), jobs(['a', 'done']))
+    const again = landed(first.done, jobs(['a', 'done']))
+    expect(again.landed).toBe(0)
+    const cleared = landed(again.done, jobs())
+    expect(cleared.done.size).toBe(0)
   })
 })

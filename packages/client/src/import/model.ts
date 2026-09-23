@@ -155,6 +155,25 @@ export function foldQueue<T extends Pick<ImportJob, 'status'>>(
 }
 
 /**
+ * How many jobs finished since the queue was last read: done now, and not
+ * done then.
+ *
+ * Done is the one status that means the song is in the library — and, with a
+ * bucket, in a snapshot there, since the server does not mark a job done until
+ * the upload is (importQueue.ts). `before` is every id read as done so far, or
+ * null for a queue not read yet, so a queue that opens with yesterday's
+ * finished jobs on it lands nothing. `done` is what to pass next time.
+ */
+export function landed(
+  before: ReadonlySet<string> | null,
+  jobs: readonly Pick<ImportJob, 'id' | 'status'>[],
+): { landed: number; done: ReadonlySet<string> } {
+  const done = new Set(jobs.filter(job => job.status === 'done').map(job => job.id))
+  const count = before === null ? 0 : [...done].filter(id => !before.has(id)).length
+  return { landed: count, done }
+}
+
+/**
  * What Pause all and Resume all have to work on, so each is offered only
  * while it would do something: Pause all takes every job a Cancel would,
  * Resume all every job that was cancelled. A job that failed on its own

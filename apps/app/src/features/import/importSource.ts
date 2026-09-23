@@ -11,6 +11,9 @@ import {
   type ServerConnection,
 } from '@selfmp3/client'
 import { apiFor } from '../../api/client'
+import { useConnection } from '../../connection/ConnectionProvider'
+import { library as cloudLibrary } from '../../replica'
+import { useSongsLanding } from './useSongsLanding'
 
 /**
  * Whom the Import screen talks to: whatever answers this device, or — from a
@@ -27,6 +30,11 @@ import { apiFor } from '../../api/client'
  * at: the new tag never came back as a chip — the chips are the server's
  * tags, and the server had never heard of it — and the import carried a
  * number that meant another tag there, or nothing (Xiao, 2026-09-22).
+ *
+ * Either way, a job finishing is the library changing, and the library is
+ * asked for again as each one does (`useSongsLanding`): this device's copy,
+ * with a look at the bucket in front of the answer where the library is the
+ * bucket's, and the server's library too where the screen is pointed at one.
  */
 interface ImportSource {
   readonly api: ReturnType<typeof apiFor>
@@ -100,6 +108,19 @@ export function useImportSource(via: ServerConnection | undefined): ImportSource
   // `mutateAsync` is the same function between renders; the object around it is not.
   const createOnDevice = createHere.mutateAsync
 
+  const { fromCloud } = useConnection()
+  const queue = server ? serverQueue.data : ownQueue.data
+  const look = useCallback(() => {
+    // The same look a pull down the library asks for (usePullToRefresh.ts):
+    // the bucket now, waited for, instead of the copy with a look behind it.
+    if (fromCloud) cloudLibrary.markCloudLibraryStale()
+    void queryClient.invalidateQueries({ queryKey: queryKeys.library })
+    // A live playlist may have taken the song in.
+    void queryClient.invalidateQueries({ queryKey: queryKeys.playlists })
+    if (server) void queryClient.invalidateQueries({ queryKey: keys.library })
+  }, [fromCloud, queryClient, server, keys.library])
+  useSongsLanding(queue, baseUrl ?? 'here', look)
+
   if (server) {
     return {
       api: server,
@@ -107,7 +128,7 @@ export function useImportSource(via: ServerConnection | undefined): ImportSource
       createTag: createOnServer,
       tools: serverTools.data,
       refetchTools: serverTools.refetch,
-      queue: serverQueue.data,
+      queue,
       invalidateQueue: () => queryClient.invalidateQueries({ queryKey: keys.queue }),
       invalidateLibrary: () => queryClient.invalidateQueries({ queryKey: keys.library }),
     }
@@ -118,7 +139,7 @@ export function useImportSource(via: ServerConnection | undefined): ImportSource
     createTag: createOnDevice,
     tools: ownTools.data,
     refetchTools: ownTools.refetch,
-    queue: ownQueue.data,
+    queue,
     invalidateQueue: () => queryClient.invalidateQueries({ queryKey: queryKeys.importQueue }),
     invalidateLibrary: () => queryClient.invalidateQueries({ queryKey: queryKeys.library }),
   }

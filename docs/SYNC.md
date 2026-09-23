@@ -186,6 +186,10 @@ After uploading, the server writes a snapshot. It lists only songs whose audio i
 a song still uploading is not in the library yet, as far as any other device is concerned.
 Passes run at startup, a few seconds after anything changes, when another device has written
 something, and on demand. An import is not done until its song is in a snapshot.
+A device that is watching the queue asks for the library again the moment a job is done
+— a look at the bucket in front of the answer, not the copy with a look behind it — so
+the song is in the library as its row leaves the queue, rather than whenever the next look
+was due (`apps/app/src/features/import/useSongsLanding.ts`).
 
 ### The server keeps no copy of the library
 

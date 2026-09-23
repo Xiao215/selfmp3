@@ -358,7 +358,8 @@ each.
 
 - **Container queries and `min()`-sized artwork.** The now-playing pages size
   the cover from the room left over. React Native has `onLayout`; the shell
-  measures once and passes sizes down.
+  works the page column out from the window and what stands beside it, and
+  passes it down.
 - **Tooltips.** Hover-only; web-only. A `Tooltip` that renders its child and
   nothing else on native.
 - **Popovers anchored to a button.** React Native has no `position: fixed`. A

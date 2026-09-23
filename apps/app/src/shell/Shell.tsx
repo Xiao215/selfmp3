@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from 'react'
+import { useDeferredValue, useEffect, useLayoutEffect, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { router, usePathname } from 'expo-router'
 import { Animated, View } from 'react-native'
@@ -27,8 +27,8 @@ import { stackMoves } from '../ports/stackMoves'
 import { onDeepLinkRoute } from '../ports/deepLinks'
 import { usePlayer } from '../player/PlayerProvider'
 import { SEEK_STEP_SECONDS, VOLUME_STEP } from '../player/progress.model'
-import { PracticePanel } from '../features/practice/PracticePanel'
-import { QueueRail } from '../features/queue/QueueRail'
+import { PRACTICE_PANEL_WIDTH, PracticePanel } from '../features/practice/PracticePanel'
+import { QueueRail, useQueueRailRoom } from '../features/queue/QueueRail'
 import { QueueSheet } from '../features/queue/QueueSheet'
 import { ContentWidthContext } from './contentWidth'
 import { setPaletteOpen, usePaletteOpen } from './palette'
@@ -140,21 +140,34 @@ function Frame({
   barHidden: boolean
   children: ReactNode
 }): ReactNode {
-  const [contentWidth, setContentWidth] = useState<number | null>(null)
+  /*
+   * What a page has to lay out in: the window less the sidebar over it and
+   * whatever stands beside it, worked out rather than measured. Measuring the
+   * column fed every frame of Up next's slide back through React — the width
+   * ticked, the whole page rendered again for it, and a 300 ms move took
+   * a second at a dozen frames. Worked out, the page settles for where the
+   * slide ends the moment the rail is asked for, and the slide itself is the
+   * browser's layout alone, as the sidebar's fade has always been.
+   *
+   * Deferred, so the page's own answer to the new width — every row choosing
+   * its columns again — is a transition React fits in between frames, and
+   * the rail is moving on the first frame after the press rather than after
+   * the page has been drawn again for where it will end.
+   */
+  const { width } = useLayout()
+  const railRoom = useQueueRailRoom()
+  const practiceRoom = usePracticeOpen() ? PRACTICE_PANEL_WIDTH : 0
+  const contentWidth = useDeferredValue(
+    wide ? width - SIDEBAR_WIDTH - railRoom - practiceRoom : null,
+  )
   return (
     <View style={styles.root} testID={wide ? 'shell-wide' : chrome ? 'shell-compact' : undefined}>
       <View style={styles.columns}>
         {/* First, so a keyboard and a screen reader still come to it before the
             page; drawn over the page by its `zIndex`, not by coming after it. */}
         {wide ? <SidebarSlot shown={sidebar} /> : null}
-        <View
-          style={styles.content}
-          onLayout={event => setContentWidth(Math.round(event.nativeEvent.layout.width))}
-        >
-          {/* What a page has to lay out in: the column less the sidebar over it. */}
-          <ContentWidthContext.Provider
-            value={wide && contentWidth !== null ? contentWidth - SIDEBAR_WIDTH : null}
-          >
+        <View style={styles.content}>
+          <ContentWidthContext.Provider value={contentWidth}>
             <PageStep wide={wide}>{children}</PageStep>
           </ContentWidthContext.Provider>
           {wide ? <Toasts left={sidebar ? SIDEBAR_WIDTH : 0} /> : null}

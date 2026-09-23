@@ -34,6 +34,9 @@ const INITIAL_OPEN: Record<Group, boolean> = { loop: true, speed: true, key: fal
  * Where the engine cannot place a loop closely (a phone's), the loop and the
  * pitch-lock switch are not offered, and the panel says why.
  */
+/** The panel's width beside the page on a computer, which the frame takes off the page's. */
+export const PRACTICE_PANEL_WIDTH = 340
+
 export function PracticePanel({
   onClose,
   side = false,
@@ -377,7 +380,7 @@ function LoopButton({
 const styles = StyleSheet.create(theme => ({
   panel: { flex: 1, minHeight: 0 },
   side: {
-    width: 340,
+    width: PRACTICE_PANEL_WIDTH,
     flexShrink: 0,
     minHeight: 0,
     backgroundColor: theme.colors.surface1,

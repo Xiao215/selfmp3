@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -19,6 +19,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { ChevronRight, Grip } from '../../ui/components/Icons'
 import { HoldToReorder } from '../../ui/components/HoldToReorder'
 import { useSongDropTarget } from '../../ports/songDrag'
+import { usePlayer } from '../../player/PlayerProvider'
 import { Popover } from '../../ui/components/Popover'
 import { SheetItem } from '../../ui/components/Sheet'
 import { Toggle } from '../../ui/components/Toggle'
@@ -60,10 +61,8 @@ const ROW_HEIGHT = 44
  * raised here still reaches the queue as it is when pressed (`useQueueEdits`).
  */
 export function QueueRail(): ReactNode {
-  const open = useQueueSheetOpen()
-  const { wide } = useLayout()
+  const shown = useQueueRailShown()
   const edits = useQueueEdits()
-  const shown = open && wide && edits.player.current !== null
 
   // Kept up from the moment it is asked for until its exit has played out, as
   // the phone's sheet is: shut, the rail slides away first and only then is it
@@ -74,6 +73,26 @@ export function QueueRail(): ReactNode {
   const gone = useCallback(() => setMounted(false), [])
 
   return mounted ? <Rail shown={shown} onGone={gone} edits={edits} /> : null
+}
+
+/** Whether the rail is up, or on its way: mounted, and sliding in rather than out. */
+function useQueueRailShown(): boolean {
+  const open = useQueueSheetOpen()
+  const { wide } = useLayout()
+  const player = usePlayer()
+  return open && wide && player.current !== null
+}
+
+/**
+ * The room the rail takes from the page: its width while it is beside the
+ * page or on its way there, and none while it is away or lies over the page.
+ * What the frame takes off the page's width the moment the rail is asked
+ * for, not frame by frame as the room widens (`Shell`).
+ */
+export function useQueueRailRoom(): number {
+  const shown = useQueueRailShown()
+  const { width } = useLayout()
+  return shown && width >= BESIDE_MIN ? RAIL_WIDTH : 0
 }
 
 /** A drag under way: the row it started on, where it would land, and whether it is out. */
@@ -242,6 +261,19 @@ function Rail({
   const playing = rows.playing
 
   /*
+   * The rows come in a transition after the rail's first paint, so the slide
+   * starts on the frame after the press rather than after every row of a long
+   * queue has been drawn: the first frames show the rail's edge coming in
+   * with its title, and the rows are there before much of it is. Only at the
+   * mount — after it the rows follow the queue at once, or a row let go
+   * after a drag would be drawn where it was for a frame.
+   */
+  const [rowsDrawn, setRowsDrawn] = useState(false)
+  useEffect(() => {
+    startTransition(() => setRowsDrawn(true))
+  }, [])
+
+  /*
    * Open and shut (docs/ui-mock `M3`, 6): 0 is away past the right edge, 1 is
    * open. In on the spring, out in `railOut` and then `onGone`, so Hide slides
    * the rail off the window before the rail is taken down rather than blinking
@@ -348,20 +380,22 @@ function Rail({
               onDropSongs={actions.dropSongs}
             />
           ) : null}
-          {rows.next.map(row => (
-            <RailRow
-              key={row.song.id}
-              row={row}
-              artUri={artFor(row.song)}
-              kind="next"
-              placeholder={drag?.from === row.index}
-              dropTarget={
-                drag !== null && !drag.out && drag.over === row.index && drag.from !== row.index
-              }
-              actions={actions}
-            />
-          ))}
-          {rows.played.length > 0 ? (
+          {rowsDrawn
+            ? rows.next.map(row => (
+                <RailRow
+                  key={row.song.id}
+                  row={row}
+                  artUri={artFor(row.song)}
+                  kind="next"
+                  placeholder={drag?.from === row.index}
+                  dropTarget={
+                    drag !== null && !drag.out && drag.over === row.index && drag.from !== row.index
+                  }
+                  actions={actions}
+                />
+              ))
+            : null}
+          {rowsDrawn && rows.played.length > 0 ? (
             <>
               <Text style={styles.label}>Played</Text>
               {rows.played.map(row => (

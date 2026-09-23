@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { useRouter } from 'expo-router'
-import { useQueryClient } from '@tanstack/react-query'
-import { clientApi, queryKeys, useStartAnalysis } from '@selfmp3/client'
+import { useStartAnalysis } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { library as cloudLibrary, session as cloudSession } from '../../replica'
 import { forgetCovers } from '../../offline/covers'
@@ -24,7 +23,6 @@ export function Confirmations({
   onDone: () => void
 }): ReactNode {
   const router = useRouter()
-  const client = useQueryClient()
   const { signedOutOfCloud } = useConnection()
   const { removeAll, forgetExcluded, queue: downloadQueue } = useDownloads()
   const startAnalysis = useStartAnalysis()

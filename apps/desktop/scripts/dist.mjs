@@ -22,7 +22,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { loadDotEnv } from '../../../scripts/dotenv.mjs'
-import { signingTier } from './signingTier.mjs'
+import { blankSigningVariables, signingTier } from './signingTier.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const desktop = join(here, '..')
@@ -32,6 +32,9 @@ const desktop = join(here, '..')
 for (const file of loadDotEnv(desktop)) console.log(`self.mp3 desktop: settings from ${file}`)
 
 const env = process.env
+// A secret the workflow does not have arrives as an empty string, which
+// electron-builder would take as a certificate path (signingTier.mjs).
+for (const name of blankSigningVariables(env)) delete env[name]
 const { tier, identity, notarising, canInstallUpdates } = signingTier(env)
 
 const run = (command, args) => {
@@ -50,7 +53,9 @@ run(process.execPath, [join(here, 'dmg-background.mjs')])
 env['SELFMP3_SIGNED'] = canInstallUpdates ? '1' : '0'
 run(process.execPath, [join(here, 'build.mjs')])
 
-const args = ['electron-builder', '--config', 'electron-builder.yml']
+// Never electron-builder's own publishing: a git tag makes it try, and it
+// would want a token. The workflow attaches the files to the release itself.
+const args = ['electron-builder', '--config', 'electron-builder.yml', '--publish', 'never']
 // Anything after `--` on this script's own command line, so
 // `npm run dist -- --dir --linux` still works for a smoke build.
 const extra = process.argv.slice(2)

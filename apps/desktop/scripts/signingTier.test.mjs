@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { signingTier } from './signingTier.mjs'
+import { blankSigningVariables, signingTier } from './signingTier.mjs'
 
 /*
  * Which signature a build gets. Worth tests rather than a glance: the tier is
@@ -52,5 +52,16 @@ describe('signingTier', () => {
   it('takes a blank variable for an unset one', () => {
     expect(signingTier({ CSC_NAME: '   ' }).tier).toBe('ad-hoc')
     expect(signingTier({ CSC_LINK: 'file:///cert.p12', CSC_KEY_PASSWORD: '' }).tier).toBe('ad-hoc')
+  })
+
+  it('names the variables a workflow set to nothing, for removal before electron-builder', () => {
+    // What a GitHub runner has when the signing secrets do not exist.
+    const runner = { CI: 'true', CSC_LINK: '', CSC_KEY_PASSWORD: '', APPLE_API_KEY: ' ' }
+    expect(blankSigningVariables(runner)).toEqual(['CSC_LINK', 'CSC_KEY_PASSWORD', 'APPLE_API_KEY'])
+    expect(signingTier(runner).tier).toBe('ad-hoc')
+    expect(blankSigningVariables({})).toEqual([])
+    expect(blankSigningVariables({ CSC_LINK: 'file:///cert.p12', CSC_KEY_PASSWORD: 'x' })).toEqual(
+      [],
+    )
   })
 })

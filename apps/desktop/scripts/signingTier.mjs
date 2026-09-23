@@ -38,3 +38,28 @@ export function signingTier(env) {
   }
   return { tier: 'ad-hoc', identity: '-', notarising: false, canInstallUpdates: false }
 }
+
+/** Every variable the tier is read from, and that electron-builder reads too. */
+export const SIGNING_VARIABLES = [
+  'CSC_LINK',
+  'CSC_KEY_PASSWORD',
+  'CSC_NAME',
+  'APPLE_API_KEY',
+  'APPLE_API_KEY_ID',
+  'APPLE_API_ISSUER',
+]
+
+/**
+ * The signing variables that are set to nothing.
+ *
+ * A workflow that writes `CSC_LINK: ${{ secrets.CSC_LINK }}` sets the variable
+ * to an empty string when there is no such secret, and electron-builder takes
+ * an empty CSC_LINK as a certificate path on purpose ("allow to specify as
+ * empty string"): it resolved to the project folder and the first release
+ * build on CI stopped at "apps/desktop not a file". The tier above already
+ * reads blank as unset; these are the names to remove from electron-builder's
+ * environment so it reads the same.
+ */
+export function blankSigningVariables(env) {
+  return SIGNING_VARIABLES.filter(name => typeof env[name] === 'string' && env[name].trim() === '')
+}

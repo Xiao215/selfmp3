@@ -15,6 +15,7 @@ const track = {
   title: '群青',
   artist: 'YOASOBI',
   duration: 248,
+  thumbnail: 'https://yt3.test/gunjou=w544-h544-l90-rj',
 }
 
 describe('listening before importing', () => {
@@ -29,20 +30,30 @@ describe('listening before importing', () => {
       status: 'loading',
       currentTime: 0,
       duration: 248,
+      tone: null,
     })
+    expect(startListening(track, { hue: 200, chroma: 0.1 }).tone).toEqual({ hue: 200, chroma: 0.1 })
   })
 
-  it('takes the audio’s length once it knows, and keeps the preview’s until then', () => {
+  it('keeps the song’s length over what the audio makes of its own', () => {
     const listening = startListening(track)
-    expect(
-      followAudio(listening, { status: 'playing', currentTime: 3, duration: NaN }).duration,
-    ).toBe(248)
-    expect(followAudio(listening, { status: 'playing', currentTime: 3, duration: 250.5 })).toEqual({
+    expect(followAudio(listening, { status: 'playing', currentTime: 3, duration: 480 })).toEqual({
       track,
       status: 'playing',
       currentTime: 3,
-      duration: 250.5,
+      duration: 248,
+      tone: null,
     })
+  })
+
+  it('takes the audio’s length for a song whose length the review does not know', () => {
+    const listening = startListening({ ...track, duration: 0 })
+    expect(
+      followAudio(listening, { status: 'playing', currentTime: 3, duration: NaN }).duration,
+    ).toBe(0)
+    expect(
+      followAudio(listening, { status: 'playing', currentTime: 3, duration: 250.5 }).duration,
+    ).toBe(250.5)
   })
 
   it('stops when the track leaves the review', () => {

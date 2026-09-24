@@ -58,3 +58,19 @@ export function useBottomInset(): number {
   const chrome = useFloatingChrome()
   return chrome === 0 ? 0 : chrome + BREATHING_ROOM
 }
+
+/**
+ * The padding a foot fixed under a page needs — a review's Import button,
+ * which stays put however long the list. Clear of the floating chrome where
+ * there is one; on a phone page that owns the display, clear of the home
+ * indicator, which the page's SafeAreaView leaves to its foot
+ * (`edges={['top']}`) so the list can run under it. Nothing on a computer,
+ * whose player bar takes its own row under the page.
+ */
+export function useFootInset(): number {
+  const { wide } = useLayout()
+  const safeBottom = useContext(SafeAreaInsetsContext)?.bottom ?? 0
+  const chrome = useFloatingChrome()
+  if (wide) return 0
+  return chrome > 0 ? chrome + BREATHING_ROOM : safeBottom
+}

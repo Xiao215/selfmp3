@@ -20,7 +20,7 @@ jest.mock('expo-router', () => ({
 }))
 
 // The floating chrome's room reads the player; there is no player here.
-jest.mock('../../shell/bottomInset', () => ({ useBottomInset: () => 0 }))
+jest.mock('../../shell/bottomInset', () => ({ useFootInset: () => 0 }))
 
 jest.mock('./ImportListen', () => ({
   ...jest.requireActual('./ImportListen'),

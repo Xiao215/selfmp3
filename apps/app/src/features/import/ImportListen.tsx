@@ -8,14 +8,14 @@ import {
   type LayoutChangeEvent,
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import type { ImportPreviewItem } from '@selfmp3/shared'
+import type { CoverTone, ImportCoverTone, ImportPreviewItem } from '@selfmp3/shared'
 import { radius, withAlpha, type ServerConnection } from '@selfmp3/client'
 import { mediaUrlFor } from '../../api/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { createListenAudio } from '../../ports/listen'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Cover } from '../../ui/components/Cover'
-import { useCoverColor } from '../../ui/useSongColor'
+import { useToneColors } from '../../ui/useSongColor'
 import { Equalizer } from '../../ui/components/Equalizer'
 import { Play } from '../../ui/components/Icons'
 import {
@@ -28,14 +28,29 @@ import {
   type ListenTrack,
 } from './listen.model'
 
+/** The colour of each cover the server has read this session, by the cover's address. */
+const tonesByCover = new Map<string, CoverTone | null>()
+
 /**
  * Listening to a track on the review, before it is imported.
  *
  * Whatever was playing pauses while you listen and carries on when the preview
  * is closed, unless you went back to it yourself in the meantime, which the
  * preview makes way for.
+ *
+ * The row that plays is drawn in its cover's colour, as the library's playing
+ * row is. The server reads it (`api.importCoverTone`) when the song starts,
+ * since a phone cannot read a picture's pixels, and the answer is kept for
+ * the session so a song played twice is asked about once.
+ *
+ * `toggle`, `seek` and `close` keep their identity from render to render: the
+ * review's rows are memoised, and a new function each tick would redraw every
+ * row of a long playlist four times a second.
  */
-export function useListen(via?: ServerConnection) {
+export function useListen(
+  via: ServerConnection | undefined,
+  api: { importCoverTone: (url: string) => Promise<ImportCoverTone> },
+) {
   const player = usePlayer()
   const { connection: own } = useConnection()
   // A cloud library previews through the server it reached (ImportViaServer), not
@@ -45,6 +60,22 @@ export function useListen(via?: ServerConnection) {
   const [listening, setListening] = useState<Listening | null>(null)
   /** Something was playing when previewing began; it carries on when the preview closes. */
   const resume = useRef(false)
+
+  /** Ask the server what colour the track's cover is, and colour the preview in once it says. */
+  const colourIn = (track: ListenTrack): void => {
+    const cover = track.thumbnail
+    if (!cover || tonesByCover.has(cover)) return
+    api.importCoverTone(cover).then(
+      ({ tone }) => {
+        tonesByCover.set(cover, tone)
+        setListening(current =>
+          current && current.track.url === track.url ? { ...current, tone } : current,
+        )
+      },
+      // No colour is the accent, which the row already wears.
+      () => undefined,
+    )
+  }
 
   useEffect(() => {
     if (!audio) return
@@ -86,8 +117,9 @@ export function useListen(via?: ServerConnection) {
       return
     }
     makeRoom()
-    setListening(startListening(track))
+    setListening(startListening(track, tonesByCover.get(track.thumbnail ?? '') ?? null))
     audio.play(mediaUrlFor(connection).importListen(track.url))
+    colourIn(track)
   }
 
   const seek = (seconds: number): void => {
@@ -109,7 +141,20 @@ export function useListen(via?: ServerConnection) {
     if (carryOn && !player.isPlaying) player.toggle()
   }
 
-  return { listening, toggle, seek, close }
+  const latest = useRef({ toggle, seek, close })
+  useEffect(() => {
+    latest.current = { toggle, seek, close }
+  })
+  const steady = useMemo(
+    () => ({
+      toggle: (track: ListenTrack) => latest.current.toggle(track),
+      seek: (seconds: number) => latest.current.seek(seconds),
+      close: (options?: { resume?: boolean }) => latest.current.close(options),
+    }),
+    [],
+  )
+
+  return { listening, ...steady }
 }
 
 /**
@@ -144,8 +189,7 @@ export function ListenCover({
   const status = listening?.status ?? null
   const on = status !== null
   const glyph = size >= 56 ? 22 : 18
-  // Only the row that is playing reads its cover; the others ask nothing.
-  const colors = useCoverColor(on ? item.thumbnail : null)
+  const colors = useToneColors(listening?.tone ?? null)
   return (
     <Pressable
       onPress={onPress}
@@ -176,8 +220,9 @@ const TRACK = 4
 const KNOB = 14
 
 /**
- * The seek bar of a song not yet imported: a thin track filled in the accent
- * to where the song is, with a round knob to drag.
+ * The seek bar of a song not yet imported: a thin track filled to where the
+ * song is in its cover's colour — the accent until that is known — with a
+ * round knob to drag.
  *
  * A plain bar, not a waveform: the audio is not downloaded yet, so there are
  * no peaks to draw, and a made-up shape only pretended to be one. Hand-built
@@ -189,11 +234,14 @@ export function ListenBar({
   position,
   duration,
   onSeek,
+  color,
   height = 34,
 }: {
   position: number
   duration: number
   onSeek: (seconds: number) => void
+  /** What the played part is filled in; the accent when not given. */
+  color?: string
   height?: number
 }): ReactNode {
   const [width, setWidth] = useState(0)
@@ -245,7 +293,13 @@ export function ListenBar({
     >
       {/* Draws only: every touch belongs to the bar, so locationX is always along it. */}
       <View pointerEvents="none" style={styles.track}>
-        <View style={[styles.played, { width: `${ratio * 100}%` }]} />
+        <View
+          style={[
+            styles.played,
+            { width: `${ratio * 100}%` },
+            color ? { backgroundColor: color } : null,
+          ]}
+        />
       </View>
       <View
         pointerEvents="none"

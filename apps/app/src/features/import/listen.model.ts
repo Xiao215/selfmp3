@@ -1,4 +1,4 @@
-import { isYouTubeUrl, type ImportPreviewItem } from '@selfmp3/shared'
+import { isYouTubeUrl, type CoverTone, type ImportPreviewItem } from '@selfmp3/shared'
 
 /** What a preview is doing, as the audio reports it (the `listen` port's state). */
 export type ListenStatus = 'loading' | 'playing' | 'paused' | 'error'
@@ -12,35 +12,51 @@ export interface ListenState {
 
 /** Listening before importing, with nothing drawn. */
 
-export type ListenTrack = Pick<ImportPreviewItem, 'url' | 'title' | 'artist' | 'duration'>
+export type ListenTrack = Pick<
+  ImportPreviewItem,
+  'url' | 'title' | 'artist' | 'duration' | 'thumbnail'
+>
 
 export interface Listening {
   readonly track: ListenTrack
   readonly status: ListenStatus
   readonly currentTime: number
-  /** From the audio once it knows; the preview's length until then (0 if unknown). */
+  /** The song's, as the review knows it; from the audio when the review does not (0 until it knows). */
   readonly duration: number
+  /** The cover's colour, once the server has read it (ImportListen.tsx); null until then, or for a cover without one. */
+  readonly tone: CoverTone | null
 }
 
 /** The server can only stream what yt-dlp finds on YouTube. */
 export const canListen = (item: Pick<ImportPreviewItem, 'url'>): boolean => isYouTubeUrl(item.url)
 
-/** A new preview, before the audio has said anything. */
-export const startListening = (track: ListenTrack): Listening => ({
+/** A new preview, before the audio has said anything; `tone` when its cover's colour is already known. */
+export const startListening = (track: ListenTrack, tone: CoverTone | null = null): Listening => ({
   track,
   status: 'loading',
   currentTime: 0,
   duration: track.duration,
+  tone,
 })
 
-/** Fold what the audio reports into the preview, keeping the known length until it has one. */
+/**
+ * Fold what the audio reports into the preview. The length stays the song's
+ * where the review knows it: a stream read in pieces can misjudge its own
+ * (a phone's player read 8:00 into a 4:01 song), and the bar would then run to
+ * the middle and stop. The audio's length is for a song the review has none
+ * for, a search's or an artist's page's, and until then the bar has no length.
+ */
 export function followAudio(current: Listening, state: ListenState): Listening {
+  const known = current.track.duration > 0
   return {
     ...current,
     status: state.status,
     currentTime: state.currentTime,
-    duration:
-      Number.isFinite(state.duration) && state.duration > 0 ? state.duration : current.duration,
+    duration: known
+      ? current.track.duration
+      : Number.isFinite(state.duration) && state.duration > 0
+        ? state.duration
+        : current.duration,
   }
 }
 

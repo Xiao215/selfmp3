@@ -18,6 +18,23 @@ jest.mock('react-native-track-player', () => ({
   State: {},
 }))
 
+// The preview player a review listens through on a phone (ports/listen.ts).
+// A test renders the review with the listening hook faked; this only keeps
+// the module from reaching for a native side it does not have.
+jest.mock('expo-audio', () => ({
+  preload: () => Promise.resolve(),
+  clearPreloadedSource: () => Promise.resolve(),
+  createAudioPlayer: () => ({
+    currentStatus: { playbackState: 'unknown' },
+    addListener: () => ({ remove() {} }),
+    play() {},
+    pause() {},
+    replace() {},
+    seekTo: () => Promise.resolve(),
+    remove() {},
+  }),
+}))
+
 // Files, which no component touches directly but providers pull in.
 jest.mock('expo-file-system', () => ({
   File: class {

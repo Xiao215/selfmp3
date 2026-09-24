@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Redirect } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
@@ -10,10 +10,11 @@ import {
   fonts,
   HIT_TARGET,
   radius,
+  withAlpha,
   type Review,
   type ServerConnection,
 } from '@selfmp3/client'
-import { useBottomInset } from '../../shell/bottomInset'
+import { useFootInset } from '../../shell/bottomInset'
 import { useLayout } from '../../shell/useLayout'
 import { canListenHere } from '../../ports/listen'
 import { label as groupLabel, serif } from '../../ui/surfaces'
@@ -24,6 +25,7 @@ import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import { X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
+import { useToneColors } from '../../ui/useSongColor'
 import { ListenBar, ListenCover, useListen } from './ImportListen'
 import { TagThem } from './ImportTags'
 import { chooseAllIn, renameIn, toggleChosenIn, useImportDraft } from './importDraft'
@@ -52,10 +54,16 @@ import {
  * Every song starts ticked, and only ticked songs are imported: the box at the
  * left of a row takes it out and puts it back, and the one in the head does
  * that for every row. A song the library already has says "Yours already",
- * has no box, and is skipped. On a phone a tap opens the row in place to hear
- * it and fix its name. On a computer every row sits on one grid; play waits
- * under the pointer, and the playing row turns its title, artist and album
- * into fields with its bar opening under it.
+ * has no box, and is skipped. On a phone a tap plays the song and opens the
+ * row in place once it is playing — its cover shows the wait meanwhile — to
+ * hear it and fix its name, and a tap anywhere else closes it. On a computer
+ * every row sits on one grid; play waits under the pointer, and the playing
+ * row turns its title, artist and album into fields with its bar opening under
+ * it.
+ *
+ * The rows are memoised and every handler they are given keeps its identity,
+ * because the preview reports where it is four times a second and a hundred
+ * rows redrawn at that rate made a phone stutter; only the playing row moves.
  *
  * A page of its own rather than a state of Import, because the review lives in
  * the draft (importDraft.store.ts), which outlives either page and the page's
@@ -78,10 +86,12 @@ export function ImportReview({
   const { review, tagIds } = draft
   // A kept review's "Yours already" is from when the link was looked up.
   useRefreshReview(source.api, key, reviewUrls(review))
-  const listen = useListen(via)
+  const listen = useListen(via, source.api)
   const backTo = useBackTo()
-  const footInset = useBottomInset()
+  const footInset = useFootInset()
   const [open, setOpen] = useState<number | null>(null)
+  /** A phone row tapped and waiting for its song to play before it opens. */
+  const [opening, setOpening] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   /** Imported or cancelled: the draft empties as the page leaves, which is not a review to go looking for. */
   const [leaving, setLeaving] = useState(false)
@@ -116,11 +126,80 @@ export function ImportReview({
   // A preview whose song has left the review stops with it, and what played
   // before it stays paused: you did not ask for music, you asked for songs.
   const leftReview = listeningLeftReview(listen.listening, review?.items ?? null)
+  const { toggle, seek, close } = listen
   useEffect(() => {
-    if (leftReview) listen.close({ resume: false })
-    // Only whether it left matters; `close` is a new function every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leftReview])
+    if (leftReview) close({ resume: false })
+  }, [leftReview, close])
+
+  /*
+   * The handlers the rows are given read the review and the preview through a
+   * ref, so they can keep their identity while both change (see above).
+   */
+  const latest = useRef({ review, listening: listen.listening })
+  useEffect(() => {
+    latest.current = { review, listening: listen.listening }
+  })
+
+  /** Play a row's song, opening the row where it is not open yet (a computer's cover). */
+  const playRow = useCallback(
+    (index: number): void => {
+      const item = latest.current.review?.items[index]
+      if (!item) return
+      setOpen(current => (current === index ? current : index))
+      toggle(item)
+    },
+    [toggle],
+  )
+  /**
+   * Open a row, and play it where it can be played. A phone's row opens once
+   * the song plays (the effect below), showing the wait on its cover until
+   * then; a computer's opens now, and its cover shows the wait.
+   */
+  const openRow = useCallback(
+    (index: number): void => {
+      const item = latest.current.review?.items[index]
+      if (!item) return
+      const hearable = canListenHere && canListen(item)
+      const heard = latest.current.listening?.track.url === item.url
+      if (!hearable || heard) {
+        setOpening(null)
+        setOpen(index)
+        return
+      }
+      if (wide) setOpen(index)
+      else setOpening(index)
+      toggle(item)
+    },
+    [toggle, wide],
+  )
+  const closeRow = (): void => {
+    setOpen(null)
+    setOpening(null)
+    close()
+  }
+  const listeningUrl = listen.listening?.track.url ?? null
+  const listeningStatus = listen.listening?.status ?? null
+  useEffect(() => {
+    if (opening === null) return
+    const item = latest.current.review?.items[opening]
+    // Nothing playing means nothing to wait for: the row opens as it is.
+    if (!item || listeningUrl === null) {
+      setOpen(opening)
+      setOpening(null)
+      return
+    }
+    if (listeningUrl !== item.url || listeningStatus === 'loading') return
+    setOpen(opening)
+    setOpening(null)
+  }, [opening, listeningUrl, listeningStatus])
+  // Ticking is separate from hearing: an unticked song still plays and still
+  // opens, so you can listen before deciding, and an open row stays open.
+  const toggleChosen = useCallback((index: number): void => toggleChosenIn(key, index), [key])
+  const chooseAll = (on: boolean): void => chooseAllIn(key, on)
+  const rename = useCallback(
+    (index: number, change: Rename): void => renameIn(key, index, change),
+    [key],
+  )
 
   if (!review) return leaving ? null : <Redirect href="/import" />
 
@@ -131,21 +210,6 @@ export function ImportReview({
   const playing = (item: ImportPreviewItem): Listening | null =>
     listen.listening?.track.url === item.url ? listen.listening : null
 
-  /** Open a row, and play it where it can be played. */
-  const openRow = (index: number, item: ImportPreviewItem): void => {
-    setOpen(index)
-    if (canListenHere && canListen(item) && !playing(item)) listen.toggle(item)
-  }
-  const closeRow = (): void => {
-    setOpen(null)
-    listen.close()
-  }
-  // Ticking is separate from hearing: an unticked song still plays and still
-  // opens, so you can listen before deciding, and an open row stays open.
-  const toggleChosen = (index: number): void => toggleChosenIn(key, index)
-  const chooseAll = (on: boolean): void => chooseAllIn(key, on)
-  const rename = (index: number, change: Rename): void => renameIn(key, index, change)
-
   const rows = review.items.map((item, index) => {
     const state = rowState(review, index)
     const shared = {
@@ -153,30 +217,19 @@ export function ImportReview({
       index,
       state,
       open: open === index,
+      opening: opening === index,
       listening: playing(item),
       canPlay: canListenHere && canListen(item),
-      onToggleChosen: () => toggleChosen(index),
-      onRename: (change: Rename) => rename(index, change),
-      onSeek: listen.seek,
+      onToggleChosen: toggleChosen,
+      onRename: rename,
+      onSeek: seek,
+      onOpen: openRow,
+      onPlay: playRow,
     }
     return wide ? (
-      <GridRow
-        key={`${item.url}-${index}`}
-        {...shared}
-        finePointer={finePointer}
-        onPlay={() => {
-          if (open !== index) setOpen(index)
-          listen.toggle(item)
-        }}
-        onOpen={() => openRow(index, item)}
-      />
+      <GridRow key={`${item.url}-${index}`} {...shared} finePointer={finePointer} />
     ) : (
-      <PhoneRow
-        key={`${item.url}-${index}`}
-        {...shared}
-        onOpen={() => openRow(index, item)}
-        onClose={closeRow}
-      />
+      <PhoneRow key={`${item.url}-${index}`} {...shared} />
     )
   })
 
@@ -208,7 +261,12 @@ export function ImportReview({
           </Text>
         </View>
       ) : (
-        <View style={styles.headPhone}>
+        <Pressable
+          onPress={open === null ? undefined : closeRow}
+          disabled={open === null}
+          accessible={false}
+          style={styles.headPhone}
+        >
           <Pressable
             onPress={() => {
               listen.close()
@@ -227,46 +285,66 @@ export function ImportReview({
           <Text style={styles.count} testID="import-count">
             {countLabel(review, false)}
           </Text>
-        </View>
+        </Pressable>
       )}
 
+      {/*
+       * On a phone everything that is not a row is a press that closes the
+       * open row: the head and the foot around their own buttons, and the
+       * list's ground — the hint, the gap between rows, the space under the
+       * last. A tap there puts the card away and stops what it was playing. A
+       * scroll is not a tap, and a row's own press takes its tap first.
+       */}
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={wide ? styles.listWide : styles.listPhone}
         keyboardShouldPersistTaps="handled"
         testID="import-review"
       >
-        {wide ? (
-          <View style={[styles.grid, styles.gridHead]}>
-            <AllBox review={review} onChange={chooseAll} wide />
-            <View style={styles.cells} aria-hidden>
-              <View style={styles.colCover} />
-              <Text style={[styles.headLabel, styles.colTitle]}>Title</Text>
-              <Text style={[styles.headLabel, styles.colArtist]}>Artist</Text>
-              <Text style={[styles.headLabel, styles.colAlbum]}>Album</Text>
-              <Text style={[styles.headLabel, styles.colEnd, styles.endText]}>Time</Text>
+        <Pressable
+          onPress={wide || open === null ? undefined : closeRow}
+          disabled={wide || open === null}
+          accessible={false}
+          style={styles.ground}
+        >
+          {wide ? (
+            <View style={[styles.grid, styles.gridHead]}>
+              <AllBox review={review} onChange={chooseAll} wide />
+              <View style={styles.cells} aria-hidden>
+                <View style={styles.colCover} />
+                <Text style={[styles.headLabel, styles.colTitle]}>Title</Text>
+                <Text style={[styles.headLabel, styles.colArtist]}>Artist</Text>
+                <Text style={[styles.headLabel, styles.colAlbum]}>Album</Text>
+                <Text style={[styles.headLabel, styles.colEnd, styles.endText]}>Time</Text>
+              </View>
             </View>
+          ) : (
+            <>
+              <Text style={styles.hint}>
+                {anyToHear
+                  ? 'Untick a song to leave it out. Tap a song to hear it and to fix its name.'
+                  : 'Untick a song to leave it out. Tap a song to fix its name.'}
+              </Text>
+              <AllBox review={review} onChange={chooseAll} wide={false} />
+            </>
+          )}
+          <View accessibilityRole="list" accessibilityLabel="Songs to import">
+            {rows}
           </View>
-        ) : (
-          <>
-            <Text style={styles.hint}>
-              {anyToHear
-                ? 'Untick a song to leave it out. Tap a song to hear it and to fix its name.'
-                : 'Untick a song to leave it out. Tap a song to fix its name.'}
-            </Text>
-            <AllBox review={review} onChange={chooseAll} wide={false} />
-          </>
-        )}
-        <View accessibilityRole="list" accessibilityLabel="Songs to import">
-          {rows}
-        </View>
+        </Pressable>
       </ScrollView>
 
       {/*
        * The foot stays put under the list, the commit always in reach however
-       * long the playlist; on a phone it stands clear of the floating chrome.
+       * long the playlist; on a phone it stands clear of the floating chrome,
+       * or of the home indicator on this page, which has no chrome.
        */}
-      <View style={[wide ? styles.footWide : styles.footPhone, { paddingBottom: footInset + 12 }]}>
+      <Pressable
+        onPress={wide || open === null ? undefined : closeRow}
+        disabled={wide || open === null}
+        accessible={false}
+        style={[wide ? styles.footWide : styles.footPhone, { paddingBottom: footInset + 12 }]}
+      >
         {error ? (
           <View style={styles.error} accessibilityRole="alert">
             <Text style={styles.errorText}>{error}</Text>
@@ -296,7 +374,7 @@ export function ImportReview({
           ) : null}
           {importButton}
         </View>
-      </View>
+      </Pressable>
     </SafeAreaView>
   )
 }
@@ -378,17 +456,22 @@ function AllBox({
   )
 }
 
+/** What every row is given. The handlers take the row's index, so one function serves every row. */
 interface RowProps {
   readonly item: ImportPreviewItem
   readonly index: number
   readonly state: RowState
   readonly open: boolean
+  /** Tapped, and waiting for its song to play before it opens (a phone). */
+  readonly opening: boolean
   /** This row's preview, when it is the one playing. */
   readonly listening: Listening | null
   readonly canPlay: boolean
-  readonly onToggleChosen: () => void
-  readonly onRename: (change: Rename) => void
+  readonly onToggleChosen: (index: number) => void
+  readonly onRename: (index: number, change: Rename) => void
   readonly onSeek: (seconds: number) => void
+  readonly onOpen: (index: number) => void
+  readonly onPlay: (index: number) => void
 }
 
 /** What a row says at its end: "Yours already", or how long the song is. */
@@ -456,56 +539,65 @@ function barTimes(item: ImportPreviewItem, listening: Listening | null) {
 }
 
 /**
- * A row on a phone (`P30`). Closed, it is a song with its box at the left.
- * Open, it is a card with Title and Artist and the bar to drag; the cover
- * closes it again.
+ * A row on a phone (`P30`). Closed, it is a song with its box at the left,
+ * its cover showing the wait while its song is fetched. Open, it is a card
+ * with Title, Artist and Album and the bar to drag, in the cover's colour; its
+ * cover pauses and resumes the song, as a computer's does, and a tap anywhere
+ * off the card closes it (the list's ground, above). The card itself takes
+ * its own taps, so a finger on its blank parts does not put it away.
  */
-function PhoneRow({
+const PhoneRow = memo(function PhoneRow({
   item,
   index,
   state,
   open,
+  opening,
   listening,
   canPlay,
   onToggleChosen,
   onRename,
   onSeek,
   onOpen,
-  onClose,
-}: RowProps & { onOpen: () => void; onClose: () => void }): ReactNode {
+  onPlay,
+}: RowProps): ReactNode {
+  const { theme } = useUnistyles()
+  const colors = useToneColors(listening?.tone ?? null)
   if (open) {
     const times = barTimes(item, listening)
     return (
-      <View style={styles.openCard} testID={`import-row-${index}`}>
+      <Pressable
+        onPress={() => undefined}
+        accessible={false}
+        style={styles.openCard}
+        testID={`import-row-${index}`}
+      >
         <View style={styles.openTop}>
-          {/* The plain cover, as `P30` draws it: here it closes the row rather than playing. */}
           <ListenCover
             item={item}
-            listening={null}
-            onPress={onClose}
-            shown={false}
+            listening={listening}
+            onPress={() => onPlay(index)}
+            shown={canPlay}
             size={56}
-            label={`Close ${item.title || 'this song'}`}
           />
           <View style={styles.fields}>
             <NameField
               label="Title"
               value={item.title}
-              onChange={title => onRename({ title })}
+              onChange={title => onRename(index, { title })}
               index={index}
               wide={false}
             />
             <NameField
               label="Artist"
               value={item.artist}
-              onChange={artist => onRename({ artist })}
+              onChange={artist => onRename(index, { artist })}
               index={index}
               wide={false}
             />
             <NameField
               label="Album"
               value={item.album}
-              onChange={album => onRename({ album })}
+              onChange={album => onRename(index, { album })}
               index={index}
               wide={false}
             />
@@ -517,17 +609,18 @@ function PhoneRow({
               position={listening?.currentTime ?? 0}
               duration={listening?.duration || item.duration}
               onSeek={onSeek}
+              color={colors.tint}
             />
             <View style={styles.times}>
               <Text style={styles.time}>{times.at}</Text>
               <Text style={[styles.time, times.trouble ? styles.trouble : null]} numberOfLines={1}>
-                {times.trouble ?? 'Drag to move · tap the cover to close'}
+                {times.trouble ?? 'Drag to move · tap away to close'}
               </Text>
               <Text style={styles.time}>{times.length}</Text>
             </View>
           </View>
         ) : null}
-      </View>
+      </Pressable>
     )
   }
 
@@ -537,22 +630,29 @@ function PhoneRow({
       {state === 'yours' ? (
         <View style={styles.select} />
       ) : (
-        <SelectBox item={item} checked={!out} onToggle={onToggleChosen} wide={false} />
+        <SelectBox item={item} checked={!out} onToggle={() => onToggleChosen(index)} wide={false} />
       )}
       <Pressable
-        onPress={state === 'yours' ? undefined : onOpen}
+        onPress={state === 'yours' ? undefined : () => onOpen(index)}
         disabled={state === 'yours'}
         accessibilityRole="button"
         accessibilityLabel={`${item.title}, ${item.artist || 'Unknown artist'}`}
         accessibilityHint={state === 'yours' ? undefined : 'Opens it to hear it and fix its name'}
-        accessibilityState={{ disabled: state === 'yours' }}
+        accessibilityState={{ disabled: state === 'yours', busy: opening }}
         style={({ pressed }) => [
           styles.phoneRowBody,
           state !== 'in' && styles.dim,
           pressed && styles.pressed,
         ]}
       >
-        <Cover uri={item.thumbnail} title={item.title} size={44} />
+        <View style={styles.coverWrap}>
+          <Cover uri={item.thumbnail} title={item.title} size={44} />
+          {opening ? (
+            <View style={styles.coverWait} pointerEvents="none">
+              <ActivityIndicator size="small" color={theme.colors.textPrimary} />
+            </View>
+          ) : null}
+        </View>
         <View style={styles.texts}>
           <Text style={[styles.title, out && styles.struck]} numberOfLines={1}>
             {item.title || 'Untitled'}
@@ -565,7 +665,7 @@ function PhoneRow({
       </Pressable>
     </View>
   )
-}
+})
 
 /**
  * A row on a computer (`C14`), on the one grid every row shares so nothing
@@ -574,7 +674,7 @@ function PhoneRow({
  * unseen. The open row's title, artist and album are fields, and its bar opens
  * under it across those three columns.
  */
-function GridRow({
+const GridRow = memo(function GridRow({
   item,
   index,
   state,
@@ -587,8 +687,9 @@ function GridRow({
   onSeek,
   onPlay,
   onOpen,
-}: RowProps & { finePointer: boolean; onPlay: () => void; onOpen: () => void }): ReactNode {
+}: RowProps & { finePointer: boolean }): ReactNode {
   const [hovered, setHovered] = useState(false)
+  const colors = useToneColors(listening?.tone ?? null)
   // With no pointer to wait for (a tablet at this width), what hover shows is always shown.
   const reveal = hovered || !finePointer
   const out = state === 'out'
@@ -610,13 +711,18 @@ function GridRow({
         {state === 'yours' ? (
           <View style={styles.selectWide} />
         ) : (
-          <SelectBox item={item} checked={!out} onToggle={onToggleChosen} wide />
+          <SelectBox item={item} checked={!out} onToggle={() => onToggleChosen(index)} wide />
         )}
         {/* The box keeps its full colour: dimmed, an empty ring would all but vanish. */}
         <View style={[styles.cells, state !== 'in' && !open && styles.dim]}>
           <View style={styles.colCover}>
             {canPlay && state !== 'yours' ? (
-              <ListenCover item={item} listening={listening} onPress={onPlay} shown={reveal} />
+              <ListenCover
+                item={item}
+                listening={listening}
+                onPress={() => onPlay(index)}
+                shown={reveal}
+              />
             ) : (
               <Cover uri={item.thumbnail} title={item.title} size={40} />
             )}
@@ -627,7 +733,7 @@ function GridRow({
                 <NameField
                   label="Title"
                   value={item.title}
-                  onChange={title => onRename({ title })}
+                  onChange={title => onRename(index, { title })}
                   index={index}
                   wide
                 />
@@ -636,7 +742,7 @@ function GridRow({
                 <NameField
                   label="Artist"
                   value={item.artist}
-                  onChange={artist => onRename({ artist })}
+                  onChange={artist => onRename(index, { artist })}
                   index={index}
                   wide
                 />
@@ -645,7 +751,7 @@ function GridRow({
                 <NameField
                   label="Album"
                   value={item.album}
-                  onChange={album => onRename({ album })}
+                  onChange={album => onRename(index, { album })}
                   index={index}
                   wide
                 />
@@ -653,7 +759,7 @@ function GridRow({
             </>
           ) : (
             <Pressable
-              onPress={state === 'yours' ? undefined : onOpen}
+              onPress={state === 'yours' ? undefined : () => onOpen(index)}
               disabled={state === 'yours'}
               accessibilityRole="button"
               accessibilityLabel={`Edit ${item.title || 'this song'}`}
@@ -685,6 +791,7 @@ function GridRow({
                 position={listening.currentTime}
                 duration={listening.duration || item.duration}
                 onSeek={onSeek}
+                color={colors.tint}
                 height={30}
               />
             </View>
@@ -701,12 +808,26 @@ function GridRow({
       ) : null}
     </View>
   )
-}
+})
 
 /** The grid's columns (`C14` with a box before and an album after: `24px 40px 1.2fr 1fr 1fr 90px`), as flex. */
 const GAP = 14
 
 const styles = StyleSheet.create(theme => ({
+  // The list's ground fills the scroll so a tap under the last row lands on it too.
+  ground: { flexGrow: 1 },
+  // A closed row's cover, and the wait drawn over it while its song is fetched (as ListenCover's).
+  coverWrap: { width: 44, height: 44, borderRadius: radius.coverSm, overflow: 'hidden' },
+  coverWait: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: withAlpha(theme.colors.surface0, 0.55),
+  },
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   scroll: { flex: 1 },
   pressed: { opacity: 0.6 },
@@ -755,7 +876,7 @@ const styles = StyleSheet.create(theme => ({
     paddingTop: 12,
     paddingBottom: 4,
   },
-  listPhone: { paddingHorizontal: 20 },
+  listPhone: { paddingHorizontal: 20, flexGrow: 1 },
   listWide: { paddingHorizontal: 28 },
   // The box, then the cells: the cells dim together when the song is not coming in.
   grid: { flexDirection: 'row', alignItems: 'center', gap: GAP, paddingHorizontal: 12 },

@@ -11,11 +11,10 @@ const tones = new Map<string, CoverTone | null>()
  * The colour read from a cover on this device, or null until it has been —
  * and null for good where the platform cannot read pixels.
  *
- * `key` is what the answer is remembered by: a song's id and revision, or the
- * bare address of a cover the library does not hold yet. `read` false leaves
- * the cover alone — the server has already said what colour it is, or the row
- * is not the one playing. A cover that failed to load is not remembered, so
- * it is tried afresh the next time it is asked for.
+ * `key` is what the answer is remembered by: a song's id and revision. `read`
+ * false leaves the cover alone — the server has already said what colour it
+ * is. A cover that failed to load is not remembered, so it is tried afresh the
+ * next time it is asked for.
  */
 function useCoverTone(key: string | null, uri: string | null, read: boolean): CoverTone | null {
   const [, setRead] = useState(0)
@@ -69,12 +68,10 @@ function colorsOf(tone: CoverTone | null, accent: string): SongColors {
 }
 
 /**
- * The colours of a cover the library does not hold: a song on the import
- * review, known only by its picture's address. Read here where the platform
- * can, and the accent until then or where it cannot. Pass null for a row that
- * is not playing, so a long review reads one cover and not seventy.
+ * The colours to draw in for a colour already read: a song on the import
+ * review, whose cover the server reads when it plays (ImportListen.tsx). The
+ * accent until there is one, or where the cover has no colour of its own.
  */
-export function useCoverColor(uri: string | null): SongColors {
-  const accent = useAccent()
-  return colorsOf(useCoverTone(uri, uri, true), accent.accent)
+export function useToneColors(tone: CoverTone | null): SongColors {
+  return colorsOf(tone, useAccent().accent)
 }

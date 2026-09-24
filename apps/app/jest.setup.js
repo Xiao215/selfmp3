@@ -22,6 +22,7 @@ jest.mock('react-native-track-player', () => ({
 // A test renders the review with the listening hook faked; this only keeps
 // the module from reaching for a native side it does not have.
 jest.mock('expo-audio', () => ({
+  setAudioModeAsync: () => Promise.resolve(),
   preload: () => Promise.resolve(),
   clearPreloadedSource: () => Promise.resolve(),
   createAudioPlayer: () => ({

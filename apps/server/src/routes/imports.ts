@@ -28,6 +28,9 @@ import { isCoverUrl } from '../services/previewCoverTone.js'
 
 const ParamsWithJobId = z.object({ id: z.string().uuid() })
 const ListenQuery = z.object({ url: z.string().url().max(2_000) })
+
+/** How many of a review's rows have their stream looked up before anyone taps (services/listen.ts). */
+const WARMED_ROWS = 3
 const CoverToneQuery = z.object({ url: z.string().url().max(2_000) })
 
 /** What a range response from YouTube has to say that the browser needs to hear. */
@@ -90,9 +93,18 @@ export function importRoutes(container: Container): Router {
 
   router.post(
     '/import/preview',
-    route({ body: ImportPreviewRequestSchema }, ({ body }): Promise<ImportPreview> =>
-      buildImportPreview(container, body.url),
-    ),
+    route({ body: ImportPreviewRequestSchema }, async ({ body }): Promise<ImportPreview> => {
+      const preview = await buildImportPreview(container, body.url)
+      // The rows about to be shown, minus the ones already in the library,
+      // which say "In library" rather than offering a listen.
+      container.listen.warm(
+        preview.items
+          .filter(item => !item.alreadyHave)
+          .slice(0, WARMED_ROWS)
+          .map(item => item.url),
+      )
+      return preview
+    }),
   )
 
   /**
@@ -141,12 +153,18 @@ export function importRoutes(container: Container): Router {
         if (!res.writableFinished) controller.abort()
       })
 
+      // YouTube paces a request that asks for the whole file to about the
+      // speed the song plays at, and serves a range — any range, even one
+      // that runs to the end — at full speed. Players always ask for one; a
+      // client that did not is asked for on its behalf, and answered as it
+      // asked, whole.
+      const asked = req.headers.range
       const open = async (): Promise<Response> => {
         const source = await container.listen.source(query.url).catch((error: unknown) => {
           throw HttpError.unprocessable(error instanceof Error ? error.message : String(error))
         })
         return fetch(source, {
-          headers: req.headers.range ? { Range: req.headers.range } : {},
+          headers: { Range: asked ?? 'bytes=0-' },
           signal: controller.signal,
         })
       }
@@ -167,8 +185,10 @@ export function importRoutes(container: Container): Router {
         throw HttpError.unprocessable(`YouTube would not play this one (${upstream.status})`)
       }
 
-      res.status(upstream.status)
+      const whole = asked === undefined && upstream.status === 206
+      res.status(whole ? 200 : upstream.status)
       for (const name of FORWARDED_HEADERS) {
+        if (whole && name === 'content-range') continue
         const value = upstream.headers.get(name)
         if (value) res.setHeader(name, value)
       }

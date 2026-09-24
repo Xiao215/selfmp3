@@ -19,6 +19,34 @@ function fakeYtDlp(expire: number | null) {
 }
 
 describe('ListenService', () => {
+  it('warms the links a review is about to show, and a tap then shares the run', async () => {
+    const ytdlp = fakeYtDlp(4_000)
+    const listen = new ListenService(ytdlp, () => 1_000_000)
+
+    listen.warm([TRACK, 'https://www.youtube.com/watch?v=jNQXAC9IVRw'])
+    expect(ytdlp.runs).toBe(2)
+    await listen.source(TRACK)
+    expect(ytdlp.runs).toBe(2)
+  })
+
+  it('keeps a link it could not warm to itself, for the play to report', async () => {
+    let failed = 0
+    const listen = new ListenService(
+      {
+        audioUrl: () => {
+          failed++
+          return Promise.reject(new Error('could not read that link'))
+        },
+      },
+      () => 1_000_000,
+    )
+
+    listen.warm([TRACK])
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(failed).toBe(1)
+    await expect(listen.source(TRACK)).rejects.toThrow('could not read that link')
+  })
+
   it('asks yt-dlp once for a track, however often the player seeks', async () => {
     const ytdlp = fakeYtDlp(4_000)
     const listen = new ListenService(ytdlp, () => 1_000_000)

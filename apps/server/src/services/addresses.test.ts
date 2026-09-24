@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   beyondThisComputer,
+  isTranslatorAddress,
   listenAddresses,
   publishedAddresses,
   withPublicAddress,
@@ -98,4 +99,21 @@ describe('publishedAddresses', () => {
     const published = publishedAddresses('127.0.0.1', 4600, 'https://music.example.com')
     expect(beyondThisComputer(published)).toEqual(['https://music.example.com'])
   })
+})
+
+/**
+ * The one IPv4 address a computer on an IPv6-only network gives itself is not
+ * a way in for anyone: the phone in the same room holds the same one.
+ */
+describe('isTranslatorAddress', () => {
+  it.each(['192.0.0.1', '192.0.0.2', '192.0.0.7'])('leaves %s out', ip => {
+    expect(isTranslatorAddress(ip)).toBe(true)
+  })
+
+  it.each(['192.0.0.8', '192.0.1.2', '192.168.0.2', '10.0.0.2', '100.64.0.2'])(
+    'keeps %s, which somebody else can reach',
+    ip => {
+      expect(isTranslatorAddress(ip)).toBe(false)
+    },
+  )
 })

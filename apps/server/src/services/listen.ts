@@ -56,6 +56,23 @@ export class ListenService {
     return lookup
   }
 
+  /**
+   * Look the links up now, so the first tap on a review does not pay for it.
+   *
+   * The lookup is the one fixed cost of a preview — a couple of seconds of
+   * yt-dlp before a single byte plays — and a review's first rows are the ones
+   * somebody is about to press. Each is a request against the YouTube budget
+   * (ytThrottle.ts), which is why it is a few and not the whole list; a tap
+   * that lands while a lookup is running shares it, as `source` always has.
+   * Nothing here is waited on, and a link that cannot be read says so when
+   * it is played, not now.
+   */
+  warm(trackUrls: readonly string[]): void {
+    for (const trackUrl of trackUrls) {
+      this.source(trackUrl).catch(() => undefined)
+    }
+  }
+
   /** YouTube turned the link down after all: look it up afresh next time. */
   forget(trackUrl: string): void {
     this.#links.delete(trackUrl)

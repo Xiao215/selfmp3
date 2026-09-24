@@ -2,6 +2,7 @@ import {
   clearPreloadedSource,
   createAudioPlayer,
   preload,
+  setAudioModeAsync,
   type AudioPlayer,
   type AudioStatus,
 } from 'expo-audio'
@@ -28,10 +29,27 @@ import type { ListenAudio, ListenState, ListenStatus } from './listen.types'
  * The audio session is track-player's. expo-audio would deactivate it when a
  * preview pauses or ends, a hundred milliseconds after — under a song this
  * preview had paused and `close` has just started again — so each player is
- * made to leave it be (`keepAudioSessionActive`), and no audio mode is set
- * here: the category track-player chose stands.
+ * made to leave it be (`keepAudioSessionActive`).
+ *
+ * The session's category, though, is asked for here as well. Track-player
+ * only sets its Playback category once a song is loaded to play, and a
+ * review opened before any song has played that launch found the session in
+ * iOS's default: ambient, which the Ring/Silent switch mutes on the speaker
+ * and not on AirPods — a preview heard through one and not the other. The
+ * mode asked for below is the same category track-player sets (Playback, not
+ * mixing), so whichever of the two asks first, the other finds it already so.
  */
 export const canListenHere = true
+
+/**
+ * How much of a preview the player gathers before it starts, in seconds.
+ *
+ * Left to itself, AVPlayer buffers as much as it thinks a stall-free play
+ * needs, and over a tunnel it thinks a great deal: the tap-to-sound wait was
+ * that, more than the lookup. A preview is a listen, not a performance; a
+ * couple of seconds in hand is enough to start on.
+ */
+const PREVIEW_BUFFER_S = 2
 
 /** How often the player says where it is: the bar moves four times a second. */
 const TICK_MS = 250
@@ -58,6 +76,15 @@ export function statusOf(status: AudioStatus, asked: 'play' | 'pause'): ListenSt
 }
 
 export function createListenAudio(): ListenAudio | null {
+  // Fire and forget: a refusal leaves the category as it was, which is the
+  // one this was to make sure of when a song has already played.
+  setAudioModeAsync({
+    playsInSilentMode: true,
+    interruptionMode: 'doNotMix',
+    allowsRecording: false,
+    shouldPlayInBackground: false,
+  }).catch(() => undefined)
+
   const listeners = new Set<(state: ListenState) => void>()
   let player: AudioPlayer | null = null
   let subscription: { remove(): void } | null = null
@@ -111,7 +138,7 @@ export function createListenAudio(): ListenAudio | null {
   /** Open the stream off the thread, then play it in a player of its own. */
   const open = (uri: string): void => {
     const mine = ++opening
-    preload({ uri })
+    preload({ uri }, { preferredForwardBufferDuration: PREVIEW_BUFFER_S })
       .then(() => {
         if (mine !== opening || src !== uri) {
           void clearPreloadedSource({ uri })
@@ -120,7 +147,11 @@ export function createListenAudio(): ListenAudio | null {
         letGo()
         const next = createAudioPlayer(
           { uri },
-          { updateInterval: TICK_MS, keepAudioSessionActive: true },
+          {
+            updateInterval: TICK_MS,
+            keepAudioSessionActive: true,
+            preferredForwardBufferDuration: PREVIEW_BUFFER_S,
+          },
         )
         subscription = next.addListener('playbackStatusUpdate', report)
         player = next

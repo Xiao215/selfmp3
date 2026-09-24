@@ -22,6 +22,7 @@ export function listenAddresses(host: string, port: number): ListenAddress[] {
   for (const found of Object.values(os.networkInterfaces())) {
     for (const address of found ?? []) {
       if (address.family !== 'IPv4' || address.internal) continue
+      if (isTranslatorAddress(address.address)) continue
       // Tailscale hands out addresses in 100.64.0.0/10 — worth calling out,
       // since that is the one that works from your phone anywhere.
       const tailscale = /^100\.(6[4-9]|[7-9]\d|1[0-1]\d|12[0-7])\./.test(address.address)
@@ -29,6 +30,20 @@ export function listenAddresses(host: string, port: number): ListenAddress[] {
     }
   }
   return addresses
+}
+
+/**
+ * An IPv4 address that exists only so this computer can speak IPv4 on a
+ * network that has none.
+ *
+ * On an IPv6-only Wi-Fi, macOS gives itself 192.0.0.2 (RFC 7335's 192.0.0.0/29)
+ * and translates through it. Nothing else on the network can reach it — the
+ * phone beside the laptop has the very same address for itself — so publishing
+ * it as "the Wi-Fi address" sends every device to a door that is not there,
+ * and leaves the tunnel as the only way in from the same room.
+ */
+export function isTranslatorAddress(ip: string): boolean {
+  return /^192\.0\.0\.[0-7]$/.test(ip)
 }
 
 /** As many as a snapshot will carry (`CloudServerSchema`). */

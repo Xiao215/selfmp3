@@ -281,7 +281,7 @@ describe('reading a file', () => {
     const response = await h.call(`/v1/files/${SONG}`, { token })
     expect(response.status).toBe(502)
     const body = await error(response)
-    expect(body.code).toBe('bucket_error')
+    expect(body.code).toBe('bucket_cap_exceeded')
     expect(body.error).toBe(
       "Backblaze says “Transaction cap exceeded”: the bucket's allowance for today is used up. " +
         'Raise it under Caps & Alerts at backblaze.com, or wait — caps reset at midnight Pacific time.',

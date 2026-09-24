@@ -74,7 +74,7 @@ interface BucketObject {
  * Why a request to the bucket failed, in terms of what to do about it — the
  * same kinds, and the same words, as the server's `CloudError`.
  */
-export type BucketErrorKind = 'auth' | 'network' | 'missing' | 'other'
+export type BucketErrorKind = 'auth' | 'network' | 'missing' | 'cap' | 'other'
 
 export class BucketError extends Error {
   readonly kind: BucketErrorKind
@@ -330,7 +330,7 @@ export class Bucket {
       // as a refused key, a day's worth of imports looked like a lost key.
       if (message && /cap exceeded/i.test(message)) {
         return new BucketError(
-          'other',
+          'cap',
           `Backblaze says “${this.#describe(status, null, message)}”: the bucket's allowance ` +
             'for today is used up. Raise it under Caps & Alerts at backblaze.com, or wait — ' +
             'caps reset at midnight Pacific time.',

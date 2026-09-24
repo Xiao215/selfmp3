@@ -97,6 +97,7 @@ describe('DoormanClient', () => {
       [json({ error: 'nope', code: 'unauthorized' }, 401), 'auth', /Sign in again/],
       [json({ error: 'no bucket', code: 'conflict' }, 409), 'missing', /No bucket/],
       [json({ error: 'The bucket refused the key.', code: 'x' }, 422), 'other', /refused the key/],
+      [json({ error: 'Backblaze says “cap”.', code: 'bucket_cap_exceeded' }, 502), 'cap', /cap/],
     ]
     for (const [response, kind, text] of answers) {
       const { client } = stand(() => response)

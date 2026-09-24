@@ -777,7 +777,8 @@ export class CloudSyncService {
           await this.#uploadSongFiles(store, file, states.get(file.id) ?? null, signatures)
           settled.push(file)
         } catch (error) {
-          // Offline, a refused key, no bucket: nothing else will work either.
+          // Offline, a refused key, no bucket, a used-up cap: nothing else
+          // will work either, and every try against a cap is one more call.
           if (error instanceof CloudError && error.kind !== 'other') throw error
           failed++
           this.#lastError = `${file.title}: ${message(error)}`
@@ -947,6 +948,9 @@ export class CloudSyncService {
     const store = this.#store
     const sync = this.#deps.sync
     if (!store || !sync || this.#running || this.#stopped) return
+    // A pass is already coming back on its own: a look now is a listing
+    // spent against a bucket that has just refused one.
+    if (this.#retry) return
     try {
       const own = this.#deviceId()
       const keys = (await store.list(LOG_FOLDER)).map(object => object.key)

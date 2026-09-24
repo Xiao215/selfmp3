@@ -1676,6 +1676,25 @@ describe('CloudSyncService', () => {
       expect(latest().songs).toHaveLength(2)
     })
 
+    it('stops at the first song a used-up cap refuses, and comes back once the cap is lifted', async () => {
+      addSong('A - One', 'one')
+      addSong('B - Two', 'two')
+      const capped = new CloudError('cap', 'Backblaze says “Transaction cap exceeded”.')
+      bucket.refused.set(`audio/${sha('one')}.m4a`, capped)
+      bucket.refused.set(`audio/${sha('two')}.m4a`, capped)
+      await connect()
+      expect(sync.status()).toMatchObject({ state: 'error', songs: { inCloud: 0 } })
+      expect(sync.status().lastError).toMatch(/cap exceeded/)
+      // The second song was never tried: every try against a cap is one more call.
+      expect(bucket.puts.filter(key => key.startsWith('audio/'))).toHaveLength(1)
+
+      bucket.refused.clear()
+      await vi.waitFor(
+        () => expect(sync.status()).toMatchObject({ state: 'idle', songs: { inCloud: 2 } }),
+        { timeout: 5_000 },
+      )
+    })
+
     it('comes back by itself for a song the bucket refused, until the bucket takes it', async () => {
       addSong('A - One', 'one')
       addSong('B - Two', 'two')

@@ -102,7 +102,7 @@ export class DoormanClient {
 
     if (response.ok || (options.allow404 && response.status === 404)) return response
 
-    const message = await explain(response)
+    const { message, code } = await explain(response)
     if (response.status === 401) {
       throw new CloudError(
         'auth',
@@ -112,6 +112,9 @@ export class DoormanClient {
     if (response.status === 409) {
       throw new CloudError('missing', 'No bucket is connected to this Google account yet.')
     }
+    // The doorman's own word for a used-up cap, so a pass stops at the first
+    // refusal rather than trying every song against it.
+    if (code === 'bucket_cap_exceeded') throw new CloudError('cap', message)
     throw new CloudError('other', message)
   }
 }
@@ -125,11 +128,11 @@ const QUOTED_BYTES = 200
  * said nothing about why, so whatever text the page holds is quoted instead,
  * tags stripped: "error code: 1027" is the whole diagnosis.
  */
-async function explain(response: Response): Promise<string> {
+async function explain(response: Response): Promise<{ message: string; code: string | null }> {
   const text = await response.text().catch(() => '')
   try {
     const parsed = ErrorBodySchema.safeParse(JSON.parse(text))
-    if (parsed.success) return parsed.data.error
+    if (parsed.success) return { message: parsed.data.error, code: parsed.data.code ?? null }
   } catch {
     // Not JSON: not the doorman's answer.
   }
@@ -138,9 +141,12 @@ async function explain(response: Response): Promise<string> {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, QUOTED_BYTES)
-  return words
-    ? `the doorman answered ${response.status}: ${words}`
-    : `the doorman answered ${response.status}`
+  return {
+    message: words
+      ? `the doorman answered ${response.status}: ${words}`
+      : `the doorman answered ${response.status}`,
+    code: null,
+  }
 }
 
 /** The bucket, through the doorman. Keys are relative to the bucket's folder, as ever. */

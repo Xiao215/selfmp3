@@ -74,6 +74,7 @@ const BUCKET_CODES: Readonly<Record<BucketErrorKind, string>> = {
   auth: 'bucket_refused_key',
   missing: 'no_such_bucket',
   network: 'bucket_unreachable',
+  cap: 'bucket_cap_exceeded',
   other: 'bucket_error',
 }
 

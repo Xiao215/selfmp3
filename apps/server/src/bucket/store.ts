@@ -52,9 +52,11 @@ export interface CloudStore {
 /**
  * Why a bucket operation failed, in terms of what to do about it:
  * `auth` — the key is wrong or not allowed; `network` — the bucket could not
- * be reached; `missing` — no such bucket; `other` — anything else.
+ * be reached; `missing` — no such bucket; `cap` — the account's allowance for
+ * the day is used up, so nothing else will get through either; `other` —
+ * anything else.
  */
-type CloudErrorKind = 'auth' | 'network' | 'missing' | 'other'
+type CloudErrorKind = 'auth' | 'network' | 'missing' | 'cap' | 'other'
 
 export class CloudError extends Error {
   readonly kind: CloudErrorKind
@@ -230,6 +232,7 @@ export class S3CloudStore implements CloudStore {
         `There is no bucket called “${this.#connection.bucket}” at ${host}.`,
       )
     }
+    const said = error instanceof Error ? error.message : ''
     if (
       status === 401 ||
       status === 403 ||
@@ -241,6 +244,15 @@ export class S3CloudStore implements CloudStore {
         'Forbidden',
       ].includes(name)
     ) {
+      // Backblaze answers a used-up daily cap with the same 403 a wrong key
+      // gets, and says which only in its message.
+      if (/cap exceeded/i.test(said)) {
+        return new CloudError(
+          'cap',
+          `Backblaze says “${said}”: the bucket's allowance for today is used up. Raise it ` +
+            'under Caps & Alerts at backblaze.com, or wait — caps reset at midnight Pacific time.',
+        )
+      }
       return new CloudError(
         'auth',
         `The bucket refused the key${name ? ` (${name})` : ''}. Check the key ID and the ` +

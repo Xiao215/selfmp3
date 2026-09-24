@@ -99,6 +99,7 @@ const item = (n: number, title: string, alreadyHave = false) => ({
   duration: 240,
   thumbnail: null,
   alreadyHave,
+  waitingToUpload: false,
 })
 
 const draw = async (): Promise<void> => {

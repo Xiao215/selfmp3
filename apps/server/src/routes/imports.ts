@@ -22,7 +22,12 @@ import {
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
-import { buildImportPreview, resolveImportPlaylist } from '../services/importPreview.js'
+import {
+  buildImportPreview,
+  have,
+  resolveImportPlaylist,
+  waitingToUpload,
+} from '../services/importPreview.js'
 import { alreadyHave, normaliseUrl, sourceUrlIndex } from '../services/alreadyHave.js'
 import { isCoverUrl } from '../services/previewCoverTone.js'
 
@@ -120,7 +125,14 @@ export function importRoutes(container: Container): Router {
     route({ body: AlreadyHaveRequestSchema }, ({ body }): AlreadyHaveResponse => {
       const library = container.songs.all()
       const knownLinks = sourceUrlIndex(library)
-      return { have: body.tracks.map(track => alreadyHave(track, library, knownLinks) !== null) }
+      const waiting = waitingToUpload(container)
+      const answers = body.tracks.map(track =>
+        have(alreadyHave(track, library, knownLinks), waiting),
+      )
+      return {
+        have: answers.map(answer => answer.alreadyHave),
+        waiting: answers.map(answer => answer.waitingToUpload),
+      }
     }),
   )
 

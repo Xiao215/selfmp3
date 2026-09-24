@@ -63,12 +63,22 @@ export class YouTubeMusicLists {
   /**
    * A playlist's songs. Each row names its own artist, album and cover; the
    * page only names the playlist.
+   *
+   * An album's own playlist — the `OLAK5uy_…` list a `watch?v=…&list=` link
+   * from an album carries — is answered with rows and no header at all, and
+   * used to be handed to yt-dlp for that, whose listing has no album: the
+   * review showed the album's songs with the album column blank, and the
+   * songs arrived with one. Its rows each name the album they are from, and
+   * the album's own page has the title, artist, cover and count.
    */
   async playlist(playlistId: string): Promise<SongList | null> {
     const page = await this.#api.post('browse', { browseId: `VL${playlistId}` })
     if (!page) return null
     const header = pageHeader(page)
-    if (!header.title) return null
+    if (!header.title) {
+      const albumId = albumIdIn(page)
+      return albumId ? this.album(albumId) : null
+    }
     const tracks = rows(page, {})
     if (tracks.length === 0) return null
     return { title: header.title, tracks, complete: whole(header, tracks) }
@@ -129,6 +139,7 @@ interface Run {
   readonly text?: unknown
   readonly navigationEndpoint?: {
     readonly browseEndpoint?: {
+      readonly browseId?: unknown
       readonly browseEndpointContextSupportedConfigs?: {
         readonly browseEndpointContextMusicConfig?: { readonly pageType?: unknown }
       }
@@ -144,6 +155,20 @@ function runsOf(value: unknown): Run[] {
 function pageTypeOf(run: Run): unknown {
   return run.navigationEndpoint?.browseEndpoint?.browseEndpointContextSupportedConfigs
     ?.browseEndpointContextMusicConfig?.pageType
+}
+
+/** The album the page's rows are from, by the first row that names one. */
+function albumIdIn(page: unknown): string | null {
+  for (const item of findAll(page, 'musicResponsiveListItemRenderer')) {
+    for (const column of findAll(item, 'musicResponsiveListItemFlexColumnRenderer')) {
+      for (const run of runsOf((column as { text?: unknown }).text)) {
+        if (pageTypeOf(run) !== 'MUSIC_PAGE_TYPE_ALBUM') continue
+        const id = run.navigationEndpoint?.browseEndpoint?.browseId
+        if (typeof id === 'string' && id.startsWith('MPREb_')) return id
+      }
+    }
+  }
+  return null
 }
 
 /** The names in a text block that lead to an artist's page. */

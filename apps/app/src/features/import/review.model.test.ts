@@ -24,6 +24,7 @@ const item = (n: number, extra: Partial<ImportPreviewItem> = {}): ImportPreviewI
   duration: 200,
   thumbnail: `https://i.test/${n}.jpg`,
   alreadyHave: false,
+  waitingToUpload: false,
   ...extra,
 })
 

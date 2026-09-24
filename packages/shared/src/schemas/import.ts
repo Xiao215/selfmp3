@@ -71,8 +71,15 @@ export const ImportPreviewItemSchema = z.object({
   album: z.string(),
   duration: z.number().nonnegative(),
   thumbnail: z.string().nullable(),
-  /** True when a song with the same title+artist is already in the library. */
+  /** True when the library already has this song: the same link, or the same name and length. */
   alreadyHave: z.boolean(),
+  /**
+   * True when the song counted as yours is on the server that answered but not
+   * yet in its bucket — imported, but its upload has not gone through. A
+   * library read from the bucket does not show it yet; a second download would
+   * only make a copy, and the server keeps sending it up by itself.
+   */
+  waitingToUpload: z.boolean(),
 })
 export type ImportPreviewItem = z.infer<typeof ImportPreviewItemSchema>
 
@@ -105,6 +112,8 @@ export type AlreadyHaveRequest = z.infer<typeof AlreadyHaveRequestSchema>
 export const AlreadyHaveResponseSchema = z.object({
   /** One answer per track asked about, in order. */
   have: z.array(z.boolean()),
+  /** Per track, whether the song it has is still waiting to upload (`ImportPreviewItem`). */
+  waiting: z.array(z.boolean()),
 })
 export type AlreadyHaveResponse = z.infer<typeof AlreadyHaveResponseSchema>
 export type ImportPreview = z.infer<typeof ImportPreviewSchema>

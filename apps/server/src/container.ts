@@ -318,7 +318,10 @@ export function createContainer(configured: Config): Container {
     imports,
     sync: syncRepo,
     resolve: url =>
-      buildImportPreview({ ytdlp, songs, youtubeMusicArtists, youtubeMusicLists }, url),
+      buildImportPreview(
+        { ytdlp, songs, cloudRepo, cloudSync, youtubeMusicArtists, youtubeMusicLists },
+        url,
+      ),
     kickQueue: () => importQueue.kick(),
     changed: () => cloudSync.kick(),
     logger,

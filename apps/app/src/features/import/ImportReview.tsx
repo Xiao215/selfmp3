@@ -481,9 +481,18 @@ interface RowProps {
   readonly onPlay: (index: number) => void
 }
 
-/** What a row says at its end: "In library", or how long the song is. */
+/**
+ * What a row says at its end: "In library", or how long the song is. A song
+ * the server has but the bucket does not yet is "On your server": the library
+ * this device reads will not show it until the upload goes through, and a
+ * second download would only make a copy.
+ */
 function EndWords({ item, state }: { item: ImportPreviewItem; state: RowState }): ReactNode {
-  if (state === 'yours') return <Text style={styles.endQuiet}>In library</Text>
+  if (state === 'yours') {
+    return (
+      <Text style={styles.endQuiet}>{item.waitingToUpload ? 'On your server' : 'In library'}</Text>
+    )
+  }
   return item.duration > 0 ? (
     <Text style={styles.endTime}>{formatDuration(item.duration)}</Text>
   ) : null

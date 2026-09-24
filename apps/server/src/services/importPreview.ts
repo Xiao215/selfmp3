@@ -13,6 +13,8 @@ import { HttpError } from '../http/errors.js'
 import { alreadyHave, sourceUrlIndex } from './alreadyHave.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
+import type { CloudRepository } from '../repositories/cloud.js'
+import type { CloudSyncService } from './cloudSync.js'
 import type { ProbedTrack, YtDlpService } from './ytdlp.js'
 import type { YouTubeMusicArtists } from './youtubeMusicArtist.js'
 import type { SongList, YouTubeMusicLists } from './youtubeMusicLists.js'
@@ -20,6 +22,8 @@ import type { SongList, YouTubeMusicLists } from './youtubeMusicLists.js'
 type PreviewDeps = {
   ytdlp: Pick<YtDlpService, 'status' | 'probe'>
   songs: Pick<SongRepository, 'all'>
+  cloudRepo: Pick<CloudRepository, 'states'>
+  cloudSync: Pick<CloudSyncService, 'connected'>
   youtubeMusicArtists: Pick<YouTubeMusicArtists, 'topSongs'>
   youtubeMusicLists: Pick<YouTubeMusicLists, 'songs' | 'album' | 'playlist'>
 }
@@ -53,6 +57,7 @@ export async function buildImportPreview(deps: PreviewDeps, text: string): Promi
    */
   const library = deps.songs.all()
   const knownLinks = sourceUrlIndex(library)
+  const waiting = waitingToUpload(deps)
 
   const items: ImportPreviewItem[] = []
   let kind: 'single' | 'playlist' = 'single'
@@ -72,13 +77,39 @@ export async function buildImportPreview(deps: PreviewDeps, text: string): Promi
         album: track.album,
         duration: track.duration,
         thumbnail: track.thumbnail,
-        alreadyHave: alreadyHave(track, library, knownLinks) !== null,
+        ...have(alreadyHave(track, library, knownLinks), waiting),
       })
     }
   }
 
   if (urls.length > 1) kind = 'playlist'
   return { kind, playlistTitle, items }
+}
+
+/**
+ * Which songs are yours but not yet where every device reads — on this server,
+ * waiting to upload.
+ *
+ * "In library" was the answer for any song this server held, and a song whose
+ * upload the bucket refused is one: the phone's library, read from the bucket,
+ * did not show it, the queue row that said so had been cleared, and the same
+ * link pasted again said the song was already there. It is; just not there.
+ * Without a bucket this server's library is the library, and nothing waits.
+ */
+export function waitingToUpload(
+  deps: Pick<PreviewDeps, 'cloudRepo' | 'cloudSync'>,
+): (song: { id: number }) => boolean {
+  if (!deps.cloudSync.connected) return () => false
+  const inBucket = new Set(deps.cloudRepo.states().keys())
+  return song => !inBucket.has(song.id)
+}
+
+/** A preview row's two answers about the library, from the song it has or none. */
+export function have(
+  song: { id: number } | null,
+  waiting: (song: { id: number }) => boolean,
+): Pick<ImportPreviewItem, 'alreadyHave' | 'waitingToUpload'> {
+  return { alreadyHave: song !== null, waitingToUpload: song !== null && waiting(song) }
 }
 
 /**

@@ -60,16 +60,17 @@ const ARTIST = 0.75
 const SECONDS = 6
 
 /**
- * The library's source links, for the exact half of the check.
+ * The library's source links, each with its song, for the exact half of the
+ * check.
  *
- * A set rather than a scan: the preview asks this once per track and a library
+ * A map rather than a scan: the preview asks this once per track and a library
  * is thousands of rows.
  */
-export function sourceUrlIndex(songs: readonly LibrarySong[]): ReadonlySet<string> {
-  const urls = new Set<string>()
+export function sourceUrlIndex<T extends LibrarySong>(songs: readonly T[]): ReadonlyMap<string, T> {
+  const urls = new Map<string, T>()
   for (const song of songs) {
     const url = normaliseUrl(song.sourceUrl)
-    if (url) urls.add(url)
+    if (url && !urls.has(url)) urls.set(url, song)
   }
   return urls
 }
@@ -88,17 +89,18 @@ export function normaliseUrl(raw: string | null | undefined): string | null {
 }
 
 /**
- * Whether the library already holds this track, and why — the reason is what
- * the row says out loud, because "you have this" is easier to trust when it
- * says whether it recognised the link or only the name.
+ * The song the library already holds for this track, or null. The song
+ * itself rather than a yes: which one it is says where it is — on this
+ * server only, or in the bucket every device reads.
  */
-export function alreadyHave(
+export function alreadyHave<T extends LibrarySong>(
   track: IncomingTrack,
-  songs: readonly LibrarySong[],
-  urls: ReadonlySet<string> = sourceUrlIndex(songs),
-): 'link' | 'name' | null {
+  songs: readonly T[],
+  urls: ReadonlyMap<string, T> = sourceUrlIndex(songs),
+): T | null {
   const url = normaliseUrl(track.url)
-  if (url && urls.has(url)) return 'link'
+  const linked = url ? urls.get(url) : undefined
+  if (linked) return linked
 
   const title = cleanTitle(track.title)
   if (!title.trim()) return null
@@ -112,7 +114,7 @@ export function alreadyHave(
       if (similarity(artist, cleanArtist(song.artist)) < ARTIST) continue
     }
     if (!withinLength(track.duration, song.duration)) continue
-    return 'name'
+    return song
   }
   return null
 }

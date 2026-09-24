@@ -25,12 +25,12 @@ export function useRefreshReview(
     if (!review || review.items.length === 0) return undefined
     api
       .importAlreadyHave(review.items)
-      .then(({ have }) => {
+      .then(({ have, waiting }) => {
         if (stale) return
         // Against the draft as it is now: a tick taken off meanwhile stays off.
         const current = draftFor(key).review
         if (!current) return
-        const next = refreshAlreadyHave(current, have)
+        const next = refreshAlreadyHave(current, have, waiting)
         if (next !== current) patchDraft(key, { review: next })
       })
       .catch(() => undefined)

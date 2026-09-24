@@ -61,6 +61,7 @@ const item = {
   duration: 213,
   thumbnail: null,
   alreadyHave: false,
+  waitingToUpload: false,
 }
 const single: ImportPreview = { kind: 'single', playlistTitle: null, items: [item] }
 const hit = {

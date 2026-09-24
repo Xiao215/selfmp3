@@ -40,6 +40,7 @@ describe('reducing a link to what identifies it', () => {
 })
 
 describe('recognising a track the library already holds', () => {
+  // The answer is the song itself: the preview says where it is, not only that it is.
   const library = [
     song('夜に駆ける', 'YOASOBI', {
       duration: 261,
@@ -61,7 +62,7 @@ describe('recognising a track the library already holds', () => {
         library,
         urls,
       ),
-    ).toBe('link')
+    ).toBe(library[0])
   })
 
   it('the real thing: the artist spelled two ways on two different days', () => {
@@ -73,7 +74,7 @@ describe('recognising a track the library already holds', () => {
         library,
         urls,
       ),
-    ).toBe('name')
+    ).toBe(library[1])
   })
 
   it('ignores the noise a video title carries', () => {
@@ -87,7 +88,7 @@ describe('recognising a track the library already holds', () => {
         library,
         urls,
       ),
-    ).toBe('name')
+    ).toBe(library[2])
   })
 
   it('lets a genuinely different song through', () => {
@@ -106,18 +107,18 @@ describe('recognising a track the library already holds', () => {
   it('accepts a few seconds between two uploads of one song', () => {
     expect(
       alreadyHave({ title: '夜に駆ける', artist: 'YOASOBI', duration: 258 }, library, urls),
-    ).toBe('name')
+    ).toBe(library[0])
   })
 
   it('does not weigh a length neither side knows', () => {
     expect(alreadyHave({ title: 'Hunch Gray (Live)', artist: 'ZUTOMAYO' }, library, urls)).toBe(
-      'name',
+      library[1],
     )
   })
 
   it('matches on title alone when one side has no artist', () => {
     expect(alreadyHave({ title: 'Get Lucky', artist: '', duration: 369 }, library, urls)).toBe(
-      'name',
+      library[2],
     )
   })
 
@@ -127,7 +128,7 @@ describe('recognising a track the library already holds', () => {
 
   it('works without a prebuilt index', () => {
     expect(alreadyHave({ title: '夜に駆ける', artist: 'YOASOBI', duration: 261 }, library)).toBe(
-      'name',
+      library[0],
     )
   })
 })
@@ -139,9 +140,11 @@ describe('the cases the migrate matcher used to own', () => {
   const getLucky = { title: 'Get Lucky', artist: 'Daft Punk' }
 
   it('matches fuzzily on title and artist', () => {
-    expect(alreadyHave(getLucky, library)).toBe('name')
-    expect(alreadyHave({ ...getLucky, title: 'get lucky (feat. Pharrell)' }, library)).toBe('name')
-    expect(alreadyHave({ ...getLucky, artist: 'daft punk & pharrell' }, library)).toBe('name')
+    expect(alreadyHave(getLucky, library)).toBe(library[0])
+    expect(alreadyHave({ ...getLucky, title: 'get lucky (feat. Pharrell)' }, library)).toBe(
+      library[0],
+    )
+    expect(alreadyHave({ ...getLucky, artist: 'daft punk & pharrell' }, library)).toBe(library[0])
   })
 
   it('does not match the same title by a different artist', () => {
@@ -149,8 +152,8 @@ describe('the cases the migrate matcher used to own', () => {
   })
 
   it('matches on title alone when either side has no artist', () => {
-    expect(alreadyHave({ title: 'Hello', artist: 'Adele' }, library)).toBe('name')
-    expect(alreadyHave({ title: 'Creep', artist: '' }, library)).toBe('name')
+    expect(alreadyHave({ title: 'Hello', artist: 'Adele' }, library)).toBe(library[2])
+    expect(alreadyHave({ title: 'Creep', artist: '' }, library)).toBe(library[1])
     expect(alreadyHave({ title: 'Around the World', artist: '' }, library)).toBeNull()
   })
 })

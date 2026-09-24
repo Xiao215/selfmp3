@@ -98,17 +98,23 @@ export function reviewFrom(preview: ImportPreview): Review {
  * have had the link been looked up now. The same review comes back when
  * nothing changed, so a screen can tell.
  */
-export function refreshAlreadyHave(review: Review, have: readonly boolean[]): Review {
+export function refreshAlreadyHave(
+  review: Review,
+  have: readonly boolean[],
+  waiting: readonly boolean[] = [],
+): Review {
   if (have.length !== review.items.length) return review
   let changed = false
   const chosen = new Set(review.chosen)
   const items = review.items.map((item, index) => {
     const now = have[index] ?? item.alreadyHave
-    if (now === item.alreadyHave) return item
+    // A song of yours that has since reached the bucket says so, and the row's tick is not in question.
+    const waits = now && (waiting[index] ?? item.waitingToUpload)
+    if (now === item.alreadyHave && waits === item.waitingToUpload) return item
     changed = true
     if (now) chosen.delete(index)
     else chosen.add(index)
-    return { ...item, alreadyHave: now }
+    return { ...item, alreadyHave: now, waitingToUpload: waits }
   })
   return changed ? { ...review, items, chosen } : review
 }

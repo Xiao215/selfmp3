@@ -89,7 +89,9 @@ function previewDeps(options: {
   search?: ProbedTrack[] | null
   /** What YouTube Music answers for any album or playlist page, or null for no answer. */
   list?: SongList | null
-  have?: { artist: string; title: string }[]
+  have?: { id?: number; artist: string; title: string }[]
+  /** The ids of `have` that are in the bucket; given, a bucket is connected. */
+  inBucket?: number[]
 }) {
   const probed: string[] = []
   const deps = {
@@ -102,7 +104,9 @@ function previewDeps(options: {
         return Promise.resolve({ kind: 'playlist' as const, playlistTitle: 'Top songs', tracks })
       },
     },
-    songs: { all: () => options.have ?? [] },
+    songs: { all: () => (options.have ?? []).map((song, index) => ({ id: index + 1, ...song })) },
+    cloudRepo: { states: () => new Map((options.inBucket ?? []).map(id => [id, {}])) },
+    cloudSync: { connected: options.inBucket !== undefined },
     youtubeMusicArtists: { topSongs: () => Promise.resolve(options.artist ?? null) },
     youtubeMusicLists: {
       songs: () => Promise.resolve(options.search ?? null),
@@ -239,6 +243,32 @@ describe('buildImportPreview with a search link', () => {
       ['夜に駆ける', '夜に駆ける', false],
       ['怪物', '', true],
     ])
+  })
+
+  it('says a song this server holds but the bucket does not is yours, and waiting to upload', async () => {
+    const { deps } = previewDeps({
+      search: [track('https://y.test/1', '夜に駆ける'), track('https://y.test/2', '怪物')],
+      have: [
+        { artist: 'YOASOBI', title: '夜に駆ける' },
+        { artist: 'YOASOBI', title: '怪物' },
+      ],
+      // The first is in the bucket; the second's upload has not gone through.
+      inBucket: [1],
+    })
+    const preview = await buildImportPreview(deps, search)
+    expect(preview.items.map(item => [item.alreadyHave, item.waitingToUpload])).toEqual([
+      [true, false],
+      [true, true],
+    ])
+  })
+
+  it("counts nothing as waiting without a bucket: this server's library is the library", async () => {
+    const { deps } = previewDeps({
+      search: [track('https://y.test/1', '夜に駆ける')],
+      have: [{ artist: 'YOASOBI', title: '夜に駆ける' }],
+    })
+    const preview = await buildImportPreview(deps, search)
+    expect(preview.items[0]).toMatchObject({ alreadyHave: true, waitingToUpload: false })
   })
 
   it('says so when YouTube Music does not answer', async () => {

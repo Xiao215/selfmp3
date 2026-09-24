@@ -243,6 +243,7 @@ describe('a kept review told again what the library has', () => {
     duration: 200,
     thumbnail: null,
     alreadyHave,
+    waitingToUpload: false,
   })
   const review = reviewFrom({
     kind: 'playlist',
@@ -259,6 +260,20 @@ describe('a kept review told again what the library has', () => {
   it('is the same review when nothing changed, or when the answer does not fit', () => {
     expect(refreshAlreadyHave(review, [true, false, false])).toBe(review)
     expect(refreshAlreadyHave(review, [true, false])).toBe(review)
+  })
+
+  it('says a song of yours reached the bucket, or is still waiting, without touching the ticks', () => {
+    const next = refreshAlreadyHave(review, [true, false, false], [true, false, false])
+    expect(next.items.map(i => i.waitingToUpload)).toEqual([true, false, false])
+    expect([...next.chosen].sort()).toEqual([1, 2])
+    expect(
+      refreshAlreadyHave(next, [true, false, false], [false, false, false]).items[0],
+    ).toMatchObject({ alreadyHave: true, waitingToUpload: false })
+    // A song no longer yours cannot be waiting either.
+    expect(refreshAlreadyHave(next, [false, false, false]).items[0]).toMatchObject({
+      alreadyHave: false,
+      waitingToUpload: false,
+    })
   })
 
   it('keeps a tick you took off yourself', () => {

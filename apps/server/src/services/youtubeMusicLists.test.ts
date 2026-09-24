@@ -177,6 +177,33 @@ describe('YouTubeMusicLists', () => {
     })
   })
 
+  it("reads an album's own playlist, answered without a header, from the album's page", async () => {
+    const asked: string[] = []
+    const lists = new YouTubeMusicLists(logger, (_url, init) => {
+      const { browseId } = JSON.parse(String(init?.body)) as { browseId: string }
+      asked.push(browseId)
+      if (browseId.startsWith('VL')) {
+        // Rows only: no header names the list, but each row names its album.
+        return answer({
+          contents: [
+            row('k_Z', [[{ text: 'Epilogue' }], [artist('YOASOBI')], [album('THE BOOK')]], '0:51'),
+          ],
+        })()
+      }
+      return answer({
+        header: header('THE BOOK', { artist: 'YOASOBI', count: '1 song • 1 minute' }),
+        contents: [row('k_Z', [[{ text: 'Epilogue' }], [], [{ text: '5.1M plays' }]], '0:51')],
+      })()
+    })
+    const result = await lists.playlist('OLAK5uy_kMq7')
+    expect(asked).toEqual(['VLOLAK5uy_kMq7', 'MPREb_1'])
+    expect(result?.title).toBe('THE BOOK')
+    expect(result?.complete).toBe(true)
+    expect(result?.tracks.map(t => [t.title, t.artist, t.album])).toEqual([
+      ['Epilogue', 'YOASOBI', 'THE BOOK'],
+    ])
+  })
+
   it('hands over a playlist it was answered only part of, and says so', async () => {
     const lists = new YouTubeMusicLists(
       logger,

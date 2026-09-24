@@ -54,9 +54,13 @@ export function createMediaUrl(transport: ApiTransport) {
      * this only answers where there is a server. It is here rather than in the
      * component that plays it because it is a route, and routes live in one
      * place — the same reason the phase 1 gate greps for stragglers.
+     *
+     * The token rides along as it does for a stream: the phone's player is
+     * handed the address and nothing else. Without it every preview through a
+     * server that asks for one was a 401 the player sat on without a word.
      */
     importListen: (url: string) =>
-      transport.url(`/api/import/listen?url=${encodeURIComponent(url)}`),
+      withParams(transport.url('/api/import/listen'), undefined, { url, ...media() }),
   }
 }
 

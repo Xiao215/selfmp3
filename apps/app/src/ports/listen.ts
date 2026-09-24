@@ -35,6 +35,14 @@ export const canListenHere = true
 
 /** How often the player says where it is: the bar moves four times a second. */
 const TICK_MS = 250
+/**
+ * How long a stream may stay silent after play is asked before it counts as
+ * failed. The server may hold a preview up to thirty seconds while it paces
+ * its requests to YouTube; a stream that has said nothing after this has
+ * gone wrong in a way the player does not always report — a refused address
+ * left one spinning for good.
+ */
+const SILENT_MS = 45_000
 
 /**
  * What the preview is doing, read from the player's report and from what was
@@ -58,17 +66,36 @@ export function createListenAudio(): ListenAudio | null {
   let asked: 'play' | 'pause' = 'pause'
   /** Which `play` the stream being opened is for; one opened for an earlier play is let go. */
   let opening = 0
+  /** Runs out when a stream asked to play has said nothing for `SILENT_MS`. */
+  let silence: ReturnType<typeof setTimeout> | null = null
 
   const tell = (state: ListenState): void => {
     for (const listener of listeners) listener(state)
+  }
+
+  const clearSilence = (): void => {
+    if (silence !== null) clearTimeout(silence)
+    silence = null
+  }
+  const watchSilence = (uri: string): void => {
+    clearSilence()
+    silence = setTimeout(() => {
+      silence = null
+      if (src !== uri || asked !== 'play') return
+      console.warn('preview said nothing for too long', uri)
+      player?.pause()
+      tell({ status: 'error', currentTime: 0, duration: NaN })
+    }, SILENT_MS)
   }
 
   const report = (status: AudioStatus): void => {
     if (src === null) return
     // The end of the song is a pause the player made for itself.
     if (status.didJustFinish) asked = 'pause'
+    const state = statusOf(status, asked)
+    if (state !== 'loading') clearSilence()
     tell({
-      status: statusOf(status, asked),
+      status: state,
       currentTime: status.currentTime,
       duration: status.duration > 0 ? status.duration : NaN,
     })
@@ -84,8 +111,8 @@ export function createListenAudio(): ListenAudio | null {
   /** Open the stream off the thread, then play it in a player of its own. */
   const open = (uri: string): void => {
     const mine = ++opening
-    preload({ uri }).then(
-      () => {
+    preload({ uri })
+      .then(() => {
         if (mine !== opening || src !== uri) {
           void clearPreloadedSource({ uri })
           return
@@ -98,12 +125,16 @@ export function createListenAudio(): ListenAudio | null {
         subscription = next.addListener('playbackStatusUpdate', report)
         player = next
         if (asked === 'play') next.play()
-      },
-      () => {
-        if (mine === opening && src === uri)
-          tell({ status: 'error', currentTime: 0, duration: NaN })
-      },
-    )
+      })
+      // Whatever failed — the stream, the player, the audio session refusing
+      // to start — is a preview that will not play, and the row says so
+      // rather than showing the wait for ever.
+      .catch((error: unknown) => {
+        console.warn('preview could not start', error)
+        if (mine !== opening || src !== uri) return
+        clearSilence()
+        tell({ status: 'error', currentTime: 0, duration: NaN })
+      })
   }
 
   return {
@@ -111,17 +142,20 @@ export function createListenAudio(): ListenAudio | null {
       src = uri
       asked = 'play'
       player?.pause()
+      watchSilence(uri)
       open(uri)
     },
     resume: () => {
       if (src === null) return
       asked = 'play'
+      watchSilence(src)
       // A player that failed does not recover; its stream is opened afresh.
       if (!player || player.currentStatus.playbackState === 'failed') open(src)
       else player.play()
     },
     pause: () => {
       asked = 'pause'
+      clearSilence()
       player?.pause()
     },
     seek: seconds => {
@@ -133,6 +167,7 @@ export function createListenAudio(): ListenAudio | null {
       asked = 'pause'
       src = null
       opening++
+      clearSilence()
       player?.pause()
     },
     subscribe: listener => {
@@ -142,6 +177,7 @@ export function createListenAudio(): ListenAudio | null {
     dispose: () => {
       opening++
       src = null
+      clearSilence()
       listeners.clear()
       letGo()
     },

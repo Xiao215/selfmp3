@@ -147,7 +147,7 @@ describe('Import review, on a phone', () => {
   it('counts every song but the one that is yours already', async () => {
     await draw()
     expect(screen.getByText('THE BOOK')).toBeTruthy()
-    expect(screen.getByText('Yours already')).toBeTruthy()
+    expect(screen.getByText('In library')).toBeTruthy()
     expect(screen.getByTestId('import-count').props['children']).toBe('2 of 3 in')
     expect(screen.getByText('Import 2 songs')).toBeTruthy()
     // A box for each song that can come in, ticked, and the head's over them;
@@ -163,7 +163,7 @@ describe('Import review, on a phone', () => {
     mockAlreadyHave.mockResolvedValue({ have: [false, false, false] })
     await draw()
 
-    await waitFor(() => expect(screen.queryByText('Yours already')).toBeNull())
+    await waitFor(() => expect(screen.queryByText('In library')).toBeNull())
     expect(screen.getByTestId('import-count').props['children']).toBe('3 of 3 in')
     expect(screen.getByText('Import 3 songs')).toBeTruthy()
     expect(screen.getByLabelText('Deselect アイドル')).toBeTruthy()

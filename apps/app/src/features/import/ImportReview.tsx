@@ -7,7 +7,6 @@ import { useMutation } from '@tanstack/react-query'
 import { formatDuration, type ImportPreviewItem } from '@selfmp3/shared'
 import {
   ApiError,
-  fonts,
   HIT_TARGET,
   radius,
   withAlpha,
@@ -17,7 +16,8 @@ import {
 import { useFootInset } from '../../shell/bottomInset'
 import { useLayout } from '../../shell/useLayout'
 import { canListenHere } from '../../ports/listen'
-import { label as groupLabel, serif } from '../../ui/surfaces'
+import { label as groupLabel, pageTitle, serif } from '../../ui/surfaces'
+import { BackButton } from '../../ui/components/BackButton'
 import { Button } from '../../ui/components/Button'
 import { useBackTo } from '../../ui/components/BackRow'
 import { Checkbox } from '../../ui/components/Checkbox'
@@ -53,7 +53,7 @@ import {
  *
  * Every song starts ticked, and only ticked songs are imported: the box at the
  * left of a row takes it out and puts it back, and the one in the head does
- * that for every row. A song the library already has says "Yours already",
+ * that for every row. A song the library already has says "In library",
  * has no box, and is skipped. On a phone a tap plays the song and opens the
  * row in place once it is playing — its cover shows the wait meanwhile — to
  * hear it and fix its name, and a tap anywhere else closes it. On a computer
@@ -84,7 +84,7 @@ export function ImportReview({
   const key = draftSourceFor(via)
   const [draft, patchDraft] = useImportDraft(key)
   const { review, tagIds } = draft
-  // A kept review's "Yours already" is from when the link was looked up.
+  // A kept review's "In library" is from when the link was looked up.
   useRefreshReview(source.api, key, reviewUrls(review))
   const listen = useListen(via, source.api)
   const backTo = useBackTo()
@@ -267,24 +267,21 @@ export function ImportReview({
           accessible={false}
           style={styles.headPhone}
         >
-          <Pressable
-            onPress={() => {
-              listen.close()
-              backTo('/import')
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Back to Import"
-            hitSlop={12}
-            style={({ pressed }) => pressed && styles.pressed}
-          >
-            <Text style={styles.back}>Back</Text>
-          </Pressable>
-          <Text style={styles.namePhone} numberOfLines={1} accessibilityRole="header">
-            {reviewName(review)}
-          </Text>
-          <Text style={styles.count} testID="import-count">
-            {countLabel(review, false)}
-          </Text>
+          {/*
+           * The head every page opened from another has on a phone: the round
+           * ‹ at the left (`BackButton`, as Import's own head), the name as
+           * the page's title, and the count under it. The draft keeps the
+           * review, and the preview stops with the page.
+           */}
+          <BackButton to="/import" label="Import" testID="import-review-back" />
+          <View style={styles.namesPhone}>
+            <Text style={styles.namePhone} numberOfLines={1} accessibilityRole="header">
+              {reviewName(review)}
+            </Text>
+            <Text style={styles.count} testID="import-count">
+              {countLabel(review, false)}
+            </Text>
+          </View>
         </Pressable>
       )}
 
@@ -474,9 +471,9 @@ interface RowProps {
   readonly onPlay: (index: number) => void
 }
 
-/** What a row says at its end: "Yours already", or how long the song is. */
+/** What a row says at its end: "In library", or how long the song is. */
 function EndWords({ item, state }: { item: ImportPreviewItem; state: RowState }): ReactNode {
-  if (state === 'yours') return <Text style={styles.endQuiet}>Yours already</Text>
+  if (state === 'yours') return <Text style={styles.endQuiet}>In library</Text>
   return item.duration > 0 ? (
     <Text style={styles.endTime}>{formatDuration(item.duration)}</Text>
   ) : null
@@ -831,22 +828,18 @@ const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   scroll: { flex: 1 },
   pressed: { opacity: 0.6 },
+  // As Import's head: the button at the left, the words at the right, room above and below.
   headPhone: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
-    paddingTop: 6,
+    gap: 16,
+    paddingTop: 8,
+    paddingBottom: 14,
     paddingHorizontal: 20,
   },
-  back: { color: theme.colors.textSecondary, fontSize: 15, fontWeight: '600' },
-  namePhone: {
-    flex: 1,
-    textAlign: 'center',
-    color: theme.colors.textPrimary,
-    fontFamily: fonts.display,
-    fontSize: 17,
-  },
+  namesPhone: { flex: 1, alignItems: 'flex-end', gap: 2 },
+  namePhone: { ...pageTitle(theme.colors), textAlign: 'right' },
   count: { color: theme.colors.textSecondary, fontSize: 13, fontVariant: ['tabular-nums'] },
   headWide: {
     flexDirection: 'row',

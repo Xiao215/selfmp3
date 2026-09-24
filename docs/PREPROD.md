@@ -174,7 +174,7 @@ fetch(document.querySelector('script[src*="index-"]').src).then(r => r.text()).t
 | **Selection** | Tick the first song in the library | The bar takes a lane above the list; the ticked row is still readable | The bar covering the row you just ticked |
 | **Tag chips on a row** | Find a song with four tags, or one very long one | Chips that fit, then `+2`; nothing cut mid-chip or over the album column | |
 | **Server reach** | Open Import and Stats | The real form and real numbers, not "Your server isn't answering" | In DevTools → Network, which `api/health` answered: localhost at home, the `ts.net` address away |
-| **Import: already have it** | Paste a link to a song you own, in a *different* form (`youtu.be/…` for one imported from `music.youtube.com`) → Look it up | The row says *Yours already* and is not counted; the button says *Import 0 songs* | A row counted as coming in: it would download a copy |
+| **Import: already have it** | Paste a link to a song you own, in a *different* form (`youtu.be/…` for one imported from `music.youtube.com`) → Look it up | The row says *In library* and is not counted; the button says *Import 0 songs* | A row counted as coming in: it would download a copy |
 | **Import: a real one** | One short new song | Queue shows it downloading; it appears in the library here and on another device within about a minute | Stuck at 0% for more than two minutes; "needs a signed-in account" (Stage 1, YouTube) |
 | **Server off** | Stop the server, open Import | It says so plainly and offers *Add when the server wakes* | A spinner that never resolves |
 | **Appearance** | Drag the accent picker | Colour follows the drag with no stutter | |
@@ -357,7 +357,7 @@ it is ugly (open the row); add a tag. 4. Import. 5. Go back to the library and p
 **Proves it:** the queue row goes *waiting → downloading → N added* without a refresh; the
 song is at the top of Recently added here, **and on your other device, downloaded,
 within a minute**; Song details shows a tempo and a key, which means analysis ran.
-Then paste the same song's link in another form (`youtu.be/…`): *Yours already*,
+Then paste the same song's link in another form (`youtu.be/…`): *In library*,
 *Import 0 songs*.
 
 Use something short you do not mind having, or remove it after — journey 6.

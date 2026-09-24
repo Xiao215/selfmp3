@@ -8,10 +8,10 @@ import { enqueueRequest, type Review } from '@selfmp3/client'
  * Every song starts ticked, and only ticked songs are imported. The client's
  * `Review` already holds the songs coming in as `chosen`, so a row's checkbox
  * takes one from there and puts it back. A song the library already has is
- * never coming in and has no box — it is "Yours already", and skipped.
+ * never coming in and has no box — it is "In library", and skipped.
  */
 
-/** Whether a row is ticked, unticked, or "Yours already" with no box at all. */
+/** Whether a row is ticked, unticked, or "In library" with no box at all. */
 export type RowState = 'in' | 'yours' | 'out'
 
 export function rowState(review: Review, index: number): RowState {

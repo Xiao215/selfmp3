@@ -82,7 +82,7 @@ export function reviewFrom(preview: ImportPreview): Review {
 /**
  * A kept review told again which of its songs the library has now.
  *
- * "Yours already" is a fact about the library at the moment it is read, and
+ * "In library" is a fact about the library at the moment it is read, and
  * a draft outlives the reading: a song removed since is coming in after all,
  * and a song imported since (from a phone, say) is not. A row that becomes
  * yours loses its tick; a row that stops being yours gets one, as it would

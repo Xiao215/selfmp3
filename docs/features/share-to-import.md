@@ -13,7 +13,7 @@ YouTube Music or a browser and Chrome opens `/import?url=…&text=…&title=…`
 The Import page reads those parameters, pulls every `http(s)` link out of them (the
 YouTube app puts the link in `text`, after the title), prefills the field and immediately
 looks it up. You land on the review (`/import/review`), where every song starts ticked and
-only ticked songs are imported: a song you already have says *Yours already* and is skipped,
+only ticked songs are imported: a song you already have says *In library* and is skipped,
 the box at the left of a row unticks it and ticks it back (the head's box does that for all
 of them), and a song's title, artist and album can be fixed before *Import N songs*. The songs arrive with the tags chosen under *Tag it … as it arrives* on the Import
 page, plus any added under *Tag them* on the review. Importing only ever tags; it never
@@ -86,7 +86,7 @@ Shortcut.
 - The review is `apps/app/src/features/import/ImportReview.tsx`, a page of its own
   (`app/import/review.tsx`) that reads the looked-up link from the import draft
   (`importDraft.ts`), so Back keeps it and Import offers it again. What it does without
-  the screen — ticking and unticking, renaming, the counts, "Yours already", the request
+  the screen — ticking and unticking, renaming, the counts, "In library", the request
   with no playlist — is `review.model.ts`. The bar a song is heard with before importing
   (`ListenBar` in `ImportListen.tsx`) is a plain track, not a waveform: the audio is not
   downloaded yet.

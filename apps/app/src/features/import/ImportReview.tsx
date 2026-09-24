@@ -32,7 +32,13 @@ import { chooseAllIn, renameIn, toggleChosenIn, useImportDraft } from './importD
 import { draftSourceFor } from './importDraft.model'
 import { useImportSource } from './importSource'
 import { reviewUrls, useRefreshReview } from './useRefreshReview'
-import { canListen, listenDetail, listeningLeftReview, type Listening } from './listen.model'
+import {
+  canListen,
+  listenDetail,
+  listeningLeftReview,
+  waitingRowNext,
+  type Listening,
+} from './listen.model'
 import {
   chosenState,
   comingIn,
@@ -145,6 +151,8 @@ export function ImportReview({
     (index: number): void => {
       const item = latest.current.review?.items[index]
       if (!item) return
+      // A row waiting on another song is no longer waiting: this one took the player.
+      setOpening(null)
       setOpen(current => (current === index ? current : index))
       toggle(item)
     },
@@ -166,8 +174,13 @@ export function ImportReview({
         setOpen(index)
         return
       }
-      if (wide) setOpen(index)
-      else setOpening(index)
+      if (wide) {
+        setOpen(index)
+      } else {
+        // The open card, if any, was another song's, and that song stops now.
+        setOpen(null)
+        setOpening(index)
+      }
       toggle(item)
     },
     [toggle, wide],
@@ -182,15 +195,12 @@ export function ImportReview({
   useEffect(() => {
     if (opening === null) return
     const item = latest.current.review?.items[opening]
-    // Nothing playing means nothing to wait for: the row opens as it is.
-    if (!item || listeningUrl === null) {
-      setOpen(opening)
-      setOpening(null)
-      return
-    }
-    if (listeningUrl !== item.url || listeningStatus === 'loading') return
-    setOpen(opening)
+    const next = waitingRowNext(item?.url, listen.listening)
+    if (next === 'wait') return
     setOpening(null)
+    if (next === 'open') setOpen(opening)
+    // The preview's url and status are what decide; the object changes every tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opening, listeningUrl, listeningStatus])
   // Ticking is separate from hearing: an unticked song still plays and still
   // opens, so you can listen before deciding, and an open row stays open.

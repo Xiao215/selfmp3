@@ -89,3 +89,20 @@ export function seekAt(x: number, width: number, duration: number): number {
   if (!(width > 0) || !(duration > 0)) return 0
   return Math.max(0, Math.min(1, x / width)) * duration
 }
+
+/**
+ * What a phone row that was tapped and is waiting for its song should do now,
+ * given what the preview is playing: open, since its song plays (or failed,
+ * which the card says); keep waiting, since its song is still loading; or
+ * forget the wait, since the player was taken by another song — a second row
+ * tapped, or the first tapped again while this one was still loading — and
+ * this one is no longer coming. Nothing playing at all is nothing to wait for.
+ */
+export function waitingRowNext(
+  itemUrl: string | undefined,
+  listening: Pick<Listening, 'track' | 'status'> | null,
+): 'open' | 'wait' | 'forget' {
+  if (!itemUrl || listening === null) return 'open'
+  if (listening.track.url !== itemUrl) return 'forget'
+  return listening.status === 'loading' ? 'wait' : 'open'
+}

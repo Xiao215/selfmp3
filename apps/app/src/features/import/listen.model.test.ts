@@ -8,6 +8,7 @@ import {
   playedRatio,
   seekAt,
   startListening,
+  waitingRowNext,
 } from './listen.model'
 
 const track = {
@@ -93,5 +94,19 @@ describe('listening before importing', () => {
     expect(seekAt(-20, 200, 248)).toBe(0)
     expect(seekAt(260, 200, 248)).toBe(248)
     expect(seekAt(50, 0, 248)).toBe(0)
+  })
+
+  it('opens a waiting row once its song plays, waits while it loads, and forgets it when another song takes the player', () => {
+    const loading = startListening(track)
+    expect(waitingRowNext(track.url, loading)).toBe('wait')
+    expect(waitingRowNext(track.url, { ...loading, status: 'playing' })).toBe('open')
+    expect(waitingRowNext(track.url, { ...loading, status: 'error' })).toBe('open')
+    expect(waitingRowNext(track.url, null)).toBe('open')
+    expect(
+      waitingRowNext('https://www.youtube.com/watch?v=other000000', {
+        ...loading,
+        status: 'playing',
+      }),
+    ).toBe('forget')
   })
 })

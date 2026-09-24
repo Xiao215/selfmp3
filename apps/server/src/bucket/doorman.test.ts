@@ -111,6 +111,26 @@ describe('DoormanClient', () => {
     await expect(offline.me('t')).rejects.toMatchObject({ kind: 'network' })
   })
 
+  it('quotes an answer that is not the doorman’s, since the status alone says nothing', async () => {
+    // Cloudflare's own page, for a Worker past its day's quota: the doorman's code never ran.
+    const page =
+      '<!DOCTYPE html><html><head><title>Worker exceeded plan limits</title></head>' +
+      '<body><h1>Error 1027</h1><p>You cannot access this site because the owner has ' +
+      'reached their plan limits.</p></body></html>'
+    const { client } = stand(
+      () => new Response(page, { status: 502, headers: { 'content-type': 'text/html' } }),
+    )
+    const error = await client.me('t').catch((e: unknown) => e)
+    expect(error).toMatchObject({ kind: 'other' })
+    expect((error as Error).message).toBe(
+      'the doorman answered 502: Worker exceeded plan limits Error 1027 You cannot access this ' +
+        'site because the owner has reached their plan limits.',
+    )
+
+    const silent = stand(() => new Response('', { status: 502 })).client
+    await expect(silent.me('t')).rejects.toThrow('the doorman answered 502')
+  })
+
   describe('the bucket, through it', () => {
     it('encodes each part of a key and keeps the slashes', async () => {
       const { client, calls } = stand(() => new Response(null, { status: 404 }))

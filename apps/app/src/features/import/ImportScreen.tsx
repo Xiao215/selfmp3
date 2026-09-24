@@ -7,6 +7,7 @@ import { useMutation } from '@tanstack/react-query'
 import type { ImportJob, Tag } from '@selfmp3/shared'
 import {
   ApiError,
+  dismissable,
   finishedLabel,
   foldQueue,
   hasLink,
@@ -327,6 +328,7 @@ export function ImportScreen({
                 tags={tags}
                 onCancel={() => afterJob(api.cancelImport(job.id))}
                 onRetry={() => afterJob(api.retryImport(job.id))}
+                onDismiss={() => afterJob(api.dismissImport(job.id))}
               />
             ))}
           </View>
@@ -402,7 +404,11 @@ function arrivedLine(job: ImportJob, tags: readonly Tag[]): string {
   return names.length > 0 ? `In your library · tagged ${names.join(', ')}` : 'In your library'
 }
 
-/** Earlier today: the songs that arrived, a few at once, and a way to clear them. */
+/**
+ * Earlier today: the songs that arrived, a few at once, and a way to clear
+ * them. Clear takes these and nothing else — a row under Now that failed or
+ * was paused keeps its reason, its Retry and its own Dismiss.
+ */
 function Finished({
   jobs,
   tags,
@@ -477,17 +483,23 @@ function FoldAction({
   )
 }
 
-/** One download under Now: its cover, how it is going, and a thin line while it downloads. */
+/**
+ * One download under Now: its cover, how it is going, and a thin line while
+ * it downloads. A row that stopped — failed, or paused — offers Retry and,
+ * beside it, the same × a moving row has, here meaning off the list for good.
+ */
 function JobRow({
   job,
   tags,
   onCancel,
   onRetry,
+  onDismiss,
 }: {
   job: ImportJob
   tags: readonly Tag[]
   onCancel: () => void
   onRetry: () => void
+  onDismiss: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const tone = jobTone(job)
@@ -535,6 +547,15 @@ function JobRow({
             onPress={onRetry}
             accessibilityLabel={`Retry ${job.title || 'this import'}`}
           />
+        ) : null}
+        {dismissable(job) ? (
+          <IconButton
+            onPress={onDismiss}
+            label={`Dismiss ${job.title || 'this import'}`}
+            testID={`import-dismiss-${job.id}`}
+          >
+            <X size={15} color={theme.colors.textMuted} />
+          </IconButton>
         ) : null}
       </View>
       {/*

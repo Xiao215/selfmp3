@@ -23,6 +23,8 @@ export class MemoryCloudStore implements CloudStore {
   readonly gets: string[] = []
   /** While set, every operation fails with this. */
   failure: CloudError | null = null
+  /** Keys the bucket will not take, each with its reason: a full bucket refuses the next file, not the last. */
+  readonly refused = new Map<string, CloudError>()
 
   goOffline(): void {
     this.failure = new CloudError('network', 'Could not reach the bucket.')
@@ -58,6 +60,8 @@ export class MemoryCloudStore implements CloudStore {
   put(key: string, body: Buffer, options: CloudPutOptions): Promise<void> {
     return this.#answer(() => {
       this.puts.push(key)
+      const refusal = this.refused.get(key)
+      if (refusal) throw refusal
       this.objects.set(key, { body: Buffer.from(body), ...options })
     })
   }

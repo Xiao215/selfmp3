@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { gunzipSync, gzipSync } from 'node:zlib'
 import Database from 'better-sqlite3'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CloudSnapshotSchema,
   formatHlc,
@@ -174,6 +174,7 @@ describe('CloudSyncService', () => {
         return store
       },
       debounceMs: 5,
+      retryDelaysMs: [30],
       // A second apart per call, so every snapshot gets a name of its own.
       now: () => new Date((clock += 1000)),
     })
@@ -1672,6 +1673,27 @@ describe('CloudSyncService', () => {
       bucket.comeBack()
       await pass()
       expect(sync.status()).toMatchObject({ state: 'idle', lastError: null, songs: { inCloud: 2 } })
+      expect(latest().songs).toHaveLength(2)
+    })
+
+    it('comes back by itself for a song the bucket refused, until the bucket takes it', async () => {
+      addSong('A - One', 'one')
+      addSong('B - Two', 'two')
+      const audio = `audio/${sha('two')}.m4a`
+      // The bucket is full, or the doorman is past its day's quota: the
+      // first song goes up, the second is refused, and nothing about the
+      // library is going to change that.
+      bucket.refused.set(audio, new CloudError('other', 'the bucket is full'))
+      await connect()
+      expect(sync.status()).toMatchObject({ state: 'error', songs: { total: 2, inCloud: 1 } })
+      expect(sync.status().lastError).toMatch(/the bucket is full/)
+
+      bucket.refused.delete(audio)
+      await vi.waitFor(
+        () => expect(sync.status()).toMatchObject({ state: 'idle', lastError: null }),
+        { timeout: 5_000 },
+      )
+      expect(sync.status().songs).toMatchObject({ inCloud: 2 })
       expect(latest().songs).toHaveLength(2)
     })
 

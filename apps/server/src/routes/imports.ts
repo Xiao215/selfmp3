@@ -321,6 +321,17 @@ export function importRoutes(container: Container): Router {
     }),
   )
 
+  /** Dismiss: a failed or paused job, off the list for good. */
+  router.delete(
+    '/import/jobs/:id',
+    route({ params: ParamsWithJobId }, ({ params }) => {
+      if (!container.imports.dismiss(params.id)) {
+        throw HttpError.conflict('only a failed or paused job can be dismissed')
+      }
+      return { ok: true as const }
+    }),
+  )
+
   router.post(
     '/import/jobs/:id/retry',
     route({ params: ParamsWithJobId }, ({ params }) => {
@@ -346,6 +357,7 @@ export function importRoutes(container: Container): Router {
     route({}, () => ({ resumed: container.importQueue.resume() })),
   )
 
+  /** Clear: the finished jobs, and only those — what failed or was paused keeps its row. */
   router.post(
     '/import/clear',
     route({}, () => ({ cleared: container.imports.clearFinished() })),

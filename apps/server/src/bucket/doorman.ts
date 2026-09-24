@@ -102,8 +102,7 @@ export class DoormanClient {
 
     if (response.ok || (options.allow404 && response.status === 404)) return response
 
-    const parsed = ErrorBodySchema.safeParse(await response.json().catch(() => null))
-    const message = parsed.success ? parsed.data.error : `the doorman answered ${response.status}`
+    const message = await explain(response)
     if (response.status === 401) {
       throw new CloudError(
         'auth',
@@ -115,6 +114,33 @@ export class DoormanClient {
     }
     throw new CloudError('other', message)
   }
+}
+
+/** How much of an answer that is not the doorman's is worth repeating. */
+const QUOTED_BYTES = 200
+
+/**
+ * The doorman's own words, when the answer is the doorman's. When it is not —
+ * Cloudflare's page for a Worker past its day's quota, say — the status alone
+ * said nothing about why, so whatever text the page holds is quoted instead,
+ * tags stripped: "error code: 1027" is the whole diagnosis.
+ */
+async function explain(response: Response): Promise<string> {
+  const text = await response.text().catch(() => '')
+  try {
+    const parsed = ErrorBodySchema.safeParse(JSON.parse(text))
+    if (parsed.success) return parsed.data.error
+  } catch {
+    // Not JSON: not the doorman's answer.
+  }
+  const words = text
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, QUOTED_BYTES)
+  return words
+    ? `the doorman answered ${response.status}: ${words}`
+    : `the doorman answered ${response.status}`
 }
 
 /** The bucket, through the doorman. Keys are relative to the bucket's folder, as ever. */

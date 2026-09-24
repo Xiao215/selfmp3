@@ -19,6 +19,7 @@ jest.mock('expo-router', () => ({
 
 const mockPauseImports = jest.fn()
 const mockResumeImports = jest.fn()
+const mockDismissImport = jest.fn()
 const mockInvalidateQueue = jest.fn()
 const mockJobs: ImportJob[] = []
 jest.mock('./importSource', () => {
@@ -28,6 +29,7 @@ jest.mock('./importSource', () => {
       importPreview: () => Promise.reject(new Error('not looked up here')),
       pauseImports: () => mockPauseImports(),
       resumeImports: () => mockResumeImports(),
+      dismissImport: (id: string) => mockDismissImport(id),
     },
     library: { songs: [], tags: [], playlists: [] },
     tools: { ytdlp: true, ffmpeg: true },
@@ -91,6 +93,7 @@ describe('Import, the whole queue at once', () => {
   beforeEach(() => {
     mockPauseImports.mockReset().mockResolvedValue({ paused: 0 })
     mockResumeImports.mockReset().mockResolvedValue({ resumed: 0 })
+    mockDismissImport.mockReset().mockResolvedValue({ ok: true })
     mockInvalidateQueue.mockReset().mockResolvedValue(undefined)
   })
 
@@ -122,6 +125,25 @@ describe('Import, the whole queue at once', () => {
     })
 
     expect(mockResumeImports).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(mockInvalidateQueue).toHaveBeenCalledTimes(1))
+  })
+
+  it('lets a failed row be dismissed on its own, and offers no dismiss on a moving one', async () => {
+    await act(async () =>
+      draw(
+        job('one', { status: 'error', step: 'finished', error: 'Video unavailable' }),
+        job('two', { status: 'running', step: 'downloading', progress: 40 }),
+        job('three', {}),
+      ),
+    )
+    expect(screen.queryByTestId('import-dismiss-two')).toBeNull()
+    expect(screen.queryByTestId('import-dismiss-three')).toBeNull()
+
+    await act(async () => {
+      await fireEvent.press(screen.getByTestId('import-dismiss-one'))
+    })
+
+    expect(mockDismissImport).toHaveBeenCalledWith('one')
     await waitFor(() => expect(mockInvalidateQueue).toHaveBeenCalledTimes(1))
   })
 

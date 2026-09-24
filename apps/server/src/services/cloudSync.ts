@@ -207,6 +207,8 @@ interface CloudSyncDeps {
   readonly now?: () => Date
   readonly signInPollMs?: number
   readonly logPollMs?: number
+  /** How long a pass that did not get everything up waits before the next: a step per failure. */
+  readonly retryDelaysMs?: readonly number[]
 }
 
 export class CloudSyncService {
@@ -218,6 +220,7 @@ export class CloudSyncService {
   readonly #now: () => Date
   readonly #signInPollMs: number
   readonly #logPollMs: number
+  readonly #retryDelaysMs: readonly number[]
 
   /**
    * Called after a pass has applied other devices' changes, so the library
@@ -299,6 +302,7 @@ export class CloudSyncService {
     this.#now = deps.now ?? (() => new Date())
     this.#signInPollMs = deps.signInPollMs ?? SIGN_IN_POLL_MS
     this.#logPollMs = deps.logPollMs ?? LOG_POLL_MS
+    this.#retryDelaysMs = deps.retryDelaysMs ?? RETRY_DELAYS_MS
     if (deps.cloudDir) this.#useFolder(deps.cloudDir)
   }
 
@@ -802,9 +806,18 @@ export class CloudSyncService {
         this.#logger.info('cloud pass complete', { uploaded: changed.length - failed, failed })
       }
       this.#lastSyncAt = this.#now().toISOString()
-      this.#retryIndex = 0
-      this.#state = failed > 0 ? 'error' : 'idle'
-      if (failed === 0) this.#lastError = null
+      if (failed === 0) {
+        this.#retryIndex = 0
+        this.#state = 'idle'
+        this.#lastError = null
+      } else {
+        // The bucket refused some songs and took the rest: a full bucket, or
+        // a doorman past its day's quota. Nothing about the library will
+        // change that, so no kick is coming; the pass comes back by itself,
+        // as it would had the whole bucket been out of reach.
+        this.#state = 'error'
+        this.#tryAgainLater('some songs could not be uploaded')
+      }
     } catch (error) {
       if (generation !== this.#generation) return
       if (error instanceof CloudError && error.kind === 'auth' && this.#session) {
@@ -814,21 +827,28 @@ export class CloudSyncService {
       }
       this.#state = 'error'
       this.#lastError = message(error)
-      const delay =
-        RETRY_DELAYS_MS[Math.min(this.#retryIndex, RETRY_DELAYS_MS.length - 1)] ?? 60_000
-      this.#retryIndex++
-      this.#logger.warn('cloud pass failed, will try again', {
-        message: this.#lastError,
-        inSeconds: delay / 1000,
-      })
-      this.#retry = setTimeout(() => {
-        this.#retry = null
-        void this.#pass()
-      }, delay)
-      this.#retry.unref()
+      this.#tryAgainLater(this.#lastError)
     } finally {
       if (generation === this.#generation) this.#progress = null
     }
+  }
+
+  /** A pass that did not get everything up runs again, later each time it happens. */
+  #tryAgainLater(why: string): void {
+    if (this.#stopped) return
+    const delays = this.#retryDelaysMs
+    const delay = delays[Math.min(this.#retryIndex, delays.length - 1)] ?? 60_000
+    this.#retryIndex++
+    this.#logger.warn('cloud pass failed, will try again', {
+      message: why,
+      inSeconds: delay / 1000,
+    })
+    if (this.#retry) clearTimeout(this.#retry)
+    this.#retry = setTimeout(() => {
+      this.#retry = null
+      void this.#pass()
+    }, delay)
+    this.#retry.unref()
   }
 
   /**

@@ -295,13 +295,16 @@ export class ImportQueueService {
 
       if (uploading) {
         // Not a failed import: the song is in the library here. The cloud
-        // sync keeps trying, and marks this job done once the song is up.
+        // sync is woken so its next pass tries the song again — and again,
+        // later each time, until the bucket takes it (cloudSync.ts) — and
+        // marks this job done once the song is up.
         this.#logger.warn('imported, but not uploaded yet', { message, songId: current?.songId })
         this.#imports.update(job.id, {
           status: 'error',
           step: 'uploading',
           error: `Saved on this server, but not uploaded yet: ${message} It will upload by itself once the bucket can be reached.`,
         })
+        this.#cloud.kick()
         return
       }
 

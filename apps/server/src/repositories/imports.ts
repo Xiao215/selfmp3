@@ -92,13 +92,21 @@ export class ImportRepository {
 
     this.#byId = db.prepare<[string], ImportJobRow>('SELECT * FROM import_jobs WHERE id = ?')
 
-    // Active work first, then history. Old finished jobs are pruned elsewhere.
+    /*
+     * What needs a person before what does not, since the list is cut off at
+     * the caller's limit. Failed jobs come before waiting ones: a queue of
+     * three hundred songs with fifty that failed to upload showed only the
+     * queue, and the failures surfaced only once Pause all emptied it. Done
+     * jobs are history, and come last. Old finished jobs are pruned elsewhere.
+     */
     this.#recent = db.prepare<[number], ImportJobRow>(`
       SELECT * FROM import_jobs
       ORDER BY CASE status
-                 WHEN 'running' THEN 0
-                 WHEN 'queued'  THEN 1
-                 ELSE 2
+                 WHEN 'running'   THEN 0
+                 WHEN 'error'     THEN 1
+                 WHEN 'queued'    THEN 2
+                 WHEN 'cancelled' THEN 3
+                 ELSE 4
                END,
                position, created_at DESC
       LIMIT ?
@@ -300,11 +308,27 @@ export class ImportRepository {
       .run().changes
   }
 
-  /** Clear finished jobs the user has seen. */
+  /**
+   * Clear the jobs that added their song: the list "Clear" sits beside. A
+   * failed or paused job stays, with its reason and its Retry — Clear once
+   * took those too, and a person tidying the day's arrivals lost the paused
+   * half of their queue with them. Each has its own Dismiss (`dismiss`).
+   */
   clearFinished(): number {
-    return this.#db
-      .prepare("DELETE FROM import_jobs WHERE status IN ('done','error','cancelled')")
-      .run().changes
+    return this.#db.prepare("DELETE FROM import_jobs WHERE status = 'done'").run().changes
+  }
+
+  /**
+   * Drop one job that is not moving — failed, or paused — for good. A job
+   * still queued or running is cancelled instead (`cancel`), and a done one
+   * goes with Clear. A song a failed upload left on this server is not
+   * touched: the cloud sync still sends it up by itself (cloudSync.ts).
+   */
+  dismiss(id: string): boolean {
+    const info = this.#db
+      .prepare("DELETE FROM import_jobs WHERE id = ? AND status IN ('error','cancelled')")
+      .run(id)
+    return info.changes > 0
   }
 
   /** Called at boot: nothing can still be running if the process just started. */

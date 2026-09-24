@@ -124,6 +124,48 @@ describe('the watcher', () => {
     expect(notices).toHaveLength(0)
   })
 
+  it('reads less and less often while nothing changes, and every alarm again once something does', async () => {
+    let at = Date.parse('2026-09-24T09:00:00Z')
+    const { watcher, reads, answerWith, notices } = watcherWith(
+      queueOf([job('a')]),
+      () => new Date(at),
+    )
+    await watcher.add([job('a')], null)
+    const alarms = async (count: number): Promise<void> => {
+      for (let i = 0; i < count; i += 1) {
+        at += 30_000
+        await watcher.tick()
+      }
+    }
+
+    // The first reads come at every alarm; then each read that finds nothing
+    // new puts the next one a step further off.
+    await alarms(2)
+    expect(reads()).toBe(2)
+    await alarms(1)
+    expect(reads()).toBe(2)
+    await alarms(1)
+    expect(reads()).toBe(3)
+    // An hour and a half of alarms is a handful of reads, not 180.
+    await alarms(180)
+    expect(reads()).toBeLessThan(12)
+    // Settled at the last step: one read per twenty minutes, whatever the phase.
+    const settled = reads()
+    await alarms(80)
+    expect(reads()).toBe(settled + 2)
+
+    // The song lands: announced at the next read. A new import starts the
+    // pace over, so its first alarms read again.
+    answerWith(() => queueOf([job('a', { status: 'done', step: 'finished', progress: 100 })]))
+    await alarms(40)
+    expect(notices).toHaveLength(1)
+    const announced = reads()
+    await watcher.add([job('b')], null)
+    answerWith(() => queueOf([job('b')]))
+    await alarms(2)
+    expect(reads()).toBe(announced + 2)
+  })
+
   it('forgets a batch a day old even while the server cannot be read', async () => {
     let clock = new Date('2026-09-15T12:00:00Z')
     const { watcher, store, answerWith } = watcherWith(queueOf([job('a')]), () => clock)

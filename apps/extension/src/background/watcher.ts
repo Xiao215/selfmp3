@@ -13,6 +13,8 @@ import type { KeyValueStore } from './store.js'
  */
 
 const KEY = 'batches'
+/** How long the alarm's ticks are waiting, and until when (`Pace`). */
+const PACE_KEY = 'watch-pace'
 export const ALARM = 'watch-queue'
 const AWAKE_POLL_MS = 2_000
 /** Chrome's smallest alarm, in minutes. */
@@ -28,6 +30,20 @@ const STALE_MS = 24 * 60 * 60_000
  */
 export const GIVE_UP_AFTER = 3
 
+/**
+ * How long the alarm's ticks wait after each read that found nothing new: a
+ * step further each time, and back to every alarm once something happens.
+ *
+ * Every read finds the route first, and finding the route reads the bucket,
+ * which counts each listing against a daily allowance. A batch the queue
+ * could not finish — the server's uploads refused for a day — kept the badge
+ * reading every thirty seconds for the whole day, and that alone was the
+ * allowance. The first reads come at every alarm, as an import that is
+ * moving deserves; twenty minutes between reads is still a badge that
+ * catches up.
+ */
+const PACE_MS = [0, 0, 60_000, 2 * 60_000, 5 * 60_000, 10 * 60_000, 20 * 60_000]
+
 const BatchSchema = z.object({
   id: z.string(),
   jobIds: z.array(z.string()),
@@ -35,6 +51,14 @@ const BatchSchema = z.object({
   startedAt: z.string(),
 })
 const BatchesSchema = z.array(BatchSchema)
+
+const PaceSchema = z.object({
+  /** Reads in a row that found nothing new: the index into `PACE_MS`. */
+  quiet: z.number().int().nonnegative(),
+  /** The alarm's ticks before this time read nothing. */
+  dueAt: z.number(),
+})
+type Pace = z.infer<typeof PaceSchema>
 
 interface WatcherDeps {
   readonly store: KeyValueStore
@@ -52,8 +76,12 @@ interface WatcherDeps {
 interface Watcher {
   /** Remember what an import started, so the badge and the notice are about it. */
   add(jobs: readonly ImportJob[], label: string | null): Promise<void>
-  /** Read the queue once: update the badge, announce anything that finished. */
-  tick(): Promise<void>
+  /**
+   * Read the queue once: update the badge, announce anything that finished.
+   * From the alarm, only when the pace allows; `forced` is the awake polling,
+   * which stops on its own (`follow`).
+   */
+  tick(forced?: boolean): Promise<void>
   /** The popup was opened: a failure has been seen, so the badge goes quiet. */
   seen(): Promise<void>
   /** Keep ticking while this worker is awake and something of ours is going. */
@@ -81,6 +109,19 @@ export function createWatcher({
 
   const read = async (): Promise<Batch[]> => parse(await store.read(KEY))
 
+  const readPace = async (): Promise<Pace> => {
+    const parsed = PaceSchema.safeParse(await store.read(PACE_KEY))
+    return parsed.success ? parsed.data : { quiet: 0, dueAt: 0 }
+  }
+  /** Nothing new this read: the next alarm ticks wait a step longer. */
+  const slowDown = async (pace: Pace): Promise<void> => {
+    const quiet = Math.min(pace.quiet + 1, PACE_MS.length - 1)
+    await store.write(PACE_KEY, { quiet, dueAt: now().getTime() + (PACE_MS[quiet] ?? 0) })
+  }
+  const resetPace = async (): Promise<void> => {
+    await store.remove(PACE_KEY)
+  }
+
   /**
    * Change the batch list in one IndexedDB transaction, never by reading it,
    * deciding, and writing the decision back. A tick holds its decision across
@@ -91,7 +132,7 @@ export function createWatcher({
   const change = async (apply: (current: Batch[]) => Batch[]): Promise<Batch[]> =>
     parse(await store.update(KEY, current => apply(parse(current))))
 
-  async function tick(): Promise<void> {
+  async function tick(forced = false): Promise<void> {
     // Age is judged before the queue is asked, so a server that stays away
     // cannot keep a batch — and the polling for it — alive past a day.
     const stale = now().getTime() - STALE_MS
@@ -104,6 +145,9 @@ export function createWatcher({
       return
     }
 
+    const pace = await readPace()
+    if (!forced && now().getTime() < pace.dueAt) return
+
     let current: ImportQueue
     try {
       current = await queue()
@@ -111,6 +155,7 @@ export function createWatcher({
       // The server is asleep or the token has gone: leave the badge as it is
       // rather than saying the imports vanished.
       misses += 1
+      await slowDown(pace)
       return
     }
     misses = 0
@@ -127,8 +172,11 @@ export function createWatcher({
       doneIds.size === 0
         ? batches
         : await change(current => current.filter(batch => !doneIds.has(batch.id)))
+    const before = going
     going = stillGoing(current, left)
     await badge(badgeText(going, failed))
+    if (done.length > 0 || going !== before) await resetPace()
+    else await slowDown(pace)
   }
 
   return {
@@ -145,6 +193,7 @@ export function createWatcher({
       ])
       going += jobs.length
       await badge(badgeText(going, failed))
+      await resetPace()
       this.follow()
     },
 
@@ -165,7 +214,7 @@ export function createWatcher({
         void (async () => {
           let more = false
           try {
-            await tick()
+            await tick(true)
             // A server that has missed a few answers is asleep: the alarm
             // keeps looking every 30 s, and this worker may stop.
             more = misses < GIVE_UP_AFTER && (await read()).length > 0

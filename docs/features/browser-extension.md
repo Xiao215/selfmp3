@@ -384,7 +384,13 @@ understands from the share target.
   uids) one click created, kept in `chrome.storage.local`. These are not secret.
 - While a batch is open the background polls `importQueue()` (or
   `cloudImports()`) every 2 seconds while it is awake. A `chrome.alarms` alarm
-  every 30 seconds, Chrome's floor, wakes it if it was suspended.
+  every 30 seconds, Chrome's floor, wakes it if it was suspended. The alarm's
+  reads slow down while nothing changes — every alarm at first, then a minute,
+  two, five, ten, twenty between them — and start over when something does.
+  Every read finds the route first, and finding the route lists the bucket,
+  which counts listings against a daily allowance (docs/SYNC.md, "Caps"): a
+  batch that could not finish kept the badge reading all day, and that was
+  the allowance.
 - **Badge:** the number of unfinished jobs across open batches. A red "!" once
   a batch finished with a failure, cleared when the popup opens. Nothing while
   idle.

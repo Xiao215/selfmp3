@@ -56,8 +56,13 @@ const BASE_KEY = 'cloud-base'
 const LOGS_KEY = 'cloud-logs'
 const OUTBOX_KEY = 'cloud-outbox'
 
-/** Within this long of the last look at the bucket, the library is answered from here. */
-const FRESH_MS = 20_000
+/**
+ * Within this long of the last look at the bucket, the library is answered
+ * from here. A look is two listings, and the bucket counts listings against
+ * a daily allowance (docs/SYNC.md, "Caps"): at twenty seconds, a device that
+ * kept asking spent the whole allowance on its own in a day.
+ */
+const FRESH_MS = 60_000
 /** Edits made within this long of each other go up as one file. */
 const FLUSH_DELAY_MS = 1_500
 const FLUSH_RETRY_MS = [5_000, 15_000, 60_000, 300_000]

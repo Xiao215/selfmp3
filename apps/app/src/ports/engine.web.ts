@@ -4,6 +4,7 @@ import type {
   EngineState as PortEngineState,
   PlaybackEngine,
 } from '@selfmp3/client'
+import { streamFailureMessage } from './streamFailure.model'
 
 /**
  * The web half of the `PlaybackEngine` port.
@@ -526,14 +527,37 @@ class AudioEngine implements PlaybackEngine {
 
   readonly #onError = (): void => {
     const code = this.#primary.error?.code
+    if (code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+      void this.#explainSource(this.#primary.src)
+      return
+    }
     const message =
       code === MediaError.MEDIA_ERR_NETWORK
         ? 'Lost connection to the library'
         : code === MediaError.MEDIA_ERR_DECODE
           ? 'This file could not be decoded'
-          : code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
-            ? 'This song is not available offline'
-            : 'Could not play this song'
+          : 'Could not play this song'
+    this.#update({ error: message, playing: false, stalled: false })
+  }
+
+  /**
+   * "Not supported" is all the element says of a source it could not use,
+   * whether the bucket refused the file for the day or the song was never on
+   * this device. The address answers with the reason (streamFailure.model.ts);
+   * one byte of it is asked for, and the answer is shown — unless the player
+   * has moved on to another song meanwhile.
+   */
+  async #explainSource(src: string): Promise<void> {
+    let message = 'This song is not available offline'
+    try {
+      const response = await fetch(src, { headers: { range: 'bytes=0-0' } })
+      if (!response.ok && response.status !== 206) {
+        message = streamFailureMessage(response.status, await response.text())
+      }
+    } catch {
+      // No answer at all: the plain wording stands.
+    }
+    if (this.#primary.src !== src) return
     this.#update({ error: message, playing: false, stalled: false })
   }
 

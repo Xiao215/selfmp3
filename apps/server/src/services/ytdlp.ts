@@ -279,8 +279,23 @@ export function toProbedTrack(json: YtDlpJson, fallbackUrl: string): ProbedTrack
     artist: credited ? channel : (tidied?.artist ?? channel),
     album: (json.album ?? '').trim(),
     duration: typeof json.duration === 'number' ? json.duration : 0,
-    thumbnail: json.thumbnail ?? null,
+    thumbnail: json.thumbnail ?? largestThumbnail(json.thumbnails),
   }
+}
+
+/**
+ * The cover of an entry that names none: a flat listing's entries name no
+ * `thumbnail`, only `thumbnails`, so without this every song of a long
+ * playlist reviewed through yt-dlp showed a letter where its picture goes.
+ * The largest is the one to keep with the song.
+ */
+function largestThumbnail(thumbnails: YtDlpJson['thumbnails']): string | null {
+  if (!thumbnails) return null
+  let best: { url?: string; width?: number } | null = null
+  for (const thumb of thumbnails) {
+    if (thumb.url && (best === null || (thumb.width ?? 0) >= (best.width ?? 0))) best = thumb
+  }
+  return best?.url ?? null
 }
 
 /**

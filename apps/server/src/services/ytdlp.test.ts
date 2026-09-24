@@ -54,6 +54,23 @@ describe('toProbedTrack', () => {
     )
     expect(track).toMatchObject({ title: 'Shinunoga E-Wa', artist: 'Fujii Kaze' })
   })
+
+  it("takes a flat entry's largest thumbnail as its cover, since it names no thumbnail", () => {
+    const track = toProbedTrack(
+      {
+        id: 'n9GWKPu9Fh8',
+        title: 'Bubble',
+        thumbnails: [
+          { url: 'https://i.ytimg.test/small.jpg', width: 168 },
+          { url: 'https://i.ytimg.test/large.jpg', width: 336 },
+          { url: 'https://i.ytimg.test/medium.jpg', width: 246 },
+        ],
+      },
+      WATCH,
+    )
+    expect(track.thumbnail).toBe('https://i.ytimg.test/large.jpg')
+    expect(toProbedTrack({ id: 'x', title: 'Bare' }, WATCH).thumbnail).toBeNull()
+  })
 })
 
 /**

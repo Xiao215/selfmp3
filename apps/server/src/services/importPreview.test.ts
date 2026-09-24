@@ -4,7 +4,7 @@ import { EMPTY_SMART_RULES } from '@selfmp3/shared'
 import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
 import { PlaylistRepository } from '../repositories/playlists.js'
-import { buildImportPreview, resolveImportPlaylist } from './importPreview.js'
+import { buildImportPreview, resolveImportPlaylist, withMusicDetails } from './importPreview.js'
 import type { ProbedTrack } from './ytdlp.js'
 import type { ArtistSongs } from './youtubeMusicArtist.js'
 import type { SongList } from './youtubeMusicLists.js'
@@ -122,6 +122,7 @@ describe('buildImportPreview with an album or playlist link', () => {
       list: {
         title: 'THE BOOK',
         tracks: [{ ...track('https://y.test/1', 'Epilogue', 51), album: 'THE BOOK' }],
+        complete: true,
       },
     })
     const preview = await buildImportPreview(deps, albumPage)
@@ -130,7 +131,7 @@ describe('buildImportPreview with an album or playlist link', () => {
     expect(preview.items[0]).toMatchObject({ title: 'Epilogue', album: 'THE BOOK', duration: 51 })
   })
 
-  it('falls back to yt-dlp when YouTube Music does not answer a playlist whole', async () => {
+  it('falls back to yt-dlp when YouTube Music does not answer a playlist', async () => {
     const { deps, probed } = previewDeps({
       list: null,
       playlists: { [playlistPage]: [track('https://y.test/1', 'アイドル')] },
@@ -138,6 +139,80 @@ describe('buildImportPreview with an album or playlist link', () => {
     const preview = await buildImportPreview(deps, playlistPage)
     expect(probed).toEqual([playlistPage])
     expect(preview.items.map(item => item.title)).toEqual(['アイドル'])
+  })
+
+  it("has yt-dlp read a playlist YouTube Music answered part of, keeping YouTube Music's word where it gave one", async () => {
+    const { deps, probed } = previewDeps({
+      list: {
+        title: 'Everything',
+        tracks: [
+          {
+            ...track('https://music.youtube.com/watch?v=aaaaaaaaaaa', 'アイドル', 214),
+            artist: 'YOASOBI',
+            album: 'THE BOOK 3',
+            thumbnail: 'https://yt3.test/idol=w544-h544-l90-rj',
+          },
+        ],
+        complete: false,
+      },
+      playlists: {
+        [playlistPage]: [
+          {
+            ...track('https://www.youtube.com/watch?v=aaaaaaaaaaa', 'YOASOBI「アイドル」'),
+            artist: 'Ayase / YOASOBI',
+          },
+          {
+            ...track('https://www.youtube.com/watch?v=bbbbbbbbbbb', '怪物'),
+            artist: 'Ayase / YOASOBI',
+            thumbnail: 'https://i.ytimg.test/b.jpg',
+          },
+        ],
+      },
+    })
+    const preview = await buildImportPreview(deps, playlistPage)
+    expect(probed).toEqual([playlistPage])
+    expect(preview.playlistTitle).toBe('Everything')
+    expect(
+      preview.items.map(item => [item.title, item.artist, item.album, item.thumbnail]),
+    ).toEqual([
+      ['アイドル', 'YOASOBI', 'THE BOOK 3', 'https://yt3.test/idol=w544-h544-l90-rj'],
+      ['怪物', 'Ayase / YOASOBI', '', 'https://i.ytimg.test/b.jpg'],
+    ])
+  })
+})
+
+describe('withMusicDetails', () => {
+  const named = [
+    {
+      ...track('https://music.youtube.com/watch?v=aaaaaaaaaaa', 'Bubble', 0),
+      artist: 'Yorushika',
+      album: '幻燈',
+      thumbnail: 'https://yt3.test/a',
+    },
+  ]
+  const listing = [
+    {
+      ...track('https://www.youtube.com/watch?v=aaaaaaaaaaa', 'Bubble', 235),
+      artist: 'ヨルシカ / n-buna Official',
+    },
+    {
+      ...track('https://www.youtube.com/watch?v=ccccccccccc', 'Sunny', 273),
+      artist: 'ヨルシカ / n-buna Official',
+    },
+  ]
+
+  it("keeps the listing's order and length, YouTube Music's details, and yt-dlp's length where YouTube Music gave none", () => {
+    expect(withMusicDetails(listing, named, null)).toEqual([
+      { ...named[0], duration: 235 },
+      listing[1],
+    ])
+  })
+
+  it("credits a song YouTube Music left out to the artist whose list it is, when it is one artist's", () => {
+    expect(withMusicDetails(listing, named, 'Yorushika')[1]).toMatchObject({
+      title: 'Sunny',
+      artist: 'Yorushika',
+    })
   })
 })
 
@@ -193,10 +268,27 @@ describe('buildImportPreview with an artist link', () => {
     expect(probed).toEqual([songsList])
     expect(preview.kind).toBe('playlist')
     expect(preview.playlistTitle).toBe('YOASOBI')
-    expect(preview.items.map(item => [item.title, item.alreadyHave])).toEqual([
-      ['アイドル', false],
-      ['夜に駆ける', true],
+    expect(preview.items.map(item => [item.title, item.artist, item.alreadyHave])).toEqual([
+      ['アイドル', 'YOASOBI', false],
+      ['夜に駆ける', 'YOASOBI', true],
     ])
+  })
+
+  it("takes the artist's list from YouTube Music when it answers whole, and never asks yt-dlp", async () => {
+    const { deps, probed } = previewDeps({
+      artist: { artist: 'YOASOBI', playlistUrl: songsList, tracks: [] },
+      list: {
+        title: 'Top songs',
+        tracks: [{ ...track('https://y.test/1', 'アイドル'), album: 'THE BOOK 3' }],
+        complete: true,
+      },
+    })
+
+    const preview = await buildImportPreview(deps, 'https://music.youtube.com/@YOASOBI_Official')
+
+    expect(probed).toEqual([])
+    expect(preview.playlistTitle).toBe('YOASOBI')
+    expect(preview.items[0]).toMatchObject({ title: 'アイドル', album: 'THE BOOK 3' })
   })
 
   it('uses the rows from the page when there is no See all', async () => {

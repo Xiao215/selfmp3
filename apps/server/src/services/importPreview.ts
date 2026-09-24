@@ -4,6 +4,7 @@ import {
   youtubeMusicAlbum,
   youtubeMusicSearch,
   youtubePlaylistId,
+  youtubeVideoId,
   type ImportPreview,
   type ImportPreviewItem,
   type Playlist,
@@ -14,7 +15,7 @@ import type { SongRepository } from '../repositories/songs.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
 import type { ProbedTrack, YtDlpService } from './ytdlp.js'
 import type { YouTubeMusicArtists } from './youtubeMusicArtist.js'
-import type { YouTubeMusicLists } from './youtubeMusicLists.js'
+import type { SongList, YouTubeMusicLists } from './youtubeMusicLists.js'
 
 type PreviewDeps = {
   ytdlp: Pick<YtDlpService, 'status' | 'probe'>
@@ -82,15 +83,15 @@ export async function buildImportPreview(deps: PreviewDeps, text: string): Promi
 
 /**
  * One link's tracks. An artist's channel means their songs, not the channel's
- * tabs: the "Top songs" list from YouTube Music, read by yt-dlp as the
- * playlist it is, and named after the artist.
+ * tabs: the "Top songs" list from YouTube Music, named after the artist.
  *
- * A search page, an album and a playlist are asked of YouTube Music itself
- * (youtubeMusicLists.ts): its answer has the artist, album, length and square
- * cover of every song, where yt-dlp's listing has a title and an uploader. A
- * search has no other reading, so no answer is an error; an album or playlist
- * YouTube Music will not answer, or answers only the first page of, is read by
- * yt-dlp as before.
+ * A search page, an album, a playlist and that list are asked of YouTube Music
+ * itself (youtubeMusicLists.ts): its answer has the artist, album, length and
+ * square cover of every song, where yt-dlp's listing has a title, an uploader
+ * and a video still. A search has no other reading, so no answer is an error;
+ * a list YouTube Music will not answer, or answers only part of, is read whole
+ * by yt-dlp, with YouTube Music's word kept for every song it did name
+ * (`withMusicDetails`).
  */
 async function probeLink(deps: PreviewDeps, url: string): Promise<Probed> {
   const query = youtubeMusicSearch(url)
@@ -105,18 +106,11 @@ async function probeLink(deps: PreviewDeps, url: string): Promise<Probed> {
   }
 
   const albumId = youtubeMusicAlbum(url)
-  if (albumId) {
-    const album = await deps.youtubeMusicLists.album(albumId)
-    if (album) return { kind: 'playlist', playlistTitle: album.title, tracks: album.tracks }
-    return probeWithYtDlp(deps, url)
-  }
+  if (albumId) return fromList(deps, url, await deps.youtubeMusicLists.album(albumId), null)
 
   const playlistId = youtubePlaylistId(url)
   if (playlistId) {
-    const playlist = await deps.youtubeMusicLists.playlist(playlistId)
-    if (playlist)
-      return { kind: 'playlist', playlistTitle: playlist.title, tracks: playlist.tracks }
-    return probeWithYtDlp(deps, url)
+    return fromList(deps, url, await deps.youtubeMusicLists.playlist(playlistId), null)
   }
 
   const channel = youtubeChannel(url)
@@ -128,10 +122,61 @@ async function probeLink(deps: PreviewDeps, url: string): Promise<Probed> {
       'That channel has no songs on YouTube Music. Paste its Videos tab (…/videos), a playlist or a video instead.',
     )
   }
-  const tracks = artist.playlistUrl
-    ? (await probeWithYtDlp(deps, artist.playlistUrl)).tracks
-    : [...artist.tracks]
-  return { kind: 'playlist', playlistTitle: artist.artist || null, tracks }
+  const playlistTitle = artist.artist || null
+  const songsList = artist.playlistUrl ? youtubePlaylistId(artist.playlistUrl) : null
+  if (!artist.playlistUrl || !songsList)
+    return { kind: 'playlist', playlistTitle, tracks: [...artist.tracks] }
+  // The list is the artist's, so a song the page left out is credited to them,
+  // not to the channel yt-dlp read it from ("ヨルシカ / n-buna Official").
+  const list = await deps.youtubeMusicLists.playlist(songsList)
+  const probed = await fromList(deps, artist.playlistUrl, list, artist.artist || null)
+  return { ...probed, playlistTitle }
+}
+
+/**
+ * A list as YouTube Music answered it: whole, and it is the answer; in part,
+ * or not at all, and yt-dlp reads the whole of it, with YouTube Music's word
+ * kept for each song it did name.
+ */
+async function fromList(
+  deps: PreviewDeps,
+  url: string,
+  list: SongList | null,
+  artist: string | null,
+): Promise<Probed> {
+  if (list?.complete) return { kind: 'playlist', playlistTitle: list.title, tracks: list.tracks }
+  const probed = await probeWithYtDlp(deps, url)
+  return {
+    kind: 'playlist',
+    playlistTitle: list?.title ?? probed.playlistTitle,
+    tracks: withMusicDetails(probed.tracks, list?.tracks ?? [], artist),
+  }
+}
+
+/**
+ * yt-dlp's listing of a page, with what YouTube Music said of each song it
+ * named in place of yt-dlp's reading: the artist as credited, the album, the
+ * square cover, the length. The listing's order and its songs stand; a song
+ * YouTube Music left out (its page hides what it cannot play from here) keeps
+ * yt-dlp's title and video still, credited to `artist` when the list is one
+ * artist's rather than to the channel it was uploaded by.
+ */
+export function withMusicDetails(
+  listing: readonly ProbedTrack[],
+  named: readonly ProbedTrack[],
+  artist: string | null,
+): ProbedTrack[] {
+  const byVideo = new Map<string, ProbedTrack>()
+  for (const track of named) {
+    const id = youtubeVideoId(track.url)
+    if (id && !byVideo.has(id)) byVideo.set(id, track)
+  }
+  return listing.map(track => {
+    const id = youtubeVideoId(track.url)
+    const detail = id ? byVideo.get(id) : undefined
+    if (detail) return { ...detail, duration: detail.duration || track.duration }
+    return artist ? { ...track, artist } : track
+  })
 }
 
 async function probeWithYtDlp(deps: PreviewDeps, url: string): Promise<Probed> {

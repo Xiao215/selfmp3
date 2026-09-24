@@ -167,6 +167,7 @@ describe('YouTubeMusicLists', () => {
     const result = await lists.playlist('PLcKNQQ5neMz2J5RP49n')
     expect(asked[0]).toMatchObject({ browseId: 'VLPLcKNQQ5neMz2J5RP49n' })
     expect(result?.title).toBe('Never Ending Stories Tour')
+    expect(result?.complete).toBe(true)
     expect(result?.tracks[0]).toMatchObject({
       title: 'アイドル',
       artist: 'YOASOBI',
@@ -176,7 +177,7 @@ describe('YouTubeMusicLists', () => {
     })
   })
 
-  it('gives up on a playlist it was answered only part of, so yt-dlp reads the whole', async () => {
+  it('hands over a playlist it was answered only part of, and says so', async () => {
     const lists = new YouTubeMusicLists(
       logger,
       answer({
@@ -184,7 +185,9 @@ describe('YouTubeMusicLists', () => {
         contents: [row('one', [[{ text: 'One' }]], '3:00')],
       }),
     )
-    expect(await lists.playlist('PLlong')).toBeNull()
+    const result = await lists.playlist('PLlong')
+    expect(result?.complete).toBe(false)
+    expect(result?.tracks.map(track => track.title)).toEqual(['One'])
   })
 
   it('is null when YouTube Music does not answer, or answers no page', async () => {

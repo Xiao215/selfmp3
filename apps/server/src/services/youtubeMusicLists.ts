@@ -11,8 +11,10 @@ import { findAll, findKey, runs, YouTubeMusicApi, type FetchLike } from './youtu
  * the artist runs, the album, the length, square art. So the review shows
  * what will be written, and the import writes it.
  *
- * Every answer is null when YouTube Music does not answer, or answers less
- * than the whole list; the caller then falls back to yt-dlp.
+ * Every answer is null when YouTube Music does not answer. A list it answers
+ * only part of is handed over as it is and says so (`complete`): the caller
+ * has yt-dlp read the whole of it, and keeps what YouTube Music said of each
+ * song it did name (importPreview.ts).
  */
 
 /** The search filter for songs, as the YouTube Music web app sends it. */
@@ -22,6 +24,8 @@ const SONGS_FILTER = 'EgWKAQIIAWoKEAoQCRADEAQQBQ%3D%3D'
 export interface SongList {
   readonly title: string
   readonly tracks: ProbedTrack[]
+  /** Whether every song the page counts is in `tracks`; see `whole`. */
+  readonly complete: boolean
 }
 
 export class YouTubeMusicLists {
@@ -52,7 +56,8 @@ export class YouTubeMusicLists {
       album: header.title,
       thumbnail: header.thumbnail,
     })
-    return whole(header, tracks) ? { title: header.title, tracks } : null
+    if (tracks.length === 0) return null
+    return { title: header.title, tracks, complete: whole(header, tracks) }
   }
 
   /**
@@ -65,7 +70,8 @@ export class YouTubeMusicLists {
     const header = pageHeader(page)
     if (!header.title) return null
     const tracks = rows(page, {})
-    return whole(header, tracks) ? { title: header.title, tracks } : null
+    if (tracks.length === 0) return null
+    return { title: header.title, tracks, complete: whole(header, tracks) }
   }
 }
 
@@ -97,11 +103,12 @@ function pageHeader(page: unknown): PageHeader {
 
 /**
  * Whether the page's rows are all of it. A long playlist is answered a page
- * at a time, and a review of its first hundred songs would import those and
- * quietly drop the rest; yt-dlp reads the whole thing, so it takes over.
+ * at a time, and the page leaves out what it cannot play from here (27 of
+ * the 119 songs on Yorushika's list); a review of the rows alone would import
+ * those and quietly drop the rest. yt-dlp reads the whole thing, so it reads
+ * the list, and these rows fill in what it saw of each song.
  */
 function whole(header: PageHeader, tracks: readonly ProbedTrack[]): boolean {
-  if (tracks.length === 0) return false
   return header.count === null || tracks.length >= header.count
 }
 

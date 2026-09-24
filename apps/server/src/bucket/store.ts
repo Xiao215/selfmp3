@@ -250,7 +250,7 @@ export class S3CloudStore implements CloudStore {
         return new CloudError(
           'cap',
           `Backblaze says “${said}”: the bucket's allowance for today is used up. Raise it ` +
-            'under Caps & Alerts at backblaze.com, or wait — caps reset at midnight Pacific time.',
+            'under Caps & Alerts at backblaze.com, or wait — caps reset at midnight GMT, 5 pm Pacific.',
         )
       }
       return new CloudError(

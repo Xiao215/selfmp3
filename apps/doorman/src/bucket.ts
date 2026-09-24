@@ -333,7 +333,7 @@ export class Bucket {
           'cap',
           `Backblaze says “${this.#describe(status, null, message)}”: the bucket's allowance ` +
             'for today is used up. Raise it under Caps & Alerts at backblaze.com, or wait — ' +
-            'caps reset at midnight Pacific time.',
+            'caps reset at midnight GMT, 5 pm Pacific.',
         )
       }
       const said = message?.trim()

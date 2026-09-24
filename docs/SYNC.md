@@ -37,7 +37,7 @@ three times what you store each month — 30 GB for a full 10 GB library, which 
 more listening than one person does. And it is not tied to your Google account, so nothing that
 happens to the bucket can touch your email.
 
-**Caps.** Backblaze stops the account for the rest of the day (until midnight Pacific time)
+**Caps.** Backblaze stops the account for the rest of the day (until midnight GMT, 5 pm Pacific)
 when a day's count passes the cap set under *Caps & Alerts*, which starts at the free amount.
 It refuses everything with the same 403 a wrong key gets, saying "Transaction cap exceeded" or
 "Download cap exceeded" only in its message; the doorman passes those words on, and the server

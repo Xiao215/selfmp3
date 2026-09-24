@@ -284,7 +284,7 @@ describe('reading a file', () => {
     expect(body.code).toBe('bucket_cap_exceeded')
     expect(body.error).toBe(
       "Backblaze says “Transaction cap exceeded”: the bucket's allowance for today is used up. " +
-        'Raise it under Caps & Alerts at backblaze.com, or wait — caps reset at midnight Pacific time.',
+        'Raise it under Caps & Alerts at backblaze.com, or wait — caps reset at midnight GMT, 5 pm Pacific.',
     )
   })
 })

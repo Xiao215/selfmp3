@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { IdSchema } from './common.js'
+import { CoverToneSchema } from './song.js'
 
 /**
  * The import pipeline: a URL goes in, a tagged song with lyrics comes out.
@@ -214,3 +215,9 @@ export const ToolStatusSchema = z.object({
   ytdlpVersion: z.string().nullable(),
 })
 export type ToolStatus = z.infer<typeof ToolStatusSchema>
+
+/** The colour of a review song's cover, read by the server (services/previewCoverTone.ts). */
+export const ImportCoverToneSchema = z.object({
+  tone: CoverToneSchema.nullable(),
+})
+export type ImportCoverTone = z.infer<typeof ImportCoverToneSchema>

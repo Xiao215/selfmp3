@@ -23,6 +23,7 @@ import {
   HealthSchema,
   ImportEnqueueResultSchema,
   AlreadyHaveResponseSchema,
+  ImportCoverToneSchema,
   ImportPreviewSchema,
   ImportQueueSchema,
   LibrarySchema,
@@ -388,6 +389,14 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     importPreview: (url: string) =>
       request('POST', '/api/import/preview', ImportPreviewSchema, { url }),
+
+    /** The colour of a review song's cover, for the row that is playing it. */
+    importCoverTone: (url: string) =>
+      request(
+        'GET',
+        `/api/import/cover-tone?url=${encodeURIComponent(url)}`,
+        ImportCoverToneSchema,
+      ),
 
     /** Which of a kept review's tracks the library has now (see `refreshAlreadyHave`). */
     importAlreadyHave: (tracks: readonly ImportPreviewItem[]) =>

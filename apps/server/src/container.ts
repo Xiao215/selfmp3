@@ -38,6 +38,7 @@ import { publishedAddresses } from './services/addresses.js'
 import { LyricsIndexService } from './services/lyricsIndex.js'
 import { AnalysisService } from './services/analysis.js'
 import { CoverToneService } from './services/coverTones.js'
+import { PreviewCoverTones } from './services/previewCoverTone.js'
 import { DeviceRepository } from './repositories/devices.js'
 import { AuthRepository } from './repositories/auth.js'
 import { EventHub } from './services/events.js'
@@ -94,6 +95,8 @@ export interface Container {
   readonly artistBackdrops: ArtistBackdropService
   readonly youtubeMusicLists: YouTubeMusicLists
   readonly listen: ListenService
+  /** The colour of a review song's cover, read on request (services/previewCoverTone.ts). */
+  readonly previewCoverTones: PreviewCoverTones
   readonly importQueue: ImportQueueService
   readonly libraryWatcher: LibraryWatcherService
   readonly migrate: MigrateService
@@ -286,6 +289,7 @@ export function createContainer(configured: Config): Container {
   const artistBackdrops = new ArtistBackdropService(config, songs, youtubeMusicArtists, logger)
   const youtubeMusicLists = new YouTubeMusicLists(logger)
   const listen = new ListenService(ytdlp)
+  const previewCoverTones = new PreviewCoverTones({ logger })
 
   // Held while a song is streaming or an import is running, so the server does
   // not idle-sleep out from under whoever is listening (services/keepAwake.ts).
@@ -438,6 +442,7 @@ export function createContainer(configured: Config): Container {
     artistBackdrops,
     youtubeMusicLists,
     listen,
+    previewCoverTones,
     importQueue,
     libraryWatcher,
     migrate,

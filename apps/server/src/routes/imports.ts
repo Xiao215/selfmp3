@@ -11,6 +11,7 @@ import {
   ImportShareRequestSchema,
   YT_LIKED_MUSIC_URL,
   type AlreadyHaveResponse,
+  type ImportCoverTone,
   type ImportEnqueueItem,
   type ImportEnqueueResult,
   type ImportPreview,
@@ -23,9 +24,11 @@ import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
 import { buildImportPreview, resolveImportPlaylist } from '../services/importPreview.js'
 import { alreadyHave, normaliseUrl, sourceUrlIndex } from '../services/alreadyHave.js'
+import { isCoverUrl } from '../services/previewCoverTone.js'
 
 const ParamsWithJobId = z.object({ id: z.string().uuid() })
 const ListenQuery = z.object({ url: z.string().url().max(2_000) })
+const CoverToneQuery = z.object({ url: z.string().url().max(2_000) })
 
 /** What a range response from YouTube has to say that the browser needs to hear. */
 const FORWARDED_HEADERS = ['content-type', 'content-length', 'content-range', 'accept-ranges']
@@ -106,6 +109,20 @@ export function importRoutes(container: Container): Router {
       const library = container.songs.all()
       const knownLinks = sourceUrlIndex(library)
       return { have: body.tracks.map(track => alreadyHave(track, library, knownLinks) !== null) }
+    }),
+  )
+
+  /**
+   * The colour of a review song's cover, for the row playing it
+   * (services/previewCoverTone.ts). Only a cover from YouTube's picture hosts
+   * is fetched: a link anywhere else is refused before anything is asked.
+   */
+  router.get(
+    '/import/cover-tone',
+    route({ query: CoverToneQuery }, async ({ query }): Promise<ImportCoverTone> => {
+      if (!isCoverUrl(query.url))
+        throw HttpError.badRequest('only a cover from YouTube can be read')
+      return { tone: await container.previewCoverTones.tone(query.url) }
     }),
   )
 

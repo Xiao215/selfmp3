@@ -1,4 +1,5 @@
 import type { RomanizedLyrics, Song } from '@selfmp3/shared'
+import { CloudError } from '../bucket/store.js'
 import type { Logger } from '../logger.js'
 import { LyricsCache } from './lyricsCache.js'
 import type { RomanizationService } from './romanization.js'
@@ -61,6 +62,13 @@ export async function romanizeLibrary(deps: {
       if (await deps.lyricsCache.read<RomanizedLyrics>(song.id, 'romanized', hash)) continue
       if ((await romanizedLines(deps, song.id, text)) !== null) made++
     } catch (error) {
+      // Words a song keeps only in the bucket are read from there, and a
+      // bucket that refuses one read refuses them all: a boot with the key
+      // refused was ninety warnings that all said the same thing.
+      if (error instanceof CloudError) {
+        deps.logger.warn('romanizing stopped early', { message: error.message })
+        break
+      }
       deps.logger.warn('could not romanize a song', {
         songId: song.id,
         message: error instanceof Error ? error.message : String(error),

@@ -217,7 +217,8 @@ describe('connecting a bucket', () => {
     const wrongId = await refusal(await h.connect(token, { keyId: '004wrongkeyid' }))
     expect(wrongId).toBe(
       'The bucket refused the key (InvalidAccessKeyId). Check the key ID and the application ' +
-        `key, and that the key is allowed to use “${BUCKET}”.`,
+        `key, and that the key is allowed to use “${BUCKET}”. Backblaze said ` +
+        '“InvalidAccessKeyId (from the test bucket)”.',
     )
     const wrongKey = await refusal(
       await h.connect(token, { applicationKey: 'K004-not-the-right-key' }),

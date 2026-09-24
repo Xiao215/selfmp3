@@ -31,10 +31,19 @@ storage — no code runs there — so every rule about how changes combine lives
 | Fetching YouTube links (yt-dlp) | The server; later the Android app | — |
 
 **Why B2.** It speaks the S3 API, which the server already uses for its S3 storage driver. It
-needs no card for the free tier. Uploads, downloads and listings are free API calls. Downloads
-are free up to three times what you store each month — 30 GB for a full 10 GB library, which
-is a great deal more listening than one person does. And it is not tied to your Google account,
-so nothing that happens to the bucket can touch your email.
+needs no card for the free tier. Uploads are free API calls; downloads, reads of a file's
+headers and listings are counted, with 2,500 of each free per day. Downloads are free up to
+three times what you store each month — 30 GB for a full 10 GB library, which is a great deal
+more listening than one person does. And it is not tied to your Google account, so nothing that
+happens to the bucket can touch your email.
+
+**Caps.** Backblaze stops the account for the rest of the day (until midnight Pacific time)
+when a day's count passes the cap set under *Caps & Alerts*, which starts at the free amount.
+It refuses everything with the same 403 a wrong key gets, saying "Transaction cap exceeded" or
+"Download cap exceeded" only in its message; the doorman passes those words on, and the server
+keeps trying by itself until the day turns. A big import — hundreds of songs, each a check, an
+upload and a snapshot — and a boot that reads every song's words from the bucket can reach the
+count together. Raising the cap costs nothing until it is actually used.
 
 Google Drive was considered: more free space (15 GB, shared with Gmail and Photos), but a
 proprietary API, an OAuth app that must be moved to "production" or it signs you out every

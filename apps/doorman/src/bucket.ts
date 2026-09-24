@@ -325,10 +325,24 @@ export class Bucket {
       return new BucketError('missing', `There is no bucket called “${bucket}” at ${this.#host}.`)
     }
     if (status === 401 || status === 403 || (code !== null && AUTH_CODES.has(code))) {
+      // Backblaze answers a used-up cap with the same 403 a wrong key gets,
+      // and says which only in its message: "Transaction cap exceeded". Read
+      // as a refused key, a day's worth of imports looked like a lost key.
+      if (message && /cap exceeded/i.test(message)) {
+        return new BucketError(
+          'other',
+          `Backblaze says “${this.#describe(status, null, message)}”: the bucket's allowance ` +
+            'for today is used up. Raise it under Caps & Alerts at backblaze.com, or wait — ' +
+            'caps reset at midnight Pacific time.',
+        )
+      }
+      const said = message?.trim()
+        ? ` Backblaze said “${this.#describe(status, null, message)}”.`
+        : ''
       return new BucketError(
         'auth',
         `The bucket refused the key${code ? ` (${code})` : ''}. Check the key ID and the ` +
-          `application key, and that the key is allowed to use “${bucket}”.`,
+          `application key, and that the key is allowed to use “${bucket}”.${said}`,
       )
     }
     return new BucketError('other', `${this.#host}: ${this.#describe(status, code, message)}`)

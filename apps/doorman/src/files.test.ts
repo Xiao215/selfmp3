@@ -271,7 +271,21 @@ describe('reading a file', () => {
     const body = await error(response)
     expect(body.code).toBe('bucket_refused_key')
     expect(body.error).toMatch(/^The bucket refused the key \(InvalidAccessKeyId\)\./)
+    expect(body.error).toContain('Backblaze said “InvalidAccessKeyId (from the test bucket)”')
     expect(body.error).not.toContain(APPLICATION_KEY)
+  })
+
+  it('says when the bucket’s allowance for the day is used up, which is not a refused key', async () => {
+    const { h, token } = await connected()
+    h.bucket.capped = true
+    const response = await h.call(`/v1/files/${SONG}`, { token })
+    expect(response.status).toBe(502)
+    const body = await error(response)
+    expect(body.code).toBe('bucket_error')
+    expect(body.error).toBe(
+      "Backblaze says “Transaction cap exceeded”: the bucket's allowance for today is used up. " +
+        'Raise it under Caps & Alerts at backblaze.com, or wait — caps reset at midnight Pacific time.',
+    )
   })
 })
 

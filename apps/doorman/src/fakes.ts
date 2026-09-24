@@ -179,6 +179,8 @@ export class FakeBucket {
   readonly unreadable = new Set<string>()
   /** The application key was deleted in B2's console: every request is refused. */
   revoked = false
+  /** The account's daily cap is used up: Backblaze refuses everything, as a 403. */
+  capped = false
   #etags = 0
 
   put(key: string, body: Uint8Array | string, options: Partial<StoredObject> = {}): void {
@@ -201,6 +203,9 @@ export class FakeBucket {
     const url = new URL(incoming.url)
     this.requests.push({ method: incoming.method, url, headers })
 
+    if (this.capped) {
+      return s3Error(403, 'AccessDenied', incoming.method, 'Transaction cap exceeded')
+    }
     const refused = this.revoked
       ? 'InvalidAccessKeyId'
       : await verifySignature(incoming.method, url, headers)
@@ -360,12 +365,17 @@ async function verifySignature(method: string, url: URL, headers: Headers): Prom
   return (await signer.signature()) === signature ? null : 'SignatureDoesNotMatch'
 }
 
-function s3Error(status: number, code: string, method: string): Response {
+function s3Error(
+  status: number,
+  code: string,
+  method: string,
+  message = `${code} (from the test bucket)`,
+): Response {
   return new Response(
     method === 'HEAD'
       ? null
       : `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Error><Code>${code}</Code>` +
-          `<Message>${code} (from the test bucket)</Message></Error>`,
+          `<Message>${message}</Message></Error>`,
     { status, headers: { 'content-type': 'application/xml' } },
   )
 }

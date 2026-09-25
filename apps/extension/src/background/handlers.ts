@@ -55,6 +55,29 @@ interface HandlerDeps {
   readonly cloud?: Cloud
 }
 
+/**
+ * The tags the last import went in with, by where it went (`baseUrl`, or the
+ * bucket's). Tag ids are one side's or the other's, never both.
+ */
+const LAST_TAGS_KEY = 'last-tags'
+
+const LastTagsSchema = z.record(z.array(z.number().int()))
+
+async function lastTagsFor(store: KeyValueStore, identity: ServerConnection): Promise<number[]> {
+  const parsed = LastTagsSchema.safeParse(await store.read(LAST_TAGS_KEY))
+  return parsed.success ? (parsed.data[identity.baseUrl] ?? []) : []
+}
+
+async function rememberTags(
+  store: KeyValueStore,
+  identity: ServerConnection,
+  tagIds: readonly number[],
+): Promise<void> {
+  const parsed = LastTagsSchema.safeParse(await store.read(LAST_TAGS_KEY))
+  const kept = parsed.success ? parsed.data : {}
+  await store.write(LAST_TAGS_KEY, { ...kept, [identity.baseUrl]: [...tagIds] })
+}
+
 /** The server this extension imports through, if one was typed in. */
 async function storedServer(store: KeyValueStore): Promise<ServerConnection | null> {
   const parsed = ServerConnectionSchema.safeParse(await store.read(SERVER_KEY))
@@ -247,10 +270,17 @@ export function createHandlers({ store, fetch, watcher, cloud }: HandlerDeps): H
 
     async choices() {
       const { api, identity } = await answering()
-      const [snapshot, settings] = await Promise.all([library.get(identity, api), api.settings()])
+      const [snapshot, settings, last] = await Promise.all([
+        library.get(identity, api),
+        api.settings(),
+        lastTagsFor(store, identity),
+      ])
+      const known = new Set(snapshot.tags.map(tag => tag.id))
       return {
         tags: snapshot.tags,
         defaultTagIds: settings.defaultImportTagIds,
+        // A tag deleted since is not offered back.
+        lastTagIds: last.filter(id => known.has(id)),
       }
     },
 
@@ -273,7 +303,9 @@ export function createHandlers({ store, fetch, watcher, cloud }: HandlerDeps): H
     },
 
     async enqueue({ request, label }) {
+      const { identity } = await answering()
       const result = await (await direct()).importEnqueue(request)
+      await rememberTags(store, identity, request.tagIds)
       // The badge and the notification are about what this extension started.
       await watcher?.add(result.jobs, label)
       return result
@@ -298,6 +330,7 @@ export function createHandlers({ store, fetch, watcher, cloud }: HandlerDeps): H
       // An import only ever tags; the bucket's request keeps its playlist field
       // for the app, and the extension leaves it empty.
       const made = await side.api.requestCloudImport({ url, tagIds, playlistId: null })
+      await rememberTags(store, BUCKET, tagIds)
       /*
        * The replica's own flush is on a 1.5 s timer, and Chrome may stop this
        * worker before it fires — which would leave the link sitting in an

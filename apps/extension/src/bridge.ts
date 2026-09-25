@@ -85,6 +85,13 @@ export const ChoicesSchema = z.object({
   tags: z.array(TagSchema),
   /** Tags the server adds to every import (Settings → Importing). */
   defaultTagIds: z.array(z.number().int()),
+  /**
+   * The tags the last import from this extension went in with, on this
+   * server or the bucket: what the popup starts with picked, and what the
+   * pill imports with, so tagging is chosen once for a session rather than
+   * on every song.
+   */
+  lastTagIds: z.array(z.number().int()),
 })
 export type Choices = z.infer<typeof ChoicesSchema>
 

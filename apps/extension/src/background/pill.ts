@@ -95,9 +95,13 @@ export function createPageHandler(handlers: Handlers) {
      * server can read it: the link goes in as it is and the server works out
      * what it holds when it takes it.
      */
+    // With the tags the last import from the popup went in with: tagging is
+    // chosen once there, and the pill carries it from song to song. The page
+    // still learns nothing — the ids go from the worker to the server.
+    const { lastTagIds } = await handlers.choices({ type: 'choices' })
     if (viaBucket) {
       return stateOfRequest(
-        await handlers.requestImport({ type: 'requestImport', url, tagIds: [] }),
+        await handlers.requestImport({ type: 'requestImport', url, tagIds: lastTagIds }),
       )
     }
     const preview = await handlers.preview({ type: 'preview', url })
@@ -105,7 +109,7 @@ export function createPageHandler(handlers: Handlers) {
     if (items.length === 0) return { state: 'have', progress: null, jobId: null, message: null }
     const result = await handlers.enqueue({
       type: 'enqueue',
-      request: { items, tagIds: [], playlistId: null, createPlaylistName: null },
+      request: { items, tagIds: lastTagIds, playlistId: null, createPlaylistName: null },
       label: null,
     })
     const job = result.jobs[0]

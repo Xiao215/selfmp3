@@ -66,6 +66,13 @@ function fakeServer(token: string | null) {
         return Promise.resolve(
           json(200, { jobs: [failedJob], active: 0, queued: 0, pacing: IDLE_PACING }),
         )
+      case 'POST /api/import/enqueue': {
+        const request = JSON.parse(String(init.body)) as { tagIds: number[] }
+        const job = { ...failedJob, id: 'job-2', status: 'queued', step: 'waiting', error: null }
+        return Promise.resolve(
+          json(200, { jobs: [{ ...job, tagIds: request.tagIds }], skipped: 0, playlistId: null }),
+        )
+      }
       case 'POST /api/tags': {
         const { name } = JSON.parse(String(init.body)) as { name: string }
         const made = { id: tags.length + 1, name, hue: 200, songCount: 0 }
@@ -173,6 +180,32 @@ describe('asking about a link', () => {
     expect(choices.tags.map(tag => tag.name)).toEqual(['new', 'j-pop'])
     expect(choices.defaultTagIds).toEqual([1])
     expect(choices).not.toHaveProperty('playlists')
+  })
+
+  it('remembers the tags an import went in with, and offers them for the next', async () => {
+    const { handlers } = await connected()
+    expect((await handlers.choices({ type: 'choices' })).lastTagIds).toEqual([])
+    await handlers.enqueue({
+      type: 'enqueue',
+      request: {
+        items: [
+          {
+            url: IDOL_URL,
+            title: 'Idol',
+            artist: 'YOASOBI',
+            album: '',
+            thumbnail: null,
+            duration: 213,
+          },
+        ],
+        tagIds: [2, 99],
+        playlistId: null,
+        createPlaylistName: null,
+      },
+      label: null,
+    })
+    // A tag the library no longer has (99) is not offered back.
+    expect((await handlers.choices({ type: 'choices' })).lastTagIds).toEqual([2])
   })
 
   it('makes a new tag, and offers it the next time the tags are asked for', async () => {

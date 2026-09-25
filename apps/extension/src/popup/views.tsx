@@ -281,6 +281,17 @@ export interface Tagging {
 }
 
 /**
+ * A form's picks: the last import's tags once the choices say what those
+ * were, and the person's own from the first touch. Tagging is chosen once
+ * for a session of songs, not again on each.
+ */
+function usePicked(tagging: Tagging): [ReadonlySet<number>, (next: ReadonlySet<number>) => void] {
+  const [own, setOwn] = useState<ReadonlySet<number> | null>(null)
+  const picked = own ?? new Set(tagging.choices?.lastTagIds ?? [])
+  return [picked, setOwn]
+}
+
+/**
  * The tags to add (`E1`): every tag as a dot chip, the ones the server adds
  * to every import already on, and "+ new". Never a playlist.
  */
@@ -395,7 +406,7 @@ export function SongForm({
 }): ReactNode {
   const [title, setTitle] = useState(item.title)
   const [artist, setArtist] = useState(item.artist)
-  const [picked, setPicked] = useState<ReadonlySet<number>>(() => new Set())
+  const [picked, setPicked] = usePicked(tagging)
 
   return (
     <>
@@ -678,7 +689,7 @@ export function ListReview({
 }): ReactNode {
   const [review, setReview] = useState<Review>(() => reviewFrom(preview))
   const [editing, setEditing] = useState<number | null>(null)
-  const [picked, setPicked] = useState<ReadonlySet<number>>(() => new Set())
+  const [picked, setPicked] = usePicked(tagging)
   const count = comingIn(review)
 
   /** A name cleared to nothing goes back to what the link said, rather than importing blank. */
@@ -783,7 +794,7 @@ export function RequestForm({
   error: string | null
   onRequest: (input: { tagIds: number[] }) => void
 }): ReactNode {
-  const [picked, setPicked] = useState<ReadonlySet<number>>(() => new Set())
+  const [picked, setPicked] = usePicked(tagging)
 
   return (
     <>

@@ -59,6 +59,7 @@ function fakeHandlers(patch: Partial<Record<keyof Handlers, unknown>>): {
   const enqueued: unknown[] = []
   const handlers = {
     status: status('server'),
+    choices: () => Promise.resolve({ tags: [], defaultTagIds: [], lastTagIds: [7] }),
     requests: () => Promise.resolve({ imports: [] }),
     queue: () => Promise.resolve({ jobs: [], active: 0, queued: 0 }),
     songFor: () => Promise.resolve(null),
@@ -155,16 +156,16 @@ describe('what a page may ask', () => {
     })
   })
 
-  it('imports with your defaults, and tells the page nothing about your library', async () => {
+  it('imports with the tags the last import went in with, and tells the page nothing about your library', async () => {
     const { handlers, enqueued } = fakeHandlers({})
     const state = await createPageHandler(handlers)({ type: 'pillImport', url: IDOL })
     expect(state).toMatchObject({ state: 'queued' })
-    // No tags, no playlist: the page chooses nothing, and the server adds the
-    // default tags itself.
+    // The last import's tags and no playlist: the page chooses nothing, and
+    // the server adds the default tags itself.
     expect(enqueued).toEqual([
       expect.objectContaining({
         request: expect.objectContaining({
-          tagIds: [],
+          tagIds: [7],
           playlistId: null,
           createPlaylistName: null,
         }),
@@ -216,7 +217,7 @@ describe('what a page may ask', () => {
     expect(await createPageHandler(handlers)({ type: 'pillImport', url: IDOL })).toMatchObject({
       state: 'waiting',
     })
-    expect(left).toEqual([{ type: 'requestImport', url: IDOL, tagIds: [] }])
+    expect(left).toEqual([{ type: 'requestImport', url: IDOL, tagIds: [7] }])
     expect(enqueued).toHaveLength(0)
   })
 })

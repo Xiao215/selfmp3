@@ -62,7 +62,8 @@ web page can read, not even the script it runs inside YouTube.
 **The pill, in the page.** On a YouTube, YouTube Music or m.youtube.com watch
 page there is a **self.mp3** pill beside Like, in the accent with the app's note
 mark. It says *In library* when the song is already yours; otherwise pressing it
-imports the song with your default tags, and it follows it — *In the queue*
+imports the song with the tags your last import went in with (and your
+defaults), and it follows it — *In the queue*
 while the song waits its turn, then a turning ring and *Importing 40%* — to a
 green *Added*. Hovering a song on its way says the page can be left: the badge
 counts it and a notification says when it is in. Left in your bucket it says
@@ -73,7 +74,8 @@ song.
 **The popup, from the toolbar.** The same song, with everything to decide first:
 the title tidied out of the video's own (see the importing section of the
 [README](../../README.md)) and the artist, both fields you can change before it
-is saved, and your tags. **+ new** makes a tag there and then; a name you already
+is saved, and your tags, with the ones your last import went in with already
+picked, so a session of songs is tagged once. **+ new** makes a tag there and then; a name you already
 have picks that tag instead of making a second. The tags your server adds to
 every import are shown already on and cannot be turned off, because the server
 adds them whatever the popup sends. There is no playlist to choose: an import only

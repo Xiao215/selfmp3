@@ -4,7 +4,12 @@ import { constants as fsConstants } from 'node:fs'
 import { cleanArtist, tidyVideoTitle, type ToolStatus } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import { cookieArgs, explainCookieError, type YtCookieSettings } from './ytCookies.js'
-import { isRateLimited, RateLimitedError, type YtThrottleService } from './ytThrottle.js'
+import {
+  isRateLimited,
+  RateLimitedError,
+  type YtThrottleService,
+  KEPT_FOR_PEOPLE,
+} from './ytThrottle.js'
 
 /**
  * A typed wrapper around the `yt-dlp` command line.
@@ -349,7 +354,10 @@ export class YtDlpService {
     maxWaitMs?: number
     waitOutPause?: boolean
   }): Promise<void> {
-    const took = await this.#throttle.take(options)
+    // The queue's paths leave a few requests for a person (KEPT_FOR_PEOPLE);
+    // a person's paths take down to the last one.
+    const keep = options.waitOutPause === false ? KEPT_FOR_PEOPLE : 0
+    const took = await this.#throttle.take({ ...options, keep })
     if (took) return
     if (options.waitOutPause === false && this.#throttle.status().pausedUntil !== null) {
       throw new RateLimitedError(

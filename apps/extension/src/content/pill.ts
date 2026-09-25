@@ -30,7 +30,12 @@ const SHADOW_CSS = `
     background: var(--surface-3); color: var(--text-primary);
     font: 600 13px/1 -apple-system, BlinkMacSystemFont, 'Roboto', system-ui, sans-serif;
     cursor: pointer; white-space: nowrap;
+    /* A failure's reason can be a sentence; the pill sits among the player's
+       own controls and must not push them aside. The words are cut, and the
+       whole reason is the tooltip. */
+    max-width: min(320px, 30vw);
   }
+  .words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
   button.offer { background: var(--accent); color: var(--on-accent) }
   button.offer:hover { background: var(--accent-strong) }
   button.added { color: var(--good) }
@@ -152,8 +157,13 @@ export function createPill(
     draw(state) {
       const label = pillLabel(state)
       const mark = markElement(document, label.mark)
-      button.replaceChildren(...(mark ? [mark] : []), label.text)
+      const words = document.createElement('span')
+      words.className = 'words'
+      words.textContent = label.text
+      button.replaceChildren(...(mark ? [mark] : []), words)
       button.className = label.className
+      // The reason for a failure, whole, where the pill had to cut it.
+      button.title = state.state === 'failed' ? label.text : ''
       // Nothing to press while it is going, or once the song is yours.
       button.disabled = label.busy
       button.setAttribute('aria-label', `${label.text} — self.mp3`)

@@ -41,6 +41,18 @@ const BURST_SIGNED_IN = 50
 /** A rate-limit answer stops the queue for this long, whatever the bucket says. */
 export const PAUSE_MS = 15 * 60 * 1000
 
+/**
+ * Requests the download queue leaves in the bucket for a person.
+ *
+ * The queue and the person spend from one bucket, and a long queue drained it
+ * to the last token: pasting a link while forty songs were downloading was
+ * told to try again in a minute, by the very downloads it had asked for. The
+ * queue now stops short of the bottom, and a look-up, a preview or a listen
+ * takes what it left. Five is a handful of look-ups in a row before anyone
+ * waits; the queue is the one with nowhere to be.
+ */
+export const KEPT_FOR_PEOPLE = 5
+
 /** Two blocks inside this window are the same incident, and ratchet down once. */
 const RATCHET_COOLDOWN_MS = 30 * 60 * 1000
 
@@ -101,28 +113,37 @@ export function refill(state: ThrottleState, signedIn: boolean, now: number): Th
 }
 
 /**
- * How long until one request may go: 0 when it may go now.
+ * How long until one request may go: 0 when it may go now. `keep` is how
+ * many the caller leaves in the bucket for others (`KEPT_FOR_PEOPLE`).
  *
  * A pause outranks the bucket, so a block that arrived with tokens to spare
  * still stops everything.
  */
-export function waitMs(state: ThrottleState, signedIn: boolean, now: number): number {
+export function waitMs(state: ThrottleState, signedIn: boolean, now: number, keep = 0): number {
   const paused = Math.max(0, state.pausedUntil - now)
   const filled = refill(state, signedIn, now)
-  if (filled.tokens >= 1) return paused
+  const needed = 1 + keep
+  if (filled.tokens >= needed) return paused
   const perMs = budgetPerHour(filled, signedIn) / 3_600_000
-  const untilToken = perMs > 0 ? Math.ceil((1 - filled.tokens) / perMs) : Number.MAX_SAFE_INTEGER
+  const untilToken =
+    perMs > 0 ? Math.ceil((needed - filled.tokens) / perMs) : Number.MAX_SAFE_INTEGER
   return Math.max(paused, untilToken)
 }
 
 /**
- * Take one request's worth, if there is one. `null` when there is not, so the
- * caller decides whether to wait or to say so.
+ * Take one request's worth, if there is one past what the caller keeps for
+ * others. `null` when there is not, so the caller decides whether to wait or
+ * to say so.
  */
-export function spend(state: ThrottleState, signedIn: boolean, now: number): ThrottleState | null {
+export function spend(
+  state: ThrottleState,
+  signedIn: boolean,
+  now: number,
+  keep = 0,
+): ThrottleState | null {
   if (now < state.pausedUntil) return null
   const filled = refill(state, signedIn, now)
-  if (filled.tokens < 1) return null
+  if (filled.tokens < 1 + keep) return null
   return { ...filled, tokens: filled.tokens - 1 }
 }
 
@@ -194,7 +215,7 @@ export class RateLimitedError extends Error {
 
 /** What the throttle looks like from outside, for the UI and the doctor. */
 interface ThrottleStatus {
-  /** ms until the next request may go. 0 when nothing is holding it back. */
+  /** ms until the queue's next download may go. 0 when nothing is holding it back. */
   readonly waitMs: number
   /** Set while a rate-limit answer is still being waited out (epoch ms). */
   readonly pausedUntil: number | null
@@ -231,10 +252,10 @@ export class YtThrottleService {
     this.#now = now
   }
 
-  /** ms until a request may go; 0 when one may go now. */
-  waitMs(): number {
+  /** ms until a request may go, leaving `keep` behind; 0 when one may go now. */
+  waitMs(keep = 0): number {
     const now = this.#now()
-    return waitMs(this.#store.get(now), this.#signedIn(), now)
+    return waitMs(this.#store.get(now), this.#signedIn(), now, keep)
   }
 
   status(): ThrottleStatus {
@@ -242,17 +263,18 @@ export class YtThrottleService {
     const state = this.#store.get(now)
     const signedIn = this.#signedIn()
     return {
-      waitMs: waitMs(state, signedIn, now),
+      // The queue's wait: what the import screen explains, and the doctor reads.
+      waitMs: waitMs(state, signedIn, now, KEPT_FOR_PEOPLE),
       pausedUntil: state.pausedUntil > now ? state.pausedUntil : null,
       budgetPerHour: budgetPerHour(state, signedIn),
       ratchet: state.ratchet,
     }
   }
 
-  /** Take one request's worth if one is there. Does not wait. */
-  tryTake(): boolean {
+  /** Take one request's worth if one is there past `keep`. Does not wait. */
+  tryTake(keep = 0): boolean {
     const now = this.#now()
-    const next = spend(this.#store.get(now), this.#signedIn(), now)
+    const next = spend(this.#store.get(now), this.#signedIn(), now, keep)
     if (!next) return false
     this.#store.save(next)
     return true
@@ -274,19 +296,26 @@ export class YtThrottleService {
    * otherwise sit here holding a worker slot and reading as `running` for the
    * whole pause — the one thing the queue's scheduler is written not to do.
    * Such a job says so instead, and goes back in the queue it came from.
+   *
+   * `keep` is the queue's: it leaves that many for a person (`KEPT_FOR_PEOPLE`).
    */
   async take(
-    options: { signal?: AbortSignal; maxWaitMs?: number; waitOutPause?: boolean } = {},
+    options: {
+      signal?: AbortSignal
+      maxWaitMs?: number
+      waitOutPause?: boolean
+      keep?: number
+    } = {},
   ): Promise<boolean> {
-    const { signal, maxWaitMs, waitOutPause = true } = options
+    const { signal, maxWaitMs, waitOutPause = true, keep = 0 } = options
     const deadline = maxWaitMs === undefined ? null : this.#now() + maxWaitMs
 
     for (;;) {
       signal?.throwIfAborted()
-      if (this.tryTake()) return true
+      if (this.tryTake(keep)) return true
       if (!waitOutPause && this.status().pausedUntil !== null) return false
 
-      const wait = this.waitMs()
+      const wait = this.waitMs(keep)
       if (deadline !== null && this.#now() + wait > deadline) return false
       // Never sleep the whole wait in one go: the pause can be lifted by hand,
       // and a caller asleep for fifteen minutes would not notice.

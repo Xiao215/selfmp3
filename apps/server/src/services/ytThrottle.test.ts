@@ -9,6 +9,7 @@ import {
   resetRatchet,
   spend,
   waitMs,
+  KEPT_FOR_PEOPLE,
   PAUSE_MS,
   type ThrottleState,
 } from './ytThrottle.js'
@@ -71,6 +72,31 @@ describe('the three cases a fixed delay cannot cover', () => {
     expect(taken).toBeLessThan(100)
     // Never more than the hour's budget plus the burst it started full with.
     expect(taken).toBeLessThanOrEqual(75 + burstCapacity(false))
+  })
+})
+
+describe('what the queue leaves for a person', () => {
+  it('stops the queue short of the last few, which a look-up may still take', () => {
+    // Nearly drained: fewer left than the queue keeps back.
+    const { state } = drain(full(false), false, T0, burstCapacity(false) - KEPT_FOR_PEOPLE + 2)
+    expect(spend(state, false, T0, KEPT_FOR_PEOPLE)).toBeNull()
+    expect(waitMs(state, false, T0, KEPT_FOR_PEOPLE)).toBeGreaterThan(0)
+    // A person's request goes now, and so does the next.
+    const one = spend(state, false, T0)
+    expect(one).not.toBeNull()
+    expect(waitMs(one ?? state, false, T0)).toBe(0)
+    expect(spend(one ?? state, false, T0)).not.toBeNull()
+  })
+
+  it('lets the queue go again once the bucket holds one more than it keeps', () => {
+    const { state } = drain(full(false), false, T0, burstCapacity(false))
+    // 75 an hour is one every 48 seconds: six tokens is 288 seconds away.
+    expect(waitMs(state, false, T0, KEPT_FOR_PEOPLE)).toBeCloseTo(
+      (1 + KEPT_FOR_PEOPLE) * 48_000,
+      -4,
+    )
+    const later = T0 + (1 + KEPT_FOR_PEOPLE) * 48_000 + 1_000
+    expect(spend(state, false, later, KEPT_FOR_PEOPLE)).not.toBeNull()
   })
 })
 

@@ -55,12 +55,14 @@ export function jobAction(job: Pick<ImportJob, 'status' | 'step'>): JobAction {
 }
 
 /**
- * Whether a row can be taken off the list for good: a job that failed, or
- * was paused, and is not wanted after all. A job that is moving is cancelled
- * instead, and a job that finished goes with the day's Clear.
+ * Whether a row can be taken off the queue for good: waiting, downloading,
+ * failed or paused, and not wanted after all. A job past its download is
+ * adding its song and cannot be, and a job that finished goes with the
+ * day's Clear.
  */
-export function dismissable(job: Pick<ImportJob, 'status'>): boolean {
-  return job.status === 'error' || job.status === 'cancelled'
+export function dismissable(job: Pick<ImportJob, 'status' | 'step'>): boolean {
+  if (job.status === 'error' || job.status === 'cancelled') return true
+  return jobAction(job) === 'cancel'
 }
 
 /** How a job's row is tinted. */

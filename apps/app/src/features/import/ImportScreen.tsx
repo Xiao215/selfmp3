@@ -326,7 +326,6 @@ export function ImportScreen({
                 key={job.id}
                 job={job}
                 tags={tags}
-                onCancel={() => afterJob(api.cancelImport(job.id))}
                 onRetry={() => afterJob(api.retryImport(job.id))}
                 onDismiss={() => afterJob(api.dismissImport(job.id))}
               />
@@ -485,19 +484,19 @@ function FoldAction({
 
 /**
  * One download under Now: its cover, how it is going, and a thin line while
- * it downloads. A row that stopped — failed, or paused — offers Retry and,
- * beside it, the same × a moving row has, here meaning off the list for good.
+ * it downloads. The × takes the song off the queue for good — a waiting one
+ * goes, a downloading one is stopped and goes — and a row that stopped,
+ * failed or paused, offers Retry beside it. Pause all is how the queue is
+ * paused; the × used to cancel one row, which Resume all then picked up.
  */
 function JobRow({
   job,
   tags,
-  onCancel,
   onRetry,
   onDismiss,
 }: {
   job: ImportJob
   tags: readonly Tag[]
-  onCancel: () => void
   onRetry: () => void
   onDismiss: () => void
 }): ReactNode {
@@ -536,11 +535,7 @@ function JobRow({
             {status}
           </Text>
         </View>
-        {action === 'cancel' ? (
-          <IconButton onPress={onCancel} label={`Cancel ${job.title || 'this import'}`}>
-            <X size={15} color={theme.colors.textMuted} />
-          </IconButton>
-        ) : action === 'retry' || action === 'try-now' ? (
+        {action === 'retry' || action === 'try-now' ? (
           <Button
             label={action === 'try-now' ? 'Try now' : 'Retry'}
             icon={<Refresh size={13} color={theme.colors.textPrimary} />}
@@ -551,7 +546,7 @@ function JobRow({
         {dismissable(job) ? (
           <IconButton
             onPress={onDismiss}
-            label={`Dismiss ${job.title || 'this import'}`}
+            label={`Remove ${job.title || 'this import'} from the queue`}
             testID={`import-dismiss-${job.id}`}
           >
             <X size={15} color={theme.colors.textMuted} />

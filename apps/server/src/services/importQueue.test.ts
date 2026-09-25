@@ -187,6 +187,20 @@ exit 1
     expect(imports.byId(id)).toMatchObject({ status: 'queued', step: 'waiting', error: null })
   })
 
+  it('takes a job off the queue for good, stopping it first if it was downloading', async () => {
+    ytDlpHangs()
+    const id = enqueueOne()
+
+    queue.kick()
+    await until(() => imports.byId(id)?.status === 'running')
+    expect(queue.remove(id)).toBe(true)
+    expect(imports.byId(id)).toBeNull()
+    // The abort landing afterwards finds nothing to mark.
+    await until(() => queue.activeCount === 0)
+    expect(imports.byId(id)).toBeNull()
+    expect(queue.remove(id)).toBe(false)
+  })
+
   it('marks a job cancelled when a person cancels it mid-download', async () => {
     ytDlpHangs()
     const id = enqueueOne()

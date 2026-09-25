@@ -128,16 +128,18 @@ describe('Import, the whole queue at once', () => {
     await waitFor(() => expect(mockInvalidateQueue).toHaveBeenCalledTimes(1))
   })
 
-  it('lets a failed row be dismissed on its own, and offers no dismiss on a moving one', async () => {
+  it('lets any row short of adding its song be removed for good, and not one past that', async () => {
     await act(async () =>
       draw(
         job('one', { status: 'error', step: 'finished', error: 'Video unavailable' }),
         job('two', { status: 'running', step: 'downloading', progress: 40 }),
         job('three', {}),
+        job('four', { status: 'running', step: 'saving' }),
       ),
     )
-    expect(screen.queryByTestId('import-dismiss-two')).toBeNull()
-    expect(screen.queryByTestId('import-dismiss-three')).toBeNull()
+    expect(screen.getByTestId('import-dismiss-two')).toBeTruthy()
+    expect(screen.getByTestId('import-dismiss-three')).toBeTruthy()
+    expect(screen.queryByTestId('import-dismiss-four')).toBeNull()
 
     await act(async () => {
       await fireEvent.press(screen.getByTestId('import-dismiss-one'))

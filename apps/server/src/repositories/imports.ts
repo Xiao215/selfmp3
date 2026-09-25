@@ -320,9 +320,10 @@ export class ImportRepository {
 
   /**
    * Drop one job that is not moving — failed, or paused — for good. A job
-   * still queued or running is cancelled instead (`cancel`), and a done one
-   * goes with Clear. A song a failed upload left on this server is not
-   * touched: the cloud sync still sends it up by itself (cloudSync.ts).
+   * still queued or running is cancelled first (ImportQueueService.remove),
+   * and a done one goes with Clear. A song a failed upload left on this
+   * server is not touched: the cloud sync still sends it up by itself
+   * (cloudSync.ts).
    */
   dismiss(id: string): boolean {
     const info = this.#db

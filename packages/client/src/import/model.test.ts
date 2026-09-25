@@ -137,12 +137,13 @@ describe('import queue', () => {
     expect(jobAction(job({ status: 'done', step: 'finished' }))).toBeNull()
   })
 
-  it('lets a job that stopped be dismissed, and never one moving or done', () => {
+  it('lets any row still short of adding its song be removed, and never one done or past that', () => {
     expect(dismissable(job({ status: 'error', step: 'finished' }))).toBe(true)
     expect(dismissable(job({ status: 'error', step: 'uploading' }))).toBe(true)
     expect(dismissable(job({ status: 'cancelled' }))).toBe(true)
-    expect(dismissable(job({ status: 'queued' }))).toBe(false)
-    expect(dismissable(job({ status: 'running', step: 'downloading' }))).toBe(false)
+    expect(dismissable(job({ status: 'queued' }))).toBe(true)
+    expect(dismissable(job({ status: 'running', step: 'downloading' }))).toBe(true)
+    expect(dismissable(job({ status: 'running', step: 'saving' }))).toBe(false)
     expect(dismissable(job({ status: 'done', step: 'finished' }))).toBe(false)
   })
 

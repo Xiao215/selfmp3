@@ -161,6 +161,21 @@ export class ImportQueueService {
     return true
   }
 
+  /**
+   * Take a job off the queue for good: a waiting one goes, a downloading one
+   * is stopped and goes, a failed or paused one goes. A job past its
+   * download is adding its song and is refused, as a cancel is. The X on a
+   * row used to cancel, which left a "Cancelled" row that Resume all would
+   * pick up again: getting rid of a song took two taps and was undone by
+   * one.
+   */
+  remove(jobId: string): boolean {
+    if (this.#imports.cancel(jobId)) this.#inFlight.get(jobId)?.abort()
+    const removed = this.#imports.dismiss(jobId)
+    if (removed) this.kick()
+    return removed
+  }
+
   retry(jobId: string): boolean {
     const retried = this.#imports.retry(jobId)
     if (retried) this.kick()

@@ -333,12 +333,12 @@ export function importRoutes(container: Container): Router {
     }),
   )
 
-  /** Dismiss: a failed or paused job, off the list for good. */
+  /** Remove: off the queue for good, stopped first if it was downloading. */
   router.delete(
     '/import/jobs/:id',
     route({ params: ParamsWithJobId }, ({ params }) => {
-      if (!container.imports.dismiss(params.id)) {
-        throw HttpError.conflict('only a failed or paused job can be dismissed')
+      if (!container.importQueue.remove(params.id)) {
+        throw HttpError.conflict('that job is already adding its song, or is gone')
       }
       return { ok: true as const }
     }),

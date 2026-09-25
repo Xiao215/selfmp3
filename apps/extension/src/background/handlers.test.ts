@@ -64,7 +64,7 @@ function fakeServer(token: string | null) {
         return Promise.resolve(json(200, { defaultImportTagIds: [1] }))
       case 'GET /api/import/queue':
         return Promise.resolve(
-          json(200, { jobs: [failedJob], active: 0, queued: 0, pacing: IDLE_PACING }),
+          json(200, { jobs: [failedJob], active: 0, queued: 0, done: 0, pacing: IDLE_PACING }),
         )
       case 'POST /api/import/enqueue': {
         const request = JSON.parse(String(init.body)) as { tagIds: number[] }

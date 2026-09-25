@@ -4,7 +4,9 @@ import type { ImportQueue, Library, Tag, ToolStatus } from '@selfmp3/shared'
 import {
   clientApi,
   queryKeys,
+  HISTORY_LIMIT,
   useCreateTag,
+  useImportHistory,
   useImportQueue,
   useImportTools,
   useLibrary,
@@ -44,11 +46,16 @@ interface ImportSource {
   readonly tools: ToolStatus | undefined
   readonly refetchTools: () => Promise<unknown>
   readonly queue: ImportQueue | undefined
+  /** The queue with its whole history, once `history` was asked for; "Show all" reads it. */
+  readonly history: ImportQueue | undefined
   readonly invalidateQueue: () => Promise<void>
   readonly invalidateLibrary: () => Promise<void>
 }
 
-export function useImportSource(via: ServerConnection | undefined): ImportSource {
+export function useImportSource(
+  via: ServerConnection | undefined,
+  { history = false }: { history?: boolean } = {},
+): ImportSource {
   const baseUrl = via?.baseUrl
   const token = via?.token ?? null
   const server = useMemo(
@@ -59,6 +66,7 @@ export function useImportSource(via: ServerConnection | undefined): ImportSource
     () => ({
       library: ['via-server', baseUrl, 'library'] as const,
       queue: ['via-server', baseUrl, 'queue'] as const,
+      history: ['via-server', baseUrl, 'history'] as const,
       tools: ['via-server', baseUrl, 'tools'] as const,
     }),
     [baseUrl],
@@ -83,6 +91,12 @@ export function useImportSource(via: ServerConnection | undefined): ImportSource
       return data.active > 0 || data.queued > 0 ? 1_000 : false
     },
   })
+  const serverHistory = useQuery({
+    queryKey: keys.history,
+    queryFn: () => (server ? server.importQueue(HISTORY_LIMIT) : noServer()),
+    enabled: server !== null && history,
+    staleTime: 30_000,
+  })
   const serverTools = useQuery({
     queryKey: keys.tools,
     queryFn: () => (server ? server.importTools() : noServer()),
@@ -93,6 +107,7 @@ export function useImportSource(via: ServerConnection | undefined): ImportSource
 
   const ownLibrary = useLibrary()
   const ownQueue = useImportQueue(server === null)
+  const ownHistory = useImportHistory(server === null && history)
   const ownTools = useImportTools(server === null)
   const createHere = useCreateTag()
   // Steady between renders: the picker rebuilds its list around this.
@@ -130,7 +145,9 @@ export function useImportSource(via: ServerConnection | undefined): ImportSource
       tools: serverTools.data,
       refetchTools: serverTools.refetch,
       queue,
-      invalidateQueue: () => queryClient.invalidateQueries({ queryKey: keys.queue }),
+      history: serverHistory.data,
+      invalidateQueue: () =>
+        queryClient.invalidateQueries({ queryKey: ['via-server', baseUrl] as const }),
       invalidateLibrary: () => queryClient.invalidateQueries({ queryKey: keys.library }),
     }
   }
@@ -141,7 +158,9 @@ export function useImportSource(via: ServerConnection | undefined): ImportSource
     tools: ownTools.data,
     refetchTools: ownTools.refetch,
     queue,
-    invalidateQueue: () => queryClient.invalidateQueries({ queryKey: queryKeys.importQueue }),
+    history: ownHistory.data,
+    // The history too: Clear and Remove change it as much as the queue.
+    invalidateQueue: () => queryClient.invalidateQueries({ queryKey: ['import'] as const }),
     invalidateLibrary: () => queryClient.invalidateQueries({ queryKey: queryKeys.library }),
   }
 }

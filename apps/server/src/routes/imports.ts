@@ -296,16 +296,18 @@ export function importRoutes(container: Container): Router {
     }),
   )
 
+  /** The queue: every open job, and the newest `limit` finished ones with a count of them all. */
   router.get(
     '/import/queue',
     route(
-      { query: z.object({ limit: z.coerce.number().int().min(1).max(500).default(100) }) },
+      { query: z.object({ limit: z.coerce.number().int().min(0).max(500).default(100) }) },
       ({ query }): ImportQueue => {
         const counts = container.imports.counts()
         return {
           jobs: container.imports.recent(query.limit),
           active: counts.running,
           queued: counts.queued,
+          done: counts.done,
           pacing: (({ waitMs, pausedUntil, ratchet }) => ({ waitMs, pausedUntil, ratchet }))(
             container.throttle.status(),
           ),

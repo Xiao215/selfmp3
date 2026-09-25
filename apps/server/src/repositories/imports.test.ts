@@ -46,7 +46,7 @@ describe('ImportRepository', () => {
   })
 
   describe('recent', () => {
-    it('lists what failed before what waits, so a long queue cannot hide it', () => {
+    it('lists every open job, what failed before what waits, then the newest finished', () => {
       const [failed = '', running = ''] = enqueue('Failed', 'Running', 'Waiting')
       const [paused = '', done = ''] = enqueue('Paused', 'Done')
       imports.claimNext()
@@ -63,8 +63,23 @@ describe('ImportRepository', () => {
         'Paused',
         'Done',
       ])
-      // Cut off at the limit, the failure is still on the list.
-      expect(imports.recent(2).map(job => job.title)).toEqual(['Running', 'Failed'])
+      // The limit is the history's: every open job is on the list whatever it is.
+      expect(imports.recent(0).map(job => job.title)).toEqual([
+        'Running',
+        'Failed',
+        'Waiting',
+        'Paused',
+      ])
+      expect(imports.counts()).toEqual({ running: 1, queued: 1, done: 1 })
+    })
+
+    it('keeps the newest finished jobs within the limit, and counts them all', () => {
+      for (const id of enqueue('First', 'Second', 'Third')) {
+        imports.update(id, { status: 'done', step: 'finished' })
+      }
+      // Finished within the same second: the later asked-for is the newer.
+      expect(imports.recent(2).map(job => job.title)).toEqual(['Third', 'Second'])
+      expect(imports.counts().done).toBe(3)
     })
   })
 

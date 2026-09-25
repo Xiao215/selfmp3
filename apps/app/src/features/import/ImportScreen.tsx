@@ -72,8 +72,10 @@ export function ImportScreen({
   const { theme } = useUnistyles()
   const router = useRouter()
   const { wide } = useLayout()
-  const source = useImportSource(via)
-  const { api, library, tools, refetchTools, queue } = source
+  /** "Show all" under Earlier today: the whole history is read only then. */
+  const [showAll, setShowAll] = useState(false)
+  const source = useImportSource(via, { history: showAll })
+  const { api, library, tools, refetchTools, queue, history } = source
   const viaServer = via !== undefined
   const params = useLocalSearchParams<{ url?: string; text?: string; title?: string }>()
 
@@ -332,10 +334,13 @@ export function ImportScreen({
             ))}
           </View>
         ) : null}
-        {folded.finished.length > 0 ? (
+        {queue.done > 0 ? (
           <Finished
-            jobs={folded.finished}
+            jobs={showAll && history ? foldQueue(history.jobs).finished : folded.finished}
+            total={queue.done}
             tags={tags}
+            all={showAll}
+            onShowAll={setShowAll}
             onClear={() => afterJob(api.clearImports())}
           />
         ) : null}
@@ -406,18 +411,25 @@ function arrivedLine(job: ImportJob, tags: readonly Tag[]): string {
 /**
  * Earlier today: the songs that arrived, a few at once, and a way to clear
  * them. Clear takes these and nothing else — a row under Now that failed or
- * was paused keeps its reason, its Retry and its own Dismiss.
+ * was paused keeps its reason, its Retry and its own Dismiss. The polled
+ * queue carries only the newest few of these; "Show all" counts them all
+ * (`total`) and reads the rest when pressed.
  */
 function Finished({
   jobs,
+  total,
   tags,
+  all,
+  onShowAll,
   onClear,
 }: {
   jobs: readonly ImportJob[]
+  total: number
   tags: readonly Tag[]
+  all: boolean
+  onShowAll: (all: boolean) => void
   onClear: () => void
 }): ReactNode {
-  const [all, setAll] = useState(false)
   const today = finishedLabel(jobs).endsWith('today')
   const shown = all ? jobs : jobs.slice(0, FINISHED_SHOWN)
   return (
@@ -441,12 +453,13 @@ function Finished({
           </View>
         </View>
       ))}
-      {jobs.length > FINISHED_SHOWN ? (
+      {total > FINISHED_SHOWN ? (
         <FoldAction
-          label={all ? 'Show fewer' : `Show all ${jobs.length}`}
+          label={all ? 'Show fewer' : `Show all ${total}`}
           accessibilityLabel={all ? 'Hide finished imports' : 'Show finished imports'}
           expanded={all}
-          onPress={() => setAll(open => !open)}
+          onPress={() => onShowAll(!all)}
+          testID="import-show-all"
         />
       ) : null}
     </View>

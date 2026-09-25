@@ -63,7 +63,7 @@ jest.mock('./importSource', () => {
         createTag: (name: string) => mockCreateTag(name),
         tools: { ytdlp: true, ffmpeg: true },
         refetchTools: () => Promise.resolve(),
-        queue: { jobs: [], pacing: null },
+        queue: { jobs: [], done: 0, pacing: null },
         invalidateQueue: () => Promise.resolve(),
         invalidateLibrary: () => Promise.resolve(),
       }

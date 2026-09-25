@@ -73,6 +73,7 @@ export const queryKeys = {
   library: ['library'] as const,
   settings: ['settings'] as const,
   importQueue: ['import', 'queue'] as const,
+  importHistory: ['import', 'history'] as const,
   importTools: ['import', 'tools'] as const,
   migrateJob: (id: string) => ['migrate', id] as const,
   /** Everything counted: what a played song invalidates, in one go. */
@@ -304,6 +305,23 @@ export function useImportQueue(enabled: boolean): UseQueryResult<ImportQueue, Er
       if (!data) return false
       return data.active > 0 || data.queued > 0 ? 1_000 : false
     },
+  })
+}
+
+/** How many finished imports "Show all" reads: the server's most. */
+export const HISTORY_LIMIT = 500
+
+/**
+ * The queue's whole history, for "Show all": read once when asked for, never
+ * polled. The polled queue carries only the newest few finished jobs, since
+ * a big day's history a second at a time was most of what the poll moved.
+ */
+export function useImportHistory(enabled: boolean): UseQueryResult<ImportQueue, Error> {
+  return useQuery({
+    queryKey: queryKeys.importHistory,
+    queryFn: () => clientApi().importQueue(HISTORY_LIMIT),
+    enabled,
+    staleTime: 30_000,
   })
 }
 

@@ -74,7 +74,8 @@ export class ImportRepository {
 
   readonly #insert
   readonly #byId
-  readonly #recent
+  readonly #open
+  readonly #finished
   readonly #nextQueued
   readonly #countByStatus
   readonly #update
@@ -93,23 +94,31 @@ export class ImportRepository {
     this.#byId = db.prepare<[string], ImportJobRow>('SELECT * FROM import_jobs WHERE id = ?')
 
     /*
-     * What needs a person before what does not, since the list is cut off at
-     * the caller's limit. Failed jobs come before waiting ones: a queue of
-     * three hundred songs with fifty that failed to upload showed only the
-     * queue, and the failures surfaced only once Pause all emptied it. Done
-     * jobs are history, and come last. Old finished jobs are pruned elsewhere.
+     * Every open job, what needs a person first: failed before waiting, since
+     * a queue of three hundred songs with fifty that failed to upload once
+     * showed only the queue, and the failures surfaced when Pause all emptied
+     * it. Open jobs are bounded by what was asked for, so all of them come
+     * (to a ceiling no one reaches); the finished ones are history and are
+     * read apart (`#finished`), newest first, up to the caller's limit. One
+     * list cut off at a hundred rows showed a big day's history as nothing.
      */
-    this.#recent = db.prepare<[number], ImportJobRow>(`
+    this.#open = db.prepare<[], ImportJobRow>(`
       SELECT * FROM import_jobs
-      ORDER BY CASE status
-                 WHEN 'running'   THEN 0
-                 WHEN 'error'     THEN 1
-                 WHEN 'queued'    THEN 2
-                 WHEN 'cancelled' THEN 3
-                 ELSE 4
-               END,
-               position, created_at DESC
-      LIMIT ?
+       WHERE status <> 'done'
+       ORDER BY CASE status
+                  WHEN 'running'   THEN 0
+                  WHEN 'error'     THEN 1
+                  WHEN 'queued'    THEN 2
+                  ELSE 3
+                END,
+                position, created_at DESC
+       LIMIT 1000
+    `)
+    this.#finished = db.prepare<[number], ImportJobRow>(`
+      SELECT * FROM import_jobs
+       WHERE status = 'done'
+       ORDER BY updated_at DESC, position DESC
+       LIMIT ?
     `)
 
     this.#nextQueued = db.prepare<[], ImportJobRow>(`
@@ -189,8 +198,9 @@ export class ImportRepository {
     return row ? toJob(row) : null
   }
 
+  /** Every open job, then the newest `limit` finished ones. */
   recent(limit = 100): ImportJob[] {
-    return this.#recent.all(limit).map(toJob)
+    return [...this.#open.all(), ...this.#finished.all(limit)].map(toJob)
   }
 
   /** The next queued job, in the order they were asked for. */
@@ -245,10 +255,11 @@ export class ImportRepository {
     return this.#byId.get(id)?.playlist_id ?? null
   }
 
-  counts(): { running: number; queued: number } {
+  counts(): { running: number; queued: number; done: number } {
     return {
       running: this.#countByStatus.get('running')?.n ?? 0,
       queued: this.#countByStatus.get('queued')?.n ?? 0,
+      done: this.#countByStatus.get('done')?.n ?? 0,
     }
   }
 

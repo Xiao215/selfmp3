@@ -26,6 +26,7 @@ const queue = (jobs: ImportJob[]): ImportQueue => ({
   jobs,
   active: jobs.filter(each => each.status === 'running').length,
   queued: jobs.filter(each => each.status === 'queued').length,
+  done: 0,
   pacing: IDLE_PACING,
 })
 

@@ -22,6 +22,8 @@ const mockResumeImports = jest.fn()
 const mockDismissImport = jest.fn()
 const mockInvalidateQueue = jest.fn()
 const mockJobs: ImportJob[] = []
+/** How many finished jobs the server counts, beyond the few it sends. */
+let mockDone = 0
 jest.mock('./importSource', () => {
   // The mock is made before the jobs above exist, so the queue is read when the screen asks.
   const source = {
@@ -35,8 +37,9 @@ jest.mock('./importSource', () => {
     tools: { ytdlp: true, ffmpeg: true },
     refetchTools: () => Promise.resolve(),
     get queue() {
-      return { jobs: mockJobs, active: 0, queued: 0, pacing: null }
+      return { jobs: mockJobs, active: 0, queued: 0, done: mockDone, pacing: null }
     },
+    history: undefined,
     invalidateQueue: () => mockInvalidateQueue(),
     invalidateLibrary: () => Promise.resolve(),
   }
@@ -147,6 +150,13 @@ describe('Import, the whole queue at once', () => {
 
     expect(mockDismissImport).toHaveBeenCalledWith('one')
     await waitFor(() => expect(mockInvalidateQueue).toHaveBeenCalledTimes(1))
+  })
+
+  it('counts the whole history under Earlier today, not only the few rows it was sent', async () => {
+    mockDone = 7
+    await act(async () => draw(job('one', { status: 'done', step: 'finished' })))
+    expect(screen.getByTestId('import-show-all')).toHaveTextContent('Show all 7')
+    mockDone = 0
   })
 
   it('offers both while a paused queue has one still going, and neither once all is in', async () => {

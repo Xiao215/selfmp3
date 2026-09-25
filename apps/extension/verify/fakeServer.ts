@@ -143,6 +143,7 @@ export async function startFakeServer(): Promise<FakeServer> {
           jobs,
           active: jobs.filter(job => job.status === 'running').length,
           queued: jobs.filter(job => job.status === 'queued').length,
+          done: 0,
           pacing: IDLE_PACING,
         })
       }

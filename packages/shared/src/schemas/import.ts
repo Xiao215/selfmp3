@@ -211,9 +211,12 @@ export type ImportPacing = z.infer<typeof ImportPacingSchema>
 export const IDLE_PACING: ImportPacing = { waitMs: 0, pausedUntil: null, ratchet: 1 }
 
 export const ImportQueueSchema = z.object({
+  /** Every job still open — running, waiting, failed, paused — then the newest finished ones, up to the limit asked for. */
   jobs: z.array(ImportJobSchema),
   active: z.number().int().nonnegative(),
   queued: z.number().int().nonnegative(),
+  /** How many finished jobs there are in all, however many `jobs` holds. */
+  done: z.number().int().nonnegative(),
   pacing: ImportPacingSchema,
 })
 export type ImportQueue = z.infer<typeof ImportQueueSchema>

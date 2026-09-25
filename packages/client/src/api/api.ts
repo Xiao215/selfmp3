@@ -412,7 +412,13 @@ export function createApi({ context, fetch }: ApiOptions) {
     importEnqueue: (input: ImportEnqueue) =>
       request('POST', '/api/import/enqueue', ImportEnqueueResultSchema, input),
 
-    importQueue: () => request('GET', '/api/import/queue', ImportQueueSchema),
+    /** The queue, with the newest `finished` done jobs (the server's default when unsaid). */
+    importQueue: (finished?: number) =>
+      request(
+        'GET',
+        finished === undefined ? '/api/import/queue' : `/api/import/queue?limit=${finished}`,
+        ImportQueueSchema,
+      ),
 
     cancelImport: (id: string) => request('POST', `/api/import/jobs/${id}/cancel`, OkSchema),
 

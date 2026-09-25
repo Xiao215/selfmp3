@@ -97,8 +97,8 @@ export function TagItPill({
 
 /**
  * `P30`, `C14`: "Tag them", each chosen tag a white chip, then the dashed
- * "+ tag". A tag turned off here stays on show, unlit, until the review goes,
- * so a slip is one tap to undo rather than a trip back into the picker.
+ * "+ tag". A tag turned off here leaves the row: it used to stay on, unlit,
+ * as a one-tap undo, and read instead as a tag that would not go away.
  */
 export function TagThem({
   tags,
@@ -112,10 +112,7 @@ export function TagThem({
   onChange: (next: ReadonlySet<number>) => void
 }): ReactNode {
   const [open, setOpen] = useState(false)
-  const [seen, setSeen] = useState<ReadonlySet<number>>(() => new Set(selected))
-  // Adjusted during render: a tag chosen in the picker joins the row at once.
-  if ([...selected].some(id => !seen.has(id))) setSeen(new Set([...seen, ...selected]))
-  const shown = tags.filter(tag => seen.has(tag.id))
+  const shown = tags.filter(tag => selected.has(tag.id))
 
   const toggle = (id: number): void => {
     const next = new Set(selected)

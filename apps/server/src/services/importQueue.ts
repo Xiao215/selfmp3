@@ -40,8 +40,8 @@ import { isFreeOnDisk, songKeyCandidates } from './libraryLayout.js'
 /** The part of the cloud sync an import needs: see services/cloudSync.ts. */
 interface ImportUploader {
   readonly connected: boolean
-  /** Put the song in the bucket and publish a snapshot that has it. */
-  uploadSong(songId: number): Promise<void>
+  /** Put the song in the bucket and publish a snapshot that has it — later, while `more` are coming. */
+  uploadSong(songId: number, options?: { more?: boolean }): Promise<void>
   /** A job has finished, one way or another: the next snapshot says how. */
   kick(): void
 }
@@ -274,7 +274,8 @@ export class ImportQueueService {
         error: null,
       })
       this.#logger.info('imported', { songId, title: job.title })
-      this.#cloud.kick()
+      // A pass per song of a run was a listing per song; the run's last song kicks.
+      if (this.#imports.counts().queued === 0) this.#cloud.kick()
     } catch (error) {
       if (controller.signal.aborted) {
         // Stopped by a shutdown, not by a person: the job goes back in the
@@ -528,7 +529,7 @@ export class ImportQueueService {
     if (!this.#cloud.connected) return
     this.#imports.update(jobId, { step: 'uploading', progress: null, songId })
     try {
-      await this.#cloud.uploadSong(songId)
+      await this.#cloud.uploadSong(songId, { more: this.#imports.counts().queued > 0 })
     } catch (error) {
       throw new UploadError(error instanceof Error ? error.message : String(error))
     }

@@ -175,6 +175,7 @@ describe('CloudSyncService', () => {
       },
       debounceMs: 5,
       retryDelaysMs: [30],
+      publishDeferMs: 40,
       // A second apart per call, so every snapshot gets a name of its own.
       now: () => new Date((clock += 1000)),
     })
@@ -1779,6 +1780,54 @@ describe('CloudSyncService', () => {
       const puts = bucket.puts.length
       await pass()
       expect(bucket.puts.slice(puts).filter(key => key.startsWith('audio/'))).toEqual([])
+    })
+  })
+
+  describe('what a day of imports costs the bucket', () => {
+    it('sends a file without asking about it first', async () => {
+      addSong('A - One', 'one')
+      await connect()
+      expect(bucket.heads.filter(key => key.startsWith('audio/'))).toEqual([])
+      expect(bucket.keys('audio/')).toEqual([`audio/${sha('one')}.m4a`])
+    })
+
+    it('lists the snapshot folder once, and prunes from memory after that', async () => {
+      addSong('A - One', 'one')
+      await connect()
+      const listed = () => bucket.lists.filter(prefix => prefix === 'snapshots/').length
+      const after = listed()
+      for (const name of ['B - Two', 'C - Three', 'D - Four', 'E - Five']) {
+        addSong(name, name)
+        await pass()
+      }
+      expect(listed()).toBe(after)
+      // Still pruned to the few kept, from what it wrote itself.
+      expect(snapshotKeys().length).toBeLessThanOrEqual(3)
+    })
+
+    it('publishes one snapshot for a run of imports, not one each', async () => {
+      await connect()
+      const before = snapshotKeys().length
+      const a = addSong('A - One', 'one')
+      const b = addSong('B - Two', 'two')
+      const c = addSong('C - Three', 'three')
+      await sync.uploadSong(a, { more: true })
+      await sync.uploadSong(b, { more: true })
+      expect(snapshotKeys().length).toBe(before)
+      // The songs are up meanwhile: another device that reads the bucket has them.
+      expect(bucket.keys('audio/')).toHaveLength(2)
+      await sync.uploadSong(c, { more: false })
+      expect(snapshotKeys().length).toBe(before + 1)
+      expect(latest().songs).toHaveLength(3)
+    })
+
+    it('writes the snapshot a run owes by itself once the run pauses', async () => {
+      await connect()
+      const before = snapshotKeys().length
+      const a = addSong('A - One', 'one')
+      await sync.uploadSong(a, { more: true })
+      expect(snapshotKeys().length).toBe(before)
+      await vi.waitFor(() => expect(latest().songs).toHaveLength(1), { timeout: 5_000 })
     })
   })
 

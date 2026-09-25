@@ -86,10 +86,57 @@ export function defaultTicked(
   )
 }
 
-/** What goes to the server: only the ticked fields, each as the schema wants it. */
+/** A field a person can type into: everything but the cover. */
+export type TextField = Exclude<Field, 'artwork'>
+
+/** What was typed over the song's own values, by field, as typed. */
+export type Edits = Partial<Record<TextField, string>>
+
+/** A song's value as the field shows it for typing: nothing as an empty box. */
+export function editable(value: string | number | null | undefined): string {
+  return value === null || value === undefined ? '' : String(value)
+}
+
+/**
+ * The corrections typed by hand, as the server takes them: a text field's
+ * words, a year or track number as a number or nothing. A field typed back
+ * to what the song has is no change, a title typed to nothing is not a
+ * change either (a song has a title), and a number that is not one is left
+ * as it was. The dialog used to show the song's values as words alone,
+ * with a hint to "correct the title by hand first" and nowhere to do it.
+ */
+export function handEdits(
+  song: Pick<Song, 'title' | 'artist' | 'album' | 'albumArtist' | 'year' | 'trackNo'>,
+  edits: Edits,
+): ApplyMetadata {
+  const input: ApplyMetadata = {}
+  for (const field of ['title', 'artist', 'album', 'albumArtist'] as const) {
+    const typed = edits[field]
+    if (typed === undefined) continue
+    const value = typed.trim()
+    if (field === 'title' && value === '') continue
+    if (value !== song[field]) input[field] = value
+  }
+  for (const field of ['year', 'trackNo'] as const) {
+    const typed = edits[field]
+    if (typed === undefined) continue
+    const text = typed.trim()
+    const value = text === '' ? null : /^\d{1,4}$/.test(text) ? Number(text) : undefined
+    if (value === undefined) continue
+    if (value !== song[field]) input[field] = value
+  }
+  return input
+}
+
+/**
+ * What goes to the server: the ticked fields of the suggestion, each as the
+ * schema wants it, and what was typed by hand — which wins for a field that
+ * has both, since the person had the suggestion in front of them.
+ */
 export function applyInput(
   diffs: readonly Diff[],
   ticked: ReadonlySet<Field>,
+  hand: ApplyMetadata = {},
 ): ApplyMetadata | null {
   const input: ApplyMetadata = {}
   for (const diff of diffs) {
@@ -99,11 +146,19 @@ export function applyInput(
       input[diff.field] = Number(diff.value)
     else input[diff.field] = String(diff.value)
   }
+  Object.assign(input, hand)
   return Object.keys(input).length > 0 ? input : null
 }
 
-export function appliedCount(diffs: readonly Diff[], ticked: ReadonlySet<Field>): number {
-  return diffs.filter(diff => ticked.has(diff.field)).length
+/** How many fields Apply would change: the ticked suggestions and the hand edits, a field once. */
+export function appliedCount(
+  diffs: readonly Diff[],
+  ticked: ReadonlySet<Field>,
+  hand: ApplyMetadata = {},
+): number {
+  const fields = new Set<string>(Object.keys(hand))
+  for (const diff of diffs) if (ticked.has(diff.field)) fields.add(diff.field)
+  return fields.size
 }
 
 export function applyLabel(count: number, pending: boolean): string {

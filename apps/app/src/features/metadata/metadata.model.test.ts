@@ -12,6 +12,8 @@ import {
   defaultTicked,
   diffFields,
   diffLabel,
+  editable,
+  handEdits,
   missingArtCount,
   scorePercent,
 } from './metadata.model'
@@ -58,6 +60,31 @@ describe('metadata changes', () => {
     expect(input).toEqual({ year: 2023, artworkUrl: 'https://example.com/idol.jpg' })
     expect(ApplyMetadataSchema.safeParse(input).success).toBe(true)
     expect(applyInput(diffs, new Set())).toBeNull()
+  })
+
+  it('takes corrections typed by hand, and lets them win over the suggestion', () => {
+    expect(editable(null)).toBe('')
+    expect(editable(2023)).toBe('2023')
+    const typed = handEdits(SONG, {
+      title: ' Idol ',
+      artist: 'YOASOBI',
+      albumArtist: '',
+      year: '',
+      trackNo: 'x',
+    })
+    // The artist is what it was; a blank album artist is what it was; "x" is no number.
+    expect(typed).toEqual({ title: 'Idol', year: null })
+    // A title typed to nothing is not a change: a song has a title.
+    expect(handEdits(SONG, { title: '  ' })).toEqual({})
+    expect(handEdits(SONG, { trackNo: '12' })).toEqual({ trackNo: 12 })
+
+    const diffs = diffFields(SONG, CANDIDATE)
+    const input = applyInput(diffs, new Set(['album']), { album: 'Mine', year: null })
+    expect(input).toEqual({ album: 'Mine', year: null })
+    expect(ApplyMetadataSchema.safeParse(input).success).toBe(true)
+    expect(appliedCount(diffs, new Set(['album', 'artwork']), { album: 'Mine', year: null })).toBe(
+      3,
+    )
   })
 
   it('counts on the button, and says when it is working', () => {

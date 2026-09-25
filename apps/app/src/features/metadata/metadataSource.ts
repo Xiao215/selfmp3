@@ -65,6 +65,8 @@ export function useMetadataSource(
     onSuccess: () => {
       cloudLibrary.markCloudLibraryStale()
       void client.invalidateQueries({ queryKey: queryKeys.library })
+      // A corrected title or artist is a new search: the next look-up asks again.
+      void client.invalidateQueries({ queryKey: ['via-server', via?.baseUrl, 'metadata'] })
     },
   })
 
@@ -82,7 +84,16 @@ export function useMetadataSource(
   return {
     lookup: ownLookup,
     apply: {
-      mutate: (input, options) => ownApply.mutate({ id: songId, input }, options),
+      mutate: (input, options) =>
+        ownApply.mutate(
+          { id: songId, input },
+          {
+            onSuccess: () => {
+              void client.invalidateQueries({ queryKey: queryKeys.metadataLookup(songId) })
+              options.onSuccess()
+            },
+          },
+        ),
       isPending: ownApply.isPending,
       isError: ownApply.isError,
       error: ownApply.error,

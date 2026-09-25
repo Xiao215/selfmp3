@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { formatDuration, type MetadataCandidate, type Song } from '@selfmp3/shared'
@@ -14,11 +14,14 @@ import {
   defaultTicked,
   diffFields,
   diffLabel,
+  editable,
   FIELD_LABELS,
+  handEdits,
   scorePercent,
-  shown,
   SOURCE_LABELS,
+  type Edits,
   type Field,
+  type TextField,
 } from './metadata.model'
 import { useArt } from '../../offline/useArt'
 import { useOverlay } from '../../shell/Overlay'
@@ -39,10 +42,11 @@ const SOURCE_TONE: Record<MetadataCandidate['source'], [string, string]> = {
 }
 
 /**
- * "Fix metadata…". The song as the library has it on one side, suggestions
- * from iTunes and MusicBrainz on the other, and the changes a suggestion
- * would make, each ticked or not, so exactly the corrections agreed with are
- * applied.
+ * "Fix metadata…". The song as the library has it on one side, every field
+ * a box to type into; suggestions from iTunes and MusicBrainz on the other,
+ * and the changes a suggestion would make, each ticked or not, so exactly
+ * the corrections agreed with are applied. What is typed by hand is applied
+ * too, and wins over a ticked suggestion for the same field.
  *
  * Centred at desktop width; the whole screen on a phone.
  *
@@ -87,33 +91,56 @@ export function MetadataDialog({
     setTicked(next)
   }
 
-  const count = appliedCount(diffs, ticked)
+  const [edits, setEdits] = useState<Edits>({})
+  const hand = useMemo(() => handEdits(song, edits), [song, edits])
+  const count = appliedCount(diffs, ticked, hand)
   const submit = (): void => {
-    const input = applyInput(diffs, ticked)
+    const input = applyInput(diffs, ticked, hand)
     if (input) apply.mutate(input, { onSuccess: onClose })
   }
+
+  const fields: readonly (readonly [TextField, string, 'default' | 'number-pad'])[] = [
+    ['title', 'Title', 'default'],
+    ['artist', 'Artist', 'default'],
+    ['album', 'Album', 'default'],
+    ['albumArtist', 'Album artist', 'default'],
+    ['year', 'Year', 'number-pad'],
+    ['trackNo', 'Track №', 'number-pad'],
+  ]
 
   const current = (
     <View style={[styles.current, wide ? styles.currentWide : styles.currentNarrow]}>
       <Text style={[styles.groupTitle, !wide && styles.fullRow]}>IN YOUR LIBRARY</Text>
       <Cover uri={artFor(song)} title={song.album || song.title} size={wide ? 120 : 96} />
       <View style={[styles.fields, wide && styles.fieldsWide]}>
-        {(
-          [
-            ['Title', song.title],
-            ['Artist', shown(song.artist)],
-            ['Album', shown(song.album)],
-            ['Album artist', shown(song.albumArtist)],
-            ['Year', shown(song.year)],
-            ['Track №', shown(song.trackNo)],
-            ['Length', song.duration ? formatDuration(song.duration) : '—'],
-          ] as const
-        ).map(([label, value]) => (
-          <View key={label} style={styles.fieldRow}>
+        {fields.map(([field, label, keyboard]) => (
+          <View key={field} style={styles.fieldRow}>
             <Text style={styles.fieldLabel}>{label}</Text>
-            <Text style={styles.fieldValue}>{value}</Text>
+            <TextInput
+              value={edits[field] ?? editable(song[field])}
+              onChangeText={text => setEdits(previous => ({ ...previous, [field]: text }))}
+              placeholder="—"
+              placeholderTextColor={theme.colors.textMuted}
+              keyboardType={keyboard}
+              autoCapitalize="none"
+              autoCorrect={false}
+              spellCheck={false}
+              accessibilityLabel={label}
+              testID={`metadata-field-${field}`}
+              style={[
+                styles.fieldValue,
+                styles.fieldInput,
+                hand[field] !== undefined && styles.fieldEdited,
+              ]}
+            />
           </View>
         ))}
+        <View style={styles.fieldRow}>
+          <Text style={styles.fieldLabel}>Length</Text>
+          <Text style={styles.fieldValue}>
+            {song.duration ? formatDuration(song.duration) : '—'}
+          </Text>
+        </View>
       </View>
     </View>
   )
@@ -133,8 +160,8 @@ export function MetadataDialog({
       ) : null}
       {lookup.isSuccess && candidates.length === 0 ? (
         <Text style={styles.hint}>
-          Nothing matched on iTunes or MusicBrainz. Try correcting the title or artist by hand first
-          — the lookup uses them as the search.
+          Nothing matched on iTunes or MusicBrainz. Correct the title or artist on the left and
+          apply — the next look-up searches with them.
         </Text>
       ) : null}
 
@@ -402,8 +429,17 @@ const styles = StyleSheet.create(theme => ({
   fields: { flex: 1, minWidth: 0, gap: 7 },
   fieldsWide: { flex: 0 },
   fieldRow: { flexDirection: 'row', gap: 12 },
-  fieldLabel: { width: 84, color: theme.colors.textMuted, fontSize: 13 },
+  fieldLabel: { width: 84, color: theme.colors.textMuted, fontSize: 13, paddingTop: 2 },
   fieldValue: { flex: 1, color: theme.colors.textPrimary, fontSize: 13 },
+  // A box only by its underline, so the panel still reads as the song's card.
+  fieldInput: {
+    paddingVertical: 2,
+    paddingHorizontal: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.surface3,
+    _web: { outlineStyle: 'none' },
+  },
+  fieldEdited: { borderBottomColor: theme.colors.accent },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   groupTitle: groupLabel(theme.colors),
   candidates: { paddingVertical: 18, paddingHorizontal: 20, gap: 12 },

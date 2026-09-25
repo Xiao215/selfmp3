@@ -9,7 +9,7 @@ import {
   resetRatchet,
   spend,
   waitMs,
-  KEPT_FOR_PEOPLE,
+  PERSON_MAY_BORROW,
   PAUSE_MS,
   type ThrottleState,
 } from './ytThrottle.js'
@@ -75,28 +75,29 @@ describe('the three cases a fixed delay cannot cover', () => {
   })
 })
 
-describe('what the queue leaves for a person', () => {
-  it('stops the queue short of the last few, which a look-up may still take', () => {
-    // Nearly drained: fewer left than the queue keeps back.
-    const { state } = drain(full(false), false, T0, burstCapacity(false) - KEPT_FOR_PEOPLE + 2)
-    expect(spend(state, false, T0, KEPT_FOR_PEOPLE)).toBeNull()
-    expect(waitMs(state, false, T0, KEPT_FOR_PEOPLE)).toBeGreaterThan(0)
-    // A person's request goes now, and so does the next.
-    const one = spend(state, false, T0)
-    expect(one).not.toBeNull()
-    expect(waitMs(one ?? state, false, T0)).toBe(0)
-    expect(spend(one ?? state, false, T0)).not.toBeNull()
+describe('what a person may borrow', () => {
+  it('lets a look-up go on an empty bucket, and makes the queue wait for it', () => {
+    const { state } = drain(full(false), false, T0, burstCapacity(false))
+    // The queue's next download has to wait for a real token.
+    expect(spend(state, false, T0)).toBeNull()
+    expect(waitMs(state, false, T0)).toBeCloseTo(48_000, -3)
+    // A person's request goes now, below empty, and the queue waits a token longer.
+    const borrowed = spend(state, false, T0, PERSON_MAY_BORROW)
+    expect(borrowed?.tokens).toBeCloseTo(-1, 5)
+    expect(waitMs(borrowed ?? state, false, T0)).toBeCloseTo(2 * 48_000, -3)
   })
 
-  it('lets the queue go again once the bucket holds one more than it keeps', () => {
-    const { state } = drain(full(false), false, T0, burstCapacity(false))
-    // 75 an hour is one every 48 seconds: six tokens is 288 seconds away.
-    expect(waitMs(state, false, T0, KEPT_FOR_PEOPLE)).toBeCloseTo(
-      (1 + KEPT_FOR_PEOPLE) * 48_000,
-      -4,
-    )
-    const later = T0 + (1 + KEPT_FOR_PEOPLE) * 48_000 + 1_000
-    expect(spend(state, false, later, KEPT_FOR_PEOPLE)).not.toBeNull()
+  it('stops lending a few requests below empty', () => {
+    let state = drain(full(false), false, T0, burstCapacity(false)).state
+    for (let i = 0; i < PERSON_MAY_BORROW; i++) {
+      const next = spend(state, false, T0, PERSON_MAY_BORROW)
+      expect(next, `borrow ${i + 1}`).not.toBeNull()
+      state = next ?? state
+    }
+    expect(spend(state, false, T0, PERSON_MAY_BORROW)).toBeNull()
+    expect(waitMs(state, false, T0, PERSON_MAY_BORROW)).toBeCloseTo(48_000, -3)
+    // The debt is paid down by the refill like any other token.
+    expect(spend(state, false, T0 + 49_000, PERSON_MAY_BORROW)).not.toBeNull()
   })
 })
 

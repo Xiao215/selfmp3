@@ -85,6 +85,12 @@ describe('stateOfJob', () => {
       message: null,
     })
     expect(stateOfJob(job({ step: 'lyrics', progress: null })).progress).toBeNull()
+    expect(stateOfJob(job({ status: 'queued', step: 'waiting', progress: null }))).toEqual({
+      state: 'queued',
+      progress: null,
+      jobId: 'j1',
+      message: null,
+    })
     expect(stateOfJob(job({ status: 'done', step: 'finished' })).state).toBe('added')
     expect(stateOfJob(job({ status: 'error', error: 'Video unavailable' }))).toMatchObject({
       state: 'failed',
@@ -152,7 +158,7 @@ describe('what a page may ask', () => {
   it('imports with your defaults, and tells the page nothing about your library', async () => {
     const { handlers, enqueued } = fakeHandlers({})
     const state = await createPageHandler(handlers)({ type: 'pillImport', url: IDOL })
-    expect(state).toMatchObject({ state: 'importing' })
+    expect(state).toMatchObject({ state: 'queued' })
     // No tags, no playlist: the page chooses nothing, and the server adds the
     // default tags itself.
     expect(enqueued).toEqual([

@@ -62,8 +62,10 @@ web page can read, not even the script it runs inside YouTube.
 **The pill, in the page.** On a YouTube, YouTube Music or m.youtube.com watch
 page there is a **self.mp3** pill beside Like, in the accent with the app's note
 mark. It says *In library* when the song is already yours; otherwise pressing it
-imports the song with your default tags, and it follows the download — a turning
-ring and *Importing 40%* — to a green *Added*. Left in your bucket it says
+imports the song with your default tags, and it follows it — *In the queue*
+while the song waits its turn, then a turning ring and *Importing 40%* — to a
+green *Added*. Hovering a song on its way says the page can be left: the badge
+counts it and a notification says when it is in. Left in your bucket it says
 *Waiting for your server*. It finds its place from the address, so it follows
 you from video to video without a reload, and it is not drawn where there is no
 song.
@@ -359,8 +361,9 @@ understands from the share target.
   root and an inline layout style on the outer element: content scripts have no
   `customElements`, and `:host` rules lose to YouTube's CSS. The video id is
   read from `location` at click time, since the row lags the URL by a second.
-  Its states: **self.mp3** → **Importing 40%** → **Added · Undo** (Undo cancels
-  while the job can still be cancelled, for six seconds) → **In library**.
+  Its states: **self.mp3** → **In the queue** → **Importing 40%** → **Added ·
+  Undo** (Undo cancels while the job can still be cancelled, for six seconds)
+  → **In library**.
 - Unit tests use small hand-written fixtures of those structures in jsdom, with
   `isVisible` and the navigation source passed in, since jsdom has neither
   layout nor the Navigation API.

@@ -20,6 +20,13 @@ describe('what the pill says', () => {
     }
   })
 
+  it('says a queued song is in the queue, not importing, so the page can be left', () => {
+    const queued = state({ state: 'queued', jobId: 'j1' })
+    expect(queued.text).toBe('In the queue')
+    expect(queued.busy).toBe(true)
+    expect(state({ state: 'importing', progress: null }).text).toBe('Importing')
+  })
+
   it('says a song is already yours without offering to import it again', () => {
     const have = state({ state: 'have' })
     expect(have.text).toBe('In library')

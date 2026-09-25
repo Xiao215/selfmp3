@@ -14,7 +14,7 @@ import type { ScannerService } from './scanner.js'
 import type { LyricsService } from './lyrics.js'
 import type { CoverService } from './covers.js'
 import type { YtDlpService } from './ytdlp.js'
-import { KEPT_FOR_PEOPLE, RateLimitedError, type YtThrottleService } from './ytThrottle.js'
+import { RateLimitedError, type YtThrottleService } from './ytThrottle.js'
 import { isFreeOnDisk, songKeyCandidates } from './libraryLayout.js'
 
 /**
@@ -196,9 +196,9 @@ export class ImportQueueService {
       // The budget is a property of the queue, not of any one job: when there
       // is nothing to spend, nothing is claimed and the jobs stay queued. A
       // claimed job holding a slot open while it sleeps would look like work.
-      // The queue stops short of the last few: those are for a person pasting
-      // a link while it runs (KEPT_FOR_PEOPLE).
-      const pacing = this.#throttle.waitMs(KEPT_FOR_PEOPLE)
+      // A person pasting a link while it runs borrows from the same bucket
+      // (PERSON_MAY_BORROW), and the queue waits that much longer.
+      const pacing = this.#throttle.waitMs()
       if (pacing > 0) {
         // One timer however many times this is asked: everything that kicks
         // the queue during a pause would otherwise start a chain of its own.

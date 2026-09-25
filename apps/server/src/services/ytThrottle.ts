@@ -42,16 +42,18 @@ const BURST_SIGNED_IN = 50
 export const PAUSE_MS = 15 * 60 * 1000
 
 /**
- * Requests the download queue leaves in the bucket for a person.
+ * How far below empty a person's request may take the bucket.
  *
  * The queue and the person spend from one bucket, and a long queue drained it
  * to the last token: pasting a link while forty songs were downloading was
- * told to try again in a minute, by the very downloads it had asked for. The
- * queue now stops short of the bottom, and a look-up, a preview or a listen
- * takes what it left. Five is a handful of look-ups in a row before anyone
- * waits; the queue is the one with nowhere to be.
+ * told to try again in a minute, by the very downloads it had asked for. A
+ * look-up, a preview or a listen may now borrow — take a token the bucket
+ * does not have — and the queue, which has nowhere to be, waits that much
+ * longer for its next. Keeping tokens back for a person instead stalled the
+ * queue for minutes after every burst, waiting to be that far above empty.
+ * Five is a handful of look-ups in a row before anyone waits.
  */
-export const KEPT_FOR_PEOPLE = 5
+export const PERSON_MAY_BORROW = 5
 
 /** Two blocks inside this window are the same incident, and ratchet down once. */
 const RATCHET_COOLDOWN_MS = 30 * 60 * 1000
@@ -113,16 +115,16 @@ export function refill(state: ThrottleState, signedIn: boolean, now: number): Th
 }
 
 /**
- * How long until one request may go: 0 when it may go now. `keep` is how
- * many the caller leaves in the bucket for others (`KEPT_FOR_PEOPLE`).
+ * How long until one request may go: 0 when it may go now. `borrow` is how
+ * far below empty the caller may take the bucket (`PERSON_MAY_BORROW`).
  *
  * A pause outranks the bucket, so a block that arrived with tokens to spare
  * still stops everything.
  */
-export function waitMs(state: ThrottleState, signedIn: boolean, now: number, keep = 0): number {
+export function waitMs(state: ThrottleState, signedIn: boolean, now: number, borrow = 0): number {
   const paused = Math.max(0, state.pausedUntil - now)
   const filled = refill(state, signedIn, now)
-  const needed = 1 + keep
+  const needed = 1 - borrow
   if (filled.tokens >= needed) return paused
   const perMs = budgetPerHour(filled, signedIn) / 3_600_000
   const untilToken =
@@ -131,19 +133,19 @@ export function waitMs(state: ThrottleState, signedIn: boolean, now: number, kee
 }
 
 /**
- * Take one request's worth, if there is one past what the caller keeps for
- * others. `null` when there is not, so the caller decides whether to wait or
- * to say so.
+ * Take one request's worth, if there is one — or if the caller may borrow it,
+ * leaving the bucket below empty to refill. `null` when there is not, so the
+ * caller decides whether to wait or to say so.
  */
 export function spend(
   state: ThrottleState,
   signedIn: boolean,
   now: number,
-  keep = 0,
+  borrow = 0,
 ): ThrottleState | null {
   if (now < state.pausedUntil) return null
   const filled = refill(state, signedIn, now)
-  if (filled.tokens < 1 + keep) return null
+  if (filled.tokens < 1 - borrow) return null
   return { ...filled, tokens: filled.tokens - 1 }
 }
 
@@ -252,10 +254,10 @@ export class YtThrottleService {
     this.#now = now
   }
 
-  /** ms until a request may go, leaving `keep` behind; 0 when one may go now. */
-  waitMs(keep = 0): number {
+  /** ms until a request may go, borrowing up to `borrow`; 0 when one may go now. */
+  waitMs(borrow = 0): number {
     const now = this.#now()
-    return waitMs(this.#store.get(now), this.#signedIn(), now, keep)
+    return waitMs(this.#store.get(now), this.#signedIn(), now, borrow)
   }
 
   status(): ThrottleStatus {
@@ -264,17 +266,17 @@ export class YtThrottleService {
     const signedIn = this.#signedIn()
     return {
       // The queue's wait: what the import screen explains, and the doctor reads.
-      waitMs: waitMs(state, signedIn, now, KEPT_FOR_PEOPLE),
+      waitMs: waitMs(state, signedIn, now),
       pausedUntil: state.pausedUntil > now ? state.pausedUntil : null,
       budgetPerHour: budgetPerHour(state, signedIn),
       ratchet: state.ratchet,
     }
   }
 
-  /** Take one request's worth if one is there past `keep`. Does not wait. */
-  tryTake(keep = 0): boolean {
+  /** Take one request's worth if one is there, or may be borrowed. Does not wait. */
+  tryTake(borrow = 0): boolean {
     const now = this.#now()
-    const next = spend(this.#store.get(now), this.#signedIn(), now, keep)
+    const next = spend(this.#store.get(now), this.#signedIn(), now, borrow)
     if (!next) return false
     this.#store.save(next)
     return true
@@ -297,25 +299,26 @@ export class YtThrottleService {
    * whole pause — the one thing the queue's scheduler is written not to do.
    * Such a job says so instead, and goes back in the queue it came from.
    *
-   * `keep` is the queue's: it leaves that many for a person (`KEPT_FOR_PEOPLE`).
+   * `borrow` is a person's: their request may go on a token the bucket does
+   * not have yet (`PERSON_MAY_BORROW`).
    */
   async take(
     options: {
       signal?: AbortSignal
       maxWaitMs?: number
       waitOutPause?: boolean
-      keep?: number
+      borrow?: number
     } = {},
   ): Promise<boolean> {
-    const { signal, maxWaitMs, waitOutPause = true, keep = 0 } = options
+    const { signal, maxWaitMs, waitOutPause = true, borrow = 0 } = options
     const deadline = maxWaitMs === undefined ? null : this.#now() + maxWaitMs
 
     for (;;) {
       signal?.throwIfAborted()
-      if (this.tryTake(keep)) return true
+      if (this.tryTake(borrow)) return true
       if (!waitOutPause && this.status().pausedUntil !== null) return false
 
-      const wait = this.waitMs(keep)
+      const wait = this.waitMs(borrow)
       if (deadline !== null && this.#now() + wait > deadline) return false
       // Never sleep the whole wait in one go: the pause can be lifted by hand,
       // and a caller asleep for fifteen minutes would not notice.

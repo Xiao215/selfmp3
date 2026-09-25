@@ -38,6 +38,7 @@ const SHADOW_CSS = `
   .words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
   button.offer { background: var(--accent); color: var(--on-accent) }
   button.offer:hover { background: var(--accent-strong) }
+  button.queued { color: var(--accent) }
   button.added { color: var(--good) }
   button.have { color: var(--text-secondary) }
   button.waiting { color: var(--warning) }
@@ -64,7 +65,7 @@ export interface PillHandles {
   draw(state: PillState): void
 }
 
-/** What the pill says for each state it can be in: `E4`'s five faces, and a failure. */
+/** What the pill says for each state it can be in: `E4`'s five faces, the queue, and a failure. */
 export function pillLabel(state: PillState): {
   text: string
   className: string
@@ -74,6 +75,10 @@ export function pillLabel(state: PillState): {
   switch (state.state) {
     case 'have':
       return { text: 'In library', className: 'have', mark: 'check', busy: true }
+    // Its turn is coming: the pill says so and the page can be left, since
+    // the badge counts it and a notification says when it is in.
+    case 'queued':
+      return { text: 'In the queue', className: 'queued', mark: 'check', busy: true }
     case 'importing':
       return {
         text: state.progress === null ? 'Importing' : `Importing ${Math.round(state.progress)}%`,
@@ -100,6 +105,10 @@ export function pillLabel(state: PillState): {
       return { text: 'self.mp3', className: 'offer', mark: 'note', busy: false }
   }
 }
+
+/** What hovering a song on its way says: the page need not stay open. */
+const LEAVE_HINT =
+  'You can leave this page. The badge counts it, and a notification says when it’s in.'
 
 const SVG = 'http://www.w3.org/2000/svg'
 
@@ -162,8 +171,14 @@ export function createPill(
       words.textContent = label.text
       button.replaceChildren(...(mark ? [mark] : []), words)
       button.className = label.className
-      // The reason for a failure, whole, where the pill had to cut it.
-      button.title = state.state === 'failed' ? label.text : ''
+      // The reason for a failure, whole, where the pill had to cut it; and
+      // while a song is on its way, that there is no need to stay.
+      button.title =
+        state.state === 'failed'
+          ? label.text
+          : state.state === 'queued' || state.state === 'importing'
+            ? LEAVE_HINT
+            : ''
       // Nothing to press while it is going, or once the song is yours.
       button.disabled = label.busy
       button.setAttribute('aria-label', `${label.text} — self.mp3`)

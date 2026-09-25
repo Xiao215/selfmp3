@@ -145,8 +145,12 @@ export const PageRequestSchema = z.discriminatedUnion('type', [
 export type PageRequest = z.output<typeof PageRequestSchema>
 
 export const PillStateSchema = z.object({
-  /** `waiting`: left in the bucket, for the server to take when it wakes (I3). */
-  state: z.enum(['idle', 'have', 'importing', 'waiting', 'added', 'failed']),
+  /**
+   * `queued`: in the server's queue, not yet downloading — the page can be
+   * left. `importing`: downloading now. `waiting`: left in the bucket, for
+   * the server to take when it wakes (I3).
+   */
+  state: z.enum(['idle', 'have', 'queued', 'importing', 'waiting', 'added', 'failed']),
   /** 0 to 100 while downloading, null otherwise. */
   progress: z.number().min(0).max(100).nullable(),
   /** The job, while it can still be cancelled. */

@@ -83,7 +83,8 @@ test('the pill appears on a watch page, and imports the song it is on', async ()
   )
 
   await pill.click()
-  await expect(pill).toHaveAttribute('data-state', 'importing', { timeout: 15_000 })
+  // In the queue first; a quick download may be through before the pill looks again.
+  await expect(pill).toHaveAttribute('data-state', /^(queued|importing)$/, { timeout: 15_000 })
   await expect(pill).toHaveAttribute('data-state', 'added', { timeout: 30_000 })
 
   const write = server.requests.find(request => request.path === '/api/import/enqueue')

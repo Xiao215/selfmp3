@@ -13,9 +13,17 @@ import type { Handlers, PageRequest, PillState } from '../bridge.js'
 
 const idle: PillState = { state: 'idle', progress: null, jobId: null, message: null }
 
-/** How a job in the queue reads to the pill. */
+/**
+ * How a job in the queue reads to the pill. A job still waiting its turn is
+ * `queued`, not `importing`: a long queue is an hour of turning ring on a
+ * page that could have been left, and the badge and the notification are
+ * what follow it once the page is gone.
+ */
 export function stateOfJob(job: ImportJob): PillState {
-  if (job.status === 'queued' || job.status === 'running') {
+  if (job.status === 'queued') {
+    return { state: 'queued', progress: null, jobId: job.id, message: null }
+  }
+  if (job.status === 'running') {
     return {
       state: 'importing',
       progress: job.step === 'downloading' ? job.progress : null,

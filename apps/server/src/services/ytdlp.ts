@@ -8,7 +8,7 @@ import {
   isRateLimited,
   RateLimitedError,
   type YtThrottleService,
-  KEPT_FOR_PEOPLE,
+  PERSON_MAY_BORROW,
 } from './ytThrottle.js'
 
 /**
@@ -354,10 +354,10 @@ export class YtDlpService {
     maxWaitMs?: number
     waitOutPause?: boolean
   }): Promise<void> {
-    // The queue's paths leave a few requests for a person (KEPT_FOR_PEOPLE);
-    // a person's paths take down to the last one.
-    const keep = options.waitOutPause === false ? KEPT_FOR_PEOPLE : 0
-    const took = await this.#throttle.take({ ...options, keep })
+    // A person's paths may borrow a token the bucket does not have yet
+    // (PERSON_MAY_BORROW); the queue's paths wait for a real one.
+    const borrow = options.waitOutPause === false ? 0 : PERSON_MAY_BORROW
+    const took = await this.#throttle.take({ ...options, borrow })
     if (took) return
     if (options.waitOutPause === false && this.#throttle.status().pausedUntil !== null) {
       throw new RateLimitedError(

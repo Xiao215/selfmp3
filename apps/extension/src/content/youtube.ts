@@ -72,7 +72,10 @@ function follow(videoId: string): void {
         url: youtubeWatchUrl(videoId),
       })
       if (reply.ok && pill.videoId === videoId) pill.draw(reply.value)
+      // Closely while it downloads, for the percentage; a song waiting its
+      // turn in a long queue is asked after every so often.
       if (reply.ok && reply.value.state === 'importing') setTimeout(again, 1_500)
+      else if (reply.ok && reply.value.state === 'queued') setTimeout(again, 10_000)
       else polling = false
     })()
   }
@@ -82,7 +85,7 @@ function follow(videoId: string): void {
 function clicked(clickedPill: PillHandles): void {
   const videoId = videoIdNow()
   if (!videoId) return
-  clickedPill.draw({ state: 'importing', progress: null, jobId: null, message: null })
+  clickedPill.draw({ state: 'queued', progress: null, jobId: null, message: null })
   void (async () => {
     const reply = await askPage({
       type: 'pillImport',
@@ -91,7 +94,7 @@ function clicked(clickedPill: PillHandles): void {
     if (!pill || pill.videoId !== videoId) return
     if (reply.ok) {
       pill.draw(reply.value)
-      if (reply.value.state === 'importing') follow(videoId)
+      if (reply.value.state === 'importing' || reply.value.state === 'queued') follow(videoId)
     } else {
       pill.draw({ state: 'failed', progress: null, jobId: null, message: reply.message })
     }

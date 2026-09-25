@@ -30,8 +30,18 @@ import { useEscape } from '../../shell/useEscape'
 import { Cover } from '../../ui/components/Cover'
 import { EnergyWave } from '../../ui/components/EnergyWave'
 import { Chip } from '../../ui/components/Chip'
+import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
-import { ChevronDown, Collapse, Expand, Next, Romanize, TagPlus } from '../../ui/components/Icons'
+import {
+  ChevronDown,
+  Collapse,
+  Expand,
+  Next,
+  Romanize,
+  Sparkles,
+  TagPlus,
+} from '../../ui/components/Icons'
+import { FixMetadata } from '../metadata/FixMetadata'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { SongFacts } from '../song/SongFacts'
 import { songLink } from '../song/song.model'
@@ -230,6 +240,8 @@ function Stage({
   const window = useWindowDimensions()
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
   const [tagsOpen, setTagsOpen] = useState(false)
+  /** "Fix metadata…" under About: the same dialog the song's page opens. */
+  const [fixing, setFixing] = useState(false)
   // The tag window opens over its button, as the song menu's does.
   const tagsButtonRef = useRef<View>(null)
   // The tag window hangs from its button, so play-and-tag raises it only once
@@ -616,6 +628,14 @@ function Stage({
           <ScrollView contentContainerStyle={styles.about}>
             <View style={styles.aboutBody}>
               <SongFacts song={song} />
+              <View style={styles.fix}>
+                <Button
+                  label="Fix metadata…"
+                  icon={<Sparkles size={15} tone="textSecondary" />}
+                  onPress={() => setFixing(true)}
+                  testID="now-playing-fix-metadata"
+                />
+              </View>
             </View>
           </ScrollView>
         )}
@@ -747,6 +767,7 @@ function Stage({
         }}
         anchorRef={tagsButtonRef}
       />
+      {fixing ? <FixMetadata song={song} onClose={() => setFixing(false)} /> : null}
     </Animated.View>
   )
 }
@@ -909,7 +930,8 @@ const styles = StyleSheet.create(theme => ({
   visual: { position: 'absolute', overflow: 'hidden', zIndex: 1 },
   visualFull: { left: 0, right: 0, top: 0, bottom: 0 },
   about: { paddingTop: 12, paddingHorizontal: 4, paddingBottom: 40 },
-  aboutBody: { maxWidth: 600, paddingHorizontal: 18 },
+  aboutBody: { maxWidth: 600, paddingHorizontal: 18, gap: 18 },
+  fix: { alignItems: 'flex-start' },
   tools: { position: 'absolute', zIndex: 4, flexDirection: 'row', gap: 6 },
   tool: {
     flexDirection: 'row',

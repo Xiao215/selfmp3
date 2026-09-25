@@ -6,8 +6,8 @@
  * unpublished limit, not a contract, and the penalty for crossing it is not a
  * slowdown — it is an IP-level block that outlasts any backoff and gives no
  * sign of when it lifts. A single listener importing music is nowhere near
- * needing the full ceiling, so this runs at a quarter of it and never probes
- * for more: the throughput given up is throughput nobody was going to use.
+ * needing the full ceiling, so this runs at half of it and never probes for
+ * more: the throughput given up is throughput nobody was going to use.
  *
  * The shape is a token bucket rather than a delay between downloads, because
  * the constraint is a rate over an hour and a delay has no memory of it. Ten
@@ -27,12 +27,15 @@ const CEILING_SIGNED_IN = 2000
 /**
  * The fraction of the observed ceiling this server will actually use.
  *
- * A quarter, because the ceiling is measured rather than promised and the
- * failure past it is a cliff. At 75 requests an hour signed out, a two hundred
- * song backfill takes an afternoon in the background and everything smaller is
- * instant — which is the whole of what one person needs.
+ * Half, because the ceiling is measured rather than promised and the failure
+ * past it is a cliff. It was a quarter — 75 an hour signed out, a song every
+ * 48 seconds — and a forty-song album from the extension was a whole
+ * afternoon of "nothing is downloading". At 150 an hour, one every 24
+ * seconds, the album is a quarter of an hour, and a refusal still halves the
+ * budget for good (`penalize`), so a network that turns out to be nearer the
+ * cliff than the wiki says settles below it by itself.
  */
-const SAFETY = 0.25
+const SAFETY = 0.5
 
 /** How many requests may go at once out of a full bucket. */
 const BURST_SIGNED_OUT = 30

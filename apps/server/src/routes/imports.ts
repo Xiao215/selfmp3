@@ -25,6 +25,7 @@ import { HttpError } from '../http/errors.js'
 import {
   buildImportPreview,
   have,
+  inQueue,
   resolveImportPlaylist,
   waitingToUpload,
 } from '../services/importPreview.js'
@@ -126,12 +127,14 @@ export function importRoutes(container: Container): Router {
       const library = container.songs.all()
       const knownLinks = sourceUrlIndex(library)
       const waiting = waitingToUpload(container)
+      const queued = inQueue(container)
       const answers = body.tracks.map(track =>
         have(alreadyHave(track, library, knownLinks), waiting),
       )
       return {
         have: answers.map(answer => answer.alreadyHave),
         waiting: answers.map(answer => answer.waitingToUpload),
+        queued: body.tracks.map(track => queued(track.url)),
       }
     }),
   )

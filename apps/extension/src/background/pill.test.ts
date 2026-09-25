@@ -35,6 +35,7 @@ const item = {
   thumbnail: null,
   alreadyHave: false,
   waitingToUpload: false,
+  inQueue: false,
 }
 
 const request = (patch: Partial<ImportRequestView> = {}): ImportRequestView => ({

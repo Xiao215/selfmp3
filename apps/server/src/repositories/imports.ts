@@ -371,6 +371,16 @@ export class ImportRepository {
       .run().changes
   }
 
+  /** The links of every job queued or running, for a preview to say which songs are already coming. */
+  pendingUrls(): string[] {
+    return this.#db
+      .prepare<[], { url: string }>(
+        "SELECT url FROM import_jobs WHERE status IN ('queued','running')",
+      )
+      .all()
+      .map(row => row.url)
+  }
+
   /** True when this URL is already queued or running, to avoid duplicates. */
   isPending(url: string): boolean {
     const row = this.#db

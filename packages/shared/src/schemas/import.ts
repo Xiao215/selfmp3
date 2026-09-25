@@ -80,6 +80,12 @@ export const ImportPreviewItemSchema = z.object({
    * only make a copy, and the server keeps sending it up by itself.
    */
   waitingToUpload: z.boolean(),
+  /**
+   * True when a job for this song is already in the server's queue, waiting
+   * or downloading: it is coming, and asking for it again would only be
+   * refused as a duplicate.
+   */
+  inQueue: z.boolean(),
 })
 export type ImportPreviewItem = z.infer<typeof ImportPreviewItemSchema>
 
@@ -114,6 +120,8 @@ export const AlreadyHaveResponseSchema = z.object({
   have: z.array(z.boolean()),
   /** Per track, whether the song it has is still waiting to upload (`ImportPreviewItem`). */
   waiting: z.array(z.boolean()),
+  /** Per track, whether a job for it is already in the queue (`ImportPreviewItem`). */
+  queued: z.array(z.boolean()),
 })
 export type AlreadyHaveResponse = z.infer<typeof AlreadyHaveResponseSchema>
 export type ImportPreview = z.infer<typeof ImportPreviewSchema>

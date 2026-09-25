@@ -10,10 +10,11 @@ import {
   type Playlist,
 } from '@selfmp3/shared'
 import { HttpError } from '../http/errors.js'
-import { alreadyHave, sourceUrlIndex } from './alreadyHave.js'
+import { alreadyHave, normaliseUrl, sourceUrlIndex } from './alreadyHave.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
 import type { CloudRepository } from '../repositories/cloud.js'
+import type { ImportRepository } from '../repositories/imports.js'
 import type { CloudSyncService } from './cloudSync.js'
 import type { ProbedTrack, YtDlpService } from './ytdlp.js'
 import type { YouTubeMusicArtists } from './youtubeMusicArtist.js'
@@ -24,6 +25,7 @@ type PreviewDeps = {
   songs: Pick<SongRepository, 'all'>
   cloudRepo: Pick<CloudRepository, 'states'>
   cloudSync: Pick<CloudSyncService, 'connected'>
+  imports: Pick<ImportRepository, 'pendingUrls'>
   youtubeMusicArtists: Pick<YouTubeMusicArtists, 'topSongs'>
   youtubeMusicLists: Pick<YouTubeMusicLists, 'songs' | 'album' | 'playlist'>
 }
@@ -58,6 +60,7 @@ export async function buildImportPreview(deps: PreviewDeps, text: string): Promi
   const library = deps.songs.all()
   const knownLinks = sourceUrlIndex(library)
   const waiting = waitingToUpload(deps)
+  const queued = inQueue(deps)
 
   const items: ImportPreviewItem[] = []
   let kind: 'single' | 'playlist' = 'single'
@@ -78,6 +81,7 @@ export async function buildImportPreview(deps: PreviewDeps, text: string): Promi
         duration: track.duration,
         thumbnail: track.thumbnail,
         ...have(alreadyHave(track, library, knownLinks), waiting),
+        inQueue: queued(track.url),
       })
     }
   }
@@ -102,6 +106,24 @@ export function waitingToUpload(
   if (!deps.cloudSync.connected) return () => false
   const inBucket = new Set(deps.cloudRepo.states().keys())
   return song => !inBucket.has(song.id)
+}
+
+/**
+ * Which links a job is already queued or downloading for, by the video
+ * behind them: a song in the queue was offered again by a playlist pasted
+ * twice, ticked, and then quietly skipped as a duplicate when imported.
+ */
+export function inQueue(deps: Pick<PreviewDeps, 'imports'>): (url: string) => boolean {
+  const pending = new Set(
+    deps.imports
+      .pendingUrls()
+      .map(url => normaliseUrl(url))
+      .filter((url): url is string => url !== null),
+  )
+  return url => {
+    const key = normaliseUrl(url)
+    return key !== null && pending.has(key)
+  }
 }
 
 /** A preview row's two answers about the library, from the song it has or none. */

@@ -100,6 +100,7 @@ const item = (n: number, title: string, alreadyHave = false) => ({
   thumbnail: null,
   alreadyHave,
   waitingToUpload: false,
+  inQueue: false,
 })
 
 const draw = async (): Promise<void> => {

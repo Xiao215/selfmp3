@@ -27,6 +27,7 @@ const item = (n: number, extra: Partial<ImportPreviewItem> = {}): ImportPreviewI
   thumbnail: null,
   alreadyHave: false,
   waitingToUpload: false,
+  inQueue: false,
   ...extra,
 })
 

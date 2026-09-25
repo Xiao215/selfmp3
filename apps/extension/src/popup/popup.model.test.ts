@@ -62,6 +62,7 @@ const item = {
   thumbnail: null,
   alreadyHave: false,
   waitingToUpload: false,
+  inQueue: false,
 }
 const single: ImportPreview = { kind: 'single', playlistTitle: null, items: [item] }
 const hit = {

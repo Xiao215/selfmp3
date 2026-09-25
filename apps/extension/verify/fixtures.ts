@@ -99,6 +99,7 @@ const previewItem = (
   thumbnail: null,
   alreadyHave,
   waitingToUpload: false,
+  inQueue: false,
 })
 
 /** What the fake server's `/api/import/preview` answers for a link: a status and a body. */

@@ -1,21 +1,23 @@
 import { plural } from '@selfmp3/shared'
 import type { ImportEnqueue, ImportPreviewItem } from '@selfmp3/shared'
-import { enqueueRequest, type Review } from '@selfmp3/client'
+import { enqueueRequest, taken, type Review } from '@selfmp3/client'
 
 /**
  * The review of a link, without the screen (docs/ui-mock `P30`, `C14`).
  *
  * Every song starts ticked, and only ticked songs are imported. The client's
  * `Review` already holds the songs coming in as `chosen`, so a row's checkbox
- * takes one from there and puts it back. A song the library already has is
- * never coming in and has no box — it is "In library", and skipped.
+ * takes one from there and puts it back. A song the library already has, or
+ * one a job is already queued for, is never coming in and has no box — it is
+ * "In library" or "In the queue", and skipped.
  */
 
 /** Whether a row is ticked, unticked, or "In library" with no box at all. */
 export type RowState = 'in' | 'yours' | 'out'
 
 export function rowState(review: Review, index: number): RowState {
-  if (review.items[index]?.alreadyHave) return 'yours'
+  const item = review.items[index]
+  if (item && taken(item)) return 'yours'
   return review.chosen.has(index) ? 'in' : 'out'
 }
 
@@ -25,7 +27,7 @@ export function rowState(review: Review, index: number): RowState {
  */
 export function toggleChosen(review: Review, index: number): Review {
   const item = review.items[index]
-  if (!item || item.alreadyHave) return review
+  if (!item || taken(item)) return review
   const chosen = new Set(review.chosen)
   if (chosen.has(index)) chosen.delete(index)
   else chosen.add(index)
@@ -36,9 +38,7 @@ export function toggleChosen(review: Review, index: number): Review {
 export function chooseAll(review: Review, on: boolean): Review {
   return {
     ...review,
-    chosen: new Set(
-      on ? review.items.flatMap((item, index) => (item.alreadyHave ? [] : [index])) : [],
-    ),
+    chosen: new Set(on ? review.items.flatMap((item, index) => (taken(item) ? [] : [index])) : []),
   }
 }
 
@@ -46,7 +46,7 @@ export function chooseAll(review: Review, on: boolean): Review {
 export function chosenState(review: Review): 'all' | 'some' | 'none' {
   const coming = comingIn(review)
   if (coming === 0) return 'none'
-  return coming === review.items.filter(item => !item.alreadyHave).length ? 'all' : 'some'
+  return coming === review.items.filter(item => !taken(item)).length ? 'all' : 'some'
 }
 
 /** What a song can be renamed to: its title, artist and album. The url is not a name. */
@@ -66,7 +66,7 @@ export function renameSong(review: Review, index: number, rename: Rename): Revie
 
 /** How many songs the import button would bring in. */
 export function comingIn(review: Review): number {
-  return review.items.filter((item, index) => !item.alreadyHave && review.chosen.has(index)).length
+  return review.items.filter((item, index) => !taken(item) && review.chosen.has(index)).length
 }
 
 /** The head's count: "5 of 7 coming in" on a computer, "5 of 7 in" where a phone has less room. */
@@ -115,7 +115,12 @@ export function mosaicCovers(review: Review): readonly string[] {
 export function importRequest(review: Review, tagIds: ReadonlySet<number>): ImportEnqueue {
   const coming: Review = {
     ...review,
-    chosen: new Set([...review.chosen].filter(index => !review.items[index]?.alreadyHave)),
+    chosen: new Set(
+      [...review.chosen].filter(index => {
+        const item = review.items[index]
+        return item !== undefined && !taken(item)
+      }),
+    ),
   }
   return enqueueRequest(coming, { tagIds, playlistId: null, createPlaylist: false })
 }

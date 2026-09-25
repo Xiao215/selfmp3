@@ -92,6 +92,8 @@ function previewDeps(options: {
   have?: { id?: number; artist: string; title: string }[]
   /** The ids of `have` that are in the bucket; given, a bucket is connected. */
   inBucket?: number[]
+  /** Links with a job already queued or downloading. */
+  pending?: string[]
 }) {
   const probed: string[] = []
   const deps = {
@@ -107,6 +109,7 @@ function previewDeps(options: {
     songs: { all: () => (options.have ?? []).map((song, index) => ({ id: index + 1, ...song })) },
     cloudRepo: { states: () => new Map((options.inBucket ?? []).map(id => [id, {}])) },
     cloudSync: { connected: options.inBucket !== undefined },
+    imports: { pendingUrls: () => options.pending ?? [] },
     youtubeMusicArtists: { topSongs: () => Promise.resolve(options.artist ?? null) },
     youtubeMusicLists: {
       songs: () => Promise.resolve(options.search ?? null),
@@ -259,6 +262,21 @@ describe('buildImportPreview with a search link', () => {
     expect(preview.items.map(item => [item.alreadyHave, item.waitingToUpload])).toEqual([
       [true, false],
       [true, true],
+    ])
+  })
+
+  it('says a song a job is already queued for is in the queue, whichever link queued it', async () => {
+    const { deps } = previewDeps({
+      search: [
+        track('https://music.youtube.com/watch?v=by4SYYWlhEs', '夜に駆ける'),
+        track('https://music.youtube.com/watch?v=xxxxxxxxxxx', '怪物'),
+      ],
+      pending: ['https://youtu.be/by4SYYWlhEs'],
+    })
+    const preview = await buildImportPreview(deps, search)
+    expect(preview.items.map(item => [item.alreadyHave, item.inQueue])).toEqual([
+      [false, true],
+      [false, false],
     ])
   })
 

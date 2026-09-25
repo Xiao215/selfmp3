@@ -81,11 +81,19 @@ export interface Review {
   readonly playlistTitle: string | null
 }
 
-/** Pre-tick everything except tracks that look like duplicates. */
+/**
+ * A row that is not coming in from this review: the library has the song
+ * already, or a job for it is already in the queue. Such a row has no box.
+ */
+export function taken(item: Pick<ImportPreviewItem, 'alreadyHave' | 'inQueue'>): boolean {
+  return item.alreadyHave || item.inQueue
+}
+
+/** Pre-tick everything except tracks that look like duplicates, or are already coming. */
 export function reviewFrom(preview: ImportPreview): Review {
   return {
     items: preview.items,
-    chosen: new Set(preview.items.flatMap((item, index) => (item.alreadyHave ? [] : [index]))),
+    chosen: new Set(preview.items.flatMap((item, index) => (taken(item) ? [] : [index]))),
     playlistTitle: preview.kind === 'playlist' ? preview.playlistTitle : null,
   }
 }
@@ -104,6 +112,7 @@ export function refreshAlreadyHave(
   review: Review,
   have: readonly boolean[],
   waiting: readonly boolean[] = [],
+  queued: readonly boolean[] = [],
 ): Review {
   if (have.length !== review.items.length) return review
   let changed = false
@@ -112,11 +121,14 @@ export function refreshAlreadyHave(
     const now = have[index] ?? item.alreadyHave
     // A song of yours that has since reached the bucket says so, and the row's tick is not in question.
     const waits = now && (waiting[index] ?? item.waitingToUpload)
-    if (now === item.alreadyHave && waits === item.waitingToUpload) return item
+    const coming = queued[index] ?? item.inQueue
+    if (now === item.alreadyHave && waits === item.waitingToUpload && coming === item.inQueue)
+      return item
     changed = true
-    if (now) chosen.delete(index)
-    else chosen.add(index)
-    return { ...item, alreadyHave: now, waitingToUpload: waits }
+    const next = { ...item, alreadyHave: now, waitingToUpload: waits, inQueue: coming }
+    if (taken(next)) chosen.delete(index)
+    else if (taken(item)) chosen.add(index)
+    return next
   })
   return changed ? { ...review, items, chosen } : review
 }

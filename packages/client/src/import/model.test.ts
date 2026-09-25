@@ -245,6 +245,7 @@ describe('a kept review told again what the library has', () => {
     thumbnail: null,
     alreadyHave,
     waitingToUpload: false,
+    inQueue: false,
   })
   const review = reviewFrom({
     kind: 'playlist',
@@ -275,6 +276,14 @@ describe('a kept review told again what the library has', () => {
       alreadyHave: false,
       waitingToUpload: false,
     })
+  })
+
+  it('takes a song out once a job for it is in the queue, and offers it back when the job is gone', () => {
+    const queued = refreshAlreadyHave(review, [true, false, false], [], [false, true, false])
+    expect(queued.items[1]?.inQueue).toBe(true)
+    expect([...queued.chosen].sort()).toEqual([2])
+    const gone = refreshAlreadyHave(queued, [true, false, false], [], [false, false, false])
+    expect([...gone.chosen].sort()).toEqual([1, 2])
   })
 
   it('keeps a tick you took off yourself', () => {

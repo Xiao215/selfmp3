@@ -490,7 +490,13 @@ interface RowProps {
 function EndWords({ item, state }: { item: ImportPreviewItem; state: RowState }): ReactNode {
   if (state === 'yours') {
     return (
-      <Text style={styles.endQuiet}>{item.waitingToUpload ? 'On your server' : 'In library'}</Text>
+      <Text style={styles.endQuiet}>
+        {item.alreadyHave
+          ? item.waitingToUpload
+            ? 'On your server'
+            : 'In library'
+          : 'In the queue'}
+      </Text>
     )
   }
   return item.duration > 0 ? (

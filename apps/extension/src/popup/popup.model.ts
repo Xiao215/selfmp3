@@ -1,4 +1,4 @@
-import { enqueueRequest, jobSubtitle, type Review } from '@selfmp3/client/core'
+import { enqueueRequest, jobSubtitle, type Review, taken } from '@selfmp3/client/core'
 import type { ImportRequestView } from '@selfmp3/replica'
 import {
   plural,
@@ -421,14 +421,15 @@ export function songRequest(
 export type RowState = 'in' | 'yours' | 'out'
 
 export function rowState(review: Review, index: number): RowState {
-  if (review.items[index]?.alreadyHave) return 'yours'
+  const item = review.items[index]
+  if (item && taken(item)) return 'yours'
   return review.chosen.has(index) ? 'in' : 'out'
 }
 
 /** A click on the far end of a row: leave the song out, or bring it back. */
 export function toggleLeftOut(review: Review, index: number): Review {
   const item = review.items[index]
-  if (!item || item.alreadyHave) return review
+  if (!item || taken(item)) return review
   return { ...review, chosen: toggleId(review.chosen, index) }
 }
 
@@ -446,7 +447,7 @@ export function renameSong(
 
 /** How many songs the button would bring in. */
 export function comingIn(review: Review): number {
-  return review.items.filter((item, index) => !item.alreadyHave && review.chosen.has(index)).length
+  return review.items.filter((item, index) => !taken(item) && review.chosen.has(index)).length
 }
 
 /** The head's count: "4 of 6 coming in". */
@@ -468,7 +469,12 @@ export function listRequest(review: Review, tagIds: ReadonlySet<number>): Import
       title: item.title.trim(),
       artist: item.artist.trim(),
     })),
-    chosen: new Set([...review.chosen].filter(index => !review.items[index]?.alreadyHave)),
+    chosen: new Set(
+      [...review.chosen].filter(index => {
+        const item = review.items[index]
+        return item !== undefined && !taken(item)
+      }),
+    ),
   }
   return enqueueRequest(coming, { tagIds, playlistId: null, createPlaylist: false })
 }

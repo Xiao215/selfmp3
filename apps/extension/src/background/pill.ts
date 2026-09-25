@@ -105,8 +105,12 @@ export function createPageHandler(handlers: Handlers) {
       )
     }
     const preview = await handlers.preview({ type: 'preview', url })
-    const items = preview.items.filter(item => !item.alreadyHave)
-    if (items.length === 0) return { state: 'have', progress: null, jobId: null, message: null }
+    const items = preview.items.filter(item => !item.alreadyHave && !item.inQueue)
+    if (items.length === 0) {
+      // Nothing to add: yours already, or a job for it is already going.
+      const job = await jobFor(videoId)
+      return job ? stateOfJob(job) : { state: 'have', progress: null, jobId: null, message: null }
+    }
     const result = await handlers.enqueue({
       type: 'enqueue',
       request: { items, tagIds: lastTagIds, playlistId: null, createPlaylistName: null },

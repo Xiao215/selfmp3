@@ -19,6 +19,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
+import { isComposing } from '../../shell/composing'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Cover } from '../../ui/components/Cover'
@@ -447,6 +448,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
             onKeyPress={event => {
               const key = event.nativeEvent.key
               if (key !== 'ArrowDown' && key !== 'ArrowUp') return
+              // The arrows move between an input method's candidates while
+              // one is composing; the rows are not theirs to move.
+              if (isComposing(event.nativeEvent as { isComposing?: boolean })) return
               ;(event as unknown as { preventDefault: () => void }).preventDefault()
               setHighlighted(stepIndex(active, key === 'ArrowDown' ? 1 : -1, rows.length))
             }}

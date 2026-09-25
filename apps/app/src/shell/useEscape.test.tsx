@@ -39,6 +39,28 @@ describe('useEscape', () => {
     await sheet.unmount()
   })
 
+  it('leaves an Escape that an input method is using to drop a composition', async () => {
+    const closeLayer = jest.fn()
+    const closeBelow = jest.fn()
+    const layer = await renderHook(() => useEscape(true, closeLayer, { layer: true }))
+    const below = await renderHook(() => useEscape(true, closeBelow))
+
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', cancelable: true, isComposing: true }),
+    )
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', cancelable: true, keyCode: 229 }),
+    )
+    expect(closeLayer).not.toHaveBeenCalled()
+    expect(closeBelow).not.toHaveBeenCalled()
+
+    pressEscape()
+    expect(closeLayer).toHaveBeenCalledTimes(1)
+
+    await below.unmount()
+    await layer.unmount()
+  })
+
   it('calls the latest callback, not the one it was first given', async () => {
     // The ref that keeps a layer in place must not leave it answering with a
     // stale closure.

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { menuOwnedCombinations } from '@selfmp3/desktop-bridge'
 
 import type { HotkeyOptions, Hotkeys } from './useHotkeys'
+import { isComposing } from './composing'
 import { desktop } from '../ports/desktop/bridge'
 
 export type { HotkeyOptions, Hotkeys }
@@ -37,6 +38,7 @@ export function useHotkeys(hotkeys: Hotkeys, { beforeFocused = false }: HotkeyOp
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (isComposing(event)) return
       const target = event.target
       if (target instanceof HTMLElement) {
         if (

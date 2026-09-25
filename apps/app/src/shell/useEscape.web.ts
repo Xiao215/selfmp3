@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from 'react'
 
 import type { EscapeOptions } from './useEscape'
+import { isComposing } from './composing'
 
 export type { EscapeOptions }
 
@@ -19,6 +20,9 @@ const layers: string[] = []
  * Anything else, such as the library's selection, listens in the bubble phase,
  * so a layer has already had its chance. It also stands aside when focus is
  * inside a menu, dialog, listbox or combobox, which is closing itself.
+ *
+ * Neither answers an Escape that an input method is using to drop a
+ * composition (`isComposing`).
  *
  * The callback is held in a ref and read at the keypress, the way `useHotkeys`
  * holds its handlers. Callers hand in an inline `onClose`, a new function on
@@ -43,7 +47,8 @@ export function useEscape(
     if (layer) {
       layers.push(id)
       const onKeyDown = (event: KeyboardEvent): void => {
-        if (event.key !== 'Escape' || layers[layers.length - 1] !== id) return
+        if (event.key !== 'Escape' || isComposing(event)) return
+        if (layers[layers.length - 1] !== id) return
         event.preventDefault()
         event.stopPropagation()
         latest.current()
@@ -57,7 +62,7 @@ export function useEscape(
     }
 
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return
+      if (event.key !== 'Escape' || event.defaultPrevented || isComposing(event)) return
       const target = event.target
       if (
         target instanceof HTMLElement &&

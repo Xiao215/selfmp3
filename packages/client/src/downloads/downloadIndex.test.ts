@@ -199,6 +199,15 @@ describe('downloadTally', () => {
 })
 
 describe('staleDownloads', () => {
+  it('counts a song as replaced when its audio changed, not when only its cover did', () => {
+    const index = withEntries(entry(1, { etag: 'aaaa.1111' }), entry(2, { etag: 'bbbb.1111' }))
+    const current = manifest([
+      { id: 1, sizeBytes: 1000, etag: 'aaaa.2222' },
+      { id: 2, sizeBytes: 1000, etag: 'cccc.1111' },
+    ])
+    expect(staleDownloads(index, current)).toMatchObject({ gone: [], changed: [2], bytes: 1000 })
+  })
+
   it('calls a file whose audio was replaced changed, not gone', () => {
     const index = withEntries(entry(1), entry(2))
     const current = manifest([

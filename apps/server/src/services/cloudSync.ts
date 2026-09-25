@@ -101,9 +101,13 @@ const SNAPSHOTS_KEPT = 3
 
 /**
  * How often to look for changes other devices have written. One listing of
- * the log folder; a pass only follows when there is something new.
+ * the log folder; a pass only follows when there is something new. Every
+ * three minutes was 480 listings a day with nothing happening, a fifth of
+ * the bucket's free allowance; devices write logs rarely, and the server
+ * also reads them at its next pass, so a tag edited on a phone reaches the
+ * server's own library within ten minutes at the latest.
  */
-const LOG_POLL_MS = 3 * 60_000
+const LOG_POLL_MS = 10 * 60_000
 
 /** Log files read at once. */
 const LOG_READS_AT_ONCE = 6

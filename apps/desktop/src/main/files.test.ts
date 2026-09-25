@@ -115,6 +115,40 @@ describe('download', () => {
    * write that had already returned `true`, so the stream's `error` fires
    * while the loop is waiting on the network and nobody is waiting on `drain`.
    */
+  it('says what a refusal said, not only its status', async () => {
+    const refused = {
+      ok: false,
+      status: 502,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      text: () =>
+        Promise.resolve(
+          JSON.stringify({
+            error: 'Backblaze says “Transaction cap exceeded”.',
+            code: 'bucket_cap_exceeded',
+          }),
+        ),
+    } as unknown as Response
+    harness.fetch.mockResolvedValue(refused)
+    await expect(
+      download(
+        { id: 'd4', kind: 'songs', name: '1.m4a', url: 'https://doorman.example/f' },
+        () => {},
+      ),
+    ).rejects.toThrow('502 from doorman.example: Backblaze says “Transaction cap exceeded”.')
+
+    const page = {
+      ...refused,
+      text: () => Promise.resolve('<html><body>error code: 1027</body></html>'),
+    } as unknown as Response
+    harness.fetch.mockResolvedValue(page)
+    await expect(
+      download(
+        { id: 'd5', kind: 'songs', name: '2.m4a', url: 'https://doorman.example/f' },
+        () => {},
+      ),
+    ).rejects.toThrow('502 from doorman.example: error code: 1027')
+  })
+
   it('fails the download, not the process, when the disk errors between writes', async () => {
     const stalled = respond(200, [bytes('hel')], () => {
       // The first chunk is written; now the network goes quiet and the disk gives out.

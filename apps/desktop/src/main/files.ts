@@ -104,7 +104,7 @@ export async function download(
     if (resumeFrom > 0) headers['Range'] = `bytes=${resumeFrom}-`
 
     const response = await net.fetch(request.url, { headers, signal: controller.signal })
-    if (!response.ok) throw new Error(`${response.status} from ${hostOf(request.url)}`)
+    if (!response.ok) throw new Error(await refusal(response, request.url))
 
     /*
      * A server that answers 200 to a ranged request is sending the whole file
@@ -193,7 +193,7 @@ export async function fetchTo(
 ): Promise<void> {
   const target = await writablePathFor(kind, name)
   const response = await net.fetch(url, { headers: headers ?? {} })
-  if (!response.ok) throw new Error(`${response.status} from ${hostOf(url)}`)
+  if (!response.ok) throw new Error(await refusal(response, url))
   await replaceWith(target, Buffer.from(await response.arrayBuffer()))
 }
 
@@ -315,6 +315,38 @@ async function sizeOf(path: string): Promise<number> {
 }
 
 /** For an error message, because a URL with a token in it should not be one. */
+/** How much of a refusal's body is worth repeating. */
+const QUOTED_BYTES = 240
+
+/**
+ * A refusal in words: the status and host, and what the answer said — the
+ * doorman's `error` for a bucket that would not give the file, or the text
+ * of a page. "502 from the doorman" told nobody that the bucket's allowance
+ * for the day was used up, which is what the doorman had said.
+ */
+async function refusal(response: Response, url: string): Promise<string> {
+  const head = `${response.status} from ${hostOf(url)}`
+  let text = ''
+  try {
+    text = (await response.text()).slice(0, 16_384)
+  } catch {
+    return head
+  }
+  try {
+    const parsed: unknown = JSON.parse(text)
+    const error = (parsed as { error?: unknown } | null)?.error
+    if (typeof error === 'string' && error.trim()) return `${head}: ${error.trim()}`
+  } catch {
+    // Not JSON: a page, or nothing.
+  }
+  const words = text
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, QUOTED_BYTES)
+  return words ? `${head}: ${words}` : head
+}
+
 function hostOf(url: string): string {
   try {
     return new URL(url).host

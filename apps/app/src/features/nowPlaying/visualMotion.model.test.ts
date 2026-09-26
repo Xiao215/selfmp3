@@ -9,11 +9,14 @@ import {
   hillShare,
   hillShift,
   hillX,
+  isSettled,
   MAX_RINGS,
   motionTuning,
   PlayheadClock,
   PLAYHEAD_REACH,
   ringFade,
+  ringInk,
+  RING_INKS,
   stepMotion,
   stillMotion,
 } from './visualMotion.model'
@@ -263,6 +266,56 @@ describe('the still frame', () => {
     stillMotion(b, tuning, 'curve')
     expect(a).toEqual(b)
     expect(a.rings.length).toBeGreaterThan(0)
+  })
+})
+
+describe('ring colours', () => {
+  it('gives the rings of a song the three inks in turn', () => {
+    expect([0, 1, 2, 3, 4, 5].map(ringInk)).toEqual([2, 0, 1, 2, 0, 1])
+  })
+
+  it('answers the same asked by ring and asked by the view a ring lands in', () => {
+    // The browser colours each ring by its own id; the phone keeps one view per
+    // ring slot and colours it once, by `id % MAX_RINGS`. The same song colours
+    // its rings the same way on both only while this holds.
+    expect(MAX_RINGS % RING_INKS.length).toBe(0)
+    for (let id = 0; id < 40; id++) expect(ringInk(id)).toBe(ringInk(id % MAX_RINGS))
+  })
+})
+
+describe('coming to rest', () => {
+  const loud = scripted(() => ({ level: 0.8, onset: 1 }))
+  const silence = scripted(() => ({ level: 0, onset: 0 }))
+
+  /** Steps as paused until it settles, or gives up: the frames it took. */
+  function settle(kind: 'horizon' | 'ripples', state: ReturnType<typeof createMotionState>) {
+    const tuning = motionTuning(feel, false)
+    for (let frame = 0; frame < 2000; frame++) {
+      if (isSettled(kind, state)) return frame
+      stepMotion(state, silence, 0, DT, false, tuning)
+    }
+    return null
+  }
+
+  it('holds Ripples awake until its last ring is off the edge', () => {
+    const tuning = motionTuning(feel, false)
+    const state = createMotionState(0.5)
+    stepMotion(state, loud, 0, DT, true, tuning)
+    expect(state.rings).toHaveLength(1)
+    expect(isSettled('ripples', state)).toBe(false)
+    expect(settle('ripples', state)).not.toBeNull()
+    expect(state.rings).toHaveLength(0)
+  })
+
+  it('never settles Horizon while it plays, however quiet the song is', () => {
+    const tuning = motionTuning(feel, false)
+    const state = createMotionState(0.5)
+    for (let frame = 0; frame < 600; frame++)
+      stepMotion(state, silence, frame * DT, DT, true, tuning)
+    // Its hills are still rolling: they only stand still on a pause.
+    expect(state.travelled).toBe(true)
+    expect(isSettled('horizon', state)).toBe(false)
+    expect(settle('horizon', state)).not.toBeNull()
   })
 })
 

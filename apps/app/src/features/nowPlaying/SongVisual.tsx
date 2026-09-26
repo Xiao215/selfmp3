@@ -27,9 +27,11 @@ import {
   hillPoints,
   hillShare,
   hillShift,
+  isSettled,
   MAX_RINGS,
   PlayheadClock,
   ringFade,
+  ringInk,
   ringReach,
   stepMotion,
   stillMotion,
@@ -103,6 +105,23 @@ export function SongVisual({
   const [clock] = useState(() => new PlayheadClock())
   const edge = colors.ground[1]
 
+  /*
+   * The motion itself outlives the loop that steps it. It used to be made
+   * inside that loop's effect, and the effect lists `isPlaying` among the things
+   * it runs again for, so pausing and playing threw away everything the motion
+   * had built up: the three hill trails a song spends up to twenty-two seconds
+   * filling with what it has heard, every ring still travelling, and the onset
+   * trigger's arm. The horizon dropped back to its seeded landscape on every
+   * pause.
+   *
+   * It is kept here instead and made again only for something that genuinely
+   * starts the motion over, which is what `restart` names: another style,
+   * another song, or a different sampler behind the same song (the stored curve
+   * arriving for a song that was drawing from its tempo).
+   */
+  const held = useRef<{ key: string; motion: MotionState } | null>(null)
+  const restart = `${kind}|${song.id}|${sampler.source}`
+
   const live = useRef({ player, sampler, tuning })
   useEffect(() => {
     live.current = { player, sampler, tuning }
@@ -120,14 +139,24 @@ export function SongVisual({
 
   useEffect(() => {
     if (!size || !reduced) return
-    const motion = createMotionState(tuning.feel.loudness)
-    stillMotion(motion, tuning, sampler.source)
-    write(kind, motion, drawn, tuning, size, true, frame, ringWidths)
+    // Its own state, not the one the loop holds: the still frame stands two
+    // rings out and a quiet landscape, and the loop should carry on from where
+    // it was if Reduce Motion is turned off again.
+    const still = createMotionState(tuning.feel.loudness)
+    stillMotion(still, tuning, sampler.source)
+    write(kind, still, drawn, tuning, size, true, frame, ringWidths)
   }, [kind, reduced, size, tuning, sampler.source, drawn, frame, ringWidths])
 
   useEffect(() => {
     if (!size || reduced) return undefined
-    const motion = createMotionState(live.current.tuning.feel.loudness)
+    const kept = held.current
+    let motion: MotionState
+    if (kept && kept.key === restart) motion = kept.motion
+    else {
+      motion = createMotionState(live.current.tuning.feel.loudness)
+      held.current = { key: restart, motion }
+      forgetRings(drawn)
+    }
     let last = performance.now()
     let handle = 0
     // The frame outlives a style: a paused Ripples left it settled, and a style
@@ -144,13 +173,14 @@ export function SongVisual({
       /*
        * A paused visual that has come to rest asks for no more frames. It used
        * to step three hill trails sixty times a second behind a page nobody
-       * was looking at; `isPlaying` in the dependencies starts it again.
+       * was looking at; `isPlaying` in the dependencies starts it again, and
+       * the motion it starts from is the one it left off at.
        */
       handle = settled && !p.isPlaying ? 0 : requestAnimationFrame(tick)
     }
     handle = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(handle)
-  }, [kind, reduced, size, drawn, clock, frame, ringWidths, isPlaying])
+  }, [kind, restart, reduced, size, drawn, clock, frame, ringWidths, isPlaying])
 
   return (
     <View
@@ -233,10 +263,15 @@ function makeDrawn(): Drawn {
   }
 }
 
-/** Whether the showing style has anything left to move. Horizon's hills roll on while it plays. */
-function isSettled(kind: VisualKind, m: MotionState): boolean {
-  if (m.glow > 0.002 || m.kick > 0.002 || m.flash > 0.002 || m.swell > 0.002) return false
-  return kind === 'horizon' ? !m.travelled : m.rings.length === 0
+/**
+ * Forgets which ring each ring view was showing, for a motion that has started
+ * over: the rings those views held are gone with it, and the next song's first
+ * ring would otherwise take a view that thinks it already has a ring of that id
+ * and keep the width of a hit from the song before.
+ */
+function forgetRings(drawn: Drawn): void {
+  drawn.ringIds.fill(-1)
+  drawn.settled = false
 }
 
 /** Writes this frame into the shared value the showing style reads. */
@@ -509,7 +544,7 @@ function Ripples({
             key={slot}
             slot={slot}
             reach={disc}
-            ink={rgba(colors.inks[RING_INKS[slot % RING_INKS.length]!])}
+            ink={rgba(colors.inks[ringInk(slot)])}
             frame={frame}
             ringWidths={ringWidths}
           />
@@ -539,9 +574,6 @@ function Ripples({
     </>
   )
 }
-
-/** Which ink each ring view draws in: the lead, then the other two, as P24's rings take turns. */
-const RING_INKS = [2, 0, 1] as const
 
 function Ring({
   slot,

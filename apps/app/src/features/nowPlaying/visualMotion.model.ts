@@ -1,6 +1,6 @@
 import { clamp01 } from '@selfmp3/shared'
 import type { MotionSampler, MotionSourceKind } from './motionSource.model'
-import { valueNoise, type VisualFeel } from './visuals.model'
+import { valueNoise, type VisualFeel, type VisualKind } from './visuals.model'
 
 /**
  * How a visual moves, frame by frame, from what its sampler hears.
@@ -22,7 +22,10 @@ import { valueNoise, type VisualFeel } from './visuals.model'
  * order (`motionSource.model.ts`): nothing here keeps time on its own. Silence is
  * nearly still: no level, no rings, a flat trail. A paused song steps as
  * silence, so it settles rather than freezing mid-hit, and its hills stop
- * where they are. Pure: vitest runs it.
+ * where they are; `isSettled` is when it has finished doing that, which is when
+ * both twins stop asking for frames. Even which ink a ring draws in is here
+ * (`ringInk`), because the two used to answer that differently. Pure: vitest
+ * runs it.
  */
 
 interface Ring {
@@ -301,6 +304,42 @@ export function ringReach(ring: Ring, tuning: MotionTuning): number {
 export function ringFade(ring: Ring, tuning: MotionTuning): number {
   const p = clamp01(ring.age / tuning.ringLife)
   return Math.pow(1 - p, 1.5) * (0.2 + 0.8 * ring.strength)
+}
+
+/** Which ink each ring draws in, in turn: the lead, then the other two, as P24's rings take turns. */
+export const RING_INKS = [2, 0, 1] as const
+
+/** Which of the three inks: narrow enough to index a palette's `inks` with. */
+type RingInk = (typeof RING_INKS)[number]
+
+/**
+ * Which of a palette's three inks the ring with this id draws in. Rings count
+ * up from the first one of a song, so consecutive rings take turns.
+ *
+ * Both twins ask this, and they used to each have their own copy of the rule.
+ * The browser coloured a ring by its own id; the phone keeps one view per ring
+ * slot and colours that view once, when it is made, by the slot — a border
+ * colour is a paint prop, so changing it mid-flight would be a shadow-tree
+ * commit, and the view a ring lands in is `id % MAX_RINGS`. Those two agree
+ * only while `MAX_RINGS` is a whole number of turns of `RING_INKS`, which is
+ * what `ringInk(id) === ringInk(id % MAX_RINGS)` says and a vitest case holds:
+ * break it and the same song would colour its rings differently on a phone and
+ * in a browser.
+ */
+export function ringInk(id: number): RingInk {
+  return RING_INKS[id % RING_INKS.length]!
+}
+
+/**
+ * Whether the showing style has anything left to move, so a paused visual can
+ * ask for no more frames: nothing is fading (the glow, the kick, the flash, the
+ * swell are all as good as zero) and the style's own motion is over — Horizon's
+ * hills roll on for as long as it plays, and Ripples has to see its last ring
+ * off the edge. Both twins stop their loop on this and start it again on play.
+ */
+export function isSettled(kind: VisualKind, m: MotionState): boolean {
+  if (m.glow > 0.002 || m.kick > 0.002 || m.flash > 0.002 || m.swell > 0.002) return false
+  return kind === 'horizon' ? !m.travelled : m.rings.length === 0
 }
 
 /* --------------------------------------------------------------- playhead */

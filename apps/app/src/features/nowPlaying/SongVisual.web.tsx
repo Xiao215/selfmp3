@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { radius, rgba, type Rgb } from '@selfmp3/client'
 import type { Song } from '@selfmp3/shared'
@@ -13,7 +13,9 @@ import {
   hillShare,
   hillShift,
   hillX,
+  isSettled,
   ringFade,
+  ringInk,
   ringReach,
   stepMotion,
   stillMotion,
@@ -49,8 +51,13 @@ export interface SongVisualProps {
  * what the music is doing there, steps the motion (`visualMotion.model.ts`)
  * and draws it — so a ring leaves on the hit and not a quarter of a second
  * after it. Everything else the loop needs sits in one ref, so it starts once
- * per style; the browser pauses it with the tab. Reduce Motion draws a single
- * still frame, again only when the song, the style or the size changes.
+ * per style; the browser pauses it with the tab.
+ *
+ * A paused canvas that has come to rest asks for no more frames, as the phone's
+ * does, and playing again starts the loop from the motion it left off at.
+ * Reduce Motion draws a single still frame in its own effect and runs no loop at
+ * all — it used to keep one going for as long as the page was open, working out
+ * a key sixty times a second to decide to draw nothing.
  */
 export function SongVisual({
   song,
@@ -60,67 +67,113 @@ export function SongVisual({
   cover: coverUri = null,
 }: SongVisualProps): ReactNode {
   const player = usePlayer()
+  const { isPlaying } = player
   const reduced = useMotionReduced()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const { colors, tuning } = useVisualLook(song)
-  const cover = useCoverImage(coverUri)
+  const { image: cover, loaded: coverLoaded } = useCoverImage(coverUri)
 
-  const live = useRef({ player, colors, tuning, reduced, sampler, songId: song.id, cover })
+  const live = useRef({ player, colors, tuning, sampler, cover })
   useEffect(() => {
-    live.current = { player, colors, tuning, reduced, sampler, songId: song.id, cover }
+    live.current = { player, colors, tuning, sampler, cover }
   })
 
+  /*
+   * The motion itself outlives the loop that steps it, so it survives both a
+   * pause and a loop that stopped because nothing was moving. It is made again
+   * only for something that genuinely starts the motion over, which is what
+   * `restart` names: another style, another song, or a different sampler behind
+   * the same song (the sound becoming audible, or the stored curve arriving for
+   * a song that was drawing from its tempo).
+   */
+  const held = useRef<{ key: string; motion: MotionState } | null>(null)
+  const restart = `${kind}|${song.id}|${sampler.source}`
+
+  /*
+   * Reduce Motion: the one still frame, drawn once for everything it depends on
+   * — the song, its colours and tuning, the style, the sampler behind it, the
+   * cover once it has loaded — and again when the box changes size, because a
+   * canvas keeps its pixels and nothing else would redraw them. No loop.
+   */
   useEffect(() => {
+    if (!reduced) return undefined
+    const canvas = canvasRef.current
+    const ctx = canvas?.getContext('2d')
+    if (!canvas || !ctx) return undefined
+    const still = createMotionState(live.current.tuning.feel.loudness)
+    const paint = (): void => {
+      const size = fit(canvas, ctx)
+      if (!size) return
+      const { colors: c, tuning: tu, sampler: s, cover: art } = live.current
+      stillMotion(still, tu, s.source)
+      draw(kind, ctx, size.width, size.height, c, tu, still, art.current)
+    }
+    paint()
+    const watch = watchSize(canvas, paint)
+    return () => watch?.disconnect()
+  }, [kind, reduced, song.id, colors, tuning, sampler.source, coverLoaded])
+
+  useEffect(() => {
+    if (reduced) return undefined
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx) return undefined
 
-    const motion = createMotionState(live.current.tuning.feel.loudness)
+    const kept = held.current
+    let motion: MotionState
+    if (kept && kept.key === restart) motion = kept.motion
+    else {
+      motion = createMotionState(live.current.tuning.feel.loudness)
+      held.current = { key: restart, motion }
+    }
     let last = performance.now()
-    let stillKey = ''
+    /** The frame asked for, or 0 while the loop is stopped because nothing moves. */
     let frame = 0
 
     const tick = (now: number): void => {
-      frame = requestAnimationFrame(tick)
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
-      const { player: p, colors: c, tuning: tu, reduced: still, sampler: s, songId } = live.current
-
-      const dpr = Math.min(2, window.devicePixelRatio || 1)
-      const width = canvas.clientWidth
-      const height = canvas.clientHeight
-      if (!width || !height) return
-      const key = `${songId}:${width}x${height}:${c.inks[0].join()}:${s.source}`
-      if (still && key === stillKey) return
-      stillKey = still ? key : ''
-      if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
-        canvas.width = Math.round(width * dpr)
-        canvas.height = Math.round(height * dpr)
+      const { player: p, colors: c, tuning: tu, sampler: s } = live.current
+      const size = fit(canvas, ctx)
+      // Nothing laid out yet: rest, and let the size watcher below wake it.
+      if (!size) {
+        frame = watch ? 0 : requestAnimationFrame(tick)
+        return
       }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-
-      if (still) {
-        stillMotion(motion, tu, s.source)
-      } else {
-        const seconds = p.getPlayhead()
-        stepMotion(motion, s, seconds, dt, p.isPlaying, tu)
-        recordVisualFrame({
-          t: seconds,
-          source: s.source,
-          kind,
-          level: motion.level,
-          onset: motion.onset,
-          glow: motion.glow,
-          fired: motion.fired,
-          rings: motion.rings.length,
-          ...(s as { trace?: object }).trace,
-        })
-      }
-      draw(kind, ctx, width, height, c, tu, motion, live.current.cover.current)
+      const seconds = p.getPlayhead()
+      stepMotion(motion, s, seconds, dt, p.isPlaying, tu)
+      recordVisualFrame({
+        t: seconds,
+        source: s.source,
+        kind,
+        level: motion.level,
+        onset: motion.onset,
+        glow: motion.glow,
+        fired: motion.fired,
+        rings: motion.rings.length,
+        ...(s as { trace?: object }).trace,
+      })
+      draw(kind, ctx, size.width, size.height, c, tu, motion, live.current.cover.current)
+      /*
+       * A paused canvas that has come to rest asks for no more frames: it used
+       * to step three hill trails and repaint the whole canvas sixty times a
+       * second for as long as the page was open. `isPlaying` below starts it
+       * again, and so does a resize, which would otherwise stretch the pixels
+       * of the last frame drawn.
+       */
+      frame = isSettled(kind, motion) && !p.isPlaying ? 0 : requestAnimationFrame(tick)
     }
+
+    const wake = (): void => {
+      if (!frame) frame = requestAnimationFrame(tick)
+    }
+    const watch = watchSize(canvas, wake)
     frame = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frame)
-  }, [kind])
+    return () => {
+      watch?.disconnect()
+      cancelAnimationFrame(frame)
+    }
+  }, [kind, restart, reduced, isPlaying])
 
   return (
     <canvas
@@ -142,9 +195,17 @@ export function SongVisual({
  * The song's cover as an image a canvas can draw, or null until it is there.
  * Asked for with CORS, because a canvas that has drawn an image from another
  * address without it cannot be read back (saving the month as an image).
+ *
+ * The loop reads the image through the ref, every frame, and never needs to be
+ * told. `loaded` counts the loads for the still frame, which is drawn once and
+ * would otherwise show a cover that arrived after it as nothing at all.
  */
-function useCoverImage(uri: string | null): { current: HTMLImageElement | null } {
+function useCoverImage(uri: string | null): {
+  image: { current: HTMLImageElement | null }
+  loaded: number
+} {
   const held = useRef<HTMLImageElement | null>(null)
+  const [loaded, setLoaded] = useState(0)
   useEffect(() => {
     held.current = null
     if (!uri) return undefined
@@ -153,6 +214,7 @@ function useCoverImage(uri: string | null): { current: HTMLImageElement | null }
     image.src = uri
     const ready = (): void => {
       held.current = image
+      setLoaded(count => count + 1)
     }
     image.addEventListener('load', ready)
     return () => {
@@ -160,7 +222,42 @@ function useCoverImage(uri: string | null): { current: HTMLImageElement | null }
       held.current = null
     }
   }, [uri])
-  return held
+  return { image: held, loaded }
+}
+
+/**
+ * Sizes the canvas's pixels to its box at the screen's density and puts the
+ * drawing back into the box's own units, or answers null while it has no box to
+ * fill. Both the loop and the still frame start here.
+ */
+function fit(
+  canvas: HTMLCanvasElement,
+  ctx: CanvasRenderingContext2D,
+): { width: number; height: number } | null {
+  const width = canvas.clientWidth
+  const height = canvas.clientHeight
+  if (!width || !height) return null
+  const dpr = Math.min(2, window.devicePixelRatio || 1)
+  if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+    canvas.width = Math.round(width * dpr)
+    canvas.height = Math.round(height * dpr)
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  return { width, height }
+}
+
+/**
+ * Calls back when the canvas's box changes size. A canvas has no layout
+ * callback, and neither the still frame nor a settled loop draws again by
+ * itself, so without this a resize would leave the last frame's pixels
+ * stretched. Null where there is no `ResizeObserver` (a test's DOM); the callers
+ * keep asking for frames instead.
+ */
+function watchSize(canvas: HTMLCanvasElement, changed: () => void): ResizeObserver | null {
+  if (typeof ResizeObserver === 'undefined') return null
+  const watch = new ResizeObserver(changed)
+  watch.observe(canvas)
+  return watch
 }
 
 type Ctx = CanvasRenderingContext2D
@@ -270,10 +367,7 @@ const DRAWINGS: Record<VisualKind, Drawing> = {
       const scale = RING_FROM + (RING_TO - RING_FROM) * ringReach(ring, tu)
       ctx.beginPath()
       ctx.arc(cx, cy, (disc / 2) * scale, 0, Math.PI * 2)
-      ctx.strokeStyle = rgba(
-        c.inks[RING_INKS[ring.id % RING_INKS.length]!],
-        ringFade(ring, tu) * 0.85,
-      )
+      ctx.strokeStyle = rgba(c.inks[ringInk(ring.id)], ringFade(ring, tu) * 0.85)
       ctx.lineWidth = (1.5 + 1.5 * ring.strength) * scale
       ctx.stroke()
     }
@@ -324,9 +418,6 @@ const DRAWINGS: Record<VisualKind, Drawing> = {
     }
   },
 }
-
-/** Which ink each ring draws in, in turn: the lead, then the other two, as P24's rings take turns. */
-const RING_INKS = [2, 0, 1] as const
 
 /** A soft round glow of one ink, `alpha` at its middle (and out to `solid` of its radius), none at its edge. */
 function wash(

@@ -79,8 +79,38 @@ body {
 .body {
   display: flex;
   flex-direction: column;
-  gap: 14px;
   padding: 4px 16px 16px;
+}
+
+/*
+ * One state of the popup, and the thing that moves when it becomes another.
+ *
+ * Checking, reading, the form, importing, added, failed and "already in your
+ * library" are sibling subtrees: one is on screen at a time and React swaps
+ * the whole thing. The new one fades up from four points below instead of
+ * appearing, which is the only cue anyone gets that the popup answered rather
+ * than that it was always saying this.
+ *
+ * The entrance is all there is: a true crossfade would need the state that is
+ * going to stay mounted over the one arriving, and only one is ever built.
+ * What the leaving state's height is worth is kept for the length of the fade
+ * by `Popup`, which holds the body's height as a floor, so the words change
+ * at one size and the popup settles afterwards rather than under the reader.
+ */
+.view {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  gap: 14px;
+  min-width: 0;
+  animation: view-in var(--motion-base) var(--ease-out) both;
+}
+
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
 }
 
 .card {
@@ -254,7 +284,7 @@ body {
   height: 100%;
   border-radius: var(--radius-pill);
   background: var(--accent);
-  transition: width var(--motion-base) cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: width var(--motion-base) var(--ease-out);
 }
 
 .bar b.busy {
@@ -268,14 +298,6 @@ body {
   }
   to {
     transform: translateX(300%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bar b.busy {
-    width: 100%;
-    opacity: 0.5;
-    animation: none;
   }
 }
 
@@ -302,7 +324,7 @@ body {
   color: var(--text-secondary);
 }
 
-.body > .hint + .rows {
+.view > .hint + .rows {
   margin-top: -6px;
 }
 
@@ -403,10 +425,31 @@ body {
   gap: 8px;
 }
 
+/*
+ * The bar that stands in for a name nobody knows yet.
+ *
+ * Still, it is indistinguishable from something the page meant to draw. A
+ * light passing along it says the popup is waiting on an answer. The loop is
+ * seconds long, as the progress bar's is, and neither length belongs to the
+ * move table: those are the lengths of a change, and this is a heartbeat.
+ */
 .skeleton {
   height: 12px;
   border-radius: 6px;
   background: var(--surface-2);
+  background-image: linear-gradient(90deg, transparent, var(--surface-3), transparent);
+  background-repeat: no-repeat;
+  background-size: 60% 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -100% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
 }
 
 .foot {
@@ -425,4 +468,35 @@ body {
 
 .foot-text {
   flex-grow: 1;
+}
+
+/*
+ * Reduce Motion, for everything above, and last in the file so that it is the
+ * rule that wins wherever two say the same thing.
+ *
+ * Nothing here is load-bearing: every state is readable standing still. What
+ * has to survive is the sense that something is happening — so the two
+ * indicators that were animations become dimmed full shapes rather than
+ * disappearing or freezing mid-gesture.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .view,
+  .skeleton {
+    animation: none;
+  }
+
+  .bar b {
+    transition: none;
+  }
+
+  .bar b.busy {
+    width: 100%;
+    opacity: 0.5;
+    animation: none;
+  }
+
+  /* Still, the light along it would sit somewhere arbitrary; the bar's own tone is enough. */
+  .skeleton {
+    background-image: none;
+  }
 }

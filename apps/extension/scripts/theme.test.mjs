@@ -77,6 +77,12 @@ describe('the generated theme', () => {
     expect(dark.get('motion-base')).toBe('140ms')
   })
 
+  it('writes the two curves a fade can take, which the tokens have no number for', () => {
+    const dark = declared(darkPart)
+    expect(dark.get('ease-out')).toBe('cubic-bezier(0.2, 0.8, 0.2, 1)')
+    expect(dark.get('ease-in')).toBe('cubic-bezier(0.4, 0, 1, 1)')
+  })
+
   it('sits on the pill’s shadow host as well as on a page', () => {
     expect(darkPart).toContain(':root, :host {')
     expect(lightPart).toContain(':root, :host {')

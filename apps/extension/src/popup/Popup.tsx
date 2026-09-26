@@ -1,6 +1,7 @@
+import { motion } from '@selfmp3/client/core'
 import { DEFAULT_APP_URL, IDLE_PACING, type ImportEnqueue, type ImportQueue } from '@selfmp3/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { ask, type Choices } from '../bridge.js'
 import { pageKind } from '../pageKind.js'
 import { currentPage } from './page.js'
@@ -47,6 +48,36 @@ const BUCKET_POLL_MS = 15_000
 
 const openOptions = (): void => {
   void chrome.runtime.openOptionsPage()
+}
+
+/**
+ * The height the body keeps while one state fades out of the way of the next.
+ *
+ * The popup's states are sibling subtrees of their own heights, and the window
+ * is only as tall as what it holds, so without this the box resizes in the same
+ * frame the words change — and the box is what the eye was holding on to. The
+ * height is read while the state on screen is still the old one, during the
+ * render that replaces it, and held as a floor until the entrance has landed
+ * (`popup.css`, `.view`). A floor and not a fixed height: a taller state is
+ * welcome to its room at once, and it is the collapse that jars.
+ */
+function useHeldHeight(view: string): {
+  ref: RefObject<HTMLElement | null>
+  minHeight: number | undefined
+} {
+  const ref = useRef<HTMLElement | null>(null)
+  const shown = useRef(view)
+  const [held, setHeld] = useState<number | undefined>(undefined)
+  if (shown.current !== view) {
+    shown.current = view
+    setHeld(ref.current?.getBoundingClientRect().height)
+  }
+  useEffect(() => {
+    if (held === undefined) return undefined
+    const timer = setTimeout(() => setHeld(undefined), motion.base)
+    return () => clearTimeout(timer)
+  }, [held])
+  return { ref, minHeight: held }
 }
 
 /**
@@ -337,10 +368,18 @@ export function Popup(): ReactNode {
     }
   })()
 
+  const steady = useHeldHeight(view.name)
+
   return (
     <div className="popup">
       <Header baseUrl={server?.baseUrl ?? null} connection={connection} onOptions={openOptions} />
-      <main className="body">{body}</main>
+      <main className="body" ref={steady.ref} style={{ minHeight: steady.minHeight }}>
+        {/* Keyed by the state's name, so one state becoming another is a new
+            element — and a new element is what plays the entrance. */}
+        <div className="view" key={view.name}>
+          {body}
+        </div>
+      </main>
       {ready && <QueueFooter queue={queue.data} onOpen={() => openApp('/import')} />}
       {viaBucket && (
         <BucketFooter

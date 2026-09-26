@@ -34,8 +34,41 @@ const SHADOW_CSS = `
        own controls and must not push them aside. The words are cut, and the
        whole reason is the tooltip. */
     max-width: min(320px, 30vw);
+    /* A state is a colour as much as it is words: the fill, the words' colour
+       and a hover all slide over the shortest length instead of cutting, so
+       the pill changes rather than being swapped for another pill. */
+    transition:
+      background-color var(--motion-fast) var(--ease-out),
+      border-color var(--motion-fast) var(--ease-out),
+      color var(--motion-fast) var(--ease-out),
+      opacity var(--motion-fast) var(--ease-out);
+    /* The entrance. YouTube draws its button row well after the page, and
+       throws it away and redraws it after every navigation, so the pill
+       arrives in a row someone is already looking at: it grows in rather than
+       popping. It sits on this element and not on the host, whose properties
+       the page's own CSS and our inline layout style can take; and it is the
+       rule itself rather than a class, because \`draw\` writes the whole class
+       list and would wipe one. It starts when the row is first drawn: an
+       element in no document has nothing to animate yet. */
+    animation: pill-in var(--motion-base) var(--ease-out) both;
   }
+  /* And the exit, shorter than the entrance, as an exit is: played by \`leave\`. */
+  button.leaving {
+    animation: pill-out var(--motion-fast) var(--ease-in) both;
+    pointer-events: none;
+  }
+  @keyframes pill-in { from { opacity: 0; transform: scale(0.9) } }
+  @keyframes pill-out { to { opacity: 0; transform: scale(0.9) } }
+  /* \`all: initial\` on the host takes the focus ring with it; this is base.css's. */
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   .words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+  /* The words and the mark of a new state fade in over the shortest length
+     while the fill slides under them, so the three do not snap together.
+     \`draw\` asks for this only when the state itself changed: a percentage
+     ticking inside "Importing" is a counter, and a counter that fades every
+     second and a half is a flicker. */
+  .swap { animation: swap-in var(--motion-fast) var(--ease-out) both }
+  @keyframes swap-in { from { opacity: 0 } }
   button.offer { background: var(--accent); color: var(--on-accent) }
   button.offer:hover { background: var(--accent-strong) }
   button.queued { color: var(--accent) }
@@ -50,9 +83,23 @@ const SHADOW_CSS = `
     border: 2px solid var(--accent); border-right-color: transparent;
     animation: spin 0.9s linear infinite;
   }
+  /* A ring that is fading in is still a ring that turns. */
+  .spin.swap {
+    animation: spin 0.9s linear infinite, swap-in var(--motion-fast) var(--ease-out) both;
+  }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor }
   @keyframes spin { to { transform: rotate(360deg) } }
-  @media (prefers-reduced-motion: reduce) { .spin { animation: none } }
+  @media (prefers-reduced-motion: reduce) {
+    button, button.leaving, .swap, .spin.swap { animation: none }
+    button { transition: none }
+    /*
+     * The ring cannot turn, and three quarters of a ring standing still reads
+     * as a progress that has stalled rather than as work going on. A whole
+     * ring at half strength says "working" without pretending to measure
+     * anything, which is how the popup's bar answers the same setting.
+     */
+    .spin { animation: none; border-right-color: var(--accent); opacity: 0.5 }
+  }
 `
 
 /** What stands before the words: the note, a turning ring, a check, or a dot. */
@@ -63,6 +110,13 @@ export interface PillHandles {
   /** The video the pill is about; read at click time, never from the page. */
   videoId: string
   draw(state: PillState): void
+  /**
+   * Play the exit and take the element away when it lands: for the pill that
+   * is leaving for good, because the page it was on is no longer a song's.
+   * A pill being replaced by another one goes at once instead — two pills in
+   * the row, even for a tenth of a second, is worse than a missing fade.
+   */
+  leave(): void
 }
 
 /** What the pill says for each state it can be in: `E4`'s five faces, the queue, and a failure. */
@@ -160,6 +214,9 @@ export function createPill(
   button.type = 'button'
   shadow.append(style, button)
 
+  /** The state the pill is wearing, to tell a new one from a moving percentage. */
+  let worn: string | null = null
+
   const pill: PillHandles = {
     element,
     videoId,
@@ -169,6 +226,13 @@ export function createPill(
       const words = document.createElement('span')
       words.className = 'words'
       words.textContent = label.text
+      // A new state's words and mark fade in; the first draw does not, because
+      // the whole pill is arriving and that is the entrance's business.
+      if (worn !== null && worn !== label.className) {
+        words.classList.add('swap')
+        mark?.classList.add('swap')
+      }
+      worn = label.className
       button.replaceChildren(...(mark ? [mark] : []), words)
       button.className = label.className
       // The reason for a failure, whole, where the pill had to cut it; and
@@ -185,6 +249,18 @@ export function createPill(
       // On the host, where the page cannot reach the shadow root's contents and
       // an end-to-end spec cannot either: this is what both can see.
       element.setAttribute('data-state', state.state)
+    },
+    leave() {
+      // On the host as well, so the content script can tell a pill on its way
+      // out from one it should take away now.
+      element.setAttribute('data-leaving', '')
+      button.classList.add('leaving')
+      // Whatever the stylesheet says the exit is, and gone when it lands —
+      // which under Reduce Motion is no animation at all, so this is one frame.
+      const playing = button.getAnimations()
+      const gone = (): void => element.remove()
+      if (playing.length === 0) gone()
+      else void Promise.all(playing.map(animation => animation.finished)).then(gone, gone)
     },
   }
   button.addEventListener('click', event => {

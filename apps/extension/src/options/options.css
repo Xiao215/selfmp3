@@ -174,3 +174,50 @@
 .field input {
   background: var(--surface-1);
 }
+
+/*
+ * The page answering a pointer or the keyboard.
+ *
+ * A full-tab page is the one place in the extension with room for a pointer to
+ * wander, so its controls are the one place a hover is worth drawing. The ring
+ * around the address grows into place rather than appearing, and a button's
+ * tone slides: one length, the shortest, for every one of them, so nothing here
+ * is on a clock of its own. Only the properties a state actually changes are
+ * listed, which keeps a repaint off everything else.
+ */
+.address,
+.field input,
+.field textarea,
+.primary,
+.tonal,
+.link {
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out),
+    opacity var(--motion-fast) var(--ease-out);
+}
+
+/* One tone up under the pointer, as a row of the app's lifts. */
+.tonal:hover:not(:disabled) {
+  background: var(--surface-selected);
+}
+
+.link:hover:not(:disabled) {
+  color: var(--accent-strong);
+}
+
+/*
+ * Reduce Motion: the states themselves stay — a hover that says nothing is not
+ * an improvement — and only the sliding between them goes.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .address,
+  .field input,
+  .field textarea,
+  .primary,
+  .tonal,
+  .link {
+    transition: none;
+  }
+}

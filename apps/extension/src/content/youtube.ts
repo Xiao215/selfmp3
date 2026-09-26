@@ -41,9 +41,27 @@ function videoIdNow(): string | null {
   return kind.kind === 'song' ? kind.videoId : null
 }
 
+/** Take every pill away this instant: another one is going into the same row. */
 function removePills(): void {
   for (const old of document.querySelectorAll(PILL_TAG)) old.remove()
   pill = null
+}
+
+/**
+ * The page is not a song's any more, so the pill leaves rather than vanishing.
+ *
+ * Only the one pill we are holding gets the exit: a leftover from one of
+ * YouTube's redraws is not something anyone is watching. A pill already on its
+ * way out is left to finish, because `ensure` runs again on the very mutation
+ * its own removal causes.
+ */
+function dismissPills(): void {
+  const going = pill
+  pill = null
+  for (const old of document.querySelectorAll(`${PILL_TAG}:not([data-leaving])`)) {
+    if (old !== going?.element) old.remove()
+  }
+  going?.leave()
 }
 
 /** Ask what the pill should say, and draw it. */
@@ -107,7 +125,7 @@ function ensure(): void {
     if (!site) return
     const videoId = videoIdNow()
     if (!videoId) {
-      removePills()
+      dismissPills()
       return
     }
     if (location.href !== seenUrl) {

@@ -67,6 +67,8 @@
   --motion-fast: 100ms;
   --motion-base: 140ms;
   --motion-slow: 220ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
 }
 
 @media (prefers-color-scheme: light) {

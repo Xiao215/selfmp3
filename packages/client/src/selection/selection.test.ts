@@ -103,11 +103,12 @@ describe('selection', () => {
     expect(allSelected(state, VISIBLE)).toBe(true)
   })
 
-  it('deselect all stays in mode; clear leaves it', () => {
+  it('deselect all leaves the mode with the ticks, as clear does', () => {
     const all = selectAllVisible(EMPTY_SELECTION, VISIBLE)
     const none = deselectAll(all)
     expect(ids(none)).toEqual([])
-    expect(none.mode).toBe(true)
+    expect(none.mode).toBe(false)
+    expect(selectionActive(none)).toBe(false)
     const cleared = clearSelection(all)
     expect(ids(cleared)).toEqual([])
     expect(cleared.mode).toBe(false)
@@ -144,9 +145,9 @@ describe('leaving selection by unticking', () => {
     expect(selectionActive(none)).toBe(false)
   })
 
-  it('stays in the mode while something is still selected, and after emptying it from the bar', () => {
+  it('stays in the mode while something is still selected, and leaves it when the bar empties it', () => {
     const two = toggleSelected(enterSelection(EMPTY_SELECTION, 7), 8)
     expect(selectionActive(toggleSelected(two, 7))).toBe(true)
-    expect(selectionActive(deselectAll(two))).toBe(true)
+    expect(selectionActive(deselectAll(two))).toBe(false)
   })
 })

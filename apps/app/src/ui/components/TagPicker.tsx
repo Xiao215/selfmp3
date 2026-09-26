@@ -11,6 +11,7 @@ import {
   tagColors,
   useCreateTag,
   useLibrary,
+  useBulkTag,
   useSetSongTags,
 } from '@selfmp3/client'
 import { useArtistNudge } from '../../features/tag/useArtistNudge'
@@ -22,6 +23,7 @@ import { usePanelDense } from './panel'
 import { Popover } from './Popover'
 import { Press } from './Press'
 import { Sheet } from './Sheet'
+import { tagChanges, tagsAcross } from './tagPicker.model'
 
 /**
  * Attach tags to a song.
@@ -30,10 +32,6 @@ import { Sheet } from './Sheet'
  * submitting picks the best match, and creating a tag is always one step away.
  * A near-match is shown first, though, because free-form tagging usually goes
  * wrong as "chill", "Chill" and "chilled" becoming three tags.
- *
- * A small window: over the button that opened it when there is one (the
- * player bar's), and otherwise — opened from a song's menu, which closes as
- * it opens — a sheet, which on a computer is a small centred window.
  */
 export function TagPicker({
   song,
@@ -45,31 +43,114 @@ export function TagPicker({
   /** The control that opened it, for a window attached to it at desktop width. */
   anchorRef?: RefObject<View | null>
 }): ReactNode {
+  return (
+    <PickerWindow
+      open={song !== null}
+      onClose={onClose}
+      anchorRef={anchorRef}
+      title={song ? `Tags for ${song.title}` : undefined}
+    >
+      {song ? <Picker key={song.id} song={song} onLeave={onClose} /> : null}
+    </PickerWindow>
+  )
+}
+
+/**
+ * Tags on a selection of songs, from the selection bar's More: the same
+ * picker as a song's, so a tag can be searched for, made on the spot, put on
+ * every chosen song or taken off all of them. A tag on some of the songs but
+ * not all is drawn mixed; ticking it puts it on the rest.
+ */
+export function SelectionTagPicker({
+  songs,
+  open,
+  onClose,
+  anchorRef,
+}: {
+  songs: readonly Song[]
+  open: boolean
+  onClose: () => void
+  anchorRef?: RefObject<View | null>
+}): ReactNode {
+  return (
+    <PickerWindow
+      open={open}
+      onClose={onClose}
+      anchorRef={anchorRef}
+      title={`Tags for ${songs.length} ${songs.length === 1 ? 'song' : 'songs'}`}
+    >
+      {open ? <SelectionPicker songs={songs} onLeave={onClose} /> : null}
+    </PickerWindow>
+  )
+}
+
+/**
+ * A small window: over the button that opened it when there is one (the
+ * player bar's, the selection bar's More), and otherwise — opened from a
+ * song's menu, which closes as it opens — a sheet, which on a computer is a
+ * small centred window.
+ */
+function PickerWindow({
+  open,
+  onClose,
+  anchorRef,
+  title,
+  children,
+}: {
+  open: boolean
+  onClose: () => void
+  anchorRef?: RefObject<View | null>
+  title?: string
+  children: ReactNode
+}): ReactNode {
   const { wide } = useLayout()
-  const picker = song ? <Picker key={song.id} song={song} onLeave={onClose} /> : null
   if (wide && anchorRef) {
     return (
-      <Popover
-        open={song !== null}
-        onClose={onClose}
-        anchorRef={anchorRef}
-        width={320}
-        testID="tag-picker"
-      >
-        {picker}
+      <Popover open={open} onClose={onClose} anchorRef={anchorRef} width={320} testID="tag-picker">
+        {children}
       </Popover>
     )
   }
   return (
-    <Sheet
-      open={song !== null}
-      onClose={onClose}
-      title={song ? `Tags for ${song.title}` : undefined}
-      titleTone="label"
-      testID="tag-picker"
-    >
-      {picker}
+    <Sheet open={open} onClose={onClose} title={title} titleTone="label" testID="tag-picker">
+      {children}
     </Sheet>
+  )
+}
+
+function SelectionPicker({
+  songs,
+  onLeave,
+}: {
+  songs: readonly Song[]
+  onLeave: () => void
+}): ReactNode {
+  const across = useMemo(() => tagsAcross(songs), [songs])
+  // What is ticked: what the songs have, until a tap says otherwise, and the
+  // songs' own state again once the library has answered (a new set of songs
+  // or tags is a new key). Kept here rather than read straight from the songs
+  // so a tick shows at once and not a round trip later.
+  const key = useMemo(
+    () => songs.map(song => `${song.id}:${song.tagIds.join(',')}`).join('|'),
+    [songs],
+  )
+  const [ticked, setTicked] = useState<{ key: string; ids: ReadonlySet<number> } | null>(null)
+  const selected = ticked?.key === key ? ticked.ids : across.all
+  const bulkTag = useBulkTag()
+  const ids = useMemo(() => songs.map(song => song.id), [songs])
+  return (
+    <TagSearchList
+      selected={selected}
+      mixed={across.some}
+      onChange={next => {
+        setTicked({ key, ids: next })
+        const { add, remove } = tagChanges(across, next)
+        for (const tagId of add) bulkTag.mutate({ songIds: ids, tagId, action: 'add' })
+        for (const tagId of remove) bulkTag.mutate({ songIds: ids, tagId, action: 'remove' })
+      }}
+      onLeave={onLeave}
+      autoFocus
+    />
   )
 }
 
@@ -110,12 +191,15 @@ interface TagSource {
  */
 export function TagSearchList({
   selected,
+  mixed,
   onChange,
   onLeave,
   autoFocus = false,
   from,
 }: {
   selected: ReadonlySet<number>
+  /** Tags on some of the songs but not all, drawn as a mixed tick; a tap puts them on the rest. */
+  mixed?: ReadonlySet<number>
   onChange: (next: ReadonlySet<number>) => void
   /** Close whatever this is drawn in, as the nudge's "Open the artist" leaves for the artist. */
   onLeave?: () => void
@@ -220,6 +304,7 @@ export function TagSearchList({
       <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
         {ranked.map(({ item }) => {
           const on = selected.has(item.id)
+          const partly = !on && mixed?.has(item.id) === true
           return (
             // A row the width of the panel, so it sinks to a row's depth rather
             // than a control's (`M1`, 1).
@@ -236,10 +321,12 @@ export function TagSearchList({
                 setQuery('')
               }}
               accessibilityRole="checkbox"
-              accessibilityState={{ checked: on }}
+              accessibilityState={{ checked: on ? true : partly ? 'mixed' : false }}
+              // react-native-web does not turn `accessibilityState` into aria-checked.
+              aria-checked={on ? true : partly ? 'mixed' : false}
               accessibilityLabel={item.name}
             >
-              <Checkbox checked={on} />
+              <Checkbox checked={on} mixed={partly} />
               <View style={[styles.dot, { backgroundColor: tagColors(item.hue).dot }]} />
               <Text style={styles.itemLabel} numberOfLines={1}>
                 {item.name}

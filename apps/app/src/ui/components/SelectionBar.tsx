@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { plural } from '@selfmp3/shared'
-import type { Song, Tag } from '@selfmp3/shared'
+import type { Song } from '@selfmp3/shared'
 import { useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -17,7 +17,6 @@ import {
   useAddToPlaylist,
   useBulkDeleteSongs,
   useBulkLoved,
-  useBulkTag,
   useLibrary,
   useRemoveManyFromPlaylist,
 } from '@selfmp3/client'
@@ -46,6 +45,7 @@ import {
   X,
 } from './Icons'
 import { Popover } from './Popover'
+import { SelectionTagPicker } from './TagPicker'
 import { SheetItem } from './Sheet'
 import { floating } from '../surfaces'
 import { useFloatingChrome } from '../../shell/bottomInset'
@@ -176,14 +176,15 @@ export function SelectionBar({
   const player = usePlayer()
   const { state: downloads, queue: downloadQueue, dropDownloads } = useDownloads()
 
-  const bulkTag = useBulkTag()
   const bulkLoved = useBulkLoved()
   const bulkDelete = useBulkDeleteSongs()
   const addToPlaylist = useAddToPlaylist()
   const removeFromPlaylist = useRemoveManyFromPlaylist()
 
   const [menuOpen, setMenuOpen] = useState(false)
-  const [nested, setNested] = useState<'playlists' | 'tag' | 'untag' | null>(null)
+  const [nested, setNested] = useState<'playlists' | null>(null)
+  // The tag picker, opened from More as a song's is from its menu.
+  const [tagging, setTagging] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const moreRef = useRef<View>(null)
@@ -259,7 +260,6 @@ export function SelectionBar({
 
   const count = songs.length
   const ids = useMemo(() => songs.map(song => song.id), [songs])
-  const tags = library?.tags ?? []
   // Pinned first; not the playlist this is, and never a live one.
   const manualPlaylists = playlistsToAddTo(library?.playlists ?? []).filter(
     list => list.id !== playlist?.id,
@@ -288,13 +288,6 @@ export function SelectionBar({
     }
   }
 
-  /** Only tags actually on the selection can be taken off it. */
-  const tagsOnSelection = useMemo<Tag[]>(() => {
-    const present = new Set<number>()
-    for (const song of songs) for (const tagId of song.tagIds) present.add(tagId)
-    return (library?.tags ?? []).filter(tag => present.has(tag.id))
-  }, [songs, library?.tags])
-
   const lovedCount = songs.filter(song => song.loved).length
   const held = songs.filter(song => isDownloaded(downloads.index, song.id))
   const songWord = count === 1 ? 'song' : 'songs'
@@ -310,7 +303,7 @@ export function SelectionBar({
     closeMenu()
     if (message) showToast(message, 'good')
   }
-  const toggleNested = (which: 'playlists' | 'tag' | 'untag') => (): void =>
+  const toggleNested = (which: 'playlists') => (): void =>
     setNested(open => (open === which ? null : which))
   const removeSelectedFromPlaylist = (): void => {
     if (!playlist) return
@@ -387,6 +380,7 @@ export function SelectionBar({
                 onPress={() => (allSelected ? onDeselectAll() : onSelectAll())}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: allSelected ? true : count > 0 ? 'mixed' : false }}
+                aria-checked={allSelected ? true : count > 0 ? 'mixed' : false}
                 accessibilityLabel={`${allSelected ? 'Deselect' : 'Select'} all ${total} ${totalWord} ${scope}`}
               >
                 <Checkbox checked={allSelected} mixed={!allSelected && count > 0} />
@@ -590,51 +584,11 @@ export function SelectionBar({
               </View>
             ) : null}
 
-            {tags.length > 0 ? (
-              <SheetItem
-                icon={<TagIcon size={15} color={theme.colors.textSecondary} />}
-                label="Add tag…"
-                active={nested === 'tag'}
-                onPress={toggleNested('tag')}
-              />
-            ) : null}
-            {nested === 'tag' ? (
-              <View style={styles.nested}>
-                {tags.map(tag => (
-                  <SheetItem
-                    key={tag.id}
-                    label={tag.name}
-                    onPress={act(
-                      () => bulkTag.mutate({ songIds: ids, tagId: tag.id, action: 'add' }),
-                      `Tagged ${count} ${songWord} “${tag.name}”`,
-                    )}
-                  />
-                ))}
-              </View>
-            ) : null}
-
-            {tagsOnSelection.length > 0 ? (
-              <SheetItem
-                icon={<TagIcon size={15} color={theme.colors.textSecondary} />}
-                label="Remove tag…"
-                active={nested === 'untag'}
-                onPress={toggleNested('untag')}
-              />
-            ) : null}
-            {nested === 'untag' ? (
-              <View style={styles.nested}>
-                {tagsOnSelection.map(tag => (
-                  <SheetItem
-                    key={tag.id}
-                    label={tag.name}
-                    onPress={act(
-                      () => bulkTag.mutate({ songIds: ids, tagId: tag.id, action: 'remove' }),
-                      `Removed “${tag.name}” from ${count} ${songWord}`,
-                    )}
-                  />
-                ))}
-              </View>
-            ) : null}
+            <SheetItem
+              icon={<TagIcon size={15} color={theme.colors.textSecondary} />}
+              label="Tags…"
+              onPress={act(() => setTagging(true))}
+            />
 
             <View style={styles.groupGap} />
 
@@ -677,6 +631,13 @@ export function SelectionBar({
           </>
         )}
       </Popover>
+
+      <SelectionTagPicker
+        songs={songs}
+        open={tagging}
+        onClose={() => setTagging(false)}
+        anchorRef={moreRef}
+      />
 
       {confirming ? (
         <ConfirmRemoveSongs

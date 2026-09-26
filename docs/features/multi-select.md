@@ -111,9 +111,15 @@ as icons on one line, with select all and a playlist's Remove moved into More.
 
 - **Play** and **Add to queue** are in the bar: frequent and harmless.
 - **Remove from playlist** appears in the bar in a playlist you picked the songs for.
-- **⋯ More** holds everything that edits the library: love / unlove, add to playlist, add and
-  remove tag, download for offline / remove downloads, and last, separated and in red,
+- **⋯ More** holds everything that edits the library: love / unlove, add to playlist, **Tags…**,
+  download for offline / remove downloads, and last, separated and in red,
   **Remove … from library**. It is a popover at desktop width and a bottom sheet on a phone.
+  Tags… opens the same picker a single song has, over the More button: search, tick, make a
+  tag on the spot. A tag on every chosen song is ticked; one on some of them is a mixed tick,
+  and ticking it puts it on the rest; unticking a ticked tag takes it off all of them.
+
+Emptying the selection — the bar's own checkbox, or unticking the last row — leaves selection
+mode, so the bar goes with the ticks (Xiao, 2026-09-25).
 
 The count is also announced to assistive technology through a polite `aria-live` region, so a
 screen-reader user hears "3 songs selected" without hunting for it.

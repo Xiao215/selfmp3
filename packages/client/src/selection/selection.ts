@@ -58,8 +58,9 @@ export function allSelected(state: SelectionState, visibleIds: readonly number[]
  * Unticking the last selected row also leaves selection mode: with nothing
  * selected there is nothing for the checkboxes to be for, and making someone
  * find the ✕ as well was one step too many (asked for by Xiao, 2026-09-13).
- * Emptying the selection from the bar's own checkbox (`deselectAll`) is a
- * different gesture and stays in the mode.
+ * Emptying the selection from the bar's own checkbox (`deselectAll`) leaves
+ * it for the same reason, since 2026-09-25: a bar over a list with nothing
+ * chosen read as something left behind.
  */
 export function toggleSelected(state: SelectionState, id: number): SelectionState {
   const ids = new Set(state.ids)
@@ -123,9 +124,13 @@ export function selectAllVisible(
   return { ...state, mode: true, ids: new Set(visibleIds) }
 }
 
-/** Empty the selection but stay in selection mode. */
+/**
+ * Empty the selection from the bar's own checkbox. It leaves selection mode
+ * as unticking the last row does: with nothing chosen there is nothing for a
+ * bar to act on, and the bar goes with the ticks (Xiao, 2026-09-25).
+ */
 export function deselectAll(state: SelectionState): SelectionState {
-  return state.ids.size === 0 ? state : { ...state, ids: NO_IDS }
+  return clearSelection(state)
 }
 
 /** Empty the selection and leave selection mode. The anchor is kept. */

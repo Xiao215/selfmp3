@@ -327,6 +327,7 @@ your real collection. Every root script:
 | `npm run lint` / `npm run lint:fix` | ESLint, or ESLint with fixes |
 | `npm run lint:app` | ESLint for the app |
 | `npm run check:exports` | Exports nothing imports, twin-aware (`scripts/unused-exports.mjs`) |
+| `npm run check:comments` | Files, `#member`s and mock boards a comment names but the repo no longer has (`scripts/comment-refs.mjs`) |
 | `npm test` / `npm run test:watch` | The Vitest suite, once or watching |
 | `npm run test:app` | The app's component tests (Jest) |
 | `npm run check:app` | `typecheck:app`, `lint:app` and `test:app` |

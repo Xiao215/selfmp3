@@ -171,7 +171,7 @@ export function createWatcher({
     const left =
       doneIds.size === 0
         ? batches
-        : await change(current => current.filter(batch => !doneIds.has(batch.id)))
+        : await change(remembered => remembered.filter(batch => !doneIds.has(batch.id)))
     const before = going
     going = stillGoing(current, left)
     await badge(badgeText(going, failed))

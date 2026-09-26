@@ -220,6 +220,21 @@ export interface StaleDownloads {
   readonly bytes: number
 }
 
+/**
+ * The part of a stamp that is about the audio.
+ *
+ * A cloud library stamps a song `<audio>.<cover>`, each the hash of a key, so
+ * that a new cover is served as a new picture. The saved copy is the audio
+ * alone: comparing the whole stamp counted a new cover as a replaced song,
+ * and a cover-art pass over ninety songs had every device fetch ninety songs
+ * again — ninety counted reads and a few hundred megabytes, for pictures it
+ * caches on their own. A server's stamp has no dot and is taken whole.
+ */
+function audioStamp(etag: string): string {
+  const dot = etag.indexOf('.')
+  return dot === -1 ? etag : etag.slice(0, dot)
+}
+
 export function staleDownloads(index: DownloadIndex, manifest: SyncManifest): StaleDownloads {
   const byId = new Map(manifest.entries.map(entry => [entry.id, entry]))
   const gone: number[] = []
@@ -228,7 +243,7 @@ export function staleDownloads(index: DownloadIndex, manifest: SyncManifest): St
   for (const entry of Object.values(index.entries)) {
     const current = byId.get(entry.songId)
     if (current === undefined) gone.push(entry.songId)
-    else if (current.etag !== entry.etag) changed.push(entry.songId)
+    else if (audioStamp(current.etag) !== audioStamp(entry.etag)) changed.push(entry.songId)
     else continue
     bytes += entry.sizeBytes
   }

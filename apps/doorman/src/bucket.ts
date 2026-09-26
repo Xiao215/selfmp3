@@ -171,8 +171,8 @@ export class Bucket {
    * An empty object answers the range with 416, which is still "there".
    */
   async exists(key: string): Promise<boolean> {
-    const forward = new Headers({ range: 'bytes=0-0' })
-    const response = await this.#send('GET', this.#path(key), { headers: forward, quick: true })
+    const headers = new Headers({ range: 'bytes=0-0' })
+    const response = await this.#send('GET', this.#path(key), { headers, quick: true })
     if (response.status === 404) {
       await this.#absent(response)
       return false

@@ -234,7 +234,6 @@ export class PlaylistRepository {
    * playlist's own items in the order they were in, and only then changes the
    * kind. One transaction: a crash half-way through would otherwise leave a
    * playlist that is neither.
-   *
    */
   stopFollowing(playlist: Playlist): void {
     if (playlist.kind !== 'live') return

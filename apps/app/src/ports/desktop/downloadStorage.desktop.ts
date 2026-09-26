@@ -123,8 +123,8 @@ export const downloadStorage: DownloadStorage = {
   },
 
   localUri(entry) {
-    // What makes the player play from disk: `tracks.ts` prefers this over the
-    // stream URL, and the shell answers it with a proper 206 so seeking works.
+    // What makes the player play from disk: `streamAddress` prefers this over
+    // the stream URL, and the shell answers it with a proper 206 so seeking works.
     return desktop ? desktop.mediaUrl('songs', entry.fileName) : null
   },
 

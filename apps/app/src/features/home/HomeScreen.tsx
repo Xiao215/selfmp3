@@ -44,7 +44,7 @@ import {
  *
  * A greeting and one quiet line, one search field, the tags you play most as
  * tiles, and what you played last. On a phone the header carries the + that
- * opens Import and the avatar that opens You; a computer has those in its
+ * opens Import and the avatar that opens Profile; a computer has those in its
  * sidebar, and adds this week's numbers beside the tiles. No date line: the
  * greeting under it already says what time of day it is (Xiao, 2026-09-20).
  *

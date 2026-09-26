@@ -16,7 +16,7 @@ import type { CloudUids } from '@selfmp3/shared'
  * both ways. A song only one side has simply has no answer, which is the honest
  * result: it is not yet uploaded, or not yet in this device's copy.
  */
-export interface SongIds {
+export interface SongIdTranslation {
   /** The server's id for the song this device numbers `songId`. */
   readonly onServer: (songId: number) => number | undefined
   /** This device's id for the song the server numbers `songId`. */
@@ -25,7 +25,10 @@ export interface SongIds {
   readonly ready: boolean
 }
 
-export function songIds(device: CloudUids | undefined, server: CloudUids | undefined): SongIds {
+export function songIdTranslation(
+  device: CloudUids | undefined,
+  server: CloudUids | undefined,
+): SongIdTranslation {
   if (!device || !server) {
     return { onServer: () => undefined, onDevice: () => undefined, ready: false }
   }

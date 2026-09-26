@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DeviceCommand, PlaybackState } from '@selfmp3/shared'
-import { songIds } from '../connection/serverIds.js'
+import { songIdTranslation } from '../connection/serverIds.js'
 import { translateCommand, translateState } from './translate.js'
 import { handoffTarget } from './handoff.js'
 
@@ -44,10 +44,10 @@ const LAPTOP = [
   { id: 3, uid: 'bbb' },
 ]
 
-const phoneOut = songIds({ songs: PHONE }, { songs: SERVER }).onServer
-const phoneIn = songIds({ songs: PHONE }, { songs: SERVER }).onDevice
-const laptopIn = songIds({ songs: LAPTOP }, { songs: SERVER }).onDevice
-const laptopOut = songIds({ songs: LAPTOP }, { songs: SERVER }).onServer
+const phoneOut = songIdTranslation({ songs: PHONE }, { songs: SERVER }).onServer
+const phoneIn = songIdTranslation({ songs: PHONE }, { songs: SERVER }).onDevice
+const laptopIn = songIdTranslation({ songs: LAPTOP }, { songs: SERVER }).onDevice
+const laptopOut = songIdTranslation({ songs: LAPTOP }, { songs: SERVER }).onServer
 
 /** The uid a library's number stands for, which is the only fixed name a song has. */
 const uidOn = (
@@ -93,7 +93,7 @@ describe('translateState', () => {
   })
 
   it('carries nothing at all until both libraries have answered', () => {
-    const notReady = songIds(undefined, { songs: SERVER })
+    const notReady = songIdTranslation(undefined, { songs: SERVER })
     expect(notReady.ready).toBe(false)
     expect(translateState(state(), notReady.onServer).songId).toBeNull()
   })
@@ -135,7 +135,7 @@ describe('translateCommand', () => {
   })
 
   it('refuses every playSong until both libraries have answered', () => {
-    const notReady = songIds(undefined, undefined)
+    const notReady = songIdTranslation(undefined, undefined)
     expect(translateCommand(playSong(), notReady.onServer)).toBeNull()
   })
 

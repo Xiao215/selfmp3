@@ -72,8 +72,6 @@ export * from './art/palette.js'
 /** The colour a cover lends what is playing: the row, the bars. */
 export * from './art/coverColor.js'
 
-/** Artists, from the songs' own artist strings. */
-
 export * from './theme/oklch.js'
 export * from './theme/tokens.js'
 

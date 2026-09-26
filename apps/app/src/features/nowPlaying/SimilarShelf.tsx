@@ -15,7 +15,7 @@ import { playSimilarOrder, SIMILAR_SHELF_HEIGHT } from './nowPlaying.model'
  *
  * Nearest neighbours of the song playing, by tempo, key and energy. A card plays
  * that song with the rest after it; "Queue all" adds them behind what is queued.
- * The page decides whether there is room (`similarShelfLayout`); this only
+ * The shelf is drawn into a fixed height (`SIMILAR_SHELF_HEIGHT`); this only
  * draws what it is given.
  *
  * A song's own page (`P15`) shows the same shelf as "Sounds like", with the

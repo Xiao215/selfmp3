@@ -1,5 +1,5 @@
 /**
- * Going back to a page, without the screen: the rule behind every "‹ You",
+ * Going back to a page, without the screen: the rule behind every "‹ Profile",
  * "‹ Import" and "Go to the library".
  *
  * Pushing the page again stacked a second copy of it on top of the first, so

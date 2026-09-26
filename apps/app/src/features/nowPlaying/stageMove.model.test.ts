@@ -14,8 +14,8 @@ import {
 
 const WIDTH = 1400
 const HEIGHT = 816
-const g = stageGeometry(WIDTH, HEIGHT)
-const box = stageCover(g)
+const geometry = stageGeometry(WIDTH, HEIGHT)
+const box = stageCover(geometry)
 
 /** The box a transformed cover is seen in: scaled about its centre, then moved. */
 function seenCover(pose: MovePose, from = box): { left: number; top: number; size: number } {
@@ -28,13 +28,17 @@ function seenCover(pose: MovePose, from = box): { left: number; top: number; siz
 
 describe('stageCover', () => {
   it('puts the cover at the top of the left column, lyrics or none', () => {
-    expect(box).toEqual({ left: g.pad, top: COVER_TOP, size: g.cover })
+    expect(box).toEqual({ left: geometry.pad, top: COVER_TOP, size: geometry.cover })
   })
 })
 
 describe('coverPose', () => {
   it('leaves the cover where the stage lays it out', () => {
-    expect(seenCover(coverPose(box, 0))).toEqual({ left: g.pad, top: COVER_TOP, size: g.cover })
+    expect(seenCover(coverPose(box, 0))).toEqual({
+      left: geometry.pad,
+      top: COVER_TOP,
+      size: geometry.cover,
+    })
     expect(coverPose(box, 0).radius).toBe(22)
   })
 
@@ -49,9 +53,9 @@ describe('coverPose', () => {
   it('moves its edges on the same straight line the animated layout did', () => {
     for (const m of [0.25, 0.5, 0.8]) {
       const seen = seenCover(coverPose(box, m))
-      expect(seen.left).toBeCloseTo(g.pad + (64 - g.pad) * m)
+      expect(seen.left).toBeCloseTo(geometry.pad + (64 - geometry.pad) * m)
       expect(seen.top).toBeCloseTo(COVER_TOP + (10 - COVER_TOP) * m)
-      expect(seen.size).toBeCloseTo(g.cover + (40 - g.cover) * m)
+      expect(seen.size).toBeCloseTo(geometry.cover + (40 - geometry.cover) * m)
     }
   })
 
@@ -64,20 +68,20 @@ describe('coverPose', () => {
 
 describe('wordsPose', () => {
   it('is still wherever the column is laid out for its mode', () => {
-    expect(wordsPose(WIDTH, g, false, 0)).toEqual({ translateX: 0, translateY: 0 })
-    expect(wordsPose(WIDTH, g, true, 1)).toEqual({ translateX: 0, translateY: 0 })
+    expect(wordsPose(WIDTH, geometry, false, 0)).toEqual({ translateX: 0, translateY: 0 })
+    expect(wordsPose(WIDTH, geometry, true, 1)).toEqual({ translateX: 0, translateY: 0 })
   })
 
   it('starts from where the other mode had the column', () => {
-    const stage = wordsFrame(WIDTH, g, 0)
-    const focus = wordsFrame(WIDTH, g, 1)
+    const stage = wordsFrame(WIDTH, geometry, 0)
+    const focus = wordsFrame(WIDTH, geometry, 1)
     // Just switched to Focus: laid out wide, still seen at the stage's left.
-    expect(wordsPose(WIDTH, g, true, 0)).toEqual({
+    expect(wordsPose(WIDTH, geometry, true, 0)).toEqual({
       translateX: stage.left - focus.left,
       translateY: stage.top - focus.top,
     })
     // And back again.
-    expect(wordsPose(WIDTH, g, false, 1)).toEqual({
+    expect(wordsPose(WIDTH, geometry, false, 1)).toEqual({
       translateX: focus.left - stage.left,
       translateY: focus.top - stage.top,
     })

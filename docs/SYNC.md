@@ -45,6 +45,13 @@ keeps trying by itself until the day turns. A big import — hundreds of songs, 
 upload and a snapshot — and a boot that reads every song's words from the bucket can reach the
 count together. Raising the cap costs nothing until it is actually used.
 
+What a song costs on its way up is kept small on purpose: the server sends each of its files
+without asking the bucket about it first (the doorman's own one-byte check is the only read, and
+it answers a file already there as put), a run of imports publishes one snapshot every so often
+rather than one per song, and the server prunes its old snapshots from memory instead of
+listing the folder after each one. A device's look is two listings and, when there is a new
+snapshot, one read; the covers and songs it fetches are one read each.
+
 Google Drive was considered: more free space (15 GB, shared with Gmail and Photos), but a
 proprietary API, an OAuth app that must be moved to "production" or it signs you out every
 seven days, and your whole Google account on the line if a file is ever flagged. The bucket

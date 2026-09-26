@@ -8,8 +8,7 @@ import { EASE_IN_CSS, EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
 import { floating } from '../ui/surfaces'
 
 /**
- * Hover captions for the whole app, from one `data-tip` attribute: the web
- * app's `Tooltip.tsx`, moved as it was.
+ * Hover captions for the whole app, from one `data-tip` attribute.
  *
  * A native `title` is drawn by the operating system: on a Mac it waits about a
  * second and a half, then drops a pale system label onto a dark app. Anything

@@ -196,7 +196,7 @@ export interface PlayerApi {
   setCountIn: (on: boolean) => void
 }
 
-/** Practice preferences, kept on this device. */
+/** Auto-mix, kept on this device. */
 const AUTO_MIX_KEY = 'automix'
 
 const PlayerContext = createContext<PlayerApi | null>(null)
@@ -257,7 +257,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const fromCloudRef = useRef(fromCloud)
   const lastPositionRef = useRef(0)
   const autoMixRef = useRef(autoMix)
-  // Read by the engine's end-of-track callback, which is wired once.
   // Told every engine state; set once the commands it needs exist, below.
   const playbackErrorRef = useRef<(state: EngineState) => void>(() => undefined)
 

@@ -28,6 +28,8 @@ interface RequestOptions {
   readonly headers?: Record<string, string>
   /** Hand a 404 back to the caller instead of throwing: "no such file" is an answer. */
   readonly allow404?: boolean
+  /** Answers besides 2xx that are the caller's to read, not failures. */
+  readonly allowStatus?: readonly number[]
   /** Call the request off: the player that asked for a range has moved on. */
   readonly signal?: AbortSignal
 }
@@ -100,7 +102,13 @@ export class DoormanClient {
       throw new CloudError('network', `Could not reach the doorman at ${hostOf(this.url)}.`)
     }
 
-    if (response.ok || (options.allow404 && response.status === 404)) return response
+    if (
+      response.ok ||
+      (options.allow404 && response.status === 404) ||
+      options.allowStatus?.includes(response.status)
+    ) {
+      return response
+    }
 
     const { message, code } = await explain(response)
     if (response.status === 401) {
@@ -199,9 +207,13 @@ class DoormanCloudStore implements CloudStore {
   }
 
   async put(key: string, body: Buffer, options: CloudPutOptions): Promise<void> {
+    // 412 is the doorman saying a file named by its hash is there already:
+    // these very bytes, so the put has happened. Asked first, with a call of
+    // its own, it was one more counted call per file on every upload.
     await this.#doorman.request('PUT', filePath(key), {
       token: this.#token,
       body,
+      allowStatus: [412],
       headers: {
         'Content-Type': options.contentType,
         ...(options.contentEncoding ? { 'Content-Encoding': options.contentEncoding } : {}),

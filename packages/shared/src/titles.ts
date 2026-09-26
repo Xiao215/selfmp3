@@ -174,9 +174,9 @@ export function tidyVideoTitle(raw: string, channel: string): TidiedTitle {
   text = text.replace(/\s+/g, ' ').trim()
 
   // "Title | Official Video", "Title | Artist"
-  const bar = text.split(BAR)
-  if (bar.length >= 2) {
-    const kept = bar.filter(
+  const parts = text.split(BAR)
+  if (parts.length >= 2) {
+    const kept = parts.filter(
       (part, index) => index === 0 || !(allVideoWords(part) || namesChannel(part, channel)),
     )
     text = kept.join(' | ')

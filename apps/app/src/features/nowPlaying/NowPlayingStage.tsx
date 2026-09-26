@@ -31,8 +31,18 @@ import { Cover } from '../../ui/components/Cover'
 import { useCrossfade } from '../../ui/components/CoverLight'
 import { EnergyWave } from '../../ui/components/EnergyWave'
 import { Chip } from '../../ui/components/Chip'
+import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
-import { ChevronDown, Collapse, Expand, Next, Romanize, TagPlus } from '../../ui/components/Icons'
+import {
+  ChevronDown,
+  Collapse,
+  Expand,
+  Next,
+  Romanize,
+  Sparkles,
+  TagPlus,
+} from '../../ui/components/Icons'
+import { FixMetadata } from '../metadata/FixMetadata'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { SongFacts } from '../song/SongFacts'
 import { songLink } from '../song/song.model'
@@ -300,6 +310,8 @@ function Stage({
   const window = useWindowDimensions()
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
   const [tagsOpen, setTagsOpen] = useState(false)
+  /** "Fix metadata…" under About: the same dialog the song's page opens. */
+  const [fixing, setFixing] = useState(false)
   // The tag window opens over its button, as the song menu's does.
   const tagsButtonRef = useRef<View>(null)
   // The tag window hangs from its button, so play-and-tag raises it only once
@@ -385,11 +397,11 @@ function Stage({
   // The page runs on under the player bar (`stagePage`), so what it lays out
   // in is its own height less the bar's, whether the bar is showing or not.
   const height = (size?.height ?? window.height) - PLAYER_BAR_HEIGHT
-  const g = useMemo(() => stageGeometry(width, height, top), [width, height, top])
+  const geometry = useMemo(() => stageGeometry(width, height, top), [width, height, top])
   // Nothing laid out moves between the modes: each piece is laid out where the
   // mode puts it and carried there (stageMove.model.ts says why).
   const move = useStageMove(focus)
-  const frame = wordsFrame(width, g, focus ? 1 : 0)
+  const frame = wordsFrame(width, geometry, focus ? 1 : 0)
 
   // Escape asks the mode when it is pressed, so the page listens once rather
   // than taking the listener off and putting it back on every render.
@@ -407,7 +419,7 @@ function Stage({
   const sampler = useMotionSampler(song, noLyrics)
   // Only on its own tab: About is text, and wants the calm ground.
   const showVisual = noLyrics && shownTab === 'lyrics'
-  const box = stageCover(g)
+  const box = stageCover(geometry)
   /*
    * The visual does not glide between the column and the window: a canvas
    * stretched from one to the other is a smear, and one resized every frame
@@ -500,7 +512,7 @@ function Stage({
   )
   // Stacked (`T05`), the tabs leave the head for a row under the cover, with
   // Romaji and expand at its other end.
-  const tabsRow = g.stacked && !focus ? stackedTabsTop(g) : null
+  const tabsRow = geometry.stacked && !focus ? stackedTabsTop(geometry) : null
 
   return (
     <Animated.View
@@ -560,7 +572,7 @@ function Stage({
           coverTravel,
         ]}
       >
-        <Moving move={move} pose={m => coverPose(box, m, g.inset)} style={styles.cover}>
+        <Moving move={move} pose={m => coverPose(box, m, geometry.inset)} style={styles.cover}>
           {uri ? (
             <Image source={{ uri }} style={styles.coverImage} resizeMode="cover" />
           ) : (
@@ -573,19 +585,27 @@ function Stage({
         <View
           style={[
             styles.meta,
-            g.stacked
+            geometry.stacked
               ? // Beside the cover, as a tag page's name is.
-                { left: box.left + box.size + g.gutter, top: box.top + 16, right: g.right }
-              : { left: g.pad, top: box.top + box.size + 24, width: Math.max(g.cover, 280) },
+                {
+                  left: box.left + box.size + geometry.gutter,
+                  top: box.top + 16,
+                  right: geometry.right,
+                }
+              : {
+                  left: geometry.pad,
+                  top: box.top + box.size + 24,
+                  width: Math.max(geometry.cover, 280),
+                },
           ]}
         >
           <Text
             style={[
               styles.title,
               {
-                fontSize: g.title,
-                lineHeight: g.title * 1.15,
-                letterSpacing: -0.02 * g.title,
+                fontSize: geometry.title,
+                lineHeight: geometry.title * 1.15,
+                letterSpacing: -0.02 * geometry.title,
               },
             ]}
             numberOfLines={2}
@@ -687,7 +707,7 @@ function Stage({
           would move the sung line and re-centre every word. */}
       <Moving
         move={move}
-        pose={m => wordsPose(width, g, focus, m)}
+        pose={m => wordsPose(width, geometry, focus, m)}
         style={[
           styles.words,
           {
@@ -709,7 +729,7 @@ function Stage({
               parsed={words.parsed}
               roman={words.roman}
               focus={focus}
-              fontSize={focus ? g.focusLyric : g.lyric}
+              fontSize={focus ? geometry.focusLyric : geometry.lyric}
             />
           ) : noLyrics ? null : (
             <View style={styles.status}>
@@ -722,6 +742,14 @@ function Stage({
           <ScrollView contentContainerStyle={styles.about}>
             <View style={styles.aboutBody}>
               <SongFacts song={song} />
+              <View style={styles.fix}>
+                <Button
+                  label="Fix metadata…"
+                  icon={<Sparkles size={15} tone="textSecondary" />}
+                  onPress={() => setFixing(true)}
+                  testID="now-playing-fix-metadata"
+                />
+              </View>
             </View>
           </ScrollView>
         )}
@@ -749,7 +777,7 @@ function Stage({
             <Text style={styles.context} pointerEvents="none">
               {contextLine(player.queue.shuffle, player.queue.index, player.queue.items.length)}
             </Text>
-            {g.stacked ? null : (
+            {geometry.stacked ? null : (
               <>
                 {tabList}
                 {stylePill}
@@ -760,7 +788,7 @@ function Stage({
       </Animated.View>
 
       {tabsRow !== null ? (
-        <Animated.View style={[styles.tools, chrome, { top: tabsRow, left: g.pad }]}>
+        <Animated.View style={[styles.tools, chrome, { top: tabsRow, left: geometry.pad }]}>
           {tabList}
           {stylePill}
         </Animated.View>
@@ -780,8 +808,8 @@ function Stage({
             focus
               ? { top: top + 15, right: 66 }
               : tabsRow !== null
-                ? { top: tabsRow + 4, right: g.right + 52 }
-                : { top: height - 48, right: g.right },
+                ? { top: tabsRow + 4, right: geometry.right + 52 }
+                : { top: height - 48, right: geometry.right },
           ]}
         >
           <Pressable
@@ -809,7 +837,9 @@ function Stage({
           style={[
             styles.expandAt,
             chrome,
-            focus ? { top: top + 12, right: 20 } : { top: tabsRow ?? top + 68, right: g.right },
+            focus
+              ? { top: top + 12, right: 20 }
+              : { top: tabsRow ?? top + 68, right: geometry.right },
           ]}
         >
           <Pressable
@@ -837,7 +867,7 @@ function Stage({
       <StageUpNext
         upNext={player.songs[player.queue.index + 1]}
         repeatOne={player.queue.repeat === 'one'}
-        right={g.right}
+        right={geometry.right}
         bottom={PLAYER_BAR_HEIGHT + (focus ? 28 : 64)}
         chromeShown={chromeShown}
       />
@@ -860,6 +890,7 @@ function Stage({
         }}
         anchorRef={tagsButtonRef}
       />
+      {fixing ? <FixMetadata song={song} onClose={() => setFixing(false)} /> : null}
     </Animated.View>
   )
 }
@@ -1038,7 +1069,8 @@ const styles = StyleSheet.create(theme => ({
   visual: { position: 'absolute', overflow: 'hidden', zIndex: 1 },
   visualFull: { left: 0, right: 0, top: 0, bottom: 0 },
   about: { paddingTop: 12, paddingHorizontal: 4, paddingBottom: 40 },
-  aboutBody: { maxWidth: 600, paddingHorizontal: 18 },
+  aboutBody: { maxWidth: 600, paddingHorizontal: 18, gap: 18 },
+  fix: { alignItems: 'flex-start' },
   tools: { position: 'absolute', zIndex: 4, flexDirection: 'row', gap: 6 },
   tool: {
     flexDirection: 'row',

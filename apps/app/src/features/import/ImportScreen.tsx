@@ -48,7 +48,7 @@ const FINISHED_SHOWN = 5
  * (`/import/review`, ImportReview.tsx), and from there into the queue, which
  * this page shows as Now and Earlier today. The tags chosen here — "Tag it …
  * as it arrives" — are the review's too. On a phone this page is Home's + and
- * a row under You, and "Done" goes back; on a computer it is in the sidebar,
+ * a row under Profile, and "Done" goes back; on a computer it is in the sidebar,
  * the form across the page and the queue under it, at the foot of the page.
  *
  * Links shared to the app arrive as `/import?url=…&text=…`, which is the web's

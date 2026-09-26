@@ -5,15 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import type { GestureResponderEvent, StyleProp, ViewStyle } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { formatDuration, type Song, type Tag } from '@selfmp3/shared'
-import {
-  HIT_TARGET,
-  motion,
-  oklchToHexAlpha,
-  radius,
-  space,
-  tagColors,
-  type,
-} from '@selfmp3/client'
+import { HIT_TARGET, motion, radius, space, tagColors, type } from '@selfmp3/client'
 import { chipBudget, fitTags, rememberChipWidth, TAG_CHIP_MAX_WIDTH, useChipWidth } from './rowTags'
 import { useSongPlayback } from '../../player/PlayerProvider'
 import { useSongDragSource } from '../../ports/songDrag'
@@ -208,7 +200,7 @@ export const SongRow = memo(function SongRow({
         {/*
           The row is a container, and the thing you press is inside it. In a
           browser only this shape works: react-native-web renders a button as a
-          real <button>, and a row that was one would nest the heart and ⋯
+          real <button>, and a row that was one would nest the ⋯
           inside it. The web has always drawn a role="row" with buttons as
           siblings.
         */}
@@ -473,7 +465,7 @@ export const SongRow = memo(function SongRow({
  * can place rows by arithmetic (`SongList`'s `rowHeight`).
  *
  * Phone: 5 above and below the row, 3 above and below the press target, the
- * 48-point cover. Desktop: 7 above and below, and the heart and ⋯ at 44 with a
+ * 48-point cover. Desktop: 7 above and below, and the ⋯ at 44 with a
  * finger or 34 with a mouse, beside a 40-point cover.
  */
 const PHONE_ROW_HEIGHT = 5 * 2 + 3 * 2 + 48
@@ -743,17 +735,6 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textPrimary,
     fontSize: type.body,
     fontWeight: '600',
-  },
-  badge: {
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 4,
-    color: theme.colors.warning,
-    backgroundColor: oklchToHexAlpha(0.36, 0.09, 78, 0.5),
-    overflow: 'hidden',
   },
   subtitle: {
     color: theme.colors.textSecondary,

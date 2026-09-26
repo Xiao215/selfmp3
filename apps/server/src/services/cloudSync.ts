@@ -101,12 +101,24 @@ const SNAPSHOTS_KEPT = 3
 
 /**
  * How often to look for changes other devices have written. One listing of
- * the log folder; a pass only follows when there is something new.
+ * the log folder; a pass only follows when there is something new. Every
+ * three minutes was 480 listings a day with nothing happening, a fifth of
+ * the bucket's free allowance; devices write logs rarely, and the server
+ * also reads them at its next pass, so a tag edited on a phone reaches the
+ * server's own library within ten minutes at the latest.
  */
-const LOG_POLL_MS = 3 * 60_000
+const LOG_POLL_MS = 10 * 60_000
 
-/** Log files read at once. */
 const LOG_READS_AT_ONCE = 6
+
+/**
+ * How long a snapshot waits while imports are still coming, and the most it
+ * waits. One snapshot per imported song was a listing and a write on the
+ * server and a read on every device for each of a hundred songs; one every
+ * so often says the same by the end of the wave.
+ */
+const PUBLISH_DEFER_MS = 45_000
+const PUBLISH_DEFER_MAX_MS = 2 * 60_000
 
 /** How often to ask the doorman whether Google has finished, and for how long. */
 const SIGN_IN_POLL_MS = 2_000
@@ -204,6 +216,8 @@ interface CloudSyncDeps {
   readonly doormanUrl?: string
   readonly openDoorman?: (url: string) => Doorman
   readonly debounceMs?: number
+  /** How long a snapshot waits while imports are still coming (`PUBLISH_DEFER_MS`). */
+  readonly publishDeferMs?: number
   readonly now?: () => Date
   readonly signInPollMs?: number
   readonly logPollMs?: number
@@ -253,6 +267,14 @@ export class CloudSyncService {
   #running: Promise<void> | null = null
   #again = false
   readonly #kickDebounce: Debounced
+  /** The snapshot a run of imports owes, written once the run pauses. */
+  readonly #publishLater: Debounced
+  /**
+   * The snapshot folder as last listed, kept up to date with what this
+   * device writes and deletes, so pruning needs no listing of its own after
+   * the first: one counted call per snapshot, gone.
+   */
+  #snapshotKeys: string[] | null = null
   #retry: NodeJS.Timeout | null = null
   #retryIndex = 0
   #logPoll: NodeJS.Timeout | null = null
@@ -299,6 +321,21 @@ export class CloudSyncService {
      * `maxWaitMs` is what guarantees the pass still happens during one.
      */
     this.#kickDebounce = debounce(() => void this.#pass(), this.#debounceMs)
+    const defer = deps.publishDeferMs ?? PUBLISH_DEFER_MS
+    this.#publishLater = debounce(
+      () => {
+        const store = this.#store
+        if (store && !this.#stopped) {
+          this.#publish(store).catch(error => {
+            this.#logger.warn('could not publish the imports’ snapshot', {
+              message: message(error),
+            })
+          })
+        }
+      },
+      defer,
+      Math.max(defer, deps.publishDeferMs === undefined ? PUBLISH_DEFER_MAX_MS : defer * 3),
+    )
     this.#now = deps.now ?? (() => new Date())
     this.#signInPollMs = deps.signInPollMs ?? SIGN_IN_POLL_MS
     this.#logPollMs = deps.logPollMs ?? LOG_POLL_MS
@@ -364,6 +401,7 @@ export class CloudSyncService {
       this.#verified = false
       this.#adopted = false
       this.#lastSnapshotHash = null
+      this.#snapshotKeys = null
     }
     return this.#pass()
   }
@@ -682,8 +720,11 @@ export class CloudSyncService {
    * Upload one song now and publish a snapshot that has it: the last step of
    * an import. With no bucket connected this does nothing. Throws when the
    * song could not be put in the bucket.
+   *
+   * With `more` imports still to come, the snapshot waits (`#publishLater`):
+   * a run of songs is one snapshot every so often, not one each.
    */
-  async uploadSong(songId: number): Promise<void> {
+  async uploadSong(songId: number, { more = false }: { more?: boolean } = {}): Promise<void> {
     const store = this.#store
     if (!store) return
     const file = this.#deps.cloud.songFile(songId)
@@ -691,6 +732,11 @@ export class CloudSyncService {
 
     await this.#prepareBucket(store)
     await this.#uploadSongFiles(store, file, this.#deps.cloud.states().get(songId) ?? null)
+    if (more) {
+      this.#publishLater.trigger()
+      return
+    }
+    this.#publishLater.cancel()
     await this.#publish(store)
   }
 
@@ -1040,9 +1086,7 @@ export class CloudSyncService {
       return
     }
 
-    // Listing is separate from reading, as it is in the guard: an empty
-    // snapshots folder is a fact — the bucket has no library — and the ordinary
-    // first run. Failing to list is not that fact.
+    // Listing is separate from reading, for the reason #refuseToLoseLibrary gives.
     let newest: string | null
     try {
       newest = newestSnapshotKey((await store.list(SNAPSHOTS_FOLDER)).map(object => object.key))
@@ -1354,18 +1398,17 @@ export class CloudSyncService {
 
   /**
    * Put a file the bucket may already have. Files are named by their hash, so
-   * one that is there with the right size is the right file: remembered once,
-   * never asked about or sent again.
+   * one that is there is the right file: remembered once, never sent again.
+   * Not asked about first: a put of the same bytes is free, where the asking
+   * was a counted call per file — and the bucket's own check (the doorman's)
+   * answers a file already there as put.
    */
   async #putOnce(store: CloudStore, key: string, data: Buffer, contentType: string): Promise<void> {
     // Not while the trash is deleting the very same bytes: wait, then look.
     const inflight = this.#deleting.get(key)
     if (inflight) await inflight.catch(() => undefined)
     if (this.#deps.cloud.hasFile(key)) return
-    const existing = await store.head(key)
-    if (!existing || existing.size !== data.length) {
-      await store.put(key, data, { contentType })
-    }
+    await store.put(key, data, { contentType })
     this.#deps.cloud.recordFile(key, data.length)
   }
 
@@ -1494,10 +1537,17 @@ export class CloudSyncService {
     this.#lastSnapshotAt = snapshot.writtenAt
 
     try {
-      const keys = (await store.list(SNAPSHOTS_FOLDER)).map(object => object.key)
-      for (const old of snapshotsToPrune(keys, deviceId, SNAPSHOTS_KEPT)) await store.delete(old)
+      const keys =
+        this.#snapshotKeys ?? (await store.list(SNAPSHOTS_FOLDER)).map(object => object.key)
+      if (!keys.includes(key)) keys.push(key)
+      this.#snapshotKeys = keys
+      for (const old of snapshotsToPrune(keys, deviceId, SNAPSHOTS_KEPT)) {
+        await store.delete(old)
+        keys.splice(keys.indexOf(old), 1)
+      }
     } catch (error) {
       // An old snapshot left behind costs a few kilobytes; it is not worth failing over.
+      this.#snapshotKeys = null
       this.#logger.debug('could not delete old snapshots', { message: message(error) })
     }
   }
@@ -1603,6 +1653,7 @@ export class CloudSyncService {
     this.#adopting = null
     this.#checkedAgainstBucket = false
     this.#lastSnapshotHash = null
+    this.#snapshotKeys = null
     this.#lastError = null
     this.#retryIndex = 0
     this.#state = 'idle'
@@ -1619,6 +1670,7 @@ export class CloudSyncService {
     this.#progress = null
     this.#lastError = null
     this.#lastSnapshotHash = null
+    this.#snapshotKeys = null
   }
 
   #deviceId(): string {
@@ -1627,6 +1679,7 @@ export class CloudSyncService {
 
   #clearTimers(): void {
     this.#kickDebounce.cancel()
+    this.#publishLater.cancel()
     if (this.#retry) clearTimeout(this.#retry)
     if (this.#logPoll) clearInterval(this.#logPoll)
     this.#retry = null

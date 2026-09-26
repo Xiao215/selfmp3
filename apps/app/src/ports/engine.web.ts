@@ -17,20 +17,6 @@ import { streamFailureMessage } from './streamFailure.model'
  * the visualiser need not guess.
  */
 
-/**
- * The audio engine.
- *
- * A single `<audio>` element cannot do gapless or crossfade — by the time the
- * `ended` event fires, the gap has already happened. So this class keeps two
- * elements and alternates between them: while one plays, the next track is
- * already loaded and buffered in the other, and the handover happens either
- * instantly (gapless) or as a volume ramp (crossfade).
- *
- * Everything here is imperative and framework-free on purpose. React state
- * updates are far too slow and too coarse to drive audio; the component layer
- * subscribes to changes instead.
- */
-
 export interface EngineState {
   readonly playing: boolean
   readonly currentTime: number
@@ -90,6 +76,17 @@ const LOOP_TICK_MS = 30
 /** A loop shorter than this is a click, not a phrase. */
 const MIN_LOOP_SECONDS = 0.5
 
+/**
+ * A single `<audio>` element cannot do gapless or crossfade — by the time the
+ * `ended` event fires, the gap has already happened. So this class keeps two
+ * elements and alternates between them: while one plays, the next track is
+ * already loaded and buffered in the other, and the handover happens either
+ * instantly (gapless) or as a volume ramp (crossfade).
+ *
+ * Everything here is imperative and framework-free on purpose. React state
+ * updates are far too slow and too coarse to drive audio; the component layer
+ * subscribes to changes instead.
+ */
 class AudioEngine implements PlaybackEngine {
   /** What a browser can do, which is all of it. */
   readonly capabilities: EngineCapabilities = {

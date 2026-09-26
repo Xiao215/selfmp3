@@ -115,10 +115,15 @@ export function snapshotChanged(before: WidgetSnapshot | null, after: WidgetSnap
       snapshot.tiles.map(tile => [tile.name, tile.fill, tile.songs, tile.cover.length]),
     )
   if (tilesOf(before) !== tilesOf(after)) return true
-  const a = before.nowPlaying
-  const b = after.nowPlaying
-  if (!a || !b) return a !== b
-  if (a.title !== b.title || a.artist !== b.artist || a.playing !== b.playing) return true
-  if (b.playing) return Math.abs(a.endsAt - b.endsAt) > 5
-  return Math.abs(a.remaining - b.remaining) > 5
+  const playingBefore = before.nowPlaying
+  const playingAfter = after.nowPlaying
+  if (!playingBefore || !playingAfter) return playingBefore !== playingAfter
+  if (
+    playingBefore.title !== playingAfter.title ||
+    playingBefore.artist !== playingAfter.artist ||
+    playingBefore.playing !== playingAfter.playing
+  )
+    return true
+  if (playingAfter.playing) return Math.abs(playingBefore.endsAt - playingAfter.endsAt) > 5
+  return Math.abs(playingBefore.remaining - playingAfter.remaining) > 5
 }

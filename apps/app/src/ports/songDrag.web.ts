@@ -169,18 +169,6 @@ export function useSongDropTarget(
   return over
 }
 
-/**
- * A control inside a draggable row that has a drag of its own.
- *
- * A song row is a drag source, so it carries the page's `draggable`, and a
- * press anywhere inside it that then moves starts the browser's own drag —
- * which cancels the pointer stream, so a playlist's grip got one move event
- * and then nothing. `draggable="false"` on the control is not enough: the
- * browser keeps looking up the tree for something that *is* draggable and
- * finds the row. So the control marks itself, and the row's own drag stands
- * down when the press began inside a mark.
- */
-
 export function useSongDragActive(): boolean {
   return useSyncExternalStore(
     listener => {

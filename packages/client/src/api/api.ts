@@ -482,7 +482,7 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     cloudCancelSignIn: () => request('DELETE', '/api/cloud/signin', CloudStatusSchema),
 
-    /** Links asked of the server, through the bucket: a cloud library's own imports (lib/cloud). */
+    /** Links asked of the server, through the bucket: a cloud library's own imports (@selfmp3/replica). */
     cloudImports: () => request('GET', '/api/cloud/imports', ImportRequestListSchema),
 
     requestCloudImport: (input: CloudImportRequest) =>

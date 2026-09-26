@@ -12,7 +12,7 @@ import { apiFor } from '../../api/client'
 import { useServerSongIds } from '../../connection/useServerSongIds'
 
 /**
- * Where the numbers on Stats, the Report and You's month come from: whatever
+ * Where the numbers on Stats, the Report and Profile's month come from: whatever
  * answers this device, or — from a cloud library, with the server within
  * reach — that server directly.
  *
@@ -23,7 +23,7 @@ import { useServerSongIds } from '../../connection/useServerSongIds'
  *
  * The answers then name songs by the server's ids, which mean nothing here, so
  * every list goes through `useStatsSongs` on the way to the screen. Nothing
- * else on Stats, the Report or You has to know which library answered.
+ * else on Stats, the Report or Profile has to know which library answered.
  */
 const noServer = (): Promise<never> => Promise.reject(new Error('no server to ask'))
 

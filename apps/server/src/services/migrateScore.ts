@@ -133,10 +133,10 @@ export function scoreHit(source: MigrateSourceTrack, hit: SearchHit): number {
 
   // Multiplicative on purpose: the wrong song by the right artist at the
   // right length is still the wrong song, so nothing can rescue a bad title.
-  const text = title * (0.7 + 0.3 * artist)
-  const duration = durationScore(source.duration, hit.duration)
+  const textScore = title * (0.7 + 0.3 * artist)
+  const durationCloseness = durationScore(source.duration, hit.duration)
   // No length to compare: neither reward nor punish, just lean on the text.
-  let score = duration === null ? text : text * (0.75 + 0.25 * duration)
+  let score = durationCloseness === null ? textScore : textScore * (0.75 + 0.25 * durationCloseness)
 
   if (isTopicChannel(hit.channel)) score += 0.08
   else if (isVevoChannel(hit.channel)) score += 0.04

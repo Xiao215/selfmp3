@@ -303,7 +303,7 @@ export function songRoutes(container: Container): Router {
   )
 
   /**
-   * The song's motion curve (schemas/motion.ts): how loud it is and where the
+   * The song's motion curve (packages/shared/src/schemas/motion.ts): how loud it is and where the
    * hits are, twenty times a second, made when the song was analysed.
    *
    * A 404 coded `not-analysed` until analysis has run — including for a song

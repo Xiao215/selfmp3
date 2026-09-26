@@ -21,6 +21,9 @@ export class MemoryCloudStore implements CloudStore {
   readonly puts: string[] = []
   /** Every key read, in order, so a test can prove a file was not fetched twice. */
   readonly gets: string[] = []
+  /** Every key asked about, and every prefix listed: the calls a bucket counts against a day's allowance. */
+  readonly heads: string[] = []
+  readonly lists: string[] = []
   /** While set, every operation fails with this. */
   failure: CloudError | null = null
   /** Keys the bucket will not take, each with its reason: a full bucket refuses the next file, not the last. */
@@ -36,6 +39,7 @@ export class MemoryCloudStore implements CloudStore {
 
   head(key: string): Promise<CloudObject | null> {
     return this.#answer(() => {
+      this.heads.push(key)
       const object = this.objects.get(key)
       return object ? { key, size: object.body.length } : null
     })
@@ -67,6 +71,7 @@ export class MemoryCloudStore implements CloudStore {
   }
 
   list(prefix: string): Promise<CloudObject[]> {
+    this.lists.push(prefix)
     return this.#answer(() =>
       [...this.objects.entries()]
         .filter(([key]) => key.startsWith(prefix))

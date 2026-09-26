@@ -289,10 +289,10 @@ function write(
   if (settled && drawn.settled && !force) return true
   drawn.settled = settled
   const out = drawn.out
-  const g = m.glow
+  const glow = m.glow
   if (kind === 'horizon') {
-    out[SUN_AT] = 0.94 + 0.08 * g + 0.14 * m.swell
-    out[SUN_AT + 1] = Math.min(1, 0.35 + 0.4 * g + 0.25 * m.flash)
+    out[SUN_AT] = 0.94 + 0.08 * glow + 0.14 * m.swell
+    out[SUN_AT + 1] = Math.min(1, 0.35 + 0.4 * glow + 0.25 * m.flash)
     HILL_LAYERS.forEach((layer, index) => {
       const trail = m.hills[index]!
       const at = HILL_OFFSETS[index]!
@@ -320,7 +320,7 @@ function write(
     }
     if (widthsChanged || force) ringWidths.value = drawn.widths.slice()
     out[DISC_AT] = 1 + 0.06 * m.kick
-    out[HALO_AT] = Math.min(1, 0.15 + 0.45 * g + 0.3 * m.kick)
+    out[HALO_AT] = Math.min(1, 0.15 + 0.45 * glow + 0.3 * m.kick)
   }
   // A copy: the shared value is handed to the UI thread after this frame's
   // work, and `out` is filled in again on the next.

@@ -74,8 +74,7 @@ export function CarProvider({ children }: { children: ReactNode }): ReactNode {
     [library.data, playlists, playlistSongIds],
   )
 
-  // The car integration is set up once and then lives on the native side, so
-  // it reads these refs rather than closing over a render's values.
+  // The refs the getter and the handlers below read (see the header).
   const treeRef = useRef(tree)
   const playerRef = useRef(player)
   const connectionRef = useRef(connection)

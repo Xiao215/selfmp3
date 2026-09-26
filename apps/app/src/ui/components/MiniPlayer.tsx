@@ -4,6 +4,7 @@ import { Animated, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
+import type { Song } from '@selfmp3/shared'
 import { usePlayer, usePlayerProgress, usePlayerStalled } from '../../player/PlayerProvider'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
@@ -24,8 +25,9 @@ import { ProgressWash } from './ProgressWash'
 import { Next, Queue } from './Icons'
 import { floating } from '../surfaces'
 import { PlayPauseIcon } from './PlayPauseIcon'
-import { ease, session, timing } from '../motion'
-import { MOVE_MS, overshootRange } from '../motion.model'
+import { handOffCover } from '../coverHandoff'
+import { ease, session, timing, usePressScale } from '../motion'
+import { MOVE_MS, overshootRange, PRESS } from '../motion.model'
 
 /**
  * The mini player: a card floating over the page, above the tab bar
@@ -45,38 +47,101 @@ function MiniPlayerInner(): ReactNode {
   const router = useRouter()
   const song = player.current
   const insets = useSafeAreaInsets()
-  const songColor = useSongColor(song, song ? artFor(song) : null)
   const stalled = usePlayerStalled()
 
   // The first song of a session: the card rises from under the tab bar and
   // runs a few points past its place before settling (`M1`, 3). After that the
   // card is simply there — coming back from Now Playing remounts it, and it
-  // should not arrive twice — and a new song only crossfades the words.
+  // should not arrive twice. When the queue empties the card sinks back under
+  // the bar the way it came, quicker, and only then goes; the last song is
+  // kept drawn on it for the way down. The next song is a new arrival.
   const [rise] = useState(() => new Animated.Value(song && session.seen(RISE_KEY) ? 1 : 0))
-  const [words] = useState(() => new Animated.Value(1))
+  const [shown, setShown] = useState<Song | null>(song)
+  if (song && song !== shown) setShown(song)
+  const [sinking, setSinking] = useState(false)
   const shownId = useRef<number | null>(null)
+  // Which way the words go as the song changes: up and away for the next
+  // song, down for the one before, told by where the two sit in the queue.
+  const index = player.queue.index
+  const lastIndex = useRef(index)
+  const [words] = useState(() => new Animated.Value(1))
+  const [wordsWay] = useState(() => new Animated.Value(1))
+  const [wordsMove] = useState(() => ({
+    opacity: words,
+    transform: [
+      {
+        translateY: Animated.multiply(
+          words.interpolate({ inputRange: [0, 1], outputRange: [WORDS_STEP, 0] }),
+          wordsWay,
+        ),
+      },
+    ],
+  }))
+  const [leaving, setLeaving] = useState<Song | null>(null)
+  const [gone] = useState(() => new Animated.Value(0))
+  const [goneMove] = useState(() => ({
+    opacity: gone.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+    transform: [
+      {
+        translateY: Animated.multiply(
+          gone.interpolate({ inputRange: [0, 1], outputRange: [0, -WORDS_STEP] }),
+          wordsWay,
+        ),
+      },
+    ],
+  }))
 
   useEffect(() => {
     if (!song) {
-      // The queue has emptied and the card has gone: the next song is a new
-      // arrival, and rises again rather than appearing from nowhere.
-      rise.setValue(0)
+      if (shownId.current === null) return
       shownId.current = null
       session.forget(RISE_KEY)
+      setSinking(true)
+      timing(rise, 0, motion.base, () => setSinking(false), { easing: ease.in })
       return
     }
     if (shownId.current === null) {
+      setSinking(false)
       if (session.first(RISE_KEY))
         timing(rise, 1, MOVE_MS.rise, undefined, { easing: ease.overshoot })
       else rise.setValue(1)
     } else if (shownId.current !== song.id) {
+      // The old words step out one way and the new ones step in behind them
+      // from the other, a real swap rather than a blank and a fade-in.
+      wordsWay.setValue(index < lastIndex.current ? -1 : 1)
+      setLeaving(shown)
+      gone.setValue(0)
+      timing(gone, 1, motion.base, () => setLeaving(null), { easing: ease.in })
       words.setValue(0)
       timing(words, 1, motion.slow, undefined, { easing: ease.out })
     }
     shownId.current = song.id
-  }, [song, rise, words])
+    lastIndex.current = index
+    // `shown` is the previous song on the render this effect answers, which
+    // is exactly the one that leaves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [song, index, rise, words, wordsWay, gone])
 
-  if (!song) return null
+  // The card as a whole sinks under a finger (`M1`, 1), to a row's depth:
+  // tapping it is how Now Playing opens, and it is the tap made most often.
+  const press = usePressScale(PRESS.row)
+  const coverRef = useRef<View>(null)
+  const open = (): void => {
+    // Where the cover is, for Now Playing's cover to grow from (`M2`, 1).
+    const node = coverRef.current
+    if (!node) {
+      router.push('/now-playing')
+      return
+    }
+    node.measureInWindow((x, y, width) => {
+      handOffCover({ x, y, size: width })
+      router.push('/now-playing')
+    })
+  }
+
+  const card = song ?? (sinking ? shown : null)
+  const songColor = useSongColor(card, card ? artFor(card) : null)
+  if (!card) return null
 
   return (
     <Animated.View
@@ -91,9 +156,10 @@ function MiniPlayerInner(): ReactNode {
             outputRange: [0, 1],
             extrapolate: 'clamp',
           }),
-          transform: [{ translateY: rise.interpolate(RISE_RANGE) }],
+          transform: [{ translateY: rise.interpolate(RISE_RANGE) }, ...press.style.transform],
         },
       ]}
+      pointerEvents={sinking ? 'none' : 'auto'}
     >
       <View style={styles.clip} pointerEvents="none">
         <MiniProgress color={songColor.color} />
@@ -101,20 +167,30 @@ function MiniPlayerInner(): ReactNode {
 
       <Pressable
         style={styles.expand}
-        onPress={() => router.push('/now-playing')}
+        onPress={open}
+        {...press.handlers}
         accessibilityRole="button"
-        accessibilityLabel={`Open now playing: ${song.title}`}
+        accessibilityLabel={`Open now playing: ${card.title}`}
       />
 
-      <Cover uri={artFor(song)} title={song.album || song.title} size={44} />
-      <Animated.View style={[styles.meta, { opacity: words }]} pointerEvents="none">
-        <Text style={styles.title} numberOfLines={1}>
-          {song.title}
-        </Text>
-        <Text style={styles.artist} numberOfLines={1}>
-          {song.artist || 'Unknown artist'}
-        </Text>
-      </Animated.View>
+      <View ref={coverRef} collapsable={false}>
+        <Cover uri={artFor(card)} title={card.album || card.title} size={44} />
+      </View>
+      <View style={styles.meta} pointerEvents="none">
+        <Animated.View style={wordsMove}>
+          <Words song={card} />
+        </Animated.View>
+        {leaving ? (
+          <Animated.View
+            style={[styles.wordsGone, goneMove]}
+            aria-hidden
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
+            <Words song={leaving} />
+          </Animated.View>
+        ) : null}
+      </View>
 
       {/* Up next: the sheet over this card and the tab bar (docs/ui-mock `P25`). */}
       <IconButton testID="mini-player-queue" onPress={openQueueSheet} label="Up next">
@@ -153,6 +229,22 @@ const RISE_KEY = 'mini-player-rise'
 
 /** From under the bar to its place, and five points past it on the way (`M1`). */
 const RISE_RANGE = overshootRange(MINI_PLAYER_HEIGHT, 5)
+
+/** How far the words step as one song's give way to the next's. */
+const WORDS_STEP = 8
+
+function Words({ song }: { song: Song }): ReactNode {
+  return (
+    <>
+      <Text style={styles.title} numberOfLines={1}>
+        {song.title}
+      </Text>
+      <Text style={styles.artist} numberOfLines={1}>
+        {song.artist || 'Unknown artist'}
+      </Text>
+    </>
+  )
+}
 
 /**
  * The wash, on its own: the one part of the strip that moves with the song.
@@ -211,7 +303,10 @@ const styles = StyleSheet.create(theme => ({
     minWidth: 0,
     marginLeft: 8,
     gap: 1,
+    overflow: 'hidden',
   },
+  // The leaving words, over the arriving ones' place.
+  wordsGone: { position: 'absolute', top: 0, left: 0, right: 0, gap: 1 },
   title: {
     color: theme.colors.textPrimary,
     fontSize: 14,

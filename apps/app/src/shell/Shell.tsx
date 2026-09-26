@@ -1,4 +1,11 @@
-import { useDeferredValue, useEffect, useLayoutEffect, useState, useSyncExternalStore } from 'react'
+import {
+  useDeferredValue,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import type { ReactNode } from 'react'
 import { router, usePathname } from 'expo-router'
 import { Animated, View } from 'react-native'
@@ -6,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet } from 'react-native-unistyles'
 import { BottomNav } from '../ui/components/BottomNav'
 import { MiniPlayer } from '../ui/components/MiniPlayer'
-import { SELECTION_BAR_SPACE, useSelectionBarFloating } from '../ui/components/SelectionBar'
+import { SELECTION_BAR_SPACE, selectionBarLift } from '../ui/components/SelectionBar'
 import { ResumeToast } from '../features/devices/ResumeToast'
 import { CommandPalette } from '../features/commandPalette/CommandPalette'
 import { PlaybackNotices } from '../offline/PlaybackNotices'
@@ -20,8 +27,9 @@ import { useFloatingChrome } from './bottomInset'
 import { stageIdle, subscribeStageIdle } from './stageIdle'
 import { useCommands } from './useCommands'
 import { useLayout } from './useLayout'
-import { ease, timing } from '../ui/motion'
+import { ease, timing, useFade, usePresence } from '../ui/motion'
 import { MOVE_MS } from '../ui/motion.model'
+import { motion } from '@selfmp3/client'
 import { pageKey, stepSide } from './pageStep'
 import { stackMoves } from '../ports/stackMoves'
 import { onDeepLinkRoute } from '../ports/deepLinks'
@@ -195,14 +203,15 @@ function Frame({
  * sixth of a second, and the sidebar is opaque, so one that took as long as
  * the slide lay across the rising cover as a dim panel for most of the way.
  */
-const SIDEBAR_FADE_MS = 160
+const SIDEBAR_FADE_MS = MOVE_MS.sidebar
 /**
  * How long the sidebar waits before it comes back where the navigator slides
  * Now Playing away itself: the sidebar is over the page, so back at once it
  * cut across the cover on its way down. A browser's page has already faded
- * out by the time the address changes, so nothing is waited for there.
+ * out by the time the address changes (`stageExit.ts`), so nothing is waited
+ * for there.
  */
-const SIDEBAR_RETURN_DELAY_MS = stackMoves ? 300 : 0
+const SIDEBAR_RETURN_DELAY_MS = stackMoves ? MOVE_MS.sidebarReturn : 0
 
 /**
  * The sidebar, over the left edge of the page's column.
@@ -254,32 +263,46 @@ function BarSlot({ hidden }: { hidden: boolean }): ReactNode {
   const player = usePlayer()
   const insets = useSafeAreaInsets()
   const loaded = player.current !== null
-  const [rise] = useState(() => new Animated.Value(loaded ? 1 : 0))
-  useEffect(() => {
-    // Height, which the native driver cannot animate; it runs once per session.
-    if (loaded) timing(rise, 1, 200, undefined, { easing: ease.out, native: false })
-    else rise.setValue(0)
-  }, [loaded, rise])
-
-  if (!loaded) return null
+  // The bar itself slides, on the native driver; the room the page gives it
+  // is simply given, in the same frame, because the room is at the foot of a
+  // list whose end is off the screen. It used to be the slot's height that
+  // grew, on the JavaScript thread, which is the one thing a bar full of
+  // transport should not be doing while the first song starts. When the
+  // queue empties the bar slides back down, quicker, and the room goes with
+  // it once it is out of sight.
+  const { mounted, progress } = usePresence(loaded, MOVE_MS.barRise, motion.base)
+  // Focus with a still mouse: a fade, not a cut, out slowly and back the
+  // moment the mouse moves.
+  const shown = useFade(!hidden, MOVE_MS.idleIn, MOVE_MS.idleOut)
   const full = PLAYER_BAR_HEIGHT + insets.bottom
+  // Built once per height: the inset only changes with the window.
+  const slide = useMemo(
+    () => ({
+      transform: [
+        { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [full, 0] }) },
+      ],
+    }),
+    [progress, full],
+  )
+
+  if (!mounted) return null
   return (
     <Animated.View
-      style={[
-        styles.barSlot,
-        { height: rise.interpolate({ inputRange: [0, 1], outputRange: [0, full] }) },
-        hidden && styles.barHidden,
-      ]}
-      pointerEvents={hidden ? 'none' : 'auto'}
+      style={[styles.barSlot, { height: full, opacity: shown }]}
+      pointerEvents={hidden || !loaded ? 'none' : 'auto'}
       aria-hidden={hidden}
     >
-      {/* Its top edge rises with the slot; the rest waits below the window. */}
-      <View style={[styles.barInSlot, { height: full }]}>
+      {/* Its top edge rises into the slot; the rest waits below the window. */}
+      <Animated.View style={[styles.barInSlot, { height: full }, slide]}>
         <PlayerBar />
-      </View>
+      </Animated.View>
     </Animated.View>
   )
 }
+
+/** How far a page steps in from: a phone's from the side, a computer's from below. */
+const PAGE_STEP_PHONE = 8
+const PAGE_STEP_WIDE = 6
 
 /**
  * The page, stepping in as it changes (docs/ui-mock `M2`, 4 and `M3`, 5): on a
@@ -304,27 +327,29 @@ function PageStep({ wide, children }: { wide: boolean; children: ReactNode }): R
     if (shown !== null) setStep({ count: step.count + 1, side: stepSide(shown, key) })
   }
   const [value] = useState(() => new Animated.Value(1))
+  // How far, and which way: a number sent to a node, so the step's nodes are
+  // built once and not again for every page (the rule `StageMove` writes down).
+  const [distance] = useState(() => new Animated.Value(0))
+  const [moves] = useState(() => {
+    const offset = Animated.multiply(
+      value.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+      distance,
+    )
+    return {
+      wide: { opacity: value, transform: [{ translateY: offset }] },
+      phone: { opacity: value, transform: [{ translateX: offset }] },
+    }
+  })
   // Before the paint, so the new page's first frame is already stepped aside.
   useLayoutEffect(() => {
     if (step.count === 0) return
+    distance.setValue(wide ? PAGE_STEP_WIDE : PAGE_STEP_PHONE * step.side)
     value.setValue(0)
     timing(value, 1, wide ? MOVE_MS.page : MOVE_MS.tab, undefined, { easing: ease.out })
-  }, [step, value, wide])
+  }, [step, value, distance, wide])
 
-  const offset = value.interpolate({
-    inputRange: [0, 1],
-    outputRange: [wide ? 6 : 8 * step.side, 0],
-  })
   return (
-    <Animated.View
-      style={[
-        styles.content,
-        {
-          opacity: value,
-          transform: wide ? [{ translateY: offset }] : [{ translateX: offset }],
-        },
-      ]}
-    >
+    <Animated.View style={[styles.content, wide ? moves.wide : moves.phone]}>
       {children}
     </Animated.View>
   )
@@ -407,18 +432,29 @@ function PaletteHost(): ReactNode {
  */
 function Toasts({ left = 0 }: { left?: number }): ReactNode {
   // Above a phone's floating tab bar and mini player, and above its floating
-  // selection bar rather than over its buttons.
-  const lifted = useSelectionBarFloating()
+  // selection bar rather than over its buttons: the row rides the bar's own
+  // rise and sink (`selectionBarLift`), a transform because the value moves
+  // on the native side and a `bottom` cannot.
   const chrome = useFloatingChrome()
+  const [lift] = useState(() => ({
+    transform: [
+      {
+        translateY: selectionBarLift.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, -SELECTION_BAR_SPACE],
+        }),
+      },
+    ],
+  }))
   return (
-    <View
+    <Animated.View
       // Centred in the page, which starts where the sidebar over it ends.
-      style={[styles.toasts, { left, bottom: 10 + chrome + (lifted ? SELECTION_BAR_SPACE : 0) }]}
+      style={[styles.toasts, { left, bottom: 10 + chrome }, lift]}
       pointerEvents="box-none"
     >
       <ResumeToast />
       <ToastHost />
-    </View>
+    </Animated.View>
   )
 }
 
@@ -463,9 +499,6 @@ const styles = StyleSheet.create(theme => ({
     zIndex: 1,
   },
   sidebarGone: { display: 'none' },
-  barHidden: {
-    opacity: 0,
-  },
   barSlot: { overflow: 'hidden' },
   barInSlot: { position: 'absolute', top: 0, left: 0, right: 0 },
 }))

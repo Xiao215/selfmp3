@@ -45,6 +45,8 @@ import { SleepMenu, useSleepMinutesLeft } from '../ui/components/SleepMenu'
 import { SeekBar } from '../ui/components/SeekBar'
 import { TagPicker } from '../ui/components/TagPicker'
 import { leaveStage } from './stageExit'
+import { handOffCover } from '../ui/coverHandoff'
+import { Press } from '../ui/components/Press'
 import { useLayout } from './useLayout'
 import { setPracticeOpen, usePracticeOpen } from './practicePanel'
 import { floating } from '../ui/surfaces'
@@ -115,7 +117,20 @@ export function PlayerBar(): ReactNode {
       if (router.canGoBack()) router.back()
       else router.replace('/')
     })
-  const togglePage = (): void => (onPage ? closePage() : router.push('/now-playing'))
+  const coverRef = useRef<View>(null)
+  const openPage = (): void => {
+    // Where the cover is, for the stage's cover to grow from (`M3`, 2).
+    const node = coverRef.current
+    if (!node) {
+      router.push('/now-playing')
+      return
+    }
+    node.measureInWindow((x, y, width) => {
+      handOffCover({ x, y, size: width })
+      router.push('/now-playing')
+    })
+  }
+  const togglePage = (): void => (onPage ? closePage() : openPage())
   // Up next is the rail beside whatever page is open, Now Playing included
   // (docs/ui-mock `C11`), so the button toggles the rail and goes nowhere.
   const queueOpen = useQueueSheetOpen()
@@ -145,7 +160,7 @@ export function PlayerBar(): ReactNode {
               accessibilityState={{ expanded: onPage }}
             >
               {/* The caption sits over the cover, not between it and the title. */}
-              <View {...tipTarget()}>
+              <View {...tipTarget()} ref={coverRef} collapsable={false}>
                 <Cover uri={artFor(song)} title={song.album || song.title} size={54} />
                 {onPage ? (
                   <View style={styles.openChevron} pointerEvents="none">
@@ -352,17 +367,16 @@ function PlayButton({
   const { theme } = useUnistyles()
   const stalled = usePlayerStalled()
   return (
-    <Pressable
+    <Press
       onPress={onPress}
       disabled={!enabled}
       accessibilityRole="button"
       accessibilityLabel={playing ? 'Pause' : 'Play'}
       {...tip(playing ? 'Pause' : 'Play')}
       accessibilityState={{ disabled: !enabled, busy: stalled }}
-      style={({ pressed }) => [
+      style={[
         styles.playButton,
         { backgroundColor: enabled ? theme.colors.textPrimary : theme.colors.surface3 },
-        pressed && styles.playPressed,
       ]}
     >
       {/* Streaming, the first second is silence, and a pause glyph through it
@@ -374,7 +388,7 @@ function PlayButton({
         size={20}
         color={enabled ? theme.colors.onPrimary : theme.colors.textMuted}
       />
-    </Pressable>
+    </Press>
   )
 }
 
@@ -411,19 +425,16 @@ function ValuePill({
 }): ReactNode {
   const tone = usePlayingTone()
   return (
-    <Pressable
+    <Press
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
       {...tip(caption)}
-      style={({ pressed }) => [
-        styles.pill,
-        { backgroundColor: withAlpha(tone.color, pressed ? 0.3 : 0.18) },
-      ]}
+      style={[styles.pill, { backgroundColor: withAlpha(tone.color, 0.18) }]}
     >
       <Icon size={14} color={tone.tint} />
       <Text style={[styles.pillText, { color: tone.tint }]}>{value}</Text>
-    </Pressable>
+    </Press>
   )
 }
 
@@ -678,7 +689,6 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     marginHorizontal: 4,
   },
-  playPressed: { transform: [{ scale: 0.96 }] },
   progress: { alignSelf: 'stretch' },
   centreTight: { minWidth: 250 },
   leftTight: { minWidth: 220 },

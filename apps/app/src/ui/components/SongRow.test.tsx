@@ -81,13 +81,13 @@ describe('a playlist row is a library row', () => {
     expect(screen.queryByLabelText(`Love ${song.title}`)).toBeNull()
   })
 
-  it('draws what a playlist adds: the grip, and where a move would land', async () => {
+  it('draws what a playlist adds: the grip, and the lifted look', async () => {
     const plain = await render(<SongRow {...playlistRow()} />)
     expect(screen.getByLabelText(`Move ${song.title}`)).toBeTruthy()
 
-    // Lifted and a drop target are drawing, not behaviour; what matters is
-    // that asking for them changes nothing else about the row.
-    await plain.rerender(<SongRow {...playlistRow({ lifted: true, dropTarget: 'below' })} />)
+    // Lifted is drawing, not behaviour; what matters is that asking for it
+    // changes nothing else about the row.
+    await plain.rerender(<SongRow {...playlistRow({ lifted: true })} />)
     expect(screen.getByLabelText(`More actions for ${song.title}`)).toBeTruthy()
   })
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
 import type { ViewStyle } from 'react-native'
@@ -24,6 +24,7 @@ import { ChevronRight, Download, Plus, Search } from '../../ui/components/Icons'
 import { useAccent } from '../../ui/accent'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { session, useArrival, usePressScale } from '../../ui/motion'
+import { handOffPlace } from '../../ui/coverHandoff'
 import { artShadow, card, sectionTitle, serif } from '../../ui/surfaces'
 import { tagLink } from '../tag/placeLinks'
 import { useStatsFor } from '../stats/statsSource'
@@ -378,6 +379,7 @@ function TileGrid({
               key={tile.tag.id}
               tile={tile}
               index={rowIndex * columns + column}
+              count={tiles.length}
               arrive={arrive}
               small={small}
               artUri={artFor(tile)}
@@ -396,6 +398,7 @@ function TileGrid({
 function Tile({
   tile,
   index,
+  count,
   arrive,
   small,
   artUri,
@@ -403,6 +406,8 @@ function Tile({
 }: {
   tile: HomeTile
   index: number
+  /** How many tiles there are, so a long grid's stagger closes up. */
+  count: number
   /** Whether this paint is the one the tiles fade up in. */
   arrive: boolean
   small: boolean
@@ -411,15 +416,29 @@ function Tile({
 }): ReactNode {
   const { wide } = useLayout()
   const press = usePressScale()
-  const arrival = useArrival(index, arrive)
+  const arrival = useArrival(index, arrive, count)
   const colours = tagColors(tile.tag.hue)
+  const ref = useRef<View>(null)
+  // Where the tile is, for the tag's head to grow from (`M2`, 2).
+  const open = (): void => {
+    const node = ref.current
+    if (!node) {
+      onPress()
+      return
+    }
+    node.measureInWindow((x, y, width, height) => {
+      handOffPlace({ x, y, width, height })
+      onPress()
+    })
+  }
   return (
     // Two views, because the arrival and the press each carry a transform.
     <Animated.View style={[styles.tileCell, arrival]}>
       <Animated.View style={press.style}>
         <Pressable
+          ref={ref}
           testID={`home-tile-${index}`}
-          onPress={onPress}
+          onPress={open}
           {...press.handlers}
           accessibilityRole="button"
           accessibilityLabel={`${tile.tag.name}, ${plural(tile.songs, 'song', 'songs')}`}

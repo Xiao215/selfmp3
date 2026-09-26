@@ -1,12 +1,13 @@
 import { memo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { NAV_HEIGHT, radius } from '@selfmp3/client'
 import { glassBlur, glassFill } from '../../ports/glassBlur'
 import { navBottom } from '../../shell/bottomInset'
+import { useFade } from '../motion'
 import { MOVE_MS } from '../motion.model'
 import { floating } from '../surfaces'
 import { activeTab, type TabHref } from './bottomNav.model'
@@ -26,8 +27,9 @@ import { useSlidingHighlight } from './SlidingHighlight'
  * Everything that is not a tab is reached from Home — the tags, You behind the
  * avatar, Import behind the + — so three tabs are enough. The current tab is a
  * white pill with dark ink, as a chosen chip is; neither is the accent, which
- * is kept for the button that commits. The pill slides to the tab you chose,
- * 200 ms (docs/ui-mock `M2`, 4), while the page steps in beside it (`Shell`).
+ * is kept for the button that commits. The pill springs to the tab you chose
+ * (docs/ui-mock `M2`, 4) and the tab's ink turns dark as it arrives, while the
+ * page steps in beside it (`Shell`).
  *
  * Both float, on glass: a translucent fill that a browser also blurs. The page
  * runs on under them, so every list keeps room at its end (`useBottomInset`).
@@ -51,7 +53,7 @@ function BottomNavInner(): ReactNode {
   // last render to be kept: set during render, only when it has moved.
   if (own !== null && own !== lastTab) setLastTab(own)
   const current = own ?? (pathname === '/search' ? lastTab : null)
-  const pill = useSlidingHighlight(current, MOVE_MS.tab, styles.pill)
+  const pill = useSlidingHighlight(current, styles.pill)
 
   return (
     <>
@@ -91,15 +93,50 @@ function BottomNavInner(): ReactNode {
                 // react-native-web does not turn `accessibilityState` into aria-selected.
                 aria-selected={active}
               >
-                <tab.Icon size={20} tone={active ? 'onPrimary' : 'textSecondary'} />
-                <Text style={[styles.label, active && styles.labelOn]} numberOfLines={1}>
-                  {tab.label}
-                </Text>
+                <TabInk active={active} label={tab.label} Icon={tab.Icon} />
               </Pressable>
             )
           })}
         </ScrollView>
       </View>
+    </>
+  )
+}
+
+/**
+ * A tab's icon and label, in the resting ink with the lit ink fading over
+ * them as the pill arrives, so the ink turns on the same clock as the pill
+ * rather than snapping to dark a slide ahead of it.
+ */
+function TabInk({
+  active,
+  label,
+  Icon,
+}: {
+  active: boolean
+  label: string
+  Icon: typeof Music
+}): ReactNode {
+  const lit = useFade(active, MOVE_MS.tab, MOVE_MS.tab)
+  return (
+    <>
+      <Icon size={20} tone="textSecondary" />
+      <Text style={styles.label} numberOfLines={1}>
+        {label}
+      </Text>
+      <Animated.View
+        style={[styles.inkOn, { opacity: lit }]}
+        pointerEvents="none"
+        // A copy for the eye only: the tab already carries its name.
+        aria-hidden
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        <Icon size={20} tone="onPrimary" />
+        <Text style={[styles.label, styles.labelOn]} numberOfLines={1}>
+          {label}
+        </Text>
+      </Animated.View>
     </>
   )
 }
@@ -150,6 +187,17 @@ const styles = StyleSheet.create(theme => ({
     fontWeight: '600',
   },
   labelOn: { color: theme.colors.onPrimary },
+  // The lit copy, laid over the resting one exactly.
+  inkOn: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 1,
+  },
 }))
 
 /**

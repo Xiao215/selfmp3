@@ -21,7 +21,8 @@ import { SongList } from '../../ui/components/SongList'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { SongRow } from '../../ui/components/SongRow'
 import { useSongColor } from '../../ui/useSongColor'
-import { useEntrance } from '../../ui/motion'
+import { spring } from '../../ui/motion'
+import { takePlaceHandoff } from '../../ui/coverHandoff'
 import { artShadow, label as labelText } from '../../ui/surfaces'
 import { useSaveTagsAsPlaylist } from '../library/saveTags'
 import { PlaylistCover } from '../playlists/PlaylistCover'
@@ -95,18 +96,51 @@ export function PlacePage({
     else router.replace('/')
   }
 
-  // On a phone the board has the tapped tile stretching into this head
-  // (docs/ui-mock `M2`, 2). Without shared elements the head grows into place
-  // instead, on the spring, as the stack crossfades to the page; a computer's
-  // page steps in with the rest of its pages (`Shell`).
-  const entrance = useEntrance()
-  const [grow] = useState(() => ({
-    opacity: entrance,
-    transform: [
-      { translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) },
-      { scale: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) },
-    ],
+  // The board has the tapped tile stretching into this head (docs/ui-mock
+  // `M2`, 2). Without shared elements the head grows into place from where
+  // the tile was: the tile hands its frame over as it is tapped
+  // (`ui/coverHandoff.ts`), the hero measures its own once laid out, and the
+  // one spring carries it from the one to the other — a translation between
+  // the two centres and a scale by their widths — while the stack crossfades
+  // the page in around it. Opened any other way (Back, an address, a row's
+  // name), there is no frame and the head is simply there.
+  const [handed] = useState(() => takePlaceHandoff())
+  const [entrance] = useState(() => new Animated.Value(handed ? 0 : 1))
+  const [start] = useState(() => ({
+    dx: new Animated.Value(0),
+    dy: new Animated.Value(0),
+    grow: new Animated.Value(0),
   }))
+  const [grow] = useState(() => {
+    const left = entrance.interpolate({ inputRange: [0, 1], outputRange: [1, 0] })
+    return {
+      opacity: entrance,
+      transform: [
+        { translateX: Animated.multiply(left, start.dx) },
+        { translateY: Animated.multiply(left, start.dy) },
+        { scale: Animated.add(1, Animated.multiply(left, start.grow)) },
+      ],
+    }
+  })
+  const heroRef = useRef<View>(null)
+  const heroPlaced = useRef(false)
+  const placeHero = (): void => {
+    if (!handed || heroPlaced.current) return
+    heroPlaced.current = true
+    const node = heroRef.current
+    if (!node) {
+      spring(entrance, 1)
+      return
+    }
+    node.measureInWindow((x, y, width, height) => {
+      if (width > 0) {
+        start.dx.setValue(handed.x + handed.width / 2 - (x + width / 2))
+        start.dy.setValue(handed.y + handed.height / 2 - (y + height / 2))
+        start.grow.setValue(handed.width / width - 1)
+      }
+      spring(entrance, 1)
+    })
+  }
 
   const head = (
     <View style={[styles.head, wide && styles.headWide, { paddingTop: top + 8 }]}>
@@ -129,7 +163,12 @@ export function PlacePage({
         ) : null}
       </View>
 
-      <Animated.View style={[styles.hero, wide ? styles.heroWide : grow]}>
+      <Animated.View
+        ref={heroRef}
+        collapsable={false}
+        onLayout={placeHero}
+        style={[styles.hero, wide && styles.heroWide, grow]}
+      >
         {artistAlone ? null : (
           <View style={styles.mosaic}>
             <PlaylistCover songIds={ids} size={wide ? 176 : 196} />

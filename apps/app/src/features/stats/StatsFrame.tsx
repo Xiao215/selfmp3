@@ -27,10 +27,8 @@ const SWAP_TRAVEL = 26
  * said that something had changed; the direction says which way.
  *
  * `order` is the window's place in the row of them, which is what gives the
- * direction. Where it came from is held in state rather than a ref, because
- * the interpolation is built during render; the numbers themselves arrive
- * part-way through the move, which is what makes it read as the page catching
- * up rather than as a flash.
+ * direction. The numbers themselves arrive part-way through the move, which
+ * is what makes it read as the page catching up rather than as a flash.
  */
 function Arriving({
   order,
@@ -43,35 +41,35 @@ function Arriving({
   children: ReactNode
 }): ReactNode {
   const [value] = useState(() => new Animated.Value(1))
-  // Which window is showing and which side the last change came from, settled
-  // during render as `SlidingHighlight` settles its pair: the interpolation
-  // below is built here, so the direction has to be known by now.
+  // Which side the last change came from, as an animated value of its own:
+  // the slide is `(1 - value) * from`, built once below, so a new direction
+  // is a number sent to a node and not a node rebuilt in the render.
+  const [from] = useState(() => new Animated.Value(0))
+  const [slide] = useState(() => ({
+    opacity: value,
+    transform: [
+      {
+        translateX: Animated.multiply(
+          value.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+          from,
+        ),
+      },
+    ],
+  }))
+  // Which window is showing, settled during render as `SlidingHighlight`
+  // settles its pair, so the direction is known before the effect plays it.
   const [swap, setSwap] = useState({ order, from: 0 })
   if (swap.order !== order) {
     setSwap({ order, from: order > swap.order ? SWAP_TRAVEL : -SWAP_TRAVEL })
   }
-  const from = swap.from
   useEffect(() => {
     // Nothing to play on the first showing; `from` is only zero there.
     if (swap.from === 0) return
+    from.setValue(swap.from)
     value.setValue(0)
     timing(value, 1, MOVE_MS.arrive, undefined, { easing: ease.out })
-  }, [swap, value])
-  return (
-    <Animated.View
-      style={[
-        style,
-        {
-          opacity: value,
-          transform: [
-            { translateX: value.interpolate({ inputRange: [0, 1], outputRange: [from, 0] }) },
-          ],
-        },
-      ]}
-    >
-      {children}
-    </Animated.View>
-  )
+  }, [swap, value, from])
+  return <Animated.View style={[style, slide]}>{children}</Animated.View>
 }
 
 /** Where "View Report" goes: the month as a page, a page of its own. */

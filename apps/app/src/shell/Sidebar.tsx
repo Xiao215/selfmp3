@@ -1,6 +1,6 @@
 import { memo, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { Animated, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLayout } from './useLayout'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -51,7 +51,8 @@ import { Avatar } from '../ui/components/Avatar'
 import { useAccount } from '../features/profile/useAccount'
 import { activeDestination } from '../ui/components/bottomNav.model'
 import { useSlidingHighlight } from '../ui/components/SlidingHighlight'
-import { MOVE_MS } from '../ui/motion.model'
+import { useFade } from '../ui/motion'
+import { EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
 import { setPaletteOpen } from './palette'
 import { label as labelText } from '../ui/surfaces'
 
@@ -110,7 +111,7 @@ function SidebarInner(): ReactNode {
     pathname,
     DESTINATIONS.map(destination => destination.href),
   )
-  const slide = useSlidingHighlight(lit, MOVE_MS.page, styles.itemOn)
+  const slide = useSlidingHighlight(lit, styles.itemOn)
 
   return (
     <View
@@ -293,6 +294,13 @@ function RailPlaylist({
   const ref = useRef<View>(null)
   const live = isLive(playlist)
   const dragging = useSongDragActive()
+  // A live playlist cannot take a dropped song, and says so by dimming while
+  // one is carried: a fade, so the whole column does not blink as the drag
+  // begins.
+  const dimmed = useFade(dragging && live, MOVE_MS.hoverIn, MOVE_MS.hoverOut)
+  const [dim] = useState(() => ({
+    opacity: dimmed.interpolate({ inputRange: [0, 1], outputRange: [1, DIM_WHILE_DRAGGING] }),
+  }))
   const addToPlaylist = useAddToPlaylist()
   const over = useSongDropTarget(ref, {
     enabled: !live,
@@ -303,7 +311,7 @@ function RailPlaylist({
   })
 
   return (
-    <View ref={ref} collapsable={false} style={dragging && live ? styles.dim : undefined}>
+    <Animated.View ref={ref} collapsable={false} style={dim}>
       <Pressable
         onPress={onOpen}
         accessibilityRole="link"
@@ -323,7 +331,7 @@ function RailPlaylist({
         {live ? <Live size={13} tone="textMuted" /> : null}
       </Pressable>
       {over ? <Text style={[styles.dropHint, styles.labelOn]}>Drop to add</Text> : null}
-    </View>
+    </Animated.View>
   )
 }
 
@@ -501,14 +509,13 @@ function TagRow({
   const [editing, setEditing] = useState(false)
   const moreRef = useRef<View>(null)
   const revealed = !finePointer || hovered || editing
+  // The ⋯ fades in as the pointer arrives and out as it leaves, on the same
+  // clocks as a song row's controls (`M3`, 3).
+  const reveal = useFade(revealed, MOVE_MS.hoverIn, MOVE_MS.hoverOut)
 
   return (
     <View
-      style={[
-        styles.tagRow,
-        hovered && { backgroundColor: theme.colors.surface2 },
-        active && styles.itemOn,
-      ]}
+      style={[styles.tagRow, hovered && styles.tagRowHovered, active && styles.itemOn]}
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
     >
@@ -526,9 +533,9 @@ function TagRow({
         <Text style={styles.count}>{tag.songCount}</Text>
       </Pressable>
 
-      <View ref={moreRef} collapsable={false}>
+      <Animated.View ref={moreRef} collapsable={false} style={{ opacity: reveal }}>
         <Pressable
-          style={[styles.tagAction, styles.tagActionLast, { opacity: revealed ? 1 : 0 }]}
+          style={[styles.tagAction, styles.tagActionLast]}
           onPress={() => setEditing(isOpen => !isOpen)}
           accessibilityRole="button"
           accessibilityLabel={`Edit tag ${tag.name}`}
@@ -537,7 +544,7 @@ function TagRow({
         >
           <More size={13} color={theme.colors.textMuted} />
         </Pressable>
-      </View>
+      </Animated.View>
 
       <TagEditor tag={editing ? tag : null} anchorRef={moreRef} onClose={() => setEditing(false)} />
     </View>
@@ -611,6 +618,20 @@ function Foot(): ReactNode {
 /** The round mark on the rail's own row. */
 const AVATAR = 30
 
+/** How dim a playlist that cannot take the song goes while one is carried. */
+const DIM_WHILE_DRAGGING = 0.35
+
+/**
+ * A row warming under a pointer and cooling as it leaves (`M3`, 3), which a
+ * browser moves itself: the colour cannot go on the native driver, and only
+ * a browser has a pointer to warm under.
+ */
+const HOVER_TRANSITION = {
+  transitionProperty: 'background-color, border-color',
+  transitionDuration: `${MOVE_MS.hoverOut}ms`,
+  transitionTimingFunction: EASE_OUT_CSS,
+} as const
+
 const styles = StyleSheet.create(theme => ({
   titleBarDrag: { position: 'absolute', top: 0, left: 0, right: 0 },
   rail: {
@@ -650,6 +671,7 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.body,
   },
   search: {
+    _web: HOVER_TRANSITION,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
@@ -660,7 +682,10 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
   },
   // Pointed at, a step lighter: tone, where it used to gain an edge.
-  searchHovered: { backgroundColor: theme.colors.surface3 },
+  searchHovered: {
+    backgroundColor: theme.colors.surface3,
+    _web: { transitionDuration: `${MOVE_MS.hoverIn}ms` },
+  },
   searchText: { flex: 1, color: theme.colors.textMuted, fontSize: 13 },
   searchKeys: { flexDirection: 'row', gap: 3 },
   searchKey: {
@@ -676,6 +701,7 @@ const styles = StyleSheet.create(theme => ({
   },
   section: { gap: 1 },
   playlistRow: {
+    _web: HOVER_TRANSITION,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
@@ -704,7 +730,6 @@ const styles = StyleSheet.create(theme => ({
   labelOn: { color: theme.colors.textPrimary, fontWeight: '600' },
   rowPressed: { backgroundColor: theme.colors.surface2 },
   dropHint: { fontSize: 11, paddingHorizontal: 10, paddingBottom: 2 },
-  dim: { opacity: 0.35 },
   /* `.nav-group-grow`: the tag list takes what is left, and scrolls in it. */
   group: { flex: 1, minHeight: 0, gap: 1 },
   groupTitle: {
@@ -773,6 +798,10 @@ const styles = StyleSheet.create(theme => ({
   tagName: { flex: 1, color: theme.colors.textSecondary, fontSize: 13 },
   count: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
   tagAction: { paddingVertical: 6, paddingHorizontal: 5 },
+  tagRowHovered: {
+    backgroundColor: theme.colors.surface2,
+    _web: { transitionDuration: `${MOVE_MS.hoverIn}ms` },
+  },
   tagActionLast: { paddingRight: space.sm },
   tagEmpty: {
     alignItems: 'flex-start',

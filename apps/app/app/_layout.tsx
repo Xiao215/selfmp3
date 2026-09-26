@@ -27,7 +27,8 @@ import { playbackService } from '../src/player/service'
 import { ConnectionProvider, useConnection } from '../src/connection/ConnectionProvider'
 import { Shell as Frame } from '../src/shell/Shell'
 import { addressOf, swipeBackAllowed } from '../src/shell/backGesture'
-import { stackAnimation } from '../src/shell/pageStep'
+import { nowPlayingAnimation, stackAnimation } from '../src/shell/pageStep'
+import { useMotionReduced } from '../src/ui/motion'
 import { afterWelcome } from '../src/features/welcome/firstSync.model'
 import { STORAGE_ROUTE } from '../src/features/welcome/storage.model'
 import { installedApp } from '../src/ports/install'
@@ -97,32 +98,33 @@ const queryClient = new QueryClient({
 })
 
 /**
- * Now Playing comes up from the foot of the display and goes back down, over
- * 380 ms (docs/ui-mock `M2`, 1). The board has the mini player's card growing
- * into the page with the cover travelling in it; that needs shared elements
- * the app does not have, so the page rises and its cover grows into place as
- * it comes (`NowPlayingScreen`).
+ * Now Playing comes up from the foot of the display and goes back down
+ * (docs/ui-mock `M2`, 1). The board has the mini player's card growing into
+ * the page with the cover travelling in it; that needs shared elements the
+ * app does not have, so on a phone the page rises itself and its cover grows
+ * into place from where the mini player's cover was (`NowPlayingScreen`,
+ * `ui/coverHandoff.ts`), and the navigator plays nothing
+ * (`nowPlayingAnimation`); an iPad's stack slides it up over 380 ms.
  *
- * A `fullScreenModal` has no sideways pop to inherit — the gesture a modal is
- * offered is a downward one — and pulling this one down to close is
- * `NowPlayingScreen`'s own responder, not the navigator's.
- */
-const NOW_PLAYING_OPTIONS = {
-  presentation: 'fullScreenModal',
-  animation: 'slide_from_bottom',
-  animationDuration: 380,
-} as const
-
-/**
+ * A modal has no sideways pop to inherit — the gesture a modal is offered is
+ * a downward one — and pulling this one down to close is `NowPlayingScreen`'s
+ * own responder, not the navigator's.
+ *
  * At desktop width the page covers the library and not the player bar
  * (docs/ui-mock `C09`), so it cannot be a modal: on an iPad a fullScreenModal
  * covered the shell, and the stage was left with no transport at all.
  */
-const NOW_PLAYING_WIDE = {
-  presentation: 'card',
-  animation: 'slide_from_bottom',
-  animationDuration: 380,
-} as const
+function nowPlayingOptions(wide: boolean, reduced: boolean) {
+  if (wide) return { presentation: 'card', ...nowPlayingAnimation(wide, reduced) } as const
+  // A transparent modal, so the library stays drawn under the page as it
+  // rises and the cover is seen to travel out of the mini player; the page
+  // paints its own ground, which rises with it.
+  return {
+    presentation: 'transparentModal',
+    contentStyle: { backgroundColor: 'transparent' },
+    ...nowPlayingAnimation(wide, reduced),
+  } as const
+}
 
 export default function RootLayout(): ReactNode {
   return (
@@ -174,6 +176,7 @@ function Shell(): ReactNode {
   const router = useRouter()
   const pathname = usePathname()
   const { wide } = useLayout()
+  const reduced = useMotionReduced()
   // What was playing comes back when the app opens again, paused where it was.
   usePlaybackMemory()
   // Every downloaded song's cover and words, kept beside it while the server answers.
@@ -262,19 +265,19 @@ function Shell(): ReactNode {
         },
         // The shell steps a tab's page in; the stack crossfades the pages a
         // phone pushes (`src/shell/pageStep.ts`).
-        ...stackAnimation(route.name, wide),
+        ...stackAnimation(route.name, wide, reduced),
         // Per screen, because the tab bar navigates inside this one stack:
         // without it iOS popped back to the tab underneath on a swipe.
         // `src/shell/backGesture.ts` has the rule and the reason.
         gestureEnabled: swipeBackAllowed(route.name),
       }),
-    [surface, wide, ready],
+    [surface, wide, ready, reduced],
   )
 
   return (
     <Frame chrome={chrome} sidebar={!(stage && arriving)}>
       <Stack screenOptions={screenOptions}>
-        <Stack.Screen name="now-playing" options={wide ? NOW_PLAYING_WIDE : NOW_PLAYING_OPTIONS} />
+        <Stack.Screen name="now-playing" options={nowPlayingOptions(wide, reduced)} />
       </Stack>
       {/*
        * Nothing shows until it is decided where the library comes from — the

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { pageKey, stackAnimation, stepSide } from './pageStep'
+import { nowPlayingAnimation, pageKey, stackAnimation, stepSide } from './pageStep'
 
 describe('what counts as a page change', () => {
   it('is the tab on a phone, so a page pushed within a tab is not one', () => {
@@ -60,5 +60,21 @@ describe("the native stack's own move", () => {
 
   it('is none on a computer, where the step is the whole page change', () => {
     expect(stackAnimation('settings', true)).toEqual({ animation: 'none' })
+  })
+
+  it('is none anywhere with less motion asked for', () => {
+    expect(stackAnimation('tag/[name]', false, true)).toEqual({ animation: 'none' })
+    expect(stackAnimation('settings', false, true)).toEqual({ animation: 'none' })
+  })
+})
+
+describe("the navigator's part in Now Playing's move", () => {
+  it("is none on a phone, whose page rises itself, and an iPad's slide up", () => {
+    expect(nowPlayingAnimation(false, false)).toEqual({ animation: 'none' })
+    expect(nowPlayingAnimation(true, false)).toEqual({
+      animation: 'slide_from_bottom',
+      animationDuration: 380,
+    })
+    expect(nowPlayingAnimation(true, true)).toEqual({ animation: 'none' })
   })
 })

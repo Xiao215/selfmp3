@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { AccessibilityInfo, Animated, Easing } from 'react-native'
 import { motion } from '@selfmp3/client'
-import { backOut, MOVE_MS, OVERSHOOT_S, sessionMemory, staggerDelay } from './motion.model'
+import { backOut, MOVE_MS, OVERSHOOT_S, PRESS, sessionMemory, staggerDelay } from './motion.model'
 
 /**
  * Every move in the app goes through here (docs/ui-mock `M1`, and
@@ -161,12 +161,15 @@ export function useEntrance(): Animated.Value {
 
 /**
  * One of a row of things arriving (`M1`, 4): it fades up from a few points
- * below, `STAGGER_MS` after the one before it. With `play` false it is simply
- * there; the caller decides, once, whether this paint is the one that plays.
+ * below, a stagger after the one before it. `count` is how many are arriving,
+ * so a long row closes up (`STAGGER_TOTAL_MS`). With `play` false it is
+ * simply there; the caller decides, once, whether this paint is the one that
+ * plays.
  */
 export function useArrival(
   index: number,
   play: boolean,
+  count?: number,
 ): {
   opacity: Animated.Value
   transform: { translateY: Animated.AnimatedInterpolation<number> }[]
@@ -174,14 +177,52 @@ export function useArrival(
   const [value] = useState(() => new Animated.Value(play && !reduced ? 0 : 1))
   useEffect(() => {
     if (play)
-      timing(value, 1, MOVE_MS.arrive, undefined, { easing: ease.out, delay: staggerDelay(index) })
-  }, [play, index, value])
+      timing(value, 1, MOVE_MS.arrive, undefined, {
+        easing: ease.out,
+        delay: staggerDelay(index, count),
+      })
+  }, [play, index, count, value])
   const [style] = useState(() => ({
     opacity: value,
     transform: [{ translateY: value.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
   }))
   return style
 }
+
+/**
+ * Something that arrives and leaves: mounted while `shown`, and for as long
+ * after as its exit takes. `progress` goes to 1 over `inMs` on `ease.out` and
+ * back to 0 over `outMs` on `ease.in`; `mounted` turns false when it lands. A
+ * caller that returned null the frame `shown` went false cut its thing away
+ * after a move in — the mini player, a row's wash — and this is the one
+ * answer for all of them: everything that arrives leaves. A curve of the
+ * caller's own, for the few that overshoot on the way up.
+ */
+export function usePresence(
+  shown: boolean,
+  inMs: number,
+  outMs: number,
+  {
+    easeIn = ease.out,
+    easeOut = ease.in,
+  }: { easeIn?: EasingFunction; easeOut?: EasingFunction } = {},
+): { mounted: boolean; progress: Animated.Value } {
+  const [progress] = useState(() => new Animated.Value(shown ? 1 : 0))
+  const [mounted, setMounted] = useState(shown)
+  // In the render, so the arriving thing never has a frame in which it is
+  // asked for and not yet there.
+  if (shown && !mounted) setMounted(true)
+  const sent = useRef(shown)
+  useEffect(() => {
+    if (sent.current === shown) return
+    sent.current = shown
+    if (shown) timing(progress, 1, inMs, undefined, { easing: easeIn })
+    else timing(progress, 0, outMs, () => setMounted(false), { easing: easeOut })
+  }, [shown, inMs, outMs, easeIn, easeOut, progress])
+  return { mounted, progress }
+}
+
+type EasingFunction = (t: number) => number
 
 /**
  * A value that follows `shown` between 0 and 1: `inMs` on the way in and
@@ -201,15 +242,15 @@ export function useFade(shown: boolean, inMs: number, outMs: number): Animated.V
   return value
 }
 
-/** How far a pressed thing sinks (`M1`, "Press"). */
-const PRESS_SCALE = 0.96
-
 /**
- * Everything pressable sinks to 0.96 on the spring and comes back on release.
+ * Everything pressable sinks on the spring and comes back on release: a
+ * control to `PRESS.control`, a row to `PRESS.row` (`M1`, "Press"). `Press`
+ * (`ui/components/Press.tsx`) is the one Pressable that carries this; reach
+ * for this directly only where a Pressable cannot be wrapped.
  * Spread `handlers` onto the Pressable and put `style` on an `Animated.View`
  * around it (a Pressable's style function cannot carry an animated value).
  */
-export function usePressScale(to: number = PRESS_SCALE): {
+export function usePressScale(to: number = PRESS.control): {
   style: { transform: { scale: Animated.Value }[] }
   handlers: { onPressIn: () => void; onPressOut: () => void }
 } {
@@ -225,4 +266,30 @@ export function usePressScale(to: number = PRESS_SCALE): {
     }
   })
   return press
+}
+
+/**
+ * Whether a spinner should be drawn: while `busy`, and for `MOVE_MS.busyHold`
+ * after it first appeared, so a wait that is over in a moment does not flash one.
+ * The hold is counted from when the spinner went up, not from when the wait
+ * ended, so a long wait lets go the moment it is done.
+ */
+export function useMinimumBusy(busy: boolean): boolean {
+  // Whether the spinner is up: from the moment `busy` is, and for the hold
+  // after it stops. Set during the render `busy` turns on, so the spinner
+  // is in the same frame as the wait, and let go by a timer.
+  const [held, setHeld] = useState(busy)
+  if (busy && !held) setHeld(true)
+  const since = useRef(0)
+  useEffect(() => {
+    if (busy) {
+      since.current = Date.now()
+      return undefined
+    }
+    if (!held) return undefined
+    const left = Math.max(0, MOVE_MS.busyHold - (Date.now() - since.current))
+    const timer = setTimeout(() => setHeld(false), left)
+    return () => clearTimeout(timer)
+  }, [busy, held])
+  return held
 }

@@ -1,4 +1,5 @@
 import { activeTab } from '../ui/components/bottomNav.model'
+import { MOVE_MS } from '../ui/motion.model'
 import { addressOf } from './backGesture'
 
 /**
@@ -46,22 +47,41 @@ export function stepSide(from: string, to: string): -1 | 1 {
 /** A tag's or an artist's page, which a Home tile or a row's name opens. */
 const PLACE_ROUTES = ['tag/[name]', 'artist/[name]']
 
-/** How long a place page takes to come in over the page that opened it (`M2`, 2). */
-const PLACE_MS = 340
-
 /**
  * The native stack's own move for a screen, beside `PageStep`'s. A phone's
  * tab pages play none, because the step is theirs; every other page a phone
  * pushes crossfades, a place page over 340 ms. A computer's pages all play
  * none: the step is the whole of its page change. A browser's stack has no
- * moves at all, so there only the step plays.
+ * moves at all, so there only the step plays. With less motion asked for,
+ * none at all: the navigator's moves are outside `ui/motion.ts`, so they are
+ * answered here.
  */
 export function stackAnimation(
   routeName: string,
   wide: boolean,
+  reduced = false,
 ): { animation: 'none' | 'fade'; animationDuration?: number } {
   const address = addressOf(routeName)
-  if (wide || pageKey(address, false) === address) return { animation: 'none' }
-  if (PLACE_ROUTES.includes(routeName)) return { animation: 'fade', animationDuration: PLACE_MS }
+  if (reduced || wide || pageKey(address, false) === address) return { animation: 'none' }
+  if (PLACE_ROUTES.includes(routeName)) {
+    return { animation: 'fade', animationDuration: MOVE_MS.place }
+  }
   return { animation: 'fade' }
+}
+
+/**
+ * The navigator's part in Now Playing's move. On a phone, none: the page
+ * rises from the foot itself and its cover travels from the mini player's
+ * (`M2`, 1; `NowPlayingScreen`), which a navigator sliding the page under it
+ * could not be told about. On an iPad the stack slides the page up over 380
+ * ms, or not at all under Reduce Motion. `presentation` is the layout's to
+ * choose (a phone's modal, a computer's card).
+ */
+export function nowPlayingAnimation(
+  wide: boolean,
+  reduced: boolean,
+): { animation: 'none' } | { animation: 'slide_from_bottom'; animationDuration: number } {
+  return !wide || reduced
+    ? { animation: 'none' }
+    : { animation: 'slide_from_bottom', animationDuration: MOVE_MS.nowPlaying }
 }

@@ -9,7 +9,9 @@ import {
   roomShift,
   sessionMemory,
   staggerDelay,
+  staggerStep,
   STAGGER_MS,
+  STAGGER_TOTAL_MS,
 } from './motion.model'
 
 describe('the stagger', () => {
@@ -18,8 +20,11 @@ describe('the stagger', () => {
     expect(staggerDelay(1)).toBe(STAGGER_MS)
   })
 
-  it('stops growing after the cap, so the last of a long grid does not wait', () => {
-    expect(staggerDelay(20, 60, 8)).toBe(480)
+  it('closes up a long row so the last one starts within the total', () => {
+    expect(staggerStep(9)).toBe(STAGGER_TOTAL_MS / 8)
+    expect(staggerDelay(8, 9)).toBe(STAGGER_TOTAL_MS)
+    expect(staggerDelay(3, 4)).toBe(180)
+    expect(staggerStep(1)).toBe(STAGGER_MS)
     expect(staggerDelay(-3)).toBe(0)
   })
 })

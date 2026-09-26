@@ -133,7 +133,7 @@ Found on the way, also fixed: `apps/server/src/services/lookup.ts` held a raw NU
 - [ ] **T-090 `PROPER` L** — Hidden import-order coupling: `offline/listenOutbox.ts:5` imports `../api/client` for its `configureClient` side effect. Move `configureClient` to the app entry.
 - [ ] **T-091 `PROPER` L** — Platform twins repeat code: `offline/covers.ts` vs `covers.web.ts` (`servedName` parser, `PICTURE`, seven re-exports); `ports/device.ts` vs `device.web.ts` (`ID_KEY`, `NAME_KEY`, `getDeviceId`, `generateId`); `ports/cloudPlatform.ts:125-127` vs `.web.ts:86-88` (doorman URL); `ports/engine.web.ts:34-68` re-declares the port's `EngineState`/initial state. Shared `.model.ts` files per twin.
 - [x] **T-092 `PROPER` L** — `ports/downloadStorage.web.ts:46-57,125-134` reads `window.localStorage` directly instead of the `prefs` port.
-- [ ] **T-093 `HARDCODE` L** — Motion literals inline while `MOVE_MS` exists: `shell/Shell.tsx:183,190,245,301,413,427`. Colour/size literals in shell: `PlayerBar.tsx:143,604,611,642,678`, `Sidebar.tsx:638-800` (`borderRadius: 12` ×4, `fontSize: 13` ×4), `connection/ServerAway.tsx:64-74`.
+- [ ] **T-093 `HARDCODE` L** — ~~Motion literals inline while `MOVE_MS` exists~~ (every duration is in `MOVE_MS` since the 2026-09-25 motion rework). Colour/size literals in shell: `PlayerBar.tsx:143,604,611,642,678`, `Sidebar.tsx:638-800` (`borderRadius: 12` ×4, `fontSize: 13` ×4), `connection/ServerAway.tsx:64-74`.
 
 ---
 

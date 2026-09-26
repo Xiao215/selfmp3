@@ -210,36 +210,70 @@ Popovers are the top of the scale on purpose: a dropdown opened *from* a dialog 
 above it.
 
 **Motion.** Every move goes through `apps/app/src/ui/motion.ts` (`spring`, `timing`,
-`useEntrance`, `useArrival`, `useFade`, and the curves in `ease`), which answers Reduce Motion
-once: under it each move lands where it was going with no time in between. The fades are
-100–220 ms (`motion` in `tokens.ts`) and ease out; anything that moves in space takes the one
-spring (`motion.spring`) or a length the boards give (`MOVE_MS` in `ui/motion.model.ts`,
-which also holds the overshoot curve, the stagger and what a session remembers). What moves
-(docs/ui-mock `M1`–`M3`):
+`useEntrance`, `useArrival`, `useFade`, `usePresence`, and the curves in `ease`), which
+answers Reduce Motion once: under it each move lands where it was going with no time in
+between. The navigator's own moves are outside it, so `shell/pageStep.ts` answers for them
+(`stackAnimation`, `nowPlayingAnimation`: none under Reduce Motion). The fades are 100–220 ms
+(`motion` in `tokens.ts`) and ease out; anything that moves in space takes the one spring
+(`motion.spring`) or a length the boards give. Every length has a name in `MOVE_MS`
+(`ui/motion.model.ts`, which also holds the overshoot curve, the stagger, the press depths,
+the pull thresholds and what a session remembers); a duration written as a number in a screen
+is a mistake. The rules, and what moves (docs/ui-mock `M1`–`M3`):
 
-- Pressables sink to 0.96 on the spring; play and pause turn through each other.
+- **Everything that arrives leaves.** A thing that came in over a move goes out over a
+  shorter one on `ease.in`, and stays drawn until it has gone: `usePresence` keeps it mounted
+  for the way out. The mini player sinks back under the bar, the player bar slides back
+  down, a row's wash draws back to the left, the held queue row settles, the stage's chrome
+  fades. Nothing that moved in is cut away.
+- **One press.** `ui/components/Press` is the Pressable: everything you can tap sinks on the
+  spring and comes back on release, a control to 0.96 and a row to 0.985 (`PRESS`). A
+  `pressed` style may add a tint; it never scales.
+- **What changes together moves together.** A colour that goes with a position rides the
+  same value, as an overlay whose opacity follows it on the native driver: the toggle's
+  track, a tab's ink, a checkbox's fill. In a browser a row warms under the pointer through a
+  CSS transition on the same two clocks as its controls (`MOVE_MS.hoverIn`/`hoverOut`).
+- **An interrupted move continues from where it is.** The tab pill, the sidebar's highlight
+  and a segmented control's pill are springs, so a second tap turns them rather than
+  restarting; a stage exit or a page's own close plays once, however many times it is asked
+  (`shell/stageExit.ts`).
+- Play and pause turn through each other, out on `ease.in` and in on `ease.out`, with a light
+  tap from the phone's engine (`ui/haptics.ts`, behind `ports/haptics`); a spinner that
+  replaces the glyph crossfades in and stays at least `MOVE_MS.busyHold`.
 - The mini player rises from under the tab bar with a few points of overshoot, 320 ms, on
-  the first song of a session (again only after the queue has emptied); later songs
-  crossfade its words. Home's tiles fade up 60 ms apart on their first paint of a session
-  and never on a tab switch.
+  the first song of a session (again only after the queue has emptied); a later song's words
+  step out one way and the next's step in from the other, up for the next song and down for
+  the one before. Tapping the card sinks it as a row. Home's tiles fade up 60 ms apart on
+  their first paint of a session, closing up so a long grid's last tile starts within 300 ms
+  (`STAGGER_TOTAL_MS`), and never on a tab switch.
 - Sheets (`Sheet`, Up next) come up from the foot with a four-point overshoot in 300 ms and
-  go down in 220; the dim fades with them. A computer's dialog fades and settles instead.
-- A phone's tab pill slides to the new tab and the page steps in 8 points from that side,
-  200 ms; a computer's sidebar highlight slides and the page settles from 6 points below,
-  180 ms (`shell/pageStep.ts`, `ui/components/SlidingHighlight.tsx`). The phone's stack
-  crossfades the pages it pushes; a tag's or an artist's page does so over 340 ms while its
-  head grows into place.
-- Now Playing slides up over 380 ms on a phone (and rises on the spring in a browser) while
-  its cover grows into place; the cover breathes to 0.84 while paused.
+  go down in 220; the dim fades with them; a pull past `PULL.close` or a flick faster than
+  `PULL.flick` sends any of them away. A computer's dialog, the confirm dialog included,
+  fades and settles from ten points below.
+- A phone's tab pill springs to the new tab while its ink turns, and the page steps in 8
+  points from that side, 200 ms; a computer's sidebar highlight springs and the page settles
+  from 6 points below, 180 ms (`shell/pageStep.ts`, `ui/components/SlidingHighlight.tsx`).
+  The phone's stack crossfades the pages it pushes; a tag's or an artist's page does so over
+  340 ms while its head grows from the tile that was tapped (`ui/coverHandoff.ts`).
+- Now Playing rises from the foot on the spring on a phone and in a browser, its cover
+  travelling from where the mini player's or the bar's was (`ui/coverHandoff.ts`), and sinks
+  back before the route changes; an iPad's stack slides it, 380 ms. The cover shrinks to
+  0.84 on pause over 400 ms and grows back on the spring. The desktop stage's chrome fades
+  out over 400 ms when the mouse is still and back in 100 ms when it moves.
 - A row that starts playing washes in its colour from the left, 260 ms, and its equaliser
-  wakes behind it. With a mouse a row's controls fade in over 100 ms and out over 140.
-- Moving a song in Up next lifts the held row to 1.04 in 120 ms and the rows it passes step
-  aside, 180 ms each. On a computer Up next slides in from the right on the spring.
+  wakes behind it; both draw back as the song moves on. The equaliser's bars keep their
+  phase across a pause. With a mouse a row's controls fade in over 100 ms and out over 140,
+  and the row's fill warms and cools on the same clocks.
+- Moving a song in Up next, a playlist or the rail: the row swells a little while the hold
+  is counted (`MOVE_MS.hold`, one length everywhere), lifts to 1.04 in 120 ms, the rows it
+  passes step aside, 180 ms each, and letting go settles it on the spring with a tap. On a
+  computer Up next slides in from the right on the spring.
+- The selection bar rises on a phone as a sheet does and sinks away; on a computer it comes
+  down from under the head rather than shoving the list.
 
-Not built: the cover travelling from a row or the mini player into Now Playing, and a tile
-stretching into its page — both need shared elements. Looping indicators — the spinner, the
-equalizer — are left alone under Reduce Motion, because they are saying that something is
-still happening.
+Still not built: true shared elements. The cover and the tile travel from a measured frame
+instead, which is the same picture on every device the app runs on. Looping indicators — the
+spinner, the equalizer — are left alone under Reduce Motion, because they are saying that
+something is still happening.
 
 ## Focus and interaction
 

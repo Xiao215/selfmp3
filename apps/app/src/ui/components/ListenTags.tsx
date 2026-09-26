@@ -38,9 +38,7 @@ import { card, label as labelText } from '../surfaces'
  * label sits beside its chips and the chips are the compact size. On a phone
  * the label goes above them, the chips are finger-sized, and the summary and
  * Done take a row of their own along the foot rather than being squeezed in
- * beside the search. The tags used most carry no label at all: they are what
- * the panel opens on, and naming them spent a quarter of a phone's width
- * saying so.
+ * beside the search.
  */
 export function ListenTags({
   open,

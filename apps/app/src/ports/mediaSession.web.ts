@@ -61,7 +61,7 @@ function handlers(actions: MediaSessionActions | null): void {
       media.setActionHandler(action, handler)
     } catch {
       // A browser that does not know this action. Chromium knows them all;
-      // this is here so one unknown action cannot cost the other five.
+      // this is here so one unknown action cannot cost the other six.
     }
   }
   if (!actions) {

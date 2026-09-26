@@ -90,12 +90,12 @@ describe('now playing', () => {
   })
 
   it('lays the page out as the web does at 1280 by 816', () => {
-    const g = stageGeometry(1280, 816)
-    expect(g.cover).toBe(400)
-    expect(g.pad).toBe(64)
-    expect(g.pad + g.cover + g.gutter).toBe(528)
-    expect(g.right).toBeCloseTo(51.2)
-    expect(g.lyric).toBeCloseTo(29.44)
+    const geometry = stageGeometry(1280, 816)
+    expect(geometry.cover).toBe(400)
+    expect(geometry.pad).toBe(64)
+    expect(geometry.pad + geometry.cover + geometry.gutter).toBe(528)
+    expect(geometry.right).toBeCloseTo(51.2)
+    expect(geometry.lyric).toBeCloseTo(29.44)
   })
 
   it('stacks a page taller than wide, as an iPad in portrait (T05)', () => {

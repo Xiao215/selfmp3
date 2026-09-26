@@ -320,11 +320,11 @@ function Stage({
   // The page runs on under the player bar (`stagePage`), so what it lays out
   // in is its own height less the bar's, whether the bar is showing or not.
   const height = (size?.height ?? window.height) - PLAYER_BAR_HEIGHT
-  const g = useMemo(() => stageGeometry(width, height, top), [width, height, top])
+  const geometry = useMemo(() => stageGeometry(width, height, top), [width, height, top])
   // Nothing laid out moves between the modes: each piece is laid out where the
   // mode puts it and carried there (stageMove.model.ts says why).
   const move = useStageMove(focus)
-  const frame = wordsFrame(width, g, focus ? 1 : 0)
+  const frame = wordsFrame(width, geometry, focus ? 1 : 0)
 
   // Escape asks the mode when it is pressed, so the page listens once rather
   // than taking the listener off and putting it back on every render.
@@ -342,7 +342,7 @@ function Stage({
   const sampler = useMotionSampler(song, noLyrics)
   // Only on its own tab: About is text, and wants the calm ground.
   const showVisual = noLyrics && shownTab === 'lyrics'
-  const box = stageCover(g)
+  const box = stageCover(geometry)
   /*
    * The visual does not glide between the column and the window: a canvas
    * stretched from one to the other is a smear, and one resized every frame
@@ -411,7 +411,7 @@ function Stage({
   )
   // Stacked (`T05`), the tabs leave the head for a row under the cover, with
   // Romaji and expand at its other end.
-  const tabsRow = g.stacked && !focus ? stackedTabsTop(g) : null
+  const tabsRow = geometry.stacked && !focus ? stackedTabsTop(geometry) : null
 
   return (
     <Animated.View
@@ -461,7 +461,7 @@ function Stage({
           Focus: its artwork and its shadow shrink with it. */}
       <Moving
         move={move}
-        pose={m => coverPose(box, m, g.inset)}
+        pose={m => coverPose(box, m, geometry.inset)}
         style={[
           styles.cover,
           chrome,
@@ -479,19 +479,27 @@ function Stage({
         <View
           style={[
             styles.meta,
-            g.stacked
+            geometry.stacked
               ? // Beside the cover, as a tag page's name is.
-                { left: box.left + box.size + g.gutter, top: box.top + 16, right: g.right }
-              : { left: g.pad, top: box.top + box.size + 24, width: Math.max(g.cover, 280) },
+                {
+                  left: box.left + box.size + geometry.gutter,
+                  top: box.top + 16,
+                  right: geometry.right,
+                }
+              : {
+                  left: geometry.pad,
+                  top: box.top + box.size + 24,
+                  width: Math.max(geometry.cover, 280),
+                },
           ]}
         >
           <Text
             style={[
               styles.title,
               {
-                fontSize: g.title,
-                lineHeight: g.title * 1.15,
-                letterSpacing: -0.02 * g.title,
+                fontSize: geometry.title,
+                lineHeight: geometry.title * 1.15,
+                letterSpacing: -0.02 * geometry.title,
               },
             ]}
             numberOfLines={2}
@@ -593,7 +601,7 @@ function Stage({
           would move the sung line and re-centre every word. */}
       <Moving
         move={move}
-        pose={m => wordsPose(width, g, focus, m)}
+        pose={m => wordsPose(width, geometry, focus, m)}
         style={[
           styles.words,
           {
@@ -615,7 +623,7 @@ function Stage({
               parsed={words.parsed}
               roman={words.roman}
               focus={focus}
-              fontSize={focus ? g.focusLyric : g.lyric}
+              fontSize={focus ? geometry.focusLyric : geometry.lyric}
             />
           ) : noLyrics ? null : (
             <View style={styles.status}>
@@ -663,7 +671,7 @@ function Stage({
             <Text style={styles.context} pointerEvents="none">
               {contextLine(player.queue.shuffle, player.queue.index, player.queue.items.length)}
             </Text>
-            {g.stacked ? null : (
+            {geometry.stacked ? null : (
               <>
                 {tabList}
                 {stylePill}
@@ -674,7 +682,7 @@ function Stage({
       </View>
 
       {tabsRow !== null ? (
-        <View style={[styles.tools, chrome, { top: tabsRow, left: g.pad }]}>
+        <View style={[styles.tools, chrome, { top: tabsRow, left: geometry.pad }]}>
           {tabList}
           {stylePill}
         </View>
@@ -692,8 +700,8 @@ function Stage({
             focus
               ? { top: top + 15, right: 66 }
               : tabsRow !== null
-                ? { top: tabsRow + 4, right: g.right + 52 }
-                : { top: height - 48, right: g.right },
+                ? { top: tabsRow + 4, right: geometry.right + 52 }
+                : { top: height - 48, right: geometry.right },
           ]}
         >
           <Pressable
@@ -729,7 +737,9 @@ function Stage({
           style={({ pressed }) => [
             styles.expand,
             chrome,
-            focus ? { top: top + 12, right: 20 } : { top: tabsRow ?? top + 68, right: g.right },
+            focus
+              ? { top: top + 12, right: 20 }
+              : { top: tabsRow ?? top + 68, right: geometry.right },
             pressed && styles.expandPressed,
           ]}
         >
@@ -744,7 +754,7 @@ function Stage({
       <StageUpNext
         upNext={player.songs[player.queue.index + 1]}
         repeatOne={player.queue.repeat === 'one'}
-        right={g.right}
+        right={geometry.right}
         bottom={PLAYER_BAR_HEIGHT + (focus ? 28 : 64)}
         lowered={idle}
       />

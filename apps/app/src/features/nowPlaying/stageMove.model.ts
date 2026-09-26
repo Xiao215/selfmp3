@@ -66,8 +66,8 @@ interface CoverBox {
  * words' column rather than the window (`C10`) — so a song turning out to
  * have no words moves nothing on the page.
  */
-export function stageCover(g: StageGeometry): CoverBox {
-  return { left: g.pad, top: COVER_TOP + g.inset, size: g.cover }
+export function stageCover(geometry: StageGeometry): CoverBox {
+  return { left: geometry.pad, top: COVER_TOP + geometry.inset, size: geometry.cover }
 }
 
 /**
@@ -94,21 +94,21 @@ interface WordsFrame {
 }
 
 /** Where the lyrics column's edges are, `m` of the way from the stage to Focus. */
-export function wordsFrame(width: number, g: StageGeometry, m: number): WordsFrame {
+export function wordsFrame(width: number, geometry: StageGeometry, m: number): WordsFrame {
   // Stacked, the words start under the cover and the row of tabs below it.
-  const stage = g.stacked
-    ? { left: g.pad, top: stackedTabsTop(g) + STACKED_TABS_HEIGHT }
-    : { left: g.pad + g.cover + g.gutter, top: 60 + g.inset }
+  const stage = geometry.stacked
+    ? { left: geometry.pad, top: stackedTabsTop(geometry) + STACKED_TABS_HEIGHT }
+    : { left: geometry.pad + geometry.cover + geometry.gutter, top: 60 + geometry.inset }
   return {
     left: lerp(stage.left, width * 0.12, m),
-    right: lerp(g.right, width * 0.12, m),
-    top: lerp(stage.top, 56 + g.inset, m),
+    right: lerp(geometry.right, width * 0.12, m),
+    top: lerp(stage.top, 56 + geometry.inset, m),
   }
 }
 
 /** The row under a stacked page's cover: Lyrics and About, Romaji and expand (`T05`). */
-export function stackedTabsTop(g: StageGeometry): number {
-  return COVER_TOP + g.inset + g.cover + 24
+export function stackedTabsTop(geometry: StageGeometry): number {
+  return COVER_TOP + geometry.inset + geometry.cover + 24
 }
 const STACKED_TABS_HEIGHT = 52
 
@@ -118,9 +118,14 @@ const STACKED_TABS_HEIGHT = 52
  * lines wrap once rather than at every step; its left edge and top travel as
  * they did.
  */
-export function wordsPose(width: number, g: StageGeometry, focus: boolean, m: number): MovePose {
-  const at = wordsFrame(width, g, m)
-  const laidOut = wordsFrame(width, g, focus ? 1 : 0)
+export function wordsPose(
+  width: number,
+  geometry: StageGeometry,
+  focus: boolean,
+  m: number,
+): MovePose {
+  const at = wordsFrame(width, geometry, m)
+  const laidOut = wordsFrame(width, geometry, focus ? 1 : 0)
   return { translateX: at.left - laidOut.left, translateY: at.top - laidOut.top }
 }
 

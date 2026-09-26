@@ -15,7 +15,7 @@ import { DownloadQueue } from './queue.js'
  * The download queue, against a storage that does nothing but record.
  *
  * Written for `DownloadQueue`'s existing behaviour, because it had no tests at
- * all and is the only thing that lets the phone play with no signal. Two tests
+ * all and is the only thing that lets the phone play with no signal. Three tests
  * assert behaviour an earlier, phone-only version of it got wrong; they say so
  * where they are.
  */

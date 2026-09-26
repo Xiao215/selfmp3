@@ -23,11 +23,11 @@ import { useSlidingHighlight } from './SlidingHighlight'
  * Hand-rolled rather than expo-router's Tabs: the mini player floats directly
  * above it, and a custom bar is less code besides.
  *
- * Everything that is not a tab is reached from Home — the tags, You behind the
+ * Everything that is not a tab is reached from Home — the tags, Profile behind the
  * avatar, Import behind the + — so three tabs are enough. The current tab is a
  * white pill with dark ink, as a chosen chip is; neither is the accent, which
  * is kept for the button that commits. The pill slides to the tab you chose,
- * 200 ms (docs/ui-mock `M2`, 4), while the page steps in beside it (`Shell`).
+ * 160 ms (docs/ui-mock `M2`, 4 gives 200), while the page steps in beside it (`Shell`).
  *
  * Both float, on glass: a translucent fill that a browser also blurs. The page
  * runs on under them, so every list keeps room at its end (`useBottomInset`).

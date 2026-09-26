@@ -39,7 +39,7 @@ const ICONS: Record<ProfileRowId, typeof Settings> = {
 
 /**
  * Profile (`P31`): the person and whether this device is in step, this month as one
- * card that opens Stats, then Import, Report and Settings (you.model.ts).
+ * card that opens Stats, then Import, Report and Settings (profile.model.ts).
  *
  * Behind the avatar on a phone's Home; a computer reaches it from the name row
  * at the foot of its sidebar, and draws the same page at its own width.

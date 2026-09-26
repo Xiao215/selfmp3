@@ -77,7 +77,6 @@ type Handler = (input: {
   body: unknown
 }) => Promise<unknown>
 
-/** Routes as `METHOD /path`: `:id` for a number, `:uid` for a uid. */
 /**
  * The app's questions, answered from this device's own copy.
  *
@@ -100,6 +99,7 @@ export function createCloudRoutes(
     recordChanges,
   } = library
 
+  /** Routes as `METHOD /path`: `:id` for a number, `:uid` for a uid. */
   const ROUTES: ReadonlyArray<readonly [string, string, Handler]> = [
     ['GET', '/api/library', async ({ session }) => (await loadCloudLibrary(session)).library],
     ['GET', '/api/library/version', ({ session }) => cloudLibraryVersion(session)],
@@ -515,7 +515,7 @@ export function createCloudRoutes(
     )
   }
 
-  /** The numbers standing for `:id` in a path, or null when it is not this route. */
+  /** The `:id` and `:uid` segments a path filled in, or null when it is not this route. */
   function match(pattern: string, pathname: string): string[] | null {
     const want = pattern.split('/')
     const have = pathname.split('/')
@@ -523,8 +523,8 @@ export function createCloudRoutes(
     const params: string[] = []
     for (let i = 0; i < want.length; i++) {
       if (want[i] === ':id' || want[i] === ':uid') {
-        const pattern = want[i] === ':id' ? /^\d+$/ : /^[0-9a-f]{32}$/
-        if (!pattern.test(have[i] ?? '')) return null
+        const shape = want[i] === ':id' ? /^\d+$/ : /^[0-9a-f]{32}$/
+        if (!shape.test(have[i] ?? '')) return null
         params.push(have[i] ?? '')
       } else if (want[i] !== have[i]) {
         return null

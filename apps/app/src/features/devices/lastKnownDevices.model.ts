@@ -23,7 +23,7 @@ const StoredSchema = z.object({
   devices: z.array(KnownDeviceSchema),
 })
 
-/** What is written: the rows, and when the answer came. */
+/** The rows as one string for `prefs`, with everything that goes stale left off. */
 export function serializeKnownDevices(devices: readonly Device[], savedAt: number): string {
   const rows: KnownDevice[] = devices.map(device => ({
     id: device.id,

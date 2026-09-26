@@ -7,7 +7,7 @@ import type { Logger } from '../logger.js'
 import type { MotionCurveData } from './dsp.js'
 
 /**
- * Each song's motion curve (schemas/motion.ts), one JSON file per song under
+ * Each song's motion curve (packages/shared/src/schemas/motion.ts), one JSON file per song under
  * the data directory: `data/motion/<songId>.json`.
  *
  * Like the romaji in `LyricsCache`, it is output computed from the user's file

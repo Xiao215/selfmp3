@@ -9,7 +9,6 @@ import { APP_VERSION } from '../config.js'
 export function systemRoutes(container: Container): Router {
   const router = Router()
 
-  /** Left unauthenticated so a monitor or launchd check does not need a token. */
   router.get(
     '/health',
     route({}, ({ req }): Health => {

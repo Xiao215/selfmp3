@@ -91,7 +91,7 @@ describe('token parity with the web stylesheet', () => {
     const match = new RegExp(
       `--${name}:\\s*oklch\\(([\\d.]+)\\s+([\\d.]+)\\s+(var\\(--accent-hue\\)|[\\d.]+)\\)`,
     ).exec(CSS)
-    if (!match) throw new Error(`--${name} is not an oklch() token in tokens.css`)
+    if (!match) throw new Error(`--${name} is not an oklch() token in tokens.reference.css`)
     const [, l, c, h] = match
     return {
       l: Number(l),

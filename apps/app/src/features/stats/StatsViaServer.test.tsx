@@ -4,7 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { StatsViaServer } from './StatsViaServer'
 
 // expo-router ships its navigation package untranspiled, which jest cannot
-// read. The page only reaches it for the phone's "‹ You" row and the Report link.
+// read. The page only reaches it for the phone's "‹ Profile" button and the Report link.
 jest.mock('expo-router', () => ({
   useRouter: () => ({ back: () => undefined, replace: () => undefined, canGoBack: () => false }),
   useNavigation: () => ({ getState: () => undefined }),

@@ -81,7 +81,6 @@ function cachesAvailable(): boolean {
 /**
  * Whether this browser can keep songs at all. The Cache API only exists in a
  * secure context, so a phone on plain `http://192.168…` has none of this — and
- * it cannot store for the installed desktop app's own scheme either.
  */
 export function offlineStorageAvailable(): boolean {
   return cachesAvailable()

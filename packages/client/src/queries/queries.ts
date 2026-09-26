@@ -842,7 +842,7 @@ export function useFixCovers() {
  * nothing rather than another song's neighbours — but so that a page laid out
  * around "this song has neighbours" does not spend the moment between two
  * songs laid out around "it has none" and rearrange itself when the answer
- * lands. See `similarShelfLayout`.
+ * lands.
  */
 export function useSimilar(songId: number | null, limit = 12): UseQueryResult<SimilarSongs, Error> {
   return useQuery({

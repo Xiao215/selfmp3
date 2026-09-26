@@ -105,22 +105,22 @@ export function pickCoverTone(pixels: ArrayLike<number>): CoverTone | null {
     if ((weight[bin] ?? 0) > (weight[best] ?? 0)) best = bin
   }
 
-  const total = weight[best] ?? 0
+  const bestWeight = weight[best] ?? 0
   // Judged on all the colour in the cover, not the winning hue's share of it:
   // a cover split between green trees and a blue sky has plenty, spread over a
   // few bins, and was taken for grey.
   let colour = 0
   for (const binWeight of weight) colour += binWeight
-  if (total === 0) return grey
+  if (bestWeight === 0) return grey
   const colourfulness = colour / counted
   // Little colour, but all of it one colour — beige paper, a sepia print — is
   // a colour, where the same little spread over every hue is a grey with noise.
-  const soft = colourfulness >= MIN_SOFT_COLOURFULNESS && total / colour >= SOFT_MAJORITY
+  const soft = colourfulness >= MIN_SOFT_COLOURFULNESS && bestWeight / colour >= SOFT_MAJORITY
   if (colourfulness < MIN_COLOURFULNESS && !soft) return grey
 
   const hue = ((Math.atan2(sinSum[best] ?? 0, cosSum[best] ?? 0) * 180) / Math.PI + 360) % 360
   // Chroma-weighted mean chroma: the vivid pixels of the winning hue decide.
-  return { hue, chroma: (chroma[best] ?? 0) / total, palette }
+  return { hue, chroma: (chroma[best] ?? 0) / bestWeight, palette }
 }
 
 /** How many colours a cover is summed up in. */

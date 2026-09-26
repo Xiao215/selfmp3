@@ -283,7 +283,7 @@ function BarSlot({ hidden }: { hidden: boolean }): ReactNode {
 
 /**
  * The page, stepping in as it changes (docs/ui-mock `M2`, 4 and `M3`, 5): on a
- * phone a few points from the side of the tab it belongs to, 200 ms; on a
+ * phone a few points from the side of the tab it belongs to, 160 ms; on a
  * computer from a few points below, 180, while the sidebar and the bar hold
  * still. `pageStep.ts` says which changes count.
  *

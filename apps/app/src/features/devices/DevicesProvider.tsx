@@ -24,7 +24,7 @@ import {
   translateCommand,
   translateState,
   type Reach,
-  type SongIdMap,
+  type SongIdLookup,
 } from '@selfmp3/client'
 
 import { apiFor, mediaUrlFor } from '../../api/client'
@@ -39,7 +39,7 @@ import { usePresenceServer } from './usePresenceServer'
  * Presence, handoff and remote control.
  *
  * The heartbeat is HTTP and a clock, the handoff rules are `handoffTarget` in
- * `packages/client`, and the live stream comes through the `ServerEvents` port.
+ * `packages/client`, and the live stream comes through the `ServerEventStream` port.
  *
  * It sits *inside* `PlayerProvider` rather than around it, so the player stays
  * untouched by any of this: this reads the player to build a heartbeat and
@@ -149,8 +149,8 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
    * sent before then must say nothing rather than say a number.
    */
   const ids = useServerSongIds(fromCloud && server ? server : undefined)
-  const outbound: SongIdMap = fromCloud ? ids.onServer : null
-  const inbound: SongIdMap = fromCloud ? ids.onDevice : null
+  const outbound: SongIdLookup = fromCloud ? ids.onServer : null
+  const inbound: SongIdLookup = fromCloud ? ids.onDevice : null
 
   /*
    * Mirrors, kept in step after each commit rather than during render.
@@ -167,8 +167,8 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
   const devicesRef = useRef<readonly Device[]>([])
   const executeRef = useRef<(command: DeviceCommand) => void>(() => undefined)
   const apiRef = useRef<DevicesApi | null>(api)
-  const outboundRef = useRef<SongIdMap>(outbound)
-  const inboundRef = useRef<SongIdMap>(inbound)
+  const outboundRef = useRef<SongIdLookup>(outbound)
+  const inboundRef = useRef<SongIdLookup>(inbound)
 
   useEffect(() => {
     playerRef.current = player
@@ -269,8 +269,6 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
     return () => clearInterval(timer)
   }, [beat, server])
 
-  // --- incoming: the stream ------------------------------------------------
-
   /**
    * Send a command, in the numbering the far side uses.
    *
@@ -289,6 +287,8 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
     })
     return true
   }, [])
+
+  // --- incoming: the stream ------------------------------------------------
 
   const onEvent = useCallback(
     (event: ServerEvent): void => {

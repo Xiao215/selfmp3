@@ -204,7 +204,7 @@ export const CloudDownload = ({ color: colorGiven, tone, ...rest }: IconProps): 
 /**
  * Taking a song off this device: the same cloud, with the arrow replaced by a
  * cross rather than a different shape altogether — undownloading is the
- * download undone, and the mock draws it as the cloud either way (`S5`).
+ * download undone, and the mock draws it as the cloud either way (`S3`).
  */
 export const CloudRemove = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
   const color = useInk(colorGiven, tone)
@@ -245,10 +245,6 @@ export const Downloaded = ({
   )
 }
 
-/**
- * Not on this device: the downloaded disc's counterpart, drawn as an outline
- * so it reads as the same mark, not yet filled in.
- */
 /**
  * A song that is not on this device: the cloud it is in, and nothing else.
  *
@@ -534,7 +530,7 @@ export const ChevronDown = ({ color: colorGiven, tone, ...rest }: IconProps): Re
   )
 }
 
-/** Native only: a stack has a back edge, which the web's router never draws. */
+/** The way back: a stack's back edge, and a page's own back button. */
 export const ChevronLeft = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
   const color = useInk(colorGiven, tone)
   return (

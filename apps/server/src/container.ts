@@ -283,7 +283,6 @@ export function createContainer(configured: Config): Container {
     () => settings.get().ytCookieSource !== 'none',
   )
 
-  // Cookie settings are read per call, so a change applies without a restart.
   const ytdlp = new YtDlpService(logger, () => settings.get(), throttle)
   const youtubeMusicArtists = new YouTubeMusicArtists(logger)
   const artistBackdrops = new ArtistBackdropService(config, songs, youtubeMusicArtists, logger)

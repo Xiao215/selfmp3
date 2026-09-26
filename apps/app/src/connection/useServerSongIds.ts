@@ -1,6 +1,12 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { clientApi, queryKeys, songIds, type ServerConnection, type SongIds } from '@selfmp3/client'
+import {
+  clientApi,
+  queryKeys,
+  songIdTranslation,
+  type ServerConnection,
+  type SongIdTranslation,
+} from '@selfmp3/client'
 import { apiFor } from '../api/client'
 
 /**
@@ -15,7 +21,7 @@ import { apiFor } from '../api/client'
  * Both lists change only when a library gains songs, so they are held for a
  * while rather than fetched per screen.
  */
-export function useServerSongIds(via: ServerConnection | undefined): SongIds {
+export function useServerSongIds(via: ServerConnection | undefined): SongIdTranslation {
   const baseUrl = via?.baseUrl
 
   const mine = useQuery({
@@ -33,5 +39,5 @@ export function useServerSongIds(via: ServerConnection | undefined): SongIds {
   })
 
   // A pass over both libraries; only a library gaining songs changes the answer.
-  return useMemo(() => songIds(mine.data, theirs.data), [mine.data, theirs.data])
+  return useMemo(() => songIdTranslation(mine.data, theirs.data), [mine.data, theirs.data])
 }

@@ -4,7 +4,7 @@ import { answerRange, parseRange } from './range.js'
 /**
  * Range parsing is the single most bug-prone piece of the streaming path, and
  * getting it wrong breaks seeking on the phone in ways that are painful to
- * debug from a browser. So it gets the most thorough test in the server.
+ * debug from a browser. So it gets the most thorough test in the repository.
  */
 describe('parseRange', () => {
   const SIZE = 1000

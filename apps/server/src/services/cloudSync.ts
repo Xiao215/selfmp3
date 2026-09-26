@@ -109,7 +109,6 @@ const SNAPSHOTS_KEPT = 3
  */
 const LOG_POLL_MS = 10 * 60_000
 
-/** Log files read at once. */
 const LOG_READS_AT_ONCE = 6
 
 /**
@@ -1087,9 +1086,7 @@ export class CloudSyncService {
       return
     }
 
-    // Listing is separate from reading, as it is in the guard: an empty
-    // snapshots folder is a fact — the bucket has no library — and the ordinary
-    // first run. Failing to list is not that fact.
+    // Listing is separate from reading, for the reason #refuseToLoseLibrary gives.
     let newest: string | null
     try {
       newest = newestSnapshotKey((await store.list(SNAPSHOTS_FOLDER)).map(object => object.key))
@@ -1540,8 +1537,6 @@ export class CloudSyncService {
     this.#lastSnapshotAt = snapshot.writtenAt
 
     try {
-      // The folder is listed once; from then on this device knows what it
-      // wrote and what it deleted, which is all pruning its own needs.
       const keys =
         this.#snapshotKeys ?? (await store.list(SNAPSHOTS_FOLDER)).map(object => object.key)
       if (!keys.includes(key)) keys.push(key)

@@ -158,7 +158,7 @@ export type BulkLoved = z.infer<typeof BulkLovedSchema>
  * pausing); the server just records what it is told and derives stats later.
  */
 export const PlayEventSchema = z.object({
-  /** Seconds of audio actually heard. */
+  /** Milliseconds of audio actually heard. */
   msPlayed: z
     .number()
     .int()

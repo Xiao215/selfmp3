@@ -87,7 +87,7 @@ const DESTINATIONS: {
   // Import and Stats both need the server itself. A cloud library reaches it by
   // the addresses in its last sync and says so when it cannot, which is the
   // page's business — leaving the row out instead said the feature did not exist.
-  // Stats keeps a row of its own on a computer; on a phone it is under You
+  // Stats keeps a row of its own on a computer; on a phone it is under Profile
   // (docs/UI-MIGRATION.md, Open question 7).
   { href: '/import', label: 'Import', Icon: Download },
   { href: '/stats', label: 'Stats', Icon: BarChart },
@@ -460,7 +460,7 @@ function Tags(): ReactNode {
         {!library && !adding ? (
           // Not "no tags yet": with the library unreachable or still coming,
           // this device does not know whether there are any.
-          <Text style={[styles.hint, styles.pinHint]}>Tags load with your library.</Text>
+          <Text style={[styles.hint, styles.loadingHint]}>Tags load with your library.</Text>
         ) : null}
         {library && tags.length === 0 && !adding ? (
           <View style={styles.tagEmpty}>
@@ -688,7 +688,7 @@ const styles = StyleSheet.create(theme => ({
     borderColor: 'transparent',
   },
   playlistName: { flex: 1, color: theme.colors.textSecondary, fontSize: 13 },
-  pinHint: { paddingHorizontal: 10, paddingVertical: 4 },
+  loadingHint: { paddingHorizontal: 10, paddingVertical: 4 },
   dropping: {
     borderStyle: 'dashed',
     backgroundColor: theme.colors.surface2,

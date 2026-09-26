@@ -45,7 +45,7 @@ import type { DeviceCommand, PlaybackState } from '@selfmp3/shared'
  * already number songs the same way — and everything below then passes its
  * argument straight through.
  */
-export type SongIdMap = ((songId: number) => number | undefined) | null
+export type SongIdLookup = ((songId: number) => number | undefined) | null
 
 /** A state with nothing anyone can act on, which is what a blanked one is. */
 function unnamed(state: PlaybackState): PlaybackState {
@@ -59,7 +59,7 @@ function unnamed(state: PlaybackState): PlaybackState {
  * any song, so they cross unchanged: a device playing something the other
  * library has never heard of is still a device that is playing.
  */
-export function translateState(state: PlaybackState, into: SongIdMap): PlaybackState {
+export function translateState(state: PlaybackState, into: SongIdLookup): PlaybackState {
   if (into === null) return state
   if (state.songId === null) return unnamed(state)
 
@@ -85,7 +85,7 @@ export function translateState(state: PlaybackState, into: SongIdMap): PlaybackS
  * Only `playSong` carries a song. `transfer` carries a device id, and the
  * state it goes on to read has already been translated by the time it is read.
  */
-export function translateCommand(command: DeviceCommand, into: SongIdMap): DeviceCommand | null {
+export function translateCommand(command: DeviceCommand, into: SongIdLookup): DeviceCommand | null {
   if (into === null) return command
   if (command.type !== 'playSong') return command
 

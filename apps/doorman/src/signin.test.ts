@@ -71,8 +71,7 @@ describe('the state', () => {
       `${other}.${mac}`,
       // A MAC's first character is six bits of it, so this is another MAC.
       `${payload}.${mac.startsWith('A') ? 'B' : 'A'}${mac.slice(1)}`,
-      // Its last is four bits of the MAC and two bits of nothing, so this is
-      // the same MAC, spelled a way no encoder writes it.
+      // The same MAC, respelled — which no encoder would write.
       `${payload}.${respell(mac)}`,
       `${payload}.`,
       `.${mac}`,

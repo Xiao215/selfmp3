@@ -110,11 +110,6 @@ describe('download', () => {
     expect(await readFile(join(songs, '1.m4a'), 'utf8')).toBe('hello')
   })
 
-  /*
-   * The case that used to take the whole main process down: the disk fails a
-   * write that had already returned `true`, so the stream's `error` fires
-   * while the loop is waiting on the network and nobody is waiting on `drain`.
-   */
   it('says what a refusal said, not only its status', async () => {
     const refused = {
       ok: false,
@@ -149,6 +144,11 @@ describe('download', () => {
     ).rejects.toThrow('502 from doorman.example: error code: 1027')
   })
 
+  /*
+   * The case that used to take the whole main process down: the disk fails a
+   * write that had already returned `true`, so the stream's `error` fires
+   * while the loop is waiting on the network and nobody is waiting on `drain`.
+   */
   it('fails the download, not the process, when the disk errors between writes', async () => {
     const stalled = respond(200, [bytes('hel')], () => {
       // The first chunk is written; now the network goes quiet and the disk gives out.

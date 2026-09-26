@@ -6,7 +6,7 @@ import { durationWords, formatHour, peakHour, peakHourWords } from '../stats/sta
  * The Profile page, without the screen (`P31`): who you are and whether this device
  * is in step, this month as one card that opens Stats, then three rows.
  *
- * On a phone You is behind the avatar on Home, and Stats lives under it (Open
+ * On a phone Profile is behind the avatar on Home, and Stats lives under it (Open
  * question 7). A computer reaches it from the name row at the foot of its
  * sidebar, and keeps Stats as a sidebar row as well.
  */
@@ -51,7 +51,7 @@ export function profileRows({ place }: { place: DevicePlace }): readonly Profile
 /**
  * The name at the top. Not every kind of library knows one: a server signed in
  * to Google does, a device reading the bucket does not, and a server with no
- * cloud has nobody to ask. Without one the page is just "You", and the mark
+ * cloud has nobody to ask. Without one the page is just "Profile", and the mark
  * shows the figure rather than a letter.
  */
 export function profileName(accountName: string | null | undefined): {

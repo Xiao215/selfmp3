@@ -500,7 +500,6 @@ export class ImportQueueService {
         await this.#covers.saveFromUrl(songId, thumbnail)
       }
 
-      // Per-import tags plus the global defaults.
       const tagIds = new Set([...job.tagIds, ...settings.defaultImportTagIds])
       for (const tagId of this.#tags.exists([...tagIds])) {
         this.#tags.addToSong(songId, tagId)

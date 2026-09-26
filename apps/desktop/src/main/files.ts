@@ -314,7 +314,6 @@ async function sizeOf(path: string): Promise<number> {
   }
 }
 
-/** For an error message, because a URL with a token in it should not be one. */
 /** How much of a refusal's body is worth repeating. */
 const QUOTED_BYTES = 240
 
@@ -347,6 +346,7 @@ async function refusal(response: Response, url: string): Promise<string> {
   return words ? `${head}: ${words}` : head
 }
 
+/** For an error message, because a URL with a token in it should not be one. */
 function hostOf(url: string): string {
   try {
     return new URL(url).host

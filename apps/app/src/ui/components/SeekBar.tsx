@@ -202,13 +202,7 @@ export function SeekBar({
         accessibilityRole="adjustable"
         accessibilityLabel="Seek"
         accessibilityValue={{ min: 0, max: Math.round(duration), now: Math.round(shown) }}
-        /*
-         * The same numbers again as ARIA props: `react-native-web` renders
-         * `accessibilityRole="adjustable"` as `role="slider"` and then drops
-         * `accessibilityValue`, leaving a slider that announces no position.
-         * React Native maps these to the same place, so it is the one
-         * spelling that works on both.
-         */
+        /* The same ARIA props as the inline bar above, for the same reason. */
         aria-valuemin={0}
         aria-valuemax={Math.round(duration)}
         aria-valuenow={Math.round(shown)}

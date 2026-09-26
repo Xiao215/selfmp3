@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { PanResponder, Text, View, type LayoutChangeEvent } from 'react-native'
+import { Animated, PanResponder, Text, View, type LayoutChangeEvent } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { formatDuration } from '@selfmp3/shared'
 import type { LoopRegion } from '@selfmp3/client'
 import { useAccent } from '../accent'
 import { space, type, withAlpha } from '@selfmp3/client'
+import { spring } from '../motion'
 import { SEEK_STEP_SECONDS } from '../../player/progress.model'
 
 /**
@@ -113,6 +114,32 @@ export function SeekBar({
 
   const shown = dragging ?? held ?? position
   const ratio = duration > 0 ? Math.max(0, Math.min(1, shown / duration)) : 0
+  /*
+   * How far along, rounded to a tenth of a per cent. `ProgressWash.tsx` (45-59)
+   * explains this at length and the reason is the same one: on the web every
+   * distinct value written into a style becomes its own atomic CSS rule, and an
+   * unrounded width from a position that ticks several times a second is a new
+   * rule every tick, for the length of every song. A tenth still moves the fill
+   * about a point and a half a tick — as often as the thumb itself moves, so
+   * nothing looks like it is lagging its song — and there are only a thousand
+   * such values, reused by every song, so the sheet stops growing.
+   */
+  const tenths = Math.round(ratio * 1000)
+  const at = tenths / 1000
+  /** The fill as a share of the track, so the rounded values repeat whatever the width. */
+  const fillWidth = `${tenths / 10}%` as const
+
+  /*
+   * The thumb swells under the finger. On the spring, as every press in the app
+   * is (`M1`, "Press"): it was a style flip from 1 to 1.2 and back, the one
+   * control in the app that jumped where everything around it sinks.
+   */
+  const grabbing = dragging !== null
+  const [grabbed] = useState(() => new Animated.Value(1))
+  useEffect(() => {
+    spring(grabbed, grabbing ? THUMB_GRABBED : 1)
+  }, [grabbing, grabbed])
+  const [thumbScale] = useState(() => ({ transform: [{ scale: grabbed }] }))
 
   /** A screen reader's swipe up or down: a step along, as the keyboard seeks. */
   const onAccessibilityAction = (event: { nativeEvent: { actionName: string } }): void => {
@@ -173,17 +200,15 @@ export function SeekBar({
                 style={[
                   styles.fill,
                   inline && styles.fillInline,
-                  { width: width * ratio, backgroundColor: fill },
+                  { width: fillWidth, backgroundColor: fill },
                 ]}
               />
-              <View
+              <Animated.View
                 style={[
                   styles.thumb,
                   inline && styles.thumbInline,
-                  {
-                    left: Math.max(0, width * ratio - (inline ? THUMB_INLINE : THUMB) / 2),
-                    transform: [{ scale: dragging === null ? 1 : 1.2 }],
-                  },
+                  { left: Math.max(0, width * at - (inline ? THUMB_INLINE : THUMB) / 2) },
+                  thumbScale,
                 ]}
               />
             </View>
@@ -232,15 +257,9 @@ export function SeekBar({
         ) : null}
         {/* Draws only: a touch on the thumb must reach the bar, see the responder. */}
         <View pointerEvents="none" style={styles.track}>
-          <View style={[styles.fill, { width: width * ratio, backgroundColor: fill }]} />
-          <View
-            style={[
-              styles.thumb,
-              {
-                left: Math.max(0, width * ratio - THUMB / 2),
-                transform: [{ scale: dragging === null ? 1 : 1.2 }],
-              },
-            ]}
+          <View style={[styles.fill, { width: fillWidth, backgroundColor: fill }]} />
+          <Animated.View
+            style={[styles.thumb, { left: Math.max(0, width * at - THUMB / 2) }, thumbScale]}
           />
         </View>
       </View>
@@ -255,6 +274,8 @@ export function SeekBar({
 
 const THUMB = 16
 const THUMB_INLINE = 12
+/** How far the thumb swells while it is held. */
+const THUMB_GRABBED = 1.2
 
 const styles = StyleSheet.create(theme => ({
   /* `.player-progress`: the times either side, 11-point and tabular. */

@@ -30,15 +30,21 @@ export function parseView(value: unknown): PhoneView {
   return value === 'lyrics' ? 'lyrics' : 'cover'
 }
 
-/** The cover while paused, as a share of its size playing (`M1`, "The cover breathes"). */
+/**
+ * The cover while paused, as a share of its size playing (`M1`, "The cover
+ * breathes"). How long it takes to shrink is `MOVE_MS.breath`, with every other
+ * length in the app; growing back is the spring, which is why only one of the
+ * two is a length at all.
+ */
 export const PAUSED_COVER_SCALE = 0.84
-/** How long the cover takes to breathe in or out. */
-export const BREATH_MS = 400
 
-/** How far a pull must travel to count, or how quick a flick. */
-const SWIPE_DISTANCE = 140
+/**
+ * The least a flick may travel and still count. How far a slow pull must go, and
+ * how quick a flick has to be, are the caller's: they are `PULL` in
+ * `ui/motion.model.ts`, the same two numbers a sheet's pull is let go by, and a
+ * model file reads nothing from the UI — so the screen hands them in.
+ */
 const SWIPE_FLICK_DISTANCE = 48
-const SWIPE_FLICK_VELOCITY = 0.9
 
 /**
  * What a vertical pull on the phone page does once it is let go.
@@ -52,13 +58,21 @@ export function swipeOutcome({
   view,
   dy,
   vy,
+  close,
+  flick,
 }: {
   view: PhoneView
   dy: number
   vy: number
+  /** How far a slow pull must travel, in points: `PULL.close`. */
+  close: number
+  /** How quick a flick has to be, in points a second: `PULL.flick`. */
+  flick: number
 }): 'close' | 'lyrics' | 'cover' | null {
+  // A gesture's `vy` is points a millisecond, which is why the flick's points a
+  // second is divided.
   const far = (d: number, v: number): boolean =>
-    d > SWIPE_DISTANCE || (d > SWIPE_FLICK_DISTANCE && v > SWIPE_FLICK_VELOCITY)
+    d > close || (d > SWIPE_FLICK_DISTANCE && v > flick / 1000)
   if (far(dy, vy)) return view === 'cover' ? 'close' : 'cover'
   if (view === 'cover' && far(-dy, -vy)) return 'lyrics'
   return null

@@ -5,11 +5,12 @@ import type { StyleProp, ViewStyle } from 'react-native'
 import {
   laidOutRadius,
   MOVE_EASING,
-  MOVE_MS,
   moveKeyframes,
   type MovePose,
   type PoseAt,
 } from './stageMove.model'
+import { MOVE_MS } from '../../ui/motion.model'
+import { motionMs } from '../../ui/motion'
 
 /*
  * The move between the stage and Focus, in a browser and the desktop app.
@@ -24,7 +25,7 @@ import {
 const ease = Easing.bezier(...MOVE_EASING)
 const CSS_EASING = `cubic-bezier(${MOVE_EASING.join(', ')})`
 
-type Listener = (from: number, to: number) => void
+type Listener = (from: number, to: number, ms: number) => void
 
 export interface StageMove {
   /** Where the move is headed: 0 the stage, 1 Focus. */
@@ -36,26 +37,39 @@ interface Run {
   readonly from: number
   readonly to: number
   readonly start: number
+  /** How long this run was given, so a run cut short is read at the right point of its curve. */
+  readonly ms: number
 }
 
 export function useStageMove(focus: boolean): StageMove {
   const target = focus ? 1 : 0
   const listeners = useRef(new Set<Listener>())
   // Settled wherever the page opened: no move until the mode changes.
-  const run = useRef<Run>({ from: target, to: target, start: Number.NEGATIVE_INFINITY })
+  const run = useRef<Run>({ from: target, to: target, start: Number.NEGATIVE_INFINITY, ms: 0 })
 
   // Before the browser paints the new mode's layout, or it would flash there
   // for a frame before the animations pull it back to where it was.
   useLayoutEffect(() => {
     const now = performance.now()
     const current = run.current
-    const progress = ease(Math.min(1, (now - current.start) / MOVE_MS))
-    // Turned round part-way: from wherever it has got to, the whole length,
-    // as Animated.timing restarted from its current value.
+    /*
+     * Where the move has got to, eased: `m` is not the share of the time gone
+     * but the curve of it, so a turn half a second in leaves from the pose that
+     * is on screen and no frame repeats it.
+     *
+     * And it is given only the time the rest of the way is worth. The whole
+     * distance is 1 — the stage to Focus — so a run of `|to - at|` of it takes
+     * that share of `MOVE_MS.stageMove`: a reversal a tenth of the way along is
+     * a tenth-and-a-bit of the length, not another 520 ms of it. Without that
+     * the cover left an eased midpoint at full speed, slowed into a new
+     * ease-in, and read as two moves rather than one that changed its mind.
+     */
+    const progress = current.ms > 0 ? ease(Math.min(1, (now - current.start) / current.ms)) : 1
     const at = current.from + (current.to - current.from) * progress
     if (at === target && current.to === target) return
-    run.current = { from: at, to: target, start: now }
-    for (const listener of listeners.current) listener(at, target)
+    const ms = motionMs(MOVE_MS.stageMove * Math.abs(target - at))
+    run.current = { from: at, to: target, start: now, ms }
+    for (const listener of listeners.current) listener(at, target, ms)
   }, [target])
 
   const subscribe = useCallback((listener: Listener) => {
@@ -98,12 +112,15 @@ export function Moving({ move, pose, style, pointerEvents, children }: MovingPro
   const { subscribe } = move
 
   useLayoutEffect(() => {
-    const stop = subscribe((from, to) => {
+    const stop = subscribe((from, to, ms) => {
       const node = ref.current as unknown as Partial<Animatable> | null
       if (typeof node?.animate !== 'function') return
       running.current?.cancel()
+      // No length at all — less motion asked for — is simply the end pose,
+      // which React has already drawn: nothing to carry it there from.
+      if (ms <= 0) return
       running.current = node.animate(moveKeyframes(latestPose.current, from, to), {
-        duration: MOVE_MS,
+        duration: ms,
         easing: CSS_EASING,
       })
     })

@@ -18,6 +18,7 @@ import {
   HIT_TARGET,
   isDownloaded,
   loopRegionPercent,
+  motion,
   radius,
   space,
   type,
@@ -28,8 +29,10 @@ import {
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayer, usePlayerProgress, usePracticeState } from '../../player/PlayerProvider'
 import { useSongColor } from '../../ui/useSongColor'
-import { spring, timing, useEntrance } from '../../ui/motion'
-import { modalCoversScreen } from '../../ports/modalCoversScreen'
+import { ease, motionMs, spring, timing, useEntrance } from '../../ui/motion'
+import { MOVE_MS, PULL } from '../../ui/motion.model'
+import { takeCoverHandoff, type CoverFrame } from '../../ui/coverHandoff'
+import { leaveStage, setStageExit } from '../../shell/stageExit'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
@@ -70,7 +73,6 @@ import { tagLink } from '../tag/placeLinks'
 import { ArtistLinks } from './ArtistLinks'
 import { NowPlayingStage } from './NowPlayingStage'
 import {
-  BREATH_MS,
   parseView,
   PAUSED_COVER_SCALE,
   romanName,
@@ -124,10 +126,17 @@ export function NowPlayingScreen(): ReactNode {
  * nothing to go back to: Home is where closing it lands, as it is on a
  * computer (`NowPlayingStage`). Going back regardless did nothing at all, and
  * the router said so.
+ *
+ * Through `leaveStage`, so the page sinks to the foot before the route changes
+ * rather than being cut away under a router that swaps routes at once
+ * (`shell/stageExit.ts`, which the computer's page uses for the same reason).
+ * Two quick presses start one sink and go back once.
  */
 function putAway(router: ReturnType<typeof useRouter>): void {
-  if (router.canGoBack()) router.back()
-  else router.replace('/')
+  leaveStage(() => {
+    if (router.canGoBack()) router.back()
+    else router.replace('/')
+  })
 }
 
 function PhoneNowPlaying(): ReactNode {
@@ -208,31 +217,28 @@ function PhonePage({ song }: { song: Song }): ReactNode {
   const close = (): void => putAway(router)
   // The song's own page is a page of the app, not of this modal: the modal
   // goes down first, so back from the song lands where Now Playing was opened.
+  // Down and then along, not both at once, which is why the push is inside.
   const openSong = (): void => {
-    if (router.canGoBack()) router.back()
-    router.push(songLink(song.id))
+    leaveStage(() => {
+      if (router.canGoBack()) router.back()
+      router.push(songLink(song.id))
+    })
   }
 
-  // The view that just came in rises into place from the side it came from.
-  const [enter] = useState(() => new Animated.Value(1))
-  const shownView = useRef(view)
-  useEffect(() => {
-    if (shownView.current === view) return
-    shownView.current = view
-    enter.setValue(0)
-    spring(enter, 1)
-  }, [view, enter])
-  const viewStyle = {
-    opacity: enter,
-    transform: [
-      {
-        translateY: enter.interpolate({
-          inputRange: [0, 1],
-          outputRange: [view === 'lyrics' ? 48 : -48, 0],
-        }),
-      },
-    ],
-  }
+  /*
+   * The page's two views pass each other (`M2`, 1): the one arriving springs up
+   * from its own side and the one leaving slides back out to its, and both are
+   * there for the length of the move. The view that went used to be taken away
+   * in the frame the other was asked for, so the cover simply stopped existing
+   * and the words rose over the blurred ground alone.
+   *
+   * Each has a value of its own rather than the two sharing one, so turning
+   * round part-way is a spring retargeted from wherever the view has got to:
+   * setting a value to 0 and playing it again is what made a quick up-and-down
+   * jump back to the start.
+   */
+  const coverPresence = useViewPresence(view === 'cover', -VIEW_TRAVEL)
+  const wordsPresence = useViewPresence(view === 'lyrics', VIEW_TRAVEL)
 
   // The window's insets, from the provider at the root. A SafeAreaView measures
   // its own place on screen, and this page slides up from below: caught
@@ -249,25 +255,64 @@ function PhonePage({ song }: { song: Song }): ReactNode {
   // a move, so taps, the scrubber (which refuses to let go) and the scrolling
   // lyrics keep their own touches; on the words only a pull down is asked for,
   // since up is how they scroll. The page gives a little under the finger
-  // rather than following it: putting it away is the modal's own slide, the
+  // rather than following it: putting it away is the page's own slide down, the
   // one the chevron plays, so the two feel alike.
   const [pull] = useState(() => new Animated.Value(0))
-  const give = pull.interpolate({
-    inputRange: [-600, 0, 600],
-    outputRange: [-150, 0, 150],
-    extrapolate: 'clamp',
-  })
-  // Opening (docs/ui-mock `M2`, 1): on a phone the native modal slides the page
-  // up. In a browser the route is a page in the content area with no move of
-  // its own, so it rises from the foot itself, on the spring.
+  // Built once. A new interpolation each render drops and rebuilds the native
+  // node behind the whole page, which is everything on it.
+  const [give] = useState(() =>
+    pull.interpolate({
+      inputRange: [-600, 0, 600],
+      outputRange: [-PULL_GIVE, 0, PULL_GIVE],
+      extrapolate: 'clamp',
+    }),
+  )
+  /*
+   * Opening (docs/ui-mock `M2`, 1): the page rises from the foot of the display
+   * itself, on the spring, on a phone as in a browser. The navigator plays
+   * nothing for this route at phone width (`shell/pageStep.ts`) so that it can:
+   * the page's rise and the cover travelling up inside it are one move on one
+   * value, and a navigator sliding the page under them could not be told where
+   * the mini player's cover had been. An iPad is the stage, not this page, and
+   * there the stack's own slide is the move.
+   */
   const window = useWindowDimensions()
   const arrival = useEntrance()
-  const lift = modalCoversScreen
-    ? give
-    : Animated.add(
+  const lift = useMemo(
+    () =>
+      Animated.add(
         give,
         arrival.interpolate({ inputRange: [0, 1], outputRange: [window.height, 0] }),
-      )
+      ),
+    [give, arrival, window.height],
+  )
+  /*
+   * And closing. Whatever puts the page away — the chevron, a pull, the song's
+   * own page, the bar — goes through `leaveStage`, which plays this and then
+   * changes the route (`shell/stageExit.ts`).
+   *
+   * Running the arrival back to 0 is the rise in reverse: the page's place is a
+   * straight line in it, so the page carries on down from exactly where it is,
+   * a pull half way to the foot included, and the cover travels back down to
+   * the mini player's with it. Shorter than the arrival and on `ease.in`, as
+   * every exit is.
+   *
+   * Its own `Animated.timing` rather than `timing`, for the reason the stage's
+   * exit has one: what happens at the end is a route change, and that must not
+   * happen for an exit that was stopped part-way. `motionMs` is how it answers
+   * Reduce Motion instead, and at no length at all the page is simply gone.
+   */
+  useEffect(() => {
+    setStageExit(done => {
+      Animated.timing(arrival, {
+        toValue: 0,
+        duration: motionMs(MOVE_MS.sheetDown),
+        easing: ease.in,
+        useNativeDriver: true,
+      }).start(({ finished }) => done(finished))
+    })
+    return () => setStageExit(null)
+  }, [arrival])
   const pan = useMemo(() => {
     const settle = (): void => void spring(pull, 0)
     return PanResponder.create({
@@ -278,15 +323,35 @@ function PhonePage({ song }: { song: Song }): ReactNode {
       onPanResponderMove: (_event, gesture) =>
         pull.setValue(view === 'cover' ? gesture.dy : Math.max(0, gesture.dy)),
       onPanResponderRelease: (_event, gesture) => {
-        const outcome = swipeOutcome({ view, dy: gesture.dy, vy: gesture.vy })
+        const outcome = swipeOutcome({
+          view,
+          dy: gesture.dy,
+          vy: gesture.vy,
+          close: PULL.close,
+          flick: PULL.flick,
+        })
+        // Let go far enough down: the pull is left where the finger left it and
+        // the page goes on from there to the foot. It used to spring back to
+        // nothing and navigate in the same tick, so the page bounced up as the
+        // route changed under it and the two raced.
+        if (outcome === 'close') {
+          putAway(router)
+          return
+        }
         settle()
-        if (outcome === 'close') putAway(router)
-        else if (outcome === 'lyrics') router.setParams({ view: 'lyrics' })
+        if (outcome === 'lyrics') router.setParams({ view: 'lyrics' })
         else if (outcome === 'cover') router.setParams({ view: undefined })
       },
       onPanResponderTerminate: settle,
     })
   }, [pull, router, view])
+
+  // Where the mini player's cover was a moment before it pushed this route
+  // (`ui/coverHandoff.ts`). Taken once, and here rather than in the cover view:
+  // a page opened straight onto the words would otherwise have taken it stale,
+  // whole songs later. It is read against the page's arrival, so a cover that
+  // turns up after the page has risen is simply at rest.
+  const [handed] = useState(takeCoverHandoff)
 
   return (
     <Animated.View
@@ -319,8 +384,13 @@ function PhonePage({ song }: { song: Song }): ReactNode {
           ]}
         />
       </View>
-      <Animated.View style={[styles.screen, styles.overBackdrop, edges, viewStyle]}>
-        {view === 'cover' ? (
+      {/* Both views for the length of the move, one over the other, and only
+          the one being shown takes touches. */}
+      {coverPresence.mounted ? (
+        <Animated.View
+          pointerEvents={view === 'cover' ? 'auto' : 'none'}
+          style={[styles.screen, styles.viewLayer, styles.overBackdrop, edges, coverPresence.style]}
+        >
           <CoverView
             song={song}
             uri={uri}
@@ -334,8 +404,15 @@ function PhonePage({ song }: { song: Song }): ReactNode {
             onSleep={() => setSleepOpen(true)}
             onMore={() => setMoreOpen(true)}
             opening={arrival}
+            handed={handed}
           />
-        ) : (
+        </Animated.View>
+      ) : null}
+      {wordsPresence.mounted ? (
+        <Animated.View
+          pointerEvents={view === 'lyrics' ? 'auto' : 'none'}
+          style={[styles.screen, styles.viewLayer, styles.overBackdrop, edges, wordsPresence.style]}
+        >
           <WordsView
             song={song}
             uri={uri}
@@ -346,8 +423,8 @@ function PhonePage({ song }: { song: Song }): ReactNode {
             following={motionCaption(sampler.source)}
             onBack={() => setView('cover')}
           />
-        )}
-      </Animated.View>
+        </Animated.View>
+      ) : null}
 
       <MoreSheet
         song={song}
@@ -378,6 +455,51 @@ function PhonePage({ song }: { song: Song }): ReactNode {
   )
 }
 
+/** How far a view starts from and leaves to: the cover above, the words below. */
+const VIEW_TRAVEL = 48
+/** How far the page gives under a pull, however far the finger goes on. */
+const PULL_GIVE = 150
+
+interface ViewPresence {
+  readonly mounted: boolean
+  readonly style: {
+    readonly opacity: Animated.Value
+    readonly transform: readonly { translateY: Animated.AnimatedInterpolation<number> }[]
+  }
+}
+
+/**
+ * One of the page's two views: springing in from `from` points away, leaving
+ * back to it over `motion.base` on `ease.in`, and mounted until it has gone.
+ *
+ * `usePresence` is the app's answer for everything that arrives and leaves, and
+ * both of its ways are timed. This is a thing moving in space, which the boards
+ * put on the spring, so only the leaving is timed; the rest is `usePresence`,
+ * including asking to be mounted in the render so an arriving view never has a
+ * frame in which it is wanted and not there.
+ *
+ * Nothing is ever set back to 0 and played again: turning round part-way
+ * retargets whichever of the two is running from where the view has got to.
+ */
+function useViewPresence(shown: boolean, from: number): ViewPresence {
+  const [value] = useState(() => new Animated.Value(shown ? 1 : 0))
+  const [mounted, setMounted] = useState(shown)
+  if (shown && !mounted) setMounted(true)
+  const sent = useRef(shown)
+  useEffect(() => {
+    if (sent.current === shown) return
+    sent.current = shown
+    if (shown) spring(value, 1)
+    else timing(value, 0, motion.base, () => setMounted(false), { easing: ease.in })
+  }, [shown, value])
+  // Built once: `from` is the view's own side and never changes.
+  const [style] = useState(() => ({
+    opacity: value,
+    transform: [{ translateY: value.interpolate({ inputRange: [0, 1], outputRange: [from, 0] }) }],
+  }))
+  return { mounted, style }
+}
+
 /** The cover view (`P21`). */
 function CoverView({
   song,
@@ -392,6 +514,7 @@ function CoverView({
   onSleep,
   onMore,
   opening,
+  handed,
 }: {
   song: Song
   uri: string | null
@@ -399,6 +522,8 @@ function CoverView({
   noLyrics: boolean
   /** The page opening, 0 to 1; already 1 by the time the words have been and gone. */
   opening: Animated.Value
+  /** Where the mini player's cover was, for the page's cover to start from. */
+  handed: CoverFrame | null
   tagging: { line: string; stop: () => void } | null
   onClose: () => void
   onOpenSong: () => void
@@ -435,7 +560,7 @@ function CoverView({
         </IconButton>
       </View>
 
-      <BreathingCover song={song} uri={uri} onPress={onLyrics} opening={opening} />
+      <BreathingCover song={song} uri={uri} onPress={onLyrics} opening={opening} handed={handed} />
 
       <View style={styles.titleRow}>
         <View style={styles.titles}>
@@ -557,8 +682,22 @@ function CoverView({
   )
 }
 
-/** How small the cover starts as the page opens, before it grows into place. */
+/** How small the cover starts as the page opens with nowhere to have come from. */
 const COVER_OPENS_AT = 0.6
+
+/** The room the cover is centred in, where the page laid it out. */
+interface CoverRoom {
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+}
+
+type CoverTransform = (
+  | { translateX: Animated.AnimatedInterpolation<number> }
+  | { translateY: Animated.AnimatedInterpolation<number> }
+  | { scale: Animated.AnimatedMultiplication<number> }
+)[]
 
 /**
  * The cover, which breathes (`M1`, move 5): smaller while paused and full size
@@ -573,16 +712,19 @@ function BreathingCover({
   uri,
   onPress,
   opening,
+  handed,
 }: {
   song: Song
   uri: string | null
   onPress: () => void
   opening: Animated.Value
+  handed: CoverFrame | null
 }): ReactNode {
   const player = usePlayer()
   // The app's own width, not the window's (`shell/rootWidth.ts`).
   const { width } = useLayout()
-  const [room, setRoom] = useState<{ width: number; height: number } | null>(null)
+  const window = useWindowDimensions()
+  const [room, setRoom] = useState<CoverRoom | null>(null)
   const size = Math.max(
     120,
     Math.floor(room ? Math.min(room.width, room.height) : Math.min(width - space.lg * 2, 342)),
@@ -590,31 +732,71 @@ function BreathingCover({
 
   const [breath] = useState(() => new Animated.Value(player.isPlaying ? 1 : PAUSED_COVER_SCALE))
   useEffect(() => {
-    timing(breath, player.isPlaying ? 1 : PAUSED_COVER_SCALE, BREATH_MS)
+    // A pause is a settling and a play is a lift, so the two are not the same
+    // move backwards: it shrinks on a curve and grows back on the spring, which
+    // gives the cover the small living overshoot on play that a timed curve of
+    // the same length both ways cannot.
+    if (player.isPlaying) spring(breath, 1)
+    else timing(breath, PAUSED_COVER_SCALE, MOVE_MS.breath, undefined, { easing: ease.out })
   }, [player.isPlaying, breath])
-  // As the page opens the cover grows into its place (`M2`, 1): the nearest
-  // this app comes to the board's cover travelling up from the mini player,
-  // which would need shared elements it does not have.
-  const scale = useMemo(
-    () =>
-      Animated.multiply(
-        breath,
-        opening.interpolate({ inputRange: [0, 1], outputRange: [COVER_OPENS_AT, 1] }),
-      ),
-    [breath, opening],
-  )
+
+  /*
+   * The cover's travel from the mini player's (`M2`, 1), as two numbers and a
+   * ratio: the nearest this app comes to the board's shared element, and it
+   * needs no library, only where the other cover was.
+   *
+   * A scale holds a view's centre still, so the travel is centre to centre. The
+   * page is rising at the same time and on the same value, and that rise has to
+   * come out of these numbers: at the start the page sits a whole window height
+   * below where it will rest, so the cover is carried that much further up again
+   * to be left over the mini player's. Both are straight lines in the value —
+   * the only shape the native driver can run — and their sum is the line the
+   * cover is seen to take. At the end both are nothing, which is the cover's own
+   * place, so a cover that turns up after the page has risen (the words were
+   * showing when it opened) simply rests there.
+   *
+   * The room is measured against the page and the handed frame against the
+   * window, and the two are taken to be the same: this page covers the display
+   * from its top left corner, and in a browser at phone width the shell's
+   * content area starts there too.
+   */
+  const travel = useMemo(() => {
+    if (handed === null || room === null) return null
+    return {
+      x: handed.x + handed.size / 2 - (room.x + room.width / 2),
+      y: handed.y + handed.size / 2 - (room.y + room.height / 2) - window.height,
+      scale: handed.size / size,
+    }
+  }, [handed, room, size, window.height])
+
+  const transform = useMemo((): CoverTransform => {
+    const between = (a: number, b: number): Animated.AnimatedInterpolation<number> =>
+      opening.interpolate({ inputRange: [0, 1], outputRange: [a, b] })
+    // With nowhere to have come from — a lock-screen tap, an address — the cover
+    // grows into place where it is. The breath multiplies into the same scale
+    // either way, so a play or a pause while the page is opening compounds with
+    // it rather than fighting it.
+    if (travel === null) return [{ scale: Animated.multiply(breath, between(COVER_OPENS_AT, 1)) }]
+    return [
+      { translateX: between(travel.x, 0) },
+      { translateY: between(travel.y, 0) },
+      { scale: Animated.multiply(breath, between(travel.scale, 1)) },
+    ]
+  }, [breath, opening, travel])
 
   return (
     <View
       style={styles.art}
       onLayout={event => {
-        const { width: w, height: h } = event.nativeEvent.layout
+        const { x, y, width: w, height: h } = event.nativeEvent.layout
         setRoom(current =>
-          current?.width === w && current.height === h ? current : { width: w, height: h },
+          current?.x === x && current.y === y && current.width === w && current.height === h
+            ? current
+            : { x, y, width: w, height: h },
         )
       }}
     >
-      <Animated.View style={[styles.artShadow, { transform: [{ scale }] }]}>
+      <Animated.View style={[styles.artShadow, { transform }]}>
         <Pressable
           onPress={onPress}
           accessibilityRole="button"
@@ -856,6 +1038,9 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.lg,
   },
   overBackdrop: { backgroundColor: 'transparent' },
+  // The page's two views are laid one over the other while they pass, so neither
+  // takes its place in a column with the other.
+  viewLayer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   fill: {
     position: 'absolute',
     top: 0,

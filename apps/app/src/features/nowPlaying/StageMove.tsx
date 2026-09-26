@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Easing } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
-import { MOVE_EASING, MOVE_MS, type PoseAt } from './stageMove.model'
+import { MOVE_EASING, type PoseAt } from './stageMove.model'
+import { MOVE_MS } from '../../ui/motion.model'
 import { motionMs } from '../../ui/motion'
 
 /**
@@ -22,7 +23,7 @@ export function useStageMove(focus: boolean): StageMove {
   useEffect(() => {
     Animated.timing(value, {
       toValue: target,
-      duration: motionMs(MOVE_MS),
+      duration: motionMs(MOVE_MS.stageMove),
       easing: Easing.bezier(...MOVE_EASING),
       useNativeDriver: true,
     }).start()

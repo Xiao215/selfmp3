@@ -9,7 +9,8 @@ import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { LYRIC_ANCHOR, LYRIC_LEAD, MANUAL_SCROLL_MS } from './nowPlaying.model'
 import { glideToLine } from './lyricFollow.model'
 import { blurReach, lineTone, lyricBlur, type LineTone } from './stageLyrics.model'
-import { MOVE_MS } from './stageMove.model'
+import { MOVE_MS } from '../../ui/motion.model'
+import { motionMs, useMotionReduced } from '../../ui/motion'
 
 interface LyricsProps {
   parsed: ParsedLyrics
@@ -61,6 +62,9 @@ const LyricsList = memo(function LyricsList({
   const [boxHeight, setBoxHeight] = useState(0)
   const [hovered, setHovered] = useState<number | null>(null)
   const [layoutTick, setLayoutTick] = useState(0)
+  // The words follow the song by scrolling, and a scroll is a move: with less
+  // motion asked for they jump to the sung line instead of gliding to it.
+  const reduced = useMotionReduced()
   /** The content's last size, so only a real change of it counts as re-laid. */
   const contentSize = useRef({ width: -1, height: -1 })
   const lastManual = useRef(0)
@@ -98,14 +102,25 @@ const LyricsList = memo(function LyricsList({
     }
   }, [])
 
-  // The blur comes on once the words have finished moving into Focus, not in
-  // the same frame as the new size and the glide, where every blurred line
-  // was one more thing for that frame to draw. Leaving Focus takes it off at
-  // once — `blurring` below asks for Focus as well — which only makes the
-  // move lighter; `settled` itself is put back after, ready for next time.
+  /*
+   * The blur comes on once the words have finished moving into Focus, not in
+   * the same frame as the new size and the glide, where every blurred line
+   * was one more thing for that frame to draw. Leaving Focus takes it off at
+   * once — `blurring` below asks for Focus as well — which only makes the
+   * move lighter; `settled` itself is put back after, ready for next time.
+   *
+   * One step at the end of the glide rather than a blur that ramps with it,
+   * and that is on purpose: this is a browser-only effect. `ports/blurLayer`
+   * is a CSS `filter` on the web and nothing at all on a phone or an iPad
+   * (there is no per-view blur to give), so there is nothing to ramp on the
+   * platform whose native driver could have ramped it, and on the web a
+   * `filter` that changes on every one of forty lines for half a second is
+   * the most expensive half-second on the page. A step that lands after the
+   * move costs one repaint and is not seen arriving.
+   */
   const [settled, setSettled] = useState(focus)
   useEffect(() => {
-    const timer = setTimeout(() => setSettled(focus), focus ? MOVE_MS : 0)
+    const timer = setTimeout(() => setSettled(focus), focus ? motionMs(MOVE_MS.stageMove) : 0)
     return () => clearTimeout(timer)
   }, [focus])
 
@@ -137,11 +152,14 @@ const LyricsList = memo(function LyricsList({
       (_x, y, _width, height) => {
         // The content's top padding is the anchor's own height, so centring
         // the line on the anchor is scrolling to the line's middle.
-        scrollRef.current?.scrollTo({ y: Math.max(0, y + height / 2), animated: glide && !relaid })
+        scrollRef.current?.scrollTo({
+          y: Math.max(0, y + height / 2),
+          animated: glide && !relaid && !reduced,
+        })
       },
       () => undefined,
     )
-  }, [active, boxHeight, layoutTick, synced])
+  }, [active, boxHeight, layoutTick, synced, reduced])
 
   // Handed to every line, so they are the same functions from one drawing to
   // the next and a line whose look did not change is not drawn again.

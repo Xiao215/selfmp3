@@ -17,7 +17,12 @@ import type { StageGeometry } from './nowPlaying.model'
  * `m` is how far through the move: 0 is the stage, 1 is Focus.
  */
 
-export const MOVE_MS = 520
+/*
+ * How long the glide takes is `MOVE_MS.stageMove` in `ui/motion.model.ts`, with
+ * every other length in the app. A scalar named `MOVE_MS` lived here and
+ * shadowed that whole table wherever both were imported.
+ */
+
 /** The move's curve, as the four numbers of a cubic bézier. */
 export const MOVE_EASING = [0.2, 0.8, 0.2, 1] as const
 

@@ -12,7 +12,9 @@ import {
   swipeOutcome,
   upNextSeconds,
   playSimilarOrder,
+  type PhoneView,
 } from './nowPlaying.model'
+import { PULL } from '../../ui/motion.model'
 
 const SYNCED: ParsedLyrics = {
   synced: true,
@@ -21,6 +23,13 @@ const SYNCED: ParsedLyrics = {
     { time: 4, text: '知りたい' },
   ],
 } as ParsedLyrics
+
+/**
+ * A pull let go of, with the thresholds the screen hands in: `PULL` in
+ * `ui/motion.model.ts`, which the model cannot read for itself.
+ */
+const letGo = (pull: { view: PhoneView; dy: number; vy: number }) =>
+  swipeOutcome({ ...pull, close: PULL.close, flick: PULL.flick })
 
 const base = {
   loading: false,
@@ -140,20 +149,20 @@ describe('the phone page', () => {
   })
 
   it('puts the page away on a long pull down from the cover, and opens the words on one up', () => {
-    expect(swipeOutcome({ view: 'cover', dy: 200, vy: 0.2 })).toBe('close')
-    expect(swipeOutcome({ view: 'cover', dy: -200, vy: -0.2 })).toBe('lyrics')
+    expect(letGo({ view: 'cover', dy: 200, vy: 0.2 })).toBe('close')
+    expect(letGo({ view: 'cover', dy: -200, vy: -0.2 })).toBe('lyrics')
   })
 
   it('goes back to the cover from the words on a pull down, and ignores one up', () => {
-    expect(swipeOutcome({ view: 'lyrics', dy: 200, vy: 0.2 })).toBe('cover')
-    expect(swipeOutcome({ view: 'lyrics', dy: -200, vy: -2 })).toBeNull()
+    expect(letGo({ view: 'lyrics', dy: 200, vy: 0.2 })).toBe('cover')
+    expect(letGo({ view: 'lyrics', dy: -200, vy: -2 })).toBeNull()
   })
 
   it('counts a short quick flick, and springs back from a short slow pull', () => {
-    expect(swipeOutcome({ view: 'cover', dy: 60, vy: 1.2 })).toBe('close')
-    expect(swipeOutcome({ view: 'cover', dy: -60, vy: -1.2 })).toBe('lyrics')
-    expect(swipeOutcome({ view: 'cover', dy: 60, vy: 0.3 })).toBeNull()
-    expect(swipeOutcome({ view: 'cover', dy: 30, vy: 3 })).toBeNull()
+    expect(letGo({ view: 'cover', dy: 60, vy: 1.2 })).toBe('close')
+    expect(letGo({ view: 'cover', dy: -60, vy: -1.2 })).toBe('lyrics')
+    expect(letGo({ view: 'cover', dy: 60, vy: 0.3 })).toBeNull()
+    expect(letGo({ view: 'cover', dy: 30, vy: 3 })).toBeNull()
   })
 })
 

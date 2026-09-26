@@ -17,7 +17,7 @@ import type { NativeStackNavigationProp } from 'expo-router'
 import Svg, { Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
 import type { Rgb } from '@selfmp3/client'
-import { fonts, radius, rgba, tempoMark, useLibrary, withAlpha } from '@selfmp3/client'
+import { fonts, motion, radius, rgba, tempoMark, useLibrary, withAlpha } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { leaveStage, setStageExit } from '../../shell/stageExit'
@@ -28,6 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { setStageIdle } from '../../shell/stageIdle'
 import { useEscape } from '../../shell/useEscape'
 import { Cover } from '../../ui/components/Cover'
+import { useCrossfade } from '../../ui/components/CoverLight'
 import { EnergyWave } from '../../ui/components/EnergyWave'
 import { Chip } from '../../ui/components/Chip'
 import { IconButton } from '../../ui/components/IconButton'
@@ -48,7 +49,9 @@ import {
 } from './nowPlaying.model'
 import { useLayout } from '../../shell/useLayout'
 import { PLAYER_BAR_HEIGHT } from '../../shell/PlayerBar'
-import { ease, motionMs } from '../../ui/motion'
+import { ease, motionMs, timing, useFade, usePresence } from '../../ui/motion'
+import { MOVE_MS } from '../../ui/motion.model'
+import { takeCoverHandoff, type CoverFrame } from '../../ui/coverHandoff'
 import { StageLyrics } from './StageLyrics'
 import { Moving, useStageMove } from './StageMove'
 import { coverPose, stackedTabsTop, stageCover, wordsFrame, wordsPose } from './stageMove.model'
@@ -74,11 +77,6 @@ import { artShadow, floating, label } from '../../ui/surfaces'
  * rather than under them. Twenty everywhere without an inset title bar.
  */
 const HEAD_LEFT = titleBarInset > 0 ? 84 : 20
-/** Opening and putting the page away: quick enough never to be waited for. */
-const ENTER_MS = 260
-/** The visual finding its new place: it fades in there rather than gliding. */
-const VISUAL_FADE_MS = 240
-const LEAVE_MS = 180
 
 /**
  * The page for the song that is playing, on a computer.
@@ -160,8 +158,31 @@ function EmptyStage({ onClose }: { onClose: () => void }): ReactNode {
  *
  * Each bloom keeps the place and the size the views had, as a share of the
  * page, and the reach past its edges that let the light run on under the bar.
+ *
+ * A song change crossfades the whole set: the colours cannot go on the native
+ * driver, but two stacked sets of them can, and the page's colour was the one
+ * part of a song change that hard-cut while everything else about it was gentle
+ * (`useCrossfade`, which the page light needed first).
  */
 function CoverGlow({ palette }: { palette: readonly Rgb[] }): ReactNode {
+  const { layers, fade } = useCrossfade(palette, palette.map(rgba).join(' '))
+  return (
+    <>
+      {layers.map((layer, index) => (
+        <Animated.View
+          key={layer.key}
+          style={[styles.fill, index > 0 && { opacity: fade }]}
+          pointerEvents="none"
+        >
+          <GlowBlooms palette={layer.value} />
+        </Animated.View>
+      ))}
+    </>
+  )
+}
+
+/** One palette's three blooms. */
+function GlowBlooms({ palette }: { palette: readonly Rgb[] }): ReactNode {
   const id = `glow${useId().replace(/[^a-zA-Z0-9]/g, '')}`
   const ink = (index: number): Rgb => palette[index] ?? palette[0] ?? [0, 0, 0]
   const blooms = [
@@ -192,6 +213,55 @@ function CoverGlow({ palette }: { palette: readonly Rgb[] }): ReactNode {
       ))}
     </Svg>
   )
+}
+
+type CoverTravel = {
+  transform: (
+    | { translateX: Animated.AnimatedInterpolation<number> }
+    | { translateY: Animated.AnimatedInterpolation<number> }
+    | { scale: Animated.AnimatedInterpolation<number> }
+  )[]
+}
+
+/**
+ * The cover coming up from the player bar's (docs/ui-mock `M3`, 2), on the same
+ * value as the page's own arrival so the two are one move rather than two.
+ *
+ * `from` is where the bar's cover was drawn, in window points; the page lays
+ * this one out at `box`. A scale holds a view's centre still, so the travel is
+ * centre to centre: at the start the cover's centre is carried to the bar
+ * cover's and its side scaled to the bar cover's side, and at the end both are
+ * nothing, which is the page's own pose. Both ends are straight lines in the
+ * arrival, which is what the native driver can run.
+ *
+ * `box` is in the page's coordinates and `from` in the window's, and the two are
+ * taken to be the same: this page covers the display from its top left corner
+ * (it draws over the sidebar, and the shell's content area starts at the
+ * window's origin). Should it ever be inset, the travel would be off by that
+ * inset and the cover would arrive from slightly the wrong place.
+ *
+ * Nothing at all when nothing was handed over, and nothing worth running when
+ * the navigator is sliding the page itself (an iPad): there the arrival is
+ * already 1 and this rests at its end.
+ */
+function useCoverTravel(
+  from: CoverFrame | null,
+  box: { left: number; top: number; size: number },
+  arrival: Animated.Value,
+): CoverTravel | null {
+  const { left, top, size } = box
+  return useMemo(() => {
+    if (from === null || size <= 0) return null
+    const between = (a: number, b: number): Animated.AnimatedInterpolation<number> =>
+      arrival.interpolate({ inputRange: [0, 1], outputRange: [a, b] })
+    return {
+      transform: [
+        { translateX: between(from.x + from.size / 2 - (left + size / 2), 0) },
+        { translateY: between(from.y + from.size / 2 - (top + size / 2), 0) },
+        { scale: between(from.size / size, 1) },
+      ],
+    }
+  }, [from, left, top, size, arrival])
 }
 
 function Stage({
@@ -285,19 +355,26 @@ function Stage({
       }
     }
     setStageArriving(true)
+    /*
+     * These two run their own `Animated.timing` rather than going through
+     * `timing`: what happens at their end has to be told whether they landed.
+     * The exit changes the route, and a route change is not something to do on
+     * an exit that was stopped part-way — the page is still there. `motionMs`
+     * is how they answer Reduce Motion instead.
+     */
     Animated.timing(shown, {
       toValue: 1,
-      duration: motionMs(ENTER_MS),
+      duration: motionMs(MOVE_MS.stageEnter),
       easing: ease.out,
       useNativeDriver: true,
     }).start(() => setEntered(true))
-    setStageExit(then => {
+    setStageExit(done => {
       Animated.timing(shown, {
         toValue: 0,
-        duration: motionMs(LEAVE_MS),
+        duration: motionMs(MOVE_MS.stageLeave),
         easing: ease.in,
         useNativeDriver: true,
-      }).start(() => then())
+      }).start(({ finished }) => done(finished))
     })
     return () => {
       setStageExit(null)
@@ -336,27 +413,51 @@ function Stage({
    * stretched from one to the other is a smear, and one resized every frame
    * is a redraw at a new size every frame. It is laid out where the mode puts
    * it and fades in there, over the half-second the cover takes to travel.
+   *
+   * Arriving and leaving are the presence: it is kept for its own fade out
+   * rather than being taken away in one frame, and — the point of a presence
+   * over a value set to 0 in an effect — its first frame is already the frame
+   * the fade starts at. Started from an effect it painted once at full
+   * strength, in its new place, before being pulled back to nothing.
    */
-  const [visualFade] = useState(() => new Animated.Value(1))
+  const visualPresence = usePresence(showVisual, MOVE_MS.stageVisual, motion.fast, {
+    easeIn: Easing.out(Easing.quad),
+  })
+  /*
+   * And the same fade again when the mode changes, because the mode is what
+   * moves it: it is re-laid in the other place in one frame, so it fades in
+   * there too. A value of its own, multiplied into the presence's, since the
+   * presence is about being there at all and this is about having moved.
+   */
+  const [replaced] = useState(() => new Animated.Value(1))
+  const placedFor = useRef(focus)
   useEffect(() => {
-    if (!showVisual) return undefined
-    visualFade.setValue(0)
-    const run = Animated.timing(visualFade, {
-      toValue: 1,
-      duration: motionMs(VISUAL_FADE_MS),
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    })
-    run.start()
-    return () => run.stop()
-  }, [focus, showVisual, visualFade])
+    if (placedFor.current === focus) return
+    placedFor.current = focus
+    replaced.setValue(0)
+    timing(replaced, 1, MOVE_MS.stageVisual, undefined, { easing: Easing.out(Easing.quad) })
+  }, [focus, replaced])
+  const [visualFade] = useState(() => Animated.multiply(visualPresence.progress, replaced))
   const tabs: readonly (readonly [StageTab, string])[] = [
     ['lyrics', noLyrics ? 'Visual' : 'Lyrics'],
     ['about', 'About'],
   ]
   const tags = (library.data?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
   const features = song.audioFeatures
-  const chrome = { opacity: idle ? 0 : 1 }
+  /*
+   * The chrome while nothing moves. One value for all of it — the head, the
+   * cover, the tool rows, the expand button and the lift of the Up next card —
+   * so the page quietens as one thing rather than six switching off in the same
+   * frame. Out slowly: the viewer is reading lyrics and nothing should catch the
+   * eye going. Back at once, because a hand has reached for something.
+   */
+  const chromeShown = useFade(!idle, MOVE_MS.idleIn, MOVE_MS.idleOut)
+  const [chrome] = useState(() => ({ opacity: chromeShown }))
+  // Where the player bar's cover was a moment before it pushed this route, taken
+  // once: a second page asking finds nothing, and so does a page opened any other
+  // way (an address, a lock-screen tap), which is why there is a pose without it.
+  const [handed] = useState(takeCoverHandoff)
+  const coverTravel = useCoverTravel(handed, box, shown)
   // The title is not a row's own tap target, so it opens the song (Phase 5).
   // Pushed over the page, as a tag or an artist is, so back comes to it again.
   const openSong = (): void => router.push(songLink(song.id))
@@ -446,22 +547,27 @@ function Stage({
       />
 
       {/* Laid out at the stage's size always, and scaled into the header for
-          Focus: its artwork and its shadow shrink with it. */}
-      <Moving
-        move={move}
-        pose={m => coverPose(box, m, g.inset)}
+          Focus: its artwork and its shadow shrink with it. The travel from the
+          player bar, and the idle fade, are the wrapper's: the pose system
+          carries the piece between the two modes and owns every transform it
+          puts on it, so a second, outer transform is the one place another move
+          can be added without the two writing over each other. */}
+      <Animated.View
         style={[
-          styles.cover,
-          chrome,
+          styles.coverLift,
           { left: box.left, top: box.top, width: box.size, height: box.size },
+          chrome,
+          coverTravel,
         ]}
       >
-        {uri ? (
-          <Image source={{ uri }} style={styles.coverImage} resizeMode="cover" />
-        ) : (
-          <Cover uri={null} title={song.album || song.title} size={box.size} />
-        )}
-      </Moving>
+        <Moving move={move} pose={m => coverPose(box, m, g.inset)} style={styles.cover}>
+          {uri ? (
+            <Image source={{ uri }} style={styles.coverImage} resizeMode="cover" />
+          ) : (
+            <Cover uri={null} title={song.album || song.title} size={box.size} />
+          )}
+        </Moving>
+      </Animated.View>
 
       {focus ? null : (
         <View
@@ -554,7 +660,7 @@ function Stage({
 
       {/* No words: the visual takes the words' column, and Focus gives it the
           window — the two places the words themselves have. */}
-      {showVisual ? (
+      {visualPresence.mounted ? (
         <Animated.View
           pointerEvents="none"
           style={[
@@ -621,7 +727,7 @@ function Stage({
         )}
       </Moving>
 
-      <View style={[styles.head, { top }, chrome]}>
+      <Animated.View style={[styles.head, { top }, chrome]}>
         <IconButton
           onPress={focus ? () => onMode('stage') : onClose}
           label={focus ? 'Back to the full page' : 'Close now playing'}
@@ -651,21 +757,23 @@ function Stage({
             )}
           </>
         )}
-      </View>
+      </Animated.View>
 
       {tabsRow !== null ? (
-        <View style={[styles.tools, chrome, { top: tabsRow, left: g.pad }]}>
+        <Animated.View style={[styles.tools, chrome, { top: tabsRow, left: g.pad }]}>
           {tabList}
           {stylePill}
-        </View>
+        </Animated.View>
       ) : null}
 
       {focus && stylePill ? (
-        <View style={[styles.tools, chrome, { top: top + 12, right: 66 }]}>{stylePill}</View>
+        <Animated.View style={[styles.tools, chrome, { top: top + 12, right: 66 }]}>
+          {stylePill}
+        </Animated.View>
       ) : null}
 
       {shownTab === 'lyrics' && hasLyrics && lyrics.language !== 'none' ? (
-        <View
+        <Animated.View
           style={[
             styles.tools,
             chrome,
@@ -691,34 +799,39 @@ function Stage({
               {romanName(lyrics.language)}
             </Text>
           </Pressable>
-        </View>
+        </Animated.View>
       ) : null}
 
+      {/* The fade is the wrapper's: a Pressable's style function cannot carry an
+          animated value, so the place goes there and the button keeps its look. */}
       {shownTab === 'lyrics' ? (
-        <Pressable
-          onPress={() => onMode(focus ? 'stage' : 'focus')}
-          accessibilityRole="button"
-          accessibilityLabel={
-            focus
-              ? 'Back to the full page'
-              : showVisual
-                ? 'Show only the visual'
-                : 'Show only the words'
-          }
-          {...tip(focus ? 'Back to the full page' : showVisual ? 'Visual' : 'Lyrics')}
-          style={({ pressed }) => [
-            styles.expand,
+        <Animated.View
+          style={[
+            styles.expandAt,
             chrome,
             focus ? { top: top + 12, right: 20 } : { top: tabsRow ?? top + 68, right: g.right },
-            pressed && styles.expandPressed,
           ]}
         >
-          {focus ? (
-            <Collapse size={18} color={theme.colors.textSecondary} />
-          ) : (
-            <Expand size={18} color={theme.colors.textSecondary} />
-          )}
-        </Pressable>
+          <Pressable
+            onPress={() => onMode(focus ? 'stage' : 'focus')}
+            accessibilityRole="button"
+            accessibilityLabel={
+              focus
+                ? 'Back to the full page'
+                : showVisual
+                  ? 'Show only the visual'
+                  : 'Show only the words'
+            }
+            {...tip(focus ? 'Back to the full page' : showVisual ? 'Visual' : 'Lyrics')}
+            style={({ pressed }) => [styles.expand, pressed && styles.expandPressed]}
+          >
+            {focus ? (
+              <Collapse size={18} color={theme.colors.textSecondary} />
+            ) : (
+              <Expand size={18} color={theme.colors.textSecondary} />
+            )}
+          </Pressable>
+        </Animated.View>
       ) : null}
 
       <StageUpNext
@@ -726,7 +839,7 @@ function Stage({
         repeatOne={player.queue.repeat === 'one'}
         right={g.right}
         bottom={PLAYER_BAR_HEIGHT + (focus ? 28 : 64)}
-        lowered={idle}
+        chromeShown={chromeShown}
       />
 
       <VisualStyleMenu
@@ -763,19 +876,33 @@ function StageUpNext({
   repeatOne,
   right,
   bottom,
-  lowered,
+  chromeShown,
 }: {
   upNext: Song | undefined
   repeatOne: boolean
   right: number
   bottom: number
-  /** With the player bar put away, the page grown down into its room. */
-  lowered: boolean
+  /**
+   * The page's chrome, 1 there and 0 gone. The card does not go with it — it is
+   * what the viewer is being told — but it rides down into the room the player
+   * bar leaves, on the same value, so the page quietens as one move.
+   */
+  chromeShown: Animated.Value
 }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
   const artFor = useArt()
   const progress = usePlayerProgress()
+  const [lowered] = useState(() => ({
+    transform: [
+      {
+        translateY: chromeShown.interpolate({
+          inputRange: [0, 1],
+          outputRange: [PLAYER_BAR_HEIGHT, 0],
+        }),
+      },
+    ],
+  }))
   const nextIn = upNextSeconds({
     hasNext: upNext !== undefined,
     repeatOne,
@@ -785,15 +912,11 @@ function StageUpNext({
   if (!upNext || nextIn === null) return null
 
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={player.next}
       accessibilityRole="button"
       accessibilityLabel={`Skip to the next song: ${upNext.title}`}
-      style={[
-        styles.upNext,
-        { right, bottom },
-        lowered && { transform: [{ translateY: PLAYER_BAR_HEIGHT }] },
-      ]}
+      style={[styles.upNext, { right, bottom }, lowered]}
     >
       <Cover uri={artFor(upNext)} title={upNext.album || upNext.title} size={40} />
       <View style={styles.upNextText}>
@@ -806,9 +929,12 @@ function StageUpNext({
         </Text>
       </View>
       <Next size={16} color={theme.colors.textSecondary} />
-    </Pressable>
+    </AnimatedPressable>
   )
 }
+
+/** The card is the whole tap target, so the move goes on it rather than a view around it. */
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
 
 const styles = StyleSheet.create(theme => ({
   page: { flex: 1, overflow: 'hidden', backgroundColor: theme.colors.surface0 },
@@ -860,9 +986,12 @@ const styles = StyleSheet.create(theme => ({
   tabActive: { backgroundColor: theme.colors.surfaceSelected },
   tabText: { color: theme.colors.textSecondary, fontSize: 12.5, fontWeight: '600' },
   tabTextActive: { color: theme.colors.textPrimary },
+  // The box the cover is laid out in: where the stage puts it, and where its
+  // travel from the player bar and the idle fade are applied.
+  coverLift: { position: 'absolute', zIndex: 3 },
   cover: {
-    position: 'absolute',
-    zIndex: 3,
+    width: '100%',
+    height: '100%',
     overflow: 'hidden',
     ...artShadow(theme.colors),
   },
@@ -924,9 +1053,8 @@ const styles = StyleSheet.create(theme => ({
   toolPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.14) },
   toolText: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '600' },
   toolTextOn: { color: theme.colors.onPrimary },
+  expandAt: { position: 'absolute', zIndex: 4 },
   expand: {
-    position: 'absolute',
-    zIndex: 4,
     width: 36,
     height: 36,
     borderRadius: radius.pill,

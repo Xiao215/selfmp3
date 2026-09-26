@@ -6,9 +6,10 @@ import { useLibrary } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
 import { Refresh } from '../../ui/components/Icons'
+import { useBucketHold } from '../profile/useBucketHold'
 import { useCloudSession } from '../profile/useCloudSession'
 import { STORAGE_ROUTE, whereItIs } from '../welcome/storage.model'
-import { ButtonRow, Details, Panel, partStyles, Row } from './SettingsParts'
+import { ButtonRow, Details, Notice, Panel, partStyles, Row } from './SettingsParts'
 import { type Confirming } from './settings.model'
 import { plural } from '@selfmp3/shared'
 
@@ -44,10 +45,13 @@ export function ConnectionPanel({
   // The bucket as the stored session has it; undefined until it has been read.
   const me = useCloudSession()
   const storage = me.isPending ? undefined : (me.data?.storage ?? null)
+  // The bucket refusing for the day: up for as long as it is left alone.
+  const hold = useBucketHold()
   return (
     <Panel title="Account" hint="on this device" anchor={anchor}>
       {fromCloud ? (
         <>
+          {hold ? <Notice tone="warn">{hold.message}</Notice> : null}
           <Row label="Signed in" hint="With Google — the library is the bucket’s.">
             <Button
               label="Sign out"

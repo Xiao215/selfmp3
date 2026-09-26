@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { BUCKET_HOLD_MS, bucketHold, holdBucket, releaseBucket } from './hold.js'
 import { DoormanError, createCloudSession } from './session.js'
 import type { CloudPlatform, CloudRequestInit, CloudResponse, DeviceStore } from './platform.js'
 
@@ -287,5 +288,62 @@ describe('talking to the doorman', () => {
 
     await session.signOut(signedIn)
     expect(await session.loadSession()).toBeNull()
+  })
+})
+
+describe('the bucket refusing for the day', () => {
+  const CAP = { error: 'Backblaze says “Transaction cap exceeded”: …', code: 'bucket_cap_exceeded' }
+  const signedIn = { doormanUrl: DOORMAN, token: TOKEN, me: ME }
+
+  beforeEach(() => releaseBucket())
+
+  it('holds after one refusal, and refuses later reads itself', async () => {
+    const p = platform(() => reply(502, CAP))
+    const session = createCloudSession(p)
+    await expect(session.doormanFetch(signedIn, '/v1/files/audio/a.m4a')).rejects.toMatchObject({
+      status: 502,
+      code: 'bucket_cap_exceeded',
+    })
+    await expect(session.doormanFetch(signedIn, '/v1/list?prefix=log/')).rejects.toMatchObject({
+      status: 502,
+      code: 'bucket_cap_exceeded',
+      message: CAP.error,
+    })
+    expect(p.calls).toHaveLength(1)
+    expect(bucketHold()).toMatchObject({ message: CAP.error })
+  })
+
+  it('lets writes and the doorman’s own answers through the hold', async () => {
+    const p = platform(call => (call.url.includes('/v1/files/') ? reply(502, CAP) : reply(200, {})))
+    const session = createCloudSession(p)
+    await session.doormanFetch(signedIn, '/v1/files/audio/a.m4a').catch(() => undefined)
+    await session
+      .doormanFetch(signedIn, '/v1/files/log/d/1.json', { method: 'PUT' })
+      .catch(() => undefined)
+    await session.doormanFetch(signedIn, '/v1/me')
+    expect(p.calls).toHaveLength(3)
+  })
+
+  it('asks again once the hold is up, and lets go when the bucket answers', async () => {
+    let refuse = true
+    const p = platform(() => (refuse ? reply(502, CAP) : reply(200, {})))
+    const session = createCloudSession(p)
+    await session.doormanFetch(signedIn, '/v1/files/x').catch(() => undefined)
+    // Time passing, without waiting for it.
+    holdBucket(CAP.error, Date.now() - BUCKET_HOLD_MS - 1)
+    refuse = false
+    await expect(session.doormanFetch(signedIn, '/v1/files/x')).resolves.toMatchObject({
+      status: 200,
+    })
+    expect(bucketHold()).toBeNull()
+  })
+
+  it('does not hold for any other refusal', async () => {
+    const p = platform(() =>
+      reply(502, { error: 'the bucket is unreachable', code: 'bucket_unreachable' }),
+    )
+    const session = createCloudSession(p)
+    await session.doormanFetch(signedIn, '/v1/files/x').catch(() => undefined)
+    expect(bucketHold()).toBeNull()
   })
 })

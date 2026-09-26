@@ -1,4 +1,5 @@
 import { doormanAuth, doormanFileUrl, library, session as cloudSession } from '../replica'
+import { bucketHold } from '@selfmp3/replica'
 import { createCoverChanges } from './coverChanges'
 
 /**
@@ -239,6 +240,10 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
       if (have) return have
       const signedIn = await cloudSession.loadSession()
       if (!signedIn) return null
+      // The bucket refusing for the day: not asked again until the hold is
+      // up, however many rows want their cover meanwhile.
+      const held = bucketHold()
+      if (held) throw new Error(held.message)
       return platform.keepCloud(name, doormanFileUrl(key), doormanAuth(signedIn.token))
     })().finally(() => fetchingFile.delete(name))
     fetchingFile.set(name, work)

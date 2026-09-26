@@ -1177,9 +1177,9 @@ export function useLyrics(songId: number | null): UseQueryResult<LyricsResponse,
         void lyricsSnapshot()?.write(songId, lyrics)
         return lyrics
       } catch (error) {
-        // Only when the server could not be asked: a 404 means the words are
+        // Only when the question went unanswered: a 404 means the words are
         // gone, and a kept copy would be a stale answer to a fresh question.
-        if (error instanceof ApiError && error.isOffline) {
+        if (error instanceof ApiError && error.isUnanswered) {
           const key = queryKeys.lyrics(songId)
           const cached = (await lyricsSnapshot()?.read(songId)) ?? null
           if (cached && !client.getQueryData(key)) client.setQueryData(key, cached)
@@ -1222,8 +1222,8 @@ export function useMotion(songId: number | null): MotionCurve | null {
         void motionSnapshot()?.write(songId, motion)
         return motion
       } catch (error) {
-        // As for lyrics: only when the server could not be asked.
-        if (error instanceof ApiError && error.isOffline) {
+        // As for lyrics: only when the question went unanswered.
+        if (error instanceof ApiError && error.isUnanswered) {
           const key = queryKeys.motion(songId)
           const cached = (await motionSnapshot()?.read(songId)) ?? null
           if (cached && !client.getQueryData(key)) client.setQueryData(key, cached)

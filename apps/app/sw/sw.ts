@@ -144,7 +144,9 @@ self.addEventListener('fetch', event => {
   }
 
   if (url.pathname.startsWith(`${BASE}api/art/`)) {
-    event.respondWith(cacheFirst(request, API_CACHE, { replaceOtherVersions: true }))
+    event.respondWith(
+      cacheFirst(request, API_CACHE, { key: coverKey(url), replaceOtherVersions: true }),
+    )
     return
   }
 
@@ -280,16 +282,21 @@ class Arriving {
   #done = false
   #failed = false
   #response: Response | null = null
+  /** The bucket's refusal, read once so each request waiting on it can be answered with it. */
+  #refused: { status: number; headers: Headers; text: string } | null = null
   #wake: (() => void)[] = []
 
   constructor(file: BucketFile, cache: Cache, name: string) {
     const answered = fetchFromBucket(file)
-    this.head = answered.then(response => {
+    this.head = answered.then(async response => {
       this.#response = response
       const size = Number(response.headers.get('content-length') ?? Number.NaN)
-      return response.status === 200 && response.body && Number.isFinite(size) && size > 0
-        ? { kind: 'ok' as const, size }
-        : { kind: 'refused' as const }
+      if (response.status === 200 && response.body && Number.isFinite(size) && size > 0) {
+        return { kind: 'ok' as const, size }
+      }
+      const text = await response.text().catch(() => '')
+      this.#refused = { status: response.status, headers: response.headers, text }
+      return { kind: 'refused' as const }
     })
     this.kept = this.#read(cache, name)
       .catch(() => {
@@ -335,9 +342,9 @@ class Arriving {
 
   /** The bucket's own answer when it would not give the song: a cap's 502, say. */
   refusal(): Response {
-    const response = this.#response
-    return response && response.status !== 200
-      ? new Response(response.body, { status: response.status, headers: response.headers })
+    const refused = this.#refused
+    return refused && refused.status !== 200
+      ? new Response(refused.text, { status: refused.status, headers: refused.headers })
       : new Response('The song could not be fetched.', { status: 502 })
   }
 
@@ -521,7 +528,24 @@ async function networkFirst(request: Request): Promise<Response> {
 }
 
 /**
- * Cache-first, keyed on the full URL including `?v=`.
+ * The address a cover is kept under: its own, less `palette`.
+ *
+ * The page reads a cover's colour through a second address with `&palette=1`
+ * on the end (src/ports/coverPixels.web.ts), so that a browser's HTTP cache
+ * does not hand a canvas the copy an `<img>` loaded without CORS. Here both
+ * are one picture from one bucket file, answered from this worker either way;
+ * kept as two entries of one path, each store swept the other
+ * (`replaceOtherVersions`), and every song played fetched its cover again.
+ */
+function coverKey(url: URL): string {
+  const key = new URL(url.href)
+  key.searchParams.delete('palette')
+  return key.href
+}
+
+/**
+ * Cache-first, keyed on the full URL including `?v=` — or on `key`, when the
+ * request has an address of its own that names the same thing.
  *
  * With `replaceOtherVersions`, storing a response drops every other version
  * of the same path, so a cover that changes does not leave the old one behind
@@ -537,19 +561,20 @@ async function networkFirst(request: Request): Promise<Response> {
 async function cacheFirst(
   request: Request,
   cacheName: string,
-  options: { replaceOtherVersions?: boolean } = {},
+  options: { key?: string; replaceOtherVersions?: boolean } = {},
 ): Promise<Response> {
-  const cached = await caches.match(request)
+  const key = options.key ?? request.url
+  const cached = await caches.match(key)
   if (cached) return cached
   try {
     const fromBucket = await bucketFileFor(new URL(request.url), 'cover')
     const response = fromBucket ? await fetchFromBucket(fromBucket) : await fetch(request)
     if (response.ok) {
       const cache = await caches.open(cacheName)
-      await cache.put(request, response.clone())
+      await cache.put(key, response.clone())
       if (options.replaceOtherVersions) {
-        const asked = new URL(request.url).searchParams.get('v')
-        const versions = await cache.keys(new URL(request.url).pathname, { ignoreSearch: true })
+        const asked = new URL(key).searchParams.get('v')
+        const versions = await cache.keys(new URL(key).pathname, { ignoreSearch: true })
         await Promise.all(
           versions
             .filter(version => new URL(version.url).searchParams.get('v') !== asked)
@@ -770,6 +795,52 @@ async function bucketRead(force: boolean): Promise<BucketRead & { fresh: boolean
 }
 
 /**
+ * The bucket refusing for the day (docs/SYNC.md, "Caps").
+ *
+ * Backblaze stops answering once a day's reads pass the account's cap, and the
+ * doorman says so as a 502 with this code. Nothing this worker is asked for
+ * will be answered until the cap is raised or the day turns, so for a while
+ * the bucket is not asked: every cover a row draws and every range a player
+ * wants is answered with the doorman's own refusal, from here. Ten minutes,
+ * then one more real request finds out whether it is over — a cap raised at
+ * backblaze.com should not have to wait for midnight to be noticed. The page
+ * is told (`BUCKET_CAPPED`, src/ports/serviceWorker.web.ts), so its own reads
+ * — the snapshot, the words — stop too, and it can say why.
+ *
+ * In memory only: this worker is stopped when idle, and a wake costs one
+ * refused request to learn it again, which is fine.
+ */
+const CAP_CODE = 'bucket_cap_exceeded'
+const CAP_HOLD_MS = 10 * 60_000
+
+let capped: { readonly until: number; readonly body: string } | null = null
+
+/** The doorman's refusal, as the message the page shows and the body a player is answered with. */
+function capMessage(body: string): string | null {
+  try {
+    const parsed: unknown = JSON.parse(body)
+    const { code, error } = (parsed ?? {}) as { code?: unknown; error?: unknown }
+    return code === CAP_CODE && typeof error === 'string' ? error : null
+  } catch {
+    return null
+  }
+}
+
+function refused(body: string): Response {
+  return new Response(body, {
+    status: 502,
+    statusText: 'Bad Gateway',
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+  })
+}
+
+async function holdBucket(body: string, message: string): Promise<void> {
+  capped = { until: Date.now() + CAP_HOLD_MS, body }
+  const clients = await self.clients.matchAll({ type: 'window' })
+  for (const client of clients) client.postMessage({ type: 'BUCKET_CAPPED', message })
+}
+
+/**
  * A file from the bucket, as a plain same-origin response.
  *
  * A range asked for here is asked of the bucket too, and its answer — a 206,
@@ -778,10 +849,20 @@ async function bucketRead(force: boolean): Promise<BucketRead & { fresh: boolean
  * never holds a body whole, and neither does this.
  */
 async function fetchFromBucket(file: BucketFile, range?: string | null): Promise<Response> {
+  if (capped !== null) {
+    if (Date.now() < capped.until) return refused(capped.body)
+    capped = null
+  }
   try {
     const ask = new Headers({ Authorization: `Bearer ${file.token}` })
     if (range) ask.set('range', range)
     const response = await fetch(file.url, { headers: ask })
+    if (response.status === 502) {
+      // The doorman's refusals are small JSON; a cap is the one worth holding.
+      const body = await response.clone().text()
+      const message = capMessage(body)
+      if (message !== null) await holdBucket(body, message)
+    }
     const headers = new Headers()
     for (const name of [
       'content-type',
@@ -794,10 +875,11 @@ async function fetchFromBucket(file: BucketFile, range?: string | null): Promise
       if (value) headers.set(name, value)
     }
     // A whole file is the one the hash names, forever. A slice of one is the
-    // player's business for as long as it is playing, and no cache's.
+    // player's business for as long as it is playing, and no cache's; nor is
+    // a refusal.
     headers.set(
       'Cache-Control',
-      response.status === 206 ? 'no-store' : 'private, max-age=31536000, immutable',
+      response.status === 206 || !response.ok ? 'no-store' : 'private, max-age=31536000, immutable',
     )
     return new Response(response.body, { status: response.status, headers })
   } catch {

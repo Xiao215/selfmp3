@@ -124,7 +124,10 @@ changes no file — a tag, a rename — skips reading every cached entry's size 
   fetches the file with the doorman's bearer header — which an `<audio>` element and an
   `<img>` are never given the chance to send — passing the player's range straight through.
   That is also where a cloud library's covers come from in a tab; before it was wired up,
-  every row drew its letter tile and nothing played at all.
+  every row drew its letter tile and nothing played at all. Each range is a read against the
+  bucket's daily count (docs/SYNC.md, "Caps"), so a song loaded to sit paused fetches nothing
+  until it is played, a cover is kept once under one address however it is asked for, and the
+  words and motion a tab has read survive a deploy.
 - **Offline, a song that is not on the device is dimmed**, and tapping it says why instead of
   starting a track that fails half a second later. Play and Shuffle use only what is here.
 - **A pill under the library title** when there is something to say: downloading, waiting for

@@ -1,3 +1,4 @@
+import { holdBucket } from '@selfmp3/replica'
 import { appPath } from './appPath'
 import { desktop } from './desktop/bridge'
 import { CLAIM_GRACE_MS, shouldReloadForControl } from './serviceWorkerControl.model'
@@ -36,6 +37,18 @@ export function registerServiceWorker({ cloud }: { cloud: boolean }): void {
   addHeadLink('apple-touch-icon', appPath('icons/icon-180.png'))
 
   if (__DEV__ || !('serviceWorker' in navigator)) return
+  /*
+   * The worker fetches songs and covers from the bucket for the player, and
+   * is the first to hear the bucket refuse for the day. It holds off on its
+   * own (sw.ts, `BUCKET_CAPPED`) and says so here, so the page's reads — the
+   * snapshot, the words — hold off too, and the screens can say why.
+   */
+  navigator.serviceWorker.addEventListener('message', event => {
+    const data: unknown = event.data
+    if (typeof data !== 'object' || data === null) return
+    const { type, message } = data as { type?: unknown; message?: unknown }
+    if (type === 'BUCKET_CAPPED' && typeof message === 'string') holdBucket(message)
+  })
   const script = appPath(cloud ? 'sw.js?cloud=1' : 'sw.js')
   navigator.serviceWorker
     .register(script, { scope: appPath('') })

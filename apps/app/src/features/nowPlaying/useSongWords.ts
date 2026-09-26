@@ -65,7 +65,9 @@ export function useSongWords(song: Song): {
     instrumental: (song.instrumental || askedAndNone) && !looking,
     romanizationOn,
     romanized,
-    offline: error instanceof ApiError && error.isOffline,
+    // Unanswered, not answered "none": offline, or the bucket refusing for the
+    // day — which a session then remembered as a song with no words.
+    offline: error instanceof ApiError && error.isUnanswered,
   })
 
   // A lookup that found nothing is remembered for the session, whether the

@@ -20,6 +20,16 @@ export class ApiError extends Error {
   get isOffline(): boolean {
     return this.status === 0
   }
+
+  /**
+   * True when the question was never answered: the device offline, or the
+   * library's side having a moment — a server erroring, the bucket refusing
+   * for the day (`bucket_cap_exceeded`). A copy kept from before is not stale
+   * against an answer like that, and "nothing found" is not what it said.
+   */
+  get isUnanswered(): boolean {
+    return this.status === 0 || this.status >= 500
+  }
 }
 
 /**

@@ -40,10 +40,20 @@ happens to the bucket can touch your email.
 **Caps.** Backblaze stops the account for the rest of the day (until midnight GMT, 5 pm Pacific)
 when a day's count passes the cap set under *Caps & Alerts*, which starts at the free amount.
 It refuses everything with the same 403 a wrong key gets, saying "Transaction cap exceeded" or
-"Download cap exceeded" only in its message; the doorman passes those words on, and the server
-keeps trying by itself until the day turns. A big import — hundreds of songs, each a check, an
-upload and a snapshot — and a boot that reads every song's words from the bucket can reach the
-count together. Raising the cap costs nothing until it is actually used.
+"Download cap exceeded" only in its message; the doorman passes those words on as
+`bucket_cap_exceeded`, and the server keeps trying by itself until the day turns. A big import —
+hundreds of songs, each a check, an upload and a snapshot — and a boot that reads every song's
+words from the bucket can reach the count together. Raising the cap costs nothing until it is
+actually used.
+
+A device that hears that refusal **holds off for ten minutes** rather than asking again on every
+row and every play (`packages/replica/src/hold.ts`; in a browser the service worker holds too
+and tells the page): reads inside the hold are refused on the device with the doorman's own
+words, writes still go, and one real request afterwards finds out whether the cap was raised.
+The app says so once, in a toast, and Settings → Account keeps the notice up while it lasts;
+the player names the song it could not play as before. Before this, a day past its cap looked
+like a hundred other things — songs skipped one after another, letter tiles for covers, a song
+remembered for the session as having no words — and each of those asked the bucket again.
 
 What a song costs on its way up is kept small on purpose: the server sends each of its files
 without asking the bucket about it first (the doorman's own one-byte check is the only read, and
@@ -337,7 +347,11 @@ library from the newest snapshot. The service worker (`apps/app/sw/sw.ts`) stand
 player and the bucket: a song already on the device is served from there, ranges and all, and
 one that is not is streamed from the bucket through the doorman, which passes `Range` straight
 to B2 and its `206` straight back. Nothing is kept on the way past, and a tab keeps nothing
-afterwards either. In an installed app — the desktop app, the phone — a song listened to all
+afterwards either. Every range a player asks for is one read against the day's count, so a
+song loaded to sit paused — the queue restored when the tab opens, Next pressed while paused —
+fetches nothing until it is played (`ports/engine.web.ts`, `#startWhenPlayed`). What a tab does
+keep is small and named by hash: covers, and the words and motion curve of every song played,
+in Cache Storage, which a new build leaves alone. In an installed app — the desktop app, the phone — a song listened to all
 the way through is kept, up to a budget, oldest let go first, unless that device is
 downloading everything anyway; a song downloaded by hand is kept for good.
 

@@ -47,6 +47,7 @@ import { registerServiceWorker } from '../src/ports/serviceWorker'
 import { singularPlaces } from '../src/ports/singularPlaces'
 import { AccentProvider } from '../src/ui/accent'
 import { WidgetSync } from '../src/features/widget/WidgetSync'
+import { BucketHoldNotice } from '../src/features/profile/BucketHoldNotice'
 import { showToast } from '../src/ui/toast'
 
 /**
@@ -186,6 +187,8 @@ export default function RootLayout(): ReactNode {
                         <Keeping />
                         {/* The home-screen widget's snapshot, where there is one. */}
                         <WidgetSync />
+                        {/* The bucket refusing for the day, said once. */}
+                        <BucketHoldNotice />
                       </LibraryFilterProvider>
                     </CarProvider>
                   </DevicesProvider>

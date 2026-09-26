@@ -98,6 +98,17 @@ class AudioEngine implements PlaybackEngine {
   #handedOverId: number | null = null
   /** Counts loads, so one overtaken by a newer load stops after its await. */
   #loadGeneration = 0
+  /**
+   * Where a song loaded to sit paused should start from once it is played.
+   *
+   * Such a song — the queue restored when the app opens, Next pressed while
+   * paused — is not fetched until then: an `<audio>` with `preload="auto"`
+   * starts streaming on `load()`, and in a browser tab every range it asks
+   * for is a read from the bucket, so a tab opened only to look at the
+   * library was two reads before anything played. The seek waits with it,
+   * because there is no metadata to seek in until the bytes come.
+   */
+  #startWhenPlayed: number | null = null
 
   #fadeTimer: ReturnType<typeof setInterval> | null = null
   #handoverArmed = false
@@ -227,9 +238,14 @@ class AudioEngine implements PlaybackEngine {
         })
         return
       }
+      // Paused: nothing is fetched until play (`#startWhenPlayed`).
+      this.#primary.preload = autoplay ? 'auto' : 'none'
       this.#primary.src = url
       this.#primary.load()
-      if (startAt > 0) {
+      this.#startWhenPlayed = null
+      if (startAt > 0 && !autoplay) {
+        this.#startWhenPlayed = startAt
+      } else if (startAt > 0) {
         // Seeking before metadata is ready is ignored, so wait for it.
         await once(this.#primary, 'loadedmetadata', 5_000)
         // A newer load has the element now: a song restored at 3:23 put that
@@ -257,6 +273,11 @@ class AudioEngine implements PlaybackEngine {
     if (this.#state.countingIn) this.#update({ countingIn: false })
     // Once the sound runs through Web Audio, a suspended context is silence.
     if (this.#audioContext?.state === 'suspended') void this.#audioContext.resume()
+    // A song loaded to sit paused is fetched now, from where it was left.
+    this.#primary.preload = 'auto'
+    const startAt = this.#startWhenPlayed
+    this.#startWhenPlayed = null
+    if (startAt !== null) void this.#startFrom(startAt)
     try {
       await this.#primary.play()
     } catch (error) {
@@ -531,6 +552,23 @@ class AudioEngine implements PlaybackEngine {
   }
 
   /**
+   * Seek a song that has not loaded yet to where it was left.
+   *
+   * Set at once: with nothing loaded, the element takes the position as where
+   * to start (the default playback start position), which saves the fetch
+   * from the top that a seek after the fact costs. Where it is ignored
+   * instead, the seek is made once the metadata is in — unless a newer load
+   * has the element by then.
+   */
+  async #startFrom(startAt: number): Promise<void> {
+    const generation = this.#loadGeneration
+    this.#primary.currentTime = startAt
+    await once(this.#primary, 'loadedmetadata', 5_000)
+    if (generation !== this.#loadGeneration) return
+    if (Math.abs(this.#primary.currentTime - startAt) > 1) this.#primary.currentTime = startAt
+  }
+
+  /**
    * "Not supported" is all the element says of a source it could not use,
    * whether the bucket refused the file for the day or the song was never on
    * this device. The address answers with the reason (streamFailure.model.ts);
@@ -608,6 +646,8 @@ class AudioEngine implements PlaybackEngine {
     if (url === null) return
 
     this.#preloadedId = nextId
+    // The element may have last held a song loaded to sit paused.
+    this.#secondary.preload = 'auto'
     this.#secondary.src = url
     this.#secondary.volume = 0
     this.#secondary.playbackRate = this.#state.rate

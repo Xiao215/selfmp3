@@ -15,6 +15,15 @@
 
 export { CloudRouteError } from './errors.js'
 export {
+  BUCKET_CAP_CODE,
+  BUCKET_HOLD_MS,
+  bucketHold,
+  holdBucket,
+  onBucketHold,
+  releaseBucket,
+  type BucketHold,
+} from './hold.js'
+export {
   CloudServerViewSchema,
   ImportRequestListSchema,
   ImportRequestViewSchema,

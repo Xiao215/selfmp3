@@ -7,6 +7,7 @@ import {
   type DoormanBackblazeConnect,
   type DoormanMe,
 } from '@selfmp3/shared'
+import { BUCKET_CAP_CODE, bucketHold, holdBucket, releaseBucket } from './hold.js'
 import type { CloudPlatform, CloudResponse } from './platform.js'
 
 /**
@@ -108,6 +109,16 @@ export function createCloudSession(
     if (!doormanUrl) {
       throw new DoormanError(0, 'This app is not connected to a doorman yet.', 'no-doorman')
     }
+    const method = options.method ?? 'GET'
+    // Refused for the day: a read of the bucket inside the hold is refused
+    // here (packages/replica/src/hold.ts). Writes go — an upload is free of
+    // the cap, and the outbox should empty — and so does anything the doorman
+    // answers by itself.
+    const bucketRead =
+      method === 'GET' && (path.startsWith('/v1/files/') || path.startsWith('/v1/list'))
+    const held = bucketRead ? bucketHold() : null
+    if (held) throw new DoormanError(502, held.message, BUCKET_CAP_CODE)
+
     const headers: Record<string, string> = { ...options.headers }
     if (session) headers['Authorization'] = `Bearer ${session.token}`
     if (options.json !== undefined) headers['Content-Type'] = 'application/json'
@@ -115,7 +126,7 @@ export function createCloudSession(
     let response: CloudResponse
     try {
       response = await platform.fetch(`${doormanUrl}${path}`, {
-        method: options.method ?? 'GET',
+        method,
         headers,
         ...(options.json === undefined ? {} : { body: JSON.stringify(options.json) }),
       })
@@ -123,8 +134,12 @@ export function createCloudSession(
       throw new DoormanError(0, error instanceof Error ? error.message : 'network unavailable')
     }
 
-    if (response.ok || response.status === 404) return response
+    if (response.ok || response.status === 404) {
+      if (bucketRead) releaseBucket()
+      return response
+    }
     const parsed = ErrorBodySchema.safeParse(await response.json().catch(() => null))
+    if (parsed.success && parsed.data.code === BUCKET_CAP_CODE) holdBucket(parsed.data.error)
     throw new DoormanError(
       response.status,
       parsed.success ? parsed.data.error : `the doorman answered ${response.status}`,
@@ -152,6 +167,8 @@ export function createCloudSession(
   }
 
   async function forgetSession(): Promise<void> {
+    // A hold is the bucket's; the next sign-in may be to another.
+    releaseBucket()
     try {
       await store.remove(SESSION_KEY)
     } catch {

@@ -149,6 +149,19 @@ describe('the cover store', () => {
     expect(keepCloud).toHaveBeenCalledTimes(2)
   })
 
+  it('asks the bucket for nothing while it is refusing for the day', async () => {
+    const { holdBucket, releaseBucket } = await import('@selfmp3/replica')
+    const keepCloud = vi.fn(async (name: string) => `file:///${name}`)
+    const store = createCoverStore(fakePlatform({ keepCloud }))
+    holdBucket('Backblaze says the day’s allowance is used up.')
+    try {
+      expect(await store.ensureCover(7)).toBeNull()
+      expect(keepCloud).not.toHaveBeenCalled()
+    } finally {
+      releaseBucket()
+    }
+  })
+
   it('puts a kept server cover in front of a cloud one', async () => {
     const store = createCoverStore(fakePlatform())
     await store.ensureCover(7)

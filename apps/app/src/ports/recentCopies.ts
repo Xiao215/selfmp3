@@ -1,5 +1,6 @@
 import { Directory, File, Paths } from 'expo-file-system'
 import type { Song } from '@selfmp3/shared'
+import { bucketHold } from '@selfmp3/replica'
 import {
   budgetForDisk,
   fileNameFor,
@@ -176,6 +177,8 @@ export async function adoptRecent(song: SongFile, destination: File): Promise<nu
 
 /** The whole file, or nothing: fetched beside its name and renamed once complete. */
 async function fetchInto(song: SongFile, file: File): Promise<number | null> {
+  // The bucket refusing for the day: the song plays from the stream, and is kept another time.
+  if (bucketHold()) return null
   directory().create({ intermediates: true, idempotent: true })
   const partial = new File(directory(), `${fileNameFor(song)}${PARTIAL_SUFFIX}`)
   if (partial.exists) partial.delete()

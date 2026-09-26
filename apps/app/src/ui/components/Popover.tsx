@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react'
+import { useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Animated, Pressable, ScrollView, useWindowDimensions } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -88,6 +88,16 @@ export function Popover({
   )
 }
 
+/**
+ * How far the panel slides as it grows: a few points from the side it is
+ * anchored to, so it reads as coming out of its control rather than sliding in
+ * from nowhere.
+ */
+const SLIDE = 4
+
+/** How small the panel starts. Near enough to full size to read as a grow, not a zoom. */
+const START_SCALE = 0.94
+
 interface Anchor {
   x: number
   y: number
@@ -138,11 +148,19 @@ function AnchoredPopover({
     })
   }, [open, anchorRef])
 
+  /*
+   * Its own `Animated.timing` rather than `timing` from `ui/motion`: this one
+   * effect drives both directions from the same value and has to read
+   * `finished`, so that a close which is interrupted by the panel being opened
+   * again never unmounts the panel it has just re-opened. `motionMs` is how
+   * Reduce Motion reaches it: it lands at once, and the callback still runs.
+   * It leaves on `ease.in`, as everything on its way out does.
+   */
   useEffect(() => {
     Animated.timing(progress, {
       toValue: open ? 1 : 0,
       duration: motionMs(open ? motion.base : motion.fast),
-      easing: ease.out,
+      easing: open ? ease.out : ease.in,
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (finished && !open) setMounted(false)
@@ -179,6 +197,20 @@ function AnchoredPopover({
           : 'below'
   const room = side === 'above' ? roomAbove : roomBelow
   const shownHeight = Math.min(panelHeight, room)
+  // Built once per side, not per render: the panel grows out of the corner
+  // nearest its control, so which way it slides is all that changes.
+  const grow = useMemo(
+    () => [
+      {
+        translateY: progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [side === 'above' ? SLIDE : -SLIDE, 0],
+        }),
+      },
+      { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [START_SCALE, 1] }) },
+    ],
+    [progress, side],
+  )
 
   useOverlay(
     <>
@@ -246,15 +278,7 @@ function AnchoredPopover({
               // Grows out of the corner nearest its control, so the panel reads
               // as the button opening rather than a box appearing near it.
               transformOrigin: `${side === 'above' ? 'bottom' : 'top'} ${startsAtControl ? 'left' : 'right'}`,
-              transform: [
-                {
-                  translateY: progress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [side === 'above' ? 4 : -4, 0],
-                  }),
-                },
-                { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) },
-              ],
+              transform: grow,
             },
           ]}
         >

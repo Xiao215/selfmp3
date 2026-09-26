@@ -1,36 +1,69 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { oklchToHex } from '@selfmp3/client'
+import { motion, oklchToHex } from '@selfmp3/client'
 import { useUnistyles } from 'react-native-unistyles'
 import { useAccent } from '../accent'
 import { fractionOf } from './slider.model'
 import type { SliderProps } from './slider.types'
+import { EASE_OUT_CSS } from '../motion.model'
 
 /*
  * A browser already has a good slider, keyboard and all, so this is an
  * `input[type='range']` with its own stylesheet. The thumb can only be
  * styled from CSS, so the rules are added to the page once.
+ *
+ * The lengths and the curve are the app's own tokens written into the CSS, not
+ * numbers of its own: `motion.fast` for the thumb appearing and for the filled
+ * part following the value, and `ease.out`'s curve, spelled out here because a
+ * `cubic-bezier` cannot be taken from `Easing.bezier`. The app has no generated
+ * CSS variables to read them from — `tokens.reference.css` is a reference the
+ * native tokens are tested against, not a stylesheet the app loads.
+ *
+ * `--progress` is registered with `@property` so that the boundary between the
+ * filled part and the rest can be transitioned at all: a custom property with no
+ * declared syntax is a string, and a string cannot be interpolated. Under a
+ * finger the transition is turned off, because there the boundary *is* the
+ * finger and a hundred milliseconds behind it reads as lag.
+ *
+ * This is the one place in the app that answers `prefers-reduced-motion` in CSS
+ * rather than through `ui/motion.ts`: the rules are in a stylesheet with no
+ * component around them to ask.
  */
 const HUE_STOPS = [0, 60, 120, 180, 240, 300, 360]
   .map(hue => oklchToHex(0.72, 0.16, hue))
   .join(', ')
+/** `ease.out` as CSS writes it (`ui/motion.ts`). */
 const CSS = `
+@property --progress { syntax: '<percentage>'; inherits: true; initial-value: 0%; }
 .selfmp3-range { appearance: none; -webkit-appearance: none; box-sizing: border-box; margin: 0;
   height: 20px; padding: 8px 0; border-radius: 2px; cursor: pointer; background-clip: content-box;
   background-color: transparent;
   background-image: linear-gradient(to right, var(--range-fill) 0%, var(--range-fill) var(--progress),
-    var(--range-track) var(--progress), var(--range-track) 100%); }
+    var(--range-track) var(--progress), var(--range-track) 100%);
+  transition: --progress ${motion.fast}ms ${EASE_OUT_CSS}; }
+/* Dragging, the boundary is the finger: it follows with nothing in between. */
+.selfmp3-range:active { transition-duration: 0ms; }
 .selfmp3-range::-webkit-slider-thumb { -webkit-appearance: none; width: 13px; height: 13px;
   border-radius: 50%; background: var(--range-thumb); border: none; opacity: 0;
-  transition: opacity 120ms; }
+  transition: opacity ${motion.fast}ms ${EASE_OUT_CSS}; }
 .selfmp3-range:hover::-webkit-slider-thumb, .selfmp3-range:active::-webkit-slider-thumb,
 .selfmp3-range:focus-visible::-webkit-slider-thumb { opacity: 1; }
+/* Firefox draws its own thumb, and had none of this: it was always visible. */
 .selfmp3-range::-moz-range-thumb { width: 13px; height: 13px; border-radius: 50%;
-  background: var(--range-thumb); border: none; }
+  background: var(--range-thumb); border: none; opacity: 0;
+  transition: opacity ${motion.fast}ms ${EASE_OUT_CSS}; }
+.selfmp3-range:hover::-moz-range-thumb, .selfmp3-range:active::-moz-range-thumb,
+.selfmp3-range:focus-visible::-moz-range-thumb { opacity: 1; }
 .selfmp3-range.is-hue { height: 22px; border-radius: 999px;
   background-image: linear-gradient(to right, ${HUE_STOPS}); }
 .selfmp3-range.is-hue::-webkit-slider-thumb { opacity: 1; width: 15px; height: 15px;
   border: 2px solid var(--range-ring); }
+.selfmp3-range.is-hue::-moz-range-thumb { opacity: 1; width: 15px; height: 15px;
+  border: 2px solid var(--range-ring); }
+@media (prefers-reduced-motion: reduce) {
+  .selfmp3-range, .selfmp3-range::-webkit-slider-thumb,
+  .selfmp3-range::-moz-range-thumb { transition: none; }
+}
 `
 
 if (typeof document !== 'undefined' && !document.getElementById('selfmp3-range')) {

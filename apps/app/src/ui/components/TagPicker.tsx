@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { fuzzyRank, TAG_NAME_MAX, type Song, type Tag } from '@selfmp3/shared'
 import {
@@ -20,6 +20,7 @@ import { Checkbox } from './Checkbox'
 import { Plus } from './Icons'
 import { usePanelDense } from './panel'
 import { Popover } from './Popover'
+import { Press } from './Press'
 import { Sheet } from './Sheet'
 
 /**
@@ -220,8 +221,11 @@ export function TagSearchList({
         {ranked.map(({ item }) => {
           const on = selected.has(item.id)
           return (
-            <Pressable
+            // A row the width of the panel, so it sinks to a row's depth rather
+            // than a control's (`M1`, 1).
+            <Press
               key={item.id}
+              depth="row"
               style={({ pressed }) => [
                 styles.item,
                 dense && styles.itemDense,
@@ -241,7 +245,7 @@ export function TagSearchList({
                 {item.name}
               </Text>
               <Text style={styles.count}>{item.songCount}</Text>
-            </Pressable>
+            </Press>
           )
         })}
         {ranked.length === 0 && !trimmed ? (
@@ -250,7 +254,8 @@ export function TagSearchList({
       </ScrollView>
 
       {trimmed && !hasExact ? (
-        <Pressable
+        <Press
+          depth="row"
           style={({ pressed }) => [styles.item, styles.create, pressed && styles.itemPressed]}
           onPress={create}
           accessibilityRole="button"
@@ -261,7 +266,7 @@ export function TagSearchList({
             Create <Text style={styles.createName}>{trimmed}</Text>
           </Text>
           {ranked[0] ? <Text style={styles.count}>similar: {ranked[0].item.name}</Text> : null}
-        </Pressable>
+        </Press>
       ) : null}
 
       {error ? <Text style={styles.error}>{error}</Text> : null}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text } from 'react-native'
+import { Animated, Text } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { motion, radius } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
@@ -8,6 +8,7 @@ import { useAccent } from '../accent'
 import { currentToasts, dismissToast, subscribeToasts, type Toast } from '../toast'
 import { IconButton } from './IconButton'
 import { X } from './Icons'
+import { Press } from './Press'
 import { floating } from '../surfaces'
 import { ease, motionMs } from '../motion'
 
@@ -109,8 +110,9 @@ function ToastItem({
         {toast.text}
       </Text>
       {toast.actions.map(action => (
-        <Pressable
+        <Press
           key={action.label}
+          depth="control"
           onPress={() => {
             // The message has been answered; leaving it up invites a second press.
             dismissToast(toast.id)
@@ -122,7 +124,7 @@ function ToastItem({
           style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
         >
           <Text style={[styles.actionLabel, { color: accent.accent }]}>{action.label}</Text>
-        </Pressable>
+        </Press>
       ))}
       <IconButton
         onPress={() => dismissToast(toast.id)}

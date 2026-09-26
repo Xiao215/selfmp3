@@ -4,6 +4,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePressScale } from '../motion'
 import { radius, tagColors, type } from '@selfmp3/client'
 import { Check } from './Icons'
+import { Press } from './Press'
 import { plural } from '@selfmp3/shared'
 
 /**
@@ -101,7 +102,10 @@ export function Chip({
         {count === undefined ? null : <Text style={[styles.count, { color: text }]}>{count}</Text>}
       </Pressable>
       {onRemove ? (
-        <Pressable
+        // Its own press, sinking on the spring like everything else pressable:
+        // the chip around it is a separate target with a separate answer.
+        <Press
+          depth="control"
           onPress={onRemove}
           accessibilityRole="button"
           accessibilityLabel={`Remove tag ${label}`}
@@ -109,7 +113,7 @@ export function Chip({
           style={({ pressed }) => [styles.remove, pressed && styles.pressed]}
         >
           <Text style={[styles.removeGlyph, { color: text }]}>×</Text>
-        </Pressable>
+        </Press>
       ) : null}
     </Animated.View>
   )

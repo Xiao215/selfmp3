@@ -1,10 +1,12 @@
-import { useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Animated, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { HIT_TARGET, radius, space, type } from '@selfmp3/client'
+import { HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
+import { ease, timing } from '../motion'
 import { Popover } from './Popover'
+import { Press } from './Press'
 import { SheetItem } from './Sheet'
 import { Check, ChevronDown } from './Icons'
 import { label as labelText } from '../surfaces'
@@ -37,6 +39,10 @@ interface SelectGroup<T> {
  *
  * Not a native picker: the list is styled to match everything around it, and
  * an iOS wheel beside it would be a different control wearing the same label.
+ *
+ * The chevron turns over the same length the panel takes to grow (`motion.base`,
+ * `Popover`), rather than flipping at the first frame while the list is still
+ * opening: one press, one move.
  */
 export function Select<T extends string | number>({
   value,
@@ -59,6 +65,19 @@ export function Select<T extends string | number>({
   const { dense } = useLayout()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<View>(null)
+  const [turn] = useState(() => new Animated.Value(0))
+  useEffect(() => {
+    timing(turn, open ? 1 : 0, motion.base, undefined, { easing: ease.out })
+  }, [open, turn])
+  // Built once: the same rotation node for the life of the control.
+  const chevron = useMemo(
+    () => ({
+      transform: [
+        { rotate: turn.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }) },
+      ],
+    }),
+    [turn],
+  )
   const all = groups ? groups.flatMap(group => group.options) : (options ?? [])
   const current = all.find(option => option.value === value)
 
@@ -84,8 +103,9 @@ export function Select<T extends string | number>({
 
   return (
     <>
-      <Pressable
+      <Press
         ref={anchorRef}
+        depth="control"
         style={({ pressed }) => [
           styles.control,
           size === 'normal' && dense && styles.controlDense,
@@ -118,10 +138,10 @@ export function Select<T extends string | number>({
         >
           {current?.label ?? label}
         </Text>
-        <View style={open && styles.chevronOpen}>
+        <Animated.View style={chevron}>
           <ChevronDown size={size === 'normal' ? 15 : 12} tone="textMuted" />
-        </View>
-      </Pressable>
+        </Animated.View>
+      </Press>
 
       <Popover
         open={open}
@@ -194,7 +214,6 @@ const styles = StyleSheet.create(theme => ({
   controlPressed: {
     backgroundColor: theme.colors.surface3,
   },
-  chevronOpen: { transform: [{ rotate: '180deg' }] },
   /* Every option keeps the room, so the labels line up whether ticked or not. */
   checkSlot: { width: 14, alignItems: 'center' },
   value: {

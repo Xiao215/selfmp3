@@ -1,16 +1,24 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, View, useWindowDimensions } from 'react-native'
+import { Animated, Pressable, Text, useWindowDimensions, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { HIT_TARGET, motion, radius, space, type, withAlpha } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
 import { PanelDenseContext, usePanelDense } from './panel'
+import { Press } from './Press'
 import { floating } from '../surfaces'
-import { ease, timing } from '../motion'
-import { MOVE_MS, overshootRange } from '../motion.model'
+import { ease, spring, timing } from '../motion'
+import { MOVE_MS, overshootRange, PULL } from '../motion.model'
+
+/**
+ * How far a computer's dialog rises as it fades in: this sheet's wide shape,
+ * and `ConfirmDialog`, which is the same fade-and-settle asking a question.
+ */
+export const DIALOG_RISE = 10
 
 /**
  * A menu, as a sheet from the bottom of the screen — or, on a computer, as a
@@ -27,6 +35,10 @@ import { MOVE_MS, overshootRange } from '../motion.model'
  * centred.
  *
  * Detached from whatever opened it, so a title names the thing it is about.
+ *
+ * On a phone it can be pulled away by its head: the panel follows the finger,
+ * and far enough down or flicked fast enough it goes (`M2`, 3). Only the head,
+ * so a pull on the items below is still a scroll.
  */
 export function Sheet({
   open,
@@ -55,11 +67,27 @@ export function Sheet({
 }): ReactNode {
   const insets = useSafeAreaInsets()
   const { wide, dense } = useLayout()
-  // How far the panel travels: its own height once it has laid out, and the
-  // window's until then, which is below the foot either way.
-  const window = useWindowDimensions()
+  /*
+   * How far the panel travels: its own height, once it has laid out. Until then
+   * there is nothing to rise from — it used to fall back to the window's
+   * height, which is farther than the panel is tall, so the very first open of
+   * a sheet covered more ground in the same 300 ms and arrived visibly faster
+   * than every open after it. The panel is held invisible and still for the one
+   * frame it takes to measure instead.
+   */
   const [panelHeight, setPanelHeight] = useState(0)
-  const travel = panelHeight > 0 ? panelHeight : window.height
+  const measured = panelHeight > 0
+  // A sheet that was never told its height would never rise: every platform
+  // the app runs on reports a layout, but a panel held invisible on the
+  // strength of that is a panel that could be lost. So the window's height
+  // stands in if no layout has come by the next frame — the old travel, which
+  // only makes the very first rise a little quick.
+  const window = useWindowDimensions()
+  useEffect(() => {
+    if (!open || wide || measured) return undefined
+    const frame = requestAnimationFrame(() => setPanelHeight(height => height || window.height))
+    return () => cancelAnimationFrame(frame)
+  }, [open, wide, measured, window.height])
   // Mounted from the moment it is asked for until its exit has played out.
   // Adjusted during render rather than in an effect, so opening never costs
   // a frame drawn without the sheet.
@@ -68,27 +96,82 @@ export function Sheet({
   // State rather than a ref: it is read while rendering, and a ref read
   // during render is what the React Compiler objects to (see Equalizer).
   const [progress] = useState(() => new Animated.Value(0))
+  // How far a finger has pulled the panel down, added to its rise.
+  const [pull] = useState(() => new Animated.Value(0))
+  // Whether this opening's rise has already been sent. A sheet's height changes
+  // while it is up — the tag picker's list shortens as you type — and without
+  // this the rise would play again every time it did.
+  const risen = useRef(false)
   // Escape closes it on the web. Nothing on a phone.
   useEscape(open, onClose, { layer: true })
 
   useEffect(() => {
-    // A computer's window only fades and settles; a phone's sheet overshoots.
-    if (open) {
-      if (wide) timing(progress, 1, motion.slow, undefined, { easing: ease.out })
-      else timing(progress, 1, MOVE_MS.sheetUp, undefined, { easing: ease.overshoot })
+    if (!open) {
+      // Back down from wherever it is, including wherever a pull left it: the
+      // pull runs out on the same curve and clock as the exit, so a panel let
+      // go of part-way down carries on down rather than snapping up first.
+      risen.current = false
+      timing(pull, 0, wide ? motion.base : MOVE_MS.sheetDown, undefined, { easing: ease.in })
+      timing(progress, 0, wide ? motion.base : MOVE_MS.sheetDown, () => setMounted(false), {
+        easing: ease.in,
+      })
       return
     }
-    timing(progress, 0, wide ? motion.base : MOVE_MS.sheetDown, () => setMounted(false), {
-      easing: ease.in,
-    })
-  }, [open, progress, wide])
+    // A phone's sheet rises by its own height and cannot start until it has
+    // been measured; a computer's window only fades and settles, and can.
+    if (risen.current || (!wide && !measured)) return
+    risen.current = true
+    pull.setValue(0)
+    // A computer's window fades and settles; a phone's sheet overshoots.
+    if (wide) timing(progress, 1, motion.slow, undefined, { easing: ease.out })
+    else timing(progress, 1, MOVE_MS.sheetUp, undefined, { easing: ease.overshoot })
+  }, [open, progress, pull, wide, measured])
+
+  /*
+   * Pulled down by its head: the panel follows the finger, and far enough or
+   * fast enough puts it away. Only the head, not the items, so a pull on a long
+   * list of tags is still a scroll. Lifted here from the queue sheet, which had
+   * it alone, so that every sheet — menus, the tag picker, sleep — can be pulled
+   * away.
+   */
+  const pullDown = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetY(8)
+        .failOffsetX([-20, 20])
+        .runOnJS(true)
+        .onUpdate(event => pull.setValue(Math.max(0, event.translationY)))
+        .onEnd((event, success) => {
+          if (success && (event.translationY > PULL.close || event.velocityY > PULL.flick)) {
+            onClose()
+          } else {
+            spring(pull, 0)
+          }
+        }),
+    [pull, onClose],
+  )
 
   // The curve runs past 1 on the way up; nothing that fades goes past opaque.
-  const shown = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-    extrapolate: 'clamp',
-  })
+  // Built once, not per render.
+  const shown = useMemo(
+    () => progress.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
+    [progress],
+  )
+  // The rise, plus whatever a finger has added to it. Rebuilt only when the
+  // panel's own height — the distance — changes.
+  const rise = useMemo(
+    () => Animated.add(progress.interpolate(overshootRange(panelHeight, 4)), pull),
+    [progress, pull, panelHeight],
+  )
+  const settle = useMemo(
+    () => ({
+      opacity: shown,
+      transform: [
+        { translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [DIALOG_RISE, 0] }) },
+      ],
+    }),
+    [shown],
+  )
 
   const head = title ? (
     <View style={styles.head}>
@@ -127,18 +210,7 @@ export function Sheet({
       {wide ? (
         <View pointerEvents="box-none" style={styles.dialogFrame}>
           <Animated.View
-            style={[
-              styles.dialog,
-              width !== undefined && { maxWidth: width },
-              {
-                opacity: shown,
-                transform: [
-                  {
-                    translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }),
-                  },
-                ],
-              },
-            ]}
+            style={[styles.dialog, width !== undefined && { maxWidth: width }, settle]}
           >
             {head}
             {/* A window with a mouse to hand: the panel's items, not a finger's list. */}
@@ -152,13 +224,20 @@ export function Sheet({
             styles.panel,
             {
               paddingBottom: Math.max(insets.bottom, space.sm) + space.xs,
-              // Up from below the foot, four points past its place, and back.
-              transform: [{ translateY: progress.interpolate(overshootRange(travel, 4)) }],
+              // Invisible and still until it has been measured, then up from
+              // below the foot, four points past its place, and back.
+              opacity: measured ? 1 : 0,
+              transform: measured ? [{ translateY: rise }] : undefined,
             },
           ]}
         >
-          <View style={styles.grabber} />
-          {head}
+          {/* The grabber and the title are the handle the sheet is pulled by. */}
+          <GestureDetector gesture={pullDown}>
+            <View style={styles.handle}>
+              <View style={styles.grabber} />
+              {head}
+            </View>
+          </GestureDetector>
           {content}
         </Animated.View>
       )}
@@ -204,7 +283,10 @@ export function SheetItem({
         : theme.colors.textSecondary
       : theme.colors.textPrimary
   return (
-    <Pressable
+    // A row the width of the sheet, so it sinks to a row's depth rather than a
+    // control's, which on something this wide would walk its ends (`M1`, 1).
+    <Press
+      depth="row"
       onPress={onPress}
       disabled={disabled}
       onHoverIn={dense ? () => setHovered(true) : undefined}
@@ -234,7 +316,7 @@ export function SheetItem({
           {detail}
         </Text>
       ) : null}
-    </Pressable>
+    </Press>
   )
 }
 
@@ -255,7 +337,6 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface1,
     borderTopLeftRadius: radius.sheet,
     borderTopRightRadius: radius.sheet,
-    paddingTop: space.sm,
     ...floating(theme.colors),
     paddingHorizontal: space.sm,
   },
@@ -282,6 +363,9 @@ const styles = StyleSheet.create(theme => ({
   content: {
     alignSelf: 'stretch',
   },
+  // The room above the grabber belongs to the handle rather than the panel, so
+  // that a finger landing on it is landing on the thing that pulls.
+  handle: { paddingTop: space.sm },
   grabber: {
     alignSelf: 'center',
     width: 36,

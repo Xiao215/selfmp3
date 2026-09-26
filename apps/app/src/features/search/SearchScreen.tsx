@@ -362,6 +362,7 @@ function SongResults({ songs, query }: { songs: readonly Song[]; query: string }
   return (
     <>
       <SongList
+        arrivalKey={query.trim()}
         songs={songs}
         label="Search songs"
         renderSong={rows.renderSong}

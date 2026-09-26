@@ -1,10 +1,11 @@
+import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLayout } from '../../shell/useLayout'
-import { usePressScale } from '../motion'
+import { useFade, useMinimumBusy, usePressScale, usePresence } from '../motion'
 import { tip } from '../tip'
-import { HIT_TARGET, radius } from '@selfmp3/client'
+import { HIT_TARGET, motion, radius } from '@selfmp3/client'
 
 /**
  * A button, in one of the design's shapes and no others (docs/ui-mock `S2`,
@@ -23,6 +24,11 @@ import { HIT_TARGET, radius } from '@selfmp3/client'
  * 44 high with a finger, 36 where there is a mouse (`useLayout().dense`). An
  * icon goes before the label; with no label at all it is round. Everything
  * sinks to 0.96 on the spring while pressed.
+ *
+ * Busy, the spinner crossfades with the icon over `motion.fast` rather than
+ * cutting it out, and once shown it stays for at least `MOVE_MS.busyHold`
+ * (`useMinimumBusy`), so a press answered in fifty milliseconds does not flash a
+ * spinner and take it away again.
  */
 export function Button({
   testID,
@@ -52,7 +58,17 @@ export function Button({
 }): ReactNode {
   const { dense } = useLayout()
   const press = usePressScale()
+  // What the button *does* follows `busy`; what it *shows* follows the held
+  // spinner, so the extra moment a spinner is kept never blocks a second press.
   const inactive = disabled || busy
+  const spin = useMinimumBusy(busy)
+  // Kept mounted for as long as its fade out takes, so the swap is a crossfade
+  // rather than a cut. Both halves are the same length: a crossfade with a
+  // shorter exit leaves a frame with neither thing on it.
+  const spinner = usePresence(spin, motion.fast, motion.fast)
+  const iconShown = useFade(!spin, motion.fast, motion.fast)
+  const iconFade = useMemo(() => ({ opacity: iconShown }), [iconShown])
+  const spinnerFade = useMemo(() => ({ opacity: spinner.progress }), [spinner.progress])
   const ink = active
     ? styles.inkOnPrimary
     : variant === 'primary'
@@ -96,8 +112,20 @@ export function Button({
         <View style={styles.content}>
           {/* Busy takes the icon's place and leaves the label, so a button can
             say what it is doing — "Removing…" — while it spins. With no label
-            there is nothing to say and the spinner is the whole button. */}
-          {busy ? <Spinner variant={variant} /> : icon}
+            there is nothing to say and the spinner is the whole button.
+            With an icon to replace, the spinner is laid over it and the two
+            crossfade in the same slot, so the button's width never changes;
+            with no icon it takes its own room, as it always did. */}
+          {icon || spinner.mounted ? (
+            <View style={styles.badge}>
+              {icon ? <Animated.View style={iconFade}>{icon}</Animated.View> : null}
+              {spinner.mounted ? (
+                <Animated.View style={[icon ? styles.overIcon : undefined, spinnerFade]}>
+                  <Spinner variant={variant} />
+                </Animated.View>
+              ) : null}
+            </View>
+          ) : null}
           {label !== undefined ? (
             <Text style={[styles.label, ink]} numberOfLines={1}>
               {label}
@@ -214,6 +242,17 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
+  },
+  // The icon's slot, which the spinner shares with it.
+  badge: { alignItems: 'center', justifyContent: 'center' },
+  overIcon: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   pressed: {
     backgroundColor: theme.colors.surface3,

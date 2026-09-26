@@ -13,13 +13,13 @@ import { useArt } from '../../offline/useArt'
 import { usePlayerProgress } from '../../player/PlayerProvider'
 import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
-import { ease, spring, timing } from '../../ui/motion'
-import { MOVE_MS, overshootRange, roomShift } from '../../ui/motion.model'
+import { ease, motionMs, spring, timing } from '../../ui/motion'
+import { MOVE_MS, PULL, overshootRange, roomShift } from '../../ui/motion.model'
 import { label } from '../../ui/surfaces'
 import { useSongColor } from '../../ui/useSongColor'
 import { Cover } from '../../ui/components/Cover'
 import { Equalizer } from '../../ui/components/Equalizer'
-import { HoldToReorder } from '../../ui/components/HoldToReorder'
+import { HoldToReorder, useLiftScale, useMakeRoom } from '../../ui/components/HoldToReorder'
 import { Shuffle, X } from '../../ui/components/Icons'
 import { PlayPauseIcon } from '../../ui/components/PlayPauseIcon'
 import { SongRow } from '../../ui/components/SongRow'
@@ -40,9 +40,6 @@ import { useQueueEdits } from './useQueueEdits'
 
 /** How far below the status bar the sheet's top edge sits (`P25`: the page's title peeks out). */
 const SHEET_TOP = 16
-/** A pull on the head past this, or flicked faster than `PULL_FLICK`, puts the sheet away. */
-const PULL_CLOSE = 120
-const PULL_FLICK = 900
 
 /**
  * Up next on a phone (docs/ui-mock `P25`, `P26`): a sheet over the whole
@@ -119,6 +116,15 @@ function SheetPanel({
       timing(progress, 1, MOVE_MS.sheetUp, undefined, { easing: ease.overshoot })
       return
     }
+    /*
+     * The pull is taken off on the way out as well, on the same curve and over
+     * the same length: what the panel shows is the rise plus the pull, so a
+     * close left holding a hundred points of pull travelled a hundred points
+     * farther in the same 220 ms and left visibly faster than a close from
+     * rest. Put back rather than cleared, because clearing it would snap the
+     * panel up by the pull before it began to leave.
+     */
+    timing(pull, 0, MOVE_MS.sheetDown, undefined, { easing: ease.in })
     timing(progress, 0, MOVE_MS.sheetDown, onGone, { easing: ease.in })
   }, [shown, progress, pull, onGone])
 
@@ -133,7 +139,7 @@ function SheetPanel({
     .runOnJS(true)
     .onUpdate(event => pull.setValue(Math.max(0, event.translationY)))
     .onEnd((event, success) => {
-      if (success && (event.translationY > PULL_CLOSE || event.velocityY > PULL_FLICK)) {
+      if (success && (event.translationY > PULL.close || event.velocityY > PULL.flick)) {
         closeQueueSheet()
       } else {
         spring(pull, 0)
@@ -144,10 +150,16 @@ function SheetPanel({
   // which moves the lifted row without a render.
   const [drag, setDrag] = useState<{ from: number; over: number } | null>(null)
   const [dragY] = useState(() => new Animated.Value(0))
-  // The held row lifts a little towards the finger (`M2`, 6); the rows it
-  // passes step aside for it (`MakeRoom`), so where it will land is a gap
-  // rather than a line.
-  const [lift] = useState(() => new Animated.Value(1))
+  /*
+   * The held row lifts a little towards the finger (`M2`, 6); the rows it
+   * passes step aside for it (`MakeRoom`), so where it will land is a gap
+   * rather than a line.
+   *
+   * One scale for the sheet, worn by one song at a time — the one whose hold
+   * is being counted, then carried, then settling after the drop
+   * (`useLiftScale`).
+   */
+  const lift = useLiftScale()
   // State rather than a ref: the rows making room read it while rendering.
   const [rowHeight, setRowHeight] = useState(0)
   /*
@@ -170,6 +182,11 @@ function SheetPanel({
   const row = (entry: QueueRow, movable: boolean): ReactNode => {
     const here = isDownloaded(downloads.index, entry.song.id)
     const lifted = drag?.from === entry.index
+    // Wearing the scale without being carried: the hold is still being
+    // counted, or the row has just been let go and is settling. Only the
+    // scale then — `dragY` is left where the finger put it (see `onEnd`), so
+    // a settling row that also read it would settle in the wrong place.
+    const swelling = !lifted && lift.wearing === entry.song.id
     return (
       <MakeRoom
         key={entry.song.id}
@@ -178,17 +195,19 @@ function SheetPanel({
         carrying={drag !== null}
         style={
           lifted
-            ? [styles.liftedCell, { transform: [{ translateY: dragY }, { scale: lift }] }]
-            : null
+            ? [styles.liftedCell, { transform: [{ translateY: dragY }, { scale: lift.lift }] }]
+            : swelling
+              ? [styles.liftedCell, { transform: [{ scale: lift.lift }] }]
+              : null
         }
       >
         <SwipeToRemove enabled={drag === null} onRemove={() => remove(entry.index)}>
           <HoldToReorder
             enabled={movable}
+            onHolding={holding => lift.holding(entry.song.id, holding)}
             onStart={() => {
               dragY.setValue(0)
-              lift.setValue(1)
-              timing(lift, LIFTED_SCALE, MOVE_MS.lift, undefined, { easing: ease.out })
+              lift.start(entry.song.id)
               setDrag({ from: entry.index, over: entry.index })
             }}
             onMove={(_dx, dy) => {
@@ -198,6 +217,9 @@ function SheetPanel({
             }}
             onEnd={(_dx, dy) => {
               setDrag(null)
+              // Dropped: the scale settles back on the spring with a tap, and
+              // the row keeps wearing it into its new place.
+              lift.drop()
               const to = dragTarget(entry.index, dy, rowHeight, { first, last })
               if (to !== entry.index) player.reorderQueue(entry.index, to)
             }}
@@ -344,16 +366,10 @@ function SheetPanel({
   )
 }
 
-/** How much a held row grows as it lifts off the list (`M2`, 6). */
-const LIFTED_SCALE = 1.04
-
 /**
  * A row of the queue, stepping one row up or down while a held row is carried
- * past it, 180 ms each, so the neighbours make room one at a time (`M2`, 6).
- *
- * When the move ends the step is taken off at once rather than played back:
- * the list is redrawn in its new order in the same moment, and a row sliding
- * home from where it had stepped to would travel twice.
+ * past it, 180 ms each, so the neighbours make room one at a time (`M2`, 6);
+ * the step itself is `useMakeRoom`, which the rail and a playlist share.
  */
 function MakeRoom({
   shift,
@@ -370,16 +386,10 @@ function MakeRoom({
   style: StyleProp<ViewStyle> | null
   children: ReactNode
 }): ReactNode {
-  const [y] = useState(() => new Animated.Value(0))
-  useEffect(() => {
-    if (carrying) timing(y, shift * step, MOVE_MS.room, undefined, { easing: ease.out })
-    else y.setValue(0)
-  }, [carrying, shift, step, y])
-  // Always the animated value, never a plain style in its place: swapping one
+  const room = useMakeRoom(shift, step, carrying)
+  // Always an animated value, never a plain style in its place: swapping one
   // for the other after mount leaves react-native-web drawing the plain one.
-  return (
-    <Animated.View style={style ?? { transform: [{ translateY: y }] }}>{children}</Animated.View>
-  )
+  return <Animated.View style={style ?? room}>{children}</Animated.View>
 }
 
 /**
@@ -488,6 +498,11 @@ function SwipeToRemove({
    * the effect's so that closing the sheet mid-slide drops it — otherwise it
    * woke afterwards and took a song out of the queue. The offset is put back,
    * so an Undo brings the row back where it was.
+   *
+   * Through `motionMs`, so it is the slide's length and not a number beside
+   * it: under Reduce Motion the row is gone the moment it is let go, and the
+   * timer must not leave it sitting there, removed but still drawn, for the
+   * 140 ms of a slide that never ran.
    */
   useEffect(() => {
     if (!going) return undefined
@@ -495,7 +510,7 @@ function SwipeToRemove({
       remove.current()
       x.setValue(0)
       setGoing(false)
-    }, motion.base)
+    }, motionMs(motion.base))
     return () => clearTimeout(timer)
   }, [going, x])
 
@@ -510,7 +525,9 @@ function SwipeToRemove({
     // back from a full swipe.
     .onEnd(event => {
       if (swipeRemoves(event.translationX, width)) {
-        timing(x, -width, motion.base)
+        // On `ease.in`, as everything that leaves is: the row carries on off
+        // the edge rather than easing to a stop at it.
+        timing(x, -width, motion.base, undefined, { easing: ease.in })
         setGoing(true)
       } else {
         spring(x, 0)

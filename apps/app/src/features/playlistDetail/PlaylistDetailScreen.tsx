@@ -35,7 +35,8 @@ import { useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { usePlayer } from '../../player/PlayerProvider'
-import { HoldToReorder } from '../../ui/components/HoldToReorder'
+import { HoldToReorder, useLiftScale, useMakeRoom } from '../../ui/components/HoldToReorder'
+import { roomShift } from '../../ui/motion.model'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
@@ -82,7 +83,7 @@ import {
 import { usePlaylistPlayback } from '../playlists/usePlaylistPlayback'
 import { AddSongsSheet } from './AddSongsSheet'
 import { FollowsRow } from './FollowsRow'
-import { cameFrom, dropIndex, dropSide, movedTo, type DropSide } from './playlistDetail.model'
+import { cameFrom, dropIndex, movedTo } from './playlistDetail.model'
 
 /**
  * One playlist (docs/ui-mock `P17`, `C08`): the same kind of page as a tag's
@@ -146,6 +147,18 @@ export function PlaylistDetailScreen(): ReactNode {
   // travelled: that is `dragY`, which moves the row without a render.
   const [drag, setDrag] = useState<{ from: number; over: number } | null>(null)
   const [dragY] = useState(() => new Animated.Value(0))
+  /*
+   * The scale the row being moved wears (`useLiftScale`): a swell while the
+   * hold is counted, the full lift while it is carried, and the settle back on
+   * the spring once it is let go. One scale for the page, worn by whichever
+   * song is being moved — by song and not by row, since the drop reorders the
+   * playlist under it and the settle plays on into the row's new place.
+   */
+  const lift = useLiftScale()
+  // The three made-once callbacks on their own, so the handlers that use them
+  // do not have to watch the whole thing: it is remade whenever the row wearing
+  // the scale changes, and a row's memo has to hold through that.
+  const { holding: holdRow, start: liftRow, drop: dropRow } = lift
   const [rowHeight, setRowHeight] = useState(0)
   const playlist = library.data?.playlists.find(entry => entry.id === playlistId) ?? null
   const live = playlist !== null && isLive(playlist)
@@ -215,9 +228,10 @@ export function PlaylistDetailScreen(): ReactNode {
       const index = latest.current.songIds.indexOf(songId)
       if (index < 0) return
       dragY.setValue(0)
+      liftRow(songId)
       setDrag({ from: index, over: index })
     },
-    [dragY],
+    [dragY, liftRow],
   )
   const dragMove = useCallback(
     (songId: number, dy: number) => {
@@ -234,25 +248,32 @@ export function PlaylistDetailScreen(): ReactNode {
     },
     [dragY],
   )
-  const dragEnd = useCallback((songId: number, dy: number) => {
-    const now = latest.current
-    const index = now.songIds.indexOf(songId)
-    if (index < 0) return
-    const moved = movedTo(now.songIds, index, dy, now.rowHeight)
-    // `dragY` is left where it is: the lift ends in the same render as the
-    // move, and resetting it first would show the row back in its old place
-    // for a frame.
-    setDrag(null)
-    if (moved) {
-      now.reorderPlaylist.mutate({ playlistId: now.playlistId, songIds: moved.songIds })
-    }
-  }, [])
+  const dragEnd = useCallback(
+    (songId: number, dy: number) => {
+      const now = latest.current
+      const index = now.songIds.indexOf(songId)
+      if (index < 0) return
+      const moved = movedTo(now.songIds, index, dy, now.rowHeight)
+      // `dragY` is left where it is: the lift ends in the same render as the
+      // move, and resetting it first would show the row back in its old place
+      // for a frame. What covers that frame, and the commit after it, is the
+      // settle: the row keeps wearing the lift and springs back to 1 wherever
+      // the new order has put it.
+      setDrag(null)
+      dropRow()
+      if (moved) {
+        now.reorderPlaylist.mutate({ playlistId: now.playlistId, songIds: moved.songIds })
+      }
+    },
+    [dropRow],
+  )
 
   const rowActions = useMemo<RowActions>(
     () => ({
       dragStart,
       dragMove,
       dragEnd,
+      holding: holdRow,
       press: (event, songId, index) => {
         const now = latest.current
         // Cmd, Shift and selection mode select; anything else plays from here.
@@ -271,11 +292,32 @@ export function PlaylistDetailScreen(): ReactNode {
       longPress: song => latest.current.selection.enter(song.id),
       measure: setRowHeight,
     }),
-    [dragStart, dragMove, dragEnd],
+    [dragStart, dragMove, dragEnd, holdRow],
   )
 
+  /*
+   * What every cell of the list needs to know about the move under way
+   * (`LiftedCell`): which row is carried and how far it has travelled, which
+   * rows are to step aside and by how much, and which row is wearing the lift.
+   * The row wearing it is named by song, so the settle follows the song as the
+   * new order lands; the cell only knows its place, so the place is worked out
+   * here.
+   */
   const liftedFrom = drag?.from ?? null
-  const lift = useMemo(() => ({ from: liftedFrom, dragY }), [liftedFrom, dragY])
+  const liftedOver = drag?.over ?? null
+  const wearingAt = lift.wearing === null ? -1 : songIds.indexOf(lift.wearing)
+  const settling = wearingAt < 0 ? null : wearingAt
+  const carry = useMemo(
+    () => ({
+      from: liftedFrom,
+      over: liftedOver,
+      step: rowHeight,
+      dragY,
+      lift: lift.lift,
+      settling,
+    }),
+    [liftedFrom, liftedOver, rowHeight, dragY, lift.lift, settling],
+  )
 
   // Not on this phone and no server to stream it from: faded.
   const unreachableHere = library.isError && installed
@@ -301,7 +343,6 @@ export function PlaylistDetailScreen(): ReactNode {
           selecting={selection.active}
           selected={selection.has(item.id)}
           lifted={drag?.from === index}
-          dropTarget={dropSide(drag, index)}
           menuOpen={menuSongId === item.id}
           actions={rowActions}
         />
@@ -574,10 +615,17 @@ export function PlaylistDetailScreen(): ReactNode {
   return (
     <View style={styles.screen}>
       <View style={styles.split}>
-        {/* The selection bar takes a lane above the songs, so it covers none of them. */}
+        {/*
+          The selection bar takes a lane above the songs, so it covers none of
+          them. Left mounted while there is a playlist at all and told whether
+          it belongs on screen, rather than drawn and cut: a bar cut away the
+          moment Done is pressed has no chance to sink back, and it takes
+          itself down once it has.
+        */}
         <View style={styles.listArea}>
-          {selection.active && playlist ? (
+          {playlist ? (
             <SelectionBar
+              shown={selection.active}
               songs={selectedSongs}
               total={songs.length}
               scope="in this playlist"
@@ -591,7 +639,7 @@ export function PlaylistDetailScreen(): ReactNode {
             />
           ) : null}
 
-          <LiftContext.Provider value={lift}>
+          <LiftContext.Provider value={carry}>
             <SongList
               songs={songs}
               label={`${name} songs`}
@@ -737,6 +785,8 @@ interface RowActions {
   readonly dragStart: (songId: number) => void
   readonly dragMove: (songId: number, dy: number) => void
   readonly dragEnd: (songId: number, dy: number) => void
+  /** The hold has begun on a song, or it is over: the row's swell (`useLiftScale`). */
+  readonly holding: (songId: number, holding: boolean) => void
   readonly press: (event: GestureResponderEvent, songId: number, index: number) => void
   readonly more: (anchor: View | null, song: Song) => void
   readonly toggleSelect: (song: Song) => void
@@ -751,13 +801,14 @@ interface RowActions {
  * library draws — a song row is a song row, and a playlist that had its own
  * was a playlist whose songs had no ⋯ at a finger's size and no colour under
  * the one that was playing. It is drawn without tag chips, as every row inside
- * a place is (`S3`). What a playlist adds is the hold that lifts a row, the
- * lifted look while it is being moved, and the line where it would land;
- * taking a song off the playlist is in the ⋯ menu, where everything else done
- * to a song already is.
+ * a place is (`S3`). What a playlist adds is the hold that lifts a row and the
+ * lifted look while it is being moved; where it would land is the gap the rows
+ * around it open (`LiftedCell`), not a line drawn between two of them, which
+ * is how the queue sheet and the rail say the same thing. Taking a song off the
+ * playlist is in the ⋯ menu, where everything else done to a song already is.
  *
  * Only the handlers that need this row's place are made here — the press,
- * which plays from it, and the three that carry a move. The rest are the
+ * which plays from it, and the four that carry a move. The rest are the
  * screen's own, handed down unchanged, so the memo holds.
  */
 const PlaylistRow = memo(function PlaylistRow({
@@ -772,7 +823,6 @@ const PlaylistRow = memo(function PlaylistRow({
   selecting,
   selected,
   lifted,
-  dropTarget,
   menuOpen,
   actions,
 }: {
@@ -788,11 +838,14 @@ const PlaylistRow = memo(function PlaylistRow({
   selecting: boolean
   selected: boolean
   lifted: boolean
-  dropTarget: DropSide | null
   menuOpen: boolean
   actions: RowActions
 }): ReactNode {
   const songId = song.id
+  const onHolding = useCallback(
+    (holding: boolean) => actions.holding(songId, holding),
+    [actions, songId],
+  )
   const onDragStart = useCallback(() => actions.dragStart(songId), [actions, songId])
   const onDragMove = useCallback((dy: number) => actions.dragMove(songId, dy), [actions, songId])
   const onDragEnd = useCallback((dy: number) => actions.dragEnd(songId, dy), [actions, songId])
@@ -810,6 +863,7 @@ const PlaylistRow = memo(function PlaylistRow({
   return (
     <HoldToReorder
       enabled={holds}
+      onHolding={onHolding}
       onStart={onDragStart}
       // A playlist's rows only ever move up and down.
       onMove={(_dx, dy) => onDragMove(dy)}
@@ -828,7 +882,6 @@ const PlaylistRow = memo(function PlaylistRow({
         selected={selected}
         menuOpen={menuOpen}
         lifted={lifted}
-        dropTarget={dropTarget}
         onPress={onPress}
         onMore={actions.more}
         onToggleSelect={actions.toggleSelect}
@@ -839,31 +892,70 @@ const PlaylistRow = memo(function PlaylistRow({
   )
 })
 
-/** Which row is lifted, and how far it has travelled. */
-const LiftContext = createContext<{ from: number | null; dragY: Animated.Value | null }>({
+/** The move under way, as every cell of the list needs it. */
+interface Carry {
+  /** The row being carried, if one is. */
+  readonly from: number | null
+  /** The row it would land on. */
+  readonly over: number | null
+  /** How tall a row is, which is how far a row steps when it makes room. */
+  readonly step: number
+  /** How far the carried row has travelled. */
+  readonly dragY: Animated.Value | null
+  /** The scale the row being moved wears (`useLiftScale`). */
+  readonly lift: Animated.Value | null
+  /** Which row is wearing that scale: held, carried, or settling after the drop. */
+  readonly settling: number | null
+}
+
+const LiftContext = createContext<Carry>({
   from: null,
+  over: null,
+  step: 0,
   dragY: null,
+  lift: null,
+  settling: null,
 })
 
 type CellProps = ComponentProps<NonNullable<FlatListProps<Song>['CellRendererComponent']>>
 
 /**
- * A list cell that can be lifted: over its neighbours, and following the
- * pointer by an animated value rather than by re-rendering.
+ * A list cell that takes part in a move: the carried one lifted over its
+ * neighbours and following the pointer by an animated value rather than by
+ * re-rendering, and every other one stepping aside to make room for it.
  *
  * On the cell rather than the row because a list puts each row in a cell of
  * its own, and on a phone a raised `zIndex` only counts among siblings — a
- * row raised inside its cell still slid under the next cell. Reads the lift
+ * row raised inside its cell still slid under the next cell. Reads the move
  * from context, so this component stays the same one for the list's life and
  * starting a move does not remount every row, and its gesture with it.
+ *
+ * Make-room here is the same step the queue sheet's rows take (`useMakeRoom`),
+ * so where the row will land is a gap and not a line — one reorder language on
+ * every surface. A `FlatList` mounts and unmounts cells rather than recycling
+ * them, so a cell's step is its own and a cell scrolled away and back simply
+ * works its step out again.
  */
 function LiftedCell({ index, style, onLayout, onFocusCapture, children }: CellProps): ReactNode {
-  const { from, dragY } = useContext(LiftContext)
+  const { from, over, step, dragY, lift, settling } = useContext(LiftContext)
+  const carried = dragY !== null && from === index
+  const room = useMakeRoom(
+    from === null || over === null || carried ? 0 : roomShift(index, from, over),
+    step,
+    from !== null,
+  )
   return (
     <Animated.View
       style={[
         style,
-        dragY !== null && from === index ? { zIndex: 2, transform: [{ translateY: dragY }] } : null,
+        carried && lift !== null
+          ? { zIndex: 2, transform: [{ translateY: dragY }, { scale: lift }] }
+          : // Settling, or swelling while its hold is counted: the scale only.
+            // `dragY` is left where the finger put it until the new order
+            // lands, so a row reading it now would settle in the wrong place.
+            settling === index && lift !== null
+            ? { zIndex: 2, transform: [{ scale: lift }] }
+            : room,
       ]}
       onLayout={onLayout}
       // The list's own cell passes this on to a View, which takes it on both

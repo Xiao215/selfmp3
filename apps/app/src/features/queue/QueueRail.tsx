@@ -10,14 +10,14 @@ import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useOverlay } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
 import { ease, spring, timing } from '../../ui/motion'
-import { MOVE_MS } from '../../ui/motion.model'
+import { MOVE_MS, roomShift } from '../../ui/motion.model'
 import { label, sectionTitle } from '../../ui/surfaces'
 import { useSongColor } from '../../ui/useSongColor'
 import { Cover } from '../../ui/components/Cover'
 import { Equalizer } from '../../ui/components/Equalizer'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronRight, Grip } from '../../ui/components/Icons'
-import { HoldToReorder } from '../../ui/components/HoldToReorder'
+import { HoldToReorder, useLiftScale, useMakeRoom } from '../../ui/components/HoldToReorder'
 import { useSongDropTarget } from '../../ports/songDrag'
 import { usePlayer } from '../../player/PlayerProvider'
 import { Popover } from '../../ui/components/Popover'
@@ -44,13 +44,18 @@ const RAIL_WIDTH = 288
 const BESIDE_MIN = 1060
 /** Every row of the rail is this tall, so a drag is counted in rows by arithmetic. */
 const ROW_HEIGHT = 44
+/** How far into the rail's slide the rows begin to fade up: its last third. */
+const ROWS_FADE_FROM = 2 / 3
 
 /**
  * Up next on a computer (docs/ui-mock `C11`, `C12`): a rail beside the page,
  * opened from the player bar and left open across pages until it is closed.
  *
  * The playing song on top, what is next under it with a grip each, what has
- * played greyed at the end. Hold a row to move it. Keep dragging past the
+ * played greyed at the end. Hold a row to move it, and the rows it passes step
+ * aside for it exactly as the phone's sheet's do (`useMakeRoom`): one reorder
+ * language on every surface, so where the row will land is a gap and never a
+ * line. Keep dragging past the
  * rail's edge and the row shrinks, greys and says "Let go to remove"; let go
  * and it is gone, with an Undo for five seconds, and dragged back in nothing
  * happens. So that a drag is never the only way, Delete or Backspace on a
@@ -113,11 +118,15 @@ interface RowActions {
   readonly play: (index: number) => void
   readonly remove: (index: number) => void
   readonly menu: (anchor: View | null, row: QueueRow) => void
+  /** The hold has begun on a row, or it is over: the row's swell (`useLiftScale`). */
+  readonly holding: (songId: number, holding: boolean) => void
   readonly dragStart: (row: QueueRow, node: View | null, x: number) => void
   readonly dragMove: (index: number, dx: number, dy: number) => void
   readonly dragEnd: (index: number, dx: number, dy: number) => void
   /** Songs dragged in from a list and let go at `at`, an index into `items`. */
   readonly dropSongs: (at: number, songIds: readonly number[]) => void
+  /** The lift the row being moved wears, handed down so a row's memo holds (`useLiftScale`). */
+  readonly lift: Animated.Value
 }
 
 function Rail({
@@ -141,6 +150,18 @@ function Rail({
   const [dx] = useState(() => new Animated.Value(0))
   const [dy] = useState(() => new Animated.Value(0))
   const [outness] = useState(() => new Animated.Value(0))
+  /*
+   * The scale the row being moved wears, from the first moment of the hold
+   * until it has settled back after the drop (`useLiftScale`). While the row
+   * is carried it is the copy in the overlay that wears it; the moment the
+   * copy goes the row itself takes it over in its new place, which is what
+   * makes the settle read as the row being set down rather than as a second
+   * thing appearing.
+   */
+  const lift = useLiftScale()
+  // Its made-once parts on their own, so the row actions below can be made once
+  // too: `lift` itself is remade whenever the row wearing the scale changes.
+  const { lift: liftScale, holding: holdRow, start: liftRow, drop: dropRow } = lift
   const [menuRow, setMenuRow] = useState<QueueRow | null>(null)
   const menuAnchor = useRef<View | null>(null)
 
@@ -173,9 +194,11 @@ function Rail({
         menuAnchor.current = anchor
         setMenuRow(row)
       },
+      holding: holdRow,
       dragStart: (row, node, x) => {
         const now = latest.current
         now.startX = x
+        liftRow(row.song.id)
         now.out = false
         // Nothing is out until the rail's edges are known, a moment from now.
         now.rail = { left: -Infinity, right: Infinity }
@@ -214,13 +237,42 @@ function Rail({
           to: dragTarget(index, moveY, ROW_HEIGHT, now),
         })
         setDrag(null)
+        // Set down: the scale settles back on the spring with a tap, on the row
+        // wherever the queue has just put it.
+        dropRow()
         if (outcome.kind === 'remove') now.remove(index)
         else if (outcome.kind === 'move') now.player.reorderQueue(index, outcome.to)
       },
       dropSongs: (at, songIds) => latest.current.player.insertIntoQueue(at, songIds),
+      lift: liftScale,
     }),
-    [dx, dy, outness],
+    [dx, dy, outness, liftScale, holdRow, liftRow, dropRow],
   )
+
+  /*
+   * How the copy that follows the pointer is drawn, built once: an
+   * interpolation made in the render is a new native node every render, and
+   * this one renders on every row the pointer crosses. Only where the copy
+   * is — the row's own place on screen, which is a plain number — changes.
+   *
+   * The lift is in the same list, so the copy grows as it is picked up and the
+   * row it lands on carries the settle on from where the copy left off.
+   */
+  const [ghost] = useState(() => ({
+    opacity: outness.interpolate({ inputRange: [0, 1], outputRange: [1, 0.62] }),
+    transform: [
+      { translateX: dx },
+      { translateY: dy },
+      { scale: outness.interpolate({ inputRange: [0, 1], outputRange: [1, 0.92] }) },
+      { scale: liftScale },
+      {
+        rotate: outness.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['0deg', '-4deg'],
+        }),
+      },
+    ],
+  }))
 
   // The row being dragged, drawn over everything so it can leave the rail.
   useOverlay(
@@ -229,23 +281,8 @@ function Rail({
         <Animated.View
           style={[
             styles.ghost,
-            {
-              left: drag.rect.x,
-              top: drag.rect.y,
-              width: drag.rect.width,
-              opacity: outness.interpolate({ inputRange: [0, 1], outputRange: [1, 0.62] }),
-              transform: [
-                { translateX: dx },
-                { translateY: dy },
-                { scale: outness.interpolate({ inputRange: [0, 1], outputRange: [1, 0.92] }) },
-                {
-                  rotate: outness.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: ['0deg', '-4deg'],
-                  }),
-                },
-              ],
-            },
+            ghost,
+            { left: drag.rect.x, top: drag.rect.y, width: drag.rect.width },
           ]}
         >
           <RowFace song={drag.song} artUri={artFor(drag.song)} grip />
@@ -267,6 +304,14 @@ function Rail({
    * with its title, and the rows are there before much of it is. Only at the
    * mount — after it the rows follow the queue at once, or a row let go
    * after a drag would be drawn where it was for a frame.
+   *
+   * The transition is kept, because shuffling a library makes the queue the
+   * whole library and this is what stops the slide waiting on three thousand
+   * rows. What it cost was that the rows then appeared in one frame over a
+   * rail that had already arrived empty, which on a slow machine reads as a
+   * panel that broke and then fixed itself. So they fade up on the rail's own
+   * slide instead, over its last third (`slide.rows`): whenever they are
+   * ready, they arrive as part of the rail arriving.
    */
   const [rowsDrawn, setRowsDrawn] = useState(false)
   useEffect(() => {
@@ -318,6 +363,19 @@ function Rail({
       transform: [
         { translateX: slid.interpolate({ inputRange: [0, 1], outputRange: [RAIL_WIDTH, 0] }) },
       ],
+    },
+    /*
+     * The rows, over the last third of the way in: on `slid` rather than
+     * `progress` because an opacity belongs on the native driver, and clamped
+     * because the spring runs a little past 1. Reduce Motion sends both values
+     * straight to 1, so the rows are simply there.
+     */
+    rows: {
+      opacity: slid.interpolate({
+        inputRange: [ROWS_FADE_FROM, 1],
+        outputRange: [0, 1],
+        extrapolate: 'clamp' as const,
+      }),
     },
   }))
 
@@ -380,36 +438,42 @@ function Rail({
               onDropSongs={actions.dropSongs}
             />
           ) : null}
-          {rowsDrawn
-            ? rows.next.map(row => (
+          {rowsDrawn ? (
+            <Animated.View style={slide.rows}>
+              {rows.next.map(row => (
                 <RailRow
                   key={row.song.id}
                   row={row}
                   artUri={artFor(row.song)}
                   kind="next"
                   placeholder={drag?.from === row.index}
-                  dropTarget={
-                    drag !== null && !drag.out && drag.over === row.index && drag.from !== row.index
-                  }
-                  actions={actions}
-                />
-              ))
-            : null}
-          {rowsDrawn && rows.played.length > 0 ? (
-            <>
-              <Text style={styles.label}>Played</Text>
-              {rows.played.map(row => (
-                <RailRow
-                  key={row.song.id}
-                  row={row}
-                  artUri={artFor(row.song)}
-                  kind="played"
-                  placeholder={false}
-                  dropTarget={false}
+                  // A row out past the rail's edge is being removed, not
+                  // moved, so the room it had opened closes again.
+                  shift={drag && !drag.out ? roomShift(row.index, drag.from, drag.over) : 0}
+                  carrying={drag !== null}
+                  settling={lift.wearing === row.song.id}
                   actions={actions}
                 />
               ))}
-            </>
+              {rows.played.length > 0 ? (
+                <>
+                  <Text style={styles.label}>Played</Text>
+                  {rows.played.map(row => (
+                    <RailRow
+                      key={row.song.id}
+                      row={row}
+                      artUri={artFor(row.song)}
+                      kind="played"
+                      placeholder={false}
+                      shift={0}
+                      carrying={false}
+                      settling={lift.wearing === row.song.id}
+                      actions={actions}
+                    />
+                  ))}
+                </>
+              ) : null}
+            </Animated.View>
           ) : null}
         </ScrollView>
 
@@ -524,7 +588,9 @@ const RailRow = memo(function RailRow({
   artUri,
   kind,
   placeholder,
-  dropTarget,
+  shift,
+  carrying,
+  settling,
   actions,
 }: {
   row: QueueRow
@@ -532,11 +598,16 @@ const RailRow = memo(function RailRow({
   kind: 'next' | 'played'
   /** This row is out being dragged: its place stays, empty, until it lands. */
   placeholder: boolean
-  dropTarget: boolean
+  /** Which way this row steps aside while another is carried past it. */
+  shift: -1 | 0 | 1
+  carrying: boolean
+  /** This row is wearing the lift: its hold is being counted, or it has just landed. */
+  settling: boolean
   actions: RowActions
 }): ReactNode {
   const rowRef = useRef<View>(null)
   const { index, song } = row
+  const room = useMakeRoom(shift, ROW_HEIGHT, carrying)
 
   /*
    * A song dragged in from a list lands where it was let go, not at the end:
@@ -553,6 +624,10 @@ const RailRow = memo(function RailRow({
   // Read through `over` rather than cleared when it goes false: the side is
   // only meaningful while the pointer is here, and nothing has to unset it.
   const dropSide = over ? side : null
+  const onHolding = useCallback(
+    (holding: boolean) => actions.holding(song.id, holding),
+    [actions, song.id],
+  )
   const onDragStart = useCallback(
     (x: number) => actions.dragStart(row, rowRef.current, x),
     [actions, row],
@@ -577,18 +652,31 @@ const RailRow = memo(function RailRow({
     },
   }
 
+  /*
+   * The row's place steps aside for a row being carried past it, and the row
+   * itself wears the lift while its own hold is counted and again as it
+   * settles after the drop. Two animated views rather than one because the
+   * ref, the drop lines and the place that steps aside all belong to the slot,
+   * while the scale belongs to the row drawn in it.
+   */
   return (
-    <View ref={rowRef} collapsable={false} style={[styles.slot, placeholder && styles.hole]}>
-      {dropTarget || dropSide === 'above' ? <View style={styles.dropLine} /> : null}
+    <Animated.View ref={rowRef} collapsable={false} style={[styles.slot, room]}>
+      {dropSide === 'above' ? <View style={styles.dropLine} /> : null}
       {dropSide === 'below' ? <View style={[styles.dropLine, styles.dropLineFoot]} /> : null}
       <HoldToReorder
         enabled={kind === 'next'}
+        onHolding={onHolding}
         onStart={onDragStart}
         onMove={onDragMove}
         onEnd={onDragEnd}
       >
-        <View
-          style={[styles.row, placeholder && styles.hidden, kind === 'played' && styles.greyed]}
+        <Animated.View
+          style={[
+            styles.row,
+            placeholder && styles.hidden,
+            kind === 'played' && styles.greyed,
+            settling && { transform: [{ scale: actions.lift }] },
+          ]}
         >
           <Pressable
             testID={`queue-row-${index}`}
@@ -600,9 +688,9 @@ const RailRow = memo(function RailRow({
           >
             <RowFace song={song} artUri={artUri} />
           </Pressable>
-        </View>
+        </Animated.View>
       </HoldToReorder>
-    </View>
+    </Animated.View>
   )
 })
 
@@ -678,8 +766,13 @@ const styles = StyleSheet.create(theme => ({
   listContent: { paddingBottom: space.md },
   label: { ...label(theme.colors), paddingTop: space.md, paddingBottom: space.xs, paddingLeft: 6 },
   slot: { height: ROW_HEIGHT, borderRadius: radius.cover },
-  // The dragged row's place, kept open until it lands.
-  hole: { backgroundColor: theme.colors.surface2 },
+  /*
+   * The dragged row's place: kept, and empty, until the row lands. No tone of
+   * its own any more — the rows below it step up into it while the copy is
+   * carried (`useMakeRoom`), so a shaded hole would show through the
+   * transparent row that has just moved over it. The gap the eye is meant to
+   * read is the one that opens where the row will land.
+   */
   hidden: { opacity: 0 },
   row: {
     height: ROW_HEIGHT,

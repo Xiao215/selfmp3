@@ -10,6 +10,13 @@ export interface PointerHold {
   /** How far the pointer has travelled since the hold began. */
   readonly onMove: (dx: number, dy: number) => void
   readonly onEnd: (dx: number, dy: number) => void
+  /**
+   * The count has begun (the pointer went down), or it is over (it came up or
+   * was taken away). What the row swells by while it waits (`useLiftScale`);
+   * the hold winning is told by `onStart`, which the caller follows with a
+   * `false` of its own.
+   */
+  readonly onHolding?: (holding: boolean) => void
 }
 
 /**

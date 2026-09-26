@@ -122,6 +122,14 @@ export function LibraryScreen(): ReactNode {
   // tags are kept the button says so instead of offering again. Changing a tag
   // changes the heading, which offers it again without anything to reset.
   const alreadySaved = saved.savedName !== null && saved.savedName === model.heading
+  // What the list is answering: a new answer plays its first rows in
+  // (`SongList`'s `arrivalKey`); scrolling, selecting and playing do not.
+  const arrivalKey = [
+    model.filter.tagIds.join(','),
+    model.filter.sort,
+    model.filter.descending ? 'desc' : 'asc',
+    model.filter.downloadedOnly ? 'downloaded' : 'all',
+  ].join('|')
   const saveTheseTags = useCallback(
     () =>
       saved.save({
@@ -603,23 +611,24 @@ export function LibraryScreen(): ReactNode {
 
       {/* The selection bar takes a lane above the list, so it covers no row. */}
       <View style={styles.listArea}>
-        {selection.active ? (
-          <SelectionBar
-            songs={selectedSongs}
-            total={visible.length}
-            narrowed={narrowed}
-            scope={narrowed ? 'in this view' : 'in your library'}
-            allSelected={selection.allSelected}
-            onSelectAll={selection.selectAll}
-            onDeselectAll={selection.deselectAll}
-            onDone={selection.clear}
-          />
-        ) : null}
+        {/* Always mounted, told when to show, so it rises and sinks rather than appearing. */}
+        <SelectionBar
+          shown={selection.active}
+          songs={selectedSongs}
+          total={visible.length}
+          narrowed={narrowed}
+          scope={narrowed ? 'in this view' : 'in your library'}
+          allSelected={selection.allSelected}
+          onSelectAll={selection.selectAll}
+          onDeselectAll={selection.deselectAll}
+          onDone={selection.clear}
+        />
 
         {model.loading ? (
           <ActivityIndicator style={styles.spinner} color={accent.accent} />
         ) : (
           <SongList
+            arrivalKey={arrivalKey}
             songs={visible}
             label={`${model.heading} songs`}
             renderSong={renderSong}

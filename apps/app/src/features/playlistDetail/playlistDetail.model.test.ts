@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { cameFrom, dropIndex, dropSide, movedTo, moveItem } from './playlistDetail.model'
+import { cameFrom, dropIndex, movedTo, moveItem } from './playlistDetail.model'
 
 describe('where a back link goes', () => {
   const stack = (...names: string[]) => ({
@@ -56,24 +56,6 @@ describe('reordering a playlist', () => {
  * mouse drags at desktop width and a held finger on a phone both end here,
  * and the order this returns is the one order the server is sent.
  */
-describe('which edge the drop line falls on', () => {
-  it('is under the row when the song is going down the list', () => {
-    // The first of four dragged to the foot lands after the old last row, so a
-    // line over that row would promise a place the song does not take.
-    expect(dropSide({ from: 0, over: 3 }, 3)).toBe('below')
-  })
-
-  it('is over the row when the song is coming up the list', () => {
-    expect(dropSide({ from: 3, over: 0 }, 0)).toBe('above')
-  })
-
-  it('is nowhere on the row being dragged, or on any other row', () => {
-    expect(dropSide({ from: 2, over: 2 }, 2)).toBeNull()
-    expect(dropSide({ from: 0, over: 3 }, 1)).toBeNull()
-    expect(dropSide(null, 0)).toBeNull()
-  })
-})
-
 describe('what a finished move sends', () => {
   const ids = [10, 11, 12, 13, 14]
 

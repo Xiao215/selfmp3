@@ -52,6 +52,8 @@ export function usePointerHold(ref: RefObject<View | null>, hold: PointerHold): 
       fromY = event.clientY
       travelled = 0
       forget()
+      // The count has begun, so the row can say so while it runs.
+      latest.current.onHolding?.(true)
       timer = setTimeout(() => {
         timer = null
         lifted = true
@@ -69,6 +71,9 @@ export function usePointerHold(ref: RefObject<View | null>, hold: PointerHold): 
 
     const up = (event: PointerEvent): void => {
       forget()
+      // Before the early return: a press that let go before the hold won is
+      // exactly the one whose swell has to be taken back.
+      latest.current.onHolding?.(false)
       if (!lifted) return
       lifted = false
       if (node.hasPointerCapture(event.pointerId)) node.releasePointerCapture(event.pointerId)
@@ -77,6 +82,7 @@ export function usePointerHold(ref: RefObject<View | null>, hold: PointerHold): 
 
     const cancel = (): void => {
       forget()
+      latest.current.onHolding?.(false)
       if (!lifted) return
       lifted = false
       // Taken away: the row goes back where it began.

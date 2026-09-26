@@ -34,6 +34,7 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { HueSwatches, autoTagHue } from '../../ui/components/HueSwatches'
 import { TagEditor } from '../../ui/components/TagEditor'
 import { usePressScale } from '../../ui/motion'
+import { MOVE_MS } from '../../ui/motion.model'
 import { card, label, pageTitle } from '../../ui/surfaces'
 import { noteTagUsed } from '../library/recentTags.store'
 import { PlaylistCover } from '../playlists/PlaylistCover'
@@ -343,9 +344,6 @@ function UntaggedCard({ count, onPress }: { count: number; onPress: () => void }
   )
 }
 
-/** How long a row is held before its editor opens, as a song row's hold selects. */
-const HOLD_MS = 450
-
 /**
  * One tag's row. Memoised, and handed handlers that take the row they act on
  * rather than closing over it: this page reads the player, so without both of
@@ -375,7 +373,10 @@ const TagRow = memo(function TagRow({
       <Pressable
         onPress={() => onOpen(standing)}
         onLongPress={() => onHold(standing.tag)}
-        delayLongPress={HOLD_MS}
+        // The app's one hold, as a song row's is (`HoldToReorder`): a page
+        // where holding takes half again as long as it does on the next page
+        // is two gestures wearing one name.
+        delayLongPress={MOVE_MS.hold}
         accessibilityRole="link"
         accessibilityLabel={`${tag.name}, ${line}`}
         accessibilityHint="Hold to rename, recolour or delete"

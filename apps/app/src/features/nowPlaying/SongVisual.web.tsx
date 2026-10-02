@@ -143,7 +143,10 @@ export function SongVisual({
        * to repaint the whole canvas sixty times a second for as long as the
        * page was open. `isPlaying` below starts it
        * again, and so does a resize, which would otherwise stretch the pixels
-       * of the last frame drawn.
+       * of the last frame drawn, and so does the cover arriving: a song that
+       * comes up paused (the next one after a removal, or Next while paused)
+       * draws one frame before its cover has loaded, and that frame's stand-in
+       * colours used to stay on the disc until play.
        */
       frame = isSettled(motion) && !p.isPlaying ? 0 : requestAnimationFrame(tick)
     }
@@ -157,7 +160,7 @@ export function SongVisual({
       watch?.disconnect()
       cancelAnimationFrame(frame)
     }
-  }, [restart, reduced, isPlaying])
+  }, [restart, reduced, isPlaying, coverLoaded])
 
   return (
     <canvas
@@ -180,9 +183,10 @@ export function SongVisual({
  * Asked for with CORS, because a canvas that has drawn an image from another
  * address without it cannot be read back (saving the month as an image).
  *
- * The loop reads the image through the ref, every frame, and never needs to be
- * told. `loaded` counts the loads for the still frame, which is drawn once and
- * would otherwise show a cover that arrived after it as nothing at all.
+ * A running loop reads the image through the ref, every frame. `loaded` counts
+ * the loads for what draws only when told — the still frame, and a paused loop
+ * that has come to rest — which would otherwise go on showing a cover that
+ * arrived after them as nothing at all.
  */
 function useCoverImage(uri: string | null): {
   image: { current: HTMLImageElement | null }

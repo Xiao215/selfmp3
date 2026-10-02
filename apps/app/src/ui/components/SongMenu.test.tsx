@@ -9,10 +9,8 @@ import { SongMenu } from './SongMenu'
  * A song's ⋯ menu (docs/ui-mock `P14`): what is in it, where Song details goes,
  * and what "remove" means on the device it is open on.
  *
- * The owner's words: "delete from library means delete from local too". On a
- * phone that is one action behind one confirmation. The second question — keep
- * the file, or delete it — is about the *server's* library folder and stays on
- * the computer, where that folder is.
+ * The owner's words: "delete from library means delete from local too": one
+ * action behind one confirmation, the same dialog the selection bar asks with.
  *
  * "Remove download", which keeps the song and frees the room, is a separate
  * wish and has to survive both.
@@ -23,6 +21,7 @@ const mockNavigate = jest.fn()
 jest.mock('expo-router', () => ({ useRouter: () => ({ navigate: mockNavigate }) }))
 
 const mockDeleteSong = jest.fn()
+const mockForgetSongs = jest.fn()
 const mockRemoveByHand = jest.fn(() => Promise.resolve())
 const mockDropDownloads = jest.fn(() => Promise.resolve())
 let mockIndex: { version: 1; entries: Record<string, unknown> }
@@ -32,7 +31,7 @@ jest.mock('@selfmp3/client', () => ({
   useLibrary: () => ({ data: { songs: [], playlists: [], tags: [] } }),
   useAddToPlaylist: () => ({ mutate: jest.fn() }),
   useRemoveFromPlaylist: () => ({ mutate: jest.fn() }),
-  useDeleteSong: () => ({ mutate: mockDeleteSong }),
+  useBulkDeleteSongs: () => ({ mutate: mockDeleteSong, isPending: false }),
   useToggleLoved: () => ({ mutate: jest.fn() }),
   clientApi: () => ({ similar: () => Promise.resolve({ songs: [] }) }),
 }))
@@ -48,7 +47,12 @@ jest.mock('../../offline/DownloadsProvider', () => ({
 }))
 jest.mock('../../offline/useArt', () => ({ useArt: () => () => null }))
 jest.mock('../../player/PlayerProvider', () => ({
-  usePlayer: () => ({ playNext: jest.fn(), addToQueue: jest.fn(), playFrom: jest.fn() }),
+  usePlayer: () => ({
+    playNext: jest.fn(),
+    addToQueue: jest.fn(),
+    playFrom: jest.fn(),
+    forgetSongs: mockForgetSongs,
+  }),
 }))
 jest.mock('../../shell/useLayout', () => ({
   useLayout: () => ({ wide: false, dense: false, compact: true, finePointer: false, width: 390 }),
@@ -69,11 +73,11 @@ const METRICS = {
   insets: { top: 47, left: 0, right: 0, bottom: 34 },
 }
 
-const draw = () =>
+const draw = (onClose: () => void = () => undefined) =>
   render(
     <SafeAreaProvider initialMetrics={METRICS}>
       <OverlayProvider>
-        <SongMenu song={SONG} onClose={() => undefined} />
+        <SongMenu song={SONG} onClose={onClose} />
       </OverlayProvider>
     </SafeAreaProvider>,
   )
@@ -127,18 +131,21 @@ describe('removing a song where the copy goes with it', () => {
     mockIndex = downloaded
   })
 
-  it('is one confirmed action that takes the download too', async () => {
-    await draw()
+  it('asks in a dialog of its own, then takes the download and the queued song too', async () => {
+    const onClose = jest.fn()
+    await draw(onClose)
 
     await fireEvent.press(screen.getByRole('menuitem', { name: 'Remove from library…' }))
-    // The sheet draws through the overlay host, so the confirmation lands a
-    // tick later; `find` waits for it where `get` would read the menu as it was.
-    const confirm = await screen.findByRole('menuitem', { name: 'Remove from library' })
-    expect(screen.getByText(/The download on this device goes too/)).toBeTruthy()
+    // The menu goes, and the question is one press in a dialog, not a second
+    // state of the menu. It draws through the overlay host a tick later.
+    expect(onClose).toHaveBeenCalled()
+    expect(await screen.findByText('Remove “Nocturne” from your library?')).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: 'Remove from library' })).toBeNull()
 
-    await fireEvent.press(confirm)
+    await fireEvent.press(screen.getByRole('button', { name: 'Remove song' }))
     expect(mockDropDownloads).toHaveBeenCalledWith([4])
-    expect(mockDeleteSong).toHaveBeenCalledWith(4)
+    expect(mockForgetSongs).toHaveBeenCalledWith([4])
+    expect(mockDeleteSong).toHaveBeenCalledWith({ songIds: [4] }, expect.anything())
   })
 
   it('still offers dropping the download on its own', async () => {
@@ -147,14 +154,5 @@ describe('removing a song where the copy goes with it', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Remove download' }))
     expect(mockRemoveByHand).toHaveBeenCalledWith([4])
     expect(mockDeleteSong).not.toHaveBeenCalled()
-  })
-
-  it('does not promise a download that is not there', async () => {
-    mockIndex = { version: 1, entries: {} }
-    await draw()
-
-    await fireEvent.press(screen.getByRole('menuitem', { name: 'Remove from library…' }))
-    await screen.findByRole('menuitem', { name: 'Remove from library' })
-    expect(screen.queryByText(/The download on this device goes too/)).toBeNull()
   })
 })

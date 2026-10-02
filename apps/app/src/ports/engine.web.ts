@@ -291,6 +291,11 @@ class AudioEngine implements PlaybackEngine {
     if (this.#state.countingIn) this.#update({ countingIn: false })
     this.#abortCrossfade()
     this.#primary.pause()
+    // Said now rather than left to the element's `pause` event: that event is
+    // queued, and a load straight after — the next song, put on paused when
+    // the one playing is removed — clears the element's queued events, which
+    // left a Pause button over a song that was not playing.
+    this.#update({ playing: false })
   }
 
   /**

@@ -216,3 +216,45 @@ describe('the queue as the commands see it', () => {
     expect(mockEngine.load).toHaveBeenLastCalledWith(2, { autoplay: true })
   })
 })
+
+describe('songs leaving the library', () => {
+  it('stops on the next song, paused, when the playing song is removed', async () => {
+    await draw()
+    await act(() => api.playFrom(SONGS, 1))
+    mockEngine.load.mockClear()
+
+    await act(() => api.forgetSongs([2]))
+
+    expect(mockEngine.pause).toHaveBeenCalled()
+    expect([...api.queue.items]).toEqual([1, 3, 4])
+    expect(api.current?.id).toBe(3)
+    expect(mockEngine.load).toHaveBeenLastCalledWith(3, { autoplay: false })
+  })
+
+  it('leaves nothing to play when the removed song was the last', async () => {
+    await draw()
+    await act(() => api.playFrom([1, 2], 1))
+
+    await act(() => api.forgetSongs([2]))
+
+    expect(mockEngine.pause).toHaveBeenCalled()
+    expect(api.current).toBeNull()
+    // Play/pause has nothing to start again: not the removed song the engine still holds.
+    mockEngine.play.mockClear()
+    await act(() => api.toggle())
+    expect(mockEngine.play).not.toHaveBeenCalled()
+  })
+
+  it('keeps playing when only a later song is removed', async () => {
+    await draw()
+    await act(() => api.playFrom(SONGS, 0))
+    mockEngine.load.mockClear()
+
+    await act(() => api.forgetSongs([3]))
+
+    expect(mockEngine.pause).not.toHaveBeenCalled()
+    expect(mockEngine.load).not.toHaveBeenCalled()
+    expect([...api.queue.items]).toEqual([1, 2, 4])
+    expect(api.current?.id).toBe(1)
+  })
+})

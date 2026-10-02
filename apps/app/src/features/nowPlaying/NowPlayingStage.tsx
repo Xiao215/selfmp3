@@ -37,12 +37,14 @@ import {
   ChevronDown,
   Collapse,
   Expand,
+  More,
   Next,
   Romanize,
   Sparkles,
   TagPlus,
 } from '../../ui/components/Icons'
 import { FixMetadata } from '../metadata/FixMetadata'
+import { SongMenu } from '../../ui/components/SongMenu'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { SongFacts } from '../song/SongFacts'
 import { songLink } from '../song/song.model'
@@ -312,6 +314,10 @@ function Stage({
   const [tagsOpen, setTagsOpen] = useState(false)
   /** "Fix metadata…" under About: the same dialog the song's page opens. */
   const [fixing, setFixing] = useState(false)
+  // The song's ⋯ menu, the one its rows and its page have: without it the page
+  // playing a song was the one place that song could not be removed or listed.
+  const [menuOpen, setMenuOpen] = useState(false)
+  const moreRef = useRef<View>(null)
   // The tag window opens over its button, as the song menu's does.
   const tagsButtonRef = useRef<View>(null)
   // The tag window hangs from its button, so play-and-tag raises it only once
@@ -784,6 +790,20 @@ function Stage({
                 {stylePill}
               </>
             )}
+            {/* Last at the top right, where the song's page keeps its ⋯. */}
+            <View
+              ref={moreRef}
+              collapsable={false}
+              style={geometry.stacked ? styles.moreAlone : null}
+            >
+              <IconButton
+                label={`More for ${song.title}`}
+                onPress={() => setMenuOpen(open => !open)}
+                testID="now-playing-more"
+              >
+                <More size={18} color={theme.colors.textSecondary} />
+              </IconButton>
+            </View>
           </>
         )}
       </Animated.View>
@@ -892,6 +912,11 @@ function Stage({
         anchorRef={tagsButtonRef}
       />
       {fixing ? <FixMetadata song={song} onClose={() => setFixing(false)} /> : null}
+      <SongMenu
+        song={menuOpen ? song : null}
+        anchorRef={moreRef}
+        onClose={() => setMenuOpen(false)}
+      />
     </Animated.View>
   )
 }
@@ -1014,6 +1039,8 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: withAlpha(theme.colors.textPrimary, 0.07),
   },
   tab: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: radius.pill },
+  // Stacked, the tabs have gone down under the cover and nothing pushes it right.
+  moreAlone: { marginLeft: 'auto' },
   // The chosen tab is the selected tone, as a chosen segment is (`S2`).
   tabActive: { backgroundColor: theme.colors.surfaceSelected },
   tabText: { color: theme.colors.textSecondary, fontSize: 12.5, fontWeight: '600' },

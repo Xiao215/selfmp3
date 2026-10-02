@@ -14,7 +14,7 @@ import { beatKick, beatPhase, type VisualFeel } from './visuals.model'
  * to a stand-in drawn from its tempo and energy, which is the one place a beat
  * keeps time on its own.
  *
- * All three sit behind one small interface, so Horizon and Ripples draw the
+ * All three sit behind one small interface, so Ripples draws the
  * same way whichever is behind them, and never learn which it is. Live
  * and curve agree on what "loud" means: both become a level through the same
  * decibel scale (`levelFromDb`). Pure apart from the analyser it is handed:

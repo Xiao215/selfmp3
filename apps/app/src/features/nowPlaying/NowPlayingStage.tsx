@@ -39,6 +39,7 @@ import {
   Expand,
   More,
   Next,
+  Refresh,
   Romanize,
   Sparkles,
   TagPlus,
@@ -69,9 +70,6 @@ import { Moving, useStageMove } from './StageMove'
 import { coverPose, stackedTabsTop, stageCover, wordsFrame, wordsPose } from './stageMove.model'
 import { SongVisual } from './SongVisual'
 import { useMotionSampler } from './useMotionSampler'
-import { useSongVisual } from './visualChoice'
-import { motionCaption, VISUAL_NAMES } from './visuals.model'
-import { VisualStyleMenu } from './VisualStyleMenu'
 import { useCoverPalette } from './useCoverPalette'
 import { useIdle } from './useIdle'
 import { useSongWords } from './useSongWords'
@@ -302,9 +300,6 @@ function Stage({
   const artFor = useArt()
   const library = useLibrary()
   const lyrics = useSongWords(song)
-  const visual = useSongVisual(song)
-  const [styleOpen, setStyleOpen] = useState(false)
-  const styleButtonRef = useRef<View>(null)
   const uri = artFor(song)
   const palette = useCoverPalette(song, uri)
   // The key and the energy wave, like the player bar's lit controls.
@@ -480,20 +475,20 @@ function Stage({
   // Pushed over the page, as a tag or an artist is, so back comes to it again.
   const openSong = (): void => router.push(songLink(song.id))
 
-  // Beside Visual and About on the stage; in Focus, where the tabs are put
-  // away, at the top right where the romaji switch sits for a song with words.
-  const stylePill = showVisual ? (
+  // "Look for lyrics again" asks the lookup afresh, clearing the answer it
+  // saved that the song has none. Beside Visual and About on the stage; in
+  // Focus, where the tabs are put away, at the top right where the romaji
+  // switch sits for a song with words.
+  const lookAgainPill = showVisual ? (
     <Pressable
-      ref={styleButtonRef}
-      onPress={() => setStyleOpen(open => !open)}
+      onPress={lyrics.lookAgain}
       accessibilityRole="button"
-      accessibilityLabel={`Style: ${visual.chosen ? '' : 'Auto, '}${VISUAL_NAMES[visual.kind]}`}
-      aria-haspopup="menu"
-      aria-expanded={styleOpen}
-      style={({ pressed }) => [styles.tool, (pressed || styleOpen) && styles.toolPressed]}
+      accessibilityLabel="Look for lyrics again"
+      {...tip('Look for lyrics again')}
+      style={({ pressed }) => [styles.tool, pressed && styles.toolPressed]}
     >
-      <Text style={styles.toolText}>{VISUAL_NAMES[visual.kind]}</Text>
-      <ChevronDown size={13} color={theme.colors.textSecondary} />
+      <Refresh size={13} color={theme.colors.textSecondary} />
+      <Text style={styles.toolText}>Find lyrics</Text>
     </Pressable>
   ) : null
 
@@ -704,7 +699,7 @@ function Stage({
             { opacity: visualFade },
           ]}
         >
-          <SongVisual song={song} kind={visual.kind} sampler={sampler} cover={uri} />
+          <SongVisual song={song} sampler={sampler} cover={uri} />
         </Animated.View>
       ) : null}
 
@@ -787,7 +782,7 @@ function Stage({
             {geometry.stacked ? null : (
               <>
                 {tabList}
-                {stylePill}
+                {lookAgainPill}
               </>
             )}
             {/* Last at the top right, where the song's page keeps its ⋯. */}
@@ -811,13 +806,13 @@ function Stage({
       {tabsRow !== null ? (
         <Animated.View style={[styles.tools, chrome, { top: tabsRow, left: geometry.pad }]}>
           {tabList}
-          {stylePill}
+          {lookAgainPill}
         </Animated.View>
       ) : null}
 
-      {focus && stylePill ? (
+      {focus && lookAgainPill ? (
         <Animated.View style={[styles.tools, chrome, { top: top + 12, right: 66 }]}>
-          {stylePill}
+          {lookAgainPill}
         </Animated.View>
       ) : null}
 
@@ -891,15 +886,6 @@ function Stage({
         right={geometry.right}
         bottom={PLAYER_BAR_HEIGHT + (focus ? 28 : 64)}
         chromeShown={chromeShown}
-      />
-
-      <VisualStyleMenu
-        open={styleOpen && noLyrics}
-        onClose={() => setStyleOpen(false)}
-        anchorRef={styleButtonRef}
-        visual={visual}
-        following={motionCaption(sampler.source)}
-        onLookAgain={lyrics.lookAgain}
       />
 
       {/* Focus has no tag button to hang it from: play-and-tag waits for the full page. */}

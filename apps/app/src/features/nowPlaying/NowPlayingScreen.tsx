@@ -51,6 +51,7 @@ import {
   Plus,
   Prev,
   Queue,
+  Refresh,
   Repeat,
   RepeatOne,
   Romanize,
@@ -88,9 +89,6 @@ import { TaggingLine } from './TaggingLine'
 import { useMotionSampler } from './useMotionSampler'
 import { useSongWords } from './useSongWords'
 import { useTagging } from './useTagging'
-import { useSongVisual, type SongVisualChoice } from './visualChoice'
-import { motionCaption, VISUAL_NAMES } from './visuals.model'
-import { VisualStyleMenu } from './VisualStyleMenu'
 
 /**
  * Now Playing: the computer's stage, or the phone's own full-screen page.
@@ -222,7 +220,6 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
   const noLyrics = words.status === 'missing' && !words.offline
   const showVisual = noLyrics && view === 'lyrics'
   const sampler = useMotionSampler(song, showVisual)
-  const visual = useSongVisual(song)
 
   const [sleepOpen, setSleepOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -439,9 +436,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
             uri={uri}
             lyrics={lyrics}
             noLyrics={noLyrics}
-            visual={visual}
             sampler={sampler}
-            following={motionCaption(sampler.source)}
             onBack={() => setView('cover')}
           />
         </Animated.View>
@@ -834,36 +829,30 @@ function BreathingCover({
 /**
  * The words alone (`P22`): a small header with the way back, the song and the
  * romaji or pinyin switch; the lyrics across the page; and the scrubber and
- * the transport under them. A song with no lyrics puts its visual (`P23`,
- * `P24`) in the same place the words would have had, so the page reads the
- * same either way, and the switch's place is its look, which opens the same
- * choices as the computer's.
+ * the transport under them. A song with no lyrics puts its visual (`P24`) in
+ * the same place the words would have had, so the page reads the same either
+ * way, and the switch's place asks the lookup for lyrics again, as the
+ * computer's does.
  */
 function WordsView({
   song,
   uri,
   lyrics,
   noLyrics,
-  visual,
   sampler,
-  following,
   onBack,
 }: {
   song: Song
   uri: string | null
   lyrics: ReturnType<typeof useSongWords>
   noLyrics: boolean
-  visual: SongVisualChoice
   sampler: MotionSampler
-  following: string
   onBack: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
   // The app's own width, not the window's (`shell/rootWidth.ts`).
   const { width } = useLayout()
-  const [styleOpen, setStyleOpen] = useState(false)
-  const styleButtonRef = useRef<View>(null)
   const words = lyrics.words
   const on = lyrics.romanizationOn
   const fontSize = Math.min(28, Math.max(22, width * 0.064))
@@ -897,29 +886,20 @@ function WordsView({
           </Pressable>
         ) : noLyrics ? (
           <Pressable
-            ref={styleButtonRef}
-            onPress={() => setStyleOpen(true)}
+            onPress={lyrics.lookAgain}
             accessibilityRole="button"
-            accessibilityLabel={`Style: ${visual.chosen ? '' : 'Auto, '}${VISUAL_NAMES[visual.kind]}`}
+            accessibilityLabel="Look for lyrics again"
             style={styles.tool}
           >
-            <Text style={styles.toolText}>{VISUAL_NAMES[visual.kind]}</Text>
-            <ChevronDown size={14} color={theme.colors.textSecondary} />
+            <Refresh size={14} color={theme.colors.textSecondary} />
+            <Text style={styles.toolText}>Find lyrics</Text>
           </Pressable>
         ) : null}
       </View>
-      <VisualStyleMenu
-        open={styleOpen}
-        onClose={() => setStyleOpen(false)}
-        anchorRef={styleButtonRef}
-        visual={visual}
-        following={following}
-        onLookAgain={lyrics.lookAgain}
-      />
 
       {noLyrics ? (
         <View pointerEvents="none" style={styles.visualPanel}>
-          <SongVisual song={song} kind={visual.kind} sampler={sampler} cover={uri} rounded />
+          <SongVisual song={song} sampler={sampler} cover={uri} rounded />
         </View>
       ) : (
         <View style={styles.words}>

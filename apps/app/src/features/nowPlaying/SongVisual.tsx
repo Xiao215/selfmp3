@@ -6,15 +6,7 @@ import Animated, {
   useSharedValue,
   type SharedValue,
 } from 'react-native-reanimated'
-import Svg, {
-  Circle,
-  Defs,
-  LinearGradient,
-  Path,
-  RadialGradient,
-  Rect,
-  Stop,
-} from 'react-native-svg'
+import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
 import { radius, rgba } from '@selfmp3/client'
 import { usePlayer, usePracticeState } from '../../player/PlayerProvider'
@@ -23,10 +15,6 @@ import { useMotionReduced } from '../../ui/motion'
 import { useVisualLook } from './useVisualLook'
 import {
   createMotionState,
-  HILL_LAYERS,
-  hillPoints,
-  hillShare,
-  hillShift,
   isSettled,
   MAX_RINGS,
   PlayheadClock,
@@ -38,19 +26,10 @@ import {
   type MotionState,
   type MotionTuning,
 } from './visualMotion.model'
-import {
-  horizonColors,
-  RING_FROM,
-  RING_TO,
-  rippleDisc,
-  sunPlace,
-  type VisualColors,
-  type VisualKind,
-} from './visuals.model'
+import { RING_FROM, RING_TO, rippleDisc, type VisualColors } from './visuals.model'
 
 export interface SongVisualProps {
   song: Song
-  kind: VisualKind
   /** What the visual follows: the song's curve on a phone, or its tempo (`useMotionSampler`). */
   sampler: MotionSampler
   /** Round the corners, for a visual in a box rather than one filling the screen. */
@@ -79,18 +58,13 @@ export interface SongVisualProps {
  * twenty of them a frame, on the thread that also has to answer a tap.)
  *
  * Every moving thing is a transform or an opacity, which the UI thread sets
- * without a layout. Horizon's hills are the one shape that changes, so they
- * are not drawn as paths: each point of a line is a view holding the same
- * rounded cap, raised or lowered to its level, and the caps side by side
- * make the ridge (their union is the line through the points, with a soft
- * dip between equal ones and a crease in a valley, as hills have).
+ * without a layout; a ring's border width is the one exception (`Ring`).
  *
  * Nothing is written once a paused visual has settled. Reduce Motion writes
  * one still frame.
  */
 export function SongVisual({
   song,
-  kind,
   sampler,
   rounded = false,
   cover = null,
@@ -109,18 +83,15 @@ export function SongVisual({
    * The motion itself outlives the loop that steps it. It used to be made
    * inside that loop's effect, and the effect lists `isPlaying` among the things
    * it runs again for, so pausing and playing threw away everything the motion
-   * had built up: the three hill trails a song spends up to twenty-two seconds
-   * filling with what it has heard, every ring still travelling, and the onset
-   * trigger's arm. The horizon dropped back to its seeded landscape on every
-   * pause.
+   * had built up: every ring still travelling, and the onset trigger's arm.
    *
    * It is kept here instead and made again only for something that genuinely
-   * starts the motion over, which is what `restart` names: another style,
-   * another song, or a different sampler behind the same song (the stored curve
-   * arriving for a song that was drawing from its tempo).
+   * starts the motion over, which is what `restart` names: another song, or a
+   * different sampler behind the same song (the stored curve arriving for a
+   * song that was drawing from its tempo).
    */
   const held = useRef<{ key: string; motion: MotionState } | null>(null)
-  const restart = `${kind}|${song.id}|${sampler.source}`
+  const restart = `${song.id}|${sampler.source}`
 
   const live = useRef({ player, sampler, tuning })
   useEffect(() => {
@@ -140,12 +111,12 @@ export function SongVisual({
   useEffect(() => {
     if (!size || !reduced) return
     // Its own state, not the one the loop holds: the still frame stands two
-    // rings out and a quiet landscape, and the loop should carry on from where
-    // it was if Reduce Motion is turned off again.
-    const still = createMotionState(tuning.feel.loudness)
+    // rings out, and the loop should carry on from where it was if Reduce
+    // Motion is turned off again.
+    const still = createMotionState()
     stillMotion(still, tuning, sampler.source)
-    write(kind, still, drawn, tuning, size, true, frame, ringWidths)
-  }, [kind, reduced, size, tuning, sampler.source, drawn, frame, ringWidths])
+    write(still, drawn, tuning, true, frame, ringWidths)
+  }, [reduced, size, tuning, sampler.source, drawn, frame, ringWidths])
 
   useEffect(() => {
     if (!size || reduced) return undefined
@@ -153,14 +124,14 @@ export function SongVisual({
     let motion: MotionState
     if (kept && kept.key === restart) motion = kept.motion
     else {
-      motion = createMotionState(live.current.tuning.feel.loudness)
+      motion = createMotionState()
       held.current = { key: restart, motion }
       forgetRings(drawn)
     }
     let last = performance.now()
     let handle = 0
-    // The frame outlives a style: a paused Ripples left it settled, and a style
-    // picked then must still write its first frame, or Horizon never raises its hills.
+    // The frame outlives the loop: a paused visual left it settled, and a loop
+    // started for a new song or size must still write its first frame.
     let first = true
     const tick = (): void => {
       const now = performance.now()
@@ -168,19 +139,18 @@ export function SongVisual({
       last = now
       const { player: p, sampler: s, tuning: tu } = live.current
       stepMotion(motion, s, clock.read(now), dt, p.isPlaying, tu)
-      const settled = write(kind, motion, drawn, tu, size, first, frame, ringWidths)
+      const settled = write(motion, drawn, tu, first, frame, ringWidths)
       first = false
       /*
-       * A paused visual that has come to rest asks for no more frames. It used
-       * to step three hill trails sixty times a second behind a page nobody
-       * was looking at; `isPlaying` in the dependencies starts it again, and
+       * A paused visual that has come to rest asks for no more frames, rather
+       * than stepping sixty times a second behind a page nobody is looking at; `isPlaying` in the dependencies starts it again, and
        * the motion it starts from is the one it left off at.
        */
       handle = settled && !p.isPlaying ? 0 : requestAnimationFrame(tick)
     }
     handle = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(handle)
-  }, [kind, restart, reduced, size, drawn, clock, frame, ringWidths, isPlaying])
+  }, [restart, reduced, size, drawn, clock, frame, ringWidths, isPlaying])
 
   return (
     <View
@@ -194,17 +164,7 @@ export function SongVisual({
       }}
     >
       {size ? (
-        kind === 'horizon' ? (
-          <Horizon size={size} colors={colors} frame={frame} />
-        ) : (
-          <Ripples
-            size={size}
-            colors={colors}
-            frame={frame}
-            ringWidths={ringWidths}
-            cover={cover}
-          />
-        )
+        <Ripples size={size} colors={colors} frame={frame} ringWidths={ringWidths} cover={cover} />
       ) : null}
     </View>
   )
@@ -216,26 +176,16 @@ interface Size {
 }
 
 /*
- * Where each moving number sits in a frame. One array holds both styles'
- * numbers, so a frame is one write from the JavaScript thread however many
- * views move; each view's style reads its own few.
+ * Where each moving number sits in a frame. One array holds them all, so a
+ * frame is one write from the JavaScript thread however many views move; each
+ * view's style reads its own few.
  */
 /** Per ring: scale, opacity. Its width is a layout prop and travels apart (`ringWidths`). */
 const RING_AT = 0
 const RING_SIZE = 2
 const DISC_AT = RING_AT + MAX_RINGS * RING_SIZE
 const HALO_AT = DISC_AT + 1
-/** The sun's scale, then its glow's opacity. */
-const SUN_AT = HALO_AT + 1
-/** Per hill line: how far it has moved left, in points, then each point's drop below its peak. */
-const HILL_AT = SUN_AT + 2
-const HILL_OFFSETS: number[] = []
-let hillEnd = HILL_AT
-for (const layer of HILL_LAYERS) {
-  HILL_OFFSETS.push(hillEnd)
-  hillEnd += 1 + hillPoints(layer.gaps)
-}
-const FRAME_LENGTH = hillEnd
+const FRAME_LENGTH = HALO_AT + 1
 
 const EMPTY_FRAME: readonly number[] = Array.from({ length: FRAME_LENGTH }, () => 0)
 const NO_RINGS: readonly number[] = Array.from({ length: MAX_RINGS }, () => 2)
@@ -274,216 +224,42 @@ function forgetRings(drawn: Drawn): void {
   drawn.settled = false
 }
 
-/** Writes this frame into the shared value the showing style reads. */
+/** Writes this frame into the shared value the views read. */
 function write(
-  kind: VisualKind,
   m: MotionState,
   drawn: Drawn,
   tu: MotionTuning,
-  size: Size,
   force: boolean,
   frame: Frame,
   ringWidths: Frame,
 ): boolean {
-  const settled = isSettled(kind, m)
+  const settled = isSettled(m)
   if (settled && drawn.settled && !force) return true
   drawn.settled = settled
   const out = drawn.out
-  const glow = m.glow
-  if (kind === 'horizon') {
-    out[SUN_AT] = 0.94 + 0.08 * glow + 0.14 * m.swell
-    out[SUN_AT + 1] = Math.min(1, 0.35 + 0.4 * glow + 0.25 * m.flash)
-    HILL_LAYERS.forEach((layer, index) => {
-      const trail = m.hills[index]!
-      const at = HILL_OFFSETS[index]!
-      const rise = size.height * layer.rise
-      out[at] = -hillShift(trail) * (size.width / layer.gaps)
-      for (let i = 0; i < trail.levels.length; i++)
-        out[at + 1 + i] = rise * (1 - hillShare(trail.levels[i] ?? 0))
-    })
-  } else {
-    let widthsChanged = false
-    for (let slot = 0; slot < MAX_RINGS; slot++) {
-      const at = RING_AT + slot * RING_SIZE
-      const ring = m.rings.find(candidate => candidate.id % MAX_RINGS === slot)
-      if (!ring) {
-        out[at + 1] = 0
-        continue
-      }
-      if (drawn.ringIds[slot] !== ring.id) {
-        drawn.ringIds[slot] = ring.id
-        drawn.widths[slot] = 1.5 + 1.5 * ring.strength
-        widthsChanged = true
-      }
-      out[at] = RING_FROM + (RING_TO - RING_FROM) * ringReach(ring, tu)
-      out[at + 1] = ringFade(ring, tu) * 0.85
+  let widthsChanged = false
+  for (let slot = 0; slot < MAX_RINGS; slot++) {
+    const at = RING_AT + slot * RING_SIZE
+    const ring = m.rings.find(candidate => candidate.id % MAX_RINGS === slot)
+    if (!ring) {
+      out[at + 1] = 0
+      continue
     }
-    if (widthsChanged || force) ringWidths.value = drawn.widths.slice()
-    out[DISC_AT] = 1 + 0.06 * m.kick
-    out[HALO_AT] = Math.min(1, 0.15 + 0.45 * glow + 0.3 * m.kick)
+    if (drawn.ringIds[slot] !== ring.id) {
+      drawn.ringIds[slot] = ring.id
+      drawn.widths[slot] = 1.5 + 1.5 * ring.strength
+      widthsChanged = true
+    }
+    out[at] = RING_FROM + (RING_TO - RING_FROM) * ringReach(ring, tu)
+    out[at + 1] = ringFade(ring, tu) * 0.85
   }
+  if (widthsChanged || force) ringWidths.value = drawn.widths.slice()
+  out[DISC_AT] = 1 + 0.06 * m.kick
+  out[HALO_AT] = Math.min(1, 0.15 + 0.45 * m.glow + 0.3 * m.kick)
   // A copy: the shared value is handed to the UI thread after this frame's
   // work, and `out` is filled in again on the next.
   frame.value = out.slice()
   return settled
-}
-
-interface StyleProps {
-  size: Size
-  colors: VisualColors
-  frame: Frame
-}
-
-/*
- * Horizon (P23): a dusk sky in the song's colours, a sun that swells on each
- * hit, and three hill lines drawn from the loudness heard, rolling left.
- */
-function Horizon({ size, colors, frame }: StyleProps): ReactNode {
-  const look = horizonColors(colors)
-  const sun = sunPlace(size.width, size.height)
-  const glow = sun.d * 2.6
-  const sunStyle = useAnimatedStyle(() => ({ transform: [{ scale: frame.value[SUN_AT] ?? 1 }] }))
-  const glowStyle = useAnimatedStyle(() => ({ opacity: frame.value[SUN_AT + 1] ?? 0.5 }))
-  const sunInk = rgba(look.sun)
-  return (
-    <>
-      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
-        <Defs>
-          <LinearGradient id="horizon-sky" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={rgba(look.sky[0])} stopOpacity={1} />
-            <Stop offset="0.42" stopColor={rgba(look.sky[1])} stopOpacity={1} />
-            <Stop offset="0.74" stopColor={rgba(look.sky[2])} stopOpacity={1} />
-            <Stop offset="1" stopColor={rgba(look.sky[3])} stopOpacity={1} />
-          </LinearGradient>
-        </Defs>
-        <Rect x="0" y="0" width="100%" height="100%" fill="url(#horizon-sky)" />
-      </Svg>
-      <Animated.View
-        style={[
-          styles.at,
-          { left: sun.x - glow / 2, top: sun.y - glow / 2, width: glow, height: glow },
-          glowStyle,
-        ]}
-      >
-        <Svg width="100%" height="100%">
-          <Defs>
-            <RadialGradient id="horizon-glow" cx="50%" cy="50%" r="50%">
-              <Stop offset="0.3" stopColor={sunInk} stopOpacity={0.45} />
-              <Stop offset="1" stopColor={sunInk} stopOpacity={0} />
-            </RadialGradient>
-          </Defs>
-          <Circle cx="50%" cy="50%" r="50%" fill="url(#horizon-glow)" />
-        </Svg>
-      </Animated.View>
-      <Animated.View
-        style={[
-          styles.at,
-          {
-            left: sun.x - sun.d / 2,
-            top: sun.y - sun.d / 2,
-            width: sun.d,
-            height: sun.d,
-            borderRadius: sun.d / 2,
-            backgroundColor: sunInk,
-          },
-          sunStyle,
-        ]}
-      />
-      {HILL_LAYERS.map((_, index) => (
-        <HillLine
-          key={index}
-          index={index}
-          size={size}
-          ink={rgba(look.hills[index]!)}
-          frame={frame}
-        />
-      ))}
-      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
-        <Defs>
-          <LinearGradient id="horizon-foot" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0.6" stopColor={rgba(look.foot)} stopOpacity={0} />
-            <Stop offset="0.86" stopColor={rgba(look.foot)} stopOpacity={1} />
-          </LinearGradient>
-        </Defs>
-        <Rect x="0" y="0" width="100%" height="100%" fill="url(#horizon-foot)" />
-      </Svg>
-    </>
-  )
-}
-
-/**
- * One hill line: a row of caps that moves left by the share of a point the
- * line has travelled, each cap lowered from its peak by its point's level.
- */
-function HillLine({
-  index,
-  size,
-  ink,
-  frame,
-}: {
-  index: number
-  size: Size
-  ink: string
-  frame: Frame
-}): ReactNode {
-  const layer = HILL_LAYERS[index]!
-  const at = HILL_OFFSETS[index]!
-  const gap = size.width / layer.gaps
-  const rise = size.height * layer.rise
-  const peak = size.height * layer.base - rise
-  // A cap is a parabola four gaps wide with straight sides below it: two
-  // equal neighbours meet a quarter of `bow` down, and its sides are always
-  // hidden, sitting lower than any neighbour can.
-  const bow = rise * 0.35
-  const tall = size.height - peak + rise
-  const cap = `M0 ${4 * bow} Q ${2 * gap} ${-4 * bow} ${4 * gap} ${4 * bow} L ${4 * gap} ${tall} L 0 ${tall} Z`
-  const moving = useAnimatedStyle(() => ({ transform: [{ translateX: frame.value[at] ?? 0 }] }))
-  return (
-    <Animated.View style={[styles.line, moving]}>
-      {Array.from({ length: hillPoints(layer.gaps) }, (_, point) => (
-        <HillCap
-          key={point}
-          at={at + 1 + point}
-          left={(point - 1) * gap - 2 * gap}
-          top={peak}
-          width={4 * gap}
-          height={tall}
-          path={cap}
-          ink={ink}
-          frame={frame}
-        />
-      ))}
-    </Animated.View>
-  )
-}
-
-function HillCap({
-  at,
-  left,
-  top,
-  width,
-  height,
-  path,
-  ink,
-  frame,
-}: {
-  at: number
-  left: number
-  top: number
-  width: number
-  height: number
-  path: string
-  ink: string
-  frame: Frame
-}): ReactNode {
-  const moving = useAnimatedStyle(() => ({ transform: [{ translateY: frame.value[at] ?? 0 }] }))
-  return (
-    <Animated.View style={[styles.at, { left, top, width, height }, moving]}>
-      <Svg width={width} height={height}>
-        <Path d={path} fill={ink} />
-      </Svg>
-    </Animated.View>
-  )
 }
 
 /*
@@ -497,7 +273,13 @@ function Ripples({
   frame,
   ringWidths,
   cover,
-}: StyleProps & { ringWidths: Frame; cover: string | null }): ReactNode {
+}: {
+  size: Size
+  colors: VisualColors
+  frame: Frame
+  ringWidths: Frame
+  cover: string | null
+}): ReactNode {
   const disc = rippleDisc(size.width, size.height)
   const halo = disc * 1.9
   const [middle, edge] = colors.ground
@@ -613,8 +395,6 @@ const styles = StyleSheet.create({
   fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, overflow: 'hidden' },
   rounded: { borderRadius: radius.card },
   at: { position: 'absolute' },
-  // Unclipped: its caps reach past both edges, and it moves.
-  line: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   centre: {
     position: 'absolute',
     top: 0,

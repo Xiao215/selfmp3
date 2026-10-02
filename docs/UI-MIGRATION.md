@@ -589,6 +589,7 @@ Answered by Xiao on 2026-09-18.
    **Answer: yes, as proposed.**
 2. **The four old visuals (Phase 6).** **Answer: Horizon and Ripples replace aurora, pulse,
    spectrum and drift outright**, and `autoVisual()` picks between the two by energy.
+   *Later (October 2026): Horizon and the picker went too; every song gets Ripples.*
 3. **Artists with two spellings, and "feat." (Phase 4).** **Answer: split collaborations.**
    An artist string is split on "feat.", "ft.", "&", "×", "x" between names and ","; each
    part, trimmed and compared case-insensitively, is an artist, and a song belongs to every

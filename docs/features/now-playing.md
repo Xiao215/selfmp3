@@ -63,21 +63,14 @@ A song never opens onto an empty page. When there are no lyrics, the words area 
 visual drawn from the song itself. "No lyrics" is one state — a saved answer that the song
 has no words and a lookup that found nothing look the same (see
 [lyrics-plus.md](lyrics-plus.md#songs-with-no-words) for the flag the server keeps).
-**Style ▾** chooses another visual, or looks for lyrics again.
+**Find lyrics** beside it asks the lookup again.
 
-Two visuals (docs/ui-mock `P23`, `P24`, `C10`), drawn on a canvas each frame in a browser
+The visual is **Ripples** (docs/ui-mock `P24`, `C10`): the cover as a disc that kicks on
+each hit and sends out a ring, its size and fade set by the hit's strength, over a ground
+washed in the cover's colours. It is drawn on a canvas each frame in a browser
 (`SongVisual.web.tsx`) and with views on a phone (`SongVisual.tsx`), from the same rules in
-`visuals.model.ts` and `visualMotion.model.ts`:
-
-| Visual | What it draws |
-|---|---|
-| Horizon | A sun over three lines of hills. Each line is the loudness heard so far, rolling in from the right at its own pace; the sun swells on each hit and glows with the level |
-| Ripples | A disc in the cover's colours sending out a ring on each hit, its size and fade set by the hit's strength |
-
-Which one a song gets is picked from how it sounds (`autoVisual`): from 0.5 energy
-**Ripples**, below it or not analysed yet **Horizon**. The look picker chooses the other for
-that song, and the choice is kept on this device; a choice saved for one of the four older
-visuals goes back to Auto.
+`visuals.model.ts` and `visualMotion.model.ts`. Every song gets it; there is nothing to
+choose (Horizon, the second look, was dropped in October 2026).
 
 The page is laid out the same way whether a song has words or not: the visual takes the
 column the lyrics would have run in, rounded like a card, and the cover, the title and the
@@ -92,8 +85,7 @@ usual ground.
 (`analyser()` in `ports/engine.web.ts`) is the sound itself. Everywhere else — a phone,
 Safari, a touch browser, a cloud library, offline — the song's motion curve, worked out by
 the server when it analysed the song, is played back against the playhead. A song with
-neither falls back to a stand-in drawn from its tempo and energy. A quiet line in the
-**Style ▾** menu says which: *Following the sound*, *Following the song* or *Following the tempo*.
+neither falls back to a stand-in drawn from its tempo and energy.
 
 ## On the phone
 
@@ -109,9 +101,9 @@ lyrics on their own (`/now-playing?view=lyrics`, `P22`); swiping down comes back
 | What | Where |
 |---|---|
 | Page | `apps/app/src/features/nowPlaying/NowPlayingScreen.tsx` (route `apps/app/app/now-playing.tsx`), `NowPlayingStage.tsx` |
-| Lyrics, visual, status line | `nowPlaying/StageLyrics.tsx`, `SongVisual.tsx` (+ `.web.tsx`), `VisualStyleMenu.tsx` |
+| Lyrics, visual, status line | `nowPlaying/StageLyrics.tsx`, `SongVisual.tsx` (+ `.web.tsx`) |
 | Lyrics state, cover colours, Stage ↔ Focus | `nowPlaying/useSongWords.ts`, `useCoverPalette.ts`, `stageMove.model.ts` |
 | Up next | `apps/app/src/features/queue/` (`QueueSheet.tsx`, `QueueRail.tsx`, `queue.model.ts`) |
-| Visual choice, motion, palettes | `apps/app/src/features/nowPlaying/visuals.model.ts`, `visualChoice.ts`, `motionSource.model.ts` (+ tests) |
+| Visual motion, palettes | `apps/app/src/features/nowPlaying/visuals.model.ts`, `visualMotion.model.ts`, `motionSource.model.ts` (+ tests) |
 | Playhead and analyser | `apps/app/src/ports/engine.web.ts`, exposed by `apps/app/src/player/PlayerProvider.tsx` |
 | Shell, keys, the bar | `apps/app/src/shell/Shell.tsx`, `useHotkeys.web.ts`, `PlayerBar.tsx` |

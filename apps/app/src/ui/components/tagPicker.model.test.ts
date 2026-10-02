@@ -23,14 +23,31 @@ describe('what a set of ticks changes', () => {
   const across = tagsAcross([song(1, [10, 20]), song(2, [10])])
 
   it('adds a ticked tag that was not on all of them, mixed or new', () => {
-    expect(tagChanges(across, new Set([10, 20, 40]))).toEqual({ add: [20, 40], remove: [] })
+    const { add, remove } = tagChanges(across, new Set([10, 20, 40]))
+    expect({ add, remove }).toEqual({ add: [20, 40], remove: [] })
   })
 
   it('removes a tag that was on all of them and is unticked', () => {
-    expect(tagChanges(across, new Set())).toEqual({ add: [], remove: [10] })
+    const { add, remove } = tagChanges(across, new Set())
+    expect({ add, remove }).toEqual({ add: [], remove: [10] })
   })
 
   it('leaves a mixed tag alone while it stays unticked', () => {
-    expect(tagChanges(across, new Set([10]))).toEqual({ add: [], remove: [] })
+    const { add, remove, after } = tagChanges(across, new Set([10]))
+    expect({ add, remove }).toEqual({ add: [], remove: [] })
+    expect([...after.some]).toEqual([20])
+  })
+
+  it('takes a ticked-then-unticked tag back off, before the library has answered', () => {
+    const ticked = tagChanges(across, new Set([10, 40]))
+    expect(ticked.add).toEqual([40])
+    const unticked = tagChanges(ticked.after, new Set([10]))
+    expect({ add: unticked.add, remove: unticked.remove }).toEqual({ add: [], remove: [40] })
+  })
+
+  it('stops drawing a mixed tag mixed once it is ticked', () => {
+    const { after } = tagChanges(across, new Set([10, 20]))
+    expect(after.some.size).toBe(0)
+    expect([...after.all].sort()).toEqual([10, 20])
   })
 })

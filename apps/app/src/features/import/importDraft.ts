@@ -9,7 +9,16 @@ import { createImportDraftStore } from './importDraft.store'
  */
 const store = createImportDraftStore(prefs)
 
-export const { draftFor, patchDraft, toggleChosenIn, chooseAllIn, renameIn } = store
+export const {
+  draftFor,
+  patchDraft,
+  toggleChosenIn,
+  chooseAllIn,
+  renameIn,
+  chooseSourceIn,
+  lookAgainIn,
+  foundIn,
+} = store
 
 /** Drop one source's draft: on signing out of the cloud, or leaving a server. */
 export function forgetImportDraft(source: DraftSource): void {

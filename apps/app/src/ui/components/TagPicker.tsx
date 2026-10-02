@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { fuzzyRank, TAG_NAME_MAX, type Song, type Tag } from '@selfmp3/shared'
+import { fuzzyRank, plural, TAG_NAME_MAX, type Song, type Tag } from '@selfmp3/shared'
 import {
   failureText,
   HIT_TARGET,
@@ -77,7 +77,7 @@ export function SelectionTagPicker({
       open={open}
       onClose={onClose}
       anchorRef={anchorRef}
-      title={`Tags for ${songs.length} ${songs.length === 1 ? 'song' : 'songs'}`}
+      title={`Tags for ${plural(songs.length, 'song', 'songs')}`}
     >
       {open ? <SelectionPicker songs={songs} onLeave={onClose} /> : null}
     </PickerWindow>
@@ -125,28 +125,24 @@ function SelectionPicker({
   songs: readonly Song[]
   onLeave: () => void
 }): ReactNode {
-  const across = useMemo(() => tagsAcross(songs), [songs])
-  // What is ticked: what the songs have, until a tap says otherwise, and the
-  // songs' own state again once the library has answered (a new set of songs
-  // or tags is a new key). Kept here rather than read straight from the songs
-  // so a tick shows at once and not a round trip later.
-  const key = useMemo(
-    () => songs.map(song => `${song.id}:${song.tagIds.join(',')}`).join('|'),
-    [songs],
-  )
-  const [ticked, setTicked] = useState<{ key: string; ids: ReadonlySet<number> } | null>(null)
-  const selected = ticked?.key === key ? ticked.ids : across.all
+  // What is ticked and what is mixed: the songs' as the picker opened, then
+  // the taps', as a song's picker keeps its own. The bulk edit waits for a
+  // refetch, so the songs lag a tap; measured against them, a tag ticked and
+  // unticked before the library answered would stay on.
+  const [shown, setShown] = useState(() => tagsAcross(songs))
+  const latest = useRef(shown)
   const bulkTag = useBulkTag()
-  const ids = useMemo(() => songs.map(song => song.id), [songs])
   return (
     <TagSearchList
-      selected={selected}
-      mixed={across.some}
+      selected={shown.all}
+      mixed={shown.some}
       onChange={next => {
-        setTicked({ key, ids: next })
-        const { add, remove } = tagChanges(across, next)
-        for (const tagId of add) bulkTag.mutate({ songIds: ids, tagId, action: 'add' })
-        for (const tagId of remove) bulkTag.mutate({ songIds: ids, tagId, action: 'remove' })
+        const { add, remove, after } = tagChanges(latest.current, next)
+        latest.current = after
+        setShown(after)
+        const songIds = songs.map(song => song.id)
+        for (const tagId of add) bulkTag.mutate({ songIds, tagId, action: 'add' })
+        for (const tagId of remove) bulkTag.mutate({ songIds, tagId, action: 'remove' })
       }}
       onLeave={onLeave}
       autoFocus

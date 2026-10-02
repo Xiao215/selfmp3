@@ -26,7 +26,6 @@
     "SearchOptions.dc.html": "boards/P20-why-one-search-many-doors.html",
     "NowPlayingQuiet.dc.html": "boards/P21-now-playing.html",
     "LyricsOnly.dc.html": "boards/P22-lyrics-only.html",
-    "VisualHorizon-8cxu.dc.html": "boards/P23-no-lyrics-horizon.html",
     "VisualRipples-p86g.dc.html": "boards/P24-no-lyrics-ripples.html",
     "QueueMini.dc.html": "boards/P25-up-next.html",
     "QueueOptions.dc.html": "boards/P26-why-how-up-next-behaves.html",
@@ -319,15 +318,6 @@
       "title": "P22 · Lyrics only",
       "w": 390,
       "x": 470,
-      "y": 5200,
-      "page": "phone"
-    },
-    "VisualHorizon-8cxu.dc.html": {
-      "h": 844,
-      "is_interactive": true,
-      "title": "P23 · No lyrics · Horizon",
-      "w": 390,
-      "x": 940,
       "y": 5200,
       "page": "phone"
     },
@@ -839,7 +829,7 @@
       "y": 5200,
       "w": 420,
       "maxH": 840,
-      "text": "The mini player is a floating card above the bar with a progress wash and a queue button; tapping it opens Now Playing.\n\nNow Playing: no selector at the top. ⓘ opens the song's page. The foot is Lyrics · Sleep · queue. Tags wrap quietly under the artist. Lyrics is a swipe or the pill and opens the lyrics-only page. A song without lyrics shows Horizon or Ripples instead, coloured from its cover.\n\nUp next is a sheet that covers the mini player and the bar. The playing song is on top with an equaliser. Hold to move, swipe left to remove; no grips, no ×. Played songs sink to the end, greyed.\n\nLock screen: the system player; no Loved button and no add-tag button. Widget: four tag tiles, tap to play, and what is playing.",
+      "text": "The mini player is a floating card above the bar with a progress wash and a queue button; tapping it opens Now Playing.\n\nNow Playing: no selector at the top. ⓘ opens the song's page. The foot is Lyrics · Sleep · queue. Tags wrap quietly under the artist. Lyrics is a swipe or the pill and opens the lyrics-only page. A song without lyrics shows Ripples instead, coloured from its cover, with a Find lyrics button that asks again.\n\nUp next is a sheet that covers the mini player and the bar. The playing song is on top with an equaliser. Hold to move, swipe left to remove; no grips, no ×. Played songs sink to the end, greyed.\n\nLock screen: the system player; no Loved button and no add-tag button. Widget: four tag tiles, tap to play, and what is playing.",
       "color": "blue",
       "page": "phone"
     },

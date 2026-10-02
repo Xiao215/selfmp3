@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ImportQueue, Library, Tag, ToolStatus } from '@selfmp3/shared'
 import {
+  changeQueue,
   clientApi,
   queryKeys,
   HISTORY_LIMIT,
@@ -10,6 +11,7 @@ import {
   useImportQueue,
   useImportTools,
   useLibrary,
+  type QueueChange,
   type ServerConnection,
 } from '@selfmp3/client'
 import { apiFor } from '../../api/client'
@@ -49,6 +51,13 @@ interface ImportSource {
   /** The queue with its whole history, once `history` was asked for; "Show all" reads it. */
   readonly history: ImportQueue | undefined
   readonly invalidateQueue: () => Promise<void>
+  /**
+   * Draw a change to the queue now, ahead of the server's answer
+   * (`changeQueue`): a poll already on its way is called off first, so it
+   * cannot put back the queue as it was a moment ago. `invalidateQueue` afterwards
+   * reads what the server made of it.
+   */
+  readonly editQueue: (change: QueueChange) => void
   readonly invalidateLibrary: () => Promise<void>
 }
 
@@ -137,6 +146,17 @@ export function useImportSource(
   }, [fromCloud, queryClient, server, keys.library])
   useSongsLanding(queue, baseUrl ?? 'here', look)
 
+  const queueKey = server ? keys.queue : queryKeys.importQueue
+  const editQueue = (change: QueueChange): void => {
+    // After the call-off has settled: a cancelled fetch puts its query back as
+    // it was before it started, which would draw over the change.
+    void queryClient.cancelQueries({ queryKey: queueKey }).then(() => {
+      queryClient.setQueryData<ImportQueue>(queueKey, current =>
+        current ? changeQueue(current, change) : current,
+      )
+    })
+  }
+
   if (server) {
     return {
       api: server,
@@ -148,6 +168,7 @@ export function useImportSource(
       history: serverHistory.data,
       invalidateQueue: () =>
         queryClient.invalidateQueries({ queryKey: ['via-server', baseUrl] as const }),
+      editQueue,
       invalidateLibrary: () => queryClient.invalidateQueries({ queryKey: keys.library }),
     }
   }
@@ -161,6 +182,7 @@ export function useImportSource(
     history: ownHistory.data,
     // The history too: Clear and Remove change it as much as the queue.
     invalidateQueue: () => queryClient.invalidateQueries({ queryKey: ['import'] as const }),
+    editQueue,
     invalidateLibrary: () => queryClient.invalidateQueries({ queryKey: queryKeys.library }),
   }
 }

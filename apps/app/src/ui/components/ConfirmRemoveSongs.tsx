@@ -1,16 +1,86 @@
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import type { Song } from '@selfmp3/shared'
-import { HIT_TARGET, oklchToHexAlpha, radius, space } from '@selfmp3/client'
+import { plural, type Song } from '@selfmp3/shared'
+import { HIT_TARGET, oklchToHexAlpha, radius, space, useBulkDeleteSongs } from '@selfmp3/client'
+import { useDownloads } from '../../offline/DownloadsProvider'
+import { usePlayer } from '../../player/PlayerProvider'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
+import { showToast } from '../toast'
 import { Button } from './Button'
 import { floating } from '../surfaces'
 import { IconButton } from './IconButton'
 import { Trash, X } from './Icons'
+
+/**
+ * Removing songs from the library, from the question to the word afterwards:
+ * the selection bar's and a song's ⋯ menu's are the same act, so they are the
+ * same dialog doing the same things in the same order.
+ *
+ * On yes, the copies here go and the player lets go of the songs at once — the
+ * one playing stops, and the next waits paused (`forgetSongs`) — rather than
+ * after the server answers: the counts drawn from the library and the download
+ * index have to lose them at the same moment, and music still playing from a
+ * song you have just removed reads as the remove not having worked.
+ */
+export function RemoveSongs({
+  songs,
+  onCancel,
+  onDone,
+}: {
+  songs: readonly Song[]
+  onCancel: () => void
+  /** Removed: close whatever asked. */
+  onDone: () => void
+}): ReactNode {
+  const player = usePlayer()
+  const { dropDownloads } = useDownloads()
+  const bulkDelete = useBulkDeleteSongs()
+  const [error, setError] = useState<string | null>(null)
+
+  const confirm = (): void => {
+    const ids = songs.map(song => song.id)
+    setError(null)
+    void dropDownloads(ids)
+    player.forgetSongs(ids)
+    bulkDelete.mutate(
+      { songIds: ids },
+      {
+        onSuccess: result => {
+          onDone()
+          // The summary: what went, and what did not.
+          const only = songs.length === 1 && result.removed === 1 ? songs[0] : undefined
+          const parts = [
+            only ? `Removed “${only.title}”` : `Removed ${plural(result.removed, 'song', 'songs')}`,
+          ]
+          const trouble = result.failed.length
+          if (trouble > 0) parts.push(`${trouble} needed attention`)
+          showToast(
+            trouble > 0
+              ? `${parts.join(', ')} — ${result.failed[0]?.reason ?? 'see the server log'}`
+              : parts.join(', '),
+            trouble > 0 ? 'warn' : 'good',
+          )
+        },
+        onError: caught => setError(caught.message),
+      },
+    )
+  }
+
+  return (
+    <ConfirmRemoveSongs
+      songs={songs}
+      pending={bulkDelete.isPending}
+      error={error}
+      onCancel={onCancel}
+      onConfirm={confirm}
+    />
+  )
+}
 
 /**
  * The confirmation for removing a selection from the library.
@@ -45,7 +115,9 @@ export function ConfirmRemoveSongs({
 
   const count = songs.length
   const songWord = count === 1 ? 'song' : 'songs'
-  const named = songs.slice(0, 3).map(song => song.title)
+  // One song is named in the question, so the list under it would only repeat it.
+  const only = count === 1 ? songs[0] : undefined
+  const named = only ? [] : songs.slice(0, 3).map(song => song.title)
   const rest = count - named.length
   const cancel = (): void => {
     if (!pending) onCancel()
@@ -66,7 +138,7 @@ export function ConfirmRemoveSongs({
       >
         <View style={styles.head}>
           <Text style={styles.title} accessibilityRole="header">
-            Remove {count} {songWord} from your library?
+            {only ? `Remove “${only.title}”` : `Remove ${count} ${songWord}`} from your library?
           </Text>
           <IconButton onPress={cancel} label="Cancel">
             <X size={16} color={theme.colors.textSecondary} />
@@ -82,18 +154,20 @@ export function ConfirmRemoveSongs({
             <Text style={[styles.strong, styles.strongDestructive]}>This cannot be undone.</Text>
           </Text>
 
-          <View style={styles.list}>
-            {named.map((title, index) => (
-              <Text key={`${title}-${index}`} style={styles.listItem} numberOfLines={1}>
-                {title}
-              </Text>
-            ))}
-            {rest > 0 ? (
-              <Text style={[styles.listItem, styles.listRest]}>
-                and {rest} more {rest === 1 ? 'song' : 'songs'}
-              </Text>
-            ) : null}
-          </View>
+          {named.length === 0 ? null : (
+            <View style={styles.list}>
+              {named.map((title, index) => (
+                <Text key={`${title}-${index}`} style={styles.listItem} numberOfLines={1}>
+                  {title}
+                </Text>
+              ))}
+              {rest > 0 ? (
+                <Text style={[styles.listItem, styles.listRest]}>
+                  and {rest} more {rest === 1 ? 'song' : 'songs'}
+                </Text>
+              ) : null}
+            </View>
+          )}
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </ScrollView>
@@ -101,7 +175,7 @@ export function ConfirmRemoveSongs({
         <View style={[styles.actions, !wide && styles.actionsCompact]}>
           <Button label="Cancel" onPress={cancel} disabled={pending} grow={!wide} />
           <Button
-            label={pending ? 'Working…' : `Remove ${count} ${songWord}`}
+            label={pending ? 'Working…' : only ? 'Remove song' : `Remove ${count} ${songWord}`}
             icon={<Trash size={15} color={theme.colors.danger} />}
             variant="danger"
             onPress={onConfirm}

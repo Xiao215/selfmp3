@@ -1,4 +1,4 @@
-import { isYouTubeUrl, type CoverTone, type ImportPreviewItem } from '@selfmp3/shared'
+import { isNeteaseUrl, isYouTubeUrl, type CoverTone, type ImportPreviewItem } from '@selfmp3/shared'
 
 /** What a preview is doing, as the audio reports it (the `listen` port's state). */
 export type ListenStatus = 'loading' | 'playing' | 'paused' | 'error'
@@ -27,8 +27,9 @@ export interface Listening {
   readonly tone: CoverTone | null
 }
 
-/** The server can only stream what yt-dlp finds on YouTube. */
-export const canListen = (item: Pick<ImportPreviewItem, 'url'>): boolean => isYouTubeUrl(item.url)
+/** The server streams what yt-dlp finds on YouTube or 网易云; a song still being looked for has nothing yet. */
+export const canListen = (item: Pick<ImportPreviewItem, 'url'>): boolean =>
+  isYouTubeUrl(item.url) || isNeteaseUrl(item.url)
 
 /** A new preview, before the audio has said anything; `tone` when its cover's colour is already known. */
 export const startListening = (track: ListenTrack, tone: CoverTone | null = null): Listening => ({

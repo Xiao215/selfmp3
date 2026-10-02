@@ -1,9 +1,16 @@
 import fsp from 'node:fs/promises'
-import { isSynced, LYRIC_EXTENSIONS, youtubeVideoId, type LyricsKind } from '@selfmp3/shared'
+import {
+  isSynced,
+  LYRIC_EXTENSIONS,
+  neteaseLink,
+  youtubeVideoId,
+  type LyricsKind,
+} from '@selfmp3/shared'
 import type { StorageDriver } from '../storage/index.js'
 import type { Logger } from '../logger.js'
 import { USER_AGENT } from '../config.js'
 import type { YouTubeMusicLyrics } from './youtubeMusic.js'
+import type { NeteaseMusic } from './netease.js'
 
 /**
  * Lyrics come from four places, in order of trust:
@@ -15,8 +22,10 @@ import type { YouTubeMusicLyrics } from './youtubeMusic.js'
  *  2. Tags embedded in the audio file itself, while the audio is here.
  *  3. The bucket's copy of the words, which is where both of the above end up.
  *  4. The network, fetched once and then written to disk as a sidecar for the
- *     pass to send up: YouTube Music's timed lyrics first (see
- *     youtubeMusic.ts), then lrclib.net, a community database.
+ *     pass to send up: the words of the place the song was downloaded from
+ *     first — YouTube Music's timed lyrics (youtubeMusic.ts) for a song from
+ *     YouTube, 网易云's (netease.ts) for a song from there — then
+ *     lrclib.net, a community database.
  */
 
 const LRCLIB = 'https://lrclib.net/api'
@@ -34,7 +43,7 @@ interface LyricsLookup {
   readonly title: string
   readonly album: string
   readonly duration: number
-  /** Where it was imported from; a YouTube link finds its own lyrics. */
+  /** Where it was imported from; a YouTube or 网易云 link finds its own lyrics. */
   readonly sourceUrl?: string | null
 }
 
@@ -77,6 +86,7 @@ export class LyricsService {
   readonly #logger: Logger
   readonly #fetch: FetchLike
   readonly #youtubeMusic: YouTubeMusicLyrics | null
+  readonly #netease: Pick<NeteaseMusic, 'lyrics'> | null
   readonly #fromBucket: FromBucket | null
 
   constructor(
@@ -85,12 +95,14 @@ export class LyricsService {
     fetchImpl: FetchLike = fetch,
     youtubeMusic: YouTubeMusicLyrics | null = null,
     fromBucket: FromBucket | null = null,
+    netease: Pick<NeteaseMusic, 'lyrics'> | null = null,
   ) {
     this.#storage = storage
     this.#logger = logger.child('lyrics')
     this.#fetch = fetchImpl
     this.#youtubeMusic = youtubeMusic
     this.#fromBucket = fromBucket
+    this.#netease = netease
   }
 
   /**
@@ -142,11 +154,12 @@ export class LyricsService {
   }
 
   /**
-   * Look a track up online: YouTube Music, then lrclib.
+   * Look a track up online: where it was downloaded from, then lrclib.
    *
-   * YouTube Music's timed lyrics win whenever it has them for this recording
-   * — professionally timed, and for a song imported from YouTube, timed
-   * against the very track that was downloaded.
+   * The words of the song's own source win: 网易云's for a song from 网易云,
+   * YouTube Music's timed lyrics for any other — professionally timed, and
+   * for a song imported from YouTube, timed against the very track that was
+   * downloaded.
    *
    * On lrclib, tries the exact endpoint first (artist + title + album + duration, which
    * lets the service pick the right version of a song). Timed lyrics from it
@@ -166,13 +179,19 @@ export class LyricsService {
   async fetchRemote(input: LyricsLookup): Promise<RemoteLyrics | Instrumental | null> {
     if (!input.title.trim()) return null
 
-    const fromYouTube = await this.#youtubeMusic?.find({
-      videoId: youtubeVideoId(input.sourceUrl),
-      artist: input.artist,
-      title: input.title,
-      duration: input.duration,
-    })
-    if (fromYouTube) return { text: fromYouTube, synced: true }
+    // A song from 网易云 has 网易云's words, timed against the very file; YouTube Music is not asked.
+    const fromNetease = await this.#neteaseLyrics(input.sourceUrl)
+    if (fromNetease === 'instrumental') return 'instrumental'
+    if (fromNetease) return { text: fromNetease.text, synced: isSynced(fromNetease.text) }
+    if (fromNetease === undefined) {
+      const fromYouTube = await this.#youtubeMusic?.find({
+        videoId: youtubeVideoId(input.sourceUrl),
+        artist: input.artist,
+        title: input.title,
+        duration: input.duration,
+      })
+      if (fromYouTube) return { text: fromYouTube, synced: true }
+    }
 
     const exact = await this.#exactMatch(input)
     if (exact && hasSynced(exact) && isCloseEnough(exact, input.duration, true)) {
@@ -196,6 +215,18 @@ export class LyricsService {
       exact && hasPlain(exact) ? exact : closestFirst(found, input.duration).find(hasPlain)
     if (plain) return { text: plain.plainLyrics, synced: false }
     return null
+  }
+
+  /**
+   * 网易云's words for a song downloaded from there: undefined when the song
+   * is not from 网易云 (ask YouTube Music), null when 网易云 has none.
+   */
+  async #neteaseLyrics(
+    sourceUrl: string | null | undefined,
+  ): Promise<{ text: string } | Instrumental | null | undefined> {
+    const link = sourceUrl ? neteaseLink(sourceUrl) : null
+    if (link?.kind !== 'song' || !this.#netease) return undefined
+    return this.#netease.lyrics(link.id)
   }
 
   async #exactMatch(input: {

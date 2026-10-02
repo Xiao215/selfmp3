@@ -16,7 +16,6 @@ interface VisualDebugFrame {
   /** The playhead, seconds. */
   t: number
   source: string
-  kind: string
   level: number
   onset: number
   glow: number

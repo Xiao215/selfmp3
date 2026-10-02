@@ -1,0 +1,255 @@
+import { cleanArtist, neteaseLink, neteaseSongUrl, type NeteaseLink } from '@selfmp3/shared'
+import type { Logger } from '../logger.js'
+
+/**
+ * 网易云音乐: its songs, albums and playlists, and its lyrics.
+ *
+ * The web API its own site uses, without signing in. The audio itself is
+ * downloaded by yt-dlp, which reads 网易云 links (importQueue.ts); this reads
+ * the lists, says which songs 网易云 will give out whole, and fetches the
+ * words for a song that came from here.
+ *
+ * Whole or not is the part that matters. Asked for a VIP song — most of a
+ * chart — or one it may not play in this country, 网易云 does not refuse: it
+ * hands over thirty to forty-five seconds, and yt-dlp downloads that as the
+ * song. The song's `privileges` say what this server may play (`pl`, the
+ * bitrate, 0 for none), so such a song is found on YouTube instead, before
+ * anything is downloaded.
+ */
+
+const API = 'https://music.163.com/api/'
+const REQUEST_TIMEOUT_MS = 10_000
+/** Songs asked about in one request. */
+const DETAIL_CHUNK = 400
+/** Cover size asked of the picture host: square, and plenty for a cover. */
+const COVER_PARAM = '?param=1000y1000'
+
+type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
+
+/** One 网易云 song, as a review shows it. */
+export interface NeteaseTrack {
+  readonly url: string
+  readonly title: string
+  readonly artist: string
+  readonly album: string
+  readonly duration: number
+  readonly thumbnail: string | null
+  /** Whether 网易云 gives this server the whole song. */
+  readonly free: boolean
+}
+
+export interface NeteaseList {
+  readonly title: string | null
+  readonly tracks: NeteaseTrack[]
+}
+
+/** A song's words from 网易云: timed LRC, or a song it says has none. */
+type NeteaseLyrics = { readonly text: string } | 'instrumental' | null
+
+interface SongJson {
+  id?: number
+  name?: string
+  dt?: number
+  ar?: { name?: string }[]
+  al?: { name?: string; picUrl?: string }
+}
+
+interface PrivilegeJson {
+  id?: number
+  /** The bitrate this server may play; 0 when it may not play the song at all. */
+  pl?: number
+  /** Below 0 when the song is greyed out where the request came from. */
+  st?: number
+}
+
+export class NeteaseMusic {
+  readonly #logger: Logger
+  readonly #fetch: FetchLike
+
+  constructor(logger: Logger, fetchImpl: FetchLike = fetch) {
+    this.#logger = logger.child('netease')
+    this.#fetch = fetchImpl
+  }
+
+  /**
+   * What a pasted 网易云 link opens, following a short `163cn.tv` link to the
+   * page it stands for. Null when it opens nothing this can read.
+   */
+  async link(url: string): Promise<NeteaseLink | null> {
+    const direct = neteaseLink(url)
+    if (direct) return direct
+    if (!/^https?:\/\/163cn\.tv\//i.test(url)) return null
+    try {
+      const response = await this.#fetch(url, {
+        redirect: 'manual',
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      })
+      const location = response.headers.get('location')
+      return location ? neteaseLink(location) : null
+    } catch {
+      return null
+    }
+  }
+
+  /** The songs a link opens. Throws with a reason a person can act on. */
+  async list(link: NeteaseLink): Promise<NeteaseList> {
+    if (link.kind === 'song') {
+      return { title: null, tracks: await this.#tracks([link.id]) }
+    }
+    if (link.kind === 'album') {
+      const page = (await this.#get(`v1/album/${link.id}`)) as {
+        album?: { name?: string }
+        songs?: SongJson[]
+      } | null
+      const ids = idsOf(page?.songs)
+      if (!page || ids.length === 0) throw new Error(UNREADABLE)
+      return { title: page.album?.name ?? null, tracks: await this.#tracks(ids) }
+    }
+    const page = (await this.#get(`v6/playlist/detail?id=${link.id}&n=100000`)) as {
+      playlist?: { name?: string; trackIds?: { id?: number }[] }
+    } | null
+    const ids = idsOf(page?.playlist?.trackIds)
+    if (!page?.playlist || ids.length === 0) throw new Error(UNREADABLE)
+    return { title: page.playlist.name ?? null, tracks: await this.#tracks(ids) }
+  }
+
+  /** A song's lyrics, by its id; null when there are none or 网易云 did not answer. */
+  async lyrics(id: string): Promise<NeteaseLyrics> {
+    const page = (await this.#get(`song/lyric?id=${id}&lv=1`)) as {
+      lrc?: { lyric?: string }
+      nolyric?: boolean
+      pureMusic?: boolean
+    } | null
+    if (!page) return null
+    if (page.pureMusic === true || page.nolyric === true) return 'instrumental'
+    const text = withoutCredits(page.lrc?.lyric ?? '')
+    if (/^\[[\d:.]+\]\s*纯音乐，请欣赏\s*$/m.test(text) && text.split('\n').length <= 2) {
+      return 'instrumental'
+    }
+    return text.trim() ? { text } : null
+  }
+
+  /** Songs and what this server may play of them, in the order asked for. */
+  async #tracks(ids: readonly string[]): Promise<NeteaseTrack[]> {
+    const tracks: NeteaseTrack[] = []
+    for (let start = 0; start < ids.length; start += DETAIL_CHUNK) {
+      const chunk = ids.slice(start, start + DETAIL_CHUNK)
+      const page = (await this.#post('v3/song/detail', {
+        c: JSON.stringify(chunk.map(id => ({ id: Number(id) }))),
+      })) as { songs?: SongJson[]; privileges?: PrivilegeJson[] } | null
+      if (!page?.songs) throw new Error(UNREADABLE)
+      tracks.push(...toTracks(page.songs, page.privileges ?? []))
+    }
+    return tracks
+  }
+
+  async #get(path: string): Promise<unknown> {
+    return this.#request(`${API}${path}`, { method: 'GET' })
+  }
+
+  async #post(path: string, form: Record<string, string>): Promise<unknown> {
+    return this.#request(`${API}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(form).toString(),
+    })
+  }
+
+  async #request(url: string, init: RequestInit): Promise<unknown> {
+    try {
+      const response = await this.#fetch(url, {
+        ...init,
+        headers: {
+          ...(init.headers as Record<string, string> | undefined),
+          'User-Agent': 'Mozilla/5.0 (Macintosh) self.mp3',
+          Referer: 'https://music.163.com/',
+        },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      })
+      if (!response.ok) return null
+      const json = (await response.json()) as { code?: number }
+      // The API answers 200 with its own code; anything but 200 there is a refusal.
+      return json.code === undefined || json.code === 200 ? json : null
+    } catch (error) {
+      this.#logger.debug('lookup failed', {
+        url,
+        message: error instanceof Error ? error.message : String(error),
+      })
+      return null
+    }
+  }
+}
+
+const UNREADABLE =
+  '网易云音乐 did not answer for that link. It may be private, or 网易云 may be busy: try again in a moment.'
+
+function idsOf(list: { id?: number }[] | undefined): string[] {
+  return (list ?? []).flatMap(item => (typeof item.id === 'number' ? [String(item.id)] : []))
+}
+
+/**
+ * Songs with their privileges, as tracks. A song is free when this server may
+ * play it at some bitrate and it is not greyed out here: anything less comes
+ * out as a preview.
+ */
+export function toTracks(
+  songs: readonly SongJson[],
+  privileges: readonly PrivilegeJson[],
+): NeteaseTrack[] {
+  const allowed = new Map(privileges.map(privilege => [privilege.id, privilege]))
+  return songs.flatMap(song => {
+    if (typeof song.id !== 'number' || !song.name?.trim()) return []
+    const privilege = allowed.get(song.id)
+    const picture = song.al?.picUrl?.replace(/^http:/, 'https:')
+    return [
+      {
+        url: neteaseSongUrl(String(song.id)),
+        title: song.name.trim(),
+        artist: cleanArtist(
+          (song.ar ?? [])
+            .map(artist => artist.name?.trim() ?? '')
+            .filter(Boolean)
+            .join(', '),
+        ),
+        album: song.al?.name?.trim() ?? '',
+        duration: typeof song.dt === 'number' ? Math.round(song.dt / 1000) : 0,
+        thumbnail: picture ? `${picture}${COVER_PARAM}` : null,
+        free: (privilege?.pl ?? 0) > 0 && (privilege?.st ?? 0) >= 0,
+      },
+    ]
+  })
+}
+
+/** A timed line: its stamps, then its words. */
+const TIMED = /^((?:\[\d{1,3}:\d{1,2}(?:[.:]\d{1,3})?\])+)\s*(.*)$/
+/** "作词 : 唐恬", "制作人：钱雷", "Producer: X" — a role, a colon, a name. */
+const CREDIT = /^[^\s:：]{1,12}\s*[:：]\s*\S/
+
+/**
+ * The words without the credits 网易云 writes as lyric lines.
+ *
+ * Its lyrics open — and often close — with who wrote, arranged, mixed and
+ * mastered the song, each as a timed line: "[00:00.463] 作曲 : 钱雷". Shown
+ * as words they scroll past as the song's first lines. A credit is a short
+ * role, a colon and a name; only a run of them at the start or the end goes,
+ * so a sung line with a colon in it ("He said: …") is never taken for one.
+ */
+export function withoutCredits(lrc: string): string {
+  const lines = lrc.split(/\r?\n/)
+  const isCredit = (line: string): boolean => {
+    const timed = TIMED.exec(line.trim())
+    const words = (timed ? (timed[2] ?? '') : line).trim()
+    return words.length > 0 && CREDIT.test(words)
+  }
+  // Untimed header lines ("[by:…]") and blanks are left where they are; only timed credits go.
+  const isLyric = (line: string): boolean => TIMED.test(line.trim()) && !isCredit(line)
+  const first = lines.findIndex(isLyric)
+  if (first === -1) return ''
+  let last = lines.length - 1
+  while (last > first && !isLyric(lines[last] ?? '')) last--
+  const kept = lines.filter(
+    (line, index) =>
+      (index >= first && index <= last) || (!TIMED.test(line.trim()) && line.trim() !== ''),
+  )
+  return kept.join('\n').trim()
+}

@@ -58,7 +58,7 @@ export function allSelected(state: SelectionState, visibleIds: readonly number[]
  * Unticking the last selected row also leaves selection mode: with nothing
  * selected there is nothing for the checkboxes to be for, and making someone
  * find the ✕ as well was one step too many (asked for by Xiao, 2026-09-13).
- * Emptying the selection from the bar's own checkbox (`deselectAll`) leaves
+ * Emptying the selection from the bar's own checkbox (`clearSelection`) leaves
  * it for the same reason, since 2026-09-25: a bar over a list with nothing
  * chosen read as something left behind.
  */
@@ -125,15 +125,11 @@ export function selectAllVisible(
 }
 
 /**
- * Empty the selection from the bar's own checkbox. It leaves selection mode
- * as unticking the last row does: with nothing chosen there is nothing for a
- * bar to act on, and the bar goes with the ticks (Xiao, 2026-09-25).
+ * Empty the selection and leave selection mode. The anchor is kept.
+ *
+ * The bar's own deselect-all is this too: with nothing chosen there is nothing
+ * for a bar to act on, and the bar goes with the ticks (Xiao, 2026-09-25).
  */
-export function deselectAll(state: SelectionState): SelectionState {
-  return clearSelection(state)
-}
-
-/** Empty the selection and leave selection mode. The anchor is kept. */
 export function clearSelection(state: SelectionState): SelectionState {
   return state.ids.size === 0 && !state.mode ? state : { ...state, ids: NO_IDS, mode: false }
 }

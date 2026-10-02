@@ -14,6 +14,7 @@ import {
 import {
   freshState,
   PAUSE_MS,
+  PERSON_MAY_BORROW,
   RateLimitedError,
   YtThrottleService,
   type ThrottleState,
@@ -305,7 +306,9 @@ cat "${dir}/stdout.json"
   })
 
   it('says so when there is no budget left, rather than asking anyway', async () => {
-    state = { ...state, tokens: 0 }
+    // Empty for a person too: a search may borrow a few below empty
+    // (PERSON_MAY_BORROW), so a bucket at nothing would still let it go.
+    state = { ...state, tokens: -PERSON_MAY_BORROW }
     const controller = new AbortController()
     const pending = service.search('Adele Hello', 5, controller.signal)
     // Patient: it waits for a token rather than failing at once, so the only

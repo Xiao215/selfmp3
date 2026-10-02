@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
+  bestMatch,
   durationScore,
   normalizeForMatch,
-  rankCandidates,
   scoreHit,
   searchQuery,
   similarity,
-} from './migrateScore.js'
-import type { SearchHit } from './ytdlp.js'
+  YouTubeMatcher,
+} from './youtubeMatch.js'
+import { createLogger } from '../logger.js'
+import type { ProbedTrack, SearchHit } from './ytdlp.js'
 
 const hit = (partial: Partial<SearchHit> & { title: string }): SearchHit => ({
   url: `https://www.youtube.com/watch?v=${partial.title.replace(/\W/g, '').slice(0, 11)}`,
@@ -154,28 +156,85 @@ describe('scoreHit', () => {
   })
 })
 
-describe('rankCandidates', () => {
-  it('returns the best three, best first, with rounded confidence', () => {
-    const ranked = rankCandidates(getLucky, [
-      hit({ title: 'Daft Punk - Get Lucky (cover)', channel: 'a', duration: 248 }),
-      hit({ title: 'Get Lucky', channel: 'Daft Punk - Topic', duration: 248 }),
-      hit({
-        title: 'Daft Punk - Get Lucky (Official Audio)',
-        channel: 'DaftPunkVEVO',
-        duration: 248,
-      }),
-      hit({ title: 'Daft Punk - Get Lucky (8D)', channel: 'b', duration: 248 }),
-      hit({ title: 'Daft Punk - Get Lucky Reaction', channel: 'c', duration: 900 }),
-    ])
-    expect(ranked).toHaveLength(3)
-    expect(ranked[0]?.channel).toBe('Daft Punk - Topic')
-    expect(ranked[1]?.channel).toBe('DaftPunkVEVO')
-    expect(ranked.every(c => c.confidence === Math.round(c.confidence * 100) / 100)).toBe(true)
-    expect(ranked[0]!.confidence).toBeGreaterThanOrEqual(ranked[2]!.confidence)
+const song = (partial: Partial<ProbedTrack> & { title: string }): ProbedTrack => ({
+  url: `https://www.youtube.com/watch?v=${encodeURIComponent(partial.title).slice(0, 11)}`,
+  artist: '',
+  album: '',
+  duration: 0,
+  thumbnail: null,
+  ...partial,
+})
+
+describe('Chinese names', () => {
+  it('reads simplified and traditional characters alike', () => {
+    expect(normalizeForMatch('周杰伦')).toBe(normalizeForMatch('周杰倫'))
+    expect(similarity('逃跑计划', '逃跑計劃')).toBe(1)
+    expect(similarity('夜空中最亮的星', '夜空中最亮的星')).toBe(1)
   })
 
-  it('handles no results', () => {
-    expect(rankCandidates(getLucky, [])).toEqual([])
+  it('still tells different songs apart', () => {
+    expect(similarity('晴天', '稻香')).toBeLessThan(0.5)
+  })
+})
+
+describe('bestMatch', () => {
+  const ne = (title: string, artist: string, duration: number) => ({
+    title,
+    artist,
+    album: '',
+    duration,
+  })
+
+  it('takes the studio song over a live take, whichever script it is written in', () => {
+    const found = bestMatch(ne('晴天', '周杰伦', 269), [
+      song({ title: '晴天', artist: '周杰倫', album: '葉惠美', duration: 270 }),
+      song({ title: '晴天', artist: '周杰倫', album: '2004無與倫比演唱會', duration: 300 }),
+      song({ title: '稻香', artist: '周杰倫', duration: 224 }),
+    ])
+    expect(found?.track.album).toBe('葉惠美')
+    expect(found?.confidence).toBeGreaterThanOrEqual(0.9)
+  })
+
+  it('trusts the first answer when the artist goes by an English name there', () => {
+    const found = bestMatch(ne('孤勇者', '陈奕迅', 256), [
+      song({
+        title: '孤勇者 (《英雄聯盟：雙城之戰》動畫劇集中文主題曲) - Warrior of the Darkness',
+        artist: 'Eason Chan',
+        duration: 256,
+      }),
+      song({ title: '十年 (國)', artist: '陳奕迅', duration: 205 }),
+    ])
+    expect(found?.track.artist).toBe('Eason Chan')
+    expect(found?.confidence).toBeGreaterThanOrEqual(0.7)
+  })
+
+  it('finds nothing when no answer is the song', () => {
+    expect(bestMatch(getLucky, [song({ title: 'Hey Jude', artist: 'The Beatles' })])).toBeNull()
+    expect(bestMatch(getLucky, [])).toBeNull()
+  })
+})
+
+describe('YouTubeMatcher', () => {
+  it('answers each song in order, sure or not, and null for no answer', async () => {
+    const answers: Record<string, ProbedTrack[] | null> = {
+      'Daft Punk Get Lucky': [
+        song({ title: 'Get Lucky', artist: 'Daft Punk', duration: 248, album: 'RAM' }),
+      ],
+      'Adele Hello': [song({ title: 'Hello (Live at the BBC)', artist: 'Someone', duration: 330 })],
+      'Nobody Nothing': null,
+    }
+    const matcher = new YouTubeMatcher({
+      lists: { songs: async query => answers[query] ?? [] },
+      logger: createLogger('silent'),
+    })
+    const found = await matcher.find([
+      getLucky,
+      { title: 'Hello', artist: 'Adele', album: '', duration: 295 },
+      { title: 'Nothing', artist: 'Nobody', album: '', duration: 0 },
+    ])
+    expect(found[0]).toMatchObject({ title: 'Get Lucky', album: 'RAM', sure: true })
+    expect(found[1]?.sure ?? false).toBe(false)
+    expect(found[2]).toBeNull()
   })
 })
 

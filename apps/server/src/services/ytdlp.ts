@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import fsp from 'node:fs/promises'
 import { constants as fsConstants } from 'node:fs'
-import { cleanArtist, tidyVideoTitle, type ToolStatus } from '@selfmp3/shared'
+import { cleanArtist, isNeteaseUrl, tidyVideoTitle, type ToolStatus } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import { cookieArgs, explainCookieError, type YtCookieSettings } from './ytCookies.js'
 import {
@@ -59,6 +59,14 @@ export function run(
 ): Promise<RunResult> {
   const { timeoutMs = 10 * 60 * 1000, signal, onLine } = options
 
+  // Cancelled before it started: nothing is run at all. A process started
+  // and killed at once had already asked — a child is quick enough to make
+  // its request, or write a file, before the kill lands — and what was
+  // cancelled before it began should not have reached YouTube.
+  if (signal?.aborted === true) {
+    return Promise.resolve({ code: -1, stdout: '', stderr: '', timedOut: false, truncated: false })
+  }
+
   return new Promise<RunResult>(resolve => {
     // `shell: false` is the default and is load-bearing: it is what makes it
     // safe to pass a user-supplied URL as an argument.
@@ -78,11 +86,9 @@ export function run(
     const onAbort = (): void => {
       child.kill('SIGKILL')
     }
+    // A cancel landing between two yt-dlp calls is caught above, before the
+    // next one starts; one from now on kills it.
     signal?.addEventListener('abort', onAbort, { once: true })
-    // A signal already aborted never fires its listener, and a cancel landing
-    // between two yt-dlp calls lands exactly there — so the download this just
-    // started would run to its timeout and the cancelled job finish as done.
-    if (signal?.aborted === true) onAbort()
 
     const finish = (result: Omit<RunResult, 'truncated'>): void => {
       if (settled) return
@@ -317,6 +323,15 @@ export function isVideoEntry(entry: { ie_key?: string; url?: string }): boolean 
   return !/\/(browse\/|playlist\?|channel\/|c\/|user\/|@)/.test(entry.url ?? '')
 }
 
+/**
+ * Whether a link is a request to YouTube, and so spends its budget
+ * (ytThrottle.ts). A 网易云 song is yt-dlp asking 网易云, which YouTube never
+ * hears about: pacing it would only make it wait behind YouTube's turns.
+ */
+export function asksYouTube(url: string): boolean {
+  return !isNeteaseUrl(url)
+}
+
 export class YtDlpService {
   readonly #logger: Logger
   readonly #cookies: () => YtCookieSettings
@@ -450,14 +465,18 @@ export class YtDlpService {
      * budget than fail. Signed out, a request's worth takes 48 seconds to come
      * back, so the wait a person will sit through would fail the queue's own
      * jobs for nothing more than having been paced. It waits out an empty
-     * bucket, not a rate-limit pause: see `#pace`.
+     * bucket, not a rate-limit pause: see `#pace`. `paid` is a queue job's
+     * first request, whose turn the queue already took when it claimed the job
+     * (ImportQueueService's drain), so it goes at once.
      */
-    wait: 'interactive' | 'patient' = 'interactive',
+    wait: 'interactive' | 'patient' | 'paid' = 'interactive',
   ): Promise<{ kind: 'single' | 'playlist'; playlistTitle: string | null; tracks: ProbedTrack[] }> {
-    await this.#pace({
-      ...(signal ? { signal } : {}),
-      ...(wait === 'interactive' ? { maxWaitMs: INTERACTIVE_WAIT_MS } : { waitOutPause: false }),
-    })
+    if (wait !== 'paid' && asksYouTube(url)) {
+      await this.#pace({
+        ...(signal ? { signal } : {}),
+        ...(wait === 'interactive' ? { maxWaitMs: INTERACTIVE_WAIT_MS } : { waitOutPause: false }),
+      })
+    }
     const result = await run(
       'yt-dlp',
       [
@@ -573,7 +592,9 @@ export class YtDlpService {
    * it, and for a few hours.
    */
   async audioUrl(url: string, signal?: AbortSignal): Promise<string> {
-    await this.#pace({ ...(signal ? { signal } : {}), maxWaitMs: INTERACTIVE_WAIT_MS })
+    if (asksYouTube(url)) {
+      await this.#pace({ ...(signal ? { signal } : {}), maxWaitMs: INTERACTIVE_WAIT_MS })
+    }
     const result = await run(
       'yt-dlp',
       [
@@ -613,8 +634,12 @@ export class YtDlpService {
     hasFfmpeg: boolean
     signal?: AbortSignal
     onProgress?: (percent: number) => void
+    /** Its turn was taken already: the queue takes one as it claims a job. */
+    paid?: boolean
   }): Promise<void> {
-    await this.#pace({ ...(input.signal ? { signal: input.signal } : {}), waitOutPause: false })
+    if (!input.paid && asksYouTube(input.url)) {
+      await this.#pace({ ...(input.signal ? { signal: input.signal } : {}), waitOutPause: false })
+    }
     const args = [
       ...BASE_ARGS,
       '--format',

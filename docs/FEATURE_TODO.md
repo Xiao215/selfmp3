@@ -100,10 +100,11 @@ had when they were reviewed.
 
 Accepted for later:
 
-- **E2: read another site's track list** and hand it to Migrate.
+- **E2: read another site's track list** and hand it to Import's review, as a Spotify or
+  网易云 link is (docs/features/import-sources.md).
 - **H1: YouTube sign-in handoff**, straight to the server only.
 - **D1: checks on thumbnails**, built on the link index the extension already keeps.
-- **G1: a live-version suggestion**, reusing `migrateScore`.
+- **G1: a live-version suggestion**, reusing `youtubeMatch`.
 - **K2: Firefox**, which needs a little of its own. **K3: Safari**, which would ride along
   inside the Mac app.
 - **Undo** after a song is in. Today the pill says *Added* and stops; cancelling is

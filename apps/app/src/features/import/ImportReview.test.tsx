@@ -6,7 +6,7 @@ import { configureClient, reviewFrom, type Api } from '@selfmp3/client'
 import { OverlayProvider } from '../../shell/Overlay'
 
 import { ImportReview } from './ImportReview'
-import { patchDraft, resetImportDraft } from './importDraft'
+import { draftFor, patchDraft, resetImportDraft } from './importDraft'
 
 jest.mock('expo-router', () => ({
   Redirect: () => null,
@@ -101,6 +101,9 @@ const item = (n: number, title: string, alreadyHave = false) => ({
   alreadyHave,
   waitingToUpload: false,
   inQueue: false,
+  source: 'youtube' as const,
+  netease: null,
+  youtube: null,
 })
 
 const draw = async (): Promise<void> => {
@@ -137,6 +140,7 @@ describe('Import review, on a phone', () => {
     mockTags.length = 1
     patchDraft('own', {
       review: reviewFrom({
+        from: 'youtube',
         kind: 'playlist',
         playlistTitle: 'THE BOOK',
         items: [item(1, 'アイドル', true), item(2, '群青'), item(3, '怪物')],
@@ -229,7 +233,12 @@ describe('Import review, on a phone', () => {
     // A cloud library's server is raced at every address it has, and the
     // review is keyed by the server, not by whichever address won this time.
     patchDraft('cloud', {
-      review: reviewFrom({ kind: 'playlist', playlistTitle: 'THE BOOK', items: [item(2, '群青')] }),
+      review: reviewFrom({
+        from: 'youtube',
+        kind: 'playlist',
+        playlistTitle: 'THE BOOK',
+        items: [item(2, '群青')],
+      }),
     })
     const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
     const page = (baseUrl: string) => (
@@ -254,7 +263,7 @@ describe('Import review, on a phone', () => {
    * page knows nothing about: it drew no chip, and the import named a tag the
    * server did not have (Xiao, 2026-09-22).
    */
-  it('shows a ticked tag as a chip, and sends it', async () => {
+  it('shows a ticked tag as a chip, sends it, and lets it go once the songs are queued', async () => {
     await draw()
     await act(async () => {
       await fireEvent.press(screen.getByTestId('import-add-tag'))
@@ -269,6 +278,9 @@ describe('Import review, on a phone', () => {
       await fireEvent.press(screen.getByTestId('import-commit'))
     })
     expect(mockEnqueue.mock.calls[0][0].tagIds).toEqual([7])
+    // The tags were for these songs: the next link starts with none.
+    await waitFor(() => expect(draftFor('own').review).toBeNull())
+    expect([...draftFor('own').tagIds]).toEqual([])
   })
 
   it('makes a new tag where the import is going, and chips it', async () => {

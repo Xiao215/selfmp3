@@ -16,7 +16,7 @@ describe('going back to a page', () => {
 
   it('goes back only when the page is directly behind', () => {
     expect(isBehind(stack('profile', 'stats/index'), '/profile')).toBe(true)
-    expect(isBehind(stack('import/index', 'import/migrate'), '/import')).toBe(true)
+    expect(isBehind(stack('import/index', 'import/review'), '/import')).toBe(true)
     expect(isBehind(stack('index', 'stats/report'), '/')).toBe(true)
     // Opened straight on the page: nothing behind it.
     expect(isBehind(stack('settings'), '/profile')).toBe(false)

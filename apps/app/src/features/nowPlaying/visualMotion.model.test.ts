@@ -4,11 +4,6 @@ import { curveSampler, type MotionCurveLike, type MotionSampler } from './motion
 import {
   createMotionState,
   DEFAULT_REFRACTORY,
-  HILL_LAYERS,
-  hillPoints,
-  hillShare,
-  hillShift,
-  hillX,
   isSettled,
   MAX_RINGS,
   motionTuning,
@@ -37,7 +32,7 @@ function scripted(at: (seconds: number) => { level: number; onset: number }): Mo
 
 /** Steps `seconds` of frames, returning the playheads where a ring left. */
 function run(sampler: MotionSampler, seconds: number, tuning = motionTuning(feel, false)) {
-  const state = createMotionState(0.5)
+  const state = createMotionState()
   const fired: number[] = []
   const glow: number[] = []
   for (let frame = 0; frame * DT < seconds; frame++) {
@@ -139,94 +134,22 @@ describe('following the level', () => {
         tuning,
       )
     expect(state.glow).toBeLessThan(0.01)
-    expect(state.swell).toBeLessThan(0.01)
+    expect(state.kick).toBeLessThan(0.01)
     expect(state.rings).toEqual([])
   })
 })
 
-describe('Horizon’s hills', () => {
+describe('the disc', () => {
   const tuning = motionTuning(feel, false)
-  const front = HILL_LAYERS.length - 1
 
-  it('turns what was heard into points that roll in from the right', () => {
-    const state = createMotionState(0)
-    const trail = state.hills[front]!
-    // Loud for exactly one front slot, then quiet.
-    const loudFor = trail.slot
-    for (let t = 0; t < loudFor + trail.slot * 3; t += DT)
-      stepMotion(
-        state,
-        scripted(s => ({ level: s < loudFor ? 0.9 : 0.1, onset: 0 })),
-        t,
-        DT,
-        true,
-        tuning,
-      )
-    const levels = Array.from(trail.levels)
-    const loudest = levels.indexOf(Math.max(...levels))
-    // Three quiet slots have come in after it, on the right.
-    expect(loudest).toBe(levels.length - 4)
-    expect(levels[loudest]!).toBeGreaterThan(0.8)
-    expect(levels.at(-1)!).toBeCloseTo(0.1, 1)
-  })
-
-  it('moves the front line quickest, and a point crosses the width in its time', () => {
-    const slots = HILL_LAYERS.map(layer => layer.seconds / layer.gaps)
-    expect(slots[0]!).toBeGreaterThan(slots[1]!)
-    expect(slots[1]!).toBeGreaterThan(slots[2]!)
-    const layer = HILL_LAYERS[front]!
-    expect(hillX(1, 0, 390, layer.gaps)).toBe(0)
-    expect(hillX(1 + layer.gaps, 0, 390, layer.gaps)).toBeCloseTo(390)
-    // The newest point waits beyond the right edge; the oldest is gone past the left.
-    const last = hillPoints(layer.gaps) - 1
-    expect(hillX(last, 1, 390, layer.gaps)).toBeGreaterThanOrEqual(390)
-    expect(hillX(0, 0, 390, layer.gaps)).toBeLessThan(0)
-  })
-
-  it('slides smoothly: nearly a whole gap along just before a new point comes in', () => {
-    const state = createMotionState(0.5)
-    const trail = state.hills[front]!
-    const steps = Math.round(trail.slot / DT) - 1
-    for (let i = 0; i < steps; i++)
-      stepMotion(
-        state,
-        scripted(() => ({ level: 0.5, onset: 0 })),
-        i * DT,
-        DT,
-        true,
-        tuning,
-      )
-    expect(hillShift(trail)).toBeGreaterThan(0.9)
-    expect(hillShift(trail)).toBeLessThanOrEqual(1)
-  })
-
-  it('stands still while paused, and keeps a floor in silence', () => {
-    const state = createMotionState(0.5)
-    const before = Array.from(state.hills[front]!.levels)
-    for (let i = 0; i < 600; i++)
-      stepMotion(
-        state,
-        scripted(() => ({ level: 1, onset: 0 })),
-        0,
-        DT,
-        false,
-        tuning,
-      )
-    expect(Array.from(state.hills[front]!.levels)).toEqual(before)
-    expect(state.hills[front]!.elapsed).toBe(0)
-    expect(state.travelled).toBe(false)
-    expect(hillShare(0)).toBeGreaterThan(0)
-    expect(hillShare(1)).toBe(1)
-  })
-
-  it('swells the sun on a hit and lets it ease back', () => {
+  it('kicks the disc on a hit and lets it ease back', () => {
     const { state } = run(
-      scripted(t => ({ level: 0.8, onset: t < 0.05 ? 1 : 0 })),
-      0.1,
+      scripted(t => ({ level: 0.8, onset: t < 0.02 ? 1 : 0 })),
+      0.02,
     )
-    const swollen = state.swell
-    expect(swollen).toBeGreaterThan(0.5)
-    for (let i = 0; i < 60; i++)
+    const kicked = state.kick
+    expect(kicked).toBeGreaterThan(0.5)
+    for (let i = 0; i < 30; i++)
       stepMotion(
         state,
         scripted(() => ({ level: 0.8, onset: 0 })),
@@ -235,7 +158,7 @@ describe('Horizon’s hills', () => {
         true,
         tuning,
       )
-    expect(state.swell).toBeLessThan(swollen / 10)
+    expect(state.kick).toBeLessThan(kicked / 10)
   })
 })
 
@@ -260,8 +183,8 @@ describe('a synthetic curve, end to end', () => {
 describe('the still frame', () => {
   it('is the same every time, with rings out', () => {
     const tuning = motionTuning(feel, false)
-    const a = createMotionState(0.2)
-    const b = createMotionState(0.9)
+    const a = createMotionState()
+    const b = createMotionState()
     stillMotion(a, tuning, 'curve')
     stillMotion(b, tuning, 'curve')
     expect(a).toEqual(b)
@@ -288,34 +211,23 @@ describe('coming to rest', () => {
   const silence = scripted(() => ({ level: 0, onset: 0 }))
 
   /** Steps as paused until it settles, or gives up: the frames it took. */
-  function settle(kind: 'horizon' | 'ripples', state: ReturnType<typeof createMotionState>) {
+  function settle(state: ReturnType<typeof createMotionState>) {
     const tuning = motionTuning(feel, false)
     for (let frame = 0; frame < 2000; frame++) {
-      if (isSettled(kind, state)) return frame
+      if (isSettled(state)) return frame
       stepMotion(state, silence, 0, DT, false, tuning)
     }
     return null
   }
 
-  it('holds Ripples awake until its last ring is off the edge', () => {
+  it('stays awake until its last ring is off the edge', () => {
     const tuning = motionTuning(feel, false)
-    const state = createMotionState(0.5)
+    const state = createMotionState()
     stepMotion(state, loud, 0, DT, true, tuning)
     expect(state.rings).toHaveLength(1)
-    expect(isSettled('ripples', state)).toBe(false)
-    expect(settle('ripples', state)).not.toBeNull()
+    expect(isSettled(state)).toBe(false)
+    expect(settle(state)).not.toBeNull()
     expect(state.rings).toHaveLength(0)
-  })
-
-  it('never settles Horizon while it plays, however quiet the song is', () => {
-    const tuning = motionTuning(feel, false)
-    const state = createMotionState(0.5)
-    for (let frame = 0; frame < 600; frame++)
-      stepMotion(state, silence, frame * DT, DT, true, tuning)
-    // Its hills are still rolling: they only stand still on a pause.
-    expect(state.travelled).toBe(true)
-    expect(isSettled('horizon', state)).toBe(false)
-    expect(settle('horizon', state)).not.toBeNull()
   })
 })
 

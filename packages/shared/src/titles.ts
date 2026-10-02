@@ -1,8 +1,8 @@
 /**
  * Titles as other places write them, made into a song's title.
  *
- * Two jobs share the same noise. Migrate compares a song name from Spotify with
- * a YouTube upload's title, so it strips everything that is not the name —
+ * Two jobs share the same noise. Finding a song on YouTube by its name compares
+ * a Spotify or 网易云 song name with a YouTube one, so it strips everything that is not the name —
  * credits and remaster notes included. Importing keeps a video's title as the
  * song's, so it strips only what the video added: "Official Music Video", 【MV】,
  * and the artist written in front.

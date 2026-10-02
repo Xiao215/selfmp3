@@ -28,6 +28,7 @@ const queue = (jobs: ImportJob[]): ImportQueue => ({
   queued: jobs.filter(each => each.status === 'queued').length,
   done: 0,
   pacing: IDLE_PACING,
+  run: null,
 })
 
 const batch = (jobIds: string[], label: string | null = null): Batch => ({

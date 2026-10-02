@@ -15,7 +15,6 @@ import {
   radius,
   space,
   useAddToPlaylist,
-  useBulkDeleteSongs,
   useBulkLoved,
   useLibrary,
   useRemoveManyFromPlaylist,
@@ -29,7 +28,7 @@ import { MOVE_MS, overshootRange } from '../motion.model'
 import { showToast } from '../toast'
 import { Button } from './Button'
 import { Checkbox } from './Checkbox'
-import { ConfirmRemoveSongs } from './ConfirmRemoveSongs'
+import { RemoveSongs } from './ConfirmRemoveSongs'
 import { IconButton } from './IconButton'
 import {
   CheckSquare,
@@ -174,19 +173,17 @@ export function SelectionBar({
   const chrome = useFloatingChrome()
   const { data: library } = useLibrary()
   const player = usePlayer()
-  const { state: downloads, queue: downloadQueue, dropDownloads } = useDownloads()
+  const { state: downloads, queue: downloadQueue } = useDownloads()
 
   const bulkLoved = useBulkLoved()
-  const bulkDelete = useBulkDeleteSongs()
   const addToPlaylist = useAddToPlaylist()
   const removeFromPlaylist = useRemoveManyFromPlaylist()
 
   const [menuOpen, setMenuOpen] = useState(false)
-  const [nested, setNested] = useState<'playlists' | null>(null)
+  const [playlistsOpen, setPlaylistsOpen] = useState(false)
   // The tag picker, opened from More as a song's is from its menu.
   const [tagging, setTagging] = useState(false)
   const [confirming, setConfirming] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
   const moreRef = useRef<View>(null)
 
   /*
@@ -259,6 +256,9 @@ export function SelectionBar({
   }, [wide, shown])
 
   const count = songs.length
+  // A selection emptied under the picker — a tag filter dropping the songs it
+  // just untagged — takes the picker with it, rather than leave it over none.
+  if (tagging && count === 0) setTagging(false)
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   // Pinned first; not the playlist this is, and never a live one.
   const manualPlaylists = playlistsToAddTo(library?.playlists ?? []).filter(
@@ -295,7 +295,7 @@ export function SelectionBar({
 
   const closeMenu = (): void => {
     setMenuOpen(false)
-    setNested(null)
+    setPlaylistsOpen(false)
   }
   /** Run a menu action, close the menu, and say what happened. */
   const act = (run: () => void, message?: string) => (): void => {
@@ -303,8 +303,6 @@ export function SelectionBar({
     closeMenu()
     if (message) showToast(message, 'good')
   }
-  const toggleNested = (which: 'playlists') => (): void =>
-    setNested(open => (open === which ? null : which))
   const removeSelectedFromPlaylist = (): void => {
     if (!playlist) return
     removeFromPlaylist.mutate({ playlistId: playlist.id, songIds: ids })
@@ -558,10 +556,10 @@ export function SelectionBar({
             <SheetItem
               icon={<ListMusic size={15} color={theme.colors.textSecondary} />}
               label="Add to playlist…"
-              active={nested === 'playlists'}
-              onPress={toggleNested('playlists')}
+              active={playlistsOpen}
+              onPress={() => setPlaylistsOpen(open => !open)}
             />
-            {nested === 'playlists' ? (
+            {playlistsOpen ? (
               <View style={styles.nested}>
                 <SheetItem
                   icon={<Plus size={15} color={theme.colors.textSecondary} />}
@@ -624,7 +622,6 @@ export function SelectionBar({
               danger
               onPress={() => {
                 closeMenu()
-                setDeleteError(null)
                 setConfirming(true)
               }}
             />
@@ -640,36 +637,12 @@ export function SelectionBar({
       />
 
       {confirming ? (
-        <ConfirmRemoveSongs
+        <RemoveSongs
           songs={songs}
-          pending={bulkDelete.isPending}
-          error={deleteError}
           onCancel={() => setConfirming(false)}
-          onConfirm={() => {
-            // The copies here go now rather than after the answer: the counts
-            // that name these songs are drawn from the library and the index,
-            // and both have to lose them at the same moment.
-            void dropDownloads(ids)
-            bulkDelete.mutate(
-              { songIds: ids },
-              {
-                onSuccess: result => {
-                  setConfirming(false)
-                  onDone()
-                  // The summary: what went, and what did not.
-                  const parts = [`Removed ${plural(result.removed, 'song', 'songs')}`]
-                  const trouble = result.failed.length
-                  if (trouble > 0) parts.push(`${trouble} needed attention`)
-                  showToast(
-                    trouble > 0
-                      ? `${parts.join(', ')} — ${result.failed[0]?.reason ?? 'see the server log'}`
-                      : parts.join(', '),
-                    trouble > 0 ? 'warn' : 'good',
-                  )
-                },
-                onError: error => setDeleteError(error.message),
-              },
-            )
+          onDone={() => {
+            setConfirming(false)
+            onDone()
           }}
         />
       ) : null}

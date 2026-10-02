@@ -236,6 +236,32 @@ export function removeAt(state: QueueState, position: number): QueueState {
 }
 
 /**
+ * Take songs out of the queue wherever they are: songs that have left the library.
+ *
+ * The playing song keeps its place if it stays. If it is one of those going,
+ * the song after it takes its place — the first again when repeating
+ * everything — and with nothing after it the queue is left empty, modes kept,
+ * so nothing is current and nothing can be played on by accident. Returns the
+ * same state when none of the songs were queued.
+ */
+export function withoutSongs(state: QueueState, songIds: readonly number[]): QueueState {
+  const gone = new Set(songIds)
+  if (!state.items.some(id => gone.has(id))) return state
+
+  const items = state.items.filter(id => !gone.has(id))
+  const original = state.original.filter(id => !gone.has(id))
+  // Every song kept from before the playing one is a place earlier for it, or
+  // for whatever takes its place.
+  const before = state.items.slice(0, Math.max(0, state.index)).filter(id => !gone.has(id)).length
+  const current = state.items[state.index]
+  if (current === undefined) return { ...state, items, original, index: -1 }
+  if (!gone.has(current)) return { ...state, items, original, index: before }
+  if (before < items.length) return { ...state, items, original, index: before }
+  if (state.repeat === 'all' && items.length > 0) return { ...state, items, original, index: 0 }
+  return { ...state, items: [], original: [], index: -1 }
+}
+
+/**
  * `original` with these ids appended.
  *
  * Every queue edit has to reach `original` as well as `items`, because turning

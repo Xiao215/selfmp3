@@ -1,5 +1,5 @@
-import { cleanArtist, cleanTitle } from '@selfmp3/shared'
-import { similarity } from './migrateScore.js'
+import { cleanArtist, cleanTitle, neteaseLink } from '@selfmp3/shared'
+import { similarity } from './youtubeMatch.js'
 
 /**
  * Is this track already in the library?
@@ -77,12 +77,15 @@ export function sourceUrlIndex<T extends LibrarySong>(songs: readonly T[]): Read
 
 /**
  * The same video on `youtube.com`, `music.youtube.com` and `youtu.be` is the
- * same file, so a link is reduced to what identifies it. Anything that is not
- * a YouTube link is compared whole, minus the noise a share button adds.
+ * same file, so a link is reduced to what identifies it, as is a 网易云 song
+ * in any of its spellings. Anything else is compared whole, minus the noise a
+ * share button adds.
  */
 export function normaliseUrl(raw: string | null | undefined): string | null {
   const trimmed = raw?.trim()
   if (!trimmed) return null
+  const netease = neteaseLink(trimmed)
+  if (netease?.kind === 'song') return `ne:${netease.id}`
   const video = /[?&]v=([\w-]{6,})/.exec(trimmed) ?? /youtu\.be\/([\w-]{6,})/.exec(trimmed)
   if (video?.[1]) return `yt:${video[1]}`
   return trimmed.replace(/[?&](si|feature|utm_[\w-]+)=[^&]*/g, '').replace(/[?&]$/, '')

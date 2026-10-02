@@ -117,7 +117,7 @@ the root view.
 | `/song/[id]` | A song's own page | `P15` |
 | `/playlists`, `/playlists/[id]` | Playlists, a playlist | `P16`, `P17`, `C07`, `C08` |
 | `/now-playing`, `/now-playing?view=lyrics` | Now Playing, Lyrics only | `P21`, `P22`, `C09`, `C10` |
-| `/import`, `/import/review`, `/import/migrate` | Import, reviewing a link | `P29`, `P30`, `C13`, `C14` |
+| `/import`, `/import/review` | Import, reviewing a link | `P29`, `P30`, `C13`, `C14` |
 | `/you`, `/stats`, `/stats/report`, `/settings` | You, Stats, the month as a page, Settings | `P31`–`P38`, `C15`–`C17` |
 | `/welcome`, `/first-sync` | Getting in | `P01`–`P03`, `C01`, `C02` |
 
@@ -328,7 +328,7 @@ empty, or downloaded from its own page.
   opens the song page. Under the artist, the song's tags wrap quietly. The foot is Lyrics ·
   Sleep · queue. Swiping up or the Lyrics pill opens Lyrics only (`P22`), a view of the same
   route. The cover breathes: 0.84 while paused, back on play, 400 ms.
-- **No lyrics** (`P23`, `P24`, `C10`): Horizon and Ripples in `visuals.model.ts`,
+- **No lyrics** (`P23`, since retired, `P24`, `C10`): Horizon and Ripples in `visuals.model.ts`,
   `SongVisual.tsx` and `SongVisual.web.tsx`, coloured from the cover through the existing
   `visualColors()`. On a computer the visual fills the window behind the cover and title and
   the look picker sits beside Visual and About.
@@ -589,6 +589,7 @@ Answered by Xiao on 2026-09-18.
    **Answer: yes, as proposed.**
 2. **The four old visuals (Phase 6).** **Answer: Horizon and Ripples replace aurora, pulse,
    spectrum and drift outright**, and `autoVisual()` picks between the two by energy.
+   *Later (October 2026): Horizon and the picker went too; every song gets Ripples.*
 3. **Artists with two spellings, and "feat." (Phase 4).** **Answer: split collaborations.**
    An artist string is split on "feat.", "ft.", "&", "×", "x" between names and ","; each
    part, trimmed and compared case-insensitively, is an artist, and a song belongs to every

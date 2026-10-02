@@ -58,4 +58,12 @@ describe('ConfirmRemoveSongs', () => {
     expect(screen.getByText('Song 3')).toBeTruthy()
     expect(screen.getByText('and 2 more songs')).toBeTruthy()
   })
+
+  it('names one song in the question rather than listing it under it', async () => {
+    await draw({ songs: [song(7)] })
+
+    expect(screen.getByText('Remove “Song 7” from your library?')).toBeTruthy()
+    expect(screen.queryByText('Song 7')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Remove song' })).toBeTruthy()
+  })
 })

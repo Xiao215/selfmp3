@@ -220,6 +220,7 @@ export function Popup(): ReactNode {
         queued: (previous?.queued ?? 0) + result.jobs.length,
         done: previous?.done ?? 0,
         pacing: previous?.pacing ?? IDLE_PACING,
+        run: previous?.run ?? null,
       }))
       void queryClient.invalidateQueries({ queryKey: ['queue'] })
     },

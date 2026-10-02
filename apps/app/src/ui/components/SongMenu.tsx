@@ -11,7 +11,6 @@ import {
   space,
   type,
   useAddToPlaylist,
-  useDeleteSong,
   useLibrary,
   useRemoveFromPlaylist,
   useToggleLoved,
@@ -25,6 +24,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { Button } from './Button'
 import { Chip } from './Chip'
+import { RemoveSongs } from './ConfirmRemoveSongs'
 import { Cover } from './Cover'
 import { IconButton } from './IconButton'
 import {
@@ -60,7 +60,10 @@ import { TagPicker } from './TagPicker'
  * Destructive actions sit last and apart, and removing always asks first.
  * Removing has one meaning on every device — the song leaves the library
  * everywhere, and the download here goes with it — so it asks once and does
- * that.
+ * that. The question is the selection bar's dialog, not a second state of the
+ * menu: the menu closes, and one press in a dialog answers it. Asked inside
+ * the menu, the same popup took two presses, and the second landed where the
+ * first had been (Xiao, 2026-10-02).
  *
  * Dropping the download on its own stays up by the head, as "Remove
  * download": keeping the song and freeing the room is a different wish.
@@ -84,6 +87,7 @@ export function SongMenu({
   const { data: library } = useLibrary()
   const { wide } = useLayout()
   const [tagging, setTagging] = useState<number | null>(null)
+  const [removing, setRemoving] = useState<Song | null>(null)
   // The song as the library has it now, so the picker shows the tags after a change.
   const taggingSong =
     tagging === null ? null : (library?.songs.find(item => item.id === tagging) ?? null)
@@ -95,6 +99,10 @@ export function SongMenu({
       playlist={playlist}
       onTags={() => {
         setTagging(song.id)
+        onClose()
+      }}
+      onRemove={() => {
+        setRemoving(song)
         onClose()
       }}
     />
@@ -120,6 +128,13 @@ export function SongMenu({
 
       {/* Where the menu was: over the same ⋯, not in the middle of the window. */}
       <TagPicker song={taggingSong} onClose={() => setTagging(null)} anchorRef={anchorRef} />
+      {removing ? (
+        <RemoveSongs
+          songs={[removing]}
+          onCancel={() => setRemoving(null)}
+          onDone={() => setRemoving(null)}
+        />
+      ) : null}
     </>
   )
 }
@@ -128,11 +143,14 @@ function Items({
   song: given,
   onClose,
   onTags,
+  onRemove,
   playlist,
 }: {
   song: Song
   onClose: () => void
   onTags: () => void
+  /** Removing asks in a dialog of its own, which outlives the menu. */
+  onRemove: () => void
   playlist?: { readonly id: number; readonly name: string }
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -142,17 +160,9 @@ function Items({
   const { data: library } = useLibrary()
   const addToPlaylist = useAddToPlaylist()
   const removeFromPlaylist = useRemoveFromPlaylist()
-  const deleteSong = useDeleteSong()
   const toggleLoved = useToggleLoved()
-  const {
-    state: downloads,
-    installed,
-    downloadByHand,
-    removeByHand,
-    dropDownloads,
-  } = useDownloads()
+  const { state: downloads, installed, downloadByHand, removeByHand } = useDownloads()
   const [playlistsOpen, setPlaylistsOpen] = useState(false)
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   // The heart and the tags as they are now, not as they were when the menu opened.
   const song = library?.songs.find(item => item.id === given.id) ?? given
@@ -292,36 +302,12 @@ function Items({
         label="Song details"
         onPress={then(() => router.navigate(songLink(song.id)))}
       />
-      {!confirmingDelete ? (
-        <SheetItem
-          icon={<Trash size={16} color={theme.colors.danger} />}
-          label="Remove from library…"
-          danger
-          onPress={() => setConfirmingDelete(true)}
-        />
-      ) : (
-        /*
-         * One question, then one action. Removing a song is removing it: the
-         * row leaves the library on every device, and whatever this device
-         * downloaded of it leaves with it.
-         */
-        <View>
-          <Text style={styles.hint}>
-            Remove “{song.title}” from your library?
-            {held ? ' The download on this device goes too.' : ''}
-          </Text>
-          <SheetItem
-            icon={<Trash size={16} color={theme.colors.danger} />}
-            label="Remove from library"
-            danger
-            onPress={then(() => {
-              void dropDownloads([song.id])
-              deleteSong.mutate(song.id)
-            })}
-          />
-          <SheetItem label="Cancel" onPress={() => setConfirmingDelete(false)} />
-        </View>
-      )}
+      <SheetItem
+        icon={<Trash size={16} color={theme.colors.danger} />}
+        label="Remove from library…"
+        danger
+        onPress={onRemove}
+      />
     </>
   )
 }

@@ -35,6 +35,7 @@ import { takeCoverHandoff, type CoverFrame } from '../../ui/coverHandoff'
 import { leaveStage, setStageExit } from '../../shell/stageExit'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
+import { RemoveSongs } from '../../ui/components/ConfirmRemoveSongs'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import {
@@ -50,10 +51,12 @@ import {
   Plus,
   Prev,
   Queue,
+  Refresh,
   Repeat,
   RepeatOne,
   Romanize,
   Shuffle,
+  Trash,
 } from '../../ui/components/Icons'
 import { PlayPauseIcon } from '../../ui/components/PlayPauseIcon'
 import { SeekBar } from '../../ui/components/SeekBar'
@@ -86,9 +89,6 @@ import { TaggingLine } from './TaggingLine'
 import { useMotionSampler } from './useMotionSampler'
 import { useSongWords } from './useSongWords'
 import { useTagging } from './useTagging'
-import { useSongVisual, type SongVisualChoice } from './visualChoice'
-import { motionCaption, VISUAL_NAMES } from './visuals.model'
-import { VisualStyleMenu } from './VisualStyleMenu'
 
 /**
  * Now Playing: the computer's stage, or the phone's own full-screen page.
@@ -145,6 +145,19 @@ function PhoneNowPlaying(): ReactNode {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const song = player.current
+  /*
+   * Asked here, above the page, rather than in it: removing the song playing
+   * moves the player on, and with nothing after it there is no page left for
+   * the dialog to be in before the server has answered.
+   */
+  const [removing, setRemoving] = useState<Song | null>(null)
+  const removeDialog = removing ? (
+    <RemoveSongs
+      songs={[removing]}
+      onCancel={() => setRemoving(null)}
+      onDone={() => setRemoving(null)}
+    />
+  ) : null
   if (song === null) {
     return (
       <View
@@ -160,10 +173,16 @@ function PhoneNowPlaying(): ReactNode {
           <Text style={styles.emptyTitle}>Nothing playing</Text>
           <Text style={styles.emptyText}>Start a song and it turns up here, with its lyrics.</Text>
         </View>
+        {removeDialog}
       </View>
     )
   }
-  return <PhonePage song={song} />
+  return (
+    <>
+      <PhonePage song={song} onRemove={setRemoving} />
+      {removeDialog}
+    </>
+  )
 }
 
 /**
@@ -179,7 +198,7 @@ function PhoneNowPlaying(): ReactNode {
  * A pull up on the cover opens the words and a pull down on the words goes
  * back; a pull down on the cover puts the page away, as Apple Music's does.
  */
-function PhonePage({ song }: { song: Song }): ReactNode {
+function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => void }): ReactNode {
   const { theme } = useUnistyles()
   const artFor = useArt()
   const backdropFor = useArt(ROW_COVER_SIZE)
@@ -201,7 +220,6 @@ function PhonePage({ song }: { song: Song }): ReactNode {
   const noLyrics = words.status === 'missing' && !words.offline
   const showVisual = noLyrics && view === 'lyrics'
   const sampler = useMotionSampler(song, showVisual)
-  const visual = useSongVisual(song)
 
   const [sleepOpen, setSleepOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -418,9 +436,7 @@ function PhonePage({ song }: { song: Song }): ReactNode {
             uri={uri}
             lyrics={lyrics}
             noLyrics={noLyrics}
-            visual={visual}
             sampler={sampler}
-            following={motionCaption(sampler.source)}
             onBack={() => setView('cover')}
           />
         </Animated.View>
@@ -432,6 +448,7 @@ function PhonePage({ song }: { song: Song }): ReactNode {
         onClose={() => setMoreOpen(false)}
         onPractice={() => setPracticeOpen(true)}
         onDevices={() => setDevicesOpen(true)}
+        onRemove={() => onRemove(song)}
       />
       <Sheet open={practiceOpen} onClose={() => setPracticeOpen(false)} testID="practice-sheet">
         <View style={styles.practiceSheet}>
@@ -812,36 +829,30 @@ function BreathingCover({
 /**
  * The words alone (`P22`): a small header with the way back, the song and the
  * romaji or pinyin switch; the lyrics across the page; and the scrubber and
- * the transport under them. A song with no lyrics puts its visual (`P23`,
- * `P24`) in the same place the words would have had, so the page reads the
- * same either way, and the switch's place is its look, which opens the same
- * choices as the computer's.
+ * the transport under them. A song with no lyrics puts its visual (`P24`) in
+ * the same place the words would have had, so the page reads the same either
+ * way, and the switch's place asks the lookup for lyrics again, as the
+ * computer's does.
  */
 function WordsView({
   song,
   uri,
   lyrics,
   noLyrics,
-  visual,
   sampler,
-  following,
   onBack,
 }: {
   song: Song
   uri: string | null
   lyrics: ReturnType<typeof useSongWords>
   noLyrics: boolean
-  visual: SongVisualChoice
   sampler: MotionSampler
-  following: string
   onBack: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
   // The app's own width, not the window's (`shell/rootWidth.ts`).
   const { width } = useLayout()
-  const [styleOpen, setStyleOpen] = useState(false)
-  const styleButtonRef = useRef<View>(null)
   const words = lyrics.words
   const on = lyrics.romanizationOn
   const fontSize = Math.min(28, Math.max(22, width * 0.064))
@@ -875,29 +886,20 @@ function WordsView({
           </Pressable>
         ) : noLyrics ? (
           <Pressable
-            ref={styleButtonRef}
-            onPress={() => setStyleOpen(true)}
+            onPress={lyrics.lookAgain}
             accessibilityRole="button"
-            accessibilityLabel={`Style: ${visual.chosen ? '' : 'Auto, '}${VISUAL_NAMES[visual.kind]}`}
+            accessibilityLabel="Look for lyrics again"
             style={styles.tool}
           >
-            <Text style={styles.toolText}>{VISUAL_NAMES[visual.kind]}</Text>
-            <ChevronDown size={14} color={theme.colors.textSecondary} />
+            <Refresh size={14} color={theme.colors.textSecondary} />
+            <Text style={styles.toolText}>Find lyrics</Text>
           </Pressable>
         ) : null}
       </View>
-      <VisualStyleMenu
-        open={styleOpen}
-        onClose={() => setStyleOpen(false)}
-        anchorRef={styleButtonRef}
-        visual={visual}
-        following={following}
-        onLookAgain={lyrics.lookAgain}
-      />
 
       {noLyrics ? (
         <View pointerEvents="none" style={styles.visualPanel}>
-          <SongVisual song={song} kind={visual.kind} sampler={sampler} cover={uri} rounded />
+          <SongVisual song={song} sampler={sampler} cover={uri} rounded />
         </View>
       ) : (
         <View style={styles.words}>
@@ -945,6 +947,10 @@ function WordsView({
  * What the ⋯ at the foot holds: the tools that used to stand in it. Practice
  * (with the speed on it when it is not 1×), keeping the song on this phone in
  * the installed app, and the devices to play on.
+ *
+ * And, last and in red as in the song's ⋯ menu, removing the song: the one
+ * thing that menu does that this page otherwise could not (Xiao, 2026-10-02).
+ * The rest of the song menu stays off it — the sheet is for the page's tools.
  */
 function MoreSheet({
   song,
@@ -952,12 +958,15 @@ function MoreSheet({
   onClose,
   onPractice,
   onDevices,
+  onRemove,
 }: {
   song: Song
   open: boolean
   onClose: () => void
   onPractice: () => void
   onDevices: () => void
+  /** Asks in the shared dialog, once the sheet has gone. */
+  onRemove: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const practice = usePracticeState()
@@ -998,6 +1007,13 @@ function MoreSheet({
         icon={<Devices size={18} color={theme.colors.textSecondary} />}
         label="Devices"
         onPress={then(onDevices)}
+      />
+      <View style={styles.moreGap} />
+      <SheetItem
+        icon={<Trash size={18} color={theme.colors.danger} />}
+        label="Remove from library…"
+        danger
+        onPress={then(onRemove)}
       />
     </Sheet>
   )
@@ -1139,6 +1155,8 @@ const styles = StyleSheet.create(theme => ({
   dotOn: { width: 18, backgroundColor: theme.colors.textPrimary },
   footRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   practiceSheet: { height: 560 },
+  // The remove row stands apart from the tools, by room rather than a line.
+  moreGap: { height: space.sm },
   wordsView: { flex: 1, minHeight: 0 },
   wordsHead: {
     flexDirection: 'row',

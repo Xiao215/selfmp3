@@ -37,12 +37,15 @@ import {
   ChevronDown,
   Collapse,
   Expand,
+  More,
   Next,
+  Refresh,
   Romanize,
   Sparkles,
   TagPlus,
 } from '../../ui/components/Icons'
 import { FixMetadata } from '../metadata/FixMetadata'
+import { SongMenu } from '../../ui/components/SongMenu'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { SongFacts } from '../song/SongFacts'
 import { songLink } from '../song/song.model'
@@ -67,9 +70,6 @@ import { Moving, useStageMove } from './StageMove'
 import { coverPose, stackedTabsTop, stageCover, wordsFrame, wordsPose } from './stageMove.model'
 import { SongVisual } from './SongVisual'
 import { useMotionSampler } from './useMotionSampler'
-import { useSongVisual } from './visualChoice'
-import { motionCaption, VISUAL_NAMES } from './visuals.model'
-import { VisualStyleMenu } from './VisualStyleMenu'
 import { useCoverPalette } from './useCoverPalette'
 import { useIdle } from './useIdle'
 import { useSongWords } from './useSongWords'
@@ -300,9 +300,6 @@ function Stage({
   const artFor = useArt()
   const library = useLibrary()
   const lyrics = useSongWords(song)
-  const visual = useSongVisual(song)
-  const [styleOpen, setStyleOpen] = useState(false)
-  const styleButtonRef = useRef<View>(null)
   const uri = artFor(song)
   const palette = useCoverPalette(song, uri)
   // The key and the energy wave, like the player bar's lit controls.
@@ -312,6 +309,10 @@ function Stage({
   const [tagsOpen, setTagsOpen] = useState(false)
   /** "Fix metadata…" under About: the same dialog the song's page opens. */
   const [fixing, setFixing] = useState(false)
+  // The song's ⋯ menu, the one its rows and its page have: without it the page
+  // playing a song was the one place that song could not be removed or listed.
+  const [menuOpen, setMenuOpen] = useState(false)
+  const moreRef = useRef<View>(null)
   // The tag window opens over its button, as the song menu's does.
   const tagsButtonRef = useRef<View>(null)
   // The tag window hangs from its button, so play-and-tag raises it only once
@@ -474,20 +475,20 @@ function Stage({
   // Pushed over the page, as a tag or an artist is, so back comes to it again.
   const openSong = (): void => router.push(songLink(song.id))
 
-  // Beside Visual and About on the stage; in Focus, where the tabs are put
-  // away, at the top right where the romaji switch sits for a song with words.
-  const stylePill = showVisual ? (
+  // "Look for lyrics again" asks the lookup afresh, clearing the answer it
+  // saved that the song has none. Beside Visual and About on the stage; in
+  // Focus, where the tabs are put away, at the top right where the romaji
+  // switch sits for a song with words.
+  const lookAgainPill = showVisual ? (
     <Pressable
-      ref={styleButtonRef}
-      onPress={() => setStyleOpen(open => !open)}
+      onPress={lyrics.lookAgain}
       accessibilityRole="button"
-      accessibilityLabel={`Style: ${visual.chosen ? '' : 'Auto, '}${VISUAL_NAMES[visual.kind]}`}
-      aria-haspopup="menu"
-      aria-expanded={styleOpen}
-      style={({ pressed }) => [styles.tool, (pressed || styleOpen) && styles.toolPressed]}
+      accessibilityLabel="Look for lyrics again"
+      {...tip('Look for lyrics again')}
+      style={({ pressed }) => [styles.tool, pressed && styles.toolPressed]}
     >
-      <Text style={styles.toolText}>{VISUAL_NAMES[visual.kind]}</Text>
-      <ChevronDown size={13} color={theme.colors.textSecondary} />
+      <Refresh size={13} color={theme.colors.textSecondary} />
+      <Text style={styles.toolText}>Find lyrics</Text>
     </Pressable>
   ) : null
 
@@ -691,13 +692,14 @@ function Stage({
                   left: frame.left,
                   right: frame.right,
                   top: frame.top,
-                  bottom: PLAYER_BAR_HEIGHT,
+                  // Clear of the bar by the margin it keeps on the right.
+                  bottom: PLAYER_BAR_HEIGHT + geometry.right,
                   borderRadius: radius.cardLg,
                 },
             { opacity: visualFade },
           ]}
         >
-          <SongVisual song={song} kind={visual.kind} sampler={sampler} cover={uri} />
+          <SongVisual song={song} sampler={sampler} cover={uri} />
         </Animated.View>
       ) : null}
 
@@ -780,9 +782,23 @@ function Stage({
             {geometry.stacked ? null : (
               <>
                 {tabList}
-                {stylePill}
+                {lookAgainPill}
               </>
             )}
+            {/* Last at the top right, where the song's page keeps its ⋯. */}
+            <View
+              ref={moreRef}
+              collapsable={false}
+              style={geometry.stacked ? styles.moreAlone : null}
+            >
+              <IconButton
+                label={`More for ${song.title}`}
+                onPress={() => setMenuOpen(open => !open)}
+                testID="now-playing-more"
+              >
+                <More size={18} color={theme.colors.textSecondary} />
+              </IconButton>
+            </View>
           </>
         )}
       </Animated.View>
@@ -790,13 +806,13 @@ function Stage({
       {tabsRow !== null ? (
         <Animated.View style={[styles.tools, chrome, { top: tabsRow, left: geometry.pad }]}>
           {tabList}
-          {stylePill}
+          {lookAgainPill}
         </Animated.View>
       ) : null}
 
-      {focus && stylePill ? (
+      {focus && lookAgainPill ? (
         <Animated.View style={[styles.tools, chrome, { top: top + 12, right: 66 }]}>
-          {stylePill}
+          {lookAgainPill}
         </Animated.View>
       ) : null}
 
@@ -872,15 +888,6 @@ function Stage({
         chromeShown={chromeShown}
       />
 
-      <VisualStyleMenu
-        open={styleOpen && noLyrics}
-        onClose={() => setStyleOpen(false)}
-        anchorRef={styleButtonRef}
-        visual={visual}
-        following={motionCaption(sampler.source)}
-        onLookAgain={lyrics.lookAgain}
-      />
-
       {/* Focus has no tag button to hang it from: play-and-tag waits for the full page. */}
       <TagPicker
         song={tagsOpen || (tagging.open && entered && !focus) ? song : null}
@@ -891,6 +898,11 @@ function Stage({
         anchorRef={tagsButtonRef}
       />
       {fixing ? <FixMetadata song={song} onClose={() => setFixing(false)} /> : null}
+      <SongMenu
+        song={menuOpen ? song : null}
+        anchorRef={moreRef}
+        onClose={() => setMenuOpen(false)}
+      />
     </Animated.View>
   )
 }
@@ -1013,6 +1025,8 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: withAlpha(theme.colors.textPrimary, 0.07),
   },
   tab: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: radius.pill },
+  // Stacked, the tabs have gone down under the cover and nothing pushes it right.
+  moreAlone: { marginLeft: 'auto' },
   // The chosen tab is the selected tone, as a chosen segment is (`S2`).
   tabActive: { backgroundColor: theme.colors.surfaceSelected },
   tabText: { color: theme.colors.textSecondary, fontSize: 12.5, fontWeight: '600' },

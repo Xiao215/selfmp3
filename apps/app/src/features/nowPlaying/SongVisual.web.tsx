@@ -9,10 +9,6 @@ import { useVisualLook } from './useVisualLook'
 import { recordVisualFrame } from './visualDebug'
 import {
   createMotionState,
-  HILL_LAYERS,
-  hillShare,
-  hillShift,
-  hillX,
   isSettled,
   ringFade,
   ringInk,
@@ -22,19 +18,10 @@ import {
   type MotionState,
   type MotionTuning,
 } from './visualMotion.model'
-import {
-  horizonColors,
-  RING_FROM,
-  RING_TO,
-  rippleDisc,
-  sunPlace,
-  type VisualColors,
-  type VisualKind,
-} from './visuals.model'
+import { RING_FROM, RING_TO, rippleDisc, type VisualColors } from './visuals.model'
 
 export interface SongVisualProps {
   song: Song
-  kind: VisualKind
   /** What the visual follows: the sound, the song's curve, or its tempo (`useMotionSampler`). */
   sampler: MotionSampler
   /** Round the corners, for a visual in a box rather than one filling the screen. */
@@ -51,7 +38,7 @@ export interface SongVisualProps {
  * what the music is doing there, steps the motion (`visualMotion.model.ts`)
  * and draws it — so a ring leaves on the hit and not a quarter of a second
  * after it. Everything else the loop needs sits in one ref, so it starts once
- * per style; the browser pauses it with the tab.
+ * per song; the browser pauses it with the tab.
  *
  * A paused canvas that has come to rest asks for no more frames, as the phone's
  * does, and playing again starts the loop from the motion it left off at.
@@ -61,7 +48,6 @@ export interface SongVisualProps {
  */
 export function SongVisual({
   song,
-  kind,
   sampler,
   rounded = false,
   cover: coverUri = null,
@@ -82,16 +68,15 @@ export function SongVisual({
    * The motion itself outlives the loop that steps it, so it survives both a
    * pause and a loop that stopped because nothing was moving. It is made again
    * only for something that genuinely starts the motion over, which is what
-   * `restart` names: another style, another song, or a different sampler behind
-   * the same song (the sound becoming audible, or the stored curve arriving for
+   * `restart` names: another song, or a different sampler behind the same song (the sound becoming audible, or the stored curve arriving for
    * a song that was drawing from its tempo).
    */
   const held = useRef<{ key: string; motion: MotionState } | null>(null)
-  const restart = `${kind}|${song.id}|${sampler.source}`
+  const restart = `${song.id}|${sampler.source}`
 
   /*
    * Reduce Motion: the one still frame, drawn once for everything it depends on
-   * — the song, its colours and tuning, the style, the sampler behind it, the
+   * — the song, its colours and tuning, the sampler behind it, the
    * cover once it has loaded — and again when the box changes size, because a
    * canvas keeps its pixels and nothing else would redraw them. No loop.
    */
@@ -100,18 +85,18 @@ export function SongVisual({
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx) return undefined
-    const still = createMotionState(live.current.tuning.feel.loudness)
+    const still = createMotionState()
     const paint = (): void => {
       const size = fit(canvas, ctx)
       if (!size) return
       const { colors: c, tuning: tu, sampler: s, cover: art } = live.current
       stillMotion(still, tu, s.source)
-      draw(kind, ctx, size.width, size.height, c, tu, still, art.current)
+      draw(ctx, size.width, size.height, c, tu, still, art.current)
     }
     paint()
     const watch = watchSize(canvas, paint)
     return () => watch?.disconnect()
-  }, [kind, reduced, song.id, colors, tuning, sampler.source, coverLoaded])
+  }, [reduced, song.id, colors, tuning, sampler.source, coverLoaded])
 
   useEffect(() => {
     if (reduced) return undefined
@@ -123,7 +108,7 @@ export function SongVisual({
     let motion: MotionState
     if (kept && kept.key === restart) motion = kept.motion
     else {
-      motion = createMotionState(live.current.tuning.feel.loudness)
+      motion = createMotionState()
       held.current = { key: restart, motion }
     }
     let last = performance.now()
@@ -145,7 +130,6 @@ export function SongVisual({
       recordVisualFrame({
         t: seconds,
         source: s.source,
-        kind,
         level: motion.level,
         onset: motion.onset,
         glow: motion.glow,
@@ -153,15 +137,15 @@ export function SongVisual({
         rings: motion.rings.length,
         ...(s as { trace?: object }).trace,
       })
-      draw(kind, ctx, size.width, size.height, c, tu, motion, live.current.cover.current)
+      draw(ctx, size.width, size.height, c, tu, motion, live.current.cover.current)
       /*
        * A paused canvas that has come to rest asks for no more frames: it used
-       * to step three hill trails and repaint the whole canvas sixty times a
-       * second for as long as the page was open. `isPlaying` below starts it
+       * to repaint the whole canvas sixty times a second for as long as the
+       * page was open. `isPlaying` below starts it
        * again, and so does a resize, which would otherwise stretch the pixels
        * of the last frame drawn.
        */
-      frame = isSettled(kind, motion) && !p.isPlaying ? 0 : requestAnimationFrame(tick)
+      frame = isSettled(motion) && !p.isPlaying ? 0 : requestAnimationFrame(tick)
     }
 
     const wake = (): void => {
@@ -173,7 +157,7 @@ export function SongVisual({
       watch?.disconnect()
       cancelAnimationFrame(frame)
     }
-  }, [kind, restart, reduced, isPlaying])
+  }, [restart, reduced, isPlaying])
 
   return (
     <canvas
@@ -262,161 +246,88 @@ function watchSize(canvas: HTMLCanvasElement, changed: () => void): ResizeObserv
 
 type Ctx = CanvasRenderingContext2D
 
-type Drawing = (
-  ctx: Ctx,
-  w: number,
-  h: number,
-  c: VisualColors,
-  tu: MotionTuning,
-  m: MotionState,
-  /** The song's cover, once it has loaded: Ripples' disc is the cover itself. */
-  cover: HTMLImageElement | null,
-) => void
-
+/**
+ * Ripples (P24): the cover as a disc that kicks on each hit and sends a ring
+ * out from behind it, as strong as the hit.
+ */
 function draw(
-  kind: VisualKind,
   ctx: Ctx,
   w: number,
   h: number,
   c: VisualColors,
   tu: MotionTuning,
   m: MotionState,
+  /** The song's cover, once it has loaded: the disc is the cover itself. */
   cover: HTMLImageElement | null,
 ): void {
-  DRAWINGS[kind](ctx, w, h, c, tu, m, cover)
-}
+  const [middle, edge] = c.ground
+  const ground = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.75)
+  ground.addColorStop(0, rgba(lighten(middle, m.flash * 0.05)))
+  ground.addColorStop(1, rgba(edge))
+  ctx.fillStyle = ground
+  ctx.fillRect(0, 0, w, h)
+  wash(ctx, w * 0.2, h * 0.18, Math.max(w, h) * 0.6, c.inks[0], 0.2)
+  wash(ctx, w * 0.82, h * 0.84, Math.max(w, h) * 0.6, c.inks[1], 0.16)
 
-const DRAWINGS: Record<VisualKind, Drawing> = {
-  /* A dusk sky in the song's colours, a sun that swells on each hit, and three hill lines drawn from the loudness heard, rolling left. */
-  horizon(ctx, w, h, c, _tu, m) {
-    const look = horizonColors(c)
-    const sky = ctx.createLinearGradient(0, 0, 0, h)
-    sky.addColorStop(0, rgba(look.sky[0]))
-    sky.addColorStop(0.42, rgba(look.sky[1]))
-    sky.addColorStop(0.74, rgba(look.sky[2]))
-    sky.addColorStop(1, rgba(look.sky[3]))
-    ctx.fillStyle = sky
-    ctx.fillRect(0, 0, w, h)
+  const cx = w / 2
+  const cy = h / 2
+  const disc = rippleDisc(w, h)
+  const halo = Math.min(1, 0.15 + 0.45 * m.glow + 0.3 * m.kick)
+  wash(ctx, cx, cy, disc * 0.95, c.inks[0], 0.5 * halo, 0.4)
 
-    const sun = sunPlace(w, h)
-    const r = (sun.d / 2) * (0.94 + 0.08 * m.glow + 0.14 * m.swell)
-    const glow = ctx.createRadialGradient(sun.x, sun.y, r * 0.6, sun.x, sun.y, sun.d * 1.3)
-    const shine = Math.min(1, 0.35 + 0.4 * m.glow + 0.25 * m.flash)
-    glow.addColorStop(0, rgba(look.sun, 0.45 * shine))
-    glow.addColorStop(1, rgba(look.sun, 0))
-    ctx.fillStyle = glow
-    ctx.fillRect(0, 0, w, h)
+  for (const ring of m.rings) {
+    const scale = RING_FROM + (RING_TO - RING_FROM) * ringReach(ring, tu)
     ctx.beginPath()
-    ctx.arc(sun.x, sun.y, r, 0, Math.PI * 2)
-    ctx.fillStyle = rgba(look.sun)
-    ctx.fill()
+    ctx.arc(cx, cy, (disc / 2) * scale, 0, Math.PI * 2)
+    ctx.strokeStyle = rgba(c.inks[ringInk(ring.id)], ringFade(ring, tu) * 0.85)
+    ctx.lineWidth = (1.5 + 1.5 * ring.strength) * scale
+    ctx.stroke()
+  }
 
-    HILL_LAYERS.forEach((layer, index) => {
-      const trail = m.hills[index]!
-      const shift = hillShift(trail)
-      const foot = h * layer.base
-      const rise = h * layer.rise
-      const at = (i: number): [number, number] => [
-        hillX(i, shift, w, layer.gaps),
-        foot - rise * hillShare(trail.levels[i] ?? 0),
-      ]
-      // A smooth line through the points: each one a control point, the curve
-      // passing through the midpoints between them.
-      ctx.beginPath()
-      const [x0, y0] = at(0)
-      ctx.moveTo(x0, h)
-      ctx.lineTo(x0, y0)
-      for (let i = 1; i < trail.levels.length; i++) {
-        const [px, py] = at(i - 1)
-        const [x, y] = at(i)
-        ctx.quadraticCurveTo(px, py, (px + x) / 2, (py + y) / 2)
-      }
-      const [xn, yn] = at(trail.levels.length - 1)
-      ctx.lineTo(xn, yn)
-      ctx.lineTo(xn, h)
-      ctx.closePath()
-      ctx.fillStyle = rgba(look.hills[index]!)
-      ctx.fill()
-    })
+  const r = (disc / 2) * (1 + 0.06 * m.kick)
+  const fill = ctx.createRadialGradient(
+    cx - r * 0.16,
+    cy - r * 0.24,
+    0,
+    cx - r * 0.16,
+    cy - r * 0.24,
+    r * 1.4,
+  )
+  fill.addColorStop(0, rgba(c.inks[2]))
+  fill.addColorStop(0.7, rgba(c.inks[0]))
+  fill.addColorStop(1, rgba(c.inks[1]))
+  ctx.save()
+  // P24's disc sits above the page on a deep, soft shadow.
+  ctx.shadowColor = rgba(edge, 0.6)
+  ctx.shadowBlur = 50
+  ctx.shadowOffsetY = 20
+  ctx.beginPath()
+  ctx.arc(cx, cy, r, 0, Math.PI * 2)
+  ctx.fillStyle = fill
+  ctx.fill()
+  ctx.restore()
 
-    const fade = ctx.createLinearGradient(0, h * 0.6, 0, h * 0.86)
-    fade.addColorStop(0, rgba(look.foot, 0))
-    fade.addColorStop(1, rgba(look.foot))
-    ctx.fillStyle = fade
-    ctx.fillRect(0, h * 0.6, w, h * 0.4)
-  },
-
-  /* The cover as a disc that kicks on each hit and sends a ring out from behind it, as strong as the hit. */
-  ripples(ctx, w, h, c, tu, m, cover) {
-    const [middle, edge] = c.ground
-    const ground = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.75)
-    ground.addColorStop(0, rgba(lighten(middle, m.flash * 0.05)))
-    ground.addColorStop(1, rgba(edge))
-    ctx.fillStyle = ground
-    ctx.fillRect(0, 0, w, h)
-    wash(ctx, w * 0.2, h * 0.18, Math.max(w, h) * 0.6, c.inks[0], 0.2)
-    wash(ctx, w * 0.82, h * 0.84, Math.max(w, h) * 0.6, c.inks[1], 0.16)
-
-    const cx = w / 2
-    const cy = h / 2
-    const disc = rippleDisc(w, h)
-    const halo = Math.min(1, 0.15 + 0.45 * m.glow + 0.3 * m.kick)
-    wash(ctx, cx, cy, disc * 0.95, c.inks[0], 0.5 * halo, 0.4)
-
-    for (const ring of m.rings) {
-      const scale = RING_FROM + (RING_TO - RING_FROM) * ringReach(ring, tu)
-      ctx.beginPath()
-      ctx.arc(cx, cy, (disc / 2) * scale, 0, Math.PI * 2)
-      ctx.strokeStyle = rgba(c.inks[ringInk(ring.id)], ringFade(ring, tu) * 0.85)
-      ctx.lineWidth = (1.5 + 1.5 * ring.strength) * scale
-      ctx.stroke()
-    }
-
-    const r = (disc / 2) * (1 + 0.06 * m.kick)
-    const fill = ctx.createRadialGradient(
-      cx - r * 0.16,
-      cy - r * 0.24,
-      0,
-      cx - r * 0.16,
-      cy - r * 0.24,
-      r * 1.4,
-    )
-    fill.addColorStop(0, rgba(c.inks[2]))
-    fill.addColorStop(0.7, rgba(c.inks[0]))
-    fill.addColorStop(1, rgba(c.inks[1]))
+  // The cover itself inside that circle (`P24`); the colours above stand in
+  // until it has loaded, and for a song that has no cover.
+  if (cover?.complete && cover.naturalWidth > 0) {
     ctx.save()
-    // P24's disc sits above the page on a deep, soft shadow.
-    ctx.shadowColor = rgba(edge, 0.6)
-    ctx.shadowBlur = 50
-    ctx.shadowOffsetY = 20
     ctx.beginPath()
     ctx.arc(cx, cy, r, 0, Math.PI * 2)
-    ctx.fillStyle = fill
-    ctx.fill()
+    ctx.clip()
+    const side = Math.min(cover.naturalWidth, cover.naturalHeight)
+    ctx.drawImage(
+      cover,
+      (cover.naturalWidth - side) / 2,
+      (cover.naturalHeight - side) / 2,
+      side,
+      side,
+      cx - r,
+      cy - r,
+      r * 2,
+      r * 2,
+    )
     ctx.restore()
-
-    // The cover itself inside that circle (`P24`); the colours above stand in
-    // until it has loaded, and for a song that has no cover.
-    if (cover?.complete && cover.naturalWidth > 0) {
-      ctx.save()
-      ctx.beginPath()
-      ctx.arc(cx, cy, r, 0, Math.PI * 2)
-      ctx.clip()
-      const side = Math.min(cover.naturalWidth, cover.naturalHeight)
-      ctx.drawImage(
-        cover,
-        (cover.naturalWidth - side) / 2,
-        (cover.naturalHeight - side) / 2,
-        side,
-        side,
-        cx - r,
-        cy - r,
-        r * 2,
-        r * 2,
-      )
-      ctx.restore()
-    }
-  },
+  }
 }
 
 /** A soft round glow of one ink, `alpha` at its middle (and out to `solid` of its radius), none at its edge. */

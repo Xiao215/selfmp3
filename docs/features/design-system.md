@@ -225,6 +225,13 @@ is a mistake. The rules, and what moves (docs/ui-mock `M1`–`M3`):
   for the way out. The mini player sinks back under the bar, the player bar slides back
   down, a row's wash draws back to the left, the held queue row settles, the stage's chrome
   fades. Nothing that moved in is cut away.
+- **A list never jumps under a pointer.** Where rows come and go because of a press — the
+  import queue's Retry, Pause, × — each row is a Reanimated `Animated.View` carrying
+  `useRowMotion` (`ui/rowMotion.ts`): it fades in over `MOVE_MS.rowIn`, out over `rowOut`,
+  and the rows around it glide to their new places over `rowMove`. Headers and "Show more"
+  are siblings of the rows, never a box around them, since a browser animates a box whose
+  height changed by stretching it. What changed is drawn before the server answers
+  (`changeQueue`), so the row moves under the finger, not a poll later.
 - **One press.** `ui/components/Press` is the Pressable: everything you can tap sinks on the
   spring and comes back on release, a control to 0.96 and a row to 0.985 (`PRESS`). A
   `pressed` style may add a tint; it never scales.

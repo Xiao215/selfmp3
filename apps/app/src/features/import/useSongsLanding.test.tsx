@@ -29,6 +29,7 @@ const queueOf = (...jobs: ImportJob[]): ImportQueue => ({
   queued: 0,
   done: 0,
   pacing: IDLE_PACING,
+  run: null,
 })
 
 /**

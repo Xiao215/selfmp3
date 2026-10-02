@@ -14,6 +14,7 @@ import {
   removeAt,
   setShuffle,
   shuffleArray,
+  withoutSongs,
   type QueueState,
 } from './queue.js'
 
@@ -301,6 +302,42 @@ describe('removeAt', () => {
   it('ignores an out-of-range position', () => {
     const start = base({ items: [1], index: 0 })
     expect(removeAt(start, 5)).toBe(start)
+  })
+})
+
+describe('withoutSongs', () => {
+  it('keeps the playing song where it is when it stays', () => {
+    const state = withoutSongs(
+      base({ items: [1, 2, 3, 4], index: 2, original: [4, 3, 2, 1] }),
+      [1, 4],
+    )
+    expect(state.items).toEqual([2, 3])
+    expect(state.items[state.index]).toBe(3)
+    expect(state.original).toEqual([3, 2])
+  })
+
+  it('hands the playing song’s place to the one after it', () => {
+    const state = withoutSongs(base({ items: [1, 2, 3, 4], index: 1 }), [2, 3])
+    expect(state.items).toEqual([1, 4])
+    expect(state.items[state.index]).toBe(4)
+  })
+
+  it('goes back to the first when repeating everything', () => {
+    const state = withoutSongs(base({ items: [1, 2, 3], index: 2, repeat: 'all' }), [3])
+    expect(state.items).toEqual([1, 2])
+    expect(state.index).toBe(0)
+  })
+
+  it('empties the queue, modes kept, when nothing follows the playing song', () => {
+    const state = withoutSongs(base({ items: [1, 2, 3], index: 2, shuffle: true }), [3])
+    expect(state.items).toEqual([])
+    expect(state.index).toBe(-1)
+    expect(state.shuffle).toBe(true)
+  })
+
+  it('is the same state when none of the songs were queued', () => {
+    const start = base({ items: [1, 2], index: 0 })
+    expect(withoutSongs(start, [9])).toBe(start)
   })
 })
 

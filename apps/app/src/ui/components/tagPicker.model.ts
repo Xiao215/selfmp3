@@ -26,14 +26,20 @@ export function tagsAcross(songs: readonly Song[]): TagsAcross {
 
 /**
  * The tags to put on every song and to take off every song, to go from what
- * the songs have (`across`) to what was ticked (`next`). A mixed tag that was
- * ticked goes on the rest; one that was not is left as it is.
+ * the picker shows (`before`) to what was ticked (`next`), and what it shows
+ * after. A mixed tag that was ticked goes on the rest and stops being mixed;
+ * one that was not is left as it is.
+ *
+ * `before` is the picker's own, not the library's: the bulk edit waits for a
+ * refetch, and a tap that lands first must not be measured against songs
+ * that have not heard about the tap before it.
  */
 export function tagChanges(
-  across: TagsAcross,
+  before: TagsAcross,
   next: ReadonlySet<number>,
-): { readonly add: number[]; readonly remove: number[] } {
-  const add = [...next].filter(id => !across.all.has(id))
-  const remove = [...across.all].filter(id => !next.has(id))
-  return { add, remove }
+): { readonly add: number[]; readonly remove: number[]; readonly after: TagsAcross } {
+  const add = [...next].filter(id => !before.all.has(id))
+  const remove = [...before.all].filter(id => !next.has(id))
+  const some = new Set([...before.some].filter(id => !next.has(id)))
+  return { add, remove, after: { all: next, some } }
 }

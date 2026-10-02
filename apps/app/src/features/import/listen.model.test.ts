@@ -20,9 +20,12 @@ const track = {
 }
 
 describe('listening before importing', () => {
-  it('plays only what yt-dlp can find on YouTube', () => {
+  it('plays only what yt-dlp can find on YouTube or 网易云', () => {
     expect(canListen({ url: track.url })).toBe(true)
+    expect(canListen({ url: 'https://music.163.com/song?id=1973665667' })).toBe(true)
     expect(canListen({ url: 'https://open.spotify.com/track/1' })).toBe(false)
+    // Still being looked for on YouTube: nothing to play yet.
+    expect(canListen({ url: '' })).toBe(false)
   })
 
   it('starts loading, at the preview’s length', () => {

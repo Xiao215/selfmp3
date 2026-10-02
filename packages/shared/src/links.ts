@@ -169,3 +169,76 @@ export function youtubeChannel(url: string): YouTubeChannel | null {
   const frontPage = rest.length === 0 || (rest.length === 1 && rest[0] === 'featured')
   return frontPage ? channel : null
 }
+
+// --- 网易云音乐 ---------------------------------------------------------------
+
+/** What a 网易云音乐 link opens: one song, an album, or a playlist (a chart is one). */
+export interface NeteaseLink {
+  readonly kind: 'song' | 'album' | 'playlist'
+  readonly id: string
+}
+
+const NETEASE_HOSTS = new Set(['music.163.com', 'y.music.163.com', 'm.music.163.com'])
+
+/** True for a link to 网易云音乐 itself, on any of its hosts, or its short form (`163cn.tv`). */
+export function isNeteaseUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase().replace(/^www\./, '')
+    return NETEASE_HOSTS.has(host) || host === '163cn.tv'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The song, album or playlist a 网易云音乐 link opens, or null.
+ *
+ * The same page reaches us in several spellings: the site's own
+ * `music.163.com/#/playlist?id=…` (the part after `#` is the address), the
+ * app's share link `y.music.163.com/m/playlist?id=…&userid=…`, and
+ * `music.163.com/song/123/`. A short `163cn.tv` link names nothing until it is
+ * followed, which only the server can do.
+ */
+export function neteaseLink(url: string): NeteaseLink | null {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return null
+  }
+  if (!NETEASE_HOSTS.has(parsed.hostname.toLowerCase().replace(/^www\./, ''))) return null
+  // `#/playlist?id=1` is the page itself; read it as if it were the path.
+  const page = parsed.hash.startsWith('#/') ? new URL(parsed.hash.slice(1), parsed.origin) : parsed
+  const segments = page.pathname.split('/').filter(Boolean)
+  if (segments[0] === 'm') segments.shift()
+  const kind = segments[0]
+  if (kind !== 'song' && kind !== 'album' && kind !== 'playlist') return null
+  const id = page.searchParams.get('id') ?? segments[1] ?? ''
+  return /^\d{1,20}$/.test(id) ? { kind, id } : null
+}
+
+/** The one link that stands for a 网易云 song, whichever form it arrived in (`youtubeWatchUrl`'s twin). */
+export function neteaseSongUrl(id: string): string {
+  return `https://music.163.com/song?id=${id}`
+}
+
+// --- Spotify ---------------------------------------------------------------
+
+/**
+ * What a Spotify link opens: a playlist, an album or one track. Spotify's
+ * audio cannot be downloaded, so each song is found on YouTube by its name.
+ */
+export interface SpotifyLink {
+  readonly kind: 'playlist' | 'album' | 'track'
+  readonly id: string
+}
+
+/** The playlist, album or track an `open.spotify.com` link opens, in any of its forms, or null. */
+export function spotifyLink(url: string): SpotifyLink | null {
+  const match =
+    /open\.spotify\.com\/(?:embed\/)?(?:intl-[a-z]{2}(?:-[a-z]{2})?\/)?(playlist|album|track)\/([A-Za-z0-9]{10,})/i.exec(
+      url.trim(),
+    )
+  if (!match?.[1] || !match[2]) return null
+  return { kind: match[1].toLowerCase() as SpotifyLink['kind'], id: match[2] }
+}

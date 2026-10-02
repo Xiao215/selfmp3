@@ -63,6 +63,10 @@ export const ImportJobSchema = z.object({
 })
 export type ImportJob = z.infer<typeof ImportJobSchema>
 
+/** Where a song's audio is downloaded from. */
+export const ImportSourceSchema = z.enum(['youtube', 'netease'])
+export type ImportSource = z.infer<typeof ImportSourceSchema>
+
 /** Metadata scraped from a URL before the user commits to downloading it. */
 export const ImportPreviewItemSchema = z.object({
   url: z.string(),
@@ -86,14 +90,80 @@ export const ImportPreviewItemSchema = z.object({
    * refused as a duplicate.
    */
   inQueue: z.boolean(),
+  /** Where `url` downloads from: YouTube, or 网易云音乐 (docs/features/import-sources.md). */
+  source: ImportSourceSchema.default('youtube'),
+  /**
+   * The song on 网易云 when the list came from there. `free` is whether 网易云
+   * gives the whole song to this server: a VIP song, or one it may not play
+   * here, comes out as a preview of thirty to forty-five seconds, so such a
+   * song comes from YouTube instead.
+   */
+  netease: z.object({ url: z.string(), free: z.boolean() }).nullable().default(null),
+  /**
+   * The song on YouTube, found there by its name: a Spotify list, a list of
+   * song names, a 网易云 song it will not give out — or one switched to
+   * YouTube by hand. Null for a pasted YouTube link (`url` is the song) and
+   * for a 网易云 song nobody has asked YouTube about.
+   */
+  youtube: z
+    .object({
+      /** The match; null while `match` is `looking` or `none`. */
+      url: z.string().nullable(),
+      /** How the name matched: still `looking`, `sure`, `unsure` (worth a listen), or `none` found. */
+      match: z.enum(['looking', 'sure', 'unsure', 'none']),
+    })
+    .nullable()
+    .default(null),
 })
 export type ImportPreviewItem = z.infer<typeof ImportPreviewItemSchema>
+
+/** What a review's songs were listed by: what was pasted, which `from` says on the review. */
+export const ImportFromSchema = z.enum(['youtube', 'netease', 'spotify', 'list'])
+export type ImportFrom = z.infer<typeof ImportFromSchema>
 
 export const ImportPreviewSchema = z.object({
   kind: z.enum(['single', 'playlist']),
   playlistTitle: z.string().nullable(),
   items: z.array(ImportPreviewItemSchema),
+  from: ImportFromSchema.default('youtube'),
 })
+
+/**
+ * Songs to find on YouTube by their names: a review's rows asked about a few
+ * at a time, so a long list shows at once and fills in as it is found.
+ */
+export const ImportFindRequestSchema = z.object({
+  tracks: z
+    .array(
+      z.object({
+        title: z.string().trim().min(1).max(300),
+        artist: z.string().trim().max(300).default(''),
+        album: z.string().trim().max(300).default(''),
+        duration: z.number().nonnegative().default(0),
+      }),
+    )
+    .min(1)
+    .max(25),
+})
+export type ImportFindRequest = z.infer<typeof ImportFindRequestSchema>
+
+/** One song found on YouTube Music: what it is called there, and how sure the name match is. */
+export const ImportFoundSchema = z.object({
+  url: z.string(),
+  title: z.string(),
+  artist: z.string(),
+  album: z.string(),
+  duration: z.number().nonnegative(),
+  thumbnail: z.string().nullable(),
+  sure: z.boolean(),
+})
+export type ImportFound = z.infer<typeof ImportFoundSchema>
+
+export const ImportFindResultSchema = z.object({
+  /** One answer per track asked about, in order; null where nothing was found. */
+  found: z.array(ImportFoundSchema.nullable()),
+})
+export type ImportFindResult = z.infer<typeof ImportFindResultSchema>
 
 /**
  * Which of these tracks the library has now, asked again for a review that
@@ -218,6 +288,23 @@ export type ImportPacing = z.infer<typeof ImportPacingSchema>
 /** Nothing holding the queue back: what a queue not yet read is assumed to be. */
 export const IDLE_PACING: ImportPacing = { waitMs: 0, pausedUntil: null, ratchet: 1 }
 
+/**
+ * The songs in now: the queue since its oldest open job was asked for, which
+ * is what a person means by "how far along is it". Per song there is nothing
+ * worth a bar — the audio itself arrives in a fraction of a second, and the
+ * rest of a song's minute is waiting its turn — so the queue's progress is
+ * the progress there is.
+ */
+export const ImportRunSchema = z.object({
+  /** The run's songs that are in: finished since its oldest open job was asked for. */
+  done: z.number().int().nonnegative(),
+  /** Those and every job of it still open — downloading, waiting, paused — but not what failed. */
+  total: z.number().int().nonnegative(),
+  /** About how long the rest will take; null when nothing is moving. */
+  leftMs: z.number().nonnegative().nullable(),
+})
+export type ImportRun = z.infer<typeof ImportRunSchema>
+
 export const ImportQueueSchema = z.object({
   /** Every job still open — running, waiting, failed, paused — then the newest finished ones, up to the limit asked for. */
   jobs: z.array(ImportJobSchema),
@@ -226,6 +313,8 @@ export const ImportQueueSchema = z.object({
   /** How many finished jobs there are in all, however many `jobs` holds. */
   done: z.number().int().nonnegative(),
   pacing: ImportPacingSchema,
+  /** Null with nothing open but failures. */
+  run: ImportRunSchema.nullable(),
 })
 export type ImportQueue = z.infer<typeof ImportQueueSchema>
 

@@ -4,10 +4,8 @@ import {
   guessOrder,
   parseDelimited,
   parseDurationValue,
-  parseSpotifyEmbed,
   parseTrackList,
-  spotifyPlaylistId,
-} from './migrateParse.js'
+} from './trackLists.js'
 
 const brief = (tracks: { title: string; artist: string }[]) =>
   tracks.map(track => `${track.artist}|${track.title}`)
@@ -237,72 +235,5 @@ describe('parseTrackList — CSV', () => {
       'Earth, Wind & Fire|September',
       'Crosby, Stills & Nash|Our House',
     ])
-  })
-})
-
-describe('spotifyPlaylistId', () => {
-  it('finds the id in the common link shapes', () => {
-    expect(
-      spotifyPlaylistId('https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=abc'),
-    ).toBe('37i9dQZF1DXcBWIGoYBM5M')
-    expect(
-      spotifyPlaylistId('  https://open.spotify.com/intl-de/playlist/37i9dQZF1DXcBWIGoYBM5M '),
-    ).toBe('37i9dQZF1DXcBWIGoYBM5M')
-    expect(
-      spotifyPlaylistId('https://open.spotify.com/embed/playlist/37i9dQZF1DXcBWIGoYBM5M'),
-    ).toBe('37i9dQZF1DXcBWIGoYBM5M')
-    expect(spotifyPlaylistId('https://open.spotify.com/track/37i9dQZF1DXcBWIGoYBM5M')).toBeNull()
-    expect(spotifyPlaylistId('Daft Punk - Get Lucky')).toBeNull()
-  })
-})
-
-describe('parseSpotifyEmbed', () => {
-  const page = (data: unknown) =>
-    `<html><head></head><body><script id="__NEXT_DATA__" type="application/json">${JSON.stringify(data)}</script></body></html>`
-
-  it('walks the page data to the track list', () => {
-    const html = page({
-      props: {
-        pageProps: {
-          state: {
-            data: {
-              entity: {
-                type: 'playlist',
-                name: 'Summer Mix',
-                trackList: [
-                  {
-                    uri: 'spotify:track:1',
-                    title: 'Get Lucky',
-                    subtitle: 'Daft Punk, Pharrell Williams',
-                    duration: 369626,
-                  },
-                  {
-                    uri: 'spotify:track:2',
-                    title: 'Creep - Remastered',
-                    subtitle: 'Radiohead',
-                    duration: 238640,
-                  },
-                  { uri: 'spotify:track:3', title: '', subtitle: '', duration: 0 },
-                ],
-              },
-            },
-          },
-        },
-      },
-    })
-    const result = parseSpotifyEmbed(html)
-    expect(result?.kind).toBe('spotify')
-    expect(result?.playlistName).toBe('Summer Mix')
-    expect(result?.tracks).toEqual([
-      { title: 'Get Lucky', artist: 'Daft Punk', album: '', duration: 370 },
-      { title: 'Creep', artist: 'Radiohead', album: '', duration: 239 },
-    ])
-    expect(result?.skipped).toHaveLength(1)
-  })
-
-  it('returns null when the page has no data or the shape is unknown', () => {
-    expect(parseSpotifyEmbed('<html></html>')).toBeNull()
-    expect(parseSpotifyEmbed('<script id="__NEXT_DATA__">not json</script>')).toBeNull()
-    expect(parseSpotifyEmbed(page({ props: { nothing: true } }))).toBeNull()
   })
 })

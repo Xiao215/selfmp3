@@ -22,6 +22,7 @@ import {
   removeAt,
   resolveQueue,
   setShuffle,
+  withoutSongs,
   type QueueState,
   type Song,
 } from '@selfmp3/shared'
@@ -157,6 +158,12 @@ export interface PlayerApi {
   insertIntoQueue: (at: number, songIds: readonly number[]) => void
   /** Empty the queue and stop, as the web's bin in Up next does. */
   clearQueue: () => void
+  /**
+   * Songs that have just left the library: out of the queue, and if one of them
+   * is playing, the music stops — the next song waits, paused, or with none
+   * after it nothing is left playing.
+   */
+  forgetSongs: (songIds: readonly number[]) => void
   /** When the sleep timer stops playback, or null when none is set. */
   readonly sleepTimerEndsAt: number | null
   /** The sleep timer waits for the song playing to end, rather than a clock. */
@@ -607,7 +614,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
 
   const toggle = useCallback(() => {
     if (engine.state.playing) engine.pause()
-    else void engine.play()
+    // An emptied queue has nothing to play, though the engine may still hold
+    // the song it last had: one cleared or removed, which must not come back.
+    else if (queueRef.current.index >= 0) void engine.play()
   }, [engine])
 
   /*
@@ -785,6 +794,26 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     refreshLookahead(engine)
   }, [engine, commitQueue])
 
+  const forgetSongs = useCallback(
+    (songIds: readonly number[]) => {
+      const before = queueRef.current
+      const next = withoutSongs(before, songIds)
+      if (next === before) return
+      const playing = before.items[before.index]
+      commitQueue(next)
+      // Only what follows changed: the engine hears it at the next lookahead.
+      if (playing === undefined || !songIds.includes(playing)) {
+        refreshLookahead(engine)
+        return
+      }
+      // The song playing has gone. Whatever takes its place waits to be asked for.
+      engine.pause()
+      if (next.index >= 0) loadIndex(next, false)
+      else refreshLookahead(engine)
+    },
+    [engine, loadIndex, commitQueue],
+  )
+
   const setAutoMix = useCallback(
     (on: boolean) => {
       setAutoMixState(on)
@@ -865,6 +894,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       removeFromQueue,
       reorderQueue,
       clearQueue,
+      forgetSongs,
       sleepTimerEndsAt: sleep.endsAt,
       sleepAtSongEnd: sleep.atSongEnd,
       setSleepTimer: sleep.set,
@@ -902,6 +932,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       removeFromQueue,
       reorderQueue,
       clearQueue,
+      forgetSongs,
     ],
   )
 

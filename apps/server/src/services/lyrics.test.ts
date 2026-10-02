@@ -171,6 +171,84 @@ describe('LyricsService', () => {
     })
   })
 
+  describe('with 网易云', () => {
+    const netease = (answer: { text: string } | 'instrumental' | null) => {
+      const asked: string[] = []
+      return {
+        asked,
+        fake: {
+          lyrics: (id: string) => {
+            asked.push(id)
+            return Promise.resolve(answer)
+          },
+        },
+      }
+    }
+    const fromNetease = { ...song, sourceUrl: 'https://music.163.com/song?id=1973665667' }
+
+    it('takes 网易云’s words for a song from 网易云, and asks YouTube Music nothing', async () => {
+      const { fake, asked } = netease({ text: '[00:12.10]都是勇敢的\n[00:15.20]你额头的伤口' })
+      const youtube = {
+        find: () => Promise.reject(new Error('asked')),
+      } as unknown as YouTubeMusicLyrics
+      const lrclib = fakeLrclib({ get: { syncedLyrics: '[00:01.00]from lrclib' } })
+      const lyrics = new LyricsService(
+        storage,
+        createLogger('silent'),
+        lrclib.fetchImpl,
+        youtube,
+        null,
+        fake,
+      )
+      expect(await lyrics.fetchRemote(fromNetease)).toEqual({
+        text: '[00:12.10]都是勇敢的\n[00:15.20]你额头的伤口',
+        synced: true,
+      })
+      expect(asked).toEqual(['1973665667'])
+      expect(lrclib.calls).toEqual([])
+    })
+
+    it('believes 网易云 about a song with no words, and goes on to lrclib when it has none', async () => {
+      const lrclib = fakeLrclib({ get: { syncedLyrics: '[00:01.00]from lrclib' } })
+      const quiet = new LyricsService(
+        storage,
+        createLogger('silent'),
+        lrclib.fetchImpl,
+        null,
+        null,
+        netease('instrumental').fake,
+      )
+      expect(await quiet.fetchRemote(fromNetease)).toBe('instrumental')
+      const none = new LyricsService(
+        storage,
+        createLogger('silent'),
+        lrclib.fetchImpl,
+        null,
+        null,
+        netease(null).fake,
+      )
+      expect(await none.fetchRemote(fromNetease)).toEqual({
+        text: '[00:01.00]from lrclib',
+        synced: true,
+      })
+    })
+
+    it('does not ask 网易云 about a song from anywhere else', async () => {
+      const { fake, asked } = netease({ text: '[00:01.00]wrong' })
+      const lrclib = fakeLrclib({})
+      const lyrics = new LyricsService(
+        storage,
+        createLogger('silent'),
+        lrclib.fetchImpl,
+        null,
+        null,
+        fake,
+      )
+      await lyrics.fetchRemote({ ...song, sourceUrl: 'https://youtu.be/fCh0qfxElm8' })
+      expect(asked).toEqual([])
+    })
+  })
+
   describe('writeSidecar', () => {
     it('replaces plain lyrics with timed ones, leaving one file', async () => {
       await storage.write('Midnight Drive.txt', Buffer.from('words'))

@@ -46,27 +46,30 @@ describe('ImportRepository', () => {
   })
 
   describe('recent', () => {
-    it('lists every open job, what failed before what waits, then the newest finished', () => {
-      const [failed = '', running = ''] = enqueue('Failed', 'Running', 'Waiting')
-      const [paused = '', done = ''] = enqueue('Paused', 'Done')
+    it('lists what failed, then every other open job as asked for, then the newest finished', () => {
+      const [upload = '', running = ''] = enqueue('Not uploaded', 'Running', 'Waiting')
+      const [paused = '', done = '', failed = ''] = enqueue('Paused', 'Done', 'Failed')
       imports.claimNext()
       imports.claimNext()
-      imports.update(failed, { status: 'error', step: 'uploading', error: 'the bucket is full' })
+      imports.update(upload, { status: 'error', step: 'uploading', error: 'the bucket is full' })
       imports.update(running, { step: 'downloading' })
       imports.update(paused, { status: 'cancelled', step: 'finished' })
       imports.update(done, { status: 'done', step: 'finished' })
+      imports.update(failed, { status: 'error', step: 'finished', error: 'Video unavailable' })
 
       expect(imports.recent(100).map(job => job.title)).toEqual([
-        'Running',
         'Failed',
+        'Not uploaded',
+        'Running',
         'Waiting',
         'Paused',
         'Done',
       ])
       // The limit is the history's: every open job is on the list whatever it is.
       expect(imports.recent(0).map(job => job.title)).toEqual([
-        'Running',
         'Failed',
+        'Not uploaded',
+        'Running',
         'Waiting',
         'Paused',
       ])
@@ -91,7 +94,7 @@ describe('ImportRepository', () => {
       imports.update(paused, { status: 'cancelled', step: 'finished' })
 
       expect(imports.clearFinished()).toBe(1)
-      expect(imports.recent().map(job => job.title)).toEqual(['Failed', 'Waiting', 'Paused'])
+      expect(imports.recent().map(job => job.title)).toEqual(['Failed', 'Paused', 'Waiting'])
     })
   })
 
@@ -157,6 +160,42 @@ describe('ImportRepository', () => {
       expect(imports.claimNext()?.id).toBe(second)
       expect(imports.byId(failed)?.status).toBe('error')
       expect(imports.retryCancelled()).toBe(0)
+    })
+  })
+
+  describe('retry all and remove all, beside what failed', () => {
+    const fail = (): { failed: string; second: string; upload: string; paused: string } => {
+      const [failed = '', second = '', upload = '', paused = ''] = enqueue(
+        'Failed',
+        'Also failed',
+        'Not uploaded',
+        'Paused',
+      )
+      imports.update(failed, { status: 'error', step: 'finished', error: 'Video unavailable' })
+      imports.update(second, { status: 'error', step: 'downloading', error: 'Timed out' })
+      imports.update(upload, { status: 'error', step: 'uploading', error: 'Bucket away' })
+      imports.update(paused, { status: 'cancelled', step: 'finished' })
+      return { failed, second, upload, paused }
+    }
+
+    it('queues every failure again, in order, and leaves an upload and a pause be', () => {
+      const { failed, second, upload, paused } = fail()
+
+      expect(imports.retryFailed()).toBe(2)
+      expect(imports.byId(failed)).toMatchObject({ status: 'queued', step: 'waiting', error: null })
+      expect(imports.claimNext()?.id).toBe(failed)
+      expect(imports.claimNext()?.id).toBe(second)
+      expect(imports.byId(upload)?.status).toBe('error')
+      expect(imports.byId(paused)?.status).toBe('cancelled')
+      expect(imports.retryFailed()).toBe(0)
+    })
+
+    it('takes every failure off the queue, and leaves an upload and a pause be', () => {
+      fail()
+
+      expect(imports.dismissFailed()).toBe(2)
+      expect(imports.recent().map(job => job.title)).toEqual(['Not uploaded', 'Paused'])
+      expect(imports.dismissFailed()).toBe(0)
     })
   })
 })

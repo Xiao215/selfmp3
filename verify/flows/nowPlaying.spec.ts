@@ -111,10 +111,11 @@ test.describe('now playing', () => {
     await expect(page.getByTestId('now-playing-lyrics-view')).toHaveCount(0)
     await expect(page).not.toHaveURL(/view=lyrics/)
 
-    // Devices are under ⋯, with Practice.
+    // Devices are under ⋯, with Practice, and removing the song last.
     await page.getByTestId('now-playing-more').click()
     await expect(page.getByRole('menuitem', { name: /Devices/ })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: /Practice/ })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Remove from library…' })).toBeVisible()
     await page.keyboard.press('Escape')
 
     // ⓘ puts the page away and opens the song's own.

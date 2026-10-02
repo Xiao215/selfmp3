@@ -28,11 +28,15 @@ const item = (n: number, extra: Partial<ImportPreviewItem> = {}): ImportPreviewI
   alreadyHave: false,
   waitingToUpload: false,
   inQueue: false,
+  source: 'youtube',
+  netease: null,
+  youtube: null,
   ...extra,
 })
 
 const aReview = () =>
   reviewFrom({
+    from: 'youtube',
     kind: 'playlist',
     playlistTitle: 'THE BOOK',
     items: [item(1, { alreadyHave: true }), item(2), item(3)],

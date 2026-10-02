@@ -5,7 +5,6 @@ import {
   allSelected,
   clearSelection,
   clickSelected,
-  deselectAll,
   enterSelection,
   pruneSelection,
   selectAllVisible,
@@ -103,12 +102,8 @@ describe('selection', () => {
     expect(allSelected(state, VISIBLE)).toBe(true)
   })
 
-  it('deselect all leaves the mode with the ticks, as clear does', () => {
+  it('clearing, as deselect all in the bar does, leaves the mode with the ticks', () => {
     const all = selectAllVisible(EMPTY_SELECTION, VISIBLE)
-    const none = deselectAll(all)
-    expect(ids(none)).toEqual([])
-    expect(none.mode).toBe(false)
-    expect(selectionActive(none)).toBe(false)
     const cleared = clearSelection(all)
     expect(ids(cleared)).toEqual([])
     expect(cleared.mode).toBe(false)
@@ -128,7 +123,6 @@ describe('selection', () => {
   })
 
   it('returns the same object for every no-op', () => {
-    expect(deselectAll(EMPTY_SELECTION)).toBe(EMPTY_SELECTION)
     expect(clearSelection(EMPTY_SELECTION)).toBe(EMPTY_SELECTION)
     expect(pruneSelection(EMPTY_SELECTION, VISIBLE)).toBe(EMPTY_SELECTION)
     const inMode = enterSelection(EMPTY_SELECTION)
@@ -148,6 +142,6 @@ describe('leaving selection by unticking', () => {
   it('stays in the mode while something is still selected, and leaves it when the bar empties it', () => {
     const two = toggleSelected(enterSelection(EMPTY_SELECTION, 7), 8)
     expect(selectionActive(toggleSelected(two, 7))).toBe(true)
-    expect(selectionActive(deselectAll(two))).toBe(false)
+    expect(selectionActive(clearSelection(two))).toBe(false)
   })
 })

@@ -36,7 +36,7 @@ describe('the swipe-back gesture', () => {
     for (const route of [
       'playlists/[id]',
       'import/index',
-      'import/migrate',
+      'import/review',
       'profile',
       'settings',
       'stats/index',

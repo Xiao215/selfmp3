@@ -62,6 +62,12 @@ export function Equalizer({
     // over the time it had left, then loops: a loop begun from part-way took
     // the whole duration for the rest of the stroke, so the first stroke
     // after every pause was slow and the three fell out of their wander.
+    //
+    // The loops carry on from where the last stroke ended. Left to its
+    // default, `Animated.loop` puts the value back to the one it was made with
+    // (`LOW`) before every cycle, so a bar that had just risen to the top
+    // dropped to the bottom in one frame and sat there for a whole stroke —
+    // every bar, every second or two, since a bar starts out rising.
     const started = Date.now()
     // The phases as they are for this run of the effect, so the cleanup reads
     // the same ones it started.
@@ -85,11 +91,15 @@ export function Equalizer({
         rising
           ? [
               stroke(1, duration - phase),
-              Animated.loop(Animated.sequence([stroke(LOW, duration), stroke(1, duration)])),
+              Animated.loop(Animated.sequence([stroke(LOW, duration), stroke(1, duration)]), {
+                resetBeforeIteration: false,
+              }),
             ]
           : [
               stroke(LOW, cycle - phase),
-              Animated.loop(Animated.sequence([stroke(1, duration), stroke(LOW, duration)])),
+              Animated.loop(Animated.sequence([stroke(1, duration), stroke(LOW, duration)]), {
+                resetBeforeIteration: false,
+              }),
             ],
       )
       animation.start()

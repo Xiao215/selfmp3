@@ -263,7 +263,14 @@ function RankedList({
   return (
     <View>
       {rows.map((row, index) =>
-        row.kind === 'artist' && index === 0 ? (
+        row.kind === 'song' && index === 0 ? (
+          <SongLead
+            key={row.key}
+            row={row}
+            song={songFor(row.songId)}
+            testID={`stats-ranked-${kind}-${index}`}
+          />
+        ) : row.kind === 'artist' && index === 0 ? (
           <ArtistLead
             key={row.key}
             row={row}
@@ -291,8 +298,7 @@ function RankedList({
  * The most-played artist, as a portrait rather than a line (Xiao chose F,
  * 2026-10-01): their banner across the column with the name on it, the way
  * their own page opens. Without a banner it is lit by the cover they wear in
- * the lines below, and with neither it is the card's raised tone. The bar is
- * left out: the first one is always full.
+ * the lines below.
  */
 function ArtistLead({
   row,
@@ -307,22 +313,85 @@ function ArtistLead({
 }): ReactNode {
   const router = useRouter()
   const artFor = useArt()
-  const { theme } = useUnistyles()
   const picture = useArtistPicture(row.known ? row.name : null, via)
   // Nothing while the server is asked, so a cover does not flash up before
   // the banner that replaces it.
   const art = picture === undefined ? null : (picture?.banner ?? (cover ? artFor(cover) : null))
+  return (
+    <LeadCard
+      art={art}
+      rank={row.rank}
+      name={row.name}
+      note={`${row.trailing} · most played`}
+      label={`${row.rank}. ${row.name}, ${row.trailing}`}
+      open={row.known ? () => router.navigate(artistLink(row.name)) : undefined}
+      testID={testID}
+    />
+  )
+}
+
+/**
+ * The most-played song, in the same card as the artist beside it (Xiao,
+ * 2026-10-01), lit by its own cover. A song this device cannot line up with
+ * the server's has no cover to show and opens nothing, as its line would.
+ */
+function SongLead({
+  row,
+  song,
+  testID,
+}: {
+  row: Extract<RankedRow, { kind: 'song' }>
+  song: Song | undefined
+  testID: string
+}): ReactNode {
+  const router = useRouter()
+  const artFor = useArt()
+  return (
+    <LeadCard
+      art={song ? artFor(song) : null}
+      rank={row.rank}
+      name={row.name}
+      note={row.artist ? `${row.trailing} · ${row.artist}` : row.trailing}
+      label={`${row.rank}. ${row.name}${row.artist ? `, ${row.artist}` : ''}, ${row.trailing}`}
+      open={song ? () => router.navigate(songLink(song.id)) : undefined}
+      testID={testID}
+    />
+  )
+}
+
+/**
+ * First place as a card: a picture to the right, faded into the card under
+ * the serif rank and the name. Without a picture it is the card's raised
+ * tone. The bar is left out: the first one is always full.
+ */
+function LeadCard({
+  art,
+  rank,
+  name,
+  note,
+  label: spoken,
+  open,
+  testID,
+}: {
+  art: string | null
+  rank: number
+  name: string
+  note: string
+  label: string
+  open: (() => void) | undefined
+  testID: string
+}): ReactNode {
+  const { theme } = useUnistyles()
   const [loaded, setLoaded] = useState<string | null>(null)
   const shown = useFade(art !== null && loaded === art, motion.base, motion.base)
   const shade = `statslead${useId().replace(/[^a-zA-Z0-9]/g, '')}`
-  const open = row.known ? () => router.navigate(artistLink(row.name)) : undefined
 
   return (
     <Pressable
       disabled={!open}
       onPress={open}
       accessibilityRole={open ? 'link' : undefined}
-      accessibilityLabel={`${row.rank}. ${row.name}, ${row.trailing}`}
+      accessibilityLabel={spoken}
       testID={testID}
       style={({ pressed }) => [styles.lead, pressed && styles.linePressed]}
     >
@@ -358,13 +427,13 @@ function ArtistLead({
         </Animated.View>
       ) : null}
       <View style={styles.leadWords}>
-        <Text style={styles.leadRank}>{row.rank}</Text>
+        <Text style={styles.leadRank}>{rank}</Text>
         <View style={styles.leadNames}>
           <Text style={styles.leadName} numberOfLines={1}>
-            {row.name}
+            {name}
           </Text>
           <Text style={styles.leadNote} numberOfLines={1}>
-            {row.trailing} · most played
+            {note}
           </Text>
         </View>
       </View>

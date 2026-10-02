@@ -112,4 +112,64 @@ test.describe('selecting songs', () => {
     // the server kept after its file vanished is not a row to select.
     expect(library.songs.filter(song => !song.missing)).toHaveLength(total)
   })
+
+  /**
+   * A tag's page selects as the library does. Holding a row there opened its
+   * ⋯ menu, and nothing on the page could be ticked (Xiao, 2026-10-02). A tag
+   * has no order of its own to change, so a hold there means what it means in
+   * the library.
+   */
+  test('a tag’s page selects as the library does', async ({ page }, info) => {
+    await openLibrary(page)
+    await libraryReady(page)
+    await skipIfNoLibrary(page, 2)
+
+    const library = (await (await page.request.get(`${appApi}/api/library`)).json()) as {
+      songs: { tagIds: number[]; missing: boolean }[]
+      tags: { id: number; name: string }[]
+    }
+    const present = library.songs.filter(song => !song.missing)
+    const size = (id: number) => present.filter(song => song.tagIds.includes(id)).length
+    const tag = library.tags.find(entry => size(entry.id) >= 2)
+    test.skip(!tag, 'needs a tag on two songs')
+    if (!tag) return
+
+    await page.goto(`/tag/${encodeURIComponent(tag.name)}`)
+    const rows = songRows(page)
+    await expect(rows.nth(1)).toBeVisible({ timeout: 30_000 })
+    const first = await titleOf(rows.nth(0))
+    const second = await titleOf(rows.nth(1))
+
+    if (info.project.name === 'phone') {
+      const box = (await page
+        .getByRole('button', { name: new RegExp(`^${escaped(first)}, `) })
+        .first()
+        .boundingBox())!
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+      await page.mouse.down()
+      await page.waitForTimeout(700)
+      await page.mouse.up()
+      await expect(selectionCount(page, 1)).toBeVisible()
+      // The hold selected, and did not open the song's menu as well.
+      await expect(page.getByTestId('song-menu')).toHaveCount(0)
+    } else {
+      await rows.nth(0).hover()
+      await page.getByRole('checkbox', { name: `Select ${first}` }).click()
+    }
+    await page.getByRole('checkbox', { name: `Select ${second}` }).click()
+    await expect(selectionCount(page, 2)).toBeVisible()
+
+    // "All" is this tag's songs, and the bar says so.
+    const everyOne = `Select all ${size(tag.id)} songs in this tag`
+    if (info.project.name === 'phone') {
+      await page.getByRole('button', { name: /^More$/ }).click()
+      await page.getByRole('menuitem', { name: everyOne }).click()
+    } else {
+      await page.getByRole('checkbox', { name: everyOne }).click()
+    }
+    await expect(selectionCount(page, size(tag.id))).toBeVisible()
+
+    await page.getByRole('button', { name: /^Done selecting/ }).click()
+    await expect(page.getByText(/^\d+ selected$/)).toHaveCount(0)
+  })
 })

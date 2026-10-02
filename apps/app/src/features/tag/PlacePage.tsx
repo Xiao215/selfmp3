@@ -17,10 +17,12 @@ import { Cover } from '../../ui/components/Cover'
 import { CoverLight } from '../../ui/components/CoverLight'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronLeft, More, Play, Shuffle, User } from '../../ui/components/Icons'
+import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
 import { SongList } from '../../ui/components/SongList'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { SongRow } from '../../ui/components/SongRow'
 import { useSongColor } from '../../ui/useSongColor'
+import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { spring } from '../../ui/motion'
 import { takePlaceHandoff } from '../../ui/coverHandoff'
 import { artShadow, label as labelText } from '../../ui/surfaces'
@@ -47,6 +49,12 @@ import {
  * with Play, Shuffle and Add. Add puts more tags and artists beside it and
  * every one **adds** its songs; the chips under the name say what is on.
  * Rows carry no tag chips here: inside a place, the place is the tag.
+ *
+ * A place has no order of its own — its songs read newest first, as Library
+ * opens — so holding a row selects it, as it does in the library, and the
+ * selection bar acts on what is ticked. An order of your own is a playlist's:
+ * Save keeps the tags as one that follows them, and that can be reordered
+ * (Xiao, 2026-10-02).
  *
  * An artist's page is the same page with a figure where a tag has its dot,
  * its name in the serif, and its songs by album.
@@ -226,10 +234,11 @@ export function PlacePage({
               onPress={() => setAdding(true)}
             />
           ) : null}
-          {wide && allTags ? (
+          {allTags ? (
             <Button
               testID="place-save"
-              label={saved.savedName === title ? 'Saved' : 'Save as playlist'}
+              label={saved.savedName === title ? 'Saved' : wide ? 'Save as playlist' : 'Save'}
+              accessibilityLabel="Save these tags as a playlist"
               busy={saved.saving}
               disabled={saved.savedName === title}
               onPress={() =>
@@ -249,7 +258,15 @@ export function PlacePage({
 
   return (
     <View style={styles.screen}>
-      <PlaceSongs songs={songs} byAlbum={artistAlone} head={head} label={`${title} songs`} />
+      <PlaceSongs
+        songs={songs}
+        byAlbum={artistAlone}
+        head={head}
+        label={`${title} songs`}
+        scope={
+          artistAlone ? 'by this artist' : only?.kind === 'tag' ? 'in this tag' : 'on this page'
+        }
+      />
       <AddSheet
         open={adding}
         chosen={chosen}
@@ -303,31 +320,46 @@ function Chips({
 /**
  * The songs, in a list that only draws what is on screen. On an artist's
  * page each album starts with its own small heading.
+ *
+ * Selecting is the library's: hold a row (or Cmd/Shift-click it, or tick its
+ * box on a computer) and the selection bar comes up — a lane above the list
+ * on a computer, floating at the foot on a phone.
  */
 function PlaceSongs({
   songs,
   byAlbum,
   head,
   label,
+  scope,
 }: {
   songs: readonly Song[]
   byAlbum: boolean
   head: ReactElement
   label: string
+  /** What "all" means on this page, for the selection bar. */
+  scope: string
 }): ReactNode {
   const player = usePlayer()
   const artFor = useArt()
+  const { wide } = useLayout()
   const { state: downloads } = useDownloads()
   const [menuSong, setMenuSong] = useState<Song | null>(null)
   const anchor = useRef<View | null>(null)
   const ids = useMemo(() => songs.map(song => song.id), [songs])
-  const latest = useRef({ ids, playFrom: player.playFrom })
+  const selection = useSelection(ids)
+  const selectedSongs = useMemo(
+    () => songs.filter(song => selection.has(song.id)),
+    [songs, selection],
+  )
+  const latest = useRef({ ids, playFrom: player.playFrom, selection })
   useEffect(() => {
-    latest.current = { ids, playFrom: player.playFrom }
-  }, [ids, player.playFrom])
+    latest.current = { ids, playFrom: player.playFrom, selection }
+  }, [ids, player.playFrom, selection])
 
-  const onPress = useCallback((_event: GestureResponderEvent, song: Song) => {
-    const { ids: now, playFrom } = latest.current
+  const onPress = useCallback((event: GestureResponderEvent, song: Song) => {
+    const { ids: now, playFrom, selection: selecting } = latest.current
+    // Shift and Cmd, and a tap in selection mode, select; a plain tap plays.
+    if (selecting.click(song.id, modifiersOf(event))) return
     const index = now.indexOf(song.id)
     if (index >= 0) playFrom(now, index)
   }, [])
@@ -335,6 +367,9 @@ function PlaceSongs({
     anchor.current = node
     setMenuSong(current => (current?.id === song.id ? null : song))
   }, [])
+  // Holding a row selects it; the ⋯ opens the menu.
+  const onLongPress = useCallback((song: Song) => latest.current.selection.enter(song.id), [])
+  const onToggleSelect = useCallback((song: Song) => latest.current.selection.toggle(song.id), [])
 
   const renderSong = useCallback(
     ({ item, index }: { item: Song; index: number }) => {
@@ -347,6 +382,10 @@ function PlaceSongs({
           onPress={onPress}
           onMore={onMore}
           menuOpen={menuSong?.id === item.id}
+          onLongPress={onLongPress}
+          selecting={selection.active}
+          selected={selection.has(item.id)}
+          onToggleSelect={onToggleSelect}
           index={index}
         />
       )
@@ -359,14 +398,46 @@ function PlaceSongs({
         </View>
       )
     },
-    [artFor, downloads.index, onPress, onMore, menuSong, byAlbum, songs],
+    [
+      artFor,
+      downloads.index,
+      onPress,
+      onMore,
+      onLongPress,
+      onToggleSelect,
+      selection,
+      menuSong,
+      byAlbum,
+      songs,
+    ],
   )
 
   return (
-    <>
-      <SongList songs={songs} label={label} renderSong={renderSong} header={head} />
+    <View style={styles.listArea}>
+      {/* Always mounted, told when to show, so it rises and sinks rather than appearing. */}
+      <SelectionBar
+        shown={selection.active}
+        songs={selectedSongs}
+        total={songs.length}
+        scope={scope}
+        allSelected={selection.allSelected}
+        onSelectAll={selection.selectAll}
+        onDeselectAll={selection.clear}
+        onDone={selection.clear}
+      />
+      <SongList
+        songs={songs}
+        label={label}
+        renderSong={renderSong}
+        header={head}
+        // On a phone the bar floats over the foot of the list; the last song
+        // can scroll out from under it.
+        contentContainerStyle={
+          selection.active && !wide ? { paddingBottom: SELECTION_BAR_SPACE } : undefined
+        }
+      />
       <SongMenu song={menuSong} anchorRef={anchor} onClose={() => setMenuSong(null)} />
-    </>
+    </View>
   )
 }
 
@@ -385,6 +456,7 @@ function AlbumHeading({ song, artUri }: { song: Song; artUri: string | null }): 
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
+  listArea: { flex: 1, minHeight: 0 },
   // The light stays inside the head, so it never runs on under the rows.
   head: { paddingHorizontal: 20, paddingBottom: 16, gap: 18, overflow: 'hidden' },
   headWide: { paddingHorizontal: 40, paddingTop: 16 },

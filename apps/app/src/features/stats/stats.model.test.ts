@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Stats } from '@selfmp3/shared'
 
 import {
+  artistCoverSong,
   bestStreakHint,
   daysLabel,
   durationWords,
@@ -212,5 +213,25 @@ describe('the ranked module', () => {
   it('says why a list is empty', () => {
     expect(rankedEmpty('tags')).toMatch(/tagged/)
     expect(rankedEmpty('songs')).toMatch(/Nothing played/)
+  })
+})
+
+describe('an artist with no picture', () => {
+  const song = (artist: string, hasArt = true, title = artist) => ({ title, artist, hasArt })
+
+  it('wears the cover of theirs played most, a collaboration counting as theirs', () => {
+    const played = [
+      song('YOASOBI', true, 'アイドル'),
+      song('n-buna feat. suis', true, '花に亡霊'),
+      song('suis', true, 'later'),
+    ]
+    expect(artistCoverSong('suis', played, [])?.title).toBe('花に亡霊')
+  })
+
+  it('passes over a played song without a cover, then turns to the library', () => {
+    const played = [song('Akane', false, 'Kokoronashi')]
+    const library = [song('YOASOBI'), song('akane', true, 'another')]
+    expect(artistCoverSong('Akane', played, library)?.title).toBe('another')
+    expect(artistCoverSong('Nobody', played, library)).toBeUndefined()
   })
 })

@@ -1,23 +1,25 @@
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import Svg, { Path } from 'react-native-svg'
+import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg'
 import type { Song, Stats } from '@selfmp3/shared'
-import { radius, tagColors, useLibrary, type ServerConnection } from '@selfmp3/client'
+import { motion, radius, tagColors, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { useArt } from '../../offline/useArt'
 import { Cover } from '../../ui/components/Cover'
-import { User } from '../../ui/components/Icons'
 import { Segmented } from '../../ui/components/Segmented'
+import { useFade } from '../../ui/motion'
 import { card, label, serif } from '../../ui/surfaces'
 import { songLink } from '../song/song.model'
 import { artistLink, tagLink } from '../tag/placeLinks'
+import { useArtistPicture } from '../tag/useArtistPicture'
 import { StatsFrame } from './StatsFrame'
 import { useStatsFor, useStatsSongs } from './statsSource'
 import {
+  artistCoverSong,
   listenedCard,
   peakCard,
   RANK_KINDS,
@@ -243,20 +245,153 @@ function RankedList({
     () => new Map((library?.tags ?? []).map(tag => [tag.name, tag.hue])),
     [library],
   )
+  // The cover each artist wears where the server has no picture of them.
+  const coverOf = useMemo(() => {
+    const covers = new Map<string, Song>()
+    if (kind !== 'artists') return covers
+    const played = stats.topSongs
+      .map(top => songFor(top.songId))
+      .filter((song): song is Song => song !== undefined)
+    for (const row of rows) {
+      const song = artistCoverSong(row.name, played, library?.songs ?? [])
+      if (song) covers.set(row.key, song)
+    }
+    return covers
+  }, [kind, rows, stats, songFor, library])
+
   if (rows.length === 0) return <Text style={styles.listEmpty}>{rankedEmpty(kind)}</Text>
   return (
     <View>
-      {rows.map((row, index) => (
-        <RankedLine
-          key={row.key}
-          row={row}
-          song={row.kind === 'song' ? songFor(row.songId) : undefined}
-          hue={row.kind === 'tag' ? hueOf.get(row.name) : undefined}
-          testID={`stats-ranked-${kind}-${index}`}
-        />
-      ))}
+      {rows.map((row, index) =>
+        row.kind === 'artist' && index === 0 ? (
+          <ArtistLead
+            key={row.key}
+            row={row}
+            cover={coverOf.get(row.key)}
+            via={via}
+            testID={`stats-ranked-${kind}-${index}`}
+          />
+        ) : (
+          <RankedLine
+            key={row.key}
+            row={row}
+            song={row.kind === 'song' ? songFor(row.songId) : undefined}
+            cover={coverOf.get(row.key)}
+            hue={row.kind === 'tag' ? hueOf.get(row.name) : undefined}
+            via={via}
+            testID={`stats-ranked-${kind}-${index}`}
+          />
+        ),
+      )}
     </View>
   )
+}
+
+/**
+ * The most-played artist, as a portrait rather than a line (Xiao chose F,
+ * 2026-10-01): their banner across the column with the name on it, the way
+ * their own page opens. Without a banner it is lit by the cover they wear in
+ * the lines below, and with neither it is the card's raised tone. The bar is
+ * left out: the first one is always full.
+ */
+function ArtistLead({
+  row,
+  cover,
+  via,
+  testID,
+}: {
+  row: Extract<RankedRow, { kind: 'artist' }>
+  cover: Song | undefined
+  via: ServerConnection | undefined
+  testID: string
+}): ReactNode {
+  const router = useRouter()
+  const artFor = useArt()
+  const { theme } = useUnistyles()
+  const picture = useArtistPicture(row.known ? row.name : null, via)
+  // Nothing while the server is asked, so a cover does not flash up before
+  // the banner that replaces it.
+  const art = picture === undefined ? null : (picture?.banner ?? (cover ? artFor(cover) : null))
+  const [loaded, setLoaded] = useState<string | null>(null)
+  const shown = useFade(art !== null && loaded === art, motion.base, motion.base)
+  const shade = `statslead${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  const open = row.known ? () => router.navigate(artistLink(row.name)) : undefined
+
+  return (
+    <Pressable
+      disabled={!open}
+      onPress={open}
+      accessibilityRole={open ? 'link' : undefined}
+      accessibilityLabel={`${row.rank}. ${row.name}, ${row.trailing}`}
+      testID={testID}
+      style={({ pressed }) => [styles.lead, pressed && styles.linePressed]}
+    >
+      {/*
+       * The picture keeps to the right and fades into the card under the
+       * words. A banner's subject sits in its middle, a face or, for
+       * HOYO-MiX, a logo spelling the name; drawn across the whole card,
+       * the name was written over it.
+       */}
+      {art ? (
+        <Animated.View style={[styles.leadArt, { opacity: shown }]}>
+          <Animated.Image
+            source={{ uri: art }}
+            style={styles.leadPicture}
+            resizeMode="cover"
+            onLoad={() => setLoaded(art)}
+            accessibilityIgnoresInvertColors
+          />
+          <Svg
+            width="100%"
+            height="100%"
+            preserveAspectRatio="none"
+            style={StyleSheet.absoluteFill}
+          >
+            <Defs>
+              <LinearGradient id={shade} x1="0" y1="0" x2="1" y2="0">
+                <Stop offset="0" stopColor={theme.colors.surface3} stopOpacity={1} />
+                <Stop offset="0.6" stopColor={theme.colors.surface3} stopOpacity={0} />
+              </LinearGradient>
+            </Defs>
+            <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${shade})`} />
+          </Svg>
+        </Animated.View>
+      ) : null}
+      <View style={styles.leadWords}>
+        <Text style={styles.leadRank}>{row.rank}</Text>
+        <View style={styles.leadNames}>
+          <Text style={styles.leadName} numberOfLines={1}>
+            {row.name}
+          </Text>
+          <Text style={styles.leadNote} numberOfLines={1}>
+            {row.trailing} · most played
+          </Text>
+        </View>
+      </View>
+    </Pressable>
+  )
+}
+
+/**
+ * An artist beside their name: their picture cut round, as YouTube Music
+ * shows them, or the cover of theirs they are played for, round so it still
+ * reads as a person beside the square covers of songs.
+ */
+function ArtistFace({
+  name,
+  known,
+  cover,
+  via,
+}: {
+  name: string
+  known: boolean
+  cover: Song | undefined
+  via: ServerConnection | undefined
+}): ReactNode {
+  const artFor = useArt()
+  const picture = useArtistPicture(known ? name : null, via)
+  const uri = picture === undefined ? null : (picture?.portrait ?? (cover ? artFor(cover) : null))
+  return <Cover uri={uri} title={name} size={36} radius={18} />
 }
 
 /**
@@ -271,12 +406,17 @@ function RankedList({
 function RankedLine({
   row,
   song,
+  cover,
   hue,
+  via,
   testID,
 }: {
   row: RankedRow
   song: Song | undefined
+  /** An artist's stand-in cover (`ArtistFace`). */
+  cover: Song | undefined
   hue: number | undefined
+  via: ServerConnection | undefined
   testID: string
 }): ReactNode {
   const router = useRouter()
@@ -298,9 +438,7 @@ function RankedLine({
     row.kind === 'song' ? (
       <Cover uri={song ? artFor(song) : null} title={row.name} size={36} />
     ) : row.kind === 'artist' ? (
-      <View style={styles.artistFigure}>
-        <User size={17} tone="textPrimary" />
-      </View>
+      <ArtistFace name={row.name} known={row.known} cover={cover} via={via} />
     ) : (
       <View style={styles.tagSquare}>
         <View
@@ -410,14 +548,29 @@ const styles = StyleSheet.create(theme => ({
   },
   linePressed: { opacity: 0.7 },
   rank: { ...serif(theme.colors, 18), width: 18, color: theme.colors.textMuted },
-  artistFigure: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surfaceSelected,
+  lead: {
+    height: 112,
+    marginBottom: 6,
+    borderRadius: radius.card,
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+    backgroundColor: theme.colors.surface3,
   },
+  leadArt: { position: 'absolute', top: 0, bottom: 0, right: 0, left: '38%' },
+  // Dimmed, so a long name running onto a white banner still reads.
+  leadPicture: { width: '100%', height: '100%', opacity: 0.8 },
+  leadWords: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingBottom: 12,
+  },
+  // The serif's figures stand taller than their own size (bigNumber above).
+  leadRank: { ...serif(theme.colors, 46), lineHeight: 50, color: theme.colors.accent },
+  leadNames: { flex: 1, minWidth: 0, paddingBottom: 4 },
+  leadName: { color: theme.colors.textPrimary, fontSize: 19, fontWeight: '700' },
+  leadNote: { color: theme.colors.textSecondary, fontSize: 12.5, marginTop: 2 },
   tagSquare: {
     width: 36,
     height: 36,

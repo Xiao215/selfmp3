@@ -317,6 +317,22 @@ export function rankedArtists(top: readonly TopEntry[], limit = RANKED_ROWS): Ra
   }))
 }
 
+/**
+ * The song whose cover stands in for an artist the server has no picture of:
+ * theirs played most in this window, or, when none of those has a cover, any
+ * of theirs that has. A collaboration is theirs, as it counts for them above.
+ */
+export function artistCoverSong<S extends { readonly artist: string; readonly hasArt: boolean }>(
+  name: string,
+  played: readonly S[],
+  library: readonly S[],
+): S | undefined {
+  const key = artistKey(name)
+  const theirs = (song: S): boolean =>
+    song.hasArt && splitArtists(song.artist).some(named => artistKey(named) === key)
+  return played.find(theirs) ?? library.find(theirs)
+}
+
 /** Tags by time listened: a song with two tags counts for both. */
 export function rankedTags(top: readonly TopEntry[], limit = RANKED_ROWS): RankedRow[] {
   const rows = [...top].sort((a, b) => b.minutes - a.minutes || b.plays - a.plays).slice(0, limit)

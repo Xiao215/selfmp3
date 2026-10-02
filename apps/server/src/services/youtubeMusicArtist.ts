@@ -16,7 +16,8 @@ import { findAll, findKey, runs, YouTubeMusicApi, type FetchLike } from './youtu
  * tech reviewer included) and any failure along the way are both null.
  *
  * The same page carries the wide picture YouTube Music draws behind the
- * artist's name, which is what an artist's page here is lit by (`backdrop`).
+ * artist's name, which is what an artist's page here is lit by, and, cut
+ * square, what an artist's line in Stats shows (`picture`).
  */
 
 export interface ArtistSongs {
@@ -60,18 +61,14 @@ export class YouTubeMusicArtists {
   }
 
   /**
-   * The picture behind the artist's name, at the size asked for, or null for
-   * a channel without one. The page names it at a few sizes; the address
-   * takes its size in the path, so any size can be asked for.
+   * The picture behind the artist's name, as an address without its size, or
+   * null for a channel without one. The address takes its size in its path,
+   * so one picture serves every shape asked of it (`pictureAt`).
    */
-  async backdrop(
-    channelId: string,
-    size: { width: number; height: number },
-  ): Promise<string | null> {
+  async picture(channelId: string): Promise<string | null> {
     const page = await this.#api.post('browse', { browseId: channelId })
     const url = page ? headerImage(page) : null
-    if (!url) return null
-    return `${url.split('=')[0]}=w${size.width}-h${size.height}-p-l90-rj`
+    return url ? (url.split('=')[0] ?? null) : null
   }
 
   /** `@handle` to a channel id. Only music.youtube.com links resolve, so it is asked as one. */
@@ -83,6 +80,16 @@ export class YouTubeMusicArtists {
       ?.browseId
     return typeof browseId === 'string' && browseId.startsWith('UC') ? browseId : null
   }
+}
+
+/**
+ * A picture from `picture`, cut to this size. The picture server crops to the
+ * shape rather than squeezing into it: the wide one is the banner over an
+ * artist's page, a square one the round face YouTube Music shows beside an
+ * artist's name in its own search.
+ */
+export function pictureAt(address: string, size: { width: number; height: number }): string {
+  return `${address}=w${size.width}-h${size.height}-p-l90-rj`
 }
 
 /** Whichever header the page has: immersive, with the wide picture, or the plain one. */

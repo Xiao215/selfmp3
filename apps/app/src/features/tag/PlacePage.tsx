@@ -27,7 +27,7 @@ import { artShadow, label as labelText } from '../../ui/surfaces'
 import { useSaveTagsAsPlaylist } from '../library/saveTags'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { AddSheet } from './AddSheet'
-import { useArtistBackdrop } from './useArtistBackdrop'
+import { useArtistPicture } from './useArtistPicture'
 import {
   albumsOf,
   artistSummary,
@@ -86,7 +86,8 @@ export function PlacePage({
   const light = useSongColor(lead, leadArt)
   // An artist alone is lit by their own picture where the server has one,
   // and by a song's cover — as every place is — until then.
-  const backdrop = useArtistBackdrop(only?.kind === 'artist' ? only.artist : null)
+  const backdrop =
+    useArtistPicture(only?.kind === 'artist' ? only.artist.name : null)?.banner ?? null
 
   const title = chosen.map(placeName).join(' + ') || placeName(place)
   const summary = artistAlone ? artistSummary(songs) : placeSummary(songs)

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createLogger } from '../logger.js'
-import { YouTubeMusicArtists } from './youtubeMusicArtist.js'
+import { pictureAt, YouTubeMusicArtists } from './youtubeMusicArtist.js'
 
 /**
  * The artist lookup against a fake of YouTube Music's private API, with pages
@@ -178,7 +178,7 @@ describe('YouTubeMusicArtists.topSongs', () => {
   })
 })
 
-describe('YouTubeMusicArtists.backdrop', () => {
+describe('YouTubeMusicArtists.picture', () => {
   const pageWithPicture = {
     header: {
       musicImmersiveHeaderRenderer: {
@@ -200,13 +200,19 @@ describe('YouTubeMusicArtists.backdrop', () => {
   const artists = (page: unknown) =>
     new YouTubeMusicArtists(createLogger('silent'), () => Promise.resolve(Response.json(page)))
 
-  it('asks for the header picture at the size wanted', async () => {
-    const url = await artists(pageWithPicture).backdrop(YOASOBI, { width: 1200, height: 500 })
-    expect(url).toBe('https://yt3.test/yoasobi=w1200-h500-p-l90-rj')
+  it('gives the header picture without its size, to be cut to any shape', async () => {
+    const address = await artists(pageWithPicture).picture(YOASOBI)
+    expect(address).toBe('https://yt3.test/yoasobi')
+    expect(pictureAt(address!, { width: 1200, height: 500 })).toBe(
+      'https://yt3.test/yoasobi=w1200-h500-p-l90-rj',
+    )
+    expect(pictureAt(address!, { width: 240, height: 240 })).toBe(
+      'https://yt3.test/yoasobi=w240-h240-p-l90-rj',
+    )
   })
 
   it('is null for a page whose header has no picture', async () => {
     const plain = { header: { musicVisualHeaderRenderer: { title: text('Someone') } } }
-    expect(await artists(plain).backdrop(YOASOBI, { width: 1200, height: 500 })).toBeNull()
+    expect(await artists(plain).picture(YOASOBI)).toBeNull()
   })
 })

@@ -2,16 +2,18 @@ import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import { artistKey, splitArtists, type Song } from '@selfmp3/shared'
+import { artistKey, splitArtists, type ArtistPictureShape, type Song } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
 import { YouTubeMusicApi, type FetchLike } from './youtubeMusicApi.js'
-import type { YouTubeMusicArtists } from './youtubeMusicArtist.js'
+import { pictureAt, type YouTubeMusicArtists } from './youtubeMusicArtist.js'
 import { fits, isSameSong, searchSongs } from './youtubeMusicSongs.js'
 
 /**
- * An artist's picture, from their page on YouTube Music.
+ * An artist's picture, from their page on YouTube Music: the banner over the
+ * artist's page, and the same picture cut square for the round face beside
+ * their name in Stats, as YouTube Music cuts it for its own search.
  *
  * An artist here is what the songs say, so there is nothing to look one up
  * by but a name — and YouTube Music's search never says "no such artist"; it
@@ -32,8 +34,8 @@ import { fits, isSameSong, searchSongs } from './youtubeMusicSongs.js'
  * page; nor can a song that names the artist as a guest — "n-buna feat.
  * suis" is a witness for n-buna's page, not for suis's.
  *
- * Fetched once and kept, as a cover is: under `data/artists/`, disposable,
- * rebuilt on the next ask if deleted. An artist found to have no picture is
+ * Fetched once and kept, as a cover is: under `data/artists/`, both shapes
+ * together, disposable, rebuilt on the next ask if either is deleted. An artist found to have no picture is
  * remembered for a while too, so an artist page does not go out to YouTube
  * Music every time it is opened.
  */
@@ -45,14 +47,23 @@ const SONGS_ASKED = 3
 const NONE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 /**
- * The size kept. The page offers it at up to 2880×1200; drawn at a page's
- * width under a fade, this is sharp on a 2× screen at about 125 KB.
+ * The sizes kept. The banner is offered at up to 2880×1200; drawn at a page's
+ * width under a fade, 1200 wide is sharp on a 2× screen at about 125 KB. The
+ * portrait is drawn 36 points round, so 240 is sharp on a 3× phone at ~15 KB.
  */
-const BACKDROP_SIZE = { width: 1200, height: 500 }
+const SIZES = {
+  banner: { width: 1200, height: 500 },
+  portrait: { width: 240, height: 240 },
+} as const satisfies Record<ArtistPictureShape, { width: number; height: number }>
+
+const EXTENSIONS: Record<ArtistPictureShape, string> = {
+  banner: '.jpg',
+  portrait: '.portrait.jpg',
+}
 
 const REQUEST_TIMEOUT_MS = 10_000
 
-interface KeptBackdrop {
+interface KeptPicture {
   readonly path: string
   readonly contentType: 'image/jpeg'
   /** Names this copy, for the address it is drawn from; changes with the file. */
@@ -62,17 +73,17 @@ interface KeptBackdrop {
 export class ArtistBackdropService {
   readonly #dir: string
   readonly #songs: Pick<SongRepository, 'all'>
-  readonly #youtube: Pick<YouTubeMusicArtists, 'backdrop'>
+  readonly #youtube: Pick<YouTubeMusicArtists, 'picture'>
   readonly #api: YouTubeMusicApi
   readonly #fetch: FetchLike
   readonly #logger: Logger
   /** Artists being looked for, so two pages opening at once share the work. */
-  readonly #finding = new Map<string, Promise<KeptBackdrop | null>>()
+  readonly #finding = new Map<string, Promise<KeptPicture | null>>()
 
   constructor(
     config: Config,
     songs: Pick<SongRepository, 'all'>,
-    youtube: Pick<YouTubeMusicArtists, 'backdrop'>,
+    youtube: Pick<YouTubeMusicArtists, 'picture'>,
     logger: Logger,
     fetchImpl: FetchLike = fetch,
   ) {
@@ -85,19 +96,28 @@ export class ArtistBackdropService {
     fs.mkdirSync(this.#dir, { recursive: true })
   }
 
-  /** The picture kept for this artist, without asking anyone. */
-  kept(name: string): KeptBackdrop | null {
-    const file = this.#file(artistKey(name), '.jpg')
+  /**
+   * The picture kept for this artist in this shape, without asking anyone.
+   * Both shapes or neither: one rev names the pair, so a copy kept before
+   * portraits were is found again, the pair with it.
+   */
+  kept(name: string, shape: ArtistPictureShape = 'banner'): KeptPicture | null {
+    const key = artistKey(name)
     try {
-      const stat = fs.statSync(file)
-      return { path: file, contentType: 'image/jpeg', rev: Math.floor(stat.mtimeMs).toString(16) }
+      const banner = fs.statSync(this.#file(key, EXTENSIONS.banner))
+      if (!fs.existsSync(this.#file(key, EXTENSIONS.portrait))) return null
+      return {
+        path: this.#file(key, EXTENSIONS[shape]),
+        contentType: 'image/jpeg',
+        rev: Math.floor(banner.mtimeMs).toString(16),
+      }
     } catch {
       return null
     }
   }
 
   /** The kept picture, or one found now; null when there is none to be had. */
-  async find(name: string): Promise<KeptBackdrop | null> {
+  async find(name: string): Promise<KeptPicture | null> {
     const kept = this.kept(name)
     if (kept) return kept
     const key = artistKey(name)
@@ -111,18 +131,21 @@ export class ArtistBackdropService {
     return finding
   }
 
-  async #find(name: string, key: string): Promise<KeptBackdrop | null> {
+  async #find(name: string, key: string): Promise<KeptPicture | null> {
     const channelId = await this.#pageOf(name, key)
     // Undefined is "could not ask", which is not worth remembering for a week.
     if (channelId === undefined) return null
-    const url = channelId ? await this.#youtube.backdrop(channelId, BACKDROP_SIZE) : null
-    if (!url) {
+    const address = channelId ? await this.#youtube.picture(channelId) : null
+    if (!address) {
       await this.#rememberNone(key)
       return null
     }
-    const bytes = await this.#download(url)
-    if (!bytes) return null
-    return this.#keep(key, bytes)
+    const [banner, portrait] = await Promise.all([
+      this.#download(pictureAt(address, SIZES.banner)),
+      this.#download(pictureAt(address, SIZES.portrait)),
+    ])
+    if (!banner || !portrait) return null
+    return this.#keep(key, { banner, portrait })
   }
 
   /**
@@ -209,20 +232,31 @@ export class ArtistBackdropService {
   }
 
   /**
-   * Written under a name of its own and renamed into place, so the real name
-   * only ever holds a whole file (as covers.ts makes a thumbnail).
+   * Each written under a name of its own and renamed into place, so the real
+   * name only ever holds a whole file (as covers.ts makes a thumbnail). The
+   * banner goes last: it is what `kept` dates the pair by.
    */
-  async #keep(key: string, bytes: Buffer): Promise<KeptBackdrop | null> {
-    const file = this.#file(key, '.jpg')
-    const partial = `${file}.${randomUUID()}.partial`
+  async #keep(key: string, bytes: Record<ArtistPictureShape, Buffer>): Promise<KeptPicture | null> {
+    const partials: string[] = []
     try {
-      await fsp.writeFile(partial, bytes)
-      await fsp.rename(partial, file)
+      for (const shape of ['portrait', 'banner'] as const) {
+        const file = this.#file(key, EXTENSIONS[shape])
+        const partial = `${file}.${randomUUID()}.partial`
+        partials.push(partial)
+        await fsp.writeFile(partial, bytes[shape])
+        await fsp.rename(partial, file)
+      }
       await fsp.rm(this.#file(key, '.none'), { force: true })
-      const stat = await fsp.stat(file)
-      return { path: file, contentType: 'image/jpeg', rev: Math.floor(stat.mtimeMs).toString(16) }
+      const stat = await fsp.stat(this.#file(key, EXTENSIONS.banner))
+      return {
+        path: this.#file(key, EXTENSIONS.banner),
+        contentType: 'image/jpeg',
+        rev: Math.floor(stat.mtimeMs).toString(16),
+      }
     } catch (error) {
-      await fsp.rm(partial, { force: true }).catch(() => undefined)
+      await Promise.all(
+        partials.map(partial => fsp.rm(partial, { force: true }).catch(() => undefined)),
+      )
       // Missing is cosmetic: the page is lit by a song's cover instead.
       this.#logger.warn('could not keep the picture', {
         message: error instanceof Error ? error.message : String(error),

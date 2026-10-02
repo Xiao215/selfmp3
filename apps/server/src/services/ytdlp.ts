@@ -59,6 +59,14 @@ export function run(
 ): Promise<RunResult> {
   const { timeoutMs = 10 * 60 * 1000, signal, onLine } = options
 
+  // Cancelled before it started: nothing is run at all. A process started
+  // and killed at once had already asked — a child is quick enough to make
+  // its request, or write a file, before the kill lands — and what was
+  // cancelled before it began should not have reached YouTube.
+  if (signal?.aborted === true) {
+    return Promise.resolve({ code: -1, stdout: '', stderr: '', timedOut: false, truncated: false })
+  }
+
   return new Promise<RunResult>(resolve => {
     // `shell: false` is the default and is load-bearing: it is what makes it
     // safe to pass a user-supplied URL as an argument.
@@ -78,11 +86,9 @@ export function run(
     const onAbort = (): void => {
       child.kill('SIGKILL')
     }
+    // A cancel landing between two yt-dlp calls is caught above, before the
+    // next one starts; one from now on kills it.
     signal?.addEventListener('abort', onAbort, { once: true })
-    // A signal already aborted never fires its listener, and a cancel landing
-    // between two yt-dlp calls lands exactly there — so the download this just
-    // started would run to its timeout and the cancelled job finish as done.
-    if (signal?.aborted === true) onAbort()
 
     const finish = (result: Omit<RunResult, 'truncated'>): void => {
       if (settled) return

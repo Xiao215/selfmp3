@@ -48,6 +48,7 @@ import { SelectionTagPicker } from './TagPicker'
 import { SheetItem } from './Sheet'
 import { floating } from '../surfaces'
 import { useFloatingChrome } from '../../shell/bottomInset'
+import type { HeadLane } from './headLane'
 
 /**
  * How much room a phone's list leaves under its last row while the bar is up,
@@ -99,7 +100,9 @@ const setFloating = (change: 1 | -1): void => {
  *
  * On a computer it takes a lane of its own at the top of the list area: the
  * list below it is that much shorter, so at no scroll position does the bar
- * cover a row. It floated over the list once, to keep the rows still as it
+ * cover a row. On a page whose head scrolls with its songs the lane opens at
+ * the head's foot instead and stays at the top once the head has gone
+ * (`HeadLane`). It floated over the list once, to keep the rows still as it
  * arrived — but the row it landed on was the one you had just ticked, which
  * you could then neither read nor untick, so overlaying the list is not on
  * offer. What is on offer is the lane opening rather than appearing: the room
@@ -143,6 +146,7 @@ export function SelectionBar({
   onDone,
   playlist,
   shown = true,
+  headLane,
 }: {
   /** The selected songs, in the order the list has them. */
   songs: readonly Song[]
@@ -166,6 +170,11 @@ export function SelectionBar({
    * it has already been cut from.
    */
   shown?: boolean
+  /**
+   * On a computer, a page whose head scrolls with its songs: the lane opens at
+   * the head's foot rather than above the head (`useHeadLane`).
+   */
+  headLane?: HeadLane
 }): ReactNode {
   const { theme } = useUnistyles()
   const { wide } = useLayout()
@@ -217,7 +226,7 @@ export function SelectionBar({
   // The lane's fade and its six points of settle: it comes down from under the
   // head, not from its own height above it, which would draw it over whatever
   // the page has above the list.
-  const [lane] = useState(() => ({
+  const [arrival] = useState(() => ({
     opacity: progress,
     transform: [
       { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-LANE_SETTLE, 0] }) },
@@ -228,9 +237,12 @@ export function SelectionBar({
    * The room the lane takes from the list. A height is beyond the native
    * driver, and one value cannot be native for the bar's fade and not for this,
    * so the room is a value of its own (`QueueRail` splits the same move the
-   * same way). It stays shut while the bar floats instead.
+   * same way). It stays shut while the bar floats instead. Under a head that
+   * scrolls with the songs the room is in the list (`HeadLaneRoom`), and this
+   * opens and shuts that one.
    */
-  const [room] = useState(() => new Animated.Value(0))
+  const [ownRoom] = useState(() => new Animated.Value(0))
+  const room = headLane?.open ?? ownRoom
   useEffect(() => {
     if (!wide) return
     if (shown) timing(room, 1, motion.base, undefined, { easing: ease.out, native: false })
@@ -246,6 +258,33 @@ export function SelectionBar({
     }),
     [room, measured],
   )
+
+  /*
+   * Under a head that scrolls with the songs the lane rides the head's foot,
+   * where its room is, and stays at the top of the list once the head has
+   * scrolled away. Pulled down past the top, it follows the head down.
+   */
+  const scrollY = headLane?.scrollY
+  const foot = headLane?.foot ?? 0
+  const follow = useMemo(
+    () =>
+      scrollY
+        ? {
+            transform: [
+              {
+                translateY: scrollY.interpolate({
+                  inputRange: [0, Math.max(foot, 1)],
+                  outputRange: [foot, 0],
+                  extrapolateLeft: 'extend' as const,
+                  extrapolateRight: 'clamp' as const,
+                }),
+              },
+            ],
+          }
+        : null,
+    [scrollY, foot],
+  )
+  const setLaneHeight = headLane?.setHeight
 
   // The toasts step up above the bar while it floats at a phone's foot, and
   // ride `selectionBarLift` down again when it sinks.
@@ -359,81 +398,87 @@ export function SelectionBar({
   const bar = wide ? (
     <>
       {/* The room, which is all that moves the list: the bar itself is over it. */}
-      <Animated.View style={roomStyle} />
-      <Animated.View
-        style={[styles.laneOver, lane]}
-        pointerEvents={shown ? 'box-none' : 'none'}
-        onLayout={event => setMeasured(event.nativeEvent.layout.height)}
-      >
-        <View style={styles.lane}>
-          <View
-            style={styles.bar}
-            role="toolbar"
-            aria-label="Selection actions"
-            testID="selection-bar"
-          >
-            <View style={styles.anchor}>
-              <Pressable
-                style={styles.all}
-                onPress={() => (allSelected ? onDeselectAll() : onSelectAll())}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: allSelected ? true : count > 0 ? 'mixed' : false }}
-                aria-checked={allSelected ? true : count > 0 ? 'mixed' : false}
-                accessibilityLabel={`${allSelected ? 'Deselect' : 'Select'} all ${total} ${totalWord} ${scope}`}
-              >
-                <Checkbox checked={allSelected} mixed={!allSelected && count > 0} />
-              </Pressable>
-              <View style={styles.counts}>
-                {countText}
-                {allSelected ? (
-                  <Text style={styles.scope}>
-                    {narrowed ? `every song ${scope}` : `everything ${scope}`}
-                  </Text>
-                ) : (
-                  <Pressable onPress={onSelectAll} accessibilityRole="button">
-                    <Text style={[styles.scope, styles.scopeLink]}>
-                      Select all {total} {scope}
+      {headLane ? null : <Animated.View style={roomStyle} />}
+      {/* Two views, as the scroll it follows is on the JavaScript side and its arrival is not. */}
+      <Animated.View style={[styles.laneOver, follow]} pointerEvents={shown ? 'box-none' : 'none'}>
+        <Animated.View
+          style={arrival}
+          pointerEvents="box-none"
+          onLayout={event => {
+            setMeasured(event.nativeEvent.layout.height)
+            setLaneHeight?.(event.nativeEvent.layout.height)
+          }}
+        >
+          <View style={[styles.lane, headLane && styles.laneOverSongs]}>
+            <View
+              style={styles.bar}
+              role="toolbar"
+              aria-label="Selection actions"
+              testID="selection-bar"
+            >
+              <View style={styles.anchor}>
+                <Pressable
+                  style={styles.all}
+                  onPress={() => (allSelected ? onDeselectAll() : onSelectAll())}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: allSelected ? true : count > 0 ? 'mixed' : false }}
+                  aria-checked={allSelected ? true : count > 0 ? 'mixed' : false}
+                  accessibilityLabel={`${allSelected ? 'Deselect' : 'Select'} all ${total} ${totalWord} ${scope}`}
+                >
+                  <Checkbox checked={allSelected} mixed={!allSelected && count > 0} />
+                </Pressable>
+                <View style={styles.counts}>
+                  {countText}
+                  {allSelected ? (
+                    <Text style={styles.scope}>
+                      {narrowed ? `every song ${scope}` : `everything ${scope}`}
                     </Text>
-                  </Pressable>
-                )}
+                  ) : (
+                    <Pressable onPress={onSelectAll} accessibilityRole="button">
+                      <Text style={[styles.scope, styles.scopeLink]}>
+                        Select all {total} {scope}
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
               </View>
-            </View>
 
-            <View style={styles.actions}>
-              <Button
-                label="Play"
-                icon={<Play size={13} color={theme.colors.textPrimary} />}
-                onPress={() => player.playFrom(ids, 0)}
-                disabled={count === 0}
-              />
-              <Button
-                label="Queue"
-                icon={<Queue size={13} color={theme.colors.textPrimary} />}
-                onPress={() => player.addToQueue(ids)}
-                disabled={count === 0}
-              />
-              {playlist ? (
+              <View style={styles.actions}>
                 <Button
-                  label="Remove from playlist"
-                  icon={<X size={13} color={theme.colors.textPrimary} />}
-                  onPress={removeSelectedFromPlaylist}
+                  label="Play"
+                  icon={<Play size={13} color={theme.colors.textPrimary} />}
+                  onPress={() => player.playFrom(ids, 0)}
                   disabled={count === 0}
                 />
-              ) : null}
-              <View ref={moreRef} collapsable={false}>
                 <Button
-                  label="More"
-                  icon={<More size={13} color={theme.colors.textPrimary} />}
-                  onPress={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
+                  label="Queue"
+                  icon={<Queue size={13} color={theme.colors.textPrimary} />}
+                  onPress={() => player.addToQueue(ids)}
                   disabled={count === 0}
-                  testID="selection-more"
                 />
+                {playlist ? (
+                  <Button
+                    label="Remove from playlist"
+                    icon={<X size={13} color={theme.colors.textPrimary} />}
+                    onPress={removeSelectedFromPlaylist}
+                    disabled={count === 0}
+                  />
+                ) : null}
+                <View ref={moreRef} collapsable={false}>
+                  <Button
+                    label="More"
+                    icon={<More size={13} color={theme.colors.textPrimary} />}
+                    onPress={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
+                    disabled={count === 0}
+                    testID="selection-more"
+                  />
+                </View>
               </View>
-            </View>
 
-            <View style={styles.doneWide}>{done}</View>
+              <View style={styles.doneWide}>{done}</View>
+            </View>
           </View>
-        </View>
+        </Animated.View>
       </Animated.View>
     </>
   ) : (
@@ -669,6 +714,12 @@ const styles = StyleSheet.create(theme => ({
    * room it will sit in has been measured.
    */
   laneOver: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 4 },
+  /*
+   * Pinned at the top of a list whose head has scrolled away, the songs pass
+   * under the lane: the page's own ground behind the bar, so they go beneath
+   * it rather than showing round its corners.
+   */
+  laneOverSongs: { backgroundColor: theme.colors.surface0 },
   /* A phone's bar floats instead, over the foot of the list, where a thumb is. */
   float: {
     position: 'absolute',

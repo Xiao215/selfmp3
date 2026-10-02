@@ -4,12 +4,15 @@ import type { ReactElement, ReactNode } from 'react'
 import {
   Animated,
   FlatList,
+  View,
   type FlatListProps,
   type StyleProp,
   type ViewStyle,
 } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
 import { useArrival } from '../motion'
+import { HeadLaneRoom, type HeadLane } from './headLane'
 
 /** Module-level, so the list is not handed a new function on every render. */
 function keyOf(song: Song): string {
@@ -58,7 +61,7 @@ export function SongList({
   keyboardShouldPersistTaps,
   keyboardDismissMode = 'on-drag',
   CellRendererComponent,
-  onScroll,
+  headLane,
   onRefresh,
   refreshing = false,
   arrivalKey,
@@ -86,11 +89,12 @@ export function SongList({
   /** Wraps each cell; a playlist lifts the row being moved with it. */
   CellRendererComponent?: FlatListProps<Song>['CellRendererComponent']
   /**
-   * Told where the list is scrolled to, every frame: a playlist's selection
-   * bar follows the bottom of its head with it (an `Animated.event`, so
+   * The selection bar's lane, on a page whose `header` scrolls with the songs
+   * (`useHeadLane`): its room goes at the foot of the header, and the list
+   * tells it where it is scrolled to every frame (an `Animated.event`, so
    * following it is no render).
    */
-  onScroll?: FlatListProps<Song>['onScroll']
+  headLane?: HeadLane
   /** Pulling the list down asks for it again (`usePullToRefresh`). */
   onRefresh?: () => void
   refreshing?: boolean
@@ -144,17 +148,26 @@ export function SongList({
       keyboardDismissMode={keyboardDismissMode}
       keyboardShouldPersistTaps={keyboardShouldPersistTaps}
       scrollEnabled={scrollEnabled}
-      style={style}
+      style={headLane ? [style, styles.anchorless] : style}
       contentContainerStyle={contentContainerStyle}
       // Room under the last song for a phone's floating tab bar and mini player.
       ListFooterComponent={ChromeSpacer}
-      ListHeaderComponent={header}
+      ListHeaderComponent={
+        headLane && header ? (
+          <View>
+            {header}
+            <HeadLaneRoom lane={headLane} />
+          </View>
+        ) : (
+          header
+        )
+      }
       onRefresh={onRefresh}
       refreshing={refreshing}
       ListEmptyComponent={empty as ReactElement}
       CellRendererComponent={CellRendererComponent}
-      onScroll={onScroll}
-      scrollEventThrottle={onScroll ? 16 : undefined}
+      onScroll={headLane?.onScroll}
+      scrollEventThrottle={headLane ? 16 : undefined}
     />
   )
 }
@@ -173,3 +186,9 @@ function Arriving({ index, children }: { index: number; children: ReactNode }): 
     <>{children}</>
   )
 }
+
+const styles = StyleSheet.create({
+  // The lane's room opening above what is on screen moves it down, as it
+  // should (`HeadLane`); a browser left to itself would scroll to keep it still.
+  anchorless: { _web: { overflowAnchor: 'none' } },
+})

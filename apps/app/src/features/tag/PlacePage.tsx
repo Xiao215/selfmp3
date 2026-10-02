@@ -18,6 +18,7 @@ import { CoverLight } from '../../ui/components/CoverLight'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronLeft, More, Play, Shuffle, User } from '../../ui/components/Icons'
 import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
+import { useHeadLane } from '../../ui/components/headLane'
 import { SongList } from '../../ui/components/SongList'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { SongRow } from '../../ui/components/SongRow'
@@ -347,6 +348,8 @@ function PlaceSongs({
   const anchor = useRef<View | null>(null)
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   const selection = useSelection(ids)
+  // The head scrolls with the songs, so the bar opens at its foot.
+  const lane = useHeadLane()
   const selectedSongs = useMemo(
     () => songs.filter(song => selection.has(song.id)),
     [songs, selection],
@@ -424,12 +427,14 @@ function PlaceSongs({
         onSelectAll={selection.selectAll}
         onDeselectAll={selection.clear}
         onDone={selection.clear}
+        headLane={lane}
       />
       <SongList
         songs={songs}
         label={label}
         renderSong={renderSong}
         header={head}
+        headLane={lane}
         // On a phone the bar floats over the foot of the list; the last song
         // can scroll out from under it.
         contentContainerStyle={

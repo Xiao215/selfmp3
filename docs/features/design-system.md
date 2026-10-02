@@ -274,8 +274,10 @@ is a mistake. The rules, and what moves (docs/ui-mock `M1`–`M3`):
   is counted (`MOVE_MS.hold`, one length everywhere), lifts to 1.04 in 120 ms, the rows it
   passes step aside, 180 ms each, and letting go settles it on the spring with a tap. On a
   computer Up next slides in from the right on the spring.
-- The selection bar rises on a phone as a sheet does and sinks away; on a computer it comes
-  down from under the head rather than shoving the list.
+- The selection bar rises on a phone as a sheet does and sinks away. On a computer its lane
+  opens above the songs and the bar settles down into it: at the foot of the head on a tag,
+  an artist or a playlist, whose head scrolls with the songs, and it stays at the top of the
+  list once the head has scrolled away.
 
 Still not built: true shared elements. The cover and the tile travel from a measured frame
 instead, which is the same picture on every device the app runs on. Looping indicators — the

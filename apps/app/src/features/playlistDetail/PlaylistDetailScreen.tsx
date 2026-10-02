@@ -67,6 +67,7 @@ import { Popover } from '../../ui/components/Popover'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
+import { useHeadLane } from '../../ui/components/headLane'
 import { SheetItem } from '../../ui/components/Sheet'
 import { SongList } from '../../ui/components/SongList'
 import { SongMenu } from '../../ui/components/SongMenu'
@@ -179,6 +180,8 @@ export function PlaylistDetailScreen(): ReactNode {
   const light = useSongColor(lead, leadArt)
 
   const selection = useSelection(songIds)
+  // The head scrolls with the songs, so the bar opens at its foot.
+  const lane = useHeadLane()
   const selectedSongs = useMemo(
     () => songs.filter(song => selection.has(song.id)),
     [songs, selection],
@@ -636,6 +639,7 @@ export function PlaylistDetailScreen(): ReactNode {
               // A live playlist has no membership to edit, so removing from it
               // would be a lie.
               playlist={manual ? { id: playlist.id, name: playlist.name } : undefined}
+              headLane={lane}
             />
           ) : null}
 
@@ -645,6 +649,7 @@ export function PlaylistDetailScreen(): ReactNode {
               label={`${name} songs`}
               renderSong={renderSong}
               header={header}
+              headLane={lane}
               empty={empty}
               style={styles.scroll}
               contentContainerStyle={[

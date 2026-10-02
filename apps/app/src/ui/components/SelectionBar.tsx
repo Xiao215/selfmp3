@@ -182,7 +182,7 @@ export function SelectionBar({
   const removeFromPlaylist = useRemoveManyFromPlaylist()
 
   const [menuOpen, setMenuOpen] = useState(false)
-  const [nested, setNested] = useState<'playlists' | null>(null)
+  const [playlistsOpen, setPlaylistsOpen] = useState(false)
   // The tag picker, opened from More as a song's is from its menu.
   const [tagging, setTagging] = useState(false)
   const [confirming, setConfirming] = useState(false)
@@ -259,6 +259,9 @@ export function SelectionBar({
   }, [wide, shown])
 
   const count = songs.length
+  // A selection emptied under the picker — a tag filter dropping the songs it
+  // just untagged — takes the picker with it, rather than leave it over none.
+  if (tagging && count === 0) setTagging(false)
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   // Pinned first; not the playlist this is, and never a live one.
   const manualPlaylists = playlistsToAddTo(library?.playlists ?? []).filter(
@@ -295,7 +298,7 @@ export function SelectionBar({
 
   const closeMenu = (): void => {
     setMenuOpen(false)
-    setNested(null)
+    setPlaylistsOpen(false)
   }
   /** Run a menu action, close the menu, and say what happened. */
   const act = (run: () => void, message?: string) => (): void => {
@@ -303,8 +306,6 @@ export function SelectionBar({
     closeMenu()
     if (message) showToast(message, 'good')
   }
-  const toggleNested = (which: 'playlists') => (): void =>
-    setNested(open => (open === which ? null : which))
   const removeSelectedFromPlaylist = (): void => {
     if (!playlist) return
     removeFromPlaylist.mutate({ playlistId: playlist.id, songIds: ids })
@@ -558,10 +559,10 @@ export function SelectionBar({
             <SheetItem
               icon={<ListMusic size={15} color={theme.colors.textSecondary} />}
               label="Add to playlist…"
-              active={nested === 'playlists'}
-              onPress={toggleNested('playlists')}
+              active={playlistsOpen}
+              onPress={() => setPlaylistsOpen(open => !open)}
             />
-            {nested === 'playlists' ? (
+            {playlistsOpen ? (
               <View style={styles.nested}>
                 <SheetItem
                   icon={<Plus size={15} color={theme.colors.textSecondary} />}

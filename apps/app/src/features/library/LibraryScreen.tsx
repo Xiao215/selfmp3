@@ -620,7 +620,7 @@ export function LibraryScreen(): ReactNode {
           scope={narrowed ? 'in this view' : 'in your library'}
           allSelected={selection.allSelected}
           onSelectAll={selection.selectAll}
-          onDeselectAll={selection.deselectAll}
+          onDeselectAll={selection.clear}
           onDone={selection.clear}
         />
 

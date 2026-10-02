@@ -97,7 +97,6 @@ export {
   allSelected,
   clearSelection,
   clickSelected,
-  deselectAll,
   enterSelection,
   pruneSelection,
   selectAllVisible,

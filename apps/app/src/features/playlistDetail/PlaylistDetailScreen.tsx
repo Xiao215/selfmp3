@@ -631,7 +631,7 @@ export function PlaylistDetailScreen(): ReactNode {
               scope="in this playlist"
               allSelected={selection.allSelected}
               onSelectAll={selection.selectAll}
-              onDeselectAll={selection.deselectAll}
+              onDeselectAll={selection.clear}
               onDone={selection.clear}
               // A live playlist has no membership to edit, so removing from it
               // would be a lie.

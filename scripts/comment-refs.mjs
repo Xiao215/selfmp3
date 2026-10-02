@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 
 /**
  * What a comment points at, checked against what is there.
@@ -65,7 +65,15 @@ const ALLOWED = [
 const allowed = ref =>
   ALLOWED.some(([rule]) => (typeof rule === 'string' ? rule === ref : rule.test(ref)))
 
-const tracked = execFileSync('git', ['ls-files'], { encoding: 'utf8' }).split('\n').filter(Boolean)
+// The working tree, not the index: a file deleted but not yet staged is gone,
+// and one made but not yet added is there.
+const tracked = [
+  ...new Set(
+    execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], {
+      encoding: 'utf8',
+    }).split('\n'),
+  ),
+].filter(f => f && existsSync(f))
 const sources = tracked.filter(f => f.endsWith('.ts') || f.endsWith('.tsx'))
 const paths = new Set(tracked)
 
@@ -77,7 +85,7 @@ const paths = new Set(tracked)
  * `packages/replica/src/library.ts`, which is clear to a reader and should
  * not have to be spelled in full. A deleted file still matches nothing.
  */
-const segmentsOf = p => p.replace(/^\.\//, '').split('/')
+const segmentsOf = p => p.split('/').filter(part => part !== '.' && part !== '..')
 function resolves(ref) {
   const want = segmentsOf(ref)
   for (const file of paths) {
@@ -102,8 +110,9 @@ const BOARDS = new Set(
  * A `#name` in a comment is only read as a private member when its own file
  * has some: a `#` in prose is just as often a DOM id (`#menu`, YouTube's) or
  * CSS notation (`#rgb`), and neither is this script's business. Where a file
- * does use private members, one it names and no longer has is the rot worth
- * catching.
+ * does use private members, one that nothing declares any more is the rot
+ * worth catching. Anywhere counts, not just the file itself: a comment may
+ * name another class's member.
  */
 const members = new Set()
 const membersIn = new Map()
@@ -134,18 +143,20 @@ const found = []
 for (const file of sources) {
   const lines = readFileSync(file, 'utf8').split('\n')
   for (const [index, line] of lines.entries()) {
-    if (!/^\s*(\/\/|\*|\/\*|\{\/\*)/.test(line)) continue
+    // A comment line, or the comment trailing a line of code.
+    const text = /^\s*(\/\/|\*|\/\*|\{\/\*)/.test(line) ? line : /\s\/\/\s(.*)$/.exec(line)?.[1]
+    if (text === undefined) continue
     const at = `${file}:${index + 1}`
-    for (const [, ref] of line.matchAll(PATH)) {
+    for (const [, ref] of text.matchAll(PATH)) {
       if (ref.startsWith('http') || ref.startsWith('@') || ref.includes('.ts.net')) continue
       if (allowed(ref) || resolves(ref)) continue
       found.push({ at, ref, kind: 'no such file' })
     }
-    for (const [, ref] of line.matchAll(BOARD)) {
+    for (const [, ref] of text.matchAll(BOARD)) {
       if (BOARDS.has(ref)) continue
       found.push({ at, ref, kind: 'no such mock board' })
     }
-    for (const [, ref] of line.matchAll(MEMBER)) {
+    for (const [, ref] of text.matchAll(MEMBER)) {
       if (HEX.test(ref) || members.has(ref)) continue
       if (membersIn.get(file).size === 0) continue
       found.push({ at, ref, kind: 'no such member' })

@@ -5,7 +5,6 @@ import {
   allSelected as everySelected,
   clearSelection,
   clickSelected,
-  deselectAll as noneSelected,
   enterSelection,
   pruneSelection,
   selectAllVisible,
@@ -31,7 +30,6 @@ export interface Selection {
   click: (id: number, modifiers: SelectionModifiers) => boolean
   enter: (id?: number) => void
   selectAll: () => void
-  deselectAll: () => void
   clear: () => void
 }
 
@@ -97,7 +95,6 @@ export function useSelection(visibleIds: readonly number[]): Selection {
     () => update(current => selectAllVisible(current, visibleIds)),
     [update, visibleIds],
   )
-  const deselectAll = useCallback(() => update(noneSelected), [update])
   const clear = useCallback(() => update(clearSelection), [update])
 
   const active = selectionActive(state)
@@ -117,10 +114,9 @@ export function useSelection(visibleIds: readonly number[]): Selection {
       click,
       enter,
       selectAll,
-      deselectAll,
       clear,
     }),
-    [state, active, visibleIds, has, toggle, click, enter, selectAll, deselectAll, clear],
+    [state, active, visibleIds, has, toggle, click, enter, selectAll, clear],
   )
 }
 

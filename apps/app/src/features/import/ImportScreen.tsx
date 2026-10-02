@@ -13,11 +13,11 @@ import {
   dismissable,
   finishedLabel,
   foldQueue,
-  hasLink,
+  canLookUp,
+  describePaste,
   jobAction,
   jobSubtitle,
   jobTone,
-  linkHint,
   matchingTag,
   queueControls,
   radius,
@@ -35,7 +35,7 @@ import { card, label as groupLabel, pageTitle } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
-import { ChevronRight, ListMusic, More, Refresh, X } from '../../ui/components/Icons'
+import { Check, ChevronRight, More, Refresh, X } from '../../ui/components/Icons'
 import { Popover } from '../../ui/components/Popover'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SheetItem } from '../../ui/components/Sheet'
@@ -178,23 +178,24 @@ export function ImportScreen({
     send(request())
   }
 
-  const hint = linkHint(links)
+  const pasted = describePaste(links)
   const folded = queue ? foldQueue(queue.jobs) : null
   const controls = folded ? queueControls(folded.importing) : null
-  const ready = hasLink(links) && !preview.isPending && tools?.ytdlp !== false
+  const ready = canLookUp(links) && !preview.isPending && tools?.ytdlp !== false
 
   const form = (
     <View style={styles.form}>
       <Text style={styles.explain}>
-        Paste a YouTube or YouTube Music link. A playlist link brings the whole playlist, and an
-        artist’s page their top songs.
+        Paste a link from YouTube, 网易云音乐 or Spotify, or a list of song names, one per line. A
+        playlist brings every song in it, and an artist’s page their top songs.
         {viaServer
           ? ' This goes through your server, which downloads the songs and syncs them to every device.'
           : ''}
       </Text>
       {/*
-       * A compose card: room for several links, one per line, with what
-       * happens to them along its foot — the tag they arrive with on the left,
+       * A compose card: room for several links or song names, one per line,
+       * what was pasted said under them (`describePaste`), and what happens to
+       * them along its foot — the tag they arrive with on the left,
        * the commit on the right. It grows with what is pasted, and the whole
        * card carries the focus ring, since the whole card is the control.
        */}
@@ -206,7 +207,7 @@ export function ImportScreen({
           onContentSizeChange={event => setLinksHeight(event.nativeEvent.contentSize.height)}
           onFocus={() => setLinksFocused(true)}
           onBlur={() => setLinksFocused(false)}
-          placeholder="Paste links here, one per line"
+          placeholder="Paste links or song names, one per line"
           placeholderTextColor={theme.colors.textMuted}
           multiline
           autoCapitalize="none"
@@ -214,10 +215,11 @@ export function ImportScreen({
           spellCheck={false}
           accessibilityLabel="Links to import"
         />
-        {hint ? (
-          <Text style={styles.linkHint} accessibilityRole="alert">
-            {hint}
-          </Text>
+        {pasted ? (
+          <View style={styles.pasted} testID="import-pasted">
+            <Check size={13} tone="good" />
+            <Text style={styles.pastedText}>{pasted}</Text>
+          </View>
         ) : null}
         <View style={styles.composeFoot}>
           <TagItPill
@@ -231,7 +233,7 @@ export function ImportScreen({
             variant="primary"
             disabled={!ready}
             onPress={() => {
-              if (hasLink(links)) lookUp(links.trim())
+              if (canLookUp(links)) lookUp(links.trim())
             }}
             testID="import-look-up"
           />
@@ -295,26 +297,6 @@ export function ImportScreen({
         </Pressable>
       ) : null}
     </>
-  )
-
-  // Migrating asks whatever answers this device, which through a server is still the bucket.
-  const migrate = viaServer ? null : (
-    <Pressable
-      style={({ pressed }) => [styles.migrate, pressed && styles.migratePressed]}
-      onPress={() => router.push('/import/migrate')}
-      accessibilityRole="link"
-      accessibilityLabel="Migrate a playlist from another app"
-    >
-      <ListMusic size={18} tone="accent" />
-      <View style={styles.linkCardText}>
-        <Text style={styles.linkCardTitle}>Migrate a playlist from another app</Text>
-        <Text style={styles.linkCardSub}>
-          A Spotify link, a CSV export or a list of songs, each matched to a YouTube upload for you
-          to check first.
-        </Text>
-      </View>
-      <ChevronRight size={16} color={theme.colors.textMuted} />
-    </Pressable>
   )
 
   /*
@@ -445,10 +427,9 @@ export function ImportScreen({
               <View style={styles.otherWays}>
                 <Text style={styles.otherTitle}>Other ways in</Text>
                 <Text style={styles.otherBody}>
-                  Share a link from the browser extension, or to self.mp3 from YouTube itself. It
-                  lands here.
+                  Share a link from the browser extension, or to self.mp3 from YouTube or 网易云音乐
+                  itself. It lands here.
                 </Text>
-                {migrate}
               </View>
             </View>
             {jobs}
@@ -460,9 +441,9 @@ export function ImportScreen({
             {jobs}
             {/* Under the queue, so it slides as the queue's rows come and go. */}
             <Animated.View layout={rowMotion.layout} style={styles.stack}>
-              {migrate}
               <Text style={styles.shareHint}>
-                You can also share a link to self.mp3 from YouTube itself. It lands here.
+                You can also share a link to self.mp3 from YouTube or 网易云音乐 itself. It lands
+                here.
               </Text>
             </Animated.View>
           </View>
@@ -955,7 +936,9 @@ const styles = StyleSheet.create(theme => ({
     gap: 10,
     marginLeft: -4,
   },
-  linkHint: { color: theme.colors.danger, fontSize: 12, lineHeight: 17 },
+  // What the box holds, said under it before it is looked up.
+  pasted: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pastedText: { color: theme.colors.good, fontSize: 12, fontWeight: '600' },
   strong: { color: theme.colors.textPrimary, fontWeight: '600' },
   // With no edge around the notice, its first words carry the warning's colour.
   strongWarn: { color: theme.colors.warning },
@@ -994,16 +977,7 @@ const styles = StyleSheet.create(theme => ({
   linkCardText: { flex: 1, minWidth: 0, gap: 3 },
   linkCardTitle: { color: theme.colors.textPrimary, fontSize: 14, fontWeight: '600' },
   linkCardSub: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
-  migrate: {
-    ...card(theme.colors),
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  migratePressed: { backgroundColor: theme.colors.surface2 },
-  // `C13`'s card: the other ways a song gets here, and the migration among them.
+  // `C13`'s card: the other ways a song gets here.
   otherWays: { ...card(theme.colors), gap: 6, paddingVertical: 16, paddingHorizontal: 18 },
   otherTitle: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
   otherBody: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 19 },

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   extractUrls,
+  isNeteaseUrl,
   isYouTubeUrl,
+  neteaseLink,
+  neteaseSongUrl,
+  spotifyLink,
   youtubeChannel,
   youtubeMusicAlbum,
   youtubeMusicSearch,
@@ -151,5 +155,69 @@ describe('youtubeChannel', () => {
     expect(youtubeChannel('https://www.youtube.com/channel/not-a-channel-id')).toBeNull()
     expect(youtubeChannel('https://youtu.be/@x')).toBeNull()
     expect(youtubeChannel('https://soundcloud.com/@someone')).toBeNull()
+  })
+})
+
+describe('neteaseLink', () => {
+  it('reads every spelling of a song, album or playlist page', () => {
+    expect(neteaseLink('https://music.163.com/#/playlist?id=3778678')).toEqual({
+      kind: 'playlist',
+      id: '3778678',
+    })
+    expect(
+      neteaseLink('https://y.music.163.com/m/playlist?id=7713825406&userid=12&creatorId=12'),
+    ).toEqual({ kind: 'playlist', id: '7713825406' })
+    expect(neteaseLink('https://music.163.com/song?id=186016&userid=1')).toEqual({
+      kind: 'song',
+      id: '186016',
+    })
+    expect(neteaseLink('https://music.163.com/song/186016/')).toEqual({
+      kind: 'song',
+      id: '186016',
+    })
+    expect(neteaseLink('https://music.163.com/#/album?id=18905')).toEqual({
+      kind: 'album',
+      id: '18905',
+    })
+  })
+
+  it('reads nothing else', () => {
+    expect(neteaseLink('https://music.163.com/#/artist?id=6452')).toBeNull()
+    expect(neteaseLink('https://music.163.com/#/song?id=abc')).toBeNull()
+    expect(neteaseLink('https://163cn.tv/zZ3PjY')).toBeNull()
+    expect(neteaseLink('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBeNull()
+    expect(neteaseLink('not a link')).toBeNull()
+  })
+
+  it('knows a short link for 网易云’s without reading it', () => {
+    expect(isNeteaseUrl('https://163cn.tv/zZ3PjY')).toBe(true)
+    expect(isNeteaseUrl('https://music.163.com/#/song?id=1')).toBe(true)
+    expect(isNeteaseUrl('https://www.163.com/news')).toBe(false)
+  })
+
+  it('spells a song one way', () => {
+    expect(neteaseSongUrl('186016')).toBe('https://music.163.com/song?id=186016')
+    expect(neteaseLink(neteaseSongUrl('186016'))).toEqual({ kind: 'song', id: '186016' })
+  })
+})
+
+describe('spotifyLink', () => {
+  it('finds a playlist, album or track in the common link shapes', () => {
+    expect(spotifyLink('https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=abc')).toEqual({
+      kind: 'playlist',
+      id: '37i9dQZF1DXcBWIGoYBM5M',
+    })
+    expect(spotifyLink('  https://open.spotify.com/intl-de/album/4m2880jivSbbyEGAKfITCa ')).toEqual(
+      { kind: 'album', id: '4m2880jivSbbyEGAKfITCa' },
+    )
+    expect(spotifyLink('https://open.spotify.com/embed/track/2Foc5Q5nqNiosCNqttzHof')).toEqual({
+      kind: 'track',
+      id: '2Foc5Q5nqNiosCNqttzHof',
+    })
+  })
+
+  it('reads nothing else', () => {
+    expect(spotifyLink('https://open.spotify.com/artist/4tZwfgrHOc3mvqYlEYSvVi')).toBeNull()
+    expect(spotifyLink('Daft Punk - Get Lucky')).toBeNull()
   })
 })

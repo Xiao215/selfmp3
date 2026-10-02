@@ -156,11 +156,11 @@ exit 1
   })
 
   /** One job, already named so the worker does not have to probe for a title. */
-  function enqueueOne(): string {
+  function enqueueOne(url = 'https://www.youtube.com/watch?v=6I1SNW0tVYk'): string {
     const [job] = imports.enqueue(
       [
         {
-          url: 'https://www.youtube.com/watch?v=6I1SNW0tVYk',
+          url,
           title: 'Where Mercy Endures',
           artist: 'HOYO-MiX',
           album: '',
@@ -298,6 +298,20 @@ exit 1
     queue.kick()
     await until(() => imports.byId(id)?.status === 'error')
     expect(downloads()).toBe(1)
+  })
+
+  it('does not hold a 网易云 song back for YouTube’s turn', async () => {
+    ytDlpFailsWith('Video unavailable')
+    while (throttle.tryTake()) {
+      // Spend the bucket, as above.
+    }
+    const id = enqueueOne('https://music.163.com/song?id=1973665667')
+
+    queue.kick()
+    await until(() => imports.byId(id)?.status === 'error')
+    expect(downloads()).toBe(1)
+    // And it took nothing from YouTube's budget: the next YouTube song still waits.
+    expect(throttle.tryTake()).toBe(false)
   })
 
   it('halves the budget for a rate limit, once, and does not restore it on its own', async () => {

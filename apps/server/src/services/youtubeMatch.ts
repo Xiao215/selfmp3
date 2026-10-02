@@ -1,25 +1,57 @@
-import {
-  cleanTitle,
-  editDistance,
-  type MigrateCandidate,
-  type MigrateSourceTrack,
-} from '@selfmp3/shared'
-import type { SearchHit } from './ytdlp.js'
+import { pinyin } from 'pinyin-pro'
+import { cleanTitle, editDistance, type ImportFound } from '@selfmp3/shared'
+import type { Logger } from '../logger.js'
+import type { ListedTrack } from './trackLists.js'
+import type { ProbedTrack, SearchHit } from './ytdlp.js'
+import type { YouTubeMusicLists } from './youtubeMusicLists.js'
 
 /**
- * Deciding which YouTube result is the song.
+ * Finding a song on YouTube by its name: a Spotify list, a pasted list of
+ * names, a 网易云 song it will not give out.
  *
- * A search for "artist title" returns five videos and the first is wrong
- * often enough to matter: a live version, a fan cover, an 8D edit, a reaction.
- * So each result is scored on how well its title and channel match, how close
- * its length is, and whether it looks like an official upload — and the user
- * sees the number as a coloured badge rather than having to trust it blindly.
+ * YouTube Music's song search is asked, not yt-dlp's: one plain web request
+ * per song rather than a paced yt-dlp run (ytThrottle.ts), and its answers
+ * are songs with their artist, album, length and square art, not videos. The
+ * first answer is usually right, but not always — a live take, another
+ * singer's cover — so each is scored on how well its title and artist match
+ * and how close its length is, and a weak best is said to be unsure, for the
+ * person to listen to before importing.
  *
- * Pure, so the weighting can be tuned against a table of real cases.
+ * The scoring is pure, so the weighting can be tuned against a table of real
+ * cases.
  */
 
-/** Lower-case, no accents, no punctuation, single spaces. */
+/** At or above this a match is taken without a second thought. */
+const SURE = 0.7
+/** Below this the best answer is not the song at all. */
+const FOUND = 0.4
+/** What being YouTube Music's first answer adds; see `bestMatch`. */
+const FIRST = 0.08
+/** Songs looked up at once. */
+const CONCURRENCY = 4
+
+/** What has been folded already: a library is compared with every pasted song. */
+const folded = new Map<string, string>()
+
+/**
+ * Lower-case, no accents, no punctuation, single spaces — and Chinese as its
+ * pinyin. 网易云 writes 周杰伦 where YouTube Music writes 周杰倫, and the two
+ * scripts differ in nearly every character a famous name has; read aloud
+ * they are the same, and pinyin is how they are read.
+ */
 export function normalizeForMatch(text: string): string {
+  const known = folded.get(text)
+  if (known !== undefined) return known
+  const result = fold(text)
+  if (folded.size > 20_000) folded.clear()
+  folded.set(text, result)
+  return result
+}
+
+function fold(raw: string): string {
+  const text = /\p{Script=Han}/u.test(raw)
+    ? pinyin(raw, { toneType: 'none', nonZh: 'consecutive', type: 'string' })
+    : raw
   return text
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -106,7 +138,7 @@ export function durationScore(source: number, candidate: number): number | null 
  * Get Lucky" is compared part by part against the artist and the title, and
  * the artist is also looked for in the channel name.
  */
-export function scoreHit(source: MigrateSourceTrack, hit: SearchHit): number {
+export function scoreHit(source: ListedTrack, hit: SearchHit): number {
   const sourceTitle = cleanTitle(source.title)
   const sourceArtist = source.artist
   const videoTitle = cleanTitle(hit.title)
@@ -154,29 +186,71 @@ export function scoreHit(source: MigrateSourceTrack, hit: SearchHit): number {
   return Math.min(1, Math.max(0, score))
 }
 
-/** Rank the results and keep the best few for the user to choose from. */
-export function rankCandidates(
-  source: MigrateSourceTrack,
-  hits: readonly SearchHit[],
-  limit = 3,
-): MigrateCandidate[] {
-  return hits
-    .map(hit => ({
-      url: hit.url,
-      title: hit.title,
-      channel: hit.channel,
-      duration: hit.duration,
-      thumbnail: hit.thumbnail,
-      confidence: Math.round(scoreHit(source, hit) * 100) / 100,
-    }))
-    .sort((a, b) => b.confidence - a.confidence)
-    .slice(0, limit)
+/** The best of YouTube Music's answers for a song, with how well it matched; null for none worth having. */
+export function bestMatch(
+  source: ListedTrack,
+  results: readonly ProbedTrack[],
+): { track: ProbedTrack; confidence: number } | null {
+  let best: { track: ProbedTrack; confidence: number } | null = null
+  for (const [rank, track] of results.entries()) {
+    const score = scoreHit(source, {
+      url: track.url,
+      title: track.title,
+      channel: track.artist,
+      duration: track.duration,
+      thumbnail: track.thumbnail,
+    })
+    /*
+     * YouTube Music's own first answer gets a little more trust: it knows an
+     * artist by every name they go by. 陈奕迅 is "Eason Chan" in its answers,
+     * which no comparison of the two names can see, and its first answer for
+     * "陈奕迅 孤勇者" is his.
+     */
+    const confidence = Math.round(Math.min(1, score + (rank === 0 ? FIRST : 0)) * 100) / 100
+    if (!best || confidence > best.confidence) best = { track, confidence }
+  }
+  return best && best.confidence >= FOUND ? best : null
 }
 
 /** The query sent to YouTube. Artist first: it narrows results better. */
-export function searchQuery(source: MigrateSourceTrack): string {
+export function searchQuery(source: ListedTrack): string {
   return [source.artist, cleanTitle(source.title)]
     .filter(part => part.trim())
     .join(' ')
     .trim()
+}
+
+export class YouTubeMatcher {
+  readonly #lists: Pick<YouTubeMusicLists, 'songs'>
+  readonly #logger: Logger
+
+  constructor(deps: { lists: Pick<YouTubeMusicLists, 'songs'>; logger: Logger }) {
+    this.#lists = deps.lists
+    this.#logger = deps.logger.child('youtube-match')
+  }
+
+  /** Each song found on YouTube Music, in order; null where nothing good enough came back. */
+  async find(tracks: readonly ListedTrack[]): Promise<(ImportFound | null)[]> {
+    const found: (ImportFound | null)[] = tracks.map(() => null)
+    let next = 0
+    const worker = async (): Promise<void> => {
+      while (next < tracks.length) {
+        const index = next++
+        found[index] = await this.#one(tracks[index] as ListedTrack)
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, tracks.length) }, worker))
+    return found
+  }
+
+  async #one(source: ListedTrack): Promise<ImportFound | null> {
+    const results = await this.#lists.songs(searchQuery(source))
+    if (!results) {
+      this.#logger.debug('YouTube Music did not answer', { title: source.title })
+      return null
+    }
+    const best = bestMatch(source, results)
+    if (!best) return null
+    return { ...best.track, sure: best.confidence >= SURE }
+  }
 }

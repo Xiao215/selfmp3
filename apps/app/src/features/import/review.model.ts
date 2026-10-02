@@ -1,6 +1,6 @@
 import { plural } from '@selfmp3/shared'
 import type { ImportEnqueue, ImportPreviewItem } from '@selfmp3/shared'
-import { enqueueRequest, taken, type Review } from '@selfmp3/client'
+import { enqueueRequest, notFound, stillLooking, taken, type Review } from '@selfmp3/client'
 
 /**
  * The review of a link, without the screen (docs/ui-mock `P30`, `C14`).
@@ -12,22 +12,31 @@ import { enqueueRequest, taken, type Review } from '@selfmp3/client'
  * "In library" or "In the queue", and skipped.
  */
 
-/** Whether a row is ticked, unticked, or "In library" with no box at all. */
-export type RowState = 'in' | 'yours' | 'out'
+/**
+ * Whether a row is ticked, unticked, "In library" with no box at all, or
+ * "Not found": looked for on YouTube by its name, with nothing to download.
+ * A song not found has no box either, but still opens, to fix its name and
+ * look again.
+ */
+export type RowState = 'in' | 'yours' | 'out' | 'missing'
 
 export function rowState(review: Review, index: number): RowState {
   const item = review.items[index]
   if (item && taken(item)) return 'yours'
+  if (item && notFound(item)) return 'missing'
   return review.chosen.has(index) ? 'in' : 'out'
 }
 
+/** A song that can be ticked: neither yours already nor not found. */
+const tickable = (item: ImportPreviewItem): boolean => !taken(item) && !notFound(item)
+
 /**
  * Tick a song's box, or untick it. A song that is yours already stays as it
- * is, since there is nothing to tick.
+ * is, since there is nothing to tick, as does one not found.
  */
 export function toggleChosen(review: Review, index: number): Review {
   const item = review.items[index]
-  if (!item || taken(item)) return review
+  if (!item || !tickable(item)) return review
   const chosen = new Set(review.chosen)
   if (chosen.has(index)) chosen.delete(index)
   else chosen.add(index)
@@ -38,7 +47,9 @@ export function toggleChosen(review: Review, index: number): Review {
 export function chooseAll(review: Review, on: boolean): Review {
   return {
     ...review,
-    chosen: new Set(on ? review.items.flatMap((item, index) => (taken(item) ? [] : [index])) : []),
+    chosen: new Set(
+      on ? review.items.flatMap((item, index) => (tickable(item) ? [index] : [])) : [],
+    ),
   }
 }
 
@@ -46,7 +57,7 @@ export function chooseAll(review: Review, on: boolean): Review {
 export function chosenState(review: Review): 'all' | 'some' | 'none' {
   const coming = comingIn(review)
   if (coming === 0) return 'none'
-  return coming === review.items.filter(item => !taken(item)).length ? 'all' : 'some'
+  return coming === review.items.filter(tickable).length ? 'all' : 'some'
 }
 
 /** What a song can be renamed to: its title, artist and album. The url is not a name. */
@@ -64,9 +75,14 @@ export function renameSong(review: Review, index: number, rename: Rename): Revie
   }
 }
 
-/** How many songs the import button would bring in. */
+/** How many songs the import button would bring in, counting those still being looked for. */
 export function comingIn(review: Review): number {
-  return review.items.filter((item, index) => !taken(item) && review.chosen.has(index)).length
+  return review.items.filter((item, index) => tickable(item) && review.chosen.has(index)).length
+}
+
+/** How many ticked songs are still being looked for on YouTube: the import waits for them. */
+export function stillFinding(review: Review): number {
+  return review.items.filter((item, index) => review.chosen.has(index) && stillLooking(item)).length
 }
 
 /** The head's count: "5 of 7 coming in" on a computer, "5 of 7 in" where a phone has less room. */
@@ -76,10 +92,33 @@ export function countLabel(review: Review, wide: boolean): string {
 
 const songs = (count: number): string => `${plural(count, 'song', 'songs')}`
 
-/** The commit pill: "Import 5 songs". */
-export function importLabel(count: number): string {
-  return `Import ${songs(count)}`
+/** The commit pill: "Import 5 songs", or what it is waiting for. */
+export function importLabel(count: number, finding = 0): string {
+  return finding > 0 ? `Finding ${finding} on YouTube…` : `Import ${songs(count)}`
 }
+
+/**
+ * Where a row's song comes from, said at its end when the review mixes
+ * places: a 网易云 list, whose VIP songs come from YouTube. "Not sure" when
+ * the song was found on YouTube by its name and the match is weak, so it is
+ * worth a listen; "Looking…" while it is being found. Null when there is
+ * nothing to say: every song from where it was linked.
+ */
+export function sourceWords(
+  review: Pick<Review, 'from'>,
+  item: ImportPreviewItem,
+): { words: string; tone: 'quiet' | 'warn' } | null {
+  if (stillLooking(item) && item.source === 'youtube') return { words: 'Looking…', tone: 'quiet' }
+  if (notFound(item)) return { words: 'Not found', tone: 'quiet' }
+  const mixed = review.from === 'netease'
+  const unsure = item.source === 'youtube' && item.youtube?.match === 'unsure'
+  if (item.source === 'netease') return mixed ? { words: '网易云', tone: 'quiet' } : null
+  if (unsure) return { words: mixed ? 'YouTube · not sure' : 'Not sure', tone: 'warn' }
+  return mixed ? { words: 'YouTube', tone: 'warn' } : null
+}
+
+/** What the place a review's songs were listed by is called. */
+const PLACES = { youtube: 'this link', netease: '网易云', spotify: 'Spotify', list: 'your list' }
 
 /**
  * What the review is called: the playlist's own name when the link was one,
@@ -94,8 +133,11 @@ export function reviewName(review: Review): string {
 
 /** The small line over the name on a computer: where these songs came from. */
 export function reviewKicker(review: Review): string {
-  if (review.playlistTitle) return 'From this link · playlist'
-  return review.items.length === 1 ? 'From this link · song' : 'From these links'
+  const place = PLACES[review.from]
+  if (review.from === 'list') return `From ${place}`
+  if (review.playlistTitle) return `From ${place} · playlist`
+  if (review.items.length === 1) return `From ${place} · song`
+  return review.from === 'youtube' ? 'From these links' : `From ${place}`
 }
 
 /** Up to four different covers for the head's mosaic, in the list's order. */
@@ -118,7 +160,7 @@ export function importRequest(review: Review, tagIds: ReadonlySet<number>): Impo
     chosen: new Set(
       [...review.chosen].filter(index => {
         const item = review.items[index]
-        return item !== undefined && !taken(item)
+        return item !== undefined && tickable(item)
       }),
     ),
   }

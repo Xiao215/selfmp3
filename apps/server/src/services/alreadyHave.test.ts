@@ -29,6 +29,15 @@ describe('reducing a link to what identifies it', () => {
     expect(ids).toEqual(new Set(['yt:by4SYYWlhEs']))
   })
 
+  it('sees one 网易云 song behind every way 网易云 spells it', () => {
+    const forms = [
+      'https://music.163.com/song?id=186016',
+      'https://music.163.com/#/song?id=186016',
+      'https://y.music.163.com/m/song?id=186016&userid=7',
+    ]
+    expect(new Set(forms.map(normaliseUrl))).toEqual(new Set(['ne:186016']))
+  })
+
   it('strips the noise a share button adds to anything else', () => {
     expect(normaliseUrl('https://example.com/a.mp3?si=abc')).toBe('https://example.com/a.mp3')
   })
@@ -131,10 +140,15 @@ describe('recognising a track the library already holds', () => {
       library[0],
     )
   })
+
+  it('knows a Chinese song written in the other script', () => {
+    const library = [song('晴天', '周杰倫')]
+    expect(alreadyHave({ title: '晴天', artist: '周杰伦' }, library)).toBe(library[0])
+  })
 })
 
-describe('the cases the migrate matcher used to own', () => {
-  // Carried over when the two matchers became one. A migrated playlist is now
+describe('the cases the playlist matcher used to own', () => {
+  // Carried over when the two matchers became one. A list from another app is
   // compared with the library by the same rule a pasted link is.
   const library = [song('Get Lucky', 'Daft Punk'), song('Creep', 'Radiohead'), song('Hello', '')]
   const getLucky = { title: 'Get Lucky', artist: 'Daft Punk' }

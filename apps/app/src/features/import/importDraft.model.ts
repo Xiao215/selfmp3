@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ImportPreviewItemSchema } from '@selfmp3/shared'
+import { ImportFromSchema, ImportPreviewItemSchema } from '@selfmp3/shared'
 import type { Review, ServerConnection } from '@selfmp3/client'
 
 /**
@@ -50,6 +50,7 @@ const StoredDraftSchema = z.object({
       items: z.array(ImportPreviewItemSchema),
       chosen: z.array(z.number().int().nonnegative()),
       playlistTitle: z.string().nullable(),
+      from: ImportFromSchema.default('youtube'),
     })
     .nullable(),
   tagIds: z.array(z.number().int()),
@@ -83,6 +84,7 @@ export function parseImportDraft(raw: string | null): ImportDraft | null {
             items: review.items,
             chosen: new Set(review.chosen.filter(index => index < review.items.length)),
             playlistTitle: review.playlistTitle,
+            from: review.from,
           },
     tagIds: new Set(tagIds),
   }
@@ -99,6 +101,7 @@ export function serialiseImportDraft(draft: ImportDraft): string {
             items: draft.review.items,
             chosen: [...draft.review.chosen],
             playlistTitle: draft.review.playlistTitle,
+            from: draft.review.from,
           },
     tagIds: [...draft.tagIds],
   })

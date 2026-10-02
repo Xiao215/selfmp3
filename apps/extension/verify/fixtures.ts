@@ -100,6 +100,9 @@ const previewItem = (
   alreadyHave,
   waitingToUpload: false,
   inQueue: false,
+  source: 'youtube',
+  netease: null,
+  youtube: null,
 })
 
 /** What the fake server's `/api/import/preview` answers for a link: a status and a body. */
@@ -122,6 +125,7 @@ export function previewFor(url: string): {
       body: {
         kind: 'playlist',
         playlistTitle: 'City pop night drive',
+        from: 'youtube',
         items: [
           previewItem(
             'https://music.youtube.com/watch?v=aaaaaaaaaa1',
@@ -149,13 +153,19 @@ export function previewFor(url: string): {
       body: {
         kind: 'single',
         playlistTitle: null,
+        from: 'youtube',
         items: [previewItem(url, 'Hello', 'Adele', true)],
       },
     }
   }
   return {
     status: 200,
-    body: { kind: 'single', playlistTitle: null, items: [previewItem(url, 'アイドル', 'YOASOBI')] },
+    body: {
+      kind: 'single',
+      playlistTitle: null,
+      from: 'youtube',
+      items: [previewItem(url, 'アイドル', 'YOASOBI')],
+    },
   }
 }
 

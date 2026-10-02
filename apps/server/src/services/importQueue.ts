@@ -13,7 +13,7 @@ import type { SettingsRepository } from '../repositories/settings.js'
 import type { ScannerService } from './scanner.js'
 import type { LyricsService } from './lyrics.js'
 import type { CoverService } from './covers.js'
-import type { YtDlpService } from './ytdlp.js'
+import { asksYouTube, type YtDlpService } from './ytdlp.js'
 import { RateLimitedError, type YtThrottleService } from './ytThrottle.js'
 import { isFreeOnDisk, songKeyCandidates } from './libraryLayout.js'
 
@@ -238,10 +238,11 @@ export class ImportQueueService {
          * screen counts its turn down from the queue's pacing. A person
          * pasting a link while this runs borrows from the same bucket
          * (PERSON_MAY_BORROW), and the queue waits that much longer. A job
-         * that only has its upload left asks YouTube nothing, and goes.
+         * that only has its upload left asks YouTube nothing, and goes, as
+         * does a song from 网易云.
          */
-        const asksYouTube = next.songId === null
-        if (asksYouTube && !this.#throttle.tryTake()) {
+        const paced = next.songId === null && asksYouTube(next.url)
+        if (paced && !this.#throttle.tryTake()) {
           // One timer however many times this is asked: everything that kicks
           // the queue during a pause would otherwise start a chain of its own.
           // Capped, so a pause lifted by hand is noticed within the minute.
@@ -262,7 +263,7 @@ export class ImportQueueService {
         // A download is the server doing real work for someone; do not let the
         // machine idle out from under it halfway through.
         const awake = this.#keepAwake.hold()
-        void this.#process(job, asksYouTube)
+        void this.#process(job, paced)
           .catch(error => {
             this.#logger.error('job crashed', {
               jobId: job.id,
@@ -468,6 +469,8 @@ export class ImportQueueService {
     let libraryKey: string | null = null
 
     try {
+      await this.#wholeSong(job.url, stagedPath, duration)
+
       // --- move into the library -------------------------------------------
 
       // The last moment a cancel can stop this. Past here the song goes into
@@ -555,6 +558,24 @@ export class ImportQueueService {
   }
 
   /**
+   * A song from 网易云 is the whole song, not the preview it gives out for a
+   * VIP song: thirty to forty-five seconds, which yt-dlp downloads as the
+   * song without complaint. The review sends such a song to YouTube before
+   * anything is downloaded (netease.ts), but what 网易云 gives out can change
+   * between the review and the download, and a preview kept as the song is
+   * worse than a failure that says so.
+   */
+  async #wholeSong(url: string, file: string, expected: number): Promise<void> {
+    if (asksYouTube(url) || expected < PREVIEW_CHECK_FROM_S) return
+    const length = await this.#ytdlp.probeDuration(file)
+    if (length > 0 && length < expected * WHOLE_SONG_SHARE) {
+      throw new Error(
+        `网易云 gave only a ${Math.round(length)}-second preview of this song, so it was not imported. Look it up again to get it from YouTube.`,
+      )
+    }
+  }
+
+  /**
    * With a bucket connected, the job is done once the song is in it: until
    * then no other device can see it (docs/SYNC.md). The song id is written to
    * the job first, which is what lets a retry skip straight back to here.
@@ -585,6 +606,11 @@ export class ImportQueueService {
     throw new Error('could not find a free name for this song in the library')
   }
 }
+
+/** A song shorter than this cannot be told from its preview by length, and is not checked. */
+const PREVIEW_CHECK_FROM_S = 60
+/** Less of the song than this, and the file is a preview. */
+const WHOLE_SONG_SHARE = 0.8
 
 /**
  * The download's name while it is staged. yt-dlp appends its own suffixes; the

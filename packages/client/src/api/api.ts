@@ -24,6 +24,7 @@ import {
   ImportEnqueueResultSchema,
   AlreadyHaveResponseSchema,
   ImportCoverToneSchema,
+  ImportFindResultSchema,
   ImportPreviewSchema,
   ImportQueueSchema,
   LibrarySchema,
@@ -32,9 +33,6 @@ import {
   MetadataLookupResponseSchema,
   LyricsResponseSchema,
   MotionSchema,
-  MigrateEnqueueResultSchema,
-  MigrateMatchJobSchema,
-  MigrateParseResultSchema,
   LyricsSearchResponseSchema,
   PlaylistSchema,
   PlaylistSongsSchema,
@@ -61,9 +59,8 @@ import {
   type DeviceCommand,
   type DeviceHeartbeat,
   type ImportEnqueue,
+  type ImportFindRequest,
   type ImportPreviewItem,
-  type MigrateEnqueue,
-  type MigrateSourceTrack,
   type OfflineScope,
   type PlayEvent,
   type SongPatch,
@@ -390,6 +387,10 @@ export function createApi({ context, fetch }: ApiOptions) {
     importPreview: (url: string) =>
       request('POST', '/api/import/preview', ImportPreviewSchema, { url }),
 
+    /** Songs a review knows by name, found on YouTube, a few at a time (`/import/find`). */
+    importFind: (tracks: ImportFindRequest['tracks']) =>
+      request('POST', '/api/import/find', ImportFindResultSchema, { tracks }),
+
     /** The colour of a review song's cover, for the row that is playing it. */
     importCoverTone: (url: string) =>
       request(
@@ -437,21 +438,6 @@ export function createApi({ context, fetch }: ApiOptions) {
       request('POST', '/api/import/remove-failed', z.object({ removed: z.number() })),
 
     clearImports: () => request('POST', '/api/import/clear', z.object({ cleared: z.number() })),
-
-    // --- migrate ------------------------------------------------------------
-
-    migrateParse: (text: string) =>
-      request('POST', '/api/migrate/parse', MigrateParseResultSchema, { text }),
-
-    migrateMatch: (tracks: MigrateSourceTrack[]) =>
-      request('POST', '/api/migrate/match', MigrateMatchJobSchema, { tracks }),
-
-    migrateJob: (id: string) => request('GET', `/api/migrate/match/${id}`, MigrateMatchJobSchema),
-
-    cancelMigrateJob: (id: string) => request('POST', `/api/migrate/match/${id}/cancel`, OkSchema),
-
-    migrateEnqueue: (input: MigrateEnqueue) =>
-      request('POST', '/api/migrate/enqueue', MigrateEnqueueResultSchema, input),
 
     // --- devices ------------------------------------------------------------
 

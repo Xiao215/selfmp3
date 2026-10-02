@@ -1,10 +1,13 @@
 import {
   extractUrls,
+  isNeteaseUrl,
+  spotifyLink,
   youtubeChannel,
   youtubeMusicAlbum,
   youtubeMusicSearch,
   youtubePlaylistId,
   youtubeVideoId,
+  type ImportFrom,
   type ImportPreview,
   type ImportPreviewItem,
   type Playlist,
@@ -19,6 +22,10 @@ import type { CloudSyncService } from './cloudSync.js'
 import type { ProbedTrack, YtDlpService } from './ytdlp.js'
 import type { YouTubeMusicArtists } from './youtubeMusicArtist.js'
 import type { SongList, YouTubeMusicLists } from './youtubeMusicLists.js'
+import type { NeteaseMusic, NeteaseTrack } from './netease.js'
+import type { SpotifyLists } from './spotify.js'
+import { parseTrackList, type ListedTrack } from './trackLists.js'
+import type { YouTubeMatcher } from './youtubeMatch.js'
 
 type PreviewDeps = {
   ytdlp: Pick<YtDlpService, 'status' | 'probe'>
@@ -28,9 +35,59 @@ type PreviewDeps = {
   imports: Pick<ImportRepository, 'pendingUrls'>
   youtubeMusicArtists: Pick<YouTubeMusicArtists, 'topSongs'>
   youtubeMusicLists: Pick<YouTubeMusicLists, 'songs' | 'album' | 'playlist'>
+  netease: Pick<NeteaseMusic, 'link' | 'list'>
+  spotify: Pick<SpotifyLists, 'list'>
 }
 
-type Probed = { kind: 'single' | 'playlist'; playlistTitle: string | null; tracks: ProbedTrack[] }
+/** A song as a link lists it: where it downloads from, and what else it could come from. */
+type Row = ProbedTrack & Pick<ImportPreviewItem, 'source' | 'netease' | 'youtube'>
+
+type Probed = {
+  kind: 'single' | 'playlist'
+  playlistTitle: string | null
+  tracks: Row[]
+  from: ImportFrom
+}
+
+/** Nothing but a link: a YouTube song, downloaded from where it was pasted. */
+const linked = (track: ProbedTrack): Row => ({
+  ...track,
+  source: 'youtube',
+  netease: null,
+  youtube: null,
+})
+
+/**
+ * A song known only by its name, to be found on YouTube: the review shows it
+ * at once and asks for it a few at a time (`/import/find`).
+ */
+const byName = (track: ListedTrack, netease: Row['netease'] = null): Row => ({
+  url: '',
+  title: track.title,
+  artist: track.artist,
+  album: track.album,
+  duration: track.duration,
+  thumbnail: null,
+  source: 'youtube',
+  netease,
+  youtube: { url: null, match: 'looking' },
+})
+
+/** A 网易云 song: from 网易云 when it gives the whole song, from YouTube when it would give a preview. */
+const fromNetease = (track: NeteaseTrack): Row =>
+  track.free
+    ? {
+        url: track.url,
+        title: track.title,
+        artist: track.artist,
+        album: track.album,
+        duration: track.duration,
+        thumbnail: track.thumbnail,
+        source: 'netease',
+        netease: { url: track.url, free: true },
+        youtube: null,
+      }
+    : { ...byName(track, { url: track.url, free: false }), thumbnail: track.thumbnail }
 
 /**
  * The "read metadata before downloading" half of importing, pulled out of the
@@ -46,7 +103,7 @@ export async function buildImportPreview(deps: PreviewDeps, text: string): Promi
   }
 
   const urls = extractUrls(text)
-  if (urls.length === 0) throw HttpError.badRequest('that does not look like a link')
+  if (urls.length === 0) return previewList(deps, text)
 
   /*
    * What is already here, so the UI can grey out duplicates.
@@ -65,21 +122,18 @@ export async function buildImportPreview(deps: PreviewDeps, text: string): Promi
   const items: ImportPreviewItem[] = []
   let kind: 'single' | 'playlist' = 'single'
   let playlistTitle: string | null = null
+  let from: ImportFrom | null = null
 
   for (const url of urls) {
     const probed = await probeLink(deps, url)
+    from ??= probed.from
     if (probed.kind === 'playlist') {
       kind = 'playlist'
       playlistTitle ??= probed.playlistTitle
     }
     for (const track of probed.tracks) {
       items.push({
-        url: track.url,
-        title: track.title,
-        artist: track.artist,
-        album: track.album,
-        duration: track.duration,
-        thumbnail: track.thumbnail,
+        ...track,
         ...have(alreadyHave(track, library, knownLinks), waiting),
         inQueue: queued(track.url),
       })
@@ -87,7 +141,76 @@ export async function buildImportPreview(deps: PreviewDeps, text: string): Promi
   }
 
   if (urls.length > 1) kind = 'playlist'
-  return { kind, playlistTitle, items }
+  return { kind, playlistTitle, items, from: from ?? 'youtube' }
+}
+
+/**
+ * Words with no link in them: a list of songs, one per line or as a CSV
+ * export, each to be found on YouTube by its name.
+ */
+function previewList(deps: PreviewDeps, text: string): ImportPreview {
+  const list = parseTrackList(text)
+  if (list.tracks.length === 0) {
+    throw HttpError.badRequest(
+      'that does not look like a link or a list of songs. Paste a link, or one song per line.',
+    )
+  }
+  const library = deps.songs.all()
+  const knownLinks = sourceUrlIndex(library)
+  const waiting = waitingToUpload(deps)
+  return {
+    kind: list.tracks.length === 1 ? 'single' : 'playlist',
+    playlistTitle: list.playlistName,
+    from: 'list',
+    items: list.tracks.map(track => ({
+      ...byName(track),
+      ...have(alreadyHave(track, library, knownLinks), waiting),
+      inQueue: false,
+    })),
+  }
+}
+
+/**
+ * A preview with every song found that can be, for the paths with nobody to
+ * review it — the share sheet, a link another device sent. A song nothing was
+ * found for is left out: there is nothing to download.
+ */
+export async function previewFound(
+  deps: PreviewDeps & { youtubeMatcher: Pick<YouTubeMatcher, 'find'> },
+  text: string,
+): Promise<ImportPreview> {
+  const preview = await buildImportPreview(deps, text)
+  const items = await findLooking(deps.youtubeMatcher, preview.items)
+  return { ...preview, items: items.filter(item => item.url !== '') }
+}
+
+/**
+ * Find on YouTube every song still waiting to be: what the share sheet does
+ * in one request, where there is no review to fill them in as they come.
+ * A song nothing was found for keeps no link.
+ */
+export async function findLooking<T extends ImportPreviewItem>(
+  matcher: Pick<YouTubeMatcher, 'find'>,
+  items: readonly T[],
+): Promise<T[]> {
+  const looking = items.flatMap((item, index) => (item.youtube?.match === 'looking' ? [index] : []))
+  if (looking.length === 0) return [...items]
+  const found = await matcher.find(looking.map(index => items[index] as T))
+  const answers = new Map(looking.map((index, at) => [index, found[at] ?? null]))
+  return items.map((item, index) => {
+    if (!answers.has(index)) return item
+    const match = answers.get(index)
+    return match
+      ? {
+          ...item,
+          url: match.url,
+          source: 'youtube',
+          thumbnail: item.thumbnail ?? match.thumbnail,
+          album: item.album || match.album,
+          youtube: { url: match.url, match: match.sure ? 'sure' : 'unsure' },
+        }
+      : { ...item, youtube: { url: null, match: 'none' } }
+  })
 }
 
 /**
@@ -147,6 +270,44 @@ export function have(
  * (`withMusicDetails`).
  */
 async function probeLink(deps: PreviewDeps, url: string): Promise<Probed> {
+  if (isNeteaseUrl(url)) return probeNetease(deps, url)
+  const spotify = spotifyLink(url)
+  if (spotify) {
+    const list = await deps.spotify.list(spotify).catch((error: unknown) => {
+      throw HttpError.unprocessable(error instanceof Error ? error.message : String(error))
+    })
+    return {
+      kind: spotify.kind === 'track' ? 'single' : 'playlist',
+      playlistTitle: list.title,
+      tracks: list.tracks.map(track => byName(track)),
+      from: 'spotify',
+    }
+  }
+  return { ...(await probeYouTube(deps, url)), from: 'youtube' }
+}
+
+/** A 网易云 song, album or playlist: each song from 网易云 if it gives the whole of it, else from YouTube. */
+async function probeNetease(deps: PreviewDeps, url: string): Promise<Probed> {
+  const link = await deps.netease.link(url)
+  if (!link) {
+    throw HttpError.unprocessable(
+      'That 网易云音乐 link does not open a song, an album or a playlist. Copy the link from its Share button.',
+    )
+  }
+  const list = await deps.netease.list(link).catch((error: unknown) => {
+    throw HttpError.unprocessable(error instanceof Error ? error.message : String(error))
+  })
+  return {
+    kind: link.kind === 'song' ? 'single' : 'playlist',
+    playlistTitle: list.title,
+    tracks: list.tracks.map(fromNetease),
+    from: 'netease',
+  }
+}
+
+type YouTubeProbed = Omit<Probed, 'from'>
+
+async function probeYouTube(deps: PreviewDeps, url: string): Promise<YouTubeProbed> {
   const query = youtubeMusicSearch(url)
   if (query) {
     const tracks = await deps.youtubeMusicLists.songs(query)
@@ -155,7 +316,7 @@ async function probeLink(deps: PreviewDeps, url: string): Promise<Probed> {
         'YouTube Music did not answer that search. Try again in a moment.',
       )
     }
-    return { kind: 'playlist', playlistTitle: query, tracks }
+    return { kind: 'playlist', playlistTitle: query, tracks: tracks.map(linked) }
   }
 
   const albumId = youtubeMusicAlbum(url)
@@ -167,7 +328,10 @@ async function probeLink(deps: PreviewDeps, url: string): Promise<Probed> {
   }
 
   const channel = youtubeChannel(url)
-  if (!channel) return probeWithYtDlp(deps, url)
+  if (!channel) {
+    const probed = await probeWithYtDlp(deps, url)
+    return { ...probed, tracks: probed.tracks.map(linked) }
+  }
 
   const artist = await deps.youtubeMusicArtists.topSongs(channel)
   if (!artist) {
@@ -178,7 +342,7 @@ async function probeLink(deps: PreviewDeps, url: string): Promise<Probed> {
   const playlistTitle = artist.artist || null
   const songsList = artist.playlistUrl ? youtubePlaylistId(artist.playlistUrl) : null
   if (!artist.playlistUrl || !songsList)
-    return { kind: 'playlist', playlistTitle, tracks: [...artist.tracks] }
+    return { kind: 'playlist', playlistTitle, tracks: artist.tracks.map(linked) }
   // The list is the artist's, so a song the page left out is credited to them,
   // not to the channel yt-dlp read it from ("ヨルシカ / n-buna Official").
   const list = await deps.youtubeMusicLists.playlist(songsList)
@@ -196,13 +360,15 @@ async function fromList(
   url: string,
   list: SongList | null,
   artist: string | null,
-): Promise<Probed> {
-  if (list?.complete) return { kind: 'playlist', playlistTitle: list.title, tracks: list.tracks }
+): Promise<YouTubeProbed> {
+  if (list?.complete) {
+    return { kind: 'playlist', playlistTitle: list.title, tracks: list.tracks.map(linked) }
+  }
   const probed = await probeWithYtDlp(deps, url)
   return {
     kind: 'playlist',
     playlistTitle: list?.title ?? probed.playlistTitle,
-    tracks: withMusicDetails(probed.tracks, list?.tracks ?? [], artist),
+    tracks: withMusicDetails(probed.tracks, list?.tracks ?? [], artist).map(linked),
   }
 }
 
@@ -232,7 +398,10 @@ export function withMusicDetails(
   })
 }
 
-async function probeWithYtDlp(deps: PreviewDeps, url: string): Promise<Probed> {
+async function probeWithYtDlp(
+  deps: PreviewDeps,
+  url: string,
+): Promise<{ kind: 'single' | 'playlist'; playlistTitle: string | null; tracks: ProbedTrack[] }> {
   // A link yt-dlp cannot read is the caller's problem to fix (wrong link,
   // private, not signed in), not a server fault — so 422 with the reason,
   // rather than a 500 that hides it behind "internal error".

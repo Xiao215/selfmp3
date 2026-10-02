@@ -101,6 +101,9 @@ const item = (n: number, title: string, alreadyHave = false) => ({
   alreadyHave,
   waitingToUpload: false,
   inQueue: false,
+  source: 'youtube' as const,
+  netease: null,
+  youtube: null,
 })
 
 const draw = async (): Promise<void> => {
@@ -137,6 +140,7 @@ describe('Import review, on a phone', () => {
     mockTags.length = 1
     patchDraft('own', {
       review: reviewFrom({
+        from: 'youtube',
         kind: 'playlist',
         playlistTitle: 'THE BOOK',
         items: [item(1, 'アイドル', true), item(2, '群青'), item(3, '怪物')],
@@ -229,7 +233,12 @@ describe('Import review, on a phone', () => {
     // A cloud library's server is raced at every address it has, and the
     // review is keyed by the server, not by whichever address won this time.
     patchDraft('cloud', {
-      review: reviewFrom({ kind: 'playlist', playlistTitle: 'THE BOOK', items: [item(2, '群青')] }),
+      review: reviewFrom({
+        from: 'youtube',
+        kind: 'playlist',
+        playlistTitle: 'THE BOOK',
+        items: [item(2, '群青')],
+      }),
     })
     const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
     const page = (baseUrl: string) => (

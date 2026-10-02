@@ -1,22 +1,34 @@
-import {
-  cleanArtist,
-  cleanTitle,
-  type MigrateParseResult,
-  type MigrateSourceTrack,
-} from '@selfmp3/shared'
+import { cleanArtist, cleanTitle } from '@selfmp3/shared'
 
 /**
- * Turning "whatever the other app gave you" into a list of tracks.
+ * A list of songs pasted as words, made into tracks to find on YouTube.
  *
- * Three shapes are understood, all without touching the network:
+ * Two shapes are understood, both without touching the network:
  *  - a CSV/TSV export (Exportify, TuneMyMusic, Apple Music's playlist export)
  *  - plain text, one song per line, in any of the usual "Artist - Title",
  *    "Title by Artist" or bare "Title" forms
- *  - the JSON a Spotify embed page carries (the fetch itself lives elsewhere)
  *
  * Everything here is pure so the long tail of messy real-world input can be
  * pinned down by tests rather than discovered one support question at a time.
  */
+
+/** One song as another app described it, before it is found anywhere. */
+export interface ListedTrack {
+  readonly title: string
+  readonly artist: string
+  readonly album: string
+  /** Seconds; 0 when the source did not say. */
+  readonly duration: number
+}
+
+/** A pasted list, read. */
+interface TrackList {
+  readonly kind: 'text' | 'csv'
+  readonly playlistName: string | null
+  readonly tracks: ListedTrack[]
+  /** Lines that could not be understood. */
+  readonly skipped: string[]
+}
 
 // Titles and artists are cleaned by packages/shared/src/titles.ts, which the
 // import path shares.
@@ -123,7 +135,7 @@ export function detectCsv(text: string): { delimiter: string } | null {
   return null
 }
 
-function parseCsv(text: string, delimiter: string): MigrateParseResult {
+function parseCsv(text: string, delimiter: string): TrackList {
   const rows = parseDelimited(text, delimiter)
   const header = (rows[0] ?? []).map(cell => cell.trim().toLowerCase())
   const titleAt = columnIndex(header, TITLE_COLUMNS)
@@ -137,7 +149,7 @@ function parseCsv(text: string, delimiter: string): MigrateParseResult {
       ? 'seconds'
       : 'auto'
 
-  const tracks: MigrateSourceTrack[] = []
+  const tracks: ListedTrack[] = []
   const skipped: string[] = []
   let playlistName: string | null = null
 
@@ -248,7 +260,7 @@ function isCountedList(lines: readonly string[]): boolean {
   return true
 }
 
-function parseLines(text: string): MigrateParseResult {
+function parseLines(text: string): TrackList {
   const lines = text
     .split(/\r?\n|\r/)
     .map(line => line.trim())
@@ -271,7 +283,7 @@ function parseLines(text: string): MigrateParseResult {
     .map(entry => ({ left: entry.split.left, right: entry.split.right as string }))
   const order = guessOrder(pairs)
 
-  const tracks: MigrateSourceTrack[] = []
+  const tracks: ListedTrack[] = []
   for (const { split } of splits) {
     let artist = ''
     let title = split.left
@@ -298,93 +310,9 @@ function parseLines(text: string): MigrateParseResult {
 
 // --- entry point -----------------------------------------------------------
 
-/** The playlist id in any open.spotify.com playlist link, or null. */
-export function spotifyPlaylistId(text: string): string | null {
-  const match =
-    /open\.spotify\.com\/(?:embed\/)?(?:intl-[a-z]{2}\/)?playlist\/([A-Za-z0-9]{10,})/i.exec(
-      text.trim(),
-    )
-  return match?.[1] ?? null
-}
-
-/** Parse pasted text or CSV. Spotify links are handled by the service. */
-export function parseTrackList(input: string): MigrateParseResult {
+/** Read pasted text or CSV. */
+export function parseTrackList(input: string): TrackList {
   const text = input.replace(/^\uFEFF/, '')
   const csv = detectCsv(text)
   return csv ? parseCsv(text, csv.delimiter) : parseLines(text)
-}
-
-// --- Spotify embed ---------------------------------------------------------
-
-/**
- * Pull the track list out of a Spotify embed page.
- *
- * The page is a Next.js app whose data is serialised into a `__NEXT_DATA__`
- * script tag. Rather than depend on the exact path (which Spotify moves every
- * few months), walk the JSON for the first object with a `trackList` array.
- */
-export function parseSpotifyEmbed(html: string): MigrateParseResult | null {
-  const match = /<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i.exec(html)
-  if (!match?.[1]) return null
-
-  let json: unknown
-  try {
-    json = JSON.parse(match[1])
-  } catch {
-    return null
-  }
-
-  const entity = findTrackList(json, 0)
-  if (!entity) return null
-
-  const tracks: MigrateSourceTrack[] = []
-  const skipped: string[] = []
-  for (const item of entity.trackList) {
-    if (!item || typeof item !== 'object') continue
-    const record = item as Record<string, unknown>
-    const title = cleanTitle(typeof record['title'] === 'string' ? record['title'] : '')
-    if (!title) {
-      skipped.push(JSON.stringify(item).slice(0, 80))
-      continue
-    }
-    const subtitle = typeof record['subtitle'] === 'string' ? record['subtitle'] : ''
-    const duration = typeof record['duration'] === 'number' ? record['duration'] : 0
-    tracks.push({
-      title,
-      artist: cleanArtist(subtitle.split(/\s*,\s*/)[0] ?? ''),
-      album: '',
-      duration: parseDurationValue(String(duration), 'ms'),
-    })
-  }
-
-  return { kind: 'spotify', playlistName: entity.name, tracks, skipped }
-}
-
-function findTrackList(
-  node: unknown,
-  depth: number,
-): { name: string | null; trackList: unknown[] } | null {
-  if (depth > 12 || node === null || typeof node !== 'object') return null
-  if (Array.isArray(node)) {
-    for (const child of node) {
-      const found = findTrackList(child, depth + 1)
-      if (found) return found
-    }
-    return null
-  }
-  const record = node as Record<string, unknown>
-  if (Array.isArray(record['trackList'])) {
-    const name =
-      typeof record['name'] === 'string'
-        ? record['name']
-        : typeof record['title'] === 'string'
-          ? record['title']
-          : null
-    return { name, trackList: record['trackList'] }
-  }
-  for (const child of Object.values(record)) {
-    const found = findTrackList(child, depth + 1)
-    if (found) return found
-  }
-  return null
 }

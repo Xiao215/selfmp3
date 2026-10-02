@@ -1,4 +1,5 @@
-import type { Review } from '@selfmp3/client'
+import { chooseSource, lookAgain, withFound, type Review } from '@selfmp3/client'
+import type { ImportFound, ImportSource } from '@selfmp3/shared'
 import type { PrefStore } from '../../ports/prefs'
 import {
   emptyDraft,
@@ -39,6 +40,21 @@ interface ImportDraftStore {
   chooseAllIn(source: DraftSource, on: boolean): void
   /** Rename one song of the review: its title, its artist, its album, or any of them. */
   renameIn(source: DraftSource, index: number, rename: Rename): void
+  /** Take one song from 网易云 or from YouTube (`chooseSource`). */
+  chooseSourceIn(source: DraftSource, index: number, from: ImportSource): void
+  /** Look for one song on YouTube again, by its name as it is now. */
+  lookAgainIn(source: DraftSource, index: number): void
+  /**
+   * What YouTube said for some rows, written into the review — only into a
+   * row still looking for the very song that was asked about: a review
+   * replaced meanwhile, or a name changed and looked for again, is not
+   * answered by an old question.
+   */
+  foundIn(
+    source: DraftSource,
+    asked: readonly { index: number; title: string; artist: string }[],
+    found: readonly (ImportFound | null)[],
+  ): void
   /** Drop one source's draft: its server was left, so its tag ids mean nothing now. */
   forget(source: DraftSource): void
   /** The draft, whichever source it is for; the same object until it changes. */
@@ -85,6 +101,26 @@ export function createImportDraftStore(prefs: PrefStore): ImportDraftStore {
     chooseAllIn: (source, on) => patchReview(source, review => chooseAll(review, on)),
     renameIn: (source, index, rename) =>
       patchReview(source, review => renameSong(review, index, rename)),
+    chooseSourceIn: (source, index, from) =>
+      patchReview(source, review => chooseSource(review, index, from)),
+    lookAgainIn: (source, index) => patchReview(source, review => lookAgain(review, index)),
+    foundIn: (source, asked, found) =>
+      patchReview(source, review => {
+        const still = asked.flatMap((question, at) => {
+          const item = review.items[question.index]
+          const same =
+            item?.youtube?.match === 'looking' &&
+            item.title === question.title &&
+            item.artist === question.artist
+          return same ? [{ index: question.index, found: found[at] ?? null }] : []
+        })
+        if (still.length === 0) return review
+        return withFound(
+          review,
+          still.map(answer => answer.index),
+          still.map(answer => answer.found),
+        )
+      }),
     forget: source => {
       if (current().source === source) write(emptyDraft(source))
     },

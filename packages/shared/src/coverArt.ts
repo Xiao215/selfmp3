@@ -9,5 +9,10 @@
  */
 export function isSquareCoverUrl(url: string | null | undefined): boolean {
   if (!url) return false
-  return /=w(\d+)-h\1(?:-|$)/.test(url) || /=s\d+(?:-|$)/.test(url)
+  return (
+    /=w(\d+)-h\1(?:-|$)/.test(url) ||
+    /=s\d+(?:-|$)/.test(url) ||
+    // 网易云's picture host, asked for a square: `?param=1000y1000`.
+    /[?&]param=(\d+)y\1(?:&|$)/.test(url)
+  )
 }

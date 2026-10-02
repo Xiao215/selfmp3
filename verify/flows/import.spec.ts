@@ -54,13 +54,12 @@ test.describe('importing', () => {
 
     const lookUp = page.getByRole('button', { name: 'Look it up' })
     await expect(lookUp).toBeDisabled()
-    // Words with no link in them are answered at the field, before any lookup.
+    // What was pasted is said under the box, before any lookup.
     const box = page.getByRole('textbox', { name: 'Links to import' })
     await box.fill('yoasobi idol')
-    await expect(page.getByText(/doesn.t look like a link/)).toBeVisible()
-    await expect(lookUp).toBeDisabled()
+    await expect(page.getByTestId('import-pasted')).toHaveText('A list of song names')
     await box.fill(LINK)
-    await expect(page.getByText(/doesn.t look like a link/)).toHaveCount(0)
+    await expect(page.getByTestId('import-pasted')).toHaveText('YouTube song')
     await lookUp.click()
 
     // The review is a page of its own, and everything on it starts ticked.
@@ -78,7 +77,10 @@ test.describe('importing', () => {
     await tick.click()
     const unticked = page.getByRole('checkbox', { name: `Select ${TITLE}` })
     await expect(unticked).not.toBeChecked()
-    await expect(page.getByText(TITLE, { exact: true })).toBeVisible()
+    // In the review's list: Import, still mounted under it, names the review too.
+    await expect(
+      page.getByRole('list', { name: 'Songs to import' }).getByText(TITLE, { exact: true }),
+    ).toBeVisible()
     await expect(page.getByText(/^0 of 1 (coming )?in$/)).toBeVisible()
     await expect(page.getByRole('button', { name: 'Import 0 songs' })).toBeDisabled()
     // The head's box ticks everything back.
@@ -106,8 +108,9 @@ test.describe('importing', () => {
 
     await dismissToasts(page)
     if (onPhone(page)) {
-      // The cover closes the row again, and the row keeps the new name.
-      await page.getByRole('button', { name: `Close ${TITLE} (corrected)` }).click()
+      // A tap off the card closes the row again — here on the list's hint, part of
+      // its ground — and the row keeps the new name. The cover only pauses.
+      await page.getByText(/^Untick a song to leave it out\./).click()
       await expect(bar).toHaveCount(0)
       await expect(
         page.getByRole('button', { name: `${TITLE} (corrected), jawed karim` }),

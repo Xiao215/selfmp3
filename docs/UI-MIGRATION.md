@@ -117,7 +117,7 @@ the root view.
 | `/song/[id]` | A song's own page | `P15` |
 | `/playlists`, `/playlists/[id]` | Playlists, a playlist | `P16`, `P17`, `C07`, `C08` |
 | `/now-playing`, `/now-playing?view=lyrics` | Now Playing, Lyrics only | `P21`, `P22`, `C09`, `C10` |
-| `/import`, `/import/review`, `/import/migrate` | Import, reviewing a link | `P29`, `P30`, `C13`, `C14` |
+| `/import`, `/import/review` | Import, reviewing a link | `P29`, `P30`, `C13`, `C14` |
 | `/you`, `/stats`, `/stats/report`, `/settings` | You, Stats, the month as a page, Settings | `P31`–`P38`, `C15`–`C17` |
 | `/welcome`, `/first-sync` | Getting in | `P01`–`P03`, `C01`, `C02` |
 

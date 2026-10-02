@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Redirect } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
-import { formatDuration, type ImportPreviewItem } from '@selfmp3/shared'
+import { formatDuration, type ImportPreviewItem, type ImportSource } from '@selfmp3/shared'
 import {
   ApiError,
   HIT_TARGET,
@@ -28,10 +28,18 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useToneColors } from '../../ui/useSongColor'
 import { ListenBar, ListenCover, useListen } from './ImportListen'
 import { TagThem } from './ImportTags'
-import { chooseAllIn, renameIn, toggleChosenIn, useImportDraft } from './importDraft'
+import {
+  chooseAllIn,
+  chooseSourceIn,
+  lookAgainIn,
+  renameIn,
+  toggleChosenIn,
+  useImportDraft,
+} from './importDraft'
 import { draftSourceFor } from './importDraft.model'
 import { useImportSource } from './importSource'
 import { reviewUrls, useRefreshReview } from './useRefreshReview'
+import { useFindSongs } from './useFindSongs'
 import {
   canListen,
   listenDetail,
@@ -49,6 +57,8 @@ import {
   reviewKicker,
   reviewName,
   rowState,
+  sourceWords,
+  stillFinding,
   type Rename,
   type RowState,
 } from './review.model'
@@ -92,6 +102,8 @@ export function ImportReview({
   const { review, tagIds } = draft
   // A kept review's "In library" is from when the link was looked up.
   useRefreshReview(source.api, key, reviewUrls(review))
+  // Songs known only by name — a Spotify list, 网易云's VIP songs — are found as the review shows.
+  const finder = useFindSongs(source.api, key, review)
   const listen = useListen(via, source.api)
   const backTo = useBackTo()
   const footInset = useFootInset()
@@ -215,11 +227,19 @@ export function ImportReview({
     (index: number, change: Rename): void => renameIn(key, index, change),
     [key],
   )
+  const chooseSource = useCallback(
+    (index: number, from: ImportSource): void => chooseSourceIn(key, index, from),
+    [key],
+  )
+  const lookAgain = useCallback((index: number): void => lookAgainIn(key, index), [key])
 
   if (!review) return leaving ? null : <Redirect href="/import" />
 
   const count = comingIn(review)
+  const finding = stillFinding(review)
   const tags = source.library?.tags ?? []
+  // A From column only for a list whose songs come from more than where they were linked.
+  const showFrom = review.from !== 'youtube'
   const anyToHear = canListenHere && review.items.some(canListen)
 
   const playing = (item: ImportPreviewItem): Listening | null =>
@@ -227,6 +247,7 @@ export function ImportReview({
 
   const rows = review.items.map((item, index) => {
     const state = rowState(review, index)
+    const words = sourceWords(review, item)
     const shared = {
       item,
       index,
@@ -235,25 +256,29 @@ export function ImportReview({
       opening: opening === index,
       listening: playing(item),
       canPlay: canListenHere && canListen(item),
+      words: words?.words ?? null,
+      wordsWarn: words?.tone === 'warn',
       onToggleChosen: toggleChosen,
       onRename: rename,
       onSeek: seek,
       onOpen: openRow,
       onPlay: playRow,
+      onSource: chooseSource,
+      onLookAgain: lookAgain,
     }
     return wide ? (
-      <GridRow key={`${item.url}-${index}`} {...shared} finePointer={finePointer} />
+      <GridRow key={index} {...shared} finePointer={finePointer} showFrom={showFrom} />
     ) : (
-      <PhoneRow key={`${item.url}-${index}`} {...shared} />
+      <PhoneRow key={index} {...shared} />
     )
   })
 
   const importButton = (
     <Button
-      label={importLabel(count)}
+      label={importLabel(count, finding)}
       variant="primary"
       grow={!wide}
-      disabled={count === 0}
+      disabled={count === 0 || finding > 0}
       busy={enqueue.isPending}
       onPress={() => enqueue.mutate(review)}
       testID="import-commit"
@@ -278,7 +303,6 @@ export function ImportReview({
       ) : (
         <Pressable
           onPress={open === null ? undefined : closeRow}
-          disabled={open === null}
           accessible={false}
           style={styles.headPhone}
         >
@@ -305,7 +329,9 @@ export function ImportReview({
        * open row: the head and the foot around their own buttons, and the
        * list's ground — the hint, the gap between rows, the space under the
        * last. A tap there puts the card away and stops what it was playing. A
-       * scroll is not a tap, and a row's own press takes its tap first.
+       * scroll is not a tap, and a row's own press takes its tap first. With
+       * no row open they have no press, and are never `disabled`: the web
+       * writes that as `aria-disabled`, which disables every button inside.
        */}
       <ScrollView
         style={styles.scroll}
@@ -315,7 +341,6 @@ export function ImportReview({
       >
         <Pressable
           onPress={wide || open === null ? undefined : closeRow}
-          disabled={wide || open === null}
           accessible={false}
           style={styles.ground}
         >
@@ -327,6 +352,7 @@ export function ImportReview({
                 <Text style={[styles.headLabel, styles.colTitle]}>Title</Text>
                 <Text style={[styles.headLabel, styles.colArtist]}>Artist</Text>
                 <Text style={[styles.headLabel, styles.colAlbum]}>Album</Text>
+                {showFrom ? <Text style={[styles.headLabel, styles.colFrom]}>From</Text> : null}
                 <Text style={[styles.headLabel, styles.colEnd, styles.endText]}>Time</Text>
               </View>
             </View>
@@ -353,7 +379,6 @@ export function ImportReview({
        */}
       <Pressable
         onPress={wide || open === null ? undefined : closeRow}
-        disabled={wide || open === null}
         accessible={false}
         style={[wide ? styles.footWide : styles.footPhone, { paddingBottom: footInset + 12 }]}
       >
@@ -363,6 +388,14 @@ export function ImportReview({
             <IconButton onPress={() => setError(null)} label="Dismiss">
               <X size={15} tone="textMuted" />
             </IconButton>
+          </View>
+        ) : null}
+        {finder.error ? (
+          <View style={styles.error} accessibilityRole="alert">
+            <Text style={styles.errorText}>
+              Could not look for the rest on YouTube: {finder.error}
+            </Text>
+            <Button label="Try again" variant="text" onPress={finder.retry} />
           </View>
         ) : null}
         <View style={wide ? styles.footRow : styles.footColumn}>
@@ -424,6 +457,8 @@ function SelectBox({
       onPress={onToggle}
       accessibilityRole="checkbox"
       accessibilityState={{ checked }}
+      // As ListenBar's value: react-native-web drops `accessibilityState` from the web.
+      aria-checked={checked}
       accessibilityLabel={checked ? `Deselect ${item.title}` : `Select ${item.title}`}
       style={wide ? styles.selectWide : styles.select}
     >
@@ -454,6 +489,7 @@ function AllBox({
       onPress={() => onChange(!all)}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: all ? true : state === 'some' ? 'mixed' : false }}
+      aria-checked={all ? true : state === 'some' ? 'mixed' : false}
       accessibilityLabel={all ? 'Deselect all' : 'Select all'}
       style={({ pressed }) => [
         wide ? styles.selectWide : styles.allPhone,
@@ -479,11 +515,16 @@ interface RowProps {
   /** This row's preview, when it is the one playing. */
   readonly listening: Listening | null
   readonly canPlay: boolean
+  /** Where the song comes from, or how its search went (`sourceWords`); null for nothing to say. */
+  readonly words: string | null
+  readonly wordsWarn: boolean
   readonly onToggleChosen: (index: number) => void
   readonly onRename: (index: number, change: Rename) => void
   readonly onSeek: (seconds: number) => void
   readonly onOpen: (index: number) => void
   readonly onPlay: (index: number) => void
+  readonly onSource: (index: number, source: ImportSource) => void
+  readonly onLookAgain: (index: number) => void
 }
 
 /**
@@ -492,7 +533,18 @@ interface RowProps {
  * this device reads will not show it until the upload goes through, and a
  * second download would only make a copy.
  */
-function EndWords({ item, state }: { item: ImportPreviewItem; state: RowState }): ReactNode {
+function EndWords({
+  item,
+  state,
+  words,
+  wordsWarn,
+}: {
+  item: ImportPreviewItem
+  state: RowState
+  /** Where it comes from, said under the length on a phone (`sourceWords`); a computer has a column. */
+  words?: string | null
+  wordsWarn?: boolean
+}): ReactNode {
   if (state === 'yours') {
     return (
       <Text style={styles.endQuiet}>
@@ -504,9 +556,139 @@ function EndWords({ item, state }: { item: ImportPreviewItem; state: RowState })
       </Text>
     )
   }
-  return item.duration > 0 ? (
-    <Text style={styles.endTime}>{formatDuration(item.duration)}</Text>
-  ) : null
+  const time = item.duration > 0 ? formatDuration(item.duration) : null
+  if (!words) return time ? <Text style={styles.endTime}>{time}</Text> : null
+  return (
+    <View style={styles.endStack}>
+      {time && state !== 'missing' ? <Text style={styles.endTime}>{time}</Text> : null}
+      <Text style={[styles.endWords, wordsWarn && styles.warn]} numberOfLines={1}>
+        {words}
+      </Text>
+    </View>
+  )
+}
+
+/** A row's From column on a computer: where it comes from, or how its search went. */
+function FromWords({ words, warn }: { words: string | null; warn: boolean }): ReactNode {
+  return (
+    <View style={styles.colFrom}>
+      {words ? (
+        <Text style={[styles.endWords, warn && styles.warn]} numberOfLines={1}>
+          {words}
+        </Text>
+      ) : null}
+    </View>
+  )
+}
+
+/**
+ * Where an open row's song comes from, to change (docs/features/import-sources.md).
+ *
+ * A song listed by 网易云 has both: 网易云's own file, when it gives the
+ * whole song out, or the same song found on YouTube. A song known only by
+ * its name — a Spotify list, a list of names — has YouTube's match, which is
+ * looked for again by its name as it stands, for a match that was not the
+ * song or a name fixed by hand. A pasted YouTube link has nothing to choose.
+ */
+function SourceChoice({
+  item,
+  index,
+  onSource,
+  onLookAgain,
+}: {
+  item: ImportPreviewItem
+  index: number
+  onSource: (index: number, source: ImportSource) => void
+  onLookAgain: (index: number) => void
+}): ReactNode {
+  const match = item.youtube?.match ?? null
+  const youtubeWords =
+    match === 'looking'
+      ? 'Looking…'
+      : match === 'none'
+        ? 'Not found'
+        : match === 'unsure'
+          ? 'Not sure it’s the song'
+          : match === 'sure'
+            ? 'Found'
+            : 'Find it there'
+  if (item.netease) {
+    const free = item.netease.free
+    return (
+      <View style={styles.choice} accessibilityRole="radiogroup" accessibilityLabel="Download from">
+        <SourceOption
+          name="网易云"
+          words={free ? 'The whole song' : 'Only a preview there (VIP)'}
+          on={item.source === 'netease'}
+          disabled={!free}
+          onPress={() => onSource(index, 'netease')}
+        />
+        <SourceOption
+          name="YouTube"
+          words={youtubeWords}
+          on={item.source === 'youtube'}
+          disabled={false}
+          onPress={() => onSource(index, 'youtube')}
+        />
+        {item.source === 'youtube' && (match === 'none' || match === 'unsure') ? (
+          <Button label="Look again" variant="text" onPress={() => onLookAgain(index)} />
+        ) : null}
+      </View>
+    )
+  }
+  if (!item.youtube) return null
+  return (
+    <View style={styles.found}>
+      <Text style={[styles.foundWords, match === 'unsure' && styles.warn]} numberOfLines={1}>
+        {match === 'looking'
+          ? 'Looking for it on YouTube…'
+          : match === 'none'
+            ? 'Not found on YouTube. Fix its name, then look again.'
+            : match === 'unsure'
+              ? 'Found on YouTube, but not sure it’s the song: have a listen.'
+              : 'Found on YouTube.'}
+      </Text>
+      {match === 'looking' ? null : (
+        <Button label="Look again" variant="text" onPress={() => onLookAgain(index)} />
+      )}
+    </View>
+  )
+}
+
+/** One place a song can come from, in `SourceChoice`. */
+function SourceOption({
+  name,
+  words,
+  on,
+  disabled,
+  onPress,
+}: {
+  name: string
+  words: string
+  on: boolean
+  disabled: boolean
+  onPress: () => void
+}): ReactNode {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: on, disabled }}
+      accessibilityLabel={`${name}: ${words}`}
+      style={({ pressed }) => [
+        styles.option,
+        on && styles.optionOn,
+        disabled && styles.dim,
+        pressed && styles.pressed,
+      ]}
+    >
+      <Text style={[styles.optionName, on && styles.optionNameOn]}>{name}</Text>
+      <Text style={[styles.optionWords, on && styles.optionWordsOn]} numberOfLines={1}>
+        {words}
+      </Text>
+    </Pressable>
+  )
 }
 
 /** A field on an open row: a title or an artist, named the way `P30` names it. */
@@ -581,11 +763,15 @@ const PhoneRow = memo(function PhoneRow({
   opening,
   listening,
   canPlay,
+  words,
+  wordsWarn,
   onToggleChosen,
   onRename,
   onSeek,
   onOpen,
   onPlay,
+  onSource,
+  onLookAgain,
 }: RowProps): ReactNode {
   const { theme } = useUnistyles()
   const colors = useToneColors(listening?.tone ?? null)
@@ -630,6 +816,7 @@ const PhoneRow = memo(function PhoneRow({
             />
           </View>
         </View>
+        <SourceChoice item={item} index={index} onSource={onSource} onLookAgain={onLookAgain} />
         {canPlay ? (
           <View style={styles.barBlock}>
             <ListenBar
@@ -654,7 +841,7 @@ const PhoneRow = memo(function PhoneRow({
   const out = state === 'out'
   return (
     <View style={styles.phoneRow} testID={`import-row-${index}`}>
-      {state === 'yours' ? (
+      {state === 'yours' || state === 'missing' ? (
         <View style={styles.select} />
       ) : (
         <SelectBox item={item} checked={!out} onToggle={() => onToggleChosen(index)} wide={false} />
@@ -688,7 +875,7 @@ const PhoneRow = memo(function PhoneRow({
             {item.artist || 'Unknown artist'}
           </Text>
         </View>
-        <EndWords item={item} state={state} />
+        <EndWords item={item} state={state} words={words} wordsWarn={wordsWarn} />
       </Pressable>
     </View>
   )
@@ -709,12 +896,17 @@ const GridRow = memo(function GridRow({
   listening,
   canPlay,
   finePointer,
+  showFrom,
+  words,
+  wordsWarn,
   onToggleChosen,
   onRename,
   onSeek,
   onPlay,
   onOpen,
-}: RowProps & { finePointer: boolean }): ReactNode {
+  onSource,
+  onLookAgain,
+}: RowProps & { finePointer: boolean; showFrom: boolean }): ReactNode {
   const [hovered, setHovered] = useState(false)
   const colors = useToneColors(listening?.tone ?? null)
   // With no pointer to wait for (a tablet at this width), what hover shows is always shown.
@@ -735,7 +927,7 @@ const GridRow = memo(function GridRow({
       onPointerLeave={() => setHovered(false)}
     >
       <View style={[styles.grid, styles.gridRow]}>
-        {state === 'yours' ? (
+        {state === 'yours' || state === 'missing' ? (
           <View style={styles.selectWide} />
         ) : (
           <SelectBox item={item} checked={!out} onToggle={() => onToggleChosen(index)} wide />
@@ -803,6 +995,7 @@ const GridRow = memo(function GridRow({
               </Text>
             </Pressable>
           )}
+          {showFrom ? <FromWords words={words} warn={wordsWarn} /> : null}
           <View style={styles.colEnd}>
             <EndWords item={item} state={state} />
           </View>
@@ -822,6 +1015,7 @@ const GridRow = memo(function GridRow({
                 height={30}
               />
             </View>
+            {showFrom ? <View style={styles.colFrom} /> : null}
             <View style={styles.colEnd}>
               <Text
                 style={[styles.endTime, times.trouble ? styles.trouble : null]}
@@ -830,6 +1024,24 @@ const GridRow = memo(function GridRow({
                 {times.trouble ?? `${times.at} / ${times.length}`}
               </Text>
             </View>
+          </View>
+        </View>
+      ) : null}
+      {open && (item.netease || item.youtube) ? (
+        <View style={[styles.grid, styles.barRow]}>
+          <View style={styles.selectWide} />
+          <View style={styles.cells}>
+            <View style={styles.colCover} />
+            <View style={styles.colSpan}>
+              <SourceChoice
+                item={item}
+                index={index}
+                onSource={onSource}
+                onLookAgain={onLookAgain}
+              />
+            </View>
+            {showFrom ? <View style={styles.colFrom} /> : null}
+            <View style={styles.colEnd} />
           </View>
         </View>
       ) : null}
@@ -913,6 +1125,30 @@ const styles = StyleSheet.create(theme => ({
   // Title, artist and album together, and the gaps between them: where the bar goes.
   colSpan: { flex: 3.2, minWidth: 0 },
   colEnd: { width: 90, alignItems: 'flex-end', justifyContent: 'center' },
+  colFrom: { width: 130, justifyContent: 'center' },
+  endStack: { alignItems: 'flex-end', gap: 3, maxWidth: 130 },
+  endWords: { color: theme.colors.textMuted, fontSize: 11, fontWeight: '600' },
+  warn: { color: theme.colors.warning },
+  // The open row's choice of where the song comes from: two options side by side.
+  choice: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  option: {
+    flexGrow: 1,
+    flexBasis: 0,
+    minWidth: 120,
+    maxWidth: 260,
+    gap: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    backgroundColor: theme.colors.surface0,
+  },
+  optionOn: { backgroundColor: theme.colors.textPrimary },
+  optionName: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '700' },
+  optionNameOn: { color: theme.colors.surface0 },
+  optionWords: { color: theme.colors.textSecondary, fontSize: 11 },
+  optionWordsOn: { color: withAlpha(theme.colors.surface0, 0.7) },
+  found: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  foundWords: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: 12 },
   endText: { textAlign: 'right' },
   names2: { flex: 3.2, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: GAP },
   gridRowWrap: { borderRadius: 10, marginBottom: 2 },

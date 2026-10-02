@@ -17,18 +17,23 @@ import { readCoverTone } from './coverTones.js'
  * remembered by its address for the rest of the run, so a song played twice
  * is read once.
  *
- * Only a picture from where YouTube and YouTube Music keep covers is fetched:
+ * Only a picture from where YouTube, YouTube Music and 网易云 keep covers is fetched:
  * this is a server asked for an address by a client, and it will not be made
  * to fetch anything else.
  */
 
-const COVER_HOSTS = [/(^|\.)ytimg\.com$/, /(^|\.)googleusercontent\.com$/, /(^|\.)ggpht\.com$/]
+const COVER_HOSTS = [
+  /(^|\.)ytimg\.com$/,
+  /(^|\.)googleusercontent\.com$/,
+  /(^|\.)ggpht\.com$/,
+  /(^|\.)music\.126\.net$/,
+]
 const MAX_BYTES = 4 << 20
 const FETCH_TIMEOUT_MS = 8_000
 /** How many covers are remembered; the oldest is let go when there is one more. */
 const REMEMBERED = 500
 
-/** Whether `url` is a cover from YouTube's own picture hosts, over https. */
+/** Whether `url` is a cover from YouTube's or 网易云's own picture hosts, over https. */
 export function isCoverUrl(url: string): boolean {
   let parsed: URL
   try {

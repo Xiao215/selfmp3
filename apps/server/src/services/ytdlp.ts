@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import fsp from 'node:fs/promises'
 import { constants as fsConstants } from 'node:fs'
-import { cleanArtist, tidyVideoTitle, type ToolStatus } from '@selfmp3/shared'
+import { cleanArtist, isNeteaseUrl, tidyVideoTitle, type ToolStatus } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import { cookieArgs, explainCookieError, type YtCookieSettings } from './ytCookies.js'
 import {
@@ -323,6 +323,15 @@ export function isVideoEntry(entry: { ie_key?: string; url?: string }): boolean 
   return !/\/(browse\/|playlist\?|channel\/|c\/|user\/|@)/.test(entry.url ?? '')
 }
 
+/**
+ * Whether a link is a request to YouTube, and so spends its budget
+ * (ytThrottle.ts). A 网易云 song is yt-dlp asking 网易云, which YouTube never
+ * hears about: pacing it would only make it wait behind YouTube's turns.
+ */
+export function asksYouTube(url: string): boolean {
+  return !isNeteaseUrl(url)
+}
+
 export class YtDlpService {
   readonly #logger: Logger
   readonly #cookies: () => YtCookieSettings
@@ -462,7 +471,7 @@ export class YtDlpService {
      */
     wait: 'interactive' | 'patient' | 'paid' = 'interactive',
   ): Promise<{ kind: 'single' | 'playlist'; playlistTitle: string | null; tracks: ProbedTrack[] }> {
-    if (wait !== 'paid') {
+    if (wait !== 'paid' && asksYouTube(url)) {
       await this.#pace({
         ...(signal ? { signal } : {}),
         ...(wait === 'interactive' ? { maxWaitMs: INTERACTIVE_WAIT_MS } : { waitOutPause: false }),
@@ -583,7 +592,9 @@ export class YtDlpService {
    * it, and for a few hours.
    */
   async audioUrl(url: string, signal?: AbortSignal): Promise<string> {
-    await this.#pace({ ...(signal ? { signal } : {}), maxWaitMs: INTERACTIVE_WAIT_MS })
+    if (asksYouTube(url)) {
+      await this.#pace({ ...(signal ? { signal } : {}), maxWaitMs: INTERACTIVE_WAIT_MS })
+    }
     const result = await run(
       'yt-dlp',
       [
@@ -626,7 +637,7 @@ export class YtDlpService {
     /** Its turn was taken already: the queue takes one as it claims a job. */
     paid?: boolean
   }): Promise<void> {
-    if (!input.paid) {
+    if (!input.paid && asksYouTube(input.url)) {
       await this.#pace({ ...(input.signal ? { signal: input.signal } : {}), waitOutPause: false })
     }
     const args = [

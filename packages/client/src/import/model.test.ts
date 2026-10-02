@@ -2,8 +2,11 @@ import { ImportEnqueueSchema, type ImportJob, type ImportPreviewItem } from '@se
 import { describe, expect, it } from 'vitest'
 
 import {
+  canLookUp,
   changeQueue,
+  chooseSource,
   chosenItems,
+  describePaste,
   dismissable,
   enqueueRequest,
   finishedLabel,
@@ -15,6 +18,8 @@ import {
   jobTone,
   landed,
   linkHint,
+  lookAgain,
+  lookingFor,
   matchingTag,
   queueActivity,
   queueControls,
@@ -23,6 +28,8 @@ import {
   sharedLinks,
   stepFraction,
   timeLeft,
+  withFound,
+  type Review,
 } from './model.js'
 
 describe('how a job’s row is tinted', () => {
@@ -462,5 +469,121 @@ describe('which imports have just landed', () => {
     expect(again.landed).toBe(0)
     const cleared = landed(again.done, jobs())
     expect(cleared.done.size).toBe(0)
+  })
+})
+
+describe('what the box holds', () => {
+  it('takes links and song names alike', () => {
+    expect(canLookUp('yoasobi idol')).toBe(true)
+    expect(canLookUp('  \n ')).toBe(false)
+  })
+
+  it('says what was pasted, before it is looked up', () => {
+    expect(describePaste('')).toBeNull()
+    expect(
+      describePaste(
+        '分享Xiao创建的歌单《夜车》: https://y.music.163.com/m/playlist?id=7713825406 (来自@网易云音乐)',
+      ),
+    ).toBe('网易云 playlist')
+    expect(describePaste('https://music.163.com/#/song?id=186016')).toBe('网易云 song')
+    expect(describePaste('https://163cn.tv/zZ3PjY')).toBe('网易云 link')
+    expect(describePaste('https://open.spotify.com/album/4m2880jivSbbyEGAKfITCa')).toBe(
+      'Spotify album',
+    )
+    expect(describePaste('https://open.spotify.com/track/2Foc5Q5nqNiosCNqttzHof')).toBe(
+      'Spotify song',
+    )
+    expect(
+      describePaste('https://music.youtube.com/playlist?list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG'),
+    ).toBe('YouTube playlist')
+    expect(describePaste('https://youtu.be/dGZqpVCJP3k')).toBe('YouTube song')
+    expect(describePaste('https://youtu.be/a\nhttps://youtu.be/b')).toBe('2 links')
+    expect(describePaste('Daft Punk - Get Lucky\nRadiohead - Creep')).toBe('A list of song names')
+  })
+})
+
+describe('songs found by their names', () => {
+  const byName = (n: number, patch: Partial<ImportPreviewItem> = {}): ImportPreviewItem => ({
+    url: '',
+    title: `Song ${n}`,
+    artist: 'Someone',
+    album: '',
+    duration: 200,
+    thumbnail: null,
+    alreadyHave: false,
+    waitingToUpload: false,
+    inQueue: false,
+    source: 'youtube',
+    netease: null,
+    youtube: { url: null, match: 'looking' },
+    ...patch,
+  })
+  const found = (n: number, sure = true) => ({
+    url: `https://www.youtube.com/watch?v=${n}`,
+    title: `Song ${n}`,
+    artist: 'Someone',
+    album: 'An Album',
+    duration: 201,
+    thumbnail: `https://lh3.googleusercontent.com/${n}=w544-h544`,
+    sure,
+  })
+  const review = (...items: ImportPreviewItem[]): Review =>
+    reviewFrom({ kind: 'playlist', playlistTitle: 'Mix', items, from: 'spotify' })
+
+  it('are ticked while they are looked for, and not imported until found', () => {
+    const start = review(byName(1), byName(2))
+    expect([...start.chosen]).toEqual([0, 1])
+    expect(lookingFor(start)).toEqual([0, 1])
+    expect(chosenItems(start)).toEqual([])
+  })
+
+  it('take the link, album and cover found, and lose the tick when nothing was', () => {
+    const next = withFound(review(byName(1), byName(2), byName(3)), [0, 1], [found(1, false), null])
+    expect(next.items[0]).toMatchObject({
+      url: 'https://www.youtube.com/watch?v=1',
+      album: 'An Album',
+      thumbnail: 'https://lh3.googleusercontent.com/1=w544-h544',
+      youtube: { url: 'https://www.youtube.com/watch?v=1', match: 'unsure' },
+    })
+    expect(next.items[1]).toMatchObject({ url: '', youtube: { url: null, match: 'none' } })
+    expect([...next.chosen]).toEqual([0, 2])
+    expect(lookingFor(next)).toEqual([2])
+    expect(chosenItems(next).map(each => each.url)).toEqual(['https://www.youtube.com/watch?v=1'])
+  })
+
+  it('switch between 网易云 and YouTube, looking for it on YouTube the first time', () => {
+    const netease = byName(1, {
+      url: 'https://music.163.com/song?id=1',
+      source: 'netease',
+      netease: { url: 'https://music.163.com/song?id=1', free: true },
+      youtube: null,
+    })
+    const toYouTube = chooseSource(review(netease), 0, 'youtube')
+    expect(toYouTube.items[0]).toMatchObject({
+      source: 'youtube',
+      url: '',
+      youtube: { url: null, match: 'looking' },
+    })
+    const foundIt = withFound(toYouTube, [0], [found(1)])
+    const back = chooseSource(foundIt, 0, 'netease')
+    expect(back.items[0]).toMatchObject({
+      source: 'netease',
+      url: 'https://music.163.com/song?id=1',
+    })
+    // The match is kept: going back to YouTube is at once.
+    expect(chooseSource(back, 0, 'youtube').items[0]?.url).toBe('https://www.youtube.com/watch?v=1')
+  })
+
+  it('never take a 网易云 song that only plays a preview from there', () => {
+    const vip = byName(1, { netease: { url: 'https://music.163.com/song?id=2', free: false } })
+    const start = review(vip)
+    expect(chooseSource(start, 0, 'netease')).toBe(start)
+  })
+
+  it('look again by the name as it stands, ticked again', () => {
+    const notFound = withFound(review(byName(1)), [0], [null])
+    const again = lookAgain(notFound, 0)
+    expect(again.items[0]?.youtube).toEqual({ url: null, match: 'looking' })
+    expect([...again.chosen]).toEqual([0])
   })
 })

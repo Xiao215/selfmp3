@@ -404,6 +404,7 @@ export function songRequest(
       items: [{ ...item, title: edits.title.trim(), artist: edits.artist.trim() }],
       chosen: new Set([0]),
       playlistTitle: null,
+      from: 'youtube',
     },
     { tagIds, playlistId: null, createPlaylist: false },
   )

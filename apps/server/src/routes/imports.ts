@@ -5,6 +5,8 @@ import { z } from 'zod'
 import {
   AlreadyHaveRequestSchema,
   BooleanQuerySchema,
+  ImportFindRequestSchema,
+  isNeteaseUrl,
   isYouTubeUrl,
   ImportEnqueueSchema,
   ImportPreviewRequestSchema,
@@ -14,6 +16,7 @@ import {
   type ImportCoverTone,
   type ImportEnqueueItem,
   type ImportEnqueueResult,
+  type ImportFindResult,
   type ImportPreview,
   type ImportQueue,
   type ImportShareResult,
@@ -26,6 +29,7 @@ import {
   buildImportPreview,
   have,
   inQueue,
+  previewFound,
   resolveImportPlaylist,
   waitingToUpload,
 } from '../services/importPreview.js'
@@ -106,12 +110,24 @@ export function importRoutes(container: Container): Router {
       // which say "In library" rather than offering a listen.
       container.listen.warm(
         preview.items
-          .filter(item => !item.alreadyHave)
+          .filter(item => !item.alreadyHave && item.url !== '')
           .slice(0, WARMED_ROWS)
           .map(item => item.url),
       )
       return preview
     }),
+  )
+
+  /**
+   * Songs a review knows by name, found on YouTube (services/youtubeMatch.ts):
+   * a few at a time, so a long list from Spotify or 网易云 shows at once and
+   * fills in as it is found, and no one request outlasts a phone's patience.
+   */
+  router.post(
+    '/import/find',
+    route({ body: ImportFindRequestSchema }, async ({ body }): Promise<ImportFindResult> => ({
+      found: await container.youtubeMatcher.find(body.tracks),
+    })),
   )
 
   /**
@@ -142,14 +158,14 @@ export function importRoutes(container: Container): Router {
 
   /**
    * The colour of a review song's cover, for the row playing it
-   * (services/previewCoverTone.ts). Only a cover from YouTube's picture hosts
-   * is fetched: a link anywhere else is refused before anything is asked.
+   * (services/previewCoverTone.ts). Only a cover from YouTube's or 网易云's
+   * picture hosts is fetched: a link anywhere else is refused before anything is asked.
    */
   router.get(
     '/import/cover-tone',
     route({ query: CoverToneQuery }, async ({ query }): Promise<ImportCoverTone> => {
       if (!isCoverUrl(query.url))
-        throw HttpError.badRequest('only a cover from YouTube can be read')
+        throw HttpError.badRequest('only a cover from YouTube or 网易云 can be read')
       return { tone: await container.previewCoverTones.tone(query.url) }
     }),
   )
@@ -162,7 +178,9 @@ export function importRoutes(container: Container): Router {
   router.get(
     '/import/listen',
     route({ query: ListenQuery }, async ({ query, req, res }) => {
-      if (!isYouTubeUrl(query.url)) throw HttpError.badRequest('only YouTube links can be played')
+      if (!isYouTubeUrl(query.url) && !isNeteaseUrl(query.url)) {
+        throw HttpError.badRequest('only YouTube and 网易云 links can be played')
+      }
 
       const controller = new AbortController()
       res.on('close', () => {
@@ -198,7 +216,7 @@ export function importRoutes(container: Container): Router {
         throw error
       }
       if (!upstream.ok) {
-        throw HttpError.unprocessable(`YouTube would not play this one (${upstream.status})`)
+        throw HttpError.unprocessable(`That would not play (${upstream.status})`)
       }
 
       const whole = asked === undefined && upstream.status === 206
@@ -245,7 +263,7 @@ export function importRoutes(container: Container): Router {
   const share = route(
     { body: ImportShareRequestSchema },
     async ({ body }): Promise<ImportShareResult> => {
-      const preview = await buildImportPreview(container, body.url)
+      const preview = await previewFound(container, body.url)
       const items = preview.items.filter(item => !item.alreadyHave)
       if (items.length === 0) {
         throw HttpError.conflict('everything in that link is already in your library')

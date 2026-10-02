@@ -132,10 +132,11 @@ the server: a share target on Android, a one-step Shortcut on iOS. See
 
 **From your existing library.** Point yt-dlp at your browser's YouTube cookies and your Liked
 Music, private playlists and artist pages import like any other link
-([youtube-music-library.md](docs/features/youtube-music-library.md)). Playlists from Spotify
-or Apple Music come in as a link, a CSV export or a plain list of songs; each track is
-matched to a YouTube upload and shown to you with alternatives first
-([playlist-migration.md](docs/features/playlist-migration.md)).
+([youtube-music-library.md](docs/features/youtube-music-library.md)). A 网易云音乐 song,
+album or playlist link downloads each song from 网易云 where it gives the whole song out, and
+from YouTube where it would give a preview; a Spotify link, a CSV export or a plain list of
+song names has each song found on YouTube, and every one of them shows on the same review
+first ([import-sources.md](docs/features/import-sources.md)).
 
 **From the browser.** A Chrome extension that imports the song you are looking at without
 leaving the page: a **self.mp3** button in the YouTube page itself, a popup with the title,
@@ -414,7 +415,7 @@ Feature pages, each with what it does, how it works and where the code is:
 | [now-playing.md](docs/features/now-playing.md) | Stage, Focus, lyrics and the visuals for songs with no lyrics |
 | [now-playing-colour.md](docs/features/now-playing-colour.md) | The playing song marked in its cover's colour |
 | [offline-sync.md](docs/features/offline-sync.md) | Automatic downloads and plays made offline |
-| [playlist-migration.md](docs/features/playlist-migration.md) | Bringing playlists from Spotify and Apple Music |
+| [import-sources.md](docs/features/import-sources.md) | Importing from 网易云音乐, Spotify, or a list of song names |
 | [practice-tools.md](docs/features/practice-tools.md) | A–B loop, speed with pitch lock, transpose |
 | [share-to-import.md](docs/features/share-to-import.md) | Importing from the share sheet on Android and iOS |
 | [tagging.md](docs/features/tagging.md) | Hiding and editing tags, tagging what plays, Untagged |

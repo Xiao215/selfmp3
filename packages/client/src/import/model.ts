@@ -1,12 +1,23 @@
 import {
   extractUrls,
   fromSqliteTime,
+  isNeteaseUrl,
+  neteaseLink,
+  spotifyLink,
+  youtubeChannel,
+  youtubeMusicAlbum,
+  youtubeMusicSearch,
+  youtubePlaylistId,
+  youtubeVideoId,
   IMPORT_STEP_LABELS,
   type ImportEnqueue,
   type ImportEnqueueItem,
+  type ImportFound,
+  type ImportFrom,
   type ImportJob,
   type ImportPreview,
   type ImportPreviewItem,
+  type ImportSource,
 } from '@selfmp3/shared'
 
 /**
@@ -83,6 +94,8 @@ export interface Review {
   readonly chosen: ReadonlySet<number>
   /** The source playlist's name, when the link was one, for "also create playlist". */
   readonly playlistTitle: string | null
+  /** What listed the songs: a YouTube link, a 网易云 one, a Spotify one, or a list of names. */
+  readonly from: ImportFrom
 }
 
 /**
@@ -97,9 +110,104 @@ export function taken(item: Pick<ImportPreviewItem, 'alreadyHave' | 'inQueue'>):
 export function reviewFrom(preview: ImportPreview): Review {
   return {
     items: preview.items,
-    chosen: new Set(preview.items.flatMap((item, index) => (taken(item) ? [] : [index]))),
+    chosen: new Set(
+      preview.items.flatMap((item, index) => (taken(item) || notFound(item) ? [] : [index])),
+    ),
     playlistTitle: preview.kind === 'playlist' ? preview.playlistTitle : null,
+    from: preview.from,
   }
+}
+
+// --- songs found by their names -------------------------------------------------
+
+/** A song still being looked for on YouTube: it has no link to download yet. */
+export function stillLooking(item: Pick<ImportPreviewItem, 'youtube'>): boolean {
+  return item.youtube?.match === 'looking'
+}
+
+/** A song looked for on YouTube and not found: there is nothing to import. */
+export function notFound(item: Pick<ImportPreviewItem, 'youtube' | 'source'>): boolean {
+  return item.source === 'youtube' && item.youtube?.match === 'none'
+}
+
+/** The rows still to be looked for, in the list's order; a song yours already is not looked for. */
+export function lookingFor(review: Review): number[] {
+  return review.items.flatMap((item, index) => (stillLooking(item) && !taken(item) ? [index] : []))
+}
+
+/**
+ * What YouTube said for some of a review's rows, written into them: the link
+ * to download and how sure the match is, and the album and cover where the
+ * row had none. A row nothing was found for loses its tick — there is nothing
+ * to import — and a row that was found keeps whatever tick it had.
+ */
+export function withFound(
+  review: Review,
+  indexes: readonly number[],
+  found: readonly (ImportFound | null)[],
+): Review {
+  const answers = new Map(indexes.map((index, at) => [index, found[at] ?? null]))
+  const chosen = new Set(review.chosen)
+  const items = review.items.map((item, index) => {
+    if (!answers.has(index) || !stillLooking(item)) return item
+    const match = answers.get(index)
+    if (!match) {
+      if (item.source === 'youtube') chosen.delete(index)
+      return { ...item, url: item.source === 'youtube' ? '' : item.url, youtube: none }
+    }
+    const youtube = { url: match.url, match: match.sure ? ('sure' as const) : ('unsure' as const) }
+    return {
+      ...item,
+      ...(item.source === 'youtube' ? { url: match.url } : {}),
+      album: item.album || match.album,
+      thumbnail: item.thumbnail ?? match.thumbnail,
+      duration: item.duration || match.duration,
+      youtube,
+    }
+  })
+  return { ...review, items, chosen }
+}
+
+const none = { url: null, match: 'none' as const }
+
+/**
+ * Take a row's song from 网易云 or from YouTube (the review's switch). 网易云 only
+ * when it gives the whole song out. YouTube from the match already found, or,
+ * with none yet, by looking for it — the row has no link until it is found.
+ */
+export function chooseSource(review: Review, index: number, source: ImportSource): Review {
+  const item = review.items[index]
+  if (!item || item.source === source) return review
+  if (source === 'netease') {
+    if (!item.netease?.free) return review
+    return replaceItem(review, index, { ...item, source, url: item.netease.url })
+  }
+  const found = item.youtube?.url ?? null
+  return replaceItem(review, index, {
+    ...item,
+    source,
+    url: found ?? '',
+    youtube: found ? item.youtube : { url: null, match: 'looking' },
+  })
+}
+
+/**
+ * Look for a row's song on YouTube again, by its name as it stands now: for
+ * a match that was not the song, or nothing found, once the name is fixed.
+ */
+export function lookAgain(review: Review, index: number): Review {
+  const item = review.items[index]
+  if (!item || item.source !== 'youtube' || item.youtube === null) return review
+  const chosen = new Set(review.chosen)
+  if (!taken(item)) chosen.add(index)
+  return {
+    ...replaceItem(review, index, { ...item, url: '', youtube: { url: null, match: 'looking' } }),
+    chosen,
+  }
+}
+
+function replaceItem(review: Review, index: number, item: ImportPreviewItem): Review {
+  return { ...review, items: review.items.map((each, i) => (i === index ? item : each)) }
 }
 
 /**
@@ -151,8 +259,45 @@ export function matchingTag(
   return tags.find(tag => tag.name.trim().toLowerCase() === wanted)?.id ?? null
 }
 
+/** The ticked songs that can be downloaded: a song still being looked for, or not found, has no link. */
 export function chosenItems(review: Review): readonly ImportPreviewItem[] {
-  return review.items.filter((_, index) => review.chosen.has(index))
+  return review.items.filter((item, index) => review.chosen.has(index) && item.url !== '')
+}
+
+/**
+ * Whether Import's box holds something to look up: a link, or the names of
+ * songs, one per line (the server reads both, importPreview.ts).
+ */
+export function canLookUp(text: string): boolean {
+  return text.trim().length > 0
+}
+
+const NETEASE_KINDS = { song: 'song', album: 'album', playlist: 'playlist' } as const
+const SPOTIFY_KINDS = { track: 'song', album: 'album', playlist: 'playlist' } as const
+
+/**
+ * What Import's box holds, said under it before anything is looked up:
+ * "网易云 playlist", "Spotify album", "3 links", "A list of song names" —
+ * so a paste that is not what was meant shows before the wait, not after.
+ * Null for an empty box.
+ */
+export function describePaste(text: string): string | null {
+  if (!text.trim()) return null
+  const urls = extractUrls(text)
+  if (urls.length === 0) return 'A list of song names'
+  if (urls.length > 1) return `${urls.length} links`
+  const url = urls[0] as string
+  const netease = neteaseLink(url)
+  if (netease) return `网易云 ${NETEASE_KINDS[netease.kind]}`
+  if (isNeteaseUrl(url)) return '网易云 link'
+  const spotify = spotifyLink(url)
+  if (spotify) return `Spotify ${SPOTIFY_KINDS[spotify.kind]}`
+  if (youtubeMusicSearch(url)) return 'YouTube Music search'
+  if (youtubeMusicAlbum(url)) return 'YouTube Music album'
+  if (youtubePlaylistId(url)) return 'YouTube playlist'
+  if (youtubeChannel(url)) return 'YouTube artist'
+  if (youtubeVideoId(url)) return 'YouTube song'
+  return 'A link'
 }
 
 /**

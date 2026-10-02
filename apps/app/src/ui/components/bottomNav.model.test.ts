@@ -18,7 +18,7 @@ describe('the tab bar', () => {
       '/stats',
       '/stats/report',
       '/import',
-      '/import/migrate',
+      '/import/review',
       '/tag/night%20drive',
       '/artist/Yorushika',
     ]) {

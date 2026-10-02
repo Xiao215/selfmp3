@@ -25,7 +25,6 @@ import type {
   ImportQueue,
   SimilarSongs,
   ToolStatus,
-  MigrateMatchJob,
   LyricsResponse,
   Motion,
   PlaylistSongs,
@@ -75,7 +74,6 @@ export const queryKeys = {
   importQueue: ['import', 'queue'] as const,
   importHistory: ['import', 'history'] as const,
   importTools: ['import', 'tools'] as const,
-  migrateJob: (id: string) => ['migrate', id] as const,
   /** Everything counted: what a played song invalidates, in one go. */
   statsRoot: ['stats'] as const,
   stats: (range: StatsRange) => ['stats', range] as const,
@@ -778,15 +776,6 @@ export function usePlaylistSongIds(playlistId: number | null) {
   })
 }
 
-/** A playlist-migration match job, polled while it is still searching. */
-export function useMigrateJob(id: string | null): UseQueryResult<MigrateMatchJob, Error> {
-  return useQuery({
-    queryKey: queryKeys.migrateJob(id ?? ''),
-    queryFn: () => clientApi().migrateJob(id ?? ''),
-    enabled: id !== null,
-    refetchInterval: query => (query.state.data?.status === 'running' ? 1_000 : false),
-  })
-}
 // --- metadata polish --------------------------------------------------------
 
 /**

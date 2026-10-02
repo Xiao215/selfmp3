@@ -17,6 +17,9 @@ import { YouTubeMusicLyrics } from './services/youtubeMusic.js'
 import { YouTubeMusicArtists } from './services/youtubeMusicArtist.js'
 import { ArtistBackdropService } from './services/artistBackdrops.js'
 import { YouTubeMusicLists } from './services/youtubeMusicLists.js'
+import { NeteaseMusic } from './services/netease.js'
+import { SpotifyLists } from './services/spotify.js'
+import { YouTubeMatcher } from './services/youtubeMatch.js'
 import { ListenService } from './services/listen.js'
 import { CoverService } from './services/covers.js'
 import { ScannerService } from './services/scanner.js'
@@ -25,7 +28,6 @@ import { YtThrottleService } from './services/ytThrottle.js'
 import { ThrottleRepository } from './repositories/throttle.js'
 import { ImportQueueService } from './services/importQueue.js'
 import { LibraryWatcherService } from './services/libraryWatcher.js'
-import { MigrateService } from './services/migrate.js'
 import { MetadataLookupService } from './services/lookup.js'
 import { FixCoversService } from './services/fixCovers.js'
 import { LyricsSearchRepository } from './repositories/lyricsSearch.js'
@@ -50,7 +52,7 @@ import { CloudAdopt } from './services/cloudAdopt.js'
 import { CloudIngest } from './services/cloudIngest.js'
 import { CloudImportService } from './services/cloudImports.js'
 import { ImportRequestRepository } from './repositories/importRequests.js'
-import { buildImportPreview } from './services/importPreview.js'
+import { previewFound } from './services/importPreview.js'
 import { LocalEdits, SyncClock } from './services/localEdits.js'
 import { SongRemovalService } from './services/songRemoval.js'
 
@@ -94,12 +96,14 @@ export interface Container {
   readonly youtubeMusicArtists: YouTubeMusicArtists
   readonly artistBackdrops: ArtistBackdropService
   readonly youtubeMusicLists: YouTubeMusicLists
+  readonly netease: NeteaseMusic
+  readonly spotify: SpotifyLists
+  readonly youtubeMatcher: YouTubeMatcher
   readonly listen: ListenService
   /** The colour of a review song's cover, read on request (services/previewCoverTone.ts). */
   readonly previewCoverTones: PreviewCoverTones
   readonly importQueue: ImportQueueService
   readonly libraryWatcher: LibraryWatcherService
-  readonly migrate: MigrateService
   readonly lookup: MetadataLookupService
   readonly fixCovers: FixCoversService
   readonly keepAwake: KeepAwakeService
@@ -175,12 +179,14 @@ export function createContainer(configured: Config): Container {
   const metadata = new MetadataService(storage, logger)
   // The words come from the bucket once the sidecar has gone up and been let
   // go; the sync is built below, so it is reached lazily.
+  const netease = new NeteaseMusic(logger)
   const lyrics: LyricsService = new LyricsService(
     storage,
     logger,
     fetch,
     new YouTubeMusicLyrics(logger),
     songId => cloudSync.fetchLyrics(songId),
+    netease,
   )
   const covers = new CoverService(config, songs, logger)
 
@@ -287,6 +293,8 @@ export function createContainer(configured: Config): Container {
   const youtubeMusicArtists = new YouTubeMusicArtists(logger)
   const artistBackdrops = new ArtistBackdropService(config, songs, youtubeMusicArtists, logger)
   const youtubeMusicLists = new YouTubeMusicLists(logger)
+  const spotify = new SpotifyLists(logger)
+  const youtubeMatcher = new YouTubeMatcher({ lists: youtubeMusicLists, logger })
   const listen = new ListenService(ytdlp)
   const previewCoverTones = new PreviewCoverTones({ logger })
 
@@ -317,8 +325,19 @@ export function createContainer(configured: Config): Container {
     imports,
     sync: syncRepo,
     resolve: url =>
-      buildImportPreview(
-        { ytdlp, songs, cloudRepo, cloudSync, imports, youtubeMusicArtists, youtubeMusicLists },
+      previewFound(
+        {
+          ytdlp,
+          songs,
+          cloudRepo,
+          cloudSync,
+          imports,
+          youtubeMusicArtists,
+          youtubeMusicLists,
+          netease,
+          spotify,
+          youtubeMatcher,
+        },
         url,
       ),
     kickQueue: () => importQueue.kick(),
@@ -326,7 +345,6 @@ export function createContainer(configured: Config): Container {
     logger,
   })
 
-  const migrate = new MigrateService({ songs, logger, ytdlp })
   const lyricsIndex = new LyricsIndexService({
     songs,
     search: lyricsSearch,
@@ -443,11 +461,13 @@ export function createContainer(configured: Config): Container {
     youtubeMusicArtists,
     artistBackdrops,
     youtubeMusicLists,
+    netease,
+    spotify,
+    youtubeMatcher,
     listen,
     previewCoverTones,
     importQueue,
     libraryWatcher,
-    migrate,
     lookup,
     fixCovers,
     keepAwake,
@@ -472,7 +492,6 @@ export function createContainer(configured: Config): Container {
       coverTones.stop()
       importQueue.stop()
       cloudSync.stop()
-      migrate.stop()
       // Let the machine sleep again even if a stream is still winding down.
       keepAwake.stop()
     },

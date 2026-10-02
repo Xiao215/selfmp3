@@ -4,7 +4,15 @@ import { EMPTY_SMART_RULES } from '@selfmp3/shared'
 import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
 import { PlaylistRepository } from '../repositories/playlists.js'
-import { buildImportPreview, resolveImportPlaylist, withMusicDetails } from './importPreview.js'
+import {
+  buildImportPreview,
+  findLooking,
+  previewFound,
+  resolveImportPlaylist,
+  withMusicDetails,
+} from './importPreview.js'
+import type { NeteaseList } from './netease.js'
+import type { SpotifyList } from './spotify.js'
 import type { ProbedTrack } from './ytdlp.js'
 import type { ArtistSongs } from './youtubeMusicArtist.js'
 import type { SongList } from './youtubeMusicLists.js'
@@ -94,6 +102,10 @@ function previewDeps(options: {
   inBucket?: number[]
   /** Links with a job already queued or downloading. */
   pending?: string[]
+  /** What 网易云 lists for any link it reads. */
+  netease?: NeteaseList
+  /** What Spotify lists for any link it reads. */
+  spotify?: SpotifyList
 }) {
   const probed: string[] = []
   const deps = {
@@ -115,6 +127,20 @@ function previewDeps(options: {
       songs: () => Promise.resolve(options.search ?? null),
       album: () => Promise.resolve(options.list ?? null),
       playlist: () => Promise.resolve(options.list ?? null),
+    },
+    netease: {
+      link: (url: string) =>
+        Promise.resolve(url.includes('163cn.tv') ? null : { kind: 'playlist', id: '1' }),
+      list: () =>
+        options.netease
+          ? Promise.resolve(options.netease)
+          : Promise.reject(new Error('网易云音乐 did not answer')),
+    },
+    spotify: {
+      list: () =>
+        options.spotify
+          ? Promise.resolve(options.spotify)
+          : Promise.reject(new Error('Could not read that from Spotify')),
     },
   }
   return { deps: deps as unknown as Parameters<typeof buildImportPreview>[0], probed }
@@ -371,5 +397,160 @@ describe('buildImportPreview with an artist link', () => {
     await buildImportPreview(deps, videos)
 
     expect(probed).toEqual([videos])
+  })
+})
+
+describe('buildImportPreview with a 网易云 link', () => {
+  const chart = 'https://music.163.com/#/playlist?id=3778678'
+  const netease: NeteaseList = {
+    title: '热歌榜',
+    tracks: [
+      {
+        url: 'https://music.163.com/song?id=1',
+        title: '海屿你',
+        artist: '马也_Crabbit',
+        album: '海屿你',
+        duration: 296,
+        thumbnail: 'https://p2.music.126.net/a.jpg?param=1000y1000',
+        free: true,
+      },
+      {
+        url: 'https://music.163.com/song?id=2',
+        title: '孤勇者',
+        artist: '陈奕迅',
+        album: '孤勇者',
+        duration: 256,
+        thumbnail: 'https://p1.music.126.net/b.jpg?param=1000y1000',
+        free: false,
+      },
+    ],
+  }
+
+  it('downloads what 网易云 gives out whole, and looks for the rest on YouTube', async () => {
+    const { deps, probed } = previewDeps({ netease })
+    const preview = await buildImportPreview(deps, `分享歌单《热歌榜》: ${chart} (来自@网易云音乐)`)
+    expect(probed).toEqual([])
+    expect(preview).toMatchObject({ kind: 'playlist', playlistTitle: '热歌榜', from: 'netease' })
+    expect(preview.items[0]).toMatchObject({
+      url: 'https://music.163.com/song?id=1',
+      source: 'netease',
+      netease: { url: 'https://music.163.com/song?id=1', free: true },
+      youtube: null,
+    })
+    // Its 网易云 cover stays; only the audio comes from YouTube.
+    expect(preview.items[1]).toMatchObject({
+      url: '',
+      source: 'youtube',
+      thumbnail: 'https://p1.music.126.net/b.jpg?param=1000y1000',
+      netease: { url: 'https://music.163.com/song?id=2', free: false },
+      youtube: { url: null, match: 'looking' },
+    })
+  })
+
+  it('knows a 网易云 song already in the library by its name', async () => {
+    const { deps } = previewDeps({ netease, have: [{ artist: '陈奕迅', title: '孤勇者' }] })
+    const preview = await buildImportPreview(deps, chart)
+    expect(preview.items.map(item => item.alreadyHave)).toEqual([false, true])
+  })
+
+  it('says why when the link opens nothing it can read', async () => {
+    const { deps } = previewDeps({ netease })
+    await expect(buildImportPreview(deps, 'https://163cn.tv/gone')).rejects.toThrow(/Share button/)
+    const { deps: silent } = previewDeps({})
+    await expect(buildImportPreview(silent, chart)).rejects.toThrow(/did not answer/)
+  })
+})
+
+describe('buildImportPreview with a Spotify link or a list of songs', () => {
+  it('lists Spotify’s songs to be found on YouTube', async () => {
+    const { deps } = previewDeps({
+      spotify: {
+        title: 'Summer Mix',
+        tracks: [{ title: 'Get Lucky', artist: 'Daft Punk', album: '', duration: 248 }],
+      },
+    })
+    const preview = await buildImportPreview(
+      deps,
+      'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',
+    )
+    expect(preview).toMatchObject({
+      kind: 'playlist',
+      playlistTitle: 'Summer Mix',
+      from: 'spotify',
+    })
+    expect(preview.items[0]).toMatchObject({
+      url: '',
+      title: 'Get Lucky',
+      source: 'youtube',
+      netease: null,
+      youtube: { url: null, match: 'looking' },
+    })
+  })
+
+  it('reads words with no link in them as songs to find', async () => {
+    const { deps } = previewDeps({})
+    const preview = await buildImportPreview(deps, 'Daft Punk - Get Lucky\nRadiohead - Creep')
+    expect(preview.from).toBe('list')
+    expect(preview.items.map(item => `${item.artist}|${item.title}`)).toEqual([
+      'Daft Punk|Get Lucky',
+      'Radiohead|Creep',
+    ])
+  })
+
+  it('refuses words that are not songs', async () => {
+    const { deps } = previewDeps({})
+    await expect(buildImportPreview(deps, '   \n  ')).rejects.toThrow(/one song per line/)
+  })
+})
+
+describe('findLooking and previewFound', () => {
+  const looking = {
+    url: '',
+    title: 'Get Lucky',
+    artist: 'Daft Punk',
+    album: '',
+    duration: 248,
+    thumbnail: null,
+    alreadyHave: false,
+    waitingToUpload: false,
+    inQueue: false,
+    source: 'youtube' as const,
+    netease: null,
+    youtube: { url: null, match: 'looking' as const },
+  }
+  const found = {
+    url: 'https://www.youtube.com/watch?v=5NV6Rdv1a3I',
+    title: 'Get Lucky',
+    artist: 'Daft Punk',
+    album: 'Random Access Memories',
+    duration: 248,
+    thumbnail: 'https://lh3.googleusercontent.com/x=w544-h544',
+    sure: true,
+  }
+
+  it('fills in what was found and marks what was not', async () => {
+    const items = await findLooking(
+      { find: async tracks => tracks.map((_, i) => (i === 0 ? found : null)) },
+      [looking, { ...looking, title: 'Nothing' }],
+    )
+    expect(items[0]).toMatchObject({
+      url: found.url,
+      album: 'Random Access Memories',
+      thumbnail: found.thumbnail,
+      youtube: { url: found.url, match: 'sure' },
+    })
+    expect(items[1]).toMatchObject({ url: '', youtube: { url: null, match: 'none' } })
+  })
+
+  it('leaves out a song nothing was found for, where nobody reviews it', async () => {
+    const { deps } = previewDeps({})
+    const preview = await previewFound(
+      {
+        ...deps,
+        youtubeMatcher: { find: async tracks => tracks.map((_, i) => (i === 0 ? found : null)) },
+      },
+      'Daft Punk - Get Lucky\nNobody - Nothing',
+    )
+    expect(preview.items.map(item => item.url)).toEqual([found.url])
   })
 })

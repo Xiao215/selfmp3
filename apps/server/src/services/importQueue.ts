@@ -70,7 +70,7 @@ export class ImportQueueService {
   readonly #lyrics: Pick<LyricsService, 'fetchRemote' | 'writeSidecar'>
   readonly #covers: Pick<CoverService, 'saveFromUrl'>
   readonly #ytdlp: Pick<YtDlpService, 'status' | 'download' | 'probe' | 'probeDuration'>
-  readonly #throttle: Pick<YtThrottleService, 'waitMs'>
+  readonly #throttle: Pick<YtThrottleService, 'waitMs' | 'tryTake'>
   readonly #cloud: ImportUploader
   readonly #keepAwake: KeepAwakeService
   readonly #logger: Logger
@@ -104,7 +104,7 @@ export class ImportQueueService {
     lyrics: Pick<LyricsService, 'fetchRemote' | 'writeSidecar'>
     covers: Pick<CoverService, 'saveFromUrl'>
     ytdlp: Pick<YtDlpService, 'status' | 'download' | 'probe' | 'probeDuration'>
-    throttle: Pick<YtThrottleService, 'waitMs'>
+    throttle: Pick<YtThrottleService, 'waitMs' | 'tryTake'>
     cloud: ImportUploader
     keepAwake: KeepAwakeService
     logger: Logger
@@ -197,6 +197,22 @@ export class ImportQueueService {
   }
 
   /**
+   * Retry all: what failed goes back in the queue. A song that failed for a
+   * reason worth reading will fail the same way again, and its row says so
+   * again; what failed because the connection dropped for a minute comes in.
+   */
+  retryFailed(): number {
+    const retried = this.#imports.retryFailed()
+    if (retried > 0) this.kick()
+    return retried
+  }
+
+  /** Remove all failed: nothing is in flight among them, so nothing is stopped. */
+  removeFailed(): number {
+    return this.#imports.dismissFailed()
+  }
+
+  /**
    * The scheduler.
    *
    * Only one drain loop runs at a time (`#draining`); it starts jobs until the
@@ -208,28 +224,37 @@ export class ImportQueueService {
     this.#draining = true
 
     try {
-      // The budget is a property of the queue, not of any one job: when there
-      // is nothing to spend, nothing is claimed and the jobs stay queued. A
-      // claimed job holding a slot open while it sleeps would look like work.
-      // A person pasting a link while it runs borrows from the same bucket
-      // (PERSON_MAY_BORROW), and the queue waits that much longer.
-      const pacing = this.#throttle.waitMs()
-      if (pacing > 0) {
-        // One timer however many times this is asked: everything that kicks
-        // the queue during a pause would otherwise start a chain of its own.
-        // Capped, so a pause lifted by hand is noticed within the minute.
-        this.#paceTimer ??= setTimeout(
-          () => {
-            this.#paceTimer = null
-            this.kick()
-          },
-          Math.min(pacing, 60_000),
-        )
-        return
-      }
-
       const limit = this.#settings.get().importConcurrency
       while (this.#activeCount < limit && !this.#stopped) {
+        const next = this.#imports.nextQueued()
+        if (!next) break
+        /*
+         * A job is claimed with its turn at YouTube already taken, and not
+         * before. The budget is a property of the queue, not of any one job:
+         * a job claimed first and paced inside its download sat at
+         * "Downloading · 0 %" for the whole wait — most of a minute, signed
+         * out — with nothing downloading, while the job it was waiting behind
+         * finished. Unclaimed, it waits in the queue as what it is, and the
+         * screen counts its turn down from the queue's pacing. A person
+         * pasting a link while this runs borrows from the same bucket
+         * (PERSON_MAY_BORROW), and the queue waits that much longer. A job
+         * that only has its upload left asks YouTube nothing, and goes.
+         */
+        const asksYouTube = next.songId === null
+        if (asksYouTube && !this.#throttle.tryTake()) {
+          // One timer however many times this is asked: everything that kicks
+          // the queue during a pause would otherwise start a chain of its own.
+          // Capped, so a pause lifted by hand is noticed within the minute.
+          this.#paceTimer ??= setTimeout(
+            () => {
+              this.#paceTimer = null
+              this.kick()
+            },
+            Math.min(Math.max(this.#throttle.waitMs(), 50), 60_000),
+          )
+          break
+        }
+        // Nothing else runs between the look above and this: it is the same job.
         const job = this.#imports.claimNext()
         if (!job) break
 
@@ -237,7 +262,7 @@ export class ImportQueueService {
         // A download is the server doing real work for someone; do not let the
         // machine idle out from under it halfway through.
         const awake = this.#keepAwake.hold()
-        void this.#process(job)
+        void this.#process(job, asksYouTube)
           .catch(error => {
             this.#logger.error('job crashed', {
               jobId: job.id,
@@ -257,7 +282,8 @@ export class ImportQueueService {
     }
   }
 
-  async #process(job: ImportJob): Promise<void> {
+  /** `paid`: the job's first request to YouTube was paid for as it was claimed. */
+  async #process(job: ImportJob, paid: boolean): Promise<void> {
     const controller = new AbortController()
     this.#inFlight.set(job.id, controller)
     const settings = this.#settings.get()
@@ -265,7 +291,7 @@ export class ImportQueueService {
     this.#logger.info('importing', { title: job.title || job.url, attempt: job.attempts })
 
     try {
-      const songId = await this.#runJob(job, settings, controller.signal)
+      const songId = await this.#runJob(job, settings, controller.signal, paid)
       this.#imports.update(job.id, {
         status: 'done',
         step: 'finished',
@@ -332,7 +358,14 @@ export class ImportQueueService {
     }
   }
 
-  async #runJob(job: ImportJob, settings: Settings, signal: AbortSignal): Promise<number> {
+  async #runJob(
+    job: ImportJob,
+    settings: Settings,
+    signal: AbortSignal,
+    paid: boolean,
+  ): Promise<number> {
+    // The turn taken at the claim pays for the first request, and only that one.
+    let turn = paid
     // A job that already added its song and only failed to upload it picks
     // up where it stopped: downloading the song again would be a second copy.
     if (job.songId !== null && this.#songs.byId(job.songId)) {
@@ -357,7 +390,8 @@ export class ImportQueueService {
      */
     if (!title.trim() || !artist.trim()) {
       this.#imports.update(job.id, { step: 'resolving' })
-      const probed = await this.#ytdlp.probe(job.url, signal, 'patient')
+      const probed = await this.#ytdlp.probe(job.url, signal, turn ? 'paid' : 'patient')
+      turn = false
       if (probed.kind === 'playlist') {
         // `--no-playlist` means nothing to an album or playlist address: every
         // song in it would be downloaded, each over the last, into one file.
@@ -410,6 +444,7 @@ export class ImportQueueService {
     // yt-dlp reports every chunk; a write per whole percent is plenty.
     let shown = 0
     await this.#ytdlp.download({
+      paid: turn,
       url: job.url,
       // `%` starts a field in an output template, so a title containing one —
       // "100%(real)" — would name the file something else entirely and the

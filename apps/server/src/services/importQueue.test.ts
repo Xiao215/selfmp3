@@ -280,6 +280,26 @@ exit 1
     expect(imports.byId(id)?.status).toBe('error')
   })
 
+  it('leaves a job waiting, not "downloading", until it has its turn at YouTube', async () => {
+    ytDlpFailsWith('Video unavailable')
+    while (throttle.tryTake()) {
+      // Spend the bucket: the next request's worth is most of a minute away.
+    }
+    const id = enqueueOne()
+
+    queue.kick()
+    await new Promise(resolve => setTimeout(resolve, 300))
+    // Not claimed while it waits, so the screen can say it is waiting.
+    expect(imports.byId(id)).toMatchObject({ status: 'queued', step: 'waiting' })
+    expect(downloads()).toBe(0)
+
+    // Its turn comes: claimed, and the turn it was claimed with is the one it spends.
+    now += 60 * 60_000
+    queue.kick()
+    await until(() => imports.byId(id)?.status === 'error')
+    expect(downloads()).toBe(1)
+  })
+
   it('halves the budget for a rate limit, once, and does not restore it on its own', async () => {
     const before = throttle.status().budgetPerHour
     ytDlpFailsWith('Sign in to confirm you’re not a bot')

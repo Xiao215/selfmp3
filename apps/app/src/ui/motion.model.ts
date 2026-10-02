@@ -27,6 +27,16 @@ export const MOVE_MS = {
   /** A held queue row lifting, and its neighbours making room (`M2`, 6). */
   lift: 120,
   room: 180,
+  /**
+   * A row of a list that changes under a person's hand — the import queue —
+   * fading in where it arrives, out where it leaves, while the rows around it
+   * glide to their new places (`rowMotion.ts`).
+   */
+  rowIn: 220,
+  rowOut: 160,
+  rowMove: 240,
+  /** An import's ring moving on to its next step, and the queue's bar to its next song. */
+  ringFill: 400,
   /** A row's controls under a pointer, in and out (`M3`, 3). */
   hoverIn: 100,
   hoverOut: 140,

@@ -29,6 +29,7 @@ const queueOf = (jobs: ImportJob[]): ImportQueue => ({
   queued: jobs.filter(each => each.status === 'queued').length,
   done: 0,
   pacing: IDLE_PACING,
+  run: null,
 })
 
 function watcherWith(first: ImportQueue, now?: () => Date) {

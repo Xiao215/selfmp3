@@ -6,7 +6,7 @@ import { configureClient, reviewFrom, type Api } from '@selfmp3/client'
 import { OverlayProvider } from '../../shell/Overlay'
 
 import { ImportReview } from './ImportReview'
-import { patchDraft, resetImportDraft } from './importDraft'
+import { draftFor, patchDraft, resetImportDraft } from './importDraft'
 
 jest.mock('expo-router', () => ({
   Redirect: () => null,
@@ -254,7 +254,7 @@ describe('Import review, on a phone', () => {
    * page knows nothing about: it drew no chip, and the import named a tag the
    * server did not have (Xiao, 2026-09-22).
    */
-  it('shows a ticked tag as a chip, and sends it', async () => {
+  it('shows a ticked tag as a chip, sends it, and lets it go once the songs are queued', async () => {
     await draw()
     await act(async () => {
       await fireEvent.press(screen.getByTestId('import-add-tag'))
@@ -269,6 +269,9 @@ describe('Import review, on a phone', () => {
       await fireEvent.press(screen.getByTestId('import-commit'))
     })
     expect(mockEnqueue.mock.calls[0][0].tagIds).toEqual([7])
+    // The tags were for these songs: the next link starts with none.
+    await waitFor(() => expect(draftFor('own').review).toBeNull())
+    expect([...draftFor('own').tagIds]).toEqual([])
   })
 
   it('makes a new tag where the import is going, and chips it', async () => {

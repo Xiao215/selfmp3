@@ -430,6 +430,12 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     resumeImports: () => request('POST', '/api/import/resume', z.object({ resumed: z.number() })),
 
+    retryFailedImports: () =>
+      request('POST', '/api/import/retry-failed', z.object({ retried: z.number() })),
+
+    removeFailedImports: () =>
+      request('POST', '/api/import/remove-failed', z.object({ removed: z.number() })),
+
     clearImports: () => request('POST', '/api/import/clear', z.object({ cleared: z.number() })),
 
     // --- migrate ------------------------------------------------------------

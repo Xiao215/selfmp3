@@ -30,6 +30,7 @@ import {
   waitingToUpload,
 } from '../services/importPreview.js'
 import { alreadyHave, normaliseUrl, sourceUrlIndex } from '../services/alreadyHave.js'
+import { importRun } from '../services/importRun.js'
 import { isCoverUrl } from '../services/previewCoverTone.js'
 
 const ParamsWithJobId = z.object({ id: z.string().uuid() })
@@ -306,14 +307,18 @@ export function importRoutes(container: Container): Router {
       { query: z.object({ limit: z.coerce.number().int().min(0).max(500).default(100) }) },
       ({ query }): ImportQueue => {
         const counts = container.imports.counts()
+        const pacing = container.throttle.status()
         return {
           jobs: container.imports.recent(query.limit),
           active: counts.running,
           queued: counts.queued,
           done: counts.done,
-          pacing: (({ waitMs, pausedUntil, ratchet }) => ({ waitMs, pausedUntil, ratchet }))(
-            container.throttle.status(),
-          ),
+          pacing: {
+            waitMs: pacing.waitMs,
+            pausedUntil: pacing.pausedUntil,
+            ratchet: pacing.ratchet,
+          },
+          run: importRun(container.imports.runFacts(), pacing.budgetPerHour),
         }
       },
     ),
@@ -361,8 +366,9 @@ export function importRoutes(container: Container): Router {
 
   /**
    * The whole queue at once. Pause all calls off everything that can still be
-   * called off; Resume all queues everything that was cancelled again, and
-   * leaves what failed on its own to its own Retry.
+   * called off; Resume all queues everything that was paused again. What
+   * failed on its own is apart: Retry all queues it again, and Remove all
+   * takes it off the queue for good.
    */
   router.post(
     '/import/pause',
@@ -372,6 +378,16 @@ export function importRoutes(container: Container): Router {
   router.post(
     '/import/resume',
     route({}, () => ({ resumed: container.importQueue.resume() })),
+  )
+
+  router.post(
+    '/import/retry-failed',
+    route({}, () => ({ retried: container.importQueue.retryFailed() })),
+  )
+
+  router.post(
+    '/import/remove-failed',
+    route({}, () => ({ removed: container.importQueue.removeFailed() })),
   )
 
   /** Clear: the finished jobs, and only those — what failed or was paused keeps its row. */

@@ -94,23 +94,22 @@ export class ImportRepository {
     this.#byId = db.prepare<[string], ImportJobRow>('SELECT * FROM import_jobs WHERE id = ?')
 
     /*
-     * Every open job, what needs a person first: failed before waiting, since
-     * a queue of three hundred songs with fifty that failed to upload once
-     * showed only the queue, and the failures surfaced when Pause all emptied
-     * it. Open jobs are bounded by what was asked for, so all of them come
-     * (to a ceiling no one reaches); the finished ones are history and are
-     * read apart (`#finished`), newest first, up to the caller's limit. One
-     * list cut off at a hundred rows showed a big day's history as nothing.
+     * Every open job: what failed first, since a queue of three hundred songs
+     * with fifty that failed once showed only the queue, and the failures
+     * surfaced when Pause all emptied it. Everything else is in the order it
+     * was asked for, whatever it is doing — a row paused, resumed or started
+     * stays where it was, where ordering by status sent it to another part of
+     * the list from under the pointer that had just pressed it. A song waiting
+     * on its upload is not a failure and keeps its place. Open jobs are
+     * bounded by what was asked for, so all of them come (to a ceiling no one
+     * reaches); the finished ones are history and are read apart
+     * (`#finished`), newest first, up to the caller's limit. One list cut off
+     * at a hundred rows showed a big day's history as nothing.
      */
     this.#open = db.prepare<[], ImportJobRow>(`
       SELECT * FROM import_jobs
        WHERE status <> 'done'
-       ORDER BY CASE status
-                  WHEN 'running'   THEN 0
-                  WHEN 'error'     THEN 1
-                  WHEN 'queued'    THEN 2
-                  ELSE 3
-                END,
+       ORDER BY CASE WHEN status = 'error' AND step <> 'uploading' THEN 0 ELSE 1 END,
                 position, created_at DESC
        LIMIT 1000
     `)
@@ -203,6 +202,12 @@ export class ImportRepository {
     return [...this.#open.all(), ...this.#finished.all(limit)].map(toJob)
   }
 
+  /** The job `claimNext` would take, left where it is. */
+  nextQueued(): ImportJob | null {
+    const row = this.#nextQueued.get()
+    return row ? toJob(row) : null
+  }
+
   /** The next queued job, in the order they were asked for. */
   claimNext(): ImportJob | null {
     const run = this.#db.transaction(() => {
@@ -253,6 +258,32 @@ export class ImportRepository {
 
   playlistFor(id: string): number | null {
     return this.#byId.get(id)?.playlist_id ?? null
+  }
+
+  /**
+   * What `importRun` (services/importRun.ts) works the queue's progress out
+   * from. The run starts at its oldest open job — downloading, waiting,
+   * paused, or waiting on its upload, and not one that failed, which would
+   * stretch it back to yesterday — and what finished since then is its.
+   */
+  runFacts(): { open: number; moving: number; finishes: string[] } | null {
+    const open = this.#db
+      .prepare<[], { started: string | null; open: number; moving: number | null }>(
+        `SELECT MIN(created_at) AS started, COUNT(*) AS open,
+                SUM(status IN ('queued','running')) AS moving
+           FROM import_jobs
+          WHERE status IN ('queued','running','cancelled')
+             OR (status = 'error' AND step = 'uploading')`,
+      )
+      .get()
+    if (!open?.started) return null
+    const finishes = this.#db
+      .prepare<[string], { at: string }>(
+        "SELECT updated_at AS at FROM import_jobs WHERE status = 'done' AND updated_at >= ? ORDER BY updated_at",
+      )
+      .all(open.started)
+      .map(row => row.at)
+    return { open: open.open, moving: open.moving ?? 0, finishes }
   }
 
   counts(): { running: number; queued: number; done: number } {
@@ -316,6 +347,32 @@ export class ImportRepository {
       .prepare(
         "UPDATE import_jobs SET status = 'queued', step = 'waiting', error = NULL, progress = NULL, updated_at = datetime('now') WHERE status = 'cancelled'",
       )
+      .run().changes
+  }
+
+  /**
+   * Retry all: every job that failed on its own goes back in the queue, in
+   * the order it was asked for. A song waiting on its upload is not among
+   * them — it is in the library already, and the cloud sync sends it up by
+   * itself (cloudSync.ts) — and neither is what was paused, which is Resume
+   * all's.
+   */
+  retryFailed(): number {
+    return this.#db
+      .prepare(
+        "UPDATE import_jobs SET status = 'queued', step = 'waiting', error = NULL, progress = NULL, updated_at = datetime('now') WHERE status = 'error' AND step <> 'uploading'",
+      )
+      .run().changes
+  }
+
+  /**
+   * Remove all beside the failures: each failed job off the queue for good,
+   * as its own × would take it. A song waiting on its upload stays, for the
+   * same reason it is not retried.
+   */
+  dismissFailed(): number {
+    return this.#db
+      .prepare("DELETE FROM import_jobs WHERE status = 'error' AND step <> 'uploading'")
       .run().changes
   }
 

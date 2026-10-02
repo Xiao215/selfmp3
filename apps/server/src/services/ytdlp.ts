@@ -450,14 +450,18 @@ export class YtDlpService {
      * budget than fail. Signed out, a request's worth takes 48 seconds to come
      * back, so the wait a person will sit through would fail the queue's own
      * jobs for nothing more than having been paced. It waits out an empty
-     * bucket, not a rate-limit pause: see `#pace`.
+     * bucket, not a rate-limit pause: see `#pace`. `paid` is a queue job's
+     * first request, whose turn the queue already took when it claimed the job
+     * (ImportQueueService's drain), so it goes at once.
      */
-    wait: 'interactive' | 'patient' = 'interactive',
+    wait: 'interactive' | 'patient' | 'paid' = 'interactive',
   ): Promise<{ kind: 'single' | 'playlist'; playlistTitle: string | null; tracks: ProbedTrack[] }> {
-    await this.#pace({
-      ...(signal ? { signal } : {}),
-      ...(wait === 'interactive' ? { maxWaitMs: INTERACTIVE_WAIT_MS } : { waitOutPause: false }),
-    })
+    if (wait !== 'paid') {
+      await this.#pace({
+        ...(signal ? { signal } : {}),
+        ...(wait === 'interactive' ? { maxWaitMs: INTERACTIVE_WAIT_MS } : { waitOutPause: false }),
+      })
+    }
     const result = await run(
       'yt-dlp',
       [
@@ -613,8 +617,12 @@ export class YtDlpService {
     hasFfmpeg: boolean
     signal?: AbortSignal
     onProgress?: (percent: number) => void
+    /** Its turn was taken already: the queue takes one as it claims a job. */
+    paid?: boolean
   }): Promise<void> {
-    await this.#pace({ ...(input.signal ? { signal: input.signal } : {}), waitOutPause: false })
+    if (!input.paid) {
+      await this.#pace({ ...(input.signal ? { signal: input.signal } : {}), waitOutPause: false })
+    }
     const args = [
       ...BASE_ARGS,
       '--format',

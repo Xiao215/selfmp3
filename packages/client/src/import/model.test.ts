@@ -2,11 +2,13 @@ import { ImportEnqueueSchema, type ImportJob, type ImportPreviewItem } from '@se
 import { describe, expect, it } from 'vitest'
 
 import {
+  changeQueue,
   chosenItems,
   dismissable,
   enqueueRequest,
   finishedLabel,
   foldQueue,
+  clockIn,
   hasLink,
   jobAction,
   jobSubtitle,
@@ -19,6 +21,8 @@ import {
   refreshAlreadyHave,
   reviewFrom,
   sharedLinks,
+  stepFraction,
+  timeLeft,
 } from './model.js'
 
 describe('how a job’s row is tinted', () => {
@@ -117,7 +121,7 @@ describe('import queue', () => {
   it('describes where a job is up to', () => {
     expect(jobSubtitle(job({ status: 'running', step: 'lyrics' }))).toBe('Looking for lyrics')
     expect(jobSubtitle(job({ status: 'done', step: 'finished' }))).toBe('Added to your library')
-    expect(jobSubtitle(job({ status: 'cancelled' }))).toBe('Cancelled')
+    expect(jobSubtitle(job({ status: 'cancelled' }))).toBe('Paused')
     expect(jobSubtitle(job({ status: 'error', error: 'Video unavailable', attempts: 1 }))).toBe(
       'Video unavailable',
     )
@@ -126,13 +130,13 @@ describe('import queue', () => {
     )
   })
 
-  it('offers cancel while going, retry after, and nothing when done', () => {
+  it('offers cancel while going, resume when paused, retry after, and nothing when done', () => {
     expect(jobAction(job({ status: 'queued' }))).toBe('cancel')
     expect(jobAction(job({ status: 'running', step: 'downloading' }))).toBe('cancel')
     // The song is already on its way into the library: the server refuses.
     expect(jobAction(job({ status: 'running', step: 'saving' }))).toBeNull()
     expect(jobAction(job({ status: 'error', step: 'downloading' }))).toBe('retry')
-    expect(jobAction(job({ status: 'cancelled' }))).toBe('retry')
+    expect(jobAction(job({ status: 'cancelled' }))).toBe('resume')
     expect(jobAction(job({ status: 'error', step: 'uploading' }))).toBe('try-now')
     expect(jobAction(job({ status: 'done', step: 'finished' }))).toBeNull()
   })
@@ -147,17 +151,60 @@ describe('import queue', () => {
     expect(dismissable(job({ status: 'done', step: 'finished' }))).toBe(false)
   })
 
-  it('folds the finished jobs away and keeps what still needs you', () => {
+  it('keeps what failed apart from what is importing, and folds the finished away', () => {
     const jobs = [
       job({ status: 'done' }),
       job({ status: 'running', step: 'downloading' }),
-      job({ status: 'error' }),
+      job({ status: 'error', step: 'finished' }),
       job({ status: 'done' }),
       job({ status: 'cancelled' }),
+      // In the library already, and going up by itself: still importing.
+      job({ status: 'error', step: 'uploading' }),
     ]
-    const { open, finished } = foldQueue(jobs)
-    expect(open.map(j => j.status)).toEqual(['running', 'error', 'cancelled'])
+    const { importing, failed, finished } = foldQueue(jobs)
+    expect(importing.map(j => `${j.status}/${j.step}`)).toEqual([
+      'running/downloading',
+      'cancelled/waiting',
+      'error/uploading',
+    ])
+    expect(failed.map(j => j.status)).toEqual(['error'])
     expect(finished).toHaveLength(2)
+  })
+
+  it('moves a song’s ring by its steps, the download filling only its own share', () => {
+    const at = (patch: Partial<ImportJob>) =>
+      stepFraction({ status: 'running', step: 'downloading', progress: null, ...patch })
+    expect(stepFraction({ status: 'queued', step: 'waiting', progress: null })).toBe(0)
+    expect(at({ step: 'resolving' })).toBe(0.1)
+    expect(at({ progress: 0 })).toBe(0.2)
+    expect(at({ progress: 100 })).toBeCloseTo(0.4)
+    expect(at({ step: 'uploading' })).toBe(0.88)
+    // Each step further on is further round.
+    const steps = [
+      'resolving',
+      'downloading',
+      'converting',
+      'lyrics',
+      'saving',
+      'uploading',
+    ] as const
+    const fills = steps.map(step => at({ step }))
+    expect([...fills].sort((a, b) => a - b)).toEqual(fills)
+    expect(stepFraction({ status: 'cancelled', step: 'finished', progress: 40 })).toBe(0)
+  })
+
+  it('counts a wait down in minutes and seconds, rounded up', () => {
+    expect(clockIn(38_000)).toBe('0:38')
+    expect(clockIn(37_200)).toBe('0:38')
+    expect(clockIn(724_000)).toBe('12:04')
+    expect(clockIn(-5)).toBe('0:00')
+  })
+
+  it('says how long is left in round words', () => {
+    expect(timeLeft(20_000)).toBe('less than a minute left')
+    expect(timeLeft(38 * 60_000)).toBe('about 38 min left')
+    expect(timeLeft(80 * 60_000)).toBe('about 1 h 20 min left')
+    expect(timeLeft(120 * 60_000)).toBe('about 2 h left')
   })
 
   it('says the finished ones were added today only when all of them were', () => {
@@ -186,6 +233,97 @@ describe('import queue', () => {
       ]),
     ).toEqual({ pausable: 2, resumable: 1 })
     expect(queueControls([])).toEqual({ pausable: 0, resumable: 0 })
+  })
+
+  describe('drawn at once, before the server answers', () => {
+    const full = (id: string, patch: Partial<ImportJob>): ImportJob => ({
+      id,
+      url: `https://youtu.be/${id}`,
+      status: 'queued',
+      step: 'waiting',
+      progress: null,
+      title: id,
+      artist: '',
+      album: '',
+      thumbnail: null,
+      duration: 0,
+      error: null,
+      songId: null,
+      attempts: 1,
+      tagIds: [],
+      createdAt: '2026-10-01 09:00:00',
+      updatedAt: '2026-10-01 09:00:00',
+      ...patch,
+    })
+    const queue = {
+      active: 2,
+      queued: 1,
+      done: 0,
+      pacing: null,
+      jobs: [
+        full('failed', { status: 'error', step: 'finished', error: 'Video unavailable' }),
+        full('upload', { status: 'error', step: 'uploading', error: 'Bucket away' }),
+        full('down', { status: 'running', step: 'downloading', progress: 40 }),
+        full('saving', { status: 'running', step: 'saving' }),
+        full('wait', {}),
+        full('paused', { status: 'cancelled', step: 'finished' }),
+      ],
+    }
+    const states = (q: { jobs: readonly ImportJob[] }): string[] =>
+      q.jobs.map(j => `${j.id}:${j.status}`)
+
+    it('pauses one row, or every row a Pause would take, and counts again', () => {
+      const one = changeQueue(queue, { kind: 'pause', id: 'down' })
+      expect(one.jobs.find(j => j.id === 'down')).toMatchObject({
+        status: 'cancelled',
+        progress: null,
+      })
+      expect(one).toMatchObject({ active: 1, queued: 1 })
+
+      const all = changeQueue(queue, { kind: 'pause' })
+      expect(states(all)).toEqual([
+        'failed:error',
+        'upload:error',
+        'down:cancelled',
+        'saving:running',
+        'wait:cancelled',
+        'paused:cancelled',
+      ])
+      expect(all).toMatchObject({ active: 1, queued: 0 })
+    })
+
+    it('resumes what was paused into the queue, where it stands', () => {
+      const all = changeQueue(changeQueue(queue, { kind: 'pause' }), { kind: 'resume' })
+      expect(states(all)).toEqual([
+        'failed:error',
+        'upload:error',
+        'down:queued',
+        'saving:running',
+        'wait:queued',
+        'paused:queued',
+      ])
+    })
+
+    it('retries one failed row, or every failure but the one waiting on its upload', () => {
+      const one = changeQueue(queue, { kind: 'retry', id: 'failed' })
+      expect(one.jobs[0]).toMatchObject({ status: 'queued', step: 'waiting', error: null })
+      expect(one.queued).toBe(2)
+
+      const all = changeQueue(queue, { kind: 'retry' })
+      expect(states(all).slice(0, 2)).toEqual(['failed:queued', 'upload:error'])
+    })
+
+    it('removes one row it may, never one adding its song, and every failure at once', () => {
+      expect(changeQueue(queue, { kind: 'remove', id: 'wait' }).jobs).toHaveLength(5)
+      expect(changeQueue(queue, { kind: 'remove', id: 'saving' }).jobs).toHaveLength(6)
+      expect(changeQueue(queue, { kind: 'remove' }).jobs.map(j => j.id)).toEqual([
+        'upload',
+        'down',
+        'saving',
+        'wait',
+        'paused',
+      ])
+    })
   })
 
   it('reports activity only while there is some', () => {

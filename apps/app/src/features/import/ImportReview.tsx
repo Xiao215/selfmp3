@@ -111,20 +111,25 @@ export function ImportReview({
     setError(err.message)
   }
 
-  /** Back to Import with the review done: imported, or cancelled with the links kept. */
-  const leave = ({ keepLinks }: { keepLinks: boolean }): void => {
+  /**
+   * Back to Import with the review done. Imported, the draft starts afresh —
+   * the links, and the tags too: the tags were for these songs, and the next
+   * link arriving tagged the same way was a surprise found only once it had.
+   * Cancelled, the links and the tags stay for another look.
+   */
+  const leave = ({ imported }: { imported: boolean }): void => {
     setLeaving(true)
     listen.close({ resume: false })
     backTo('/import')
-    patchDraft(keepLinks ? { review: null } : { review: null, links: '' })
+    patchDraft(imported ? { review: null, links: '', tagIds: new Set() } : { review: null })
   }
 
   const enqueue = useMutation({
     mutationFn: (current: Review) => source.api.importEnqueue(importRequest(current, tagIds)),
     onSuccess: () => {
-      // The songs are in the queue now, which Import shows under Now.
+      // The songs are in the queue now, which Import shows under Currently importing.
       void source.invalidateQueue()
-      leave({ keepLinks: false })
+      leave({ imported: true })
     },
     onError: failed,
   })
@@ -371,7 +376,7 @@ export function ImportReview({
           </View>
           {wide ? (
             <Pressable
-              onPress={() => leave({ keepLinks: true })}
+              onPress={() => leave({ imported: false })}
               accessibilityRole="button"
               accessibilityLabel="Cancel"
               style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}

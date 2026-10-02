@@ -218,6 +218,23 @@ export type ImportPacing = z.infer<typeof ImportPacingSchema>
 /** Nothing holding the queue back: what a queue not yet read is assumed to be. */
 export const IDLE_PACING: ImportPacing = { waitMs: 0, pausedUntil: null, ratchet: 1 }
 
+/**
+ * The songs in now: the queue since its oldest open job was asked for, which
+ * is what a person means by "how far along is it". Per song there is nothing
+ * worth a bar — the audio itself arrives in a fraction of a second, and the
+ * rest of a song's minute is waiting its turn — so the queue's progress is
+ * the progress there is.
+ */
+export const ImportRunSchema = z.object({
+  /** The run's songs that are in: finished since its oldest open job was asked for. */
+  done: z.number().int().nonnegative(),
+  /** Those and every job of it still open — downloading, waiting, paused — but not what failed. */
+  total: z.number().int().nonnegative(),
+  /** About how long the rest will take; null when nothing is moving. */
+  leftMs: z.number().nonnegative().nullable(),
+})
+export type ImportRun = z.infer<typeof ImportRunSchema>
+
 export const ImportQueueSchema = z.object({
   /** Every job still open — running, waiting, failed, paused — then the newest finished ones, up to the limit asked for. */
   jobs: z.array(ImportJobSchema),
@@ -226,6 +243,8 @@ export const ImportQueueSchema = z.object({
   /** How many finished jobs there are in all, however many `jobs` holds. */
   done: z.number().int().nonnegative(),
   pacing: ImportPacingSchema,
+  /** Null with nothing open but failures. */
+  run: ImportRunSchema.nullable(),
 })
 export type ImportQueue = z.infer<typeof ImportQueueSchema>
 

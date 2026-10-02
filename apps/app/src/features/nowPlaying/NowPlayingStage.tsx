@@ -691,7 +691,8 @@ function Stage({
                   left: frame.left,
                   right: frame.right,
                   top: frame.top,
-                  bottom: PLAYER_BAR_HEIGHT,
+                  // Clear of the bar by the margin it keeps on the right.
+                  bottom: PLAYER_BAR_HEIGHT + geometry.right,
                   borderRadius: radius.cardLg,
                 },
             { opacity: visualFade },

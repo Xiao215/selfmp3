@@ -328,7 +328,7 @@ empty, or downloaded from its own page.
   opens the song page. Under the artist, the song's tags wrap quietly. The foot is Lyrics ·
   Sleep · queue. Swiping up or the Lyrics pill opens Lyrics only (`P22`), a view of the same
   route. The cover breathes: 0.84 while paused, back on play, 400 ms.
-- **No lyrics** (`P23`, `P24`, `C10`): Horizon and Ripples in `visuals.model.ts`,
+- **No lyrics** (`P23`, since retired, `P24`, `C10`): Horizon and Ripples in `visuals.model.ts`,
   `SongVisual.tsx` and `SongVisual.web.tsx`, coloured from the cover through the existing
   `visualColors()`. On a computer the visual fills the window behind the cover and title and
   the look picker sits beside Visual and About.

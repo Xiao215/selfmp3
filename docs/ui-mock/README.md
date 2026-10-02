@@ -1,6 +1,6 @@
 # The UI mock
 
-The interface agreed in September 2026, as 82 screens you can open in a browser: phone,
+The interface agreed in September 2026, as 81 screens you can open in a browser: phone,
 computer and web, the iPad, the browser extension, motion, and a page of ideas that are not
 scheduled.
 It is the target of [`docs/UI-MIGRATION.md`](../UI-MIGRATION.md).
@@ -20,7 +20,9 @@ so the serif and the display face need a connection the first time.
 Screens are numbered so a ticket or a commit can point at one: `P01`–`P38` phone, `C01`–`C17`
 computer and web, `T01`–`T09` iPad (tablet), `E1`–`E5` extension, `M1`–`M3` motion, `S1`–`S3` the three "start here"
 pages, `L1`–`L7` later. The number is the start of the file name
-(`boards/P21-now-playing.html`).
+(`boards/P21-now-playing.html`). A screen dropped from the design keeps its number unused, so
+older commits still point at the right thing: `P23` was Horizon, the second look for a song
+without lyrics, retired in October 2026 when Ripples became the only one.
 
 Read `S1`, `S2` and `S3` first. `S2` is the visual system: colour, type, radii, spacing and
 the parts as drawn. `S3` is the behaviour a picture cannot show: what a row carries where,

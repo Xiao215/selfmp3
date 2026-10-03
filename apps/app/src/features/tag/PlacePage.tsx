@@ -18,7 +18,6 @@ import { CoverLight } from '../../ui/components/CoverLight'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronLeft, More, Play, Shuffle, User } from '../../ui/components/Icons'
 import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
-import { useHeadLane } from '../../ui/components/headLane'
 import { SongList } from '../../ui/components/SongList'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { SongRow } from '../../ui/components/SongRow'
@@ -355,8 +354,6 @@ function PlaceSongs({
   const anchor = useRef<View | null>(null)
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   const selection = useSelection(ids)
-  // The head scrolls with the songs, so the bar opens at its foot.
-  const lane = useHeadLane()
   const selectedSongs = useMemo(
     () => songs.filter(song => selection.has(song.id)),
     [songs, selection],
@@ -422,26 +419,32 @@ function PlaceSongs({
     ],
   )
 
+  // Always mounted, told when to show, so it rises and sinks rather than
+  // appearing. On a computer it is in the list, at the head's foot, and stays
+  // at the top once the head has scrolled away; a phone's floats at the foot.
+  const bar = (
+    <SelectionBar
+      shown={selection.active}
+      songs={selectedSongs}
+      total={songs.length}
+      scope={scope}
+      allSelected={selection.allSelected}
+      onSelectAll={selection.selectAll}
+      onDeselectAll={selection.clear}
+      onDone={selection.clear}
+      inline={wide}
+    />
+  )
+
   return (
     <View style={styles.listArea}>
-      {/* Always mounted, told when to show, so it rises and sinks rather than appearing. */}
-      <SelectionBar
-        shown={selection.active}
-        songs={selectedSongs}
-        total={songs.length}
-        scope={scope}
-        allSelected={selection.allSelected}
-        onSelectAll={selection.selectAll}
-        onDeselectAll={selection.clear}
-        onDone={selection.clear}
-        headLane={lane}
-      />
+      {wide ? null : bar}
       <SongList
         songs={songs}
         label={label}
         renderSong={renderSong}
         header={head}
-        headLane={lane}
+        pinned={wide ? bar : null}
         // On a phone the bar floats over the foot of the list; the last song
         // can scroll out from under it.
         contentContainerStyle={

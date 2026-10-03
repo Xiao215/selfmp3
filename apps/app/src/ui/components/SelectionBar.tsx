@@ -5,6 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { plural } from '@selfmp3/shared'
 import type { Song } from '@selfmp3/shared'
 import { useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   clientApi,
@@ -48,7 +49,6 @@ import { SelectionTagPicker } from './TagPicker'
 import { SheetItem } from './Sheet'
 import { floating } from '../surfaces'
 import { useFloatingChrome } from '../../shell/bottomInset'
-import type { HeadLane } from './headLane'
 
 /**
  * How much room a phone's list leaves under its last row while the bar is up,
@@ -100,18 +100,18 @@ const setFloating = (change: 1 | -1): void => {
  *
  * On a computer it takes a lane of its own at the top of the list area: the
  * list below it is that much shorter, so at no scroll position does the bar
- * cover a row. On a page whose head scrolls with its songs the lane opens at
- * the head's foot instead and stays at the top once the head has gone
- * (`HeadLane`). It floated over the list once, to keep the rows still as it
- * arrived — but the row it landed on was the one you had just ticked, which
- * you could then neither read nor untick, so overlaying the list is not on
- * offer. What is on offer is the lane opening rather than appearing: the room
- * grows from nothing to the bar's height over `motion.base` and closes again
- * over `motion.fast`, and the bar comes down into it. The room is a height, so
- * it is the one thing here on the JavaScript side (as the up-next rail's room
- * is, and for the same reason); the bar's own fade and settle are transforms
- * and opacity, on the native driver. The lane is measured rather than guessed,
- * so it is always exactly as tall as the bar really is.
+ * cover a row. On a page whose head scrolls with its songs it is drawn in the
+ * list instead, at the head's foot, and stays at the top once the head has gone
+ * (`inline`, in `SongList`'s `pinned`). It floated over the list once, to keep
+ * the rows still as it arrived — but the row it landed on was the one you had
+ * just ticked, which you could then neither read nor untick, so overlaying the
+ * list is not on offer. What is on offer is the lane opening rather than
+ * appearing: the room grows from nothing to the bar's height over `motion.base`
+ * and closes again over `motion.fast`, and the bar comes down into it. The room
+ * is a height, so it is the one thing here on the JavaScript side (as the
+ * up-next rail's room is, and for the same reason); the bar's own fade and
+ * settle are transforms and opacity, on the native driver. The lane is measured
+ * rather than guessed, so it is always exactly as tall as the bar really is.
  *
  * It sits where the eye already is while ticking and where nothing else
  * competes (the foot of the window has the player bar and the toasts). It is
@@ -146,7 +146,7 @@ export function SelectionBar({
   onDone,
   playlist,
   shown = true,
-  headLane,
+  inline = false,
 }: {
   /** The selected songs, in the order the list has them. */
   songs: readonly Song[]
@@ -171,15 +171,24 @@ export function SelectionBar({
    */
   shown?: boolean
   /**
-   * On a computer, a page whose head scrolls with its songs: the lane opens at
-   * the head's foot rather than above the head (`useHeadLane`).
+   * On a computer, drawn inside the list at the foot of its header
+   * (`SongList`'s `pinned`) rather than over the top of the list area: a page
+   * whose head scrolls with its songs, where the top of the list area is above
+   * the head. The room it opens is then in the list, under the head.
    */
-  headLane?: HeadLane
+  inline?: boolean
 }): ReactNode {
   const { theme } = useUnistyles()
   const { wide } = useLayout()
   // Above the tab bar and the mini player, which float over the page on a phone.
   const chrome = useFloatingChrome()
+  /*
+   * In a list the lane stays at its very top once the head has gone, which on
+   * a tablet is under the status bar: it carries that room above the bar on its
+   * own ground, rather than leave the clock over the bar or the head showing
+   * through behind it. A browser has none.
+   */
+  const { top: statusBar } = useSafeAreaInsets()
   const { data: library } = useLibrary()
   const player = usePlayer()
   const { state: downloads, queue: downloadQueue } = useDownloads()
@@ -237,12 +246,9 @@ export function SelectionBar({
    * The room the lane takes from the list. A height is beyond the native
    * driver, and one value cannot be native for the bar's fade and not for this,
    * so the room is a value of its own (`QueueRail` splits the same move the
-   * same way). It stays shut while the bar floats instead. Under a head that
-   * scrolls with the songs the room is in the list (`HeadLaneRoom`), and this
-   * opens and shuts that one.
+   * same way). It stays shut while the bar floats instead.
    */
-  const [ownRoom] = useState(() => new Animated.Value(0))
-  const room = headLane?.open ?? ownRoom
+  const [room] = useState(() => new Animated.Value(0))
   useEffect(() => {
     if (!wide) return
     if (shown) timing(room, 1, motion.base, undefined, { easing: ease.out, native: false })
@@ -258,33 +264,6 @@ export function SelectionBar({
     }),
     [room, measured],
   )
-
-  /*
-   * Under a head that scrolls with the songs the lane rides the head's foot,
-   * where its room is, and stays at the top of the list once the head has
-   * scrolled away. Pulled down past the top, it follows the head down.
-   */
-  const scrollY = headLane?.scrollY
-  const foot = headLane?.foot ?? 0
-  const follow = useMemo(
-    () =>
-      scrollY
-        ? {
-            transform: [
-              {
-                translateY: scrollY.interpolate({
-                  inputRange: [0, Math.max(foot, 1)],
-                  outputRange: [foot, 0],
-                  extrapolateLeft: 'extend' as const,
-                  extrapolateRight: 'clamp' as const,
-                }),
-              },
-            ],
-          }
-        : null,
-    [scrollY, foot],
-  )
-  const setLaneHeight = headLane?.setHeight
 
   // The toasts step up above the bar while it floats at a phone's foot, and
   // ride `selectionBarLift` down again when it sinks.
@@ -395,92 +374,103 @@ export function SelectionBar({
     </View>
   )
 
-  const bar = wide ? (
-    <>
-      {/* The room, which is all that moves the list: the bar itself is over it. */}
-      {headLane ? null : <Animated.View style={roomStyle} />}
-      {/* Two views, as the scroll it follows is on the JavaScript side and its arrival is not. */}
-      <Animated.View style={[styles.laneOver, follow]} pointerEvents={shown ? 'box-none' : 'none'}>
-        <Animated.View
-          style={arrival}
-          pointerEvents="box-none"
-          onLayout={event => {
-            setMeasured(event.nativeEvent.layout.height)
-            setLaneHeight?.(event.nativeEvent.layout.height)
-          }}
+  // A computer's lane, drawn at its own size so it can be measured there, and
+  // faded and settled in over its room.
+  const lane = (
+    <Animated.View
+      style={[styles.laneOver, arrival]}
+      pointerEvents={shown ? 'box-none' : 'none'}
+      onLayout={event => setMeasured(event.nativeEvent.layout.height)}
+    >
+      <View
+        style={[
+          styles.lane,
+          inline && styles.laneInList,
+          inline && statusBar > 0 && { paddingTop: space.xs + statusBar },
+        ]}
+      >
+        <View
+          style={styles.bar}
+          role="toolbar"
+          aria-label="Selection actions"
+          testID="selection-bar"
         >
-          <View style={[styles.lane, headLane && styles.laneOverSongs]}>
-            <View
-              style={styles.bar}
-              role="toolbar"
-              aria-label="Selection actions"
-              testID="selection-bar"
+          <View style={styles.anchor}>
+            <Pressable
+              style={styles.all}
+              onPress={() => (allSelected ? onDeselectAll() : onSelectAll())}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: allSelected ? true : count > 0 ? 'mixed' : false }}
+              aria-checked={allSelected ? true : count > 0 ? 'mixed' : false}
+              accessibilityLabel={`${allSelected ? 'Deselect' : 'Select'} all ${total} ${totalWord} ${scope}`}
             >
-              <View style={styles.anchor}>
-                <Pressable
-                  style={styles.all}
-                  onPress={() => (allSelected ? onDeselectAll() : onSelectAll())}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: allSelected ? true : count > 0 ? 'mixed' : false }}
-                  aria-checked={allSelected ? true : count > 0 ? 'mixed' : false}
-                  accessibilityLabel={`${allSelected ? 'Deselect' : 'Select'} all ${total} ${totalWord} ${scope}`}
-                >
-                  <Checkbox checked={allSelected} mixed={!allSelected && count > 0} />
+              <Checkbox checked={allSelected} mixed={!allSelected && count > 0} />
+            </Pressable>
+            <View style={styles.counts}>
+              {countText}
+              {allSelected ? (
+                <Text style={styles.scope}>
+                  {narrowed ? `every song ${scope}` : `everything ${scope}`}
+                </Text>
+              ) : (
+                <Pressable onPress={onSelectAll} accessibilityRole="button">
+                  <Text style={[styles.scope, styles.scopeLink]}>
+                    Select all {total} {scope}
+                  </Text>
                 </Pressable>
-                <View style={styles.counts}>
-                  {countText}
-                  {allSelected ? (
-                    <Text style={styles.scope}>
-                      {narrowed ? `every song ${scope}` : `everything ${scope}`}
-                    </Text>
-                  ) : (
-                    <Pressable onPress={onSelectAll} accessibilityRole="button">
-                      <Text style={[styles.scope, styles.scopeLink]}>
-                        Select all {total} {scope}
-                      </Text>
-                    </Pressable>
-                  )}
-                </View>
-              </View>
-
-              <View style={styles.actions}>
-                <Button
-                  label="Play"
-                  icon={<Play size={13} color={theme.colors.textPrimary} />}
-                  onPress={() => player.playFrom(ids, 0)}
-                  disabled={count === 0}
-                />
-                <Button
-                  label="Queue"
-                  icon={<Queue size={13} color={theme.colors.textPrimary} />}
-                  onPress={() => player.addToQueue(ids)}
-                  disabled={count === 0}
-                />
-                {playlist ? (
-                  <Button
-                    label="Remove from playlist"
-                    icon={<X size={13} color={theme.colors.textPrimary} />}
-                    onPress={removeSelectedFromPlaylist}
-                    disabled={count === 0}
-                  />
-                ) : null}
-                <View ref={moreRef} collapsable={false}>
-                  <Button
-                    label="More"
-                    icon={<More size={13} color={theme.colors.textPrimary} />}
-                    onPress={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
-                    disabled={count === 0}
-                    testID="selection-more"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.doneWide}>{done}</View>
+              )}
             </View>
           </View>
-        </Animated.View>
-      </Animated.View>
-    </>
+
+          <View style={styles.actions}>
+            <Button
+              label="Play"
+              icon={<Play size={13} color={theme.colors.textPrimary} />}
+              onPress={() => player.playFrom(ids, 0)}
+              disabled={count === 0}
+            />
+            <Button
+              label="Queue"
+              icon={<Queue size={13} color={theme.colors.textPrimary} />}
+              onPress={() => player.addToQueue(ids)}
+              disabled={count === 0}
+            />
+            {playlist ? (
+              <Button
+                label="Remove from playlist"
+                icon={<X size={13} color={theme.colors.textPrimary} />}
+                onPress={removeSelectedFromPlaylist}
+                disabled={count === 0}
+              />
+            ) : null}
+            <View ref={moreRef} collapsable={false}>
+              <Button
+                label="More"
+                icon={<More size={13} color={theme.colors.textPrimary} />}
+                onPress={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
+                disabled={count === 0}
+                testID="selection-more"
+              />
+            </View>
+          </View>
+
+          <View style={styles.doneWide}>{done}</View>
+        </View>
+      </View>
+    </Animated.View>
+  )
+
+  const bar = wide ? (
+    inline ? (
+      // In the list: the room is under the head, and the lane is over it.
+      <Animated.View style={roomStyle}>{lane}</Animated.View>
+    ) : (
+      <>
+        {/* The room, which is all that moves the list: the bar itself is over it. */}
+        <Animated.View style={roomStyle} />
+        {lane}
+      </>
+    )
   ) : (
     <Animated.View
       style={[styles.float, styles.floatBottom, { bottom: chrome + space.sm }, rise]}
@@ -703,11 +693,15 @@ function summarise(songs: readonly Song[]): string {
 }
 
 const styles = StyleSheet.create(theme => ({
-  /* A computer's lane: above the list, so the list is shorter and nothing is covered. */
-  lane: { paddingHorizontal: space.lg, paddingTop: space.xs, paddingBottom: space.sm },
   /*
-   * Where the lane is drawn: over the head of the list area, while the room
-   * below it opens to exactly its height. Absolute so that the room's height is
+   * A computer's lane: above the list, so the list is shorter and nothing is
+   * covered. In from the sides as far as a song row is (`SongRow`'s `rowWide`),
+   * so the bar is exactly as wide as the songs under it.
+   */
+  lane: { paddingHorizontal: space.sm, paddingTop: space.xs, paddingBottom: space.sm },
+  /*
+   * Where the lane is drawn: over the head of the list area, or over its room
+   * in the list (`inline`), while the room opens to exactly its height. Absolute so that the room's height is
    * the only thing that moves the list, and so the lane can be measured at its
    * own size rather than at whatever the room has opened to so far. Above the
    * rows it is briefly over on the first selection of a session, before the
@@ -719,7 +713,7 @@ const styles = StyleSheet.create(theme => ({
    * under the lane: the page's own ground behind the bar, so they go beneath
    * it rather than showing round its corners.
    */
-  laneOverSongs: { backgroundColor: theme.colors.surface0 },
+  laneInList: { backgroundColor: theme.colors.surface0 },
   /* A phone's bar floats instead, over the foot of the list, where a thumb is. */
   float: {
     position: 'absolute',

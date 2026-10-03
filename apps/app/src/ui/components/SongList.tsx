@@ -1,18 +1,19 @@
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
 import {
   Animated,
   FlatList,
   View,
   type FlatListProps,
+  type LayoutChangeEvent,
   type StyleProp,
   type ViewStyle,
 } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
 import { useArrival } from '../motion'
-import { HeadLaneRoom, type HeadLane } from './headLane'
+import { PinnedHeaderScope, pinnedHeaderProps } from '../../ports/pinnedHeader'
 
 /** Module-level, so the list is not handed a new function on every render. */
 function keyOf(song: Song): string {
@@ -61,7 +62,7 @@ export function SongList({
   keyboardShouldPersistTaps,
   keyboardDismissMode = 'on-drag',
   CellRendererComponent,
-  headLane,
+  pinned,
   onRefresh,
   refreshing = false,
   arrivalKey,
@@ -89,12 +90,13 @@ export function SongList({
   /** Wraps each cell; a playlist lifts the row being moved with it. */
   CellRendererComponent?: FlatListProps<Song>['CellRendererComponent']
   /**
-   * The selection bar's lane, on a page whose `header` scrolls with the songs
-   * (`useHeadLane`): its room goes at the foot of the header, and the list
-   * tells it where it is scrolled to every frame (an `Animated.event`, so
-   * following it is no render).
+   * Drawn at the foot of `header`, and kept at the top of the list once the
+   * header has scrolled away, the way a table's header stays: a computer's
+   * selection bar on a page whose head scrolls with its songs. The platform
+   * keeps it there (`ports/pinnedHeader`), so it is never a frame behind the
+   * scroll, as a bar moved from JavaScript after each scroll event was.
    */
-  headLane?: HeadLane
+  pinned?: ReactElement | null
   /** Pulling the list down asks for it again (`usePullToRefresh`). */
   onRefresh?: () => void
   refreshing?: boolean
@@ -126,6 +128,11 @@ export function SongList({
     [arrivalKey, renderSong],
   )
 
+  // Where the header ends and `pinned` begins: how far the header scrolls before it stays.
+  const [stayAfter, setStayAfter] = useState(0)
+  const onHeaderLayout = (event: LayoutChangeEvent): void =>
+    setStayAfter(event.nativeEvent.layout.height)
+
   const getItemLayout = useMemo<FlatListProps<Song>['getItemLayout']>(
     () =>
       rowHeight !== null && rowHeight > 0
@@ -135,40 +142,49 @@ export function SongList({
   )
 
   return (
-    <FlatList
-      role="table"
-      aria-label={label}
-      data={songs}
-      keyExtractor={keyOf}
-      renderItem={renderItem}
-      getItemLayout={getItemLayout}
-      initialNumToRender={16}
-      windowSize={11}
-      removeClippedSubviews
-      keyboardDismissMode={keyboardDismissMode}
-      keyboardShouldPersistTaps={keyboardShouldPersistTaps}
-      scrollEnabled={scrollEnabled}
-      style={headLane ? [style, styles.anchorless] : style}
-      contentContainerStyle={contentContainerStyle}
-      // Room under the last song for a phone's floating tab bar and mini player.
-      ListFooterComponent={ChromeSpacer}
-      ListHeaderComponent={
-        headLane && header ? (
-          <View>
-            {header}
-            <HeadLaneRoom lane={headLane} />
-          </View>
-        ) : (
-          header
-        )
-      }
-      onRefresh={onRefresh}
-      refreshing={refreshing}
-      ListEmptyComponent={empty as ReactElement}
-      CellRendererComponent={CellRendererComponent}
-      onScroll={headLane?.onScroll}
-      scrollEventThrottle={headLane ? 16 : undefined}
-    />
+    <PinnedHeaderScope stayAfter={stayAfter}>
+      <FlatList
+        role="table"
+        aria-label={label}
+        data={songs}
+        keyExtractor={keyOf}
+        renderItem={renderItem}
+        getItemLayout={getItemLayout}
+        initialNumToRender={16}
+        windowSize={11}
+        removeClippedSubviews
+        keyboardDismissMode={keyboardDismissMode}
+        keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+        scrollEnabled={scrollEnabled}
+        style={pinned ? [style, styles.anchorless] : style}
+        contentContainerStyle={contentContainerStyle}
+        // Room under the last song for a phone's floating tab bar and mini player.
+        ListFooterComponent={ChromeSpacer}
+        ListHeaderComponent={
+          pinned ? (
+            <>
+              {/*
+                Keyed, so it is never the header's own view reused: a page that
+                draws an empty header while it loads would otherwise hand this
+                its view, and a browser measures only a view that had
+                `onLayout` when it first appeared.
+              */}
+              <View key="head" onLayout={onHeaderLayout}>
+                {header}
+              </View>
+              {pinned}
+            </>
+          ) : (
+            header
+          )
+        }
+        {...(pinned ? pinnedHeaderProps(stayAfter) : null)}
+        onRefresh={onRefresh}
+        refreshing={refreshing}
+        ListEmptyComponent={empty as ReactElement}
+        CellRendererComponent={CellRendererComponent}
+      />
+    </PinnedHeaderScope>
   )
 }
 
@@ -188,7 +204,8 @@ function Arriving({ index, children }: { index: number; children: ReactNode }): 
 }
 
 const styles = StyleSheet.create({
-  // The lane's room opening above what is on screen moves it down, as it
-  // should (`HeadLane`); a browser left to itself would scroll to keep it still.
+  // `pinned` opening above what is on screen moves it down, as it should, so
+  // the bar never lands on the song just ticked; a browser left to itself
+  // would scroll to keep what is on screen still under it.
   anchorless: { _web: { overflowAnchor: 'none' } },
 })

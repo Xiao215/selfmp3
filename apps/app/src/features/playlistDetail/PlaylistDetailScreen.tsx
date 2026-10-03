@@ -67,7 +67,6 @@ import { Popover } from '../../ui/components/Popover'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
-import { useHeadLane } from '../../ui/components/headLane'
 import { SheetItem } from '../../ui/components/Sheet'
 import { SongList } from '../../ui/components/SongList'
 import { SongMenu } from '../../ui/components/SongMenu'
@@ -180,8 +179,6 @@ export function PlaylistDetailScreen(): ReactNode {
   const light = useSongColor(lead, leadArt)
 
   const selection = useSelection(songIds)
-  // The head scrolls with the songs, so the bar opens at its foot.
-  const lane = useHeadLane()
   const selectedSongs = useMemo(
     () => songs.filter(song => selection.has(song.id)),
     [songs, selection],
@@ -615,33 +612,36 @@ export function PlaylistDetailScreen(): ReactNode {
     </View>
   )
 
+  /*
+   * The selection bar takes a lane above the songs, so it covers none of them:
+   * on a computer in the list, at the head's foot, staying at the top once the
+   * head has scrolled away, and on a phone floating at the foot. Left mounted
+   * while there is a playlist at all and told whether it belongs on screen,
+   * rather than drawn and cut: a bar cut away the moment Done is pressed has no
+   * chance to sink back, and it takes itself down once it has.
+   */
+  const bar = playlist ? (
+    <SelectionBar
+      shown={selection.active}
+      songs={selectedSongs}
+      total={songs.length}
+      scope="in this playlist"
+      allSelected={selection.allSelected}
+      onSelectAll={selection.selectAll}
+      onDeselectAll={selection.clear}
+      onDone={selection.clear}
+      // A live playlist has no membership to edit, so removing from it
+      // would be a lie.
+      playlist={manual ? { id: playlist.id, name: playlist.name } : undefined}
+      inline={wide}
+    />
+  ) : null
+
   return (
     <View style={styles.screen}>
       <View style={styles.split}>
-        {/*
-          The selection bar takes a lane above the songs, so it covers none of
-          them. Left mounted while there is a playlist at all and told whether
-          it belongs on screen, rather than drawn and cut: a bar cut away the
-          moment Done is pressed has no chance to sink back, and it takes
-          itself down once it has.
-        */}
         <View style={styles.listArea}>
-          {playlist ? (
-            <SelectionBar
-              shown={selection.active}
-              songs={selectedSongs}
-              total={songs.length}
-              scope="in this playlist"
-              allSelected={selection.allSelected}
-              onSelectAll={selection.selectAll}
-              onDeselectAll={selection.clear}
-              onDone={selection.clear}
-              // A live playlist has no membership to edit, so removing from it
-              // would be a lie.
-              playlist={manual ? { id: playlist.id, name: playlist.name } : undefined}
-              headLane={lane}
-            />
-          ) : null}
+          {wide ? null : bar}
 
           <LiftContext.Provider value={carry}>
             <SongList
@@ -649,7 +649,7 @@ export function PlaylistDetailScreen(): ReactNode {
               label={`${name} songs`}
               renderSong={renderSong}
               header={header}
-              headLane={lane}
+              pinned={wide ? bar : null}
               empty={empty}
               style={styles.scroll}
               contentContainerStyle={[

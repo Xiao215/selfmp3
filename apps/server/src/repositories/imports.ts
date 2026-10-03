@@ -321,6 +321,38 @@ export class ImportRepository {
   }
 
   /**
+   * Import next: a song waiting its turn goes to the front of the waiting
+   * line, so it is the next one taken once a download finishes — after the
+   * ones downloading now, which are not stopped for it. A paused song is
+   * queued again on the way. Everything else keeps its order: the rows from
+   * the front up to where the song was each move down one place, so the list
+   * reads as before with one song lifted out and put ahead of the rest. A
+   * song already ahead of every other waiting one stays where it is.
+   */
+  importNext(id: string): boolean {
+    const run = this.#db.transaction(() => {
+      const row = this.#byId.get(id)
+      if (!row || (row.status !== 'queued' && row.status !== 'cancelled')) return false
+      const front = this.#db
+        .prepare<[string], { position: number | null }>(
+          "SELECT MIN(position) AS position FROM import_jobs WHERE status = 'queued' AND id <> ?",
+        )
+        .get(id)?.position
+      if (front != null && front < row.position) {
+        this.#db
+          .prepare(
+            'UPDATE import_jobs SET position = position + 1 WHERE position >= ? AND position < ?',
+          )
+          .run(front, row.position)
+        this.#db.prepare('UPDATE import_jobs SET position = ? WHERE id = ?').run(front, id)
+      }
+      if (row.status === 'cancelled') this.retry(id)
+      return true
+    })
+    return run()
+  }
+
+  /**
    * Pause all: call off every job `cancel` would take, in one statement, and
    * name the ones it took so the downloads among them can be stopped. The
    * same line is drawn as for one job — a song past its download is added

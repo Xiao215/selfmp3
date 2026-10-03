@@ -9,6 +9,7 @@ import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeabl
 import type { ImportJob, ImportPacing, ImportRun, Tag } from '@selfmp3/shared'
 import {
   ApiError,
+  canImportNext,
   clockIn,
   dismissable,
   finishedLabel,
@@ -35,7 +36,7 @@ import { card, label as groupLabel, pageTitle } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
-import { Check, ChevronRight, More, Refresh, X } from '../../ui/components/Icons'
+import { Check, ChevronRight, More, Queue, Refresh, X } from '../../ui/components/Icons'
 import { Popover } from '../../ui/components/Popover'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SheetItem } from '../../ui/components/Sheet'
@@ -322,6 +323,9 @@ export function ImportScreen({
     onResume: () => act({ kind: 'resume', id: job.id }, () => api.retryImport(job.id)),
     onRetry: () => act({ kind: 'retry', id: job.id }, () => api.retryImport(job.id)),
     onDismiss: () => act({ kind: 'remove', id: job.id }, () => api.dismissImport(job.id)),
+    onNext: canImportNext(job, nextUp)
+      ? () => act({ kind: 'next', id: job.id }, () => api.importNext(job.id))
+      : null,
   })
   const jobs =
     queue && folded && controls && queue.jobs.length > 0 ? (
@@ -673,7 +677,8 @@ function FoldAction({
  * retry (`jobAction`). Taking it off the queue is quieter, since it is rarer
  * and not undone: a ⋯ that comes with the pointer on a computer, a swipe to
  * the left on a phone. Neither is offered once the song is adding itself to
- * the library, when nothing can stop it.
+ * the library, when nothing can stop it. "Import next" sits beside it, in
+ * the ⋯ or on the same swipe, for a song waiting behind others.
  */
 function JobRow({
   job,
@@ -683,6 +688,7 @@ function JobRow({
   onResume,
   onRetry,
   onDismiss,
+  onNext,
 }: {
   job: ImportJob
   tags: readonly Tag[]
@@ -692,6 +698,8 @@ function JobRow({
   onResume: () => void
   onRetry: () => void
   onDismiss: () => void
+  /** "Import next", while it would move the song (`canImportNext`). */
+  onNext: (() => void) | null
 }): ReactNode {
   const { wide, dense } = useLayout()
   const [hovered, setHovered] = useState(false)
@@ -775,8 +783,10 @@ function JobRow({
           open={menuOpen}
           onOpen={setMenuOpen}
           onRemove={onDismiss}
+          onNext={onNext}
           testID={`import-more-${job.id}`}
           removeTestID={`import-dismiss-${job.id}`}
+          nextTestID={`import-next-${job.id}`}
         />
       ) : null}
     </View>
@@ -784,15 +794,22 @@ function JobRow({
 
   if (wide || !removable) return row
   return (
-    <SwipeToRemove name={name} onRemove={onDismiss} testID={`import-dismiss-${job.id}`}>
+    <SwipeActions
+      name={name}
+      onRemove={onDismiss}
+      onNext={onNext}
+      testID={`import-dismiss-${job.id}`}
+      nextTestID={`import-next-${job.id}`}
+    >
       {row}
-    </SwipeToRemove>
+    </SwipeActions>
   )
 }
 
 /**
- * A computer's ⋯ on an import's row, and the menu it opens. Its place is kept
- * when there is nothing to offer, so the rings of every row line up.
+ * A computer's ⋯ on an import's row, and the menu it opens: Import next, for
+ * a song waiting behind others, and Remove from queue. Its place is kept when
+ * there is nothing to offer, so the rings of every row line up.
  */
 function RowMore({
   shown,
@@ -801,8 +818,10 @@ function RowMore({
   open,
   onOpen,
   onRemove,
+  onNext,
   testID,
   removeTestID,
+  nextTestID,
 }: {
   shown: boolean
   enabled: boolean
@@ -810,8 +829,10 @@ function RowMore({
   open: boolean
   onOpen: (open: boolean) => void
   onRemove: () => void
+  onNext: (() => void) | null
   testID: string
   removeTestID: string
+  nextTestID: string
 }): ReactNode {
   const { theme } = useUnistyles()
   const anchor = useRef<View>(null)
@@ -830,6 +851,18 @@ function RowMore({
         </IconButton>
       </View>
       <Popover open={open} onClose={() => onOpen(false)} anchorRef={anchor} width={220}>
+        {onNext ? (
+          <View testID={nextTestID}>
+            <SheetItem
+              label="Import next"
+              icon={<Queue size={15} tone="textPrimary" />}
+              onPress={() => {
+                onOpen(false)
+                onNext()
+              }}
+            />
+          </View>
+        ) : null}
         <View testID={removeTestID}>
           <SheetItem
             label="Remove from queue"
@@ -848,18 +881,26 @@ function RowMore({
 
 /**
  * A phone's way to take an import off the queue: swipe the row left and press
- * Remove behind it, as Mail and Messages do — or, with a screen reader, the
- * row's own Remove action, since a swipe is not one it can make.
+ * Remove behind it, as Mail and Messages do. A song waiting behind others has
+ * Next beside it ("Import next"), on the same swipe — the way Mail puts More
+ * and Flag beside Trash. Both on one side: a swipeable's hidden side only goes
+ * transparent, and on the web and Android it went on taking the presses meant
+ * for the other. With a screen reader each is the row's own action, since a
+ * swipe is not one it can make.
  */
-function SwipeToRemove({
+function SwipeActions({
   name,
   onRemove,
+  onNext,
   testID,
+  nextTestID,
   children,
 }: {
   name: string
   onRemove: () => void
+  onNext: (() => void) | null
   testID: string
+  nextTestID: string
   children: ReactNode
 }): ReactNode {
   return (
@@ -868,23 +909,51 @@ function SwipeToRemove({
       rightThreshold={40}
       overshootRight={false}
       renderRightActions={(_progress, _translation, swipeable) => (
-        <Pressable
-          onPress={() => {
-            swipeable.close()
-            onRemove()
-          }}
-          accessibilityRole="button"
-          accessibilityLabel={`Remove ${name} from the queue`}
-          style={({ pressed }) => [styles.swipeRemove, pressed && styles.pressed]}
-          testID={testID}
-        >
-          <Text style={styles.swipeRemoveText}>Remove</Text>
-        </Pressable>
+        <View style={styles.swipeActions}>
+          {onNext ? (
+            <Pressable
+              onPress={() => {
+                swipeable.close()
+                onNext()
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`Import ${name} next`}
+              style={({ pressed }) => [
+                styles.swipeAction,
+                styles.swipeNext,
+                pressed && styles.pressed,
+              ]}
+              testID={nextTestID}
+            >
+              <Text style={[styles.swipeActionText, styles.swipeNextText]}>Next</Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            onPress={() => {
+              swipeable.close()
+              onRemove()
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`Remove ${name} from the queue`}
+            style={({ pressed }) => [
+              styles.swipeAction,
+              styles.swipeRemove,
+              pressed && styles.pressed,
+            ]}
+            testID={testID}
+          >
+            <Text style={styles.swipeActionText}>Remove</Text>
+          </Pressable>
+        </View>
       )}
     >
       <View
-        accessibilityActions={[{ name: 'remove', label: 'Remove from queue' }]}
+        accessibilityActions={[
+          ...(onNext ? [{ name: 'next', label: 'Import next' }] : []),
+          { name: 'remove', label: 'Remove from queue' },
+        ]}
         onAccessibilityAction={event => {
+          if (event.nativeEvent.actionName === 'next') onNext?.()
           if (event.nativeEvent.actionName === 'remove') onRemove()
         }}
       >
@@ -1006,15 +1075,17 @@ const styles = StyleSheet.create(theme => ({
     marginHorizontal: -10,
     paddingHorizontal: 10,
   },
-  swipeRemove: {
-    width: 92,
+  swipeActions: { flexDirection: 'row', gap: 8, paddingLeft: 8 },
+  swipeAction: {
+    width: 84,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.colors.danger,
     borderRadius: radius.cover,
-    marginLeft: 8,
   },
-  swipeRemoveText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  swipeNext: { backgroundColor: theme.colors.accent },
+  swipeRemove: { backgroundColor: theme.colors.danger },
+  swipeActionText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  swipeNextText: { color: theme.colors.onAccent },
   run: { gap: 8, marginTop: 6, marginBottom: 6 },
   runLine: {
     flexDirection: 'row',

@@ -182,6 +182,17 @@ export class ImportQueueService {
     return retried
   }
 
+  /**
+   * Import next: the song goes to the front of the waiting line (a paused
+   * one is resumed there). Nothing downloading is stopped for it; it is
+   * simply the next one the loop takes.
+   */
+  importNext(jobId: string): boolean {
+    const moved = this.#imports.importNext(jobId)
+    if (moved) this.kick()
+    return moved
+  }
+
   /** Pause all: every download that can still be stopped is, and the queue behind it waits. */
   pause(): number {
     const cancelled = this.#imports.cancelAll()

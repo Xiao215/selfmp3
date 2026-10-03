@@ -198,4 +198,59 @@ describe('ImportRepository', () => {
       expect(imports.dismissFailed()).toBe(0)
     })
   })
+
+  describe('importNext', () => {
+    const titles = (): string[] => imports.recent().map(job => job.title)
+
+    it('puts a waiting song behind the downloads and ahead of every other waiting one', () => {
+      const ids = enqueue('Running', 'Also running', 'Second', 'Third', 'Picked', 'Last')
+      const picked = ids[4] ?? ''
+      imports.claimNext()
+      imports.claimNext()
+
+      expect(imports.importNext(picked)).toBe(true)
+      expect(titles()).toEqual(['Running', 'Also running', 'Picked', 'Second', 'Third', 'Last'])
+      expect(imports.claimNext()?.id).toBe(picked)
+      expect(imports.claimNext()?.title).toBe('Second')
+      expect(imports.claimNext()?.title).toBe('Third')
+      expect(imports.claimNext()?.title).toBe('Last')
+    })
+
+    it('resumes a paused song at the front, and leaves the paused row above it where it was', () => {
+      const [pausedFirst = '', , , paused = ''] = enqueue('Paused first', 'Running', 'Second', 'P')
+      imports.update(pausedFirst, { status: 'cancelled', step: 'finished' })
+      imports.claimNext()
+      imports.update(paused, { status: 'cancelled', step: 'finished' })
+
+      expect(imports.importNext(paused)).toBe(true)
+      expect(imports.byId(paused)).toMatchObject({ status: 'queued', step: 'waiting' })
+      expect(titles()).toEqual(['Paused first', 'Running', 'P', 'Second'])
+      expect(imports.claimNext()?.id).toBe(paused)
+    })
+
+    it('leaves a song already next in its place, and moves a lone paused one nowhere', () => {
+      const [first = '', second = ''] = enqueue('First', 'Second')
+      expect(imports.importNext(first)).toBe(true)
+      expect(titles()).toEqual(['First', 'Second'])
+
+      imports.claimNext()
+      imports.update(second, { status: 'cancelled', step: 'finished' })
+      expect(imports.importNext(second)).toBe(true)
+      expect(titles()).toEqual(['First', 'Second'])
+      expect(imports.claimNext()?.id).toBe(second)
+    })
+
+    it('refuses a song downloading, failed or done, and one that is gone', () => {
+      const [running = '', failed = '', done = ''] = enqueue('Running', 'Failed', 'Done', 'Waiting')
+      imports.claimNext()
+      imports.update(failed, { status: 'error', step: 'finished', error: 'Video unavailable' })
+      imports.update(done, { status: 'done', step: 'finished' })
+
+      expect(imports.importNext(running)).toBe(false)
+      expect(imports.importNext(failed)).toBe(false)
+      expect(imports.importNext(done)).toBe(false)
+      expect(imports.importNext('00000000-0000-4000-8000-000000000000')).toBe(false)
+      expect(titles()).toEqual(['Failed', 'Running', 'Waiting', 'Done'])
+    })
+  })
 })

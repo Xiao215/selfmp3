@@ -382,6 +382,17 @@ export function importRoutes(container: Container): Router {
     }),
   )
 
+  /** Import next: ahead of every other waiting song, behind the ones downloading now. */
+  router.post(
+    '/import/jobs/:id/next',
+    route({ params: ParamsWithJobId }, ({ params }) => {
+      if (!container.importQueue.importNext(params.id)) {
+        throw HttpError.conflict('only a waiting or paused song can be imported next')
+      }
+      return { ok: true as const }
+    }),
+  )
+
   /**
    * The whole queue at once. Pause all calls off everything that can still be
    * called off; Resume all queues everything that was paused again. What

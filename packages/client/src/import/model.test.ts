@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   canLookUp,
+  canImportNext,
   changeQueue,
   chooseSource,
   chosenItems,
@@ -330,6 +331,40 @@ describe('import queue', () => {
         'wait',
         'paused',
       ])
+    })
+
+    it('imports a song next as the server moves it: ahead of the other waiting ones', () => {
+      const longer = {
+        ...queue,
+        jobs: [...queue.jobs, full('later', {}), full('last', {})],
+      }
+      const ids = (q: { jobs: readonly ImportJob[] }): string[] => q.jobs.map(j => j.id)
+
+      expect(ids(changeQueue(longer, { kind: 'next', id: 'last' }))).toEqual([
+        'failed',
+        'upload',
+        'down',
+        'saving',
+        'last',
+        'wait',
+        'paused',
+        'later',
+      ])
+      // A paused song is queued on the way.
+      const paused = changeQueue(longer, { kind: 'next', id: 'paused' })
+      expect(states(paused).slice(4, 6)).toEqual(['paused:queued', 'wait:queued'])
+      expect(paused.queued).toBe(4)
+      // Already next, or not waiting at all: nothing moves.
+      expect(ids(changeQueue(longer, { kind: 'next', id: 'wait' }))).toEqual(ids(longer))
+      expect(changeQueue(longer, { kind: 'next', id: 'down' }).jobs).toEqual(longer.jobs)
+    })
+
+    it('offers Import next for a song behind others, or a paused one', () => {
+      expect(canImportNext({ id: 'wait', status: 'queued' }, 'first')).toBe(true)
+      expect(canImportNext({ id: 'first', status: 'queued' }, 'first')).toBe(false)
+      expect(canImportNext({ id: 'paused', status: 'cancelled' }, 'first')).toBe(true)
+      expect(canImportNext({ id: 'down', status: 'running' }, 'first')).toBe(false)
+      expect(canImportNext({ id: 'failed', status: 'error' }, null)).toBe(false)
     })
   })
 

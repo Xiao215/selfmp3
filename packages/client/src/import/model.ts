@@ -394,14 +394,25 @@ export function timeLeft(ms: number): string {
 }
 
 /**
+ * Whether a row offers "Import next": a song waiting behind another, or one
+ * that was paused (which it resumes at the front). `nextUp` is the song whose
+ * turn is next already, which has nowhere to go.
+ */
+export function canImportNext(
+  job: Pick<ImportJob, 'id' | 'status'>,
+  nextUp: string | null,
+): boolean {
+  return job.status === 'cancelled' || (job.status === 'queued' && job.id !== nextUp)
+}
+
+/**
  * What a press on the queue asks of the server, one job (`id`) or every job
  * it applies to. Without an id, `retry` and `remove` are Retry all and
- * Remove all beside what failed.
+ * Remove all beside what failed. `next` is one song's "Import next".
  */
-export type QueueChange = {
-  readonly kind: 'pause' | 'resume' | 'retry' | 'remove'
-  readonly id?: string
-}
+export type QueueChange =
+  | { readonly kind: 'pause' | 'resume' | 'retry' | 'remove'; readonly id?: string }
+  | { readonly kind: 'next'; readonly id: string }
 
 /**
  * The queue as it will be once the server has done what was asked: drawn at
@@ -450,6 +461,9 @@ export function changeQueue<
         change.id === undefined ? !failedJob(job) : !(job.id === change.id && dismissable(job)),
       )
       break
+    case 'next':
+      jobs = importNext(queue.jobs, change.id, waiting)
+      break
   }
   return {
     ...queue,
@@ -457,6 +471,27 @@ export function changeQueue<
     active: jobs.filter(job => job.status === 'running').length,
     queued: jobs.filter(job => job.status === 'queued').length,
   }
+}
+
+/**
+ * "Import next", as the server's `importNext` (repositories/imports.ts) moves
+ * it: the song lifted out and put just ahead of the first other waiting one,
+ * everything else in its order, and a paused song queued on the way. A song
+ * already ahead of every other waiting one stays in its place.
+ */
+function importNext(
+  jobs: readonly ImportJob[],
+  id: string,
+  waiting: (job: ImportJob) => ImportJob,
+): ImportJob[] {
+  const at = jobs.findIndex(job => job.id === id)
+  const target = jobs[at]
+  if (!target || (target.status !== 'queued' && target.status !== 'cancelled')) return [...jobs]
+  const moved = target.status === 'cancelled' ? waiting(target) : target
+  const front = jobs.findIndex(job => job.id !== id && job.status === 'queued')
+  if (front === -1 || at < front) return jobs.map(job => (job.id === id ? moved : job))
+  const rest = jobs.filter(job => job.id !== id)
+  return [...rest.slice(0, front), moved, ...rest.slice(front)]
 }
 
 /**

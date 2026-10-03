@@ -24,6 +24,7 @@ const mockRemoveFailed = jest.fn()
 const mockCancelImport = jest.fn()
 const mockRetryImport = jest.fn()
 const mockDismissImport = jest.fn()
+const mockImportNext = jest.fn()
 const mockInvalidateQueue = jest.fn()
 const mockEditQueue = jest.fn()
 const mockJobs: ImportJob[] = []
@@ -43,6 +44,7 @@ jest.mock('./importSource', () => {
       cancelImport: (id: string) => mockCancelImport(id),
       retryImport: (id: string) => mockRetryImport(id),
       dismissImport: (id: string) => mockDismissImport(id),
+      importNext: (id: string) => mockImportNext(id),
     },
     library: { songs: [], tags: [], playlists: [] },
     tools: { ytdlp: true, ffmpeg: true },
@@ -121,6 +123,7 @@ describe('Import, the whole queue at once', () => {
     mockCancelImport.mockReset().mockResolvedValue({ ok: true })
     mockRetryImport.mockReset().mockResolvedValue({ ok: true })
     mockDismissImport.mockReset().mockResolvedValue({ ok: true })
+    mockImportNext.mockReset().mockResolvedValue({ ok: true })
     mockInvalidateQueue.mockReset().mockResolvedValue(undefined)
     mockEditQueue.mockReset()
   })
@@ -290,6 +293,28 @@ describe('Import, the whole queue at once', () => {
     })
 
     expect(mockDismissImport).toHaveBeenCalledWith('one')
+    await waitFor(() => expect(mockInvalidateQueue).toHaveBeenCalledTimes(1))
+  })
+
+  it('imports a waiting or paused song next, and offers it to no song already next', async () => {
+    await act(async () =>
+      draw(
+        job('one', { status: 'running', step: 'downloading', progress: 40 }),
+        job('two', {}),
+        job('three', {}),
+        job('four', { status: 'cancelled', step: 'finished' }),
+      ),
+    )
+    expect(screen.queryByTestId('import-next-one')).toBeNull()
+    expect(screen.queryByTestId('import-next-two')).toBeNull()
+    expect(screen.getByTestId('import-next-four')).toBeTruthy()
+
+    await act(async () => {
+      await fireEvent.press(screen.getByTestId('import-next-three'))
+    })
+
+    expect(mockEditQueue).toHaveBeenCalledWith({ kind: 'next', id: 'three' })
+    expect(mockImportNext).toHaveBeenCalledWith('three')
     await waitFor(() => expect(mockInvalidateQueue).toHaveBeenCalledTimes(1))
   })
 

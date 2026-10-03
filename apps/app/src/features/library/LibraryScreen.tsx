@@ -41,6 +41,7 @@ import { closeTagSearch, openTagSearch, useTagSearchOpen } from './tagSearch.sto
 import { useSaveTagsAsPlaylist } from './saveTags'
 import { usePullToRefresh } from './usePullToRefresh'
 import { label, pageTitle } from '../../ui/surfaces'
+import { sortLabel } from '../../ui/components/listScrollbar.model'
 
 /**
  * The library, at every width.
@@ -71,6 +72,8 @@ export function LibraryScreen(): ReactNode {
   const model = useLibraryModel(downloads.index)
   const pull = usePullToRefresh()
   const { filter, songs, visible, songIds, songTags } = model
+  // The scrollbar's bubble names the part of the sort the list is at.
+  const scrollLabel = useMemo(() => sortLabel(filter.sort), [filter.sort])
 
   const [menuSong, setMenuSong] = useState<Song | null>(null)
   // The phone's order, chosen from a sheet.
@@ -633,6 +636,7 @@ export function LibraryScreen(): ReactNode {
             label={`${model.heading} songs`}
             renderSong={renderSong}
             rowHeight={rowHeight}
+            scrollLabel={scrollLabel}
             onRefresh={pull.onRefresh}
             refreshing={pull.refreshing}
             contentContainerStyle={[

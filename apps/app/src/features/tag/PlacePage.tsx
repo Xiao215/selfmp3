@@ -19,6 +19,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { ChevronLeft, More, Play, Shuffle, User } from '../../ui/components/Icons'
 import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
 import { SongList } from '../../ui/components/SongList'
+import { sortLabel } from '../../ui/components/listScrollbar.model'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { SongRow } from '../../ui/components/SongRow'
 import { useSongColor } from '../../ui/useSongColor'
@@ -354,6 +355,8 @@ function PlaceSongs({
   const anchor = useRef<View | null>(null)
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   const selection = useSelection(ids)
+  // Newest first, or an artist's albums one after another: the scrollbar's bubble says which.
+  const scrollLabel = useMemo(() => sortLabel(byAlbum ? 'album' : 'addedAt'), [byAlbum])
   const selectedSongs = useMemo(
     () => songs.filter(song => selection.has(song.id)),
     [songs, selection],
@@ -445,6 +448,7 @@ function PlaceSongs({
         renderSong={renderSong}
         header={head}
         pinned={wide ? bar : null}
+        scrollLabel={scrollLabel}
         // On a phone the bar floats over the foot of the list; the last song
         // can scroll out from under it.
         contentContainerStyle={

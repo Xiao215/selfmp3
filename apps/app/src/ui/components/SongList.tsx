@@ -1,5 +1,5 @@
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
 import {
   Animated,
@@ -14,6 +14,9 @@ import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
 import { useArrival } from '../motion'
 import { PinnedHeaderScope, pinnedHeaderProps } from '../../ports/pinnedHeader'
+import { useListScrollbar } from '../../ports/listScrollbar'
+import { useLayout } from '../../shell/useLayout'
+import { positionLabel, type ScrollLabel } from './listScrollbar.model'
 
 /** Module-level, so the list is not handed a new function on every render. */
 function keyOf(song: Song): string {
@@ -63,6 +66,7 @@ export function SongList({
   keyboardDismissMode = 'on-drag',
   CellRendererComponent,
   pinned,
+  scrollLabel = positionLabel,
   onRefresh,
   refreshing = false,
   arrivalKey,
@@ -97,6 +101,13 @@ export function SongList({
    * scroll, as a bar moved from JavaScript after each scroll event was.
    */
   pinned?: ReactElement | null
+  /**
+   * What the scrollbar's bubble says about the song at the top while its thumb
+   * is dragged, on a computer (`ports/listScrollbar`): the letter, the artist,
+   * the day, as the list is sorted. Left out, the song's place in the list.
+   * Keep it stable.
+   */
+  scrollLabel?: ScrollLabel
   /** Pulling the list down asks for it again (`usePullToRefresh`). */
   onRefresh?: () => void
   refreshing?: boolean
@@ -128,6 +139,17 @@ export function SongList({
     [arrivalKey, renderSong],
   )
 
+  // A computer's scrollbar over the list's right edge; a phone keeps its own.
+  const { wide } = useLayout()
+  const listRef = useRef<FlatList<Song>>(null)
+  const scrollbar = useListScrollbar({
+    list: listRef,
+    songs,
+    label: scrollLabel,
+    hasHeader: header != null,
+    enabled: wide,
+  })
+
   // Where the header ends and `pinned` begins: how far the header scrolls before it stays.
   const [stayAfter, setStayAfter] = useState(0)
   const onHeaderLayout = (event: LayoutChangeEvent): void =>
@@ -142,49 +164,54 @@ export function SongList({
   )
 
   return (
-    <PinnedHeaderScope stayAfter={stayAfter}>
-      <FlatList
-        role="table"
-        aria-label={label}
-        data={songs}
-        keyExtractor={keyOf}
-        renderItem={renderItem}
-        getItemLayout={getItemLayout}
-        initialNumToRender={16}
-        windowSize={11}
-        removeClippedSubviews
-        keyboardDismissMode={keyboardDismissMode}
-        keyboardShouldPersistTaps={keyboardShouldPersistTaps}
-        scrollEnabled={scrollEnabled}
-        style={pinned ? [style, styles.anchorless] : style}
-        contentContainerStyle={contentContainerStyle}
-        // Room under the last song for a phone's floating tab bar and mini player.
-        ListFooterComponent={ChromeSpacer}
-        ListHeaderComponent={
-          pinned ? (
-            <>
-              {/*
+    <>
+      <PinnedHeaderScope stayAfter={stayAfter}>
+        <FlatList
+          ref={listRef}
+          onLayout={scrollbar.onLayout}
+          role="table"
+          aria-label={label}
+          data={songs}
+          keyExtractor={keyOf}
+          renderItem={renderItem}
+          getItemLayout={getItemLayout}
+          initialNumToRender={16}
+          windowSize={11}
+          removeClippedSubviews
+          keyboardDismissMode={keyboardDismissMode}
+          keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+          scrollEnabled={scrollEnabled}
+          style={pinned ? [style, styles.anchorless] : style}
+          contentContainerStyle={contentContainerStyle}
+          // Room under the last song for a phone's floating tab bar and mini player.
+          ListFooterComponent={ChromeSpacer}
+          ListHeaderComponent={
+            pinned ? (
+              <>
+                {/*
                 Keyed, so it is never the header's own view reused: a page that
                 draws an empty header while it loads would otherwise hand this
                 its view, and a browser measures only a view that had
                 `onLayout` when it first appeared.
               */}
-              <View key="head" onLayout={onHeaderLayout}>
-                {header}
-              </View>
-              {pinned}
-            </>
-          ) : (
-            header
-          )
-        }
-        {...(pinned ? pinnedHeaderProps(stayAfter) : null)}
-        onRefresh={onRefresh}
-        refreshing={refreshing}
-        ListEmptyComponent={empty as ReactElement}
-        CellRendererComponent={CellRendererComponent}
-      />
-    </PinnedHeaderScope>
+                <View key="head" onLayout={onHeaderLayout}>
+                  {header}
+                </View>
+                {pinned}
+              </>
+            ) : (
+              header
+            )
+          }
+          {...(pinned ? pinnedHeaderProps(stayAfter) : null)}
+          onRefresh={onRefresh}
+          refreshing={refreshing}
+          ListEmptyComponent={empty as ReactElement}
+          CellRendererComponent={CellRendererComponent}
+        />
+      </PinnedHeaderScope>
+      {scrollbar.overlay}
+    </>
   )
 }
 

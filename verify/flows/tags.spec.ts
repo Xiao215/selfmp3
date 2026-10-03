@@ -7,7 +7,7 @@ import { escaped, libraryReady, openLibrary, skipIfNoLibrary, songRows } from '.
  * Tags as places (docs/UI-MIGRATION.md, Phase 4; docs/ui-mock `P07`).
  *
  * A tag is somewhere to go, not a filter the app switches on for you: All
- * tags lists every one, most played first, and a row opens the tag's own page
+ * tags lists every one, most played first, and a tile opens the tag's own page
  * at `/tag/<name>`. While songs have no tag the page leads with a card for
  * them. Nothing is edited here; making and renaming tags is the navigation
  * flow's and the mutations flow's.
@@ -76,9 +76,10 @@ test.describe('tags as places', () => {
       )
     }
     // The page's own filter and its way across to the library's picker are
-    // gone: holding a row is where the housekeeping went.
+    // gone. With a pointer the housekeeping is a tile's ⋯ and right-click, so
+    // the footnote about holding (a finger's only way in) is not shown.
     await expect(page.getByTestId('tags-pick-to-listen')).toHaveCount(0)
-    await expect(page.getByText('Hold a tag to rename, recolour or delete it.')).toBeVisible()
+    await expect(page.getByText('Hold a tag to rename, recolour or delete it.')).toHaveCount(0)
   })
 
   test('a row opens the tag’s own page, not a filtered library', async ({ page }) => {
@@ -93,7 +94,9 @@ test.describe('tags as places', () => {
     expect(decodeURIComponent(new URL(page.url()).pathname)).toBe(`/tag/${first.name}`)
   })
 
-  test('the untagged card is there exactly while some songs have no tag', async ({ page }) => {
+  test('the untagged card is there exactly while some songs have no tag', async ({
+    page,
+  }, info) => {
     await openAllTags(page)
     const { songs } = await libraryData(page)
     const untagged = songs.filter(song => !song.missing && song.tagIds.length === 0).length
@@ -107,7 +110,13 @@ test.describe('tags as places', () => {
     await expect(card).toContainText(
       `${untagged} ${untagged === 1 ? 'song has' : 'songs have'} no tag yet`,
     )
-    await expect(card).toContainText('Tag them one at a time, while they play')
+    // A computer's card names who the songs are by and has a button that tags
+    // them while they play; a phone's whole card is that button.
+    if (info.project.name === 'desktop') {
+      await expect(card.getByTestId('tags-untagged-start')).toHaveText('Tag while they play')
+    } else {
+      await expect(card).toHaveAccessibleName(/Tag them one at a time, while they play$/)
+    }
   })
 })
 

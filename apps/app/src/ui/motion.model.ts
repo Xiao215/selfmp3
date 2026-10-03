@@ -40,6 +40,8 @@ export const MOVE_MS = {
   /** A row's controls under a pointer, in and out (`M3`, 3). */
   hoverIn: 100,
   hoverOut: 140,
+  /** A tag's record sliding a little further out of its sleeve under the pointer, and back. */
+  record: 420,
   /** A computer's page settling in, and the sidebar's highlight (`M3`, 5). */
   page: 180,
   /** The player bar rising from the foot on a computer, once (`M3`, 1), and sinking when there is nothing to play. */

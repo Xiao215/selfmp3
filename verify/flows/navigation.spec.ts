@@ -107,11 +107,12 @@ test.describe('navigation', () => {
   })
 
   /**
-   * All tags keeps the housekeeping the page used to be, behind a hold: the
-   * new-tag card from the + in its header, and the editor on a held row. The
-   * way across to the library's picker is gone; a row opens the tag's page.
+   * All tags keeps the housekeeping the page used to be: the new-tag card
+   * from the + in its header, and the editor on a tile that is held,
+   * right-clicked, or opened from its ⋯. The way across to the library's
+   * picker is gone; a tile opens the tag's page.
    */
-  test('All tags makes a tag from its +, and edits one held', async ({ page }) => {
+  test('All tags makes a tag from its +, and edits one held or right-clicked', async ({ page }) => {
     await page.goto('/tags')
     await expect(page.getByRole('heading', { name: 'Tags', exact: true })).toBeVisible({
       timeout: 30_000,
@@ -131,6 +132,20 @@ test.describe('navigation', () => {
       await page.mouse.down()
       await page.waitForTimeout(700)
       await page.mouse.up()
+      await expect(page.getByTestId('tag-editor')).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(page.getByTestId('tag-editor')).toBeHidden()
+
+      await row.click({ button: 'right' })
+      await expect(page.getByTestId('tag-editor')).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(page.getByTestId('tag-editor')).toBeHidden()
+
+      // The ⋯ waits for the pointer. The editor covered the tile, so the
+      // pointer has to arrive afresh for the tile to know it is there.
+      await page.mouse.move(0, 0)
+      await row.hover()
+      await page.getByTestId('tags-more-0').click()
       await expect(page.getByTestId('tag-editor')).toBeVisible()
       await page.keyboard.press('Escape')
     }

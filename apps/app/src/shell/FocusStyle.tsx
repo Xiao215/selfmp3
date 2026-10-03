@@ -8,3 +8,8 @@ import type { ReactNode } from 'react'
 export function FocusStyle(): ReactNode {
   return null
 }
+
+/** A phone has no Tab key to move focus with. */
+export function tabbing(): boolean {
+  return false
+}

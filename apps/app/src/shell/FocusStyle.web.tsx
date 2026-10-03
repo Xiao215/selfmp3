@@ -41,6 +41,15 @@ ${TEXT_FIELD}:focus, textarea:focus { border-color: ${accent} !important; }
 `
 }
 
+/**
+ * Whether focus is being moved with Tab right now, for what shows itself on
+ * keyboard focus but not on the focus a click leaves behind: a tag tile's
+ * record comes out under Tab, and stays put after a right-click.
+ */
+export function tabbing(): boolean {
+  return document.documentElement.hasAttribute(TABBING)
+}
+
 export function FocusStyle(): ReactNode {
   const { accent } = useAccent()
 

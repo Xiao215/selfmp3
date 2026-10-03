@@ -7,6 +7,7 @@ import {
   albumsOf,
   artistNamed,
   artistSummary,
+  currentPlaces,
   existingTag,
   placeSongs,
   placeSummary,
@@ -72,6 +73,22 @@ describe('a place’s songs', () => {
     const b: Place = { kind: 'artist', artist: yorushika }
     expect(togglePlace(togglePlace([], a), b)).toEqual([a, b])
     expect(togglePlace([a, b], a)).toEqual([b])
+  })
+
+  it('follows a tag renamed or recoloured while its page is open, and drops a deleted one', () => {
+    const night: Place = { kind: 'tag', tag: tag(1, '纯音乐') }
+    const rain: Place = { kind: 'tag', tag: tag(2, 'rain') }
+    const singer: Place = { kind: 'artist', artist: yorushika }
+    const renamed = { ...tag(1, '原神纯音乐'), hue: 200 }
+    expect(currentPlaces([night, singer, rain], [renamed])).toEqual([
+      { kind: 'tag', tag: renamed },
+      singer,
+    ])
+  })
+
+  it('keeps the same places when nothing changed', () => {
+    const night: Place = { kind: 'tag', tag: tag(1, 'night') }
+    expect(currentPlaces([night], [night.tag])[0]).toBe(night)
   })
 })
 

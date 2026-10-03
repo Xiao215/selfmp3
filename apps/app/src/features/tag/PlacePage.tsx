@@ -34,6 +34,7 @@ import { useArtistPicture } from './useArtistPicture'
 import {
   albumsOf,
   artistSummary,
+  currentPlaces,
   placeKey,
   placeName,
   placeSongs,
@@ -77,7 +78,13 @@ export function PlacePage({
   const player = usePlayer()
   const artFor = useArt()
   const { data: library } = useLibrary()
-  const [chosen, setChosen] = useState<readonly Place[]>([place])
+  const [picked, setPicked] = useState<readonly Place[]>([place])
+  // What was picked, read against the library now: a tag renamed or
+  // recoloured from the ⋯ or the sidebar shows its new name at once.
+  const chosen = useMemo(
+    () => (library ? currentPlaces(picked, library.tags) : picked),
+    [picked, library],
+  )
   const [adding, setAdding] = useState(false)
   const moreRef = useRef<View>(null)
   const saved = useSaveTagsAsPlaylist()
@@ -205,7 +212,7 @@ export function PlacePage({
           {artistAlone ? null : (
             <Chips
               chosen={chosen}
-              onRemove={entry => setChosen(current => togglePlace(current, entry))}
+              onRemove={entry => setPicked(current => togglePlace(current, entry))}
               onAdd={() => setAdding(true)}
             />
           )}
@@ -274,7 +281,7 @@ export function PlacePage({
         onClose={() => setAdding(false)}
         onShow={places => {
           setAdding(false)
-          if (places.length > 0) setChosen(places)
+          if (places.length > 0) setPicked(places)
         }}
       />
     </View>

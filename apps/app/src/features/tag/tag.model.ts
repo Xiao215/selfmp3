@@ -212,6 +212,21 @@ export function togglePlace(chosen: readonly Place[], place: Place): readonly Pl
     : [...chosen, place]
 }
 
+/**
+ * The chosen places as the library has them now. A page keeps the places it
+ * was opened on, so a tag renamed or recoloured while its page is open shows
+ * its new name and colour, and one deleted drops out.
+ */
+export function currentPlaces(chosen: readonly Place[], tags: readonly Tag[]): readonly Place[] {
+  const byId = new Map(tags.map(tag => [tag.id, tag]))
+  return chosen.flatMap((place): Place[] => {
+    if (place.kind === 'artist') return [place]
+    const tag = byId.get(place.tag.id)
+    if (!tag) return []
+    return [tag === place.tag ? place : { kind: 'tag', tag }]
+  })
+}
+
 interface AlbumGroup {
   readonly album: string
   readonly year: number | null

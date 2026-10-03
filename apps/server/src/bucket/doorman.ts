@@ -98,8 +98,11 @@ export class DoormanClient {
         body,
         signal: options.signal,
       })
-    } catch {
-      throw new CloudError('network', `Could not reach the doorman at ${hostOf(this.url)}.`)
+    } catch (error) {
+      throw new CloudError(
+        'network',
+        `Could not reach the doorman at ${hostOf(this.url)} (${whyFetchFailed(error)}).`,
+      )
     }
 
     if (
@@ -245,6 +248,16 @@ class DoormanCloudStore implements CloudStore {
 /** Each part of the key encoded on its own, so the slashes stay slashes. */
 function filePath(key: string): string {
   return `/v1/files/${key.split('/').map(encodeURIComponent).join('/')}`
+}
+
+/**
+ * fetch's own word is "fetch failed"; why is one level down. A doorman that
+ * answered everyone else once looked unreachable because nothing said "The
+ * session has been destroyed" (http/outgoing.ts).
+ */
+function whyFetchFailed(error: unknown): string {
+  const reason = error instanceof Error && error.cause instanceof Error ? error.cause : error
+  return reason instanceof Error ? reason.message : String(reason)
 }
 
 function hostOf(url: string): string {

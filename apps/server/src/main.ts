@@ -1,5 +1,6 @@
 import { APP_NAME, APP_VERSION, loadConfig } from './config.js'
 import { createContainer, type Container } from './container.js'
+import { speakHttp1 } from './http/outgoing.js'
 import { beyondThisComputer, listenAddresses, publishedAddresses } from './services/addresses.js'
 import { romanizeLibrary } from './services/romanizedLines.js'
 import { createApp } from './app.js'
@@ -14,6 +15,7 @@ import { createApp } from './app.js'
  */
 
 function main(): void {
+  speakHttp1()
   const configured = loadConfig()
   // Whether the token was chosen by hand, which only this line can still tell:
   // the container settles the rest against the database, so its config is the

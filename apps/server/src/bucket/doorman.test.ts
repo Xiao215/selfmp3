@@ -112,6 +112,17 @@ describe('DoormanClient', () => {
     await expect(offline.me('t')).rejects.toMatchObject({ kind: 'network' })
   })
 
+  it('says why the doorman could not be reached, which fetch keeps one level down', async () => {
+    const stuck = new DoormanClient('https://doorman.test', () =>
+      Promise.reject(
+        new TypeError('fetch failed', { cause: new Error('The session has been destroyed') }),
+      ),
+    )
+    await expect(stuck.me('t')).rejects.toThrow(
+      'Could not reach the doorman at doorman.test (The session has been destroyed).',
+    )
+  })
+
   it('quotes an answer that is not the doorman’s, since the status alone says nothing', async () => {
     // Cloudflare's own page, for a Worker past its day's quota: the doorman's code never ran.
     const page =

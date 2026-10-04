@@ -28,6 +28,7 @@ import { playbackService } from '../src/player/service'
 import { ConnectionProvider, useConnection } from '../src/connection/ConnectionProvider'
 import { Shell as Frame } from '../src/shell/Shell'
 import { addressOf, swipeBackAllowed } from '../src/shell/backGesture'
+import { fromTile } from '../src/features/tag/placeLinks'
 import { nowPlayingAnimation, stackAnimation } from '../src/shell/pageStep'
 import { useMotionReduced } from '../src/ui/motion'
 import { afterWelcome } from '../src/features/welcome/firstSync.model'
@@ -254,7 +255,7 @@ function Shell(): ReactNode {
   const ready = status === 'ready'
   const screenOptions = useMemo(
     () =>
-      ({ route }: { route: { name: string } }) => ({
+      ({ route }: { route: { name: string; params?: object } }) => ({
         headerShown: false,
         contentStyle: {
           backgroundColor: surface,
@@ -265,9 +266,10 @@ function Shell(): ReactNode {
           paddingLeft:
             wide && ready && !pageOwnsScreen(addressOf(route.name), wide) ? SIDEBAR_WIDTH : 0,
         },
-        // The shell steps a tab's page in; the stack crossfades the pages a
-        // phone pushes (`src/shell/pageStep.ts`).
-        ...stackAnimation(route.name, wide, reduced),
+        // The shell steps a tab's page in; the stack slides in the pages a
+        // phone pushes, and fades a place in from its Home tile
+        // (`src/shell/pageStep.ts`).
+        ...stackAnimation(route.name, wide, reduced, fromTile(route.params)),
         // Per screen, because the tab bar navigates inside this one stack:
         // without it iOS popped back to the tab underneath on a swipe.
         // `src/shell/backGesture.ts` has the rule and the reason.

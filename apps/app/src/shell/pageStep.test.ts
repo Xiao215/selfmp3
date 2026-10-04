@@ -50,12 +50,18 @@ describe("the native stack's own move", () => {
     expect(stackAnimation('playlists/index', false)).toEqual({ animation: 'none' })
   })
 
-  it('is a crossfade for a page pushed on a phone, longer for a place', () => {
-    expect(stackAnimation('settings', false)).toEqual({ animation: 'fade' })
-    expect(stackAnimation('tag/[name]', false)).toEqual({
+  it("is iOS's own slide for a page pushed on a phone", () => {
+    expect(stackAnimation('settings', false)).toEqual({ animation: 'default' })
+    expect(stackAnimation('tag/[name]', false)).toEqual({ animation: 'default' })
+  })
+
+  it('is a crossfade for a place opened from its Home tile, which grows out of it', () => {
+    expect(stackAnimation('tag/[name]', false, false, true)).toEqual({
       animation: 'fade',
       animationDuration: 340,
     })
+    // Only a place has a tile to come from.
+    expect(stackAnimation('settings', false, false, true)).toEqual({ animation: 'default' })
   })
 
   it('is none on a computer, where the step is the whole page change', () => {

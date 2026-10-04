@@ -49,10 +49,14 @@ const PLACE_ROUTES = ['tag/[name]', 'artist/[name]', 'combined']
 
 /**
  * The native stack's own move for a screen, beside `PageStep`'s. A phone's
- * tab pages play none, because the step is theirs; every other page a phone
- * pushes crossfades, a place page over 340 ms. A computer's pages all play
- * none: the step is the whole of its page change. A browser's stack has no
- * moves at all, so there only the step plays. With less motion asked for,
+ * tab pages play none, because the step is theirs. Every other page a phone
+ * pushes slides in from the right and back out to it — iOS's own push, the
+ * one the swipe back drags — except a place opened from its Home tile, which
+ * crossfades over 340 ms while its head grows out of the tile and, going
+ * back, shrinks into it (`PlacePage`; Xiao chose A and D, 2026-10-04: a
+ * crossfade said nothing about which way you went). A computer's pages all
+ * play none: the step is the whole of its page change. A browser's stack has
+ * no moves at all, so there only the step plays. With less motion asked for,
  * none at all: the navigator's moves are outside `ui/motion.ts`, so they are
  * answered here.
  */
@@ -60,13 +64,14 @@ export function stackAnimation(
   routeName: string,
   wide: boolean,
   reduced = false,
-): { animation: 'none' | 'fade'; animationDuration?: number } {
+  fromTile = false,
+): { animation: 'none' | 'fade' | 'default'; animationDuration?: number } {
   const address = addressOf(routeName)
   if (reduced || wide || pageKey(address, false) === address) return { animation: 'none' }
-  if (PLACE_ROUTES.includes(routeName)) {
+  if (fromTile && PLACE_ROUTES.includes(routeName)) {
     return { animation: 'fade', animationDuration: MOVE_MS.place }
   }
-  return { animation: 'fade' }
+  return { animation: 'default' }
 }
 
 /**

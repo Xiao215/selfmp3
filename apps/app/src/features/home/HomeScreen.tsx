@@ -26,7 +26,7 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { session, useArrival, usePressScale } from '../../ui/motion'
 import { handOffPlace } from '../../ui/coverHandoff'
 import { artShadow, card, sectionTitle, serif } from '../../ui/surfaces'
-import { tagLink } from '../tag/placeLinks'
+import { tagFromTileLink } from '../tag/placeLinks'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import {
   describeSource,
@@ -347,7 +347,7 @@ function Tiles({ tiles, loading }: { tiles: readonly HomeTile[]; loading: boolea
       columns={columns}
       small={small}
       artFor={tile => (tile.cover ? art(tile.cover) : null)}
-      onOpen={tile => router.navigate(tagLink(tile.tag.name))}
+      onOpen={tile => router.navigate(tagFromTileLink(tile.tag.name))}
     />
   )
 }

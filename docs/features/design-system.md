@@ -259,8 +259,11 @@ is a mistake. The rules, and what moves (docs/ui-mock `M1`–`M3`):
 - A phone's tab pill springs to the new tab while its ink turns, and the page steps in 8
   points from that side, 200 ms; a computer's sidebar highlight springs and the page settles
   from 6 points below, 180 ms (`shell/pageStep.ts`, `ui/components/SlidingHighlight.tsx`).
-  The phone's stack crossfades the pages it pushes; a tag's or an artist's page does so over
-  340 ms while its head grows from the tile that was tapped (`ui/coverHandoff.ts`).
+  The phone's stack pushes pages with iOS's own slide, the one the swipe back drags. A tag
+  opened from its Home tile crossfades over 340 ms instead while its head grows out of the
+  tile (`ui/coverHandoff.ts`), and Back shrinks the head into the tile as the page fades
+  (Xiao, 2026-10-04). The grow starts with the navigator's `transitionStart`; a page going
+  away is told nothing, so the shrink starts with the press.
 - Now Playing rises from the foot on the spring on a phone and in a browser, its cover
   travelling from where the mini player's or the bar's was (`ui/coverHandoff.ts`), and sinks
   back before the route changes; an iPad's stack slides it, 380 ms. The cover shrinks to

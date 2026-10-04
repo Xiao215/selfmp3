@@ -3,7 +3,8 @@ import type { ReactElement, ReactNode } from 'react'
 import { Animated, Text, View } from 'react-native'
 import type { GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useRouter } from 'expo-router'
+import { useNavigation, useRouter } from 'expo-router'
+import type { NativeStackNavigationProp } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
 import { fonts, isDownloaded, radius, tagColors, type, useLibrary } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
@@ -138,11 +139,6 @@ export function PlacePage({
     const link = combinedLink(together)
     router.push({ pathname: '/combined', params: { ...link.params } })
   }
-  const back = (): void => {
-    if (router.canGoBack()) router.back()
-    else router.replace('/')
-  }
-
   // The board has the tapped tile stretching into this head (docs/ui-mock
   // `M2`, 2). Without shared elements the head grows into place from where
   // the tile was: the tile hands its frame over as it is tapped
@@ -158,8 +154,15 @@ export function PlacePage({
     dy: new Animated.Value(0),
     grow: new Animated.Value(0),
   }))
+  // Going back to the tile, once Back has been pressed (Xiao chose D, 2026-10-04).
+  const [home] = useState(() => new Animated.Value(0))
   const [grow] = useState(() => {
-    const left = entrance.interpolate({ inputRange: [0, 1], outputRange: [1, 0] })
+    // How far from its place the hero is, 0 to 1: still growing out of the
+    // tile, or on its way back into it.
+    const left = Animated.add(
+      entrance.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+      home,
+    ).interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' })
     return {
       opacity: entrance,
       transform: [
@@ -171,21 +174,90 @@ export function PlacePage({
   })
   const heroRef = useRef<View>(null)
   const heroPlaced = useRef(false)
+  /** The hero's way between the tile and where it is laid out now. */
+  const aimAtTile = (
+    tile: NonNullable<typeof handed>,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ): void => {
+    start.dx.setValue(tile.x + tile.width / 2 - (x + width / 2))
+    start.dy.setValue(tile.y + tile.height / 2 - (y + height / 2))
+    start.grow.setValue(tile.width / width - 1)
+  }
+  /*
+   * The grow waits for the navigator's crossfade to start as well as for the
+   * hero to be measured. Sent at layout, it had all but landed before the
+   * native side began the fade, so the page arrived with the head already in
+   * place and the tile seemed not to grow at all.
+   */
+  const navigation = useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>()
+  const growReady = useRef({ measured: false, fading: false })
+  const growWhenReady = (): void => {
+    const ready = growReady.current
+    if (ready.measured && ready.fading) spring(entrance, 1)
+  }
+  useEffect(() => {
+    if (!handed) return undefined
+    const letGo = (): void => {
+      growReady.current.fading = true
+      growWhenReady()
+    }
+    const off = navigation.addListener('transitionStart', event => {
+      if (!event.data.closing) letGo()
+    })
+    // A stack with no moves — a browser's — says nothing; nor does one asked
+    // for less motion, where the spring lands at once anyway.
+    const late = setTimeout(letGo, 400)
+    return () => {
+      off()
+      clearTimeout(late)
+    }
+    // Once, for the page's arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const placeHero = (): void => {
     if (!handed || heroPlaced.current) return
     heroPlaced.current = true
     const node = heroRef.current
     if (!node) {
-      spring(entrance, 1)
+      growReady.current.measured = true
+      growWhenReady()
       return
     }
     node.measureInWindow((x, y, width, height) => {
-      if (width > 0) {
-        start.dx.setValue(handed.x + handed.width / 2 - (x + width / 2))
-        start.dy.setValue(handed.y + handed.height / 2 - (y + height / 2))
-        start.grow.setValue(handed.width / width - 1)
+      if (width > 0) aimAtTile(handed, x, y, width, height)
+      growReady.current.measured = true
+      growWhenReady()
+    })
+  }
+
+  /*
+   * Back, on a phone, from a place that grew out of its Home tile: the
+   * opening in reverse (Xiao chose D, 2026-10-04). The hero is aimed at the
+   * tile from where it sits now — the page may have scrolled — and sets off
+   * with the press: the navigator tells a page that is going nothing about
+   * when its fade starts. The swipe back is left to the navigator: a hand
+   * dragging the page can still change its mind.
+   */
+  const back = (): void => {
+    if (!router.canGoBack()) {
+      router.replace('/')
+      return
+    }
+    const node = heroRef.current
+    if (!handed || wide || !node) {
+      router.back()
+      return
+    }
+    node.measureInWindow((x, y, width, height) => {
+      // Scrolled out of sight, it has nothing to carry back.
+      if (width > 0 && y + height > 0) {
+        aimAtTile(handed, x, y, width, height)
+        spring(home, 1)
       }
-      spring(entrance, 1)
+      router.back()
     })
   }
 

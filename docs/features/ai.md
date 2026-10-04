@@ -292,3 +292,13 @@ cloud replica alike), so it syncs and undoes like an edit made by hand.
 
 Without a model the rules still answer, with a note saying what was left out. On the real
 library (1,342 songs) a pass takes about 7 s and finds about 40 changes.
+
+## A9 · Clean names on import (rules)
+
+The two Tidy up rules that describe how mess arrives are applied where an import row is made
+(`toProbedTrack` for YouTube, the 网易云 listing): each name once in a credit, and the
+original title without the English a channel writes after it. They live in
+`packages/shared/src/titles.ts` beside the video-title tidying, so import and Tidy up can
+never disagree about what a clean name is. The row is still shown in import review, where
+it can be edited before anything downloads.
+

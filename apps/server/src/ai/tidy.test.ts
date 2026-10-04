@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { scriptedLlm, song } from './fixtures/library.js'
 import { LlmError } from './llm.js'
+import { withoutRepeats, withoutTranslation } from '@selfmp3/shared'
 import {
   couldBeOneName,
   namesPrompt,
   tidy,
   withoutArtistPrefix,
-  withoutRepeats,
-  withoutTranslation,
   withoutVideoWords,
 } from './tidy.js'
 

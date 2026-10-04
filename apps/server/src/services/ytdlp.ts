@@ -1,7 +1,14 @@
 import { spawn } from 'node:child_process'
 import fsp from 'node:fs/promises'
 import { constants as fsConstants } from 'node:fs'
-import { cleanArtist, isNeteaseUrl, tidyVideoTitle, type ToolStatus } from '@selfmp3/shared'
+import {
+  cleanArtist,
+  isNeteaseUrl,
+  tidyVideoTitle,
+  withoutRepeats,
+  withoutTranslation,
+  type ToolStatus,
+} from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import { cookieArgs, explainCookieError, type YtCookieSettings } from './ytCookies.js'
 import {
@@ -284,10 +291,14 @@ export function toProbedTrack(json: YtDlpJson, fallbackUrl: string): ProbedTrack
   const channel = cleanArtist(credited ?? json.uploader ?? json.channel ?? '')
   const tidied = json.track ? null : tidyVideoTitle(json.title ?? '', channel)
 
+  // Named the way the library keeps names (A9, docs/features/ai.md): each
+  // name once in a credit — YouTube Music lists 薛之谦 three times on a song
+  // he sings three parts of — and the original name without the English a
+  // channel writes after it ("オリオン - Orion").
   return {
     url,
-    title: (json.track ?? tidied?.title ?? '').trim(),
-    artist: credited ? channel : (tidied?.artist ?? channel),
+    title: withoutTranslation((json.track ?? tidied?.title ?? '').trim()),
+    artist: withoutRepeats(credited ? channel : (tidied?.artist ?? channel)),
     album: (json.album ?? '').trim(),
     duration: typeof json.duration === 'number' ? json.duration : 0,
     thumbnail: json.thumbnail ?? largestThumbnail(json.thumbnails),

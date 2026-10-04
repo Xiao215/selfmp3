@@ -1,5 +1,14 @@
 import { z } from 'zod/v4'
-import type { Song, TidyChange, TidyField, TidyResult } from '@selfmp3/shared'
+import {
+  CJK,
+  creditList as listed,
+  withoutRepeats,
+  withoutTranslation,
+  type Song,
+  type TidyChange,
+  type TidyField,
+  type TidyResult,
+} from '@selfmp3/shared'
 import { LlmError, llmFailureWords, Remembered, type Llm } from './llm.js'
 
 /**
@@ -22,26 +31,7 @@ const VERSION = 4
 /** The most names of each kind the model is shown; past that, the most used. */
 const MAX_NAMES = 600
 
-/** A credit as the names it lists, split only where a list is: "A, B", "A、B". */
-function listed(credit: string): string[] {
-  return credit
-    .split(/\s*[,，、]\s*/)
-    .map(name => name.trim())
-    .filter(Boolean)
-}
-
 const join = (names: readonly string[]): string => names.join(', ')
-
-const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
-
-/** "薛之谦, 薛之谦, 薛之谦" → "薛之谦": each name once, the first spelling kept. */
-export function withoutRepeats(credit: string): string {
-  const names: string[] = []
-  for (const name of listed(credit)) {
-    if (!names.some(other => other.toLowerCase() === name.toLowerCase())) names.push(name)
-  }
-  return names.length === listed(credit).length ? credit : join(names)
-}
 
 const VIDEO_WORDS =
   /\s*[([【（「]\s*(?:official\s*)?(?:music\s*video|video|audio|lyrics?\s*video|lyrics?|visuali[sz]er|mv|m\/v|pv|hd|hq|4k|full\s*ver(?:sion|\.)?|official)\s*[)\]】）」]/giu
@@ -62,21 +52,6 @@ export function withoutArtistPrefix(title: string, credit: string): string {
     }
   }
   return title
-}
-
-/**
- * "オリオン - Orion" → "オリオン": a name in Chinese, Japanese or Korean, then
- * its English after a dash. Only that shape: "Love - Live" and "夜 - 朝" stay.
- */
-export function withoutTranslation(title: string): string {
-  // A featured artist after the translation is part of the name: kept.
-  const featuring = /\s*[(（](?:feat\.?|ft\.?|with)\s[^)）]*[)）]$/iu.exec(title)
-  const named = featuring ? title.slice(0, featuring.index) : title
-  const match = /^(.+?)\s+[-–—]\s+(.+)$/u.exec(named)
-  if (!match) return title
-  const [, original, after] = match
-  if (!CJK.test(original!) || CJK.test(after!) || !/[a-z]/i.test(after!)) return title
-  return `${original!.trim()}${featuring ? ` ${featuring[0].trim()}` : ''}`
 }
 
 /** Letters only, lower case, accents off: "Frédéric" and "frederic" are one. */

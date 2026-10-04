@@ -136,8 +136,12 @@ names pass. The letters are the AI ideas canvas's
 (<https://claude.ai/artifact/F9yEDvXnGRhgMrVQevHumS>). Drawn there, not built:
 
 - **A4, the rest**: filling a missing album, year or cover from MusicBrainz/iTunes (the
-  first real tool loop), and near-duplicate songs. The names pass is built.
-- **A9: clean names on import**, the same agent one song at a time inside import review.
+  first real tool loop), and near-duplicate songs. Put off on 2026-10-03 because the real
+  library has nothing for them: of 1,342 songs none lacks an album, a year or a cover, and
+  the six title-and-artist pairs that repeat are real versions (Bayan, Orchestral, "(II)",
+  one theme on two soundtracks). Worth building when an import source starts leaving gaps.
+- **A9, the model's part**: a model reading each import row's names. The rules part is
+  built (repeats and translations at import), and nothing seen yet needs more.
 - **A8: steer Up next** ("something like this, but calmer" needs the playing song sent with
   the request), **A5: your month, written**, and **Settings › Smart features** (a switch per
   feature, what leaves the library, where it runs).

@@ -1,4 +1,10 @@
-import { cleanArtist, neteaseLink, neteaseSongUrl, type NeteaseLink } from '@selfmp3/shared'
+import {
+  cleanArtist,
+  neteaseLink,
+  neteaseSongUrl,
+  withoutRepeats,
+  type NeteaseLink,
+} from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 
 /**
@@ -205,11 +211,13 @@ export function toTracks(
       {
         url: neteaseSongUrl(String(song.id)),
         title: song.name.trim(),
-        artist: cleanArtist(
-          (song.ar ?? [])
-            .map(artist => artist.name?.trim() ?? '')
-            .filter(Boolean)
-            .join(', '),
+        artist: withoutRepeats(
+          cleanArtist(
+            (song.ar ?? [])
+              .map(artist => artist.name?.trim() ?? '')
+              .filter(Boolean)
+              .join(', '),
+          ),
         ),
         album: song.al?.name?.trim() ?? '',
         duration: typeof song.dt === 'number' ? Math.round(song.dt / 1000) : 0,

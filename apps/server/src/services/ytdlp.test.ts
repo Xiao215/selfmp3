@@ -56,6 +56,14 @@ describe('toProbedTrack', () => {
     expect(track).toMatchObject({ title: 'Shinunoga E-Wa', artist: 'Fujii Kaze' })
   })
 
+  it('names the song the way the library keeps names: each artist once, the original title', () => {
+    const track = toProbedTrack(
+      { track: 'オリオン - Orion', artist: '薛之谦, 薛之谦, 薛之谦', title: 'x' },
+      WATCH,
+    )
+    expect(track).toMatchObject({ title: 'オリオン', artist: '薛之谦' })
+  })
+
   it("takes a flat entry's largest thumbnail as its cover, since it names no thumbnail", () => {
     const track = toProbedTrack(
       {

@@ -282,6 +282,8 @@ export const AskAnswerSchema = z.discriminatedUnion('kind', [
   }),
   /** Song names worth fixing, as changes to approve. */
   z.object({ kind: z.literal('tidy'), tidy: TidyResultSchema }),
+  /** A way they want things done from now on, to save for every Ask after. */
+  z.object({ kind: z.literal('remember'), note: z.string() }),
   /**
    * Playlists to delete or one to rename, as a proposal to approve: the
    * playlists meant, by their exact names (matched on the server, so a

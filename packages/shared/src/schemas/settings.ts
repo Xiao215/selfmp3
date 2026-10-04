@@ -42,6 +42,14 @@ export const SettingsSchema = z.object({
   smartTidy: z.boolean().default(true),
   smartTags: z.boolean().default(true),
   smartWritten: z.boolean().default(true),
+  /** Let the model search the web when the library and the catalogues don't say. Off: it is slower, and your words leave for a search engine. */
+  smartWeb: z.boolean().default(false),
+  /**
+   * How you want things done, for every Ask ("Song names in Chinese only,
+   * without the English after them"): saved from an Ask answer, removed in
+   * Settings › Smart features, and sent with each request.
+   */
+  smartNotes: z.array(z.string().trim().min(1).max(200)).max(30).default([]),
 })
 export type Settings = z.infer<typeof SettingsSchema>
 

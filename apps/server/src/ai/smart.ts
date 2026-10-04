@@ -52,6 +52,7 @@ export class SmartFeatures {
     wrapped: (range: WrappedRange) => Wrapped
     playlists?: () => readonly AskPlaylist[]
     findNames?: FindNames
+    notes?: () => readonly string[]
   }) {
     this.#deps = { ...deps, remembered: new Remembered() }
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Stats } from '@selfmp3/shared'
-import { ask, followed, routeForm, routeSystem } from './ask.js'
+import { ask, followed, routeForm, routeSystem, withNotes } from './ask.js'
 import { ASK_ACTIONS, foundFor, matchPlaylist } from './askActions.js'
 import { SONGS, TAGS, scriptedLlm } from './fixtures/library.js'
 
@@ -34,6 +34,7 @@ const route = (overrides: Record<string, unknown>) => ({
   playlistSongs: null,
   library: null,
   tidy: null,
+  remember: null,
   open: null,
   say: null,
   try: null,
@@ -289,6 +290,27 @@ describe('ask', () => {
     expect(d.llm.asked[0]!.prompt).toContain(`The request:\n${request}`)
     expect(d.llm.asked[1]!.prompt).toContain(`The request:\n${request}`)
     expect(followed('hi', [])).toBe('hi')
+  })
+
+  it('offers to remember a way of doing things, and sends what it remembers with every request', async () => {
+    const d = deps({
+      'ask-route': [
+        route({ action: 'remember', remember: { note: '  Chinese names only,  no English ' } }),
+        route({ action: 'tidy', tidy: { checkup: false, lookUp: false } }),
+      ],
+      'tidy-asked': [{ edits: [] }],
+    })
+    expect(await ask(d, '以后都只要中文名')).toEqual({
+      kind: 'remember',
+      note: 'Chinese names only, no English',
+    })
+    const notes = ['Chinese names only, no English']
+    await ask({ ...d, notes: () => notes }, 'fix the Genshin names')
+    const request = withNotes('fix the Genshin names', notes)
+    expect(request).toContain('Their standing preferences')
+    expect(d.llm.asked[1]!.prompt).toContain(request)
+    expect(d.llm.asked[2]!.prompt).toContain('- Chinese names only, no English')
+    expect(withNotes('hi', [])).toBe('hi')
   })
 
   it('still runs the checkup when only asked to clean up', async () => {

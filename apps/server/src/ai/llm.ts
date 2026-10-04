@@ -57,7 +57,7 @@ export interface GenerateRequest<T> {
 }
 
 /** Something the model may call: its arguments are checked against `parameters` before `run`. */
-export interface LlmTool {
+interface LlmTool {
   readonly name: string
   readonly description: string
   readonly parameters: z.ZodType
@@ -71,7 +71,7 @@ export function tool<A>(entry: {
   parameters: z.ZodType<A>
   run: (args: A) => unknown
 }): LlmTool {
-  return entry as LlmTool
+  return entry
 }
 
 const DEFAULT_ROUNDS = 6

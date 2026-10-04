@@ -45,6 +45,7 @@ describe('smart features turned off in Settings', () => {
         playlistSongs: null,
         library: null,
         tidy: { checkup: true, lookUp: false },
+        remember: null,
         open: null,
         say: null,
         try: null,

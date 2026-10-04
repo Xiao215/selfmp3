@@ -33,7 +33,7 @@ import { NO_STEPS, type Steps } from './progress.js'
  * changed, not a new question with nothing before it.
  */
 
-const VERSION = 9
+const VERSION = 10
 
 const FALLBACK =
   'Ask for music (a playlist, something to play now), a song you half remember, changes to your tags or playlists, or a question about your library or your listening.'
@@ -56,6 +56,12 @@ export function followed(text: string, before: readonly string[]): string {
     `Now they say: ${text}`,
     '(Answer all of it together: the latest words change what was asked before.)',
   ].join('\n')
+}
+
+/** The request with their standing preferences after it, when they have any. */
+export function withNotes(request: string, notes: readonly string[]): string {
+  if (notes.length === 0) return request
+  return `${request}\n\nTheir standing preferences (follow them unless these words say otherwise):\n${notes.map(note => `- ${note}`).join('\n')}`
 }
 
 /** The router's form for these actions: which one, the shared filters, each one's part, and a way out. */
@@ -103,7 +109,7 @@ export async function ask(
   /** What was said before, when this follows up on an answer. */
   before: readonly string[] = [],
 ): Promise<AskAnswer> {
-  const request = followed(text, before)
+  const request = withNotes(followed(text, before), deps.notes?.() ?? [])
   const remembered = deps.remembered ?? new Remembered()
   const songs = deps.songs()
   const tags = deps.tags()

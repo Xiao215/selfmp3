@@ -44,6 +44,8 @@ export interface AskDeps extends DescribeDeps {
   readonly lyrics: (query: string) => { songId: number; line: string }[]
   /** The music catalogues, for names from outside the library (`names.ts`). */
   readonly findNames?: FindNames
+  /** How they want things done, for every request (Settings › Smart features). */
+  readonly notes?: () => readonly string[]
 }
 
 /** Features turned off in Settings that the router may still choose. */
@@ -313,6 +315,17 @@ const tidyUp = action({
   },
 })
 
+const remember = action({
+  name: 'remember',
+  when: 'they say how they want things done from now on, for every request after this one, not a change to make now ("from now on…", "always…", "never…", "remember that…", "I prefer…", "以后…", "记住…"). Fill "remember": note is that preference as one short rule in their language ("Song names in Chinese only, without the English after them").',
+  fields: z.object({ note: z.string().max(200) }),
+  filters: 'unused',
+  run: (_context, { note }) => {
+    const said = note.trim().replace(/\s+/g, ' ')
+    return said ? { kind: 'remember', note: said } : none('Say what to remember.')
+  },
+})
+
 const playlists = action({
   name: 'playlists',
   when: 'they want playlists deleted or one renamed. Fill "playlists": op is delete or rename; names are the playlists they mean, copied from their playlist list as closely as you can (they may misspell or shorten them); newName is the new name for a rename, else null. Playlists only, never songs or tags.',
@@ -381,6 +394,7 @@ export const ASK_ACTIONS: readonly AskAction<unknown>[] = [
   stats,
   library,
   tidyUp,
+  remember,
   playlists,
   playlistEdit,
   open,

@@ -25,7 +25,7 @@ import { Panel, Row } from './SettingsParts'
  * less than that.
  */
 const SWITCHES: readonly {
-  key: 'smartAsk' | 'smartTidy' | 'smartTags' | 'smartWritten'
+  key: 'smartAsk' | 'smartTidy' | 'smartTags' | 'smartWritten' | 'smartWeb'
   label: string
   sees: string
 }[] = [
@@ -48,6 +48,11 @@ const SWITCHES: readonly {
     key: 'smartWritten',
     label: 'The Report in words',
     sees: 'Sends the Report’s numbers and the songs, artists and tags it names.',
+  },
+  {
+    key: 'smartWeb',
+    label: 'Search the web',
+    sees: 'Off until you turn it on. When your library and the music catalogues don’t have the answer, Ask may search the web: the names in question go to a search engine, and it takes longer.',
   },
 ]
 
@@ -148,6 +153,32 @@ export function SmartPanel({
                 </Row>
               ))
             : null}
+          {settings ? (
+            <Row
+              label="What Ask remembers"
+              hint={
+                settings.smartNotes.length === 0
+                  ? 'Nothing yet. Tell Ask how you want things done from now on (“from now on, Chinese names only”) and it offers to remember it.'
+                  : 'Sent with every request. Take one away to stop it.'
+              }
+            />
+          ) : null}
+          {settings?.smartNotes.map((note, index) => (
+            <View key={note} style={styles.note} testID="smart-note">
+              <Text style={styles.noteText}>{note}</Text>
+              <Button
+                label="Forget"
+                variant="text"
+                onPress={() =>
+                  set(
+                    'smartNotes',
+                    settings.smartNotes.filter((_, at) => at !== index),
+                  )
+                }
+                testID="smart-note-forget"
+              />
+            </View>
+          ))}
           <Row
             label="Test the connection"
             hint="One small request: this device to your server, then your server to the model."
@@ -205,6 +236,22 @@ const styles = StyleSheet.create(theme => ({
     fontSize: 13,
     fontVariant: ['tabular-nums'],
     flexShrink: 1,
+  },
+  note: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 12,
+    paddingVertical: 2,
+    borderLeftWidth: 2,
+    borderLeftColor: theme.colors.surface3,
+  },
+  noteText: {
+    flex: 1,
+    minWidth: 0,
+    color: theme.colors.textPrimary,
+    fontSize: 13.5,
+    lineHeight: 19,
   },
   hops: { gap: 8, paddingTop: 4 },
   hop: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },

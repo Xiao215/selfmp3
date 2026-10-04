@@ -18,6 +18,7 @@ import { placePath, rangeWords } from './smart.model'
 import { LibraryAnswer } from './LibraryAnswer'
 import { PlaylistSongsAnswer } from './PlaylistSongsAnswer'
 import { PlaylistsAnswer } from './PlaylistsAnswer'
+import { RememberAnswer } from './RememberAnswer'
 import { SongsAnswerCard } from './SongsAnswerCard'
 import { TagsReview } from './TagsReview'
 import { TidyReview } from './TidyReview'
@@ -206,6 +207,8 @@ function Drawn({
       return (
         <TidyReview result={answer.tidy} height={listHeight} onClose={onDone} onKeys={onKeys} />
       )
+    case 'remember':
+      return <RememberAnswer note={answer.note} onDone={onDone} />
     case 'playlists':
       return <PlaylistsAnswer answer={answer} onDone={onDone} />
     case 'playlistSongs':

@@ -22,6 +22,7 @@ import { songTable } from './library.js'
 import { Remembered } from './llm.js'
 import type { FindNames } from './names.js'
 import type { Steps } from './progress.js'
+import { explore } from './explore.js'
 import { tagReview } from './tagReview.js'
 import { tidy } from './tidy.js'
 
@@ -46,6 +47,12 @@ export interface AskDeps extends DescribeDeps {
   readonly findNames?: FindNames
   /** How they want things done, for every request (Settings › Smart features). */
   readonly notes?: () => readonly string[]
+  /** 网易云's search, for looking things up (`explore.ts`). */
+  readonly catalogue?: (
+    words: string,
+  ) => Promise<readonly { title: string; artist: string; album: string; duration: number }[]>
+  /** Settings' web switch: whether looking things up may search the web. */
+  readonly web?: () => boolean
 }
 
 /** Features turned off in Settings that the router may still choose. */
@@ -375,6 +382,14 @@ const playlistEdit = action({
   },
 })
 
+const lookInto = action({
+  name: 'explore',
+  when: 'a question or request that needs looking through their songs, the music catalogues or the web, and that no action above can do with its filters: which albums they have only part of, what a song or album is called in another language, what game or show a song is from, whether they have something, comparing artists or albums. Nothing else to fill: the request itself is used. Prefer this to "none" whenever looking things up could answer it.',
+  fields: null,
+  filters: 'unused',
+  run: async ({ deps, text, steps }) => explore(deps, text, steps),
+})
+
 const open = action({
   name: 'open',
   when: 'they want to go somewhere in the app rather than get an answer here: import (adding music, which takes a YouTube, Spotify or 网易云 link), stats, tags, library, playlists, settings. Fill "open": place is where, and say is one sentence on what they will find there. The app shows a button that goes there: never say you opened, changed or did anything.',
@@ -397,5 +412,6 @@ export const ASK_ACTIONS: readonly AskAction<unknown>[] = [
   remember,
   playlists,
   playlistEdit,
+  lookInto,
   open,
 ]

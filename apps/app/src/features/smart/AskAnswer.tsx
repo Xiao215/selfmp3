@@ -199,6 +199,18 @@ function Drawn({
       return <SongsAnswerCard answer={answer} text={text} onPlayed={onDone} onOpen={onOpenPage} />
     case 'find':
       return <Found answer={answer} onDone={onDone} />
+    case 'explore':
+      return (
+        <>
+          <Text style={styles.answer} selectable testID="ask-explore-say">
+            {answer.say}
+          </Text>
+          <SongPicks
+            picks={answer.songIds.slice(0, 20).map(songId => ({ songId, why: null }))}
+            onDone={onDone}
+          />
+        </>
+      )
     case 'tags':
       return (
         <TagsReview review={answer.review} height={listHeight} onClose={onDone} onKeys={onKeys} />
@@ -293,24 +305,46 @@ function Found({
   answer: Extract<Answer, { kind: 'find' }>
   onDone: () => void
 }): ReactNode {
+  const server = useSmartServer()
+  const { data: library } = useLibrary()
+  const here = answer.picks.filter(pick => {
+    const id = server.onDevice(pick.songId)
+    return id !== undefined && library?.songs.some(song => song.id === id)
+  })
+  if (here.length === 0) {
+    return <Text style={styles.line}>No song of yours fits that. Try other words for it.</Text>
+  }
+  return (
+    <>
+      <Text style={styles.head}>{here.length === 1 ? 'Found one' : `Found ${here.length}`}</Text>
+      <SongPicks picks={here} onDone={onDone} />
+    </>
+  )
+}
+
+/** Songs an answer names (server ids), as rows: pressing one plays them from it. */
+function SongPicks({
+  picks,
+  onDone,
+}: {
+  picks: readonly { songId: number; why: string | null }[]
+  onDone: () => void
+}): ReactNode {
   const { theme } = useUnistyles()
   const server = useSmartServer()
   const player = usePlayer()
   const { data: library } = useLibrary()
   const artFor = useArt(ROW_COVER_SIZE)
   const songsById = new Map((library?.songs ?? []).map(song => [song.id, song]))
-  const found = answer.picks.flatMap(pick => {
+  const found = picks.flatMap(pick => {
     const id = server.onDevice(pick.songId)
     const song = id === undefined ? undefined : songsById.get(id)
     return song ? [{ song, why: pick.why }] : []
   })
-  if (found.length === 0) {
-    return <Text style={styles.line}>No song of yours fits that. Try other words for it.</Text>
-  }
+  if (found.length === 0) return null
   const ids = found.map(each => each.song.id)
   return (
     <>
-      <Text style={styles.head}>{found.length === 1 ? 'Found one' : `Found ${found.length}`}</Text>
       {found.map(({ song, why }, index) => (
         <Pressable
           key={song.id}
@@ -345,6 +379,7 @@ const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.sm },
   head: { color: theme.colors.textPrimary, fontSize: 15.5, fontWeight: '600' },
   line: { color: theme.colors.textSecondary, fontSize: 13.5, lineHeight: 19 },
+  answer: { color: theme.colors.textPrimary, fontSize: 14.5, lineHeight: 21 },
   muted: { color: theme.colors.textMuted, fontSize: 12.5, fontWeight: '400' },
   error: { color: theme.colors.danger, fontSize: 12.5 },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },

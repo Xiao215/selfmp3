@@ -299,6 +299,27 @@ the page is a version in the trail too. The answer's page shows no trail (Xiao,
 2026-10-04): it is the version showing, titled by the list's own name, with the field as
 a full-width bar under its head ("Change these songs…").
 
+## Looking things up (`explore`)
+
+For a question the fixed actions can't put as filters ("which albums do I have only part of",
+"what is Liyue called in Chinese, and do I have it"), the router chooses `explore`
+(`explore.ts`). The model gets the library's shape and tools, run on the server through
+`llm.ts`'s tool loop (OpenAI `tools` with `response_format`, at most 8 rounds):
+`search_songs` (words in title, artist, album or lyrics; a tag; an artist; an album; a page of
+rows with ids), `library_counts` (songs per artist, album, tag or year), and `search_catalogue`
+(网易云's search). With Settings' "Search the web" on, the call also asks the endpoint for web
+search (`web_search_options`). The answer is a few sentences and the songs it is about; every
+id is checked to be one of yours. Tried 2026-10-04 with the real model through claude-api: 9 s
+and 17 s, two to three tool calls each.
+
+## Remembered preferences
+
+"From now on, Chinese names only" routes to `remember`, a card that saves the note when you
+press Remember (`smartNotes` in the settings, at most 30). Every Ask after carries them under
+the request (`withNotes` in `ask.ts`: "Their standing preferences (follow them unless these
+words say otherwise)"), so the router and the action read them. Settings › Smart features lists
+them, each with Forget.
+
 ## Follow-ups (every other answer)
 
 Every answer that is not a song answer ends in the same quiet field ("Ask a follow-up…",

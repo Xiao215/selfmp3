@@ -397,6 +397,8 @@ export function createContainer(configured: Config): Container {
         songIds: () => playlists.songIds(playlist),
       })),
     notes: () => settings.get().smartNotes,
+    catalogue: words => netease.search(words),
+    web: () => settings.get().smartWeb,
     findNames: catalogueFinder({
       netease: words => netease.search(words),
       lookup: query => lookup.lookup(query),

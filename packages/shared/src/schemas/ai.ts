@@ -284,6 +284,8 @@ export const AskAnswerSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('tidy'), tidy: TidyResultSchema }),
   /** A way they want things done from now on, to save for every Ask after. */
   z.object({ kind: z.literal('remember'), note: z.string() }),
+  /** An open question looked into with tools: the answer in words, and the songs it is about (server ids). */
+  z.object({ kind: z.literal('explore'), say: z.string(), songIds: z.array(IdSchema) }),
   /**
    * Playlists to delete or one to rename, as a proposal to approve: the
    * playlists meant, by their exact names (matched on the server, so a

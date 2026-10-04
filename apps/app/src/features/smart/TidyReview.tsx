@@ -32,6 +32,14 @@ const FIELD: Record<TidyField, string> = {
   albumArtist: 'Album artist',
 }
 
+/**
+ * The steps the list is drawn in. A band's tick, then its title, note and
+ * reasons; a change's tick sits under the band's title, and an opened change's
+ * songs tick under the change's name.
+ */
+const BAND_TEXT = 32
+const CHANGE_TEXT = BAND_TEXT + 18 + 12
+
 /** How many changes a reason shows before "N more". */
 const REASON_SHOWS = 3
 /** How many songs an opened change lists before "Show all". */
@@ -440,6 +448,7 @@ export function TidyReview({
             {songs.length < each.songIds.length ? (
               <More
                 stop={`songs:${change.key}`}
+                indent={space.xs}
                 at={at}
                 place={place}
                 text={`Show all ${each.songIds.length}`}
@@ -525,6 +534,7 @@ export function TidyReview({
                     {shown.length < reason.changes.length ? (
                       <More
                         stop={`reason:${reason.why}`}
+                        indent={CHANGE_TEXT}
                         at={at}
                         place={place}
                         text={`${reason.changes.length - shown.length} more`}
@@ -569,8 +579,11 @@ function More({
   at,
   place,
   text,
+  indent,
   onPress,
 }: {
+  /** Where its words start, from the edge of what it sits in. */
+  indent: number
   stop: string
   at: string | null
   place: (id: string) => (node: unknown) => void
@@ -582,7 +595,12 @@ function More({
       ref={place(stop)}
       onPress={onPress}
       accessibilityRole="button"
-      style={({ pressed }) => [styles.more, at === stop && styles.at, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.more,
+        { marginLeft: indent - space.sm },
+        at === stop && styles.at,
+        pressed && styles.pressed,
+      ]}
     >
       <Text style={styles.moreText}>{text}</Text>
     </Pressable>
@@ -618,7 +636,7 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textMuted,
     fontSize: 12.5,
     lineHeight: 17,
-    paddingLeft: 32,
+    paddingLeft: BAND_TEXT,
     paddingBottom: space.xs,
   },
   reason: {
@@ -627,7 +645,7 @@ const styles = StyleSheet.create(theme => ({
     gap: space.sm,
     paddingTop: space.sm,
     paddingBottom: 2,
-    paddingLeft: 32,
+    paddingLeft: BAND_TEXT,
     paddingRight: space.xs,
   },
   reasonText: { ...labelText(theme.colors), flexShrink: 1 },
@@ -637,7 +655,7 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'flex-start',
     gap: 12,
     paddingVertical: 7,
-    paddingLeft: space.xs,
+    paddingLeft: BAND_TEXT,
     paddingRight: space.xs,
     borderRadius: radius.coverSm,
   },
@@ -660,7 +678,7 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  songs: { gap: 2, paddingLeft: 30, paddingBottom: space.xs },
+  songs: { gap: 2, paddingLeft: CHANGE_TEXT - space.xs, paddingBottom: space.xs },
   song: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -673,7 +691,6 @@ const styles = StyleSheet.create(theme => ({
   songSub: { color: theme.colors.textMuted },
   more: {
     alignSelf: 'flex-start',
-    marginLeft: 30,
     paddingVertical: 5,
     paddingHorizontal: space.sm,
     borderRadius: radius.coverSm,

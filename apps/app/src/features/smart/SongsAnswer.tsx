@@ -3,11 +3,12 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useMutation } from '@tanstack/react-query'
-import type { DescribeResult, Understanding } from '@selfmp3/shared'
+import { plural, type DescribeResult, type Understanding } from '@selfmp3/shared'
 import { clientApi, failureText, radius, space, useLibrary } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
+import { showToast } from '../../ui/toast'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { Chip } from '../../ui/components/Chip'
@@ -33,6 +34,7 @@ export function SongsAnswer({
   text,
   name,
   onPlayed,
+  onQueued,
   onSaved,
   onCancel,
 }: {
@@ -42,6 +44,8 @@ export function SongsAnswer({
   name?: string
   /** Given where playing straight away makes sense: the Search box. */
   onPlayed?: () => void
+  /** Given when the answer is for after the song playing (A8): Add to Up next leads. */
+  onQueued?: () => void
   onSaved: (playlistId: number) => void
   onCancel?: () => void
 }): ReactNode {
@@ -80,6 +84,13 @@ export function SongsAnswer({
   )
   const follows = onlyTags(understanding) && keepFilled
   const ready = edited === null && (follows || picks.length > 0)
+
+  const queue = (): void => {
+    const ids = picks.map(each => each.songId)
+    player.playNext(ids)
+    showToast(`${plural(ids.length, 'song', 'songs')} up next`, 'good')
+    onQueued?.()
+  }
 
   const play = (): void => {
     player.playFrom(
@@ -216,7 +227,16 @@ export function SongsAnswer({
           />
         ) : (
           <>
-            {onPlayed ? (
+            {onQueued ? (
+              <Button
+                label="Add to Up next"
+                variant="primary"
+                disabled={picks.length === 0}
+                onPress={queue}
+                testID="songs-answer-next"
+              />
+            ) : null}
+            {onPlayed && !onQueued ? (
               <Button
                 label="Play now"
                 icon={<Play size={13} color={theme.colors.textPrimary} />}
@@ -227,7 +247,7 @@ export function SongsAnswer({
             ) : null}
             <Button
               label={onPlayed ? 'Save as a playlist' : 'Create'}
-              variant="primary"
+              variant={onQueued ? 'secondary' : 'primary'}
               disabled={!ready}
               busy={busy}
               onPress={() => void save()}

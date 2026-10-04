@@ -24,6 +24,7 @@ const noFilters = {
 const route = (overrides: Record<string, unknown>) => ({
   action: 'none',
   play: false,
+  next: false,
   songs: null,
   tag: null,
   find: null,
@@ -80,6 +81,28 @@ describe('ask', () => {
     ])
     // The route is the plan: nothing else was asked.
     expect(d.llm.asked.map(each => each.task)).toEqual(['ask-route'])
+  })
+
+  it('steers from the song playing: shown as "this", left out of the picks, led as next', async () => {
+    const d = deps({
+      'ask-route': [
+        route({ action: 'songs', next: true, songs: { ...noFilters, artists: ['YOASOBI'] } }),
+      ],
+    })
+    const answer = await ask(d, 'more like this after', 7)
+    expect(answer).toMatchObject({ kind: 'songs', lead: 'next' })
+    expect(answer.kind === 'songs' && answer.describe.picks.map(pick => pick.songId)).toEqual([8])
+    const playing = SONGS.find(song => song.id === 7)!
+    expect(d.llm.asked[0]!.prompt).toContain(`Now playing: ${playing.title} | ${playing.artist}`)
+  })
+
+  it('does not lead with next when nothing is playing', async () => {
+    const d = deps({
+      'ask-route': [
+        route({ action: 'songs', next: true, songs: { ...noFilters, artists: ['YOASOBI'] } }),
+      ],
+    })
+    expect(await ask(d, 'queue some YOASOBI')).toMatchObject({ kind: 'songs', lead: 'save' })
   })
 
   it('proposes a tag for the songs the filters choose, counting the ones that have it', async () => {

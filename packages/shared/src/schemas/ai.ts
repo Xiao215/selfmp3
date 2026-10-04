@@ -110,6 +110,8 @@ export type TagSuggestions = z.infer<typeof TagSuggestionsSchema>
  */
 export const AskRequestSchema = z.object({
   text: z.string().trim().min(1).max(500),
+  /** The song playing on the asking device, by the server's id: what "this" means (A8). */
+  playing: IdSchema.nullable().default(null),
 })
 export type AskRequest = z.infer<typeof AskRequestSchema>
 
@@ -160,7 +162,8 @@ export const AskAnswerSchema = z.discriminatedUnion('kind', [
   /** Songs to play now or keep: Describe's answer, and which of the two the words led with. */
   z.object({
     kind: z.literal('songs'),
-    lead: z.enum(['play', 'save']),
+    /** play: now; save: a playlist; next: after the song playing, in Up next (A8). */
+    lead: z.enum(['play', 'save', 'next']),
     describe: DescribeResultSchema,
   }),
   /** A song you half remember: the few that fit what you said, each with why. */

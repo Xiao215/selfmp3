@@ -33,16 +33,20 @@ import { tidy } from './tidy.js'
  * asked for in the box costs what Describe costs and no more.
  */
 
-const VERSION = 2
+const VERSION = 3
 
 /** The most songs a "find" is chosen from. */
 const MAX_FOUND = 150
 const FIND_SIZE = 5
+/** How many songs "after this" adds to Up next when no number is said (A8). */
+const NEXT_SIZE = 10
 
 const RouteOut = z.object({
   action: z.enum(['songs', 'find', 'tag', 'stats', 'tidy', 'open', 'none']),
   /** songs: they want it now, not kept. */
   play: z.boolean(),
+  /** songs: they want it after the song playing, in Up next. */
+  next: z.boolean(),
   /** songs, and tag (as the songs to tag): the filters, as Describe's plan. */
   songs: PlanOut.nullable(),
   tag: z.object({ name: z.string().max(60) }).nullable(),
@@ -60,10 +64,10 @@ const RouteOut = z.object({
   say: z.string().max(240).nullable(),
 })
 
-const ROUTE_SYSTEM = `You are the request box of someone's own music app. Turn one request into exactly one action over their library, as JSON in the schema given. Set every field; fields the action does not use are null (play is false).
+const ROUTE_SYSTEM = `You are the request box of someone's own music app. Turn one request into exactly one action over their library, as JSON in the schema given. Set every field; fields the action does not use are null (play and next are false).
 
 The actions:
-- songs: they want music: a playlist made, or something to listen to. Fill "songs" with the filters below. Set play to true when they want it now ("play…", "put on…", "something for right now"), false when they want it kept ("make a playlist…").
+- songs: they want music: a playlist made, or something to listen to. Fill "songs" with the filters below. Set play to true when they want it now ("play…", "put on…", "something for right now"), false when they want it kept ("make a playlist…"). Set next to true when they want it after the song playing ("next", "after this", "queue up…", "up next"), or when they ask to steer what is playing ("more like this", "something calmer"). When a song is playing and they say "this", "like this" or "after this", describe the music relative to it with the filters: its artists or tags for "like this", an energy range below its energy for "calmer", above it for "more upbeat".
 - find: they are looking for one particular song they half remember (its story, its words, how it sounds). Fill "find": terms are words likely to be in its title, artist, album or lyrics, in every language the library uses (grandma: 外婆, 奶奶, おばあちゃん, grandma), at most twelve; brief is what they remember, in a sentence.
 - tag: they want one tag put on many songs. Fill "tag" with the tag's name, spelled exactly as in their tag list if it exists, and "songs" with the filters that pick those songs (usually artists or tags). Never tag the whole library: if they did not say which songs, choose none.
 - stats: a question about their own listening (most played, how much, which artists). Fill "stats": range is 7d, 30d, 90d, 365d or all ("last month" is 30d, "this year" is 365d); about is songs, artists, tags or totals.
@@ -107,13 +111,22 @@ export function foundFor(
   return [...found.values()].slice(0, MAX_FOUND)
 }
 
-export async function ask(deps: AskDeps, text: string): Promise<AskAnswer> {
+export async function ask(
+  deps: AskDeps,
+  text: string,
+  playingId: number | null = null,
+): Promise<AskAnswer> {
   const remembered = deps.remembered ?? new Remembered()
   const songs = deps.songs()
   const tags = deps.tags()
   const now = deps.now?.() ?? Date.now()
 
-  const prompt = `${libraryShape(songs, tags)}\n\nTheir tags, exactly: ${tags.map(tag => tag.name).join(', ') || '(none)'}\n\nThe request:\n${text}`
+  const playing = songs.find(song => song.id === playingId)
+  // "This", for the router and for the pick: the song as the table draws a row.
+  const nowPlaying = playing
+    ? `\n\nNow playing: ${songTable([playing], tags, now).replace(/^#1 \| /, '')}`
+    : ''
+  const prompt = `${libraryShape(songs, tags)}\n\nTheir tags, exactly: ${tags.map(tag => tag.name).join(', ') || '(none)'}${nowPlaying}\n\nThe request:\n${text}`
   const route = await remembered.get(
     Remembered.key('ask-route', VERSION, prompt),
     async () =>
@@ -131,9 +144,15 @@ export async function ask(deps: AskDeps, text: string): Promise<AskAnswer> {
   switch (route.action) {
     case 'songs': {
       if (!route.songs) break
-      const { understanding, unknown } = groundPlan(route.songs, songs, tags)
-      const describe = await narrowAndPick(deps, text, understanding, unknown)
-      return { kind: 'songs', lead: route.play ? 'play' : 'save', describe }
+      const steering = route.next && playing !== undefined
+      // Up next is a handful after this song, not a playlist's worth, unless a number was said.
+      const plan = steering ? { ...route.songs, size: route.songs.size ?? NEXT_SIZE } : route.songs
+      const { understanding, unknown } = groundPlan(plan, songs, tags)
+      const found = await narrowAndPick(deps, `${text}${nowPlaying}`, understanding, unknown)
+      // The song playing is what they are steering from, never one of the picks.
+      const describe = { ...found, picks: found.picks.filter(pick => pick.songId !== playingId) }
+      const lead = steering ? 'next' : route.play ? 'play' : 'save'
+      return { kind: 'songs', lead, describe }
     }
 
     case 'find': {

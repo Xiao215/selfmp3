@@ -43,7 +43,7 @@ export function aiRoutes(container: Container): Router {
   router.post(
     '/ai/ask',
     route({ body: AskRequestSchema }, ({ body }): Promise<AskAnswer> =>
-      answering(container.smart.ask(body.text)),
+      answering(container.smart.ask(body.text, body.playing)),
     ),
   )
 

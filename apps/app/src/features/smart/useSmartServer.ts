@@ -18,6 +18,8 @@ interface SmartServer {
   readonly api: Api | null
   /** This device's id for a song the server numbers `serverId`. */
   readonly onDevice: (serverId: number) => number | undefined
+  /** The server's id for a song this device numbers `songId`. */
+  readonly onServer: (songId: number) => number | undefined
 }
 
 const same = (id: number): number => id
@@ -42,10 +44,10 @@ export function useSmartServer(): SmartServer {
   const api = useMemo(() => (ready && via ? apiFor(via, THINKING_MS) : null), [ready, via])
 
   return useMemo(() => {
-    if (fromCloud) return { reach, api, onDevice: ids.onDevice }
+    if (fromCloud) return { reach, api, onDevice: ids.onDevice, onServer: ids.onServer }
     const direct: SmartServer['reach'] = connection
       ? { state: 'reachable', connection, lookAgain: nothing }
       : { state: 'away', said: false, lookAgain: nothing }
-    return { reach: direct, api, onDevice: same }
-  }, [fromCloud, reach, api, ids.onDevice, connection])
+    return { reach: direct, api, onDevice: same, onServer: same }
+  }, [fromCloud, reach, api, ids.onDevice, ids.onServer, connection])
 }

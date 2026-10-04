@@ -16,6 +16,7 @@ import { SmartFeatures, llmFor, setupFor } from './smart.js'
  *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> tags
  *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> ask "tag every 周杰倫 song 中文流行"
  *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> tidy
+ *   PLAYING=<song id> npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> ask "something calmer like this next"
  *
  * The database is opened read-only, and nothing but the model is reached:
  * no server starts and no bucket is touched. Point it at a copy all the same
@@ -49,7 +50,9 @@ const smart = new SmartFeatures({
 const titleOf = new Map(songs.all().map(song => [song.id, `${song.title} · ${song.artist}`]))
 
 if (what === 'ask') {
-  const answer = await smart.ask(words.join(' '))
+  // PLAYING=<song id> asks as if that song were playing (A8).
+  const playing = process.env['PLAYING'] ? Number(process.env['PLAYING']) : null
+  const answer = await smart.ask(words.join(' '), playing)
   const shown =
     'describe' in answer
       ? { ...answer, describe: { ...answer.describe, picks: undefined } }

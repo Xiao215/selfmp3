@@ -28,10 +28,14 @@ import { useSmartServer } from './useSmartServer'
 export function AskAnswer({ text, onDone }: { text: string; onDone: () => void }): ReactNode {
   const { theme } = useUnistyles()
   const server = useSmartServer()
+  const player = usePlayer()
+  // What "this" meant when it was asked (A8): the song playing then, not whichever comes next.
+  const [playingHere] = useState(() => player.current?.id ?? null)
+  const playing = playingHere === null ? null : (server.onServer(playingHere) ?? null)
   const via = server.reach.state === 'reachable' ? server.reach.connection.baseUrl : null
   const answer = useQuery({
-    queryKey: ['via-server', via, 'ai', 'ask', text],
-    queryFn: () => server.api!.ask(text),
+    queryKey: ['via-server', via, 'ai', 'ask', text, playing],
+    queryFn: () => server.api!.ask(text, playing),
     enabled: server.api !== null,
     retry: false,
     staleTime: 10 * 60_000,
@@ -81,12 +85,17 @@ function Drawn({
       return (
         <>
           <Text style={styles.head}>
-            {answer.lead === 'play' ? 'Something to play' : 'A playlist'}
+            {answer.lead === 'next'
+              ? 'Up next'
+              : answer.lead === 'play'
+                ? 'Something to play'
+                : 'A playlist'}
           </Text>
           <SongsAnswer
             result={answer.describe}
             text={text}
             onPlayed={onDone}
+            onQueued={answer.lead === 'next' ? onDone : undefined}
             onSaved={id => {
               onDone()
               router.navigate(`/playlists/${id}`)

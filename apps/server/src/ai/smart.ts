@@ -43,8 +43,8 @@ export class SmartFeatures {
     return describe(this.#deps, request)
   }
 
-  ask(text: string): Promise<AskAnswer> {
-    return ask(this.#deps, text)
+  ask(text: string, playing: number | null = null): Promise<AskAnswer> {
+    return ask(this.#deps, text, playing)
   }
 
   /** Where the server asks, for Settings: no call is made. */

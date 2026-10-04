@@ -302,3 +302,17 @@ original title without the English a channel writes after it. They live in
 never disagree about what a clean name is. The row is still shown in import review, where
 it can be edited before anything downloads.
 
+## A8 · Steer Up next
+
+Ask while a song plays: "something calmer like this next", "more like this after". The
+Search box sends the song that was playing when it was asked (`playing`, the server's id,
+translated with `useSmartServer().onServer`), and the router is shown it as a table row
+under "Now playing", so "this" has an artist, tags, energy and tempo. Its `next` flag leads
+the answer as **Up next**: Describe's pipeline as usual, with the playing song described to
+the pick too, the playing song left out of the picks, and ten songs unless a number is said.
+**Add to Up next** puts them right after the playing song (`playNext`), so nothing that is
+playing stops. Without a song playing, `next` falls back to the usual playlist answer.
+
+Measured on the real library: about 10 s, "calmer" read as an energy range under the
+playing song's.
+

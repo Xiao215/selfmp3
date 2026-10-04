@@ -30,6 +30,7 @@ export * from './origins.js'
 export * from './coverArt.js'
 export * from './schemas/doorman.js'
 export * from './schemas/sync.js'
+export * from './schemas/ai.js'
 
 export * from './format.js'
 export * from './range.js'

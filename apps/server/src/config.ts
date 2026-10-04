@@ -169,6 +169,29 @@ const ConfigSchema = z.object({
     .default({}),
 
   /**
+   * The language model behind the smart features (docs/features/ai.md): any
+   * endpoint that speaks OpenAI's chat completions with JSON-schema replies.
+   * No base URL, no smart features, and the screens that offer them say so.
+   * The two models are tiers, so a provider is changed here and nowhere else.
+   */
+  ai: z
+    .object({
+      baseUrl: z
+        .string()
+        .trim()
+        .url()
+        .transform(value => value.replace(/\/+$/, ''))
+        .nullable()
+        .default(null),
+      apiKey: z.string().default(''),
+      modelFast: z.string().trim().min(1).default('sonnet'),
+      modelSmart: z.string().trim().min(1).default('sonnet'),
+      /** Long, because a model behind the claude CLI starts a process per call. */
+      timeoutSeconds: z.coerce.number().int().min(5).max(900).default(240),
+    })
+    .default({}),
+
+  /**
    * The doorman this server signs in to the cloud through (docs/SYNC.md). Empty
    * means none: the bucket can then only be connected directly, with its key.
    */
@@ -225,6 +248,13 @@ function readEnv(): unknown {
       accessKeyId: env['SELFMP3_S3_ACCESS_KEY_ID'] ?? undefined,
       secretAccessKey: env['SELFMP3_S3_SECRET_ACCESS_KEY'] ?? undefined,
       signedUrlTtl: env['SELFMP3_S3_SIGNED_URL_TTL'] ?? undefined,
+    },
+    ai: {
+      baseUrl: env['SELFMP3_AI_BASE_URL'] || undefined,
+      apiKey: env['SELFMP3_AI_API_KEY'] ?? undefined,
+      modelFast: env['SELFMP3_AI_MODEL_FAST'] || undefined,
+      modelSmart: env['SELFMP3_AI_MODEL_SMART'] || undefined,
+      timeoutSeconds: env['SELFMP3_AI_TIMEOUT_SECONDS'] || undefined,
     },
     doormanUrl: env['SELFMP3_DOORMAN_URL'] ?? undefined,
     logLevel: env['SELFMP3_LOG_LEVEL'] ?? undefined,

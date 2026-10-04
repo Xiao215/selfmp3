@@ -15,6 +15,7 @@ import { ListenTags } from '../../ui/components/ListenTags'
 import { Sheet } from '../../ui/components/Sheet'
 import { followRules } from '../library/saveTags'
 import { AddSongsSheet } from '../playlistDetail/AddSongsSheet'
+import { DescribePlaylist } from './DescribePlaylist'
 import { newPlaylist } from './playlists.model'
 
 /**
@@ -40,6 +41,9 @@ import { newPlaylist } from './playlists.model'
  * playlist exists once it has a song (docs/UI-MIGRATION.md, Phase 5), so
  * cancelling at either step leaves nothing behind. One that follows tags is
  * made at once, since its tags are its songs.
+ *
+ * Or you describe it, and the songs are picked for you (DescribePlaylist,
+ * docs/features/ai.md): the third way to fill the same one kind of list.
  */
 export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => void }): ReactNode {
   const { theme } = useUnistyles()
@@ -51,6 +55,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   const [name, setName] = useState('')
   const [focused, setFocused] = useState(false)
   const [fromTags, setFromTags] = useState(false)
+  const [describing, setDescribing] = useState(false)
   const [tagIds, setTagIds] = useState<readonly number[]>([])
   const [choosing, setChoosing] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -69,9 +74,19 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
 
   const ready = name.trim().length > 0 && (!fromTags || tagIds.length > 0)
 
+  const chooseTags = (): void => {
+    setDescribing(false)
+    setFromTags(on => !on)
+  }
+  const chooseDescribe = (): void => {
+    setFromTags(false)
+    setDescribing(on => !on)
+  }
+
   const reset = (): void => {
     setName('')
     setFromTags(false)
+    setDescribing(false)
     setTagIds([])
     setError(null)
     setPicking(null)
@@ -145,10 +160,12 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
           style={[styles.input, focused && { borderColor: accent.accent }]}
           value={name}
           onChangeText={setName}
-          onSubmitEditing={() => void next()}
+          onSubmitEditing={() => {
+            if (!describing) void next()
+          }}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholder="Name it"
+          placeholder={describing ? 'Name it, or let the description name it' : 'Name it'}
           placeholderTextColor={theme.colors.textMuted}
           accessibilityLabel="Playlist name"
           autoFocus
@@ -157,7 +174,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
         />
 
         <Pressable
-          onPress={() => setFromTags(on => !on)}
+          onPress={chooseTags}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: fromTags }}
           accessibilityLabel="Fill it from tags, and keep it filled"
@@ -214,19 +231,39 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
           </View>
         ) : null}
 
+        <Pressable
+          onPress={chooseDescribe}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: describing }}
+          accessibilityLabel="Describe it, and let it pick the songs"
+          style={styles.checkRow}
+          testID="new-playlist-describe"
+        >
+          <Checkbox checked={describing} />
+          <Text style={styles.checkLabel}>Describe it, and let it pick the songs</Text>
+        </Pressable>
+
+        {describing ? (
+          <View style={styles.tagBlock}>
+            <DescribePlaylist name={name} onCreated={finish} onCancel={cancel} />
+          </View>
+        ) : null}
+
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        <View style={styles.actions}>
-          <Button label="Cancel" onPress={cancel} />
-          <Button
-            // A playlist you fill yourself is not made yet: its songs come next.
-            label={fromTags ? 'Create' : 'Add songs'}
-            variant="primary"
-            disabled={!ready}
-            busy={busy}
-            onPress={() => void next()}
-            testID="new-playlist-next"
-          />
-        </View>
+        {describing ? null : (
+          <View style={styles.actions}>
+            <Button label="Cancel" onPress={cancel} />
+            <Button
+              // A playlist you fill yourself is not made yet: its songs come next.
+              label={fromTags ? 'Create' : 'Add songs'}
+              variant="primary"
+              disabled={!ready}
+              busy={busy}
+              onPress={() => void next()}
+              testID="new-playlist-next"
+            />
+          </View>
+        )}
       </View>
     </Sheet>
   )

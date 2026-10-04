@@ -265,6 +265,7 @@ the top of the checkout (copy `.env.example`; git ignores `.env`).
 | `SELFMP3_PROFILE` | none | A separate installation: `dev` uses `~/Music/selfmp3-dev` and a `selfmp3-dev` data folder. `npm run dev` sets it |
 | `SELFMP3_AUTH_TOKEN` | one the server makes for itself | A bearer token of your own, 8 characters or more |
 | `SELFMP3_DOORMAN_URL` | the one in `packages/shared/src/cloud.ts` | The doorman this server signs in to the cloud through. Empty for none |
+| `SELFMP3_AI_BASE_URL` | unset | An OpenAI-compatible endpoint for the smart features ([docs/features/ai.md](docs/features/ai.md)); also `SELFMP3_AI_API_KEY`, `SELFMP3_AI_MODEL_FAST`, `SELFMP3_AI_MODEL_SMART` (both `sonnet`) and `SELFMP3_AI_TIMEOUT_SECONDS` (240). Unset, they are off |
 | `SELFMP3_CORS_ORIGINS` | none | Comma-separated origins allowed to call the API; none means same-origin only |
 | `SELFMP3_STORAGE_DRIVER` | `local` | `local` or `s3` |
 | `SELFMP3_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error`, `silent` |

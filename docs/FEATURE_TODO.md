@@ -127,6 +127,24 @@ to Google or reach a Tailscale address.
 | From the worker's DevTools, `GET /api/health` and a `POST` to the server's `100.x` and `ts.net` addresses: no prompt, no address-space error | Not recorded |
 | Google sign-in from the options page, with an allowed and a refused account | Not recorded |
 
+## Smart features
+
+What exists is in [features/ai.md](features/ai.md): A1c (Describe a playlist) and A7
+(Suggest tags). The letters are the AI ideas canvas's
+(<https://claude.ai/artifact/F9yEDvXnGRhgMrVQevHumS>). Drawn there, not built:
+
+- **A4: Tidy up**, the first that needs a real loop of tools (artists, near-duplicates, the
+  MusicBrainz lookup), run as a background pass whose proposals any device reviews.
+  "Yu-Peng Chen, HOYO-MiX, Yu-Peng Chen, Zach Huang" and "薛之谦, 薛之谦, 薛之谦" are in
+  the real library today.
+- **A9: clean names on import**, the same agent one song at a time inside import review.
+- **A2: what a line is saying**, **A3: search by meaning**, **A8: steer Up next**, **A5:
+  your month, written**, and **Settings › Smart features** (a switch per feature, what leaves
+  the library, where it runs).
+- Not tried yet: the phone app (both screens were checked in Chrome at 1280 and 390 wide),
+  and a device reaching the server through the cloud (the check ran against a server
+  directly; the id translation is the same code Stats uses).
+
 ## The cloud
 
 - **Play history in the bucket.** The server's `play_events` table is the only place the

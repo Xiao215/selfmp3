@@ -59,6 +59,7 @@ import {
 } from '../tag/tag.model'
 import { useArtistNudge } from '../tag/useArtistNudge'
 import { usePlayAndTag } from '../tag/usePlayAndTag'
+import { SuggestTagsSheet } from '../smart/SuggestTagsSheet'
 import { SLEEVE_ASPECT, TagSleeve } from './TagSleeve'
 import {
   leadSong,
@@ -106,6 +107,7 @@ export function TagsScreen(): ReactNode {
   const { data: library } = useLibrary()
   const playAndTag = usePlayAndTag()
   const [adding, setAdding] = useState(false)
+  const [suggesting, setSuggesting] = useState(false)
   const [gridWidth, setGridWidth] = useState(0)
   /*
    * The tile handlers are made once and take the tag they act on. As arrows in
@@ -246,9 +248,11 @@ export function TagsScreen(): ReactNode {
             rest={waiting.rest}
             wide={wide}
             onStart={playAndTag.start}
+            onSuggest={() => setSuggesting(true)}
             onArtist={openArtist}
           />
         ) : null}
+        <SuggestTagsSheet open={suggesting} onClose={() => setSuggesting(false)} />
 
         {!library ? (
           <Text style={styles.hint}>Tags load with your library.</Text>
@@ -412,6 +416,9 @@ function NewTag({
  * artist's page, where Select all and Tag do a batch at once, and the button
  * tags them one at a time while they play. On a phone the whole card is that
  * button, with two names to say what is waiting.
+ *
+ * Suggest tags (A7, docs/features/ai.md) sits beside it: the same songs, a tag
+ * proposed for each, taken a tag at a time.
  */
 function UntaggedCard({
   count,
@@ -419,6 +426,7 @@ function UntaggedCard({
   rest,
   wide,
   onStart,
+  onSuggest,
   onArtist,
 }: {
   count: number
@@ -426,6 +434,7 @@ function UntaggedCard({
   rest: number
   wide: boolean
   onStart: () => void
+  onSuggest: () => void
   onArtist: (name: string) => void
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -494,6 +503,7 @@ function UntaggedCard({
             {who}
           </Text>
         </View>
+        <Button label="Suggest tags" onPress={onSuggest} testID="tags-untagged-suggest" />
         <Button
           label="Tag while they play"
           icon={<TagIcon size={15} color={theme.colors.textPrimary} />}
@@ -524,6 +534,14 @@ function UntaggedCard({
         </View>
         <ChevronRight size={16} tone="textMuted" />
       </Pressable>
+      <View style={styles.untaggedSuggest}>
+        <Button
+          label="Suggest tags"
+          variant="text"
+          onPress={onSuggest}
+          testID="tags-untagged-suggest"
+        />
+      </View>
     </Animated.View>
   )
 }
@@ -843,6 +861,7 @@ const styles = StyleSheet.create(theme => ({
   stackCover: { borderRadius: 11, borderWidth: 2, borderColor: theme.colors.surface1 },
   stackOverlap: { marginLeft: -16 },
   untaggedText: { flex: 1, minWidth: 0, gap: 2 },
+  untaggedSuggest: { flexDirection: 'row', justifyContent: 'flex-end' },
   untaggedTitle: { color: theme.colors.textPrimary, fontSize: type.row, fontWeight: '600' },
   untaggedSub: { color: theme.colors.textSecondary, fontSize: type.rowSub },
   artistLink: {

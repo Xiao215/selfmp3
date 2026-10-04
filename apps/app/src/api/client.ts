@@ -90,18 +90,22 @@ const transport = (): ApiTransport | null =>
  * `ApiError` with status 0 — the same "offline" the UI already knows how to
  * show for an unreachable server, which is exactly what a timeout means here.
  */
-const fetchWithTimeout = async (
-  url: string,
-  init?: { method?: string; headers?: Record<string, string>; body?: string },
-) => {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-  try {
-    return await fetch(url, { ...init, signal: controller.signal })
-  } finally {
-    clearTimeout(timer)
+const fetchWithin =
+  (timeoutMs: number) =>
+  async (
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: string },
+  ) => {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      return await fetch(url, { ...init, signal: controller.signal })
+    } finally {
+      clearTimeout(timer)
+    }
   }
-}
+
+const fetchWithTimeout = fetchWithin(REQUEST_TIMEOUT_MS)
 
 export const api = createApi({
   context: () => ({
@@ -155,10 +159,10 @@ configureClient({
  * because `api` talks to whatever is already configured, which at that moment
  * is nothing. Never answers from the bucket: the whole point is to reach a server.
  */
-export function apiFor(connection: ServerConnection) {
+export function apiFor(connection: ServerConnection, timeoutMs: number = REQUEST_TIMEOUT_MS) {
   return createApi({
     context: () => ({ transport: serverTransport(connection), fromCloud: false }),
-    fetch: fetchWithTimeout,
+    fetch: timeoutMs === REQUEST_TIMEOUT_MS ? fetchWithTimeout : fetchWithin(timeoutMs),
   })
 }
 

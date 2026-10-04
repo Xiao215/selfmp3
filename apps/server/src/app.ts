@@ -19,6 +19,7 @@ import { playlistRoutes } from './routes/playlists.js'
 import { importRoutes } from './routes/imports.js'
 import { systemRoutes } from './routes/system.js'
 import { metadataRoutes } from './routes/metadata.js'
+import { aiRoutes } from './routes/ai.js'
 import { lyricsRoutes } from './routes/lyrics.js'
 import { deviceRoutes } from './routes/devices.js'
 import { wrappedRoutes } from './routes/wrapped.js'
@@ -77,6 +78,7 @@ export function createApp(container: Container): Express {
   api.use(importRoutes(container))
   api.use(systemRoutes(container))
   api.use(metadataRoutes(container))
+  api.use(aiRoutes(container))
   api.use(lyricsRoutes(container))
   api.use(deviceRoutes(container))
   api.use(wrappedRoutes(container))

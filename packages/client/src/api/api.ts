@@ -31,6 +31,9 @@ import {
   ApplyMetadataResultSchema,
   FixCoversStatusSchema,
   MetadataLookupResponseSchema,
+  DescribeResultSchema,
+  TagSuggestionsSchema,
+  type Understanding,
   LyricsResponseSchema,
   MotionSchema,
   LyricsSearchResponseSchema,
@@ -315,6 +318,13 @@ export function createApi({ context, fetch }: ApiOptions) {
       request('POST', `/api/songs/${id}/apply-metadata`, ApplyMetadataResultSchema, input),
 
     fixCoversStart: () => request('POST', '/api/library/fix-covers', FixCoversStatusSchema),
+
+    // --- smart features (docs/features/ai.md): the server's, never the bucket's
+
+    describePlaylist: (input: { text: string; understanding: Understanding | null }) =>
+      request('POST', '/api/ai/describe', DescribeResultSchema, input),
+
+    tagSuggestions: () => request('GET', '/api/ai/tag-suggestions', TagSuggestionsSchema),
 
     fixCoversStatus: () => request('GET', '/api/library/fix-covers', FixCoversStatusSchema),
 

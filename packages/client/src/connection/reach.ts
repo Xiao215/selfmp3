@@ -113,6 +113,11 @@ export const SERVER_NEEDS = {
       'Looking a song up goes through your server: it asks iTunes and MusicBrainz, and writes the corrections you pick.',
     meanwhile: null,
   },
+  ai: {
+    needs:
+      'Smart features go through your server: it holds the whole library together and asks the model on its behalf.',
+    meanwhile: null,
+  },
   devices: {
     needs:
       'Your devices find each other through your server: it is the switchboard that carries a handoff from one to the other, and a storage bucket cannot hold a connection open between them.',

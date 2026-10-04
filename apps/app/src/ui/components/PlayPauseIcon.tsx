@@ -94,7 +94,13 @@ export function PlayPauseIcon({
     }),
     [turn, glyphShown],
   )
-  const wait = useMemo(() => ({ opacity: spinner.progress }), [spinner.progress])
+  const wait = useMemo(
+    () => ({
+      opacity: spinner.progress,
+      transform: [{ scale: (size * SPINNER_SHARE) / SMALL_SPINNER }],
+    }),
+    [spinner.progress, size],
+  )
 
   return (
     <View>
@@ -103,12 +109,22 @@ export function PlayPauseIcon({
       </Animated.View>
       {spinner.mounted ? (
         <Animated.View style={[SPINNER_LAYER, wait]} pointerEvents="none">
-          <ActivityIndicator size={size > 20 ? 'large' : 'small'} color={color} />
+          <ActivityIndicator size="small" color={color} />
         </Animated.View>
       ) : null}
     </View>
   )
 }
+
+/**
+ * The spinner is drawn the size of the glyph it stands in for. A native one
+ * comes in two sizes, 20 and 37 points, and choosing between them by the
+ * glyph's size gave a 22-point button the 37: the mini player's spinner was
+ * nearly twice its triangle (Xiao, 2026-10-04). So it is always the small
+ * one, scaled to the share of the glyph's box a triangle's ink fills.
+ */
+const SMALL_SPINNER = 20
+const SPINNER_SHARE = 0.85
 
 /**
  * The spinner sits over the glyph rather than beside it, so the two crossfade in

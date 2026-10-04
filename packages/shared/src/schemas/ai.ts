@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { WrappedRangeSchema } from './wrapped.js'
 import { IdSchema } from './common.js'
 
 /**
@@ -233,3 +234,14 @@ export const AiCheckSchema = z.discriminatedUnion('ok', [
   }),
 ])
 export type AiCheck = z.infer<typeof AiCheckSchema>
+
+/**
+ * A5 · the Report in a few sentences. Every number in them is one of the
+ * report's; `dropped` counts the sentences left out for saying one that is not.
+ */
+export const WrittenReportSchema = z.object({
+  range: WrappedRangeSchema,
+  sentences: z.array(z.string()),
+  dropped: z.number().int().nonnegative(),
+})
+export type WrittenReport = z.infer<typeof WrittenReportSchema>

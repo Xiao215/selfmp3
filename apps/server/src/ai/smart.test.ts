@@ -23,6 +23,9 @@ function smartFor(baseUrl: string | null): SmartFeatures {
       throw new Error('not asked')
     },
     lyrics: () => [],
+    wrapped: () => {
+      throw new Error('not asked')
+    },
   })
 }
 

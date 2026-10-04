@@ -316,3 +316,18 @@ playing stops. Without a song playing, `next` falls back to the usual playlist a
 Measured on the real library: about 10 s, "calmer" read as an energy range under the
 playing song's.
 
+## A5 · The Report in words
+
+`Stats › Report`, under the page: "✦ In words", three to five sentences about the period,
+with **Write it again**. The server writes the Report's numbers as plain facts (hours
+beside minutes, the hour as "3 pm", the weekday by name, so the model never has to work
+anything out) and the model writes from those alone (`GET /api/ai/written`).
+
+What it wrote is checked, sentence by sentence, and a sentence that fails is dropped, not
+mended: every number in it must be one of the facts' ("1,342" and "14th" read as numbers),
+and every run of Chinese or Japanese must appear in the facts exactly. The second rule is
+there because the model once wrote 原神纯音乨 for the tag 原神纯音乐, which no number check
+sees. On the real library across a week, a month and a year, one sentence in fifteen was
+dropped. The answer is kept per set of facts, so the page costs one call until the plays
+change or Write it again is pressed.
+

@@ -1,8 +1,11 @@
 import { Router } from 'express'
+import { z } from 'zod'
 import {
   type AiCheck,
   type AiSetup,
   type TidyResult,
+  type WrittenReport,
+  WrappedRangeSchema,
   AskRequestSchema,
   DescribeRequestSchema,
   type AskAnswer,
@@ -44,6 +47,20 @@ export function aiRoutes(container: Container): Router {
     '/ai/ask',
     route({ body: AskRequestSchema }, ({ body }): Promise<AskAnswer> =>
       answering(container.smart.ask(body.text, body.playing)),
+    ),
+  )
+
+  router.get(
+    '/ai/written',
+    route(
+      {
+        query: z.object({
+          range: WrappedRangeSchema.default('month'),
+          again: z.enum(['0', '1']).default('0'),
+        }),
+      },
+      ({ query }): Promise<WrittenReport> =>
+        answering(container.smart.written(query.range, query.again === '1')),
     ),
   )
 

@@ -23,6 +23,7 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Segmented } from '../../ui/components/Segmented'
 import { Select } from '../../ui/components/Select'
 import { card, floating, sectionTitle } from '../../ui/surfaces'
+import { WrittenReport } from '../smart/WrittenReport'
 import { useStatsFor, useStatsSongs, useWrappedFor } from '../stats/statsSource'
 import { LOOK_VIEWS } from './looks'
 import { Scaled } from './looks/Scaled'
@@ -235,6 +236,7 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
         art={art}
         tagHue={tagHue}
       />
+      <WrittenReport range={frame.range} />
     </>,
   )
 }

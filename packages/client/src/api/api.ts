@@ -35,6 +35,7 @@ import {
   AiSetupSchema,
   AskAnswerSchema,
   TidyResultSchema,
+  WrittenReportSchema,
   DescribeResultSchema,
   TagSuggestionsSchema,
   type Understanding,
@@ -337,6 +338,10 @@ export function createApi({ context, fetch }: ApiOptions) {
       request('POST', '/api/ai/ask', AskAnswerSchema, { text, playing }),
 
     tagSuggestions: () => request('GET', '/api/ai/tag-suggestions', TagSuggestionsSchema),
+
+    /** A5 · the Report in a few sentences; `again` writes it afresh. */
+    written: (range: WrappedRange, again = false) =>
+      request('GET', `/api/ai/written?range=${range}&again=${again ? 1 : 0}`, WrittenReportSchema),
 
     /** A4 · Tidy up: the song names that look wrong, as changes to approve. */
     tidy: () => request('GET', '/api/ai/tidy', TidyResultSchema),

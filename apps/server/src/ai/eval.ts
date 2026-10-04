@@ -1,10 +1,12 @@
 import Database from 'better-sqlite3'
+import { WrappedRangeSchema } from '@selfmp3/shared'
 import { loadConfig } from '../config.js'
 import { createLogger } from '../logger.js'
 import { LyricsSearchRepository } from '../repositories/lyricsSearch.js'
 import { SongRepository } from '../repositories/songs.js'
 import { StatsRepository } from '../repositories/stats.js'
 import { TagRepository } from '../repositories/tags.js'
+import { WrappedRepository } from '../repositories/wrapped.js'
 import { SmartFeatures, llmFor, setupFor } from './smart.js'
 
 /**
@@ -16,6 +18,7 @@ import { SmartFeatures, llmFor, setupFor } from './smart.js'
  *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> tags
  *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> ask "tag every 周杰倫 song 中文流行"
  *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> tidy
+ *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> written month
  *   PLAYING=<song id> npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> ask "something calmer like this next"
  *
  * The database is opened read-only, and nothing but the model is reached:
@@ -27,8 +30,10 @@ import { SmartFeatures, llmFor, setupFor } from './smart.js'
 /* eslint-disable no-console -- a script's output is its console. */
 
 const [file, what, ...words] = process.argv.slice(2)
-if (!file || !['describe', 'tags', 'ask', 'tidy'].includes(what ?? '')) {
-  console.error('usage: eval.ts <db file> describe "<words>" | ask "<words>" | tags | tidy')
+if (!file || !['describe', 'tags', 'ask', 'tidy', 'written'].includes(what ?? '')) {
+  console.error(
+    'usage: eval.ts <db file> describe "<words>" | ask "<words>" | tags | tidy | written [week|month|…]',
+  )
   process.exit(2)
 }
 
@@ -39,6 +44,7 @@ const songs = new SongRepository(db)
 const tags = new TagRepository(db)
 const stats = new StatsRepository(db)
 const lyrics = new LyricsSearchRepository(db)
+const wrapped = new WrappedRepository(db)
 const smart = new SmartFeatures({
   llm: llmFor(config, logger),
   setup: setupFor(config),
@@ -46,6 +52,7 @@ const smart = new SmartFeatures({
   tags: () => tags.all(),
   stats: range => stats.build(range),
   lyrics: query => lyrics.search(query).map(row => ({ songId: row.song_id, line: row.line })),
+  wrapped: range => wrapped.build(range),
 })
 const titleOf = new Map(songs.all().map(song => [song.id, `${song.title} · ${song.artist}`]))
 
@@ -73,6 +80,11 @@ if (what === 'ask') {
   console.log(JSON.stringify({ ...result, picks: undefined }, null, 2))
   for (const pick of result.picks)
     console.log(`- ${titleOf.get(pick.songId)}  (${pick.why ?? 'fits'})`)
+} else if (what === 'written') {
+  const range = WrappedRangeSchema.parse(words[0] ?? 'month')
+  const result = await smart.written(range)
+  for (const sentence of result.sentences) console.log(sentence)
+  console.log(`(${result.dropped} dropped)`)
 } else if (what === 'tidy') {
   const result = await smart.tidy()
   console.log(`${result.looked} songs looked at · ${result.changes.length} changes`)

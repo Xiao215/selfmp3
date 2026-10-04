@@ -4,6 +4,9 @@ import type {
   AiSetup,
   AskAnswer,
   TidyResult,
+  Wrapped,
+  WrappedRange,
+  WrittenReport,
   DescribeRequest,
   DescribeResult,
   Stats,
@@ -17,6 +20,7 @@ import { ask, type AskDeps } from './ask.js'
 import { describe } from './describe.js'
 import { LlmError, llmFailureWords, noLlm, openAiCompatible, Remembered, type Llm } from './llm.js'
 import { tidy } from './tidy.js'
+import { written } from './written.js'
 import { suggestTags } from './suggestTags.js'
 
 /**
@@ -24,7 +28,11 @@ import { suggestTags } from './suggestTags.js'
  * once in the container, with the model behind it chosen by configuration.
  */
 export class SmartFeatures {
-  readonly #deps: AskDeps & { remembered: Remembered; setup: AiSetup }
+  readonly #deps: AskDeps & {
+    remembered: Remembered
+    setup: AiSetup
+    wrapped: (range: WrappedRange) => Wrapped
+  }
   /** One Suggest tags pass at a time: a second press joins the first. */
   #suggesting: Promise<TagSuggestions> | null = null
 
@@ -35,6 +43,7 @@ export class SmartFeatures {
     tags: () => Tag[]
     stats: (range: Stats['range']) => Stats
     lyrics: (query: string) => { songId: number; line: string }[]
+    wrapped: (range: WrappedRange) => Wrapped
   }) {
     this.#deps = { ...deps, remembered: new Remembered() }
   }
@@ -76,6 +85,11 @@ export class SmartFeatures {
         detail: caught.message,
       }
     }
+  }
+
+  /** A5 · the Report in a few sentences; `again` writes it afresh. */
+  written(range: WrappedRange, again = false): Promise<WrittenReport> {
+    return written(this.#deps, range, again)
   }
 
   /** A4 · Tidy up: the names that look wrong, as changes to approve. */

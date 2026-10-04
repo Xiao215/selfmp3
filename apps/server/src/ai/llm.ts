@@ -241,6 +241,11 @@ export class Remembered {
   async get<T>(key: string, make: () => Promise<T>, now = Date.now()): Promise<T> {
     const hit = this.#entries.get(key)
     if (hit && now - hit.at < this.ttlMs) return hit.value as T
+    return this.put(key, make, now)
+  }
+
+  /** A fresh answer, kept in place of the one before: "write it again". */
+  async put<T>(key: string, make: () => Promise<T>, now = Date.now()): Promise<T> {
     const value = await make()
     this.#entries.delete(key)
     this.#entries.set(key, { at: now, value })

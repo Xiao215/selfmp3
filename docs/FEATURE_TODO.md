@@ -132,7 +132,8 @@ to Google or reach a Tailscale address.
 What exists is in [features/ai.md](features/ai.md): S1 (Ask in the Search box, which also
 covers finding a song by what you remember and questions about your listening), N1 (New
 playlist as one field), the Describe pipeline (A1c), A7 (Suggest tags), A4 Tidy up's
-names pass, A9's rules and A8 (steer Up next). The letters are the AI ideas canvas's
+names pass, A9's rules, A8 (steer Up next) and A5
+(the Report in words). The letters are the AI ideas canvas's
 (<https://claude.ai/artifact/F9yEDvXnGRhgMrVQevHumS>). Drawn there, not built:
 
 - **A4, the rest**: filling a missing album, year or cover from MusicBrainz/iTunes (the
@@ -142,8 +143,8 @@ names pass, A9's rules and A8 (steer Up next). The letters are the AI ideas canv
   one theme on two soundtracks). Worth building when an import source starts leaving gaps.
 - **A9, the model's part**: a model reading each import row's names. The rules part is
   built (repeats and translations at import), and nothing seen yet needs more.
-- **A5: your month, written**, and **Settings › Smart features**' switches (one per
-  feature, and what leaves the library). The address, the models and a Test are built.
+- **Settings › Smart features**' switches (one per feature, and what leaves the library).
+  The address, the models and a Test are built.
 - Not tried yet: the phone app (every screen was checked in Chrome at 1280 and 390 wide),
   and a device reaching the server through the cloud (the check ran against a server
   directly; the id translation is the same code Stats uses).

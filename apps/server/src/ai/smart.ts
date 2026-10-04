@@ -17,6 +17,7 @@ import type {
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import { ask, type AskDeps } from './ask.js'
+import type { AskPlaylist } from './askLibrary.js'
 import { AskProgress, type Step } from './progress.js'
 import { describe, type DescribeInput } from './describe.js'
 import { refine } from './refine.js'
@@ -47,7 +48,7 @@ export class SmartFeatures {
     stats: (range: Stats['range']) => Stats
     lyrics: (query: string) => { songId: number; line: string }[]
     wrapped: (range: WrappedRange) => Wrapped
-    playlists?: () => readonly { readonly name: string }[]
+    playlists?: () => readonly AskPlaylist[]
   }) {
     this.#deps = { ...deps, remembered: new Remembered() }
   }

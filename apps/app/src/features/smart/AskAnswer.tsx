@@ -12,8 +12,10 @@ import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
-import { Play } from '../../ui/components/Icons'
+import { Play, Sparkle } from '../../ui/components/Icons'
 import { placePath, rangeWords } from './smart.model'
+import { LibraryAnswer } from './LibraryAnswer'
+import { PlaylistSongsAnswer } from './PlaylistSongsAnswer'
 import { PlaylistsAnswer } from './PlaylistsAnswer'
 import { SongsAnswerCard } from './SongsAnswerCard'
 import { TagsReview } from './TagsReview'
@@ -34,9 +36,12 @@ export function AskAnswer({
   onOpenPage = onDone,
   listHeight = 300,
   onKeys,
+  onAsk,
 }: {
   text: string
   onDone: () => void
+  /** Asks something else in the same box: a dead end's suggestions. */
+  onAsk?: (text: string) => void
   /**
    * Before an answer opens as a page of its own. Search's page stays under it,
    * so Back finds the question; the palette closes, as it does for any page.
@@ -102,6 +107,7 @@ export function AskAnswer({
         onOpenPage={onOpenPage}
         listHeight={listHeight}
         onKeys={onKeys}
+        onAsk={onAsk}
       />
     </View>
   )
@@ -114,6 +120,7 @@ function Drawn({
   onOpenPage,
   listHeight,
   onKeys,
+  onAsk,
 }: {
   answer: Answer
   text: string
@@ -121,6 +128,7 @@ function Drawn({
   onOpenPage: () => void
   listHeight: number
   onKeys?: (keys: AnswerKeys | null) => void
+  onAsk?: (text: string) => void
 }): ReactNode {
   const router = useRouter()
   switch (answer.kind) {
@@ -138,6 +146,12 @@ function Drawn({
       )
     case 'playlists':
       return <PlaylistsAnswer answer={answer} onDone={onDone} />
+    case 'playlistSongs':
+      return (
+        <PlaylistSongsAnswer answer={answer} height={listHeight} onDone={onDone} onKeys={onKeys} />
+      )
+    case 'library':
+      return <LibraryAnswer answer={answer} height={listHeight} onDone={onDone} />
     case 'stats':
       return (
         <>
@@ -178,7 +192,31 @@ function Drawn({
         </>
       )
     case 'none':
-      return <Text style={styles.line}>{answer.say}</Text>
+      return (
+        <>
+          <Text style={styles.line}>{answer.say}</Text>
+          {onAsk && answer.try.length > 0 ? (
+            <View style={styles.tries}>
+              <Text style={styles.muted}>Try</Text>
+              {answer.try.map(each => (
+                <Pressable
+                  key={each}
+                  onPress={() => onAsk(each)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Ask: ${each}`}
+                  style={({ pressed }) => [styles.try, pressed && styles.pressed]}
+                  testID="ask-try"
+                >
+                  <Sparkle size={13} />
+                  <Text style={styles.tryText} numberOfLines={2}>
+                    {each}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+        </>
+      )
   }
 }
 
@@ -256,5 +294,18 @@ const styles = StyleSheet.create(theme => ({
   text: { flex: 1, minWidth: 0 },
   title: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: 13, fontWeight: '500' },
   why: { color: theme.colors.textMuted, fontSize: 11.5 },
+  tries: { gap: 6, marginTop: space.xs },
+  try: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.surface2,
+  },
+  tryText: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: 13 },
   pressed: { opacity: 0.6 },
 }))

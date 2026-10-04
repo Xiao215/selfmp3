@@ -192,6 +192,23 @@ export const AskPlaceSchema = z.enum([
 ])
 export type AskPlace = z.infer<typeof AskPlaceSchema>
 
+/** What songs can be put in order by, for a playlist's sort and a library question. */
+export const AskSortSchema = z.enum([
+  'energy',
+  'bpm',
+  'year',
+  'title',
+  'artist',
+  'addedAt',
+  'duration',
+  'plays',
+  'lastPlayed',
+])
+export type AskSort = z.infer<typeof AskSortSchema>
+
+export const AskOrderSchema = z.enum(['asc', 'desc'])
+export type AskOrder = z.infer<typeof AskOrderSchema>
+
 export const AskStatsRangeSchema = z.enum(['7d', '30d', '90d', '365d', 'all'])
 export type AskStatsRange = z.infer<typeof AskStatsRangeSchema>
 
@@ -271,9 +288,52 @@ export const AskAnswerSchema = z.discriminatedUnion('kind', [
     /** Names asked about that match no playlist. */
     unknown: z.array(z.string()),
   }),
+  /**
+   * Songs added to or taken out of one manual playlist, or its songs put in a
+   * new order. `songs` is who goes in or out, with why when the model chose
+   * them; for a sort it is every song in the new order.
+   */
+  z.object({
+    kind: z.literal('playlistSongs'),
+    /** The playlist's exact name. */
+    playlist: z.string(),
+    op: z.enum(['add', 'remove', 'sort']),
+    songs: z.array(DescribePickSchema),
+    /** What chose the songs, for an add or a remove. */
+    understanding: UnderstandingSchema.nullable(),
+    /** Chosen by the filters alone, or judged by the model. */
+    by: z.enum(['rule', 'model']),
+    sortBy: AskSortSchema.nullable(),
+    order: AskOrderSchema,
+    /** Tags or artists the words named that this library does not have. */
+    unknown: z.array(z.string()),
+  }),
+  /**
+   * A question about what is in the library, answered from it in code: how
+   * many, how long, who they are by, and the songs (the first of them, in the
+   * order asked for).
+   */
+  z.object({
+    kind: z.literal('library'),
+    understanding: UnderstandingSchema,
+    unknown: z.array(z.string()),
+    show: z.enum(['count', 'songs', 'artists', 'albums', 'tags']),
+    count: z.number().int().nonnegative(),
+    seconds: z.number().nonnegative(),
+    songIds: z.array(IdSchema),
+    sortBy: AskSortSchema.nullable(),
+    order: AskOrderSchema,
+    /** Who, which albums and which tags the songs are in, most songs first. */
+    artists: z.array(z.object({ label: z.string(), count: z.number().int() })),
+    albums: z.array(z.object({ label: z.string(), count: z.number().int() })),
+    tags: z.array(z.object({ label: z.string(), count: z.number().int() })),
+  }),
   z.object({ kind: z.literal('open'), place: AskPlaceSchema, say: z.string() }),
-  /** Not something the box can do, and what to do instead. */
-  z.object({ kind: z.literal('none'), say: z.string() }),
+  /**
+   * Not something the box can do, and what to do instead: `try` is requests
+   * it can do that come closest, each one press away.
+   */
+  z.object({ kind: z.literal('none'), say: z.string(), try: z.array(z.string()).default([]) }),
 ])
 export type AskAnswer = z.infer<typeof AskAnswerSchema>
 

@@ -190,12 +190,19 @@ what that action needs, as JSON. Then the action runs as code:
 | `find` | "the song about grandma's tea" | its terms, in every language the library uses, matched against titles, artists, albums and the lyrics index | a pick of at most 5 |
 | `tags` | "tag the songs that should be 中文流行", "merge j-anime into jpop", "tidy my tags" | the tag review, with the request itself (Tags, below) | the plan, then the groups |
 | `stats` | "what did I play most last month" | the stats the Stats page shows; the model only chose the window and what about | none |
+| `library` | "how many YOASOBI songs do I have", "my longest song" | Describe's filters over the library, counted and sorted in code (`askLibrary.ts`) | none |
+| `playlistSongs` | "add the YOASOBI songs to gym", "take the slow ones out of chill", "sort genshin calmest first" | the filters choose the songs; a sort is code | a pick only when the words go past the filters |
 | `open` | "download the new Yorushika album" | a sentence and a button to the place | none |
-| `none` | anything else | what the box can do instead | none |
+| `none` | anything else | what the box can do instead, and up to two requests it can do, each a press away | none |
 
 Every answer is a proposal with its own button (`AskAnswer.tsx`): a song answer is a card
 with ▶ that opens as its own page (docs/features/lists.md, "Ask's song answer"), the tag
-review's Apply, Open Stats, a found song to play.
+review's Apply, Open Stats, a found song to play, Play these.
+
+A dead end is not one: `none` carries `try`, at most two requests in the asker's language
+that the box can do and that come closest ("tag the good ones" → "tag the songs that should
+be 中文流行"). Each is a button that puts its words in the box and asks them. The ones the
+server says in code ("Tags is turned off…") carry none.
 
 While it works, the wait says what is happening (`ai/progress.ts`): the device names its
 request with a `ticket` and asks `GET /api/ai/ask/progress` twice a second, and the server
@@ -218,6 +225,30 @@ button is the confirmation; the message after it has Undo, which makes each one 
 its name, its songs in their order, and its tags to fill from. A rename shows old → new and
 undoes to the old name. Playlists only: deleting a tag strips it from songs, which is not
 undone as simply.
+
+A playlist's songs are the `playlistSongs` action (`ai/askLibrary.ts`): add, remove or sort
+one manual playlist, found by `matchPlaylist` too. Add and remove choose their songs with
+Describe's filters — among the library's songs not in it, or among its own — and when the
+filters say it all, every song they let in is the answer, ticked, with no second call. Words
+the filters cannot say ("from second person", "the ones that aren't game music") go to
+Describe's pick over the songs that pass them, waiting with the sparkle; nothing is loosened,
+so a remove never reaches past what was asked. A sort is code (`sortSongs`: a song without
+the value, never analysed or never played, goes last either way). A live playlist fills
+itself from its tags and is answered with that. The device (`PlaylistSongsAnswer.tsx`)
+checks against the playlist as it is now — an add keeps songs not in it, a remove the ones
+still in it, a sort keeps a song added since at the end — and Undo puts back the songs and
+their order (a remove's Undo adds them, then restores the whole order).
+
+## Questions about your library
+
+"How many YOASOBI songs do I have", "what did I add this week", "my longest song", "who is
+in 中文流行": the `library` action. The router fills Describe's filters (none for the whole
+library, `size` for how many to list) and what to show — a count, the songs, or their
+artists, albums or tags — with an order when the words ask for one. Everything after is code
+(`libraryAnswer`): the count and length, the first fifty in order, and who, which albums and
+which tags they are in, most songs first. `stats` stays the listening; this is the library.
+On the real library: YOASOBI 31, added this week 719 (the Genshin import), the longest one
+song of 1,337.
 
 ## Lengths
 

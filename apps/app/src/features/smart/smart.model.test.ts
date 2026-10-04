@@ -18,6 +18,8 @@ import {
   onlyTags,
   parts,
   picksHere,
+  playlistEditHere,
+  sortWords,
   serverHop,
   tickedAtFirst,
   tidyEdits,
@@ -397,5 +399,39 @@ describe('tag changes', () => {
     expect(swapTagInRules(playlist.rules, 3, 1).rules).toEqual([
       { field: 'tag', op: 'has', tagId: 1 },
     ])
+  })
+})
+
+describe('playlist edits', () => {
+  const answer = (op: 'add' | 'remove' | 'sort', songIds: number[]) => ({
+    kind: 'playlistSongs' as const,
+    playlist: 'gym',
+    op,
+    songs: songIds.map(songId => ({ songId, why: songId === 2 ? 'loud' : null })),
+    understanding: null,
+    by: 'rule' as const,
+    sortBy: null,
+    order: 'asc' as const,
+    unknown: [],
+  })
+  const onDevice = (serverId: number) => (serverId === 9 ? undefined : serverId + 100)
+
+  it('adds only songs not in it now, and takes out only songs still in it', () => {
+    const current = [101, 103]
+    expect(playlistEditHere(answer('add', [1, 2, 9]), onDevice, current).songIds).toEqual([102])
+    const removed = playlistEditHere(answer('remove', [1, 2]), onDevice, current)
+    expect(removed.songIds).toEqual([101])
+    expect(playlistEditHere(answer('add', [2]), onDevice, []).why.get(102)).toBe('loud')
+  })
+
+  it('sorts what is there, keeping a song added since at the end', () => {
+    expect(playlistEditHere(answer('sort', [3, 1, 2]), onDevice, [101, 104, 103]).songIds).toEqual([
+      103, 101, 104,
+    ])
+  })
+
+  it('says an order the way a person would', () => {
+    expect(sortWords('energy', 'asc')).toBe('calmest first')
+    expect(sortWords('addedAt', 'desc')).toBe('newest first')
   })
 })

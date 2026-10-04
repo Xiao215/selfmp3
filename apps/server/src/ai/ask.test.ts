@@ -31,8 +31,11 @@ const route = (overrides: Record<string, unknown>) => ({
   find: null,
   stats: null,
   playlists: null,
+  playlistSongs: null,
+  library: null,
   open: null,
   say: null,
+  try: null,
   ...overrides,
 })
 
@@ -70,7 +73,18 @@ function deps(replies: Record<string, unknown[]>) {
   }
 }
 
-const PLAYLISTS = [{ name: 'chill · chinese · hype' }, { name: 'chill · chinese' }, { name: 'hi' }]
+const manual = (name: string, songIds: number[] = []) => ({
+  name,
+  kind: 'manual' as const,
+  songIds: () => songIds,
+})
+const PLAYLISTS = [
+  manual('chill · chinese · hype'),
+  manual('chill · chinese'),
+  manual('hi'),
+  manual('running', [7, 9, 14]),
+  { ...manual('genshin'), kind: 'live' as const },
+]
 
 describe('matchPlaylist', () => {
   it('finds a playlist however it is spaced, dotted or cased', () => {
@@ -124,6 +138,7 @@ describe('ask, about playlists', () => {
     expect(await ask(rename(['nothing'], 'x'), 'rename nothing')).toEqual({
       kind: 'none',
       say: 'No playlist here is called “nothing”.',
+      try: [],
     })
   })
 
@@ -262,6 +277,115 @@ describe('ask', () => {
     // An action without what it needs is not trusted.
     const broken = deps({ 'ask-route': [route({ action: 'songs', songs: null })] })
     expect((await ask(broken, 'hm')).kind).toBe('none')
+  })
+})
+
+describe('ask about the library', () => {
+  const question = (overrides: Record<string, unknown>) =>
+    route({
+      action: 'library',
+      library: { show: 'count', sortBy: null, order: 'asc', ...overrides },
+    })
+
+  it('counts the songs the filters choose, and says who they are by', async () => {
+    const d = deps({
+      'ask-route': [{ ...question({}), songs: { ...noFilters, artists: ['yoasobi'] } }],
+    })
+    expect(await ask(d, 'how many yoasobi songs do I have')).toMatchObject({
+      kind: 'library',
+      count: 2,
+      seconds: 400,
+      songIds: [7, 8],
+      artists: [{ label: 'YOASOBI', count: 2 }],
+      tags: [{ label: 'jpop', count: 2 }],
+    })
+    // The answer is counted in code: the model is asked once, to route.
+    expect(d.llm.asked).toHaveLength(1)
+  })
+
+  it('sorts the whole library when no filter is set, songs without the value last', async () => {
+    const d = deps({ 'ask-route': [question({ show: 'songs', sortBy: 'energy', order: 'desc' })] })
+    const answer = await ask(d, 'my most energetic songs')
+    if (answer.kind !== 'library') throw new Error(answer.kind)
+    expect(answer.count).toBe(17)
+    expect(answer.songIds.slice(0, 2)).toEqual([7, 8])
+    expect(answer.songIds.at(-1)).toBe(13)
+  })
+})
+
+describe('ask about a playlist’s songs', () => {
+  const edit = (overrides: Record<string, unknown>, songs: unknown = null) =>
+    route({
+      action: 'playlistSongs',
+      songs,
+      playlistSongs: { name: 'running', op: 'add', sortBy: null, order: 'asc', ...overrides },
+    })
+
+  it('adds the songs the filters choose that are not in it yet', async () => {
+    const d = deps({ 'ask-route': [edit({}, { ...noFilters, artists: ['YOASOBI'] })] })
+    expect(await ask(d, 'add the yoasobi songs to running')).toMatchObject({
+      kind: 'playlistSongs',
+      playlist: 'running',
+      op: 'add',
+      songs: [{ songId: 8, why: null }],
+      by: 'rule',
+    })
+  })
+
+  it('lets the model judge words the filters cannot say, among the playlist’s own songs', async () => {
+    const d = deps({
+      'ask-route': [edit({ op: 'remove' }, { ...noFilters, brief: 'the Japanese ones' })],
+      'describe-pick': [
+        {
+          picks: [
+            { n: 1, why: 'Japanese' },
+            { n: 2, why: 'Japanese' },
+          ],
+        },
+      ],
+    })
+    const answer = await ask(d, 'take the japanese ones out of running')
+    if (answer.kind !== 'playlistSongs') throw new Error(answer.kind)
+    expect(answer.by).toBe('model')
+    expect(answer.songs).toHaveLength(2)
+    expect(answer.songs.every(each => [7, 9, 14].includes(each.songId))).toBe(true)
+    expect(String(d.llm.asked[1]?.prompt)).toContain('take out of the playlist “running”')
+  })
+
+  it('sorts its songs, and leaves a playlist that fills itself alone', async () => {
+    const sorted = deps({ 'ask-route': [edit({ op: 'sort', sortBy: 'energy', order: 'asc' })] })
+    expect(await ask(sorted, 'sort running calmest first')).toMatchObject({
+      songs: [{ songId: 14 }, { songId: 9 }, { songId: 7 }],
+    })
+    const live = deps({ 'ask-route': [edit({ name: 'genshin', op: 'sort', sortBy: 'energy' })] })
+    expect(await ask(live, 'sort genshin')).toMatchObject({ kind: 'none' })
+  })
+
+  it('asks which songs when the words choose none', async () => {
+    const d = deps({ 'ask-route': [edit({}, noFilters)] })
+    expect(await ask(d, 'add songs to running')).toMatchObject({
+      kind: 'none',
+      say: 'Say which songs to add to running: an artist, a tag, or a kind of song.',
+    })
+  })
+})
+
+describe('a dead end', () => {
+  it('offers what the box can do instead, ready to ask', async () => {
+    const d = deps({
+      'ask-route': [
+        route({
+          action: 'none',
+          say: 'Say which songs.',
+          try: ['tag the songs that should be jpop', ' '],
+        }),
+      ],
+    })
+    expect(await ask(d, 'tag the good ones')).toEqual({
+      kind: 'none',
+      say: 'Say which songs.',
+      try: ['tag the songs that should be jpop'],
+    })
   })
 })
 

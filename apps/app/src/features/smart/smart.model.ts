@@ -2,7 +2,10 @@ import { ApiError } from '@selfmp3/client'
 import { formatLongDuration } from '@selfmp3/shared'
 import type {
   AiCheck,
+  AskAnswer,
+  AskOrder,
   AskPlace,
+  AskSort,
   BulkEditSongs,
   Playlist,
   SmartRules,
@@ -643,4 +646,56 @@ export function tagSection(change: TagChange): string {
     case 'delete':
       return 'Delete'
   }
+}
+
+/** "calmest first", "newest first": an order said the way a person would. */
+export function sortWords(by: AskSort, order: AskOrder): string {
+  const up = order === 'asc'
+  switch (by) {
+    case 'energy':
+      return up ? 'calmest first' : 'liveliest first'
+    case 'bpm':
+      return up ? 'slowest first' : 'fastest first'
+    case 'year':
+      return up ? 'oldest release first' : 'newest release first'
+    case 'title':
+      return up ? 'by title, A to Z' : 'by title, Z to A'
+    case 'artist':
+      return up ? 'by artist, A to Z' : 'by artist, Z to A'
+    case 'addedAt':
+      return up ? 'oldest first' : 'newest first'
+    case 'duration':
+      return up ? 'shortest first' : 'longest first'
+    case 'plays':
+      return up ? 'least played first' : 'most played first'
+    case 'lastPlayed':
+      return up ? 'longest unplayed first' : 'most recently played first'
+  }
+}
+
+/**
+ * A playlist edit in this device's songs, against the playlist as it is now:
+ * an add keeps the songs not in it, a remove the ones still in it, and a sort
+ * is the new order with any song added since kept at the end.
+ */
+export function playlistEditHere(
+  answer: Extract<AskAnswer, { kind: 'playlistSongs' }>,
+  onDevice: (serverId: number) => number | undefined,
+  current: readonly number[],
+): { songIds: number[]; why: Map<number, string> } {
+  const inIt = new Set(current)
+  const why = new Map<number, string>()
+  const mapped = answer.songs.flatMap(pick => {
+    const id = onDevice(pick.songId)
+    if (id === undefined) return []
+    if (pick.why) why.set(id, pick.why)
+    return [id]
+  })
+  if (answer.op === 'sort') {
+    const order = mapped.filter(id => inIt.has(id))
+    const placed = new Set(order)
+    return { songIds: [...order, ...current.filter(id => !placed.has(id))], why }
+  }
+  const adding = answer.op === 'add'
+  return { songIds: mapped.filter(id => inIt.has(id) !== adding), why }
 }

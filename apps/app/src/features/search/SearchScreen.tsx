@@ -172,7 +172,15 @@ export function SearchScreen(): ReactNode {
             contentContainerStyle={styles.results}
           >
             {answering ? (
-              <AskAnswer text={asking} onDone={close} onOpenPage={() => undefined} />
+              <AskAnswer
+                text={asking}
+                onDone={close}
+                onOpenPage={() => undefined}
+                onAsk={words => {
+                  setQuery(words)
+                  setAsking(words)
+                }}
+              />
             ) : null}
             {!answering && offerAsk && counts.all === 0 ? (
               <AskCard words={words} first onAsk={() => setAsking(words)} />

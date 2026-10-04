@@ -40,12 +40,14 @@ describe('smart features turned off in Settings', () => {
         play: false,
         next: false,
         songs: null,
-        tag: null,
         find: null,
         stats: null,
         playlists: null,
+        playlistSongs: null,
+        library: null,
         open: null,
         say: null,
+        try: null,
       })
       response.end(JSON.stringify({ choices: [{ message: { content } }] }))
     })
@@ -117,6 +119,7 @@ describe('smart features turned off in Settings', () => {
     expect(await response.json()).toEqual({
       kind: 'none',
       say: 'Tidy up is turned off in Settings › Smart features.',
+      try: [],
     })
     // The router was asked; the names pass was not.
     expect(asked).toBe(1)

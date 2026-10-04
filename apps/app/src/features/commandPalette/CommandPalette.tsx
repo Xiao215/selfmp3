@@ -576,6 +576,10 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
               onDone={onClose}
               listHeight={Math.max(240, window.height * ANSWER_HEIGHT - ANSWER_AROUND_LIST)}
               onKeys={setAnswerKeys}
+              onAsk={words => {
+                setQuery(words)
+                setAsking(words)
+              }}
             />
           ) : (
             drawnGroups

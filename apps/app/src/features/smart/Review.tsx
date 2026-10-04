@@ -73,6 +73,7 @@ export function Review<T extends Reviewed>({
   onClose,
   onKeys,
   testID,
+  openAtFirst = [],
 }: {
   changes: readonly T[]
   /** The heading a change is listed under in its band. */
@@ -102,6 +103,8 @@ export function Review<T extends Reviewed>({
   onKeys?: (keys: AnswerKeys | null) => void
   /** The start of each part's test id: `${testID}-change`, `${testID}-apply`, … */
   testID: string
+  /** Changes drawn open to their songs from the start, by key. */
+  openAtFirst?: readonly string[]
 }): ReactNode {
   const { data: library } = useLibrary()
   const artFor = useArt(ROW_COVER_SIZE)
@@ -113,7 +116,7 @@ export function Review<T extends Reviewed>({
   const [leftOut, setLeftOut] = useState<ReadonlySet<string>>(new Set())
   /** Headings showing every change, changes open to their songs, and opened ones showing all. */
   const [allOf, setAllOf] = useState<ReadonlySet<string>>(new Set())
-  const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set(openAtFirst))
   const [allSongs, setAllSongs] = useState<ReadonlySet<string>>(new Set())
   /** Where the keys are; none until an arrow is pressed. */
   const [at, setAt] = useState<string | null>(null)

@@ -1,6 +1,8 @@
 import { z } from 'zod/v4'
 import {
+  AskOrderSchema,
   AskPlaceSchema,
+  AskSortSchema,
   AskStatsRangeSchema,
   type AskAnswer,
   type Song,
@@ -15,6 +17,7 @@ import {
   narrowAndPick,
   type DescribeDeps,
 } from './describe.js'
+import { libraryAnswer, playlistSongs, type AskPlaylist } from './askLibrary.js'
 import { libraryShape, songTable } from './library.js'
 import { Remembered } from './llm.js'
 import { tagReview } from './tagReview.js'
@@ -42,12 +45,23 @@ const FIND_SIZE = 5
 const NEXT_SIZE = 10
 
 const RouteOut = z.object({
-  action: z.enum(['songs', 'find', 'tags', 'stats', 'tidy', 'playlists', 'open', 'none']),
+  action: z.enum([
+    'songs',
+    'find',
+    'tags',
+    'stats',
+    'library',
+    'tidy',
+    'playlists',
+    'playlistSongs',
+    'open',
+    'none',
+  ]),
   /** songs: they want it now, not kept. */
   play: z.boolean(),
   /** songs: they want it after the song playing, in Up next. */
   next: z.boolean(),
-  /** songs: the filters, as Describe's plan. */
+  /** songs, playlistSongs (add and remove) and library: the filters, as Describe's plan. */
   songs: PlanOut.nullable(),
   find: z
     .object({ terms: z.array(z.string().max(60)).max(12), brief: z.string().max(200) })
@@ -65,9 +79,26 @@ const RouteOut = z.object({
       newName: z.string().max(80).nullable(),
     })
     .nullable(),
+  playlistSongs: z
+    .object({
+      name: z.string().max(120),
+      op: z.enum(['add', 'remove', 'sort']),
+      sortBy: z.enum(AskSortSchema.options).nullable(),
+      order: z.enum(AskOrderSchema.options),
+    })
+    .nullable(),
+  library: z
+    .object({
+      show: z.enum(['count', 'songs', 'artists', 'albums', 'tags']),
+      sortBy: z.enum(AskSortSchema.options).nullable(),
+      order: z.enum(AskOrderSchema.options),
+    })
+    .nullable(),
   open: z.enum(AskPlaceSchema.options).nullable(),
   /** open and none: one plain sentence for the person. */
   say: z.string().max(240).nullable(),
+  /** none: requests the box can do that come closest, in their words. */
+  try: z.array(z.string().max(120)).max(2).nullable(),
 })
 
 const ROUTE_SYSTEM = `You are the request box of someone's own music app. Turn one request into exactly one action over their library, as JSON in the schema given. Set every field; fields the action does not use are null (play and next are false).
@@ -78,23 +109,37 @@ The actions:
 - tags: anything about their tags: songs given a tag or taken out of one, even when they leave it to you to say which songs ("tag every 周杰倫 song 中文流行", "tag the songs that should be 中文流行", "take ipop off what isn't Japanese"), a tag renamed, merged into another or deleted, or their tags checked or tidied up. Nothing else to fill: the request itself is what is used.
 - stats: a question about their own listening (most played, how much, which artists). Fill "stats": range is 7d, 30d, 90d, 365d or all ("last month" is 30d, "this year" is 365d); about is songs, artists, tags or totals.
 - tidy: they want their song names checked, fixed or cleaned up: wrong, messy or inconsistent titles, artists or albums, metadata worth fixing. Nothing else to fill.
+- library: a question about what is in their library, not about their listening ("how many YOASOBI songs do I have", "what did I add this week", "my longest song", "which songs have no lyrics", "who is in 中文流行"). Fill "songs" with the filters that choose the songs (null for the whole library; size for how many to list, such as 1 for "my longest song") and "library": show is count (how many), songs (which ones), artists, albums or tags (who or what they are by or in); sortBy and order when they ask for the most, least, longest, newest and so on (asc is lowest, earliest or A first), else sortBy null.
+- playlistSongs: they want songs put into or taken out of one playlist, or its songs put in order ("add the YOASOBI songs to gym", "take the slow ones out of chill", "sort genshin by energy"). Fill "playlistSongs": name copied from their playlist list as closely as you can; op add, remove or sort; for a sort, sortBy and order (asc is lowest, earliest or A first: calmest first is energy asc; year is when a song came out, addedAt when it joined the library), else sortBy null and order asc. For add and remove also fill "songs" with the filters that choose the songs (for remove, among the playlist's own songs), with brief for what the filters cannot say.
 - playlists: they want playlists deleted or one renamed. Fill "playlists": op is delete or rename; names are the playlists they mean, copied from their playlist list as closely as you can (they may misspell or shorten them); newName is the new name for a rename, else null. Playlists only, never songs or tags.
 - open: they want to go somewhere in the app rather than get an answer here: import (adding music, which takes a YouTube, Spotify or 网易云 link), stats, tags, library, playlists, settings. Fill "open", and "say" with one sentence on what they will find there. The app shows a button that goes there: never say you opened, changed or did anything.
-- none: anything else, including talk that is not a request. "say" is one plain sentence on what you can do instead. Never pretend to do something.
+- none: anything else, including talk that is not a request, or a request missing what it needs. "say" is one plain sentence on what you can do instead, and "try" is up to two requests, in their language, that this box can do and that come closest to what they wanted (for "tag the good ones": "tag the songs that should be 中文流行"). Empty when nothing comes close. Never pretend to do something.
 
-Filters, for songs:
+For every action but none, try is null.
+
+Filters, for songs, playlistSongs and library:
 ${FILTERS_GUIDE}`
 
 const FIND_SYSTEM = `Someone is looking for one song in their own library that they half remember. You are given what they remember and a numbered table of candidate songs (with a lyric line where one matched). Reply with JSON only: picks, at most ${FIND_SIZE}, best first, each the song's number (n) and why it fits in at most ten plain words. Only choose songs that plausibly are the one they mean; if none are, return no picks. Never use a number that is not in the table.`
 
 export interface AskDeps extends DescribeDeps {
-  /** The playlists by name, for "delete…" and "rename…" (`matchPlaylist`). */
-  readonly playlists?: () => readonly { readonly name: string }[]
+  /** The playlists, for "delete…", "rename…" (`matchPlaylist`) and their songs. */
+  readonly playlists?: () => readonly AskPlaylist[]
   readonly stats: (range: Stats['range']) => Stats
   readonly lyrics: (query: string) => { songId: number; line: string }[]
 }
 
 const lower = (value: string): string => value.toLowerCase()
+
+/** Not something the box can do, with what it can do instead. */
+const none = (say: string, tries: readonly string[] = []): AskAnswer => ({
+  kind: 'none',
+  say,
+  try: tries
+    .map(each => each.trim())
+    .filter(Boolean)
+    .slice(0, 2),
+})
 
 /** Letters and digits only, lower case: "chill · chinese · hype" and "chill chinese hype" are one. */
 const bare = (value: string): string => value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
@@ -260,7 +305,7 @@ export async function ask(
 
     case 'tags':
       if (!allowed.tags) {
-        return { kind: 'none', say: 'Tags is turned off in Settings › Smart features.' }
+        return none('Tags is turned off in Settings › Smart features.')
       }
       return { kind: 'tags', review: await tagReview({ ...deps, remembered }, { text }, steps) }
 
@@ -293,7 +338,7 @@ export async function ask(
 
     case 'tidy':
       if (!allowed.tidy) {
-        return { kind: 'none', say: 'Tidy up is turned off in Settings › Smart features.' }
+        return none('Tidy up is turned off in Settings › Smart features.')
       }
       return { kind: 'tidy', tidy: await tidy({ ...deps, remembered }, steps) }
 
@@ -304,22 +349,39 @@ export async function ask(
       const names = [...new Set(matched.flatMap(each => each.found ?? []))]
       const unknown = matched.filter(each => each.found === null).map(each => each.name)
       if (names.length === 0) {
-        return {
-          kind: 'none',
-          say:
-            asked.length > 0
-              ? `No playlist here is called ${asked.map(name => `“${name}”`).join(' or ')}.`
-              : 'Say which playlists you mean.',
-        }
+        return none(
+          asked.length > 0
+            ? `No playlist here is called ${asked.map(name => `“${name}”`).join(' or ')}.`
+            : 'Say which playlists you mean.',
+        )
       }
       if (op === 'rename') {
         const to = (newName ?? '').trim().replace(/\s+/g, ' ')
         if (names.length !== 1 || !to || to === names[0]) {
-          return { kind: 'none', say: 'Say which one playlist to rename, and what to call it.' }
+          return none('Say which one playlist to rename, and what to call it.')
         }
         return { kind: 'playlists', op, names, newName: to, unknown }
       }
       return { kind: 'playlists', op, names, newName: null, unknown }
+    }
+
+    case 'library':
+      if (!route.library) break
+      return libraryAnswer(deps, route.songs, route.library)
+
+    case 'playlistSongs': {
+      if (!route.playlistSongs) break
+      const name = matchPlaylist(route.playlistSongs.name, playlists)
+      const playlist = playlists.find(each => each.name === name)
+      if (!playlist) return none(`No playlist here is called “${route.playlistSongs.name}”.`)
+      return playlistSongs(
+        { ...deps, remembered },
+        playlist,
+        text,
+        route.songs,
+        route.playlistSongs,
+        steps,
+      )
     }
 
     case 'open':
@@ -329,10 +391,9 @@ export async function ask(
     case 'none':
       break
   }
-  return {
-    kind: 'none',
-    say:
-      route.say ??
-      'Ask for music (a playlist, something to play now), a song you half remember, changes to your tags, or a question about your listening.',
-  }
+  return none(
+    route.say ??
+      'Ask for music (a playlist, something to play now), a song you half remember, changes to your tags or playlists, or a question about your library or your listening.',
+    route.try ?? [],
+  )
 }

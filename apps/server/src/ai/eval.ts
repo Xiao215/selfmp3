@@ -3,6 +3,7 @@ import { WrappedRangeSchema, type TagReview } from '@selfmp3/shared'
 import { loadConfig } from '../config.js'
 import { createLogger } from '../logger.js'
 import { LyricsSearchRepository } from '../repositories/lyricsSearch.js'
+import { PlaylistRepository } from '../repositories/playlists.js'
 import { SongRepository } from '../repositories/songs.js'
 import { StatsRepository } from '../repositories/stats.js'
 import { TagRepository } from '../repositories/tags.js'
@@ -45,6 +46,7 @@ const tags = new TagRepository(db)
 const stats = new StatsRepository(db)
 const lyrics = new LyricsSearchRepository(db)
 const wrapped = new WrappedRepository(db)
+const playlists = new PlaylistRepository(db)
 const smart = new SmartFeatures({
   llm: llmFor(config, logger),
   setup: setupFor(config),
@@ -53,6 +55,12 @@ const smart = new SmartFeatures({
   stats: range => stats.build(range),
   lyrics: query => lyrics.search(query).map(row => ({ songId: row.song_id, line: row.line })),
   wrapped: range => wrapped.build(range),
+  playlists: () =>
+    playlists.all().map(playlist => ({
+      name: playlist.name,
+      kind: playlist.kind,
+      songIds: () => playlists.songIds(playlist),
+    })),
 })
 const titleOf = new Map(songs.all().map(song => [song.id, `${song.title} · ${song.artist}`]))
 

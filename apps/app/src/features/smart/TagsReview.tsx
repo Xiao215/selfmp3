@@ -106,8 +106,11 @@ export function TagsReview({
 
   const meta = (each: TagHere, state: ReviewRowState): string => {
     const { change: c } = each
-    const songs =
-      state.on && state.kept.length < each.songIds.length
+    // A change on one song doesn't open, so it names the song instead.
+    const only = each.songIds.length === 1 ? songsById.get(each.songIds[0]!) : undefined
+    const songs = only
+      ? only.title
+      : state.on && state.kept.length < each.songIds.length
         ? `${state.kept.length} of ${plural(each.songIds.length, 'song', 'songs')}`
         : plural(each.songIds.length, 'song', 'songs')
     switch (c.op) {
@@ -175,11 +178,13 @@ export function TagsReview({
       }}
       labelOf={each => {
         const { change: c } = each
+        const only = each.songIds.length === 1 ? songsById.get(each.songIds[0]!) : undefined
+        const songs = only ? only.title : plural(each.songIds.length, 'song', 'songs')
         switch (c.op) {
           case 'add':
-            return `Put ${c.tag} on ${plural(each.songIds.length, 'song', 'songs')}`
+            return `Put ${c.tag} on ${songs}`
           case 'remove':
-            return `Take ${c.tag} off ${plural(each.songIds.length, 'song', 'songs')}`
+            return `Take ${c.tag} off ${songs}`
           case 'rename':
             return `Rename ${c.tag} to ${c.to}`
           case 'merge':

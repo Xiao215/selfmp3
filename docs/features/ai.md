@@ -204,6 +204,26 @@ songs". The answer itself still comes back as one response; a server without the
 leaves the device on its two always-true steps. Measured on the
 real library: a route 2.3–3.5 s; with the pick, a playlist in 10 s and a found song in 5 s.
 
+## Change it
+
+A song answer can be changed in words after it is given — "10 首", "不要动漫的", "calmer" —
+in one field under its card in Search and under its page's head (`smart/ChangeIt.tsx`). No
+suggested changes are offered: what to say is yours (Xiao, 2026-10-04).
+
+`POST /api/ai/refine` (`ai/refine.ts`) gets what was first asked, the filters as they stand,
+the change, and the songs shown. One fast-tier call returns the filters changed, everything
+the change did not touch kept. The songs shown that still fit stay in their places, and only
+the rest is picked (Describe's step 3, around them), so "10 首" after two songs keeps those
+two and adds eight. A change to the brief is a change of taste and picks again from the
+start. Its stages report through the same ticket as Ask's.
+
+While it works the field itself says what is happening, in the same place, so nothing
+moves; when it lands, the words join a trail above the field ("旅途日语歌 → 10首 →
+不要动漫的"), the newest fading in, and the field is empty again. Every version is kept
+while the app is open (`smart/answers.store.ts`): a name in the trail goes back to it, and
+changing from an earlier one lets go of the ones after, as undo does. Different songs on
+the page is a version in the trail too.
+
 ## N1 · New playlist as one field
 
 What is typed decides what the playlist is (`NewPlaylist.tsx`), rather than a name first and

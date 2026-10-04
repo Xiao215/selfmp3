@@ -20,6 +20,7 @@ import { SongsAnswerCard } from './SongsAnswerCard'
 import { TidyReview } from './TidyReview'
 import type { AnswerKeys } from './answerKeys'
 import { Working } from './Working'
+import { newTicket, useAskProgress } from './useAskProgress'
 import { useSmartServer } from './useSmartServer'
 
 /**
@@ -54,7 +55,9 @@ export function AskAnswer({
   const playing = playingHere === null ? null : (server.onServer(playingHere) ?? null)
   const via = server.reach.state === 'reachable' ? server.reach.connection.baseUrl : null
   // Names this asking, so how it is going can be asked after while it runs.
-  const ticket = useMemo(() => newTicket(text), [text])
+  // `text` is why a new one is made: each new question is a new request.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const ticket = useMemo(() => newTicket(), [text])
   const answer = useQuery({
     queryKey: ['via-server', via, 'ai', 'ask', text, playing],
     queryFn: () => server.api!.ask(text, playing, ticket),
@@ -62,13 +65,7 @@ export function AskAnswer({
     retry: false,
     staleTime: 10 * 60_000,
   })
-  const progress = useQuery({
-    queryKey: ['via-server', via, 'ai', 'ask-progress', ticket],
-    queryFn: () => server.api!.askProgress(ticket),
-    enabled: server.api !== null && answer.isPending,
-    refetchInterval: 500,
-    retry: false,
-  })
+  const live = useAskProgress(ticket, answer.isPending)
 
   if (server.reach.state !== 'reachable') {
     return <ServerAway reach={server.reach} need="ai" testID="ask-server" />
@@ -81,7 +78,7 @@ export function AskAnswer({
             { doing: 'Reading what you asked', done: 'Read what you asked' },
             { doing: 'Working on the answer', after: 3000 },
           ]}
-          live={progress.data?.steps ?? null}
+          live={live}
           testID="ask-waiting"
         />
       </View>
@@ -381,9 +378,3 @@ const styles = StyleSheet.create(theme => ({
   },
   pressed: { opacity: 0.6 },
 }))
-
-/** A request's own name, for asking how it is going: unguessable, never reused. */
-function newTicket(text: string): string {
-  const random = Math.random().toString(36).slice(2, 12)
-  return `${Date.now().toString(36)}${random}${text.length.toString(36)}`.slice(0, 40)
-}

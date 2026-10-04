@@ -69,6 +69,27 @@ export const DescribeRequestSchema = z.object({
 })
 export type DescribeRequest = z.infer<typeof DescribeRequestSchema>
 
+/**
+ * An answer changed after it was given: "10 首", "不要动漫的" (docs/features/ai.md,
+ * "Change it"). The filters as they stand and the songs shown come along, so
+ * what the change does not touch stays.
+ */
+export const RefineRequestSchema = z.object({
+  /** What was first asked. */
+  text: z.string().trim().min(1).max(500),
+  understanding: UnderstandingSchema,
+  /** What to change, in their words. */
+  change: z.string().trim().min(1).max(300),
+  /** The songs shown now, by the server's ids, in their order. */
+  shown: z.array(IdSchema).max(2000).default([]),
+  /** Names this request, so the device can ask how it is going (`AskProgress`). */
+  ticket: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{8,64}$/)
+    .optional(),
+})
+export type RefineRequest = z.infer<typeof RefineRequestSchema>
+
 export const DescribePickSchema = z.object({
   songId: IdSchema,
   /** A few words on why it fits; null when every song that fit was taken. */

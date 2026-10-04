@@ -11,7 +11,8 @@ import { ChevronRight, Play } from '../../ui/components/Icons'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import type { ListSource } from '../lists/lists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
-import { keepAnswer } from './answers.store'
+import { keepAnswer, useKeptAnswer } from './answers.store'
+import { ChangeIt } from './ChangeIt'
 import { picksHere } from './smart.model'
 import { useSmartServer } from './useSmartServer'
 
@@ -42,11 +43,16 @@ export function SongsAnswerCard({
   const fly = useFlyToUpNext()
   const coverRef = useRef<View>(null)
   const { data: library } = useLibrary()
-  const result = answer.describe
+  // Kept from the first, so a change made here (`ChangeIt`) is the answer shown.
+  const id = keepAnswer(text, answer.describe)
+  const kept = useKeptAnswer(id)
+  const result = kept?.result ?? answer.describe
   const known = new Map((library?.songs ?? []).map(song => [song.id, song]))
-  const ids = picksHere(result, server.onDevice)
+  const picked = picksHere(result, server.onDevice)
     .map(pick => pick.songId)
-    .filter(id => known.has(id))
+    .filter(each => known.has(each))
+  const order = kept?.order
+  const ids = order ? order.filter(each => picked.includes(each)) : picked
   const seconds = ids.reduce((sum, id) => sum + (known.get(id)?.duration ?? 0), 0)
   const next = answer.lead === 'next'
 
@@ -54,7 +60,6 @@ export function SongsAnswerCard({
     return <Text style={styles.line}>No song of yours fits that. Try other words for it.</Text>
   }
 
-  const id = keepAnswer(text, result)
   const source: ListSource = {
     kind: 'answer',
     text,
@@ -67,58 +72,62 @@ export function SongsAnswerCard({
   }
 
   // The card opens the page and the button plays: siblings, since a button
-  // cannot hold another one.
+  // cannot hold another one. Under it, the answer can be changed in words.
   return (
-    <View style={styles.card}>
-      <Pressable
-        onPress={open}
-        accessibilityRole="button"
-        accessibilityLabel={`Open the ${plural(ids.length, 'song', 'songs')} picked for “${text}”`}
-        style={({ pressed }) => [styles.opens, pressed && styles.pressed]}
-        testID="songs-answer-card"
-      >
-        <View ref={coverRef} collapsable={false}>
-          <PlaylistCover songIds={ids} size={56} />
-        </View>
-        <View style={styles.text}>
-          <Text style={styles.title} numberOfLines={1}>
-            {next ? 'Up next' : result.understanding.name}
-          </Text>
-          <Text style={styles.meta} numberOfLines={1}>
-            {plural(ids.length, 'song', 'songs')} · {formatLongDuration(seconds)}
-          </Text>
-        </View>
-        <ChevronRight size={14} color={theme.colors.textMuted} />
-      </Pressable>
-      {next ? (
-        <Button
-          label="Add to Up next"
-          variant="primary"
-          onPress={() => {
-            fly(coverRef.current, ids)
-            player.playNext(ids)
-            onPlayed()
-          }}
-          testID="songs-answer-next"
-        />
-      ) : (
-        <PlayButton
-          label={`Play the songs picked for “${text}”`}
-          size={40}
-          icon={<Play size={16} color={theme.colors.onPrimary} />}
-          onPress={() => {
-            fly(coverRef.current, ids)
-            player.playFrom(ids, 0, { source })
-            onPlayed()
-          }}
-          testID="songs-answer-play"
-        />
-      )}
+    <View style={styles.stack}>
+      <View style={styles.card}>
+        <Pressable
+          onPress={open}
+          accessibilityRole="button"
+          accessibilityLabel={`Open the ${plural(ids.length, 'song', 'songs')} picked for “${text}”`}
+          style={({ pressed }) => [styles.opens, pressed && styles.pressed]}
+          testID="songs-answer-card"
+        >
+          <View ref={coverRef} collapsable={false}>
+            <PlaylistCover songIds={ids} size={56} />
+          </View>
+          <View style={styles.text}>
+            <Text style={styles.title} numberOfLines={1}>
+              {next ? 'Up next' : result.understanding.name}
+            </Text>
+            <Text style={styles.meta} numberOfLines={1}>
+              {plural(ids.length, 'song', 'songs')} · {formatLongDuration(seconds)}
+            </Text>
+          </View>
+          <ChevronRight size={14} color={theme.colors.textMuted} />
+        </Pressable>
+        {next ? (
+          <Button
+            label="Add to Up next"
+            variant="primary"
+            onPress={() => {
+              fly(coverRef.current, ids)
+              player.playNext(ids)
+              onPlayed()
+            }}
+            testID="songs-answer-next"
+          />
+        ) : (
+          <PlayButton
+            label={`Play the songs picked for “${text}”`}
+            size={40}
+            icon={<Play size={16} color={theme.colors.onPrimary} />}
+            onPress={() => {
+              fly(coverRef.current, ids)
+              player.playFrom(ids, 0, { source })
+              onPlayed()
+            }}
+            testID="songs-answer-play"
+          />
+        )}
+      </View>
+      <ChangeIt answerId={id} />
     </View>
   )
 }
 
 const styles = StyleSheet.create(theme => ({
+  stack: { gap: space.sm },
   card: {
     flexDirection: 'row',
     alignItems: 'center',

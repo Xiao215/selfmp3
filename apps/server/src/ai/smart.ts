@@ -8,6 +8,7 @@ import type {
   WrappedRange,
   WrittenReport,
   DescribeResult,
+  RefineRequest,
   Stats,
   Song,
   Tag,
@@ -18,6 +19,7 @@ import type { Logger } from '../logger.js'
 import { ask, type AskDeps } from './ask.js'
 import { AskProgress, type Step } from './progress.js'
 import { describe, type DescribeInput } from './describe.js'
+import { refine } from './refine.js'
 import { LlmError, llmFailureWords, noLlm, openAiCompatible, Remembered, type Llm } from './llm.js'
 import { tidy } from './tidy.js'
 import { written } from './written.js'
@@ -60,6 +62,11 @@ export class SmartFeatures {
     ticket?: string,
   ): Promise<AskAnswer> {
     return ask(this.#deps, text, playing, allowed, this.#progress.track(ticket))
+  }
+
+  /** An answer changed after it was given (`refine.ts`). */
+  refine(request: RefineRequest): Promise<DescribeResult> {
+    return refine(this.#deps, request, this.#progress.track(request.ticket))
   }
 
   /** How the Ask a ticket names is going (`progress.ts`). */

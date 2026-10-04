@@ -28,7 +28,8 @@ import type { ListSource } from '../lists/lists.model'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { newPlaylist } from '../playlists/playlists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
-import { reorderAnswer, replaceAnswer, useKeptAnswer } from './answers.store'
+import { changeAnswer, reorderAnswer, useKeptAnswer } from './answers.store'
+import { ChangeIt } from './ChangeIt'
 import { describeNotes, parts, picksHere } from './smart.model'
 import { useSmartServer } from './useSmartServer'
 
@@ -100,7 +101,7 @@ export function AnswerScreen(): ReactNode {
       return server.api.describePlaylist({ text: kept.text, understanding, avoid: shown })
     },
     onSuccess: answer => {
-      if (kept) replaceAnswer(kept.id, answer)
+      if (kept) changeAnswer(kept.id, 'Different songs', answer)
       setEdited(null)
     },
   })
@@ -233,6 +234,9 @@ export function AnswerScreen(): ReactNode {
           {again.error ? (
             <Text style={styles.error}>{failureText('Couldn’t pick again', again.error)}</Text>
           ) : null}
+          <View style={styles.change}>
+            <ChangeIt answerId={kept.id} />
+          </View>
         </View>
         <View style={[styles.actions, wide && styles.actionsWide]}>
           <PlayButton
@@ -359,6 +363,7 @@ const styles = StyleSheet.create(theme => ({
   summary: { color: theme.colors.textSecondary, fontSize: 14 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 6 },
   note: { color: theme.colors.textMuted, fontSize: 12.5 },
+  change: { paddingTop: 8, maxWidth: 560 },
   error: { color: theme.colors.danger, fontSize: 12.5 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   actionsWide: { marginLeft: 'auto', paddingBottom: 6 },

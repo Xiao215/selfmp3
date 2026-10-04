@@ -337,6 +337,15 @@ export function createApi({ context, fetch }: ApiOptions) {
       avoid?: readonly number[]
     }) => request('POST', '/api/ai/describe', DescribeResultSchema, input),
 
+    /** An answer changed after it was given (`RefineRequest`). */
+    refineAnswer: (input: {
+      text: string
+      understanding: Understanding
+      change: string
+      shown: readonly number[]
+      ticket?: string
+    }) => request('POST', '/api/ai/refine', DescribeResultSchema, input),
+
     /** The Search box's Ask: one request, routed to one thing the app can do. */
     ask: (text: string, playing: number | null = null, ticket?: string) =>
       request('POST', '/api/ai/ask', AskAnswerSchema, { text, playing, ticket }),

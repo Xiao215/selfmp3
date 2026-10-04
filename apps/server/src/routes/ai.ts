@@ -8,6 +8,7 @@ import {
   WrappedRangeSchema,
   AskRequestSchema,
   DescribeRequestSchema,
+  RefineRequestSchema,
   type AskAnswer,
   type AskProgress,
   type DescribeResult,
@@ -64,6 +65,15 @@ export function aiRoutes(container: Container): Router {
       allowed('smartAsk')
       const tidy = container.settings.get().smartTidy
       return answering(container.smart.ask(body.text, body.playing, { tidy }, body.ticket))
+    }),
+  )
+
+  /** An answer changed after it was given: "10 首", "calmer". */
+  router.post(
+    '/ai/refine',
+    route({ body: RefineRequestSchema }, ({ body }): Promise<DescribeResult> => {
+      allowed('smartAsk')
+      return answering(container.smart.refine(body))
     }),
   )
 

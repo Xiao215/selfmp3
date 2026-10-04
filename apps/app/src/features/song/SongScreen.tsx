@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -64,9 +64,24 @@ import {
  */
 export function SongScreen(): ReactNode {
   const { id } = useLocalSearchParams<{ id: string }>()
+  const router = useRouter()
   const { data: library } = useLibrary()
-  if (!library) return null
-  const song = library.songs.find(item => String(item.id) === id)
+  const song = library?.songs.find(item => String(item.id) === id)
+  /*
+   * Removed from its own page — the ⋯ menu's Remove — the song leaves the
+   * library under the page that shows it. That is not an address naming a
+   * song nobody has, so it is not "No such song": the page goes back to
+   * where it was opened from, and the toast says what went (Xiao, 2026-10-04).
+   */
+  const [shown, setShown] = useState<string | null>(null)
+  if (song && shown !== id) setShown(id)
+  const removedHere = !song && library !== undefined && shown === id
+  useEffect(() => {
+    if (!removedHere) return
+    if (router.canGoBack()) router.back()
+    else router.replace('/library')
+  }, [removedHere, router])
+  if (!library || removedHere) return null
   if (!song) return <SongMissing />
   return <SongPage key={song.id} song={song} />
 }

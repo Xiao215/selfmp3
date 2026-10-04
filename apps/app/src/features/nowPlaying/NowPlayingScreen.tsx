@@ -158,28 +158,48 @@ function PhoneNowPlaying(): ReactNode {
       onDone={() => setRemoving(null)}
     />
   ) : null
-  if (song === null) {
-    return (
-      <View
-        style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
-        accessibilityLabel="Now playing"
-      >
-        <View style={styles.head}>
-          <IconButton onPress={() => putAway(router)} label="Close now playing" filled>
-            <ChevronDown size={22} color={theme.colors.textPrimary} />
-          </IconButton>
-        </View>
-        <View style={styles.empty}>
-          <Text style={styles.emptyTitle}>Nothing playing</Text>
-          <Text style={styles.emptyText}>Start a song and it turns up here, with its lyrics.</Text>
-        </View>
-        {removeDialog}
-      </View>
-    )
-  }
+  /*
+   * The song playing went — removed here, with nothing after it — so there is
+   * nothing left to be the page of. It puts itself away rather than staying
+   * up to say "Nothing playing" (Xiao, 2026-10-04); a page opened with
+   * nothing playing in the first place still says so. Not before the
+   * dialog has closed: it is this page's, and its "Removed …" comes when the
+   * server answers.
+   */
+  const hadSong = useRef(song !== null)
+  useEffect(() => {
+    if (song !== null) hadSong.current = true
+    else if (hadSong.current && removing === null) putAway(router)
+  }, [song, removing, router])
+  /*
+   * The dialog stays where it is whichever page is under it. Inside the empty
+   * page it was a different element from the one beside the song's page, so
+   * the song going — which is what removing it does — remounted it: the new
+   * one never heard the server answer, and stayed up asking again over
+   * "Nothing playing" with the song already gone.
+   */
   return (
     <>
-      <PhonePage song={song} onRemove={setRemoving} />
+      {song === null ? (
+        <View
+          style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+          accessibilityLabel="Now playing"
+        >
+          <View style={styles.head}>
+            <IconButton onPress={() => putAway(router)} label="Close now playing" filled>
+              <ChevronDown size={22} color={theme.colors.textPrimary} />
+            </IconButton>
+          </View>
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>Nothing playing</Text>
+            <Text style={styles.emptyText}>
+              Start a song and it turns up here, with its lyrics.
+            </Text>
+          </View>
+        </View>
+      ) : (
+        <PhonePage song={song} onRemove={setRemoving} />
+      )}
       {removeDialog}
     </>
   )

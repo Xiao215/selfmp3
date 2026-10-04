@@ -323,16 +323,8 @@ export function LibraryScreen(): ReactNode {
           */}
             {wide ? null : (
               <View style={styles.phoneTools}>
-                {switches.tidy ? (
-                  <IconButton
-                    label="Tidy up"
-                    filled
-                    onPress={() => setTidying(true)}
-                    testID="library-tidy-phone"
-                  >
-                    <Sparkle size={16} />
-                  </IconButton>
-                ) : null}
+                {/* No Tidy up here: on a phone it is asked for in the search
+                    bar (Xiao, 2026-10-04). */}
                 <IconButton
                   label="Sort"
                   filled

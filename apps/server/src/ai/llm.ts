@@ -71,6 +71,15 @@ export class LlmError extends Error {
   }
 }
 
+/** Why a model did not answer, the way a screen can show it. */
+export const llmFailureWords: Readonly<Record<LlmFailure, string>> = {
+  off: 'Smart features aren’t set up on your server.',
+  busy: 'The model is over its limit for now. Try again later.',
+  unreachable: 'Your server couldn’t reach the model.',
+  refused: 'The model’s endpoint refused your server’s key.',
+  invalid: 'The model’s answer didn’t make sense. Try again.',
+}
+
 type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
 
 interface ChatMessage {

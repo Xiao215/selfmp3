@@ -15,6 +15,7 @@ import { SmartFeatures, llmFor, setupFor } from './smart.js'
  *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> describe "calm piano for reading"
  *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> tags
  *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> ask "tag every 周杰倫 song 中文流行"
+ *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> tidy
  *
  * The database is opened read-only, and nothing but the model is reached:
  * no server starts and no bucket is touched. Point it at a copy all the same
@@ -25,8 +26,8 @@ import { SmartFeatures, llmFor, setupFor } from './smart.js'
 /* eslint-disable no-console -- a script's output is its console. */
 
 const [file, what, ...words] = process.argv.slice(2)
-if (!file || (what !== 'describe' && what !== 'tags' && what !== 'ask')) {
-  console.error('usage: eval.ts <db file> describe "<words>" | ask "<words>" | tags')
+if (!file || !['describe', 'tags', 'ask', 'tidy'].includes(what ?? '')) {
+  console.error('usage: eval.ts <db file> describe "<words>" | ask "<words>" | tags | tidy')
   process.exit(2)
 }
 
@@ -69,6 +70,15 @@ if (what === 'ask') {
   console.log(JSON.stringify({ ...result, picks: undefined }, null, 2))
   for (const pick of result.picks)
     console.log(`- ${titleOf.get(pick.songId)}  (${pick.why ?? 'fits'})`)
+} else if (what === 'tidy') {
+  const result = await smart.tidy()
+  console.log(`${result.looked} songs looked at · ${result.changes.length} changes`)
+  if (result.note) console.log(result.note)
+  for (const each of result.changes) {
+    console.log(
+      `${each.field} · ${each.from} → ${each.to} · ${each.songIds.length} · ${each.why} [${each.by}]`,
+    )
+  }
 } else {
   const result = await smart.suggestTags()
   console.log(`${result.untagged} untagged`)

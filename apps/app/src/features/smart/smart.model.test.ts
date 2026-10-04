@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@selfmp3/client'
-import type { DescribeResult, Tag, Understanding } from '@selfmp3/shared'
+import type { DescribeResult, Song, Tag, TidyChange, Understanding } from '@selfmp3/shared'
 import {
   askable,
   describeNotes,
@@ -11,6 +11,10 @@ import {
   parts,
   picksHere,
   serverHop,
+  tickedAtFirst,
+  tidyEdits,
+  tidyHere,
+  tidySections,
   suggestionsHere,
   tagIdsFor,
   took,
@@ -195,5 +199,48 @@ describe('Settings’ Test', () => {
       line: 'Your server couldn’t reach the model.',
       detail: 'The model at http://127.0.0.1:8787/v1 did not answer: fetch failed',
     })
+  })
+})
+
+describe('Tidy up', () => {
+  const song = (id: number, title: string, artist: string) =>
+    ({ id, title, artist, album: '', albumArtist: '' }) as unknown as Song
+  const change = (over: Partial<TidyChange>): TidyChange => ({
+    key: 'k',
+    field: 'artist',
+    from: '',
+    to: '',
+    why: 'w',
+    by: 'rule',
+    songIds: [],
+    ...over,
+  })
+  const songs = new Map([
+    [11, song(11, 'オリオン - Orion', '薛之谦, 薛之谦')],
+    [12, song(12, '演员', '薛之谦')],
+  ])
+  const onDevice = (serverId: number) => serverId + 10
+  const changes = [
+    change({ key: 'a', from: '薛之谦, 薛之谦', to: '薛之谦', songIds: [1, 2], why: 'Twice' }),
+    change({ key: 't', field: 'title', from: 'オリオン - Orion', to: 'オリオン', songIds: [1] }),
+    change({ key: 'm', from: 'Rokudenashi', to: 'ロクデナシ', songIds: [9], by: 'model' }),
+  ]
+
+  it('leaves out songs changed since the server looked, and songs not here', () => {
+    const here = tidyHere(changes, onDevice, songs)
+    // Song 12's artist is already right, and song 19 is not on this device.
+    expect(here.map(h => [h.change.key, h.songIds])).toEqual([
+      ['a', [11]],
+      ['t', [11]],
+    ])
+  })
+
+  it('makes one edit per song, and ticks only what a rule found', () => {
+    const here = tidyHere(changes, onDevice, songs)
+    expect(tidyEdits(here)).toEqual([
+      { songId: 11, patch: { artist: '薛之谦', title: 'オリオン' } },
+    ])
+    expect([...tickedAtFirst([...here, { change: changes[2]!, songIds: [1] }])]).toEqual(['a', 't'])
+    expect(tidySections(here).map(section => section.why)).toEqual(['Twice', 'w'])
   })
 })

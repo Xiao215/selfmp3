@@ -34,6 +34,7 @@ import {
   AiCheckSchema,
   AiSetupSchema,
   AskAnswerSchema,
+  TidyResultSchema,
   DescribeResultSchema,
   TagSuggestionsSchema,
   type Understanding,
@@ -59,6 +60,7 @@ import {
   type CloudConnect,
   type ApplyMetadata,
   type BulkDeleteSongs,
+  type BulkEditSongs,
   type BulkLoved,
   type BulkTag,
   type CreatePlaylist,
@@ -309,6 +311,9 @@ export function createApi({ context, fetch }: ApiOptions) {
     bulkDeleteSongs: (input: BulkDeleteSongs) =>
       request('POST', '/api/songs/bulk/delete', BulkDeleteResultSchema, input),
 
+    bulkEditSongs: (input: BulkEditSongs) =>
+      request('POST', '/api/songs/bulk/edit', z.object({ affected: z.number() }), input),
+
     bulkLoved: (input: BulkLoved) =>
       request('POST', '/api/songs/bulk/loved', z.object({ affected: z.number() }), input),
 
@@ -331,6 +336,9 @@ export function createApi({ context, fetch }: ApiOptions) {
     ask: (text: string) => request('POST', '/api/ai/ask', AskAnswerSchema, { text }),
 
     tagSuggestions: () => request('GET', '/api/ai/tag-suggestions', TagSuggestionsSchema),
+
+    /** A4 · Tidy up: the song names that look wrong, as changes to approve. */
+    tidy: () => request('GET', '/api/ai/tidy', TidyResultSchema),
 
     /** Where the server asks a model; Settings › Smart features. */
     aiSetup: () => request('GET', '/api/ai', AiSetupSchema),

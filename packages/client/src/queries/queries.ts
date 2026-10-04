@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-query'
 import type {
   ApplyMetadata,
+  BulkEditSongs,
   FixCoversStatus,
   AnalysisStatus,
   CloudConnect,
@@ -544,6 +545,13 @@ export const useDeleteSong = () =>
  */
 export const useBulkDeleteSongs = () =>
   useLibraryMutation((input: { songIds: number[] }) => clientApi().bulkDeleteSongs(input))
+
+/** Many songs' own edits at once: Tidy up's approved changes. */
+export const useBulkEditSongs = () =>
+  useLibraryMutation(
+    (input: BulkEditSongs) => clientApi().bulkEditSongs(input),
+    'Couldn’t save the changes',
+  )
 
 export const useBulkLoved = () =>
   useLibraryMutation(

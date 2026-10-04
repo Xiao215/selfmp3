@@ -2,6 +2,9 @@ import { ApiError } from '@selfmp3/client'
 import type {
   AiCheck,
   AskPlace,
+  BulkEditSongs,
+  Song,
+  TidyChange,
   AskStatsRange,
   DescribeResult,
   Tag,
@@ -301,4 +304,58 @@ export function modelHop(check: AiCheck): Hop {
     return { ok: true, line: `Your server reached the model (${check.model}) in ${took(check.ms)}` }
   }
   return { ok: false, line: check.message, detail: check.detail }
+}
+
+/** A Tidy up change as this device has it: its own song ids, still as the change found them. */
+interface TidyHere {
+  readonly change: TidyChange
+  readonly songIds: readonly number[]
+}
+
+/**
+ * The server's changes on this device's songs. A song edited since the server
+ * looked — its field no longer what the change says it is — is left out, so an
+ * approval never overwrites an edit made in between.
+ */
+export function tidyHere(
+  changes: readonly TidyChange[],
+  onDevice: (serverId: number) => number | undefined,
+  songsById: ReadonlyMap<number, Song>,
+): TidyHere[] {
+  return changes.flatMap(change => {
+    const songIds = change.songIds.flatMap(serverId => {
+      const id = onDevice(serverId)
+      const song = id === undefined ? undefined : songsById.get(id)
+      return song && song[change.field] === change.from ? [song.id] : []
+    })
+    return songIds.length > 0 ? [{ change, songIds }] : []
+  })
+}
+
+/** The changes under their reason, in the order the server gave them: one heading each. */
+export function tidySections(
+  changes: readonly TidyHere[],
+): { why: string; byModel: boolean; changes: TidyHere[] }[] {
+  const sections = new Map<string, { why: string; byModel: boolean; changes: TidyHere[] }>()
+  for (const here of changes) {
+    const { why, by } = here.change
+    const section = sections.get(why) ?? { why, byModel: by === 'model', changes: [] }
+    section.changes.push(here)
+    sections.set(why, section)
+  }
+  return [...sections.values()]
+}
+
+/** The approved changes as one edit per song, a title and an artist fixed together. */
+export function tidyEdits(changes: readonly TidyHere[]): BulkEditSongs['edits'] {
+  const patches = new Map<number, Record<string, string>>()
+  for (const { change, songIds } of changes) {
+    for (const id of songIds) patches.set(id, { ...patches.get(id), [change.field]: change.to })
+  }
+  return [...patches].map(([songId, patch]) => ({ songId, patch }))
+}
+
+/** Rule-found changes start ticked; the model's wait for a yes. */
+export function tickedAtFirst(changes: readonly TidyHere[]): Set<string> {
+  return new Set(changes.filter(here => here.change.by === 'rule').map(here => here.change.key))
 }

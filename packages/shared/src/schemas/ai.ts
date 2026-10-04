@@ -127,6 +127,35 @@ export type AskPlace = z.infer<typeof AskPlaceSchema>
 export const AskStatsRangeSchema = z.enum(['7d', '30d', '90d', '365d', 'all'])
 export type AskStatsRange = z.infer<typeof AskStatsRangeSchema>
 
+/** A song field Tidy up may change. */
+export const TidyFieldSchema = z.enum(['title', 'artist', 'album', 'albumArtist'])
+export type TidyField = z.infer<typeof TidyFieldSchema>
+
+/**
+ * A4 · Tidy up: one change to approve — a field, what it is, what it would
+ * be, and every song (server ids) where it is exactly that. `by` says whether
+ * a plain rule found it or the model did.
+ */
+export const TidyChangeSchema = z.object({
+  key: z.string(),
+  field: TidyFieldSchema,
+  from: z.string(),
+  to: z.string(),
+  why: z.string(),
+  by: z.enum(['rule', 'model']),
+  songIds: z.array(IdSchema).min(1),
+})
+export type TidyChange = z.infer<typeof TidyChangeSchema>
+
+export const TidyResultSchema = z.object({
+  changes: z.array(TidyChangeSchema),
+  /** How many songs were looked at. */
+  looked: z.number().int().nonnegative(),
+  /** Set when the model could not be asked: what is missing, in words. */
+  note: z.string().nullable(),
+})
+export type TidyResult = z.infer<typeof TidyResultSchema>
+
 export const AskAnswerSchema = z.discriminatedUnion('kind', [
   /** Songs to play now or keep: Describe's answer, and which of the two the words led with. */
   z.object({
@@ -164,6 +193,8 @@ export const AskAnswerSchema = z.discriminatedUnion('kind', [
       }),
     ),
   }),
+  /** Song names worth fixing, as changes to approve. */
+  z.object({ kind: z.literal('tidy'), tidy: TidyResultSchema }),
   z.object({ kind: z.literal('open'), place: AskPlaceSchema, say: z.string() }),
   /** Not something the box can do, and what to do instead. */
   z.object({ kind: z.literal('none'), say: z.string() }),

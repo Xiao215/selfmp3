@@ -17,6 +17,7 @@ import { Play, X } from '../../ui/components/Icons'
 import { showToast } from '../../ui/toast'
 import { placePath, rangeWords } from './smart.model'
 import { SongsAnswer } from './SongsAnswer'
+import { TidyReview } from './TidyReview'
 import { useSmartServer } from './useSmartServer'
 
 /**
@@ -97,6 +98,8 @@ function Drawn({
       return <Found answer={answer} onDone={onDone} />
     case 'tag':
       return <TagMany answer={answer} onDone={onDone} muted={muted} />
+    case 'tidy':
+      return <TidyReview result={answer.tidy} height={300} onClose={onDone} />
     case 'stats':
       return (
         <>

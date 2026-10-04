@@ -1,6 +1,7 @@
 import {
   AddToPlaylistSchema,
   BulkDeleteSongsSchema,
+  BulkEditSongsSchema,
   BulkLovedSchema,
   BulkTagSchema,
   CreatePlaylistSchema,
@@ -203,6 +204,20 @@ export function createCloudRoutes(
           return {
             changes: edits.loveSongs(ctx, input.songIds, input.loved),
             answer: () => ({ affected }),
+          }
+        })
+      },
+    ],
+    [
+      'POST',
+      '/api/songs/bulk/edit',
+      ({ session, body }) => {
+        const input = BulkEditSongsSchema.parse(body)
+        return recordChanges(session, ctx => {
+          const here = input.edits.filter(edit => ctx.view.uids.songs.has(edit.songId))
+          return {
+            changes: here.flatMap(edit => edits.editSong(ctx, edit.songId, edit.patch)),
+            answer: () => ({ affected: here.length }),
           }
         })
       },

@@ -152,6 +152,19 @@ export const BulkLovedSchema = z.object({
 export type BulkLoved = z.infer<typeof BulkLovedSchema>
 
 /**
+ * Many songs' own edits at once — Tidy up's approved changes. Each is the
+ * ordinary edit of one song; together they are one request, so the library
+ * settles in one refetch.
+ */
+export const BulkEditSongsSchema = z.object({
+  edits: z
+    .array(z.object({ songId: IdSchema, patch: SongPatchSchema }))
+    .min(1)
+    .max(2000),
+})
+export type BulkEditSongs = z.infer<typeof BulkEditSongsSchema>
+
+/**
  * Reported by the client when a song finishes or is abandoned.
  *
  * The client decides what counts as "played" (it knows about seeking and

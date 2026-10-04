@@ -3,6 +3,7 @@ import type {
   AiCheck,
   AiSetup,
   AskAnswer,
+  TidyResult,
   DescribeRequest,
   DescribeResult,
   Stats,
@@ -14,7 +15,8 @@ import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import { ask, type AskDeps } from './ask.js'
 import { describe } from './describe.js'
-import { LlmError, noLlm, openAiCompatible, Remembered, type Llm } from './llm.js'
+import { LlmError, llmFailureWords, noLlm, openAiCompatible, Remembered, type Llm } from './llm.js'
+import { tidy } from './tidy.js'
 import { suggestTags } from './suggestTags.js'
 
 /**
@@ -76,6 +78,11 @@ export class SmartFeatures {
     }
   }
 
+  /** A4 · Tidy up: the names that look wrong, as changes to approve. */
+  tidy(): Promise<TidyResult> {
+    return tidy(this.#deps)
+  }
+
   suggestTags(): Promise<TagSuggestions> {
     this.#suggesting ??= suggestTags(this.#deps).finally(() => {
       this.#suggesting = null
@@ -88,15 +95,6 @@ export class SmartFeatures {
 const CHECK_TIMEOUT_MS = 60_000
 
 const CheckReplySchema = z.object({ ok: z.boolean() })
-
-/** Why a model did not answer, the way a screen can show it. */
-export const llmFailureWords: Readonly<Record<LlmError['kind'], string>> = {
-  off: 'Smart features aren’t set up on your server.',
-  busy: 'The model is over its limit for now. Try again later.',
-  unreachable: 'Your server couldn’t reach the model.',
-  refused: 'The model’s endpoint refused your server’s key.',
-  invalid: 'The model’s answer didn’t make sense. Try again.',
-}
 
 /**
  * The server's settings as Settings shows them. A base URL can carry a user and

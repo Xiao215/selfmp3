@@ -19,6 +19,7 @@ import {
 } from './describe.js'
 import { libraryShape, songTable } from './library.js'
 import { Remembered } from './llm.js'
+import { tidy } from './tidy.js'
 
 /**
  * S1 · the Search box's Ask (docs/features/ai.md).
@@ -32,14 +33,14 @@ import { Remembered } from './llm.js'
  * asked for in the box costs what Describe costs and no more.
  */
 
-const VERSION = 1
+const VERSION = 2
 
 /** The most songs a "find" is chosen from. */
 const MAX_FOUND = 150
 const FIND_SIZE = 5
 
 const RouteOut = z.object({
-  action: z.enum(['songs', 'find', 'tag', 'stats', 'open', 'none']),
+  action: z.enum(['songs', 'find', 'tag', 'stats', 'tidy', 'open', 'none']),
   /** songs: they want it now, not kept. */
   play: z.boolean(),
   /** songs, and tag (as the songs to tag): the filters, as Describe's plan. */
@@ -66,6 +67,7 @@ The actions:
 - find: they are looking for one particular song they half remember (its story, its words, how it sounds). Fill "find": terms are words likely to be in its title, artist, album or lyrics, in every language the library uses (grandma: 外婆, 奶奶, おばあちゃん, grandma), at most twelve; brief is what they remember, in a sentence.
 - tag: they want one tag put on many songs. Fill "tag" with the tag's name, spelled exactly as in their tag list if it exists, and "songs" with the filters that pick those songs (usually artists or tags). Never tag the whole library: if they did not say which songs, choose none.
 - stats: a question about their own listening (most played, how much, which artists). Fill "stats": range is 7d, 30d, 90d, 365d or all ("last month" is 30d, "this year" is 365d); about is songs, artists, tags or totals.
+- tidy: they want their song names checked, fixed or cleaned up: wrong, messy or inconsistent titles, artists or albums, metadata worth fixing. Nothing else to fill.
 - open: they want to go somewhere in the app rather than get an answer here: import (adding music, which takes a YouTube, Spotify or 网易云 link), stats, tags, library, playlists, settings. Fill "open" and "say" with one sentence.
 - none: anything else, including talk that is not a request. "say" is one plain sentence on what you can do instead. Never pretend to do something.
 
@@ -213,6 +215,9 @@ export async function ask(deps: AskDeps, text: string): Promise<AskAnswer> {
         items: items.slice(0, 5),
       }
     }
+
+    case 'tidy':
+      return { kind: 'tidy', tidy: await tidy({ ...deps, remembered }) }
 
     case 'open':
       if (!route.open) break

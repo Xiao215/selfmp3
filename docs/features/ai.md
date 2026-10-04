@@ -264,3 +264,31 @@ there is a good one, grouped by tag so 99 songs of Mandarin pop are one decision
    whether the library alone made it. Taking a row is the ordinary "add tag to these
    songs" edit, after making the tag if it is new; Look through lists the songs and lets any
    be left out.
+
+## A4 · Tidy up (names)
+
+`Library › ✦ Tidy up`, or ask the Search box ("any songs with wrong metadata?"; the router's
+`tidy` action). The song names that look wrong, each as a change to approve: a field, what
+it is struck through, what it would be, and how many songs. Nothing writes until Apply,
+which is one ordinary edit per song (`POST /api/songs/bulk/edit`, on the server and on a
+cloud replica alike), so it syncs and undoes like an edit made by hand.
+
+1. **Rules** (no model). A name twice in one credit ("薛之谦, 薛之谦, 薛之谦"); the video's
+   words in a title ("(Official Music Video)", "【MV】"); the artist in front of a title
+   ("YOASOBI - 祝福"); an English translation after an original name ("オリオン - Orion",
+   keeping a "(feat. …)" after it). Xiao chose the original name over the bilingual one.
+2. **One model call** (smart tier) over names only, never titles: the artist names with
+   counts, the credits that list more than one, the albums with their artist. It returns
+   two spellings of one artist, classical credits that list a long-dead composer as a
+   performer, and album names with stray punctuation.
+3. **Check**, in code, because the model's judgement wandered between runs: every name it
+   returns must be one it was shown; a respelling must point at a name the library already
+   uses, and the two must be able to be one name (one holds the other, different scripts,
+   or a letter or two apart: "Jura Margulis" is not "Vitaly Margulis"); between scripts it
+   always points at the artist's own (ロクデナシ over Rokudenashi).
+4. **Answer**, grouped by (field, from, to, why) across songs; the device keeps only songs
+   whose field is still what the change says, so an approval never overwrites an edit made
+   since. Rule-found changes start ticked; the model's carry the sparkle and wait for a yes.
+
+Without a model the rules still answer, with a note saying what was left out. On the real
+library (1,342 songs) a pass takes about 7 s and finds about 40 changes.

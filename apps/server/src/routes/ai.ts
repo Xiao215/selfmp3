@@ -2,14 +2,14 @@ import { Router } from 'express'
 import {
   type AiCheck,
   type AiSetup,
+  type TidyResult,
   AskRequestSchema,
   DescribeRequestSchema,
   type AskAnswer,
   type DescribeResult,
   type TagSuggestions,
 } from '@selfmp3/shared'
-import { LlmError } from '../ai/llm.js'
-import { llmFailureWords } from '../ai/smart.js'
+import { LlmError, llmFailureWords } from '../ai/llm.js'
 import type { Container } from '../container.js'
 import { HttpError } from '../http/errors.js'
 import { route } from '../http/route.js'
@@ -45,6 +45,11 @@ export function aiRoutes(container: Container): Router {
     route({ body: AskRequestSchema }, ({ body }): Promise<AskAnswer> =>
       answering(container.smart.ask(body.text)),
     ),
+  )
+
+  router.get(
+    '/ai/tidy',
+    route({}, (): Promise<TidyResult> => container.smart.tidy()),
   )
 
   router.get(

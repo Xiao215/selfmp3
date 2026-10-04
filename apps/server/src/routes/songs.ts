@@ -3,6 +3,7 @@ import { z } from 'zod'
 import {
   BooleanQuerySchema,
   BulkDeleteSongsSchema,
+  BulkEditSongsSchema,
   BulkLovedSchema,
   IdSchema,
   isSynced,
@@ -83,6 +84,25 @@ export function songRoutes(container: Container): Router {
       container.edits.songs(body.songIds, ['loved'])
       if (affected > 0) container.bumpLibraryVersion()
       return { affected }
+    }),
+  )
+
+  /** Many songs' edits in one transaction: Tidy up's approved changes. */
+  router.post(
+    '/songs/bulk/edit',
+    route({ body: BulkEditSongsSchema }, ({ body }) => {
+      const here = body.edits.filter(edit => container.songs.byId(edit.songId))
+      transact(container.db, () => {
+        for (const { songId, patch } of here) container.songs.patch(songId, patch)
+      })
+      for (const { songId, patch } of here) {
+        container.edits.songs(
+          [songId],
+          SONG_FIELDS.filter(field => patch[field] !== undefined),
+        )
+      }
+      if (here.length > 0) container.bumpLibraryVersion()
+      return { affected: here.length }
     }),
   )
 

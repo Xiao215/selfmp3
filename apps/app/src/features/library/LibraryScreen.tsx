@@ -15,7 +15,16 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
-import { Downloaded, Play, Plus, Search, Shuffle, SortLines } from '../../ui/components/Icons'
+import {
+  Downloaded,
+  Play,
+  Plus,
+  Search,
+  Shuffle,
+  SortLines,
+  Sparkle,
+} from '../../ui/components/Icons'
+import { TidySheet } from '../smart/TidySheet'
 import { IconButton } from '../../ui/components/IconButton'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
 import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
@@ -78,6 +87,7 @@ export function LibraryScreen(): ReactNode {
   const [menuSong, setMenuSong] = useState<Song | null>(null)
   // The phone's order, chosen from a sheet.
   const [sorting, setSorting] = useState(false)
+  const [tidying, setTidying] = useState(false)
   // A mouse drags the tag strip along; a finger already flicks it.
   const stripDrag = useDragScroll()
   // The ⋯ the menu was opened from, so at desktop width it opens beside it.
@@ -312,6 +322,14 @@ export function LibraryScreen(): ReactNode {
             {wide ? null : (
               <View style={styles.phoneTools}>
                 <IconButton
+                  label="Tidy up"
+                  filled
+                  onPress={() => setTidying(true)}
+                  testID="library-tidy-phone"
+                >
+                  <Sparkle size={16} />
+                </IconButton>
+                <IconButton
                   label="Sort"
                   filled
                   onPress={() => setSorting(true)}
@@ -467,6 +485,15 @@ export function LibraryScreen(): ReactNode {
                     />
                   )
                 ) : null}
+                {model.tagFiltered ? null : (
+                  <Button
+                    label={shuffleIconOnly ? undefined : 'Tidy up'}
+                    accessibilityLabel="Tidy up song names"
+                    icon={<Sparkle size={15} />}
+                    onPress={() => setTidying(true)}
+                    testID="library-tidy"
+                  />
+                )}
                 <Button
                   label={shuffleIconOnly || model.tagFiltered ? undefined : 'Shuffle'}
                   accessibilityLabel="Shuffle"
@@ -563,6 +590,7 @@ export function LibraryScreen(): ReactNode {
           {filter.descending ? '' : ' · reversed'}
         </Text>
       ) : null}
+      {tidying ? <TidySheet open onClose={() => setTidying(false)} /> : null}
       <Sheet
         open={sorting}
         onClose={() => setSorting(false)}

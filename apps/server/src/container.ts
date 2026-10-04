@@ -29,7 +29,7 @@ import { ThrottleRepository } from './repositories/throttle.js'
 import { ImportQueueService } from './services/importQueue.js'
 import { LibraryWatcherService } from './services/libraryWatcher.js'
 import { MetadataLookupService } from './services/lookup.js'
-import { llmFor, SmartFeatures } from './ai/smart.js'
+import { llmFor, setupFor, SmartFeatures } from './ai/smart.js'
 import { FixCoversService } from './services/fixCovers.js'
 import { LyricsSearchRepository } from './repositories/lyricsSearch.js'
 import { createKeepAwake, type KeepAwakeService } from './services/keepAwake.js'
@@ -379,6 +379,7 @@ export function createContainer(configured: Config): Container {
   const lookup = new MetadataLookupService(logger)
   const smart = new SmartFeatures({
     llm: llmFor(config, logger),
+    setup: setupFor(config),
     songs: () => songs.all(),
     tags: () => tags.all(),
     stats: range => stats.build(range),

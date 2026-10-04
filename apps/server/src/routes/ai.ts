@@ -1,5 +1,7 @@
 import { Router } from 'express'
 import {
+  type AiCheck,
+  type AiSetup,
   AskRequestSchema,
   DescribeRequestSchema,
   type AskAnswer,
@@ -7,6 +9,7 @@ import {
   type TagSuggestions,
 } from '@selfmp3/shared'
 import { LlmError } from '../ai/llm.js'
+import { llmFailureWords } from '../ai/smart.js'
 import type { Container } from '../container.js'
 import { HttpError } from '../http/errors.js'
 import { route } from '../http/route.js'
@@ -18,6 +21,17 @@ import { route } from '../http/route.js'
  */
 export function aiRoutes(container: Container): Router {
   const router = Router()
+
+  router.get(
+    '/ai',
+    route({}, (): AiSetup => container.smart.setup()),
+  )
+
+  /** Settings' Test: a failed call is the answer, not an error. */
+  router.post(
+    '/ai/check',
+    route({}, (): Promise<AiCheck> => container.smart.check()),
+  )
 
   router.post(
     '/ai/describe',
@@ -41,28 +55,25 @@ export function aiRoutes(container: Container): Router {
   return router
 }
 
+const FAILURE_STATUS: Readonly<Record<LlmError['kind'], number>> = {
+  off: 503,
+  busy: 429,
+  unreachable: 502,
+  refused: 502,
+  invalid: 502,
+}
+
 /** A model that could not answer, said the way a screen can show it. */
 async function answering<T>(work: Promise<T>): Promise<T> {
   try {
     return await work
   } catch (caught) {
     if (!(caught instanceof LlmError)) throw caught
-    switch (caught.kind) {
-      case 'off':
-        throw new HttpError(503, 'Smart features aren’t set up on your server.', 'ai_off')
-      case 'busy':
-        throw new HttpError(429, 'The model is over its limit for now. Try again later.', 'ai_busy')
-      case 'unreachable':
-        throw new HttpError(
-          502,
-          'Your server couldn’t reach the model.',
-          'ai_unreachable',
-          caught.message,
-        )
-      case 'refused':
-        throw new HttpError(502, 'The model’s endpoint refused your server’s key.', 'ai_refused')
-      case 'invalid':
-        throw new HttpError(502, 'The model’s answer didn’t make sense. Try again.', 'ai_invalid')
-    }
+    throw new HttpError(
+      FAILURE_STATUS[caught.kind],
+      llmFailureWords[caught.kind],
+      `ai_${caught.kind}`,
+      caught.kind === 'unreachable' ? caught.message : undefined,
+    )
   }
 }

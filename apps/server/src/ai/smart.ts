@@ -1,4 +1,7 @@
+import { z } from 'zod/v4'
 import type {
+  AiCheck,
+  AiSetup,
   AskAnswer,
   DescribeRequest,
   DescribeResult,
@@ -11,7 +14,7 @@ import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import { ask, type AskDeps } from './ask.js'
 import { describe } from './describe.js'
-import { noLlm, openAiCompatible, Remembered, type Llm } from './llm.js'
+import { LlmError, noLlm, openAiCompatible, Remembered, type Llm } from './llm.js'
 import { suggestTags } from './suggestTags.js'
 
 /**
@@ -19,12 +22,13 @@ import { suggestTags } from './suggestTags.js'
  * once in the container, with the model behind it chosen by configuration.
  */
 export class SmartFeatures {
-  readonly #deps: AskDeps & { remembered: Remembered }
+  readonly #deps: AskDeps & { remembered: Remembered; setup: AiSetup }
   /** One Suggest tags pass at a time: a second press joins the first. */
   #suggesting: Promise<TagSuggestions> | null = null
 
   constructor(deps: {
     llm: Llm
+    setup: AiSetup
     songs: () => Song[]
     tags: () => Tag[]
     stats: (range: Stats['range']) => Stats
@@ -41,12 +45,69 @@ export class SmartFeatures {
     return ask(this.#deps, text)
   }
 
+  /** Where the server asks, for Settings: no call is made. */
+  setup(): AiSetup {
+    return this.#deps.setup
+  }
+
+  /**
+   * Settings' Test: the smallest call that goes the whole way — the fast tier,
+   * a JSON schema, the reply checked — so passing means the features can run.
+   */
+  async check(): Promise<AiCheck> {
+    try {
+      const { ms } = await this.#deps.llm.generate({
+        task: 'check',
+        tier: 'fast',
+        system: 'You check that a connection works. Reply with JSON only.',
+        prompt: 'Reply {"ok": true}.',
+        schema: CheckReplySchema,
+        timeoutMs: CHECK_TIMEOUT_MS,
+      })
+      return { ok: true, model: this.#deps.setup.models.fast, ms }
+    } catch (caught) {
+      if (!(caught instanceof LlmError)) throw caught
+      return {
+        ok: false,
+        failure: caught.kind,
+        message: llmFailureWords[caught.kind],
+        detail: caught.message,
+      }
+    }
+  }
+
   suggestTags(): Promise<TagSuggestions> {
     this.#suggesting ??= suggestTags(this.#deps).finally(() => {
       this.#suggesting = null
     })
     return this.#suggesting
   }
+}
+
+/** Long enough for the claude CLI to start a process; short enough to be watched. */
+const CHECK_TIMEOUT_MS = 60_000
+
+const CheckReplySchema = z.object({ ok: z.boolean() })
+
+/** Why a model did not answer, the way a screen can show it. */
+export const llmFailureWords: Readonly<Record<LlmError['kind'], string>> = {
+  off: 'Smart features aren’t set up on your server.',
+  busy: 'The model is over its limit for now. Try again later.',
+  unreachable: 'Your server couldn’t reach the model.',
+  refused: 'The model’s endpoint refused your server’s key.',
+  invalid: 'The model’s answer didn’t make sense. Try again.',
+}
+
+/**
+ * The server's settings as Settings shows them. A base URL can carry a user and
+ * password, or a key in its query: only the scheme, host and path are shown.
+ */
+export function setupFor(config: Pick<Config, 'ai'>): AiSetup {
+  const { ai } = config
+  const models = { fast: ai.modelFast, smart: ai.modelSmart }
+  if (!ai.baseUrl) return { address: null, models }
+  const url = new URL(ai.baseUrl)
+  return { address: `${url.protocol}//${url.host}${url.pathname}`.replace(/\/+$/, ''), models }
 }
 
 /** The configured model, or the stand-in that says smart features are off. */

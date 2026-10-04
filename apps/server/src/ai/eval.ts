@@ -5,7 +5,7 @@ import { LyricsSearchRepository } from '../repositories/lyricsSearch.js'
 import { SongRepository } from '../repositories/songs.js'
 import { StatsRepository } from '../repositories/stats.js'
 import { TagRepository } from '../repositories/tags.js'
-import { SmartFeatures, llmFor } from './smart.js'
+import { SmartFeatures, llmFor, setupFor } from './smart.js'
 
 /**
  * Asks the real model about a real library and prints what came back, for a
@@ -39,6 +39,7 @@ const stats = new StatsRepository(db)
 const lyrics = new LyricsSearchRepository(db)
 const smart = new SmartFeatures({
   llm: llmFor(config, logger),
+  setup: setupFor(config),
   songs: () => songs.all(),
   tags: () => tags.all(),
   stats: range => stats.build(range),

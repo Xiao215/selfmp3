@@ -31,6 +31,8 @@ import {
   ApplyMetadataResultSchema,
   FixCoversStatusSchema,
   MetadataLookupResponseSchema,
+  AiCheckSchema,
+  AiSetupSchema,
   AskAnswerSchema,
   DescribeResultSchema,
   TagSuggestionsSchema,
@@ -329,6 +331,12 @@ export function createApi({ context, fetch }: ApiOptions) {
     ask: (text: string) => request('POST', '/api/ai/ask', AskAnswerSchema, { text }),
 
     tagSuggestions: () => request('GET', '/api/ai/tag-suggestions', TagSuggestionsSchema),
+
+    /** Where the server asks a model; Settings › Smart features. */
+    aiSetup: () => request('GET', '/api/ai', AiSetupSchema),
+
+    /** One small call to the model; a failure is the answer, not a thrown error. */
+    checkAi: () => request('POST', '/api/ai/check', AiCheckSchema),
 
     fixCoversStatus: () => request('GET', '/api/library/fix-covers', FixCoversStatusSchema),
 

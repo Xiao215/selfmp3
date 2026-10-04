@@ -41,6 +41,7 @@ import { ImportingPanel } from './ImportingPanel'
 import { LibraryPanel } from './LibraryPanel'
 import { OfflinePanel } from './OfflinePanel'
 import { ShortcutsPanel } from './ShortcutsPanel'
+import { SmartPanel } from './SmartPanel'
 import {
   activeSection,
   crossfadeLabel,
@@ -402,6 +403,8 @@ export function SettingsScreen(): ReactNode {
             ) : null}
 
             {fromCloud ? null : <CloudPanel anchor={node => anchorAt('cloud', node)} />}
+
+            <SmartPanel anchor={node => anchorAt('smart', node)} />
 
             <Panel title="Lyrics" hint="on this device" anchor={node => anchorAt('lyrics', node)}>
               <Row

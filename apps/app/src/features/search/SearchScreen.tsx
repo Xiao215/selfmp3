@@ -16,7 +16,7 @@ import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
-import { Ask, ChevronRight, Search, User, X } from '../../ui/components/Icons'
+import { ChevronRight, Search, Sparkle, User, X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SongList } from '../../ui/components/SongList'
 import { SongMenu } from '../../ui/components/SongMenu'
@@ -218,7 +218,6 @@ function AskCard({
   first: boolean
   onAsk: () => void
 }): ReactNode {
-  const { theme } = useUnistyles()
   return (
     <Pressable
       onPress={onAsk}
@@ -228,7 +227,7 @@ function AskCard({
       testID="search-ask"
     >
       <View style={styles.askIcon}>
-        <Ask size={17} color={theme.colors.onPrimary} />
+        <Sparkle size={17} />
       </View>
       <View style={styles.askText}>
         <Text style={styles.askTitle} numberOfLines={1}>
@@ -592,7 +591,7 @@ const styles = StyleSheet.create(theme => ({
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: theme.colors.textPrimary,
+    backgroundColor: theme.colors.accentPill,
     alignItems: 'center',
     justifyContent: 'center',
   },

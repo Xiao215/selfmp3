@@ -1,4 +1,6 @@
+import { ApiError } from '@selfmp3/client'
 import type {
+  AiCheck,
   AskPlace,
   AskStatsRange,
   DescribeResult,
@@ -253,4 +255,50 @@ export function matchingTags(
 export function exactTag(text: string, tags: readonly Tag[]): Tag | null {
   const typed = text.trim().toLowerCase()
   return tags.find(tag => tag.name.toLowerCase() === typed) ?? null
+}
+
+/** One leg of Settings' Test: this device to the server, or the server to the model. */
+export interface Hop {
+  readonly ok: boolean
+  readonly line: string
+  /** The endpoint's or the system's own words, under the line. */
+  readonly detail?: string
+}
+
+/** "24 ms" under a second, "1.3 s" over it. */
+export function took(ms: number): string {
+  return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`
+}
+
+/**
+ * The first leg, from what asking the server for its smart setup did. A 404 is
+ * a server older than the check itself, which is said as that: restarting it
+ * is the fix, and "no such endpoint" would not say so.
+ */
+export function serverHop(result: { ms: number } | { error: unknown }): Hop {
+  if ('ms' in result)
+    return { ok: true, line: `This device reached your server in ${took(result.ms)}` }
+  const { error } = result
+  if (error instanceof ApiError && error.status === 404) {
+    return {
+      ok: false,
+      line: 'Your server is older than this app. Restart it with the current build, then test again.',
+    }
+  }
+  if (error instanceof ApiError && error.isOffline) {
+    return { ok: false, line: 'This device can’t reach your server.', detail: error.message }
+  }
+  return {
+    ok: false,
+    line: 'Your server answered with an error.',
+    detail: error instanceof Error ? error.message : String(error),
+  }
+}
+
+/** The second leg: the server's one small call to the model. */
+export function modelHop(check: AiCheck): Hop {
+  if (check.ok) {
+    return { ok: true, line: `Your server reached the model (${check.model}) in ${took(check.ms)}` }
+  }
+  return { ok: false, line: check.message, detail: check.detail }
 }

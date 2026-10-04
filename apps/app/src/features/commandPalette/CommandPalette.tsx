@@ -24,7 +24,6 @@ import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Cover } from '../../ui/components/Cover'
 import {
-  Ask,
   BarChart,
   Download,
   ListMusic,
@@ -34,6 +33,7 @@ import {
   Search,
   Settings,
   Shuffle,
+  Sparkle,
   Tag,
   User,
 } from '../../ui/components/Icons'
@@ -209,7 +209,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           node: (
             <>
               <View style={styles.figure}>
-                <Ask size={16} color={theme.colors.textSecondary} />
+                <Sparkle size={16} />
               </View>
               <View style={styles.labelBox}>
                 <Text style={styles.label} numberOfLines={1}>

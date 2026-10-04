@@ -23,11 +23,14 @@ export const StackedRows = Stacked.Provider
 
 export function Panel({
   title,
+  mark,
   hint,
   anchor,
   children,
 }: {
   title: string
+  /** Drawn before the title: the sparkle that marks a smart feature. */
+  mark?: ReactNode
   hint?: string
   /**
    * The panel's own view, so the index can ask where it sits when it scrolls
@@ -40,6 +43,7 @@ export function Panel({
   return (
     <View ref={anchor} style={styles.group}>
       <View style={styles.groupHead}>
+        {mark ? <View style={styles.groupMark}>{mark}</View> : null}
         <Text style={styles.groupLabel} accessibilityRole="header">
           {title}
         </Text>
@@ -234,6 +238,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 10,
     paddingHorizontal: 4,
   },
+  groupMark: { alignSelf: 'center', marginRight: -4 },
   groupLabel: labelText(theme.colors),
   // The first row brings its own space above it; the last needs the card's below.
   panel: {

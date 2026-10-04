@@ -11,7 +11,7 @@ import { isComposing } from '../../shell/composing'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
-import { Ask, ListMusic } from '../../ui/components/Icons'
+import { ListMusic, Sparkle } from '../../ui/components/Icons'
 import { Sheet } from '../../ui/components/Sheet'
 import { followRules } from '../library/saveTags'
 import { AddSongsSheet } from '../playlistDetail/AddSongsSheet'
@@ -238,7 +238,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
 
             {typed ? (
               <Option
-                icon={<Ask size={16} color={theme.colors.textSecondary} />}
+                icon={<Sparkle size={16} />}
                 title={
                   chosen.length > 0
                     ? `Let it pick from ${tagsName}: “${typed}”`

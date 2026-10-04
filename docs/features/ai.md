@@ -66,6 +66,18 @@ Measured on the real library (1,342 songs) through claude-api: Describe 8–15 s
 4–15 s, pick 4–8 s); Suggest tags 13 s for 111 untagged songs in one call, with every song
 given a suggestion.
 
+**Settings › Smart features** shows the address (`GET /api/ai`: scheme, host and path only,
+never the key) and the two models, and its **Test** goes the whole way a leg at a time:
+this device to the server, timed, then `POST /api/ai/check`, one fast-tier call with a JSON
+schema like every feature makes, timed or failed with the endpoint's own words. So "couldn't
+reach" always says which leg: the server away, the server older than the app (a 404), or
+the model's endpoint down, refusing the key, or over a limit.
+
+**The sparkle.** Every way into a model carries the four-pointed sparkle (`Sparkle` in
+`Icons.tsx`, filled, in the accent): Ask in the Search box and the palette, Let it pick,
+Suggest tags, and the Smart features heading. A press with a sparkle asks a model; one
+without only searches, sorts or edits.
+
 ---
 
 ## How a feature is built

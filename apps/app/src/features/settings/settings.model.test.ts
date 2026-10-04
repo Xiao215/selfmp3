@@ -33,7 +33,9 @@ describe('settings', () => {
     expect(ids).not.toContain('cloud')
     // Found through the server the way Import finds it, or the last list kept here.
     expect(ids).toContain('devices')
-    expect(sectionsFor(false)).toHaveLength(10)
+    // Smart features too: Ask reaches the server from a cloud library, and so does its Test.
+    expect(ids).toContain('smart')
+    expect(sectionsFor(false)).toHaveLength(11)
     expect(sectionsFor(false, false).map(section => section.id)).not.toContain('offline')
   })
 
@@ -57,6 +59,7 @@ describe('settings', () => {
       'Library',
       'Importing',
       'Cloud',
+      'Smart features',
       'Lyrics',
       'About',
     ])

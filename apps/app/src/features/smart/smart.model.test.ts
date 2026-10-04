@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest'
+import { ApiError } from '@selfmp3/client'
 import type { DescribeResult, Tag, Understanding } from '@selfmp3/shared'
 import {
   askable,
   describeNotes,
   exactTag,
   matchingTags,
+  modelHop,
   onlyTags,
   parts,
   picksHere,
+  serverHop,
   suggestionsHere,
   tagIdsFor,
+  took,
 } from './smart.model'
 
 const TAGS: Tag[] = [
@@ -153,5 +157,43 @@ describe('matchingTags', () => {
   it('knows a tag typed in full', () => {
     expect(exactTag(' JPOP ', more)?.id).toBe(9)
     expect(exactTag('jp', more)).toBeNull()
+  })
+})
+
+describe('Settings’ Test', () => {
+  it('says how long each leg took', () => {
+    expect(took(24.4)).toBe('24 ms')
+    expect(took(1340)).toBe('1.3 s')
+    expect(serverHop({ ms: 24 })).toEqual({
+      ok: true,
+      line: 'This device reached your server in 24 ms',
+    })
+    expect(modelHop({ ok: true, model: 'sonnet', ms: 1300 }).line).toBe(
+      'Your server reached the model (sonnet) in 1.3 s',
+    )
+  })
+
+  it('reads a 404 as a server older than the app, not as a missing feature', () => {
+    const hop = serverHop({ error: new ApiError(404, 'no such endpoint', 'not_found') })
+    expect(hop.ok).toBe(false)
+    expect(hop.line).toMatch(/older than this app/)
+  })
+
+  it('tells the device not reaching the server from the server not reaching the model', () => {
+    expect(serverHop({ error: new ApiError(0, 'Failed to fetch', 'offline') }).line).toBe(
+      'This device can’t reach your server.',
+    )
+    expect(
+      modelHop({
+        ok: false,
+        failure: 'unreachable',
+        message: 'Your server couldn’t reach the model.',
+        detail: 'The model at http://127.0.0.1:8787/v1 did not answer: fetch failed',
+      }),
+    ).toEqual({
+      ok: false,
+      line: 'Your server couldn’t reach the model.',
+      detail: 'The model at http://127.0.0.1:8787/v1 did not answer: fetch failed',
+    })
   })
 })

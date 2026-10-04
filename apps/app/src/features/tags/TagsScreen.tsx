@@ -38,6 +38,7 @@ import {
   More,
   Plus,
   Search,
+  Sparkle,
   Tag as TagIcon,
   X,
 } from '../../ui/components/Icons'
@@ -503,7 +504,12 @@ function UntaggedCard({
             {who}
           </Text>
         </View>
-        <Button label="Suggest tags" onPress={onSuggest} testID="tags-untagged-suggest" />
+        <Button
+          label="Suggest tags"
+          icon={<Sparkle size={15} />}
+          onPress={onSuggest}
+          testID="tags-untagged-suggest"
+        />
         <Button
           label="Tag while they play"
           icon={<TagIcon size={15} color={theme.colors.textPrimary} />}
@@ -537,6 +543,7 @@ function UntaggedCard({
       <View style={styles.untaggedSuggest}>
         <Button
           label="Suggest tags"
+          icon={<Sparkle size={15} />}
           variant="text"
           onPress={onSuggest}
           testID="tags-untagged-suggest"

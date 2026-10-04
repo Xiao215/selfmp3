@@ -40,6 +40,8 @@ export interface GenerateRequest<T> {
   readonly system: string
   readonly prompt: string
   readonly schema: z.ZodType<T>
+  /** Shorter than the settings' for a call someone is watching, like Settings' test. */
+  readonly timeoutMs?: number
 }
 
 interface Generated<T> {
@@ -115,6 +117,7 @@ export function openAiCompatible(
     model: string,
     messages: readonly ChatMessage[],
     schema: Record<string, unknown>,
+    timeoutMs: number,
   ): Promise<string> {
     let response: Response
     try {
@@ -132,7 +135,7 @@ export function openAiCompatible(
             json_schema: { name: task.replace(/[^a-zA-Z0-9_-]/g, '_'), strict: true, schema },
           },
         }),
-        signal: AbortSignal.timeout(settings.timeoutMs),
+        signal: AbortSignal.timeout(timeoutMs),
       })
     } catch (caught) {
       throw new LlmError(
@@ -165,7 +168,13 @@ export function openAiCompatible(
         { role: 'user', content: request.prompt },
       ]
       for (let attempt = 1; attempt <= 2; attempt++) {
-        const text = await ask(request.task, model, messages, schema)
+        const text = await ask(
+          request.task,
+          model,
+          messages,
+          schema,
+          request.timeoutMs ?? settings.timeoutMs,
+        )
         let problem: string
         try {
           const parsed = request.schema.safeParse(parseReply(text))

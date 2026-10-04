@@ -553,10 +553,9 @@ function PlayingRow({
       onPress={onOpen}
       accessibilityRole="button"
       accessibilityLabel={`Playing ${row.song.title}. Open now playing`}
-      style={[styles.row, { backgroundColor: withAlpha(tone.color, 0.2) }]}
+      style={[styles.row, styles.playing, { backgroundColor: withAlpha(tone.color, 0.2) }]}
     >
       {over ? <View style={[styles.dropLine, styles.dropLineFoot]} /> : null}
-      <View style={styles.gripSlot} />
       <View>
         <Cover uri={artUri} title={row.song.album || row.song.title} size={34} />
         <View style={styles.equalizer} pointerEvents="none">
@@ -781,10 +780,21 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.cover,
     paddingRight: 6,
   },
+  // Laid out as a row's face is, so its cover and words line up with the rows under it.
+  playing: { paddingLeft: 6, gap: space.sm },
   greyed: { opacity: 0.42 },
   press: { flex: 1, minWidth: 0, alignSelf: 'stretch', borderRadius: radius.cover },
   pressed: { backgroundColor: theme.colors.surface2 },
-  face: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  // In from the row's edge by the list's bleed, so the covers stand under the
+  // heading while a pressed row's shade still reaches past them.
+  face: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingLeft: 6,
+  },
   gripSlot: {
     width: 24,
     alignSelf: 'stretch',

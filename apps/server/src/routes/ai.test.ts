@@ -43,6 +43,7 @@ describe('smart features turned off in Settings', () => {
         tag: null,
         find: null,
         stats: null,
+        playlists: null,
         open: null,
         say: null,
       })

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
 import type { ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { useRouter } from 'expo-router'
+import { useRouter, type Href } from 'expo-router'
 import { plural } from '@selfmp3/shared'
 import type { Stats } from '@selfmp3/shared'
 import { fonts, radius, tagColors, type, useLibrary, type ServerConnection } from '@selfmp3/client'
@@ -36,6 +36,7 @@ import {
   type HomeRecent,
 } from '../lists/lists.model'
 import { useRecentLists } from '../lists/recentLists.store'
+import { keepAnswer, reorderAnswer } from '../smart/answers.store'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { useStatsFor } from '../stats/statsSource'
 import {
@@ -490,6 +491,7 @@ function Tile({
  */
 function Recents({ recents, wide }: { recents: readonly HomeRecent[]; wide: boolean }): ReactNode {
   const player = usePlayer()
+  const router = useRouter()
   const art = useArt()
   const { data: library } = useLibrary()
   const size = wide ? 132 : 92
@@ -539,6 +541,19 @@ function Recents({ recents, wide }: { recents: readonly HomeRecent[]; wide: bool
             key={entry.key}
             testID={`home-recent-${index}`}
             onPress={() => {
+              // A list opens, as any list's tile does; playing it is its page's Play.
+              if (line.link) {
+                router.push(line.link as unknown as Href)
+                return
+              }
+              if (entry.source.kind === 'answer' && entry.answer) {
+                const id = keepAnswer(entry.source.text, entry.answer)
+                reorderAnswer(id, entry.songIds)
+                router.push({ pathname: '/answer', params: { id } })
+                return
+              }
+              // Songs that are no place of their own (similar ones, ones you
+              // picked): there is no page to open, so they play.
               if (!library) return
               const ids = recentSongIds(entry, library)
               if (ids.length === 0) return
@@ -546,7 +561,9 @@ function Recents({ recents, wide }: { recents: readonly HomeRecent[]; wide: bool
               player.playFrom(ids, 0, { source: entry.source })
             }}
             accessibilityRole="button"
-            accessibilityLabel={`Play ${line.label}`}
+            accessibilityLabel={
+              line.link || entry.answer ? `Open ${line.label}` : `Play ${line.label}`
+            }
             style={{ width: size }}
           >
             <View

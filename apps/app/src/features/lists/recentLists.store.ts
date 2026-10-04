@@ -1,6 +1,7 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { usePlayer } from '../../player/PlayerProvider'
 import { prefs } from '../../ports/prefs'
+import { answerShowing } from '../smart/answers.store'
 import {
   parseRecentLists,
   sourceKey,
@@ -88,7 +89,14 @@ export function useRecordRecentLists(): void {
     const key = source ? sourceKey(source, songs) : null
     started.current = { source, original, key }
     playingKey = key
-    if (source && key !== null) write(withListStarted(snapshot(), source, songs, Date.now()))
+    // An answer is kept with its own answer, so its page can open again later.
+    const answer =
+      source?.kind === 'answer' && source.answerId
+        ? (answerShowing(source.answerId) ?? undefined)
+        : undefined
+    if (source && key !== null) {
+      write(withListStarted(snapshot(), source, songs, Date.now(), answer))
+    }
   }, [source, original, items])
 
   useEffect(() => {

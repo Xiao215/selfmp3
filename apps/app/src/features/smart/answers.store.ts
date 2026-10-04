@@ -96,6 +96,11 @@ export function reorderAnswer(id: string, order: readonly number[]): void {
   put(showing({ ...answer, steps }))
 }
 
+/** The version of an answer showing now, outside React: what Recently played keeps of it. */
+export function answerShowing(id: string): DescribeResult | null {
+  return answers.get(id)?.result ?? null
+}
+
 function subscribe(listener: () => void): () => void {
   listeners.add(listener)
   return () => {

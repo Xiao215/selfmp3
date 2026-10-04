@@ -250,6 +250,35 @@ describe('Recently played', () => {
     expect(recentSongIds(fromAnswer, library)).toEqual([3])
   })
 
+  it('keeps an answer with its list, so its page can open after a reload', () => {
+    const result = {
+      understanding: {
+        name: 'Calm',
+        anyTags: [],
+        artists: [],
+        noTags: [],
+        energy: { min: null, max: 0.4 },
+        bpm: { min: null, max: null },
+        words: null,
+        loved: null,
+        playedWithinDays: null,
+        notPlayedWithinDays: null,
+        addedWithinDays: null,
+        size: null,
+        minutes: null,
+        brief: null,
+      },
+      fit: 9,
+      loosened: [],
+      unknown: [],
+      picks: [{ songId: 3, why: null }],
+    }
+    const lists = withListStarted([], asked, [3], 100, result)
+    expect(parseRecentLists(JSON.stringify(lists))[0]?.answer).toEqual(result)
+    // Played again without it, the answer it had is kept.
+    expect(withListStarted(lists, asked, [3], 200)[0]?.answer).toEqual(result)
+  })
+
   it('survives being written and read back, and reads nothing from junk', () => {
     const lists = withListStarted([], asked, [3, 4], 100)
     expect(parseRecentLists(JSON.stringify(lists))).toEqual(lists)

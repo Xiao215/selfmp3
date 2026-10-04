@@ -42,7 +42,14 @@ export function Working({
   const timed = steps.reduce((now, step, index) => (ms >= (step.after ?? 0) ? index : now), 0)
   const shown: { key: string; text: string; done: boolean }[] =
     live && live.length > 0
-      ? live.map((step, index) => ({ key: `${index}`, text: step.text, done: step.done }))
+      ? [
+          ...live.map((step, index) => ({ key: `${index}`, text: step.text, done: step.done })),
+          // Every stage done and the answer not here yet: it is on its way to
+          // this device, and the wait says so rather than looking finished.
+          ...(live.every(step => step.done)
+            ? [{ key: 'arriving', text: 'Getting it ready', done: false }]
+            : []),
+        ]
       : steps.slice(0, timed + 1).map((step, index) => ({
           key: step.doing,
           text: index < timed ? (step.done ?? step.doing) : step.doing,

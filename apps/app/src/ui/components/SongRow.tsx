@@ -162,8 +162,16 @@ export const SongRow = memo(function SongRow({
   const playback = useSongPlayback(song.id)
   const active = activeOverride ?? playback !== null
   const playing = playingOverride ?? playback === 'playing'
-  // The playing row wears its cover's colour; every other row asks for nothing.
-  const songColor = useSongColor(active ? song : null, artUri)
+  // The wash and the equaliser, arriving as this row becomes the playing one
+  // and leaving as it stops (`M2`, 5): in from the left over 260 ms, back out
+  // over a short fade, and drawn for as long as the leaving takes. A row that
+  // scrolls into view already playing starts at rest, since a presence begins
+  // where it is asked to be.
+  const wash = usePresence(active, MOVE_MS.wash, motion.base)
+  // The playing row wears its cover's colour, and keeps it while its wash
+  // draws back: asked for nothing the moment it stopped, the leaving wash
+  // turned the accent's blue. Every other row asks for nothing.
+  const songColor = useSongColor(active || wash.mounted ? song : null, artUri)
   const { wide, dense, width } = useLayout()
   const contentWidth = useContentWidth()
   const [hovered, setHovered] = useState(false)
@@ -179,12 +187,6 @@ export const SongRow = memo(function SongRow({
   const [scale] = useState(() => new Animated.Value(1))
   const press = (down: boolean): void => void spring(scale, down ? PRESS.row : 1)
   const pressHandlers = { onPressIn: () => press(true), onPressOut: () => press(false) }
-  // The wash and the equaliser, arriving as this row becomes the playing one
-  // and leaving as it stops (`M2`, 5): in from the left over 260 ms, back out
-  // over a short fade, and drawn for as long as the leaving takes. A row that
-  // scrolls into view already playing starts at rest, since a presence begins
-  // where it is asked to be.
-  const wash = usePresence(active, MOVE_MS.wash, motion.base)
 
   const tint = [
     // Selected: a translucent accent that reads as picked on the dark UI.

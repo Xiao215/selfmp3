@@ -34,7 +34,7 @@ import { NO_STEPS, type Steps } from './progress.js'
  * asked for in the box costs what Describe costs and no more.
  */
 
-const VERSION = 3
+const VERSION = 4
 
 /** The most songs a "find" is chosen from. */
 const MAX_FOUND = 150
@@ -43,7 +43,7 @@ const FIND_SIZE = 5
 const NEXT_SIZE = 10
 
 const RouteOut = z.object({
-  action: z.enum(['songs', 'find', 'tag', 'stats', 'tidy', 'open', 'none']),
+  action: z.enum(['songs', 'find', 'tag', 'stats', 'tidy', 'playlists', 'open', 'none']),
   /** songs: they want it now, not kept. */
   play: z.boolean(),
   /** songs: they want it after the song playing, in Up next. */
@@ -60,6 +60,13 @@ const RouteOut = z.object({
       about: z.enum(['songs', 'artists', 'tags', 'totals']),
     })
     .nullable(),
+  playlists: z
+    .object({
+      op: z.enum(['delete', 'rename']),
+      names: z.array(z.string().max(120)).max(20),
+      newName: z.string().max(80).nullable(),
+    })
+    .nullable(),
   open: z.enum(AskPlaceSchema.options).nullable(),
   /** open and none: one plain sentence for the person. */
   say: z.string().max(240).nullable(),
@@ -73,7 +80,8 @@ The actions:
 - tag: they want one tag put on many songs. Fill "tag" with the tag's name, spelled exactly as in their tag list if it exists, and "songs" with the filters that pick those songs (usually artists or tags). Never tag the whole library: if they did not say which songs, choose none.
 - stats: a question about their own listening (most played, how much, which artists). Fill "stats": range is 7d, 30d, 90d, 365d or all ("last month" is 30d, "this year" is 365d); about is songs, artists, tags or totals.
 - tidy: they want their song names checked, fixed or cleaned up: wrong, messy or inconsistent titles, artists or albums, metadata worth fixing. Nothing else to fill.
-- open: they want to go somewhere in the app rather than get an answer here: import (adding music, which takes a YouTube, Spotify or 网易云 link), stats, tags, library, playlists, settings. Fill "open" and "say" with one sentence.
+- playlists: they want playlists deleted or one renamed. Fill "playlists": op is delete or rename; names are the playlists they mean, copied from their playlist list as closely as you can (they may misspell or shorten them); newName is the new name for a rename, else null. Playlists only, never songs or tags.
+- open: they want to go somewhere in the app rather than get an answer here: import (adding music, which takes a YouTube, Spotify or 网易云 link), stats, tags, library, playlists, settings. Fill "open", and "say" with one sentence on what they will find there. The app shows a button that goes there: never say you opened, changed or did anything.
 - none: anything else, including talk that is not a request. "say" is one plain sentence on what you can do instead. Never pretend to do something.
 
 Filters, for songs and tag:
@@ -82,11 +90,53 @@ ${FILTERS_GUIDE}`
 const FIND_SYSTEM = `Someone is looking for one song in their own library that they half remember. You are given what they remember and a numbered table of candidate songs (with a lyric line where one matched). Reply with JSON only: picks, at most ${FIND_SIZE}, best first, each the song's number (n) and why it fits in at most ten plain words. Only choose songs that plausibly are the one they mean; if none are, return no picks. Never use a number that is not in the table.`
 
 export interface AskDeps extends DescribeDeps {
+  /** The playlists by name, for "delete…" and "rename…" (`matchPlaylist`). */
+  readonly playlists?: () => readonly { readonly name: string }[]
   readonly stats: (range: Stats['range']) => Stats
   readonly lyrics: (query: string) => { songId: number; line: string }[]
 }
 
 const lower = (value: string): string => value.toLowerCase()
+
+/** Letters and digits only, lower case: "chill · chinese · hype" and "chill chinese hype" are one. */
+const bare = (value: string): string => value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
+
+function editDistance(a: string, b: string): number {
+  const row = Array.from({ length: b.length + 1 }, (_, index) => index)
+  for (let i = 1; i <= a.length; i++) {
+    let diagonal = row[0]!
+    row[0] = i
+    for (let j = 1; j <= b.length; j++) {
+      const above = row[j]!
+      row[j] = Math.min(above + 1, row[j - 1]! + 1, diagonal + (a[i - 1] === b[j - 1] ? 0 : 1))
+      diagonal = above
+    }
+  }
+  return row[b.length]!
+}
+
+/**
+ * The playlist a name means, by its exact name, or null. Spelled the way
+ * people type a name they half remember — "chill chiense hype" is "chill ·
+ * chinese · hype" — but only ever one that exists: the same letters, or a few
+ * slips from them, and when two are equally near, neither.
+ */
+export function matchPlaylist(
+  name: string,
+  playlists: readonly { readonly name: string }[],
+): string | null {
+  const wanted = bare(name)
+  if (!wanted) return null
+  const exact = playlists.find(playlist => bare(playlist.name) === wanted)
+  if (exact) return exact.name
+  const slips = Math.max(2, Math.floor(wanted.length * 0.2))
+  const near = playlists
+    .map(playlist => ({ name: playlist.name, far: editDistance(wanted, bare(playlist.name)) }))
+    .filter(each => each.far <= slips)
+    .sort((a, b) => a.far - b.far)
+  if (near.length === 0 || (near.length > 1 && near[0]!.far === near[1]!.far)) return null
+  return near[0]!.name
+}
 
 /** Songs whose title, artist or album holds a term, then ones whose lyrics do, once each. */
 export function foundFor(
@@ -131,7 +181,8 @@ export async function ask(
   const nowPlaying = playing
     ? `\n\nNow playing: ${songTable([playing], tags, now).replace(/^#1 \| /, '')}`
     : ''
-  const prompt = `${libraryShape(songs, tags)}\n\nTheir tags, exactly: ${tags.map(tag => tag.name).join(', ') || '(none)'}${nowPlaying}\n\nThe request:\n${text}`
+  const playlists = deps.playlists?.() ?? []
+  const prompt = `${libraryShape(songs, tags)}\n\nTheir tags, exactly: ${tags.map(tag => tag.name).join(', ') || '(none)'}\n\nTheir playlists, exactly: ${playlists.map(playlist => playlist.name).join(' | ') || '(none)'}${nowPlaying}\n\nThe request:\n${text}`
   steps.begin('Reading what you asked')
   const route = await remembered.get(
     Remembered.key('ask-route', VERSION, prompt),
@@ -267,6 +318,31 @@ export async function ask(
         return { kind: 'none', say: 'Tidy up is turned off in Settings › Smart features.' }
       }
       return { kind: 'tidy', tidy: await tidy({ ...deps, remembered }, steps) }
+
+    case 'playlists': {
+      if (!route.playlists) break
+      const { op, names: asked, newName } = route.playlists
+      const matched = asked.map(name => ({ name, found: matchPlaylist(name, playlists) }))
+      const names = [...new Set(matched.flatMap(each => each.found ?? []))]
+      const unknown = matched.filter(each => each.found === null).map(each => each.name)
+      if (names.length === 0) {
+        return {
+          kind: 'none',
+          say:
+            asked.length > 0
+              ? `No playlist here is called ${asked.map(name => `“${name}”`).join(' or ')}.`
+              : 'Say which playlists you mean.',
+        }
+      }
+      if (op === 'rename') {
+        const to = (newName ?? '').trim().replace(/\s+/g, ' ')
+        if (names.length !== 1 || !to || to === names[0]) {
+          return { kind: 'none', say: 'Say which one playlist to rename, and what to call it.' }
+        }
+        return { kind: 'playlists', op, names, newName: to, unknown }
+      }
+      return { kind: 'playlists', op, names, newName: null, unknown }
+    }
 
     case 'open':
       if (!route.open) break

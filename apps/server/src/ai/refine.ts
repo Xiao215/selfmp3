@@ -67,13 +67,23 @@ export async function refine(
   )
   steps.done('Read what to change')
   const { understanding, unknown } = groundPlan(plan, songs, tags)
-  const size = understanding.size ?? DEFAULT_SIZE
-
-  // The songs shown that the changed filters still let in, while the taste is the same.
+  // The songs shown that the changed filters still let in, while the taste is
+  // the same: as many as the count asked for, or as long as the length.
   const sameTaste = (understanding.brief ?? '') === (request.understanding.brief ?? '')
   const fitting = new Set(songsFitting(songs, tags, understanding, now).map(song => song.id))
-  const kept = sameTaste ? request.shown.filter(id => fitting.has(id)).slice(0, size) : []
-  if (kept.length === size) {
+  const duration = new Map(songs.map(song => [song.id, song.duration]))
+  const stillFit = sameTaste ? request.shown.filter(id => fitting.has(id)) : []
+  const target = understanding.minutes === null ? null : understanding.minutes * 60
+  const size = understanding.size ?? DEFAULT_SIZE
+  const kept: number[] = []
+  let keptSeconds = 0
+  for (const id of stillFit) {
+    if (target === null ? kept.length >= size : keptSeconds >= target) break
+    kept.push(id)
+    keptSeconds += duration.get(id) ?? 0
+  }
+  const enough = target === null ? kept.length >= size : keptSeconds >= target - 30
+  if (enough) {
     steps.begin('Keeping the ones that still fit')
     steps.done(`Kept ${kept.length}`)
     return {
@@ -85,10 +95,19 @@ export async function refine(
     }
   }
 
+  // Only what is missing is picked: the rest of the count, or of the length.
+  const rest =
+    target === null
+      ? { ...understanding, size: size - kept.length }
+      : {
+          ...understanding,
+          size: null,
+          minutes: Math.max(1, Math.ceil((target - keptSeconds) / 60)),
+        }
   const more = await narrowAndPick(
     deps,
     `${request.text}\n${request.change}`,
-    { ...understanding, size: size - kept.length },
+    rest,
     unknown,
     kept,
     steps,
@@ -96,7 +115,11 @@ export async function refine(
   const added = more.picks.filter(pick => !kept.includes(pick.songId))
   return {
     ...more,
-    understanding: { ...more.understanding, size: understanding.size },
+    understanding: {
+      ...more.understanding,
+      size: understanding.size,
+      minutes: understanding.minutes,
+    },
     picks: [...kept.map(songId => ({ songId, why: null })), ...added],
   }
 }

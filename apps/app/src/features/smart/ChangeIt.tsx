@@ -76,7 +76,8 @@ export function ChangeIt({
   const live = useAskProgress(ticket, working)
   // The stage running now, or the last one done while the next is on its way.
   const running = live ? [...live].reverse().find(step => !step.done) : undefined
-  const doing = running?.text ?? live?.[live.length - 1]?.text ?? 'Reading what to change'
+  const doing =
+    running?.text ?? (live && live.length > 0 ? 'Getting it ready' : 'Reading what to change')
 
   const fieldIn = useFade(!working, motion.base, motion.fast)
   const workIn = useFade(working, motion.base, motion.fast)

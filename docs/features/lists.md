@@ -103,9 +103,11 @@ reload says so.
 Home's row shows what you listened to (A1): a list when you played a list, a song when you
 played a song. Lists are kept on this device (`lists.recent` in prefs, twelve of them); the
 songs still come from the server's plays, so they reach every device. A song heard as part
-of a list shows as the list's tile, not a tile of its own. A tile plays again on a tap: a
-tag, an artist or tags combined are read again from the library, anything else plays as it
-was.
+of a list shows as the list's tile, not a tile of its own. A tile opens its list's page on a tap,
+as any list's tile does, and playing it is that page's Play (Xiao, 2026-10-04): a tag's,
+an artist's, a playlist's, tags combined, an Ask answer's. An answer is kept with its own
+answer, so its page opens again after a reload. Songs with no page of their own (similar
+ones, ones you picked) play.
 
 ## Motion
 

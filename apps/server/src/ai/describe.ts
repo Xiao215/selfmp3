@@ -25,6 +25,17 @@ import { NO_STEPS, type Steps } from './progress.js'
 /** A playlist's worth, when the words do not say how many. */
 export const DEFAULT_SIZE = 25
 
+/** The most songs one answer holds: a long length of short pieces stops here. */
+const MAX_PICKS = 200
+
+/** "1 hr 58 min", "40 min": a length the way the app writes one. */
+function lengthWords(seconds: number): string {
+  const minutes = Math.round(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  if (hours === 0) return `${minutes} min`
+  return minutes % 60 === 0 ? `${hours} hr` : `${hours} hr ${minutes % 60} min`
+}
+
 /**
  * The most songs a pick is chosen from. A line of the table is about 40
  * tokens, so this keeps the pick's prompt near 12k whatever the library's size.
@@ -50,6 +61,7 @@ export const PlanOut = z.object({
   notPlayedWithinDays: z.number().int().min(1).max(3650).nullable(),
   addedWithinDays: z.number().int().min(1).max(3650).nullable(),
   size: z.number().int().min(1).max(200).nullable(),
+  minutes: z.number().int().min(1).max(1440).nullable(),
   brief: z.string().max(200).nullable(),
 })
 
@@ -68,7 +80,8 @@ export const FILTERS_GUIDE = `The filters:
 - words: "with" for songs with lyrics, "without" for instrumental (studying, focus, "no vocals"). Null when not implied.
 - loved: true only if they ask for loved or favourite songs.
 - playedWithinDays / notPlayedWithinDays / addedWithinDays: when the description is about recency ("nothing I played this week" is notPlayedWithinDays 7; "new stuff" is addedWithinDays 30).
-- size: a number of songs only if they say one, or a length (an hour is about 15 songs).
+- size: a number of songs, only if they say one.
+- minutes: how long it should play, only if they say a length ("2 hours" is 120, "half an hour" is 30). Never turn a length into a number of songs: songs differ in length, and the app counts them. Set size or minutes, never both.
 - brief: what the description wants that the filters cannot express, in a few words, such as "sounds like rain" or "good for reading". Null if the filters say it all.
 - name: a short, plain playlist name in the description's language, no emoji.
 
@@ -363,19 +376,26 @@ export async function narrowAndPick(
   )
 
   // 3 · Pick, only when there is something to judge.
-  const size = understanding.size ?? DEFAULT_SIZE
-  let picks: DescribePick[]
-  if (fitting.length === 0) {
-    picks = []
-  } else if (understanding.brief === null && fitting.length <= size) {
-    picks = fitting.map(song => ({ songId: song.id, why: null }))
-  } else {
-    steps.begin(`Choosing ${Math.min(size, fitting.length)} that suit it`)
-    const table = sample(fitting, text, MAX_CANDIDATES)
+  const byId = new Map(songs.map(song => [song.id, song]))
+  const length = (picked: readonly DescribePick[]): number =>
+    picked.reduce((sum, pick) => sum + (byId.get(pick.songId)?.duration ?? 0), 0)
+  const target = understanding.minutes === null ? null : understanding.minutes * 60
+  const average =
+    fitting.length > 0 ? fitting.reduce((sum, song) => sum + song.duration, 0) / fitting.length : 0
+  // A length is counted in this library's own songs: two hours of ninety-second
+  // pieces is eighty of them, not the thirty an average pop song would make.
+  const size =
+    target !== null && average > 0
+      ? Math.min(MAX_PICKS, Math.max(1, Math.ceil(target / average)))
+      : (understanding.size ?? DEFAULT_SIZE)
+
+  /** One round of the model choosing `count` of `candidates`. */
+  const pickFrom = async (candidates: readonly Song[], count: number): Promise<DescribePick[]> => {
+    const table = sample(candidates, text, MAX_CANDIDATES)
     const prompt = [
       `The description: ${text}`,
       `What it wants beyond the filters: ${understanding.brief ?? 'nothing more; choose the songs that suit the description best'}`,
-      `Choose up to ${size} songs.`,
+      `Choose up to ${count} songs.`,
       '',
       'The table (number | title | artist | album | tags | energy | tempo | length | words | plays):',
       songTable(table, tags, now),
@@ -393,9 +413,64 @@ export async function narrowAndPick(
           })
         ).value,
     )
-    picks = groundPicks(answer.picks, table, size)
+    return groundPicks(answer.picks, table, count)
+  }
+
+  let picks: DescribePick[]
+  const everything = fitting.map(song => ({ songId: song.id, why: null }))
+  if (fitting.length === 0) {
+    picks = []
+  } else if (
+    understanding.brief === null &&
+    (target === null ? fitting.length <= size : length(everything) <= target)
+  ) {
+    picks = everything
+  } else {
+    steps.begin(
+      target !== null
+        ? `Choosing ${lengthWords(target)} that suits it`
+        : `Choosing ${Math.min(size, fitting.length)} that suit it`,
+    )
+    picks = await pickFrom(fitting, size)
     if (picks.length === 0) throw new LlmError('invalid', 'The model picked no song from the table')
-    steps.done(`Chose ${picks.length}`)
+    if (target !== null) picks = await fillTo(picks)
+    steps.done(
+      target !== null
+        ? `Chose ${picks.length}, ${lengthWords(length(picks))}`
+        : `Chose ${picks.length}`,
+    )
+  }
+
+  /**
+   * A length asked for is a length given. The model may stop short of it —
+   * "if fewer fit well, choose fewer" — so it is asked once more for the rest
+   * from what it has not chosen; whatever is still missing is made up from the
+   * songs that fit, in the same stable order its table was drawn in; and a
+   * last song that runs well past the length is left off.
+   */
+  async function fillTo(first: DescribePick[]): Promise<DescribePick[]> {
+    if (target === null) return first
+    let picked = first
+    const unchosen = (): Song[] => {
+      const taken = new Set(picked.map(pick => pick.songId))
+      return fitting.filter(song => !taken.has(song.id))
+    }
+    const short = (): number => target - length(picked)
+    if (short() > average / 2 && unchosen().length > 0) {
+      steps.begin(`Choosing more, to make ${lengthWords(target)}`)
+      const more = await pickFrom(unchosen(), Math.ceil(short() / Math.max(average, 1)))
+      picked = [...picked, ...more]
+    }
+    for (const song of sample(unchosen(), text, unchosen().length)) {
+      if (short() <= average / 2) break
+      picked = [...picked, { songId: song.id, why: null }]
+    }
+    while (picked.length > 1) {
+      const last = byId.get(picked[picked.length - 1]!.songId)?.duration ?? 0
+      if (length(picked) - last < target) break
+      picked = picked.slice(0, -1)
+    }
+    return picked.slice(0, MAX_PICKS)
   }
 
   return { understanding: applied, fit: fitting.length, loosened, unknown, picks }

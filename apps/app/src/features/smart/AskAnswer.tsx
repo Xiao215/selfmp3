@@ -16,6 +16,7 @@ import { Cover } from '../../ui/components/Cover'
 import { Play, X } from '../../ui/components/Icons'
 import { showToast } from '../../ui/toast'
 import { placePath, rangeWords } from './smart.model'
+import { PlaylistsAnswer } from './PlaylistsAnswer'
 import { SongsAnswerCard } from './SongsAnswerCard'
 import { TidyReview } from './TidyReview'
 import type { AnswerKeys } from './answerKeys'
@@ -138,6 +139,8 @@ function Drawn({
       return (
         <TidyReview result={answer.tidy} height={listHeight} onClose={onDone} onKeys={onKeys} />
       )
+    case 'playlists':
+      return <PlaylistsAnswer answer={answer} onDone={onDone} />
     case 'stats':
       return (
         <>

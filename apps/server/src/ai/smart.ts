@@ -47,6 +47,7 @@ export class SmartFeatures {
     stats: (range: Stats['range']) => Stats
     lyrics: (query: string) => { songId: number; line: string }[]
     wrapped: (range: WrappedRange) => Wrapped
+    playlists?: () => readonly { readonly name: string }[]
   }) {
     this.#deps = { ...deps, remembered: new Remembered() }
   }

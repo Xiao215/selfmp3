@@ -1,9 +1,11 @@
 import { placeSongs, type Place } from '../tag/tag.model'
 import {
+  DescribeResultSchema,
   artistKey,
   libraryArtists,
   type Playlist,
   type QueueState,
+  type DescribeResult,
   type Song,
   type Tag,
 } from '@selfmp3/shared'
@@ -377,6 +379,12 @@ export interface RecentList {
   readonly played: readonly number[]
   /** When it last started or a song of it last played, in ms. */
   readonly at: number
+  /**
+   * An Ask answer's own answer, kept so its page can be opened again after the
+   * app's memory of it is gone (a reload): Recently played opens the list, it
+   * does not play it.
+   */
+  readonly answer?: DescribeResult
 }
 
 /**
@@ -410,16 +418,19 @@ export function withListStarted(
   source: ListSource,
   songIds: readonly number[],
   now: number,
+  answer?: DescribeResult,
 ): readonly RecentList[] {
   const key = sourceKey(source, songIds)
   if (key === null) return lists
   const before = lists.find(entry => entry.key === key)
+  const kept = answer ?? before?.answer
   const entry: RecentList = {
     key,
     source,
     songIds: songIds.slice(0, 2000),
     played: before?.played ?? [],
     at: now,
+    ...(kept ? { answer: kept } : {}),
   }
   return [entry, ...lists.filter(each => each.key !== key)].slice(0, RECENT_LISTS)
 }
@@ -472,7 +483,17 @@ export function parseRecentLists(raw: string | null): readonly RecentList[] {
       const key = v['key']
       const at = v['at']
       if (!source || typeof key !== 'string' || typeof at !== 'number') return []
-      return [{ key, source, songIds: ids('songIds'), played: ids('played'), at }]
+      const answer = DescribeResultSchema.safeParse(v['answer'])
+      return [
+        {
+          key,
+          source,
+          songIds: ids('songIds'),
+          played: ids('played'),
+          at,
+          ...(answer.success ? { answer: answer.data } : {}),
+        },
+      ]
     })
   } catch {
     return []

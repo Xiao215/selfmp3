@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Stats } from '@selfmp3/shared'
-import { ask, foundFor } from './ask.js'
+import { ask, foundFor, matchPlaylist } from './ask.js'
 import { SONGS, TAGS, scriptedLlm } from './fixtures/library.js'
 
 const NOW = Date.parse('2026-10-03T12:00:00Z')
@@ -18,6 +18,7 @@ const noFilters = {
   notPlayedWithinDays: null,
   addedWithinDays: null,
   size: null,
+  minutes: null,
   brief: null,
 }
 
@@ -29,6 +30,7 @@ const route = (overrides: Record<string, unknown>) => ({
   tag: null,
   find: null,
   stats: null,
+  playlists: null,
   open: null,
   say: null,
   ...overrides,
@@ -64,8 +66,75 @@ function deps(replies: Record<string, unknown[]>) {
     now: () => NOW,
     stats: () => STATS,
     lyrics: (query: string) => (query === '外婆' ? [{ songId: 15, line: '外婆的家' }] : []),
+    playlists: () => PLAYLISTS,
   }
 }
+
+const PLAYLISTS = [{ name: 'chill · chinese · hype' }, { name: 'chill · chinese' }, { name: 'hi' }]
+
+describe('matchPlaylist', () => {
+  it('finds a playlist however it is spaced, dotted or cased', () => {
+    expect(matchPlaylist('Chill Chinese Hype', PLAYLISTS)).toBe('chill · chinese · hype')
+    expect(matchPlaylist('chill chinese', PLAYLISTS)).toBe('chill · chinese')
+  })
+
+  it('forgives a slip or two, and names nothing that is not there', () => {
+    expect(matchPlaylist('chill chiense hype', PLAYLISTS)).toBe('chill · chinese · hype')
+    expect(matchPlaylist('chill chiense', PLAYLISTS)).toBe('chill · chinese')
+    expect(matchPlaylist('workout', PLAYLISTS)).toBeNull()
+    expect(matchPlaylist('', PLAYLISTS)).toBeNull()
+  })
+})
+
+describe('ask, about playlists', () => {
+  it('proposes deleting the playlists meant, by their real names', async () => {
+    const d = deps({
+      'ask-route': [
+        route({
+          action: 'playlists',
+          playlists: {
+            op: 'delete',
+            names: ['chill chiense hype', 'chill chiense', 'gym'],
+            newName: null,
+          },
+        }),
+      ],
+    })
+    expect(await ask(d, 'remove the chill chiense hype and chill chiense playlists')).toEqual({
+      kind: 'playlists',
+      op: 'delete',
+      names: ['chill · chinese · hype', 'chill · chinese'],
+      newName: null,
+      unknown: ['gym'],
+    })
+  })
+
+  it('renames one playlist, and asks again when it cannot tell which or to what', async () => {
+    const rename = (names: string[], newName: string | null) =>
+      deps({
+        'ask-route': [route({ action: 'playlists', playlists: { op: 'rename', names, newName } })],
+      })
+    expect(await ask(rename(['hi'], ' 华语慢歌 '), 'rename hi')).toMatchObject({
+      kind: 'playlists',
+      op: 'rename',
+      names: ['hi'],
+      newName: '华语慢歌',
+    })
+    expect(await ask(rename(['hi'], null), 'rename hi')).toMatchObject({ kind: 'none' })
+    expect(await ask(rename(['nothing'], 'x'), 'rename nothing')).toEqual({
+      kind: 'none',
+      say: 'No playlist here is called “nothing”.',
+    })
+  })
+
+  it('shows the model the playlists it may name', async () => {
+    const d = deps({ 'ask-route': [route({ action: 'none', say: 'x' })] })
+    await ask(d, 'delete hi')
+    expect(String(d.llm.asked[0]?.prompt)).toContain(
+      'chill · chinese · hype | chill · chinese | hi',
+    )
+  })
+})
 
 describe('ask', () => {
   it('turns a request for music into Describe’s answer, with what it led with', async () => {

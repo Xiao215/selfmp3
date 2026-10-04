@@ -204,6 +204,32 @@ songs". The answer itself still comes back as one response; a server without the
 leaves the device on its two always-true steps. Measured on the
 real library: a route 2.3–3.5 s; with the pick, a playlist in 10 s and a found song in 5 s.
 
+## Playlists from the box
+
+"Delete the chill chinese hype and chill chinese playlists", "rename hi to 华语慢歌": the
+router's `playlists` action. The model is shown the playlists' exact names and copies the
+ones meant; the server matches each against them (`matchPlaylist`: spacing, dots and case
+ignored, a slip or two forgiven, a tie or nothing near is no match), so a misspelling finds
+the playlist and no invented name ever reaches the device. The answer
+(`smart/PlaylistsAnswer.tsx`) lists them by name with their songs, each ticked; the red
+button is the confirmation; the message after it has Undo, which makes each one again with
+its name, its songs in their order, and its tags to fill from. A rename shows old → new and
+undoes to the old name. Playlists only: deleting a tag strips it from songs, which is not
+undone as simply.
+
+## Lengths
+
+"2 小时", "half an hour" is `minutes`, never turned into a number of songs by the model:
+songs differ in length, and "an hour is about 15 songs" made two hours of ninety-second
+Genshin pieces thirty songs, fifty-four minutes. The server sizes the pick by the fitting
+songs' own average length, asks the model once more for the rest when it stops short, makes
+up anything still missing from the fitting songs in the table's stable order, and leaves
+off a last song that runs well past. Change it does the same with the songs already there
+kept: "扩展到2小时" after 40 minutes keeps them and fills the rest.
+
+While an answer is on its way after every stage is done, the wait says "Getting it ready"
+rather than looking finished.
+
 ## Change it
 
 A song answer can be changed in words after it is given — "10 首", "不要动漫的", "calmer" —

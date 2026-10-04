@@ -40,6 +40,7 @@ const base: Understanding = {
   notPlayedWithinDays: null,
   addedWithinDays: null,
   size: null,
+  minutes: null,
   brief: null,
 }
 

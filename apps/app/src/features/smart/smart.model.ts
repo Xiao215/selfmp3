@@ -1,4 +1,5 @@
 import { ApiError } from '@selfmp3/client'
+import { formatLongDuration } from '@selfmp3/shared'
 import type {
   AiCheck,
   AskPlace,
@@ -116,6 +117,13 @@ export function parts(understanding: Understanding, tags: readonly Tag[]): Part[
       key: 'added',
       label: `Added ${days(understanding.addedWithinDays)}`,
       without: u => ({ ...u, addedWithinDays: null }),
+    })
+  }
+  if (understanding.minutes !== null) {
+    out.push({
+      key: 'minutes',
+      label: `About ${formatLongDuration(understanding.minutes * 60)}`,
+      without: u => ({ ...u, minutes: null }),
     })
   }
   return out

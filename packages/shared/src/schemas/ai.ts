@@ -47,6 +47,11 @@ export const UnderstandingSchema = z.object({
   /** How many songs were asked for, when the words said. */
   size: z.number().int().min(1).max(200).nullable(),
   /**
+   * How long it should play, in minutes, when the words said ("2 hours" is
+   * 120). The songs are counted by their own lengths, not an average song's.
+   */
+  minutes: z.number().int().min(1).max(1440).nullable().default(null),
+  /**
    * What the words want that the parts above cannot say: "for reading", "sounds
    * like rain". Null when the parts say all of it.
    */
@@ -236,6 +241,20 @@ export const AskAnswerSchema = z.discriminatedUnion('kind', [
   }),
   /** Song names worth fixing, as changes to approve. */
   z.object({ kind: z.literal('tidy'), tidy: TidyResultSchema }),
+  /**
+   * Playlists to delete or one to rename, as a proposal to approve: the
+   * playlists meant, by their exact names (matched on the server, so a
+   * misspelling still finds them and nothing invented is ever named).
+   */
+  z.object({
+    kind: z.literal('playlists'),
+    op: z.enum(['delete', 'rename']),
+    names: z.array(z.string()).min(1),
+    /** A rename's new name. */
+    newName: z.string().nullable(),
+    /** Names asked about that match no playlist. */
+    unknown: z.array(z.string()),
+  }),
   z.object({ kind: z.literal('open'), place: AskPlaceSchema, say: z.string() }),
   /** Not something the box can do, and what to do instead. */
   z.object({ kind: z.literal('none'), say: z.string() }),

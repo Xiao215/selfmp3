@@ -20,6 +20,7 @@ const nothing: Understanding = {
   notPlayedWithinDays: null,
   addedWithinDays: null,
   size: null,
+  minutes: null,
   brief: null,
 }
 
@@ -137,6 +138,40 @@ group('describe', () => {
     // Every one shown: nothing else fits, so they come back rather than nothing.
     const all = await describe(deps(llm), { text: 'jpop', understanding: parts, avoid: shown })
     expect(all.picks.map(pick => pick.songId)).toEqual(shown)
+  })
+
+  it('fills a length asked for, though the model stops short of it', async () => {
+    // Every song here is 3 min 20 s: twenty minutes is six of them.
+    const llm = scriptedLlm({
+      'describe-pick': [
+        {
+          picks: [
+            { n: 1, why: 'a' },
+            { n: 2, why: 'b' },
+          ],
+        },
+        { picks: [] },
+      ],
+    })
+    const result = await narrowAndPick(
+      deps(llm),
+      'calm, twenty minutes',
+      { ...nothing, minutes: 20, brief: 'calm' },
+      [],
+    )
+    expect(result.picks).toHaveLength(6)
+    expect(new Set(result.picks.map(pick => pick.songId)).size).toBe(6)
+    // Asked once, then once more for the rest; the rest was made up without it.
+    expect(llm.asked.map(request => request.task)).toEqual(['describe-pick', 'describe-pick'])
+    expect(String(llm.asked[1]?.prompt)).toContain('Choose up to 4 songs.')
+  })
+
+  it('takes every song that fits when they all fit in the length', async () => {
+    const llm = scriptedLlm({})
+    const jpop = { ...nothing, anyTags: ['jpop'], minutes: 120 }
+    const result = await narrowAndPick(deps(llm), 'two hours of jpop', jpop, [])
+    expect(result.picks).toHaveLength(3)
+    expect(llm.asked).toHaveLength(0)
   })
 
   it('says each stage as it goes, with what it found', async () => {

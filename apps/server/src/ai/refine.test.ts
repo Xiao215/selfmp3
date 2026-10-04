@@ -19,6 +19,7 @@ const jpop: Understanding = {
   notPlayedWithinDays: null,
   addedWithinDays: null,
   size: 1,
+  minutes: null,
   brief: null,
 }
 
@@ -58,6 +59,19 @@ describe('changing an answer', () => {
       shown: fitting,
     })
     expect(result.picks.map(pick => pick.songId)).toEqual([fitting[0]])
+  })
+
+  it('keeps the songs shown as long as they fill the new length', async () => {
+    const llm = scriptedLlm({ 'refine-plan': [{ ...jpop, size: null, minutes: 6 }] })
+    const result = await refine(deps(llm), {
+      text: 'some jpop',
+      understanding: { ...jpop, size: 3 },
+      change: 'just six minutes',
+      shown: fitting,
+    })
+    // Two songs of 3 min 20 s make six minutes and more; the third is not needed.
+    expect(result.picks.map(pick => pick.songId)).toEqual(fitting.slice(0, 2))
+    expect(result.understanding.minutes).toBe(6)
   })
 
   it('drops a song the change rules out', async () => {

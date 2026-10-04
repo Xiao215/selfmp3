@@ -386,6 +386,7 @@ export function createContainer(configured: Config): Container {
     lyrics: query =>
       lyricsSearch.search(query).map(row => ({ songId: row.song_id, line: row.line })),
     wrapped: range => wrapped.build(range),
+    playlists: () => playlists.all(),
   })
   const fixCovers = new FixCoversService({
     songs,

@@ -88,8 +88,8 @@ is named after them the same way.
 ## Ask's song answer
 
 In Search the answer is one card (C1): **▶** plays it at once, and the card opens it as a
-page. The page is a list of songs like any other: the head a tag's page has (covers, "✦ You
-asked", your words as its title, what it understood as chips), **Play**, **Shuffle**,
+page. The page is a list of songs like any other: the head a tag's page has (covers, "✦
+Picked for you" over the list's own name, what it understood as chips), **Play**, **Shuffle**,
 **Different songs** and **⋯** (Add to Up next, Save as playlist), and under it the same
 rows a playlist draws (`ui/components/OrderedSongList.tsx`, shared with the playlist
 page): select them, hold one to move it, the ⋯ for the song. The order you put it in is

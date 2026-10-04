@@ -195,15 +195,15 @@ export function AnswerScreen(): ReactNode {
         <View style={[styles.titles, wide && styles.titlesWide]}>
           <View style={styles.kind}>
             <Sparkle size={11} />
-            <Text style={styles.kindText}>You asked</Text>
+            <Text style={styles.kindText}>Picked for you</Text>
           </View>
           <Text
-            style={[styles.name, kept.text.length > 24 && styles.nameLong]}
-            numberOfLines={3}
+            style={[styles.name, result.understanding.name.length > 24 && styles.nameLong]}
+            numberOfLines={2}
             accessibilityRole="header"
-            testID="answer-question"
+            testID="answer-name"
           >
-            {kept.text}
+            {result.understanding.name}
           </Text>
           <Text style={styles.summary}>
             {plural(ids.length, 'song', 'songs')}
@@ -234,9 +234,6 @@ export function AnswerScreen(): ReactNode {
           {again.error ? (
             <Text style={styles.error}>{failureText('Couldn’t pick again', again.error)}</Text>
           ) : null}
-          <View style={styles.change}>
-            <ChangeIt answerId={kept.id} />
-          </View>
         </View>
         <View style={[styles.actions, wide && styles.actionsWide]}>
           <PlayButton
@@ -264,6 +261,8 @@ export function AnswerScreen(): ReactNode {
           />
         </View>
       </View>
+      {/* The page is the version showing: no trail of the ones before it. */}
+      <ChangeIt answerId={kept.id} trail={false} large />
     </View>
   )
 
@@ -363,7 +362,6 @@ const styles = StyleSheet.create(theme => ({
   summary: { color: theme.colors.textSecondary, fontSize: 14 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 6 },
   note: { color: theme.colors.textMuted, fontSize: 12.5 },
-  change: { paddingTop: 8, maxWidth: 560 },
   error: { color: theme.colors.danger, fontSize: 12.5 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   actionsWide: { marginLeft: 'auto', paddingBottom: 6 },

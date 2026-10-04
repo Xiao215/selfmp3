@@ -222,7 +222,9 @@ moves; when it lands, the words join a trail above the field ("旅途日语歌 �
 不要动漫的"), the newest fading in, and the field is empty again. Every version is kept
 while the app is open (`smart/answers.store.ts`): a name in the trail goes back to it, and
 changing from an earlier one lets go of the ones after, as undo does. Different songs on
-the page is a version in the trail too.
+the page is a version in the trail too. The answer's page shows no trail (Xiao,
+2026-10-04): it is the version showing, titled by the list's own name, with the field as
+a full-width bar under its head ("Change these songs…").
 
 ## N1 · New playlist as one field
 

@@ -22,7 +22,17 @@ import { useSmartServer } from './useSmartServer'
  * the next. The trail is every version, its names pressable: back to an
  * earlier one, or forward again. No suggested changes: what to say is yours.
  */
-export function ChangeIt({ answerId }: { answerId: string }): ReactNode {
+export function ChangeIt({
+  answerId,
+  trail = true,
+  large = false,
+}: {
+  answerId: string
+  /** The versions before this one, pressable. Search shows them; the answer's page does not. */
+  trail?: boolean
+  /** The page's bar: the width of the head, and a size to match it. */
+  large?: boolean
+}): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
   const server = useSmartServer()
@@ -90,7 +100,7 @@ export function ChangeIt({ answerId }: { answerId: string }): ReactNode {
 
   return (
     <View style={styles.body} testID="change-it">
-      {answer.steps.length > 1 ? (
+      {trail && answer.steps.length > 1 ? (
         <View style={styles.trail} accessibilityRole="list" accessibilityLabel="Versions">
           {answer.steps.map((step, index) => (
             <TrailStep
@@ -109,12 +119,16 @@ export function ChangeIt({ answerId }: { answerId: string }): ReactNode {
       <View
         style={[
           styles.field,
+          large && styles.fieldLarge,
           focused && !working && { borderColor: accent.accent },
           working && styles.fieldWorking,
         ]}
       >
-        <Animated.View style={[styles.layer, fieldStyle]} pointerEvents={working ? 'none' : 'auto'}>
-          <Sparkle size={12} color={theme.colors.textMuted} />
+        <Animated.View
+          style={[styles.layer, large && styles.layerLarge, fieldStyle]}
+          pointerEvents={working ? 'none' : 'auto'}
+        >
+          <Sparkle size={large ? 15 : 12} />
           <TextInput
             ref={input}
             value={said}
@@ -123,13 +137,13 @@ export function ChangeIt({ answerId }: { answerId: string }): ReactNode {
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             editable={!working}
-            placeholder="Change it…"
+            placeholder={large ? 'Change these songs…' : 'Change it…'}
             placeholderTextColor={theme.colors.textMuted}
             returnKeyType="send"
             blurOnSubmit={false}
             accessibilityLabel="Change this answer"
             testID="change-it-input"
-            style={styles.input}
+            style={[styles.input, large && styles.inputLarge]}
           />
           <Animated.View style={sendStyle} pointerEvents={said.trim() ? 'auto' : 'none'}>
             <Pressable
@@ -138,6 +152,7 @@ export function ChangeIt({ answerId }: { answerId: string }): ReactNode {
               accessibilityLabel="Change it"
               style={({ pressed }) => [
                 styles.send,
+                large && styles.sendLarge,
                 { backgroundColor: accent.accent },
                 pressed && styles.pressed,
               ]}
@@ -148,7 +163,7 @@ export function ChangeIt({ answerId }: { answerId: string }): ReactNode {
           </Animated.View>
         </Animated.View>
         <Animated.View
-          style={[styles.layer, styles.workLayer, workStyle]}
+          style={[styles.layer, large && styles.layerLarge, styles.workLayer, workStyle]}
           pointerEvents="none"
           accessibilityLiveRegion="polite"
           aria-hidden={!working}
@@ -232,6 +247,13 @@ const styles = StyleSheet.create(theme => ({
     borderWidth: 1,
     borderColor: theme.colors.surface3,
   },
+  fieldLarge: {
+    height: 52,
+    backgroundColor: theme.colors.surface1,
+    borderColor: theme.colors.surface3,
+  },
+  inputLarge: { fontSize: 15.5 },
+  sendLarge: { width: 36, height: 36 },
   fieldWorking: { backgroundColor: theme.colors.surface2, borderColor: theme.colors.surface2 },
   layer: {
     position: 'absolute',
@@ -245,7 +267,8 @@ const styles = StyleSheet.create(theme => ({
     paddingLeft: 14,
     paddingRight: 6,
   },
-  workLayer: { paddingRight: 14 },
+  layerLarge: { paddingLeft: 18, paddingRight: 8, gap: 10 },
+  workLayer: { paddingRight: 18 },
   input: {
     flex: 1,
     minWidth: 0,

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { ActivityIndicator, Animated, Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useMutation } from '@tanstack/react-query'
@@ -33,12 +33,9 @@ export function ChangeIt({
   /** The page's bar: the width of the head, and a size to match it. */
   large?: boolean
 }): ReactNode {
-  const { theme } = useUnistyles()
-  const accent = useAccent()
   const server = useSmartServer()
   const answer = useKeptAnswer(answerId)
   const [said, setSaid] = useState('')
-  const [focused, setFocused] = useState(false)
   const [ticket, setTicket] = useState<string | null>(null)
   const input = useRef<TextInput>(null)
   // How many versions there were when this was drawn, so only a new one arrives.
@@ -79,19 +76,6 @@ export function ChangeIt({
   const doing =
     running?.text ?? (live && live.length > 0 ? 'Getting it ready' : 'Reading what to change')
 
-  const fieldIn = useFade(!working, motion.base, motion.fast)
-  const workIn = useFade(working, motion.base, motion.fast)
-  const sendIn = useFade(said.trim().length > 0 && !working, motion.fast, motion.fast)
-  const fieldStyle = useMemo(() => ({ opacity: fieldIn }), [fieldIn])
-  const workStyle = useMemo(() => ({ opacity: workIn }), [workIn])
-  const sendStyle = useMemo(
-    () => ({
-      opacity: sendIn,
-      transform: [{ scale: sendIn.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) }],
-    }),
-    [sendIn],
-  )
-
   if (!answer) return null
   const send = (): void => {
     const words = said.trim()
@@ -117,67 +101,20 @@ export function ChangeIt({
         </View>
       ) : null}
 
-      <View
-        style={[
-          styles.field,
-          large && styles.fieldLarge,
-          focused && !working && { borderColor: accent.accent },
-          working && styles.fieldWorking,
-        ]}
-      >
-        <Animated.View
-          style={[styles.layer, large && styles.layerLarge, fieldStyle]}
-          pointerEvents={working ? 'none' : 'auto'}
-        >
-          <Sparkle size={large ? 15 : 12} />
-          <TextInput
-            ref={input}
-            value={said}
-            onChangeText={setSaid}
-            onSubmitEditing={send}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            editable={!working}
-            placeholder={large ? 'Change these songs…' : 'Change it…'}
-            placeholderTextColor={theme.colors.textMuted}
-            returnKeyType="send"
-            blurOnSubmit={false}
-            accessibilityLabel="Change this answer"
-            testID="change-it-input"
-            style={[styles.input, large && styles.inputLarge]}
-          />
-          <Animated.View style={sendStyle} pointerEvents={said.trim() ? 'auto' : 'none'}>
-            <Pressable
-              onPress={send}
-              accessibilityRole="button"
-              accessibilityLabel="Change it"
-              style={({ pressed }) => [
-                styles.send,
-                large && styles.sendLarge,
-                { backgroundColor: accent.accent },
-                pressed && styles.pressed,
-              ]}
-              testID="change-it-send"
-            >
-              <ChevronRight size={14} color={theme.colors.onPrimary} />
-            </Pressable>
-          </Animated.View>
-        </Animated.View>
-        <Animated.View
-          style={[styles.layer, large && styles.layerLarge, styles.workLayer, workStyle]}
-          pointerEvents="none"
-          accessibilityLiveRegion="polite"
-          aria-hidden={!working}
-        >
-          <ActivityIndicator size="small" color={theme.colors.textMuted} />
-          <Text style={styles.doing} numberOfLines={1} testID="change-it-working">
-            {working ? doing : ''}
-          </Text>
-          <Text style={styles.words} numberOfLines={1}>
-            {working ? `“${change.variables ?? ''}”` : ''}
-          </Text>
-        </Animated.View>
-      </View>
+      <ChangeField
+        value={said}
+        onChangeText={setSaid}
+        onSend={send}
+        working={working}
+        doing={doing}
+        words={change.variables ?? ''}
+        placeholder={large ? 'Change these songs…' : 'Change it…'}
+        label="Change this answer"
+        sendLabel="Change it"
+        large={large}
+        inputRef={input}
+        testID="change-it"
+      />
       {change.error ? (
         <Text style={styles.error}>{failureText('Couldn’t change it', change.error)}</Text>
       ) : null}
@@ -185,8 +122,126 @@ export function ChangeIt({
   )
 }
 
+/**
+ * The field a change is said in: one line with a send button that appears
+ * once there are words, and while the change is worked on, what is happening
+ * in the same place, so nothing jumps. "Change it" under a song answer and
+ * the follow-up under every other answer (`AskAnswer`) are this field.
+ */
+export function ChangeField({
+  value,
+  onChangeText,
+  onSend,
+  working,
+  doing,
+  words,
+  placeholder,
+  label,
+  sendLabel = 'Send',
+  large = false,
+  inputRef,
+  testID,
+}: {
+  value: string
+  onChangeText: (value: string) => void
+  onSend: () => void
+  working: boolean
+  /** The stage running now, said while working. */
+  doing: string
+  /** The words being worked on, quoted after it. */
+  words: string
+  placeholder: string
+  /** What a screen reader calls the field, and its send button. */
+  label: string
+  sendLabel?: string
+  /** The page's bar: the width of the head, and a size to match it. */
+  large?: boolean
+  inputRef?: RefObject<TextInput | null>
+  testID: string
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const accent = useAccent()
+  const [focused, setFocused] = useState(false)
+  const fieldIn = useFade(!working, motion.base, motion.fast)
+  const workIn = useFade(working, motion.base, motion.fast)
+  const sendIn = useFade(value.trim().length > 0 && !working, motion.fast, motion.fast)
+  const fieldStyle = useMemo(() => ({ opacity: fieldIn }), [fieldIn])
+  const workStyle = useMemo(() => ({ opacity: workIn }), [workIn])
+  const sendStyle = useMemo(
+    () => ({
+      opacity: sendIn,
+      transform: [{ scale: sendIn.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) }],
+    }),
+    [sendIn],
+  )
+
+  return (
+    <View
+      style={[
+        styles.field,
+        large && styles.fieldLarge,
+        focused && !working && { borderColor: accent.accent },
+        working && styles.fieldWorking,
+      ]}
+    >
+      <Animated.View
+        style={[styles.layer, large && styles.layerLarge, fieldStyle]}
+        pointerEvents={working ? 'none' : 'auto'}
+      >
+        <Sparkle size={large ? 15 : 12} />
+        <TextInput
+          ref={inputRef}
+          value={value}
+          onChangeText={onChangeText}
+          onSubmitEditing={onSend}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          editable={!working}
+          placeholder={placeholder}
+          placeholderTextColor={theme.colors.textMuted}
+          returnKeyType="send"
+          blurOnSubmit={false}
+          accessibilityLabel={label}
+          testID={`${testID}-input`}
+          style={[styles.input, large && styles.inputLarge]}
+        />
+        <Animated.View style={sendStyle} pointerEvents={value.trim() ? 'auto' : 'none'}>
+          <Pressable
+            onPress={onSend}
+            accessibilityRole="button"
+            accessibilityLabel={sendLabel}
+            style={({ pressed }) => [
+              styles.send,
+              large && styles.sendLarge,
+              { backgroundColor: accent.accent },
+              pressed && styles.pressed,
+            ]}
+            testID={`${testID}-send`}
+          >
+            <ChevronRight size={14} color={theme.colors.onPrimary} />
+          </Pressable>
+        </Animated.View>
+      </Animated.View>
+      <Animated.View
+        style={[styles.layer, large && styles.layerLarge, styles.workLayer, workStyle]}
+        pointerEvents="none"
+        accessibilityLiveRegion="polite"
+        aria-hidden={!working}
+      >
+        <ActivityIndicator size="small" color={theme.colors.textMuted} />
+        <Text style={styles.doing} numberOfLines={1} testID={`${testID}-working`}>
+          {working ? doing : ''}
+        </Text>
+        <Text style={styles.words} numberOfLines={1}>
+          {working ? `“${words}”` : ''}
+        </Text>
+      </Animated.View>
+    </View>
+  )
+}
+
 /** One version in the trail: the answer's name first, then what each change said. */
-function TrailStep({
+export function TrailStep({
   first,
   label,
   current,

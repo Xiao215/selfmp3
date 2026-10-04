@@ -347,8 +347,13 @@ export function createApi({ context, fetch }: ApiOptions) {
     }) => request('POST', '/api/ai/refine', DescribeResultSchema, input),
 
     /** The Search box's Ask: one request, routed to one thing the app can do. */
-    ask: (text: string, playing: number | null = null, ticket?: string) =>
-      request('POST', '/api/ai/ask', AskAnswerSchema, { text, playing, ticket }),
+    ask: (
+      text: string,
+      playing: number | null = null,
+      ticket?: string,
+      /** What was said before, when this follows up on an answer. */
+      before: readonly string[] = [],
+    ) => request('POST', '/api/ai/ask', AskAnswerSchema, { text, playing, ticket, before }),
 
     /** How an Ask named by `ticket` is going, while its answer is on the way. */
     askProgress: (ticket: string) =>

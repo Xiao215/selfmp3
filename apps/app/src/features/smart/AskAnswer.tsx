@@ -13,6 +13,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { Play, Sparkle } from '../../ui/components/Icons'
+import { ChangeField, TrailStep } from './ChangeIt'
 import { placePath, rangeWords } from './smart.model'
 import { LibraryAnswer } from './LibraryAnswer'
 import { PlaylistSongsAnswer } from './PlaylistSongsAnswer'
@@ -29,6 +30,11 @@ import { useSmartServer } from './useSmartServer'
  * The answer to an Ask in the Search box (S1, docs/features/ai.md), drawn in
  * place of the results. One request, one answer you act on: every answer is a
  * proposal with its own button, and nothing changes until it is pressed.
+ *
+ * Under it, a follow-up ("only the albums", "skip the Inazuma ones"): asked
+ * again with everything said before it, the new answer in place of the old,
+ * and what was said a trail above the field to go back along. A song answer
+ * has its own "Change it", which keeps the songs it already chose.
  */
 export function AskAnswer({
   text,
@@ -58,18 +64,53 @@ export function AskAnswer({
   const [playingHere] = useState(() => player.current?.id ?? null)
   const playing = playingHere === null ? null : (server.onServer(playingHere) ?? null)
   const via = server.reach.state === 'reachable' ? server.reach.connection.baseUrl : null
+  // The follow-ups said after `text`, and how many of them the answer showing takes in.
+  const [thread, setThread] = useState({ text, said: [] as string[], at: 0 })
+  const { said, at } = thread.text === text ? thread : { said: [], at: 0 }
+  const [draft, setDraft] = useState('')
+  const asked = said.slice(0, at)
+  const latest = asked.at(-1) ?? text
+  const before = at === 0 ? [] : [text, ...asked.slice(0, -1)]
+  const saidSoFar = asked.join('\n')
   // Names this asking, so how it is going can be asked after while it runs.
-  // `text` is why a new one is made: each new question is a new request.
+  // What was said is why a new one is made: each new question is a new request.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const ticket = useMemo(() => newTicket(), [text])
+  const ticket = useMemo(() => newTicket(), [text, saidSoFar])
   const answer = useQuery({
-    queryKey: ['via-server', via, 'ai', 'ask', text, playing],
-    queryFn: () => server.api!.ask(text, playing, ticket),
+    queryKey: ['via-server', via, 'ai', 'ask', text, playing, asked],
+    queryFn: () => server.api!.ask(latest, playing, ticket, before),
     enabled: server.api !== null,
     retry: false,
     staleTime: 10 * 60_000,
+    // A follow-up keeps the answer it changes on screen until the new one lands.
+    placeholderData: (previous, query) => (query?.queryKey[4] === text ? previous : undefined),
   })
-  const live = useAskProgress(ticket, answer.isPending)
+  const following = answer.isPlaceholderData
+  const live = useAskProgress(ticket, answer.isPending || following)
+  const running = live ? [...live].reverse().find(step => !step.done) : undefined
+  const followUp = (): void => {
+    const words = draft.trim()
+    if (!words || following || !server.api) return
+    setThread({ text, said: [...asked, words], at: at + 1 })
+    setDraft('')
+  }
+  // The question, then each follow-up; pressing one shows its answer again.
+  const trail =
+    said.length > 0 ? (
+      <View style={styles.trail} accessibilityRole="list" accessibilityLabel="What you said">
+        {[text, ...said].map((words, index) => (
+          <TrailStep
+            key={index}
+            first={index === 0}
+            label={words}
+            current={index === at}
+            later={index > at}
+            fresh={index > 0 && index === said.length}
+            onPress={() => setThread({ text, said, at: index })}
+          />
+        ))}
+      </View>
+    ) : null
 
   if (server.reach.state !== 'reachable') {
     return <ServerAway reach={server.reach} need="ai" testID="ask-server" />
@@ -91,6 +132,7 @@ export function AskAnswer({
   if (answer.error) {
     return (
       <View style={styles.body}>
+        {trail}
         <Text style={styles.error}>{failureText('Couldn’t answer that', answer.error)}</Text>
         <View style={styles.actions}>
           <Button label="Try again" onPress={() => void answer.refetch()} />
@@ -101,6 +143,8 @@ export function AskAnswer({
   return (
     <View style={styles.body} testID={`ask-answer-${answer.data.kind}`}>
       <Drawn
+        // Each version starts as it was given: no ticks or opened rows from the one before.
+        key={answer.dataUpdatedAt}
         answer={answer.data}
         text={text}
         onDone={onDone}
@@ -109,6 +153,24 @@ export function AskAnswer({
         onKeys={onKeys}
         onAsk={onAsk}
       />
+      {answer.data.kind === 'songs' ? (
+        trail
+      ) : (
+        <View style={styles.followUp}>
+          {trail}
+          <ChangeField
+            value={draft}
+            onChangeText={setDraft}
+            onSend={followUp}
+            working={following}
+            doing={running?.text ?? 'Reading what you said'}
+            words={latest}
+            placeholder="Ask a follow-up…"
+            label="Follow up on this answer"
+            testID="ask-follow-up"
+          />
+        </View>
+      )}
     </View>
   )
 }
@@ -295,6 +357,8 @@ const styles = StyleSheet.create(theme => ({
   title: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: 13, fontWeight: '500' },
   why: { color: theme.colors.textMuted, fontSize: 11.5 },
   tries: { gap: 6, marginTop: space.xs },
+  followUp: { gap: space.sm, marginTop: space.xs },
+  trail: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 4 },
   try: {
     flexDirection: 'row',
     alignItems: 'center',

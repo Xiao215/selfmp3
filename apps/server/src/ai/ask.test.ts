@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Stats } from '@selfmp3/shared'
-import { ask, routeForm, routeSystem } from './ask.js'
+import { ask, followed, routeForm, routeSystem } from './ask.js'
 import { ASK_ACTIONS, foundFor, matchPlaylist } from './askActions.js'
 import { SONGS, TAGS, scriptedLlm } from './fixtures/library.js'
 
@@ -272,6 +272,23 @@ describe('ask', () => {
     expect(prompt).toContain('2 | Liyue | Yu-Peng Chen, HOYO-MiX | Jade Moon Upon a Sea of Clouds')
     expect(prompt).not.toContain('アイドル')
     expect(d.llm.asked.map(each => each.task)).toEqual(['ask-route', 'tidy-asked'])
+  })
+
+  it('reads a follow-up together with what was said before it', async () => {
+    const d = deps({
+      'ask-route': [route({ action: 'tidy', tidy: { checkup: false } })],
+      'tidy-asked': [{ edits: [] }],
+    })
+    const first = 'give the 原神纯音乐 songs their official Chinese names'
+    await ask(d, 'only the albums', null, undefined, undefined, [first])
+    const request = followed('only the albums', [first])
+    expect(request).toBe(
+      `They first asked: ${first}\nNow they say: only the albums\n(Answer all of it together: the latest words change what was asked before.)`,
+    )
+    // The router and the action it chose both read all of it.
+    expect(d.llm.asked[0]!.prompt).toContain(`The request:\n${request}`)
+    expect(d.llm.asked[1]!.prompt).toContain(`The request:\n${request}`)
+    expect(followed('hi', [])).toBe('hi')
   })
 
   it('still runs the checkup when only asked to clean up', async () => {

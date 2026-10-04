@@ -63,8 +63,9 @@ export class SmartFeatures {
     playing: number | null = null,
     allowed: { tidy: boolean; tags: boolean } = { tidy: true, tags: true },
     ticket?: string,
+    before: readonly string[] = [],
   ): Promise<AskAnswer> {
-    return ask(this.#deps, text, playing, allowed, this.#progress.track(ticket))
+    return ask(this.#deps, text, playing, allowed, this.#progress.track(ticket), before)
   }
 
   /** An answer changed after it was given (`refine.ts`). */

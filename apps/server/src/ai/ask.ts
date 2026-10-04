@@ -26,6 +26,11 @@ import { NO_STEPS, type Steps } from './progress.js'
  * The form is one object with every action's part, those not chosen null,
  * rather than one shape per action: it is what an OpenAI-style json_schema
  * endpoint takes reliably.
+ *
+ * A follow-up ("only the albums", "skip the Inazuma ones") is asked again with
+ * everything said before it, as one request (`followed`): the router and the
+ * action it chooses read the whole of it, so the answer is the earlier one
+ * changed, not a new question with nothing before it.
  */
 
 const VERSION = 8
@@ -39,6 +44,18 @@ type Route = Record<string, unknown> & {
   filters: z.infer<typeof PlanOut> | null
   say: string | null
   try: string[] | null
+}
+
+/** Everything said, first ask first, as the one request the router and the actions read. */
+export function followed(text: string, before: readonly string[]): string {
+  if (before.length === 0) return text
+  const [first, ...then] = before
+  return [
+    `They first asked: ${first}`,
+    ...then.map(said => `Then they said: ${said}`),
+    `Now they say: ${text}`,
+    '(Answer all of it together: the latest words change what was asked before.)',
+  ].join('\n')
 }
 
 /** The router's form for these actions: which one, the shared filters, each one's part, and a way out. */
@@ -83,7 +100,10 @@ export async function ask(
   allowed: AskAllowed = { tidy: true, tags: true },
   /** Told each stage as it begins, for the device's waiting steps (`progress.ts`). */
   steps: Steps = NO_STEPS,
+  /** What was said before, when this follows up on an answer. */
+  before: readonly string[] = [],
 ): Promise<AskAnswer> {
+  const request = followed(text, before)
   const remembered = deps.remembered ?? new Remembered()
   const songs = deps.songs()
   const tags = deps.tags()
@@ -95,7 +115,7 @@ export async function ask(
     ? `\n\nNow playing: ${songTable([playing], tags, now).replace(/^#1 \| /, '')}`
     : ''
   const playlists = deps.playlists?.() ?? []
-  const prompt = `${libraryShape(songs, tags)}\n\nTheir tags, exactly: ${tags.map(tag => tag.name).join(', ') || '(none)'}\n\nTheir playlists, exactly: ${playlists.map(playlist => playlist.name).join(' | ') || '(none)'}${nowPlaying}\n\nThe request:\n${text}`
+  const prompt = `${libraryShape(songs, tags)}\n\nTheir tags, exactly: ${tags.map(tag => tag.name).join(', ') || '(none)'}\n\nTheir playlists, exactly: ${playlists.map(playlist => playlist.name).join(' | ') || '(none)'}${nowPlaying}\n\nThe request:\n${request}`
   steps.begin('Reading what you asked')
   const route = await remembered.get(
     Remembered.key('ask-route', VERSION, prompt),
@@ -127,7 +147,7 @@ export async function ask(
   }
   const context: AskContext = {
     deps: { ...deps, remembered },
-    text,
+    text: request,
     playing,
     nowPlaying,
     playlists,

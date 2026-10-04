@@ -299,6 +299,18 @@ the page is a version in the trail too. The answer's page shows no trail (Xiao,
 2026-10-04): it is the version showing, titled by the list's own name, with the field as
 a full-width bar under its head ("Change these songs…").
 
+## Follow-ups (every other answer)
+
+Every answer that is not a song answer ends in the same quiet field ("Ask a follow-up…",
+`ChangeField` in `ChangeIt.tsx`, drawn by `AskAnswer.tsx`). What you type is asked again with
+everything said before it: the request carries `before` (the earlier words, first ask first),
+and the server reads them as one request (`followed` in `ask.ts`: "They first asked … Then they
+said … Now they say …"), so the router and the action it chooses both see all of it. The new
+answer takes the old one's place, which stays on screen until it lands; what was said is a
+trail above the field, and pressing an earlier step shows its answer again from the cache. A
+song answer keeps Change it, which keeps the songs it already chose. Added 2026-10-04: before
+it, a tags or tidy answer that missed could only be asked again from nothing.
+
 ## N1 · New playlist as one field
 
 What is typed decides what the playlist is (`NewPlaylist.tsx`), rather than a name first and

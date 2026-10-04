@@ -172,6 +172,11 @@ export const AskRequestSchema = z.object({
     .string()
     .regex(/^[A-Za-z0-9_-]{8,64}$/)
     .optional(),
+  /**
+   * What was said before this, first ask first, when `text` follows up on an
+   * answer ("only the albums"): the request is all of it together.
+   */
+  before: z.array(z.string().trim().min(1).max(500)).max(8).default([]),
 })
 export type AskRequest = z.infer<typeof AskRequestSchema>
 

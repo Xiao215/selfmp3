@@ -1,4 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useId, useMemo, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from 'react'
 import type { ReactNode } from 'react'
 import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -94,7 +103,14 @@ export function useOverlay(node: ReactNode, active: boolean): void {
   // every render, and the point is to keep the host showing the current one.
   // Replacing the entry under the same key updates that subtree rather than
   // remounting it.
-  useEffect(() => {
+  //
+  // A layout effect, so the host has caught up before the event that caused
+  // this render is done. After a keystroke, React puts a text box back to the
+  // value it last drew; with a passive effect the host had not drawn the new
+  // one yet, so every key wrote the old text into the box and then the new.
+  // Each write cancels an input method's composition: pinyin typed into the
+  // Search box came out as "nninihnihanihao你好".
+  useLayoutEffect(() => {
     if (!api) return
     if (active) api.set(id, node)
     else api.remove(id)

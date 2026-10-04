@@ -259,6 +259,7 @@ describe('Recently played', () => {
         noTags: [],
         energy: { min: null, max: 0.4 },
         bpm: { min: null, max: null },
+        year: { min: null, max: null },
         words: null,
         loved: null,
         playedWithinDays: null,

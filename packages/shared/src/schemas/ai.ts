@@ -12,7 +12,7 @@ import { IdSchema } from './common.js'
  * a translation of its own.
  */
 
-/** A bound of a 0–1 or bpm range; either end may be open. */
+/** A bound of a 0–1, bpm or year range; either end may be open. */
 export const RangeSchema = z.object({
   min: z.number().nullable(),
   max: z.number().nullable(),
@@ -36,6 +36,12 @@ export const UnderstandingSchema = z.object({
   /** 0–1, from the audio analysis. A song not analysed yet does not pass a set range. */
   energy: RangeSchema,
   bpm: RangeSchema,
+  /**
+   * The years the songs came out, as YouTube Music gives a release's year. A
+   * song with no year does not pass a set range. Defaults open, so the parts
+   * an older app sends back still read.
+   */
+  year: RangeSchema.default({ min: null, max: null }),
   /** With words, without (instrumental, or no lyrics found), or either. */
   words: z.enum(['with', 'without']).nullable(),
   loved: z.boolean().nullable(),

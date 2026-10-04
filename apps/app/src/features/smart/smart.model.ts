@@ -49,6 +49,17 @@ function rangeLabel(
   return `${Math.round(min)}–${show(max)}`
 }
 
+/** "2000s", "Since 2015", "Before 2010", "2003", "2012–2016": a year range the way it was likely said. */
+export function yearLabel(range: { min: number | null; max: number | null }): string | null {
+  const { min, max } = range
+  if (min === null && max === null) return null
+  if (min === null) return max! % 10 === 9 ? `Before ${max! + 1}` : `Up to ${max}`
+  if (max === null) return `Since ${min}`
+  if (min === max) return String(min)
+  if (min % 10 === 0 && max === min + 9) return `${min}s`
+  return `${min}–${max}`
+}
+
 export function parts(understanding: Understanding, tags: readonly Tag[]): Part[] {
   const hueOf = (name: string): number | undefined =>
     tags.find(tag => tag.name.toLowerCase() === name.toLowerCase())?.hue
@@ -86,6 +97,9 @@ export function parts(understanding: Understanding, tags: readonly Tag[]): Part[
   const bpm = rangeLabel('bpm', understanding.bpm)
   if (bpm)
     out.push({ key: 'bpm', label: bpm, without: u => ({ ...u, bpm: { min: null, max: null } }) })
+  const year = yearLabel(understanding.year)
+  if (year)
+    out.push({ key: 'year', label: year, without: u => ({ ...u, year: { min: null, max: null } }) })
   if (understanding.words !== null) {
     out.push({
       key: 'words',

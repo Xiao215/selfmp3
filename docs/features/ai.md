@@ -123,14 +123,16 @@ The model is shown the least that answers the question, in this order, and a ste
 climbed when the one below cannot answer:
 
 1. **What the fields mean** (static, in the system prompt): the rule fields, what energy
-   0–1 feels like, that bpm is unreliable for rubato music, the tag naming conventions.
+   0–1 feels like, that bpm is unreliable for rubato music, what a year range means (an era,
+   "old songs" against the library's own spread, never "just added"), the tag naming conventions.
 2. **The library's shape** (about 1–3k tokens): each tag with its song count and the
-   artists and albums it mostly holds; the size of the library; ranges of tempo and energy.
+   artists and albums it mostly holds; the size of the library; ranges of tempo and energy;
+   the years songs came out, by decade.
    This is how "a few Genshin ones" becomes the tag 原神纯音乐 without the model ever
    seeing a song.
 3. **A candidate table**: only the songs that survived the deterministic filter, capped by
-   a token budget, one compact line each (`#12 | title | artist | tags | energy | bpm |
-   length | plays`). Rows are numbered `#1…#n` for this call instead of carrying uids:
+   a token budget, one compact line each (`#12 | title | artist | album | year | tags | energy |
+   bpm | length | words | plays`). Rows are numbered `#1…#n` for this call instead of carrying uids:
    shorter, and a number outside the table is caught by the check.
 4. **One song in depth** (its lyrics, say): only for a feature about one song. None built
    here climbs to it.
@@ -275,7 +277,7 @@ one kind of rule a playlist here follows (`follows.model.ts`).
 
 What it understood is an `Understanding` (`packages/shared/src/schemas/ai.ts`), not the Live
 rule set: places widen (any of these tags, any of these artists) and everything else
-narrows (energy, tempo, words, loved, when played or added). A Live rule set is all-or-any
+narrows (energy, tempo, the years it came out, words, loved, when played or added). A Live rule set is all-or-any
 and cannot say "古典 or 原神纯音乐, and calm".
 
 1. **Plan** (fast tier). Shown rungs 1–2 of the ladder and your words. Returns the parts,
@@ -284,7 +286,7 @@ and cannot say "古典 or 原神纯音乐, and calm".
    artist the library's way and sets aside names the library does not have, which the
    answer lists.
 2. **Narrow** (no model, `songsFitting`). Nothing fits: the narrowing parts are let go one
-   at a time, in a fixed order (tempo, energy, words, the time windows, loved, left-out
+   at a time, in a fixed order (tempo, energy, words, the years, the time windows, loved, left-out
    tags), until something does, and the answer says what was let go. Places are never let
    go. A song not analysed yet does not pass an energy range, so a request about unanalysed
    songs loosens the energy and leaves "slow" to the pick.

@@ -61,6 +61,14 @@ export function tagCatalog(songs: readonly Song[], tags: readonly Tag[]): string
   return lines.join('\n') || '(no tags yet)'
 }
 
+/** "1990s 12, 2000s 140, 2010s 410": how a library spreads over the decades. */
+function decades(years: readonly number[]): string {
+  return tally(years.map(year => `${Math.floor(year / 10) * 10}s`))
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([decade, count]) => `${decade} ${count}`)
+    .join(', ')
+}
+
 function quantile(sorted: readonly number[], q: number): number {
   return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? 0
 }
@@ -75,6 +83,10 @@ export function libraryShape(songs: readonly Song[], tags: readonly Tag[]): stri
     .map(song => song.audioFeatures?.bpm)
     .filter((value): value is number => typeof value === 'number')
     .sort((a, b) => a - b)
+  const years = songs
+    .map(song => song.year)
+    .filter((value): value is number => typeof value === 'number' && value > 0)
+    .sort((a, b) => a - b)
   const withWords = songs.filter(hasWords).length
   const artists = tally(songs.map(song => mainArtist(song.artist)))
 
@@ -86,6 +98,9 @@ export function libraryShape(songs: readonly Song[], tags: readonly Tag[]): stri
     bpms.length
       ? `Tempo runs ${Math.round(bpms[0]!)}–${Math.round(bpms.at(-1)!)} bpm.`
       : 'No song has a tempo yet.',
+    years.length
+      ? `Years (when each came out) are known for ${years.length}: ${years[0]}–${years.at(-1)}, a quarter before ${quantile(years, 0.25)}, half before ${quantile(years, 0.5)}. By decade: ${decades(years)}.`
+      : 'No song has a year yet.',
     '',
     'Tags, with what each one holds:',
     tagCatalog(songs, tags),
@@ -127,6 +142,7 @@ export function songTable(
         song.title,
         song.artist || 'Unknown artist',
         song.album || '-',
+        song.year ?? 'year ?',
         song.tagIds
           .map(id => names.get(id))
           .filter(Boolean)

@@ -14,6 +14,7 @@ const nothing: Understanding = {
   noTags: [],
   energy: { min: null, max: null },
   bpm: { min: null, max: null },
+  year: { min: null, max: null },
   words: null,
   loved: null,
   playedWithinDays: null,
@@ -52,6 +53,13 @@ group('songsFitting', () => {
   it('leaves out a song not yet analysed when energy is asked for', () => {
     const quiet = { ...nothing, energy: { min: null, max: 0.9 } }
     expect(ids(songsFitting(SONGS, TAGS, quiet, NOW))).not.toContain(13)
+  })
+
+  it('keeps the songs from the years asked for, and none without a year', () => {
+    const early20s = { ...nothing, anyTags: ['jpop', '原神纯音乐'], year: { min: 2020, max: 2021 } }
+    expect(ids(songsFitting(SONGS, TAGS, early20s, NOW))).toEqual([4, 5, 8])
+    const upTo2025 = { ...nothing, year: { min: null, max: 2025 } }
+    expect(ids(songsFitting(SONGS, TAGS, upTo2025, NOW))).toEqual([4, 5, 6, 7, 8, 9])
   })
 
   it('splits words from no words', () => {
@@ -121,6 +129,16 @@ group('describe', () => {
     expect(result.loosened).toEqual(['the energy'])
     expect(result.understanding.energy).toEqual({ min: null, max: null })
     expect(result.understanding.words).toBe('with')
+    expect(result.fit).toBe(3)
+  })
+
+  it('lets the years go when the library has none of them', async () => {
+    const llm = scriptedLlm({
+      'describe-plan': [{ ...nothing, anyTags: ['jpop'], year: { min: 1990, max: 1999 } }],
+    })
+    const result = await describe(deps(llm), { text: '90s jpop', understanding: null })
+
+    expect(result.loosened).toEqual(['the years'])
     expect(result.fit).toBe(3)
   })
 
@@ -226,10 +244,16 @@ group('library', () => {
     expect(shape).toContain('17 songs')
   })
 
+  it('gives the spread of years by decade', () => {
+    expect(libraryShape(SONGS, TAGS)).toContain(
+      'Years (when each came out) are known for 6: 2020–2024, a quarter before 2020, half before 2023. By decade: 2020s 6.',
+    )
+  })
+
   it('numbers the table from one', () => {
     const table = songTable(SONGS.slice(3, 5), TAGS, NOW)
     expect(table.split('\n')[0]).toMatch(
-      /^#1 \| Dream Aria \| Yu-Peng Chen, HOYO-MiX \| .* \| 原神纯音乐 \| energy 0\.37 \| 123 bpm \| 3:20 \| no words \| 1 plays, played 2d ago$/,
+      /^#1 \| Dream Aria \| Yu-Peng Chen, HOYO-MiX \| .* \| 2020 \| 原神纯音乐 \| energy 0\.37 \| 123 bpm \| 3:20 \| no words \| 1 plays, played 2d ago$/,
     )
   })
 })

@@ -13,6 +13,7 @@ const jpop: Understanding = {
   noTags: [],
   energy: { min: null, max: null },
   bpm: { min: null, max: null },
+  year: { min: null, max: null },
   words: null,
   loved: null,
   playedWithinDays: null,

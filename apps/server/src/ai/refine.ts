@@ -25,13 +25,13 @@ import { NO_STEPS, type Steps } from './progress.js'
  * picks again from the start.
  */
 
-const VERSION = 1
+const VERSION = 2
 
 const REFINE_SYSTEM = `You change the filters of a playlist someone already asked for, after they say what to change about it.
 
 You are given the library's shape, what they first asked, the filters as they stand now (JSON), and what they want changed. Reply with JSON only, in the schema given: the whole set of filters after the change.
 
-Keep every filter the change does not touch exactly as it is, name included. Change only what their words ask: a number of songs is size; calmer or livelier moves energy; "no X" puts X in noTags when X is a tag, otherwise says it in brief; "more like Y" or "add some Y" adds a place. A change to the brief keeps what the brief already said unless the change contradicts it.
+Keep every filter the change does not touch exactly as it is, name included. Change only what their words ask: a number of songs is size; calmer or livelier moves energy; older or newer songs moves year; "no X" puts X in noTags when X is a tag, otherwise says it in brief; "more like Y" or "add some Y" adds a place. A change to the brief keeps what the brief already said unless the change contradicts it.
 
 ${FILTERS_GUIDE}`
 

@@ -86,6 +86,7 @@ export const SONGS: Song[] = [
   }),
   song(4, {
     title: 'Dream Aria',
+    year: 2020,
     artist: 'Yu-Peng Chen, HOYO-MiX',
     album: 'The Wind and the Star Traveler',
     tagIds: [2],
@@ -96,6 +97,7 @@ export const SONGS: Song[] = [
   }),
   song(5, {
     title: 'Liyue',
+    year: 2020,
     artist: 'Yu-Peng Chen, HOYO-MiX',
     album: 'Jade Moon Upon a Sea of Clouds',
     tagIds: [2],
@@ -104,6 +106,7 @@ export const SONGS: Song[] = [
   }),
   song(6, {
     title: 'Light Glimmers as Shadows Shift',
+    year: 2024,
     artist: 'HOYO-MiX',
     album: 'Where Mercy Endures',
     tagIds: [2],
@@ -112,6 +115,7 @@ export const SONGS: Song[] = [
   }),
   song(7, {
     title: 'アイドル',
+    year: 2023,
     artist: 'YOASOBI',
     album: 'アイドル',
     tagIds: [3],
@@ -121,6 +125,7 @@ export const SONGS: Song[] = [
   }),
   song(8, {
     title: '夜に駆ける',
+    year: 2021,
     artist: 'YOASOBI',
     album: 'THE BOOK',
     tagIds: [3],
@@ -130,6 +135,7 @@ export const SONGS: Song[] = [
   }),
   song(9, {
     title: 'アポリア',
+    year: 2023,
     artist: 'Yorushika',
     album: 'second person',
     tagIds: [3],

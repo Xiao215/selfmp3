@@ -30,6 +30,7 @@ import {
   tagSteps,
   tagIdsFor,
   took,
+  yearLabel,
 } from './smart.model'
 
 const TAGS: Tag[] = [
@@ -44,6 +45,7 @@ const base: Understanding = {
   noTags: [],
   energy: { min: null, max: null },
   bpm: { min: null, max: null },
+  year: { min: null, max: null },
   words: null,
   loved: null,
   playedWithinDays: null,
@@ -71,6 +73,21 @@ describe('parts', () => {
       ['No words', undefined],
       ['Not played this week', undefined],
     ])
+  })
+
+  it('says a range of years the way it was likely asked for', () => {
+    expect(yearLabel({ min: 2000, max: 2009 })).toBe('2000s')
+    expect(yearLabel({ min: 2015, max: null })).toBe('Since 2015')
+    expect(yearLabel({ min: null, max: 2009 })).toBe('Before 2010')
+    expect(yearLabel({ min: null, max: 2012 })).toBe('Up to 2012')
+    expect(yearLabel({ min: 2003, max: 2003 })).toBe('2003')
+    expect(yearLabel({ min: 2012, max: 2016 })).toBe('2012–2016')
+    expect(yearLabel({ min: null, max: null })).toBeNull()
+
+    const nineties = { ...base, year: { min: 1990, max: 1999 } }
+    const [chip] = parts(nineties, TAGS)
+    expect(chip!.label).toBe('1990s')
+    expect(chip!.without(nineties)).toEqual(base)
   })
 
   it('takes one part away and leaves the rest', () => {

@@ -42,7 +42,7 @@ function lengthWords(seconds: number): string {
  */
 export const MAX_CANDIDATES = 300
 
-const PLAN_VERSION = 2
+const PLAN_VERSION = 3
 const PICK_VERSION = 1
 
 const RangeOut = z.object({ min: z.number().nullable(), max: z.number().nullable() })
@@ -55,6 +55,7 @@ export const PlanOut = z.object({
   noTags: z.array(z.string()).max(12),
   energy: RangeOut,
   bpm: RangeOut,
+  year: RangeOut,
   words: z.enum(['with', 'without']).nullable(),
   loved: z.boolean().nullable(),
   playedWithinDays: z.number().int().min(1).max(3650).nullable(),
@@ -77,6 +78,7 @@ export const FILTERS_GUIDE = `The filters:
 - noTags: tag names whose songs must be left out.
 - energy: 0–1 from audio analysis. Calm, quiet, sleepy, soft music is low (max around the library's lower quarter); upbeat, loud, workout music is high (min around the upper quarter). Use the library's own spread, not fixed numbers. Leave both null if energy was not implied.
 - bpm: only when a tempo is clearly asked for (running, a dance); tempo detection is unreliable for classical and rubato music, so prefer energy.
+- year: the year a song came out, from its release (the library's spread is given). For an era: "2000s" or "00年代" is 2000–2009, "90s" 1990–1999. "Old songs", "throwbacks", "老歌" sit below the library's lower quarter; "recent releases", "this year's songs" are the last year or two. A classical recording's year is the recording's, not the composer's: ask for a composer by artist, never by year. Not for what is new to the library ("just added", "new stuff"): that is addedWithinDays.
 - words: "with" for songs with lyrics, "without" for instrumental (studying, focus, "no vocals"). Null when not implied.
 - loved: true only if they ask for loved or favourite songs.
 - playedWithinDays / notPlayedWithinDays / addedWithinDays: when the description is about recency ("nothing I played this week" is notPlayedWithinDays 7; "new stuff" is addedWithinDays 30).
@@ -138,6 +140,7 @@ const LOOSEN_ORDER = [
   'bpm',
   'energy',
   'words',
+  'year',
   'notPlayedWithinDays',
   'playedWithinDays',
   'addedWithinDays',
@@ -153,6 +156,8 @@ function describePart(understanding: Understanding, part: (typeof LOOSEN_ORDER)[
       return 'the energy'
     case 'words':
       return understanding.words === 'with' ? 'only songs with words' : 'only songs without words'
+    case 'year':
+      return 'the years'
     case 'notPlayedWithinDays':
       return `not played in ${days(understanding.notPlayedWithinDays ?? 0)}`
     case 'playedWithinDays':
@@ -177,6 +182,7 @@ function unset(understanding: Understanding, part: (typeof LOOSEN_ORDER)[number]
   switch (part) {
     case 'bpm':
     case 'energy':
+    case 'year':
       return { ...understanding, [part]: { min: null, max: null } }
     case 'noTags':
       return { ...understanding, noTags: [] }
@@ -226,6 +232,7 @@ export function songsFitting(
     if (song.tagIds.some(id => noTags.has(id))) return false
     if (!inRange(song.audioFeatures?.energy, understanding.energy)) return false
     if (!inRange(song.audioFeatures?.bpm, understanding.bpm)) return false
+    if (!inRange(song.year, understanding.year)) return false
     if (understanding.words !== null && hasWords(song) !== (understanding.words === 'with'))
       return false
     if (understanding.loved !== null && song.loved !== understanding.loved) return false
@@ -397,7 +404,7 @@ export async function narrowAndPick(
       `What it wants beyond the filters: ${understanding.brief ?? 'nothing more; choose the songs that suit the description best'}`,
       `Choose up to ${count} songs.`,
       '',
-      'The table (number | title | artist | album | tags | energy | tempo | length | words | plays):',
+      'The table (number | title | artist | album | year | tags | energy | tempo | length | words | plays):',
       songTable(table, tags, now),
     ].join('\n')
     const answer = await remembered.get(

@@ -33,7 +33,7 @@ import { NO_STEPS, type Steps } from './progress.js'
  * asked for in the box costs what Describe costs and no more.
  */
 
-const VERSION = 5
+const VERSION = 6
 
 /** The most songs a "find" is chosen from. */
 const MAX_FOUND = 150
@@ -236,7 +236,7 @@ export async function ask(
         .map((line, index) =>
           found[index]!.line ? `${line} | lyric: ${found[index]!.line}` : line,
         )
-      const findPrompt = `What they remember: ${route.find.brief}\nTheir words: ${text}\n\nThe table (number | title | artist | album | tags | energy | tempo | length | words | plays | lyric):\n${lines.join('\n')}`
+      const findPrompt = `What they remember: ${route.find.brief}\nTheir words: ${text}\n\nThe table (number | title | artist | album | year | tags | energy | tempo | length | words | plays | lyric):\n${lines.join('\n')}`
       const answer = await remembered.get(
         Remembered.key('ask-find', VERSION, findPrompt),
         async () =>

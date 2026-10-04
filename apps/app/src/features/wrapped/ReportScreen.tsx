@@ -27,6 +27,7 @@ import { WrittenReport } from '../smart/WrittenReport'
 import { useStatsFor, useStatsSongs, useWrappedFor } from '../stats/statsSource'
 import { LOOK_VIEWS } from './looks'
 import { Scaled } from './looks/Scaled'
+import { LookSketch } from './looks/Sketch'
 import {
   lookInk,
   LOOK_LABELS,
@@ -400,7 +401,9 @@ function LookStage({
 
 /**
  * The looks, each a small swatch of its own paper with its name under it: tall
- * on a phone (`P33`), wide on a computer (`C16`). The chosen one is ringed.
+ * on a phone (`P33`), wide on a computer (`C16`). Each is sketched in its own
+ * inks (`LookSketch`), because two of them are printed on the light theme's
+ * own cream. The chosen one is ringed.
  */
 function LookPicker({
   looks,
@@ -442,7 +445,9 @@ function LookPicker({
               {/* The wall is its covers: its swatch is the number one's. */}
               {id === 'wall' && topArt ? (
                 <Image source={{ uri: topArt }} style={styles.swatchArt} resizeMode="cover" />
-              ) : null}
+              ) : (
+                <LookSketch look={id} hue={hue} wide={wide} />
+              )}
             </View>
             <Text style={[styles.pickLabel, active && styles.pickLabelActive]}>
               {LOOK_LABELS[id]}
@@ -503,7 +508,12 @@ const styles = StyleSheet.create(theme => ({
   pickerNarrow: { justifyContent: 'center', paddingTop: 4 },
   pick: { alignItems: 'center', gap: 5 },
   pressed: { opacity: 0.7 },
-  swatch: { overflow: 'hidden' },
+  // Lifted off the page like the paper it is; firmer than a card's, which
+  // white on cream needs at this size. The dark theme's card shadow is none.
+  swatch: {
+    overflow: 'hidden',
+    boxShadow: `0 1px 2px ${theme.colors.floatShadow}, 0 4px 10px ${theme.colors.cardShadow}`,
+  },
   swatchNarrow: { width: 44, height: 58, borderRadius: 9 },
   swatchWide: { width: 64, height: 44, borderRadius: 8 },
   // A ring, not an edge: the ground, then the ink, around the chosen swatch.

@@ -224,7 +224,8 @@ export type TidyField = z.infer<typeof TidyFieldSchema>
 /**
  * A4 · Tidy up: one change to approve — a field, what it is, what it would
  * be, and every song (server ids) where it is exactly that. `by` says whether
- * a plain rule found it or the model did.
+ * it was found without a guess — a plain rule, or a music catalogue's own name
+ * for the recording — or is the model's guess.
  */
 export const TidyChangeSchema = z.object({
   key: z.string(),

@@ -138,6 +138,7 @@ describe('tidy, asked for something', () => {
       text,
       songs: many,
       unknown: [],
+      lookUp: false,
     })
     expect(llm.asked).toHaveLength(2)
     expect(result.changes).toEqual([
@@ -150,7 +151,83 @@ describe('tidy, asked for something', () => {
   it('fails as the model failed when no batch could be asked', async () => {
     const llm = scriptedLlm({ 'tidy-asked': [new LlmError('unreachable', 'down')] })
     await expect(
-      tidy({ llm, songs: () => [] }, undefined, { text, songs: many.slice(0, 3), unknown: [] }),
+      tidy({ llm, songs: () => [] }, undefined, {
+        text,
+        songs: many.slice(0, 3),
+        unknown: [],
+        lookUp: false,
+      }),
     ).rejects.toBeInstanceOf(LlmError)
+  })
+})
+
+describe('tidy, with names looked up', () => {
+  const cliffs = song(1, {
+    title: 'Wordless Cliffs',
+    artist: 'HOYO-MiX',
+    album: 'Millelith’s Watch',
+  })
+  const lost = song(2, { title: 'Not Anywhere', artist: 'HOYO-MiX' })
+  const findNames = async (each: { id: number }) =>
+    each.id === 1
+      ? [
+          {
+            source: '网易云' as const,
+            title: '丹砂巍巍 Wordless Cliffs',
+            artist: 'HOYO-MiX',
+            album: '原神-千岩旷望 Millelith’s Watch',
+          },
+        ]
+      : []
+
+  it('takes names only from what the catalogues have, and starts them ticked', async () => {
+    const llm = scriptedLlm({
+      'tidy-asked': [
+        {
+          edits: [
+            { n: 1, field: 'title', to: '丹砂巍巍', why: 'Official Chinese name' },
+            { n: 1, field: 'album', to: '千岩旷望', why: 'Official Chinese name' },
+            // Words no catalogue has: made up, so dropped.
+            { n: 1, field: 'artist', to: '米哈游', why: 'Official Chinese name' },
+          ],
+        },
+      ],
+    })
+    const result = await tidy({ llm, songs: () => [], findNames }, undefined, {
+      text: '加上官方的中文名，album也是',
+      songs: [cliffs, lost],
+      unknown: [],
+      lookUp: true,
+    })
+    expect(
+      result.changes.map(
+        c => `${c.field}|${c.from}→${c.to}|${c.songIds.join(',')}|${c.by}|${c.why}`,
+      ),
+    ).toEqual([
+      'album|Millelith’s Watch→千岩旷望|1|rule|The name on 网易云',
+      'title|Wordless Cliffs→丹砂巍巍|1|rule|The name on 网易云',
+    ])
+    expect(result.note).toBe(
+      '1 song wasn’t found on 网易云, MusicBrainz or iTunes, so it is left as it is.',
+    )
+    // Only the song that was found goes to the model, with what was found.
+    const prompt = llm.asked[0]!.prompt
+    expect(prompt).toContain(
+      'found: 网易云 “丹砂巍巍 Wordless Cliffs” by HOYO-MiX on “原神-千岩旷望',
+    )
+    expect(prompt).not.toContain('Not Anywhere')
+    expect(llm.asked[0]!.system).toContain('Never write a name that is not in what was found')
+  })
+
+  it('asks the model nothing when no song was found', async () => {
+    const llm = scriptedLlm({})
+    const result = await tidy({ llm, songs: () => [], findNames }, undefined, {
+      text: 'official names',
+      songs: [lost],
+      unknown: [],
+      lookUp: true,
+    })
+    expect(result.changes).toEqual([])
+    expect(llm.asked).toHaveLength(0)
   })
 })

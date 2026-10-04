@@ -444,6 +444,21 @@ like the checkup's, all the model's, so none starts ticked. A batch that fails i
 the note says how many songs; when every batch fails, the answer is the model's failure. Before
 2026-10-04 any names request ran the checkup, and the request itself was never read.
 
+**Names from the catalogues.** The router's `lookUp` says when the new names must come from
+outside the library ("official Chinese names", an album's real name). Then each song is looked
+up first (`names.ts`): 网易云's search (`cloudsearch/pc`; its names are the publisher's, often in
+two languages: "丹砂巍巍 Wordless Cliffs"), and MusicBrainz and iTunes for a song 网易云 lacks. An
+entry counts only as the same recording: within 3 s of the song's length, not marked a cover
+(翻自, 翻唱, cover), and with its title or an artist in common; when some entries have the song's
+artist, only those (Yorushika is ヨルシカ there, so a title match alone must still count). A song
+nothing is found for is not sent to the model and the note counts it. The model sees each
+song's found names and shapes one the way the request asks (one language of a bilingual name,
+no "原神-" prefix); an edit whose words are in no found name is dropped, and the rest are `by:
+'rule'` with "The name on 网易云" as why, so they start ticked under "From the catalogues". Looked
+up names are kept a day per song. Tried on 2026-10-04 with the real model on six Genshin songs: 5
+found, 10 changes (丹砂巍巍, 隙光浮影, 蔚蓝一梦, 璃月, 梦之咏叹 and their albums), the made-up one
+left alone.
+
 ## A9 · Clean names on import (rules)
 
 The two Tidy up rules that describe how mess arrives are applied where an import row is made

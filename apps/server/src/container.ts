@@ -29,6 +29,7 @@ import { ThrottleRepository } from './repositories/throttle.js'
 import { ImportQueueService } from './services/importQueue.js'
 import { LibraryWatcherService } from './services/libraryWatcher.js'
 import { MetadataLookupService } from './services/lookup.js'
+import { catalogueFinder } from './ai/names.js'
 import { llmFor, setupFor, SmartFeatures } from './ai/smart.js'
 import { FixCoversService } from './services/fixCovers.js'
 import { LyricsSearchRepository } from './repositories/lyricsSearch.js'
@@ -395,6 +396,10 @@ export function createContainer(configured: Config): Container {
         kind: playlist.kind,
         songIds: () => playlists.songIds(playlist),
       })),
+    findNames: catalogueFinder({
+      netease: words => netease.search(words),
+      lookup: query => lookup.lookup(query),
+    }),
   })
   const fixCovers = new FixCoversService({
     songs,

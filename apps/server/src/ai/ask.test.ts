@@ -237,7 +237,7 @@ describe('ask', () => {
       'ask-route': [
         route({
           action: 'tidy',
-          tidy: { checkup: false },
+          tidy: { checkup: false, lookUp: false },
           filters: { ...noFilters, anyTags: ['原神纯音乐', 'genshin'] },
         }),
       ],
@@ -276,7 +276,7 @@ describe('ask', () => {
 
   it('reads a follow-up together with what was said before it', async () => {
     const d = deps({
-      'ask-route': [route({ action: 'tidy', tidy: { checkup: false } })],
+      'ask-route': [route({ action: 'tidy', tidy: { checkup: false, lookUp: false } })],
       'tidy-asked': [{ edits: [] }],
     })
     const first = 'give the 原神纯音乐 songs their official Chinese names'
@@ -293,7 +293,7 @@ describe('ask', () => {
 
   it('still runs the checkup when only asked to clean up', async () => {
     const d = deps({
-      'ask-route': [route({ action: 'tidy', tidy: { checkup: true } })],
+      'ask-route': [route({ action: 'tidy', tidy: { checkup: true, lookUp: false } })],
       'tidy-names': [{ spellings: [], credits: [], albums: [] }],
     })
     const answer = await ask(d, 'clean up my song names')

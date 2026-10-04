@@ -121,7 +121,13 @@ export function TidyReview({
       }
       notes={result.note ? [result.note] : []}
       bandText={{
-        rule: { title: 'Sure fixes', note: 'Found by plain rules, so they start ticked.' },
+        rule:
+          result.asked !== null
+            ? {
+                title: 'From the catalogues',
+                note: 'Each catalogue’s own name for the same recording (same artist, same length), so they start ticked.',
+              }
+            : { title: 'Sure fixes', note: 'Found by plain rules, so they start ticked.' },
         model: {
           title: 'Worth a look',
           note: 'The model’s guesses. Nothing here changes unless you tick it.',

@@ -14,6 +14,7 @@ import {
   type TidyResult,
 } from '@selfmp3/shared'
 import { LlmError, llmFailureWords, Remembered, type Llm } from './llm.js'
+import { foundFor, within, type FindNames, type FoundName } from './names.js'
 
 import { NO_STEPS, type Steps } from './progress.js'
 /**
@@ -33,10 +34,14 @@ import { NO_STEPS, type Steps } from './progress.js'
  * Asked for something in particular ("give the 原神音乐 songs their official
  * Chinese names, albums too"), it does that instead, and only that: the songs
  * the request is about go to the model in batches, titles and all, and each
- * edit it returns is checked against the song it names.
+ * edit it returns is checked against the song it names. When the request
+ * wants names from outside the library ("official Chinese names"), each song
+ * is looked up in the catalogues first (`names.ts`); the model only shapes a
+ * name it was shown, and an edit whose words are in no catalogue's name is
+ * dropped, so nothing is made up.
  */
 
-const VERSION = 4
+const VERSION = 5
 
 /** The most names of each kind the model is shown; past that, the most used. */
 const MAX_NAMES = 600
@@ -200,6 +205,8 @@ interface TidyDeps {
   readonly llm: Llm
   readonly songs: () => Song[]
   readonly remembered?: Remembered
+  /** The catalogues, for a request that wants names from outside the library. */
+  readonly findNames?: FindNames
 }
 
 /** A request for one change across some songs, and the songs it is about. */
@@ -208,6 +215,8 @@ interface TidyAsked {
   readonly songs: readonly Song[]
   /** Names the request used that the library does not have. */
   readonly unknown: readonly string[]
+  /** Whether the names must come from outside the library: official, real, an album's own. */
+  readonly lookUp: boolean
 }
 
 export async function tidy(
@@ -216,7 +225,7 @@ export async function tidy(
   asked: TidyAsked | null = null,
 ): Promise<TidyResult> {
   const remembered = deps.remembered ?? new Remembered()
-  if (asked) return askedTidy(deps.llm, remembered, asked, steps)
+  if (asked) return askedTidy(deps, remembered, asked, steps)
   const songs = deps.songs()
   steps.begin(`Reading the names of ${songs.length} songs`)
 
@@ -397,6 +406,34 @@ const ASKED_SYSTEM = `You change the names in someone's own music library the wa
 - why: at most six plain words, the same words for every edit made for the same reason ("Official Chinese name").
 - Never use a number that is not in the table, and never an edit that keeps the name the same.`
 
+/** Added when the songs were looked up: what was found is the only place a name may come from. */
+const FOUND_RULES = `
+
+Each song may be followed by "found": what music catalogues (网易云, MusicBrainz, iTunes) list for this same recording, matched by its artist and length. Every name you give comes from a found name, in its own words, shaped the way they ask:
+- A found name in two languages ("丹砂巍巍 Wordless Cliffs") keeps only the part in the language they want ("丹砂巍巍" for Chinese).
+- Leave off a game's or series' prefix ("原神-千岩旷望 Millelith's Watch" is 千岩旷望 for an album) unless they ask for it.
+- A song with nothing found, or nothing found that fits, is left out. Never write a name that is not in what was found.`
+
+/** Lookups at once: 网易云 answers quickly, and MusicBrainz waits its turn on its own. */
+const LOOKUPS_AT_ONCE = 3
+
+/** `run` over every item, `width` at a time, each taking the next as it finishes. */
+async function pool<T>(items: readonly T[], width: number, run: (item: T) => Promise<void>) {
+  let next = 0
+  await Promise.all(
+    Array.from({ length: Math.min(width, items.length) }, async () => {
+      while (next < items.length) await run(items[next++]!)
+    }),
+  )
+}
+
+/** A found name as the model is shown it. */
+const foundLine = (found: readonly FoundName[]): string =>
+  found
+    .slice(0, 3)
+    .map(each => `${each.source} “${each.title}” by ${each.artist} on “${each.album || '-'}”`)
+    .join('; ')
+
 function chunks<T>(items: readonly T[], size: number): T[][] {
   const out: T[][] = []
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
@@ -405,11 +442,12 @@ function chunks<T>(items: readonly T[], size: number): T[][] {
 
 /** One change asked for across the songs it is about, a batch at a time. */
 async function askedTidy(
-  llm: Llm,
+  deps: TidyDeps,
   remembered: Remembered,
   asked: TidyAsked,
   steps: Steps,
 ): Promise<TidyResult> {
+  const { llm } = deps
   const notes: string[] = []
   if (asked.unknown.length > 0) notes.push(`Your library has no ${asked.unknown.join(' or ')}.`)
   // An album's songs side by side, so one batch names the whole album.
@@ -427,22 +465,53 @@ async function askedTidy(
       `Looked at the first ${MAX_ASKED.toLocaleString('en')} songs; ask again for the rest.`,
     )
   }
-  const batches = chunks(songs, SONGS_PER_CALL)
+
+  // 1 · The catalogues, when the names must come from outside: a song none of them has is left be.
+  const found = new Map<number, FoundName[]>()
+  const lookingUp = asked.lookUp && deps.findNames !== undefined
+  if (asked.lookUp && !deps.findNames) notes.push('Names can’t be looked up from here.')
+  if (lookingUp) {
+    const findNames = deps.findNames
+    const all = songs.length.toLocaleString('en')
+    let looked = 0
+    steps.begin(
+      `Looking up ${all} ${songs.length === 1 ? 'song' : 'songs'} on 网易云 and MusicBrainz`,
+    )
+    await pool(songs, LOOKUPS_AT_ONCE, async song => {
+      const names = await findNames(song)
+      if (names.length > 0) found.set(song.id, names)
+      looked++
+      if (looked % 25 === 0 && looked < songs.length) {
+        steps.begin(`Looked up ${looked.toLocaleString('en')} of ${all} songs`)
+      }
+    })
+    const notFound = songs.length - found.size
+    steps.done(`Found ${found.size.toLocaleString('en')} of ${all}`)
+    if (notFound > 0) {
+      notes.push(
+        `${plural(notFound, 'song wasn’t', 'songs weren’t')} found on 网易云, MusicBrainz or iTunes, so ${notFound === 1 ? 'it is' : 'they are'} left as ${notFound === 1 ? 'it is' : 'they are'}.`,
+      )
+    }
+  }
+  const asking = lookingUp ? songs.filter(song => found.has(song.id)) : songs
+
+  // 2 · The model, a batch at a time.
+  const batches = chunks(asking, SONGS_PER_CALL)
   const { propose, changes } = grouped()
   let done = 0
   const failures: LlmError[] = []
   let missed = 0
-  const total = songs.length.toLocaleString('en')
-  steps.begin(`Reading ${total} ${songs.length === 1 ? 'song' : 'songs'}`)
+  const total = asking.length.toLocaleString('en')
+  if (asking.length > 0) steps.begin(`Reading ${total} ${asking.length === 1 ? 'song' : 'songs'}`)
 
   const run = async (batch: Song[]): Promise<void> => {
     const table = batch
       .map(
         (song, index) =>
-          `${index + 1} | ${song.title} | ${song.artist || '-'} | ${song.album || '-'} | ${song.albumArtist || '-'}`,
+          `${index + 1} | ${song.title} | ${song.artist || '-'} | ${song.album || '-'} | ${song.albumArtist || '-'}${lookingUp ? ` | found: ${foundLine(found.get(song.id) ?? [])}` : ''}`,
       )
       .join('\n')
-    const prompt = `The request:\n${asked.text}\n\nThe songs (n | title | artist | album | album artist):\n${table}`
+    const prompt = `The request:\n${asked.text}\n\nThe songs (n | title | artist | album | album artist${lookingUp ? ' | found' : ''}):\n${table}`
     let answer: z.infer<typeof EditsOut>
     try {
       answer = await remembered.get(
@@ -452,7 +521,7 @@ async function askedTidy(
             await llm.generate({
               task: 'tidy-asked',
               tier: 'smart',
-              system: ASKED_SYSTEM,
+              system: lookingUp ? ASKED_SYSTEM + FOUND_RULES : ASKED_SYSTEM,
               prompt,
               schema: EditsOut,
             })
@@ -472,6 +541,17 @@ async function askedTidy(
       const at = `${edit.n}:${edit.field}`
       if (!song || seen.has(at)) continue
       if (!SongFieldsSchema.shape[edit.field].safeParse(to).success) continue
+      if (lookingUp) {
+        // Only words a catalogue has for this recording: the one it came from says why, and it starts ticked.
+        const source = (found.get(song.id) ?? []).find(each =>
+          within(to, foundFor(edit.field, each)),
+        )
+        if (!source) continue
+        seen.add(at)
+        const why = `The name on ${source.source}`
+        propose(song, edit.field, song[edit.field], { value: to, whys: [why] }, 'rule')
+        continue
+      }
       seen.add(at)
       const why = edit.why.trim() || 'As you asked'
       propose(song, edit.field, song[edit.field], { value: to, whys: [why] }, 'model')
@@ -480,24 +560,18 @@ async function askedTidy(
     steps.begin(`Read ${done.toLocaleString('en')} of ${total} songs`)
   }
 
-  // A few batches at once, each taking the next as it finishes.
-  let next = 0
-  await Promise.all(
-    Array.from({ length: Math.min(CALLS_AT_ONCE, batches.length) }, async () => {
-      while (next < batches.length) await run(batches[next++]!)
-    }),
-  )
+  await pool(batches, CALLS_AT_ONCE, run)
   const [failure] = failures
-  if (failure && missed === songs.length) throw failure
+  if (failure && missed === asking.length) throw failure
   if (failure) {
     notes.push(
       `${llmFailureWords[failure.kind]} Left out ${plural(missed, 'song', 'songs')}; ask again for them.`,
     )
   }
-  const found = changes()
-  steps.done(`${found.length} ${found.length === 1 ? 'change' : 'changes'}`)
+  const proposed = changes()
+  steps.done(`${proposed.length} ${proposed.length === 1 ? 'change' : 'changes'}`)
   return {
-    changes: found,
+    changes: proposed,
     looked: songs.length,
     note: notes.length > 0 ? notes.join(' ') : null,
     asked: asked.text,

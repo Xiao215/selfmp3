@@ -23,6 +23,7 @@ import { AskProgress, type Step } from './progress.js'
 import { describe, type DescribeInput } from './describe.js'
 import { refine } from './refine.js'
 import { LlmError, llmFailureWords, noLlm, openAiCompatible, Remembered, type Llm } from './llm.js'
+import type { FindNames } from './names.js'
 import { tidy } from './tidy.js'
 import { written } from './written.js'
 import { tagReview } from './tagReview.js'
@@ -50,6 +51,7 @@ export class SmartFeatures {
     lyrics: (query: string) => { songId: number; line: string }[]
     wrapped: (range: WrappedRange) => Wrapped
     playlists?: () => readonly AskPlaylist[]
+    findNames?: FindNames
   }) {
     this.#deps = { ...deps, remembered: new Remembered() }
   }

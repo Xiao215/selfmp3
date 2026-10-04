@@ -119,6 +119,21 @@ export class NeteaseMusic {
     return { title: page.playlist.name ?? null, tracks: await this.#tracks(ids) }
   }
 
+  /**
+   * Songs 网易云 lists for some words, best first: the search its own site's
+   * app uses. Its names are the publisher's, often in two languages
+   * ("丹砂巍巍 Wordless Cliffs"). Empty when it did not answer.
+   */
+  async search(words: string, limit = 8): Promise<NeteaseTrack[]> {
+    const page = (await this.#post('cloudsearch/pc', {
+      s: words,
+      type: '1',
+      limit: String(limit),
+      offset: '0',
+    })) as { result?: { songs?: SongJson[] } } | null
+    return toTracks(page?.result?.songs ?? [], [])
+  }
+
   /** A song's lyrics, by its id; null when there are none or 网易云 did not answer. */
   async lyrics(id: string): Promise<NeteaseLyrics> {
     const page = (await this.#get(`song/lyric?id=${id}&lv=1`)) as {

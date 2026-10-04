@@ -20,6 +20,7 @@ import {
 } from './describe.js'
 import { songTable } from './library.js'
 import { Remembered } from './llm.js'
+import type { FindNames } from './names.js'
 import type { Steps } from './progress.js'
 import { tagReview } from './tagReview.js'
 import { tidy } from './tidy.js'
@@ -41,6 +42,8 @@ export interface AskDeps extends DescribeDeps {
   readonly playlists?: () => readonly AskPlaylist[]
   readonly stats: (range: Stats['range']) => Stats
   readonly lyrics: (query: string) => { songId: number; line: string }[]
+  /** The music catalogues, for names from outside the library (`names.ts`). */
+  readonly findNames?: FindNames
 }
 
 /** Features turned off in Settings that the router may still choose. */
@@ -294,16 +297,19 @@ const library = action({
 
 const tidyUp = action({
   name: 'tidy',
-  when: 'anything about their songs\' names (titles, artists, albums): checked, fixed or cleaned up in general, or changed in a way they say ("give the 原神音乐 songs their official Chinese names", "write 周杰倫\'s albums in simplified Chinese", "take \'(Remastered)\' off the titles"). Fill "tidy": checkup is true when they only ask to check or clean up their names, false when they say what change they want. When they say which songs, also fill "filters" with the filters that choose them (null for the whole library).',
-  fields: z.object({ checkup: z.boolean() }),
+  when: 'anything about their songs\' names (titles, artists, albums): checked, fixed or cleaned up in general, or changed in a way they say ("give the 原神音乐 songs their official Chinese names", "write 周杰倫\'s albums in simplified Chinese", "take \'(Remastered)\' off the titles"). Fill "tidy": checkup is true when they only ask to check or clean up their names, false when they say what change they want; lookUp is true when the new names must come from outside the library (official, real or correct names, the real name of an album, the name the publisher uses in another language), false when the change is made from the names already there (take words off, change the script, make them consistent). When they say which songs, also fill "filters" with the filters that choose them (null for the whole library).',
+  fields: z.object({ checkup: z.boolean(), lookUp: z.boolean() }),
   filters: 'optional',
   switch: { key: 'tidy', label: 'Tidy up' },
-  run: async ({ deps, text, now, steps }, { checkup }, filters) => {
+  run: async ({ deps, text, now, steps }, { checkup, lookUp }, filters) => {
     if (checkup) return { kind: 'tidy', tidy: await tidy(deps, steps) }
     const songs = deps.songs()
     const { understanding, unknown } = groundPlan(filters ?? EVERYTHING, songs, deps.tags())
     const chosen = songsFitting(songs, deps.tags(), understanding, now)
-    return { kind: 'tidy', tidy: await tidy(deps, steps, { text, songs: chosen, unknown }) }
+    return {
+      kind: 'tidy',
+      tidy: await tidy(deps, steps, { text, songs: chosen, unknown, lookUp }),
+    }
   },
 })
 

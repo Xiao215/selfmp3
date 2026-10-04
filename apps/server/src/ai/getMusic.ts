@@ -1,5 +1,5 @@
 import type { AskAnswer, Song } from '@selfmp3/shared'
-import { sameRecording, sameTitle } from './names.js'
+import { sameRecording, sameTitle, within } from './names.js'
 import { NO_STEPS, type Steps } from './progress.js'
 
 /**
@@ -64,7 +64,12 @@ export async function getMusic(
   const words = wanted.words.trim()
   steps.begin(`Looking for “${words}” on 网易云`)
   if (wanted.kind === 'album') {
-    const albums = (await deps.music.albums(words)).slice(0, OFFERED)
+    // An album whose whole name was asked for first ("THE BOOK" before "THE BOOK for,"), else 网易云's order.
+    const listed = await deps.music.albums(words)
+    const albums = [
+      ...listed.filter(album => within(album.title, words)),
+      ...listed.filter(album => !within(album.title, words)),
+    ].slice(0, OFFERED)
     steps.begin('Checking which songs you have')
     const items = await Promise.all(
       albums.map(async album => {

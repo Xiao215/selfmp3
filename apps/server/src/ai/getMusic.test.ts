@@ -14,6 +14,14 @@ const track = (title: string, duration: number) => ({
 const music = {
   albums: async () => [
     {
+      id: '1',
+      url: 'https://music.163.com/album?id=1',
+      title: '千岩旷望 Piano Covers',
+      artist: 'Someone',
+      tracks: 3,
+      cover: null,
+    },
+    {
       id: '146627102',
       url: 'https://music.163.com/album?id=146627102',
       title: '原神-千岩旷望 Millelith’s Watch',
@@ -37,10 +45,18 @@ const songs = () => [song(1, { title: 'Wordless Cliffs', artist: 'HOYO-MiX', dur
 
 describe('getMusic', () => {
   it('lists albums with how many of their songs are yours already', async () => {
-    const answer = await getMusic({ songs, music }, { words: '千岩旷望', kind: 'album' })
-    expect(answer).toEqual({
+    const answer = await getMusic(
+      { songs, music },
+      { words: '原神 千岩旷望 Millelith’s Watch', kind: 'album' },
+    )
+    // The album whose whole name was asked for comes first.
+    expect(answer.items.map(item => item.title)).toEqual([
+      '原神-千岩旷望 Millelith’s Watch',
+      '千岩旷望 Piano Covers',
+    ])
+    expect({ ...answer, items: answer.items.slice(0, 1) }).toEqual({
       kind: 'getMusic',
-      words: '千岩旷望',
+      words: '原神 千岩旷望 Millelith’s Watch',
       items: [
         {
           kind: 'album',

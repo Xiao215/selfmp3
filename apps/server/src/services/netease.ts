@@ -30,6 +30,8 @@ const REQUEST_TIMEOUT_MS = 10_000
 const DETAIL_CHUNK = 400
 /** Cover size asked of the picture host: square, and plenty for a cover. */
 const COVER_PARAM = '?param=1000y1000'
+/** A search result's cover is a row's thumbnail: small, so a list of them arrives at once. */
+const THUMB_PARAM = '?param=200y200'
 
 type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
 
@@ -178,7 +180,7 @@ export class NeteaseMusic {
           title: album.name.trim(),
           artist: artists.join(', '),
           tracks: album.size ?? 0,
-          cover: picture ? `${picture}${COVER_PARAM}` : null,
+          cover: picture ? `${picture}${THUMB_PARAM}` : null,
         },
       ]
     })

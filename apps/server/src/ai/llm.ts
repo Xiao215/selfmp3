@@ -17,6 +17,12 @@ import type { Logger } from '../logger.js'
  * the endpoint promised: asking for JSON is not receiving it. A reply that
  * fails gets one repair turn with the validation error, then the call fails.
  *
+ * A task may offer tools (`LlmTool`): the model calls them, they run here and
+ * their results go back, a few rounds at most, and then it answers in the
+ * schema. That is OpenAI's own `tools` with `response_format`, so any
+ * endpoint that takes both will do. `webSearch` asks the endpoint to let the
+ * model search the web itself (`web_search_options`); one that cannot ignores it.
+ *
  * Schemas are zod v4 (`zod/v4`, shipped inside the zod already installed),
  * because v4 turns a schema into the JSON Schema the request carries; the rest
  * of the server stays on v3. Only this folder sees them.
@@ -42,7 +48,35 @@ export interface GenerateRequest<T> {
   readonly schema: z.ZodType<T>
   /** Shorter than the settings' for a call someone is watching, like Settings' test. */
   readonly timeoutMs?: number
+  /** What the model may look up before it answers, run here (`tool`). */
+  readonly tools?: readonly LlmTool[]
+  /** Rounds of tool calls before it must answer. */
+  readonly maxRounds?: number
+  /** Let the model search and read the web itself for this call. */
+  readonly webSearch?: boolean
 }
+
+/** Something the model may call: its arguments are checked against `parameters` before `run`. */
+export interface LlmTool {
+  readonly name: string
+  readonly description: string
+  readonly parameters: z.ZodType
+  readonly run: (args: never) => unknown
+}
+
+/** A tool, with its arguments' type read off its schema. */
+export function tool<A>(entry: {
+  name: string
+  description: string
+  parameters: z.ZodType<A>
+  run: (args: A) => unknown
+}): LlmTool {
+  return entry as LlmTool
+}
+
+const DEFAULT_ROUNDS = 6
+/** The most of one tool result sent back, so one big answer cannot fill the context. */
+const RESULT_CHARS = 24_000
 
 interface Generated<T> {
   readonly value: T
@@ -82,14 +116,57 @@ export const llmFailureWords: Readonly<Record<LlmFailure, string>> = {
 
 type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
 
-interface ChatMessage {
-  readonly role: 'system' | 'user' | 'assistant'
-  readonly content: string
-}
+const ToolCallSchema = z.object({
+  id: z.string(),
+  type: z.literal('function').optional(),
+  function: z.object({ name: z.string(), arguments: z.string() }),
+})
+type ToolCall = z.infer<typeof ToolCallSchema>
+
+type ChatMessage =
+  | { readonly role: 'system' | 'user'; readonly content: string }
+  | {
+      readonly role: 'assistant'
+      readonly content: string | null
+      readonly tool_calls?: ToolCall[]
+    }
+  | { readonly role: 'tool'; readonly tool_call_id: string; readonly content: string }
 
 const ChatReplySchema = z.object({
-  choices: z.array(z.object({ message: z.object({ content: z.string().nullable() }) })).min(1),
+  choices: z
+    .array(
+      z.object({
+        message: z.object({
+          content: z.string().nullable(),
+          tool_calls: z.array(ToolCallSchema).nullable().optional(),
+        }),
+      }),
+    )
+    .min(1),
 })
+
+/** One call run: its arguments checked, its answer as JSON, a failure said as an error. */
+async function runCall(tools: readonly LlmTool[], call: ToolCall): Promise<string> {
+  const found = tools.find(each => each.name === call.function.name)
+  if (!found) return JSON.stringify({ error: `There is no tool called ${call.function.name}.` })
+  let args: unknown
+  try {
+    args = JSON.parse(call.function.arguments || '{}')
+  } catch {
+    return JSON.stringify({ error: 'The arguments were not JSON.' })
+  }
+  const parsed = found.parameters.safeParse(args)
+  if (!parsed.success)
+    return JSON.stringify({ error: `Wrong arguments: ${issuesOf(parsed.error)}` })
+  try {
+    const result = JSON.stringify(await found.run(parsed.data as never))
+    return result.length > RESULT_CHARS
+      ? `${result.slice(0, RESULT_CHARS)}… (cut short: ask for less)`
+      : result
+  } catch (caught) {
+    return JSON.stringify({ error: caught instanceof Error ? caught.message : String(caught) })
+  }
+}
 
 /** The JSON Schema a request carries: no `$schema` key, which some endpoints refuse. */
 export function jsonSchemaOf(schema: z.ZodType): Record<string, unknown> {
@@ -127,7 +204,8 @@ export function openAiCompatible(
     messages: readonly ChatMessage[],
     schema: Record<string, unknown>,
     timeoutMs: number,
-  ): Promise<string> {
+    offer: { tools: readonly LlmTool[]; callable: boolean; webSearch: boolean },
+  ): Promise<{ content: string; calls: ToolCall[] }> {
     let response: Response
     try {
       response = await fetchImpl(url, {
@@ -143,6 +221,20 @@ export function openAiCompatible(
             type: 'json_schema',
             json_schema: { name: task.replace(/[^a-zA-Z0-9_-]/g, '_'), strict: true, schema },
           },
+          ...(offer.tools.length > 0
+            ? {
+                tools: offer.tools.map(each => ({
+                  type: 'function',
+                  function: {
+                    name: each.name,
+                    description: each.description,
+                    parameters: jsonSchemaOf(each.parameters),
+                  },
+                })),
+                tool_choice: offer.callable ? 'auto' : 'none',
+              }
+            : {}),
+          ...(offer.webSearch ? { web_search_options: {} } : {}),
         }),
         signal: AbortSignal.timeout(timeoutMs),
       })
@@ -164,7 +256,8 @@ export function openAiCompatible(
     const reply = ChatReplySchema.safeParse(await response.json().catch(() => null))
     if (!reply.success)
       throw new LlmError('invalid', 'The model sent something that is not a chat reply')
-    return reply.data.choices[0]!.message.content ?? ''
+    const { message } = reply.data.choices[0]!
+    return { content: message.content ?? '', calls: message.tool_calls ?? [] }
   }
 
   return {
@@ -176,14 +269,41 @@ export function openAiCompatible(
         { role: 'system', content: request.system },
         { role: 'user', content: request.prompt },
       ]
+      const tools = request.tools ?? []
+      const maxRounds = request.maxRounds ?? DEFAULT_ROUNDS
+      let rounds = 0
+      let called = 0
       for (let attempt = 1; attempt <= 2; attempt++) {
-        const text = await ask(
-          request.task,
-          model,
-          messages,
-          schema,
-          request.timeoutMs ?? settings.timeoutMs,
-        )
+        let text: string
+        // The model's tool calls, run and answered, until it replies or runs out of rounds.
+        for (;;) {
+          const reply = await ask(
+            request.task,
+            model,
+            messages,
+            schema,
+            request.timeoutMs ?? settings.timeoutMs,
+            { tools, callable: rounds < maxRounds, webSearch: request.webSearch === true },
+          )
+          if (reply.calls.length === 0 || rounds >= maxRounds) {
+            text = reply.content
+            break
+          }
+          rounds++
+          called += reply.calls.length
+          messages.push({
+            role: 'assistant',
+            content: reply.content || null,
+            tool_calls: reply.calls,
+          })
+          for (const call of reply.calls) {
+            messages.push({
+              role: 'tool',
+              tool_call_id: call.id,
+              content: await runCall(tools, call),
+            })
+          }
+        }
         let problem: string
         try {
           const parsed = request.schema.safeParse(parseReply(text))
@@ -191,7 +311,13 @@ export function openAiCompatible(
             const ms = Date.now() - started
             // What was asked and how long it took, never what was said: both
             // sides of the conversation are your library.
-            logger.info('model call', { task: request.task, model, ms, attempts: attempt })
+            logger.info('model call', {
+              task: request.task,
+              model,
+              ms,
+              attempts: attempt,
+              ...(tools.length > 0 ? { rounds, toolCalls: called } : {}),
+            })
             return { value: parsed.data, ms }
           }
           problem = issuesOf(parsed.error)

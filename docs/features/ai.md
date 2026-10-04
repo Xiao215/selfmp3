@@ -6,8 +6,8 @@ on the AI ideas canvas (<https://claude.ai/artifact/F9yEDvXnGRhgMrVQevHumS>); th
 the engineering under them.
 
 Built so far: **S1, Ask in the Search box**, which is where most of it is reached; **N1, New
-playlist as one field**; the **Describe** pipeline (A1c) they both use; and **A7, Suggest
-tags**.
+playlist as one field**; the **Describe** pipeline (A1c) they both use; and **Tags**, the
+tag review that Ask and Suggest tags share (it grew out of A7, Suggest tags).
 
 ---
 
@@ -63,8 +63,8 @@ to `sonnet` because of what was measured through claude-api on 2026-10-03: a pla
 the likely cost). On a provider billed per token, set the fast tier to its small model.
 
 Measured on the real library (1,342 songs) through claude-api: Describe 8–15 s (plan
-4–15 s, pick 4–8 s); Suggest tags 13 s for 111 untagged songs in one call, with every song
-given a suggestion.
+4–15 s, pick 4–8 s); "tag the songs that should be 中文流行" 12 s over 1,336 songs (route,
+plan, two group calls), proposing 99 songs, every one Mandarin or Cantonese pop.
 
 **Settings › Smart features** shows the address (`GET /api/ai`: scheme, host and path only,
 never the key) and the two models, and its **Test** goes the whole way a leg at a time:
@@ -186,14 +186,14 @@ what that action needs, as JSON. Then the action runs as code:
 |---|---|---|---|
 | `songs` | "play something calm for reading", "make a playlist of…" | Describe's steps 2–3 (the route *is* the plan) | the pick |
 | `find` | "the song about grandma's tea" | its terms, in every language the library uses, matched against titles, artists, albums and the lyrics index | a pick of at most 5 |
-| `tag` | "tag every 周杰倫 song 中文流行" | Describe's filters choose the songs (never the whole library) | none |
+| `tags` | "tag the songs that should be 中文流行", "merge j-anime into jpop", "tidy my tags" | the tag review, with the request itself (Tags, below) | the plan, then the groups |
 | `stats` | "what did I play most last month" | the stats the Stats page shows; the model only chose the window and what about | none |
 | `open` | "download the new Yorushika album" | a sentence and a button to the place | none |
 | `none` | anything else | what the box can do instead | none |
 
 Every answer is a proposal with its own button (`AskAnswer.tsx`): a song answer is a card
-with ▶ that opens as its own page (docs/features/lists.md, "Ask's song answer"), Add the
-tag (after Look through), Open Stats, a found song to play.
+with ▶ that opens as its own page (docs/features/lists.md, "Ask's song answer"), the tag
+review's Apply, Open Stats, a found song to play.
 
 While it works, the wait says what is happening (`ai/progress.ts`): the device names its
 request with a `ticket` and asks `GET /api/ai/ask/progress` twice a second, and the server
@@ -298,29 +298,52 @@ and cannot say "古典 or 原神纯音乐, and calm".
 Taking a chip away does not read the words again: **Pick again** sends the parts back and
 only steps 2 and 3 run.
 
-## A7 · Suggest tags
+## Tags: your tags put right
 
-`Tags › the untagged card › Suggest tags`. Every untagged song gets a suggested tag where
-there is a good one, grouped by tag so 99 songs of Mandarin pop are one decision, not 99.
+Your tags as changes to approve: songs given a tag or taken out of one, a tag renamed,
+merged into another, or deleted (`ai/tagReview.ts`). Two ways in: Ask, with what you said
+("tag the songs that should be 中文流行", "take ipop off what isn't Japanese", "merge
+chinese pop into 中文流行", "tidy my tags"), and `Tags › the untagged card › Suggest
+tags`, which is the same review aimed at the songs without a tag (`GET
+/api/ai/tags/untagged`). It replaced A7's own pipeline and the router's old `tag` action,
+which could only tag songs the request named and answered "tell me which ones" otherwise
+(Xiao, 2026-10-04).
 
-1. **Ask the library first** (no model, `fromLibrary`). A song takes the tag every tagged
-   song on its album shares, or else the one four in five of its artist's tagged songs
-   share (two at the least). "The rest of Best of Chopin is in 古典" costs nothing.
-2. **Group** (no model). What is left is grouped by main artist (the first name in the
-   credit), so the model judges 周杰倫 once, not 76 times.
-3. **Ask the model** (smart tier) about the groups left, in chunks, with rung 2 of the
-   ladder: what each tag already holds. For each group it returns existing tags by name,
-   or one new tag when the library's own pattern calls for one (your regions each have a
-   tag; this album is a region's), a reason, and how sure it is. Chunks run in parallel and
-   are merged.
-4. **Check**: a tag name must be one of yours (or the one proposed new tag, which must not
-   collide with an existing name); a group the model was not sure about is left alone and
-   listed as such.
-5. **Answer**, flipped to what the screen needs: one row per tag, however many groups and
-   sources lead to it, with its songs, the reason that covers the most of them, and
-   whether the library alone made it. Taking a row is the ordinary "add tag to these
-   songs" edit, after making the tag if it is new; Look through lists the songs and lets any
-   be left out.
+1. **Plan** (smart tier, Ask only): the tags with what each holds, the artists, and the
+   request. It returns renames, merges and deletes; the tags in question (`focus`); a tag
+   to make, if the request names one you lack; which songs to look at against the focus
+   (`without` it, `with` it, `all`, `untagged`, `none`); the artists named, if any; and
+   whether this is a checkup ("tidy my tags": every tag, spellings of one tag, artists
+   tagged more than one way).
+2. **Ask the library first** (no model). A song with no tag takes the tag every tagged
+   song on its album shares, or the one four in five of its artist's tagged songs share
+   (two at the least); a tagged song missing a tag every other song on its album carries
+   (two others at the least) gets it; in a checkup, two tags spelled as one ("J-POP",
+   "jpop") merge the smaller into the bigger. Only tags in question count.
+3. **Group** (no model) what is left by main artist, the tags the songs carry, and the
+   script of the title, so 周杰倫 is judged once rather than 76 times and 林俊傑's English
+   songs apart from his Mandarin ones. A checkup looks only at songs without a tag and at
+   artists tagged more than one way.
+4. **Ask the model** (smart tier) about the groups, fifty to a call, in parallel: for each
+   group that should change, tags to add and tags to remove, how sure, and why in words
+   that do not name the artist (one reason speaks for a row of many artists).
+5. **Check**: tag names must be yours and in question, an add must be missing and a remove
+   carried, a rename must not take a name in use, one change to a tag itself per tag, the
+   only new tag is the one the request named (or, for untagged songs, one the library's
+   own pattern calls for). A change the model was not sure of is listed as left alone;
+   for untagged songs, so is a group no tag fits.
+6. **Answer**: one row per (change, tag, who found it), with its songs, who they are by,
+   and the reason that covers the most of them.
+
+The device draws it with `TagsReview.tsx` over `Review.tsx`, the list Tidy up's review
+uses too: what the library found starts ticked, the model's guesses wait with the
+sparkle, an add or a remove opens to its songs and any can be left out, ⌘↵ applies.
+Applying is ordinary edits in order (`tagSteps`, `useTagChanges`): new tags, songs in and
+out, renames, then merges (the songs get the tag they go into, live playlists following
+the merged tag follow that one, then it is deleted) and deletes. The toast's Undo takes
+each back, a deleted or merged tag returning with its name, colour, songs and followers.
+
+Without a model, the untagged songs still get what the library says, with a note.
 
 ## A4 · Tidy up (names)
 
@@ -393,11 +416,12 @@ change or Write it again is pressed.
 ## Settings › Smart features: a switch per feature
 
 Four switches, shared across devices with the other server settings (`smartAsk`,
-`smartTidy`, `smartSuggestTags`, `smartWritten`, all on by default): Ask in Search (which
-also covers Let it pick and Up next), Tidy up, Suggest tags and the Report in words. Each
+`smartTidy`, `smartTags`, `smartWritten`, all on by default): Ask in Search (which
+also covers Let it pick and Up next), Tidy up, Tags (Suggest tags, and Ask's tag changes)
+and the Report in words. Each
 says what of the library it shows the model, in a line, because "the model sees your
 library" is too vague to agree to and each sees less than that. Off, the way in is not
 drawn (`useSmartSwitches`) and the server refuses the route with 403 `ai_disabled` before any
-model is asked; Ask routing to Tidy up while Tidy up is off answers that it is off.
+model is asked; Ask routing to Tidy up or Tags while it is off answers that it is off.
 `routes/ai.test.ts` counts the calls a real endpoint on a free port receives: none.
 

@@ -12,7 +12,7 @@ import {
   type AskAnswer,
   type AskProgress,
   type DescribeResult,
-  type TagSuggestions,
+  type TagReview,
 } from '@selfmp3/shared'
 import { LlmError, llmFailureWords } from '../ai/llm.js'
 import type { Container } from '../container.js'
@@ -24,7 +24,7 @@ import { route } from '../http/route.js'
  * here writes to the library. Taking a suggestion is the ordinary edit a device
  * already makes, so it syncs and undoes like any other.
  */
-type SmartSwitch = 'smartAsk' | 'smartTidy' | 'smartSuggestTags' | 'smartWritten'
+type SmartSwitch = 'smartAsk' | 'smartTidy' | 'smartTags' | 'smartWritten'
 
 export function aiRoutes(container: Container): Router {
   const router = Router()
@@ -63,8 +63,8 @@ export function aiRoutes(container: Container): Router {
     '/ai/ask',
     route({ body: AskRequestSchema }, ({ body }): Promise<AskAnswer> => {
       allowed('smartAsk')
-      const tidy = container.settings.get().smartTidy
-      return answering(container.smart.ask(body.text, body.playing, { tidy }, body.ticket))
+      const { smartTidy: tidy, smartTags: tags } = container.settings.get()
+      return answering(container.smart.ask(body.text, body.playing, { tidy, tags }, body.ticket))
     }),
   )
 
@@ -110,10 +110,10 @@ export function aiRoutes(container: Container): Router {
   )
 
   router.get(
-    '/ai/tag-suggestions',
-    route({}, (): Promise<TagSuggestions> => {
-      allowed('smartSuggestTags')
-      return answering(container.smart.suggestTags())
+    '/ai/tags/untagged',
+    route({}, (): Promise<TagReview> => {
+      allowed('smartTags')
+      return answering(container.smart.untaggedTags())
     }),
   )
 

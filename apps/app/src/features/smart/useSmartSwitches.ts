@@ -4,7 +4,7 @@ import { useSettings } from '@selfmp3/client'
 interface SmartSwitches {
   readonly ask: boolean
   readonly tidy: boolean
-  readonly suggestTags: boolean
+  readonly tags: boolean
   readonly written: boolean
 }
 
@@ -19,7 +19,7 @@ export function useSmartSwitches(): SmartSwitches {
   return {
     ask: data?.smartAsk ?? true,
     tidy: data?.smartTidy ?? true,
-    suggestTags: data?.smartSuggestTags ?? true,
+    tags: data?.smartTags ?? true,
     written: data?.smartWritten ?? true,
   }
 }

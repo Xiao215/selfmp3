@@ -38,7 +38,7 @@ import {
   TidyResultSchema,
   WrittenReportSchema,
   DescribeResultSchema,
-  TagSuggestionsSchema,
+  TagReviewSchema,
   type Understanding,
   LyricsResponseSchema,
   MotionSchema,
@@ -358,7 +358,7 @@ export function createApi({ context, fetch }: ApiOptions) {
         AskProgressSchema,
       ),
 
-    tagSuggestions: () => request('GET', '/api/ai/tag-suggestions', TagSuggestionsSchema),
+    untaggedTags: () => request('GET', '/api/ai/tags/untagged', TagReviewSchema),
 
     /** A5 · the Report in a few sentences; `again` writes it afresh. */
     written: (range: WrappedRange, again = false) =>

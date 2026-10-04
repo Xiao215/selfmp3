@@ -4,12 +4,14 @@ import type {
   AiCheck,
   AskPlace,
   BulkEditSongs,
+  Playlist,
+  SmartRules,
   Song,
+  TagChange,
   TidyChange,
   AskStatsRange,
   DescribeResult,
   Tag,
-  TagSuggestion,
   Understanding,
 } from '@selfmp3/shared'
 
@@ -185,31 +187,6 @@ export function describeNotes(result: DescribeResult, picked: number): string[] 
   return notes
 }
 
-export interface SuggestionHere {
-  readonly suggestion: TagSuggestion
-  /** This device's song ids, for the songs it has. */
-  readonly songIds: number[]
-  /** The tag here, or null for a tag that would be made. */
-  readonly tag: Tag | null
-}
-
-/** Suggestions in this device's terms; one left with no song here is dropped. */
-export function suggestionsHere(
-  suggestions: readonly TagSuggestion[],
-  onDevice: (serverId: number) => number | undefined,
-  tags: readonly Tag[],
-): SuggestionHere[] {
-  return suggestions.flatMap(suggestion => {
-    const songIds = suggestion.songIds.flatMap(id => {
-      const here = onDevice(id)
-      return here === undefined ? [] : [here]
-    })
-    if (songIds.length === 0) return []
-    const tag = tags.find(each => each.name.toLowerCase() === suggestion.tag.toLowerCase()) ?? null
-    return [{ suggestion, songIds, tag }]
-  })
-}
-
 /**
  * Whether the box offers to ask (S1): three letters at least, and either more
  * than one word or nothing on the device that matches. A single word that
@@ -314,10 +291,18 @@ export function modelHop(check: AiCheck): Hop {
   return { ok: false, line: check.message, detail: check.detail }
 }
 
-/** A Tidy up change as this device has it: its own song ids, still as the change found them. */
-export interface TidyHere {
-  readonly change: TidyChange
+/**
+ * A change in a review (Tidy up's names, Tags' changes) as this device has it:
+ * its key, whether a plain rule or the model found it, and its songs here.
+ */
+export interface Reviewed {
+  readonly change: { readonly key: string; readonly by: 'rule' | 'model' }
   readonly songIds: readonly number[]
+}
+
+/** A Tidy up change as this device has it: its own song ids, still as the change found them. */
+export interface TidyHere extends Reviewed {
+  readonly change: TidyChange
 }
 
 /**
@@ -340,28 +325,31 @@ export function tidyHere(
   })
 }
 
-/** One reason and its changes, in the order the server gave them. */
-interface TidyReason {
-  readonly why: string
-  readonly changes: TidyHere[]
+/** One heading and its changes, in the order the server gave them. */
+interface ReviewSection<T> {
+  readonly title: string
+  readonly changes: T[]
 }
 
 /**
  * The changes in two bands by how far to trust them: what a plain rule found,
- * then the model's guesses, each under its reasons. An empty band is left out.
+ * then the model's guesses, each under its headings (Tidy up's reasons, the
+ * tags' kinds of change). An empty band is left out.
  */
-export function tidyBands(
-  changes: readonly TidyHere[],
-): { by: TidyChange['by']; reasons: TidyReason[] }[] {
+export function reviewBands<T extends Reviewed>(
+  changes: readonly T[],
+  sectionOf: (change: T) => string,
+): { by: Reviewed['change']['by']; sections: ReviewSection<T>[] }[] {
   return (['rule', 'model'] as const).flatMap(by => {
-    const reasons = new Map<string, TidyReason>()
+    const sections = new Map<string, ReviewSection<T>>()
     for (const here of changes) {
       if (here.change.by !== by) continue
-      const reason = reasons.get(here.change.why) ?? { why: here.change.why, changes: [] }
-      reason.changes.push(here)
-      reasons.set(here.change.why, reason)
+      const title = sectionOf(here)
+      const section = sections.get(title) ?? { title, changes: [] }
+      section.changes.push(here)
+      sections.set(title, section)
     }
-    return reasons.size > 0 ? [{ by, reasons: [...reasons.values()] }] : []
+    return sections.size > 0 ? [{ by, sections: [...sections.values()] }] : []
   })
 }
 
@@ -371,7 +359,7 @@ export function leftOutKey(changeKey: string, songId: number): string {
 }
 
 /** The songs of a change still in it: all of them, less the ones left out. */
-export function tidyKept(here: TidyHere, leftOut: ReadonlySet<string>): number[] {
+export function keptSongs(here: Reviewed, leftOut: ReadonlySet<string>): number[] {
   return here.songIds.filter(id => !leftOut.has(leftOutKey(here.change.key, id)))
 }
 
@@ -387,7 +375,7 @@ export function tidyEdits(
   const patches = new Map<number, Record<string, string>>()
   for (const here of changes) {
     const { field, from, to } = here.change
-    for (const id of tidyKept(here, leftOut)) {
+    for (const id of keptSongs(here, leftOut)) {
       patches.set(id, { ...patches.get(id), [field]: undo ? from : to })
     }
   }
@@ -444,6 +432,201 @@ export function tidyParts(from: string, to: string): TidyPart[] | null {
 }
 
 /** Rule-found changes start ticked; the model's wait for a yes. */
-export function tickedAtFirst(changes: readonly TidyHere[]): Set<string> {
+export function tickedAtFirst(changes: readonly Reviewed[]): Set<string> {
   return new Set(changes.filter(here => here.change.by === 'rule').map(here => here.change.key))
+}
+
+/**
+ * A tag change as this device has it. An add keeps only songs still without
+ * the tag and a remove only songs still with it, so an approval never undoes
+ * an edit made since; a change to a tag that is gone, or a rename onto a name
+ * taken since, is left out.
+ */
+export interface TagHere extends Reviewed {
+  readonly change: TagChange
+  /** The tag here; null only for an add that makes it. */
+  readonly tag: Tag | null
+  /** The tag a merge goes into. */
+  readonly into: Tag | null
+}
+
+export function tagChangesHere(
+  changes: readonly TagChange[],
+  onDevice: (serverId: number) => number | undefined,
+  songsById: ReadonlyMap<number, Song>,
+  tags: readonly Tag[],
+): TagHere[] {
+  const named = (name: string | null): Tag | null =>
+    name === null ? null : (tags.find(tag => tag.name.toLowerCase() === name.toLowerCase()) ?? null)
+  return changes.flatMap((change): TagHere[] => {
+    const tag = named(change.tag)
+    if (change.op === 'add' || change.op === 'remove') {
+      if (!tag && (change.op === 'remove' || !change.isNew)) return []
+      const songIds = change.songIds.flatMap(serverId => {
+        const id = onDevice(serverId)
+        const song = id === undefined ? undefined : songsById.get(id)
+        if (!song) return []
+        const has = tag !== null && song.tagIds.includes(tag.id)
+        return has === (change.op === 'remove') ? [song.id] : []
+      })
+      return songIds.length > 0 ? [{ change, songIds, tag, into: null }] : []
+    }
+    if (!tag) return []
+    if (change.op === 'merge') {
+      const into = named(change.to)
+      return into && into.id !== tag.id ? [{ change, songIds: [], tag, into }] : []
+    }
+    if (change.op === 'rename') {
+      const taken = named(change.to)
+      return change.to && (!taken || taken.id === tag.id)
+        ? [{ change, songIds: [], tag, into: null }]
+        : []
+    }
+    return [{ change, songIds: [], tag, into: null }]
+  })
+}
+
+/** A tag by its id, or one made earlier in the same apply, by its name. */
+export type TagRef = { readonly id: number } | { readonly name: string }
+
+/** A live playlist's rules, kept to put back. */
+interface RulesBefore {
+  readonly id: number
+  readonly rules: SmartRules
+}
+
+/** One step of applying tag changes, in the order they run. */
+export type TagStep =
+  | { readonly kind: 'make'; readonly name: string }
+  | {
+      readonly kind: 'songs'
+      readonly action: 'add' | 'remove'
+      readonly tag: TagRef
+      readonly songIds: readonly number[]
+    }
+  | { readonly kind: 'rename'; readonly tagId: number; readonly from: string; readonly to: string }
+  | {
+      readonly kind: 'merge'
+      readonly from: Tag
+      readonly into: Tag
+      /** The songs it held, to give back on Undo. */
+      readonly songIds: readonly number[]
+      /** Its songs without `into` yet: the ones that gain it. */
+      readonly gaining: readonly number[]
+      readonly playlists: readonly RulesBefore[]
+    }
+  | {
+      readonly kind: 'delete'
+      readonly tag: Tag
+      readonly songIds: readonly number[]
+      readonly playlists: readonly RulesBefore[]
+    }
+
+/** A live playlist's rules with one tag swapped for another, a rule that repeats dropped. */
+export function swapTagInRules(rules: SmartRules, from: number, to: number): SmartRules {
+  const out: SmartRules['rules'] = []
+  for (const rule of rules.rules) {
+    const swapped = rule.field === 'tag' && rule.tagId === from ? { ...rule, tagId: to } : rule
+    const repeat = out.some(
+      other =>
+        other.field === 'tag' &&
+        swapped.field === 'tag' &&
+        other.tagId === swapped.tagId &&
+        other.op === swapped.op,
+    )
+    if (!repeat) out.push(swapped)
+  }
+  return { ...rules, rules: out }
+}
+
+/** The live playlists that follow a tag, with their rules as they are. */
+function followersOf(tagId: number, playlists: readonly Playlist[]): RulesBefore[] {
+  return playlists.flatMap(playlist =>
+    playlist.kind === 'live' &&
+    playlist.rules.rules.some(rule => rule.field === 'tag' && rule.tagId === tagId)
+      ? [{ id: playlist.id, rules: playlist.rules }]
+      : [],
+  )
+}
+
+/**
+ * The approved tag changes as the steps that make them: new tags first, then
+ * songs in and out of tags, then renames, merges and deletes, so a change to
+ * songs always finds its tag by the id it has now. A merge gives its songs the
+ * tag it goes into, moves the playlists following it over, then deletes it.
+ */
+export function tagSteps(
+  approved: readonly TagHere[],
+  leftOut: ReadonlySet<string>,
+  songs: readonly Song[],
+  playlists: readonly Playlist[],
+): TagStep[] {
+  const make: TagStep[] = []
+  const members: TagStep[] = []
+  const renames: TagStep[] = []
+  const merges: TagStep[] = []
+  const deletes: TagStep[] = []
+  const holding = (tag: Tag): number[] =>
+    songs.filter(song => song.tagIds.includes(tag.id)).map(song => song.id)
+  for (const here of approved) {
+    const { change, tag } = here
+    switch (change.op) {
+      case 'add':
+      case 'remove': {
+        const songIds = keptSongs(here, leftOut)
+        if (songIds.length === 0) break
+        if (!tag) make.push({ kind: 'make', name: change.tag })
+        members.push({
+          kind: 'songs',
+          action: change.op,
+          tag: tag ? { id: tag.id } : { name: change.tag },
+          songIds,
+        })
+        break
+      }
+      case 'rename':
+        renames.push({ kind: 'rename', tagId: tag!.id, from: tag!.name, to: change.to! })
+        break
+      case 'merge': {
+        const songIds = holding(tag!)
+        const gaining = songs
+          .filter(song => song.tagIds.includes(tag!.id) && !song.tagIds.includes(here.into!.id))
+          .map(song => song.id)
+        merges.push({
+          kind: 'merge',
+          from: tag!,
+          into: here.into!,
+          songIds,
+          gaining,
+          playlists: followersOf(tag!.id, playlists),
+        })
+        break
+      }
+      case 'delete':
+        deletes.push({
+          kind: 'delete',
+          tag: tag!,
+          songIds: holding(tag!),
+          playlists: followersOf(tag!.id, playlists),
+        })
+        break
+    }
+  }
+  return [...make, ...members, ...renames, ...merges, ...deletes]
+}
+
+/** "Put on songs", "Take off songs", …: the heading a tag change is listed under. */
+export function tagSection(change: TagChange): string {
+  switch (change.op) {
+    case 'add':
+      return 'Put on songs'
+    case 'remove':
+      return 'Take off songs'
+    case 'rename':
+      return 'Rename'
+    case 'merge':
+      return 'Merge'
+    case 'delete':
+      return 'Delete'
+  }
 }

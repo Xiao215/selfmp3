@@ -12,7 +12,7 @@ import type {
   Stats,
   Song,
   Tag,
-  TagSuggestions,
+  TagReview,
 } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
@@ -23,7 +23,7 @@ import { refine } from './refine.js'
 import { LlmError, llmFailureWords, noLlm, openAiCompatible, Remembered, type Llm } from './llm.js'
 import { tidy } from './tidy.js'
 import { written } from './written.js'
-import { suggestTags } from './suggestTags.js'
+import { tagReview } from './tagReview.js'
 
 /**
  * The smart features as the rest of the server sees them: one object, built
@@ -36,8 +36,8 @@ export class SmartFeatures {
     wrapped: (range: WrappedRange) => Wrapped
   }
   readonly #progress = new AskProgress()
-  /** One Suggest tags pass at a time: a second press joins the first. */
-  #suggesting: Promise<TagSuggestions> | null = null
+  /** One pass over the untagged songs at a time: a second press joins the first. */
+  #untagged: Promise<TagReview> | null = null
 
   constructor(deps: {
     llm: Llm
@@ -59,7 +59,7 @@ export class SmartFeatures {
   ask(
     text: string,
     playing: number | null = null,
-    allowed: { tidy: boolean } = { tidy: true },
+    allowed: { tidy: boolean; tags: boolean } = { tidy: true, tags: true },
     ticket?: string,
   ): Promise<AskAnswer> {
     return ask(this.#deps, text, playing, allowed, this.#progress.track(ticket))
@@ -116,11 +116,12 @@ export class SmartFeatures {
     return tidy(this.#deps)
   }
 
-  suggestTags(): Promise<TagSuggestions> {
-    this.#suggesting ??= suggestTags(this.#deps).finally(() => {
-      this.#suggesting = null
+  /** Tags for the songs without one, as changes to approve (Tags' untagged card). */
+  untaggedTags(): Promise<TagReview> {
+    this.#untagged ??= tagReview(this.#deps, { text: null }).finally(() => {
+      this.#untagged = null
     })
-    return this.#suggesting
+    return this.#untagged
   }
 }
 

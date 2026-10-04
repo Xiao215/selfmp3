@@ -114,27 +114,44 @@ export const DescribeResultSchema = z.object({
 })
 export type DescribeResult = z.infer<typeof DescribeResultSchema>
 
-export const TagSuggestionSchema = z.object({
-  /** An existing tag's name, or the name of a tag that would be made. */
+/** What a tag change does: songs gain or lose the tag, or the tag itself is renamed, merged or deleted. */
+export const TagChangeOpSchema = z.enum(['add', 'remove', 'rename', 'merge', 'delete'])
+export type TagChangeOp = z.infer<typeof TagChangeOpSchema>
+
+/**
+ * One change to the tags, to approve (docs/features/ai.md, "Tags"). `by` says
+ * whether the library's own tagging found it or the model judged it.
+ */
+export const TagChangeSchema = z.object({
+  key: z.string(),
+  op: TagChangeOpSchema,
+  /** The tag, by its name: one of yours, or for an add, one that would be made. */
   tag: z.string(),
+  /** An add whose tag does not exist yet. */
   isNew: z.boolean(),
-  songIds: z.array(IdSchema).min(1),
-  /** Who the songs are by, shortest first: "周杰倫 76, 薛之谦 12, +8 more". */
+  /** A rename's new name, or the tag a merge goes into; null otherwise. */
+  to: z.string().nullable(),
+  /** An add's or a remove's songs, by the server's ids; empty for the rest. */
+  songIds: z.array(IdSchema),
+  /** Who the songs are by, biggest first: "周杰倫 76, 薛之谦 12, +8 more". */
   who: z.string(),
   why: z.string(),
-  /** Read off the library's own tagging, or judged by the model. */
-  from: z.enum(['library', 'model']),
+  by: z.enum(['rule', 'model']),
 })
-export type TagSuggestion = z.infer<typeof TagSuggestionSchema>
+export type TagChange = z.infer<typeof TagChangeSchema>
 
-export const TagSuggestionsSchema = z.object({
-  /** Songs without a tag when this was worked out. */
-  untagged: z.number().int().nonnegative(),
-  suggestions: z.array(TagSuggestionSchema),
+export const TagReviewSchema = z.object({
+  changes: z.array(TagChangeSchema),
+  /** How many songs were looked at. */
+  looked: z.number().int().nonnegative(),
+  /** What was asked for, or null for the untagged songs' pass. */
+  asked: z.string().nullable(),
   /** Songs it would not guess for, and why. */
   unsure: z.array(z.object({ songIds: z.array(IdSchema), who: z.string(), why: z.string() })),
+  /** Set when something was left out: the model could not be asked, or there was too much. */
+  note: z.string().nullable(),
 })
-export type TagSuggestions = z.infer<typeof TagSuggestionsSchema>
+export type TagReview = z.infer<typeof TagReviewSchema>
 
 /**
  * The Search box's Ask (docs/features/ai.md, "S1"): one request, routed to one
@@ -215,15 +232,8 @@ export const AskAnswerSchema = z.discriminatedUnion('kind', [
     terms: z.array(z.string()),
     picks: z.array(DescribePickSchema),
   }),
-  /** One tag for many songs; `already` of them carry it now. */
-  z.object({
-    kind: z.literal('tag'),
-    tag: z.string(),
-    isNew: z.boolean(),
-    understanding: UnderstandingSchema,
-    songIds: z.array(IdSchema),
-    already: z.number().int().nonnegative(),
-  }),
+  /** Tags put on or taken off songs, renamed, merged or deleted, as changes to approve. */
+  z.object({ kind: z.literal('tags'), review: TagReviewSchema }),
   /** A question about your listening, answered from the plays, never written by the model. */
   z.object({
     kind: z.literal('stats'),

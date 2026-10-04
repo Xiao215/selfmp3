@@ -253,7 +253,7 @@ export function TagsScreen(): ReactNode {
             rest={waiting.rest}
             wide={wide}
             onStart={playAndTag.start}
-            onSuggest={switches.suggestTags ? () => setSuggesting(true) : undefined}
+            onSuggest={switches.tags ? () => setSuggesting(true) : undefined}
             onArtist={openArtist}
           />
         ) : null}

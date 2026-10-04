@@ -27,7 +27,6 @@ const route = (overrides: Record<string, unknown>) => ({
   play: false,
   next: false,
   songs: null,
-  tag: null,
   find: null,
   stats: null,
   playlists: null,
@@ -174,30 +173,42 @@ describe('ask', () => {
     expect(await ask(d, 'queue some YOASOBI')).toMatchObject({ kind: 'songs', lead: 'save' })
   })
 
-  it('proposes a tag for the songs the filters choose, counting the ones that have it', async () => {
+  it('hands anything about tags to the tag review, with the request itself', async () => {
     const d = deps({
-      'ask-route': [
-        route({
-          action: 'tag',
-          tag: { name: 'JPOP' },
-          songs: { ...noFilters, artists: ['Yorushika'] },
-        }),
+      'ask-route': [route({ action: 'tags' })],
+      'tags-plan': [
+        {
+          checkup: false,
+          ops: [],
+          focus: ['jpop'],
+          newTag: null,
+          songs: 'without',
+          artists: ['Yorushika'],
+        },
+      ],
+      'tags-groups': [
+        {
+          groups: [
+            { g: 'g1', add: ['jpop'], remove: [], newTag: null, sure: 'high', why: 'J-pop' },
+          ],
+        },
       ],
     })
-    expect(await ask(d, 'tag yorushika jpop')).toMatchObject({
-      kind: 'tag',
-      tag: 'jpop',
-      isNew: false,
-      songIds: [13],
-      already: 1,
-    })
+    const answer = await ask(d, 'tag the yorushika songs that should be jpop')
+    expect(answer).toMatchObject({ kind: 'tags', review: { asked: expect.any(String) } })
+    if (answer.kind !== 'tags') throw new Error('not tags')
+    expect(answer.review.changes).toEqual([
+      expect.objectContaining({ op: 'add', tag: 'jpop', songIds: [13] }),
+    ])
+    expect(d.llm.asked[1]!.prompt).toContain('tag the yorushika songs that should be jpop')
   })
 
-  it('will not tag the whole library', async () => {
-    const d = deps({
-      'ask-route': [route({ action: 'tag', tag: { name: 'mine' }, songs: noFilters })],
+  it('says so when Tags is turned off', async () => {
+    const d = deps({ 'ask-route': [route({ action: 'tags' })] })
+    expect(await ask(d, 'tidy my tags', null, { tidy: true, tags: false })).toMatchObject({
+      kind: 'none',
     })
-    expect(await ask(d, 'tag everything mine')).toMatchObject({ kind: 'none' })
+    expect(d.llm.asked).toHaveLength(1)
   })
 
   it('finds a half-remembered song through titles and lyrics, then picks', async () => {

@@ -1,23 +1,22 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { plural, type AskAnswer as Answer } from '@selfmp3/shared'
-import { failureText, radius, space, useBulkTag, useCreateTag, useLibrary } from '@selfmp3/client'
+import { failureText, radius, space, useLibrary } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { Button } from '../../ui/components/Button'
-import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
-import { Play, X } from '../../ui/components/Icons'
-import { showToast } from '../../ui/toast'
+import { Play } from '../../ui/components/Icons'
 import { placePath, rangeWords } from './smart.model'
 import { PlaylistsAnswer } from './PlaylistsAnswer'
 import { SongsAnswerCard } from './SongsAnswerCard'
+import { TagsReview } from './TagsReview'
 import { TidyReview } from './TidyReview'
 import type { AnswerKeys } from './answerKeys'
 import { Working } from './Working'
@@ -45,10 +44,9 @@ export function AskAnswer({
   onOpenPage?: () => void
   /** How tall a long answer's list may grow before it scrolls. */
   listHeight?: number
-  /** For an answer that takes keys while the box keeps the focus (Tidy up's). */
+  /** For an answer that takes keys while the box keeps the focus (Tidy up's, the tags'). */
   onKeys?: (keys: AnswerKeys | null) => void
 }): ReactNode {
-  const { theme } = useUnistyles()
   const server = useSmartServer()
   const player = usePlayer()
   // What "this" meant when it was asked (A8): the song playing then, not whichever comes next.
@@ -102,7 +100,6 @@ export function AskAnswer({
         text={text}
         onDone={onDone}
         onOpenPage={onOpenPage}
-        muted={theme.colors.textMuted}
         listHeight={listHeight}
         onKeys={onKeys}
       />
@@ -115,7 +112,6 @@ function Drawn({
   text,
   onDone,
   onOpenPage,
-  muted,
   listHeight,
   onKeys,
 }: {
@@ -123,7 +119,6 @@ function Drawn({
   text: string
   onDone: () => void
   onOpenPage: () => void
-  muted: string
   listHeight: number
   onKeys?: (keys: AnswerKeys | null) => void
 }): ReactNode {
@@ -133,8 +128,10 @@ function Drawn({
       return <SongsAnswerCard answer={answer} text={text} onPlayed={onDone} onOpen={onOpenPage} />
     case 'find':
       return <Found answer={answer} onDone={onDone} />
-    case 'tag':
-      return <TagMany answer={answer} onDone={onDone} muted={muted} />
+    case 'tags':
+      return (
+        <TagsReview review={answer.review} height={listHeight} onClose={onDone} onKeys={onKeys} />
+      )
     case 'tidy':
       return (
         <TidyReview result={answer.tidy} height={listHeight} onClose={onDone} onKeys={onKeys} />
@@ -241,116 +238,6 @@ function Found({
   )
 }
 
-/** One tag for many songs: the ones that would get it, and the press that does it. */
-function TagMany({
-  answer,
-  onDone,
-  muted,
-}: {
-  answer: Extract<Answer, { kind: 'tag' }>
-  onDone: () => void
-  muted: string
-}): ReactNode {
-  const server = useSmartServer()
-  const { data: library } = useLibrary()
-  const createTag = useCreateTag()
-  const bulkTag = useBulkTag()
-  const [looking, setLooking] = useState(false)
-  const [left, setLeft] = useState<ReadonlySet<number>>(new Set())
-  const [busy, setBusy] = useState(false)
-
-  const songsById = new Map((library?.songs ?? []).map(song => [song.id, song]))
-  const here = (library?.tags ?? []).find(
-    tag => tag.name.toLowerCase() === answer.tag.toLowerCase(),
-  )
-  const songIds = answer.songIds.flatMap(id => {
-    const mine = server.onDevice(id)
-    return mine === undefined || left.has(mine) || !songsById.has(mine) ? [] : [mine]
-  })
-
-  const add = async (): Promise<void> => {
-    if (songIds.length === 0 || busy) return
-    setBusy(true)
-    try {
-      const tag = here ?? (await createTag.mutateAsync({ name: answer.tag }))
-      await bulkTag.mutateAsync({ songIds, tagId: tag.id, action: 'add' })
-      showToast(`Tagged ${plural(songIds.length, 'song', 'songs')} ${tag.name}`, 'good')
-      onDone()
-    } catch {
-      // The mutations say what failed themselves.
-      setBusy(false)
-    }
-  }
-
-  if (answer.songIds.length === 0) {
-    return (
-      <Text style={styles.line}>
-        {answer.already > 0
-          ? `All ${plural(answer.already, 'song', 'songs')} already have ${answer.tag}.`
-          : `No song of yours fits that, so nothing would get ${answer.tag}.`}
-      </Text>
-    )
-  }
-  return (
-    <>
-      <Text style={styles.head}>
-        {answer.isNew && !here ? 'Make the tag ' : 'Add '}
-        {answer.tag} {answer.isNew && !here ? 'for' : 'to'}{' '}
-        {plural(songIds.length, 'song', 'songs')}
-      </Text>
-      <View style={styles.chipsRow}>
-        <Chip
-          compact
-          label={answer.tag}
-          hue={here?.hue}
-          selected={false}
-          dashed
-          onPress={() => setLooking(on => !on)}
-        />
-        {answer.already > 0 ? (
-          <Text style={styles.muted}>
-            {plural(answer.already, 'song has', 'songs have')} it already
-          </Text>
-        ) : null}
-      </View>
-      {looking ? (
-        <ScrollView style={styles.list}>
-          {songIds.map(id => {
-            const song = songsById.get(id)!
-            return (
-              <View key={id} style={styles.small}>
-                <Text style={styles.title} numberOfLines={1}>
-                  {song.title}
-                  <Text style={styles.muted}> · {song.artist || 'Unknown artist'}</Text>
-                </Text>
-                <Pressable
-                  onPress={() => setLeft(current => new Set([...current, id]))}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Leave ${song.title} out`}
-                  style={({ pressed }) => [styles.leave, pressed && styles.pressed]}
-                >
-                  <X size={13} color={muted} />
-                </Pressable>
-              </View>
-            )
-          })}
-        </ScrollView>
-      ) : null}
-      <View style={styles.actions}>
-        <Button label={looking ? 'Hide' : 'Look through'} onPress={() => setLooking(on => !on)} />
-        <Button
-          label={answer.isNew && !here ? 'Make the tag' : 'Add the tag'}
-          variant="primary"
-          disabled={songIds.length === 0}
-          busy={busy}
-          onPress={() => void add()}
-          testID="ask-tag-add"
-        />
-      </View>
-    </>
-  )
-}
-
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.sm },
   head: { color: theme.colors.textPrimary, fontSize: 15.5, fontWeight: '600' },
@@ -358,8 +245,6 @@ const styles = StyleSheet.create(theme => ({
   muted: { color: theme.colors.textMuted, fontSize: 12.5, fontWeight: '400' },
   error: { color: theme.colors.danger, fontSize: 12.5 },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
-  chipsRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },
-  list: { maxHeight: 220 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -368,16 +253,8 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.xs,
     borderRadius: radius.coverSm,
   },
-  small: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   text: { flex: 1, minWidth: 0 },
   title: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: 13, fontWeight: '500' },
   why: { color: theme.colors.textMuted, fontSize: 11.5 },
-  leave: {
-    width: 26,
-    height: 26,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   pressed: { opacity: 0.6 },
 }))

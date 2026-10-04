@@ -40,7 +40,7 @@ export const SettingsSchema = z.object({
    */
   smartAsk: z.boolean().default(true),
   smartTidy: z.boolean().default(true),
-  smartSuggestTags: z.boolean().default(true),
+  smartTags: z.boolean().default(true),
   smartWritten: z.boolean().default(true),
 })
 export type Settings = z.infer<typeof SettingsSchema>

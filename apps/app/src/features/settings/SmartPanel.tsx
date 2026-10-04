@@ -25,7 +25,7 @@ import { Panel, Row } from './SettingsParts'
  * less than that.
  */
 const SWITCHES: readonly {
-  key: 'smartAsk' | 'smartTidy' | 'smartSuggestTags' | 'smartWritten'
+  key: 'smartAsk' | 'smartTidy' | 'smartTags' | 'smartWritten'
   label: string
   sees: string
 }[] = [
@@ -40,9 +40,9 @@ const SWITCHES: readonly {
     sees: 'Sends artist and album names, with how many songs each. Never a title or a lyric.',
   },
   {
-    key: 'smartSuggestTags',
-    label: 'Suggest tags',
-    sees: 'Sends what each of your tags holds, and the artists, albums and a few titles of songs without a tag.',
+    key: 'smartTags',
+    label: 'Tags',
+    sees: 'Suggest tags, and asking for tags to be put on, taken off, renamed or merged. Sends what each of your tags holds, and the artists, albums, tags and a few titles of the songs in question.',
   },
   {
     key: 'smartWritten',

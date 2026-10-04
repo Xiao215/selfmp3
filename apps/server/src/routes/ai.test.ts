@@ -93,14 +93,14 @@ describe('smart features turned off in Settings', () => {
     container.settings.update({
       smartAsk: false,
       smartTidy: false,
-      smartSuggestTags: false,
+      smartTags: false,
       smartWritten: false,
     })
     for (const [method, url, body] of [
       ['POST', '/api/ai/ask', { text: 'check my song names' }],
       ['POST', '/api/ai/describe', { text: 'calm piano', understanding: null }],
       ['GET', '/api/ai/tidy'],
-      ['GET', '/api/ai/tag-suggestions'],
+      ['GET', '/api/ai/tags/untagged'],
       ['GET', '/api/ai/written?range=month'],
     ] as const) {
       const response = await call(method, url, body)

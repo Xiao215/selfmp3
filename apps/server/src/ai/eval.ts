@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3'
-import { WrappedRangeSchema } from '@selfmp3/shared'
+import { WrappedRangeSchema, type TagReview } from '@selfmp3/shared'
 import { loadConfig } from '../config.js'
 import { createLogger } from '../logger.js'
 import { LyricsSearchRepository } from '../repositories/lyricsSearch.js'
@@ -16,7 +16,7 @@ import { SmartFeatures, llmFor, setupFor } from './smart.js'
  *
  *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> describe "calm piano for reading"
  *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> tags
- *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> ask "tag every 周杰倫 song 中文流行"
+ *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> ask "tag the songs that should be 中文流行"
  *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> tidy
  *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> written month
  *   PLAYING=<song id> npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> ask "something calmer like this next"
@@ -60,6 +60,10 @@ if (what === 'ask') {
   // PLAYING=<song id> asks as if that song were playing (A8).
   const playing = process.env['PLAYING'] ? Number(process.env['PLAYING']) : null
   const answer = await smart.ask(words.join(' '), playing)
+  if (answer.kind === 'tags') {
+    printTagReview(answer.review)
+    process.exit(0)
+  }
   const shown =
     'describe' in answer
       ? { ...answer, describe: { ...answer.describe, picks: undefined } }
@@ -95,11 +99,17 @@ if (what === 'ask') {
     )
   }
 } else {
-  const result = await smart.suggestTags()
-  console.log(`${result.untagged} untagged`)
-  for (const each of result.suggestions) {
+  const result = await smart.untaggedTags()
+  printTagReview(result)
+}
+
+function printTagReview(result: TagReview): void {
+  console.log(`${result.looked} songs looked at · ${result.changes.length} changes`)
+  if (result.note) console.log(result.note)
+  for (const each of result.changes) {
+    const what = each.to ? `${each.tag} → ${each.to}` : each.tag
     console.log(
-      `${each.isNew ? 'NEW ' : ''}${each.tag} · ${each.songIds.length} · ${each.who} · ${each.why} [${each.from}]`,
+      `${each.op} ${each.isNew ? 'NEW ' : ''}${what} · ${each.songIds.length} · ${each.who} · ${each.why} [${each.by}]`,
     )
   }
   for (const each of result.unsure) console.log(`unsure · ${each.who} · ${each.why}`)

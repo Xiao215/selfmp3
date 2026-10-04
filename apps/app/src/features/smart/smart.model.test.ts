@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@selfmp3/client'
-import type { DescribeResult, Song, Tag, TidyChange, Understanding } from '@selfmp3/shared'
+import type {
+  DescribeResult,
+  Playlist,
+  Song,
+  Tag,
+  TagChange,
+  TidyChange,
+  Understanding,
+} from '@selfmp3/shared'
 import {
   askable,
   describeNotes,
@@ -14,10 +22,12 @@ import {
   tickedAtFirst,
   tidyEdits,
   tidyHere,
-  tidyBands,
+  reviewBands,
   tidyParts,
   leftOutKey,
-  suggestionsHere,
+  swapTagInRules,
+  tagChangesHere,
+  tagSteps,
   tagIdsFor,
   took,
 } from './smart.model'
@@ -110,26 +120,6 @@ describe('describeNotes', () => {
       'Nothing fit all of it, so it let go of the energy.',
       'Your library has no Lo-fi.',
     ])
-  })
-})
-
-describe('suggestionsHere', () => {
-  it('finds the tag here by name, and drops a suggestion with no song here', () => {
-    const onDevice = (id: number) => (id === 1 ? 101 : undefined)
-    const suggestion = (tag: string, songIds: number[]) => ({
-      tag,
-      isNew: false,
-      songIds,
-      who: 'x',
-      why: 'y',
-      from: 'model' as const,
-    })
-    const here = suggestionsHere(
-      [suggestion('JPOP', [1, 2]), suggestion('古典', [2])],
-      onDevice,
-      TAGS,
-    )
-    expect(here).toEqual([{ suggestion: suggestion('JPOP', [1, 2]), songIds: [101], tag: TAGS[1] }])
   })
 })
 
@@ -248,7 +238,8 @@ describe('Tidy up', () => {
 
   it('bands what a rule found ahead of what the model guessed, each under its reasons', () => {
     const all = [{ change: changes[2]!, songIds: [19] }, ...tidyHere(changes, onDevice, songs)]
-    expect(tidyBands(all).map(band => [band.by, band.reasons.map(reason => reason.why)])).toEqual([
+    const bands = reviewBands(all, each => each.change.why)
+    expect(bands.map(band => [band.by, band.sections.map(section => section.title)])).toEqual([
       ['rule', ['Twice', 'w']],
       ['model', ['w']],
     ])
@@ -286,5 +277,108 @@ describe('Tidy up', () => {
     // Another spelling puts words in: a rename, drawn old → new.
     expect(tidyParts('Rokudenashi', 'ロクデナシ')).toBeNull()
     expect(tidyParts('Hoyo-Mix', 'HOYO-MiX')).toBeNull()
+  })
+})
+
+describe('tag changes', () => {
+  const tags: Tag[] = [
+    { id: 1, name: '中文流行', hue: 85, songCount: 2 },
+    { id: 2, name: 'jpop', hue: 231, songCount: 2 },
+    { id: 3, name: 'chinese pop', hue: 10, songCount: 1 },
+  ]
+  const song = (id: number, tagIds: number[]) => ({ id, tagIds }) as unknown as Song
+  const songs = [song(11, [1]), song(12, []), song(13, [2]), song(14, [2, 3])]
+  const songsById = new Map(songs.map(each => [each.id, each]))
+  const onDevice = (serverId: number) => serverId + 10
+  const change = (over: Partial<TagChange>): TagChange => ({
+    key: 'k',
+    op: 'add',
+    tag: '中文流行',
+    isNew: false,
+    to: null,
+    songIds: [],
+    who: 'w',
+    why: 'y',
+    by: 'model',
+    ...over,
+  })
+  const live = (id: number, tagIds: number[]): Playlist =>
+    ({
+      id,
+      kind: 'live',
+      rules: {
+        match: 'any',
+        rules: tagIds.map(tagId => ({ field: 'tag', op: 'has', tagId })),
+        orderBy: 'addedAt',
+        order: 'desc',
+        limit: null,
+      },
+    }) as unknown as Playlist
+
+  it('keeps an add’s songs still without the tag, and a remove’s still with it', () => {
+    const here = tagChangesHere(
+      [
+        change({ key: 'a', songIds: [1, 2] }),
+        change({ key: 'r', op: 'remove', tag: 'JPOP', songIds: [1, 3] }),
+        change({ key: 'n', tag: 'Mandopop', isNew: true, songIds: [2] }),
+        change({ key: 'gone', op: 'delete', tag: 'Nope' }),
+        change({ key: 'clash', op: 'rename', tag: 'jpop', to: '中文流行' }),
+        change({ key: 'm', op: 'merge', tag: 'chinese pop', to: '中文流行' }),
+      ],
+      onDevice,
+      songsById,
+      tags,
+    )
+    expect(here.map(each => [each.change.key, each.songIds, each.tag?.id ?? null])).toEqual([
+      ['a', [12], 1],
+      ['r', [13], 2],
+      ['n', [12], null],
+      ['m', [], 3],
+    ])
+  })
+
+  it('makes new tags first, then songs, renames, merges and deletes, with what Undo needs', () => {
+    const here = tagChangesHere(
+      [
+        change({ key: 'd', op: 'delete', tag: 'jpop' }),
+        change({ key: 'm', op: 'merge', tag: 'chinese pop', to: '中文流行' }),
+        change({ key: 'n', tag: 'Mandopop', isNew: true, songIds: [2] }),
+        change({ key: 'a', songIds: [2] }),
+      ],
+      onDevice,
+      songsById,
+      tags,
+    )
+    const steps = tagSteps(here, new Set(), songs, [live(5, [3, 1]), live(6, [2])])
+    expect(steps).toEqual([
+      { kind: 'make', name: 'Mandopop' },
+      { kind: 'songs', action: 'add', tag: { name: 'Mandopop' }, songIds: [12] },
+      { kind: 'songs', action: 'add', tag: { id: 1 }, songIds: [12] },
+      {
+        kind: 'merge',
+        from: tags[2],
+        into: tags[0],
+        songIds: [14],
+        gaining: [14],
+        playlists: [{ id: 5, rules: expect.anything() }],
+      },
+      {
+        kind: 'delete',
+        tag: tags[1],
+        songIds: [13, 14],
+        playlists: [{ id: 6, rules: expect.anything() }],
+      },
+    ])
+    // A song left out of an add is not given the tag.
+    const leftOut = new Set([leftOutKey('a', 12)])
+    expect(tagSteps(here, leftOut, songs, []).filter(step => step.kind === 'songs')).toHaveLength(1)
+  })
+
+  it('moves a playlist from a merged tag onto the one it goes into, once', () => {
+    const playlist = live(5, [3, 1])
+    if (playlist.kind !== 'live') throw new Error('not live')
+    expect(swapTagInRules(playlist.rules, 3, 1).rules).toEqual([
+      { field: 'tag', op: 'has', tagId: 1 },
+    ])
   })
 })

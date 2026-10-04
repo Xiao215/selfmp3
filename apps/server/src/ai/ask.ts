@@ -2,7 +2,6 @@ import { z } from 'zod/v4'
 import {
   AskPlaceSchema,
   AskStatsRangeSchema,
-  TAG_NAME_MAX,
   type AskAnswer,
   type Song,
   type Stats,
@@ -14,11 +13,11 @@ import {
   groundPicks,
   groundPlan,
   narrowAndPick,
-  songsFitting,
   type DescribeDeps,
 } from './describe.js'
 import { libraryShape, songTable } from './library.js'
 import { Remembered } from './llm.js'
+import { tagReview } from './tagReview.js'
 import { tidy } from './tidy.js'
 
 import { NO_STEPS, type Steps } from './progress.js'
@@ -27,14 +26,14 @@ import { NO_STEPS, type Steps } from './progress.js'
  *
  * A router: one call reads the request against the library's shape and
  * chooses one of a fixed list of actions, filling in what that action needs.
- * Then the action runs as code, and only "songs" and "find" make a second
- * call, to pick. Every answer is a proposal: nothing here writes.
+ * Then the action runs as code: "songs" and "find" make a second call, to
+ * pick, and "tags" and "tidy" run their own reviews. Every answer is a proposal: nothing here writes.
  *
  * The router's answer for "songs" is Describe's plan itself, so a playlist
  * asked for in the box costs what Describe costs and no more.
  */
 
-const VERSION = 4
+const VERSION = 5
 
 /** The most songs a "find" is chosen from. */
 const MAX_FOUND = 150
@@ -43,14 +42,13 @@ const FIND_SIZE = 5
 const NEXT_SIZE = 10
 
 const RouteOut = z.object({
-  action: z.enum(['songs', 'find', 'tag', 'stats', 'tidy', 'playlists', 'open', 'none']),
+  action: z.enum(['songs', 'find', 'tags', 'stats', 'tidy', 'playlists', 'open', 'none']),
   /** songs: they want it now, not kept. */
   play: z.boolean(),
   /** songs: they want it after the song playing, in Up next. */
   next: z.boolean(),
-  /** songs, and tag (as the songs to tag): the filters, as Describe's plan. */
+  /** songs: the filters, as Describe's plan. */
   songs: PlanOut.nullable(),
-  tag: z.object({ name: z.string().max(60) }).nullable(),
   find: z
     .object({ terms: z.array(z.string().max(60)).max(12), brief: z.string().max(200) })
     .nullable(),
@@ -77,14 +75,14 @@ const ROUTE_SYSTEM = `You are the request box of someone's own music app. Turn o
 The actions:
 - songs: they want music: a playlist made, or something to listen to. Fill "songs" with the filters below. Set play to true when they want it now ("play…", "put on…", "something for right now"), false when they want it kept ("make a playlist…"). Set next to true when they want it after the song playing ("next", "after this", "queue up…", "up next"), or when they ask to steer what is playing ("more like this", "something calmer"). When a song is playing and they say "this", "like this" or "after this", describe the music relative to it with the filters: its artists or tags for "like this", an energy range below its energy for "calmer", above it for "more upbeat".
 - find: they are looking for one particular song they half remember (its story, its words, how it sounds). Fill "find": terms are words likely to be in its title, artist, album or lyrics, in every language the library uses (grandma: 外婆, 奶奶, おばあちゃん, grandma), at most twelve; brief is what they remember, in a sentence.
-- tag: they want one tag put on many songs. Fill "tag" with the tag's name, spelled exactly as in their tag list if it exists, and "songs" with the filters that pick those songs (usually artists or tags). Never tag the whole library: if they did not say which songs, choose none.
+- tags: anything about their tags: songs given a tag or taken out of one, even when they leave it to you to say which songs ("tag every 周杰倫 song 中文流行", "tag the songs that should be 中文流行", "take ipop off what isn't Japanese"), a tag renamed, merged into another or deleted, or their tags checked or tidied up. Nothing else to fill: the request itself is what is used.
 - stats: a question about their own listening (most played, how much, which artists). Fill "stats": range is 7d, 30d, 90d, 365d or all ("last month" is 30d, "this year" is 365d); about is songs, artists, tags or totals.
 - tidy: they want their song names checked, fixed or cleaned up: wrong, messy or inconsistent titles, artists or albums, metadata worth fixing. Nothing else to fill.
 - playlists: they want playlists deleted or one renamed. Fill "playlists": op is delete or rename; names are the playlists they mean, copied from their playlist list as closely as you can (they may misspell or shorten them); newName is the new name for a rename, else null. Playlists only, never songs or tags.
 - open: they want to go somewhere in the app rather than get an answer here: import (adding music, which takes a YouTube, Spotify or 网易云 link), stats, tags, library, playlists, settings. Fill "open", and "say" with one sentence on what they will find there. The app shows a button that goes there: never say you opened, changed or did anything.
 - none: anything else, including talk that is not a request. "say" is one plain sentence on what you can do instead. Never pretend to do something.
 
-Filters, for songs and tag:
+Filters, for songs:
 ${FILTERS_GUIDE}`
 
 const FIND_SYSTEM = `Someone is looking for one song in their own library that they half remember. You are given what they remember and a numbered table of candidate songs (with a lyric line where one matched). Reply with JSON only: picks, at most ${FIND_SIZE}, best first, each the song's number (n) and why it fits in at most ten plain words. Only choose songs that plausibly are the one they mean; if none are, return no picks. Never use a number that is not in the table.`
@@ -167,7 +165,7 @@ export async function ask(
   text: string,
   playingId: number | null = null,
   /** Features turned off in Settings that the router may still choose. */
-  allowed: { tidy: boolean } = { tidy: true },
+  allowed: { tidy: boolean; tags: boolean } = { tidy: true, tags: true },
   /** Told each stage as it begins, for the device's waiting steps (`progress.ts`). */
   steps: Steps = NO_STEPS,
 ): Promise<AskAnswer> {
@@ -260,31 +258,11 @@ export async function ask(
       }
     }
 
-    case 'tag': {
-      if (!route.tag || !route.songs) break
-      const { understanding } = groundPlan(route.songs, songs, tags)
-      const chooses =
-        understanding.anyTags.length > 0 ||
-        understanding.artists.length > 0 ||
-        songsFitting(songs, tags, understanding, now).length < songs.length
-      const name = route.tag.name.trim().replace(/\s+/g, ' ')
-      if (!chooses || !name || name.length > TAG_NAME_MAX) {
-        return { kind: 'none', say: 'Say which songs to tag: an artist, a tag, or a kind of song.' }
+    case 'tags':
+      if (!allowed.tags) {
+        return { kind: 'none', say: 'Tags is turned off in Settings › Smart features.' }
       }
-      const existing = tags.find(tag => lower(tag.name) === lower(name)) ?? null
-      steps.begin('Finding the songs to tag')
-      const fitting = songsFitting(songs, tags, understanding, now)
-      const without = fitting.filter(song => !existing || !song.tagIds.includes(existing.id))
-      steps.done(`${without.length} ${without.length === 1 ? 'song' : 'songs'} to tag`)
-      return {
-        kind: 'tag',
-        tag: existing?.name ?? name,
-        isNew: existing === null,
-        understanding,
-        songIds: without.map(song => song.id),
-        already: fitting.length - without.length,
-      }
-    }
+      return { kind: 'tags', review: await tagReview({ ...deps, remembered }, { text }, steps) }
 
     case 'stats': {
       if (!route.stats) break
@@ -355,6 +333,6 @@ export async function ask(
     kind: 'none',
     say:
       route.say ??
-      'Ask for music (a playlist, something to play now), a song you half remember, a tag for many songs, or a question about your listening.',
+      'Ask for music (a playlist, something to play now), a song you half remember, changes to your tags, or a question about your listening.',
   }
 }

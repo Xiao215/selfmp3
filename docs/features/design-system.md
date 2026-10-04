@@ -223,7 +223,7 @@ is a mistake. The rules, and what moves (docs/ui-mock `M1`–`M3`):
 - **Everything that arrives leaves.** A thing that came in over a move goes out over a
   shorter one on `ease.in`, and stays drawn until it has gone: `usePresence` keeps it mounted
   for the way out. The mini player sinks back under the bar, the player bar slides back
-  down, a row's wash draws back to the left, the held queue row settles, the stage's chrome
+  down, a row's wash draws back to the right, the held queue row settles, the stage's chrome
   fades. Nothing that moved in is cut away.
 - **A list never jumps under a pointer.** Where rows come and go because of a press — the
   import queue's Retry, Pause, × — each row is a Reanimated `Animated.View` carrying
@@ -269,7 +269,7 @@ is a mistake. The rules, and what moves (docs/ui-mock `M1`–`M3`):
   back before the route changes; an iPad's stack slides it, 380 ms. The cover shrinks to
   0.84 on pause over 400 ms and grows back on the spring. The desktop stage's chrome fades
   out over 400 ms when the mouse is still and back in 100 ms when it moves.
-- A row that starts playing washes in its colour from the left, 260 ms, and its equaliser
+- A row that starts playing washes in its colour from the right, 260 ms, and its equaliser
   wakes behind it; both draw back as the song moves on. The equaliser's bars keep their
   phase across a pause. With a mouse a row's controls fade in over 100 ms and out over 140,
   and the row's fill warms and cools on the same clocks.

@@ -163,7 +163,7 @@ export const SongRow = memo(function SongRow({
   const active = activeOverride ?? playback !== null
   const playing = playingOverride ?? playback === 'playing'
   // The wash and the equaliser, arriving as this row becomes the playing one
-  // and leaving as it stops (`M2`, 5): in from the left over 260 ms, back out
+  // and leaving as it stops (`M2`, 5): in from the right over 260 ms, back out
   // over a short fade, and drawn for as long as the leaving takes. A row that
   // scrolls into view already playing starts at rest, since a presence begins
   // where it is asked to be.
@@ -621,10 +621,15 @@ function Waking({
  * the cover already fills the left. It stays while the song is paused, so
  * the row still says "this is the one".
  *
- * As the row starts playing it washes in from the left edge, 260 ms, the way
- * the mini player's progress fills (`M2`, 5), so the two read as one thing;
- * as the song moves on it draws back to the left edge, quicker, while the
- * next row's comes in. `progress` is the row's presence.
+ * As the row starts playing it grows in from the right edge, 260 ms, and as
+ * the song moves on it draws back to that edge, quicker, while the next
+ * row's comes in. `progress` is the row's presence.
+ *
+ * From the right, where the gradient is strongest, rather than from the left:
+ * grown from the left, the strong end rode the stretch and stopped at a hard
+ * line partway across the row on every frame of the move. Anchored at the
+ * right it never leaves the row's rounded edge, and the edge that moves is the
+ * clear one (Xiao chose A, 2026-10-04).
  */
 function RowWash({ color, progress }: { color: string; progress: Animated.Value }): ReactNode {
   // Its own id per row. A screen the router keeps hidden behind this one (a
@@ -747,8 +752,8 @@ const styles = StyleSheet.create(theme => ({
   /* The artist is what is scanned for, so it never shrinks; the album does. */
   artist: { flexShrink: 0, color: theme.colors.textSecondary, fontSize: type.small },
   albumInline: { flexShrink: 1, minWidth: 0, color: theme.colors.textMuted, fontSize: type.small },
-  // The wash grows from the row's left edge.
-  washFrom: { transformOrigin: 'left' },
+  // The wash grows from the row's right edge, where it is strongest.
+  washFrom: { transformOrigin: 'right' },
   playingOverlay: {
     position: 'absolute',
     top: 0,

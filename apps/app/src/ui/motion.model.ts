@@ -22,7 +22,7 @@ export const MOVE_MS = {
   railOut: 200,
   /** The tab bar's pill, and the page stepping in (`M2`, 4). */
   tab: 200,
-  /** A playing row's wash coming in from the left (`M2`, 5). */
+  /** A playing row's wash coming in from the right (`M2`, 5). */
   wash: 260,
   /** A held queue row lifting, and its neighbours making room (`M2`, 6). */
   lift: 120,

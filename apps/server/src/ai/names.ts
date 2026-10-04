@@ -51,6 +51,10 @@ export function within(part: string, whole: string): boolean {
 /** What a fan's upload says of itself: "（翻自 YOASOBI）", "【翻唱】", "(Cover)". */
 const COVER = /翻自|翻唱|\bcover\b|カバー|커버/i
 
+/** Whether a catalogue's entry has the song's title, or the song has the entry's. */
+export const sameTitle = (song: Song, listed: { title: string }): boolean =>
+  within(song.title, listed.title) || within(listed.title, song.title)
+
 /** Whether a catalogue's entry has one of the song's artists. */
 const sameArtist = (song: Song, listed: Listed): boolean =>
   creditNames(song.artist).some(name => within(name, listed.artist) || within(listed.artist, name))
@@ -65,9 +69,7 @@ export function sameRecording(song: Song, listed: Listed): boolean {
   if (listed.seconds === null || song.duration <= 0) return false
   if (Math.abs(listed.seconds - song.duration) > SAME_LENGTH_S) return false
   if (COVER.test(listed.title) || COVER.test(listed.album)) return false
-  return (
-    within(song.title, listed.title) || within(listed.title, song.title) || sameArtist(song, listed)
-  )
+  return sameTitle(song, listed) || sameArtist(song, listed)
 }
 
 /** The words of a found name a field's new value must come from. */
@@ -97,11 +99,13 @@ export function catalogueFinder(catalogues: Catalogues, now = () => Date.now()):
     const hit = cache.get(key)
     if (hit && now() - hit.at < CACHE_MS) return hit.found
 
-    // The same recording; when some entries have the song's artist, only those.
+    // The same recording: those with the song's title first, then of those, the song's artist.
     const ours = (listed: readonly Listed[]): FoundName[] => {
       const same = listed.filter(each => sameRecording(song, each))
-      const byArtist = same.filter(each => sameArtist(song, each))
-      return (byArtist.length > 0 ? byArtist : same).map(({ source, title, artist, album }) => ({
+      const titled = same.filter(each => sameTitle(song, each))
+      const pool = titled.length > 0 ? titled : same
+      const byArtist = pool.filter(each => sameArtist(song, each))
+      return (byArtist.length > 0 ? byArtist : pool).map(({ source, title, artist, album }) => ({
         source,
         title,
         artist,

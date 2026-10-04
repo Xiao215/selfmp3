@@ -312,6 +312,27 @@ search (`web_search_options`). The answer is a few sentences and the songs it is
 id is checked to be one of yours. Tried 2026-10-04 with the real model through claude-api: 9 s
 and 17 s, two to three tool calls each.
 
+## Getting music (`getMusic`)
+
+"把千岩旷望剩下的歌下载了", "download 春泥棒" route to `getMusic`: the router gives the words to
+search a catalogue for and whether it is an album or a song (`getMusic.ts`). 网易云 is searched
+(`cloudsearch/pc`, albums or songs); for an album each of the first four is read song by song,
+and each song counts as yours when one of your songs is the same recording with the same title
+(`sameRecording` + `sameTitle`: an album holds many songs by one artist of about one length, so
+the artist alone would count wrongly). The card lists them ("40 songs · you have 4"), and
+Import opens with the one chosen (`/import?url=`), whose review shows what you have and finds a
+song 网易云 only previews on YouTube instead. No model call beyond the router: 3–6 s.
+
+## Searching the web
+
+Settings › Smart features › Search the web, off by default (`smartWeb`). On, two things may
+search: `explore` (the call carries `web_search_options`), and the names pass for songs no
+catalogue has, a second model call per 15 songs with web search (at most 150 songs), whose
+names are the model's, unticked, under "Found on the web". The endpoint does the searching:
+claude-api runs Claude Code's WebSearch and WebFetch for that request only (its f51efe0); an
+endpoint without web search ignores the option. Tried 2026-10-04: an explore question took 26
+s and said where its answer came from.
+
 ## Remembered preferences
 
 "From now on, Chinese names only" routes to `remember`, a card that saves the note when you

@@ -15,6 +15,7 @@ import { Cover } from '../../ui/components/Cover'
 import { Play, Sparkle } from '../../ui/components/Icons'
 import { ChangeField, TrailStep } from './ChangeIt'
 import { placePath, rangeWords } from './smart.model'
+import { GetMusicAnswer } from './GetMusicAnswer'
 import { LibraryAnswer } from './LibraryAnswer'
 import { PlaylistSongsAnswer } from './PlaylistSongsAnswer'
 import { PlaylistsAnswer } from './PlaylistsAnswer'
@@ -221,6 +222,8 @@ function Drawn({
       )
     case 'remember':
       return <RememberAnswer note={answer.note} onDone={onDone} />
+    case 'getMusic':
+      return <GetMusicAnswer answer={answer} onDone={onDone} />
     case 'playlists':
       return <PlaylistsAnswer answer={answer} onDone={onDone} />
     case 'playlistSongs':

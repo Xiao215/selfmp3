@@ -33,7 +33,7 @@ import { NO_STEPS, type Steps } from './progress.js'
  * changed, not a new question with nothing before it.
  */
 
-const VERSION = 11
+const VERSION = 12
 
 const FALLBACK =
   'Ask for music (a playlist, something to play now), a song you half remember, changes to your tags or playlists, or a question about your library or your listening.'

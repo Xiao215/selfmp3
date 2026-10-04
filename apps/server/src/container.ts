@@ -399,6 +399,11 @@ export function createContainer(configured: Config): Container {
     notes: () => settings.get().smartNotes,
     catalogue: words => netease.search(words),
     web: () => settings.get().smartWeb,
+    music: {
+      albums: words => netease.searchAlbums(words),
+      albumTracks: id => netease.albumTracks(id),
+      songs: words => netease.search(words),
+    },
     findNames: catalogueFinder({
       netease: words => netease.search(words),
       lookup: query => lookup.lookup(query),

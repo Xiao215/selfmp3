@@ -23,6 +23,7 @@ import { Remembered } from './llm.js'
 import type { FindNames } from './names.js'
 import type { Steps } from './progress.js'
 import { explore } from './explore.js'
+import { getMusic, type MusicCatalogue } from './getMusic.js'
 import { tagReview } from './tagReview.js'
 import { tidy } from './tidy.js'
 
@@ -53,6 +54,8 @@ export interface AskDeps extends DescribeDeps {
   ) => Promise<readonly { title: string; artist: string; album: string; duration: number }[]>
   /** Settings' web switch: whether looking things up may search the web. */
   readonly web?: () => boolean
+  /** 网易云's albums and songs, for music to import (`getMusic.ts`). */
+  readonly music?: MusicCatalogue
 }
 
 /** Features turned off in Settings that the router may still choose. */
@@ -390,9 +393,21 @@ const lookInto = action({
   run: async ({ deps, text, steps }) => explore(deps, text, steps),
 })
 
+const getMusicAction = action({
+  name: 'getMusic',
+  when: 'they want music they don\'t have yet: an album, the rest of an album, a soundtrack, a song ("get the rest of the Liyue OST", "download 春泥棒", "把千岩旷望下载了"). Fill "getMusic": words are what to search a music catalogue for, the album\'s or song\'s name with its artist as they would be listed (the official name when you know it); kind is album for an album, a soundtrack or "the rest of" one, else song.',
+  fields: z.object({ words: z.string().min(1).max(120), kind: z.enum(['album', 'song']) }),
+  filters: 'unused',
+  run: async ({ deps, steps }, wanted) => {
+    if (!deps.music) return none('Finding music to import needs your server.')
+    const answer = await getMusic({ songs: deps.songs, music: deps.music }, wanted, steps)
+    return answer.items.length > 0 ? answer : none(`网易云 has nothing for “${wanted.words}”.`)
+  },
+})
+
 const open = action({
   name: 'open',
-  when: 'they want to go somewhere in the app rather than get an answer here: import (adding music, which takes a YouTube, Spotify or 网易云 link), stats, tags, library, playlists, settings. Fill "open": place is where, and say is one sentence on what they will find there. The app shows a button that goes there: never say you opened, changed or did anything.',
+  when: 'they want to go somewhere in the app rather than get an answer here: import (to paste a YouTube, Spotify or 网易云 link themselves; for particular music, getMusic), stats, tags, library, playlists, settings. Fill "open": place is where, and say is one sentence on what they will find there. The app shows a button that goes there: never say you opened, changed or did anything.',
   fields: z.object({
     place: z.enum(AskPlaceSchema.options),
     say: z.string().max(240),
@@ -413,5 +428,6 @@ export const ASK_ACTIONS: readonly AskAction<unknown>[] = [
   playlists,
   playlistEdit,
   lookInto,
+  getMusicAction,
   open,
 ]

@@ -55,6 +55,7 @@ export class SmartFeatures {
     notes?: () => readonly string[]
     catalogue?: AskDeps['catalogue']
     web?: () => boolean
+    music?: AskDeps['music']
   }) {
     this.#deps = { ...deps, remembered: new Remembered() }
   }

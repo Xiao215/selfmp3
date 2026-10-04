@@ -222,6 +222,11 @@ export function neteaseSongUrl(id: string): string {
   return `https://music.163.com/song?id=${id}`
 }
 
+/** The link that stands for a 网易云 album, as Import reads it. */
+export function neteaseAlbumUrl(id: string): string {
+  return `https://music.163.com/album?id=${id}`
+}
+
 // --- Spotify ---------------------------------------------------------------
 
 /**

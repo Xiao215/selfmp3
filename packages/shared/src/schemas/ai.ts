@@ -284,6 +284,25 @@ export const AskAnswerSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('tidy'), tidy: TidyResultSchema }),
   /** A way they want things done from now on, to save for every Ask after. */
   z.object({ kind: z.literal('remember'), note: z.string() }),
+  /**
+   * Music to import: the albums or songs 网易云 lists for what was asked, each
+   * with its link for Import and how many of its songs are in the library.
+   */
+  z.object({
+    kind: z.literal('getMusic'),
+    words: z.string(),
+    items: z.array(
+      z.object({
+        kind: z.enum(['album', 'song']),
+        title: z.string(),
+        artist: z.string(),
+        url: z.string(),
+        cover: z.string().nullable(),
+        tracks: z.number().int().nonnegative(),
+        have: z.number().int().nonnegative(),
+      }),
+    ),
+  }),
   /** An open question looked into with tools: the answer in words, and the songs it is about (server ids). */
   z.object({ kind: z.literal('explore'), say: z.string(), songIds: z.array(IdSchema) }),
   /**

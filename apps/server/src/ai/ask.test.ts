@@ -35,6 +35,7 @@ const route = (overrides: Record<string, unknown>) => ({
   library: null,
   tidy: null,
   remember: null,
+  getMusic: null,
   open: null,
   say: null,
   try: null,

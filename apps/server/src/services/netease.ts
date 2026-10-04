@@ -1,5 +1,6 @@
 import {
   cleanArtist,
+  neteaseAlbumUrl,
   neteaseLink,
   neteaseSongUrl,
   withoutRepeats,
@@ -42,6 +43,17 @@ export interface NeteaseTrack {
   readonly thumbnail: string | null
   /** Whether 网易云 gives this server the whole song. */
   readonly free: boolean
+}
+
+/** One 网易云 album, as a search lists it. */
+interface NeteaseAlbum {
+  readonly id: string
+  readonly url: string
+  readonly title: string
+  readonly artist: string
+  /** How many songs it has. */
+  readonly tracks: number
+  readonly cover: string | null
 }
 
 export interface NeteaseList {
@@ -132,6 +144,53 @@ export class NeteaseMusic {
       offset: '0',
     })) as { result?: { songs?: SongJson[] } } | null
     return toTracks(page?.result?.songs ?? [], [])
+  }
+
+  /** Albums 网易云 lists for some words, best first; empty when it did not answer. */
+  async searchAlbums(words: string, limit = 5): Promise<NeteaseAlbum[]> {
+    const page = (await this.#post('cloudsearch/pc', {
+      s: words,
+      type: '10',
+      limit: String(limit),
+      offset: '0',
+    })) as {
+      result?: {
+        albums?: {
+          id?: number
+          name?: string
+          size?: number
+          picUrl?: string
+          artist?: { name?: string }
+          artists?: { name?: string }[]
+        }[]
+      }
+    } | null
+    return (page?.result?.albums ?? []).flatMap(album => {
+      if (typeof album.id !== 'number' || !album.name?.trim()) return []
+      const artists = (album.artists ?? (album.artist ? [album.artist] : []))
+        .map(each => each.name?.trim() ?? '')
+        .filter(Boolean)
+      const picture = album.picUrl?.replace(/^http:/, 'https:')
+      return [
+        {
+          id: String(album.id),
+          url: neteaseAlbumUrl(String(album.id)),
+          title: album.name.trim(),
+          artist: artists.join(', '),
+          tracks: album.size ?? 0,
+          cover: picture ? `${picture}${COVER_PARAM}` : null,
+        },
+      ]
+    })
+  }
+
+  /** An album's songs, or none when 网易云 did not answer. */
+  async albumTracks(id: string): Promise<NeteaseTrack[]> {
+    try {
+      return (await this.list({ kind: 'album', id })).tracks
+    } catch {
+      return []
+    }
   }
 
   /** A song's lyrics, by its id; null when there are none or 网易云 did not answer. */

@@ -170,8 +170,9 @@ test.describe('a playlist', () => {
     const start = async (): Promise<void> => {
       await page.goto('/playlists')
       await page.getByTestId('playlists-new').click()
-      await page.getByRole('textbox', { name: 'Playlist name' }).fill(name)
-      await page.getByTestId('new-playlist-next').click()
+      // One field (N1): the words become the name of a playlist filled by hand.
+      await page.getByTestId('new-playlist-field').fill(name)
+      await page.getByTestId('new-playlist-empty').click()
       await expect(page.getByTestId('add-songs')).toBeVisible()
     }
 
@@ -194,7 +195,7 @@ test.describe('a playlist', () => {
   test('is not listed while it is empty', async ({ page }) => {
     const name = `Flow — empty ${Date.now()}`
     const created = await page.request.post(`${appApi}/api/playlists`, {
-      data: { name, kind: 'manual' },
+      data: { name, kind: 'manual', rules: null },
     })
     expect(created.ok()).toBe(true)
     const { id } = (await created.json()) as { id: number }

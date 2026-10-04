@@ -1,53 +1,57 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useMutation } from '@tanstack/react-query'
 import type { DescribeResult, Understanding } from '@selfmp3/shared'
 import { clientApi, failureText, radius, space, useLibrary } from '@selfmp3/client'
-import { ServerAway } from '../../connection/ServerAway'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
-import { useAccent } from '../../ui/accent'
+import { usePlayer } from '../../player/PlayerProvider'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
-import { X } from '../../ui/components/Icons'
+import { Play, X } from '../../ui/components/Icons'
 import { followRules } from '../library/saveTags'
-import { describeNotes, onlyTags, parts, picksHere, tagIdsFor } from '../smart/smart.model'
-import { useSmartServer } from '../smart/useSmartServer'
-import { newPlaylist } from './playlists.model'
+import { newPlaylist } from '../playlists/playlists.model'
+import { describeNotes, onlyTags, parts, picksHere, tagIdsFor } from './smart.model'
+import { useSmartServer } from './useSmartServer'
 
 /**
- * A1c · Describe a playlist (docs/features/ai.md), inside New playlist.
+ * Songs picked from a description (docs/features/ai.md): what it understood,
+ * as chips that can be taken away, and the picks, each with a reason. Shown by
+ * the Search box's Ask (S1) and by New playlist (N1).
  *
- * You write what you want; the server says what it understood, as chips you
- * can take away, and picks songs from inside them with a reason for each.
  * Taking a chip away does not read the words again: Pick again chooses from
- * what the remaining chips let in. What is made is an ordinary playlist of the
+ * what the remaining chips let in. Keeping it makes an ordinary playlist of the
  * picks, or, when what was understood is tags and nothing else, one that
- * follows them and keeps itself filled.
+ * follows them.
  */
-export function DescribePlaylist({
+export function SongsAnswer({
+  result: first,
+  text,
   name,
-  onCreated,
+  onPlayed,
+  onSaved,
   onCancel,
 }: {
-  /** The name typed above, which wins over the one the words suggest. */
-  name: string
-  onCreated: (playlistId: number) => void
-  onCancel: () => void
+  result: DescribeResult
+  text: string
+  /** A name typed elsewhere, which wins over the one the words suggest. */
+  name?: string
+  /** Given where playing straight away makes sense: the Search box. */
+  onPlayed?: () => void
+  onSaved: (playlistId: number) => void
+  onCancel?: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  const accent = useAccent()
   const server = useSmartServer()
+  const player = usePlayer()
   const { data: library } = useLibrary()
   const artFor = useArt(ROW_COVER_SIZE)
 
-  const [text, setText] = useState('')
-  const [focused, setFocused] = useState(false)
-  const [result, setResult] = useState<DescribeResult | null>(null)
+  const [result, setResult] = useState(first)
   /** The chips as they stand after taking some away; null while they are the answer's. */
   const [edited, setEdited] = useState<Understanding | null>(null)
   const [left, setLeft] = useState<ReadonlySet<number>>(new Set())
@@ -55,10 +59,10 @@ export function DescribePlaylist({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const ask = useMutation({
-    mutationFn: (input: { text: string; understanding: Understanding | null }) => {
+  const again = useMutation({
+    mutationFn: (understanding: Understanding) => {
       if (!server.api) throw new Error('your server isn’t reachable')
-      return server.api.describePlaylist(input)
+      return server.api.describePlaylist({ text, understanding })
     },
     onSuccess: answer => {
       setResult(answer)
@@ -70,27 +74,26 @@ export function DescribePlaylist({
 
   const tags = library?.tags ?? []
   const songsById = new Map((library?.songs ?? []).map(song => [song.id, song]))
-  const understanding = edited ?? result?.understanding ?? null
-  const picks = result
-    ? picksHere(result, server.onDevice).filter(
-        pick => !left.has(pick.songId) && songsById.has(pick.songId),
-      )
-    : []
-  const follows = understanding !== null && onlyTags(understanding) && keepFilled
-  const ready = result !== null && edited === null && (follows || picks.length > 0)
+  const understanding = edited ?? result.understanding
+  const picks = picksHere(result, server.onDevice).filter(
+    pick => !left.has(pick.songId) && songsById.has(pick.songId),
+  )
+  const follows = onlyTags(understanding) && keepFilled
+  const ready = edited === null && (follows || picks.length > 0)
 
-  const pick = (): void => {
-    const words = text.trim()
-    if (!words || ask.isPending) return
-    setError(null)
-    ask.mutate({ text: words, understanding: edited })
+  const play = (): void => {
+    player.playFrom(
+      picks.map(each => each.songId),
+      0,
+    )
+    onPlayed?.()
   }
 
-  const create = async (): Promise<void> => {
-    if (!understanding || !ready || busy) return
+  const save = async (): Promise<void> => {
+    if (!ready || busy) return
     setBusy(true)
     setError(null)
-    const title = name.trim() || understanding.name
+    const title = name?.trim() || understanding.name
     try {
       if (follows) {
         const input = newPlaylist('live', title, {
@@ -101,14 +104,14 @@ export function DescribePlaylist({
           }),
         })
         if (!input) return
-        onCreated((await clientApi().createPlaylist(input)).id)
+        onSaved((await clientApi().createPlaylist(input)).id)
         return
       }
       const input = newPlaylist('manual', title)
       if (!input) return
       const created = await clientApi().createPlaylist(input)
       await clientApi().addToPlaylist(created.id, { songIds: picks.map(each => each.songId) })
-      onCreated(created.id)
+      onSaved(created.id)
     } catch (caught) {
       setError(failureText(`Couldn’t make “${title}”`, caught))
     } finally {
@@ -116,60 +119,40 @@ export function DescribePlaylist({
     }
   }
 
-  const reachable = server.reach.state === 'reachable'
-
   return (
-    <View style={styles.body}>
-      <TextInput
-        style={[styles.words, focused && { borderColor: accent.accent }]}
-        value={text}
-        onChangeText={setText}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        placeholder="calm piano for reading, a few Genshin ones are fine"
-        placeholderTextColor={theme.colors.textMuted}
-        accessibilityLabel="Describe the playlist"
-        multiline
-        maxLength={500}
-        testID="describe-words"
-      />
-
-      {!reachable ? <ServerAway reach={server.reach} need="ai" testID="describe-server" /> : null}
-
-      {understanding ? (
-        <View style={styles.understood} testID="describe-understood">
-          <Text style={styles.label}>Understood as</Text>
-          <View style={styles.chips}>
-            {parts(understanding, tags).map(part => {
-              const takeAway = (): void => setEdited(part.without(understanding))
-              return (
-                <Chip
-                  key={part.key}
-                  compact
-                  label={part.label}
-                  hue={part.hue}
-                  selected={false}
-                  onPress={takeAway}
-                  onRemove={takeAway}
-                />
-              )
-            })}
-            {understanding.brief ? <Text style={styles.brief}>“{understanding.brief}”</Text> : null}
-          </View>
-          {edited ? (
-            <Text style={styles.hint}>Changed. Pick again to choose from what these let in.</Text>
-          ) : result ? (
-            describeNotes(result, picks.length).map(note => (
-              <Text key={note} style={styles.hint}>
-                {note}
-              </Text>
-            ))
-          ) : null}
+    <View style={styles.body} testID="songs-answer">
+      <View style={styles.understood} testID="songs-answer-understood">
+        <Text style={styles.label}>Understood as</Text>
+        <View style={styles.chips}>
+          {parts(understanding, tags).map(part => {
+            const takeAway = (): void => setEdited(part.without(understanding))
+            return (
+              <Chip
+                key={part.key}
+                compact
+                label={part.label}
+                hue={part.hue}
+                selected={false}
+                onPress={takeAway}
+                onRemove={takeAway}
+              />
+            )
+          })}
+          {understanding.brief ? <Text style={styles.brief}>“{understanding.brief}”</Text> : null}
         </View>
-      ) : null}
+        {edited ? (
+          <Text style={styles.hint}>Changed. Pick again to choose from what these let in.</Text>
+        ) : (
+          describeNotes(result, picks.length).map(note => (
+            <Text key={note} style={styles.hint}>
+              {note}
+            </Text>
+          ))
+        )}
+      </View>
 
-      {result && !edited && picks.length > 0 ? (
-        <ScrollView style={styles.list} testID="describe-picks">
+      {!edited && picks.length > 0 ? (
+        <ScrollView style={styles.list} testID="songs-answer-picks">
           {picks.map(each => {
             const song = songsById.get(each.songId)!
             return (
@@ -197,7 +180,7 @@ export function DescribePlaylist({
         </ScrollView>
       ) : null}
 
-      {understanding && !edited && onlyTags(understanding) ? (
+      {!edited && onlyTags(understanding) ? (
         <Pressable
           onPress={() => setKeepFilled(on => !on)}
           accessibilityRole="checkbox"
@@ -210,37 +193,45 @@ export function DescribePlaylist({
         </Pressable>
       ) : null}
 
-      {ask.isPending ? (
+      {again.isPending ? (
         <Text style={styles.hint} accessibilityLiveRegion="polite">
-          Reading your library. This can take half a minute.
+          Picking again from what is left.
         </Text>
       ) : null}
-      {ask.error ? (
-        <Text style={styles.error}>{failureText('Couldn’t pick songs', ask.error)}</Text>
+      {again.error ? (
+        <Text style={styles.error}>{failureText('Couldn’t pick again', again.error)}</Text>
       ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <View style={styles.actions}>
-        <Button label="Cancel" onPress={onCancel} />
-        {result === null || edited !== null ? (
+        {onCancel ? <Button label="Cancel" onPress={onCancel} /> : null}
+        {edited ? (
           <Button
-            label={result ? 'Pick again' : 'Pick songs'}
+            label="Pick again"
             variant="primary"
-            disabled={!text.trim() || !server.api}
-            busy={ask.isPending}
-            onPress={pick}
-            testID="describe-pick"
+            disabled={!server.api}
+            busy={again.isPending}
+            onPress={() => again.mutate(edited)}
+            testID="songs-answer-again"
           />
         ) : (
           <>
-            <Button label="Try again" onPress={pick} busy={ask.isPending} disabled={!server.api} />
+            {onPlayed ? (
+              <Button
+                label="Play now"
+                icon={<Play size={13} color={theme.colors.textPrimary} />}
+                disabled={picks.length === 0}
+                onPress={play}
+                testID="songs-answer-play"
+              />
+            ) : null}
             <Button
-              label="Create"
+              label={onPlayed ? 'Save as a playlist' : 'Create'}
               variant="primary"
               disabled={!ready}
               busy={busy}
-              onPress={() => void create()}
-              testID="describe-create"
+              onPress={() => void save()}
+              testID="songs-answer-save"
             />
           </>
         )}
@@ -251,18 +242,6 @@ export function DescribePlaylist({
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm },
-  words: {
-    minHeight: 64,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    color: theme.colors.textPrimary,
-    fontSize: 14,
-    textAlignVertical: 'top',
-    backgroundColor: theme.colors.surface3,
-    borderWidth: 1,
-    borderColor: theme.colors.surface3,
-    borderRadius: radius.card,
-  },
   understood: { gap: 6 },
   label: {
     color: theme.colors.textMuted,
@@ -274,7 +253,7 @@ const styles = StyleSheet.create(theme => ({
   chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
   brief: { color: theme.colors.textSecondary, fontSize: 12.5, fontStyle: 'italic' },
   hint: { color: theme.colors.textMuted, fontSize: 12, flexShrink: 1 },
-  // Short enough that the sheet's own buttons stay on a laptop's screen.
+  // Short enough that the buttons under it stay on a laptop's screen.
   list: { maxHeight: 220 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5 },
   text: { flex: 1, minWidth: 0 },

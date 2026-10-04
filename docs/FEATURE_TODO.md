@@ -129,19 +129,21 @@ to Google or reach a Tailscale address.
 
 ## Smart features
 
-What exists is in [features/ai.md](features/ai.md): A1c (Describe a playlist) and A7
-(Suggest tags). The letters are the AI ideas canvas's
-(<https://claude.ai/artifact/F9yEDvXnGRhgMrVQevHumS>). Drawn there, not built:
+What exists is in [features/ai.md](features/ai.md): S1 (Ask in the Search box, which also
+covers finding a song by what you remember and questions about your listening), N1 (New
+playlist as one field), the Describe pipeline (A1c) and A7 (Suggest tags). The letters are
+the AI ideas canvas's (<https://claude.ai/artifact/F9yEDvXnGRhgMrVQevHumS>). Drawn there,
+not built:
 
 - **A4: Tidy up**, the first that needs a real loop of tools (artists, near-duplicates, the
   MusicBrainz lookup), run as a background pass whose proposals any device reviews.
   "Yu-Peng Chen, HOYO-MiX, Yu-Peng Chen, Zach Huang" and "薛之谦, 薛之谦, 薛之谦" are in
-  the real library today.
+  the real library today. The box would then answer "the artist names are a mess" with it.
 - **A9: clean names on import**, the same agent one song at a time inside import review.
-- **A2: what a line is saying**, **A3: search by meaning**, **A8: steer Up next**, **A5:
-  your month, written**, and **Settings › Smart features** (a switch per feature, what leaves
-  the library, where it runs).
-- Not tried yet: the phone app (both screens were checked in Chrome at 1280 and 390 wide),
+- **A8: steer Up next** ("something like this, but calmer" needs the playing song sent with
+  the request), **A5: your month, written**, and **Settings › Smart features** (a switch per
+  feature, what leaves the library, where it runs).
+- Not tried yet: the phone app (every screen was checked in Chrome at 1280 and 390 wide),
   and a device reaching the server through the cloud (the check ran against a server
   directly; the id translation is the same code Stats uses).
 

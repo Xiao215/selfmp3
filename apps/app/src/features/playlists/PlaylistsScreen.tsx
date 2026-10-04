@@ -221,7 +221,7 @@ function NewTile({
           New playlist
         </Text>
         <Text style={styles.tileSub} numberOfLines={1}>
-          Pick songs, or let rules pick
+          Follow tags, pick songs, or describe it
         </Text>
       </Pressable>
     </View>

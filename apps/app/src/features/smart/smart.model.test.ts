@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { DescribeResult, Tag, Understanding } from '@selfmp3/shared'
 import {
+  askable,
   describeNotes,
+  exactTag,
+  matchingTags,
   onlyTags,
   parts,
   picksHere,
@@ -122,5 +125,33 @@ describe('suggestionsHere', () => {
 describe('tagIdsFor', () => {
   it('matches names whatever their case', () => {
     expect(tagIdsFor(['JPop', 'none'], TAGS)).toEqual([9])
+  })
+})
+
+describe('askable', () => {
+  it('offers to ask for a sentence, or for letters nothing matches', () => {
+    expect(askable('calm piano', 3)).toBe(true)
+    expect(askable('yoru', 13)).toBe(false)
+    expect(askable('周杰倫的慢歌', 0)).toBe(true)
+    expect(askable('ab', 0)).toBe(false)
+  })
+})
+
+describe('matchingTags', () => {
+  const more: Tag[] = [...TAGS, { id: 11, name: 'j-anime', hue: 321, songCount: 1 }]
+
+  it('puts names that start with the letters first, then the bigger tags', () => {
+    expect(matchingTags('j', more, []).map(tag => tag.name)).toEqual(['jpop', 'j-anime'])
+    expect(matchingTags('pop', more, []).map(tag => tag.name)).toEqual(['jpop'])
+  })
+
+  it('leaves out the tags already chosen, and offers nothing for nothing typed', () => {
+    expect(matchingTags('j', more, [9]).map(tag => tag.name)).toEqual(['j-anime'])
+    expect(matchingTags('  ', more, [])).toEqual([])
+  })
+
+  it('knows a tag typed in full', () => {
+    expect(exactTag(' JPOP ', more)?.id).toBe(9)
+    expect(exactTag('jp', more)).toBeNull()
   })
 })

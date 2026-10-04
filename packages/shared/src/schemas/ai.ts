@@ -103,3 +103,69 @@ export const TagSuggestionsSchema = z.object({
   unsure: z.array(z.object({ songIds: z.array(IdSchema), who: z.string(), why: z.string() })),
 })
 export type TagSuggestions = z.infer<typeof TagSuggestionsSchema>
+
+/**
+ * The Search box's Ask (docs/features/ai.md, "S1"): one request, routed to one
+ * of a few things the app can already do, and answered as a proposal.
+ */
+export const AskRequestSchema = z.object({
+  text: z.string().trim().min(1).max(500),
+})
+export type AskRequest = z.infer<typeof AskRequestSchema>
+
+/** The places an answer can send you to, when the answer is "that is over there". */
+export const AskPlaceSchema = z.enum([
+  'import',
+  'stats',
+  'tags',
+  'library',
+  'playlists',
+  'settings',
+])
+export type AskPlace = z.infer<typeof AskPlaceSchema>
+
+export const AskStatsRangeSchema = z.enum(['7d', '30d', '90d', '365d', 'all'])
+export type AskStatsRange = z.infer<typeof AskStatsRangeSchema>
+
+export const AskAnswerSchema = z.discriminatedUnion('kind', [
+  /** Songs to play now or keep: Describe's answer, and which of the two the words led with. */
+  z.object({
+    kind: z.literal('songs'),
+    lead: z.enum(['play', 'save']),
+    describe: DescribeResultSchema,
+  }),
+  /** A song you half remember: the few that fit what you said, each with why. */
+  z.object({
+    kind: z.literal('find'),
+    terms: z.array(z.string()),
+    picks: z.array(DescribePickSchema),
+  }),
+  /** One tag for many songs; `already` of them carry it now. */
+  z.object({
+    kind: z.literal('tag'),
+    tag: z.string(),
+    isNew: z.boolean(),
+    understanding: UnderstandingSchema,
+    songIds: z.array(IdSchema),
+    already: z.number().int().nonnegative(),
+  }),
+  /** A question about your listening, answered from the plays, never written by the model. */
+  z.object({
+    kind: z.literal('stats'),
+    range: AskStatsRangeSchema,
+    about: z.enum(['songs', 'artists', 'tags', 'totals']),
+    plays: z.number().int().nonnegative(),
+    minutes: z.number().nonnegative(),
+    items: z.array(
+      z.object({
+        label: z.string(),
+        plays: z.number().int().nonnegative(),
+        songId: IdSchema.nullable(),
+      }),
+    ),
+  }),
+  z.object({ kind: z.literal('open'), place: AskPlaceSchema, say: z.string() }),
+  /** Not something the box can do, and what to do instead. */
+  z.object({ kind: z.literal('none'), say: z.string() }),
+])
+export type AskAnswer = z.infer<typeof AskAnswerSchema>

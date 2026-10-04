@@ -381,6 +381,9 @@ export function createContainer(configured: Config): Container {
     llm: llmFor(config, logger),
     songs: () => songs.all(),
     tags: () => tags.all(),
+    stats: range => stats.build(range),
+    lyrics: query =>
+      lyricsSearch.search(query).map(row => ({ songId: row.song_id, line: row.line })),
   })
   const fixCovers = new FixCoversService({
     songs,

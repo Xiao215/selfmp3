@@ -1,5 +1,11 @@
 import { Router } from 'express'
-import { DescribeRequestSchema, type DescribeResult, type TagSuggestions } from '@selfmp3/shared'
+import {
+  AskRequestSchema,
+  DescribeRequestSchema,
+  type AskAnswer,
+  type DescribeResult,
+  type TagSuggestions,
+} from '@selfmp3/shared'
 import { LlmError } from '../ai/llm.js'
 import type { Container } from '../container.js'
 import { HttpError } from '../http/errors.js'
@@ -17,6 +23,13 @@ export function aiRoutes(container: Container): Router {
     '/ai/describe',
     route({ body: DescribeRequestSchema }, ({ body }): Promise<DescribeResult> =>
       answering(container.smart.describe(body)),
+    ),
+  )
+
+  router.post(
+    '/ai/ask',
+    route({ body: AskRequestSchema }, ({ body }): Promise<AskAnswer> =>
+      answering(container.smart.ask(body.text)),
     ),
   )
 

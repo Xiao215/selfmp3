@@ -36,7 +36,7 @@ const PICK_VERSION = 1
 const RangeOut = z.object({ min: z.number().nullable(), max: z.number().nullable() })
 
 /** What the plan returns: an Understanding, kept in step with the shared one. */
-const PlanOut = z.object({
+export const PlanOut = z.object({
   name: z.string().min(1).max(60),
   anyTags: z.array(z.string()).max(12),
   artists: z.array(z.string()).max(12),
@@ -52,15 +52,12 @@ const PlanOut = z.object({
   brief: z.string().max(200).nullable(),
 })
 
-const PickOut = z.object({
+export const PickOut = z.object({
   picks: z.array(z.object({ n: z.number().int(), why: z.string().max(120) })).max(200),
 })
 
-const PLAN_SYSTEM = `You turn someone's description of a playlist into filters over their own music library.
-
-You are given the library's shape (its tags with what each holds, its artists, the spread of energy and tempo) and the description. Reply with JSON only, in the schema given.
-
-The filters:
+/** What each filter means and how to choose them; the router (ask.ts) is told the same. */
+export const FILTERS_GUIDE = `The filters:
 - anyTags: tag names, copied exactly from the library's tag list. A song is in if it has ANY of them.
 - artists: artist names, copied exactly from the library's artist list. Also widens: a song by any of them is in too.
   Tags and artists are "places" that add songs together. Leave both empty to start from the whole library.
@@ -76,13 +73,19 @@ The filters:
 
 Rules: use only tag and artist names that appear in the library exactly. If the description names a tag or artist the library lacks, put that wish in brief instead of inventing a name. Prefer fewer filters: every filter you add removes songs. Anything the description welcomes, even "a few X are fine", is a place: add it, and say the mix in brief ("mostly piano, a few Genshin"). When a filter would shut out a place they asked for (the words filter shutting out every song of an artist they named), leave the filter out and say it in brief.`
 
+const PLAN_SYSTEM = `You turn someone's description of a playlist into filters over their own music library.
+
+You are given the library's shape (its tags with what each holds, its artists, the spread of energy and tempo) and the description. Reply with JSON only, in the schema given.
+
+${FILTERS_GUIDE}`
+
 const PICK_SYSTEM = `You choose songs for a playlist from a numbered table of someone's own songs.
 
 You are given the description they wrote, what it most wants beyond the filters already applied, how many songs to choose, and the table. Every song in the table already passed the filters.
 
 Reply with JSON only: picks, each the song's number from the table (n) and why it fits in at most ten plain words, written for the listener ("slow solo piano", "named for rain"). Choose the songs that fit the description best, in a good listening order. Never use a number that is not in the table, never repeat one, and choose no more than asked. If fewer fit well, choose fewer.`
 
-interface DescribeDeps {
+export interface DescribeDeps {
   readonly llm: Llm
   readonly songs: () => Song[]
   readonly tags: () => Tag[]
@@ -237,7 +240,7 @@ function sample(songs: readonly Song[], seed: string, n: number): Song[] {
 }
 
 /** The plan's answer, made to fit this library: names spelled its way, unknown ones set aside. */
-function groundPlan(
+export function groundPlan(
   plan: z.infer<typeof PlanOut>,
   songs: readonly Song[],
   tags: readonly Tag[],
@@ -281,7 +284,6 @@ export async function describe(
   deps: DescribeDeps,
   request: DescribeRequest,
 ): Promise<DescribeResult> {
-  const now = deps.now?.() ?? Date.now()
   const remembered = deps.remembered ?? new Remembered()
   const songs = deps.songs()
   const tags = deps.tags()
@@ -310,6 +312,24 @@ export async function describe(
     ;({ understanding, unknown } = groundPlan(plan, songs, tags))
   }
 
+  return narrowAndPick(deps, request.text, understanding, unknown)
+}
+
+/**
+ * Steps 2 and 3 for an understanding already decided: by the plan, by the
+ * device after a chip was taken away, or by the router (ask.ts).
+ */
+export async function narrowAndPick(
+  deps: DescribeDeps,
+  text: string,
+  understanding: Understanding,
+  unknown: string[],
+): Promise<DescribeResult> {
+  const now = deps.now?.() ?? Date.now()
+  const remembered = deps.remembered ?? new Remembered()
+  const songs = deps.songs()
+  const tags = deps.tags()
+
   // 2 · Narrow, with no model: and loosen, a part at a time, if nothing fits.
   let fitting = songsFitting(songs, tags, understanding, now)
   const loosened: string[] = []
@@ -330,9 +350,9 @@ export async function describe(
   } else if (understanding.brief === null && fitting.length <= size) {
     picks = fitting.map(song => ({ songId: song.id, why: null }))
   } else {
-    const table = sample(fitting, request.text, MAX_CANDIDATES)
+    const table = sample(fitting, text, MAX_CANDIDATES)
     const prompt = [
-      `The description: ${request.text}`,
+      `The description: ${text}`,
       `What it wants beyond the filters: ${understanding.brief ?? 'nothing more; choose the songs that suit the description best'}`,
       `Choose up to ${size} songs.`,
       '',

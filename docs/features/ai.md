@@ -5,7 +5,9 @@ put together that way rather than as a chat window or a free-roaming agent. The 
 on the AI ideas canvas (<https://claude.ai/artifact/F9yEDvXnGRhgMrVQevHumS>); this page is
 the engineering under them.
 
-Built so far: **A1c, Describe a playlist** and **A7, Suggest tags**.
+Built so far: **S1, Ask in the Search box**, which is where most of it is reached; **N1, New
+playlist as one field**; the **Describe** pipeline (A1c) they both use; and **A7, Suggest
+tags**.
 
 ---
 
@@ -118,8 +120,8 @@ climbed when the one below cannot answer:
    a token budget, one compact line each (`#12 | title | artist | tags | energy | bpm |
    length | plays`). Rows are numbered `#1…#n` for this call instead of carrying uids:
    shorter, and a number outside the table is caught by the check.
-4. **One song in depth** (lyrics, a line's neighbours): only for features about one song,
-   such as explaining a line. Neither feature built here climbs to it.
+4. **One song in depth** (its lyrics, say): only for a feature about one song. None built
+   here climbs to it.
 
 ### Tools, skills, MCP: why not yet, and when
 
@@ -155,9 +157,48 @@ climbed when the one below cannot answer:
 
 ---
 
+## S1 · Ask in the Search box
+
+The one box for most of it: Home's search bar and the sidebar's Search on a computer (the
+command palette), the Search page on a phone. Letters stay a search, matched on the device
+as you type; nothing is sent anywhere until you ask. A sentence, or letters that match
+nothing, add an **Ask** row (`askable`): first when nothing matched, so ↵ asks; after the
+matches otherwise, so ↵ still opens what was typed. Asking answers in place of the results,
+and Esc goes back to them. One request, one answer you act on: a command box, not a chat.
+
+Asking is a **router** (`apps/server/src/ai/ask.ts`, `POST /api/ai/ask`): one call (fast
+tier) reads the request against rung 2 and chooses one action from a fixed list, filling in
+what that action needs, as JSON. Then the action runs as code:
+
+| Action | The words | What runs | Second call |
+|---|---|---|---|
+| `songs` | "play something calm for reading", "make a playlist of…" | Describe's steps 2–3 (the route *is* the plan) | the pick |
+| `find` | "the song about grandma's tea" | its terms, in every language the library uses, matched against titles, artists, albums and the lyrics index | a pick of at most 5 |
+| `tag` | "tag every 周杰倫 song 中文流行" | Describe's filters choose the songs (never the whole library) | none |
+| `stats` | "what did I play most last month" | the stats the Stats page shows; the model only chose the window and what about | none |
+| `open` | "download the new Yorushika album" | a sentence and a button to the place | none |
+| `none` | anything else | what the box can do instead | none |
+
+Every answer is a proposal with its own button (`AskAnswer.tsx`): Play now or Save as a
+playlist, Add the tag (after Look through), Open Stats, a found song to play. Measured on the
+real library: a route 2.3–3.5 s; with the pick, a playlist in 10 s and a found song in 5 s.
+
+## N1 · New playlist as one field
+
+What is typed decides what the playlist is (`NewPlaylist.tsx`), rather than a name first and
+a kind second: letters offer the tags whose names hold them (`matchingTags`), and a tag
+picked sits in the field as a chip (Backspace takes it back out); chips alone make a
+playlist that follows them, named after them. Any words offer **Let it pick**, which is
+Describe, with the chips as the places to pick from; or **An empty playlist** with the
+words as its name, which goes on to picking songs by hand. ↵ picks a tag typed in full,
+otherwise lets it pick.
+
+Following an artist is not offered: a playlist follows tags only (`follows.model.ts`), and
+"calm songs by Yorushika" is a description.
+
 ## A1c · Describe a playlist
 
-`New playlist › Describe it, and let it pick the songs`. You write what you want; you get
+The pipeline under **Let it pick** and under the box's `songs` answer. You write what you want; you get
 back what it understood, as chips, and the songs it picked from inside them, each with a
 reason. What is made is an ordinary playlist of the picks; when what was understood is tags
 and nothing else, it can instead follow those tags and keep itself filled, which is the

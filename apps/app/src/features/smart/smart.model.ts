@@ -1,4 +1,11 @@
-import type { DescribeResult, Tag, TagSuggestion, Understanding } from '@selfmp3/shared'
+import type {
+  AskPlace,
+  AskStatsRange,
+  DescribeResult,
+  Tag,
+  TagSuggestion,
+  Understanding,
+} from '@selfmp3/shared'
 
 /**
  * The smart features as the app draws them (docs/features/ai.md): what a
@@ -188,4 +195,62 @@ export function suggestionsHere(
     const tag = tags.find(each => each.name.toLowerCase() === suggestion.tag.toLowerCase()) ?? null
     return [{ suggestion, songIds, tag }]
   })
+}
+
+/**
+ * Whether the box offers to ask (S1): three letters at least, and either more
+ * than one word or nothing on the device that matches. A single word that
+ * finds a song is a search, and stays one.
+ */
+export function askable(text: string, matches: number): boolean {
+  const trimmed = text.trim()
+  return trimmed.length >= 3 && (/\S\s+\S/.test(trimmed) || matches === 0)
+}
+
+/** Where an "open" answer goes. */
+export function placePath(place: AskPlace): string {
+  return `/${place}`
+}
+
+export function rangeWords(range: AskStatsRange): string {
+  switch (range) {
+    case '7d':
+      return 'the last 7 days'
+    case '30d':
+      return 'the last 30 days'
+    case '90d':
+      return 'the last 90 days'
+    case '365d':
+      return 'the last year'
+    case 'all':
+      return 'all time'
+  }
+}
+
+/**
+ * Tags whose name holds what was typed (N1), the ones starting with it first,
+ * leaving out those already chosen.
+ */
+export function matchingTags(
+  text: string,
+  tags: readonly Tag[],
+  chosen: readonly number[],
+  limit = 8,
+): Tag[] {
+  const typed = text.trim().toLowerCase()
+  if (!typed) return []
+  return tags
+    .filter(tag => !chosen.includes(tag.id) && tag.name.toLowerCase().includes(typed))
+    .sort(
+      (a, b) =>
+        Number(!a.name.toLowerCase().startsWith(typed)) -
+          Number(!b.name.toLowerCase().startsWith(typed)) || b.songCount - a.songCount,
+    )
+    .slice(0, limit)
+}
+
+/** The tag typed in full, if one is called exactly that. */
+export function exactTag(text: string, tags: readonly Tag[]): Tag | null {
+  const typed = text.trim().toLowerCase()
+  return tags.find(tag => tag.name.toLowerCase() === typed) ?? null
 }

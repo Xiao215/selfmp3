@@ -322,6 +322,17 @@ export const Search = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNo
   )
 }
 
+/** A speech mark: the Search box's Ask (S1), something asked rather than matched. */
+export const Ask = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
+  return (
+    <Icon color={color} {...rest}>
+      <Path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
+      <Path d="M8.5 12h.01M12 12h.01M15.5 12h.01" />
+    </Icon>
+  )
+}
+
 export const X = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
   const color = useInk(colorGiven, tone)
   return (

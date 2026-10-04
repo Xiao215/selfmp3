@@ -24,6 +24,7 @@ import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Cover } from '../../ui/components/Cover'
 import {
+  Ask,
   BarChart,
   Download,
   ListMusic,
@@ -38,6 +39,8 @@ import {
 } from '../../ui/components/Icons'
 import { useDebounced } from '../../ui/useDebounced'
 import { floating, label as labelText } from '../../ui/surfaces'
+import { AskAnswer } from '../smart/AskAnswer'
+import { askable } from '../smart/smart.model'
 import { noteTagUsed } from '../library/recentTags.store'
 import { lyricsQueryFor } from '../search/search.model'
 import { artistLink, tagLink } from '../tag/placeLinks'
@@ -56,6 +59,8 @@ interface Row {
   readonly label: string
   readonly run: () => void
   readonly node: ReactNode
+  /** The palette stays open: the Ask row answers in place. */
+  readonly keepsOpen?: boolean
 }
 
 interface RowGroup {
@@ -91,7 +96,10 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const playAndTag = usePlayAndTag()
   const [query, setQuery] = useState('')
   const [highlighted, setHighlighted] = useState(0)
-  useEscape(true, onClose, { layer: true })
+  /** What was asked (S1), answered in place of the results until the words change. */
+  const [asking, setAsking] = useState<string | null>(null)
+  // Escape from an answer goes back to the results; from the results, closes.
+  useEscape(true, () => (asking === null ? onClose() : setAsking(null)), { layer: true })
 
   const songs = useMemo(() => library.data?.songs ?? [], [library.data])
   const songIds = useMemo(() => songs.map(song => song.id), [songs])
@@ -185,7 +193,44 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
    * arrow keys, Enter, the count and the drawing all follow the same order
    * rather than two kept in step by hand.
    */
-  const groupsFor = (found: PaletteResults): RowGroup[] => [
+  const groupsFor = (found: PaletteResults, text: string): RowGroup[] => {
+    const groups = matchedGroups(found)
+    const matches = groups.reduce((sum, group) => sum + group.rows.length, 0)
+    const words = text.trim()
+    if (!askable(words, matches)) return groups
+    const ask: RowGroup = {
+      title: 'Ask',
+      rows: [
+        {
+          key: 'ask',
+          label: `Ask: ${words}`,
+          run: () => setAsking(words),
+          keepsOpen: true,
+          node: (
+            <>
+              <View style={styles.figure}>
+                <Ask size={16} color={theme.colors.textSecondary} />
+              </View>
+              <View style={styles.labelBox}>
+                <Text style={styles.label} numberOfLines={1}>
+                  {words}
+                </Text>
+                <Text style={styles.sub} numberOfLines={1}>
+                  Make a playlist, play something, find a song, tag songs
+                </Text>
+              </View>
+              <Text style={styles.hint}>ask</Text>
+            </>
+          ),
+        },
+      ],
+    }
+    // First when nothing on the device matches, so ↵ asks; after the matches
+    // otherwise, so ↵ still opens the song or tag that was typed.
+    return matches === 0 ? [ask, ...groups] : [...groups, ask]
+  }
+
+  const matchedGroups = (found: PaletteResults): RowGroup[] => [
     {
       title: 'Recent',
       rows: found.recent.map(recent =>
@@ -358,7 +403,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
       })),
     },
   ]
-  const groups = groupsFor(results)
+  const groups = groupsFor(results, shownQuery)
   const rows = groups.flatMap(group => group.rows)
   const active = Math.min(highlighted, Math.max(0, rows.length - 1))
   // Keep the highlighted row in view as the arrow keys move through a long list.
@@ -370,8 +415,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   }, [active])
 
   const activate = (index: number): void => {
-    rows[index]?.run()
-    onClose()
+    const row = rows[index]
+    row?.run()
+    if (!row?.keepsOpen) onClose()
   }
 
   const drawRow = (row: Row, index: number): ReactNode => {
@@ -444,6 +490,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
             onChangeText={text => {
               setQuery(text)
               setHighlighted(0)
+              setAsking(null)
             }}
             onKeyPress={event => {
               const key = event.nativeEvent.key
@@ -460,10 +507,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
               // of that — the highlight is back at the top after any letter.
               if (shownQuery === query) activate(active)
               else {
-                groupsFor(resultsFor(query))
-                  .flatMap(group => group.rows)[0]
-                  ?.run()
-                onClose()
+                const first = groupsFor(resultsFor(query), query).flatMap(group => group.rows)[0]
+                first?.run()
+                if (!first?.keepsOpen) onClose()
               }
             }}
             placeholder="Search songs, playlists, tags — or type a command"
@@ -476,7 +522,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
             aria-label="Search songs, playlists and tags, or type a command"
             style={styles.input}
           />
-          {trimmed ? (
+          {trimmed && asking === null ? (
             <Text style={styles.count} accessibilityLiveRegion="polite">
               {rows.length} {rows.length === 1 ? 'result' : 'results'}
             </Text>
@@ -490,8 +536,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           contentContainerStyle={styles.results}
           keyboardShouldPersistTaps="handled"
         >
-          {drawnGroups}
-          {trimmed && rows.length === 0 ? (
+          {asking !== null ? <AskAnswer text={asking} onDone={onClose} /> : drawnGroups}
+          {asking === null && trimmed && rows.length === 0 ? (
             <Text style={styles.empty}>
               Nothing matches “{trimmed}”.{'\n'}
               {/* A cloud library has no lyric index to search. */}
@@ -505,11 +551,13 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
             <Text style={styles.footText}>
               <Text style={styles.kbd}> ↑ </Text> <Text style={styles.kbd}> ↓ </Text> move
             </Text>
+            {asking === null ? (
+              <Text style={styles.footText}>
+                <Text style={styles.kbd}> ↵ </Text> open
+              </Text>
+            ) : null}
             <Text style={styles.footText}>
-              <Text style={styles.kbd}> ↵ </Text> open
-            </Text>
-            <Text style={styles.footText}>
-              <Text style={styles.kbd}> esc </Text> close
+              <Text style={styles.kbd}> esc </Text> {asking === null ? 'close' : 'back to results'}
             </Text>
           </View>
         ) : null}

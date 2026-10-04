@@ -16,7 +16,7 @@ import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
-import { ChevronRight, Search, User, X } from '../../ui/components/Icons'
+import { Ask, ChevronRight, Search, User, X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SongList } from '../../ui/components/SongList'
 import { SongMenu } from '../../ui/components/SongMenu'
@@ -25,6 +25,8 @@ import { useDebounced } from '../../ui/useDebounced'
 import { label as labelText } from '../../ui/surfaces'
 import { artistLink, tagLink } from '../tag/placeLinks'
 import { noteTagUsed } from '../library/recentTags.store'
+import { AskAnswer } from '../smart/AskAnswer'
+import { askable } from '../smart/smart.model'
 import {
   ALL_LIMITS,
   allResults,
@@ -57,6 +59,8 @@ export function SearchScreen(): ReactNode {
   const [query, setQuery] = useState(() => (typeof params.q === 'string' ? params.q : ''))
   const [scope, setScope] = useState<SearchScope>(() => parseScope(params.scope))
   const [focused, setFocused] = useState(false)
+  /** What was asked (S1), answered in place of the results until the words change. */
+  const [asking, setAsking] = useState<string | null>(null)
   // The field keeps up with the fingers; the results, a search of the whole
   // library, follow when there is time.
   const shown = useDeferredValue(query)
@@ -78,6 +82,9 @@ export function SearchScreen(): ReactNode {
   })
   const lyricHits = typed && lyricsQuery ? (lyrics.data?.hits ?? []) : []
   const counts = scopeCounts(found, lyricHits.length)
+  const words = shown.trim()
+  const offerAsk = scope === 'all' && askable(words, counts.all)
+  const answering = asking !== null && asking === query.trim()
 
   const openArtist = useCallback(
     (artist: Artist) => router.navigate(artistLink(artist.name)),
@@ -99,6 +106,9 @@ export function SearchScreen(): ReactNode {
               autoFocus
               value={query}
               onChangeText={setQuery}
+              onSubmitEditing={() => {
+                if (askable(query, counts.all)) setAsking(query.trim())
+              }}
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}
               placeholder="Songs, tags, artists, lyrics"
@@ -159,7 +169,11 @@ export function SearchScreen(): ReactNode {
             keyboardDismissMode="on-drag"
             contentContainerStyle={styles.results}
           >
-            {scope === 'all' ? (
+            {answering ? <AskAnswer text={asking} onDone={close} /> : null}
+            {!answering && offerAsk && counts.all === 0 ? (
+              <AskCard words={words} first onAsk={() => setAsking(words)} />
+            ) : null}
+            {answering ? null : scope === 'all' ? (
               <AllResults
                 found={found}
                 lyricHits={lyricHits}
@@ -176,7 +190,10 @@ export function SearchScreen(): ReactNode {
             ) : (
               <LyricResults hits={lyricHits} cloud={fromCloud} />
             )}
-            {counts[scope] === 0 && !(scope === 'lyrics' && fromCloud) ? (
+            {!answering && offerAsk && counts.all > 0 ? (
+              <AskCard words={words} first={false} onAsk={() => setAsking(words)} />
+            ) : null}
+            {!answering && counts[scope] === 0 && !(scope === 'lyrics' && fromCloud) ? (
               <Text style={styles.nothing}>Nothing matches “{shown.trim()}”.</Text>
             ) : null}
             <ChromeSpacer />
@@ -184,6 +201,45 @@ export function SearchScreen(): ReactNode {
         )}
       </View>
     </SafeAreaView>
+  )
+}
+
+/**
+ * The Ask (S1, docs/features/ai.md): what was typed, offered as a request.
+ * At the top when nothing on the device matches, so it is the obvious next
+ * step; under the matches otherwise, out of the way of a plain search.
+ */
+function AskCard({
+  words,
+  first,
+  onAsk,
+}: {
+  words: string
+  first: boolean
+  onAsk: () => void
+}): ReactNode {
+  const { theme } = useUnistyles()
+  return (
+    <Pressable
+      onPress={onAsk}
+      accessibilityRole="button"
+      accessibilityLabel={`Ask: ${words}`}
+      style={({ pressed }) => [styles.ask, !first && styles.askAfter, pressed && styles.askPressed]}
+      testID="search-ask"
+    >
+      <View style={styles.askIcon}>
+        <Ask size={17} color={theme.colors.onPrimary} />
+      </View>
+      <View style={styles.askText}>
+        <Text style={styles.askTitle} numberOfLines={1}>
+          Ask for this
+        </Text>
+        <Text style={styles.askSub} numberOfLines={2}>
+          A playlist, something to play, a song you half remember, a tag for many songs
+        </Text>
+      </View>
+      <ChevronRight size={16} tone="textMuted" />
+    </Pressable>
   )
 }
 
@@ -522,6 +578,27 @@ function LyricResults({
 }
 
 const styles = StyleSheet.create(theme => ({
+  ask: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: radius.card,
+    backgroundColor: theme.colors.surface2,
+  },
+  askAfter: { marginTop: 12 },
+  askPressed: { opacity: 0.75 },
+  askIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: theme.colors.textPrimary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  askText: { flex: 1, minWidth: 0, gap: 2 },
+  askTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  askSub: { color: theme.colors.textMuted, fontSize: 12.5 },
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   page: { flex: 1 },
   pageWide: { maxWidth: 760, width: '100%', alignSelf: 'center', paddingTop: 24 },

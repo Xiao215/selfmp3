@@ -29,6 +29,15 @@ The verbs: **Play** (replaces Up next, from anywhere), **Add to Up next**, **Sav
 | Ask's song answer: the card and the page | `apps/app/src/features/smart/SongsAnswerCard.tsx`, `AnswerScreen.tsx` (`/answer`) |
 | Covers flying into the Up next button | `apps/app/src/ui/coverFlight.ts`, `apps/app/src/ui/components/CoverFlight.tsx`, `apps/app/src/features/queue/useFlyToUpNext.ts` |
 
+## A song picked from Library
+
+A tap (or a click, or the row's ▶) on a song in Library plays **that song alone**: Up next
+becomes just it, and whatever it held before is gone (Xiao, 2026-10-03). It used to be the
+whole library from that row, which put every row above it in Up next as already played and
+every row below it as next. The whole list plays from **Shuffle** — the head on a computer,
+next to Sort on a phone — or **Play these tags** with tags on. A tag's, an artist's or a
+playlist's page still plays its list from the row.
+
 ## Where a list came from
 
 Every Play says what it is playing: `player.playFrom(ids, index, { source })` and

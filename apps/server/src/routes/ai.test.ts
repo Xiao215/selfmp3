@@ -37,8 +37,7 @@ describe('smart features turned off in Settings', () => {
       response.writeHead(200, { 'Content-Type': 'application/json' })
       const content = JSON.stringify({
         action: 'tidy',
-        play: false,
-        next: false,
+        filters: null,
         songs: null,
         find: null,
         stats: null,

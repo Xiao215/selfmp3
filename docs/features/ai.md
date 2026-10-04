@@ -182,7 +182,20 @@ and Esc goes back to them. One request, one answer you act on: a command box, no
 
 Asking is a **router** (`apps/server/src/ai/ask.ts`, `POST /api/ai/ask`): one call (fast
 tier) reads the request against rung 2 and chooses one action from a fixed list, filling in
-what that action needs, as JSON. Then the action runs as code:
+what that action needs, as JSON. Then the action runs as code.
+
+The list is a **registry** (`ai/askActions.ts`, `ASK_ACTIONS`). Each entry has a name, a
+`when` paragraph telling the router when to choose it and what to fill in, its own fields
+(a schema, or none when the request itself is all it needs), whether it reads Describe's
+filters (`required`, `optional`, `unused`), the Settings switch it sits behind, and `run`.
+The router's prompt (`routeSystem`) and the form the model fills (`routeForm`) are built
+from the list, and the router's own code is the same for every action: route, fall back to
+`none` when the chosen action is missing its fields or its required filters, refuse it when
+its switch is off, run it. Adding an action is adding an entry. The form is one object with
+every action's part, the ones not chosen null, rather than one shape per action, because
+that is what an OpenAI-style `json_schema` endpoint takes reliably. An entry is the shape a
+tool has (name, description, parameters), so a model that calls tools can be handed the
+list as it is: what would change is the loop, not the actions.
 
 | Action | The words | What runs | Second call |
 |---|---|---|---|

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Stats } from '@selfmp3/shared'
-import { ask, foundFor, matchPlaylist } from './ask.js'
+import { ask, routeForm, routeSystem } from './ask.js'
+import { ASK_ACTIONS, foundFor, matchPlaylist } from './askActions.js'
 import { SONGS, TAGS, scriptedLlm } from './fixtures/library.js'
 
 const NOW = Date.parse('2026-10-03T12:00:00Z')
@@ -25,8 +26,7 @@ const noFilters = {
 
 const route = (overrides: Record<string, unknown>) => ({
   action: 'none',
-  play: false,
-  next: false,
+  filters: null,
   songs: null,
   find: null,
   stats: null,
@@ -155,7 +155,11 @@ describe('ask', () => {
   it('turns a request for music into Describe’s answer, with what it led with', async () => {
     const d = deps({
       'ask-route': [
-        route({ action: 'songs', play: true, songs: { ...noFilters, artists: ['YOASOBI'] } }),
+        route({
+          action: 'songs',
+          songs: { play: true, next: false },
+          filters: { ...noFilters, artists: ['YOASOBI'] },
+        }),
       ],
     })
     const answer = await ask(d, 'play some YOASOBI')
@@ -170,7 +174,11 @@ describe('ask', () => {
   it('steers from the song playing: shown as "this", left out of the picks, led as next', async () => {
     const d = deps({
       'ask-route': [
-        route({ action: 'songs', next: true, songs: { ...noFilters, artists: ['YOASOBI'] } }),
+        route({
+          action: 'songs',
+          songs: { play: false, next: true },
+          filters: { ...noFilters, artists: ['YOASOBI'] },
+        }),
       ],
     })
     const answer = await ask(d, 'more like this after', 7)
@@ -183,7 +191,11 @@ describe('ask', () => {
   it('does not lead with next when nothing is playing', async () => {
     const d = deps({
       'ask-route': [
-        route({ action: 'songs', next: true, songs: { ...noFilters, artists: ['YOASOBI'] } }),
+        route({
+          action: 'songs',
+          songs: { play: false, next: true },
+          filters: { ...noFilters, artists: ['YOASOBI'] },
+        }),
       ],
     })
     expect(await ask(d, 'queue some YOASOBI')).toMatchObject({ kind: 'songs', lead: 'save' })
@@ -266,7 +278,9 @@ describe('ask', () => {
 
   it('sends somewhere else, or says what it can do', async () => {
     const open = deps({
-      'ask-route': [route({ action: 'open', open: 'import', say: 'Import takes a link.' })],
+      'ask-route': [
+        route({ action: 'open', open: { place: 'import', say: 'Import takes a link.' } }),
+      ],
     })
     expect(await ask(open, 'download an album')).toEqual({
       kind: 'open',
@@ -280,6 +294,39 @@ describe('ask', () => {
   })
 })
 
+describe('the router, built from the actions', () => {
+  it('tells the model every action in its own words, and the filters only where they are read', () => {
+    const system = routeSystem(ASK_ACTIONS)
+    for (const each of ASK_ACTIONS) expect(system).toContain(`- ${each.name}: ${each.when}`)
+    expect(system).toContain('"filters", for songs, library, playlistSongs:')
+  })
+
+  it('gives each action with fields its own part of the form, and the rest none', () => {
+    const form = routeForm(ASK_ACTIONS)
+    expect(form.parse(route({ action: 'tags' }))).toMatchObject({ action: 'tags' })
+    expect(() => form.parse(route({ action: 'dance' }))).toThrow()
+    const keys = Object.keys(form.parse(route({ action: 'tidy' })))
+    expect(keys).toEqual(expect.arrayContaining(['songs', 'find', 'playlistSongs', 'open']))
+    expect(keys).not.toContain('tags')
+    expect(keys).not.toContain('tidy')
+  })
+
+  it('takes a new action as an entry, with nothing else to change', () => {
+    const shuffle = {
+      name: 'shuffle',
+      when: 'they want everything shuffled.',
+      fields: null,
+      filters: 'unused' as const,
+      run: () => ({ kind: 'none' as const, say: 'shuffled', try: [] }),
+    }
+    const actions = [...ASK_ACTIONS, shuffle]
+    expect(routeSystem(actions)).toContain('- shuffle: they want everything shuffled.')
+    expect(routeForm(actions).parse(route({ action: 'shuffle' }))).toMatchObject({
+      action: 'shuffle',
+    })
+  })
+})
+
 describe('ask about the library', () => {
   const question = (overrides: Record<string, unknown>) =>
     route({
@@ -289,7 +336,7 @@ describe('ask about the library', () => {
 
   it('counts the songs the filters choose, and says who they are by', async () => {
     const d = deps({
-      'ask-route': [{ ...question({}), songs: { ...noFilters, artists: ['yoasobi'] } }],
+      'ask-route': [{ ...question({}), filters: { ...noFilters, artists: ['yoasobi'] } }],
     })
     expect(await ask(d, 'how many yoasobi songs do I have')).toMatchObject({
       kind: 'library',
@@ -314,10 +361,10 @@ describe('ask about the library', () => {
 })
 
 describe('ask about a playlist’s songs', () => {
-  const edit = (overrides: Record<string, unknown>, songs: unknown = null) =>
+  const edit = (overrides: Record<string, unknown>, filters: unknown = null) =>
     route({
       action: 'playlistSongs',
-      songs,
+      filters,
       playlistSongs: { name: 'running', op: 'add', sortBy: null, order: 'asc', ...overrides },
     })
 

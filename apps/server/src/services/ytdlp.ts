@@ -201,6 +201,25 @@ export function parseProgress(line: string): number | null {
 const BASE_ARGS = ['-4', '--js-runtimes', `node:${process.execPath}`] as const
 
 /**
+ * The date a download's tags carry: when the song came out, not when it was
+ * uploaded.
+ *
+ * `--embed-metadata` writes the upload date, and a label's catalogue goes up
+ * years after its songs came out: 晴天 (2003) was uploaded in 2019, and every
+ * song in the library read as 2014 or later. A YouTube Music track says
+ * "Released on: 2003-07-29" in its description, which yt-dlp reads as
+ * `release_date` (or only `release_year`); the later one wins. The patterns
+ * want digits, so a missing field ("NA") sets nothing and the upload date
+ * stays: a plain video has no other date.
+ */
+const RELEASE_DATE_ARGS = [
+  '--parse-metadata',
+  'release_year:(?P<meta_date>\\d{4})',
+  '--parse-metadata',
+  'release_date:(?P<meta_date>\\d{8})',
+] as const
+
+/**
  * How long a request someone is waiting on will sit for the budget before it
  * gives up and says so. Long enough to ride out ordinary pacing, short enough
  * that a fifteen minute pause is reported rather than endured.
@@ -670,7 +689,7 @@ export class YtDlpService {
 
     // Embedding tags and thumbnails needs ffmpeg; skip cleanly without it.
     if (input.hasFfmpeg) {
-      args.push('--embed-metadata', '--embed-thumbnail')
+      args.push('--embed-metadata', '--embed-thumbnail', ...RELEASE_DATE_ARGS)
     }
 
     args.push(...(await this.#cookieArgs()), '--', input.url)

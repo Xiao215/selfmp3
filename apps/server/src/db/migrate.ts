@@ -508,6 +508,21 @@ const MIGRATIONS: readonly Migration[] = [
       UPDATE songs SET cover_tone_rev = NULL WHERE cover_hue IS NULL;
     `,
   },
+  {
+    // A download's year was the day it went up on YouTube, not the day the
+    // song came out (晴天 read 2019, not 2003). Downloads carry the release
+    // date now (ytdlp.ts); the songs already here are each asked about once,
+    // by the release-year pass (services/releaseYears.ts), which takes a row
+    // out of here as it answers it.
+    name: 'ask YouTube Music once for the year each song came out',
+    sql: `
+      CREATE TABLE release_years_to_check (
+        song_id INTEGER PRIMARY KEY REFERENCES songs(id) ON DELETE CASCADE
+      );
+      INSERT INTO release_years_to_check (song_id)
+        SELECT id FROM songs WHERE source_url IS NOT NULL;
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

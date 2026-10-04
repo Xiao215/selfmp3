@@ -422,6 +422,40 @@ export class SongRepository {
   }
 
   /** The next song whose cover has not had its colour read, as the cover is now. */
+  /**
+   * The next song after `afterId` the release-year pass has to ask about
+   * (services/releaseYears.ts). `edited` is a year someone typed, which the
+   * pass leaves alone.
+   */
+  nextYearToCheck(afterId: number): {
+    id: number
+    year: number | null
+    sourceUrl: string | null
+    edited: boolean
+  } | null {
+    const row = this.#db
+      .prepare<
+        [number],
+        { id: number; year: number | null; source_url: string | null; edited: number }
+      >(
+        `SELECT s.id, s.year, s.source_url,
+                EXISTS (SELECT 1 FROM sync_stamps t
+                         WHERE t.kind = 'song' AND t.uid = s.uid AND t.field = 'year') AS edited
+           FROM release_years_to_check c
+           JOIN songs s ON s.id = c.song_id
+          WHERE c.song_id > ?
+          ORDER BY c.song_id LIMIT 1`,
+      )
+      .get(afterId)
+    return row
+      ? { id: row.id, year: row.year, sourceUrl: row.source_url, edited: row.edited === 1 }
+      : null
+  }
+
+  yearChecked(id: number): void {
+    this.#db.prepare('DELETE FROM release_years_to_check WHERE song_id = ?').run(id)
+  }
+
   nextWithoutCoverTone(): { id: number; artRev: number } | null {
     const row = this.#db
       .prepare<[], { id: number; art_rev: number }>(

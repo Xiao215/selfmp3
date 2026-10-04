@@ -13,6 +13,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { libraryArtists } from '@selfmp3/shared'
 import { radius, tagColors, useLibrary } from '@selfmp3/client'
 import { useRecentTagIds } from '../library/recentTags.store'
+import { ArtistFace } from './ArtistFace'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
@@ -82,6 +83,16 @@ function AddSheetBody({
   const songs = useMemo(() => library?.songs ?? [], [library])
   const tags = useMemo(() => library?.tags ?? [], [library])
   const artists = useMemo(() => libraryArtists(songs), [songs])
+  // Each artist's first song with a cover: their face until the picture comes.
+  const leads = useMemo(() => {
+    const byId = new Map(songs.map(song => [song.id, song]))
+    return new Map(
+      artists.map(artist => {
+        const own = artist.songIds.flatMap(id => byId.get(id) ?? [])
+        return [artist.key, own.find(song => song.hasArt) ?? own[0] ?? null]
+      }),
+    )
+  }, [songs, artists])
   const rows = useMemo(
     () => addSheetRows({ query, tags, artists, recentTagIds, list }),
     [query, tags, artists, recentTagIds, list],
@@ -102,13 +113,17 @@ function AddSheetBody({
         accessibilityLabel={`${placeName(place)}, ${placeSize(place)} songs`}
         style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       >
-        <View style={styles.mark}>
-          {place.kind === 'tag' ? (
+        {place.kind === 'tag' ? (
+          <View style={styles.mark}>
             <View style={[styles.dot, { backgroundColor: tagColors(place.tag.hue).dot }]} />
-          ) : (
-            <User size={14} tone="textSecondary" />
-          )}
-        </View>
+          </View>
+        ) : (
+          <ArtistFace
+            artist={place.artist}
+            lead={leads.get(place.artist.key) ?? null}
+            size={FACE}
+          />
+        )}
         <Text style={styles.name} numberOfLines={1}>
           {placeName(place)}
         </Text>
@@ -202,6 +217,9 @@ function AddSheetBody({
   )
 }
 
+/** A row's mark, a tag's dot tile or an artist's face. */
+const FACE = 32
+
 /** "1 tag", "46 tags". */
 function plural(count: number, word: string): string {
   return `${count} ${count === 1 ? word : `${word}s`}`
@@ -235,8 +253,8 @@ const styles = StyleSheet.create(theme => ({
   },
   rowPressed: { backgroundColor: theme.colors.surface2 },
   mark: {
-    width: 28,
-    height: 28,
+    width: FACE,
+    height: FACE,
     borderRadius: 8,
     backgroundColor: theme.colors.surface2,
     alignItems: 'center',

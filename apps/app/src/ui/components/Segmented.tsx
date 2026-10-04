@@ -141,7 +141,7 @@ const styles = StyleSheet.create(theme => ({
   item: { borderRadius: radius.pill },
   pad: { paddingVertical: 6, paddingHorizontal: 14 },
   itemHovered: { backgroundColor: theme.colors.surface3 },
-  itemActive: { backgroundColor: theme.colors.surfaceSelected },
+  itemActive: { backgroundColor: theme.colors.surfaceSelected, borderRadius: radius.pill },
   hover: { ...FILL, borderRadius: radius.pill, backgroundColor: theme.colors.surface3 },
   labelLayer: { ...FILL, alignItems: 'center', justifyContent: 'center' },
   label: { ...LABEL, color: theme.colors.textSecondary },

@@ -324,8 +324,8 @@ there is a good one, grouped by tag so 99 songs of Mandarin pop are one decision
 
 ## A4 · Tidy up (names)
 
-`Library › ✦ Tidy up`, or ask the Search box ("any songs with wrong metadata?"; the router's
-`tidy` action). The song names that look wrong, each as a change to approve: a field, what
+Asked for in the Search box ("any songs with wrong metadata?"; the router's `tidy` action) —
+Library has no button for it since 2026-10-04. The song names that look wrong, each as a change to approve: a field, what
 it is struck through, what it would be, and how many songs. Nothing writes until Apply,
 which is one ordinary edit per song (`POST /api/songs/bulk/edit`, on the server and on a
 cloud replica alike), so it syncs and undoes like an edit made by hand.

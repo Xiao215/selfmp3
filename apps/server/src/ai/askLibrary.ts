@@ -32,7 +32,7 @@ const LIST_SIZE = 50
 const TOP = 8
 
 /** The filters as a plan, for a question that set none: the whole library. */
-const EVERYTHING: z.infer<typeof PlanOut> = {
+export const EVERYTHING: z.infer<typeof PlanOut> = {
   name: 'Your library',
   anyTags: [],
   artists: [],

@@ -28,7 +28,7 @@ import { NO_STEPS, type Steps } from './progress.js'
  * endpoint takes reliably.
  */
 
-const VERSION = 7
+const VERSION = 8
 
 const FALLBACK =
   'Ask for music (a playlist, something to play now), a song you half remember, changes to your tags or playlists, or a question about your library or your listening.'

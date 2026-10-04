@@ -204,6 +204,7 @@ list as it is: what would change is the loop, not the actions.
 | `tags` | "tag the songs that should be 中文流行", "merge j-anime into jpop", "tidy my tags" | the tag review, with the request itself (Tags, below) | the plan, then the groups |
 | `stats` | "what did I play most last month" | the stats the Stats page shows; the model only chose the window and what about | none |
 | `library` | "how many YOASOBI songs do I have", "my longest song" | Describe's filters over the library, counted and sorted in code (`askLibrary.ts`) | none |
+| `tidy` | "any songs with wrong metadata?", "give the 原神音乐 songs their official Chinese names, albums too" | a checkup: Tidy up's rules and its names pass; a change they say: the filters choose the songs (A4, "Asked for something") | the names pass, or one call per 60 songs |
 | `playlistSongs` | "add the YOASOBI songs to gym", "take the slow ones out of chill", "sort genshin calmest first" | the filters choose the songs; a sort is code | a pick only when the words go past the filters |
 | `open` | "download the new Yorushika album" | a sentence and a button to the place | none |
 | `none` | anything else | what the box can do instead, and up to two requests it can do, each a press away | none |
@@ -420,6 +421,16 @@ cloud replica alike), so it syncs and undoes like an edit made by hand.
 
 Without a model the rules still answer, with a note saying what was left out. On the real
 library (1,342 songs) a pass takes about 7 s and finds about 40 changes.
+
+**Asked for something.** The router's `tidy` part says whether the words only ask for a
+checkup. When they say a change ("give the 原神音乐 songs their official Chinese names, albums
+too"), the steps above don't run: the filters choose the songs, which go to the model with
+the request itself, 60 songs a call (title, artist, album, album artist; an album's songs
+side by side so one call names the whole album), four calls at once, up to 2,000 songs. Each
+edit must name a song in its batch, once per field, with a value a song may have; they group
+like the checkup's, all the model's, so none starts ticked. A batch that fails is left out and
+the note says how many songs; when every batch fails, the answer is the model's failure. Before
+2026-10-04 any names request ran the checkup, and the request itself was never read.
 
 ## A9 · Clean names on import (rules)
 

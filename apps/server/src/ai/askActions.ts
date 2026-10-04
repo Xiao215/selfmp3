@@ -8,12 +8,13 @@ import {
   type Song,
   type Stats,
 } from '@selfmp3/shared'
-import { libraryAnswer, playlistSongs, type AskPlaylist } from './askLibrary.js'
+import { EVERYTHING, libraryAnswer, playlistSongs, type AskPlaylist } from './askLibrary.js'
 import {
   PickOut,
   groundPicks,
   groundPlan,
   narrowAndPick,
+  songsFitting,
   type DescribeDeps,
   type PlanOut,
 } from './describe.js'
@@ -293,11 +294,17 @@ const library = action({
 
 const tidyUp = action({
   name: 'tidy',
-  when: 'they want their song names checked, fixed or cleaned up: wrong, messy or inconsistent titles, artists or albums, metadata worth fixing. Nothing else to fill.',
-  fields: null,
-  filters: 'unused',
+  when: 'anything about their songs\' names (titles, artists, albums): checked, fixed or cleaned up in general, or changed in a way they say ("give the 原神音乐 songs their official Chinese names", "write 周杰倫\'s albums in simplified Chinese", "take \'(Remastered)\' off the titles"). Fill "tidy": checkup is true when they only ask to check or clean up their names, false when they say what change they want. When they say which songs, also fill "filters" with the filters that choose them (null for the whole library).',
+  fields: z.object({ checkup: z.boolean() }),
+  filters: 'optional',
   switch: { key: 'tidy', label: 'Tidy up' },
-  run: async ({ deps, steps }) => ({ kind: 'tidy', tidy: await tidy(deps, steps) }),
+  run: async ({ deps, text, now, steps }, { checkup }, filters) => {
+    if (checkup) return { kind: 'tidy', tidy: await tidy(deps, steps) }
+    const songs = deps.songs()
+    const { understanding, unknown } = groundPlan(filters ?? EVERYTHING, songs, deps.tags())
+    const chosen = songsFitting(songs, deps.tags(), understanding, now)
+    return { kind: 'tidy', tidy: await tidy(deps, steps, { text, songs: chosen, unknown }) }
+  },
 })
 
 const playlists = action({

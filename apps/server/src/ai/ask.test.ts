@@ -33,6 +33,7 @@ const route = (overrides: Record<string, unknown>) => ({
   playlists: null,
   playlistSongs: null,
   library: null,
+  tidy: null,
   open: null,
   say: null,
   try: null,
@@ -231,6 +232,58 @@ describe('ask', () => {
     expect(d.llm.asked[1]!.prompt).toContain('tag the yorushika songs that should be jpop')
   })
 
+  it('changes names the way it was asked, on the songs the filters choose', async () => {
+    const d = deps({
+      'ask-route': [
+        route({
+          action: 'tidy',
+          tidy: { checkup: false },
+          filters: { ...noFilters, anyTags: ['原神纯音乐', 'genshin'] },
+        }),
+      ],
+      'tidy-asked': [
+        {
+          edits: [
+            // An album's songs sit together: Where Mercy Endures, Jade Moon…, The Wind….
+            { n: 2, field: 'title', to: '璃月', why: 'Official Chinese name' },
+            { n: 3, field: 'album', to: '风与牧歌之邦', why: 'Official Chinese name' },
+            // Not in the table, a second answer for one field, and no change: all dropped.
+            { n: 9, field: 'title', to: 'x', why: 'x' },
+            { n: 2, field: 'title', to: 'Liyue again', why: 'x' },
+            { n: 1, field: 'title', to: 'Light Glimmers as Shadows Shift', why: 'x' },
+          ],
+        },
+      ],
+    })
+    const text = '原神纯音乐的歌，能不能帮我加上他们官方的中文名？album也是'
+    const answer = await ask(d, text)
+    if (answer.kind !== 'tidy') throw new Error(`not tidy: ${answer.kind}`)
+    expect(answer.tidy).toMatchObject({ looked: 3, asked: text })
+    expect(answer.tidy.note).toMatch(/no genshin/)
+    expect(
+      answer.tidy.changes.map(c => `${c.field}|${c.from}→${c.to}|${c.songIds.join(',')}|${c.by}`),
+    ).toEqual([
+      'album|The Wind and the Star Traveler→风与牧歌之邦|4|model',
+      'title|Liyue→璃月|5|model',
+    ])
+    // The request itself and the songs' titles go to the model; the checkup's names call does not run.
+    const prompt = d.llm.asked[1]!.prompt
+    expect(prompt).toContain(text)
+    expect(prompt).toContain('2 | Liyue | Yu-Peng Chen, HOYO-MiX | Jade Moon Upon a Sea of Clouds')
+    expect(prompt).not.toContain('アイドル')
+    expect(d.llm.asked.map(each => each.task)).toEqual(['ask-route', 'tidy-asked'])
+  })
+
+  it('still runs the checkup when only asked to clean up', async () => {
+    const d = deps({
+      'ask-route': [route({ action: 'tidy', tidy: { checkup: true } })],
+      'tidy-names': [{ spellings: [], credits: [], albums: [] }],
+    })
+    const answer = await ask(d, 'clean up my song names')
+    expect(answer).toMatchObject({ kind: 'tidy', tidy: { asked: null } })
+    expect(d.llm.asked.map(each => each.task)).toEqual(['ask-route', 'tidy-names'])
+  })
+
   it('says so when Tags is turned off', async () => {
     const d = deps({ 'ask-route': [route({ action: 'tags' })] })
     expect(await ask(d, 'tidy my tags', null, { tidy: true, tags: false })).toMatchObject({
@@ -298,7 +351,7 @@ describe('the router, built from the actions', () => {
   it('tells the model every action in its own words, and the filters only where they are read', () => {
     const system = routeSystem(ASK_ACTIONS)
     for (const each of ASK_ACTIONS) expect(system).toContain(`- ${each.name}: ${each.when}`)
-    expect(system).toContain('"filters", for songs, library, playlistSongs:')
+    expect(system).toContain('"filters", for songs, library, tidy, playlistSongs:')
   })
 
   it('gives each action with fields its own part of the form, and the rest none', () => {
@@ -306,9 +359,8 @@ describe('the router, built from the actions', () => {
     expect(form.parse(route({ action: 'tags' }))).toMatchObject({ action: 'tags' })
     expect(() => form.parse(route({ action: 'dance' }))).toThrow()
     const keys = Object.keys(form.parse(route({ action: 'tidy' })))
-    expect(keys).toEqual(expect.arrayContaining(['songs', 'find', 'playlistSongs', 'open']))
+    expect(keys).toEqual(expect.arrayContaining(['songs', 'find', 'playlistSongs', 'tidy', 'open']))
     expect(keys).not.toContain('tags')
-    expect(keys).not.toContain('tidy')
   })
 
   it('takes a new action as an entry, with nothing else to change', () => {

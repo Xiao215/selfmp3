@@ -236,8 +236,10 @@ export const TidyResultSchema = z.object({
   changes: z.array(TidyChangeSchema),
   /** How many songs were looked at. */
   looked: z.number().int().nonnegative(),
-  /** Set when the model could not be asked: what is missing, in words. */
+  /** What could not be done, in words: the model unreachable, a name the library lacks. */
   note: z.string().nullable(),
+  /** What was asked for ("give the 原神音乐 songs their Chinese names"), or null for a checkup. */
+  asked: z.string().nullable(),
 })
 export type TidyResult = z.infer<typeof TidyResultSchema>
 

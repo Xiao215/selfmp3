@@ -53,7 +53,9 @@ export function TidyReview({
     return (
       <View style={{ gap: 8 }}>
         <Text style={reviewText.line} testID="tidy-nothing">
-          Nothing looks wrong in the names of your {songCount(result.looked)}.
+          {result.asked !== null
+            ? `Nothing to change in ${songCount(result.looked)}.`
+            : `Nothing looks wrong in the names of your ${songCount(result.looked)}.`}
         </Text>
         {result.note ? <Text style={reviewText.note}>{result.note}</Text> : null}
       </View>
@@ -109,7 +111,11 @@ export function TidyReview({
     <Review
       changes={here}
       sectionOf={each => each.change.why}
-      head={`${plural(here.length, 'thing', 'things')} to fix in ${songCount(result.looked)}`}
+      head={
+        result.asked !== null
+          ? `${plural(here.length, 'change', 'changes')} to ${songCount(result.looked)}`
+          : `${plural(here.length, 'thing', 'things')} to fix in ${songCount(result.looked)}`
+      }
       tickedText={(approved, leftOut) =>
         `${approved.length} ticked, on ${plural(tidyEdits(approved, leftOut).length, 'song', 'songs')}.`
       }

@@ -120,3 +120,37 @@ describe('tidy', () => {
     expect(prompt).toContain('- 薛之谦 (6)')
   })
 })
+
+describe('tidy, asked for something', () => {
+  const many = Array.from({ length: 61 }, (_, index) =>
+    song(index + 1, { title: `Track ${index + 1}`, album: 'OST' }),
+  )
+  const text = 'give these their Chinese names'
+
+  it('asks in batches, and says which songs a failed batch left out', async () => {
+    const llm = scriptedLlm({
+      'tidy-asked': [
+        { edits: [{ n: 1, field: 'title', to: '第一首', why: 'Official Chinese name' }] },
+        new LlmError('busy', 'slow down'),
+      ],
+    })
+    const result = await tidy({ llm, songs: () => [] }, undefined, {
+      text,
+      songs: many,
+      unknown: [],
+    })
+    expect(llm.asked).toHaveLength(2)
+    expect(result.changes).toEqual([
+      expect.objectContaining({ field: 'title', from: 'Track 1', to: '第一首', songIds: [1] }),
+    ])
+    expect(result).toMatchObject({ looked: 61, asked: text })
+    expect(result.note).toMatch(/Left out 1 song;/)
+  })
+
+  it('fails as the model failed when no batch could be asked', async () => {
+    const llm = scriptedLlm({ 'tidy-asked': [new LlmError('unreachable', 'down')] })
+    await expect(
+      tidy({ llm, songs: () => [] }, undefined, { text, songs: many.slice(0, 3), unknown: [] }),
+    ).rejects.toBeInstanceOf(LlmError)
+  })
+})

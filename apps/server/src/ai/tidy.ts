@@ -1,7 +1,10 @@
 import { z } from 'zod/v4'
 import {
   CJK,
+  SongFieldsSchema,
+  TidyFieldSchema,
   creditList as listed,
+  plural,
   withoutRepeats,
   withoutTranslation,
   withoutUseNote,
@@ -26,6 +29,11 @@ import { NO_STEPS, type Steps } from './progress.js'
  * cut off or garbled. Every name it returns is checked against the library.
  *
  * Without a model the rules still answer, and `note` says what was left out.
+ *
+ * Asked for something in particular ("give the 原神音乐 songs their official
+ * Chinese names, albums too"), it does that instead, and only that: the songs
+ * the request is about go to the model in batches, titles and all, and each
+ * edit it returns is checked against the song it names.
  */
 
 const VERSION = 4
@@ -194,8 +202,21 @@ interface TidyDeps {
   readonly remembered?: Remembered
 }
 
-export async function tidy(deps: TidyDeps, steps: Steps = NO_STEPS): Promise<TidyResult> {
+/** A request for one change across some songs, and the songs it is about. */
+interface TidyAsked {
+  readonly text: string
+  readonly songs: readonly Song[]
+  /** Names the request used that the library does not have. */
+  readonly unknown: readonly string[]
+}
+
+export async function tidy(
+  deps: TidyDeps,
+  steps: Steps = NO_STEPS,
+  asked: TidyAsked | null = null,
+): Promise<TidyResult> {
   const remembered = deps.remembered ?? new Remembered()
+  if (asked) return askedTidy(deps.llm, remembered, asked, steps)
   const songs = deps.songs()
   steps.begin(`Reading the names of ${songs.length} songs`)
 
@@ -224,7 +245,7 @@ export async function tidy(deps: TidyDeps, steps: Steps = NO_STEPS): Promise<Tid
   steps.begin('Checking every name by the rules')
   const changes = changesFor(songs, names)
   steps.done(`${changes.length} ${changes.length === 1 ? 'thing' : 'things'} to fix`)
-  return { changes, looked: songs.length, note }
+  return { changes, looked: songs.length, note, asked: null }
 }
 
 /** Rules and the model's names, applied to every song, grouped into changes. */
@@ -261,24 +282,7 @@ function changesFor(songs: readonly Song[], names: Names): TidyChange[] {
       .map(entry => [entry.from, entry]),
   )
 
-  const groups = new Map<string, TidyChange & { songIds: number[] }>()
-  const propose = (
-    song: Song,
-    field: TidyField,
-    from: string,
-    edit: Edit,
-    by: TidyChange['by'],
-  ) => {
-    if (edit.value === from) return
-    const why = edit.whys.join(' · ')
-    const key = `${field}\u0000${from}\u0000${edit.value}\u0000${why}`
-    const group = groups.get(key)
-    if (group) group.songIds.push(song.id)
-    else {
-      const id = Remembered.key(field, from, edit.value, why).slice(0, 16)
-      groups.set(key, { key: id, field, from, to: edit.value, why, by, songIds: [song.id] })
-    }
-  }
+  const { propose, changes } = grouped()
 
   for (const song of songs) {
     // The artist: repeats, then spellings name by name, then the credit as a whole.
@@ -332,11 +336,170 @@ function changesFor(songs: readonly Song[], names: Names): TidyChange[] {
     }
   }
 
+  return changes()
+}
+
+/** Edits song by song, gathered into one change per (field, from, to, why). */
+function grouped() {
+  const groups = new Map<string, TidyChange & { songIds: number[] }>()
+  const propose = (
+    song: Song,
+    field: TidyField,
+    from: string,
+    edit: Edit,
+    by: TidyChange['by'],
+  ): void => {
+    if (edit.value === from) return
+    const why = edit.whys.join(' · ')
+    const key = `${field}\u0000${from}\u0000${edit.value}\u0000${why}`
+    const group = groups.get(key)
+    if (group) group.songIds.push(song.id)
+    else {
+      const id = Remembered.key(field, from, edit.value, why).slice(0, 16)
+      groups.set(key, { key: id, field, from, to: edit.value, why, by, songIds: [song.id] })
+    }
+  }
   const order: Record<TidyField, number> = { artist: 0, albumArtist: 1, album: 2, title: 3 }
-  return [...groups.values()].sort(
-    (a, b) =>
-      order[a.field] - order[b.field] ||
-      b.songIds.length - a.songIds.length ||
-      a.from.localeCompare(b.from),
+  const changes = (): TidyChange[] =>
+    [...groups.values()].sort(
+      (a, b) =>
+        order[a.field] - order[b.field] ||
+        b.songIds.length - a.songIds.length ||
+        a.from.localeCompare(b.from),
+    )
+  return { propose, changes }
+}
+
+/** Songs per model call: a line is about 40 tokens in and an edit about 30 out. */
+const SONGS_PER_CALL = 60
+/** Calls at once, so a big request does not run into the provider's rate limit. */
+const CALLS_AT_ONCE = 4
+/** The most songs one request changes: as many as one edit can save. */
+const MAX_ASKED = 2000
+
+const EditsOut = z.object({
+  edits: z
+    .array(
+      z.object({
+        n: z.number().int(),
+        field: z.enum(TidyFieldSchema.options),
+        to: z.string().max(400),
+        why: z.string().max(120),
+      }),
+    )
+    .max(SONGS_PER_CALL * 4),
+})
+
+const ASKED_SYSTEM = `You change the names in someone's own music library the way they ask. You are given their request and a numbered table of the songs it is about (n | title | artist | album | album artist). Reply with JSON only: edits, each a song's number (n), the field to change (title, artist, album or albumArtist), what it becomes (to), and why.
+
+- Only what the request asks for, on the fields it asks about. Leave a song out when it is right already, or when you do not know the answer for certain: never guess or make up a name. When they ask for official names, give a name the artist or publisher uses, not one you translated yourself.
+- Every song on one album gets the same album name.
+- why: at most six plain words, the same words for every edit made for the same reason ("Official Chinese name").
+- Never use a number that is not in the table, and never an edit that keeps the name the same.`
+
+function chunks<T>(items: readonly T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
+  return out
+}
+
+/** One change asked for across the songs it is about, a batch at a time. */
+async function askedTidy(
+  llm: Llm,
+  remembered: Remembered,
+  asked: TidyAsked,
+  steps: Steps,
+): Promise<TidyResult> {
+  const notes: string[] = []
+  if (asked.unknown.length > 0) notes.push(`Your library has no ${asked.unknown.join(' or ')}.`)
+  // An album's songs side by side, so one batch names the whole album.
+  const songs = [...asked.songs]
+    .sort(
+      (a, b) =>
+        (a.albumArtist || a.artist).localeCompare(b.albumArtist || b.artist) ||
+        a.album.localeCompare(b.album) ||
+        (a.trackNo ?? 0) - (b.trackNo ?? 0) ||
+        a.id - b.id,
+    )
+    .slice(0, MAX_ASKED)
+  if (asked.songs.length > songs.length) {
+    notes.push(
+      `Looked at the first ${MAX_ASKED.toLocaleString('en')} songs; ask again for the rest.`,
+    )
+  }
+  const batches = chunks(songs, SONGS_PER_CALL)
+  const { propose, changes } = grouped()
+  let done = 0
+  const failures: LlmError[] = []
+  let missed = 0
+  const total = songs.length.toLocaleString('en')
+  steps.begin(`Reading ${total} ${songs.length === 1 ? 'song' : 'songs'}`)
+
+  const run = async (batch: Song[]): Promise<void> => {
+    const table = batch
+      .map(
+        (song, index) =>
+          `${index + 1} | ${song.title} | ${song.artist || '-'} | ${song.album || '-'} | ${song.albumArtist || '-'}`,
+      )
+      .join('\n')
+    const prompt = `The request:\n${asked.text}\n\nThe songs (n | title | artist | album | album artist):\n${table}`
+    let answer: z.infer<typeof EditsOut>
+    try {
+      answer = await remembered.get(
+        Remembered.key('tidy-asked', VERSION, prompt),
+        async () =>
+          (
+            await llm.generate({
+              task: 'tidy-asked',
+              tier: 'smart',
+              system: ASKED_SYSTEM,
+              prompt,
+              schema: EditsOut,
+            })
+          ).value,
+      )
+    } catch (caught) {
+      if (!(caught instanceof LlmError)) throw caught
+      failures.push(caught)
+      missed += batch.length
+      return
+    }
+    // The check: a song in this batch, a field once each, a name a song may have.
+    const seen = new Set<string>()
+    for (const edit of answer.edits) {
+      const song = batch[edit.n - 1]
+      const to = edit.to.trim().replace(/\s+/g, ' ')
+      const at = `${edit.n}:${edit.field}`
+      if (!song || seen.has(at)) continue
+      if (!SongFieldsSchema.shape[edit.field].safeParse(to).success) continue
+      seen.add(at)
+      const why = edit.why.trim() || 'As you asked'
+      propose(song, edit.field, song[edit.field], { value: to, whys: [why] }, 'model')
+    }
+    done += batch.length
+    steps.begin(`Read ${done.toLocaleString('en')} of ${total} songs`)
+  }
+
+  // A few batches at once, each taking the next as it finishes.
+  let next = 0
+  await Promise.all(
+    Array.from({ length: Math.min(CALLS_AT_ONCE, batches.length) }, async () => {
+      while (next < batches.length) await run(batches[next++]!)
+    }),
   )
+  const [failure] = failures
+  if (failure && missed === songs.length) throw failure
+  if (failure) {
+    notes.push(
+      `${llmFailureWords[failure.kind]} Left out ${plural(missed, 'song', 'songs')}; ask again for them.`,
+    )
+  }
+  const found = changes()
+  steps.done(`${found.length} ${found.length === 1 ? 'change' : 'changes'}`)
+  return {
+    changes: found,
+    looked: songs.length,
+    note: notes.length > 0 ? notes.join(' ') : null,
+    asked: asked.text,
+  }
 }

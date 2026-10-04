@@ -34,6 +34,7 @@ import {
   AiCheckSchema,
   AiSetupSchema,
   AskAnswerSchema,
+  AskProgressSchema,
   TidyResultSchema,
   WrittenReportSchema,
   DescribeResultSchema,
@@ -337,8 +338,16 @@ export function createApi({ context, fetch }: ApiOptions) {
     }) => request('POST', '/api/ai/describe', DescribeResultSchema, input),
 
     /** The Search box's Ask: one request, routed to one thing the app can do. */
-    ask: (text: string, playing: number | null = null) =>
-      request('POST', '/api/ai/ask', AskAnswerSchema, { text, playing }),
+    ask: (text: string, playing: number | null = null, ticket?: string) =>
+      request('POST', '/api/ai/ask', AskAnswerSchema, { text, playing, ticket }),
+
+    /** How an Ask named by `ticket` is going, while its answer is on the way. */
+    askProgress: (ticket: string) =>
+      request(
+        'GET',
+        `/api/ai/ask/progress?ticket=${encodeURIComponent(ticket)}`,
+        AskProgressSchema,
+      ),
 
     tagSuggestions: () => request('GET', '/api/ai/tag-suggestions', TagSuggestionsSchema),
 

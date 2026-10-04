@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -53,12 +53,21 @@ export function AskAnswer({
   const [playingHere] = useState(() => player.current?.id ?? null)
   const playing = playingHere === null ? null : (server.onServer(playingHere) ?? null)
   const via = server.reach.state === 'reachable' ? server.reach.connection.baseUrl : null
+  // Names this asking, so how it is going can be asked after while it runs.
+  const ticket = useMemo(() => newTicket(text), [text])
   const answer = useQuery({
     queryKey: ['via-server', via, 'ai', 'ask', text, playing],
-    queryFn: () => server.api!.ask(text, playing),
+    queryFn: () => server.api!.ask(text, playing, ticket),
     enabled: server.api !== null,
     retry: false,
     staleTime: 10 * 60_000,
+  })
+  const progress = useQuery({
+    queryKey: ['via-server', via, 'ai', 'ask-progress', ticket],
+    queryFn: () => server.api!.askProgress(ticket),
+    enabled: server.api !== null && answer.isPending,
+    refetchInterval: 500,
+    retry: false,
   })
 
   if (server.reach.state !== 'reachable') {
@@ -72,6 +81,7 @@ export function AskAnswer({
             { doing: 'Reading what you asked', done: 'Read what you asked' },
             { doing: 'Working on the answer', after: 3000 },
           ]}
+          live={progress.data?.steps ?? null}
           testID="ask-waiting"
         />
       </View>
@@ -371,3 +381,9 @@ const styles = StyleSheet.create(theme => ({
   },
   pressed: { opacity: 0.6 },
 }))
+
+/** A request's own name, for asking how it is going: unguessable, never reused. */
+function newTicket(text: string): string {
+  const random = Math.random().toString(36).slice(2, 12)
+  return `${Date.now().toString(36)}${random}${text.length.toString(36)}`.slice(0, 40)
+}

@@ -1,6 +1,7 @@
 import { describe as group, expect, it } from 'vitest'
 import type { Understanding } from '@selfmp3/shared'
-import { describe, groundPicks, songsFitting } from './describe.js'
+import { describe, groundPicks, narrowAndPick, songsFitting } from './describe.js'
+import { AskProgress } from './progress.js'
 import { SONGS, TAGS, scriptedLlm } from './fixtures/library.js'
 import { creditNames, libraryShape, songTable } from './library.js'
 
@@ -136,6 +137,15 @@ group('describe', () => {
     // Every one shown: nothing else fits, so they come back rather than nothing.
     const all = await describe(deps(llm), { text: 'jpop', understanding: parts, avoid: shown })
     expect(all.picks.map(pick => pick.songId)).toEqual(shown)
+  })
+
+  it('says each stage as it goes, with what it found', async () => {
+    const progress = new AskProgress()
+    const steps = progress.track('ticket-123456')
+    const parts = { ...nothing, anyTags: ['jpop'] }
+    await narrowAndPick(deps(scriptedLlm({})), 'jpop', parts, [], [], steps)
+    expect(progress.steps('ticket-123456')).toEqual([{ text: '3 songs fit', done: true }])
+    expect(progress.steps('someone-else')).toEqual([])
   })
 
   it('skips the plan when the device sends the parts back', async () => {

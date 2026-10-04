@@ -16,6 +16,8 @@ interface KeptAnswer {
   /** The words asked. */
   readonly text: string
   readonly result: DescribeResult
+  /** The songs in the order you put them in, by this device's ids; null for the answer's own. */
+  readonly order: readonly number[] | null
 }
 
 let answers: ReadonlyMap<string, KeptAnswer> = new Map()
@@ -35,7 +37,7 @@ export function keepAnswer(text: string, result: DescribeResult): string {
   // Nobody is reading an id that did not exist, so there is no one to tell:
   // and this runs while an answer is drawn, when telling would be a render
   // inside a render.
-  answers = new Map([...answers, [id, { id, text, result }]])
+  answers = new Map([...answers, [id, { id, text, result, order: null }]])
   return id
 }
 
@@ -43,7 +45,15 @@ export function keepAnswer(text: string, result: DescribeResult): string {
 export function replaceAnswer(id: string, result: DescribeResult): void {
   const answer = answers.get(id)
   if (!answer) return
-  answers = new Map([...answers, [id, { ...answer, result }]])
+  answers = new Map([...answers, [id, { ...answer, result, order: null }]])
+  emit()
+}
+
+/** Songs held and moved on the answer's page: the order it plays and saves in from now on. */
+export function reorderAnswer(id: string, order: readonly number[]): void {
+  const answer = answers.get(id)
+  if (!answer) return
+  answers = new Map([...answers, [id, { ...answer, order: [...order] }]])
   emit()
 }
 

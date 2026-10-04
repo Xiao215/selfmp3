@@ -21,6 +21,7 @@ import { libraryShape, songTable } from './library.js'
 import { Remembered } from './llm.js'
 import { tidy } from './tidy.js'
 
+import { NO_STEPS, type Steps } from './progress.js'
 /**
  * S1 · the Search box's Ask (docs/features/ai.md).
  *
@@ -117,6 +118,8 @@ export async function ask(
   playingId: number | null = null,
   /** Features turned off in Settings that the router may still choose. */
   allowed: { tidy: boolean } = { tidy: true },
+  /** Told each stage as it begins, for the device's waiting steps (`progress.ts`). */
+  steps: Steps = NO_STEPS,
 ): Promise<AskAnswer> {
   const remembered = deps.remembered ?? new Remembered()
   const songs = deps.songs()
@@ -129,6 +132,7 @@ export async function ask(
     ? `\n\nNow playing: ${songTable([playing], tags, now).replace(/^#1 \| /, '')}`
     : ''
   const prompt = `${libraryShape(songs, tags)}\n\nTheir tags, exactly: ${tags.map(tag => tag.name).join(', ') || '(none)'}${nowPlaying}\n\nThe request:\n${text}`
+  steps.begin('Reading what you asked')
   const route = await remembered.get(
     Remembered.key('ask-route', VERSION, prompt),
     async () =>
@@ -143,6 +147,8 @@ export async function ask(
       ).value,
   )
 
+  steps.done('Read what you asked')
+
   switch (route.action) {
     case 'songs': {
       if (!route.songs) break
@@ -150,7 +156,14 @@ export async function ask(
       // Up next is a handful after this song, not a playlist's worth, unless a number was said.
       const plan = steering ? { ...route.songs, size: route.songs.size ?? NEXT_SIZE } : route.songs
       const { understanding, unknown } = groundPlan(plan, songs, tags)
-      const found = await narrowAndPick(deps, `${text}${nowPlaying}`, understanding, unknown)
+      const found = await narrowAndPick(
+        deps,
+        `${text}${nowPlaying}`,
+        understanding,
+        unknown,
+        [],
+        steps,
+      )
       // The song playing is what they are steering from, never one of the picks.
       const describe = { ...found, picks: found.picks.filter(pick => pick.songId !== playingId) }
       const lead = steering ? 'next' : route.play ? 'play' : 'save'
@@ -159,8 +172,15 @@ export async function ask(
 
     case 'find': {
       if (!route.find) break
+      const quoted = route.find.terms
+        .slice(0, 3)
+        .map(term => `“${term}”`)
+        .join(', ')
+      steps.begin(`Looking for ${quoted} in titles and lyrics`)
       const found = foundFor(route.find.terms, songs, deps.lyrics)
+      steps.done(found.length === 0 ? 'Nothing matched' : `${found.length} could be it`)
       if (found.length === 0) return { kind: 'find', terms: route.find.terms, picks: [] }
+      steps.begin('Choosing the one you mean')
       const table = found.map(each => each.song)
       const lines = songTable(table, tags, now)
         .split('\n')
@@ -181,6 +201,7 @@ export async function ask(
             })
           ).value,
       )
+      steps.done()
       return {
         kind: 'find',
         terms: route.find.terms,
@@ -200,8 +221,10 @@ export async function ask(
         return { kind: 'none', say: 'Say which songs to tag: an artist, a tag, or a kind of song.' }
       }
       const existing = tags.find(tag => lower(tag.name) === lower(name)) ?? null
+      steps.begin('Finding the songs to tag')
       const fitting = songsFitting(songs, tags, understanding, now)
       const without = fitting.filter(song => !existing || !song.tagIds.includes(existing.id))
+      steps.done(`${without.length} ${without.length === 1 ? 'song' : 'songs'} to tag`)
       return {
         kind: 'tag',
         tag: existing?.name ?? name,
@@ -214,7 +237,9 @@ export async function ask(
 
     case 'stats': {
       if (!route.stats) break
+      steps.begin('Reading your listening')
       const stats = deps.stats(route.stats.range)
+      steps.done()
       const items =
         route.stats.about === 'songs'
           ? stats.topSongs.map(each => ({
@@ -241,7 +266,7 @@ export async function ask(
       if (!allowed.tidy) {
         return { kind: 'none', say: 'Tidy up is turned off in Settings › Smart features.' }
       }
-      return { kind: 'tidy', tidy: await tidy({ ...deps, remembered }) }
+      return { kind: 'tidy', tidy: await tidy({ ...deps, remembered }, steps) }
 
     case 'open':
       if (!route.open) break

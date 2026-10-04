@@ -15,15 +15,21 @@ interface WorkingStep {
 
 /**
  * A smart answer on its way (A1): the steps it goes through, the one running
- * now with a seconds count, over a faint outline of the list to come. The
- * server answers once, so a step's start is when it usually begins, not a
- * report from the server; the steps are kept to ones that are always true.
+ * now with a seconds count, over a faint outline of the list to come.
+ *
+ * Where the server says how it is going (`live`, an Ask's stages with what
+ * each found — "349 songs fit", "Choosing 25 that suit it"), those are shown.
+ * Until the first of them arrives, or from a server that does not say,
+ * `steps` stand in: a step's start is when it usually begins, so they are kept
+ * to ones that are always true.
  */
 export function Working({
   steps,
+  live,
   testID,
 }: {
   steps: readonly WorkingStep[]
+  live?: readonly { readonly text: string; readonly done: boolean }[] | null
   testID?: string
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -33,15 +39,27 @@ export function Working({
     const timer = setInterval(() => setMs(Date.now() - start), 250)
     return () => clearInterval(timer)
   }, [])
-  const at = steps.reduce((now, step, index) => (ms >= (step.after ?? 0) ? index : now), 0)
-  const seconds = Math.floor(ms / 1000)
+  const timed = steps.reduce((now, step, index) => (ms >= (step.after ?? 0) ? index : now), 0)
+  const shown: { key: string; text: string; done: boolean }[] =
+    live && live.length > 0
+      ? live.map((step, index) => ({ key: `${index}`, text: step.text, done: step.done }))
+      : steps.slice(0, timed + 1).map((step, index) => ({
+          key: step.doing,
+          text: index < timed ? (step.done ?? step.doing) : step.doing,
+          done: index < timed,
+        }))
+  // The seconds count is the running step's own: it starts again at each stage.
+  const running = shown.find(step => !step.done)?.text ?? null
+  const [since, setSince] = useState<{ text: string | null; at: number }>({ text: null, at: 0 })
+  if (running !== since.text) setSince({ text: running, at: ms })
+  const seconds = Math.floor((ms - since.at) / 1000)
 
   return (
     <View style={styles.body} accessibilityLiveRegion="polite" testID={testID}>
-      {steps.slice(0, at + 1).map((step, index) => {
-        const done = index < at
+      {shown.map(step => {
+        const done = step.done
         return (
-          <View key={step.doing} style={styles.step}>
+          <View key={step.key} style={styles.step}>
             {done ? (
               <View style={[styles.mark, { backgroundColor: withAlpha(theme.colors.good, 0.18) }]}>
                 <Check size={11} tone="good" />
@@ -52,7 +70,7 @@ export function Working({
               </View>
             )}
             <Text style={[styles.label, !done && styles.now]} numberOfLines={1}>
-              {done ? (step.done ?? step.doing) : step.doing}
+              {step.text}
             </Text>
             {!done && seconds > 0 ? <Text style={styles.seconds}>{seconds} s</Text> : null}
           </View>

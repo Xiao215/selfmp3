@@ -193,7 +193,15 @@ what that action needs, as JSON. Then the action runs as code:
 
 Every answer is a proposal with its own button (`AskAnswer.tsx`): a song answer is a card
 with ▶ that opens as its own page (docs/features/lists.md, "Ask's song answer"), Add the
-tag (after Look through), Open Stats, a found song to play. Measured on the
+tag (after Look through), Open Stats, a found song to play.
+
+While it works, the wait says what is happening (`ai/progress.ts`): the device names its
+request with a `ticket` and asks `GET /api/ai/ask/progress` twice a second, and the server
+answers with the stages so far in plain words and real numbers — "Read what you asked",
+"67 songs fit", "Choosing 25 that suit it"; for a half-remembered song "Looking for … in
+titles and lyrics", "Choosing the one you mean"; for Tidy up "Reading the names of 1,340
+songs". The answer itself still comes back as one response; a server without the route
+leaves the device on its two always-true steps. Measured on the
 real library: a route 2.3–3.5 s; with the pick, a playlist in 10 s and a found song in 5 s.
 
 ## N1 · New playlist as one field
@@ -277,7 +285,9 @@ cloud replica alike), so it syncs and undoes like an edit made by hand.
 1. **Rules** (no model). A name twice in one credit ("薛之谦, 薛之谦, 薛之谦"); the video's
    words in a title ("(Official Music Video)", "【MV】"); the artist in front of a title
    ("YOASOBI - 祝福"); an English translation after an original name ("オリオン - Orion",
-   keeping a "(feat. …)" after it). Xiao chose the original name over the bilingual one.
+   keeping a "(feat. …)" after it); a note on where the song was used after its name
+   ("有点甜 (《萌三国》网游主题曲|《微微一笑很倾城》电视剧插曲)" → "有点甜", `withoutUseNote`, also
+   applied at import). Xiao chose the original name over the bilingual one.
 2. **One model call** (smart tier) over names only, never titles: the artist names with
    counts, the credits that list more than one, the albums with their artist. It returns
    two spellings of one artist, classical credits that list a long-dead composer as a

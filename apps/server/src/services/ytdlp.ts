@@ -7,6 +7,7 @@ import {
   tidyVideoTitle,
   withoutRepeats,
   withoutTranslation,
+  withoutUseNote,
   type ToolStatus,
 } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
@@ -297,7 +298,7 @@ export function toProbedTrack(json: YtDlpJson, fallbackUrl: string): ProbedTrack
   // channel writes after it ("オリオン - Orion").
   return {
     url,
-    title: withoutTranslation((json.track ?? tidied?.title ?? '').trim()),
+    title: withoutUseNote(withoutTranslation((json.track ?? tidied?.title ?? '').trim())),
     artist: withoutRepeats(credited ? channel : (tidied?.artist ?? channel)),
     album: (json.album ?? '').trim(),
     duration: typeof json.duration === 'number' ? json.duration : 0,

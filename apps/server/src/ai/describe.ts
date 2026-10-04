@@ -11,6 +11,7 @@ import {
 import { creditNames, hasWords, libraryShape, songTable } from './library.js'
 import { LlmError, Remembered, type Llm } from './llm.js'
 
+import { NO_STEPS, type Steps } from './progress.js'
 /**
  * A1c · Describe a playlist (docs/features/ai.md).
  *
@@ -328,6 +329,7 @@ export async function narrowAndPick(
   understanding: Understanding,
   unknown: string[],
   avoid: readonly number[] = [],
+  steps: Steps = NO_STEPS,
 ): Promise<DescribeResult> {
   const now = deps.now?.() ?? Date.now()
   const remembered = deps.remembered ?? new Remembered()
@@ -335,6 +337,7 @@ export async function narrowAndPick(
   const tags = deps.tags()
 
   // 2 · Narrow, with no model: and loosen, a part at a time, if nothing fits.
+  steps.begin('Looking through your library')
   let fitting = songsFitting(songs, tags, understanding, now)
   const loosened: string[] = []
   let applied = understanding
@@ -353,6 +356,12 @@ export async function narrowAndPick(
     if (others.length > 0) fitting = others
   }
 
+  steps.done(
+    fitting.length === 0
+      ? 'Nothing in your library fits'
+      : `${fitting.length} ${fitting.length === 1 ? 'song fits' : 'songs fit'}${loosened.length > 0 ? `, once ${loosened.join(', ')} was let go` : ''}`,
+  )
+
   // 3 · Pick, only when there is something to judge.
   const size = understanding.size ?? DEFAULT_SIZE
   let picks: DescribePick[]
@@ -361,6 +370,7 @@ export async function narrowAndPick(
   } else if (understanding.brief === null && fitting.length <= size) {
     picks = fitting.map(song => ({ songId: song.id, why: null }))
   } else {
+    steps.begin(`Choosing ${Math.min(size, fitting.length)} that suit it`)
     const table = sample(fitting, text, MAX_CANDIDATES)
     const prompt = [
       `The description: ${text}`,
@@ -385,6 +395,7 @@ export async function narrowAndPick(
     )
     picks = groundPicks(answer.picks, table, size)
     if (picks.length === 0) throw new LlmError('invalid', 'The model picked no song from the table')
+    steps.done(`Chose ${picks.length}`)
   }
 
   return { understanding: applied, fit: fitting.length, loosened, unknown, picks }

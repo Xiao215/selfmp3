@@ -4,6 +4,7 @@ import {
   creditList as listed,
   withoutRepeats,
   withoutTranslation,
+  withoutUseNote,
   type Song,
   type TidyChange,
   type TidyField,
@@ -11,6 +12,7 @@ import {
 } from '@selfmp3/shared'
 import { LlmError, llmFailureWords, Remembered, type Llm } from './llm.js'
 
+import { NO_STEPS, type Steps } from './progress.js'
 /**
  * A4 · Tidy up (docs/features/ai.md): the song names in the library that look
  * wrong, each as a change to approve. Nothing here writes; an approved change
@@ -192,9 +194,10 @@ interface TidyDeps {
   readonly remembered?: Remembered
 }
 
-export async function tidy(deps: TidyDeps): Promise<TidyResult> {
+export async function tidy(deps: TidyDeps, steps: Steps = NO_STEPS): Promise<TidyResult> {
   const remembered = deps.remembered ?? new Remembered()
   const songs = deps.songs()
+  steps.begin(`Reading the names of ${songs.length} songs`)
 
   let names: Names = { spellings: [], credits: [], albums: [] }
   let note: string | null = null
@@ -218,7 +221,10 @@ export async function tidy(deps: TidyDeps): Promise<TidyResult> {
     note = `${llmFailureWords[caught.kind]} Only the plain fixes are here: two spellings of one artist and odd album names need the model.`
   }
 
-  return { changes: changesFor(songs, names), looked: songs.length, note }
+  steps.begin('Checking every name by the rules')
+  const changes = changesFor(songs, names)
+  steps.done(`${changes.length} ${changes.length === 1 ? 'thing' : 'things'} to fix`)
+  return { changes, looked: songs.length, note }
 }
 
 /** Rules and the model's names, applied to every song, grouped into changes. */
@@ -302,12 +308,14 @@ function changesFor(songs: readonly Song[], names: Names): TidyChange[] {
       propose(song, 'albumArtist', song.albumArtist, albumArtist, 'rule')
     }
 
-    // The title: words from the video, the artist in front, a translation after.
+    // The title: words from the video, the artist in front, a translation or
+    // a note on where it was used after.
     const title: Edit = { value: song.title, whys: [] }
     const steps: [(value: string) => string, string][] = [
       [withoutVideoWords, 'Words from the video, not the name'],
       [value => withoutArtistPrefix(value, song.artist), 'The artist is in the title'],
       [withoutTranslation, 'An English translation after the name'],
+      [withoutUseNote, 'Where the song was used, not its name'],
     ]
     for (const [step, why] of steps) {
       const next = step(title.value)

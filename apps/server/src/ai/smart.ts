@@ -16,6 +16,7 @@ import type {
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import { ask, type AskDeps } from './ask.js'
+import { AskProgress, type Step } from './progress.js'
 import { describe, type DescribeInput } from './describe.js'
 import { LlmError, llmFailureWords, noLlm, openAiCompatible, Remembered, type Llm } from './llm.js'
 import { tidy } from './tidy.js'
@@ -32,6 +33,7 @@ export class SmartFeatures {
     setup: AiSetup
     wrapped: (range: WrappedRange) => Wrapped
   }
+  readonly #progress = new AskProgress()
   /** One Suggest tags pass at a time: a second press joins the first. */
   #suggesting: Promise<TagSuggestions> | null = null
 
@@ -55,8 +57,14 @@ export class SmartFeatures {
     text: string,
     playing: number | null = null,
     allowed: { tidy: boolean } = { tidy: true },
+    ticket?: string,
   ): Promise<AskAnswer> {
-    return ask(this.#deps, text, playing, allowed)
+    return ask(this.#deps, text, playing, allowed, this.#progress.track(ticket))
+  }
+
+  /** How the Ask a ticket names is going (`progress.ts`). */
+  askProgress(ticket: string): readonly Step[] {
+    return this.#progress.steps(ticket)
   }
 
   /** Where the server asks, for Settings: no call is made. */

@@ -78,12 +78,15 @@ is named after them the same way.
 ## Ask's song answer
 
 In Search the answer is one card (C1): **▶** plays it at once, and the card opens it as a
-page — "✦ You asked", your words as its title, what it understood as chips, **Play**,
-**Different songs** and **⋯** (Shuffle, Add to Up next, Save as playlist). Rows carry no ✕:
-leaving a song out happens after Play, in Up next, the way songs always leave Up next.
-Different songs sends the picks it showed as `avoid` (`DescribeRequest`), and the server
-picks around them while anything else fits. Answers are kept in memory
-(`smart/answers.store.ts`); an address to one from before a reload says so.
+page. The page is a list of songs like any other: the head a tag's page has (covers, "✦ You
+asked", your words as its title, what it understood as chips), **Play**, **Shuffle**,
+**Different songs** and **⋯** (Add to Up next, Save as playlist), and under it the same
+rows a playlist draws (`ui/components/OrderedSongList.tsx`, shared with the playlist
+page): select them, hold one to move it, the ⋯ for the song. The order you put it in is
+the order it plays and saves in while the app is open. Different songs sends the picks it
+showed as `avoid` (`DescribeRequest`), and the server picks around them while anything else
+fits. Answers are kept in memory (`smart/answers.store.ts`); an address to one from before a
+reload says so.
 
 ## Recently played
 

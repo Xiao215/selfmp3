@@ -9,6 +9,7 @@ import {
   AskRequestSchema,
   DescribeRequestSchema,
   type AskAnswer,
+  type AskProgress,
   type DescribeResult,
   type TagSuggestions,
 } from '@selfmp3/shared'
@@ -62,8 +63,16 @@ export function aiRoutes(container: Container): Router {
     route({ body: AskRequestSchema }, ({ body }): Promise<AskAnswer> => {
       allowed('smartAsk')
       const tidy = container.settings.get().smartTidy
-      return answering(container.smart.ask(body.text, body.playing, { tidy }))
+      return answering(container.smart.ask(body.text, body.playing, { tidy }, body.ticket))
     }),
+  )
+
+  /** How an Ask is going, while the device waits for its answer. */
+  router.get(
+    '/ai/ask/progress',
+    route({ query: z.object({ ticket: z.string().max(64) }) }, ({ query }): AskProgress => ({
+      steps: [...container.smart.askProgress(query.ticket)],
+    })),
   )
 
   router.get(

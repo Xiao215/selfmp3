@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { scriptedLlm, song } from './fixtures/library.js'
 import { LlmError } from './llm.js'
-import { withoutRepeats, withoutTranslation } from '@selfmp3/shared'
+import { withoutRepeats, withoutTranslation, withoutUseNote } from '@selfmp3/shared'
 import {
   couldBeOneName,
   namesPrompt,
@@ -33,6 +33,18 @@ describe('the rules', () => {
     expect(withoutTranslation('すずめ - Suzume (feat. Toaka)')).toBe('すずめ (feat. Toaka)')
     expect(withoutTranslation('Love - Live')).toBe('Love - Live')
     expect(withoutTranslation('夜 - 朝')).toBe('夜 - 朝')
+  })
+
+  it('takes off a note on where the song was used, and nothing that is the song', () => {
+    expect(withoutUseNote('有点甜 (《萌三国》网游主题曲|《微微一笑很倾城》电视剧插曲)')).toBe(
+      '有点甜',
+    )
+    expect(withoutUseNote('光年之外（电影《太空旅客》中国区主题曲）')).toBe('光年之外')
+    expect(withoutUseNote('Lemon（ドラマ「アンナチュラル」主題歌）')).toBe('Lemon')
+    expect(withoutUseNote('Let It Go (From Frozen)')).toBe('Let It Go (From Frozen)')
+    expect(withoutUseNote('夜に駆ける (Live)')).toBe('夜に駆ける (Live)')
+    expect(withoutUseNote('Theme (Ending)')).toBe('Theme (Ending)')
+    expect(withoutUseNote('(《主题曲》)')).toBe('(《主题曲》)')
   })
 
   it('tells one name written two ways from two people', () => {

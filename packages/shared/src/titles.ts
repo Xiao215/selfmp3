@@ -243,3 +243,29 @@ export function withoutTranslation(title: string): string {
   if (!CJK.test(original!) || CJK.test(after!) || !/[a-z]/i.test(after!)) return title
   return `${original!.trim()}${featuring ? ` ${featuring[0].trim()}` : ''}`
 }
+
+/** What a song was used for, as Chinese and Japanese uploads write it after the name. */
+const USE_WORDS =
+  /主题曲|主題曲|插曲|片头曲|片尾曲|推广曲|宣传曲|印象曲|角色曲|概念曲|原声|配乐|主題歌|挿入歌|エンディング|オープニング|イメージソング|\b(?:OST|theme song|opening|ending|insert song)\b/iu
+
+/** Where it was used: a work in quotes, or the kind of work. */
+const USE_PLACE =
+  /《[^》]+》|「[^」]+」|『[^』]+』|电视剧|電視劇|电影|電影|网游|手游|游戏|遊戲|动画|動畫|アニメ|ドラマ|映画|ゲーム/u
+
+/** A bracketed note at the very end of a title, and what it holds. */
+const LAST_NOTE = /\s*[(（【[]([^)）】\]]*)[)）】\]]\s*$/u
+
+/**
+ * "有点甜 (《萌三国》网游主题曲|《微微一笑很倾城》电视剧插曲)" → "有点甜": a note
+ * after the name saying where the song was used — a theme for this game, an
+ * insert song in that drama. Only a note that names both the use and the work,
+ * or the kind of work: "(Live)", "(Acoustic)" and "(From Frozen)" are what the
+ * song is, and stay.
+ */
+export function withoutUseNote(title: string): string {
+  const match = LAST_NOTE.exec(title)
+  if (!match || match.index === 0) return title
+  const note = match[1] ?? ''
+  if (!USE_WORDS.test(note) || !USE_PLACE.test(note)) return title
+  return title.slice(0, match.index).trim() || title
+}

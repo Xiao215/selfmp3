@@ -1,16 +1,6 @@
-import {
-  createContext,
-  memo,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
-import type { ComponentProps, ReactNode } from 'react'
-import { ActivityIndicator, Animated, Pressable, Text, TextInput, View } from 'react-native'
-import type { FlatListProps, GestureResponderEvent } from 'react-native'
+import { useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
+import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
@@ -20,7 +10,6 @@ import {
   clientApi,
   failureText,
   fonts,
-  isDownloaded,
   queryKeys,
   radius,
   space,
@@ -35,9 +24,7 @@ import { useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { usePlayer } from '../../player/PlayerProvider'
-import { HoldToReorder, useLiftScale, useMakeRoom } from '../../ui/components/HoldToReorder'
-import { roomShift } from '../../ui/motion.model'
-import { modifiersOf, useSelection } from '../../selection/useSelection'
+import { useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { showToast } from '../../ui/toast'
@@ -68,9 +55,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
 import { SheetItem } from '../../ui/components/Sheet'
-import { SongList } from '../../ui/components/SongList'
-import { SongMenu } from '../../ui/components/SongMenu'
-import { SongRow } from '../../ui/components/SongRow'
+import { OrderedSongList } from '../../ui/components/OrderedSongList'
 import { usePullToRefresh } from '../library/usePullToRefresh'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import {
@@ -83,7 +68,7 @@ import {
 import { usePlaylistPlayback } from '../playlists/usePlaylistPlayback'
 import { AddSongsSheet } from './AddSongsSheet'
 import { FollowsRow } from './FollowsRow'
-import { cameFrom, dropIndex, movedTo } from './playlistDetail.model'
+import { cameFrom } from './playlistDetail.model'
 
 /**
  * One playlist (docs/ui-mock `P17`, `C08`): the same kind of page as a tag's
@@ -133,8 +118,6 @@ export function PlaylistDetailScreen(): ReactNode {
   const reorderPlaylist = useReorderPlaylist()
   const { state: downloads, installed, downloadByHand, removeByHand, removing } = useDownloads()
 
-  const [menuSong, setMenuSong] = useState<Song | null>(null)
-  const menuAnchorRef = useRef<View | null>(null)
   const [headMenuOpen, setHeadMenuOpen] = useState(false)
   const headMenuRef = useRef<View>(null)
   const [renaming, setRenaming] = useState(params.rename === '1')
@@ -143,23 +126,6 @@ export function PlaylistDetailScreen(): ReactNode {
   const [draftDescription, setDraftDescription] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [adding, setAdding] = useState(false)
-  // The row being moved and the row it would land on. Not how far it has
-  // travelled: that is `dragY`, which moves the row without a render.
-  const [drag, setDrag] = useState<{ from: number; over: number } | null>(null)
-  const [dragY] = useState(() => new Animated.Value(0))
-  /*
-   * The scale the row being moved wears (`useLiftScale`): a swell while the
-   * hold is counted, the full lift while it is carried, and the settle back on
-   * the spring once it is let go. One scale for the page, worn by whichever
-   * song is being moved — by song and not by row, since the drop reorders the
-   * playlist under it and the settle plays on into the row's new place.
-   */
-  const lift = useLiftScale()
-  // The three made-once callbacks on their own, so the handlers that use them
-  // do not have to watch the whole thing: it is remade whenever the row wearing
-  // the scale changes, and a row's memo has to hold through that.
-  const { holding: holdRow, start: liftRow, drop: dropRow } = lift
-  const [rowHeight, setRowHeight] = useState(0)
   const playlist = library.data?.playlists.find(entry => entry.id === playlistId) ?? null
   const live = playlist !== null && isLive(playlist)
   const manual = playlist?.kind === 'manual'
@@ -189,177 +155,6 @@ export function PlaylistDetailScreen(): ReactNode {
   // depends on it, and the compiler cannot vouch for a value that still points
   // into an object handed to the mutations below.
   const name = `${playlist?.name ?? 'Playlist'}`
-
-  /*
-   * What a row's handlers read at the moment they run, so the handlers are
-   * made once (`rowActions`) and a row's memo holds. Inline closures per row
-   * redrew every row on every render of this screen.
-   */
-  const latest = useRef({
-    songIds,
-    rowHeight,
-    selection,
-    playback,
-    playlistId,
-    reorderPlaylist,
-  })
-  useEffect(() => {
-    latest.current = {
-      songIds,
-      rowHeight,
-      selection,
-      playback,
-      playlistId,
-      reorderPlaylist,
-    }
-  })
-
-  /*
-   * A move.
-   *
-   * The pointer's travel goes into `dragY`, which the lifted cell reads
-   * (`LiftedCell`), so following the pointer is no render at all — as state it
-   * would redraw every row per pointer event. State changes when the move
-   * starts, when it crosses into another row (the drop line moves), and when
-   * it ends.
-   */
-  const dragStart = useCallback(
-    (songId: number) => {
-      const index = latest.current.songIds.indexOf(songId)
-      if (index < 0) return
-      dragY.setValue(0)
-      liftRow(songId)
-      setDrag({ from: index, over: index })
-    },
-    [dragY, liftRow],
-  )
-  const dragMove = useCallback(
-    (songId: number, dy: number) => {
-      const now = latest.current
-      const index = now.songIds.indexOf(songId)
-      if (index < 0) return
-      dragY.setValue(dy)
-      const over = dropIndex(index, dy, now.rowHeight, now.songIds.length)
-      setDrag(current =>
-        current !== null && current.from === index && current.over === over
-          ? current
-          : { from: index, over },
-      )
-    },
-    [dragY],
-  )
-  const dragEnd = useCallback(
-    (songId: number, dy: number) => {
-      const now = latest.current
-      const index = now.songIds.indexOf(songId)
-      if (index < 0) return
-      const moved = movedTo(now.songIds, index, dy, now.rowHeight)
-      // `dragY` is left where it is: the lift ends in the same render as the
-      // move, and resetting it first would show the row back in its old place
-      // for a frame. What covers that frame, and the commit after it, is the
-      // settle: the row keeps wearing the lift and springs back to 1 wherever
-      // the new order has put it.
-      setDrag(null)
-      dropRow()
-      if (moved) {
-        now.reorderPlaylist.mutate({ playlistId: now.playlistId, songIds: moved.songIds })
-      }
-    },
-    [dropRow],
-  )
-
-  const rowActions = useMemo<RowActions>(
-    () => ({
-      dragStart,
-      dragMove,
-      dragEnd,
-      holding: holdRow,
-      press: (event, songId, index) => {
-        const now = latest.current
-        // Cmd, Shift and selection mode select; anything else plays from here.
-        if (now.selection.click(songId, modifiersOf(event))) return
-        now.playback.playFrom(now.playlistId, now.songIds, index)
-      },
-      more: (anchor, song) => {
-        menuAnchorRef.current = anchor
-        // The ⋯ again closes its own menu.
-        setMenuSong(current => (current?.id === song.id ? null : song))
-      },
-      toggleSelect: song => latest.current.selection.toggle(song.id),
-      // Holding a row is how it is moved, so holding to select is the menu's
-      // job here (`SongMenu`). Where there is no order to change, holding
-      // selects, exactly as it does in the library.
-      longPress: song => latest.current.selection.enter(song.id),
-      measure: setRowHeight,
-    }),
-    [dragStart, dragMove, dragEnd, holdRow],
-  )
-
-  /*
-   * What every cell of the list needs to know about the move under way
-   * (`LiftedCell`): which row is carried and how far it has travelled, which
-   * rows are to step aside and by how much, and which row is wearing the lift.
-   * The row wearing it is named by song, so the settle follows the song as the
-   * new order lands; the cell only knows its place, so the place is worked out
-   * here.
-   */
-  const liftedFrom = drag?.from ?? null
-  const liftedOver = drag?.over ?? null
-  const wearingAt = lift.wearing === null ? -1 : songIds.indexOf(lift.wearing)
-  const settling = wearingAt < 0 ? null : wearingAt
-  const carry = useMemo(
-    () => ({
-      from: liftedFrom,
-      over: liftedOver,
-      step: rowHeight,
-      dragY,
-      lift: lift.lift,
-      settling,
-    }),
-    [liftedFrom, liftedOver, rowHeight, dragY, lift.lift, settling],
-  )
-
-  // Not on this phone and no server to stream it from: faded.
-  const unreachableHere = library.isError && installed
-  const menuSongId = menuSong?.id ?? null
-  // Any playlist can be put in the order you like, one that follows tags
-  // included: it keeps finding songs, and the ones it finds land after the
-  // order you set (Xiao, 2026-09-21). Selection mode is not what reordering is
-  // for, so a held row selects rather than lifts while it is on.
-  const reorderable = !selection.active
-  const renderSong = useCallback(
-    ({ item, index }: { item: Song; index: number }) => {
-      const here = isDownloaded(downloads.index, item.id)
-      return (
-        <PlaylistRow
-          testID={`song-row-${index}`}
-          song={item}
-          index={index}
-          artUri={artFor(item)}
-          downloaded={here}
-          notDownloadedMark={installed && !here}
-          unavailable={unreachableHere && !here}
-          reorderable={reorderable}
-          selecting={selection.active}
-          selected={selection.has(item.id)}
-          lifted={drag?.from === index}
-          menuOpen={menuSongId === item.id}
-          actions={rowActions}
-        />
-      )
-    },
-    [
-      artFor,
-      installed,
-      unreachableHere,
-      downloads.index,
-      reorderable,
-      selection,
-      drag,
-      menuSongId,
-      rowActions,
-    ],
-  )
 
   const saveName = (): void => {
     const trimmed = (draftName ?? '').trim()
@@ -643,28 +438,27 @@ export function PlaylistDetailScreen(): ReactNode {
         <View style={styles.listArea}>
           {wide ? null : bar}
 
-          <LiftContext.Provider value={carry}>
-            <SongList
-              songs={songs}
-              label={`${name} songs`}
-              renderSong={renderSong}
-              header={header}
-              pinned={wide ? bar : null}
-              empty={empty}
-              style={styles.scroll}
-              contentContainerStyle={[
-                styles.content,
-                selection.active && !wide && { paddingBottom: SELECTION_BAR_SPACE },
-              ]}
-              scrollEnabled={drag === null}
-              keyboardShouldPersistTaps="handled"
-              // A name or a description being typed in the head stays open through a scroll.
-              keyboardDismissMode="none"
-              CellRendererComponent={LiftedCell}
-              onRefresh={pull.onRefresh}
-              refreshing={pull.refreshing}
-            />
-          </LiftContext.Provider>
+          <OrderedSongList
+            songs={songs}
+            label={`${name} songs`}
+            selection={selection}
+            onPlay={index => playback.playFrom(playlistId, songIds, index)}
+            onReorder={moved => reorderPlaylist.mutate({ playlistId, songIds: [...moved] })}
+            header={header}
+            pinned={wide ? bar : null}
+            empty={empty}
+            style={styles.scroll}
+            contentContainerStyle={[
+              styles.content,
+              selection.active && !wide && { paddingBottom: SELECTION_BAR_SPACE },
+            ]}
+            keyboardShouldPersistTaps="handled"
+            // A name or a description being typed in the head stays open through a scroll.
+            keyboardDismissMode="none"
+            onRefresh={pull.onRefresh}
+            refreshing={pull.refreshing}
+            menuPlaylist={manual && playlist ? { id: playlist.id, name: playlist.name } : undefined}
+          />
         </View>
       </View>
 
@@ -745,13 +539,6 @@ export function PlaylistDetailScreen(): ReactNode {
         />
       </Popover>
 
-      <SongMenu
-        song={menuSong}
-        anchorRef={menuAnchorRef}
-        onClose={() => setMenuSong(null)}
-        playlist={manual && playlist ? { id: playlist.id, name: playlist.name } : undefined}
-      />
-
       {manual && playlist ? (
         <AddSongsSheet
           open={adding}
@@ -776,199 +563,6 @@ export function PlaylistDetailScreen(): ReactNode {
         }}
       />
     </View>
-  )
-}
-
-/** What a row can ask of the screen. Made once, so a row's memo holds. */
-interface RowActions {
-  /**
-   * A move, named by the song rather than by where it sits. A row's place
-   * changes when a move ends, and a gesture built around a place that has
-   * changed since is a gesture that moves the wrong row — so the row's
-   * handlers are made once, for its song, and last as long as the row does.
-   */
-  readonly dragStart: (songId: number) => void
-  readonly dragMove: (songId: number, dy: number) => void
-  readonly dragEnd: (songId: number, dy: number) => void
-  /** The hold has begun on a song, or it is over: the row's swell (`useLiftScale`). */
-  readonly holding: (songId: number, holding: boolean) => void
-  readonly press: (event: GestureResponderEvent, songId: number, index: number) => void
-  readonly more: (anchor: View | null, song: Song) => void
-  readonly toggleSelect: (song: Song) => void
-  readonly longPress: (song: Song) => void
-  readonly measure: (height: number) => void
-}
-
-/**
- * One track of a playlist: the library's row, with what a playlist adds.
- *
- * The row itself is `SongRow`, the same component and the same file the
- * library draws — a song row is a song row, and a playlist that had its own
- * was a playlist whose songs had no ⋯ at a finger's size and no colour under
- * the one that was playing. It is drawn without tag chips, as every row inside
- * a place is (`S3`). What a playlist adds is the hold that lifts a row and the
- * lifted look while it is being moved; where it would land is the gap the rows
- * around it open (`LiftedCell`), not a line drawn between two of them, which
- * is how the queue sheet and the rail say the same thing. Taking a song off the
- * playlist is in the ⋯ menu, where everything else done to a song already is.
- *
- * Only the handlers that need this row's place are made here — the press,
- * which plays from it, and the four that carry a move. The rest are the
- * screen's own, handed down unchanged, so the memo holds.
- */
-const PlaylistRow = memo(function PlaylistRow({
-  testID,
-  song,
-  index,
-  artUri,
-  downloaded,
-  notDownloadedMark,
-  unavailable,
-  reorderable,
-  selecting,
-  selected,
-  lifted,
-  menuOpen,
-  actions,
-}: {
-  testID: string
-  song: Song
-  index: number
-  artUri: string | null
-  downloaded: boolean
-  notDownloadedMark: boolean
-  unavailable: boolean
-  /** This playlist's order is yours to change, and nothing is being selected. */
-  reorderable: boolean
-  selecting: boolean
-  selected: boolean
-  lifted: boolean
-  menuOpen: boolean
-  actions: RowActions
-}): ReactNode {
-  const songId = song.id
-  const onHolding = useCallback(
-    (holding: boolean) => actions.holding(songId, holding),
-    [actions, songId],
-  )
-  const onDragStart = useCallback(() => actions.dragStart(songId), [actions, songId])
-  const onDragMove = useCallback((dy: number) => actions.dragMove(songId, dy), [actions, songId])
-  const onDragEnd = useCallback((dy: number) => actions.dragEnd(songId, dy), [actions, songId])
-  const onPress = useCallback(
-    (event: GestureResponderEvent) => actions.press(event, songId, index),
-    [actions, songId, index],
-  )
-
-  // One gesture, everywhere: hold the row and it lifts. The grip column that
-  // used to stand in for it on a computer is gone — six dots on every row
-  // read as clutter, and a mouse can hold a row as well as a finger can
-  // (Xiao, 2026-09-21).
-  const holds = reorderable
-
-  return (
-    <HoldToReorder
-      enabled={holds}
-      onHolding={onHolding}
-      onStart={onDragStart}
-      // A playlist's rows only ever move up and down.
-      onMove={(_dx, dy) => onDragMove(dy)}
-      onEnd={(_dx, dy) => onDragEnd(dy)}
-      onLayoutHeight={index === 0 ? actions.measure : undefined}
-    >
-      <SongRow
-        testID={testID}
-        song={song}
-        artUri={artUri}
-        downloaded={downloaded}
-        notDownloadedMark={notDownloadedMark}
-        unavailable={unavailable}
-        index={index}
-        selecting={selecting}
-        selected={selected}
-        menuOpen={menuOpen}
-        lifted={lifted}
-        onPress={onPress}
-        onMore={actions.more}
-        onToggleSelect={actions.toggleSelect}
-        // `null` while the hold is the move's: see `SongRow`.
-        onLongPress={holds ? null : actions.longPress}
-      />
-    </HoldToReorder>
-  )
-})
-
-/** The move under way, as every cell of the list needs it. */
-interface Carry {
-  /** The row being carried, if one is. */
-  readonly from: number | null
-  /** The row it would land on. */
-  readonly over: number | null
-  /** How tall a row is, which is how far a row steps when it makes room. */
-  readonly step: number
-  /** How far the carried row has travelled. */
-  readonly dragY: Animated.Value | null
-  /** The scale the row being moved wears (`useLiftScale`). */
-  readonly lift: Animated.Value | null
-  /** Which row is wearing that scale: held, carried, or settling after the drop. */
-  readonly settling: number | null
-}
-
-const LiftContext = createContext<Carry>({
-  from: null,
-  over: null,
-  step: 0,
-  dragY: null,
-  lift: null,
-  settling: null,
-})
-
-type CellProps = ComponentProps<NonNullable<FlatListProps<Song>['CellRendererComponent']>>
-
-/**
- * A list cell that takes part in a move: the carried one lifted over its
- * neighbours and following the pointer by an animated value rather than by
- * re-rendering, and every other one stepping aside to make room for it.
- *
- * On the cell rather than the row because a list puts each row in a cell of
- * its own, and on a phone a raised `zIndex` only counts among siblings — a
- * row raised inside its cell still slid under the next cell. Reads the move
- * from context, so this component stays the same one for the list's life and
- * starting a move does not remount every row, and its gesture with it.
- *
- * Make-room here is the same step the queue sheet's rows take (`useMakeRoom`),
- * so where the row will land is a gap and not a line — one reorder language on
- * every surface. A `FlatList` mounts and unmounts cells rather than recycling
- * them, so a cell's step is its own and a cell scrolled away and back simply
- * works its step out again.
- */
-function LiftedCell({ index, style, onLayout, onFocusCapture, children }: CellProps): ReactNode {
-  const { from, over, step, dragY, lift, settling } = useContext(LiftContext)
-  const carried = dragY !== null && from === index
-  const room = useMakeRoom(
-    from === null || over === null || carried ? 0 : roomShift(index, from, over),
-    step,
-    from !== null,
-  )
-  return (
-    <Animated.View
-      style={[
-        style,
-        carried && lift !== null
-          ? { zIndex: 2, transform: [{ translateY: dragY }, { scale: lift }] }
-          : // Settling, or swelling while its hold is counted: the scale only.
-            // `dragY` is left where the finger put it until the new order
-            // lands, so a row reading it now would settle in the wrong place.
-            settling === index && lift !== null
-            ? { zIndex: 2, transform: [{ scale: lift }] }
-            : room,
-      ]}
-      onLayout={onLayout}
-      // The list's own cell passes this on to a View, which takes it on both
-      // platforms; the types of Animated.View just do not name it.
-      {...{ onFocusCapture }}
-    >
-      {children}
-    </Animated.View>
   )
 }
 

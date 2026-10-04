@@ -118,8 +118,19 @@ export const AskRequestSchema = z.object({
   text: z.string().trim().min(1).max(500),
   /** The song playing on the asking device, by the server's id: what "this" means (A8). */
   playing: IdSchema.nullable().default(null),
+  /** Names this request, so the device can ask how it is going (`AskProgress`). */
+  ticket: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{8,64}$/)
+    .optional(),
 })
 export type AskRequest = z.infer<typeof AskRequestSchema>
+
+/** How an Ask is going: its stages so far, the last one still running unless done. */
+export const AskProgressSchema = z.object({
+  steps: z.array(z.object({ text: z.string(), done: z.boolean() })),
+})
+export type AskProgress = z.infer<typeof AskProgressSchema>
 
 /** The places an answer can send you to, when the answer is "that is over there". */
 export const AskPlaceSchema = z.enum([

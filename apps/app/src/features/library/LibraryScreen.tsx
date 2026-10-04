@@ -187,8 +187,11 @@ export function LibraryScreen(): ReactNode {
     // Shift and Cmd on the web, and a tap in selection mode, select; a plain
     // tap still plays.
     if (now.selection.click(song.id, modifiersOf(event))) return
-    const index = now.songIds.indexOf(song.id)
-    if (index >= 0) now.playFrom(now.songIds, index, { source: now.source })
+    // That song and nothing after it, and whatever Up next held is gone: a
+    // song picked out of the whole library is the one wanted, not the 1,300
+    // rows around it, which used to fill Up next on both sides (Xiao,
+    // 2026-10-03). The whole list plays from Shuffle, or Play with tags on.
+    now.playFrom([song.id], 0, { source: now.source })
   }, [])
   const onRowMore = useCallback((anchor: View | null, song: Song) => {
     menuAnchorRef.current = anchor
@@ -336,6 +339,19 @@ export function LibraryScreen(): ReactNode {
                 >
                   <SortLines size={18} tone="textPrimary" />
                 </IconButton>
+                {/* A row plays one song, so the whole list starts here. With
+                    tags on, the transport row under the head does it. */}
+                {model.tagFiltered ? null : (
+                  <IconButton
+                    label="Shuffle"
+                    filled
+                    disabled={visible.length === 0}
+                    onPress={() => player.playShuffled(songIds, source)}
+                    testID="library-shuffle-phone"
+                  >
+                    <Shuffle size={16} color={theme.colors.textPrimary} />
+                  </IconButton>
+                )}
               </View>
             )}
           </View>
@@ -355,10 +371,10 @@ export function LibraryScreen(): ReactNode {
         </View>
 
         {/*
-          A phone's library carries no sort and no idle Shuffle — a tap on a
-          row plays the list from there. But tags turn this list into an idea,
-          and an idea is worth starting, so the two controls a computer keeps
-          in its header take a row of their own here.
+          A phone's library keeps Shuffle with its tools in the title row — a
+          tap on a row plays that song alone. But tags turn this list into an
+          idea, and an idea is worth starting, so the two controls a computer
+          keeps in its header take a row of their own here.
           Without them the phone could pick tags and then had to be told to go
           somewhere else to play them.
         */}
@@ -439,9 +455,9 @@ export function LibraryScreen(): ReactNode {
               </Pressable>
 
               {/*
-              With no tags on, Shuffle alone — a click on any row already plays
-              the list from there, and "play 1,204 songs alphabetically" is not
-              a thing anybody wants a button for.
+              With no tags on, Shuffle alone — a click on a row plays that song
+              alone, and "play 1,204 songs alphabetically" is not a thing
+              anybody wants a button for.
 
               With tags on this list is an idea rather than a library, so it is
               worth a Play. Keeping it is Up next's Save, once it has been
@@ -475,6 +491,7 @@ export function LibraryScreen(): ReactNode {
                   accessibilityLabel="Shuffle"
                   icon={<Shuffle size={15} color={theme.colors.textPrimary} />}
                   disabled={visible.length === 0}
+                  testID="library-shuffle"
                   onPress={() => {
                     if (model.tagFiltered) fly(transportRef.current, songIds)
                     player.playShuffled(songIds, source)

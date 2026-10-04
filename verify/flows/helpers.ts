@@ -30,6 +30,18 @@ export async function openLibrary(page: Page): Promise<void> {
   await page.goto('/library')
 }
 
+/**
+ * Play the whole library, shuffled, so Up next has songs after the one
+ * playing. A tap on a library row plays that song alone (docs/features/lists.md),
+ * so a flow that needs a next song starts here: the head's Shuffle on a
+ * computer, the tools' Shuffle on a phone.
+ */
+export async function shuffleLibrary(page: Page): Promise<void> {
+  const phone = page.getByTestId('library-shuffle-phone')
+  if (await phone.isVisible().catch(() => false)) await phone.click()
+  else await page.getByTestId('library-shuffle').click()
+}
+
 /** The songs table, which is labelled `<heading> songs`. */
 function songTable(page: Page): Locator {
   return page.getByRole('table', { name: /songs$/ })

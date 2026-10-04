@@ -6,8 +6,8 @@ import {
   playSong,
   positionSeconds,
   seekReady,
+  shuffleLibrary,
   skipIfNoLibrary,
-  titleOf,
   topRow,
   transport,
 } from './helpers.js'
@@ -75,16 +75,15 @@ test.describe('playback', () => {
     await libraryReady(page)
     await skipIfNoLibrary(page, 2)
 
-    const first = await titleOf(await topRow(page))
-    await playSong(page, await topRow(page))
+    // A row plays its song alone, so the whole library, shuffled, gives Next somewhere to go.
+    await shuffleLibrary(page)
     await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
+    const nowPlaying = page.getByRole('button', { name: /^Open now playing: / }).first()
+    const first = await nowPlaying.getAttribute('aria-label')
 
     await page.getByRole('button', { name: 'Next', exact: true }).click()
     // The now-playing control is labelled with whatever is now playing.
-    await expect(page.getByRole('button', { name: /^Open now playing: / })).not.toHaveAttribute(
-      'aria-label',
-      `Open now playing: ${first}`,
-    )
+    await expect(nowPlaying).not.toHaveAttribute('aria-label', first ?? '')
 
     await transport(page, 'Pause').click()
   })

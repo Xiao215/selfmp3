@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { libraryReady, openLibrary, playSong, skipIfNoLibrary, songRows } from './helpers.js'
+import { libraryReady, openLibrary, shuffleLibrary, skipIfNoLibrary } from './helpers.js'
 
 /**
  * Up next (docs/ui-mock `P25`, `C11`, `C12`).
@@ -19,12 +19,12 @@ import { libraryReady, openLibrary, playSong, skipIfNoLibrary, songRows } from '
 const RAIL = 'the rail is the computer layout'
 const SHEET = 'the sheet is the phone layout'
 
-/** Play the library's first song, so the queue is the library from there. */
+/** Shuffle the library, so Up next has songs after the one playing. */
 async function startPlaying(page: Page): Promise<void> {
   await openLibrary(page)
   await libraryReady(page)
   await skipIfNoLibrary(page, 3)
-  await playSong(page, songRows(page).first())
+  await shuffleLibrary(page)
 }
 
 /** A row's accessible name: "<title>, <artist>". */

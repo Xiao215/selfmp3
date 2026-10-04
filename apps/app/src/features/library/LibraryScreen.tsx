@@ -162,9 +162,9 @@ export function LibraryScreen(): ReactNode {
    * row asks the player itself (`useSongPlayback`).
    */
   const { playFrom } = player
-  const latest = useRef({ selection, songIds, playFrom, model, source })
+  const latest = useRef({ selection, songIds, playFrom, model })
   useEffect(() => {
-    latest.current = { selection, songIds, playFrom, model, source }
+    latest.current = { selection, songIds, playFrom, model }
   })
   /*
    * Turning a tag on or off, from anywhere: a chip in the head, a chip on a
@@ -191,7 +191,9 @@ export function LibraryScreen(): ReactNode {
     // song picked out of the whole library is the one wanted, not the 1,300
     // rows around it, which used to fill Up next on both sides (Xiao,
     // 2026-10-03). The whole list plays from Shuffle, or Play with tags on.
-    now.playFrom([song.id], 0, { source: now.source })
+    // One song is not a list, so Up next wears no name and offers no Save: the
+    // tags ticked are not what is playing (docs/features/lists.md).
+    now.playFrom([song.id], 0)
   }, [])
   const onRowMore = useCallback((anchor: View | null, song: Song) => {
     menuAnchorRef.current = anchor

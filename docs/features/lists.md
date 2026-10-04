@@ -36,7 +36,8 @@ becomes just it, and whatever it held before is gone (Xiao, 2026-10-03). It used
 whole library from that row, which put every row above it in Up next as already played and
 every row below it as next. The whole list plays from **Shuffle** — the head on a computer,
 next to Sort on a phone — or **Play these tags** with tags on. A tag's, an artist's or a
-playlist's page still plays its list from the row.
+playlist's page still plays its list from the row. One song is not a list: Up next wears no
+name for it and offers no Save, and Recently played shows it as that song.
 
 ## Where a list came from
 

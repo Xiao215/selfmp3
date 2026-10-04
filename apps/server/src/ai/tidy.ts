@@ -207,6 +207,8 @@ interface TidyDeps {
   readonly remembered?: Remembered
   /** The catalogues, for a request that wants names from outside the library. */
   readonly findNames?: FindNames
+  /** Settings' web switch: songs no catalogue has may be looked for on the web. */
+  readonly web?: () => boolean
 }
 
 /** A request for one change across some songs, and the songs it is about. */
@@ -414,6 +416,16 @@ Each song may be followed by "found": what music catalogues (网易云, MusicBra
 - Leave off a game's or series' prefix ("原神-千岩旷望 Millelith's Watch" is 千岩旷望 for an album) unless they ask for it.
 - A song with nothing found, or nothing found that fits, is left out. Never write a name that is not in what was found.`
 
+/** Added for songs no catalogue has, when Settings lets the model search the web. */
+const WEB_RULES = `
+
+None of these songs is in the music catalogues. Search the web for each one's name the way they ask: the artist's or publisher's own pages, stores, wikis. Give a name only when a page you read gives it for this same song, and leave the rest out.`
+
+/** Songs per web call: each may mean a few searches. */
+const WEB_PER_CALL = 15
+/** The most songs looked for on the web in one request. */
+const MAX_WEB = 150
+
 /** Lookups at once: 网易云 answers quickly, and MusicBrainz waits its turn on its own. */
 const LOOKUPS_AT_ONCE = 3
 
@@ -489,7 +501,9 @@ async function askedTidy(
     steps.done(`Found ${found.size.toLocaleString('en')} of ${all}`)
     if (notFound > 0) {
       notes.push(
-        `${plural(notFound, 'song wasn’t', 'songs weren’t')} found on 网易云, MusicBrainz or iTunes, so ${notFound === 1 ? 'it is' : 'they are'} left as ${notFound === 1 ? 'it is' : 'they are'}.`,
+        deps.web?.()
+          ? `${plural(notFound, 'song wasn’t', 'songs weren’t')} found on 网易云, MusicBrainz or iTunes, so the web was searched instead: what it found waits for a yes.`
+          : `${plural(notFound, 'song wasn’t', 'songs weren’t')} found on 网易云, MusicBrainz or iTunes, so ${notFound === 1 ? 'it is' : 'they are'} left as ${notFound === 1 ? 'it is' : 'they are'}.`,
       )
     }
   }
@@ -568,6 +582,62 @@ async function askedTidy(
       `${llmFailureWords[failure.kind]} Left out ${plural(missed, 'song', 'songs')}; ask again for them.`,
     )
   }
+
+  // 3 · The web, for songs no catalogue has, when Settings allows: the model's finds, unticked.
+  const unfound =
+    lookingUp && deps.web?.() ? songs.filter(song => !found.has(song.id)).slice(0, MAX_WEB) : []
+  if (unfound.length > 0) {
+    let webMissed = 0
+    steps.begin(`Searching the web for ${plural(unfound.length, 'song', 'songs')}`)
+    await pool(chunks(unfound, WEB_PER_CALL), 2, async batch => {
+      const table = batch
+        .map(
+          (song, index) =>
+            `${index + 1} | ${song.title} | ${song.artist || '-'} | ${song.album || '-'} | ${song.albumArtist || '-'}`,
+        )
+        .join('\n')
+      const prompt = `The request:\n${asked.text}\n\nThe songs (n | title | artist | album | album artist):\n${table}`
+      let answer: z.infer<typeof EditsOut>
+      try {
+        answer = await remembered.get(
+          Remembered.key('tidy-web', VERSION, prompt),
+          async () =>
+            (
+              await llm.generate({
+                task: 'tidy-web',
+                tier: 'smart',
+                system: ASKED_SYSTEM + WEB_RULES,
+                prompt,
+                schema: EditsOut,
+                webSearch: true,
+              })
+            ).value,
+        )
+      } catch (caught) {
+        if (!(caught instanceof LlmError)) throw caught
+        webMissed += batch.length
+        return
+      }
+      const seen = new Set<string>()
+      for (const edit of answer.edits) {
+        const song = batch[edit.n - 1]
+        const to = edit.to.trim().replace(/\s+/g, ' ')
+        const at = `${edit.n}:${edit.field}`
+        if (!song || seen.has(at)) continue
+        if (!SongFieldsSchema.shape[edit.field].safeParse(to).success) continue
+        seen.add(at)
+        propose(
+          song,
+          edit.field,
+          song[edit.field],
+          { value: to, whys: ['Found on the web'] },
+          'model',
+        )
+      }
+    })
+    if (webMissed > 0) notes.push(`The web search left out ${plural(webMissed, 'song', 'songs')}.`)
+  }
+
   const proposed = changes()
   steps.done(`${proposed.length} ${proposed.length === 1 ? 'change' : 'changes'}`)
   return {

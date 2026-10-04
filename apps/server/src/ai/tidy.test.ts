@@ -219,6 +219,29 @@ describe('tidy, with names looked up', () => {
     expect(llm.asked[0]!.system).toContain('Never write a name that is not in what was found')
   })
 
+  it('looks on the web for songs no catalogue has, when Settings allows, and leaves those unticked', async () => {
+    const llm = scriptedLlm({
+      'tidy-web': [{ edits: [{ n: 1, field: 'title', to: '无处可寻', why: 'Game wiki' }] }],
+    })
+    const result = await tidy({ llm, songs: () => [], findNames, web: () => true }, undefined, {
+      text: 'official Chinese names',
+      songs: [lost],
+      unknown: [],
+      lookUp: true,
+    })
+    expect(result.changes).toEqual([
+      expect.objectContaining({
+        field: 'title',
+        to: '无处可寻',
+        by: 'model',
+        why: 'Found on the web',
+      }),
+    ])
+    expect(result.note).toMatch(/the web was searched instead/)
+    expect(llm.asked.map(each => each.task)).toEqual(['tidy-web'])
+    expect(llm.asked[0]!.webSearch).toBe(true)
+  })
+
   it('asks the model nothing when no song was found', async () => {
     const llm = scriptedLlm({})
     const result = await tidy({ llm, songs: () => [], findNames }, undefined, {

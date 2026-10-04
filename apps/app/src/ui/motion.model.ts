@@ -74,6 +74,11 @@ export const MOVE_MS = {
   hold: 350,
   /** The least time a spinner stays once shown, so a short wait never flickers one. */
   busyHold: 300,
+  /** Covers flying from what was played into the Up next button, each this far behind the one before. */
+  flight: 360,
+  flightStagger: 40,
+  /** The Up next button swelling once as they land. */
+  landing: 90,
 } as const
 
 /**

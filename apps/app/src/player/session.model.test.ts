@@ -17,7 +17,22 @@ describe('the saved session', () => {
       queueIds: [3, 1, 2],
       index: 1,
       position: 42.5,
+      source: null,
     })
+  })
+
+  it('comes back by the name Up next had', () => {
+    const source = { kind: 'tag', tagId: 4, name: 'Calm' } as const
+    const saved = sessionFromQueue(queue([3, 1], 0), 0, source)
+    expect(parseSession(JSON.stringify(saved))?.source).toEqual(source)
+    expect(
+      launchPlayback(parseSession(JSON.stringify(saved)), undefined, known(3, 1))?.source,
+    ).toEqual(source)
+    // A name written by something else is no name, not a broken session.
+    expect(
+      parseSession(JSON.stringify({ queueIds: [1], index: 0, position: 0, source: { kind: 'x' } }))
+        ?.source,
+    ).toBeNull()
   })
 
   it('keeps nothing for an empty queue, and reads nothing from junk', () => {
@@ -37,6 +52,7 @@ describe('launchPlayback', () => {
       queueIds: [4, 4, 7],
       index: 1,
       position: 61,
+      source: null,
     })
   })
 
@@ -49,6 +65,7 @@ describe('launchPlayback', () => {
       queueIds: [9],
       index: 0,
       position: 0,
+      source: null,
     })
   })
 
@@ -56,6 +73,11 @@ describe('launchPlayback', () => {
     expect(launchPlayback(saved, '99', known(4, 9, 7))?.index).toBe(2)
     expect(launchPlayback(saved, 'abc', known(4, 9, 7))?.index).toBe(2)
     expect(launchPlayback(saved, undefined, known(9, 7))).toBeNull()
-    expect(launchPlayback(null, '7', known(7))).toEqual({ queueIds: [7], index: 0, position: 0 })
+    expect(launchPlayback(null, '7', known(7))).toEqual({
+      queueIds: [7],
+      index: 0,
+      position: 0,
+      source: null,
+    })
   })
 })

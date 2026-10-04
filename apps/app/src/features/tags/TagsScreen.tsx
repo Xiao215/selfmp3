@@ -134,7 +134,9 @@ export function TagsScreen(): ReactNode {
     const ids = standing.songs.map(song => song.id)
     if (ids.length === 0) return
     noteTagUsed(standing.tag.id)
-    latest.current.player.playFrom(ids, 0)
+    latest.current.player.playFrom(ids, 0, {
+      source: { kind: 'tag', tagId: standing.tag.id, name: standing.tag.name },
+    })
   }, [])
   const openArtist = useCallback((name: string) => {
     latest.current.router.navigate(artistLink(name))

@@ -9,6 +9,7 @@ import { clamp01 } from '@selfmp3/shared'
 import { warmCoverPalette } from '../features/nowPlaying/useCoverPalette'
 import { loopRegionPercent, radius, space, type, withAlpha, useToggleLoved } from '@selfmp3/client'
 import { DevicesSheet } from '../features/devices/DevicesSheet'
+import { UpNextTarget } from '../ui/components/CoverFlight'
 import { toggleQueueSheet, useQueueSheetOpen } from '../features/queue/queueSheet.store'
 import { useArt } from '../offline/useArt'
 import {
@@ -285,14 +286,16 @@ export function PlayerBar(): ReactNode {
           <VolumeControl compact={width < COMPACT_WIDTH} />
         </View>
         <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Panels">
-          <IconButton
-            testID="player-bar-queue"
-            onPress={toggleQueueSheet}
-            label="Up next"
-            active={queueOpen}
-          >
-            <Queue size={17} color={queueOpen ? songColor.color : theme.colors.textSecondary} />
-          </IconButton>
+          <UpNextTarget>
+            <IconButton
+              testID="player-bar-queue"
+              onPress={toggleQueueSheet}
+              label="Up next"
+              active={queueOpen}
+            >
+              <Queue size={17} color={queueOpen ? songColor.color : theme.colors.textSecondary} />
+            </IconButton>
+          </UpNextTarget>
           <View ref={devicesRef} collapsable={false}>
             <IconButton onPress={() => setDevicesOpen(true)} label="Devices">
               <Devices size={17} color={theme.colors.textSecondary} />

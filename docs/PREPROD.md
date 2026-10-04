@@ -69,7 +69,7 @@ along. Anything else means another server has been writing to your bucket, and y
 and find out which before going further.
 
 **4. Leave nothing behind.** Every write you make in a test is a write to your library.
-Prefer the ones with an Undo (Save as playlist, a like), undo them, and check the count
+Prefer the ones with an Undo (Up next's Save, a like), undo them, and check the count
 went back. If a test has to create something, name it `Preprod — delete me` and delete it
 at the end. Never test *delete*, *forget missing songs*, *remove all downloads* or
 *disconnect* against the real library; those belong to `npm run dev` and the flows.
@@ -167,8 +167,8 @@ fetch(document.querySelector('script[src*="index-"]').src).then(r => r.text()).t
 | **Hard refresh** | Shift-Cmd-R, then play something | Covers and playback survive | "This song is not available offline" on a song that was never offline |
 | **Duplicates** | Sort by Recently added, read the top twenty rows | No song appears twice | Two rows with the same title, length and cover: the sync merged two servers |
 | **Tags are what you play** | *Pick tags* → tap two tags | Count and minutes update per tap; several tags *add* songs; Play plays them | A second tag narrowing the list to nothing (that was the old filter) |
-| **Save asks nothing** | With tags picked, *Save as playlist*, then **Undo** in the toast | Playlist count +1 with no dialog; −1 after Undo | A name prompt; an Undo that leaves the playlist behind |
-| **Playlists grid** | Open Playlists | "N playlists · last played first"; *New playlist* tile first; each tile "5 songs · yesterday"; no empty playlist anywhere; "follows tags" badge on the ones that do | A pin, or a playlist with nothing in it |
+| **Save asks nothing** | With two tags picked, Play, open Up next, *Save*, then **Undo** in the toast | Up next is named "A or B"; Save turns into ✓ Saved; playlist count +1 with no dialog; −1 after Undo | A name prompt; a Save on a single tag; an Undo that leaves the playlist behind |
+| **Playlists grid** | Open Playlists | "N playlists · last played first"; *New playlist* tile first; each tile "5 songs · yesterday"; no empty playlist anywhere; "fills from tags" badge on the ones that do | A pin, or a playlist with nothing in it |
 | **A new playlist** | *New* → a name → *Add songs*; pick two → *Make playlist*. Then again, and *Cancel* at the picker | The first lands on its page with the two songs; the cancelled one exists nowhere | A playlist made at the name step, before it had a song |
 | **A playlist's ⋯** | On the phone, open a playlist → ⋯ | *Download* with its size, or *Remove download* once every song is here; no pin | A download button beside Play |
 | **Selection** | Tick the first song in the library | The bar takes a lane above the list; the ticked row is still readable | The bar covering the row you just ticked |
@@ -364,12 +364,12 @@ Use something short you do not mind having, or remove it after — journey 6.
 
 ### 3. "I'm in the mood for…" — tags into a playlist
 
-1. Library → Pick tags → tap one tag, then a second. 2. Play. 3. Save as playlist.
-4. Rename it from the toast — or Undo.
+1. Library → Pick tags → tap one tag, then a second. 2. Play. 3. Open Up next: it is named
+after the two tags. 4. Save — or Undo from the toast.
 
 **Proves it:** the second tag makes the list *longer*, and says how many songs have both
 ("1 have both tags, and come first"); Save asks nothing; the playlist count goes up by one
-and back down on Undo; a saved one shows *follows tags* in the grid, and tagging another
+and back down on Undo; a saved one shows *fills from tags* in the grid, and tagging another
 song with that tag later puts it in the playlist without anyone adding it.
 
 ### 4. "Tidy up" — organise a few songs

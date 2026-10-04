@@ -10,22 +10,30 @@ import { pageTitle } from '../../ui/surfaces'
  * A tag or an artist the address names and the library does not hold: a tag
  * renamed or deleted since the link was made, an artist whose songs are gone.
  */
-export function PlaceMissing({ kind, name }: { kind: 'tag' | 'artist'; name: string }): ReactNode {
+export function PlaceMissing({
+  kind,
+  name,
+}: {
+  kind: 'tag' | 'artist' | 'combined'
+  name: string
+}): ReactNode {
   const router = useRouter()
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.body} testID="place-missing">
         <Text style={styles.title} accessibilityRole="header">
-          {kind === 'tag' ? 'No such tag' : 'No such artist'}
+          {kind === 'tag' ? 'No such tag' : kind === 'artist' ? 'No such artist' : 'Nothing here'}
         </Text>
         <Text style={styles.text}>
           {kind === 'tag'
             ? `Nothing here is tagged “${name}”. It may have been renamed or deleted.`
-            : `No song here is by “${name}”.`}
+            : kind === 'artist'
+              ? `No song here is by “${name}”.`
+              : 'The tags and artists this was made of have been renamed or deleted.'}
         </Text>
         <Button
-          label={kind === 'tag' ? 'All tags' : 'Home'}
-          onPress={() => router.replace(kind === 'tag' ? '/tags' : '/')}
+          label={kind === 'artist' ? 'Home' : 'All tags'}
+          onPress={() => router.replace(kind === 'artist' ? '/' : '/tags')}
         />
       </View>
     </SafeAreaView>

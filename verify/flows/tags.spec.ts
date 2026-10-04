@@ -82,6 +82,42 @@ test.describe('tags as places', () => {
     await expect(page.getByText('Hold a tag to rename, recolour or delete it.')).toHaveCount(0)
   })
 
+  /**
+   * A tag's page is that one tag (docs/features/lists.md, B1). Combining from
+   * it opens the combination as a page of its own over it, so the tag page
+   * never turns into something else, and Back finds it as it was.
+   */
+  test('Combine with… opens the tags together over the tag’s page', async ({ page }) => {
+    const { songs, tags } = await libraryData(page)
+    const present = songs.filter(song => !song.missing)
+    const used = mostPlayed(tags, songs).filter(tag =>
+      present.some(song => song.tagIds.includes(tag.id)),
+    )
+    const [first, second] = used
+    test.skip(!first || !second, 'needs two tags with songs')
+    if (!first || !second) return
+
+    await page.goto(`/tag/${encodeURIComponent(first.name)}`)
+    const name = page.locator('[data-testid="place-name"]:visible')
+    await expect(name).toHaveText(first.name, { timeout: 30_000 })
+    // One tag: no chips to take off, no Save; Combine with… instead.
+    await expect(page.locator('[data-testid="place-add"]:visible')).toHaveCount(0)
+    await expect(page.getByText('Save as playlist')).toHaveCount(0)
+
+    await page.locator('[data-testid="place-combine"]:visible').click()
+    const sheet = page.getByTestId('add-sheet')
+    await sheet.getByText(second.name, { exact: true }).first().click()
+    await sheet.getByTestId('add-sheet-show').click()
+
+    await expect(page).toHaveURL(/\/combined\?/)
+    await expect(name).toHaveText(`${first.name} or ${second.name}`)
+    await expect(page.locator('[data-testid="place-add"]:visible')).toBeVisible()
+
+    await page.getByRole('button', { name: 'Back', exact: true }).locator('visible=true').click()
+    await expect(page).toHaveURL(/\/tag\/[^/]+$/)
+    await expect(name).toHaveText(first.name)
+  })
+
   test('a row opens the tag’s own page, not a filtered library', async ({ page }) => {
     await openAllTags(page)
     const { songs, tags } = await libraryData(page)
@@ -203,10 +239,11 @@ test.describe('the library’s tag strip, still a filter', () => {
 
   /**
    * At both widths, because this is what the phone was missing: it could pick
-   * tags and then had nowhere on the page to start them — Play and Save were
-   * drawn only above the breakpoint.
+   * tags and then had nowhere on the page to start them — Play was drawn only
+   * above the breakpoint. No Save: tags played together are saved from Up
+   * next, once heard (docs/features/lists.md; the follows flow).
    */
-  test('the head offers Play and Save only once a tag is on', async ({ page }) => {
+  test('the head offers Play only once a tag is on, and no Save', async ({ page }) => {
     await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)
@@ -219,11 +256,10 @@ test.describe('the library’s tag strip, still a filter', () => {
     // Nothing chosen: an unfiltered Play would mean "play the whole library
     // alphabetically", so there is none.
     await expect(page.getByTestId('library-play-tags')).toHaveCount(0)
-    await expect(page.getByTestId('library-save-tags')).toHaveCount(0)
 
     await pickTag(page, used.name)
     await expect(page.getByTestId('library-play-tags')).toBeVisible()
-    await expect(page.getByTestId('library-save-tags')).toBeVisible()
+    await expect(page.getByTestId('library-save-tags')).toHaveCount(0)
     // And the songs themselves are on the same screen, under the picker,
     // rather than behind a count that opens another page.
     await expect(songRows(page).first()).toBeVisible()

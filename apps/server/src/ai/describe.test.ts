@@ -122,6 +122,22 @@ group('describe', () => {
     expect(result.fit).toBe(3)
   })
 
+  it('picks around the songs it showed before, while others fit', async () => {
+    const llm = scriptedLlm({})
+    const parts = { ...nothing, anyTags: ['jpop'] }
+    const first = await describe(deps(llm), { text: 'jpop', understanding: parts, avoid: [] })
+    const shown = first.picks.map(pick => pick.songId)
+    const again = await describe(deps(llm), {
+      text: 'jpop',
+      understanding: parts,
+      avoid: shown.slice(0, 2),
+    })
+    expect(again.picks.map(pick => pick.songId)).toEqual(shown.slice(2))
+    // Every one shown: nothing else fits, so they come back rather than nothing.
+    const all = await describe(deps(llm), { text: 'jpop', understanding: parts, avoid: shown })
+    expect(all.picks.map(pick => pick.songId)).toEqual(shown)
+  })
+
   it('skips the plan when the device sends the parts back', async () => {
     const llm = scriptedLlm({})
     const parts = { ...nothing, anyTags: ['jpop'] }

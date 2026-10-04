@@ -27,6 +27,9 @@ const COLLAPSED_KEY = 'gems.collapsed'
  * the server cannot be reached — because an error box above the library would
  * be worse than no row at all.
  */
+/** What Up next is called while the gems play. */
+const GEMS = { kind: 'songs', origin: 'gems', name: 'Forgotten gems' } as const
+
 export function GemsRow(): ReactNode {
   const { theme } = useUnistyles()
   const gems = useGems(12)
@@ -50,7 +53,7 @@ export function GemsRow(): ReactNode {
   const cards = data.songs.map((song, index) => (
     <Pressable
       key={song.id}
-      onPress={() => player.playFrom(ids, index)}
+      onPress={() => player.playFrom(ids, index, { source: GEMS })}
       accessibilityRole="button"
       accessibilityLabel={`${song.title} — ${song.artist || 'Unknown artist'}`}
       {...tip(`${song.title} — ${song.artist || 'Unknown artist'}`)}
@@ -99,9 +102,9 @@ export function GemsRow(): ReactNode {
             <Button
               label="Play all"
               icon={<Play size={13} color={theme.colors.textPrimary} />}
-              onPress={() => player.playFrom(ids, 0)}
+              onPress={() => player.playFrom(ids, 0, { source: GEMS })}
             />
-            <Button label="Add to queue" onPress={() => player.addToQueue(ids)} />
+            <Button label="Add to Up next" onPress={() => player.addToQueue(ids)} />
           </View>
         )}
       </View>

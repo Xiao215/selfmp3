@@ -24,7 +24,7 @@ import { followedTagIds, hasRulesBeyondTags } from './follows.model'
  * this takes, and they are shown in the same chips the library head uses, so
  * there is one thing to learn rather than two.
  *
- * **Stop following** keeps every song. That is the whole reason this can be a
+ * **Stop filling** keeps every song. That is the whole reason this can be a
  * switch rather than a kind of playlist chosen up front: it is reversible in
  * the direction that matters, and nothing is lost by trying it.
  */
@@ -71,7 +71,7 @@ export function FollowsRow({
 
   return (
     <View style={styles.row} testID="follows-row">
-      <Text style={styles.word}>Follows</Text>
+      <Text style={styles.word}>Fills from</Text>
       {chosen.map(tag => (
         <Chip
           key={tag.id}
@@ -87,7 +87,7 @@ export function FollowsRow({
         <Pressable
           onPress={() => setChoosing(open => !open)}
           accessibilityRole="button"
-          accessibilityLabel="Add a tag to follow"
+          accessibilityLabel="Add a tag it fills from"
           style={({ pressed }) => [
             styles.add,
             pressed && { backgroundColor: theme.colors.surface2 },
@@ -110,7 +110,7 @@ export function FollowsRow({
         }}
         disabled={stop.isPending}
         accessibilityRole="button"
-        accessibilityLabel="Stop following these tags"
+        accessibilityLabel="Stop filling from these tags, keeping every song"
         style={({ pressed }) => [
           styles.stop,
           pressed && { backgroundColor: theme.colors.surface2 },
@@ -118,7 +118,7 @@ export function FollowsRow({
         testID="stop-following"
       >
         <Text style={[styles.stopLabel, stop.isPending && { color: theme.colors.textMuted }]}>
-          {stop.isPending ? 'Stopping…' : 'Stop following'}
+          {stop.isPending ? 'Stopping…' : 'Stop filling'}
         </Text>
       </Pressable>
 

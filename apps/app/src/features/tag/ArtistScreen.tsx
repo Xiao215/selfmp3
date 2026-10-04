@@ -32,7 +32,7 @@ export function ArtistScreen(): ReactNode {
     <>
       <PlacePage
         key={artist.key}
-        place={{ kind: 'artist', artist }}
+        places={[{ kind: 'artist', artist }]}
         menu={node => {
           anchor.current = node
           setOpen(true)

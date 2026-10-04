@@ -25,7 +25,9 @@ export function usePlayAndTag(): { readonly count: number; readonly start: () =>
   )
   const start = useCallback(() => {
     if (ids.length === 0) return
-    player.playFrom(ids, 0)
+    player.playFrom(ids, 0, {
+      source: { kind: 'songs', origin: 'untagged', name: 'Songs that need a tag' },
+    })
     router.push({ pathname: '/now-playing', params: { tagging: '1' } })
   }, [ids, player, router])
   return { count: ids.length, start }

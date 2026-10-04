@@ -41,6 +41,7 @@ import {
   useSettings,
 } from '@selfmp3/client'
 import { mediaUrlFor } from '../api/client'
+import type { ListSource } from '../features/lists/lists.model'
 import {
   artAddress,
   serverRoutes,
@@ -96,26 +97,36 @@ export type { PlayerProgress }
  * might be awake now".
  */
 
+/** How a list starts playing: `PlayerApi.playFrom`'s options. */
+interface PlayOptions {
+  /** Sets the shuffle mode first; left out, the mode is kept. */
+  readonly shuffle?: boolean
+  /**
+   * Starts the first song part-way, which is what a handoff needs: a separate
+   * `seekTo` straight after would land before the track has loaded and be lost.
+   */
+  readonly position?: number
+  /** False loads the song paused: a resume offer, which never starts audio by itself. */
+  readonly autoplay?: boolean
+  /**
+   * What these songs are (docs/features/lists.md): the name Up next wears and
+   * what Save makes of it. Left out, Up next is nameless.
+   */
+  readonly source?: ListSource | null
+}
+
 export interface PlayerApi {
   readonly queue: QueueState
   readonly songs: readonly Song[]
   readonly current: Song | null
   readonly isPlaying: boolean
-  /**
-   * Start these songs here; `shuffle` sets the mode first, else it is kept.
-   * `position` starts the first song part-way, which is what a handoff needs:
-   * a separate `seekTo` straight after would land before the track has loaded
-   * and be lost.
-   */
-  playFrom: (
-    songIds: readonly number[],
-    startIndex: number,
-    shuffle?: boolean,
-    position?: number,
-    /** False loads the song paused: a resume offer, which never starts audio by itself. */
-    autoplay?: boolean,
-  ) => void
-  playShuffled: (songIds: readonly number[]) => void
+  /** Where what is in Up next came from, or null when nothing says. */
+  readonly source: ListSource | null
+  /** Start these songs here. Up next becomes them, named by `options.source`. */
+  playFrom: (songIds: readonly number[], startIndex: number, options?: PlayOptions) => void
+  playShuffled: (songIds: readonly number[], source?: ListSource | null) => void
+  /** Up next's songs stay; what they are called changes: Save has made them a playlist. */
+  setSource: (source: ListSource | null) => void
   jumpTo: (index: number) => void
   toggle: () => void
   next: () => void
@@ -240,6 +251,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   // port.
   const [engine] = useState(createEngine)
   const [queue, setQueue] = useState<QueueState>(EMPTY_QUEUE)
+  const [source, setSource] = useState<ListSource | null>(null)
   const [engineState, setEngineState] = useState<EngineState>(() => engine.state)
   const [autoMix, setAutoMixState] = useState(() => prefs.get(AUTO_MIX_KEY) === '1')
   const [stores] = useState<PlayerStores>(() => ({
@@ -546,19 +558,15 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   // --- commands ------------------------------------------------------------
 
   const play = useCallback(
-    (
-      songIds: readonly number[],
-      startIndex: number,
-      shuffle?: boolean,
-      position?: number,
-      autoplay = true,
-    ) => {
+    (songIds: readonly number[], startIndex: number, options: PlayOptions = {}) => {
+      const { shuffle, position, autoplay = true } = options
       const start = (): void => {
         // "Play" on a list means in order; a tapped row keeps whatever mode is
         // on.
         const from = shuffle === undefined ? queueRef.current : { ...queueRef.current, shuffle }
         const next = mixed(playFrom(from, songIds, startIndex))
         commitQueue(next)
+        setSource(options.source ?? null)
         loadIndex(next, autoplay, position)
       }
       // A song that cannot play here says why, rather than loading and sitting
@@ -578,11 +586,12 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
    * than "always begins with track one".
    */
   const playShuffled = useCallback(
-    (songIds: readonly number[]) => {
+    (songIds: readonly number[], listSource: ListSource | null = null) => {
       if (songIds.length === 0) return
       const begin = (start: number): void => {
         const next = playFrom({ ...queueRef.current, shuffle: true }, songIds, start)
         commitQueue(next)
+        setSource(listSource)
         loadIndex(next, true)
       }
       // Start on a song that can play here, when there is one.
@@ -791,6 +800,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const clearQueue = useCallback(() => {
     engine.pause()
     commitQueue(EMPTY_QUEUE)
+    setSource(null)
     refreshLookahead(engine)
   }, [engine, commitQueue])
 
@@ -874,8 +884,10 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       songs: resolved.queueSongs,
       current: resolved.currentSong,
       isPlaying: engineState.playing,
+      source,
       playFrom: play,
       playShuffled,
+      setSource,
       jumpTo,
       toggle,
       next,
@@ -916,6 +928,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       queue,
       resolved,
       engineState.playing,
+      source,
       play,
       playShuffled,
       jumpTo,

@@ -23,6 +23,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { Popover } from '../../ui/components/Popover'
 import { SheetItem } from '../../ui/components/Sheet'
 import { Toggle } from '../../ui/components/Toggle'
+import { UpNextSource } from './UpNextSource'
 import { closeQueueSheet, useQueueSheetOpen } from './queueSheet.store'
 import {
   autoMixLine,
@@ -421,6 +422,7 @@ function Rail({
             <ChevronRight size={15} color={theme.colors.textSecondary} />
           </IconButton>
         </View>
+        <UpNextSource />
         <Text style={styles.summary}>{nextSummary(rows.next)}</Text>
 
         <ScrollView

@@ -330,8 +330,11 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     // --- smart features (docs/features/ai.md): the server's, never the bucket's
 
-    describePlaylist: (input: { text: string; understanding: Understanding | null }) =>
-      request('POST', '/api/ai/describe', DescribeResultSchema, input),
+    describePlaylist: (input: {
+      text: string
+      understanding: Understanding | null
+      avoid?: readonly number[]
+    }) => request('POST', '/api/ai/describe', DescribeResultSchema, input),
 
     /** The Search box's Ask: one request, routed to one thing the app can do. */
     ask: (text: string, playing: number | null = null) =>

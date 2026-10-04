@@ -16,7 +16,7 @@ import { Cover } from '../../ui/components/Cover'
 import { Play, X } from '../../ui/components/Icons'
 import { showToast } from '../../ui/toast'
 import { placePath, rangeWords } from './smart.model'
-import { SongsAnswer } from './SongsAnswer'
+import { SongsAnswerCard } from './SongsAnswerCard'
 import { TidyReview } from './TidyReview'
 import type { AnswerKeys } from './answerKeys'
 import { Working } from './Working'
@@ -30,11 +30,17 @@ import { useSmartServer } from './useSmartServer'
 export function AskAnswer({
   text,
   onDone,
+  onOpenPage = onDone,
   listHeight = 300,
   onKeys,
 }: {
   text: string
   onDone: () => void
+  /**
+   * Before an answer opens as a page of its own. Search's page stays under it,
+   * so Back finds the question; the palette closes, as it does for any page.
+   */
+  onOpenPage?: () => void
   /** How tall a long answer's list may grow before it scrolls. */
   listHeight?: number
   /** For an answer that takes keys while the box keeps the focus (Tidy up's). */
@@ -87,6 +93,7 @@ export function AskAnswer({
         answer={answer.data}
         text={text}
         onDone={onDone}
+        onOpenPage={onOpenPage}
         muted={theme.colors.textMuted}
         listHeight={listHeight}
         onKeys={onKeys}
@@ -99,6 +106,7 @@ function Drawn({
   answer,
   text,
   onDone,
+  onOpenPage,
   muted,
   listHeight,
   onKeys,
@@ -106,6 +114,7 @@ function Drawn({
   answer: Answer
   text: string
   onDone: () => void
+  onOpenPage: () => void
   muted: string
   listHeight: number
   onKeys?: (keys: AnswerKeys | null) => void
@@ -113,27 +122,7 @@ function Drawn({
   const router = useRouter()
   switch (answer.kind) {
     case 'songs':
-      return (
-        <>
-          <Text style={styles.head}>
-            {answer.lead === 'next'
-              ? 'Up next'
-              : answer.lead === 'play'
-                ? 'Something to play'
-                : 'A playlist'}
-          </Text>
-          <SongsAnswer
-            result={answer.describe}
-            text={text}
-            onPlayed={onDone}
-            onQueued={answer.lead === 'next' ? onDone : undefined}
-            onSaved={id => {
-              onDone()
-              router.navigate(`/playlists/${id}`)
-            }}
-          />
-        </>
-      )
+      return <SongsAnswerCard answer={answer} text={text} onPlayed={onDone} onOpen={onOpenPage} />
     case 'find':
       return <Found answer={answer} onDone={onDone} />
     case 'tag':
@@ -216,7 +205,9 @@ function Found({
         <Pressable
           key={song.id}
           onPress={() => {
-            player.playFrom(ids, index)
+            player.playFrom(ids, index, {
+              source: { kind: 'songs', origin: 'found', name: 'Search' },
+            })
             onDone()
           }}
           accessibilityRole="button"

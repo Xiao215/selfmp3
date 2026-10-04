@@ -191,8 +191,9 @@ what that action needs, as JSON. Then the action runs as code:
 | `open` | "download the new Yorushika album" | a sentence and a button to the place | none |
 | `none` | anything else | what the box can do instead | none |
 
-Every answer is a proposal with its own button (`AskAnswer.tsx`): Play now or Save as a
-playlist, Add the tag (after Look through), Open Stats, a found song to play. Measured on the
+Every answer is a proposal with its own button (`AskAnswer.tsx`): a song answer is a card
+with ▶ that opens as its own page (docs/features/lists.md, "Ask's song answer"), Add the
+tag (after Look through), Open Stats, a found song to play. Measured on the
 real library: a route 2.3–3.5 s; with the pick, a playlist in 10 s and a found song in 5 s.
 
 ## N1 · New playlist as one field

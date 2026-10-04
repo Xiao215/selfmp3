@@ -280,9 +280,12 @@ export function groundPicks(
   return out
 }
 
+/** A describe request as code sends it: `avoid` may be left out, as the route's default does. */
+export type DescribeInput = Omit<DescribeRequest, 'avoid'> & { readonly avoid?: readonly number[] }
+
 export async function describe(
   deps: DescribeDeps,
-  request: DescribeRequest,
+  request: DescribeInput,
 ): Promise<DescribeResult> {
   const remembered = deps.remembered ?? new Remembered()
   const songs = deps.songs()
@@ -312,7 +315,7 @@ export async function describe(
     ;({ understanding, unknown } = groundPlan(plan, songs, tags))
   }
 
-  return narrowAndPick(deps, request.text, understanding, unknown)
+  return narrowAndPick(deps, request.text, understanding, unknown, request.avoid ?? [])
 }
 
 /**
@@ -324,6 +327,7 @@ export async function narrowAndPick(
   text: string,
   understanding: Understanding,
   unknown: string[],
+  avoid: readonly number[] = [],
 ): Promise<DescribeResult> {
   const now = deps.now?.() ?? Date.now()
   const remembered = deps.remembered ?? new Remembered()
@@ -340,6 +344,13 @@ export async function narrowAndPick(
     loosened.push(describePart(applied, part))
     applied = unset(applied, part)
     fitting = songsFitting(songs, tags, applied, now)
+  }
+
+  // Different songs: the ones shown last time stay out while anything else fits.
+  if (avoid.length > 0) {
+    const shown = new Set(avoid)
+    const others = fitting.filter(song => !shown.has(song.id))
+    if (others.length > 0) fitting = others
   }
 
   // 3 · Pick, only when there is something to judge.

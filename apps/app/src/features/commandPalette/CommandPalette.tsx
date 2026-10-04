@@ -153,7 +153,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         router.navigate('/settings')
         return
       case 'shuffle-all':
-        player.playShuffled(songIds)
+        player.playShuffled(songIds, { kind: 'library' })
         return
       case 'rescan-library':
         scan.mutate()
@@ -162,7 +162,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   }
   const playSong = (songId: number): void => {
     const index = songIds.indexOf(songId)
-    if (index >= 0) player.playFrom(songIds, index)
+    if (index >= 0) player.playFrom(songIds, index, { source: { kind: 'library' } })
   }
   const openPlaylist = (playlistId: number): void => router.navigate(`/playlists/${playlistId}`)
   /** The loaded song carries on where it is rather than starting again. */

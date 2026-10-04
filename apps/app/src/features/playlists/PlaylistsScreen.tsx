@@ -245,7 +245,11 @@ function GemsTile({ width }: { width: number | undefined }): ReactNode {
   return (
     <View style={[styles.tile, width ? { width } : null]}>
       <Pressable
-        onPress={() => player.playFrom(ids, 0)}
+        onPress={() =>
+          player.playFrom(ids, 0, {
+            source: { kind: 'songs', origin: 'gems', name: 'Forgotten gems' },
+          })
+        }
         accessibilityRole="button"
         accessibilityLabel="Play forgotten gems"
         {...tip(`Loved or well played, quiet for ${data.minDays}+ days`)}

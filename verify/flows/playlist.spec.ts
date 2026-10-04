@@ -60,8 +60,8 @@ async function openOneYouMade(page: Page): Promise<string | null> {
     // whole page could as easily be the last playlist's.
     if (index > 0) await page.goto('/playlists')
     const tile = page.locator(`[data-testid="playlist-row-${index}"]`)
-    // One that follows tags wears the badge, and its order is the rule's.
-    if (await tile.getByText(/follows tags/).count()) continue
+    // One that fills from tags wears the badge, and its order is the rule's.
+    if (await tile.getByText(/fills from tags/).count()) continue
     const name = (await tile.getAttribute('aria-label')) ?? ''
     if (!name) continue
 

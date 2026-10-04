@@ -20,6 +20,7 @@ import { songLink } from '../../features/song/song.model'
 import { tagLink } from '../../features/tag/placeLinks'
 import { useArt } from '../../offline/useArt'
 import { useDownloads } from '../../offline/DownloadsProvider'
+import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { Button } from './Button'
@@ -97,6 +98,7 @@ export function SongMenu({
       song={song}
       onClose={onClose}
       playlist={playlist}
+      anchorRef={anchorRef}
       onTags={() => {
         setTagging(song.id)
         onClose()
@@ -145,6 +147,7 @@ function Items({
   onTags,
   onRemove,
   playlist,
+  anchorRef,
 }: {
   song: Song
   onClose: () => void
@@ -152,10 +155,13 @@ function Items({
   /** Removing asks in a dialog of its own, which outlives the menu. */
   onRemove: () => void
   playlist?: { readonly id: number; readonly name: string }
+  /** The ⋯ that opened the menu, where a song sent to Up next flies from. */
+  anchorRef?: RefObject<RNView | null>
 }): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
   const player = usePlayer()
+  const fly = useFlyToUpNext()
   const artFor = useArt()
   const { data: library } = useLibrary()
   const addToPlaylist = useAddToPlaylist()
@@ -188,7 +194,11 @@ function Items({
   const playSimilar = (): void => {
     void clientApi()
       .similar(song.id, 20)
-      .then(result => player.playFrom([song.id, ...result.songs.map(item => item.id)], 0))
+      .then(result =>
+        player.playFrom([song.id, ...result.songs.map(item => item.id)], 0, {
+          source: { kind: 'songs', origin: 'similar', name: `Similar to ${song.title}` },
+        }),
+      )
       .catch(() => undefined)
   }
 
@@ -289,8 +299,12 @@ function Items({
       ) : null}
       <SheetItem
         icon={icon(Queue)}
-        label="Add to queue"
-        onPress={then(() => player.addToQueue([song.id]))}
+        label="Add to Up next"
+        onPress={() => {
+          fly(anchorRef?.current ?? null, [song.id])
+          player.addToQueue([song.id])
+          onClose()
+        }}
       />
       <SheetItem icon={icon(Sparkles)} label="Play similar songs" onPress={then(playSimilar)} />
 

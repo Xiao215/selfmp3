@@ -5,7 +5,7 @@ import type { ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { plural } from '@selfmp3/shared'
-import type { Song, Stats } from '@selfmp3/shared'
+import type { Stats } from '@selfmp3/shared'
 import { fonts, radius, tagColors, type, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
@@ -20,20 +20,29 @@ import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
-import { ChevronRight, Download, Plus, Search } from '../../ui/components/Icons'
+import { ChevronRight, Download, Plus, Search, Sparkle } from '../../ui/components/Icons'
 import { useAccent } from '../../ui/accent'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { session, useArrival, usePressScale } from '../../ui/motion'
 import { handOffPlace } from '../../ui/coverHandoff'
 import { artShadow, card, sectionTitle, serif } from '../../ui/surfaces'
 import { tagLink } from '../tag/placeLinks'
+import { PlaylistCover } from '../playlists/PlaylistCover'
+import {
+  describeSource,
+  homeRecents,
+  recentKind,
+  recentSongIds,
+  type HomeRecent,
+} from '../lists/lists.model'
+import { useRecentLists } from '../lists/recentLists.store'
+import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { useStatsFor } from '../stats/statsSource'
 import {
   greeting,
   HOME_TILES,
   HOME_TILES_WIDE,
   homeTiles,
-  recentlyPlayed,
   streakLine,
   sundayCard,
   type HomeTile,
@@ -94,7 +103,11 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
       library ? homeTiles(library.tags, library.songs, wide ? HOME_TILES_WIDE : HOME_TILES) : [],
     [library, wide],
   )
-  const recents = useMemo(() => (library ? recentlyPlayed(library.songs) : []), [library])
+  const recentLists = useRecentLists()
+  const recents = useMemo(
+    () => (library ? homeRecents(recentLists, library.songs) : []),
+    [library, recentLists],
+  )
   const line = streakLine(stats?.streakDays)
   const sunday = sundayCard(now, stats)
   // Known to be empty, as opposed to not loaded yet.
@@ -182,7 +195,7 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
               title="Recently played"
               action={{ label: 'Library', onPress: () => router.navigate('/library') }}
             />
-            <Recents songs={recents} wide={wide} />
+            <Recents recents={recents} wide={wide} />
           </View>
         ) : null}
       </ScrollView>
@@ -469,13 +482,26 @@ function Tile({
   )
 }
 
-/** Recently played: covers in a row that scrolls sideways. A tap plays from here. */
-function Recents({ songs, wide }: { songs: readonly Song[]; wide: boolean }): ReactNode {
+/**
+ * Recently played (docs/features/lists.md, A1): what you listened to, newest
+ * first, in a row that scrolls sideways — a list as its covers and its kind,
+ * a song played on its own as that song. A tap plays it again; a list that
+ * was never saved can be saved from Up next.
+ */
+function Recents({ recents, wide }: { recents: readonly HomeRecent[]; wide: boolean }): ReactNode {
   const player = usePlayer()
   const art = useArt()
-  const ids = useMemo(() => songs.map(song => song.id), [songs])
+  const { data: library } = useLibrary()
   const size = wide ? 132 : 92
   const drag = useDragScroll()
+  const songIds = useMemo(
+    () => recents.flatMap(recent => (recent.kind === 'song' ? [recent.song.id] : [])),
+    [recents],
+  )
+  const known = { tags: library?.tags ?? [], playlists: library?.playlists ?? [] }
+  const fly = useFlyToUpNext()
+  // Each list tile's covers, where a played list's covers fly from.
+  const covers = useRef(new Map<string, View>())
   return (
     <ScrollView
       horizontal
@@ -484,26 +510,68 @@ function Recents({ songs, wide }: { songs: readonly Song[]; wide: boolean }): Re
       testID="home-recents"
       {...drag}
     >
-      {songs.map((song, index) => (
-        <Pressable
-          key={song.id}
-          testID={`home-recent-${index}`}
-          onPress={() => player.playFrom(ids, index)}
-          accessibilityRole="button"
-          accessibilityLabel={`Play ${song.title}`}
-          style={{ width: size }}
-        >
-          <Cover uri={art(song)} title={song.album || song.title} size={size} radius={14} />
-          <Text style={styles.recentTitle} numberOfLines={1}>
-            {song.title}
-          </Text>
-          {wide ? (
-            <Text style={styles.recentArtist} numberOfLines={1}>
-              {song.artist || 'Unknown artist'}
+      {recents.map((recent, index) => {
+        if (recent.kind === 'song') {
+          const song = recent.song
+          return (
+            <Pressable
+              key={`song-${song.id}`}
+              testID={`home-recent-${index}`}
+              onPress={() => player.playFrom(songIds, songIds.indexOf(song.id))}
+              accessibilityRole="button"
+              accessibilityLabel={`Play ${song.title}`}
+              style={{ width: size }}
+            >
+              <Cover uri={art(song)} title={song.album || song.title} size={size} radius={14} />
+              <Text style={styles.recentTitle} numberOfLines={1}>
+                {song.title}
+              </Text>
+              <Text style={styles.recentArtist} numberOfLines={1}>
+                {song.artist || 'Unknown artist'}
+              </Text>
+            </Pressable>
+          )
+        }
+        const { entry } = recent
+        const line = describeSource(entry.source, known)
+        return (
+          <Pressable
+            key={entry.key}
+            testID={`home-recent-${index}`}
+            onPress={() => {
+              if (!library) return
+              const ids = recentSongIds(entry, library)
+              if (ids.length === 0) return
+              fly(covers.current.get(entry.key) ?? null, ids)
+              player.playFrom(ids, 0, { source: entry.source })
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`Play ${line.label}`}
+            style={{ width: size }}
+          >
+            <View
+              collapsable={false}
+              ref={node => {
+                if (node) covers.current.set(entry.key, node)
+                else covers.current.delete(entry.key)
+              }}
+            >
+              <PlaylistCover songIds={entry.songIds} size={size} />
+              {line.asked ? (
+                <View style={styles.recentBadge}>
+                  <Sparkle size={11} />
+                </View>
+              ) : null}
+            </View>
+            <Text style={styles.recentTitle} numberOfLines={1}>
+              {line.label}
             </Text>
-          ) : null}
-        </Pressable>
-      ))}
+            <Text style={styles.recentArtist} numberOfLines={1}>
+              {recentKind(entry.source)}
+            </Text>
+          </Pressable>
+        )
+      })}
     </ScrollView>
   )
 }
@@ -756,6 +824,17 @@ const styles = StyleSheet.create(theme => ({
     marginTop: 6,
   },
   recentArtist: { color: theme.colors.textSecondary, fontSize: 12 },
+  recentBadge: {
+    position: 'absolute',
+    left: 6,
+    bottom: 6,
+    width: 22,
+    height: 22,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.surface0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   weekCard: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14 },
   weekNumbers: { flexDirection: 'row', justifyContent: 'space-between' },
   figure: { gap: 2 },

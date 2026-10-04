@@ -65,7 +65,11 @@ export function SimilarShelf({
         {songs.map(song => (
           <Pressable
             key={song.id}
-            onPress={() => player.playFrom(playSimilarOrder(ids, song.id), 0)}
+            onPress={() =>
+              player.playFrom(playSimilarOrder(ids, song.id), 0, {
+                source: { kind: 'songs', origin: 'similar', name: `Similar to ${song.title}` },
+              })
+            }
             accessibilityRole="button"
             accessibilityLabel={`Play ${song.title} by ${song.artist || 'Unknown artist'}`}
             style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}

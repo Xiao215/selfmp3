@@ -26,7 +26,8 @@ Files:
 **Pick tags** beside the title opens the picker — in the page, not over it, so the
 head grows and the songs move down. Every tag you turn on adds its songs, the chips you
 picked become the title, and the list under the panel is what you have built. Once a tag is
-on, the head carries **Play**, shuffle and **Save as playlist**.
+on, the head carries **Play** and shuffle. Saving them as a playlist is Up next's Save,
+once they have been heard (docs/features/lists.md).
 
 A phone gets all of that, which it did not before. It had the picker but not the three
 buttons — they were drawn only above the breakpoint — so a phone could assemble a list and

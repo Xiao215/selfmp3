@@ -12,7 +12,7 @@ import { libraryReady, openLibrary, skipIfNoLibrary, songRows, titleOf } from '.
  * ticked — the flow runs against a real library, and the one that tags songs is
  * the tag flow's business, not this one's.
  */
-const ORDER = ['Add to playlist', 'Add to queue', 'Play similar songs', 'Song details']
+const ORDER = ['Add to playlist', 'Add to Up next', 'Play similar songs', 'Song details']
 
 test.describe('the song menu', () => {
   test('lists its actions in order, and opens the song page and tags', async ({ page }) => {

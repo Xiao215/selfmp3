@@ -6,6 +6,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
+import { CoverFlight } from '../ui/components/CoverFlight'
 import type { ReactNode } from 'react'
 import { router, usePathname } from 'expo-router'
 import { Animated, View } from 'react-native'
@@ -82,6 +83,8 @@ export function Shell({
       <PaletteHost />
       <MenuCommands />
       <DeepLinkRoutes />
+      {/* Covers flying into the Up next button (`ui/coverFlight.ts`). */}
+      <CoverFlight />
       {/* Hover captions in a browser; nothing on a phone. */}
       <TooltipHost />
       {/* A focused field in the accent, not the browser's own ring. */}

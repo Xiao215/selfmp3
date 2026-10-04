@@ -45,7 +45,7 @@ export function stepSide(from: string, to: string): -1 | 1 {
 }
 
 /** A tag's or an artist's page, which a Home tile or a row's name opens. */
-const PLACE_ROUTES = ['tag/[name]', 'artist/[name]']
+const PLACE_ROUTES = ['tag/[name]', 'artist/[name]', 'combined']
 
 /**
  * The native stack's own move for a screen, beside `PageStep`'s. A phone's

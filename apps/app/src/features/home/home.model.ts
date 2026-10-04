@@ -16,9 +16,6 @@ export const HOME_TILES = 4
 /** And on a computer, three by two (`C03`). */
 export const HOME_TILES_WIDE = 6
 
-/** How many covers the Recently played row holds. */
-const HOME_RECENTS = 12
-
 /** "Good evening." by the hour, on this device's clock. */
 export function greeting(hour: number): string {
   if (hour >= 5 && hour < 12) return 'Good morning'
@@ -71,20 +68,6 @@ function tileCover(list: readonly Song[]): Song | null {
     if (best === null || song.playCount > best.playCount) best = song
   }
   return best ?? list[0] ?? null
-}
-
-/**
- * Recently played: newest first, each song once, and only songs that have been
- * played. `lastPlayedAt` is the server's `YYYY-MM-DD HH:MM:SS`, which sorts as
- * text.
- */
-export function recentlyPlayed(songs: readonly Song[], limit: number = HOME_RECENTS): Song[] {
-  const seen = new Set<number>()
-  return songs
-    .filter(song => song.lastPlayedAt !== null)
-    .sort((a, b) => (b.lastPlayedAt ?? '').localeCompare(a.lastPlayedAt ?? ''))
-    .filter(song => (seen.has(song.id) ? false : (seen.add(song.id), true)))
-    .slice(0, limit)
 }
 
 /**

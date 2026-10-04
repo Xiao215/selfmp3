@@ -7,7 +7,6 @@ import type {
   Wrapped,
   WrappedRange,
   WrittenReport,
-  DescribeRequest,
   DescribeResult,
   Stats,
   Song,
@@ -17,7 +16,7 @@ import type {
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import { ask, type AskDeps } from './ask.js'
-import { describe } from './describe.js'
+import { describe, type DescribeInput } from './describe.js'
 import { LlmError, llmFailureWords, noLlm, openAiCompatible, Remembered, type Llm } from './llm.js'
 import { tidy } from './tidy.js'
 import { written } from './written.js'
@@ -48,7 +47,7 @@ export class SmartFeatures {
     this.#deps = { ...deps, remembered: new Remembered() }
   }
 
-  describe(request: DescribeRequest): Promise<DescribeResult> {
+  describe(request: DescribeInput): Promise<DescribeResult> {
     return describe(this.#deps, request)
   }
 

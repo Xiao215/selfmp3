@@ -30,7 +30,7 @@ import { newPlaylist } from './playlists.model'
  *
  * - letters that are a tag's name offer the tag, and a tag picked sits in the
  *   field as a chip. A playlist of tags follows them and keeps itself filled,
- *   and is named after them; **Stop following** on the playlist keeps every song.
+ *   and is named after them; **Stop filling** on the playlist keeps every song.
  * - anything typed can be a description: **Let it pick** reads it and picks
  *   from your own songs, each with a reason (SongsAnswer).
  * - or it is simply the name of a playlist you fill yourself, which goes

@@ -110,7 +110,7 @@ describe('what the menu offers', () => {
     expect(screen.getByRole('button', { name: 'Tags' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Download' })).toBeTruthy()
     // From the start of the name: the › after Add to playlist is part of it.
-    for (const kept of [/^Add to playlist/, /^Add to queue$/, /^Play similar songs$/]) {
+    for (const kept of [/^Add to playlist/, /^Add to Up next$/, /^Play similar songs$/]) {
       expect(screen.getByRole('menuitem', { name: kept })).toBeTruthy()
     }
     expect(screen.queryByRole('menuitem', { name: 'Play next' })).toBeNull()

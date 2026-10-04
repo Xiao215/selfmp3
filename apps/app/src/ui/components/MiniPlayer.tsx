@@ -20,6 +20,7 @@ import {
 import { MINI_PLAYER_GAP, navBottom } from '../../shell/bottomInset'
 import { openQueueSheet } from '../../features/queue/queueSheet.store'
 import { Cover } from './Cover'
+import { UpNextTarget } from './CoverFlight'
 import { IconButton } from './IconButton'
 import { ProgressWash } from './ProgressWash'
 import { Next, Queue } from './Icons'
@@ -193,9 +194,11 @@ function MiniPlayerInner(): ReactNode {
       </View>
 
       {/* Up next: the sheet over this card and the tab bar (docs/ui-mock `P25`). */}
-      <IconButton testID="mini-player-queue" onPress={openQueueSheet} label="Up next">
-        <Queue size={20} color={theme.colors.textSecondary} />
-      </IconButton>
+      <UpNextTarget>
+        <IconButton testID="mini-player-queue" onPress={openQueueSheet} label="Up next">
+          <Queue size={20} color={theme.colors.textSecondary} />
+        </IconButton>
+      </UpNextTarget>
       {/*
         The transport carries whether it is playing in its own testID, rather
         than a separate marker element. A marker with nothing in it has no size,

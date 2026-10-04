@@ -22,6 +22,7 @@ import { CarProvider } from '../src/ports/car/CarProvider'
 import { DownloadsProvider } from '../src/offline/DownloadsProvider'
 import { useKeepAlongside } from '../src/offline/useKeepAlongside'
 import { PlayerProvider } from '../src/player/PlayerProvider'
+import { useRecordRecentLists } from '../src/features/lists/recentLists.store'
 import { usePlaybackMemory } from '../src/player/usePlaybackMemory'
 import { playbackService } from '../src/player/service'
 import { ConnectionProvider, useConnection } from '../src/connection/ConnectionProvider'
@@ -179,6 +180,7 @@ function Shell(): ReactNode {
   const reduced = useMotionReduced()
   // What was playing comes back when the app opens again, paused where it was.
   usePlaybackMemory()
+  useRecordRecentLists()
   // Every downloaded song's cover and words, kept beside it while the server answers.
   useKeepAlongside()
   // A face that failed to load is not a reason to keep the app shut: the system

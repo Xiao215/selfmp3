@@ -94,13 +94,11 @@ export function ResumeToast(): ReactNode {
           const target = handoffTarget(candidate.state, Date.now())
           setCandidate(null)
           if (!target) return
-          player.playFrom(
-            [...target.queueIds],
-            target.index,
-            candidate.state.shuffle,
-            target.position,
-            false,
-          )
+          player.playFrom([...target.queueIds], target.index, {
+            shuffle: candidate.state.shuffle,
+            position: target.position,
+            autoplay: false,
+          })
         }}
         onHoverIn={() => setHovered(true)}
         onHoverOut={() => setHovered(false)}

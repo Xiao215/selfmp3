@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { Library } from '@selfmp3/shared'
 import { clientApi, queryKeys } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
+import type { ListSource } from '../lists/lists.model'
 
 interface PlaylistPlayback {
   /** From the top, in order: the playlist's Play. */
@@ -25,6 +26,18 @@ interface PlaylistPlayback {
 export function usePlaylistPlayback(): PlaylistPlayback {
   const player = usePlayer()
   const client = useQueryClient()
+
+  // Up next wears the playlist's name: read from this device's library, where
+  // every playlist already is.
+  const sourceFor = useCallback(
+    (playlistId: number): ListSource | null => {
+      const playlist = client
+        .getQueryData<Library>(queryKeys.library)
+        ?.playlists.find(each => each.id === playlistId)
+      return playlist ? { kind: 'playlist', playlistId, name: playlist.name } : null
+    },
+    [client],
+  )
 
   const markPlayed = useCallback(
     (playlistId: number): void => {
@@ -49,28 +62,28 @@ export function usePlaylistPlayback(): PlaylistPlayback {
   const play = useCallback(
     (playlistId: number, songIds: readonly number[]): void => {
       if (songIds.length === 0) return
-      player.playFrom(songIds, 0, false)
+      player.playFrom(songIds, 0, { shuffle: false, source: sourceFor(playlistId) })
       markPlayed(playlistId)
     },
-    [player, markPlayed],
+    [player, markPlayed, sourceFor],
   )
 
   const playFrom = useCallback(
     (playlistId: number, songIds: readonly number[], index: number): void => {
       if (songIds.length === 0) return
-      player.playFrom(songIds, index)
+      player.playFrom(songIds, index, { source: sourceFor(playlistId) })
       markPlayed(playlistId)
     },
-    [player, markPlayed],
+    [player, markPlayed, sourceFor],
   )
 
   const shuffle = useCallback(
     (playlistId: number, songIds: readonly number[]): void => {
       if (songIds.length === 0) return
-      player.playShuffled(songIds)
+      player.playShuffled(songIds, sourceFor(playlistId))
       markPlayed(playlistId)
     },
-    [player, markPlayed],
+    [player, markPlayed, sourceFor],
   )
 
   const playById = useCallback(

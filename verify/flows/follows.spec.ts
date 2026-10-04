@@ -4,9 +4,9 @@ import { appApi } from '../env.js'
 import { escaped, libraryReady, openLibrary, skipIfNoLibrary } from './helpers.js'
 
 /**
- * A playlist that follows tags: saving one, editing it, and stopping.
+ * A playlist that fills from tags: saving one, editing it, and stopping.
  *
- * The one thing here that could lose somebody's music is **Stop following**.
+ * The one thing here that could lose somebody's music is **Stop filling**.
  * A following playlist's songs are the answer to its tags and are stored
  * nowhere, so switching it off has to write them down first — and this is the
  * flow that proves it did, through the real server rather than against a
@@ -61,47 +61,62 @@ async function twoTags(page: Page): Promise<readonly [LibraryTag, LibraryTag] | 
   return first && second ? [first, second] : null
 }
 
-test.describe('a playlist that follows tags', () => {
-  test('saving the chosen tags makes one, and it follows them', async ({ page }, info) => {
-    test.skip(info.project.name === 'phone', 'the head’s Save is a computer’s')
+test.describe('a playlist that fills from tags', () => {
+  /**
+   * Tags played together are saved from Up next, once heard
+   * (docs/features/lists.md): Up next is named after them, Save makes a
+   * playlist that fills from them, and the button then says it is saved.
+   */
+  test('tags played together are saved from Up next, and it fills from them', async ({
+    page,
+  }, info) => {
     await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)
 
     const pair = await twoTags(page)
-    test.skip(!pair, 'needs a tag with songs')
+    test.skip(!pair, 'needs two tags with songs')
     if (!pair) return
-    const [tag] = pair
+    const [first, second] = pair
 
     await page.getByTestId('library-add-tag').click()
     const picker = page.getByTestId('listen-tags')
-    await picker.getByTestId('listen-tags-search').fill(tag.name)
-    await picker
-      .getByRole('button', { name: new RegExp(`^${escaped(tag.name)}(,|$)`) })
-      .first()
-      .click()
+    for (const tag of [first, second]) {
+      await picker.getByTestId('listen-tags-search').fill(tag.name)
+      await picker
+        .getByRole('button', { name: new RegExp(`^${escaped(tag.name)}(,|$)`) })
+        .first()
+        .click()
+    }
     await picker.getByTestId('listen-tags-done').click()
-    await page.getByTestId('library-save-tags').click()
+    await page.getByTestId('library-play-tags').click()
 
-    // The message says what happened, and the button stops offering.
+    await page
+      .getByTestId(info.project.name === 'phone' ? 'mini-player-queue' : 'player-bar-queue')
+      .click()
+    const name = `${first.name} or ${second.name}`
+    await expect(page.locator('[data-testid="up-next-source-name"]:visible')).toHaveText(name)
+    await page.locator('[data-testid="up-next-save"]:visible').click()
+
+    // The message says what happened, and the button says it is done.
     await expect(page.getByText(/^Saved “/)).toBeVisible()
-    await expect(page.getByTestId('library-saved')).toBeVisible()
+    await expect(page.locator('[data-testid="up-next-saved"]:visible')).toBeVisible()
 
     const made = await page.request.get(`${appApi}/api/playlists`)
     const all = (await made.json()) as Playlist[]
-    const created = all.find(entry => entry.name === tag.name)
-    expect(created, `a playlist named ${tag.name}`).toBeDefined()
+    const created = all.find(entry => entry.name === name)
+    expect(created, `a playlist named ${name}`).toBeDefined()
     if (!created) return
 
     try {
       expect(created.kind).toBe('live')
-      expect(created.rules?.rules.map(rule => rule.tagId)).toEqual([tag.id])
+      expect(created.rules?.rules.map(rule => rule.tagId)).toEqual([first.id, second.id])
     } finally {
       await page.request.delete(`${appApi}/api/playlists/${created.id}`)
     }
   })
 
-  test('the Follows row adds a tag, and Stop following keeps every song', async ({ page }) => {
+  test('the Fills from row adds a tag, and Stop filling keeps every song', async ({ page }) => {
     await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)

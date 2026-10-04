@@ -685,7 +685,7 @@ export function PlaylistDetailScreen(): ReactNode {
         />
         <SheetItem
           icon={menuIcon(ListMusic)}
-          label="Add to queue"
+          label="Add to Up next"
           disabled={nothing}
           onPress={menuAction(() => player.addToQueue(songIds))}
         />

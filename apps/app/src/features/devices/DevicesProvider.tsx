@@ -376,7 +376,7 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
       // from is translated on the way out of the cache.
       const target = handoffTarget(device.state, Date.now())
       if (!target) return
-      playerRef.current.playFrom([...target.queueIds], target.index, undefined, target.position)
+      playerRef.current.playFrom([...target.queueIds], target.index, { position: target.position })
       send(device.id, { type: 'pause' })
     },
     [send],
@@ -451,8 +451,9 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
               ? at
               : queueIds.indexOf(command.songId)
           const play = command.play ?? true
-          if (index === -1) local.playFrom([command.songId], 0, undefined, command.position, play)
-          else local.playFrom(queueIds, index, undefined, command.position, play)
+          const options = { position: command.position, autoplay: play }
+          if (index === -1) local.playFrom([command.songId], 0, options)
+          else local.playFrom(queueIds, index, options)
           return
         }
         case 'transfer': {
@@ -462,7 +463,7 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
           if (!from) return
           const target = handoffTarget(from.state, Date.now())
           if (!target) return
-          local.playFrom([...target.queueIds], target.index, undefined, target.position)
+          local.playFrom([...target.queueIds], target.index, { position: target.position })
           send(from.id, { type: 'pause' })
           return
         }

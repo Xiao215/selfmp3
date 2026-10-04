@@ -26,6 +26,7 @@ import { SongRow } from '../../ui/components/SongRow'
 import { Toggle } from '../../ui/components/Toggle'
 import { tip } from '../../ui/tip'
 import { closeQueueSheet, useQueueSheetOpen } from './queueSheet.store'
+import { UpNextSource } from './UpNextSource'
 import {
   autoMixLine,
   dragTarget,
@@ -310,6 +311,7 @@ function SheetPanel({
                 </Pressable>
               </View>
             </View>
+            <UpNextSource onOpen={closeQueueSheet} />
           </View>
         </GestureDetector>
 

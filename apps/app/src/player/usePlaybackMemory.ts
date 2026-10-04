@@ -51,7 +51,7 @@ export function usePlaybackMemoryState(): PlaybackMemory {
  * every tick to copy a number nobody drew.
  */
 function writeSession(player: PlayerApi): void {
-  const session = sessionFromQueue(player.queue, player.getPosition())
+  const session = sessionFromQueue(player.queue, player.getPosition(), player.source)
   prefs.set(SESSION_KEY, session ? JSON.stringify(session) : '')
 }
 
@@ -94,7 +94,12 @@ export function usePlaybackMemory(): void {
       return
     }
     // In the order it was in: `false` keeps a shuffled queue from being shuffled again.
-    now.playFrom(launch.queueIds, launch.index, false, launch.position, false)
+    now.playFrom(launch.queueIds, launch.index, {
+      shuffle: false,
+      position: launch.position,
+      autoplay: false,
+      source: launch.source,
+    })
     settle(songId)
   }, [status, library.data, addressSong, mayPlay])
 
@@ -104,13 +109,14 @@ export function usePlaybackMemory(): void {
   const queue = player.queue
   const songId = player.current?.id ?? null
   const playing = player.isPlaying
+  const source = player.source
   useEffect(() => {
     if (!restored.current) return undefined
     writeSession(latest.current)
     if (!playing) return undefined
     const timer = setInterval(() => writeSession(latest.current), SAVE_EVERY_MS)
     return () => clearInterval(timer)
-  }, [queue, songId, playing])
+  }, [queue, songId, playing, source])
 
   // A browser tab closing or refreshing: the position as it is right now.
   useEffect(() => {

@@ -33,7 +33,8 @@ import {
 } from './tag.model'
 
 /**
- * Add (docs/ui-mock `P09`): the sheet that combines tags and artists.
+ * Combine with… (docs/ui-mock `P09`, docs/features/lists.md): the sheet that
+ * puts tags and artists together.
  *
  * What is chosen sits on one row that scrolls sideways; under it a Tags and an
  * Artists list, searchable together; the song count is on the button and
@@ -56,7 +57,7 @@ export function AddSheet({
 }): ReactNode {
   // Mounted fresh each opening, so the copy starts from what the page shows.
   return (
-    <Sheet open={open} onClose={onClose} title="Add to this" width={520} testID="add-sheet">
+    <Sheet open={open} onClose={onClose} title="Combine with…" width={520} testID="add-sheet">
       {open ? <AddSheetBody chosen={chosen} onShow={onShow} /> : null}
     </Sheet>
   )

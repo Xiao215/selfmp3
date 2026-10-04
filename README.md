@@ -409,6 +409,7 @@ Feature pages, each with what it does, how it works and where the code is:
 | [browser-extension.md](docs/features/browser-extension.md) | The Chrome extension: the pill, the popup, and what it asks Chrome for |
 | [devices-and-handoff.md](docs/features/devices-and-handoff.md) | Presence, handoff, remote control, continue where you left off |
 | [install-and-ops.md](docs/features/install-and-ops.md) | The setup script, `doctor`, the CLI and the Docker image |
+| [lists.md](docs/features/lists.md) | Tags, playlists and Up next: what each is, Save, Recently played |
 | [lyrics-plus.md](docs/features/lyrics-plus.md) | Romanization, search by lyric, songs with no words |
 | [metadata-polish.md](docs/features/metadata-polish.md) | iTunes and MusicBrainz lookups, finding missing covers |
 | [multi-select.md](docs/features/multi-select.md) | Selecting songs and acting on them together |

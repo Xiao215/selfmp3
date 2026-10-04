@@ -16,7 +16,7 @@ import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
 import { CoverLight } from '../../ui/components/CoverLight'
 import { IconButton } from '../../ui/components/IconButton'
-import { ChevronLeft, More, Play, Shuffle, User } from '../../ui/components/Icons'
+import { ChevronLeft, More, Play, Plus, Shuffle, User } from '../../ui/components/Icons'
 import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
 import { SongList } from '../../ui/components/SongList'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
@@ -27,8 +27,9 @@ import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { spring } from '../../ui/motion'
 import { takePlaceHandoff } from '../../ui/coverHandoff'
 import { artShadow, label as labelText } from '../../ui/surfaces'
-import { useSaveTagsAsPlaylist } from '../library/saveTags'
+import { combinedLink, combinedName, placesSource, recentKind } from '../lists/lists.model'
 import { PlaylistCover } from '../playlists/PlaylistCover'
+import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { AddSheet } from './AddSheet'
 import { useArtistPicture } from './useArtistPicture'
 import {
@@ -47,27 +48,35 @@ import {
  * A place's page (docs/ui-mock `P08`, `P10`, `C06`): a tag, an artist, or
  * several of them together.
  *
- * It opens on the one place its address names, lit by that place's covers,
- * with Play, Shuffle and Add. Add puts more tags and artists beside it and
- * every one **adds** its songs; the chips under the name say what is on.
- * Rows carry no tag chips here: inside a place, the place is the tag.
+ * A tag's page is always that one tag (docs/features/lists.md, B1): lit by
+ * its covers, with Play, Shuffle and Combine with…. Combining never changes
+ * the page under you: the tags and artists picked open as a page of their own
+ * on top of it (`/combined`), where chips say what is on and every one
+ * **adds** its songs, and Back comes back to the tag. Rows carry no tag chips
+ * here: inside a place, the place is the tag.
  *
  * A place has no order of its own — its songs read newest first, as Library
  * opens — so holding a row selects it, as it does in the library, and the
- * selection bar acts on what is ticked. An order of your own is a playlist's:
- * Save keeps the tags as one that follows them, and that can be reordered
- * (Xiao, 2026-10-02).
+ * selection bar acts on what is ticked. Nothing here is saved: what is played
+ * from it is Up next, and Up next's Save keeps it (docs/features/lists.md).
  *
  * An artist's page is the same page with a figure where a tag has its dot,
  * its name in the serif, and its songs by album.
  */
 export function PlacePage({
-  place,
+  places,
   menu,
+  onChange,
 }: {
-  place: Place
+  /** One tag or artist; or, on `/combined`, the several put together. */
+  places: readonly Place[]
   /** The ⋯ in the corner: what this kind of place offers. */
   menu?: (anchor: View | null) => void
+  /**
+   * Given on a combination's own page: its chips can be taken off and added
+   * to there. Without it the page is one place, and combining opens a new one.
+   */
+  onChange?: (places: readonly Place[]) => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
@@ -78,18 +87,19 @@ export function PlacePage({
   const player = usePlayer()
   const artFor = useArt()
   const { data: library } = useLibrary()
-  const [picked, setPicked] = useState<readonly Place[]>([place])
   // What was picked, read against the library now: a tag renamed or
   // recoloured from the ⋯ or the sidebar shows its new name at once.
   const chosen = useMemo(
-    () => (library ? currentPlaces(picked, library.tags) : picked),
-    [picked, library],
+    () => (library ? currentPlaces(places, library.tags) : places),
+    [places, library],
   )
+  const place = chosen[0] ?? places[0]!
+  const combining = onChange !== undefined
   const [adding, setAdding] = useState(false)
   const moreRef = useRef<View>(null)
-  const saved = useSaveTagsAsPlaylist()
+  const fly = useFlyToUpNext()
 
-  const only = chosen.length === 1 ? chosen[0] : undefined
+  const only = !combining && chosen.length === 1 ? chosen[0] : undefined
   const artistAlone = only?.kind === 'artist'
   const songs = useMemo(() => {
     const found = placeSongs(chosen, library?.songs ?? [])
@@ -105,9 +115,29 @@ export function PlacePage({
   const backdrop =
     useArtistPicture(only?.kind === 'artist' ? only.artist.name : null)?.banner ?? null
 
-  const title = chosen.map(placeName).join(' + ') || placeName(place)
+  const title = combinedName(chosen.map(placeName)) || placeName(place)
   const summary = artistAlone ? artistSummary(songs) : placeSummary(songs)
-  const allTags = chosen.every(entry => entry.kind === 'tag')
+  // What Up next is called when this plays.
+  const source = useMemo(() => placesSource(chosen), [chosen])
+  const kindLabel = combining
+    ? source?.kind === 'combined'
+      ? recentKind(source)
+      : 'Together'
+    : place.kind === 'tag'
+      ? 'Tag'
+      : 'Artist'
+  /** Combining from one place: the pick opens as a page of its own, over this one. */
+  const combine = (picked: readonly Place[]): void => {
+    setAdding(false)
+    if (combining) {
+      if (picked.length > 0) onChange(picked)
+      return
+    }
+    const together = placesSource(picked)
+    if (picked.length < 2 || together?.kind !== 'combined') return
+    const link = combinedLink(together)
+    router.push({ pathname: '/combined', params: { ...link.params } })
+  }
   const back = (): void => {
     if (router.canGoBack()) router.back()
     else router.replace('/')
@@ -198,7 +228,7 @@ export function PlacePage({
             ) : (
               <User size={12} tone="textSecondary" />
             )}
-            <Text style={styles.kindText}>{place.kind === 'tag' ? 'Tag' : 'Artist'}</Text>
+            <Text style={styles.kindText}>{kindLabel}</Text>
           </View>
           <Text
             style={[styles.name, artistAlone && styles.nameSerif]}
@@ -209,13 +239,13 @@ export function PlacePage({
             {title}
           </Text>
           <Text style={styles.summary}>{summary}</Text>
-          {artistAlone ? null : (
+          {combining ? (
             <Chips
               chosen={chosen}
-              onRemove={entry => setPicked(current => togglePlace(current, entry))}
+              onRemove={entry => onChange(togglePlace(chosen, entry))}
               onAdd={() => setAdding(true)}
             />
-          )}
+          ) : null}
         </View>
         <View style={[styles.actions, wide && styles.actionsWide]}>
           <PlayButton
@@ -223,42 +253,30 @@ export function PlacePage({
             label={`Play ${title}`}
             icon={<Play size={24} color={theme.colors.onPrimary} />}
             disabled={ids.length === 0}
-            onPress={() => player.playFrom(ids, 0)}
+            onPress={() => {
+              fly(heroRef.current, ids)
+              player.playFrom(ids, 0, { source })
+            }}
           />
           <Button
             testID="place-shuffle"
-            label="Shuffle"
+            accessibilityLabel={`Shuffle ${title}`}
             icon={<Shuffle size={16} tone="textPrimary" />}
             disabled={ids.length === 0}
-            onPress={() => player.playShuffled(ids)}
+            onPress={() => {
+              fly(heroRef.current, ids)
+              player.playShuffled(ids, source)
+            }}
           />
-          {artistAlone ? (
-            <Chip
-              testID="place-add"
-              label="Add"
-              icon={<Text style={styles.plus}>+</Text>}
-              selected={false}
-              dashed
+          {combining ? null : (
+            <Button
+              testID="place-combine"
+              label="Combine with…"
+              accessibilityLabel={`Combine ${title} with another tag or artist`}
+              icon={<Plus size={15} tone="textPrimary" />}
               onPress={() => setAdding(true)}
             />
-          ) : null}
-          {allTags ? (
-            <Button
-              testID="place-save"
-              label={saved.savedName === title ? 'Saved' : wide ? 'Save as playlist' : 'Save'}
-              accessibilityLabel="Save these tags as a playlist"
-              busy={saved.saving}
-              disabled={saved.savedName === title}
-              onPress={() =>
-                saved.save({
-                  name: title,
-                  tagIds: chosen.flatMap(entry => (entry.kind === 'tag' ? [entry.tag.id] : [])),
-                  sort: 'addedAt',
-                  descending: true,
-                })
-              }
-            />
-          ) : null}
+          )}
         </View>
       </Animated.View>
     </View>
@@ -275,15 +293,7 @@ export function PlacePage({
           artistAlone ? 'by this artist' : only?.kind === 'tag' ? 'in this tag' : 'on this page'
         }
       />
-      <AddSheet
-        open={adding}
-        chosen={chosen}
-        onClose={() => setAdding(false)}
-        onShow={places => {
-          setAdding(false)
-          if (places.length > 0) setPicked(places)
-        }}
-      />
+      <AddSheet open={adding} chosen={chosen} onClose={() => setAdding(false)} onShow={combine} />
     </View>
   )
 }

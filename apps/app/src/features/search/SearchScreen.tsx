@@ -171,7 +171,9 @@ export function SearchScreen(): ReactNode {
             keyboardDismissMode="on-drag"
             contentContainerStyle={styles.results}
           >
-            {answering ? <AskAnswer text={asking} onDone={close} /> : null}
+            {answering ? (
+              <AskAnswer text={asking} onDone={close} onOpenPage={() => undefined} />
+            ) : null}
             {!answering && offerAsk && counts.all === 0 ? (
               <AskCard words={words} first onAsk={() => setAsking(words)} />
             ) : null}
@@ -554,7 +556,11 @@ function LyricResults({
           <Pressable
             key={`${hit.songId}-${index}`}
             testID={`search-lyric-${index}`}
-            onPress={() => player.playFrom([hit.songId], 0)}
+            onPress={() =>
+              player.playFrom([hit.songId], 0, {
+                source: { kind: 'songs', origin: 'search', name: 'Search' },
+              })
+            }
             accessibilityRole="button"
             accessibilityLabel={`${hit.title}: ${hit.line}`}
             style={({ pressed }) => [styles.lyric, pressed && styles.pressed]}

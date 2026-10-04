@@ -26,15 +26,16 @@ import { useLibrary } from '@selfmp3/client'
  */
 
 /**
- * What a playlist that follows tags is called, wherever it has to be named in
- * passing: under its title, on its row in a list.
+ * What a playlist that fills itself from tags is called, wherever it has to be
+ * named in passing: under its title, on its row in a list.
  *
  * A verb, not a category. "Live" and "auto" name a *kind* of playlist, which
- * then has to be explained somewhere and learned; "follows tags" says what
- * happens, and it is the same word as the switch that turns it on and the row
- * that shows it — one thing to learn instead of three.
+ * then has to be explained somewhere and learned; "fills from tags" says what
+ * happens, and it is the same word as the row that shows it and the button
+ * that stops it — one thing to learn instead of three. Not "follows", which
+ * reads as following a person (docs/features/lists.md).
  */
-export const FOLLOWS_LABEL = 'follows tags'
+export const FOLLOWS_LABEL = 'fills from tags'
 
 export type PlaylistSort = 'recent' | 'name' | 'added'
 

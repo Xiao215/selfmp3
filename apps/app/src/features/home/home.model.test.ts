@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Song, Tag } from '@selfmp3/shared'
-import { greeting, homeTiles, recentlyPlayed, streakLine, sundayCard } from './home.model'
+import { greeting, homeTiles, streakLine, sundayCard } from './home.model'
 
 const song = (id: number, extra: Partial<Song> = {}): Song => ({
   id,
@@ -93,22 +93,6 @@ describe('homeTiles', () => {
       ],
     )
     expect(tiles[0]?.cover?.id).toBe(3)
-  })
-})
-
-describe('recentlyPlayed', () => {
-  it('is newest first, played songs only, and each song once', () => {
-    const songs = [
-      song(1, { lastPlayedAt: '2026-09-10 10:00:00' }),
-      song(2),
-      song(3, { lastPlayedAt: '2026-09-12 08:00:00' }),
-      song(3, { lastPlayedAt: '2026-09-12 08:00:00' }),
-    ]
-    expect(recentlyPlayed(songs).map(entry => entry.id)).toEqual([3, 1])
-  })
-
-  it('is empty for a library nobody has played yet', () => {
-    expect(recentlyPlayed([song(1), song(2)])).toEqual([])
   })
 })
 

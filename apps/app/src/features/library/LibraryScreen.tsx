@@ -48,7 +48,8 @@ import { useContentWidth } from '../../shell/contentWidth'
 import { noMatchesTitle, stripTags, useLibraryModel } from './library.model'
 import { noteTagUsed, useRecentTagIds } from './recentTags.store'
 import { closeTagSearch, openTagSearch, useTagSearchOpen } from './tagSearch.store'
-import { useSaveTagsAsPlaylist } from './saveTags'
+import { librarySource } from '../lists/lists.model'
+import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { usePullToRefresh } from './usePullToRefresh'
 import { label, pageTitle } from '../../ui/surfaces'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
@@ -132,11 +133,15 @@ export function LibraryScreen(): ReactNode {
   const artFor = useArt(ROW_COVER_SIZE)
   const rowHeight = useSongRowHeight()
 
-  const saved = useSaveTagsAsPlaylist()
-  // A second press would make a second copy of the same playlist, so once these
-  // tags are kept the button says so instead of offering again. Changing a tag
-  // changes the heading, which offers it again without anything to reset.
-  const alreadySaved = saved.savedName !== null && saved.savedName === model.heading
+  // What Up next is called when this list plays: the library, or the tags
+  // ticked. Saving them as a playlist happens there, after listening
+  // (docs/features/lists.md).
+  const transportRef = useRef<View>(null)
+  const fly = useFlyToUpNext()
+  const source = useMemo(
+    () => librarySource(model.filter.tagIds, model.tags),
+    [model.filter.tagIds, model.tags],
+  )
   // What the list is answering: a new answer plays its first rows in
   // (`SongList`'s `arrivalKey`); scrolling, selecting and playing do not.
   const arrivalKey = [
@@ -145,16 +150,6 @@ export function LibraryScreen(): ReactNode {
     model.filter.descending ? 'desc' : 'asc',
     model.filter.downloadedOnly ? 'downloaded' : 'all',
   ].join('|')
-  const saveTheseTags = useCallback(
-    () =>
-      saved.save({
-        name: model.heading,
-        tagIds: model.filter.tagIds,
-        sort: model.filter.sort,
-        descending: model.filter.descending,
-      }),
-    [saved, model.heading, model.filter.tagIds, model.filter.sort, model.filter.descending],
-  )
 
   /*
    * A row's handlers, one of each for the whole list.
@@ -167,9 +162,9 @@ export function LibraryScreen(): ReactNode {
    * row asks the player itself (`useSongPlayback`).
    */
   const { playFrom } = player
-  const latest = useRef({ selection, songIds, playFrom, model })
+  const latest = useRef({ selection, songIds, playFrom, model, source })
   useEffect(() => {
-    latest.current = { selection, songIds, playFrom, model }
+    latest.current = { selection, songIds, playFrom, model, source }
   })
   /*
    * Turning a tag on or off, from anywhere: a chip in the head, a chip on a
@@ -193,7 +188,7 @@ export function LibraryScreen(): ReactNode {
     // tap still plays.
     if (now.selection.click(song.id, modifiersOf(event))) return
     const index = now.songIds.indexOf(song.id)
-    if (index >= 0) now.playFrom(now.songIds, index)
+    if (index >= 0) now.playFrom(now.songIds, index, { source: now.source })
   }, [])
   const onRowMore = useCallback((anchor: View | null, song: Song) => {
     menuAnchorRef.current = anchor
@@ -362,41 +357,32 @@ export function LibraryScreen(): ReactNode {
         {/*
           A phone's library carries no sort and no idle Shuffle — a tap on a
           row plays the list from there. But tags turn this list into an idea,
-          and an idea is worth starting and worth keeping, so the same three
-          controls a computer keeps in its header take a row of their own here.
+          and an idea is worth starting, so the two controls a computer keeps
+          in its header take a row of their own here.
           Without them the phone could pick tags and then had to be told to go
           somewhere else to play them.
         */}
         {!wide && model.tagFiltered ? (
-          <View style={styles.phoneTransport}>
+          <View style={styles.phoneTransport} ref={transportRef} collapsable={false}>
             <PlayButton
               label="Play these tags"
               icon={<Play size={20} color={theme.colors.onPrimary} />}
               disabled={visible.length === 0}
-              onPress={() => player.playFrom(songIds, 0)}
+              onPress={() => {
+                fly(transportRef.current, songIds)
+                player.playFrom(songIds, 0, { source })
+              }}
               testID="library-play-tags"
             />
             <Button
               accessibilityLabel="Shuffle these tags"
               icon={<Shuffle size={15} color={theme.colors.textPrimary} />}
               disabled={visible.length === 0}
-              onPress={() => player.playShuffled(songIds)}
+              onPress={() => {
+                fly(transportRef.current, songIds)
+                player.playShuffled(songIds, source)
+              }}
             />
-            {alreadySaved ? (
-              <View style={styles.savedSlot}>
-                <Text style={styles.savedMark} testID="library-saved">
-                  ✓ Saved
-                </Text>
-              </View>
-            ) : (
-              <Button
-                label={saved.saving ? 'Saving…' : 'Save'}
-                accessibilityLabel="Save these tags as a playlist"
-                disabled={saved.saving || visible.length === 0}
-                onPress={saveTheseTags}
-                testID="library-save-tags"
-              />
-            )}
           </View>
         ) : null}
 
@@ -458,11 +444,12 @@ export function LibraryScreen(): ReactNode {
               a thing anybody wants a button for.
 
               With tags on this list is an idea rather than a library, so it is
-              worth a Play, and worth keeping: Save makes a playlist that
-              follows these tags, and then says it did rather than offering
-              again.
+              worth a Play. Keeping it is Up next's Save, once it has been
+              heard (docs/features/lists.md).
             */}
               <View
+                ref={transportRef}
+                collapsable={false}
                 style={[
                   styles.transport,
                   // A row of its own only for the three a tag brings; Shuffle alone
@@ -474,21 +461,6 @@ export function LibraryScreen(): ReactNode {
                       : undefined,
                 ]}
               >
-                {model.tagFiltered ? (
-                  alreadySaved ? (
-                    <Text style={styles.savedMark} testID="library-saved">
-                      ✓ Saved
-                    </Text>
-                  ) : (
-                    <Button
-                      label={saved.saving ? 'Saving…' : 'Save as playlist'}
-                      accessibilityLabel="Save these tags as a playlist"
-                      disabled={saved.saving || visible.length === 0}
-                      onPress={saveTheseTags}
-                      testID="library-save-tags"
-                    />
-                  )
-                ) : null}
                 {model.tagFiltered || !switches.tidy ? null : (
                   <Button
                     label={shuffleIconOnly ? undefined : 'Tidy up'}
@@ -503,7 +475,10 @@ export function LibraryScreen(): ReactNode {
                   accessibilityLabel="Shuffle"
                   icon={<Shuffle size={15} color={theme.colors.textPrimary} />}
                   disabled={visible.length === 0}
-                  onPress={() => player.playShuffled(songIds)}
+                  onPress={() => {
+                    if (model.tagFiltered) fly(transportRef.current, songIds)
+                    player.playShuffled(songIds, source)
+                  }}
                 />
                 {model.tagFiltered ? (
                   <PlayButton
@@ -512,7 +487,10 @@ export function LibraryScreen(): ReactNode {
                     size={dense ? 36 : HIT_TARGET}
                     icon={<Play size={16} color={theme.colors.onPrimary} />}
                     disabled={visible.length === 0}
-                    onPress={() => player.playFrom(songIds, 0)}
+                    onPress={() => {
+                      fly(transportRef.current, songIds)
+                      player.playFrom(songIds, 0, { source })
+                    }}
                     testID="library-play-tags"
                   />
                 ) : null}
@@ -706,9 +684,7 @@ const styles = StyleSheet.create(theme => ({
   subRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 },
   /* Play first, the white round one: it is what picking tags was for. */
   phoneTransport: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  savedSlot: { justifyContent: 'center', paddingHorizontal: space.sm },
   chooser: { paddingHorizontal: space.lg },
-  savedMark: { color: theme.colors.good, fontSize: type.small, fontWeight: '600' },
   screen: {
     flex: 1,
     backgroundColor: theme.colors.surface0,

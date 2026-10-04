@@ -3,7 +3,14 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { formatDuration, fuzzyRank, type Song } from '@selfmp3/shared'
-import { failureText, radius, space, useAddToPlaylist, useLibrary } from '@selfmp3/client'
+import {
+  failureText,
+  radius,
+  space,
+  useAddToPlaylist,
+  useBulkTag,
+  useLibrary,
+} from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useAccent } from '../../ui/accent'
@@ -23,6 +30,11 @@ const SHOWN = 60
 type AddSongsTarget =
   | { kind: 'existing'; playlistId: number; inPlaylist: ReadonlySet<number> }
   | { kind: 'new'; create: (songIds: readonly number[]) => Promise<void> }
+  /**
+   * A tag's page: "adding a song" there is tagging it (docs/features/lists.md).
+   * Each + tags at once; pressing Tagged again takes the tag back off.
+   */
+  | { kind: 'tag'; tagId: number; inTag: ReadonlySet<number> }
 
 const NOTHING: ReadonlySet<number> = new Set()
 
@@ -37,6 +49,9 @@ const NOTHING: ReadonlySet<number> = new Set()
  * window leaves nothing behind (docs/UI-MIGRATION.md, Phase 5: a playlist
  * exists once it has a song). With nothing typed it shows the newest songs
  * first, which is usually what was just imported to add.
+ *
+ * On a tag's page the same window tags songs: each + puts the tag on the
+ * song, and Tagged pressed again takes it off, so a slip costs one press.
  */
 export function AddSongsSheet({
   open,
@@ -54,13 +69,16 @@ export function AddSongsSheet({
   const artFor = useArt(ROW_COVER_SIZE)
   const { data: library } = useLibrary()
   const addToPlaylist = useAddToPlaylist()
+  const bulkTag = useBulkTag()
   const [query, setQuery] = useState('')
   const [added, setAdded] = useState<ReadonlySet<number>>(new Set())
   const [focused, setFocused] = useState(false)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const making = target.kind === 'new'
-  const inPlaylist = target.kind === 'existing' ? target.inPlaylist : NOTHING
+  const tagging = target.kind === 'tag'
+  const inPlaylist =
+    target.kind === 'existing' ? target.inPlaylist : target.kind === 'tag' ? target.inTag : NOTHING
 
   const results = useMemo(() => {
     const songs = library?.songs ?? []
@@ -83,16 +101,26 @@ export function AddSongsSheet({
     if (target.kind === 'existing') {
       addToPlaylist.mutate({ playlistId: target.playlistId, songIds: [song.id] })
     }
+    if (target.kind === 'tag') {
+      bulkTag.mutate({ songIds: [song.id], tagId: target.tagId, action: 'add' })
+    }
     setAdded(current => new Set(current).add(song.id))
   }
 
-  /** Only while making one: nothing has been sent, so a pick can be taken back. */
-  const unpick = (song: Song): void =>
+  /**
+   * While making one nothing has been sent, so a pick can be taken back; on a
+   * tag's page the tag comes off again.
+   */
+  const unpick = (song: Song): void => {
+    if (target.kind === 'tag') {
+      bulkTag.mutate({ songIds: [song.id], tagId: target.tagId, action: 'remove' })
+    }
     setAdded(current => {
       const next = new Set(current)
       next.delete(song.id)
       return next
     })
+  }
 
   const create = async (): Promise<void> => {
     if (target.kind !== 'new' || added.size === 0 || creating) return
@@ -115,7 +143,7 @@ export function AddSongsSheet({
     <Sheet
       open={open}
       onClose={close}
-      title={`Add to ${playlistName}`}
+      title={tagging ? `Tag songs “${playlistName}”` : `Add to ${playlistName}`}
       width={480}
       testID="add-songs"
     >
@@ -157,25 +185,31 @@ export function AddSongsSheet({
                   </View>
                   <Text style={styles.time}>{formatDuration(song.duration)}</Text>
                   {already ? (
-                    <Text style={styles.state}>In this list</Text>
+                    <Text style={styles.state}>{tagging ? 'Has it' : 'In this list'}</Text>
                   ) : justAdded ? (
                     <Pressable
                       onPress={() => unpick(song)}
-                      disabled={!making}
-                      accessibilityRole={making ? 'button' : undefined}
+                      disabled={!making && !tagging}
+                      accessibilityRole={making || tagging ? 'button' : undefined}
                       accessibilityLabel={
-                        making ? `Take ${song.title} back out` : `${song.title} added`
+                        tagging
+                          ? `Take the tag off ${song.title}`
+                          : making
+                            ? `Take ${song.title} back out`
+                            : `${song.title} added`
                       }
                       style={styles.addedMark}
                     >
                       <Check size={14} color={accent.accent} />
-                      <Text style={[styles.state, { color: accent.accent }]}>Added</Text>
+                      <Text style={[styles.state, { color: accent.accent }]}>
+                        {tagging ? 'Tagged' : 'Added'}
+                      </Text>
                     </Pressable>
                   ) : (
                     <Pressable
                       onPress={() => add(song)}
                       accessibilityRole="button"
-                      accessibilityLabel={`Add ${song.title}`}
+                      accessibilityLabel={tagging ? `Tag ${song.title}` : `Add ${song.title}`}
                       style={({ pressed }) => [styles.add, pressed && styles.pressed]}
                     >
                       <Plus size={15} color={theme.colors.textPrimary} />
@@ -190,7 +224,11 @@ export function AddSongsSheet({
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <View style={styles.foot}>
           <Text style={styles.hint}>
-            {added.size > 0 ? `${added.size} added` : making ? 'Pick its first songs' : ' '}
+            {added.size > 0
+              ? `${added.size} ${tagging ? 'tagged' : 'added'}`
+              : making
+                ? 'Pick its first songs'
+                : ' '}
           </Text>
           {making ? (
             <View style={styles.footActions}>

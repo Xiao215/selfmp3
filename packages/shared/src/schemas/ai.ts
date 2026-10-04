@@ -61,6 +61,11 @@ export const DescribeRequestSchema = z.object({
    * again, the songs are only picked again from what the parts now let in.
    */
   understanding: UnderstandingSchema.nullable().default(null),
+  /**
+   * Songs to pick around: an answer's Different songs (docs/features/lists.md)
+   * sends the ones it showed. Where nothing else fits they may come back.
+   */
+  avoid: z.array(IdSchema).max(2000).default([]),
 })
 export type DescribeRequest = z.infer<typeof DescribeRequestSchema>
 

@@ -50,6 +50,9 @@ import { SheetItem } from './Sheet'
 import { floating } from '../surfaces'
 import { useFloatingChrome } from '../../shell/bottomInset'
 
+/** What Up next is called when the ticked songs are played: they can be saved from there. */
+const PICKED = { kind: 'songs', origin: 'selection', name: 'Songs you picked' } as const
+
 /**
  * How much room a phone's list leaves under its last row while the bar is up,
  * so the last song can still be scrolled out from under it.
@@ -426,7 +429,7 @@ export function SelectionBar({
             <Button
               label="Play"
               icon={<Play size={13} color={theme.colors.textPrimary} />}
-              onPress={() => player.playFrom(ids, 0)}
+              onPress={() => player.playFrom(ids, 0, { source: PICKED })}
               disabled={count === 0}
             />
             <Button
@@ -485,7 +488,7 @@ export function SelectionBar({
       >
         <View style={styles.countCompact}>{countBadge}</View>
         <IconButton
-          onPress={() => player.playFrom(ids, 0)}
+          onPress={() => player.playFrom(ids, 0, { source: PICKED })}
           label="Play"
           disabled={count === 0}
           filled

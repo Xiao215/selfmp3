@@ -1,4 +1,5 @@
 import type { QueueState } from '@selfmp3/shared'
+import { parseListSource, type ListSource } from '../features/lists/lists.model'
 
 /**
  * What this device was playing, kept so that opening the app again — a browser
@@ -18,20 +19,28 @@ interface SavedSession {
   readonly index: number
   /** Seconds into the song at `index`. */
   readonly position: number
+  /** What Up next was called, so it comes back by the same name. */
+  readonly source: ListSource | null
 }
 
 interface LaunchPlayback {
   readonly queueIds: readonly number[]
   readonly index: number
   readonly position: number
+  readonly source: ListSource | null
 }
 
-export function sessionFromQueue(queue: QueueState, position: number): SavedSession | null {
+export function sessionFromQueue(
+  queue: QueueState,
+  position: number,
+  source: ListSource | null = null,
+): SavedSession | null {
   if (queue.index < 0 || queue.index >= queue.items.length) return null
   return {
     queueIds: [...queue.items],
     index: queue.index,
     position: Math.max(0, position),
+    source,
   }
 }
 
@@ -47,7 +56,7 @@ export function parseSession(raw: string | null): SavedSession | null {
     if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index >= ids.length)
       return null
     const position = typeof value.position === 'number' ? Math.max(0, value.position) : 0
-    return { queueIds: ids, index, position }
+    return { queueIds: ids, index, position, source: parseListSource(value.source) }
   } catch {
     return null
   }
@@ -84,7 +93,8 @@ export function launchPlayback(
       queueIds: saved.queueIds.filter(id => known.has(id)),
       index,
       position: saved.position,
+      source: saved.source,
     }
   }
-  return named === null ? null : { queueIds: [named], index: 0, position: 0 }
+  return named === null ? null : { queueIds: [named], index: 0, position: 0, source: null }
 }

@@ -3,17 +3,15 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useMutation } from '@tanstack/react-query'
-import { plural, type DescribeResult, type Understanding } from '@selfmp3/shared'
+import type { DescribeResult, Understanding } from '@selfmp3/shared'
 import { clientApi, failureText, radius, space, useLibrary } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
-import { usePlayer } from '../../player/PlayerProvider'
-import { showToast } from '../../ui/toast'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
-import { Play, X } from '../../ui/components/Icons'
+import { X } from '../../ui/components/Icons'
 import { followRules } from '../library/saveTags'
 import { newPlaylist } from '../playlists/playlists.model'
 import { describeNotes, onlyTags, parts, picksHere, tagIdsFor } from './smart.model'
@@ -21,8 +19,9 @@ import { useSmartServer } from './useSmartServer'
 
 /**
  * Songs picked from a description (docs/features/ai.md): what it understood,
- * as chips that can be taken away, and the picks, each with a reason. Shown by
- * the Search box's Ask (S1) and by New playlist (N1).
+ * as chips that can be taken away, and the picks, each with a reason. New
+ * playlist's Let it pick (N1); Search's Ask shows its songs as a card and a
+ * page instead (`SongsAnswerCard`, `AnswerScreen`), to be played before kept.
  *
  * Taking a chip away does not read the words again: Pick again chooses from
  * what the remaining chips let in. Keeping it makes an ordinary playlist of the
@@ -33,8 +32,6 @@ export function SongsAnswer({
   result: first,
   text,
   name,
-  onPlayed,
-  onQueued,
   onSaved,
   onCancel,
 }: {
@@ -42,16 +39,11 @@ export function SongsAnswer({
   text: string
   /** A name typed elsewhere, which wins over the one the words suggest. */
   name?: string
-  /** Given where playing straight away makes sense: the Search box. */
-  onPlayed?: () => void
-  /** Given when the answer is for after the song playing (A8): Add to Up next leads. */
-  onQueued?: () => void
   onSaved: (playlistId: number) => void
   onCancel?: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const server = useSmartServer()
-  const player = usePlayer()
   const { data: library } = useLibrary()
   const artFor = useArt(ROW_COVER_SIZE)
 
@@ -84,21 +76,6 @@ export function SongsAnswer({
   )
   const follows = onlyTags(understanding) && keepFilled
   const ready = edited === null && (follows || picks.length > 0)
-
-  const queue = (): void => {
-    const ids = picks.map(each => each.songId)
-    player.playNext(ids)
-    showToast(`${plural(ids.length, 'song', 'songs')} up next`, 'good')
-    onQueued?.()
-  }
-
-  const play = (): void => {
-    player.playFrom(
-      picks.map(each => each.songId),
-      0,
-    )
-    onPlayed?.()
-  }
 
   const save = async (): Promise<void> => {
     if (!ready || busy) return
@@ -196,11 +173,11 @@ export function SongsAnswer({
           onPress={() => setKeepFilled(on => !on)}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: keepFilled }}
-          accessibilityLabel="Follow these tags and keep it filled"
+          accessibilityLabel="Fill it from these tags as they grow"
           style={styles.checkRow}
         >
           <Checkbox checked={keepFilled} />
-          <Text style={styles.checkLabel}>Follow these tags and keep it filled</Text>
+          <Text style={styles.checkLabel}>Fill it from these tags as they grow</Text>
         </Pressable>
       ) : null}
 
@@ -226,34 +203,14 @@ export function SongsAnswer({
             testID="songs-answer-again"
           />
         ) : (
-          <>
-            {onQueued ? (
-              <Button
-                label="Add to Up next"
-                variant="primary"
-                disabled={picks.length === 0}
-                onPress={queue}
-                testID="songs-answer-next"
-              />
-            ) : null}
-            {onPlayed && !onQueued ? (
-              <Button
-                label="Play now"
-                icon={<Play size={13} color={theme.colors.textPrimary} />}
-                disabled={picks.length === 0}
-                onPress={play}
-                testID="songs-answer-play"
-              />
-            ) : null}
-            <Button
-              label={onPlayed ? 'Save as a playlist' : 'Create'}
-              variant={onQueued ? 'secondary' : 'primary'}
-              disabled={!ready}
-              busy={busy}
-              onPress={() => void save()}
-              testID="songs-answer-save"
-            />
-          </>
+          <Button
+            label="Create"
+            variant="primary"
+            disabled={!ready}
+            busy={busy}
+            onPress={() => void save()}
+            testID="songs-answer-save"
+          />
         )}
       </View>
     </View>

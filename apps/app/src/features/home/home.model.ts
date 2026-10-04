@@ -1,4 +1,11 @@
-import { formatLongDuration, type Song, type Stats, type Tag, splitArtists } from '@selfmp3/shared'
+import {
+  formatLongDuration,
+  plural,
+  type Song,
+  type Stats,
+  type Tag,
+  splitArtists,
+} from '@selfmp3/shared'
 import { tagsMostPlayed } from '../tag/tag.model'
 
 /**
@@ -70,22 +77,48 @@ function tileCover(list: readonly Song[]): Song | null {
   return best ?? list[0] ?? null
 }
 
+/** The week's number one, which leads the Sunday card. */
+interface SongOfTheWeek {
+  readonly songId: number
+  readonly title: string
+  /** "Song of the week · 14 plays". */
+  readonly note: string
+}
+
+export interface SundayCard {
+  readonly title: string
+  /** How long, whose, the streak: "1 hr 12 min · Yu-Peng Chen, mostly · 3-day streak". */
+  readonly line: string
+  /** Null when the server named no song, and the card says the week alone. */
+  readonly song: SongOfTheWeek | null
+}
+
 /**
- * The Sunday card (docs/ui-mock `P06`): on a Sunday, and only then, one card
- * under the greeting says the week is ready and opens it as a page. It says
- * what the week held — how long, whose, the streak — and is not drawn for a
- * week with nothing in it, or before the week's numbers have arrived. No
- * notification: it is there when Home is opened, and gone on Monday.
+ * The Sunday card (docs/ui-mock `P06`): on a Sunday, and only then, the week
+ * is ready and opens as a page. It is led by the week's most played song, its
+ * cover and its colour, so each Sunday looks like its own week (Xiao chose E,
+ * 2026-10-04); the line says what the week held — how long, whose, the
+ * streak. Not drawn for a week with nothing in it, or before the week's
+ * numbers have arrived. No notification: it is there when Home is opened, and
+ * gone on Monday.
  */
 export function sundayCard(
   now: Date,
-  week: Pick<Stats, 'totals' | 'topArtists' | 'streakDays'> | undefined,
-): { readonly title: string; readonly line: string } | null {
+  week: Pick<Stats, 'totals' | 'topArtists' | 'topSongs' | 'streakDays'> | undefined,
+): SundayCard | null {
   if (now.getDay() !== 0 || !week || week.totals.plays === 0) return null
   const parts = [formatLongDuration(week.totals.minutes * 60)]
   const top = week.topArtists[0]
   const artist = top ? splitArtists(top.key)[0] : undefined
   if (artist) parts.push(`${artist}, mostly`)
   if (week.streakDays >= 2) parts.push(`${week.streakDays}-day streak`)
-  return { title: 'Your week is ready', line: parts.join(' · ') }
+  const first = week.topSongs[0]
+  const song = first
+    ? {
+        songId: first.songId,
+        title: first.title,
+        note: `Song of the week · ${plural(first.plays, 'play', 'plays')}`,
+      }
+    : null
+  return { title: 'Your week is ready', line: parts.join(' · '), song }
 }

@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useId, useMemo, useState, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
 import type { ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { useRouter, type Href } from 'expo-router'
 import { plural } from '@selfmp3/shared'
-import type { Stats } from '@selfmp3/shared'
+import type { Song, Stats } from '@selfmp3/shared'
 import { fonts, radius, tagColors, type, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
@@ -22,6 +23,7 @@ import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronRight, Download, Plus, Search, Sparkle } from '../../ui/components/Icons'
 import { useAccent } from '../../ui/accent'
+import { useSongColor } from '../../ui/useSongColor'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { session, useArrival, usePressScale } from '../../ui/motion'
 import { handOffPlace } from '../../ui/coverHandoff'
@@ -47,6 +49,7 @@ import {
   streakLine,
   sundayCard,
   type HomeTile,
+  type SundayCard,
 } from './home.model'
 
 /**
@@ -111,6 +114,13 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
   )
   const line = streakLine(stats?.streakDays)
   const sunday = sundayCard(now, stats)
+  const sundayId = sunday?.song?.songId
+  const sundaySong = useMemo(
+    () => (sundayId === undefined ? null : (library?.songs.find(s => s.id === sundayId) ?? null)),
+    [library, sundayId],
+  )
+  const openWeek = (): void =>
+    router.navigate({ pathname: '/stats/report', params: { range: 'week' } })
   // Known to be empty, as opposed to not loaded yet.
   const empty = library !== undefined && library.songs.length === 0
 
@@ -141,25 +151,9 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
           {line === null ? null : <Text style={styles.subline}>{line}</Text>}
         </View>
 
-        {sunday ? (
-          <Pressable
-            testID="home-sunday"
-            onPress={() =>
-              router.navigate({ pathname: '/stats/report', params: { range: 'week' } })
-            }
-            accessibilityRole="link"
-            accessibilityLabel={`${sunday.title}. ${sunday.line}`}
-            style={({ pressed }) => [styles.sunday, pressed && styles.sundayPressed]}
-          >
-            <View style={styles.sundayText}>
-              <Text style={styles.sundayTitle}>{sunday.title}</Text>
-              <Text style={styles.sundayLine} numberOfLines={1}>
-                {sunday.line}
-              </Text>
-            </View>
-            <ChevronRight size={16} tone="textSecondary" />
-          </Pressable>
-        ) : null}
+        {/* A computer says it in This week instead, beside the tiles, where the
+            same numbers already were (`F`, Xiao 2026-10-04). */}
+        {sunday && !wide ? <SundayLead card={sunday} song={sundaySong} onOpen={openWeek} /> : null}
 
         {empty ? null : <SearchField wide={wide} onPress={openSearch} />}
 
@@ -187,7 +181,15 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
               </>
             )}
           </View>
-          {wide ? <ThisWeek stats={stats} beside={beside} /> : null}
+          {wide ? (
+            <ThisWeek
+              stats={stats}
+              beside={beside}
+              sunday={sunday}
+              sundaySong={sundaySong}
+              onOpenWeek={openWeek}
+            />
+          ) : null}
         </View>
 
         {recents.length > 0 ? (
@@ -201,6 +203,96 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
         ) : null}
       </ScrollView>
     </SafeAreaView>
+  )
+}
+
+/**
+ * The Sunday card on a phone (`P06`, E): led by the week's number one, its
+ * cover large and the card washed in that cover's colour, so every Sunday
+ * looks like its own week. A tap opens the week as a page. Without a song to
+ * lead it, it says the week in the accent.
+ */
+function SundayLead({
+  card,
+  song,
+  onOpen,
+}: {
+  card: SundayCard
+  /** The number one in the library, for its cover and colour; null if it has gone. */
+  song: Song | null
+  onOpen: () => void
+}): ReactNode {
+  const tone = useSundayTone(song)
+  const press = usePressScale(0.98)
+  const lead = card.song
+  return (
+    <Animated.View style={press.style}>
+      <Pressable
+        testID="home-sunday"
+        onPress={onOpen}
+        {...press.handlers}
+        accessibilityRole="link"
+        accessibilityLabel={
+          lead
+            ? `${card.title}. ${lead.title}, ${lead.note}. ${card.line}`
+            : `${card.title}. ${card.line}`
+        }
+        style={styles.sunday}
+      >
+        <ToneWash color={tone.color} />
+        {song ? (
+          <View style={styles.sundayCover}>
+            <Cover
+              uri={tone.uri}
+              title={song.album || song.title}
+              size={SUNDAY_COVER}
+              radius={12}
+            />
+          </View>
+        ) : null}
+        {/* Without a song, the week says itself: the title, then how long and whose. */}
+        <View style={styles.sundayText}>
+          {lead ? <Text style={[styles.kicker, { color: tone.tint }]}>{card.title}</Text> : null}
+          <Text style={styles.sundayTitle} numberOfLines={1}>
+            {lead ? lead.title : card.title}
+          </Text>
+          <Text style={styles.sundayLine} numberOfLines={1}>
+            {lead ? lead.note : card.line}
+          </Text>
+        </View>
+        <ChevronRight size={16} color={tone.tint} />
+      </Pressable>
+    </Animated.View>
+  )
+}
+
+/**
+ * A song's colour washed across a card from the left and out to nothing on
+ * the right, so the card reads as lit by its cover rather than painted.
+ */
+function ToneWash({ color }: { color: string }): ReactNode {
+  // Gradient ids are document ids on the web: two cards must not share one.
+  const id = `tone${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {/* Pinned to the edges and a unit box stretched over it, as ProgressWash's fade is. */}
+      <Svg
+        style={StyleSheet.absoluteFill}
+        width="100%"
+        height="100%"
+        viewBox="0 0 1 1"
+        preserveAspectRatio="none"
+      >
+        <Defs>
+          <LinearGradient id={id} x1="0" y1="0" x2="1" y2="0">
+            <Stop offset="0" stopColor={color} stopOpacity={0.34} />
+            <Stop offset="0.55" stopColor={color} stopOpacity={0.1} />
+            <Stop offset="1" stopColor={color} stopOpacity={0} />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="1" height="1" fill={`url(#${id})`} />
+      </Svg>
+    </View>
   )
 }
 
@@ -602,9 +694,25 @@ function listened(minutes: number): { big: string; small: string } {
 
 /**
  * A computer's card beside the tiles, or under them on a narrow page: this
- * week in three numbers, and the way to Stats.
+ * week in three numbers, and the way to Stats. On a Sunday it is also the way
+ * into the week as a page (`F`, Xiao 2026-10-04): the week's number one at its
+ * head, the card washed in its cover's colour, and a button that opens the
+ * week. Home's top keeps to the greeting and the search, rather than a bar
+ * over these same numbers.
  */
-function ThisWeek({ stats, beside }: { stats: Stats | undefined; beside: boolean }): ReactNode {
+function ThisWeek({
+  stats,
+  beside,
+  sunday,
+  sundaySong,
+  onOpenWeek,
+}: {
+  stats: Stats | undefined
+  beside: boolean
+  sunday: SundayCard | null
+  sundaySong: Song | null
+  onOpenWeek: () => void
+}): ReactNode {
   const router = useRouter()
   const column = beside ? styles.sideColumn : styles.stack
   if (!stats) return <View style={column} />
@@ -617,6 +725,7 @@ function ThisWeek({ stats, beside }: { stats: Stats | undefined; beside: boolean
       <SectionHead title="This week" action={null} />
       <View style={cards}>
         <View style={[styles.weekCard, half]} testID="home-this-week">
+          {sunday ? <WeekReadyHead card={sunday} song={sundaySong} /> : null}
           <View style={styles.weekNumbers}>
             <Figure value={time.big} unit={time.small} caption="listened" />
             <Figure value={String(stats.totals.plays)} unit="" caption="plays" />
@@ -627,13 +736,82 @@ function ThisWeek({ stats, beside }: { stats: Stats | undefined; beside: boolean
               caption="streak"
             />
           </View>
-          <Pressable onPress={() => router.navigate('/stats')} accessibilityRole="link">
-            <Text style={styles.linkSmall}>Stats and report</Text>
-          </Pressable>
+          {sunday ? (
+            <OpenWeek card={sunday} song={sundaySong} onOpen={onOpenWeek} />
+          ) : (
+            <Pressable onPress={() => router.navigate('/stats')} accessibilityRole="link">
+              <Text style={styles.linkSmall}>Stats and report</Text>
+            </Pressable>
+          )}
         </View>
         <ImportsHint style={half} />
       </View>
     </View>
+  )
+}
+
+/** The colours of the week's number one: its cover's, or the accent without one. */
+function useSundayTone(song: Song | null): { uri: string | null; tint: string; color: string } {
+  const art = useArt()
+  const uri = song ? art(song) : null
+  return { uri, ...useSongColor(song, uri) }
+}
+
+/**
+ * This week's head on a Sunday: the number one, over a wash of its cover's
+ * colour that goes under the whole card, so it is drawn first.
+ */
+function WeekReadyHead({ card, song }: { card: SundayCard; song: Song | null }): ReactNode {
+  const tone = useSundayTone(song)
+  const lead = card.song
+  return (
+    <>
+      <ToneWash color={tone.color} />
+      <View style={styles.readyHead}>
+        {song ? (
+          <View style={styles.readyCover}>
+            <Cover uri={tone.uri} title={song.album || song.title} size={READY_COVER} radius={10} />
+          </View>
+        ) : null}
+        <View style={styles.sundayText}>
+          <Text style={[styles.kicker, { color: tone.tint }]}>{card.title}</Text>
+          {lead ? (
+            <Text style={styles.readyTitle} numberOfLines={1}>
+              {lead.title}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+    </>
+  )
+}
+
+/** And its foot: the button that opens the week, in the song's colour. */
+function OpenWeek({
+  card,
+  song,
+  onOpen,
+}: {
+  card: SundayCard
+  song: Song | null
+  onOpen: () => void
+}): ReactNode {
+  const tone = useSundayTone(song)
+  const lead = card.song
+  return (
+    <Pressable
+      testID="home-sunday"
+      onPress={onOpen}
+      accessibilityRole="link"
+      accessibilityLabel={lead ? `Open your week. ${lead.title}, ${lead.note}.` : 'Open your week'}
+      style={({ pressed }) => [
+        styles.readyButton,
+        { backgroundColor: tone.tint },
+        pressed && styles.readyButtonPressed,
+      ]}
+    >
+      <Text style={styles.readyButtonLabel}>Open your week</Text>
+    </Pressable>
   )
 }
 
@@ -679,6 +857,10 @@ function ImportsHint({ style }: { style?: ViewStyle | null }): ReactNode {
 
 /** The round mark that opens Profile, in the phone's header. */
 const AVATAR = 36
+
+/** The week's number one: on the phone's Sunday card, and at This week's head. */
+const SUNDAY_COVER = 76
+const READY_COVER = 52
 
 /** Between two tiles, across and down. */
 const TILE_GAP = 10
@@ -743,18 +925,19 @@ const styles = StyleSheet.create(theme => ({
   greeting: { ...serif(theme.colors, type.display), lineHeight: 50, letterSpacing: -0.5 },
   greetingDot: { fontFamily: fonts.serifItalic, color: theme.colors.accent },
   subline: { color: theme.colors.textSecondary, fontSize: 15 },
-  // The Sunday card (`P06`): the week, as a card, under the greeting.
+  // The Sunday card (`P06`, E): the week's number one, under the greeting.
   sunday: {
     ...card(theme.colors),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
+    gap: 14,
+    padding: 14,
+    overflow: 'hidden',
   },
-  sundayPressed: { backgroundColor: theme.colors.surface2 },
-  sundayText: { flex: 1, minWidth: 0, gap: 2 },
-  sundayTitle: sectionTitle(theme.colors),
+  sundayCover: { ...artShadow(theme.colors, 'lean'), borderRadius: 12 },
+  sundayText: { flex: 1, minWidth: 0, gap: 3 },
+  kicker: { fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+  sundayTitle: { ...sectionTitle(theme.colors), fontSize: 17 },
   sundayLine: { color: theme.colors.textSecondary, fontSize: 13 },
   search: {
     height: 54,
@@ -852,7 +1035,18 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  weekCard: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14 },
+  weekCard: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14, overflow: 'hidden' },
+  readyHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  readyCover: { ...artShadow(theme.colors, 'lean'), borderRadius: 10 },
+  readyTitle: { color: theme.colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  readyButton: {
+    height: 36,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  readyButtonPressed: { opacity: 0.85 },
+  readyButtonLabel: { color: theme.colors.surface0, fontSize: 13, fontWeight: '600' },
   weekNumbers: { flexDirection: 'row', justifyContent: 'space-between' },
   figure: { gap: 2 },
   figureValue: serif(theme.colors, 30),

@@ -109,6 +109,9 @@ describe('the Sunday card', () => {
   const week = {
     totals: { plays: 40, minutes: 134 } as never,
     topArtists: [{ key: 'Yorushika feat. suis', plays: 20, minutes: 80 }],
+    topSongs: [
+      { songId: 7, title: 'ノーチラス', artist: 'Yorushika', hasArt: true, plays: 14, minutes: 60 },
+    ],
     streakDays: 3,
   }
   const sunday = new Date(2026, 8, 20, 10, 15)
@@ -118,7 +121,17 @@ describe('the Sunday card', () => {
     expect(sundayCard(sunday, week)).toEqual({
       title: 'Your week is ready',
       line: '2 hr 14 min · Yorushika, mostly · 3-day streak',
+      song: { songId: 7, title: 'ノーチラス', note: 'Song of the week · 14 plays' },
     })
+  })
+
+  it('says the week alone when no song led it', () => {
+    expect(sundayCard(sunday, { ...week, topSongs: [] })?.song).toBeNull()
+  })
+
+  it('says "1 play" for a song played once', () => {
+    const once = { ...week, topSongs: [{ ...week.topSongs[0]!, plays: 1 }] }
+    expect(sundayCard(sunday, once)?.song?.note).toBe('Song of the week · 1 play')
   })
 
   it('is not there on any other day', () => {

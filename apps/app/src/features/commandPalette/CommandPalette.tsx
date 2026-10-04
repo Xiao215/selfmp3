@@ -40,6 +40,7 @@ import {
 import { useDebounced } from '../../ui/useDebounced'
 import { floating, label as labelText } from '../../ui/surfaces'
 import { AskAnswer } from '../smart/AskAnswer'
+import type { AnswerKeys } from '../smart/answerKeys'
 import { askable } from '../smart/smart.model'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { noteTagUsed } from '../library/recentTags.store'
@@ -100,6 +101,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const [highlighted, setHighlighted] = useState(0)
   /** What was asked (S1), answered in place of the results until the words change. */
   const [asking, setAsking] = useState<string | null>(null)
+  /** The keys the answer takes, when it takes any: Tidy up's ticks. */
+  const [answerKeys, setAnswerKeys] = useState<AnswerKeys | null>(null)
   // Escape from an answer goes back to the results; from the results, closes.
   useEscape(true, () => (asking === null ? onClose() : setAsking(null)), { layer: true })
 
@@ -465,6 +468,20 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   // never describe a query the list has not caught up with.
   const trimmed = shownQuery.trim()
 
+  const passToAnswer = (event: {
+    key: string
+    metaKey: boolean
+    ctrlKey: boolean
+    nativeEvent: { isComposing?: boolean }
+    preventDefault: () => void
+    stopPropagation: () => void
+  }): void => {
+    if (isComposing(event.nativeEvent)) return
+    if (!answerKeys?.press(event.key, event.metaKey || event.ctrlKey)) return
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
   useOverlay(
     <View
       style={[
@@ -479,9 +496,19 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
       <View
         role="dialog"
         aria-label="Command palette"
+        // An answer that takes keys has them first, Enter included, wherever
+        // the focus is in the box: a click on one of its rows moves it there.
+        // Caught on the way down, so neither the box nor a row acts on it too.
+        {...({
+          onKeyDownCapture: answerKeys && asking !== null ? passToAnswer : undefined,
+        } as object)}
         style={[
           styles.panel,
-          { width: Math.min(620, width * 0.92), maxHeight: window.height * 0.66 },
+          // An answer gets more room than a list of results: Tidy up is a
+          // review of tens of changes, and every one is a line of names.
+          asking === null
+            ? { width: Math.min(620, width * 0.92), maxHeight: window.height * 0.66 }
+            : { width: Math.min(760, width * 0.92), maxHeight: window.height * ANSWER_HEIGHT },
         ]}
       >
         <View style={styles.inputRow}>
@@ -514,6 +541,11 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
                 if (!first?.keepsOpen) onClose()
               }
             }}
+            // Enter on the Ask row keeps the box open, and the answer's keys
+            // come through the box: it must not let go of the focus on Enter.
+            // React Native Web reads only the older blurOnSubmit.
+            submitBehavior="submit"
+            blurOnSubmit={false}
             placeholder="Search songs, playlists, tags — or type a command"
             placeholderTextColor={theme.colors.textMuted}
             autoCapitalize="none"
@@ -538,7 +570,16 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           contentContainerStyle={styles.results}
           keyboardShouldPersistTaps="handled"
         >
-          {asking !== null ? <AskAnswer text={asking} onDone={onClose} /> : drawnGroups}
+          {asking !== null ? (
+            <AskAnswer
+              text={asking}
+              onDone={onClose}
+              listHeight={Math.max(240, window.height * ANSWER_HEIGHT - ANSWER_AROUND_LIST)}
+              onKeys={setAnswerKeys}
+            />
+          ) : (
+            drawnGroups
+          )}
           {asking === null && trimmed && rows.length === 0 ? (
             <Text style={styles.empty}>
               Nothing matches “{trimmed}”.{'\n'}
@@ -550,9 +591,24 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
 
         {finePointer ? (
           <View style={styles.foot}>
-            <Text style={styles.footText}>
-              <Text style={styles.kbd}> ↑ </Text> <Text style={styles.kbd}> ↓ </Text> move
-            </Text>
+            {asking !== null && answerKeys
+              ? answerKeys.hints.map(([caps, word]) => (
+                  <Text key={word} style={styles.footText}>
+                    {caps.map((cap, index) => (
+                      <Text key={cap}>
+                        {index > 0 ? ' ' : ''}
+                        <Text style={styles.kbd}> {cap} </Text>
+                      </Text>
+                    ))}{' '}
+                    {word}
+                  </Text>
+                ))
+              : null}
+            {asking === null || !answerKeys ? (
+              <Text style={styles.footText}>
+                <Text style={styles.kbd}> ↑ </Text> <Text style={styles.kbd}> ↓ </Text> move
+              </Text>
+            ) : null}
             {asking === null ? (
               <Text style={styles.footText}>
                 <Text style={styles.kbd}> ↵ </Text> open
@@ -570,6 +626,11 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
 
   return null
 }
+
+/** How much of the window an answer may take, against 0.66 for results; the box stays where it was. */
+const ANSWER_HEIGHT = 0.8
+/** The box, the answer's head and its buttons, and the footer: what is around its list. */
+const ANSWER_AROUND_LIST = 250
 
 const styles = StyleSheet.create(theme => ({
   backdrop: {

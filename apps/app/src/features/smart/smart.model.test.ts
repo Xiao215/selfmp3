@@ -14,7 +14,9 @@ import {
   tickedAtFirst,
   tidyEdits,
   tidyHere,
-  tidySections,
+  tidyBands,
+  tidyParts,
+  leftOutKey,
   suggestionsHere,
   tagIdsFor,
   took,
@@ -241,6 +243,47 @@ describe('Tidy up', () => {
       { songId: 11, patch: { artist: '薛之谦', title: 'オリオン' } },
     ])
     expect([...tickedAtFirst([...here, { change: changes[2]!, songIds: [1] }])]).toEqual(['a', 't'])
-    expect(tidySections(here).map(section => section.why)).toEqual(['Twice', 'w'])
+  })
+
+  it('bands what a rule found ahead of what the model guessed, each under its reasons', () => {
+    const all = [{ change: changes[2]!, songIds: [19] }, ...tidyHere(changes, onDevice, songs)]
+    expect(tidyBands(all).map(band => [band.by, band.reasons.map(reason => reason.why)])).toEqual([
+      ['rule', ['Twice', 'w']],
+      ['model', ['w']],
+    ])
+  })
+
+  it('leaves a song out of a change, and undoes back to what each field was', () => {
+    const here = [{ change: changes[0]!, songIds: [11, 12] }]
+    const leftOut = new Set([leftOutKey('a', 12)])
+    expect(tidyEdits(here, leftOut)).toEqual([{ songId: 11, patch: { artist: '薛之谦' } }])
+    expect(tidyEdits(here, new Set(), true)).toEqual([
+      { songId: 11, patch: { artist: '薛之谦, 薛之谦' } },
+      { songId: 12, patch: { artist: '薛之谦, 薛之谦' } },
+    ])
+  })
+
+  it('draws a change that only takes words out on one line, the later copy going', () => {
+    const line = (from: string, to: string) =>
+      tidyParts(from, to)
+        ?.map(part => (part.kind === 'gone' ? `[${part.text}]` : part.text))
+        .join('')
+    expect(line('HOYO-MiX, HOYO-MiX', 'HOYO-MiX')).toBe('HOYO-MiX[, HOYO-MiX]')
+    expect(
+      line(
+        'Yu-Peng Chen, HOYO-MiX, Yu-Peng Chen, Zach Huang',
+        'Yu-Peng Chen, HOYO-MiX, Zach Huang',
+      ),
+    ).toBe('Yu-Peng Chen, HOYO-MiX, [Yu-Peng Chen, ]Zach Huang')
+    expect(line('演员 (Official MV)', '演员')).toBe('演员[ (Official MV)]')
+    expect(line('Jade Moon Upon a Sea of Clouds ,', 'Jade Moon Upon a Sea of Clouds')).toBe(
+      'Jade Moon Upon a Sea of Clouds[ ,]',
+    )
+    expect(line('Vitaly Margulis, Frédéric Chopin', 'Vitaly Margulis')).toBe(
+      'Vitaly Margulis[, Frédéric Chopin]',
+    )
+    // Another spelling puts words in: a rename, drawn old → new.
+    expect(tidyParts('Rokudenashi', 'ロクデナシ')).toBeNull()
+    expect(tidyParts('Hoyo-Mix', 'HOYO-MiX')).toBeNull()
   })
 })

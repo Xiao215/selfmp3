@@ -18,6 +18,8 @@ import { showToast } from '../../ui/toast'
 import { placePath, rangeWords } from './smart.model'
 import { SongsAnswer } from './SongsAnswer'
 import { TidyReview } from './TidyReview'
+import type { AnswerKeys } from './answerKeys'
+import { Working } from './Working'
 import { useSmartServer } from './useSmartServer'
 
 /**
@@ -25,7 +27,19 @@ import { useSmartServer } from './useSmartServer'
  * place of the results. One request, one answer you act on: every answer is a
  * proposal with its own button, and nothing changes until it is pressed.
  */
-export function AskAnswer({ text, onDone }: { text: string; onDone: () => void }): ReactNode {
+export function AskAnswer({
+  text,
+  onDone,
+  listHeight = 300,
+  onKeys,
+}: {
+  text: string
+  onDone: () => void
+  /** How tall a long answer's list may grow before it scrolls. */
+  listHeight?: number
+  /** For an answer that takes keys while the box keeps the focus (Tidy up's). */
+  onKeys?: (keys: AnswerKeys | null) => void
+}): ReactNode {
   const { theme } = useUnistyles()
   const server = useSmartServer()
   const player = usePlayer()
@@ -46,9 +60,15 @@ export function AskAnswer({ text, onDone }: { text: string; onDone: () => void }
   }
   if (answer.isPending) {
     return (
-      <Text style={styles.hint} accessibilityLiveRegion="polite" testID="ask-waiting">
-        Working it out. This can take a few seconds.
-      </Text>
+      <View style={styles.body}>
+        <Working
+          steps={[
+            { doing: 'Reading what you asked', done: 'Read what you asked' },
+            { doing: 'Working on the answer', after: 3000 },
+          ]}
+          testID="ask-waiting"
+        />
+      </View>
     )
   }
   if (answer.error) {
@@ -63,7 +83,14 @@ export function AskAnswer({ text, onDone }: { text: string; onDone: () => void }
   }
   return (
     <View style={styles.body} testID={`ask-answer-${answer.data.kind}`}>
-      <Drawn answer={answer.data} text={text} onDone={onDone} muted={theme.colors.textMuted} />
+      <Drawn
+        answer={answer.data}
+        text={text}
+        onDone={onDone}
+        muted={theme.colors.textMuted}
+        listHeight={listHeight}
+        onKeys={onKeys}
+      />
     </View>
   )
 }
@@ -73,11 +100,15 @@ function Drawn({
   text,
   onDone,
   muted,
+  listHeight,
+  onKeys,
 }: {
   answer: Answer
   text: string
   onDone: () => void
   muted: string
+  listHeight: number
+  onKeys?: (keys: AnswerKeys | null) => void
 }): ReactNode {
   const router = useRouter()
   switch (answer.kind) {
@@ -108,7 +139,9 @@ function Drawn({
     case 'tag':
       return <TagMany answer={answer} onDone={onDone} muted={muted} />
     case 'tidy':
-      return <TidyReview result={answer.tidy} height={300} onClose={onDone} />
+      return (
+        <TidyReview result={answer.tidy} height={listHeight} onClose={onDone} onKeys={onKeys} />
+      )
     case 'stats':
       return (
         <>
@@ -322,12 +355,6 @@ const styles = StyleSheet.create(theme => ({
   head: { color: theme.colors.textPrimary, fontSize: 15.5, fontWeight: '600' },
   line: { color: theme.colors.textSecondary, fontSize: 13.5, lineHeight: 19 },
   muted: { color: theme.colors.textMuted, fontSize: 12.5, fontWeight: '400' },
-  hint: {
-    color: theme.colors.textMuted,
-    fontSize: 13,
-    paddingHorizontal: space.md,
-    paddingVertical: space.md,
-  },
   error: { color: theme.colors.danger, fontSize: 12.5 },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
   chipsRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },

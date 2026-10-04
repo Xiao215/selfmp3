@@ -307,7 +307,7 @@ export function modelHop(check: AiCheck): Hop {
 }
 
 /** A Tidy up change as this device has it: its own song ids, still as the change found them. */
-interface TidyHere {
+export interface TidyHere {
   readonly change: TidyChange
   readonly songIds: readonly number[]
 }
@@ -332,27 +332,107 @@ export function tidyHere(
   })
 }
 
-/** The changes under their reason, in the order the server gave them: one heading each. */
-export function tidySections(
-  changes: readonly TidyHere[],
-): { why: string; byModel: boolean; changes: TidyHere[] }[] {
-  const sections = new Map<string, { why: string; byModel: boolean; changes: TidyHere[] }>()
-  for (const here of changes) {
-    const { why, by } = here.change
-    const section = sections.get(why) ?? { why, byModel: by === 'model', changes: [] }
-    section.changes.push(here)
-    sections.set(why, section)
-  }
-  return [...sections.values()]
+/** One reason and its changes, in the order the server gave them. */
+interface TidyReason {
+  readonly why: string
+  readonly changes: TidyHere[]
 }
 
-/** The approved changes as one edit per song, a title and an artist fixed together. */
-export function tidyEdits(changes: readonly TidyHere[]): BulkEditSongs['edits'] {
+/**
+ * The changes in two bands by how far to trust them: what a plain rule found,
+ * then the model's guesses, each under its reasons. An empty band is left out.
+ */
+export function tidyBands(
+  changes: readonly TidyHere[],
+): { by: TidyChange['by']; reasons: TidyReason[] }[] {
+  return (['rule', 'model'] as const).flatMap(by => {
+    const reasons = new Map<string, TidyReason>()
+    for (const here of changes) {
+      if (here.change.by !== by) continue
+      const reason = reasons.get(here.change.why) ?? { why: here.change.why, changes: [] }
+      reason.changes.push(here)
+      reasons.set(here.change.why, reason)
+    }
+    return reasons.size > 0 ? [{ by, reasons: [...reasons.values()] }] : []
+  })
+}
+
+/** A song left out of a change it would otherwise be part of. */
+export function leftOutKey(changeKey: string, songId: number): string {
+  return `${changeKey}:${songId}`
+}
+
+/** The songs of a change still in it: all of them, less the ones left out. */
+export function tidyKept(here: TidyHere, leftOut: ReadonlySet<string>): number[] {
+  return here.songIds.filter(id => !leftOut.has(leftOutKey(here.change.key, id)))
+}
+
+/**
+ * The approved changes as one edit per song, a title and an artist fixed
+ * together. `undo` writes each field back to what it was, for the toast's Undo.
+ */
+export function tidyEdits(
+  changes: readonly TidyHere[],
+  leftOut: ReadonlySet<string> = new Set(),
+  undo = false,
+): BulkEditSongs['edits'] {
   const patches = new Map<number, Record<string, string>>()
-  for (const { change, songIds } of changes) {
-    for (const id of songIds) patches.set(id, { ...patches.get(id), [change.field]: change.to })
+  for (const here of changes) {
+    const { field, from, to } = here.change
+    for (const id of tidyKept(here, leftOut)) {
+      patches.set(id, { ...patches.get(id), [field]: undo ? from : to })
+    }
   }
   return [...patches].map(([songId, patch]) => ({ songId, patch }))
+}
+
+/** A piece of a change drawn on one line: kept, taken out, or put in. */
+interface TidyPart {
+  readonly kind: 'same' | 'gone'
+  readonly text: string
+}
+
+/** Words, runs of space and single marks: what a name is compared in. */
+const PIECES = /[\p{L}\p{N}\p{M}]+|\s+|[^\p{L}\p{N}\p{M}\s]/gu
+
+/**
+ * A change as one line when it only takes words out — a repeated name, the
+ * video's words, a translation, a stray comma: the name as it is, with the
+ * part that goes marked. Anything that puts words in (another spelling,
+ * another script) is a rename, drawn as old → new, and gets null here.
+ */
+export function tidyParts(from: string, to: string): TidyPart[] | null {
+  const a = from.match(PIECES) ?? []
+  const b = to.match(PIECES) ?? []
+  // The longest run of `to` found in order in `from`, from the end back.
+  const longest = Array.from({ length: a.length + 1 }, () =>
+    new Array<number>(b.length + 1).fill(0),
+  )
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) {
+      longest[i]![j] =
+        a[i] === b[j]
+          ? longest[i + 1]![j + 1]! + 1
+          : Math.max(longest[i + 1]![j]!, longest[i]![j + 1]!)
+    }
+  }
+  if (longest[0]![0] !== b.length || b.join('') !== to) return null
+  const parts: TidyPart[] = []
+  const put = (kind: TidyPart['kind'], text: string): void => {
+    const last = parts[parts.length - 1]
+    if (last?.kind === kind) parts[parts.length - 1] = { kind, text: last.text + text }
+    else parts.push({ kind, text })
+  }
+  let j = 0
+  for (let i = 0; i < a.length; i++) {
+    // Keep a piece only when the rest of `to` still fits after it, so what
+    // goes is the later copy: "A, B, A, C" loses its second A, not its first.
+    if (j < b.length && a[i] === b[j] && longest[i + 1]![j + 1] === b.length - j - 1) {
+      put('same', a[i]!)
+      j++
+    } else put('gone', a[i]!)
+  }
+  return parts
 }
 
 /** Rule-found changes start ticked; the model's wait for a yes. */

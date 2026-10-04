@@ -41,6 +41,7 @@ import { useDebounced } from '../../ui/useDebounced'
 import { floating, label as labelText } from '../../ui/surfaces'
 import { AskAnswer } from '../smart/AskAnswer'
 import { askable } from '../smart/smart.model'
+import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { noteTagUsed } from '../library/recentTags.store'
 import { lyricsQueryFor } from '../search/search.model'
 import { artistLink, tagLink } from '../tag/placeLinks'
@@ -94,6 +95,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const { finePointer, width } = useLayout()
   const window = useWindowDimensions()
   const playAndTag = usePlayAndTag()
+  const switches = useSmartSwitches()
   const [query, setQuery] = useState('')
   const [highlighted, setHighlighted] = useState(0)
   /** What was asked (S1), answered in place of the results until the words change. */
@@ -197,7 +199,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     const groups = matchedGroups(found)
     const matches = groups.reduce((sum, group) => sum + group.rows.length, 0)
     const words = text.trim()
-    if (!askable(words, matches)) return groups
+    if (!switches.ask || !askable(words, matches)) return groups
     const ask: RowGroup = {
       title: 'Ask',
       rows: [

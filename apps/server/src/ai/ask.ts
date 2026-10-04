@@ -115,6 +115,8 @@ export async function ask(
   deps: AskDeps,
   text: string,
   playingId: number | null = null,
+  /** Features turned off in Settings that the router may still choose. */
+  allowed: { tidy: boolean } = { tidy: true },
 ): Promise<AskAnswer> {
   const remembered = deps.remembered ?? new Remembered()
   const songs = deps.songs()
@@ -236,6 +238,9 @@ export async function ask(
     }
 
     case 'tidy':
+      if (!allowed.tidy) {
+        return { kind: 'none', say: 'Tidy up is turned off in Settings › Smart features.' }
+      }
       return { kind: 'tidy', tidy: await tidy({ ...deps, remembered }) }
 
     case 'open':

@@ -331,3 +331,14 @@ sees. On the real library across a week, a month and a year, one sentence in fif
 dropped. The answer is kept per set of facts, so the page costs one call until the plays
 change or Write it again is pressed.
 
+## Settings › Smart features: a switch per feature
+
+Four switches, shared across devices with the other server settings (`smartAsk`,
+`smartTidy`, `smartSuggestTags`, `smartWritten`, all on by default): Ask in Search (which
+also covers Let it pick and Up next), Tidy up, Suggest tags and the Report in words. Each
+says what of the library it shows the model, in a line, because "the model sees your
+library" is too vague to agree to and each sees less than that. Off, the way in is not
+drawn (`useSmartSwitches`) and the server refuses the route with 403 `ai_disabled` before any
+model is asked; Ask routing to Tidy up while Tidy up is off answers that it is off.
+`routes/ai.test.ts` counts the calls a real endpoint on a free port receives: none.
+

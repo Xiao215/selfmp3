@@ -404,7 +404,11 @@ export function SettingsScreen(): ReactNode {
 
             {fromCloud ? null : <CloudPanel anchor={node => anchorAt('cloud', node)} />}
 
-            <SmartPanel anchor={node => anchorAt('smart', node)} />
+            <SmartPanel
+              anchor={node => anchorAt('smart', node)}
+              settings={settings.data}
+              set={set}
+            />
 
             <Panel title="Lyrics" hint="on this device" anchor={node => anchorAt('lyrics', node)}>
               <Row

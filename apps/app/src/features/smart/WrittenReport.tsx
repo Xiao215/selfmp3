@@ -9,6 +9,7 @@ import { Button } from '../../ui/components/Button'
 import { Refresh, Sparkle } from '../../ui/components/Icons'
 import { card, label } from '../../ui/surfaces'
 import { useSmartServer } from './useSmartServer'
+import { useSmartSwitches } from './useSmartSwitches'
 
 /**
  * A5 · the Report in a few sentences (docs/features/ai.md), under the page.
@@ -18,13 +19,14 @@ import { useSmartServer } from './useSmartServer'
  */
 export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
   const server = useSmartServer()
+  const { written } = useSmartSwitches()
   const queryClient = useQueryClient()
   const via = server.reach.state === 'reachable' ? server.reach.connection.baseUrl : null
   const key = ['via-server', via, 'ai', 'written', range]
   const answer = useQuery({
     queryKey: key,
     queryFn: () => server.api!.written(range),
-    enabled: server.api !== null,
+    enabled: written && server.api !== null,
     retry: false,
     staleTime: 30 * 60_000,
   })
@@ -42,7 +44,7 @@ export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
     }
   }
 
-  if (server.reach.state !== 'reachable') return null
+  if (!written || server.reach.state !== 'reachable') return null
   if (answer.data && answer.data.sentences.length === 0) return null
 
   return (

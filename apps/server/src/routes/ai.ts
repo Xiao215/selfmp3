@@ -22,8 +22,21 @@ import { route } from '../http/route.js'
  * here writes to the library. Taking a suggestion is the ordinary edit a device
  * already makes, so it syncs and undoes like any other.
  */
+type SmartSwitch = 'smartAsk' | 'smartTidy' | 'smartSuggestTags' | 'smartWritten'
+
 export function aiRoutes(container: Container): Router {
   const router = Router()
+
+  /** A feature turned off in Settings › Smart features is refused before any model is asked. */
+  const allowed = (feature: SmartSwitch): void => {
+    if (!container.settings.get()[feature]) {
+      throw new HttpError(
+        403,
+        'This smart feature is turned off in Settings › Smart features.',
+        'ai_disabled',
+      )
+    }
+  }
 
   router.get(
     '/ai',
@@ -38,16 +51,19 @@ export function aiRoutes(container: Container): Router {
 
   router.post(
     '/ai/describe',
-    route({ body: DescribeRequestSchema }, ({ body }): Promise<DescribeResult> =>
-      answering(container.smart.describe(body)),
-    ),
+    route({ body: DescribeRequestSchema }, ({ body }): Promise<DescribeResult> => {
+      allowed('smartAsk')
+      return answering(container.smart.describe(body))
+    }),
   )
 
   router.post(
     '/ai/ask',
-    route({ body: AskRequestSchema }, ({ body }): Promise<AskAnswer> =>
-      answering(container.smart.ask(body.text, body.playing)),
-    ),
+    route({ body: AskRequestSchema }, ({ body }): Promise<AskAnswer> => {
+      allowed('smartAsk')
+      const tidy = container.settings.get().smartTidy
+      return answering(container.smart.ask(body.text, body.playing, { tidy }))
+    }),
   )
 
   router.get(
@@ -59,19 +75,27 @@ export function aiRoutes(container: Container): Router {
           again: z.enum(['0', '1']).default('0'),
         }),
       },
-      ({ query }): Promise<WrittenReport> =>
-        answering(container.smart.written(query.range, query.again === '1')),
+      ({ query }): Promise<WrittenReport> => {
+        allowed('smartWritten')
+        return answering(container.smart.written(query.range, query.again === '1'))
+      },
     ),
   )
 
   router.get(
     '/ai/tidy',
-    route({}, (): Promise<TidyResult> => container.smart.tidy()),
+    route({}, (): Promise<TidyResult> => {
+      allowed('smartTidy')
+      return container.smart.tidy()
+    }),
   )
 
   router.get(
     '/ai/tag-suggestions',
-    route({}, (): Promise<TagSuggestions> => answering(container.smart.suggestTags())),
+    route({}, (): Promise<TagSuggestions> => {
+      allowed('smartSuggestTags')
+      return answering(container.smart.suggestTags())
+    }),
   )
 
   return router

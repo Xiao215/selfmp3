@@ -27,6 +27,7 @@ import { artistLink, tagLink } from '../tag/placeLinks'
 import { noteTagUsed } from '../library/recentTags.store'
 import { AskAnswer } from '../smart/AskAnswer'
 import { askable } from '../smart/smart.model'
+import { useSmartSwitches } from '../smart/useSmartSwitches'
 import {
   ALL_LIMITS,
   allResults,
@@ -83,7 +84,8 @@ export function SearchScreen(): ReactNode {
   const lyricHits = typed && lyricsQuery ? (lyrics.data?.hits ?? []) : []
   const counts = scopeCounts(found, lyricHits.length)
   const words = shown.trim()
-  const offerAsk = scope === 'all' && askable(words, counts.all)
+  const switches = useSmartSwitches()
+  const offerAsk = switches.ask && scope === 'all' && askable(words, counts.all)
   const answering = asking !== null && asking === query.trim()
 
   const openArtist = useCallback(
@@ -107,7 +109,7 @@ export function SearchScreen(): ReactNode {
               value={query}
               onChangeText={setQuery}
               onSubmitEditing={() => {
-                if (askable(query, counts.all)) setAsking(query.trim())
+                if (switches.ask && askable(query, counts.all)) setAsking(query.trim())
               }}
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}

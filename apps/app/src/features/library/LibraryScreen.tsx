@@ -24,6 +24,7 @@ import {
   SortLines,
   Sparkle,
 } from '../../ui/components/Icons'
+import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { TidySheet } from '../smart/TidySheet'
 import { IconButton } from '../../ui/components/IconButton'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
@@ -88,6 +89,7 @@ export function LibraryScreen(): ReactNode {
   // The phone's order, chosen from a sheet.
   const [sorting, setSorting] = useState(false)
   const [tidying, setTidying] = useState(false)
+  const switches = useSmartSwitches()
   // A mouse drags the tag strip along; a finger already flicks it.
   const stripDrag = useDragScroll()
   // The ⋯ the menu was opened from, so at desktop width it opens beside it.
@@ -321,14 +323,16 @@ export function LibraryScreen(): ReactNode {
           */}
             {wide ? null : (
               <View style={styles.phoneTools}>
-                <IconButton
-                  label="Tidy up"
-                  filled
-                  onPress={() => setTidying(true)}
-                  testID="library-tidy-phone"
-                >
-                  <Sparkle size={16} />
-                </IconButton>
+                {switches.tidy ? (
+                  <IconButton
+                    label="Tidy up"
+                    filled
+                    onPress={() => setTidying(true)}
+                    testID="library-tidy-phone"
+                  >
+                    <Sparkle size={16} />
+                  </IconButton>
+                ) : null}
                 <IconButton
                   label="Sort"
                   filled
@@ -485,7 +489,7 @@ export function LibraryScreen(): ReactNode {
                     />
                   )
                 ) : null}
-                {model.tagFiltered ? null : (
+                {model.tagFiltered || !switches.tidy ? null : (
                   <Button
                     label={shuffleIconOnly ? undefined : 'Tidy up'}
                     accessibilityLabel="Tidy up song names"

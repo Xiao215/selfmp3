@@ -33,6 +33,15 @@ export const SettingsSchema = z.object({
     .default('chrome'),
   /** Absolute path to a cookies.txt, used when ytCookieSource is 'file'. */
   ytCookieFile: z.string().trim().max(1000).default(''),
+  /**
+   * The smart features one at a time (Settings › Smart features,
+   * docs/features/ai.md). Off, a feature's way in is not drawn and the server
+   * refuses it, so nothing of the library goes to the model for it.
+   */
+  smartAsk: z.boolean().default(true),
+  smartTidy: z.boolean().default(true),
+  smartSuggestTags: z.boolean().default(true),
+  smartWritten: z.boolean().default(true),
 })
 export type Settings = z.infer<typeof SettingsSchema>
 

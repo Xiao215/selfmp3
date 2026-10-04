@@ -3,7 +3,9 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { Settings } from '@selfmp3/shared'
 import { Button } from '../../ui/components/Button'
+import { Toggle } from '../../ui/components/Toggle'
 import { Check, Refresh, Sparkle, X } from '../../ui/components/Icons'
 import { modelHop, serverHop, type Hop } from '../smart/smart.model'
 import { useSmartServer } from '../smart/useSmartServer'
@@ -17,7 +19,48 @@ import { Panel, Row } from './SettingsParts'
  * The address is the server's (`SELFMP3_AI_BASE_URL` in its `.env`), shown
  * here and not edited: it sits beside the key, which never leaves the server.
  */
-export function SmartPanel({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
+/**
+ * Each feature, and what of the library it shows the model: said here because
+ * "the model sees your library" is too vague to agree to, and each one sees
+ * less than that.
+ */
+const SWITCHES: readonly {
+  key: 'smartAsk' | 'smartTidy' | 'smartSuggestTags' | 'smartWritten'
+  label: string
+  sees: string
+}[] = [
+  {
+    key: 'smartAsk',
+    label: 'Ask in Search',
+    sees: 'Also Let it pick and Up next. Sends your words, your tags, the artists you have and how many songs each; then titles, artists, tags, energy and plays of the songs that fit. With a song playing, that song.',
+  },
+  {
+    key: 'smartTidy',
+    label: 'Tidy up',
+    sees: 'Sends artist and album names, with how many songs each. Never a title or a lyric.',
+  },
+  {
+    key: 'smartSuggestTags',
+    label: 'Suggest tags',
+    sees: 'Sends what each of your tags holds, and the artists, albums and a few titles of songs without a tag.',
+  },
+  {
+    key: 'smartWritten',
+    label: 'The Report in words',
+    sees: 'Sends the Report’s numbers and the songs, artists and tags it names.',
+  },
+]
+
+export function SmartPanel({
+  anchor,
+  settings,
+  set,
+}: {
+  anchor: (node: View | null) => void
+  /** The shared settings, once they have arrived; the switches wait for them. */
+  settings?: Settings
+  set: <K extends keyof Settings>(key: K, value: Settings[K]) => void
+}): ReactNode {
   const server = useSmartServer()
   const queryClient = useQueryClient()
   const via = server.reach.state === 'reachable' ? server.reach.connection.baseUrl : null
@@ -94,6 +137,17 @@ export function SmartPanel({ anchor }: { anchor: (node: View | null) => void }):
               </Text>
             </Row>
           ) : null}
+          {settings
+            ? SWITCHES.map(each => (
+                <Row key={each.key} label={each.label} hint={each.sees}>
+                  <Toggle
+                    value={settings[each.key]}
+                    onChange={value => set(each.key, value)}
+                    label={each.label}
+                  />
+                </Row>
+              ))
+            : null}
           <Row
             label="Test the connection"
             hint="One small request: this device to your server, then your server to the model."

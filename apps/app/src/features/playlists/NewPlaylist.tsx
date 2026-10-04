@@ -11,6 +11,7 @@ import { isComposing } from '../../shell/composing'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
+import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { ListMusic, Sparkle } from '../../ui/components/Icons'
 import { Sheet } from '../../ui/components/Sheet'
 import { followRules } from '../library/saveTags'
@@ -67,6 +68,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   const tags: readonly Tag[] = library?.tags ?? []
   const chosen = tagIds.flatMap(id => tags.filter(tag => tag.id === id))
   const typed = text.trim()
+  const switches = useSmartSwitches()
   const offered = matchingTags(text, tags, tagIds)
   const songs = library?.songs ?? []
   // What it would hold, worked out here rather than asked of the server: the
@@ -236,7 +238,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
               </Text>
             ) : null}
 
-            {typed ? (
+            {typed && switches.ask ? (
               <Option
                 icon={<Sparkle size={16} />}
                 title={

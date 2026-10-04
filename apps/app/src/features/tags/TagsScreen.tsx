@@ -60,6 +60,7 @@ import {
 } from '../tag/tag.model'
 import { useArtistNudge } from '../tag/useArtistNudge'
 import { usePlayAndTag } from '../tag/usePlayAndTag'
+import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { SuggestTagsSheet } from '../smart/SuggestTagsSheet'
 import { SLEEVE_ASPECT, TagSleeve } from './TagSleeve'
 import {
@@ -109,6 +110,7 @@ export function TagsScreen(): ReactNode {
   const playAndTag = usePlayAndTag()
   const [adding, setAdding] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
+  const switches = useSmartSwitches()
   const [gridWidth, setGridWidth] = useState(0)
   /*
    * The tile handlers are made once and take the tag they act on. As arrows in
@@ -249,7 +251,7 @@ export function TagsScreen(): ReactNode {
             rest={waiting.rest}
             wide={wide}
             onStart={playAndTag.start}
-            onSuggest={() => setSuggesting(true)}
+            onSuggest={switches.suggestTags ? () => setSuggesting(true) : undefined}
             onArtist={openArtist}
           />
         ) : null}
@@ -435,7 +437,8 @@ function UntaggedCard({
   rest: number
   wide: boolean
   onStart: () => void
-  onSuggest: () => void
+  /** Absent while Suggest tags is turned off in Settings › Smart features. */
+  onSuggest?: () => void
   onArtist: (name: string) => void
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -504,12 +507,14 @@ function UntaggedCard({
             {who}
           </Text>
         </View>
-        <Button
-          label="Suggest tags"
-          icon={<Sparkle size={15} />}
-          onPress={onSuggest}
-          testID="tags-untagged-suggest"
-        />
+        {onSuggest ? (
+          <Button
+            label="Suggest tags"
+            icon={<Sparkle size={15} />}
+            onPress={onSuggest}
+            testID="tags-untagged-suggest"
+          />
+        ) : null}
         <Button
           label="Tag while they play"
           icon={<TagIcon size={15} color={theme.colors.textPrimary} />}
@@ -540,15 +545,17 @@ function UntaggedCard({
         </View>
         <ChevronRight size={16} tone="textMuted" />
       </Pressable>
-      <View style={styles.untaggedSuggest}>
-        <Button
-          label="Suggest tags"
-          icon={<Sparkle size={15} />}
-          variant="text"
-          onPress={onSuggest}
-          testID="tags-untagged-suggest"
-        />
-      </View>
+      {onSuggest ? (
+        <View style={styles.untaggedSuggest}>
+          <Button
+            label="Suggest tags"
+            icon={<Sparkle size={15} />}
+            variant="text"
+            onPress={onSuggest}
+            testID="tags-untagged-suggest"
+          />
+        </View>
+      ) : null}
     </Animated.View>
   )
 }

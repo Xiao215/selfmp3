@@ -264,7 +264,8 @@ export function Review<T extends Reviewed>({
     }
     if (key === 'ArrowLeft' && (atStop.kind === 'change' || atStop.kind === 'song')) {
       const key = atStop.here.change.key
-      if (!open.has(key)) return false
+      // One song shown from the start has no chevron to bring it back.
+      if (!open.has(key) || atStop.here.songIds.length < 2) return false
       const next = new Set(open)
       next.delete(key)
       setOpen(next)

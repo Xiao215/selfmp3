@@ -106,11 +106,8 @@ export function TagsReview({
 
   const meta = (each: TagHere, state: ReviewRowState): string => {
     const { change: c } = each
-    // A change on one song doesn't open, so it names the song instead.
-    const only = each.songIds.length === 1 ? songsById.get(each.songIds[0]!) : undefined
-    const songs = only
-      ? only.title
-      : state.on && state.kept.length < each.songIds.length
+    const songs =
+      state.on && state.kept.length < each.songIds.length
         ? `${state.kept.length} of ${plural(each.songIds.length, 'song', 'songs')}`
         : plural(each.songIds.length, 'song', 'songs')
     switch (c.op) {
@@ -130,6 +127,8 @@ export function TagsReview({
   return (
     <Review
       changes={here}
+      // A change on one song has nothing to open, so its song shows from the start.
+      openAtFirst={here.filter(each => each.songIds.length === 1).map(each => each.change.key)}
       sectionOf={each => tagSection(each.change)}
       head={
         review.asked !== null

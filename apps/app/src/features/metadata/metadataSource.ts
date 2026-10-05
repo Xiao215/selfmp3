@@ -4,6 +4,7 @@ import {
   queryKeys,
   useApplyMetadata,
   useMetadataLookup,
+  usePatchSong,
   type ServerConnection,
 } from '@selfmp3/client'
 import { apiFor } from '../../api/client'
@@ -18,7 +19,8 @@ import { library as cloudLibrary } from '../../replica'
  * cover it is told to. None of that can happen in the bucket.
  *
  * `songId` is the song in the answering library's own numbering — the caller
- * translates (`useServerSongIds`) before asking.
+ * translates (`useServerSongIds`) before asking — and `ownId` the same song in
+ * this device's.
  */
 interface MetadataSource {
   readonly lookup: {
@@ -40,10 +42,12 @@ const noServer = (): Promise<never> => Promise.reject(new Error('no server to as
 export function useMetadataSource(
   via: ServerConnection | undefined,
   songId: number,
+  ownId: number,
 ): MetadataSource {
   const client = useQueryClient()
   const ownLookup = useMetadataLookup(songId, via === undefined)
   const ownApply = useApplyMetadata()
+  const patchHere = usePatchSong()
 
   const serverLookup = useQuery({
     queryKey: ['via-server', via?.baseUrl, 'metadata', 'lookup', songId] as const,
@@ -54,17 +58,24 @@ export function useMetadataSource(
   })
 
   /*
-   * Applied on the server, so the correction lands in its database and reaches
-   * this device the way every other change does: with the server's next
-   * snapshot. Asking for the library again here would only redraw the same old
-   * title, so this marks the cloud copy stale and lets the next look fetch it.
+   * The names are this device's own edit, like any other made on a cloud
+   * library: they show the moment the dialog closes and reach the bucket, and
+   * the server, from here. Only a cover goes to the server, which downloads it
+   * and puts it in the bucket — that one arrives with the server's next sync,
+   * so the cloud copy is marked stale for the look after it.
    */
   const serverApply = useMutation({
-    mutationFn: (input: ApplyMetadata) =>
-      via ? apiFor(via).applyMetadata(songId, input) : noServer(),
+    mutationFn: async ({ artworkUrl, ...fields }: ApplyMetadata) => {
+      if (!via) return noServer()
+      if (Object.keys(fields).length > 0) {
+        await patchHere.mutateAsync({ id: ownId, patch: fields })
+      }
+      if (artworkUrl) {
+        await apiFor(via).applyMetadata(songId, { artworkUrl })
+        cloudLibrary.markCloudLibraryStale()
+      }
+    },
     onSuccess: () => {
-      cloudLibrary.markCloudLibraryStale()
-      void client.invalidateQueries({ queryKey: queryKeys.library })
       // A corrected title or artist is a new search: the next look-up asks again.
       void client.invalidateQueries({ queryKey: ['via-server', via?.baseUrl, 'metadata'] })
     },

@@ -71,7 +71,7 @@ export function MetadataDialog({
   const { wide } = useLayout()
   // Full screen on a phone, so the head clears the status bar and the foot the home bar.
   const insets = useSafeAreaInsets()
-  const { lookup, apply } = useMetadataSource(via, askFor)
+  const { lookup, apply } = useMetadataSource(via, askFor, song.id)
   useEscape(true, onClose, { layer: true })
 
   const candidates = lookup.data?.candidates ?? []
@@ -94,6 +94,8 @@ export function MetadataDialog({
   const [edits, setEdits] = useState<Edits>({})
   const hand = useMemo(() => handEdits(song, edits), [song, edits])
   const count = appliedCount(diffs, ticked, hand)
+  // From a cloud library the names change here at once; a cover is the server's to fetch.
+  const coverLater = via !== undefined && applyInput(diffs, ticked, hand)?.artworkUrl !== undefined
   const submit = (): void => {
     const input = applyInput(diffs, ticked, hand)
     if (input) apply.mutate(input, { onSuccess: onClose })
@@ -340,11 +342,11 @@ export function MetadataDialog({
             <Text style={[styles.hint, styles.footError, { color: theme.colors.warning }]}>
               {apply.error?.message ?? 'Couldn’t apply the changes.'}
             </Text>
-          ) : via ? (
-            // Written into the server's library, which this device sees with
-            // the next sync rather than the moment the dialog closes.
+          ) : coverLater ? (
+            // Downloaded by the server into the bucket, which this device sees
+            // with the next sync rather than the moment the dialog closes.
             <Text style={[styles.hint, styles.footError]}>
-              Applied on your server; here with its next sync.
+              The new cover shows after your server’s next sync.
             </Text>
           ) : null}
           <Button label="Cancel" onPress={onClose} />

@@ -172,9 +172,12 @@ export function youtubeChannel(url: string): YouTubeChannel | null {
 
 // --- 网易云音乐 ---------------------------------------------------------------
 
-/** What a 网易云音乐 link opens: one song, an album, or a playlist (a chart is one). */
+/**
+ * What a 网易云音乐 link opens: one song, an album, a playlist (a chart is
+ * one), or an artist, which means their fifty most played songs.
+ */
 export interface NeteaseLink {
-  readonly kind: 'song' | 'album' | 'playlist'
+  readonly kind: 'song' | 'album' | 'playlist' | 'artist'
   readonly id: string
 }
 
@@ -191,7 +194,7 @@ export function isNeteaseUrl(url: string): boolean {
 }
 
 /**
- * The song, album or playlist a 网易云音乐 link opens, or null.
+ * The song, album, playlist or artist a 网易云音乐 link opens, or null.
  *
  * The same page reaches us in several spellings: the site's own
  * `music.163.com/#/playlist?id=…` (the part after `#` is the address), the
@@ -212,7 +215,9 @@ export function neteaseLink(url: string): NeteaseLink | null {
   const segments = page.pathname.split('/').filter(Boolean)
   if (segments[0] === 'm') segments.shift()
   const kind = segments[0]
-  if (kind !== 'song' && kind !== 'album' && kind !== 'playlist') return null
+  if (kind !== 'song' && kind !== 'album' && kind !== 'playlist' && kind !== 'artist') return null
+  // An artist's other tabs (`#/artist/album?id=…`, its albums) are not its songs.
+  if (segments[1] !== undefined && !/^\d+$/.test(segments[1])) return null
   const id = page.searchParams.get('id') ?? segments[1] ?? ''
   return /^\d{1,20}$/.test(id) ? { kind, id } : null
 }

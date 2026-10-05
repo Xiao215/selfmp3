@@ -139,6 +139,22 @@ describe('NeteaseMusic', () => {
     expect(one.tracks.map(track => track.title)).toEqual(['晴天'])
   })
 
+  it('reads an artist as their most played songs, named after them', async () => {
+    const { netease } = fakeApi({
+      [`${API}artist/6452`]: {
+        code: 200,
+        artist: { name: '周杰伦' },
+        hotSongs: [{ id: 186016, name: '晴天' }],
+      },
+      [detail([186016])]: { code: 200, songs: [songs[2]], privileges: [privileges[2]] },
+      [`${API}artist/1`]: { code: 200, artist: { name: '没有歌' }, hotSongs: [] },
+    })
+    const artist = await netease.list({ kind: 'artist', id: '6452' })
+    expect(artist.title).toBe('周杰伦')
+    expect(artist.tracks.map(track => [track.title, track.free])).toEqual([['晴天', false]])
+    await expect(netease.list({ kind: 'artist', id: '1' })).rejects.toThrow(/did not answer/)
+  })
+
   it('says so when 网易云 does not answer, or answers with its own refusal', async () => {
     const { netease } = fakeApi({
       [`${API}v6/playlist/detail?id=1&n=100000`]: { code: -447 },

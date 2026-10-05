@@ -9,7 +9,7 @@ import {
 import type { Logger } from '../logger.js'
 
 /**
- * 网易云音乐: its songs, albums and playlists, and its lyrics.
+ * 网易云音乐: its songs, albums, playlists and artists, and its lyrics.
  *
  * The web API its own site uses, without signing in. The audio itself is
  * downloaded by yt-dlp, which reads 网易云 links (importQueue.ts); this reads
@@ -134,6 +134,17 @@ export class NeteaseMusic {
       const ids = idsOf(page?.songs)
       if (!page || ids.length === 0) throw new Error(UNREADABLE)
       return { title: page.album?.name ?? null, tracks: await this.#tracks(ids) }
+    }
+    if (link.kind === 'artist') {
+      // The fifty songs the artist's page lists first, most played first: what
+      // a YouTube artist link means too (youtubeMusicArtist.ts).
+      const page = (await this.#get(`artist/${link.id}`)) as {
+        artist?: { name?: string }
+        hotSongs?: SongJson[]
+      } | null
+      const ids = idsOf(page?.hotSongs)
+      if (!page || ids.length === 0) throw new Error(UNREADABLE)
+      return { title: page.artist?.name ?? null, tracks: await this.#tracks(ids) }
     }
     const page = (await this.#get(`v6/playlist/detail?id=${link.id}&n=100000`)) as {
       playlist?: { name?: string; trackIds?: { id?: number }[] }

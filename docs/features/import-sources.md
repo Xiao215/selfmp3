@@ -10,7 +10,8 @@ list of names.
 
 ## 网易云音乐
 
-A song, an album or a playlist link (a chart is a playlist), in any of the spellings the
+A song, an album, a playlist (a chart is one) or an artist link (the fifty songs their
+page lists first, as with a YouTube artist link), in any of the spellings the
 site and the app use: `music.163.com/#/playlist?id=…`, the app's share text
 (`分享…的歌单《…》: https://y.music.163.com/m/playlist?id=… (来自@网易云音乐)`), and the short
 `163cn.tv/…` link, which the server follows.

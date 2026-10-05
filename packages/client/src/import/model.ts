@@ -272,7 +272,12 @@ export function canLookUp(text: string): boolean {
   return text.trim().length > 0
 }
 
-const NETEASE_KINDS = { song: 'song', album: 'album', playlist: 'playlist' } as const
+const NETEASE_KINDS = {
+  song: 'song',
+  album: 'album',
+  playlist: 'playlist',
+  artist: 'artist',
+} as const
 const SPOTIFY_KINDS = { track: 'song', album: 'album', playlist: 'playlist' } as const
 
 /**

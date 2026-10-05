@@ -521,6 +521,7 @@ describe('what the box holds', () => {
       ),
     ).toBe('网易云 playlist')
     expect(describePaste('https://music.163.com/#/song?id=186016')).toBe('网易云 song')
+    expect(describePaste('https://music.163.com/#/artist?id=8325')).toBe('网易云 artist')
     expect(describePaste('https://163cn.tv/zZ3PjY')).toBe('网易云 link')
     expect(describePaste('https://open.spotify.com/album/4m2880jivSbbyEGAKfITCa')).toBe(
       'Spotify album',

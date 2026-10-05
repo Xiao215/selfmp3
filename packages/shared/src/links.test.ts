@@ -159,7 +159,7 @@ describe('youtubeChannel', () => {
 })
 
 describe('neteaseLink', () => {
-  it('reads every spelling of a song, album or playlist page', () => {
+  it('reads every spelling of a song, album, playlist or artist page', () => {
     expect(neteaseLink('https://music.163.com/#/playlist?id=3778678')).toEqual({
       kind: 'playlist',
       id: '3778678',
@@ -179,10 +179,19 @@ describe('neteaseLink', () => {
       kind: 'album',
       id: '18905',
     })
+    expect(neteaseLink('https://music.163.com/#/artist?id=8325')).toEqual({
+      kind: 'artist',
+      id: '8325',
+    })
+    expect(neteaseLink('https://y.music.163.com/m/artist?id=8325&userid=12')).toEqual({
+      kind: 'artist',
+      id: '8325',
+    })
   })
 
   it('reads nothing else', () => {
-    expect(neteaseLink('https://music.163.com/#/artist?id=6452')).toBeNull()
+    expect(neteaseLink('https://music.163.com/#/artist/album?id=6452')).toBeNull()
+    expect(neteaseLink('https://music.163.com/#/user/home?id=6452')).toBeNull()
     expect(neteaseLink('https://music.163.com/#/song?id=abc')).toBeNull()
     expect(neteaseLink('https://163cn.tv/zZ3PjY')).toBeNull()
     expect(neteaseLink('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBeNull()

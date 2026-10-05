@@ -286,12 +286,12 @@ async function probeLink(deps: PreviewDeps, url: string): Promise<Probed> {
   return { ...(await probeYouTube(deps, url)), from: 'youtube' }
 }
 
-/** A 网易云 song, album or playlist: each song from 网易云 if it gives the whole of it, else from YouTube. */
+/** A 网易云 song, album, playlist or artist: each song from 网易云 if it gives the whole of it, else from YouTube. */
 async function probeNetease(deps: PreviewDeps, url: string): Promise<Probed> {
   const link = await deps.netease.link(url)
   if (!link) {
     throw HttpError.unprocessable(
-      'That 网易云音乐 link does not open a song, an album or a playlist. Copy the link from its Share button.',
+      'That 网易云音乐 link does not open a song, an album, a playlist or an artist. Copy the link from its Share button.',
     )
   }
   const list = await deps.netease.list(link).catch((error: unknown) => {

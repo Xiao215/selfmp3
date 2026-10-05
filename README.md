@@ -133,7 +133,7 @@ the server: a share target on Android, a one-step Shortcut on iOS. See
 **From your existing library.** Point yt-dlp at your browser's YouTube cookies and your Liked
 Music, private playlists and artist pages import like any other link
 ([youtube-music-library.md](docs/features/youtube-music-library.md)). A 网易云音乐 song,
-album or playlist link downloads each song from 网易云 where it gives the whole song out, and
+album, playlist or artist link downloads each song from 网易云 where it gives the whole song out, and
 from YouTube where it would give a preview; a Spotify link, a CSV export or a plain list of
 song names has each song found on YouTube, and every one of them shows on the same review
 first ([import-sources.md](docs/features/import-sources.md)).

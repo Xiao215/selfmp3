@@ -179,7 +179,9 @@ export async function cacheSong(
   const total = Number.isFinite(size) && size > 0 ? size : null
 
   if (!onProgress || !response.body) {
-    await cache.put(url, response.clone())
+    // The response itself, not a clone: a clone tees the body, and the half
+    // nobody reads holds the whole song in memory until it is collected.
+    await cache.put(url, response)
     return total ?? 0
   }
 

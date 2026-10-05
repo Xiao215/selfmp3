@@ -30,6 +30,7 @@ import { Shell as Frame } from '../src/shell/Shell'
 import { addressOf, swipeBackAllowed } from '../src/shell/backGesture'
 import { fromTile } from '../src/features/tag/placeLinks'
 import { nowPlayingAnimation, stackAnimation } from '../src/shell/pageStep'
+import { keepNearTop } from '../src/shell/keepNearTop'
 import { useMotionReduced } from '../src/ui/motion'
 import { afterWelcome } from '../src/features/welcome/firstSync.model'
 import { STORAGE_ROUTE } from '../src/features/welcome/storage.model'
@@ -44,6 +45,7 @@ import { modalCoversScreen } from '../src/ports/modalCoversScreen'
 import { listenForAppFocus } from '../src/ports/appFocus'
 import { hideScrollbars } from '../src/ports/scrollbars'
 import { registerServiceWorker } from '../src/ports/serviceWorker'
+import { singularPlaces } from '../src/ports/singularPlaces'
 import { AccentProvider } from '../src/ui/accent'
 import { WidgetSync } from '../src/features/widget/WidgetSync'
 import { showToast } from '../src/ui/toast'
@@ -98,6 +100,25 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+/**
+ * The places the sidebar and the tab bar go to, which a browser keeps one of.
+ *
+ * Going to a page the stack does not have on top adds it, so Library → Tags →
+ * Library → Tags grew the stack by a page a click. Where `singularPlaces`
+ * says so, a place already in the stack is brought back to the top instead.
+ */
+const PLACES = [
+  'index',
+  'library',
+  'tags',
+  'playlists/index',
+  'import/index',
+  'stats/index',
+  'search',
+  'settings',
+  'profile',
+] as const
 
 /**
  * Now Playing comes up from the foot of the display and goes back down
@@ -280,8 +301,11 @@ function Shell(): ReactNode {
 
   return (
     <Frame chrome={chrome} sidebar={!(stage && arriving)}>
-      <Stack screenOptions={screenOptions}>
+      <Stack screenOptions={screenOptions} screenLayout={keepNearTop}>
         <Stack.Screen name="now-playing" options={nowPlayingOptions(wide, reduced)} />
+        {PLACES.map(name => (
+          <Stack.Screen key={name} name={name} dangerouslySingular={singularPlaces} />
+        ))}
       </Stack>
       {/*
        * Nothing shows until it is decided where the library comes from — the

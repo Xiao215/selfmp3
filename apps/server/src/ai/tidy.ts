@@ -567,15 +567,14 @@ async function askedTidy(
     const findNames = deps.findNames
     const all = songs.length.toLocaleString('en')
     let looked = 0
-    steps.begin(
-      `Looking up ${all} ${songs.length === 1 ? 'song' : 'songs'} on 网易云 and MusicBrainz`,
-    )
+    const lookingFor = `Looking up ${all} ${songs.length === 1 ? 'song' : 'songs'} on 网易云 and MusicBrainz`
+    steps.begin(lookingFor)
     await pool(songs, LOOKUPS_AT_ONCE, async song => {
       const names = await findNames(song)
       if (names.length > 0) found.set(song.id, names)
       looked++
       if (looked % 25 === 0 && looked < songs.length) {
-        steps.begin(`Looked up ${looked.toLocaleString('en')} of ${all} songs`)
+        steps.update(`${lookingFor} · ${looked.toLocaleString('en')} done`)
       }
     })
     const notFound = songs.length - found.size
@@ -597,7 +596,8 @@ async function askedTidy(
   const failures: LlmError[] = []
   let missed = 0
   const total = asking.length.toLocaleString('en')
-  if (asking.length > 0) steps.begin(`Reading ${total} ${asking.length === 1 ? 'song' : 'songs'}`)
+  const reading = `Reading ${total} ${asking.length === 1 ? 'song' : 'songs'}`
+  if (asking.length > 0) steps.begin(reading)
 
   const run = async (batch: Song[]): Promise<void> => {
     const table = batch
@@ -652,7 +652,11 @@ async function askedTidy(
       propose(song, edit.field, song[edit.field], { value: to, whys: [why] }, 'model')
     }
     done += batch.length
-    steps.begin(`Read ${done.toLocaleString('en')} of ${total} songs`)
+    steps.update(
+      done < asking.length
+        ? `${reading} · ${done.toLocaleString('en')} done`
+        : `Read ${total} songs`,
+    )
   }
 
   await pool(batches, CALLS_AT_ONCE, run)

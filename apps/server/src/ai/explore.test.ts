@@ -64,6 +64,7 @@ describe('explore', () => {
     const steps: string[] = []
     const answer = await explore(deps(llm), 'what is Liyue called in Chinese?', {
       begin: text => steps.push(text),
+      update: () => undefined,
       done: () => undefined,
     })
 

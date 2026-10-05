@@ -55,10 +55,11 @@ export function Working({
           text: index < timed ? (step.done ?? step.doing) : step.doing,
           done: index < timed,
         }))
-  // The seconds count is the running step's own: it starts again at each stage.
-  const running = shown.find(step => !step.done)?.text ?? null
-  const [since, setSince] = useState<{ text: string | null; at: number }>({ text: null, at: 0 })
-  if (running !== since.text) setSince({ text: running, at: ms })
+  // The seconds count is the running step's own: it starts again at each stage,
+  // not when a stage only says how far it has got ("· 525 done").
+  const running = shown.find(step => !step.done)?.key ?? null
+  const [since, setSince] = useState<{ key: string | null; at: number }>({ key: null, at: 0 })
+  if (running !== since.key) setSince({ key: running, at: ms })
   const seconds = Math.floor((ms - since.at) / 1000)
 
   return (

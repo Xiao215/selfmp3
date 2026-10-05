@@ -13,6 +13,11 @@
 export interface Steps {
   /** A new stage begins; the one before it is done. */
   begin(doing: string): void
+  /**
+   * The stage running now says how far it has got ("525 of 1,112"): its own line
+   * changes rather than a new one being added, so a long count stays one step.
+   */
+  update(doing: string): void
   /** The stage running now is done, saying what it found when there is something to say. */
   done(said?: string): void
 }
@@ -23,7 +28,11 @@ export interface Step {
 }
 
 /** For an answer nobody is watching. */
-export const NO_STEPS: Steps = { begin: () => undefined, done: () => undefined }
+export const NO_STEPS: Steps = {
+  begin: () => undefined,
+  update: () => undefined,
+  done: () => undefined,
+}
 
 const KEPT_MS = 5 * 60_000
 const MAX_TICKETS = 200
@@ -46,6 +55,12 @@ export class AskProgress {
       begin: doing => {
         finishLast()
         entry.steps.push({ text: doing, done: false })
+        entry.at = Date.now()
+      },
+      update: doing => {
+        const last = entry.steps.at(-1)
+        if (last && !last.done) entry.steps[entry.steps.length - 1] = { text: doing, done: false }
+        else entry.steps.push({ text: doing, done: false })
         entry.at = Date.now()
       },
       done: said => {

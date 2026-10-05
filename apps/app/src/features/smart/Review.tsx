@@ -24,8 +24,13 @@ const CHANGE_TEXT = BAND_TEXT + 18 + 12
 
 /** How many changes a heading shows before "N more". */
 const SECTION_SHOWS = 3
-/** How many songs an opened change lists before "Show all". */
+/** How many songs an opened change lists first. */
 const SONGS_SHOW = 8
+/**
+ * How many more each "Show more" adds. A change can be on a thousand songs,
+ * and every one drawn at once is a long wait for a list nobody reads to the end.
+ */
+const SONGS_MORE = 50
 
 const COMMAND =
   typeof navigator !== 'undefined' && onMac(navigator.userAgent, navigator.maxTouchPoints ?? 0)
@@ -38,7 +43,7 @@ type Stop<T> =
   | { readonly id: string; readonly kind: 'change'; readonly here: T }
   | { readonly id: string; readonly kind: 'section'; readonly title: string }
   | { readonly id: string; readonly kind: 'song'; readonly here: T; readonly songId: number }
-  | { readonly id: string; readonly kind: 'songs'; readonly key: string }
+  | { readonly id: string; readonly kind: 'songs'; readonly here: T }
 
 /** What a change's row is drawn with: whether it is ticked, and which of its songs. */
 export interface ReviewRowState {
@@ -114,10 +119,16 @@ export function Review<T extends Reviewed>({
   )
   const [ticked, setTicked] = useState<ReadonlySet<string> | null>(null)
   const [leftOut, setLeftOut] = useState<ReadonlySet<string>>(new Set())
-  /** Headings showing every change, changes open to their songs, and opened ones showing all. */
+  /** Headings showing every change, changes open to their songs, and how many songs opened ones show. */
   const [allOf, setAllOf] = useState<ReadonlySet<string>>(new Set())
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set(openAtFirst))
-  const [allSongs, setAllSongs] = useState<ReadonlySet<string>>(new Set())
+  const [songsShown, setSongsShown] = useState<ReadonlyMap<string, number>>(new Map())
+  const shownOf = (each: T): readonly number[] =>
+    each.songIds.slice(0, songsShown.get(each.change.key) ?? SONGS_SHOW)
+  const showMore = (each: T): void => {
+    const key = each.change.key
+    setSongsShown(new Map(songsShown).set(key, shownOf(each).length + SONGS_MORE))
+  }
   /** Where the keys are; none until an arrow is pressed. */
   const [at, setAt] = useState<string | null>(null)
   const [applying, setApplying] = useState(false)
@@ -200,14 +211,12 @@ export function Review<T extends Reviewed>({
       for (const each of shown) {
         stops.push({ id: `change:${each.change.key}`, kind: 'change', here: each })
         if (!open.has(each.change.key)) continue
-        const songs = allSongs.has(each.change.key)
-          ? each.songIds
-          : each.songIds.slice(0, SONGS_SHOW)
+        const songs = shownOf(each)
         for (const songId of songs) {
           stops.push({ id: `song:${each.change.key}:${songId}`, kind: 'song', here: each, songId })
         }
         if (songs.length < each.songIds.length) {
-          stops.push({ id: `songs:${each.change.key}`, kind: 'songs', key: each.change.key })
+          stops.push({ id: `songs:${each.change.key}`, kind: 'songs', here: each })
         }
       }
       if (shown.length < section.changes.length) {
@@ -235,7 +244,7 @@ export function Review<T extends Reviewed>({
         flipSong(stop.here, stop.songId)
         return
       case 'songs':
-        setAllSongs(toggle(allSongs, stop.key))
+        showMore(stop.here)
         return
     }
   }
@@ -313,7 +322,7 @@ export function Review<T extends Reviewed>({
     const full = fullyOn(each)
     const many = each.songIds.length > 1
     const opened = open.has(change.key)
-    const songs = allSongs.has(change.key) ? each.songIds : each.songIds.slice(0, SONGS_SHOW)
+    const songs = shownOf(each)
     return (
       <View key={change.key}>
         <Pressable
@@ -398,8 +407,8 @@ export function Review<T extends Reviewed>({
                 indent={space.xs}
                 at={at}
                 place={place}
-                text={`Show all ${each.songIds.length}`}
-                onPress={() => setAllSongs(toggle(allSongs, change.key))}
+                text={`Show ${Math.min(SONGS_MORE, each.songIds.length - songs.length)} more`}
+                onPress={() => showMore(each)}
               />
             ) : null}
           </View>

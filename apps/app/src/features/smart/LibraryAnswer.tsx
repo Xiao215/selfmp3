@@ -14,8 +14,9 @@ import { songCount } from './Review'
 import { parts, sortWords } from './smart.model'
 import { useSmartServer } from './useSmartServer'
 
-/** How many songs show before "Show all". */
+/** How many songs show first, and how many more each "Show more" adds. */
 const SHOWS = 8
+const MORE = 50
 
 /**
  * A question about what is in the library ("how many YOASOBI songs do I
@@ -37,7 +38,7 @@ export function LibraryAnswer({
   const player = usePlayer()
   const { data: library } = useLibrary()
   const artFor = useArt(ROW_COVER_SIZE)
-  const [all, setAll] = useState(false)
+  const [shows, setShows] = useState(SHOWS)
   const songsById = new Map((library?.songs ?? []).map(song => [song.id, song]))
   const songs = answer.songIds.flatMap(id => {
     const here = server.onDevice(id)
@@ -68,7 +69,7 @@ export function LibraryAnswer({
         : answer.show === 'tags'
           ? answer.tags
           : null
-  const shown = all ? songs : songs.slice(0, SHOWS)
+  const shown = songs.slice(0, shows)
   return (
     <>
       <Text style={styles.head}>
@@ -123,8 +124,14 @@ export function LibraryAnswer({
             </Pressable>
           ))}
           {shown.length < songs.length ? (
-            <Pressable onPress={() => setAll(true)} accessibilityRole="button" style={styles.more}>
-              <Text style={styles.moreText}>Show all {songs.length}</Text>
+            <Pressable
+              onPress={() => setShows(shown.length + MORE)}
+              accessibilityRole="button"
+              style={styles.more}
+            >
+              <Text style={styles.moreText}>
+                Show {Math.min(MORE, songs.length - shown.length)} more
+              </Text>
             </Pressable>
           ) : null}
         </ScrollView>

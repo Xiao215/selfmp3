@@ -309,7 +309,7 @@ const library = action({
 
 const tidyUp = action({
   name: 'tidy',
-  when: 'anything about their songs\' names (titles, artists, albums): checked, fixed or cleaned up in general, or changed in a way they say ("give the 原神音乐 songs their official Chinese names", "write 周杰倫\'s albums in simplified Chinese", "take \'(Remastered)\' off the titles"). Fill "tidy": checkup is true when they only ask to check or clean up their names, false when they say what change they want; lookUp is true when the new names must come from outside the library (official, real or correct names, the real name of an album, the name the publisher uses in another language), false when the change is made from the names already there (take words off, change the script, make them consistent). When they say which songs, also fill "filters" with the filters that choose them (null for the whole library).',
+  when: 'anything about their songs\' names (titles, artists, albums): checked, fixed or cleaned up in general, or changed in a way they say ("give the 原神音乐 songs their official Chinese names", "write 周杰倫\'s albums in simplified Chinese", "take \'(Remastered)\' off the titles"). Fill "tidy": checkup is true when they only ask to check or clean up their names, false when they say what change they want; lookUp is true when the new names must come from outside the library (official, real or correct names, the real name of an album, the name the publisher uses in another language), false when the change is made from the names already there (take words off, change the script, make them consistent). When they say which songs, or how many to change ("up to 300", "先换50首" is size 50), also fill "filters" with the filters that choose them (null for the whole library). Which of those songs still need the change ("the ones in English now") is not a filter: the request itself says it.',
   fields: z.object({ checkup: z.boolean(), lookUp: z.boolean() }),
   filters: 'optional',
   switch: { key: 'tidy', label: 'Tidy up' },
@@ -320,7 +320,13 @@ const tidyUp = action({
     const chosen = songsFitting(songs, deps.tags(), understanding, now)
     return {
       kind: 'tidy',
-      tidy: await tidy(deps, steps, { text, songs: chosen, unknown, lookUp }),
+      tidy: await tidy(deps, steps, {
+        text,
+        songs: chosen,
+        unknown,
+        lookUp,
+        limit: filters?.size ?? null,
+      }),
     }
   },
 })

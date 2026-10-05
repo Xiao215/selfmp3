@@ -39,6 +39,11 @@ import { NO_STEPS, type Steps } from './progress.js'
  * is looked up in the catalogues first (`names.ts`); the model only shapes a
  * name it was shown, and an edit whose words are in no catalogue's name is
  * dropped, so nothing is made up.
+ *
+ * Before the lookups, the model reads the chosen songs' names alone and keeps
+ * the ones the change is still to be made on ("the ones in English now"):
+ * which songs need it is whatever the request says, not a filter of ours. A
+ * number they give ("up to 300") is taken from those.
  */
 
 const VERSION = 5
@@ -219,6 +224,8 @@ interface TidyAsked {
   readonly unknown: readonly string[]
   /** Whether the names must come from outside the library: official, real, an album's own. */
   readonly lookUp: boolean
+  /** The most songs to change, when they said ("up to 300"); null for all of them. */
+  readonly limit?: number | null
 }
 
 export async function tidy(
@@ -426,6 +433,17 @@ const WEB_PER_CALL = 15
 /** The most songs looked for on the web in one request. */
 const MAX_WEB = 150
 
+/** Songs per sorting call: a line is about 20 tokens in and a number 3 out. */
+const SORT_PER_CALL = 200
+
+const SortOut = z.object({ n: z.array(z.number().int()).max(SORT_PER_CALL) })
+
+const SORT_SYSTEM = `You sort someone's songs before a change they asked for is made to their names. You are given their request and a numbered table of songs (n | title | artist | album | album artist). Reply with JSON only: n, the numbers of the songs the change is still to be made on.
+
+- Leave out a song the request leaves out (it asks only for the titles in English, and this title is Chinese already), and one whose names already are the way they want them.
+- Keep a song whenever you can't tell from the table: it is checked properly after this.
+- Never use a number that is not in the table.`
+
 /** Lookups at once: 网易云 answers quickly, and MusicBrainz waits its turn on its own. */
 const LOOKUPS_AT_ONCE = 3
 
@@ -452,6 +470,57 @@ function chunks<T>(items: readonly T[], size: number): T[][] {
   return out
 }
 
+/**
+ * The songs the request still wants changed, in the order given, from a fast
+ * read of their names. A batch the model can't answer keeps all its songs:
+ * the careful step after this one judges them.
+ */
+async function needingIt(
+  llm: Llm,
+  remembered: Remembered,
+  text: string,
+  songs: readonly Song[],
+  steps: Steps,
+): Promise<Song[]> {
+  const all = songs.length.toLocaleString('en')
+  steps.begin(`Finding which of ${all} songs need it`)
+  const keep = new Set<number>()
+  await pool(chunks(songs, SORT_PER_CALL), CALLS_AT_ONCE, async batch => {
+    const table = batch
+      .map(
+        (song, index) =>
+          `${index + 1} | ${song.title} | ${song.artist || '-'} | ${song.album || '-'} | ${song.albumArtist || '-'}`,
+      )
+      .join('\n')
+    const prompt = `The request:\n${text}\n\nThe songs (n | title | artist | album | album artist):\n${table}`
+    try {
+      const answer = await remembered.get(
+        Remembered.key('tidy-sort', VERSION, prompt),
+        async () =>
+          (
+            await llm.generate({
+              task: 'tidy-sort',
+              tier: 'fast',
+              system: SORT_SYSTEM,
+              prompt,
+              schema: SortOut,
+            })
+          ).value,
+      )
+      for (const n of answer.n) {
+        const song = batch[n - 1]
+        if (song) keep.add(song.id)
+      }
+    } catch (caught) {
+      if (!(caught instanceof LlmError)) throw caught
+      for (const song of batch) keep.add(song.id)
+    }
+  })
+  const needing = songs.filter(song => keep.has(song.id))
+  steps.done(`${needing.length.toLocaleString('en')} of ${all} need it`)
+  return needing
+}
+
 /** One change asked for across the songs it is about, a batch at a time. */
 async function askedTidy(
   deps: TidyDeps,
@@ -463,25 +532,37 @@ async function askedTidy(
   const notes: string[] = []
   if (asked.unknown.length > 0) notes.push(`Your library has no ${asked.unknown.join(' or ')}.`)
   // An album's songs side by side, so one batch names the whole album.
-  const songs = [...asked.songs]
-    .sort(
-      (a, b) =>
-        (a.albumArtist || a.artist).localeCompare(b.albumArtist || b.artist) ||
-        a.album.localeCompare(b.album) ||
-        (a.trackNo ?? 0) - (b.trackNo ?? 0) ||
-        a.id - b.id,
-    )
-    .slice(0, MAX_ASKED)
-  if (asked.songs.length > songs.length) {
+  const chosen = [...asked.songs].sort(
+    (a, b) =>
+      (a.albumArtist || a.artist).localeCompare(b.albumArtist || b.artist) ||
+      a.album.localeCompare(b.album) ||
+      (a.trackNo ?? 0) - (b.trackNo ?? 0) ||
+      a.id - b.id,
+  )
+  const lookingUp = asked.lookUp && deps.findNames !== undefined
+  if (asked.lookUp && !deps.findNames) notes.push('Names can’t be looked up from here.')
+  const cap = Math.min(asked.limit ?? MAX_ASKED, MAX_ASKED)
+
+  // 0 · The songs the change is still to be made on, from their names alone: before
+  // the slow lookups, and before a number they gave is counted out.
+  const sorting = (lookingUp && chosen.length > SONGS_PER_CALL) || chosen.length > cap
+  const needing = sorting ? await needingIt(llm, remembered, asked.text, chosen, steps) : chosen
+  const songs = needing.slice(0, cap)
+  if (needing.length > songs.length) {
+    const of = needing.length.toLocaleString('en')
     notes.push(
-      `Looked at the first ${MAX_ASKED.toLocaleString('en')} songs; ask again for the rest.`,
+      sorting
+        ? `Changing the first ${songs.length.toLocaleString('en')} of the ${of} songs that need it; ask again for the rest.`
+        : `Looked at the first ${songs.length.toLocaleString('en')} of ${of} songs; ask again for the rest.`,
     )
+  }
+  if (songs.length === 0) {
+    steps.done('0 changes')
+    return { changes: [], looked: chosen.length, note: notes.join(' ') || null, asked: asked.text }
   }
 
   // 1 · The catalogues, when the names must come from outside: a song none of them has is left be.
   const found = new Map<number, FoundName[]>()
-  const lookingUp = asked.lookUp && deps.findNames !== undefined
-  if (asked.lookUp && !deps.findNames) notes.push('Names can’t be looked up from here.')
   if (lookingUp) {
     const findNames = deps.findNames
     const all = songs.length.toLocaleString('en')
@@ -642,7 +723,8 @@ async function askedTidy(
   steps.done(`${proposed.length} ${proposed.length === 1 ? 'change' : 'changes'}`)
   return {
     changes: proposed,
-    looked: songs.length,
+    // Every song chosen was checked, unless a number they gave left some for later.
+    looked: needing.length > songs.length ? songs.length : chosen.length,
     note: notes.length > 0 ? notes.join(' ') : null,
     asked: asked.text,
   }

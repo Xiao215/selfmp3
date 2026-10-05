@@ -486,6 +486,15 @@ like the checkup's, all the model's, so none starts ticked. A batch that fails i
 the note says how many songs; when every batch fails, the answer is the model's failure. Before
 2026-10-04 any names request ran the checkup, and the request itself was never read.
 
+**Which songs, and how many.** A number they give ("先换 300 首") is the filters' `size`, the same
+"how many" every action reads (up to 2,000; a playlist's pick still stops at 200). Which of the
+chosen songs still need the change ("the ones in English now") is no filter: when the songs are
+more than that number, or more than one batch are about to be looked up, a fast model call per
+200 songs reads their names with the request and keeps the ones the change is still to be made
+on, keeping a song whenever it can't tell (and a whole batch it can't answer). The number is
+counted from those, in album order, and the note says how many are left for asking again. Before
+this the number was dropped and all 1,120 Genshin songs were looked up for "up to 300".
+
 **Names from the catalogues.** The router's `lookUp` says when the new names must come from
 outside the library ("official Chinese names", an album's real name). Then each song is looked
 up first (`names.ts`): 网易云's search (`cloudsearch/pc`; its names are the publisher's, often in

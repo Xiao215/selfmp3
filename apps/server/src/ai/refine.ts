@@ -1,6 +1,7 @@
 import type { DescribeResult, RefineRequest } from '@selfmp3/shared'
 import {
   DEFAULT_SIZE,
+  MAX_PICKS,
   FILTERS_GUIDE,
   PlanOut,
   groundPlan,
@@ -74,7 +75,7 @@ export async function refine(
   const duration = new Map(songs.map(song => [song.id, song.duration]))
   const stillFit = sameTaste ? request.shown.filter(id => fitting.has(id)) : []
   const target = understanding.minutes === null ? null : understanding.minutes * 60
-  const size = understanding.size ?? DEFAULT_SIZE
+  const size = Math.min(MAX_PICKS, understanding.size ?? DEFAULT_SIZE)
   const kept: number[] = []
   let keptSeconds = 0
   for (const id of stillFit) {

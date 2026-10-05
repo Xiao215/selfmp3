@@ -276,6 +276,30 @@ describe('ask', () => {
     expect(d.llm.asked.map(each => each.task)).toEqual(['ask-route', 'tidy-asked'])
   })
 
+  it('changes no more songs than the number they gave', async () => {
+    const tidyRoute = (size: number) =>
+      route({
+        action: 'tidy',
+        tidy: { checkup: false, lookUp: false },
+        filters: { ...noFilters, anyTags: ['原神纯音乐'], size },
+      })
+    const d = deps({
+      'ask-route': [tidyRoute(2), tidyRoute(300)],
+      'tidy-sort': [{ n: [1, 2, 3] }],
+      'tidy-asked': [{ edits: [] }, { edits: [] }],
+    })
+    const answer = await ask(d, '原神纯音乐英文的歌名换成官方中文名，先换2首')
+    if (answer.kind !== 'tidy') throw new Error(`not tidy: ${answer.kind}`)
+    expect(answer.tidy).toMatchObject({
+      looked: 2,
+      note: 'Changing the first 2 of the 3 songs that need it; ask again for the rest.',
+    })
+    expect(d.llm.asked.map(each => each.task)).toEqual(['ask-route', 'tidy-sort', 'tidy-asked'])
+    // More than a playlist's 200 is a number too; with fewer songs than that, nothing is sorted.
+    const all = await ask(d, '原神纯音乐英文的歌名换成官方中文名，先换300首')
+    expect(all).toMatchObject({ kind: 'tidy', tidy: { looked: 3, note: null } })
+  })
+
   it('reads a follow-up together with what was said before it', async () => {
     const d = deps({
       'ask-route': [route({ action: 'tidy', tidy: { checkup: false, lookUp: false } })],

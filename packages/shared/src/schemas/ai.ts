@@ -51,7 +51,7 @@ export const UnderstandingSchema = z.object({
   notPlayedWithinDays: z.number().int().min(1).max(3650).nullable(),
   addedWithinDays: z.number().int().min(1).max(3650).nullable(),
   /** How many songs were asked for, when the words said. */
-  size: z.number().int().min(1).max(200).nullable(),
+  size: z.number().int().min(1).max(2000).nullable(),
   /**
    * How long it should play, in minutes, when the words said ("2 hours" is
    * 120). The songs are counted by their own lengths, not an average song's.

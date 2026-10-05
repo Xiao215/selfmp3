@@ -26,7 +26,7 @@ import { NO_STEPS, type Steps } from './progress.js'
 export const DEFAULT_SIZE = 25
 
 /** The most songs one answer holds: a long length of short pieces stops here. */
-const MAX_PICKS = 200
+export const MAX_PICKS = 200
 
 /** "1 hr 58 min", "40 min": a length the way the app writes one. */
 function lengthWords(seconds: number): string {
@@ -61,7 +61,7 @@ export const PlanOut = z.object({
   playedWithinDays: z.number().int().min(1).max(3650).nullable(),
   notPlayedWithinDays: z.number().int().min(1).max(3650).nullable(),
   addedWithinDays: z.number().int().min(1).max(3650).nullable(),
-  size: z.number().int().min(1).max(200).nullable(),
+  size: z.number().int().min(1).max(2000).nullable(),
   minutes: z.number().int().min(1).max(1440).nullable(),
   brief: z.string().max(200).nullable(),
 })
@@ -394,7 +394,7 @@ export async function narrowAndPick(
   const size =
     target !== null && average > 0
       ? Math.min(MAX_PICKS, Math.max(1, Math.ceil(target / average)))
-      : (understanding.size ?? DEFAULT_SIZE)
+      : Math.min(MAX_PICKS, understanding.size ?? DEFAULT_SIZE)
 
   /** One round of the model choosing `count` of `candidates`. */
   const pickFrom = async (candidates: readonly Song[], count: number): Promise<DescribePick[]> => {

@@ -159,6 +159,64 @@ describe('tidy, asked for something', () => {
       }),
     ).rejects.toBeInstanceOf(LlmError)
   })
+
+  it('changes no more songs than they said, taken from the ones that still need it', async () => {
+    const llm = scriptedLlm({
+      'tidy-sort': [{ n: [1, 3, 5] }],
+      'tidy-asked': [
+        { edits: [{ n: 2, field: 'title', to: '第三首', why: 'Official Chinese name' }] },
+      ],
+    })
+    const result = await tidy({ llm, songs: () => [] }, undefined, {
+      text: 'give the English ones their Chinese names, up to 2',
+      songs: many,
+      unknown: [],
+      lookUp: false,
+      limit: 2,
+    })
+    expect(llm.asked.map(each => each.task)).toEqual(['tidy-sort', 'tidy-asked'])
+    expect(llm.asked[0]!.tier).toBe('fast')
+    const table = llm.asked[1]!.prompt
+    expect(table).toContain('1 | Track 1 |')
+    expect(table).toContain('2 | Track 3 |')
+    expect(table).not.toContain('Track 5')
+    expect(result.changes).toEqual([
+      expect.objectContaining({ from: 'Track 3', to: '第三首', songIds: [3] }),
+    ])
+    expect(result.looked).toBe(2)
+    expect(result.note).toBe(
+      'Changing the first 2 of the 3 songs that need it; ask again for the rest.',
+    )
+  })
+
+  it('keeps every song of a batch it could not sort', async () => {
+    const llm = scriptedLlm({
+      'tidy-sort': [new LlmError('busy', 'slow down')],
+      'tidy-asked': [{ edits: [] }],
+    })
+    const result = await tidy({ llm, songs: () => [] }, undefined, {
+      text,
+      songs: many.slice(0, 3),
+      unknown: [],
+      lookUp: false,
+      limit: 2,
+    })
+    expect(llm.asked[1]!.prompt).toContain('2 | Track 2 |')
+    expect(result.note).toMatch(/^Changing the first 2 of the 3 songs/)
+  })
+
+  it('stops before the model when no song needs it', async () => {
+    const llm = scriptedLlm({ 'tidy-sort': [{ n: [] }] })
+    const result = await tidy({ llm, songs: () => [] }, undefined, {
+      text,
+      songs: many,
+      unknown: [],
+      lookUp: false,
+      limit: 10,
+    })
+    expect(result).toMatchObject({ changes: [], looked: 61, note: null })
+    expect(llm.asked.map(each => each.task)).toEqual(['tidy-sort'])
+  })
 })
 
 describe('tidy, with names looked up', () => {
@@ -240,6 +298,31 @@ describe('tidy, with names looked up', () => {
     expect(result.note).toMatch(/the web was searched instead/)
     expect(llm.asked.map(each => each.task)).toEqual(['tidy-web'])
     expect(llm.asked[0]!.webSearch).toBe(true)
+  })
+
+  it('looks up only the songs that still need it, when there are many', async () => {
+    const many = Array.from({ length: 61 }, (_, index) =>
+      song(index + 1, {
+        title: index === 1 ? 'Wordless Cliffs' : `第${index + 1}首`,
+        album: 'OST',
+      }),
+    )
+    const looked: number[] = []
+    const llm = scriptedLlm({ 'tidy-sort': [{ n: [2] }] })
+    const result = await tidy(
+      {
+        llm,
+        songs: () => [],
+        findNames: async each => {
+          looked.push(each.id)
+          return []
+        },
+      },
+      undefined,
+      { text: '英文的换成官方中文名', songs: many, unknown: [], lookUp: true },
+    )
+    expect(looked).toEqual([2])
+    expect(result.looked).toBe(61)
   })
 
   it('asks the model nothing when no song was found', async () => {

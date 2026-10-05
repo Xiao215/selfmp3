@@ -13,7 +13,7 @@ import {
   type Playlist,
 } from '@selfmp3/shared'
 import { HttpError } from '../http/errors.js'
-import { alreadyHave, normaliseUrl, sourceUrlIndex } from './alreadyHave.js'
+import { alreadyHave, libraryIndex, normaliseUrl } from './alreadyHave.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
 import type { CloudRepository } from '../repositories/cloud.js'
@@ -114,8 +114,7 @@ export async function buildImportPreview(deps: PreviewDeps, text: string): Promi
    * differ by one character are two different songs to an exact comparison.
    * `alreadyHave` knows the link, the fuzzy name and the length instead.
    */
-  const library = deps.songs.all()
-  const knownLinks = sourceUrlIndex(library)
+  const library = libraryIndex(deps.songs.all())
   const waiting = waitingToUpload(deps)
   const queued = inQueue(deps)
 
@@ -134,7 +133,7 @@ export async function buildImportPreview(deps: PreviewDeps, text: string): Promi
     for (const track of probed.tracks) {
       items.push({
         ...track,
-        ...have(alreadyHave(track, library, knownLinks), waiting),
+        ...have(alreadyHave(track, library), waiting),
         inQueue: queued(track.url),
       })
     }
@@ -155,8 +154,7 @@ function previewList(deps: PreviewDeps, text: string): ImportPreview {
       'that does not look like a link or a list of songs. Paste a link, or one song per line.',
     )
   }
-  const library = deps.songs.all()
-  const knownLinks = sourceUrlIndex(library)
+  const library = libraryIndex(deps.songs.all())
   const waiting = waitingToUpload(deps)
   return {
     kind: list.tracks.length === 1 ? 'single' : 'playlist',
@@ -164,7 +162,7 @@ function previewList(deps: PreviewDeps, text: string): ImportPreview {
     from: 'list',
     items: list.tracks.map(track => ({
       ...byName(track),
-      ...have(alreadyHave(track, library, knownLinks), waiting),
+      ...have(alreadyHave(track, library), waiting),
       inQueue: false,
     })),
   }

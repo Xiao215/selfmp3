@@ -78,16 +78,48 @@ export function similarity(a: string, b: string): number {
   const longest = Math.max(x.length, y.length)
   const edit = 1 - editDistance(x, y, longest) / longest
 
-  const tokensA = new Set(x.split(' '))
-  const tokensB = new Set(y.split(' '))
+  return Math.max(edit, overlap(new Set(x.split(' ')), new Set(y.split(' '))))
+}
+
+/** Text folded for `similarAtLeast` once, rather than once per comparison. */
+export interface Folded {
+  readonly text: string
+  readonly words: ReadonlySet<string>
+}
+
+export function foldForMatch(raw: string): Folded {
+  const text = normalizeForMatch(raw)
+  return { text, words: new Set(text.split(' ')) }
+}
+
+/**
+ * `similarity(a, b) >= threshold`, the same answer, cheaply.
+ *
+ * The full edit distance is most of `similarity`'s cost, and a duplicate check
+ * asks it of every song in the library for every song pasted: 50 against
+ * 1,400 took 300 ms, all of it on the one thread every request waits on. Asked
+ * only whether a threshold is reached, the word overlap answers first when it
+ * can, and the edit distance stops as soon as it is too far to reach it.
+ */
+export function similarAtLeast(a: Folded, b: Folded, threshold: number): boolean {
+  if (!a.text || !b.text) return threshold <= 0
+  if (a.text === b.text) return true
+  if (overlap(a.words, b.words) >= threshold) return true
+  const longest = Math.max(a.text.length, b.text.length)
+  // Any distance past this one fails, so the count can stop there.
+  const allowed = Math.ceil((1 - threshold) * longest)
+  return 1 - editDistance(a.text, b.text, allowed) / longest >= threshold
+}
+
+/** The word half of `similarity`. */
+function overlap(wordsA: ReadonlySet<string>, wordsB: ReadonlySet<string>): number {
   let shared = 0
-  for (const token of tokensA) if (tokensB.has(token)) shared++
+  for (const word of wordsA) if (wordsB.has(word)) shared++
   // Containment rather than Jaccard: "get lucky" inside "daft punk get lucky
   // official audio" is a match, and the extra words are handled elsewhere.
-  const containment = shared / Math.min(tokensA.size, tokensB.size)
-  const jaccard = shared / (tokensA.size + tokensB.size - shared)
-
-  return Math.max(edit, containment * 0.85 + jaccard * 0.15)
+  const containment = shared / Math.min(wordsA.size, wordsB.size)
+  const jaccard = shared / (wordsA.size + wordsB.size - shared)
+  return containment * 0.85 + jaccard * 0.15
 }
 
 /** Words that mean "this is not the studio recording". */

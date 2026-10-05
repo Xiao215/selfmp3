@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   bestMatch,
   durationScore,
+  foldForMatch,
   normalizeForMatch,
   scoreHit,
   searchQuery,
+  similarAtLeast,
   similarity,
   YouTubeMatcher,
 } from './youtubeMatch.js'
@@ -37,6 +39,36 @@ describe('normalizeForMatch / similarity', () => {
     expect(similarity('Get Lucky', 'Daft Punk Get Lucky Official Audio')).toBeGreaterThan(0.8)
     expect(similarity('Get Lucky', 'Around the World')).toBeLessThan(0.4)
     expect(similarity('', 'x')).toBe(0)
+  })
+
+  it('answers a threshold exactly as the full score would', () => {
+    // The duplicate check's shortcut: the same yes and no, near each cutoff.
+    const texts = [
+      'Get Lucky',
+      'Get Lucky (Live)',
+      'Get Luckey',
+      'Daft Punk Get Lucky Official Audio',
+      'Around the World',
+      'YOASOBI',
+      'YOASOBI - Topic',
+      'ずっと真夜中でいいのに。 ZUTOMAYO',
+      'ZUTOMAYO',
+      '周杰倫',
+      '周杰伦 Jay Chou',
+      '晴天',
+      '我不曾忘记',
+      '忘我',
+      '',
+    ]
+    for (const a of texts) {
+      for (const b of texts) {
+        for (const threshold of [0.75, 0.9]) {
+          expect(similarAtLeast(foldForMatch(a), foldForMatch(b), threshold), `${a} / ${b}`).toBe(
+            similarity(a, b) >= threshold,
+          )
+        }
+      }
+    }
   })
 })
 

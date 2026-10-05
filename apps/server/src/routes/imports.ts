@@ -33,7 +33,7 @@ import {
   resolveImportPlaylist,
   waitingToUpload,
 } from '../services/importPreview.js'
-import { alreadyHave, normaliseUrl, sourceUrlIndex } from '../services/alreadyHave.js'
+import { alreadyHave, libraryIndex, normaliseUrl } from '../services/alreadyHave.js'
 import { importRun } from '../services/importRun.js'
 import { isCoverUrl } from '../services/previewCoverTone.js'
 
@@ -141,13 +141,10 @@ export function importRoutes(container: Container): Router {
   router.post(
     '/import/already-have',
     route({ body: AlreadyHaveRequestSchema }, ({ body }): AlreadyHaveResponse => {
-      const library = container.songs.all()
-      const knownLinks = sourceUrlIndex(library)
+      const library = libraryIndex(container.songs.all())
       const waiting = waitingToUpload(container)
       const queued = inQueue(container)
-      const answers = body.tracks.map(track =>
-        have(alreadyHave(track, library, knownLinks), waiting),
-      )
+      const answers = body.tracks.map(track => have(alreadyHave(track, library), waiting))
       return {
         have: answers.map(answer => answer.alreadyHave),
         waiting: answers.map(answer => answer.waitingToUpload),

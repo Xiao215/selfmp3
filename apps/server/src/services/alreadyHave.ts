@@ -1,5 +1,5 @@
 import { cleanArtist, cleanTitle, neteaseLink } from '@selfmp3/shared'
-import { similarity } from './youtubeMatch.js'
+import { foldForMatch, similarAtLeast, type Folded } from './youtubeMatch.js'
 
 /**
  * Is this track already in the library?
@@ -60,19 +60,33 @@ const ARTIST = 0.75
 const SECONDS = 6
 
 /**
- * The library's source links, each with its song, for the exact half of the
- * check.
+ * The library made ready to be compared with: each song's source link, and
+ * its cleaned title and artist folded for matching.
  *
- * A map rather than a scan: the preview asks this once per track and a library
- * is thousands of rows.
+ * Made once per request rather than per track: a preview or a review asks
+ * about every one of its songs, a library is thousands of rows, and cleaning
+ * and folding each row again for each song asked about was a good part of the
+ * cost.
  */
-export function sourceUrlIndex<T extends LibrarySong>(songs: readonly T[]): ReadonlyMap<string, T> {
+interface LibraryIndex<T extends LibrarySong> {
+  readonly urls: ReadonlyMap<string, T>
+  readonly songs: readonly { song: T; title: Folded; artist: Folded | null }[]
+}
+
+export function libraryIndex<T extends LibrarySong>(songs: readonly T[]): LibraryIndex<T> {
   const urls = new Map<string, T>()
   for (const song of songs) {
     const url = normaliseUrl(song.sourceUrl)
     if (url && !urls.has(url)) urls.set(url, song)
   }
-  return urls
+  return {
+    urls,
+    songs: songs.map(song => ({
+      song,
+      title: foldForMatch(cleanTitle(song.title)),
+      artist: song.artist.trim() ? foldForMatch(cleanArtist(song.artist)) : null,
+    })),
+  }
 }
 
 /**
@@ -98,26 +112,26 @@ export function normaliseUrl(raw: string | null | undefined): string | null {
  */
 export function alreadyHave<T extends LibrarySong>(
   track: IncomingTrack,
-  songs: readonly T[],
-  urls: ReadonlyMap<string, T> = sourceUrlIndex(songs),
+  library: LibraryIndex<T>,
 ): T | null {
   const url = normaliseUrl(track.url)
-  const linked = url ? urls.get(url) : undefined
+  const linked = url ? library.urls.get(url) : undefined
   if (linked) return linked
 
-  const title = cleanTitle(track.title)
-  if (!title.trim()) return null
-  const artist = cleanArtist(track.artist)
+  const cleaned = cleanTitle(track.title)
+  if (!cleaned.trim()) return null
+  const title = foldForMatch(cleaned)
+  const cleanedArtist = cleanArtist(track.artist)
+  const artist = cleanedArtist.trim() ? foldForMatch(cleanedArtist) : null
 
-  for (const song of songs) {
-    if (similarity(title, cleanTitle(song.title)) < TITLE) continue
+  for (const song of library.songs) {
+    // The length first: it is the cheapest of the three.
+    if (!withinLength(track.duration, song.song.duration)) continue
+    if (!similarAtLeast(title, song.title, TITLE)) continue
     // One side with no artist at all cannot disagree about it; a title that
     // close is enough on its own.
-    if (artist.trim() && song.artist.trim()) {
-      if (similarity(artist, cleanArtist(song.artist)) < ARTIST) continue
-    }
-    if (!withinLength(track.duration, song.duration)) continue
-    return song
+    if (artist && song.artist && !similarAtLeast(artist, song.artist, ARTIST)) continue
+    return song.song
   }
   return null
 }

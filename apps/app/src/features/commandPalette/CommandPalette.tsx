@@ -42,6 +42,7 @@ import { floating, label as labelText } from '../../ui/surfaces'
 import { AskAnswer } from '../smart/AskAnswer'
 import type { AnswerKeys } from '../smart/answerKeys'
 import { askable } from '../smart/smart.model'
+import { StopButton } from '../smart/StopButton'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { noteTagUsed } from '../library/recentTags.store'
 import { lyricsQueryFor } from '../search/search.model'
@@ -106,6 +107,12 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   /** An answer is on its way: the question stays as asked until it lands (Escape still backs out). */
   const [thinking, setThinking] = useState(false)
   const locked = asking !== null && thinking
+  const input = useRef<TextInput>(null)
+  /** Stop (or Escape) while it thinks: back to the results, the question there to change. */
+  const stop = (): void => {
+    setAsking(null)
+    input.current?.focus()
+  }
   // Escape from an answer goes back to the results; from the results, closes.
   useEscape(true, () => (asking === null ? onClose() : setAsking(null)), { layer: true })
 
@@ -517,6 +524,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         <View style={styles.inputRow}>
           <Search size={18} color={theme.colors.textMuted} />
           <TextInput
+            ref={input}
             autoFocus
             value={query}
             editable={!locked}
@@ -561,7 +569,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
             aria-label="Search songs, playlists and tags, or type a command"
             style={styles.input}
           />
-          {trimmed && asking === null ? (
+          {locked ? (
+            <StopButton onPress={stop} testID="ask-stop" />
+          ) : trimmed && asking === null ? (
             <Text style={styles.count} accessibilityLiveRegion="polite">
               {rows.length} {rows.length === 1 ? 'result' : 'results'}
             </Text>
@@ -625,7 +635,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
               </Text>
             ) : null}
             <Text style={styles.footText}>
-              <Text style={styles.kbd}> esc </Text> {asking === null ? 'close' : 'back to results'}
+              <Text style={styles.kbd}> esc </Text>{' '}
+              {asking === null ? 'close' : locked ? 'stop' : 'back to results'}
             </Text>
           </View>
         ) : null}

@@ -89,6 +89,16 @@ export const Pause = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNod
   )
 }
 
+/** Stops something being worked on: a filled square, the way a chat's send button turns while it answers. */
+export const Stop = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
+  const color = useInk(colorGiven, tone)
+  return (
+    <Icon color={color} {...rest}>
+      <Rect x="6" y="6" width="12" height="12" rx="2.5" fill={color} stroke="none" />
+    </Icon>
+  )
+}
+
 export const Next = ({ color: colorGiven, tone, ...rest }: IconProps): ReactNode => {
   const color = useInk(colorGiven, tone)
   return (

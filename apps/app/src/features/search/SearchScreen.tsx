@@ -27,6 +27,7 @@ import { artistLink, tagLink } from '../tag/placeLinks'
 import { noteTagUsed } from '../library/recentTags.store'
 import { AskAnswer } from '../smart/AskAnswer'
 import { askable } from '../smart/smart.model'
+import { StopButton } from '../smart/StopButton'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
 import {
   ALL_LIMITS,
@@ -128,7 +129,9 @@ export function SearchScreen(): ReactNode {
               testID="search-field"
               style={styles.input}
             />
-            {query && !locked ? (
+            {locked ? (
+              <StopButton onPress={() => setAsking(null)} size={26} testID="ask-stop" />
+            ) : query ? (
               <Pressable
                 onPress={() => setQuery('')}
                 hitSlop={10}

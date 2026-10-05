@@ -58,6 +58,32 @@ describe('openAiCompatible', () => {
     })
   })
 
+  it('stops when nobody waits: the call in flight is dropped, and none is made after', async () => {
+    const waiting = new AbortController()
+    let seen: AbortSignal | undefined
+    // A model that answers only when its call is aborted, the way a slow one hangs.
+    const fetch = (_url: string, init?: RequestInit): Promise<Response> => {
+      seen = init?.signal ?? undefined
+      return new Promise((_resolve, reject) =>
+        seen!.addEventListener('abort', () => reject(new Error('aborted'))),
+      )
+    }
+    const llm = openAiCompatible(settings, { fetch, logger })
+    const asked = llm.generate({ ...request, signal: waiting.signal })
+    waiting.abort()
+    await expect(asked).rejects.toMatchObject({ kind: 'stopped' })
+    expect(seen?.aborted).toBe(true)
+
+    const { fetch: never, calls } = fakeFetch()
+    await expect(
+      openAiCompatible(settings, { fetch: never, logger }).generate({
+        ...request,
+        signal: waiting.signal,
+      }),
+    ).rejects.toMatchObject({ kind: 'stopped' })
+    expect(calls).toHaveLength(0)
+  })
+
   it('reads a reply wrapped in a code fence', async () => {
     const { fetch } = fakeFetch(reply('```json\n{"n": 1, "why": "x"}\n```'))
     const { value } = await openAiCompatible(settings, { fetch, logger }).generate(request)

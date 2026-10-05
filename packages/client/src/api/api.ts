@@ -89,7 +89,7 @@ import {
 import { CloudRouteError } from '@selfmp3/replica'
 
 import { ApiError } from './error.js'
-import type { ApiContext, ClientFetch, CloudRequest } from '../platform.js'
+import type { ApiContext, ClientFetch, ClientSignal, CloudRequest } from '../platform.js'
 
 const ErrorResponseSchema = z.object({
   error: z.string(),
@@ -176,6 +176,8 @@ export function createApi({ context, fetch }: ApiOptions) {
     path: string,
     schema: S,
     body?: unknown,
+    /** Drops the request: whoever was waiting for it has stopped. */
+    signal?: ClientSignal,
   ): Promise<z.output<S>> {
     const { transport, fromCloud, cloudRequest } = context()
 
@@ -197,8 +199,11 @@ export function createApi({ context, fetch }: ApiOptions) {
           ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
         },
         body: body === undefined ? undefined : JSON.stringify(body),
+        signal,
       })
     } catch (error) {
+      // Stopped on purpose, not a server gone quiet.
+      if (signal?.aborted) throw error
       // A network-level failure is almost always "the server is asleep" rather
       // than a bug, so it gets its own status the UI can recognise. The phone's
       // own fetch turns its fifteen-second timeout into exactly this.
@@ -338,13 +343,16 @@ export function createApi({ context, fetch }: ApiOptions) {
     }) => request('POST', '/api/ai/describe', DescribeResultSchema, input),
 
     /** An answer changed after it was given (`RefineRequest`). */
-    refineAnswer: (input: {
-      text: string
-      understanding: Understanding
-      change: string
-      shown: readonly number[]
-      ticket?: string
-    }) => request('POST', '/api/ai/refine', DescribeResultSchema, input),
+    refineAnswer: (
+      input: {
+        text: string
+        understanding: Understanding
+        change: string
+        shown: readonly number[]
+        ticket?: string
+      },
+      signal?: ClientSignal,
+    ) => request('POST', '/api/ai/refine', DescribeResultSchema, input, signal),
 
     /** The Search box's Ask: one request, routed to one thing the app can do. */
     ask: (
@@ -353,7 +361,8 @@ export function createApi({ context, fetch }: ApiOptions) {
       ticket?: string,
       /** What was said before, when this follows up on an answer. */
       before: readonly string[] = [],
-    ) => request('POST', '/api/ai/ask', AskAnswerSchema, { text, playing, ticket, before }),
+      signal?: ClientSignal,
+    ) => request('POST', '/api/ai/ask', AskAnswerSchema, { text, playing, ticket, before }, signal),
 
     /** How an Ask named by `ticket` is going, while its answer is on the way. */
     askProgress: (ticket: string) =>

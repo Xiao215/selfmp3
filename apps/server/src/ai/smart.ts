@@ -22,22 +22,32 @@ import type { AskPlaylist } from './askLibrary.js'
 import { AskProgress, type Step } from './progress.js'
 import { describe, type DescribeInput } from './describe.js'
 import { refine } from './refine.js'
-import { LlmError, llmFailureWords, noLlm, openAiCompatible, Remembered, type Llm } from './llm.js'
+import {
+  LlmError,
+  llmFailureWords,
+  noLlm,
+  openAiCompatible,
+  Remembered,
+  type GenerateRequest,
+  type Llm,
+} from './llm.js'
 import type { FindNames } from './names.js'
 import { tidy } from './tidy.js'
 import { written } from './written.js'
 import { tagReview } from './tagReview.js'
+
+type SmartDeps = AskDeps & {
+  remembered: Remembered
+  setup: AiSetup
+  wrapped: (range: WrappedRange) => Wrapped
+}
 
 /**
  * The smart features as the rest of the server sees them: one object, built
  * once in the container, with the model behind it chosen by configuration.
  */
 export class SmartFeatures {
-  readonly #deps: AskDeps & {
-    remembered: Remembered
-    setup: AiSetup
-    wrapped: (range: WrappedRange) => Wrapped
-  }
+  readonly #deps: SmartDeps
   readonly #progress = new AskProgress()
   /** One pass over the untagged songs at a time: a second press joins the first. */
   #untagged: Promise<TagReview> | null = null
@@ -70,13 +80,31 @@ export class SmartFeatures {
     allowed: { tidy: boolean; tags: boolean } = { tidy: true, tags: true },
     ticket?: string,
     before: readonly string[] = [],
+    signal?: AbortSignal,
   ): Promise<AskAnswer> {
-    return ask(this.#deps, text, playing, allowed, this.#progress.track(ticket), before)
+    return ask(
+      this.#stoppedBy(signal),
+      text,
+      playing,
+      allowed,
+      this.#progress.track(ticket),
+      before,
+    )
   }
 
   /** An answer changed after it was given (`refine.ts`). */
-  refine(request: RefineRequest): Promise<DescribeResult> {
-    return refine(this.#deps, request, this.#progress.track(request.ticket))
+  refine(request: RefineRequest, signal?: AbortSignal): Promise<DescribeResult> {
+    return refine(this.#stoppedBy(signal), request, this.#progress.track(request.ticket))
+  }
+
+  /** The model, for one answer: no more calls once nobody waits for it. */
+  #stoppedBy(signal: AbortSignal | undefined): SmartDeps {
+    if (!signal) return this.#deps
+    const { llm } = this.#deps
+    return {
+      ...this.#deps,
+      llm: { generate: <T>(request: GenerateRequest<T>) => llm.generate({ ...request, signal }) },
+    }
   }
 
   /** How the Ask a ticket names is going (`progress.ts`). */
@@ -105,7 +133,8 @@ export class SmartFeatures {
       })
       return { ok: true, model: this.#deps.setup.models.fast, ms }
     } catch (caught) {
-      if (!(caught instanceof LlmError)) throw caught
+      // Nothing stops a check: it has no signal.
+      if (!(caught instanceof LlmError) || caught.kind === 'stopped') throw caught
       return {
         ok: false,
         failure: caught.kind,

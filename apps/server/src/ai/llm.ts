@@ -54,6 +54,8 @@ export interface GenerateRequest<T> {
   readonly maxRounds?: number
   /** Let the model search and read the web itself for this call. */
   readonly webSearch?: boolean
+  /** Aborted once nobody waits for the answer: the call in flight is dropped, and no more are made. */
+  readonly signal?: AbortSignal
 }
 
 /** Something the model may call: its arguments are checked against `parameters` before `run`. */
@@ -93,8 +95,9 @@ export interface Llm {
  * `off`: nothing is set up. `unreachable`: the endpoint did not answer.
  * `busy`: it answered with a rate or usage limit. `refused`: the key was not
  * accepted. `invalid`: it answered, twice, with something the schema rejects.
+ * `stopped`: whoever asked stopped waiting.
  */
-type LlmFailure = 'off' | 'unreachable' | 'busy' | 'refused' | 'invalid'
+type LlmFailure = 'off' | 'unreachable' | 'busy' | 'refused' | 'invalid' | 'stopped'
 
 export class LlmError extends Error {
   readonly kind: LlmFailure
@@ -112,6 +115,7 @@ export const llmFailureWords: Readonly<Record<LlmFailure, string>> = {
   unreachable: 'Your server couldn’t reach the model.',
   refused: 'The model’s endpoint refused your server’s key.',
   invalid: 'The model’s answer didn’t make sense. Try again.',
+  stopped: 'Stopped.',
 }
 
 type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
@@ -190,6 +194,10 @@ function issuesOf(error: z.ZodError): string {
     .join('; ')
 }
 
+function stopped(task: string): LlmError {
+  return new LlmError('stopped', `Nobody is waiting for ${task} any more`)
+}
+
 export function openAiCompatible(
   settings: LlmSettings,
   deps: { readonly fetch?: FetchLike; readonly logger: Logger },
@@ -205,7 +213,9 @@ export function openAiCompatible(
     schema: Record<string, unknown>,
     timeoutMs: number,
     offer: { tools: readonly LlmTool[]; callable: boolean; webSearch: boolean },
+    stop: AbortSignal | undefined,
   ): Promise<{ content: string; calls: ToolCall[] }> {
+    if (stop?.aborted) throw stopped(task)
     let response: Response
     try {
       response = await fetchImpl(url, {
@@ -236,9 +246,12 @@ export function openAiCompatible(
             : {}),
           ...(offer.webSearch ? { web_search_options: {} } : {}),
         }),
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: stop
+          ? AbortSignal.any([AbortSignal.timeout(timeoutMs), stop])
+          : AbortSignal.timeout(timeoutMs),
       })
     } catch (caught) {
+      if (stop?.aborted) throw stopped(task)
       throw new LlmError(
         'unreachable',
         `The model at ${settings.baseUrl} did not answer: ${caught instanceof Error ? caught.message : String(caught)}`,
@@ -284,6 +297,7 @@ export function openAiCompatible(
             schema,
             request.timeoutMs ?? settings.timeoutMs,
             { tools, callable: rounds < maxRounds, webSearch: request.webSearch === true },
+            request.signal,
           )
           if (reply.calls.length === 0 || rounds >= maxRounds) {
             text = reply.content

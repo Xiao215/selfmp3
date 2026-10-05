@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, type Response } from 'express'
 import { z } from 'zod'
 import {
   type AiCheck,
@@ -61,11 +61,18 @@ export function aiRoutes(container: Container): Router {
 
   router.post(
     '/ai/ask',
-    route({ body: AskRequestSchema }, ({ body }): Promise<AskAnswer> => {
+    route({ body: AskRequestSchema }, ({ body, res }): Promise<AskAnswer> => {
       allowed('smartAsk')
       const { smartTidy: tidy, smartTags: tags } = container.settings.get()
       return answering(
-        container.smart.ask(body.text, body.playing, { tidy, tags }, body.ticket, body.before),
+        container.smart.ask(
+          body.text,
+          body.playing,
+          { tidy, tags },
+          body.ticket,
+          body.before,
+          whileWaited(res),
+        ),
       )
     }),
   )
@@ -73,9 +80,9 @@ export function aiRoutes(container: Container): Router {
   /** An answer changed after it was given: "10 首", "calmer". */
   router.post(
     '/ai/refine',
-    route({ body: RefineRequestSchema }, ({ body }): Promise<DescribeResult> => {
+    route({ body: RefineRequestSchema }, ({ body, res }): Promise<DescribeResult> => {
       allowed('smartAsk')
-      return answering(container.smart.refine(body))
+      return answering(container.smart.refine(body, whileWaited(res)))
     }),
   )
 
@@ -128,9 +135,23 @@ const FAILURE_STATUS: Readonly<Record<LlmError['kind'], number>> = {
   unreachable: 502,
   refused: 502,
   invalid: 502,
+  // Nobody hears it: the device hung up.
+  stopped: 499,
 }
 
 /** A model that could not answer, said the way a screen can show it. */
+/**
+ * Aborted when the device stops waiting for the answer: Stop pressed, the box
+ * closed, the page gone. The model is asked no more for it.
+ */
+function whileWaited(res: Response): AbortSignal {
+  const waiting = new AbortController()
+  res.on('close', () => {
+    if (!res.writableFinished) waiting.abort()
+  })
+  return waiting.signal
+}
+
 async function answering<T>(work: Promise<T>): Promise<T> {
   try {
     return await work

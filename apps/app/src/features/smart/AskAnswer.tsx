@@ -86,7 +86,9 @@ export function AskAnswer({
   const ticket = useMemo(() => newTicket(), [text, saidSoFar])
   const answer = useQuery({
     queryKey: ['via-server', via, 'ai', 'ask', text, playing, asked],
-    queryFn: () => server.api!.ask(latest, playing, ticket, before),
+    // Read, so React Query drops the request when nobody watches it any more:
+    // Stop, Escape, the box closed. The server stops asking the model with it.
+    queryFn: ({ signal }) => server.api!.ask(latest, playing, ticket, before, signal),
     enabled: server.api !== null,
     retry: false,
     staleTime: 10 * 60_000,
@@ -106,6 +108,11 @@ export function AskAnswer({
     if (!words || following || !server.api) return
     setThread({ text, said: [...asked, words], at: at + 1 })
     setDraft('')
+  }
+  // Back to the answer it was following up on, with its words to change.
+  const stopFollowUp = (): void => {
+    setThread({ text, said: asked.slice(0, -1), at: at - 1 })
+    setDraft(latest)
   }
   // The question, then each follow-up; pressing one shows its answer again.
   const trail =
@@ -175,6 +182,7 @@ export function AskAnswer({
             value={draft}
             onChangeText={setDraft}
             onSend={followUp}
+            onStop={stopFollowUp}
             working={following}
             doing={running?.text ?? 'Reading what you said'}
             words={latest}

@@ -22,6 +22,7 @@ import {
   createMediaUrl,
   serverTransport,
   type ApiTransport,
+  type ClientRequestInit,
   type ServerConnection,
 } from '@selfmp3/client'
 
@@ -90,20 +91,22 @@ const transport = (): ApiTransport | null =>
  * `ApiError` with status 0 — the same "offline" the UI already knows how to
  * show for an unreachable server, which is exactly what a timeout means here.
  */
-const fetchWithin =
-  (timeoutMs: number) =>
-  async (
-    url: string,
-    init?: { method?: string; headers?: Record<string, string>; body?: string },
-  ) => {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), timeoutMs)
-    try {
-      return await fetch(url, { ...init, signal: controller.signal })
-    } finally {
-      clearTimeout(timer)
-    }
+const fetchWithin = (timeoutMs: number) => async (url: string, init?: ClientRequestInit) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  // The caller's own stop (Stop pressed, nobody watching) aborts it too.
+  // Joined by hand: Hermes has no AbortSignal.any.
+  const given = init?.signal as AbortSignal | undefined
+  const stop = (): void => controller.abort()
+  if (given?.aborted) stop()
+  given?.addEventListener('abort', stop)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+    given?.removeEventListener('abort', stop)
   }
+}
 
 const fetchWithTimeout = fetchWithin(REQUEST_TIMEOUT_MS)
 

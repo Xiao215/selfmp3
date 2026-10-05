@@ -66,7 +66,8 @@ export function createCloud(store: KeyValueStore, fetchImpl: typeof fetch): Clou
       cloudRequest,
       onCloudLibraryChanged: library.onCloudLibraryChanged,
     }),
-    fetch: (url, init) => fetchImpl(url, init),
+    // The signal, when there is one, is the browser's own: `ClientSignal` is as much of it as the package names.
+    fetch: (url, init) => fetchImpl(url, init as RequestInit | undefined),
   })
 
   return {

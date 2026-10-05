@@ -32,10 +32,20 @@ export interface ClientResponse {
   json(): Promise<unknown>
 }
 
+/**
+ * As much of an `AbortSignal` as this package names: the caller's own (React
+ * Query's, a Stop button's), handed through to the platform's fetch, which
+ * aborts with it.
+ */
+export interface ClientSignal {
+  readonly aborted: boolean
+}
+
 export interface ClientRequestInit {
   method?: string
   headers?: Record<string, string>
   body?: string
+  signal?: ClientSignal
 }
 
 export type ClientFetch = (url: string, init?: ClientRequestInit) => Promise<ClientResponse>

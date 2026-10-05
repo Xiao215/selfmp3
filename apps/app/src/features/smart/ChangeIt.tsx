@@ -7,6 +7,7 @@ import { failureText, motion, radius, space } from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
 import { ChevronRight, Sparkle } from '../../ui/components/Icons'
 import { useArrival, useFade } from '../../ui/motion'
+import { StopButton } from './StopButton'
 import { changeAnswer, showAnswerStep, useKeptAnswer } from './answers.store'
 import { newTicket, useAskProgress } from './useAskProgress'
 import { useSmartServer } from './useSmartServer'
@@ -37,6 +38,8 @@ export function ChangeIt({
   const answer = useKeptAnswer(answerId)
   const [said, setSaid] = useState('')
   const [ticket, setTicket] = useState<string | null>(null)
+  // The change on its way, to be given up on: its request is dropped, and the server stops with it.
+  const stopping = useRef<AbortController | null>(null)
   const input = useRef<TextInput>(null)
   // How many versions there were when this was drawn, so only a new one arrives.
   const [stepsAtStart] = useState(() => answer?.steps.length ?? 1)
@@ -51,15 +54,20 @@ export function ChangeIt({
       })
       const name = newTicket()
       setTicket(name)
+      const controller = new AbortController()
+      stopping.current = controller
       return {
         words,
-        result: await server.api.refineAnswer({
-          text: answer.text,
-          understanding: answer.result.understanding,
-          change: words,
-          shown,
-          ticket: name,
-        }),
+        result: await server.api.refineAnswer(
+          {
+            text: answer.text,
+            understanding: answer.result.understanding,
+            change: words,
+            shown,
+            ticket: name,
+          },
+          controller.signal,
+        ),
       }
     },
     onSuccess: ({ words, result }) => {
@@ -81,6 +89,12 @@ export function ChangeIt({
     const words = said.trim()
     if (!words || working || !server.api) return
     change.mutate(words)
+  }
+  const stop = (): void => {
+    stopping.current?.abort()
+    setSaid(change.variables ?? '')
+    change.reset()
+    input.current?.focus()
   }
 
   return (
@@ -105,6 +119,7 @@ export function ChangeIt({
         value={said}
         onChangeText={setSaid}
         onSend={send}
+        onStop={stop}
         working={working}
         doing={doing}
         words={change.variables ?? ''}
@@ -125,13 +140,15 @@ export function ChangeIt({
 /**
  * The field a change is said in: one line with a send button that appears
  * once there are words, and while the change is worked on, what is happening
- * in the same place, so nothing jumps. "Change it" under a song answer and
+ * in the same place, so nothing jumps; with `onStop`, the send button's place
+ * holds a Stop while it does. "Change it" under a song answer and
  * the follow-up under every other answer (`AskAnswer`) are this field.
  */
 export function ChangeField({
   value,
   onChangeText,
   onSend,
+  onStop,
   working,
   doing,
   words,
@@ -145,6 +162,8 @@ export function ChangeField({
   value: string
   onChangeText: (value: string) => void
   onSend: () => void
+  /** Gives up on the change being worked on, its words back in the field. */
+  onStop?: () => void
   working: boolean
   /** The stage running now, said while working. */
   doing: string
@@ -223,8 +242,8 @@ export function ChangeField({
         </Animated.View>
       </Animated.View>
       <Animated.View
-        style={[styles.layer, large && styles.layerLarge, styles.workLayer, workStyle]}
-        pointerEvents="none"
+        style={[styles.layer, large && styles.layerLarge, !onStop && styles.workLayer, workStyle]}
+        pointerEvents={working ? 'box-none' : 'none'}
         accessibilityLiveRegion="polite"
         aria-hidden={!working}
       >
@@ -235,6 +254,11 @@ export function ChangeField({
         <Text style={styles.words} numberOfLines={1}>
           {working ? `“${words}”` : ''}
         </Text>
+        {onStop ? (
+          <View style={styles.stop}>
+            <StopButton onPress={onStop} size={large ? 36 : 28} testID={`${testID}-stop`} />
+          </View>
+        ) : null}
       </Animated.View>
     </View>
   )
@@ -325,6 +349,7 @@ const styles = StyleSheet.create(theme => ({
   },
   layerLarge: { paddingLeft: 18, paddingRight: 8, gap: 10 },
   workLayer: { paddingRight: 18 },
+  stop: { marginLeft: 'auto' },
   input: {
     flex: 1,
     minWidth: 0,

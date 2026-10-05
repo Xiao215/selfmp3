@@ -175,6 +175,17 @@ describe('Chinese names', () => {
   it('still tells different songs apart', () => {
     expect(similarity('晴天', '稻香')).toBeLessThan(0.5)
   })
+
+  it('does not find a name inside another by its characters', () => {
+    // 忘我 shares both its characters with 我不曾忘记, in the other order.
+    expect(similarity('我不曾忘记', '忘我')).toBeLessThan(0.4)
+    expect(similarity('我不曾忘记', '忘‧記')).toBeLessThan(0.5)
+  })
+
+  it('still finds a name inside a longer title', () => {
+    expect(similarity('孤勇者', '孤勇者 Warrior of the Darkness')).toBeGreaterThan(0.8)
+    expect(similarity('周杰伦', '周杰倫 Jay Chou')).toBeGreaterThan(0.8)
+  })
 })
 
 describe('bestMatch', () => {
@@ -206,6 +217,17 @@ describe('bestMatch', () => {
     ])
     expect(found?.track.artist).toBe('Eason Chan')
     expect(found?.confidence).toBeGreaterThanOrEqual(0.7)
+  })
+
+  it('does not take another song that shares its characters', () => {
+    // YouTube Music's answers for 网易云 song 2014336709, which it only has under an English name.
+    const found = bestMatch(ne('我不曾忘记', '花玲, 张安琪, 沐霏', 231), [
+      song({ title: "I've Never Forgotten (Genshin Fansong)", duration: 231 }),
+      song({ title: '忘‧記', artist: '羽泉', duration: 385 }),
+      song({ title: '你沒理由忘記我', artist: '唐安麒', duration: 175 }),
+      song({ title: '忘我', artist: '丁菲飛', duration: 304 }),
+    ])
+    expect(found?.track.title).not.toBe('忘我')
   })
 
   it('finds nothing when no answer is the song', () => {

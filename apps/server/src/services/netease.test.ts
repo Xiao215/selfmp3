@@ -8,6 +8,8 @@ function fakeApi(answers: Record<string, unknown>, redirects: Record<string, str
   const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
     const target = redirects[url]
     if (target) return new Response(null, { status: 302, headers: { location: target } })
+    // Asked from anywhere else, 网易云 locks songs it gives out on the mainland.
+    expect((init?.headers as Record<string, string>)['X-Real-IP']).toMatch(/^\d+(\.\d+){3}$/)
     const key = init?.method === 'POST' ? `${url} ${String(init.body)}` : url
     asked.push(key)
     const answer = answers[key]

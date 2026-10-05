@@ -38,6 +38,11 @@ const folded = new Map<string, string>()
  * pinyin. 网易云 writes 周杰伦 where YouTube Music writes 周杰倫, and the two
  * scripts differ in nearly every character a famous name has; read aloud
  * they are the same, and pinyin is how they are read.
+ *
+ * A run of characters is one word, its syllables run together: 周杰伦 is
+ * "zhoujielun", not "zhou jie lun". One syllable a word would let any two
+ * names that share characters match in any order: 忘我 would be found
+ * inside 我不曾忘记.
  */
 export function normalizeForMatch(text: string): string {
   const known = folded.get(text)
@@ -49,9 +54,10 @@ export function normalizeForMatch(text: string): string {
 }
 
 function fold(raw: string): string {
-  const text = /\p{Script=Han}/u.test(raw)
-    ? pinyin(raw, { toneType: 'none', nonZh: 'consecutive', type: 'string' })
-    : raw
+  const text = raw.replace(
+    /\p{Script=Han}+/gu,
+    run => ` ${pinyin(run, { toneType: 'none', type: 'array' }).join('')} `,
+  )
   return text
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')

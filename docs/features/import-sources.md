@@ -19,7 +19,9 @@ The server reads the list from the web API 网易云's own site uses, without si
 (`services/netease.ts`). What matters is which songs 网易云 gives out whole: asked for a VIP
 song, or one it may not play in this country, it hands over a 30–45 second preview, and
 yt-dlp downloads that without complaint. Each song's `privileges` say what this server may
-play (`pl`, the bitrate, 0 for none). So:
+play (`pl`, the bitrate, 0 for none). Many songs are free on the mainland and locked
+everywhere else; yt-dlp downloads those whole by retrying from a Chinese address, so the
+server asks 网易云 as if from the mainland too (`X-Real-IP`). So:
 
 - a song this server may play comes from 网易云: yt-dlp downloads it, at up to 320 kbps;
 - any other comes from YouTube, found by its name, keeping 网易云's cover.
@@ -63,7 +65,8 @@ scored 0–1 on title and artist similarity (multiplied, so the right artist can
 wrong title), length, and penalties for live, cover, remix and the like unless the name
 asks for that version. YouTube Music's first answer gets a little more trust: it knows an
 artist by every name, so 陈奕迅's "Eason Chan" is still his. Chinese names are compared
-as pinyin, so 周杰伦 and 周杰倫 are the same.
+as pinyin, so 周杰伦 and 周杰倫 are the same; a run of characters is one word
+("zhoujielun"), so 忘我 is not found inside 我不曾忘记 just because it shares its characters.
 
 - 0.7 and up is a match taken as it is;
 - 0.4 to 0.7 is **not sure**, said on the row, worth a listen;

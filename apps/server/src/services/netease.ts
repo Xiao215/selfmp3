@@ -22,10 +22,20 @@ import type { Logger } from '../logger.js'
  * song. The song's `privileges` say what this server may play (`pl`, the
  * bitrate, 0 for none), so such a song is found on YouTube instead, before
  * anything is downloaded.
+ *
+ * Every request says it comes from the mainland. Many songs are free there
+ * and locked everywhere else, and yt-dlp downloads them whole by saying the
+ * same (it retries a geo-restricted 网易云 song from a Chinese address), so
+ * asking from here would send songs to YouTube that 网易云 would give out.
  */
 
 const API = 'https://music.163.com/api/'
 const REQUEST_TIMEOUT_MS = 10_000
+/**
+ * A mainland address, sent as X-Real-IP: the header 网易云's API reads where
+ * a request comes from (it ignores X-Forwarded-For).
+ */
+const MAINLAND_ADDRESS = '116.25.146.177'
 /** Songs asked about in one request. */
 const DETAIL_CHUNK = 400
 /** Cover size asked of the picture host: square, and plenty for a cover. */
@@ -245,6 +255,7 @@ export class NeteaseMusic {
           ...(init.headers as Record<string, string> | undefined),
           'User-Agent': 'Mozilla/5.0 (Macintosh) self.mp3',
           Referer: 'https://music.163.com/',
+          'X-Real-IP': MAINLAND_ADDRESS,
         },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })

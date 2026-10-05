@@ -174,10 +174,22 @@ function Picker({ song, onLeave }: { song: Song; onLeave: () => void }): ReactNo
  * has to be the server's, or what is queued names a tag the server does not
  * have. So that screen hands the picker its own list and its own way to make
  * one; everywhere else this is left out and the picker is this device's.
+ *
+ * A tag made on this device reaches that server only when it next reads the
+ * devices' logs, up to ten minutes later (cloudSync.ts), so it was missing
+ * from the list until then (Xiao, 2026-10-05). It is offered anyway, and
+ * ticking it makes it there by name — both ends take two tags made under
+ * one name for one tag (`tagCreated`, sync.ts).
  */
 interface TagSource {
   readonly tags: readonly Tag[]
   readonly create: (name: string) => Promise<Tag>
+}
+
+/** A tag in the list, and whether it is one of `from`'s yet — or only this device's. */
+interface Offered {
+  readonly tag: Tag
+  readonly there: boolean
 }
 
 /**
@@ -209,10 +221,16 @@ export function TagSearchList({
   const dense = usePanelDense()
   const [focused, setFocused] = useState(false)
   const { data: library } = useLibrary()
-  const tags = useMemo<readonly Tag[]>(
-    () => from?.tags ?? library?.tags ?? [],
-    [from?.tags, library?.tags],
-  )
+  const tags = useMemo<readonly Offered[]>(() => {
+    if (!from) return (library?.tags ?? []).map(tag => ({ tag, there: true }))
+    const named = new Set(from.tags.map(tag => tag.name.toLowerCase()))
+    return [
+      ...from.tags.map(tag => ({ tag, there: true })),
+      ...(library?.tags ?? [])
+        .filter(tag => !named.has(tag.name.toLowerCase()))
+        .map(tag => ({ tag, there: false })),
+    ]
+  }, [from, library?.tags])
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const createHere = useCreateTag()
@@ -225,9 +243,14 @@ export function TagSearchList({
     latest.current = selected
   }, [selected])
 
-  const ranked = useMemo(() => fuzzyRank(query, tags, tag => tag.name), [query, tags])
+  const ranked = useMemo(() => fuzzyRank(query, tags, each => each.tag.name), [query, tags])
   const hasExact = ranked.some(match => match.exact)
   const trimmed = query.trim()
+
+  const pick = ({ tag, there }: Offered): void => {
+    if (there) toggle(tag.id)
+    else if (!making) void make(tag.name)
+  }
 
   const toggle = (tagId: number): void => {
     const next = new Set(latest.current)
@@ -266,7 +289,7 @@ export function TagSearchList({
     if (!trimmed) return
     const best = ranked[0]
     if (best) {
-      toggle(best.item.id)
+      pick(best.item)
       setQuery('')
     } else {
       create()
@@ -298,14 +321,15 @@ export function TagSearchList({
       />
 
       <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
-        {ranked.map(({ item }) => {
-          const on = selected.has(item.id)
-          const partly = !on && mixed?.has(item.id) === true
+        {ranked.map(({ item: offered }) => {
+          const { tag: item, there } = offered
+          const on = there && selected.has(item.id)
+          const partly = !on && there && mixed?.has(item.id) === true
           return (
             // A row the width of the panel, so it sinks to a row's depth rather
             // than a control's (`M1`, 1).
             <Press
-              key={item.id}
+              key={there ? item.id : `here:${item.id}`}
               depth="row"
               style={({ pressed }) => [
                 styles.item,
@@ -313,7 +337,7 @@ export function TagSearchList({
                 pressed && styles.itemPressed,
               ]}
               onPress={() => {
-                toggle(item.id)
+                pick(offered)
                 setQuery('')
               }}
               accessibilityRole="checkbox"
@@ -348,7 +372,7 @@ export function TagSearchList({
           <Text style={[styles.itemLabel, { color: accent.accent }]} numberOfLines={1}>
             Create <Text style={styles.createName}>{trimmed}</Text>
           </Text>
-          {ranked[0] ? <Text style={styles.count}>similar: {ranked[0].item.name}</Text> : null}
+          {ranked[0] ? <Text style={styles.count}>similar: {ranked[0].item.tag.name}</Text> : null}
         </Press>
       ) : null}
 

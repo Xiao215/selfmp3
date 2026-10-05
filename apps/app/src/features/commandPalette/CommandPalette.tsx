@@ -103,6 +103,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const [asking, setAsking] = useState<string | null>(null)
   /** The keys the answer takes, when it takes any: Tidy up's ticks. */
   const [answerKeys, setAnswerKeys] = useState<AnswerKeys | null>(null)
+  /** An answer is on its way: the question stays as asked until it lands (Escape still backs out). */
+  const [thinking, setThinking] = useState(false)
+  const locked = asking !== null && thinking
   // Escape from an answer goes back to the results; from the results, closes.
   useEscape(true, () => (asking === null ? onClose() : setAsking(null)), { layer: true })
 
@@ -516,6 +519,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           <TextInput
             autoFocus
             value={query}
+            editable={!locked}
             onChangeText={text => {
               setQuery(text)
               setHighlighted(0)
@@ -531,6 +535,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
               setHighlighted(stepIndex(active, key === 'ArrowDown' ? 1 : -1, rows.length))
             }}
             onSubmitEditing={() => {
+              if (locked) return
               // Enter straight after a letter can beat the deferred results to
               // the screen. It means what was typed, so it takes the first row
               // of that — the highlight is back at the top after any letter.
@@ -576,6 +581,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
               onDone={onClose}
               listHeight={Math.max(240, window.height * ANSWER_HEIGHT - ANSWER_AROUND_LIST)}
               onKeys={setAnswerKeys}
+              onWorking={setThinking}
               onAsk={words => {
                 setQuery(words)
                 setAsking(words)

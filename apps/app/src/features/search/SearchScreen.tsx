@@ -62,6 +62,8 @@ export function SearchScreen(): ReactNode {
   const [focused, setFocused] = useState(false)
   /** What was asked (S1), answered in place of the results until the words change. */
   const [asking, setAsking] = useState<string | null>(null)
+  /** An answer is on its way: the question stays as asked until it lands. */
+  const [thinking, setThinking] = useState(false)
   // The field keeps up with the fingers; the results, a search of the whole
   // library, follow when there is time.
   const shown = useDeferredValue(query)
@@ -87,6 +89,7 @@ export function SearchScreen(): ReactNode {
   const switches = useSmartSwitches()
   const offerAsk = switches.ask && scope === 'all' && askable(words, counts.all)
   const answering = asking !== null && asking === query.trim()
+  const locked = answering && thinking
 
   const openArtist = useCallback(
     (artist: Artist) => router.navigate(artistLink(artist.name)),
@@ -107,8 +110,10 @@ export function SearchScreen(): ReactNode {
             <TextInput
               autoFocus
               value={query}
+              editable={!locked}
               onChangeText={setQuery}
               onSubmitEditing={() => {
+                if (locked) return
                 if (switches.ask && askable(query, counts.all)) setAsking(query.trim())
               }}
               onFocus={() => setFocused(true)}
@@ -123,7 +128,7 @@ export function SearchScreen(): ReactNode {
               testID="search-field"
               style={styles.input}
             />
-            {query ? (
+            {query && !locked ? (
               <Pressable
                 onPress={() => setQuery('')}
                 hitSlop={10}
@@ -176,6 +181,7 @@ export function SearchScreen(): ReactNode {
                 text={asking}
                 onDone={close}
                 onOpenPage={() => undefined}
+                onWorking={setThinking}
                 onAsk={words => {
                   setQuery(words)
                   setAsking(words)

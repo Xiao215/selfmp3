@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -45,9 +45,15 @@ export function AskAnswer({
   listHeight = 300,
   onKeys,
   onAsk,
+  onWorking,
 }: {
   text: string
   onDone: () => void
+  /**
+   * While an answer is on its way: the box that asked holds its words still,
+   * since changing them would drop the question being answered.
+   */
+  onWorking?: (working: boolean) => void
   /** Asks something else in the same box: a dead end's suggestions. */
   onAsk?: (text: string) => void
   /**
@@ -90,6 +96,11 @@ export function AskAnswer({
   const following = answer.isPlaceholderData
   const live = useAskProgress(ticket, answer.isPending || following)
   const running = live ? [...live].reverse().find(step => !step.done) : undefined
+  const working = answer.isPending || following
+  useEffect(() => {
+    onWorking?.(working)
+  }, [onWorking, working])
+  useEffect(() => () => onWorking?.(false), [onWorking])
   const followUp = (): void => {
     const words = draft.trim()
     if (!words || following || !server.api) return

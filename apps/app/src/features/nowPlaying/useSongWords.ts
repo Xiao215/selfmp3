@@ -11,7 +11,8 @@ import { setRomanizationOn, useRomanizationOn } from './romanizationPref'
  * The romanized lines are made on the server, which has the dictionaries, and
  * come with the words from wherever the words come from: the server's own lyrics
  * answer, or the bucket, where they are uploaded beside the lyrics. The switch
- * is this device's, and only decides whether they are drawn.
+ * is this device's, one for pinyin and one for romaji, and only decides
+ * whether they are drawn.
  *
  * A song with no words is simply that: whether the lookup found nothing or
  * answered before that there is nothing (the song's `instrumental` flag, which
@@ -42,7 +43,8 @@ export function useSongWords(song: Song): {
     return detectLyricsLanguage(parsed.synced ? parsed.lines.map(line => line.text) : parsed.lines)
   }, [parsed])
 
-  const romanizationOn = useRomanizationOn()
+  // Pinyin and romaji are switched apart; the song's language picks which.
+  const romanizationOn = useRomanizationOn(language)
   // The romaji comes with the words (LyricsResponse.romanized): nothing more
   // to ask for, and it is there wherever the words are kept. Null only while
   // there are no words yet.
@@ -83,7 +85,9 @@ export function useSongWords(song: Song): {
     words,
     language,
     romanizationOn,
-    setRomanization: setRomanizationOn,
+    setRomanization: (on: boolean) => {
+      if (language !== 'none') setRomanizationOn(language, on)
+    },
     lookAgain,
   }
 }

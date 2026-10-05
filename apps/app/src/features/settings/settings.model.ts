@@ -45,7 +45,7 @@ export const ALL_SECTIONS: readonly { id: SectionId; label: string; server?: boo
   { id: 'cloud', label: 'Cloud', server: true },
   // Not `server`: a cloud library reaches the server for it, the way Ask does.
   { id: 'smart', label: 'Smart features' },
-  // Not the server's: romaji is kept with the words in the cloud too, and the switch is this device's.
+  // Not the server's: romaji is kept with the words in the cloud too, and the switches are this device's.
   { id: 'lyrics', label: 'Lyrics' },
   { id: 'desktop', label: 'Desktop app' },
   // The same place in the page as Desktop app, for the tab that could become it.

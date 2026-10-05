@@ -90,7 +90,8 @@ const LINKED_HOLD_MS = 2500
  */
 export function SettingsScreen(): ReactNode {
   const { fromCloud } = useConnection()
-  const romanizationOn = useRomanizationOn()
+  const pinyinOn = useRomanizationOn('zh')
+  const romajiOn = useRomanizationOn('ja')
   const { width, wide } = useLayout()
   const settings = useSettings()
   const updateSettings = useUpdateSettings()
@@ -412,14 +413,24 @@ export function SettingsScreen(): ReactNode {
 
             <Panel title="Lyrics" hint="on this device" anchor={node => anchorAt('lyrics', node)}>
               <Row
-                label="Show pinyin / romaji"
-                hint="A romanized line under each Chinese or Japanese lyric. It is made on the server and kept with the words, in the cloud too, so this only chooses whether to draw it."
+                label="Show pinyin"
+                hint="A romanized line under each Chinese lyric. It is made on the server and kept with the words, in the cloud too, so this only chooses whether to draw it."
+              >
+                <Toggle
+                  value={pinyinOn}
+                  onChange={on => setRomanizationOn('zh', on)}
+                  label="Show pinyin"
+                />
+              </Row>
+              <Row
+                label="Show romaji"
+                hint="The same for Japanese lyrics, switched on its own."
                 last
               >
                 <Toggle
-                  value={romanizationOn}
-                  onChange={setRomanizationOn}
-                  label="Show pinyin / romaji"
+                  value={romajiOn}
+                  onChange={on => setRomanizationOn('ja', on)}
+                  label="Show romaji"
                 />
               </Row>
             </Panel>

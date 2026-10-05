@@ -132,6 +132,50 @@ describe('recognising a track the library already holds', () => {
   })
 })
 
+describe('a title written in two languages', () => {
+  // The real thing: a 网易云 link for a song already imported from YouTube
+  // Music. 网易云 puts the Chinese name before the English one; the library
+  // song had by then been renamed to the Chinese alone, and the two titles
+  // scored 0.8875 against a 0.9 bar.
+  const bilingual = '新月的摇篮曲（其一）：伴月同眠 Lullaby of the New Moon (I): Somnias a Luna'
+  const netease = { title: bilingual, artist: 'HOYO-MiX', duration: 129 }
+
+  it('knows it from the name the library gave it', () => {
+    const library = [song('新月的摇篮曲（其一）：伴月同眠', 'HOYO-MiX', { duration: 129.29 })]
+    expect(alreadyHave(netease, libraryIndex(library))).toBe(library[0])
+  })
+
+  it('knows it from the name YouTube Music gave it', () => {
+    const library = [
+      song('Lullaby of the New Moon (I) : Somnias a Luna', 'HOYO-MiX', { duration: 129.29 }),
+    ]
+    expect(alreadyHave(netease, libraryIndex(library))).toBe(library[0])
+  })
+
+  it('knows it the other way round, the library holding both names', () => {
+    const library = [song(bilingual, 'HOYO-MiX', { duration: 129.25 })]
+    expect(
+      alreadyHave(
+        { title: '新月的摇篮曲（其一）：伴月同眠', artist: 'HOYO-MiX', duration: 129 },
+        libraryIndex(library),
+      ),
+    ).toBe(library[0])
+  })
+
+  it('still tells the next part of a suite apart', () => {
+    const library = [song('新月的摇篮曲（其二）：宵晖下的笑颜', 'HOYO-MiX', { duration: 120.69 })]
+    expect(alreadyHave(netease, libraryIndex(library))).toBeNull()
+  })
+
+  it('does not split a title that mixes the two word by word', () => {
+    // Read whole, "恋はLemon" and "Lemon" are different songs.
+    const library = [song('Lemon', '米津玄師')]
+    expect(
+      alreadyHave({ title: '恋はLemon 夜', artist: '米津玄師' }, libraryIndex(library)),
+    ).toBeNull()
+  })
+})
+
 describe('the cases the playlist matcher used to own', () => {
   // Carried over when the two matchers became one. A list from another app is
   // compared with the library by the same rule a pasted link is.

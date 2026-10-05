@@ -18,7 +18,10 @@ import { foldForMatch, similarAtLeast, type Folded } from './youtubeMatch.js'
  *    that link and it is the same file, whatever either side calls it now —
  *    exact, free, and impossible to get wrong.
  * 2. **Title and artist, fuzzily.** `cleanTitle` first, so "(Official Video)"
- *    and a `feat.` do not count against a match.
+ *    and a `feat.` do not count against a match. A title in two languages
+ *    is also each of its halves: 网易云 writes "新月的摇篮曲（其一）：伴月同眠
+ *    Lullaby of the New Moon (I): Somnias a Luna" where YouTube Music has the
+ *    English alone, and the library may by now hold the Chinese alone.
  * 3. **Length, when both know it.** Two uploads of one song are rarely more
  *    than a few seconds apart, and a title that matches with a wildly different
  *    length is usually a remix, a live take or an hour-long loop — the exact
@@ -70,7 +73,7 @@ const SECONDS = 6
  */
 interface LibraryIndex<T extends LibrarySong> {
   readonly urls: ReadonlyMap<string, T>
-  readonly songs: readonly { song: T; title: Folded; artist: Folded | null }[]
+  readonly songs: readonly { song: T; titles: readonly Folded[]; artist: Folded | null }[]
 }
 
 export function libraryIndex<T extends LibrarySong>(songs: readonly T[]): LibraryIndex<T> {
@@ -83,7 +86,7 @@ export function libraryIndex<T extends LibrarySong>(songs: readonly T[]): Librar
     urls,
     songs: songs.map(song => ({
       song,
-      title: foldForMatch(cleanTitle(song.title)),
+      titles: titleForms(song.title),
       artist: song.artist.trim() ? foldForMatch(cleanArtist(song.artist)) : null,
     })),
   }
@@ -118,22 +121,65 @@ export function alreadyHave<T extends LibrarySong>(
   const linked = url ? library.urls.get(url) : undefined
   if (linked) return linked
 
-  const cleaned = cleanTitle(track.title)
-  if (!cleaned.trim()) return null
-  const title = foldForMatch(cleaned)
+  const titles = titleForms(track.title)
+  if (titles.length === 0) return null
   const cleanedArtist = cleanArtist(track.artist)
   const artist = cleanedArtist.trim() ? foldForMatch(cleanedArtist) : null
 
   for (const song of library.songs) {
     // The length first: it is the cheapest of the three.
     if (!withinLength(track.duration, song.song.duration)) continue
-    if (!similarAtLeast(title, song.title, TITLE)) continue
+    if (!titles.some(title => song.titles.some(other => similarAtLeast(title, other, TITLE))))
+      continue
     // One side with no artist at all cannot disagree about it; a title that
     // close is enough on its own.
     if (artist && song.artist && !similarAtLeast(artist, song.artist, ARTIST)) continue
     return song.song
   }
   return null
+}
+
+/**
+ * A title folded for matching, and when it is one name in Latin letters and
+ * one in another script, each name on its own as well.
+ *
+ * Split only where everything before is one script and everything after is
+ * the other, so a title that mixes them word by word — "恋はLemon" — stays
+ * whole. Words with no letters ("(I):", "2") go with either side.
+ */
+function titleForms(raw: string): Folded[] {
+  const cleaned = cleanTitle(raw).trim()
+  if (!cleaned) return []
+  const whole = foldForMatch(cleaned)
+  const words = cleaned.split(/\s+/)
+  const scripts = words.map(script)
+  for (let at = 1; at < words.length; at++) {
+    const before = oneScript(scripts.slice(0, at))
+    const after = oneScript(scripts.slice(at))
+    if (before && after && before !== after) {
+      return [
+        whole,
+        ...[words.slice(0, at), words.slice(at)].map(half => foldForMatch(half.join(' '))),
+      ]
+    }
+  }
+  return [whole]
+}
+
+type Script = 'latin' | 'other' | 'mixed' | null
+
+/** Which letters a word is written in; null when it has none. */
+function script(word: string): Script {
+  const latin = /\p{Script=Latin}/u.test(word)
+  const other = /[^\P{L}\p{Script=Latin}]/u.test(word)
+  return latin && other ? 'mixed' : latin ? 'latin' : other ? 'other' : null
+}
+
+/** The one script these words share, ignoring words with no letters. */
+function oneScript(scripts: readonly Script[]): 'latin' | 'other' | null {
+  const used = new Set(scripts.filter(each => each !== null))
+  if (used.size !== 1 || used.has('mixed')) return null
+  return used.has('latin') ? 'latin' : 'other'
 }
 
 /** True when the lengths agree, or when either side does not know one. */

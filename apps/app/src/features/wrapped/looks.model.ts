@@ -1,4 +1,5 @@
 import {
+  DAY_MS,
   plural,
   artistOr,
   WRAPPED_RANGE_DAYS,
@@ -182,7 +183,6 @@ export function repeatDetail(wrapped: Pick<Wrapped, 'topSongs' | 'mostInOneDay'>
 
 // --- dates ---------------------------------------------------------------------
 
-const DAY_MS = 86_400_000
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /*

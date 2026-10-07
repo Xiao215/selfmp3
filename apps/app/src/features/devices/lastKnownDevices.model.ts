@@ -36,7 +36,7 @@ export function serializeKnownDevices(devices: readonly Device[], savedAt: numbe
 
 /**
  * What was written, or null for nothing, an empty list, or anything that is
- * not what this file writes — a preference from an older build reads as none.
+ * not what this file writes: a stored value that does not parse reads as none.
  */
 export function parseKnownDevices(
   raw: string | null,

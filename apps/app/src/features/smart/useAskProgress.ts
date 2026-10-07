@@ -12,8 +12,7 @@ export function newTicket(): string {
 
 /**
  * How a smart request named by `ticket` is going (`ai/progress.ts` on the
- * server), asked twice a second while `active`. Null until the first answer,
- * and from a server that does not say.
+ * server), asked twice a second while `active`. Null until the first answer.
  */
 export function useAskProgress(
   ticket: string | null,

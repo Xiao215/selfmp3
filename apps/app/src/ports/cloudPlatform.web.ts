@@ -98,10 +98,6 @@ export const cloudPlatform: CloudPlatform = {
    * which therefore needs nothing deployed — and the sign-in itself opens in
    * the person's own browser, because Google refuses an embedded window and
    * because a browser that already knows them is one fewer password typed.
-   *
-   * A doorman older than this app drops a scheme it does not know and shows the
-   * code on its own page, and the typed-code path still works. That degradation
-   * is the phone's and the desktop inherits it.
    */
   returnUrl: desktop ? 'selfmp3://welcome' : `${window.location.origin}${appPath('welcome')}`,
   openSignIn: url => (desktop ? desktop.openExternal(url) : window.location.assign(url)),

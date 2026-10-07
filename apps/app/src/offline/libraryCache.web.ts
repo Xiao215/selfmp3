@@ -18,8 +18,8 @@ export async function readCachedLibrary(): Promise<Library | null> {
   try {
     const stored = (await readStored(LIBRARY_KEY)) as { library?: unknown } | null
     if (!stored) return null
-    // Parsed rather than trusted: a snapshot written by an older build may lack
-    // fields the app now assumes.
+    // Parsed rather than trusted, and dropped when it does not parse: the
+    // library is fetched afresh instead.
     const parsed = LibrarySchema.safeParse(stored.library)
     return parsed.success ? parsed.data : null
   } catch {

@@ -1,4 +1,4 @@
-import { memo, useId, useRef, useState } from 'react'
+import { memo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Animated, Pressable, Text, View, useWindowDimensions } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -34,6 +34,7 @@ import { EASE_OUT_CSS, MOVE_MS, PRESS } from '../motion.model'
 import { useShownScheme } from '../theme/unistyles'
 import { floating } from '../surfaces'
 import { Downloaded, More, NotDownloaded, Play, Plus } from './Icons'
+import { useSvgId } from '../useSvgId'
 
 /**
  * Past this width of page the album leaves the second line for a column of its
@@ -656,7 +657,7 @@ function RowWash({ color, progress }: { color: string; progress: Animated.Value 
   // Its own id per row. A screen the router keeps hidden behind this one (a
   // playlist listing the same song) holds a wash too; with one shared id, the
   // visible row's url() landed on the hidden, zero-size gradient and drew nothing.
-  const id = `rowwash${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  const id = useSvgId('rowwash')
   return (
     <Animated.View
       pointerEvents="none"

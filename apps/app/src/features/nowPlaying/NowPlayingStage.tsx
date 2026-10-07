@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   ActivityIndicator,
@@ -78,6 +78,7 @@ import { ArtistLinks } from './ArtistLinks'
 import { putAway } from './leaveNowPlaying'
 import { NothingPlaying } from './NothingPlaying'
 import { TaggingLine } from './TaggingLine'
+import { useSvgId } from '../../ui/useSvgId'
 import { useTagging, type Tagging } from './useTagging'
 import { tagLink } from '../tag/placeLinks'
 import { tip } from '../../ui/tip'
@@ -189,7 +190,7 @@ function CoverGlow({ palette }: { palette: readonly Rgb[] }): ReactNode {
 
 /** One palette's three blooms. */
 function GlowBlooms({ palette }: { palette: readonly Rgb[] }): ReactNode {
-  const id = `glow${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  const id = useSvgId('glow')
   const ink = (index: number): Rgb => palette[index] ?? palette[0] ?? [0, 0, 0]
   const blooms = [
     { at: [0.23, 0.4], size: [0.34, 0.42], ink: ink(0), alpha: 0.5 },

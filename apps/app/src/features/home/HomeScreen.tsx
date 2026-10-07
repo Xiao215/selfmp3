@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
 import type { ViewStyle } from 'react-native'
@@ -51,6 +51,7 @@ import {
   type HomeTile,
   type SundayCard,
 } from './home.model'
+import { useSvgId } from '../../ui/useSvgId'
 
 /**
  * Home: where the app opens (docs/ui-mock `P04`, `C03`).
@@ -281,7 +282,7 @@ function SundayLead({
  */
 function ToneWash({ color }: { color: string }): ReactNode {
   // Gradient ids are document ids on the web: two cards must not share one.
-  const id = `tone${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  const id = useSvgId('tone')
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       {/* Pinned to the edges and a unit box stretched over it, as ProgressWash's fade is. */}

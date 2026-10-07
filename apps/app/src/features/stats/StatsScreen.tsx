@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -32,6 +32,7 @@ import {
   type RankKind,
   type StatsPeriod,
 } from './stats.model'
+import { useSvgId } from '../../ui/useSvgId'
 
 /** The line beside Listened, in its own box's units. */
 const SPARK = { width: 120, height: 56 }
@@ -384,7 +385,7 @@ function LeadCard({
   const { theme } = useUnistyles()
   const [loaded, setLoaded] = useState<string | null>(null)
   const shown = useFade(art !== null && loaded === art, motion.base, motion.base)
-  const shade = `statslead${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  const shade = useSvgId('statslead')
 
   return (
     <Pressable

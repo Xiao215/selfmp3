@@ -1,10 +1,11 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Image, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { motion } from '@selfmp3/client'
 import { ease, timing } from '../motion'
+import { useSvgId } from '../useSvgId'
 
 /**
  * A page lit by its covers (docs/ui-mock `P08`, `P10`, `P15`): the cover's
@@ -56,7 +57,7 @@ function Light({
   blur: number
 }): ReactNode {
   const { theme } = useUnistyles()
-  const id = `coverlight${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  const id = useSvgId('coverlight')
   return (
     <>
       {art ? (

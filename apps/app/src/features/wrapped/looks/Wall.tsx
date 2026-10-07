@@ -1,4 +1,3 @@
-import { useId } from 'react'
 import type { ReactNode } from 'react'
 import { StyleSheet as NativeStyleSheet, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -7,6 +6,7 @@ import { fonts, withAlpha } from '@selfmp3/client'
 import { Cover } from '../../../ui/components/Cover'
 import { lookInk, wallLook } from '../looks.model'
 import type { LookProps } from './parts'
+import { useSvgId } from '../../../ui/useSvgId'
 
 /** `P35`'s poster: three covers across, four down. */
 export const WALL_SIZE = { width: 480, height: 720 } as const
@@ -23,7 +23,7 @@ export function WallLook({ input, hue, art }: LookProps): ReactNode {
   const look = wallLook(input)
   const ink = lookInk('wall', hue)
   // An SVG gradient's id is global to a web page; one per wall.
-  const fade = `wallfade${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  const fade = useSvgId('wallfade')
   return (
     <View style={[styles.poster, { backgroundColor: ink.ground }]}>
       <View style={styles.tiles}>

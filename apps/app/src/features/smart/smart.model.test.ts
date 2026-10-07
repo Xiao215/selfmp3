@@ -219,12 +219,6 @@ describe('Settings’ Test', () => {
     )
   })
 
-  it('reads a 404 as a server older than the app, not as a missing feature', () => {
-    const hop = serverHop({ error: new ApiError(404, 'no such endpoint', 'not_found') })
-    expect(hop.ok).toBe(false)
-    expect(hop.line).toMatch(/older than this app/)
-  })
-
   it('tells the device not reaching the server from the server not reaching the model', () => {
     expect(serverHop({ error: new ApiError(0, 'Failed to fetch', 'offline') }).line).toBe(
       'This device can’t reach your server.',

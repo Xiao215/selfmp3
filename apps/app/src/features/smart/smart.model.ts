@@ -306,21 +306,11 @@ export function took(ms: number): string {
   return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`
 }
 
-/**
- * The first leg, from what asking the server for its smart setup did. A 404 is
- * a server older than the check itself, which is said as that: restarting it
- * is the fix, and "no such endpoint" would not say so.
- */
+/** The first leg, from what asking the server for its smart setup did. */
 export function serverHop(result: { ms: number } | { error: unknown }): Hop {
   if ('ms' in result)
     return { ok: true, line: `This device reached your server in ${took(result.ms)}` }
   const { error } = result
-  if (error instanceof ApiError && error.status === 404) {
-    return {
-      ok: false,
-      line: 'Your server is older than this app. Restart it with the current build, then test again.',
-    }
-  }
   if (error instanceof ApiError && error.isOffline) {
     return { ok: false, line: 'This device can’t reach your server.', detail: error.message }
   }

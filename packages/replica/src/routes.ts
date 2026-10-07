@@ -253,11 +253,11 @@ export function createCloudRoutes(
       'POST',
       '/api/songs/:id/skipped',
       ({ session, params, body }) => {
-        const { atSeconds } = SkipEventSchema.parse(body)
+        const { atSeconds, clientId } = SkipEventSchema.parse(body)
         return recordChanges(
           session,
           ctx => ({
-            changes: edits.skipSong(ctx, id(params), atSeconds),
+            changes: edits.skipSong(ctx, id(params), atSeconds, clientId),
             answer: () => ({ ok: true }),
           }),
           { deferView: true },
@@ -576,9 +576,10 @@ export function createCloudRoutes(
     if (!response.ok) throw new DoormanError(response.status, 'the doorman is not answering')
     // A 200 is not yet an answer: a captive portal or a proxy's login page
     // returns one too, and this route's whole job is to say the doorman is
-    // really there.
+    // really there. Status 0, as for no answer at all: a 200 from something
+    // else is the doorman being out of reach, which the app calls offline.
     if (!DoormanHealthSchema.safeParse(await response.json().catch(() => null)).success) {
-      throw new DoormanError(response.status, 'the doorman is not answering')
+      throw new DoormanError(0, 'the doorman is not answering')
     }
     return {
       ok: true,

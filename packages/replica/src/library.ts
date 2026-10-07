@@ -1,8 +1,12 @@
+import { z } from 'zod'
 import {
   CLOUD_FORMAT,
+  ChangeSchema,
+  CloudDeviceIdSchema,
   CloudSnapshotSchema,
   DoormanListSchema,
   HlcClock,
+  HlcSchema,
   LOG_FOLDER,
   SNAPSHOTS_FOLDER,
   applyChanges,
@@ -73,6 +77,33 @@ const FLUSH_RETRY_MS = [5_000, 15_000, 60_000, 300_000]
  */
 const PRUNE_AFTER_MS = 10 * 60_000
 const LOG_READS_AT_ONCE = 6
+
+/**
+ * What this device kept, as it is read back. IndexedDB and a file both hand
+ * back whatever was put there, or whatever a crash left; a row that does not
+ * read as what it should be is read again from the bucket rather than replayed
+ * and uploaded as it stands.
+ */
+const StoredBaseSchema = z.object({
+  key: z.string().nullable(),
+  snapshot: CloudSnapshotSchema.nullable(),
+})
+
+/** The outbox's envelope; each change in it is checked on its own (`knownChanges`). */
+const StoredOutboxSchema = z.object({
+  device: CloudDeviceIdSchema,
+  nextSeq: z.number().int().positive(),
+  last: HlcSchema.nullable().catch(null),
+  pending: z.array(z.unknown()).catch([]),
+  inflight: z
+    .object({
+      seq: z.number().int().positive(),
+      changes: z.array(z.unknown()),
+      writtenAt: z.string(),
+    })
+    .nullable()
+    .catch(null),
+})
 
 /** This device's changes on their way up. */
 interface Outbox {
@@ -233,29 +264,64 @@ export function createCloudLibrary(
 
   // --- Opening ------------------------------------------------------------------------
 
-  function asOutbox(value: unknown): Outbox {
-    const stored = value as Partial<Outbox> | null
-    if (stored && typeof stored.device === 'string' && typeof stored.nextSeq === 'number') {
-      return {
-        device: stored.device,
-        last: typeof stored.last === 'string' ? stored.last : null,
-        nextSeq: stored.nextSeq,
-        pending: Array.isArray(stored.pending) ? stored.pending : [],
-        inflight: stored.inflight ?? null,
-      }
-    }
+  /**
+   * The outbox as stored, checked rather than cast, or null when there is
+   * none to read — never a new one.
+   *
+   * The device name and the next file number are the parts that must hold: a
+   * number used twice is the one thing the bucket's format cannot survive, so
+   * a row without them is no outbox at all. Each change is checked too when
+   * `changes` says so — on opening, and on a look at what another tab wrote —
+   * and one that does not parse is set aside rather than sent. A change made
+   * in this session was built here, so the outbox's own updates skip that:
+   * checking a long offline outbox on every play was work for nothing.
+   */
+  function asStoredOutbox(value: unknown, changes: boolean): Outbox | null {
+    const parsed = StoredOutboxSchema.safeParse(value)
+    if (!parsed.success) return null
+    const { device, last, nextSeq, pending, inflight } = parsed.data
+    const read = (raw: readonly unknown[]): Change[] =>
+      changes ? knownChanges(raw) : (raw as Change[])
     return {
-      device: newCloudDeviceId(platform.deviceKind),
-      last: null,
-      nextSeq: 1,
-      pending: [],
-      inflight: null,
+      device,
+      last,
+      nextSeq,
+      pending: read(pending),
+      inflight: inflight && { ...inflight, changes: read(inflight.changes) },
     }
   }
 
+  /** The changes of these that this build can read; the rest are said and set aside. */
+  function knownChanges(raw: readonly unknown[]): Change[] {
+    const known: Change[] = []
+    for (const change of raw) {
+      const parsed = ChangeSchema.safeParse(change)
+      if (parsed.success) known.push(parsed.data)
+      else warn('skipping a change in the outbox this version cannot read')
+    }
+    return known
+  }
+
+  function asOutbox(value: unknown, changes: boolean): Outbox {
+    return (
+      asStoredOutbox(value, changes) ?? {
+        device: newCloudDeviceId(platform.deviceKind),
+        last: null,
+        nextSeq: 1,
+        pending: [],
+        inflight: null,
+      }
+    )
+  }
+
   /** The outbox, changed in one IndexedDB transaction, so two tabs never undo each other. */
-  async function changeOutbox(change: (outbox: Outbox) => Outbox): Promise<Outbox> {
-    const next = (await store.update(OUTBOX_KEY, current => change(asOutbox(current)))) as Outbox
+  async function changeOutbox(
+    change: (outbox: Outbox) => Outbox,
+    { check = false }: { check?: boolean } = {},
+  ): Promise<Outbox> {
+    const next = (await store.update(OUTBOX_KEY, current =>
+      change(asOutbox(current, check)),
+    )) as Outbox
     if (replica) replica.outbox = next
     return next
   }
@@ -264,16 +330,40 @@ export function createCloudLibrary(
     return [...(outbox.inflight?.changes ?? []), ...outbox.pending]
   }
 
+  /** The snapshot this device kept, or null when there is none or it does not read as one. */
+  function storedBase(value: unknown): Replica['base'] | null {
+    if (value === null || value === undefined) return null
+    const parsed = StoredBaseSchema.safeParse(value)
+    if (parsed.success) return parsed.data
+    warn('this device’s copy of the library could not be read; it is fetched again')
+    return null
+  }
+
+  /** The log files this device kept, each read the way one from the bucket is. */
+  function storedLogs(value: unknown): Map<string, LogFile> {
+    const logs = new Map<string, LogFile>()
+    if (typeof value !== 'object' || value === null) return logs
+    for (const [key, raw] of Object.entries(value)) {
+      const read = readLogFile(raw)
+      if (read.ok) logs.set(key, read.file)
+      else warn(`skipping a kept log file this version cannot read (${key})`)
+    }
+    return logs
+  }
+
   async function open(session: CloudSession): Promise<Replica> {
     if (replica) return replica
-    opening ??= (async () => {
-      const outbox = await changeOutbox(current => current)
-      const storedBase = (await store.read(BASE_KEY)) as Replica['base'] | null
-      const storedLogs = (await store.read(LOGS_KEY)) as Record<string, LogFile> | null
+    if (opening) return opening
+    // Signing out while this runs is a different account by the time it ends:
+    // what it read must not become the library the next sign-in is answered from.
+    const began = generation
+    const attempt: Promise<Replica> = (async () => {
+      const outbox = await changeOutbox(current => current, { check: true })
+      const base = storedBase(await store.read(BASE_KEY))
       const r: Replica = {
-        base: storedBase ?? { key: null, snapshot: null },
-        baseStored: storedBase !== null,
-        logs: new Map(Object.entries(storedLogs ?? {})),
+        base: base ?? { key: null, snapshot: null },
+        baseStored: base !== null,
+        logs: storedLogs(await store.read(LOGS_KEY)),
         outbox,
         clock: new HlcClock(outbox.device, { last: outbox.last }),
         library: replay(null, [], []),
@@ -287,16 +377,18 @@ export function createCloudLibrary(
       // so a failure here leaves nothing behind to be shown instead. A device
       // that has read it before answers from its copy at once, and looks in
       // the background (loadCloudLibrary).
-      if (!storedBase) await refresh(r, session)
+      if (!base) await refresh(r, session)
+      if (began !== generation) throw new DoormanError(401, 'Signed out.', 'unauthorized')
       replica = r
       listenForConnection()
       // Anything left over from last time goes up now.
       if (localChanges(r.outbox).length > 0) scheduleFlush(0)
       return r
     })().finally(() => {
-      opening = null
+      if (opening === attempt) opening = null
     })
-    return opening
+    opening = attempt
+    return attempt
   }
 
   function emptySnapshot(): CloudSnapshot {
@@ -446,7 +538,7 @@ export function createCloudLibrary(
           logs.size !== r.logs.size || [...logs.keys()].some(key => !r.logs.has(key))
         // Another tab may have added to the outbox since. Read, not updated:
         // an update would write the outbox back on every look.
-        const outbox = asStoredOutbox(await store.read(OUTBOX_KEY)) ?? r.outbox
+        const outbox = asStoredOutbox(await store.read(OUTBOX_KEY), true) ?? r.outbox
         const outboxChanged = outboxSignature(outbox) !== outboxSignature(r.outbox)
 
         r.outbox = outbox
@@ -471,14 +563,6 @@ export function createCloudLibrary(
       return changed
     }
     return false
-  }
-
-  /** The outbox as stored, or null when there is none to read — never a new one. */
-  function asStoredOutbox(value: unknown): Outbox | null {
-    const stored = value as Partial<Outbox> | null
-    return stored && typeof stored.device === 'string' && typeof stored.nextSeq === 'number'
-      ? asOutbox(stored)
-      : null
   }
 
   /** Which changes are waiting, by stamp: every change has its own. */
@@ -862,8 +946,10 @@ export function createCloudLibrary(
    */
   async function forgetCloudLibrary(): Promise<void> {
     replica = null
+    opening = null
     generation++
     written = null
+    retries = 0
     if (flushTimer) clearTimeout(flushTimer)
     flushTimer = null
     await Promise.all(

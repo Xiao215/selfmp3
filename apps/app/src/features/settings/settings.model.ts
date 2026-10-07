@@ -83,14 +83,21 @@ export function onThisDevice(place: DevicePlace): string {
  * `offered`: a browser tab on a Mac is offered the desktop app to install
  * (`ports/macApp`); the app itself, a phone and a Windows browser are not.
  */
-export function sectionsFor(
-  fromCloud: boolean,
+export function sectionsFor({
+  fromCloud,
   installed = true,
   keyboard = true,
   shell = false,
-  place: DevicePlace = 'phone',
+  place = 'phone',
   offered = false,
-): readonly { id: SectionId; label: string }[] {
+}: {
+  readonly fromCloud: boolean
+  readonly installed?: boolean
+  readonly keyboard?: boolean
+  readonly shell?: boolean
+  readonly place?: DevicePlace
+  readonly offered?: boolean
+}): readonly { id: SectionId; label: string }[] {
   return ALL_SECTIONS.filter(
     section =>
       (!fromCloud || !section.server) &&

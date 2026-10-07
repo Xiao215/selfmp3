@@ -107,14 +107,14 @@ export function SettingsScreen(): ReactNode {
   // the one with a login item — has a menu of keys to list. A tab on a Mac is
   // the one place the desktop app is offered from.
   const place = devicePlace(deviceKind())
-  const sections = sectionsFor(
+  const sections = sectionsFor({
     fromCloud,
-    installedApp,
-    finePointer,
-    loginItem.available,
+    installed: installedApp,
+    keyboard: finePointer,
+    shell: loginItem.available,
     place,
-    macApp.offered,
-  )
+    offered: macApp.offered,
+  })
   const shortcuts = sections.some(section => section.id === 'shortcuts') ? menuCommands : null
   const column = width >= INDEX_COLUMN
   const scrollRef = useRef<ScrollView>(null)

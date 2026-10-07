@@ -27,7 +27,7 @@ const TOPS = [
 
 describe('settings', () => {
   it('leaves out the server sections for a library in the cloud, but not Devices', () => {
-    const ids = sectionsFor(true).map(section => section.id)
+    const ids = sectionsFor({ fromCloud: true }).map(section => section.id)
     expect(ids).toContain('playback')
     expect(ids).not.toContain('importing')
     expect(ids).not.toContain('cloud')
@@ -35,22 +35,30 @@ describe('settings', () => {
     expect(ids).toContain('devices')
     // Smart features too: Ask reaches the server from a cloud library, and so does its Test.
     expect(ids).toContain('smart')
-    expect(sectionsFor(false)).toHaveLength(11)
-    expect(sectionsFor(false, false).map(section => section.id)).not.toContain('offline')
+    expect(sectionsFor({ fromCloud: false })).toHaveLength(11)
+    expect(
+      sectionsFor({ fromCloud: false, installed: false }).map(section => section.id),
+    ).not.toContain('offline')
   })
 
   it('lists keyboard shortcuts only in the installed app, which has a menu of them', () => {
-    const ids = (...args: Parameters<typeof sectionsFor>) =>
-      sectionsFor(...args).map(section => section.id)
+    const ids = (device: Parameters<typeof sectionsFor>[0]) =>
+      sectionsFor(device).map(section => section.id)
     // A browser tab has a keyboard and no shortcuts of its own.
-    expect(ids(false, false, true, false)).not.toContain('shortcuts')
-    expect(ids(false, true, false, true)).not.toContain('shortcuts')
-    expect(ids(false, true, true, true)).toContain('shortcuts')
+    expect(ids({ fromCloud: false, installed: false, keyboard: true, shell: false })).not.toContain(
+      'shortcuts',
+    )
+    expect(ids({ fromCloud: false, installed: true, keyboard: false, shell: true })).not.toContain(
+      'shortcuts',
+    )
+    expect(ids({ fromCloud: false, installed: true, keyboard: true, shell: true })).toContain(
+      'shortcuts',
+    )
     expect(ALL_LABEL('shortcuts')).toBe('Keyboard shortcuts')
   })
 
   it('leads with the account and the look, then what this device keeps (P38, C17)', () => {
-    expect(sectionsFor(false).map(section => section.label)).toEqual([
+    expect(sectionsFor({ fromCloud: false }).map(section => section.label)).toEqual([
       'Account',
       'Appearance',
       'On this phone',
@@ -63,20 +71,31 @@ describe('settings', () => {
       'Lyrics',
       'About',
     ])
-    const computer = sectionsFor(false, true, true, true, devicePlace('desktop'))
+    const computer = sectionsFor({
+      fromCloud: false,
+      shell: true,
+      place: devicePlace('desktop'),
+    })
     expect(computer.find(section => section.id === 'offline')?.label).toBe('On this computer')
     expect(devicePlace('phone')).toBe('phone')
     expect(devicePlace('other')).toBe('computer')
   })
 
   it('shows the desktop section only where there is a shell to ask', () => {
-    expect(sectionsFor(false).map(section => section.id)).not.toContain('desktop')
-    expect(sectionsFor(false, true, true, true).map(section => section.id)).toContain('desktop')
+    expect(sectionsFor({ fromCloud: false }).map(section => section.id)).not.toContain('desktop')
+    expect(sectionsFor({ fromCloud: false, shell: true }).map(section => section.id)).toContain(
+      'desktop',
+    )
   })
 
   it('offers the Mac app only to a browser tab on a Mac, in the desktop section\u2019s place', () => {
-    expect(sectionsFor(false).map(section => section.id)).not.toContain('getApp')
-    const tab = sectionsFor(false, false, true, false, 'computer', true).map(section => section.id)
+    expect(sectionsFor({ fromCloud: false }).map(section => section.id)).not.toContain('getApp')
+    const tab = sectionsFor({
+      fromCloud: false,
+      installed: false,
+      place: 'computer',
+      offered: true,
+    }).map(section => section.id)
     expect(tab).toContain('getApp')
     expect(tab).not.toContain('desktop')
     expect(tab.indexOf('getApp')).toBe(tab.indexOf('lyrics') + 1)

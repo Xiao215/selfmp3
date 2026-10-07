@@ -392,6 +392,8 @@ function BucketForm({
 
   // The same form as Where it lives, judged by the same rules (storage.model).
   const [address, setAddress] = useState<AddressFields>({
+    // Only `https://` comes off: it is what an address without one means, and
+    // an `http://` one (a bucket on this network) has to keep saying so.
     endpoint: initial?.endpoint.replace(/^https:\/\//, '') ?? '',
     region: initial?.region ?? '',
     bucket: initial?.bucket ?? '',

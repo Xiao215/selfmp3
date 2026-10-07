@@ -1,4 +1,4 @@
-import { editDistance, type MetadataCandidate } from '@selfmp3/shared'
+import { clamp01, editDistance, type MetadataCandidate } from '@selfmp3/shared'
 
 /**
  * Scoring lookup candidates against what the library currently believes.
@@ -135,7 +135,7 @@ export function scoreCandidate(
     artistWeight * (artistSim ?? 0) +
     durationWeight * (duration ?? 0)
 
-  return Math.round(Math.min(1, Math.max(0, score)) * 1000) / 1000
+  return Math.round(clamp01(score) * 1000) / 1000
 }
 
 /** Best-first, de-duplicated on (source, title, artist, album). */

@@ -1,4 +1,4 @@
-import { camelotFromKey, keyName, MOTION_RATE, type KeyMode } from '@selfmp3/shared'
+import { camelotFromKey, clamp01, keyName, MOTION_RATE, type KeyMode } from '@selfmp3/shared'
 
 /**
  * Signal processing for the analyser, as pure functions over PCM.
@@ -256,7 +256,7 @@ export function estimateTempo(envelope: OnsetEnvelope): { bpm: number | null; st
     }
   }
 
-  const strength = Math.max(0, Math.min(1, interpolate(acf, (60 / bestBpm) * frameRate)))
+  const strength = clamp01(interpolate(acf, (60 / bestBpm) * frameRate))
   // Nothing periodic enough to call a beat — silence, speech, ambient.
   if (strength < 0.08) return { bpm: null, strength }
 
@@ -351,7 +351,7 @@ function beatRegularity(
   if (total === 0) return 0
 
   const regularity = regular / total
-  return Math.max(0, Math.min(1, 0.5 * regularity + 0.5 * Math.min(1, strength * 1.5)))
+  return clamp01(0.5 * regularity + 0.5 * Math.min(1, strength * 1.5))
 }
 
 // --- loudness and energy ------------------------------------------------------
@@ -694,8 +694,4 @@ export function motionFromPcm(pcm: Float32Array, sampleRate: number): MotionCurv
   const builder = new MotionBuilder(sampleRate)
   builder.push(pcm)
   return builder.finish()
-}
-
-function clamp01(value: number): number {
-  return Math.max(0, Math.min(1, value))
 }

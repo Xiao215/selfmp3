@@ -1,5 +1,5 @@
 import { pinyin } from 'pinyin-pro'
-import { cleanTitle, editDistance, type ImportFound } from '@selfmp3/shared'
+import { clamp01, cleanTitle, editDistance, type ImportFound } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { ListedTrack } from './trackLists.js'
 import type { ProbedTrack } from './ytdlp.js'
@@ -230,7 +230,7 @@ export function scoreHit(source: ListedTrack, hit: MatchHit): number {
   // A result twice as long as the song is a compilation whatever the title says.
   if (source.duration > 0 && hit.duration > source.duration * 2 + 30) score -= 0.3
 
-  return Math.min(1, Math.max(0, score))
+  return clamp01(score)
 }
 
 /** The best of YouTube Music's answers for a song, with how well it matched; null for none worth having. */

@@ -351,13 +351,22 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
     })
     return () => setStageExit(null)
   }, [arrival])
+  /*
+   * Whether the finger now down came down on the words. Dragging down there
+   * is reading back up the song, not a pull: the list is kept on the sung
+   * line, so it is almost never at its top, and the page took any drag down
+   * of 12 points before the list's own scroll had begun — a flick back
+   * through the verse flipped the page to the cover (Xiao, 2026-10-07). The
+   * head strip above the words still pulls, and the chevron still goes back.
+   */
+  const [fingerOnWords] = useState(() => new Flag())
   const pan = useMemo(() => {
     const settle = (): void => void spring(pull, 0)
     return PanResponder.create({
       onMoveShouldSetPanResponder: (_event, gesture) =>
         Math.abs(gesture.dy) > 12 &&
         Math.abs(gesture.dy) > Math.abs(gesture.dx) * 2 &&
-        (view === 'cover' || gesture.dy > 0),
+        (view === 'cover' || (gesture.dy > 0 && !fingerOnWords.on())),
       onPanResponderMove: (_event, gesture) =>
         pull.setValue(view === 'cover' ? gesture.dy : Math.max(0, gesture.dy)),
       onPanResponderRelease: (_event, gesture) => {
@@ -382,7 +391,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
       },
       onPanResponderTerminate: settle,
     })
-  }, [pull, router, view])
+  }, [pull, router, view, fingerOnWords])
 
   // Where the mini player's cover was a moment before it pushed this route
   // (`ui/coverHandoff.ts`). Taken once, and here rather than in the cover view:
@@ -458,6 +467,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
             noLyrics={noLyrics}
             sampler={sampler}
             onBack={() => setView('cover')}
+            fingerOnWords={fingerOnWords}
           />
         </Animated.View>
       ) : null}
@@ -554,7 +564,7 @@ function CoverView({
   handed,
 }: {
   song: Song
-  uri: string | null
+  uri: string | null | undefined
   color: string
   noLyrics: boolean
   /** The page opening, 0 to 1; already 1 by the time the words have been and gone. */
@@ -631,7 +641,15 @@ function CoverView({
             hue={tag.hue}
             selected={false}
             compact
-            onPress={() => router.navigate(tagLink(tag.name))}
+            // A page of the app, so the modal goes down first, as the song's
+            // own page does (`openSong`): pushed from inside it, the tag's page
+            // landed under the modal, out of sight.
+            onPress={() =>
+              leaveStage(() => {
+                if (router.canGoBack()) router.back()
+                router.push(tagLink(tag.name))
+              })
+            }
           />
         ))}
         <Pressable
@@ -752,7 +770,7 @@ function BreathingCover({
   handed,
 }: {
   song: Song
-  uri: string | null
+  uri: string | null | undefined
   onPress: () => void
   opening: Animated.Value
   handed: CoverFrame | null
@@ -861,13 +879,16 @@ function WordsView({
   noLyrics,
   sampler,
   onBack,
+  fingerOnWords,
 }: {
   song: Song
-  uri: string | null
+  uri: string | null | undefined
   lyrics: ReturnType<typeof useSongWords>
   noLyrics: boolean
   sampler: MotionSampler
   onBack: () => void
+  /** Set while a finger that came down on the words is still down: the page's pull leaves it to the list. */
+  fingerOnWords: Flag
 }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
@@ -922,7 +943,14 @@ function WordsView({
           <SongVisual song={song} sampler={sampler} cover={uri} rounded />
         </View>
       ) : (
-        <View style={styles.words}>
+        <View
+          style={styles.words}
+          // Raw touches reach the view they landed in whoever holds the
+          // gesture, so this is told of the lift even after the list has it.
+          onTouchStart={() => fingerOnWords.set(true)}
+          onTouchEnd={() => fingerOnWords.set(false)}
+          onTouchCancel={() => fingerOnWords.set(false)}
+        >
           {words.status === 'lyrics' ? (
             <StageLyrics
               parsed={words.parsed}
@@ -1064,6 +1092,20 @@ const REPEAT_LABEL: Record<'off' | 'all' | 'one', string> = {
   off: 'Repeat off',
   all: 'Repeat all',
   one: 'Repeat this song',
+}
+
+/**
+ * A yes or no that touch handlers set and a gesture reads, outside React's
+ * drawing: whether the finger now down came down on the words.
+ */
+class Flag {
+  #on = false
+  set(on: boolean): void {
+    this.#on = on
+  }
+  on(): boolean {
+    return this.#on
+  }
 }
 
 const styles = StyleSheet.create(theme => ({

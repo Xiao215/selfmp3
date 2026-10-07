@@ -528,7 +528,7 @@ export function PlaylistDetailScreen(): ReactNode {
         <AddSongsSheet
           open={adding}
           onClose={() => setAdding(false)}
-          playlistName={playlist.name}
+          targetName={playlist.name}
           target={{ kind: 'existing', playlistId: playlist.id, inPlaylist }}
         />
       ) : null}

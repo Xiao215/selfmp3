@@ -101,7 +101,7 @@ export function TagScreen(): ReactNode {
       <AddSongsSheet
         open={tagging}
         onClose={() => setTagging(false)}
-        playlistName={tag.name}
+        targetName={tag.name}
         target={{ kind: 'tag', tagId: tag.id, inTag }}
       />
       <TagEditor

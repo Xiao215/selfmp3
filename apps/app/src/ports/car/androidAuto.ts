@@ -1,4 +1,3 @@
-import { Platform } from 'react-native'
 import TrackPlayer, { Event } from 'react-native-track-player'
 import { resolveMediaId, searchBrowseTree, type BrowseTree } from './browseTree'
 
@@ -42,8 +41,6 @@ export function connectAndroidAuto(
   getTree: () => BrowseTree,
   handlers: AndroidAutoHandlers,
 ): () => void {
-  if (Platform.OS !== 'android') return () => undefined
-
   const subscriptions = [
     TrackPlayer.addEventListener(Event.RemotePlayId, ({ id }) => {
       const selection = resolveMediaId(getTree(), id)

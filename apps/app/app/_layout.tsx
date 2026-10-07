@@ -15,7 +15,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { failureText } from '@selfmp3/client'
-import TrackPlayer from 'react-native-track-player'
 import { DevicesProvider } from '../src/features/devices/DevicesProvider'
 import { LibraryFilterProvider } from '../src/features/library/libraryFilter'
 import { CarProvider } from '../src/ports/car/CarProvider'
@@ -24,7 +23,7 @@ import { useKeepAlongside } from '../src/offline/useKeepAlongside'
 import { PlayerProvider } from '../src/player/PlayerProvider'
 import { useRecordRecentLists } from '../src/features/lists/recentLists.store'
 import { usePlaybackMemory } from '../src/player/usePlaybackMemory'
-import { playbackService } from '../src/player/service'
+import { registerPlayback } from '../src/player/registerPlayback'
 import { ConnectionProvider, useConnection } from '../src/connection/ConnectionProvider'
 import { Shell } from '../src/shell/Shell'
 import { addressOf, swipeBackAllowed } from '../src/shell/backGesture'
@@ -55,9 +54,9 @@ import { showToast } from '../src/ui/toast'
  *
  * The playback service is registered at module scope, before any component
  * mounts: on Android it is a headless task that the OS may start with no UI at
- * all, so registration cannot wait for React.
+ * all, so registration cannot wait for React (`registerPlayback.ts`).
  */
-TrackPlayer.registerPlaybackService(() => playbackService)
+registerPlayback()
 
 void SplashScreen.preventAutoHideAsync()
 

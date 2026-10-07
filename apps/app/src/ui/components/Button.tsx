@@ -1,10 +1,11 @@
 import { useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Animated, Pressable, Text, View } from 'react-native'
+import { ActivityIndicator, Animated, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLayout } from '../../shell/useLayout'
-import { useFade, useMinimumBusy, usePressScale, usePresence } from '../motion'
+import { useFade, useMinimumBusy, usePresence } from '../motion'
 import { tip } from '../tip'
+import { Press } from './Press'
 import { HIT_TARGET, motion, radius } from '@selfmp3/client'
 
 /**
@@ -57,7 +58,6 @@ export function Button({
   accessibilityLabel?: string
 }): ReactNode {
   const { dense } = useLayout()
-  const press = usePressScale()
   // What the button *does* follows `busy`; what it *shows* follows the held
   // spinner, so the extra moment a spinner is kept never blocks a second press.
   const inactive = disabled || busy
@@ -80,60 +80,53 @@ export function Button({
           : styles.inkPlain
 
   return (
-    <Animated.View
-      style={[
+    <Press
+      depth="control"
+      wrap={[grow && styles.grow, grow && (dense ? styles.growDense : styles.growTouch)]}
+      onPress={onPress}
+      disabled={inactive}
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      // An icon-only button has nothing on it to read; one with a label has said it.
+      {...tip(label === undefined ? accessibilityLabel : undefined)}
+      accessibilityState={{ disabled: inactive, selected: active }}
+      style={({ pressed }) => [
+        styles.button,
+        dense && styles.buttonDense,
+        label === undefined && (dense ? styles.squareDense : styles.square),
         grow && styles.grow,
-        grow && (dense ? styles.growDense : styles.growTouch),
-        press.style,
+        variant === 'primary' && styles.primary,
+        variant === 'text' && styles.text,
+        active && styles.active,
+        pressed && !inactive && styles.pressed,
+        inactive && styles.disabled,
       ]}
     >
-      <Pressable
-        {...press.handlers}
-        onPress={onPress}
-        disabled={inactive}
-        testID={testID}
-        accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel ?? label}
-        // An icon-only button has nothing on it to read; one with a label has said it.
-        {...tip(label === undefined ? accessibilityLabel : undefined)}
-        accessibilityState={{ disabled: inactive, selected: active }}
-        style={({ pressed }) => [
-          styles.button,
-          dense && styles.buttonDense,
-          label === undefined && (dense ? styles.squareDense : styles.square),
-          grow && styles.grow,
-          variant === 'primary' && styles.primary,
-          variant === 'text' && styles.text,
-          active && styles.active,
-          pressed && !inactive && styles.pressed,
-          inactive && styles.disabled,
-        ]}
-      >
-        <View style={styles.content}>
-          {/* Busy takes the icon's place and leaves the label, so a button can
-            say what it is doing — "Removing…" — while it spins. With no label
-            there is nothing to say and the spinner is the whole button.
-            With an icon to replace, the spinner is laid over it and the two
-            crossfade in the same slot, so the button's width never changes;
-            with no icon it takes its own room, as it always did. */}
-          {icon || spinner.mounted ? (
-            <View style={styles.badge}>
-              {icon ? <Animated.View style={iconFade}>{icon}</Animated.View> : null}
-              {spinner.mounted ? (
-                <Animated.View style={[icon ? styles.overIcon : undefined, spinnerFade]}>
-                  <Spinner variant={variant} />
-                </Animated.View>
-              ) : null}
-            </View>
-          ) : null}
-          {label !== undefined ? (
-            <Text style={[styles.label, ink]} numberOfLines={1}>
-              {label}
-            </Text>
-          ) : null}
-        </View>
-      </Pressable>
-    </Animated.View>
+      <View style={styles.content}>
+        {/* Busy takes the icon's place and leaves the label, so a button can
+          say what it is doing — "Removing…" — while it spins. With no label
+          there is nothing to say and the spinner is the whole button.
+          With an icon to replace, the spinner is laid over it and the two
+          crossfade in the same slot, so the button's width never changes;
+          with no icon it takes its own room, as it always did. */}
+        {icon || spinner.mounted ? (
+          <View style={styles.badge}>
+            {icon ? <Animated.View style={iconFade}>{icon}</Animated.View> : null}
+            {spinner.mounted ? (
+              <Animated.View style={[icon ? styles.overIcon : undefined, spinnerFade]}>
+                <Spinner variant={variant} />
+              </Animated.View>
+            ) : null}
+          </View>
+        ) : null}
+        {label !== undefined ? (
+          <Text style={[styles.label, ink]} numberOfLines={1}>
+            {label}
+          </Text>
+        ) : null}
+      </View>
+    </Press>
   )
 }
 
@@ -157,27 +150,24 @@ export function PlayButton({
   size?: number
   disabled?: boolean
 }): ReactNode {
-  const press = usePressScale()
   return (
-    <Animated.View style={press.style}>
-      <Pressable
-        {...press.handlers}
-        onPress={onPress}
-        disabled={disabled}
-        testID={testID}
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        {...tip(label)}
-        accessibilityState={{ disabled }}
-        style={[
-          styles.play,
-          { width: size, height: size, borderRadius: size / 2 },
-          disabled && styles.disabled,
-        ]}
-      >
-        {icon}
-      </Pressable>
-    </Animated.View>
+    <Press
+      depth="control"
+      onPress={onPress}
+      disabled={disabled}
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      {...tip(label)}
+      accessibilityState={{ disabled }}
+      style={[
+        styles.play,
+        { width: size, height: size, borderRadius: size / 2 },
+        disabled && styles.disabled,
+      ]}
+    >
+      {icon}
+    </Press>
   )
 }
 

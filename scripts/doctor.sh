@@ -10,12 +10,8 @@
 set -uo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PORT="${SELFMP3_PORT:-4600}"
 # shellcheck source=./_dirs.sh
 source "$PROJECT_DIR/scripts/_dirs.sh"
-LABEL="com.selfmp3.server"
-LOG="$HOME/Library/Logs/selfmp3.log"
-ERR_LOG="$HOME/Library/Logs/selfmp3.error.log"
 
 if [[ -t 1 ]]; then
   BOLD=$'\e[1m'; DIM=$'\e[2m'; GREEN=$'\e[32m'; RED=$'\e[31m'; RESET=$'\e[0m'
@@ -60,12 +56,12 @@ fi
 # --- service and port -------------------------------------------------------
 
 if [[ "$(uname)" == "Darwin" ]]; then
-  if launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1; then
-    PID="$(launchctl print "gui/$(id -u)/$LABEL" 2>/dev/null | awk '/^\s*pid = /{print $3}')"
+  if launchctl print "gui/$(id -u)/$SERVICE_LABEL" >/dev/null 2>&1; then
+    PID="$(launchctl print "gui/$(id -u)/$SERVICE_LABEL" 2>/dev/null | awk '/^\s*pid = /{print $3}')"
     if [[ -n "${PID:-}" ]]; then
-      good service "running (launchd $LABEL, pid $PID)"
+      good service "running (launchd $SERVICE_LABEL, pid $PID)"
     else
-      bad service "installed but not running — check $ERR_LOG"
+      bad service "installed but not running — check $SERVICE_ERROR_LOG"
     fi
   else
     bad service "not installed (./scripts/install-service.sh)"
@@ -115,14 +111,14 @@ fi
 
 # --- logs -------------------------------------------------------------------
 
-if [[ -f "$LOG" ]]; then
+if [[ -f "$SERVICE_LOG" ]]; then
   echo
-  echo "${BOLD}last 5 log lines${RESET} ${DIM}($LOG)${RESET}"
-  tail -n 5 "$LOG" | sed 's/^/  /'
-  if [[ -s "$ERR_LOG" ]]; then
+  echo "${BOLD}last 5 log lines${RESET} ${DIM}($SERVICE_LOG)${RESET}"
+  tail -n 5 "$SERVICE_LOG" | sed 's/^/  /'
+  if [[ -s "$SERVICE_ERROR_LOG" ]]; then
     echo
-    echo "${BOLD}last 5 error lines${RESET} ${DIM}($ERR_LOG)${RESET}"
-    tail -n 5 "$ERR_LOG" | sed 's/^/  /'
+    echo "${BOLD}last 5 error lines${RESET} ${DIM}($SERVICE_ERROR_LOG)${RESET}"
+    tail -n 5 "$SERVICE_ERROR_LOG" | sed 's/^/  /'
   fi
 fi
 

@@ -45,7 +45,7 @@ function lengthWords(seconds: number): string {
 export const MAX_CANDIDATES = 300
 
 const PLAN_VERSION = 4
-const PICK_VERSION = 2
+const PICK_VERSION = 3
 
 const RangeOut = z.object({ min: z.number().nullable(), max: z.number().nullable() })
 
@@ -103,9 +103,9 @@ ${FILTERS_GUIDE}`
 
 const PICK_SYSTEM = `You choose songs for a playlist from a numbered table of someone's own songs.
 
-You are given the description they wrote, what it most wants beyond the filters already applied, how many songs to choose, and the table. Every song in the table already passed the filters.
+You are given the description they wrote, sometimes what it wants beyond the filters, how many songs to choose, and the table.
 
-Reply with JSON only: picks, each the song's number from the table (n) and why it fits in at most ten plain words, written for the listener ("slow solo piano", "named for rain"). Choose the songs that fit the description best, in a good listening order. When the table has a sound column, a listening model has already heard every song: it scores 0–100 how well the song sounds like what was asked, the table is in that order, and you should trust it over what a title suggests. Never use a number that is not in the table, never repeat one, and choose no more than asked. If fewer fit well, choose fewer.`
+Reply with JSON only: picks, each the song's number from the table (n) and why it fits in at most ten plain words, written for the listener ("slow solo piano", "named for rain"). Judge every song against the whole description yourself, with what you know of the music and what the table says, and leave out a song that does not fit it. Choose the songs that fit the description best, in a good listening order. Unless the description asks for particular artists, spread the choice across artists rather than filling it with one. When the table has a sound column, a listening model has already heard every song: it scores 0–100 how well the song sounds like what was asked, the table is in that order, and you should trust it over what a title suggests. Never use a number that is not in the table, never repeat one, and choose no more than asked. If fewer fit well, choose fewer.`
 
 /** The listening model's two questions (sound/sound.ts); each answers null when it cannot. */
 interface SoundRanker {
@@ -504,11 +504,11 @@ export async function narrowAndPick(
       : sample(candidates, text, MAX_CANDIDATES)
     const prompt = [
       `The description: ${text}`,
-      `What it wants beyond the filters: ${understanding.brief ?? 'nothing more; choose the songs that suit the description best'}`,
+      ...(understanding.brief ? [`What it wants beyond the filters: ${understanding.brief}`] : []),
       ...(places && understanding.sound ? [`How it should sound: ${understanding.sound}`] : []),
       `Choose up to ${count} songs.`,
       '',
-      `The table (number | title | artist | album | year | tags | energy | tempo | length | words | plays${places ? ' | sound' : ''}):`,
+      `The table holds the songs the filters let in: a rough first cut, so some may not fit the description (number | title | artist | album | year | tags | energy | tempo | length | words | plays${places ? ' | sound' : ''}):`,
       songTable(table, tags, now, places ? song => soundColumn(places, song) : undefined),
     ].join('\n')
     const answer = await remembered.get(

@@ -19,6 +19,7 @@
     "icon": "node scripts/icon.mjs"
   },
   "devDependencies": {
+    "@selfmp3/client": "*",
     "@selfmp3/desktop-bridge": "*",
     "@selfmp3/shared": "*",
     "electron": "44.3.0",

@@ -707,9 +707,31 @@ interface LookInk {
   readonly second: string
   readonly quiet: string
   readonly accent: string
+  /** A shade under the ground: a calendar's empty day, the calendar's swatch. */
+  readonly well: string
+  /** A sheet laid on the ground: a printed tag's pill. */
+  readonly sheet: string
+  /** The shadow such a sheet casts. */
+  readonly shadow: string
 }
 
+/**
+ * Each look's inks per hue, worked out once: a look and its swatch ask on
+ * every draw, and each answer builds a whole palette.
+ */
+const inks = new Map<string, LookInk>()
+
 export function lookInk(look: LookId, hue: number): LookInk {
+  const key = `${look}:${hue}`
+  let ink = inks.get(key)
+  if (!ink) {
+    ink = inksOf(look, hue)
+    inks.set(key, ink)
+  }
+  return ink
+}
+
+function inksOf(look: LookId, hue: number): LookInk {
   if (look === 'wall') {
     const dark = darkPalette(hue)
     return {
@@ -719,6 +741,9 @@ export function lookInk(look: LookId, hue: number): LookInk {
       second: dark.textSecondary,
       quiet: dark.textMuted,
       accent: dark.accent,
+      well: dark.surface3,
+      sheet: dark.surface1,
+      shadow: dark.floatShadow,
     }
   }
   if (look === 'words') {
@@ -731,6 +756,9 @@ export function lookInk(look: LookId, hue: number): LookInk {
       second: tile.tileInk,
       quiet: tile.tileInk,
       accent: tile.tileInk,
+      well: dark.surface3,
+      sheet: dark.surface1,
+      shadow: dark.floatShadow,
     }
   }
   const paper = lightPalette(hue)
@@ -742,5 +770,8 @@ export function lookInk(look: LookId, hue: number): LookInk {
     second: paper.textSecondary,
     quiet: paper.textMuted,
     accent: paper.accent,
+    well: paper.surface3,
+    sheet: paper.surface1,
+    shadow: paper.floatShadow,
   }
 }

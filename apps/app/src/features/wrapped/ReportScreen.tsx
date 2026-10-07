@@ -4,13 +4,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'rea
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import type { WrappedRange } from '@selfmp3/shared'
-import {
-  failureText,
-  lightPalette,
-  useLibrary,
-  withAlpha,
-  type ServerConnection,
-} from '@selfmp3/client'
+import { failureText, useLibrary, withAlpha, type ServerConnection } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
@@ -462,7 +456,7 @@ function LookPicker({
  * that would otherwise vanish into the page.
  */
 function swatchOf(look: LookId, hue: number): string {
-  if (look === 'calendar') return lightPalette(hue).surface3
+  if (look === 'calendar') return lookInk(look, hue).well
   if (look === 'wall') return lookInk(look, hue).tone
   return lookInk(look, hue).ground
 }

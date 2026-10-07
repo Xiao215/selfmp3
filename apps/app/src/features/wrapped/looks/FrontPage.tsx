@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Image, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { fonts, lightPalette, withAlpha } from '@selfmp3/client'
+import { fonts, withAlpha } from '@selfmp3/client'
 import { Cover } from '../../../ui/components/Cover'
 import { frontPageLook, lookInk } from '../looks.model'
 import { DayDot, mono, type LookProps } from './parts'
@@ -29,7 +29,6 @@ const COLUMN = (share: number) => (INNER * share) / (SHARES[0] + SHARES[1] + SHA
 export function FrontPageLook({ input, hue, art }: LookProps): ReactNode {
   const look = frontPageLook(input)
   const ink = lookInk('front', hue)
-  const quiet = lightPalette(hue).surface3
   const top = input.wrapped.topSongs[0]
   const photo = look.photo ? art(look.photo.songId) : null
   const gridWidth = COLUMN(SHARES[2])
@@ -106,7 +105,7 @@ export function FrontPageLook({ input, hue, art }: LookProps): ReactNode {
                     share={day.share}
                     cell={cell}
                     dot={ink.ink}
-                    empty={quiet}
+                    empty={ink.well}
                     smallest={4}
                     largest={cell * 0.62}
                     fade={false}

@@ -27,7 +27,7 @@ import type { CloudPlatform, CloudResponse } from './platform.js'
  */
 
 /** Also read by apps/app/sw/sw.ts, straight out of IndexedDB. Keep in step. */
-export const SESSION_KEY = 'cloud-session'
+const SESSION_KEY = 'cloud-session'
 const PENDING_KEY = 'cloud-pending-sign-in'
 /** As long as the doorman keeps an attempt. */
 const ATTEMPT_LIFETIME_MS = 10 * 60_000

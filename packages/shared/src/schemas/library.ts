@@ -73,6 +73,12 @@ export const SimilarSongsSchema = z.object({
 })
 export type SimilarSongs = z.infer<typeof SimilarSongsSchema>
 
+/** `/api/songs/:id/similar?limit=`: how many neighbours, whoever answers. */
+export const SimilarQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+})
+export type SimilarQuery = z.infer<typeof SimilarQuerySchema>
+
 /**
  * What `/api/health` says.
  *

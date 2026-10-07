@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CloudSnapshot } from '@selfmp3/shared'
 import * as edits from './edits.js'
-import { createCloudLibrary, FILES_KEY } from './library.js'
+import { createCloudLibrary } from './library.js'
 import { createCloudSession, type CloudSession } from './session.js'
 import type { CloudPlatform, CloudResponse, DeviceStore, TextCache } from './platform.js'
 
@@ -15,6 +15,9 @@ import type { CloudPlatform, CloudResponse, DeviceStore, TextCache } from './pla
  * replay a different library depending on which it read. So that contract is
  * what these hold down.
  */
+
+/** The key the service worker reads each song's files under (apps/app/sw/sw.ts). */
+const FILES_KEY = 'cloud-files'
 
 const DOORMAN = 'https://doorman.test'
 const TOKEN = 'tok'.padEnd(32, '0')

@@ -52,8 +52,8 @@ import { DoormanError, type CloudSession, type CloudSessionApi } from './session
  */
 
 const IDS_KEY = 'cloud-ids'
-/** Read by the service worker (sw.ts) — keep the two in step. */
-export const FILES_KEY = 'cloud-files'
+/** Read by the service worker (apps/app/sw/sw.ts) by this name — keep the two in step. */
+const FILES_KEY = 'cloud-files'
 const PLAYLISTS_KEY = 'cloud-playlist-songs'
 const STATE_KEY = 'cloud-state'
 const BASE_KEY = 'cloud-base'
@@ -156,6 +156,14 @@ interface Replica {
   mustCheck: boolean
 }
 
+/** What `show` last wrote, kept so the next edit compares with it rather than reading it back. */
+interface Written {
+  readonly ids: LocalIds
+  readonly files: unknown
+  readonly playlistSongs: unknown
+  readonly version: number
+}
+
 interface RecordOptions {
   /**
    * Leave the view as it is until something reads it. For plays and skips:
@@ -226,7 +234,7 @@ function sameValue(a: unknown, b: unknown): boolean {
 /** Everything below closes over one device's platform, so there is no module state. */
 export function createCloudLibrary(
   platform: CloudPlatform,
-  session_: CloudSessionApi,
+  sessionApi: CloudSessionApi,
 ): CloudLibraryApi {
   const { store } = platform
   const warn = (message: string): void => {
@@ -238,12 +246,12 @@ export function createCloudLibrary(
   /** Bumped on signing out, so a look at the bucket that began before it writes nothing after. */
   let generation = 0
   /**
-   * What this device last put under IDS_KEY, FILES_KEY and PLAYLISTS_KEY, or
-   * null before it has looked. Most edits change none of the three — a love, a
-   * tag, a rename — and each is the size of the library, so it is written only
-   * when it is different.
+   * What this device last put under IDS_KEY, FILES_KEY, PLAYLISTS_KEY and
+   * STATE_KEY, or null before it has looked. Most edits change none of the
+   * first three — a love, a tag, a rename — and each is the size of the
+   * library, so it is written only when it is different.
    */
-  let written: { idsNext: number; files: unknown; playlistSongs: unknown } | null = null
+  let written: Written | null = null
   const listeners = new Set<() => void>()
 
   /**
@@ -418,26 +426,33 @@ export function createCloudLibrary(
   /** Turn the replayed library into what the app shows, and keep what the service worker reads. */
   async function show(r: Replica): Promise<void> {
     r.viewStale = false
-    const state = (await store.read(STATE_KEY)) as { version?: unknown } | null
-    const previous = replica?.view.ids ?? asLocalIds(await store.read(IDS_KEY))
-    const version = (typeof state?.version === 'number' ? state.version : 0) + 1
-    r.view = snapshotToLibrary(replayedSnapshot(r.library, r.base.snapshot), previous, version)
     // Compared with what the store holds the first time, and with what was
     // last written after that: a read, or a walk over plain values, is much
-    // cheaper than putting the whole library through IndexedDB again.
-    const before = (written ??= {
-      idsNext: asLocalIds(await store.read(IDS_KEY)).next,
-      files: await store.read(FILES_KEY),
-      playlistSongs: await store.read(PLAYLISTS_KEY),
-    })
+    // cheaper than putting the whole library through IndexedDB again. The
+    // version is kept the same way, rather than read back before every edit.
+    const before = (written ??= await readWritten())
+    const previous = replica?.view.ids ?? before.ids
+    const version = before.version + 1
+    r.view = snapshotToLibrary(replayedSnapshot(r.library, r.base.snapshot), previous, version)
     // Ids are only ever added, and every one added moves `next` on.
-    if (before.idsNext !== r.view.ids.next) await store.write(IDS_KEY, r.view.ids)
+    if (before.ids.next !== r.view.ids.next) await store.write(IDS_KEY, r.view.ids)
     if (!sameValue(before.files, r.view.files)) await store.write(FILES_KEY, r.view.files)
     if (!sameValue(before.playlistSongs, r.view.playlistSongs)) {
       await store.write(PLAYLISTS_KEY, r.view.playlistSongs)
     }
     await store.write(STATE_KEY, { version })
-    written = { idsNext: r.view.ids.next, files: r.view.files, playlistSongs: r.view.playlistSongs }
+    written = { ids: r.view.ids, files: r.view.files, playlistSongs: r.view.playlistSongs, version }
+  }
+
+  /** What the store holds under the keys `show` writes, read once per sign-in. */
+  async function readWritten(): Promise<Written> {
+    const state = (await store.read(STATE_KEY)) as { version?: unknown } | null
+    return {
+      ids: asLocalIds(await store.read(IDS_KEY)),
+      files: await store.read(FILES_KEY),
+      playlistSongs: await store.read(PLAYLISTS_KEY),
+      version: typeof state?.version === 'number' ? state.version : 0,
+    }
   }
 
   // --- Reading the bucket -------------------------------------------------------------
@@ -448,7 +463,7 @@ export function createCloudLibrary(
     do {
       const query = [`prefix=${encodeURIComponent(prefix)}`]
       if (cursor) query.push(`cursor=${encodeURIComponent(cursor)}`)
-      const response = await session_.doormanFetch(session, `/v1/list?${query.join('&')}`)
+      const response = await sessionApi.doormanFetch(session, `/v1/list?${query.join('&')}`)
       const page = DoormanListSchema.parse(await response.json())
       keys.push(...page.objects.map(object => object.key))
       cursor = page.cursor
@@ -460,14 +475,14 @@ export function createCloudLibrary(
     session: CloudSession,
     key: string,
   ): Promise<CloudSnapshot | 'gone'> {
-    const response = await session_.doormanFetch(session, `/v1/files/${key}`)
+    const response = await sessionApi.doormanFetch(session, `/v1/files/${key}`)
     if (response.status === 404) return 'gone'
     return CloudSnapshotSchema.parse(JSON.parse(await readText(response)))
   }
 
   /** A log file, or `gone` when it went after the listing; one that cannot be read counts as empty. */
   async function fetchLog(session: CloudSession, key: string): Promise<LogFile | 'gone' | null> {
-    const response = await session_.doormanFetch(session, `/v1/files/${key}`)
+    const response = await sessionApi.doormanFetch(session, `/v1/files/${key}`)
     if (response.status === 404) return 'gone'
     let json: unknown = null
     try {
@@ -582,7 +597,7 @@ export function createCloudLibrary(
     if (!snapshot || Date.now() - Date.parse(snapshot.writtenAt) < PRUNE_AFTER_MS) return
     for (const key of foldedOwnLogs(keys, r.outbox.device, snapshot.upTo).slice(0, 50)) {
       try {
-        await session_.doormanFetch(session, `/v1/files/${key}`, { method: 'DELETE' })
+        await sessionApi.doormanFetch(session, `/v1/files/${key}`, { method: 'DELETE' })
       } catch {
         return
       }
@@ -758,7 +773,7 @@ export function createCloudLibrary(
   function flushCloudChanges(): Promise<void> {
     flushing ??= (async () => {
       try {
-        const session = await session_.loadSession()
+        const session = await sessionApi.loadSession()
         const r = replica
         if (!session || !r) return
         for (;;) {
@@ -785,7 +800,7 @@ export function createCloudLibrary(
             inflight.changes,
             new Date(inflight.writtenAt),
           )
-          const response = await session_.doormanFetch(session, `/v1/files/${key}`, {
+          const response = await sessionApi.doormanFetch(session, `/v1/files/${key}`, {
             method: 'PUT',
             json: file,
           })
@@ -886,7 +901,7 @@ export function createCloudLibrary(
     if (cached !== null && cached !== undefined) return cached
 
     if (!session) throw new DoormanError(0, 'Not signed in.')
-    const response = await session_.doormanFetch(session, `/v1/files/${key}`)
+    const response = await sessionApi.doormanFetch(session, `/v1/files/${key}`)
     if (response.status === 404) return null
     const text = await readText(response)
     await platform.textCache?.write(key, text).catch((error: unknown) => {

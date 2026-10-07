@@ -8,12 +8,14 @@ import {
   CreateTagSchema,
   DEFAULT_SETTINGS,
   DoormanHealthSchema,
+  GemsQuerySchema,
   PlayEventSchema,
   RemoveFromPlaylistSchema,
   RenameTagSchema,
   ReorderPlaylistSchema,
   SetSongTagsSchema,
   SettingsSchema,
+  SimilarQuerySchema,
   SkipEventSchema,
   SongPatchSchema,
   UpdatePlaylistSchema,
@@ -30,8 +32,6 @@ import type { CloudPlatform } from './platform.js'
 import { CloudImportRequestSchema } from './schemas.js'
 import { DoormanError, type CloudSession, type CloudSessionApi } from './session.js'
 import type { CloudLibrary } from './snapshotLibrary.js'
-
-export { CloudRouteError } from './errors.js'
 
 /** As much of a query string as any route reads. */
 export interface RouteQuery {
@@ -71,6 +71,20 @@ export function parseQuery(search: string): RouteQuery {
 
 const SETTINGS_KEY = 'selfmp3.cloud.settings'
 
+/**
+ * What the app sent, parsed as the server's routes parse it: a shape it does
+ * not accept is the asker's mistake, a 400. Kept apart from every other parse
+ * here, which reads what the bucket or this device answered — and a shape
+ * that fails there is not something the app could have sent differently.
+ */
+function parseInput<S extends z.ZodTypeAny>(schema: S, value: unknown): z.output<S> {
+  const parsed = schema.safeParse(value)
+  if (!parsed.success) {
+    throw new CloudRouteError(400, parsed.error.issues[0]?.message ?? 'bad request', 'bad_request')
+  }
+  return parsed.data as z.output<S>
+}
+
 type Handler = (input: {
   session: CloudSession
   params: readonly string[]
@@ -87,7 +101,7 @@ type Handler = (input: {
  */
 export function createCloudRoutes(
   platform: CloudPlatform,
-  session_: CloudSessionApi,
+  sessionApi: CloudSessionApi,
   library: CloudLibraryApi,
 ): { cloudRequest: (method: string, path: string, body: unknown) => Promise<unknown> } {
   const {
@@ -124,19 +138,18 @@ export function createCloudRoutes(
       'GET',
       '/api/songs/:id/similar',
       async ({ session, params, query }) => {
-        const { library } = await loadCloudLibrary(session)
-        const seed = library.songs.find(song => song.id === id(params))
-        if (!seed) throw notFound('song')
-        const limit = Math.min(Math.max(Number(query.get('limit')) || 20, 1), 100)
-        return { songId: seed.id, songs: similarSongs(seed, library.songs, limit) }
+        const { limit } = parseInput(SimilarQuerySchema, { limit: query.get('limit') ?? undefined })
+        const view = await loadCloudLibrary(session)
+        const seed = songOf(view, id(params))
+        return { songId: seed.id, songs: similarSongs(seed, view.library.songs, limit) }
       },
     ],
     [
       'GET',
       '/api/library/gems',
       async ({ session, query }) => {
+        const { limit } = parseInput(GemsQuerySchema, { limit: query.get('limit') ?? undefined })
         const { library } = await loadCloudLibrary(session)
-        const limit = Math.min(Math.max(Number(query.get('limit')) || 20, 1), 100)
         const { gems, minDays, total } = forgottenGems(library.songs, { limit })
         return {
           songs: gems.map(gem => gem.song),
@@ -173,7 +186,7 @@ export function createCloudRoutes(
       'PATCH',
       '/api/songs/:id',
       ({ session, params, body }) => {
-        const patch = SongPatchSchema.parse(body)
+        const patch = parseInput(SongPatchSchema, body)
         return recordChanges(session, ctx => ({
           changes: edits.editSong(ctx, id(params), patch),
           answer: view => songOf(view, id(params)),
@@ -184,7 +197,7 @@ export function createCloudRoutes(
       'POST',
       '/api/songs/:id/loved',
       ({ session, params, body }) => {
-        const { loved } = z.object({ loved: z.boolean() }).parse(body)
+        const { loved } = parseInput(z.object({ loved: z.boolean() }), body)
         return recordChanges(session, ctx => ({
           changes: edits.editSong(ctx, id(params), { loved }),
           answer: view => songOf(view, id(params)),
@@ -195,7 +208,7 @@ export function createCloudRoutes(
       'POST',
       '/api/songs/bulk/loved',
       ({ session, body }) => {
-        const input = BulkLovedSchema.parse(body)
+        const input = parseInput(BulkLovedSchema, body)
         const wanted = new Set(input.songIds)
         return recordChanges(session, ctx => {
           const affected = ctx.view.library.songs.filter(
@@ -212,7 +225,7 @@ export function createCloudRoutes(
       'POST',
       '/api/songs/bulk/edit',
       ({ session, body }) => {
-        const input = BulkEditSongsSchema.parse(body)
+        const input = parseInput(BulkEditSongsSchema, body)
         return recordChanges(session, ctx => {
           const here = input.edits.filter(edit => ctx.view.uids.songs.has(edit.songId))
           return {
@@ -226,7 +239,7 @@ export function createCloudRoutes(
       'PUT',
       '/api/songs/:id/tags',
       ({ session, params, body }) => {
-        const { tagIds } = SetSongTagsSchema.parse(body)
+        const { tagIds } = parseInput(SetSongTagsSchema, body)
         return recordChanges(session, ctx => ({
           changes: edits.setSongTags(ctx, id(params), tagIds),
           answer: view => songOf(view, id(params)),
@@ -237,7 +250,7 @@ export function createCloudRoutes(
       'POST',
       '/api/songs/:id/played',
       ({ session, params, body }) => {
-        const event = PlayEventSchema.parse(body)
+        const event = parseInput(PlayEventSchema, body)
         return recordChanges(
           session,
           ctx => ({
@@ -253,7 +266,7 @@ export function createCloudRoutes(
       'POST',
       '/api/songs/:id/skipped',
       ({ session, params, body }) => {
-        const { atSeconds, clientId } = SkipEventSchema.parse(body)
+        const { atSeconds, clientId } = parseInput(SkipEventSchema, body)
         return recordChanges(
           session,
           ctx => ({
@@ -265,23 +278,10 @@ export function createCloudRoutes(
       },
     ],
     [
-      'DELETE',
-      '/api/songs/:id',
-      ({ session, params }) => {
-        return recordChanges(session, ctx => {
-          edits.song(ctx, id(params))
-          return {
-            changes: edits.removeSongs(ctx, [id(params)]),
-            answer: () => ({ ok: true }),
-          }
-        })
-      },
-    ],
-    [
       'POST',
       '/api/songs/bulk/delete',
       ({ session, body }) => {
-        const input = BulkDeleteSongsSchema.parse(body)
+        const input = parseInput(BulkDeleteSongsSchema, body)
         return recordChanges(session, ctx => {
           const changes = edits.removeSongs(ctx, input.songIds)
           const failed = [...new Set(input.songIds)]
@@ -301,7 +301,7 @@ export function createCloudRoutes(
       'POST',
       '/api/tags',
       ({ session, body }) => {
-        const input = CreateTagSchema.parse(body)
+        const input = parseInput(CreateTagSchema, body)
         return recordChanges(session, ctx => {
           const { changes, uid } = edits.createTag(ctx, input.name, input.hue)
           return { changes, answer: view => tagOf(view, uid) }
@@ -312,7 +312,7 @@ export function createCloudRoutes(
       'PATCH',
       '/api/tags/:id',
       ({ session, params, body }) => {
-        const input = RenameTagSchema.parse(body)
+        const input = parseInput(RenameTagSchema, body)
         return recordChanges(session, ctx => {
           const uid = ctx.view.uids.tags.get(id(params))
           return {
@@ -335,7 +335,7 @@ export function createCloudRoutes(
       'POST',
       '/api/tags/bulk',
       ({ session, body }) => {
-        const input = BulkTagSchema.parse(body)
+        const input = parseInput(BulkTagSchema, body)
         const wanted = new Set(input.songIds)
         return recordChanges(session, ctx => {
           const on = input.action === 'add'
@@ -356,7 +356,7 @@ export function createCloudRoutes(
       'POST',
       '/api/playlists',
       ({ session, body }) => {
-        const input = CreatePlaylistSchema.parse(body)
+        const input = parseInput(CreatePlaylistSchema, body)
         return recordChanges(session, ctx => {
           const { changes, uid } = edits.createPlaylist(ctx, input)
           return { changes, answer: view => playlistOf(view, uid) }
@@ -367,7 +367,7 @@ export function createCloudRoutes(
       'PATCH',
       '/api/playlists/:id',
       ({ session, params, body }) => {
-        const patch = UpdatePlaylistSchema.parse(body)
+        const patch = parseInput(UpdatePlaylistSchema, body)
         return recordChanges(session, ctx => ({
           changes: edits.editPlaylist(ctx, id(params), patch),
           answer: view => playlistOf(view, view.uids.playlists.get(id(params))),
@@ -387,7 +387,7 @@ export function createCloudRoutes(
       'POST',
       '/api/playlists/:id/songs',
       ({ session, params, body }) => {
-        const input = AddToPlaylistSchema.parse(body)
+        const input = parseInput(AddToPlaylistSchema, body)
         return recordChanges(session, ctx => ({
           changes: edits.addToPlaylist(ctx, id(params), input.songIds, input.position),
           answer: view => playlistOf(view, view.uids.playlists.get(id(params))),
@@ -398,7 +398,7 @@ export function createCloudRoutes(
       'POST',
       '/api/playlists/:id/songs/remove',
       ({ session, params, body }) => {
-        const { songIds } = RemoveFromPlaylistSchema.parse(body)
+        const { songIds } = parseInput(RemoveFromPlaylistSchema, body)
         return recordChanges(session, ctx => {
           const inIt = new Set(ctx.view.playlistSongs[id(params)] ?? [])
           const removed = [...new Set(songIds)].filter(songId => inIt.has(songId)).length
@@ -425,7 +425,7 @@ export function createCloudRoutes(
       'PUT',
       '/api/playlists/:id/order',
       ({ session, params, body }) => {
-        const { songIds } = ReorderPlaylistSchema.parse(body)
+        const { songIds } = parseInput(ReorderPlaylistSchema, body)
         return recordChanges(session, ctx => ({
           changes: edits.reorderPlaylist(ctx, id(params), songIds),
           answer: () => ({ ok: true }),
@@ -443,7 +443,7 @@ export function createCloudRoutes(
       'POST',
       '/api/cloud/imports',
       ({ session, body }) => {
-        const input = CloudImportRequestSchema.parse(body)
+        const input = parseInput(CloudImportRequestSchema, body)
         // A share sheet sends the link inside other text; the first one is it.
         const url = extractUrls(input.url).find(link => /^https?:\/\//i.test(link))
         if (!url || url.length > 2000) {
@@ -504,14 +504,19 @@ export function createCloudRoutes(
         if (routeMethod !== method) continue
         const params = match(pattern, url.pathname)
         if (!params) continue
-        const session = await session_.loadSession()
+        const session = await sessionApi.loadSession()
         if (!session) throw new CloudRouteError(401, 'Sign in with Google first.', 'unauthorized')
         return await handler({ session, params, query: parseQuery(url.search), body })
       }
     } catch (error) {
       if (error instanceof CloudRouteError) throw error
+      // Not the request (that is `parseInput`): what the bucket or this device's copy answered.
       if (error instanceof z.ZodError) {
-        throw new CloudRouteError(400, error.issues[0]?.message ?? 'bad request', 'bad_request')
+        throw new CloudRouteError(
+          502,
+          `Unexpected answer from the bucket: ${error.issues[0]?.message ?? 'shape mismatch'}`,
+          'contract_mismatch',
+        )
       }
       if (error instanceof DoormanError) {
         throw new CloudRouteError(
@@ -551,28 +556,28 @@ export function createCloudRoutes(
   const id = (params: readonly string[], index = 0): number => Number(params[index])
 
   function songOf(view: CloudLibrary, songId: number) {
-    const found = view.library.songs.find(song => song.id === songId)
+    const found = view.byId.songs.get(songId)
     if (!found) throw notFound('song')
     return found
   }
 
   function tagOf(view: CloudLibrary, uid: string | undefined) {
     const tagId = uid === undefined ? undefined : view.ids.tags[uid]
-    const found = view.library.tags.find(tag => tag.id === tagId)
+    const found = tagId === undefined ? undefined : view.byId.tags.get(tagId)
     if (!found) throw notFound('tag')
     return found
   }
 
   function playlistOf(view: CloudLibrary, uid: string | undefined) {
     const playlistId = uid === undefined ? undefined : view.ids.playlists[uid]
-    const found = view.library.playlists.find(playlist => playlist.id === playlistId)
+    const found = playlistId === undefined ? undefined : view.byId.playlists.get(playlistId)
     if (!found) throw notFound('playlist')
     return found
   }
 
   /** "Reachable" means the doorman answers: a cloud library's only server. */
   async function health(): Promise<unknown> {
-    const response = await session_.doormanFetch(null, '/v1/health')
+    const response = await sessionApi.doormanFetch(null, '/v1/health')
     if (!response.ok) throw new DoormanError(response.status, 'the doorman is not answering')
     // A 200 is not yet an answer: a captive portal or a proxy's login page
     // returns one too, and this route's whole job is to say the doorman is
@@ -606,7 +611,7 @@ export function createCloudRoutes(
 
   /** Kept on this device: with no server to share them through, they are its own. */
   async function saveSettings(patch: unknown): Promise<Settings> {
-    const next = SettingsSchema.parse({ ...(await loadSettings()), ...(patch as object) })
+    const next = parseInput(SettingsSchema, { ...(await loadSettings()), ...(patch as object) })
     try {
       await platform.store.write(SETTINGS_KEY, next)
     } catch {

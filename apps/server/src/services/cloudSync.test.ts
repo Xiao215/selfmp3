@@ -82,6 +82,10 @@ describe('CloudSyncService', () => {
   let buckets: Map<string, MemoryCloudStore>
   let bucket: MemoryCloudStore
   let sync: CloudSyncService
+  /** The service `sync` is, with some of its dependencies changed. */
+  let makeSync: (
+    changed: Partial<ConstructorParameters<typeof CloudSyncService>[0]>,
+  ) => CloudSyncService
   let clock: number
 
   beforeEach(() => {
@@ -151,7 +155,7 @@ describe('CloudSyncService', () => {
     buckets.set(CONNECT.bucket, bucket)
     clock = Date.parse('2026-09-11T10:00:00Z')
 
-    sync = new CloudSyncService({
+    const deps: ConstructorParameters<typeof CloudSyncService>[0] = {
       cloud,
       songs,
       tags,
@@ -176,9 +180,12 @@ describe('CloudSyncService', () => {
       debounceMs: 5,
       retryDelaysMs: [30],
       publishDeferMs: 40,
+      publishDeferMaxMs: 120,
       // A second apart per call, so every snapshot gets a name of its own.
       now: () => new Date((clock += 1000)),
-    })
+    }
+    makeSync = changed => new CloudSyncService({ ...deps, ...changed })
+    sync = makeSync({})
   })
 
   /** Services a test made besides `sync`, stopped with it. */
@@ -1223,20 +1230,17 @@ describe('CloudSyncService', () => {
     })
 
     it('publishes this server’s library, unmerged, when told to publish anyway', async () => {
-      process.env['SELFMP3_PUBLISH_ANYWAY'] = '1'
-      try {
-        addSong('A - One', 'one')
-        seedBucket(theirLibrary())
-        await connect()
+      sync.stop()
+      sync = makeSync({ publishAnyway: true })
+      addSong('A - One', 'one')
+      seedBucket(theirLibrary())
+      await connect()
 
-        // The escape hatch is total: it is how you say "this server's library
-        // is the one I want everywhere", and merging the bucket's in first
-        // would be the opposite of that.
-        expect(songs.all()).toHaveLength(1)
-        expect(latest().songs).toHaveLength(1)
-      } finally {
-        delete process.env['SELFMP3_PUBLISH_ANYWAY']
-      }
+      // The escape hatch is total: it is how you say "this server's library
+      // is the one I want everywhere", and merging the bucket's in first
+      // would be the opposite of that.
+      expect(songs.all()).toHaveLength(1)
+      expect(latest().songs).toHaveLength(1)
     })
   })
 

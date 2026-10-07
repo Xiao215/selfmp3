@@ -6,28 +6,26 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useNavigation, useRouter } from 'expo-router'
 import type { NativeStackNavigationProp } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
-import { fonts, isDownloaded, radius, tagColors, type, useLibrary } from '@selfmp3/client'
+import { fonts, isDownloaded, tagColors, type, useLibrary } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLayout } from '../../shell/useLayout'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
-import { CoverLight } from '../../ui/components/CoverLight'
 import { IconButton } from '../../ui/components/IconButton'
+import { ListHead, listHeadText } from '../../ui/components/ListHead'
 import { ChevronLeft, More, Play, Plus, Shuffle, User } from '../../ui/components/Icons'
-import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
 import { SongList } from '../../ui/components/SongList'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { SongRow } from '../../ui/components/SongRow'
+import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
 import { useSongColor } from '../../ui/useSongColor'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { spring } from '../../ui/motion'
 import { takePlaceHandoff } from '../../ui/coverHandoff'
-import { artShadow, label as labelText } from '../../ui/surfaces'
 import {
   combinedLink,
   combinedName,
@@ -88,9 +86,6 @@ export function PlacePage({
   const { theme } = useUnistyles()
   const router = useRouter()
   const { wide } = useLayout()
-  // The head's light runs up behind the status bar rather than stopping at
-  // it, so the page is lit to its own top edge; only what is read sits under.
-  const { top } = useSafeAreaInsets()
   const player = usePlayer()
   const artFor = useArt()
   const { data: library } = useLibrary()
@@ -268,55 +263,52 @@ export function PlacePage({
   }
 
   const head = (
-    <View style={[styles.head, wide && styles.headWide, { paddingTop: top + 8 }]}>
-      <CoverLight color={light.color} art={artistAlone ? (backdrop ?? leadArt) : null} />
-      <View style={styles.topBar}>
-        <IconButton label="Back" onPress={back} filled>
-          <ChevronLeft size={20} tone="textPrimary" />
-        </IconButton>
-        {menu ? (
-          <View ref={moreRef} collapsable={false}>
-            <IconButton
-              label={`More for ${placeName(place)}`}
-              onPress={() => menu(moreRef.current)}
-              filled
-              testID="place-more"
-            >
-              <More size={18} tone="textPrimary" />
-            </IconButton>
-          </View>
-        ) : null}
-      </View>
-
-      <Animated.View
-        ref={heroRef}
-        collapsable={false}
-        onLayout={placeHero}
-        style={[styles.hero, wide && styles.heroWide, grow]}
-      >
-        {artistAlone ? null : (
-          <View style={styles.mosaic}>
-            <PlaylistCover songIds={ids} size={wide ? 176 : 196} />
-          </View>
-        )}
-        <View style={[styles.titles, wide && styles.titlesWide]}>
-          <View style={styles.kind}>
+    <ListHead
+      wide={wide}
+      light={light.color}
+      art={artistAlone ? (backdrop ?? leadArt) : null}
+      topBar={
+        <>
+          <IconButton label="Back" onPress={back} filled>
+            <ChevronLeft size={20} tone="textPrimary" />
+          </IconButton>
+          {menu ? (
+            <View ref={moreRef} collapsable={false}>
+              <IconButton
+                label={`More for ${placeName(place)}`}
+                onPress={() => menu(moreRef.current)}
+                filled
+                testID="place-more"
+              >
+                <More size={18} tone="textPrimary" />
+              </IconButton>
+            </View>
+          ) : null}
+        </>
+      }
+      heroRef={heroRef}
+      heroStyle={grow}
+      onHeroLayout={placeHero}
+      cover={artistAlone ? null : <PlaylistCover songIds={ids} size={wide ? 176 : 196} />}
+      titles={
+        <>
+          <View style={listHeadText.kind}>
             {place.kind === 'tag' ? (
               <View style={[styles.kindDot, { backgroundColor: tagColors(place.tag.hue).dot }]} />
             ) : (
               <User size={12} tone="textSecondary" />
             )}
-            <Text style={styles.kindText}>{kindLabel}</Text>
+            <Text style={listHeadText.kindText}>{kindLabel}</Text>
           </View>
           <Text
-            style={[styles.name, artistAlone && styles.nameSerif]}
+            style={[listHeadText.name, artistAlone && styles.nameSerif]}
             numberOfLines={2}
             accessibilityRole="header"
             testID="place-name"
           >
             {title}
           </Text>
-          <Text style={styles.summary}>{summary}</Text>
+          <Text style={listHeadText.summary}>{summary}</Text>
           {combining ? (
             <Chips
               chosen={chosen}
@@ -324,8 +316,10 @@ export function PlacePage({
               onAdd={() => setAdding(true)}
             />
           ) : null}
-        </View>
-        <View style={[styles.actions, wide && styles.actionsWide]}>
+        </>
+      }
+      actions={
+        <>
           <PlayButton
             testID="place-play"
             label={`Play ${title}`}
@@ -355,9 +349,9 @@ export function PlacePage({
               onPress={() => setAdding(true)}
             />
           )}
-        </View>
-      </Animated.View>
-    </View>
+        </>
+      }
+    />
   )
 
   return (
@@ -449,10 +443,8 @@ function PlaceSongs({
   const selection = useSelection(ids)
   // Newest first, or an artist's albums one after another: the scrollbar's bubble says which.
   const scrollLabel = useMemo(() => sortLabel(byAlbum ? 'album' : 'addedAt'), [byAlbum])
-  const selectedSongs = useMemo(
-    () => songs.filter(song => selection.has(song.id)),
-    [songs, selection],
-  )
+  // Always mounted, told when to show, so it rises and sinks rather than appearing.
+  const bar = useListSelectionBar({ songs, selection, scope, wide })
   const latest = useRef({ ids, playFrom: player.playFrom, selection, source })
   useEffect(() => {
     latest.current = { ids, playFrom: player.playFrom, selection, source }
@@ -514,38 +506,17 @@ function PlaceSongs({
     ],
   )
 
-  // Always mounted, told when to show, so it rises and sinks rather than
-  // appearing. On a computer it is in the list, at the head's foot, and stays
-  // at the top once the head has scrolled away; a phone's floats at the foot.
-  const bar = (
-    <SelectionBar
-      shown={selection.active}
-      songs={selectedSongs}
-      total={songs.length}
-      scope={scope}
-      allSelected={selection.allSelected}
-      onSelectAll={selection.selectAll}
-      onDeselectAll={selection.clear}
-      onDone={selection.clear}
-      inline={wide}
-    />
-  )
-
   return (
     <View style={styles.listArea}>
-      {wide ? null : bar}
+      {bar.floating}
       <SongList
         songs={songs}
         label={label}
         renderSong={renderSong}
         header={head}
-        pinned={wide ? bar : null}
+        pinned={bar.pinned}
         scrollLabel={scrollLabel}
-        // On a phone the bar floats over the foot of the list; the last song
-        // can scroll out from under it.
-        contentContainerStyle={
-          selection.active && !wide ? { paddingBottom: SELECTION_BAR_SPACE } : undefined
-        }
+        contentContainerStyle={bar.listPadding}
       />
       <SongMenu song={menuSong} anchorRef={anchor} onClose={() => setMenuSong(null)} />
     </View>
@@ -574,46 +545,10 @@ function AlbumHeading({
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   listArea: { flex: 1, minHeight: 0 },
-  // The light stays inside the head, so it never runs on under the rows.
-  head: { paddingHorizontal: 20, paddingBottom: 16, gap: 18, overflow: 'hidden' },
-  headWide: { paddingHorizontal: 40, paddingTop: 16 },
-  // No glass here. The bar scrolls with the head rather than floating over
-  // the page, and it carries no fill, so `backdrop-filter` only blurred the
-  // head's own light inside the bar's rectangle — a band across the top with
-  // a hard edge where the filter stopped (Xiao, 2026-09-21).
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 8,
-  },
-  hero: { gap: 16 },
-  // The buttons go under the name when the page cannot hold all three abreast
-  // (an iPad in portrait), rather than squeezing the name to nothing.
-  heroWide: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 28 },
-  mosaic: {
-    alignSelf: 'flex-start',
-    ...artShadow(theme.colors),
-    borderRadius: radius.card,
-  },
-  titles: { gap: 6, flexShrink: 1, minWidth: 0 },
-  titlesWide: { flexGrow: 1, flexBasis: 220 },
-  kind: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   kindDot: { width: 7, height: 7, borderRadius: 3.5 },
-  kindText: labelText(theme.colors),
-  name: {
-    color: theme.colors.textPrimary,
-    fontFamily: fonts.display,
-    fontSize: 40,
-    lineHeight: 46,
-    letterSpacing: -0.8,
-  },
   nameSerif: { fontFamily: fonts.serif, fontSize: 52, lineHeight: 60, letterSpacing: -0.5 },
-  summary: { color: theme.colors.textSecondary, fontSize: 14 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 6 },
   plus: { color: theme.colors.textSecondary, fontSize: 14 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  actionsWide: { marginLeft: 'auto', paddingBottom: 6 },
   album: {
     flexDirection: 'row',
     alignItems: 'center',

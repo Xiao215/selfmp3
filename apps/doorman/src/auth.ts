@@ -1,5 +1,6 @@
 import {
   DoormanClaimRequestSchema,
+  SIGN_IN_CODE_FRAGMENT,
   SignInAttemptSchema,
   formatSignInCode,
   type DoormanClaimResult,
@@ -196,7 +197,7 @@ export async function callback(ctx: Context): Promise<Response> {
     return new Response(null, {
       status: 302,
       headers: {
-        location: withFragment(state.returnTo, `signin-code=${signInCode}`),
+        location: withFragment(state.returnTo, `${SIGN_IN_CODE_FRAGMENT}=${signInCode}`),
         'cache-control': 'no-store',
         'referrer-policy': 'no-referrer',
       },

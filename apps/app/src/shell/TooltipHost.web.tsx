@@ -50,8 +50,6 @@ const KEYFRAMES = `@keyframes selfmp3-tooltip-in { from { opacity: 0; transform:
 @keyframes selfmp3-tooltip-out { to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { #${TOOLTIP_ID} { animation: none !important; } }`
 
-/** `ease.out` and `ease.in` as CSS writes them (`ui/motion.ts`). */
-
 type Shown = { anchor: HTMLElement; text: string }
 
 function tipAnchor(node: EventTarget | null): HTMLElement | null {
@@ -111,6 +109,9 @@ export function TooltipHost(): ReactNode {
 
     const hide = (): void => {
       window.clearTimeout(timer)
+      // Nothing up and nothing on its way: every click anywhere calls this,
+      // and a fade-out of nothing was two renders and a timer for each.
+      if (current === null && !visible) return
       if (visible) warmUntil = performance.now() + WARM_MS
       observer.disconnect()
       described?.removeAttribute('aria-describedby')

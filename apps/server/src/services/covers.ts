@@ -9,11 +9,15 @@ import type { SongRepository } from '../repositories/songs.js'
 import { isSquareCover, squareCover } from './squareCover.js'
 
 /**
- * Cover art cache.
+ * This server's copy of every cover, in `data/covers/<id>`.
  *
- * Art is extracted from the audio file once and written to `data/covers/<id>`,
- * rather than re-parsing a 6 MB file every time a list of forty songs scrolls
- * past. The cache is disposable: delete the folder and a rescan rebuilds it.
+ * A cover arrives once — read out of a file the inbox sweep found, fetched
+ * with an import, or picked by hand — and is kept here rather than re-read
+ * from a 6 MB file every time a list of forty songs scrolls past. It is not a
+ * cache to throw away: the audio it came from is let go once it is in the
+ * bucket (docs/SYNC.md), `/api/art/:id` serves only what is here, and the
+ * cloud pass uploads the cover from here. Delete the folder and the covers
+ * are gone from this server.
  */
 
 const EXTENSIONS = ['.jpg', '.png', '.webp'] as const

@@ -16,9 +16,9 @@ import { debounce, type Debounced } from './debounce.js'
  * it covers both places this server runs with zero dependencies and no native
  * build step. chokidar's extra machinery — polling fallbacks, glob matching,
  * `awaitWriteFinish` — solves problems this app does not have: the scanner is
- * already incremental (unchanged size+mtime is skipped) and idempotent, so a
- * file still being copied is simply picked up again by the next debounced
- * scan once its size settles.
+ * already incremental (a file whose mtime is unchanged is skipped) and
+ * idempotent, so a file still being copied is simply picked up again by the
+ * next debounced scan once it stops changing.
  *
  * Only the local storage driver has a folder to watch; with S3 this is a no-op.
  */

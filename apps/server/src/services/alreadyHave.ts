@@ -5,7 +5,7 @@ import { foldForMatch, similarAtLeast, type Folded } from './youtubeMatch.js'
  * Is this track already in the library?
  *
  * One rule for every way a song can arrive — a pasted link, a shared link, a
- * migrated playlist — because there were two, and the weaker one let things
+ * list of names — because there were two, and the weaker one let things
  * through. The import preview compared `artist::title` as exact lowercased
  * strings; a dev library ended up with the same ZUTOMAYO track ten times over,
  * because YouTube gave the channel as "ZUTOMAYO" one week and "ずっと真夜中で

@@ -6,7 +6,7 @@ import type {
   TopSong,
   WrappedRange,
 } from '@selfmp3/shared'
-import { artistKey, splitArtists } from '@selfmp3/shared'
+import { artistKey, DAY_HOURS, EARLY_HOURS, NIGHT_HOURS, splitArtists } from '@selfmp3/shared'
 
 /**
  * Listening stats, without the screen.
@@ -82,14 +82,15 @@ export function peakHour(hourly: readonly HourlyPlays[]): HourlyPlays | null {
 }
 
 /**
- * What the busiest hour says about you, under Peak hour: the same bands the
- * Report's "Night owl" and "Early bird" use (`packages/shared/src/personality.ts`),
- * so the two pages never disagree about when night starts.
+ * What the busiest hour says about you, under Peak hour: read off the bands
+ * the Report's "Night owl" and "Early bird" traits count in
+ * (`packages/shared/src/personality.ts`), so the two never disagree about
+ * when night starts.
  */
 export function peakHourWords(hour: number): string {
-  if (hour >= 22 || hour <= 4) return 'Night owl'
-  if (hour <= 9) return 'Early bird'
-  if (hour <= 17) return 'Daytime listener'
+  if (NIGHT_HOURS.includes(hour)) return 'Night owl'
+  if (EARLY_HOURS.includes(hour)) return 'Early bird'
+  if (DAY_HOURS.includes(hour)) return 'Daytime listener'
   return 'Evening listener'
 }
 

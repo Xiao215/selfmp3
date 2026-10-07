@@ -102,6 +102,11 @@ export function masthead(range: WrappedRange): string {
 /**
  * When most of the listening happened, as the rest of a sentence: "at night".
  * Null with no plays, so a sentence can leave the clause out.
+ *
+ * Its own bands (night from 21:00, morning until noon), not the ones the
+ * traits and Stats' Peak hour use (`NIGHT_HOURS` and the rest in
+ * packages/shared/src/personality.ts): so the Report can say "mostly at
+ * night" of a 21:00 peak that Stats calls an evening.
  */
 export function timeOfDay(hour: number | null | undefined): string | null {
   if (hour === null || hour === undefined) return null

@@ -8,7 +8,7 @@ import { sendRemoteCommand } from './remoteCommands'
  * react-native-track-player runs this outside the React tree — on Android it
  * is a headless task that keeps running when every screen is gone — so it must
  * not touch component state. Its only job is to turn remote control events
- * (lock screen, headphones, steering wheel, CarPlay transport, Android Auto)
+ * (lock screen, headphones, a car's steering wheel, Android Auto)
  * into player calls.
  *
  * Events that need library knowledge (`RemotePlayId`, `RemotePlaySearch` from
@@ -18,7 +18,8 @@ import { sendRemoteCommand } from './remoteCommands'
 /**
  * Whether this JavaScript context has already wired the handlers up.
  *
- * `registerPlaybackService` is called from the layout's module body, and Fast
+ * `registerPlaybackService` is called from the layout's module body
+ * (`registerPlayback.ts`), and Fast
  * Refresh re-runs module bodies — so every reload in development stacked
  * another full set of handlers on the same events, and one tap of the lock
  * screen's Next skipped as many tracks as there had been reloads. A fresh

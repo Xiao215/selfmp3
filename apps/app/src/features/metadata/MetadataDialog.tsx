@@ -1,11 +1,17 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { formatDuration, type MetadataCandidate, type Song } from '@selfmp3/shared'
-import { oklchToHexAlpha, radius, type ServerConnection } from '@selfmp3/client'
+import {
+  formatDuration,
+  type MetadataCandidate,
+  type MetadataSuggestion,
+  type Song,
+} from '@selfmp3/shared'
+import { failureText, oklchToHexAlpha, radius, type ServerConnection } from '@selfmp3/client'
 import { useMetadataSource } from './metadataSource'
+import { useMetadataSuggestion } from './useMetadataSuggestion'
 import {
   applyInput,
   applyLabel,
@@ -33,12 +39,13 @@ import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
-import { Check, X } from '../../ui/components/Icons'
+import { Check, Sparkle, X } from '../../ui/components/Icons'
 
 /** The sources' badges, as an OKLCH pair: ground, ink. */
 const SOURCE_TONE: Record<MetadataCandidate['source'], [string, string]> = {
   itunes: [oklchToHexAlpha(0.36, 0.09, 340, 0.5), oklchToHexAlpha(0.85, 0.1, 340, 1)],
   musicbrainz: [oklchToHexAlpha(0.36, 0.09, 40, 0.5), oklchToHexAlpha(0.85, 0.1, 40, 1)],
+  ai: [oklchToHexAlpha(0.36, 0.09, 280, 0.5), oklchToHexAlpha(0.85, 0.1, 280, 1)],
 }
 
 /**
@@ -75,15 +82,37 @@ export function MetadataDialog({
   useEscape(true, onClose, { layer: true })
 
   const candidates = lookup.data?.candidates ?? []
-  const [selectedIndex, setSelectedIndex] = useState(0)
-  const selected = candidates[selectedIndex]
+  // The model's suggestion, when it has been asked for (`useMetadataSuggestion`).
+  const suggest = useMetadataSuggestion(askFor)
+  const suggested = suggest.ask.data?.suggestion ?? null
+  // A listing by its place, or the Suggested card.
+  const [selectedKey, setSelectedKey] = useState<number | 'ai'>(0)
+  const selected = selectedKey === 'ai' ? (suggested ?? undefined) : candidates[selectedKey]
   const diffs = useMemo(() => (selected ? diffFields(song, selected) : []), [song, selected])
+  const askSuggestion = (again: boolean): void =>
+    suggest.ask.mutate(again, {
+      onSuccess: answer => {
+        if (answer.suggestion) setSelectedKey('ai')
+      },
+    })
+  // Nothing matched: the catalogues' other listings and the song's own file
+  // are all there is to go on, which is the model's reading to do — asked
+  // once, without a press.
+  const nothingMatched = lookup.isSuccess && candidates.length === 0
+  const idle = suggest.ask.isIdle
+  useEffect(() => {
+    if (suggest.on && nothingMatched && idle) askSuggestion(false)
+    // `askSuggestion` is made anew each render; the three facts are what decide.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggest.on, nothingMatched, idle])
 
   // What a suggestion corrects starts ticked, afresh for each suggestion picked.
-  const [picked, setPicked] = useState<{ index: number; fields: ReadonlySet<Field> } | null>(null)
-  const ticked = picked?.index === selectedIndex ? picked.fields : defaultTicked(song, diffs)
-  const setTicked = (fields: ReadonlySet<Field>): void =>
-    setPicked({ index: selectedIndex, fields })
+  const [picked, setPicked] = useState<{
+    key: number | 'ai'
+    fields: ReadonlySet<Field>
+  } | null>(null)
+  const ticked = picked?.key === selectedKey ? picked.fields : defaultTicked(song, diffs)
+  const setTicked = (fields: ReadonlySet<Field>): void => setPicked({ key: selectedKey, fields })
   const toggle = (field: Field): void => {
     const next = new Set(ticked)
     if (next.has(field)) next.delete(field)
@@ -162,19 +191,33 @@ export function MetadataDialog({
       ) : null}
       {lookup.isSuccess && candidates.length === 0 ? (
         <Text style={styles.hint}>
-          Nothing matched on iTunes or MusicBrainz. Correct the title or artist on the left and
-          apply — the next look-up searches with them.
+          Nothing matched on iTunes or MusicBrainz.{' '}
+          {suggest.on
+            ? 'The suggestion below reads the other catalogues and the song’s file. '
+            : ''}
+          Or correct the title or artist on the left and apply — the next look-up searches with
+          them.
         </Text>
+      ) : null}
+
+      {suggest.on ? (
+        <SuggestedCard
+          state={suggest.ask}
+          active={selectedKey === 'ai'}
+          onAsk={() => askSuggestion(false)}
+          onAgain={() => askSuggestion(true)}
+          onPick={() => setSelectedKey('ai')}
+        />
       ) : null}
 
       <View role="radiogroup" accessibilityLabel="Candidates" style={styles.list}>
         {candidates.map((candidate, index) => {
-          const active = index === selectedIndex
+          const active = index === selectedKey
           const [ground, ink] = SOURCE_TONE[candidate.source]
           return (
             <Pressable
               key={`${candidate.source}-${index}`}
-              onPress={() => setSelectedIndex(index)}
+              onPress={() => setSelectedKey(index)}
               accessibilityRole="radio"
               accessibilityState={{ checked: active }}
               accessibilityLabel={`${candidate.title}, ${candidateLine(candidate, formatDuration)}, ${SOURCE_LABELS[candidate.source]}, ${scorePercent(candidate.score)}`}
@@ -366,6 +409,123 @@ export function MetadataDialog({
   return null
 }
 
+/**
+ * The model's suggestion, at the head of the listings (docs/features/ai.md):
+ * a press to ask for it, then a row like a listing's that can be picked, drawn
+ * dashed and with the sparkle as everything a model offers is until it is
+ * taken. Under it, the model's one sentence of why, and which listing it
+ * follows; a name it answered that was found nowhere was put back, and says so.
+ */
+function SuggestedCard({
+  state,
+  active,
+  onAsk,
+  onAgain,
+  onPick,
+}: {
+  state: { data?: MetadataSuggestion; isPending: boolean; error: Error | null }
+  active: boolean
+  onAsk: () => void
+  onAgain: () => void
+  onPick: () => void
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const accent = useAccent()
+  const answer = state.data
+  const sparkle = <Sparkle size={14} color={accent.accent} />
+
+  if (state.isPending) {
+    return (
+      <View style={[styles.suggested, styles.suggestedAsk]} testID="metadata-suggest-pending">
+        <ActivityIndicator size="small" color={accent.accent} />
+        <Text style={styles.candidateSub}>Reading the listings and the song’s file…</Text>
+      </View>
+    )
+  }
+  if (!answer) {
+    return (
+      <View style={styles.suggestedWrap}>
+        <Pressable
+          onPress={onAsk}
+          accessibilityRole="button"
+          accessibilityLabel="Suggest names"
+          testID="metadata-suggest"
+          style={({ pressed }) => [
+            styles.suggested,
+            styles.suggestedAsk,
+            pressed && styles.candidatePressed,
+          ]}
+        >
+          {sparkle}
+          <View style={styles.candidateMain}>
+            <Text style={[styles.candidateTitle, { color: accent.accent }]}>Suggest</Text>
+            <Text style={styles.candidateSub}>
+              Reads this song’s names, file and link with the listings, 网易云’s too
+            </Text>
+          </View>
+        </Pressable>
+        {state.error ? (
+          <Text style={[styles.hint, { color: theme.colors.danger }]}>
+            {failureText('Couldn’t suggest', state.error)}
+          </Text>
+        ) : null}
+      </View>
+    )
+  }
+
+  const pick = answer.suggestion
+  const follows = answer.agrees === null ? undefined : answer.candidates[answer.agrees]
+  const notes = [
+    follows ? `Follows ${SOURCE_LABELS[follows.source]}’s “${follows.title}”.` : null,
+    answer.dropped.length > 0
+      ? `Left ${answer.dropped.join(', ')} as it was: the name it gave wasn’t in any listing.`
+      : null,
+  ].filter(Boolean)
+  return (
+    <View style={styles.suggestedWrap}>
+      <Pressable
+        onPress={pick ? onPick : undefined}
+        disabled={!pick}
+        accessibilityRole={pick ? 'radio' : undefined}
+        accessibilityState={pick ? { checked: active } : undefined}
+        accessibilityLabel={
+          pick ? `Suggested: ${pick.title}, ${candidateLine(pick, formatDuration)}` : answer.why
+        }
+        testID="metadata-suggested"
+        style={({ pressed }) => [
+          styles.suggested,
+          pressed && pick && styles.candidatePressed,
+          active && styles.candidateActive,
+        ]}
+      >
+        {sparkle}
+        <View style={styles.candidateMain}>
+          <Text style={[styles.candidateTitle, active && styles.strong]} numberOfLines={1}>
+            {pick ? pick.title : 'Looks right as it is'}
+          </Text>
+          {pick ? (
+            <Text style={styles.candidateSub} numberOfLines={1}>
+              {candidateLine(pick, formatDuration)}
+            </Text>
+          ) : null}
+          <Text style={styles.suggestedWhy}>{answer.why}</Text>
+          {notes.length > 0 ? <Text style={styles.candidateSub}>{notes.join(' ')}</Text> : null}
+        </View>
+        <View style={[styles.badge, { backgroundColor: SOURCE_TONE.ai[0] }]}>
+          <Text style={[styles.badgeText, { color: SOURCE_TONE.ai[1] }]}>SUGGESTED</Text>
+        </View>
+      </Pressable>
+      <Text
+        style={[styles.link, styles.suggestedAgain, { color: accent.accent }]}
+        onPress={onAgain}
+        accessibilityRole="button"
+      >
+        Ask again
+      </Text>
+    </View>
+  )
+}
+
 function Pill({ text }: { text: string }): ReactNode {
   return (
     <View style={styles.pill}>
@@ -459,6 +619,22 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: 14,
   },
   candidatePressed: { backgroundColor: theme.colors.surface2 },
+  // What a model offers is dashed until it is taken (docs/features/ai.md, rule 2).
+  suggestedWrap: { gap: 4 },
+  suggested: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: theme.colors.surface3,
+  },
+  suggestedAsk: { paddingVertical: 12 },
+  suggestedWhy: { color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 2 },
+  suggestedAgain: { alignSelf: 'flex-end', marginRight: 4 },
   // The picked suggestion wears the palette's selected-row colour, not an accent edge.
   candidateActive: { backgroundColor: theme.colors.accentSelected },
   candidateMain: { flex: 1, minWidth: 0, gap: 2 },

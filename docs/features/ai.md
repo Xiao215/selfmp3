@@ -548,12 +548,32 @@ sees. On the real library across a week, a month and a year, one sentence in fif
 dropped. The answer is kept per set of facts, so the page costs one call until the plays
 change or Write it again is pressed.
 
+## Fix metadata · Suggested
+
+A song's Fix metadata shows iTunes' and MusicBrainz's listings, each a whole set of names
+to take or leave. The Suggested card at the head of them is the model reading them: the
+song's names, its file's name, the link it came from, those listings, and the names 网易云
+(then MusicBrainz and iTunes) give the same recording (`catalogueFinder`). It answers the
+names the song should have, which listing it follows, and one sentence of why
+(`ai/fixSong.ts`, `GET /api/ai/songs/:id/metadata`). Picked, it is a listing like the
+others: its changes are ticked, each can be unticked, and Apply is the ordinary edit.
+
+Grounded as Tidy up is: every name in the answer must be found, part by part, in one of
+those sources (`within`), or it is put back as it was and named under the card ("left
+title as it was"). A year must be a listing's. The cover is the followed listing's. So a
+suggestion can choose the wrong one of the names on offer, but cannot make one up.
+
+It runs when Suggest is pressed, and by itself when nothing matched on iTunes or
+MusicBrainz — where 网易云's listing is often the only one there is. One call on the smart
+tier, remembered against its exact question; Ask again asks afresh. Standing preferences
+("Chinese names only") go with it.
+
 ## Settings › Smart features: a switch per feature
 
-Four switches, shared across devices with the other server settings (`smartAsk`,
-`smartTidy`, `smartTags`, `smartWritten`, all on by default): Ask in Search (which
-also covers Let it pick and Up next), Tidy up, Tags (Suggest tags, and Ask's tag changes)
-and the Report in words. Each
+Five switches, shared across devices with the other server settings (`smartAsk`,
+`smartTidy`, `smartTags`, `smartWritten`, `smartMetadata`, all on by default): Ask in
+Search (which also covers Let it pick and Up next), Tidy up, Tags (Suggest tags, and Ask's
+tag changes), the Report in words and Fix metadata's Suggested card. Each
 says what of the library it shows the model, in a line, because "the model sees your
 library" is too vague to agree to and each sees less than that. Off, the way in is not
 drawn (`useSmartSwitches`) and the server refuses the route with 403 `ai_disabled` before any

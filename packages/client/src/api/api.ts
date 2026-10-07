@@ -31,6 +31,7 @@ import {
   ApplyMetadataResultSchema,
   FixCoversStatusSchema,
   MetadataLookupResponseSchema,
+  MetadataSuggestionSchema,
   AiCheckSchema,
   AiSetupSchema,
   AskAnswerSchema,
@@ -375,6 +376,16 @@ export function createApi({ context, fetch }: ApiOptions) {
     untaggedTags: () => request('GET', '/api/ai/tags/untagged', TagReviewSchema),
 
     /** A5 · the Report in a few sentences; `again` writes it afresh. */
+    /** Fix metadata's Suggested card: the model's names for one song (`again`: a fresh answer). */
+    suggestMetadata: (id: number, again = false, signal?: ClientSignal) =>
+      request(
+        'GET',
+        `/api/ai/songs/${id}/metadata?again=${again ? 1 : 0}`,
+        MetadataSuggestionSchema,
+        undefined,
+        signal,
+      ),
+
     written: (range: WrappedRange, again = false) =>
       request('GET', `/api/ai/written?range=${range}&again=${again ? 1 : 0}`, WrittenReportSchema),
 

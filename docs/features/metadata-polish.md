@@ -3,10 +3,10 @@
 Correct a song's title, artist, album, year and track number — and find missing cover art —
 from free public databases. No API keys, nothing to configure.
 
-**Server-only, and therefore out of reach today.** The lookups are the server's own HTTP
-calls, rate limiter and cover cache, so the app hides them when its library is the bucket's
-— which every surface's now is. Nothing here has been removed or broken; there is simply
-no screen asking for it. See [SYNC.md](../SYNC.md), "What this gives up".
+The lookups are the server's own HTTP calls, rate limiter and cover cache, so a library
+read from the bucket asks the server directly for them (`features/metadata/FixMetadata.tsx`),
+and the names are saved on the device. The model's Suggested card on the same page is in
+[ai.md](ai.md), "Fix metadata · Suggested".
 
 ## What it does
 

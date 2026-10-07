@@ -5,6 +5,7 @@ import {
   type AiSetup,
   type TidyResult,
   type WrittenReport,
+  IdSchema,
   WrappedRangeSchema,
   AskRequestSchema,
   DescribeRequestSchema,
@@ -12,6 +13,7 @@ import {
   type AskAnswer,
   type AskProgress,
   type DescribeResult,
+  type MetadataSuggestion,
   type TagReview,
 } from '@selfmp3/shared'
 import { LlmError, llmFailureWords } from '../ai/llm.js'
@@ -24,7 +26,7 @@ import { route } from '../http/route.js'
  * here writes to the library. Taking a suggestion is the ordinary edit a device
  * already makes, so it syncs and undoes like any other.
  */
-type SmartSwitch = 'smartAsk' | 'smartTidy' | 'smartTags' | 'smartWritten'
+type SmartSwitch = 'smartAsk' | 'smartTidy' | 'smartTags' | 'smartWritten' | 'smartMetadata'
 
 export function aiRoutes(container: Container): Router {
   const router = Router()
@@ -106,6 +108,23 @@ export function aiRoutes(container: Container): Router {
       ({ query }): Promise<WrittenReport> => {
         allowed('smartWritten')
         return answering(container.smart.written(query.range, query.again === '1'))
+      },
+    ),
+  )
+
+  /** Fix metadata's Suggested card: one song's names, read from the catalogues' listings. */
+  router.get(
+    '/ai/songs/:id/metadata',
+    route(
+      {
+        params: z.object({ id: IdSchema }),
+        query: z.object({ again: z.enum(['0', '1']).default('0') }),
+      },
+      ({ params, query, res }): Promise<MetadataSuggestion> => {
+        allowed('smartMetadata')
+        const song = container.songs.byId(params.id)
+        if (!song) throw HttpError.notFound(`no song with id ${params.id}`)
+        return answering(container.smart.fixSong(song, query.again === '1', whileWaited(res)))
       },
     ),
   )

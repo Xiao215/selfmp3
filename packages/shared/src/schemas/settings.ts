@@ -42,6 +42,8 @@ export const SettingsSchema = z.object({
   smartTidy: z.boolean().default(true),
   smartTags: z.boolean().default(true),
   smartWritten: z.boolean().default(true),
+  /** Fix metadata's Suggested card: the model reads the song's names and the catalogues' listings. */
+  smartMetadata: z.boolean().default(true),
   /** Let the model search the web when the library and the catalogues don't say. Off: it is slower, and your words leave for a search engine. */
   smartWeb: z.boolean().default(false),
   /**

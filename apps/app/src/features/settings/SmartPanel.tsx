@@ -25,7 +25,7 @@ import { Panel, Row } from './SettingsParts'
  * less than that.
  */
 const SWITCHES: readonly {
-  key: 'smartAsk' | 'smartTidy' | 'smartTags' | 'smartWritten' | 'smartWeb'
+  key: 'smartAsk' | 'smartTidy' | 'smartTags' | 'smartWritten' | 'smartMetadata' | 'smartWeb'
   label: string
   sees: string
 }[] = [
@@ -48,6 +48,11 @@ const SWITCHES: readonly {
     key: 'smartWritten',
     label: 'The Report in words',
     sees: 'Sends the Report’s numbers and the songs, artists and tags it names.',
+  },
+  {
+    key: 'smartMetadata',
+    label: 'Fix metadata',
+    sees: 'Suggest on a song’s Fix metadata. Sends that song’s names, length, file name and the link it came from, with the catalogue listings found for it.',
   },
   {
     key: 'smartWeb',

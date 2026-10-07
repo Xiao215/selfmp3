@@ -408,6 +408,7 @@ export function createContainer(configured: Config): Container {
       netease: words => netease.search(words),
       lookup: query => lookup.lookup(query),
     }),
+    lookup: query => lookup.lookup(query),
   })
   const fixCovers = new FixCoversService({
     songs,

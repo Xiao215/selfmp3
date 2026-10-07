@@ -26,6 +26,7 @@ export const FIELD_LABELS: Record<Field, string> = {
 export const SOURCE_LABELS: Record<MetadataCandidate['source'], string> = {
   itunes: 'iTunes',
   musicbrainz: 'MusicBrainz',
+  ai: 'Suggested',
 }
 
 interface Diff {
@@ -66,7 +67,11 @@ export function diffFields(
     diffs.push({
       field: 'artwork',
       current: song.hasArt ? 'current cover' : '—',
-      proposed: `cover from ${SOURCE_LABELS[candidate.source]}`,
+      // The Suggested card's cover is the listing's it follows, not the model's own.
+      proposed:
+        candidate.source === 'ai'
+          ? 'cover from the listing'
+          : `cover from ${SOURCE_LABELS[candidate.source]}`,
       value: candidate.artworkUrl,
     })
   }

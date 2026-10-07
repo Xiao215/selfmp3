@@ -8,6 +8,8 @@ import type {
   WrappedRange,
   WrittenReport,
   DescribeResult,
+  MetadataCandidate,
+  MetadataSuggestion,
   RefineRequest,
   Stats,
   Song,
@@ -21,6 +23,7 @@ import type { AskDeps } from './askActions.js'
 import type { AskPlaylist } from './askLibrary.js'
 import { AskProgress, type Step } from './progress.js'
 import { describe, type DescribeInput } from './describe.js'
+import { fixSong } from './fixSong.js'
 import { refine } from './refine.js'
 import {
   LlmError,
@@ -40,7 +43,16 @@ type SmartDeps = AskDeps & {
   remembered: Remembered
   setup: AiSetup
   wrapped: (range: WrappedRange) => Wrapped
+  lookup?: MetadataLookup
 }
+
+/** The catalogues' listings for a song, as Fix metadata shows them. */
+type MetadataLookup = (query: {
+  title: string
+  artist: string
+  album: string
+  duration: number
+}) => Promise<readonly MetadataCandidate[]>
 
 /**
  * The smart features as the rest of the server sees them: one object, built
@@ -66,6 +78,7 @@ export class SmartFeatures {
     catalogue?: AskDeps['catalogue']
     web?: () => boolean
     music?: AskDeps['music']
+    lookup?: MetadataLookup
   }) {
     this.#deps = { ...deps, remembered: new Remembered() }
   }
@@ -147,6 +160,11 @@ export class SmartFeatures {
   /** A5 · the Report in a few sentences; `again` writes it afresh. */
   written(range: WrappedRange, again = false): Promise<WrittenReport> {
     return written(this.#deps, range, again)
+  }
+
+  /** Fix metadata's Suggested card: one song's names from the catalogues (`fixSong.ts`). */
+  fixSong(song: Song, again = false, signal?: AbortSignal): Promise<MetadataSuggestion> {
+    return fixSong(this.#stoppedBy(signal), song, again)
   }
 
   /** A4 · Tidy up: the names that look wrong, as changes to approve. */

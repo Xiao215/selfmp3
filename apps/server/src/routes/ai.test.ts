@@ -99,6 +99,7 @@ describe('smart features turned off in Settings', () => {
       smartTidy: false,
       smartTags: false,
       smartWritten: false,
+      smartMetadata: false,
     })
     for (const [method, url, body] of [
       ['POST', '/api/ai/ask', { text: 'check my song names' }],
@@ -106,6 +107,7 @@ describe('smart features turned off in Settings', () => {
       ['GET', '/api/ai/tidy'],
       ['GET', '/api/ai/tags/untagged'],
       ['GET', '/api/ai/written?range=month'],
+      ['GET', '/api/ai/songs/1/metadata'],
     ] as const) {
       const response = await call(method, url, body)
       expect(response.status, url).toBe(403)

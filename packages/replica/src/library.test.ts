@@ -84,7 +84,7 @@ function fakeBucket() {
         if (failNextPut !== null) {
           const status = failNextPut
           failNextPut = null
-          return reply(status, { error: 'no' })
+          return reply(status, { error: 'no', code: 'forbidden' })
         }
         const body: unknown = JSON.parse(String(init.body))
         puts.push({ key, body })

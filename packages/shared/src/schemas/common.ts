@@ -41,9 +41,10 @@ export const BooleanQuerySchema = z
     return normalized === 'true' || normalized === '1' || normalized === 'yes'
   })
 
+/** Every error the server, the doorman and the web app's worker answer with. */
 export const ErrorBodySchema = z.object({
   error: z.string(),
-  code: z.string().optional(),
+  code: z.string(),
   details: z.unknown().optional(),
 })
 export type ErrorBody = z.infer<typeof ErrorBodySchema>

@@ -8,9 +8,11 @@ import {
   PlayEventSchema,
   SONG_FIELDS,
   SetSongTagsSchema,
+  SimilarQuerySchema,
   similarSongs,
   SkipEventSchema,
   SongPatchSchema,
+  type Affected,
   type BulkDeleteResult,
   type LyricsResponse,
   type PlayRecorded,
@@ -71,7 +73,7 @@ export function songRoutes(container: Container): Router {
   /** Love or unlove a whole selection in one request. */
   router.post(
     '/songs/bulk/loved',
-    route({ body: BulkLovedSchema }, ({ body }) => {
+    route({ body: BulkLovedSchema }, ({ body }): Affected => {
       const affected = container.songs.setLovedMany(body.songIds, body.loved)
       container.edits.songs(body.songIds, ['loved'])
       if (affected > 0) container.bumpLibraryVersion()
@@ -87,7 +89,7 @@ export function songRoutes(container: Container): Router {
    */
   router.post(
     '/songs/bulk/edit',
-    route({ body: BulkEditSongsSchema }, ({ body }) => {
+    route({ body: BulkEditSongsSchema }, ({ body }): Affected => {
       const present = container.songs.existingIds(body.edits.map(edit => edit.songId))
       const here = body.edits.filter(edit => present.has(edit.songId))
       const byFields = new Map<string, { fields: (keyof SongFields)[]; ids: number[] }>()
@@ -175,7 +177,7 @@ export function songRoutes(container: Container): Router {
         if (inserted) container.songs.recordPlay(params.id, playedAt)
         return inserted
       })
-      return { ok: true as const, duplicate: !recorded }
+      return { ok: true, duplicate: !recorded }
     }),
   )
 
@@ -189,7 +191,7 @@ export function songRoutes(container: Container): Router {
    */
   router.post(
     '/songs/:id/skipped',
-    route({ params: ParamsWithId, body: SkipEventSchema }, ({ params, body }) => {
+    route({ params: ParamsWithId, body: SkipEventSchema }, ({ params, body }): PlayRecorded => {
       songOrThrow(params.id)
       const counted = transact(container.db, () => {
         if (body.clientId !== undefined && !container.syncRepo.countSkip(body.clientId))
@@ -197,7 +199,7 @@ export function songRoutes(container: Container): Router {
         container.songs.recordSkip(params.id)
         return true
       })
-      return { ok: true as const, duplicate: !counted }
+      return { ok: true, duplicate: !counted }
     }),
   )
 
@@ -207,7 +209,7 @@ export function songRoutes(container: Container): Router {
     route(
       {
         params: ParamsWithId,
-        query: z.object({ limit: z.coerce.number().int().min(1).max(100).default(20) }),
+        query: SimilarQuerySchema,
       },
       ({ params, query }): SimilarSongs => {
         const seed = songOrThrow(params.id)

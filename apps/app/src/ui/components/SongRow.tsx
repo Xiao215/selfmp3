@@ -4,7 +4,7 @@ import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { GestureResponderEvent, StyleProp, ViewStyle } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
-import { formatDuration, type Song, type Tag } from '@selfmp3/shared'
+import { plural, artistOr, formatDuration, type Song, type Tag } from '@selfmp3/shared'
 import { HIT_TARGET, motion, radius, space, tagColors, type } from '@selfmp3/client'
 import {
   chipBudget,
@@ -240,7 +240,7 @@ export const SongRow = memo(function SongRow({
             {...press.handlers}
             delayLongPress={MOVE_MS.longPress}
             accessibilityRole="button"
-            accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
+            accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
             accessibilityState={{ selected: active }}
             // No pressed background: the row already gives under the finger, and a
             // filled box over the cover and title flashed white in the light theme.
@@ -262,7 +262,7 @@ export const SongRow = memo(function SongRow({
               <View style={styles.subtitleRow}>
                 <HereMark downloaded={downloaded} notDownloadedMark={notDownloadedMark} />
                 <Text style={styles.subtitle} numberOfLines={1}>
-                  {song.artist || 'Unknown artist'} · {formatDuration(song.duration)}
+                  {artistOr(song.artist)} · {formatDuration(song.duration)}
                 </Text>
               </View>
             </View>
@@ -353,7 +353,7 @@ export const SongRow = memo(function SongRow({
           }
           delayLongPress={MOVE_MS.longPress}
           accessibilityRole="button"
-          accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
+          accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
           accessibilityState={{ selected: active }}
           style={styles.mainWide}
         >
@@ -365,7 +365,7 @@ export const SongRow = memo(function SongRow({
             <View style={styles.subtitleRow}>
               <HereMark downloaded={downloaded} notDownloadedMark={notDownloadedMark} />
               <Text style={styles.artist} numberOfLines={1}>
-                {song.artist || 'Unknown artist'}
+                {artistOr(song.artist)}
               </Text>
               {/* With a finger the second line is the artist alone (`T03`). */}
               {song.album && !albumColumn && dense ? (
@@ -591,7 +591,7 @@ function RowTags({
           <Pressable
             onPress={() => onShowAll(moreRef.current)}
             accessibilityRole="button"
-            accessibilityLabel={`${hidden} more ${hidden === 1 ? 'tag' : 'tags'}`}
+            accessibilityLabel={plural(hidden, 'more tag', 'more tags')}
             {...tip(
               tags
                 .slice(shown.length)
@@ -718,7 +718,7 @@ const styles = StyleSheet.create(theme => ({
     paddingLeft: space.lg,
     paddingRight: space.sm,
     marginHorizontal: space.xs,
-    borderRadius: 14,
+    borderRadius: radius.row,
     overflow: 'hidden',
   },
   /* At desktop width: 7 by 10, 12 between cells. */
@@ -729,7 +729,7 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 7,
     paddingHorizontal: 10,
     marginHorizontal: space.sm,
-    borderRadius: 14,
+    borderRadius: radius.row,
     overflow: 'hidden',
     _web: {
       transitionProperty: 'background-color',

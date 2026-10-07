@@ -10,6 +10,7 @@ import {
   streamToBuffer,
   type S3Module,
 } from '../storage/s3.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * The cloud bucket, as the sync sees it: a handful of operations on keys
@@ -239,7 +240,7 @@ export class S3CloudStore implements CloudStore {
         `There is no bucket called “${this.#connection.bucket}” at ${host}.`,
       )
     }
-    const said = error instanceof Error ? error.message : String(error)
+    const said = messageOf(error)
     if (
       status === 401 ||
       status === 403 ||

@@ -8,6 +8,7 @@ import {
 } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import { BROWSER_USER_AGENT, type FetchLike } from './fetching.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * 网易云音乐: its songs, albums, playlists and artists, and its lyrics.
@@ -276,7 +277,7 @@ export class NeteaseMusic {
     } catch (error) {
       this.#logger.debug('lookup failed', {
         url,
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
       return null
     }

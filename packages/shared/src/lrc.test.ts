@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activeLineIndex, isSynced, parseLyrics, type SyncedLine } from './lrc.js'
+import { activeLineIndex, isSynced, lyricTextLines, parseLyrics, type SyncedLine } from './lrc.js'
 
 // Fixtures use placeholder text so the test suite carries no third-party content.
 const SYNCED = [
@@ -94,5 +94,12 @@ describe('isSynced', () => {
   it('distinguishes timed from untimed text', () => {
     expect(isSynced(SYNCED)).toBe(true)
     expect(isSynced('just\nsome\nwords')).toBe(false)
+  })
+})
+
+describe('lyricTextLines', () => {
+  it('gives the words of timed and untimed lyrics alike', () => {
+    expect(lyricTextLines(parseLyrics('[00:01.00]one\n[00:02.00]two'))).toEqual(['one', 'two'])
+    expect(lyricTextLines(parseLyrics('one\ntwo'))).toEqual(['one', 'two'])
   })
 })

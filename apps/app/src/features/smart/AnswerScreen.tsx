@@ -32,6 +32,7 @@ import { changeAnswer, reorderAnswer, useKeptAnswer } from './answers.store'
 import { ChangeIt } from './ChangeIt'
 import { answerSongs, describeNotes, parts } from './smart.model'
 import { useSmartServer } from './useSmartServer'
+import { useGoBack } from '../../ui/useBackTo'
 
 /**
  * An answer to Ask as a page of its own, `/answer?id=…` (docs/features/lists.md,
@@ -97,10 +98,7 @@ export function AnswerScreen(): ReactNode {
     },
   })
 
-  const back = (): void => {
-    if (router.canGoBack()) router.back()
-    else router.replace('/search')
-  }
+  const back = useGoBack('/search')
 
   if (!kept || !result) {
     return (

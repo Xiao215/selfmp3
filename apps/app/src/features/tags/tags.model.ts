@@ -1,4 +1,4 @@
-import { artistKey, splitArtists, type Song } from '@selfmp3/shared'
+import { plural, artistKey, splitArtists, type Song } from '@selfmp3/shared'
 import { untaggedSongs, type TagStanding } from '../tag/tag.model'
 
 /**
@@ -13,7 +13,7 @@ import { untaggedSongs, type TagStanding } from '../tag/tag.model'
 /** "8 tags · most played first", under the title, or what to say when there are none. */
 export function tagsHeadline(count: number): string {
   if (count === 0) return 'No tags yet'
-  return `${count.toLocaleString()} ${count === 1 ? 'tag' : 'tags'} · most played first`
+  return `${plural(count, 'tag', 'tags')} · most played first`
 }
 
 /** A tag with this many songs or fewer waits at the end, under "Just started". */

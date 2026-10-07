@@ -4,6 +4,7 @@ import type { Logger } from '../logger.js'
 import { LyricsCache } from './lyricsCache.js'
 import { unattendedLyricText } from './lyrics.js'
 import type { RomanizationService } from './romanization.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * The romanized lines that belong to a lyric text, made once per text.
@@ -83,7 +84,7 @@ export async function romanizeLibrary(deps: {
       }
       deps.logger.warn('could not romanize a song', {
         songId: song.id,
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
     }
   }

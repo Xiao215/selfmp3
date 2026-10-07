@@ -3,6 +3,7 @@ import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { CoverService } from './covers.js'
 import { ffmpegFailure, runFfmpeg } from './ffmpeg.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * The colour of every cover, picked once, here.
@@ -72,14 +73,14 @@ export class CoverToneService {
         if (!next) break
 
         let tone: CoverTone | null = null
-        const found = this.#covers.find(next.id)
+        const found = await this.#covers.find(next.id)
         if (found) {
           try {
             tone = await this.#read(found.path)
           } catch (error) {
             this.#logger.warn('could not read a cover’s colour', {
               songId: next.id,
-              message: error instanceof Error ? error.message : String(error),
+              message: messageOf(error),
             })
           }
         }

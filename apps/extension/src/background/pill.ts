@@ -1,4 +1,4 @@
-import type { ImportRequestView } from '@selfmp3/replica'
+import { isPendingRequest, sameLink, type ImportRequestView } from '@selfmp3/replica'
 import { youtubeVideoId, youtubeWatchUrl, type ImportJob } from '@selfmp3/shared'
 import type { Handlers, PageRequest, PillState } from '../bridge.js'
 import type { Route } from './connection.js'
@@ -47,7 +47,7 @@ export function stateOfJob(job: ImportJob): PillState {
  * report but that it is waiting.
  */
 export function stateOfRequest(request: ImportRequestView): PillState {
-  if (request.state === 'waiting' || request.state === 'working') {
+  if (isPendingRequest(request)) {
     return { state: 'waiting', progress: null, jobId: null, message: null }
   }
   if (request.state === 'done')
@@ -66,15 +66,15 @@ export function stateOfRequest(request: ImportRequestView): PillState {
  */
 export function createPageHandler(handlers: Handlers, mode: () => Promise<Route['mode']>) {
   /** The job for this video, whichever form of link it was queued under. */
-  async function jobFor(videoId: string): Promise<ImportJob | null> {
+  async function jobFor(url: string): Promise<ImportJob | null> {
     const queue = await handlers.queue({ type: 'queue' })
-    return queue.jobs.find(job => youtubeVideoId(job.url) === videoId) ?? null
+    return queue.jobs.find(job => sameLink(url, job.url)) ?? null
   }
 
   /** The request for this video in the bucket, whichever form of link it was left under. */
-  async function requestFor(videoId: string): Promise<ImportRequestView | null> {
+  async function requestFor(url: string): Promise<ImportRequestView | null> {
     const { imports } = await handlers.requests({ type: 'requests' })
-    return imports.find(each => youtubeVideoId(each.url) === videoId) ?? null
+    return imports.find(each => sameLink(url, each.url)) ?? null
   }
 
   return async function handle(request: PageRequest): Promise<PillState> {
@@ -87,10 +87,10 @@ export function createPageHandler(handlers: Handlers, mode: () => Promise<Route[
       const hit = await handlers.songFor({ type: 'songFor', url })
       if (hit) return { state: 'have', progress: null, jobId: null, message: null }
       if (viaBucket) {
-        const waiting = await requestFor(videoId)
+        const waiting = await requestFor(url)
         return waiting ? stateOfRequest(waiting) : idle
       }
-      const job = await jobFor(videoId)
+      const job = await jobFor(url)
       return job ? stateOfJob(job) : idle
     }
 
@@ -115,7 +115,7 @@ export function createPageHandler(handlers: Handlers, mode: () => Promise<Route[
     const items = preview.items.filter(item => !item.alreadyHave && !item.inQueue)
     if (items.length === 0) {
       // Nothing to add: yours already, or a job for it is already going.
-      const job = await jobFor(videoId)
+      const job = await jobFor(url)
       return job ? stateOfJob(job) : { state: 'have', progress: null, jobId: null, message: null }
     }
     const result = await handlers.enqueue({

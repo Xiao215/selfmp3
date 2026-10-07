@@ -1,5 +1,6 @@
 import type { EngineCapabilities, EngineState, EngineWiring, PlaybackEngine } from '@selfmp3/client'
 import { streamFailureMessage } from './streamFailure.model'
+import { clamp, clamp01 } from '@selfmp3/shared'
 
 /**
  * The web half of the `PlaybackEngine` port.
@@ -174,7 +175,7 @@ class AudioEngine implements PlaybackEngine {
 
   configure(options: { crossfadeSeconds?: number; gapless?: boolean }): void {
     if (options.crossfadeSeconds !== undefined) {
-      this.#crossfadeSeconds = Math.max(0, Math.min(12, options.crossfadeSeconds))
+      this.#crossfadeSeconds = clamp(options.crossfadeSeconds, 0, 12)
     }
     if (options.gapless !== undefined) this.#gapless = options.gapless
   }
@@ -341,7 +342,7 @@ class AudioEngine implements PlaybackEngine {
   }
 
   setVolume(volume: number): void {
-    const clamped = Math.max(0, Math.min(1, volume))
+    const clamped = clamp01(volume)
     // Moving the level unmutes, unless it is moved to nothing. Decided before
     // the element is told: told from the old flag, a level set while muted
     // was drawn as unmuted and played as silence.
@@ -356,7 +357,7 @@ class AudioEngine implements PlaybackEngine {
   }
 
   setRate(rate: number): void {
-    const clamped = Math.max(0.5, Math.min(3, rate))
+    const clamped = clamp(rate, 0.5, 3)
     this.#primary.playbackRate = clamped
     this.#secondary.playbackRate = clamped
     this.#update({ rate: clamped })
@@ -401,7 +402,7 @@ class AudioEngine implements PlaybackEngine {
 
   /** Silence before each restart of the loop, e.g. one beat at the song's tempo. */
   setCountIn(ms: number): void {
-    this.#countInMs = Math.max(0, Math.min(3000, ms))
+    this.#countInMs = clamp(ms, 0, 3000)
   }
 
   #syncLoopGuard(): void {

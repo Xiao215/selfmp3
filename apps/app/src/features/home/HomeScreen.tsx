@@ -5,17 +5,15 @@ import type { ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { useRouter } from 'expo-router'
-import { plural } from '@selfmp3/shared'
+import { artistOr, plural } from '@selfmp3/shared'
 import type { Song, Stats } from '@selfmp3/shared'
-import { fonts, radius, tagColors, type, useLibrary, type ServerConnection } from '@selfmp3/client'
-import { useConnection } from '../../connection/ConnectionProvider'
-import { useServerDirect } from '../../connection/useServerDirect'
+import { fonts, radius, tagColors, type, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { useDragScroll } from '../../ports/dragScroll'
 import { Avatar } from '../../ui/components/Avatar'
 import { useAccount } from '../profile/useAccount'
 import { usePlayerCommands } from '../../player/PlayerProvider'
-import { setPaletteOpen } from '../../shell/palette'
+import { useOpenSearch } from '../../shell/palette'
 import { useBottomInset } from '../../shell/bottomInset'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
@@ -52,6 +50,7 @@ import {
   type SundayCard,
 } from './home.model'
 import { useSvgId } from '../../ui/useSvgId'
+import { useVia } from '../../connection/via'
 
 /**
  * Home: where the app opens (docs/ui-mock `P04`, `C03`).
@@ -72,17 +71,7 @@ import { useSvgId } from '../../ui/useSvgId'
  * (Xiao, 2026-09-22).
  */
 export function HomeScreen(): ReactNode {
-  const { fromCloud } = useConnection()
-  return fromCloud ? <CloudStats /> : <WithStats via={undefined} />
-}
-
-function CloudStats(): ReactNode {
-  const reach = useServerDirect()
-  return <WithStats via={reach.state === 'reachable' ? reach.connection : undefined} />
-}
-
-function WithStats({ via }: { via: ServerConnection | undefined }): ReactNode {
-  const { data: stats } = useStatsFor(via, '7d')
+  const { data: stats } = useStatsFor(useVia(), '7d')
   return <HomePage stats={stats} />
 }
 
@@ -136,10 +125,7 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
 
   // The one Search, starting on All: the page on a phone, the palette over
   // this page on a computer (docs/ui-mock `P18`, `C05`).
-  const openSearch = (): void => {
-    if (wide) setPaletteOpen(true)
-    else router.navigate({ pathname: '/search', params: { scope: 'all' } })
-  }
+  const openSearch = useOpenSearch('all')
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -567,7 +553,7 @@ function Tile({
             {tile.tag.name}
           </Text>
           <Text style={[styles.tileCount, { color: colours.tileInk }]}>
-            {tile.songs} {tile.songs === 1 ? 'song' : 'songs'}
+            {plural(tile.songs, 'song', 'songs')}
           </Text>
           {tile.cover ? (
             <View style={[styles.tileCover, wide && styles.tileCoverWide]} pointerEvents="none">
@@ -631,7 +617,7 @@ function Recents({ recents, wide }: { recents: readonly HomeRecent[]; wide: bool
                 {song.title}
               </Text>
               <Text style={styles.recentArtist} numberOfLines={1}>
-                {song.artist || 'Unknown artist'}
+                {artistOr(song.artist)}
               </Text>
             </Pressable>
           )

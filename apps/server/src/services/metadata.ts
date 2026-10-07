@@ -3,6 +3,7 @@ import { parseFile, parseBuffer, type IAudioMetadata } from 'music-metadata'
 import { cleanArtist, mimeForExtension } from '@selfmp3/shared'
 import type { StorageDriver } from '../storage/index.js'
 import type { Logger } from '../logger.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * Reading tags and cover art out of audio files.
@@ -139,7 +140,7 @@ export class MetadataService {
     } catch (error) {
       this.#logger.debug('could not read tags, falling back to filename', {
         key,
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
       return fallback(key)
     }

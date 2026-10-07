@@ -10,6 +10,7 @@ import { useCloudSession } from '../profile/useCloudSession'
 import { STORAGE_ROUTE, whereItIs } from '../welcome/storage.model'
 import { ButtonRow, Details, Panel, partStyles, Row } from './SettingsParts'
 import { type Confirming } from './settings.model'
+import { plural } from '@selfmp3/shared'
 
 /**
  * Account: which library this device answers from, and how to leave it. First
@@ -106,10 +107,10 @@ export function ConnectionPanel({
           <Text style={partStyles.valueText}>
             {library.isError
               ? library.data
-                ? `Unreachable — showing the cached copy, ${library.data.songs.length} songs`
+                ? `Unreachable — showing the cached copy, ${plural(library.data.songs.length, 'song', 'songs')}`
                 : 'Unreachable, and nothing is cached yet'
               : library.data
-                ? `${library.data.songs.length} songs · version ${library.data.version}`
+                ? `${plural(library.data.songs.length, 'song', 'songs')} · version ${library.data.version}`
                 : 'Loading…'}
           </Text>
         </Row>

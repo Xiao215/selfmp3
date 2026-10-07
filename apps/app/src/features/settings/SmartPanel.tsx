@@ -10,6 +10,7 @@ import { Check, Refresh, Sparkle, X } from '../../ui/components/Icons'
 import { modelHop, serverHop, type Hop } from '../smart/smart.model'
 import { useSmartServer } from '../smart/useSmartServer'
 import { Panel, Row } from './SettingsParts'
+import { reachedConnection, viaKey } from '../../connection/via'
 
 /**
  * Smart features (docs/features/ai.md): where your server asks a model, and a
@@ -73,8 +74,8 @@ export function SmartPanel({
 }): ReactNode {
   const server = useSmartServer()
   const queryClient = useQueryClient()
-  const via = server.reach.state === 'reachable' ? server.reach.connection.baseUrl : null
-  const setupKey = ['via-server', via, 'ai', 'setup']
+  const via = reachedConnection(server.reach)?.baseUrl ?? null
+  const setupKey = viaKey(via, 'ai', 'setup')
   const setup = useQuery({
     queryKey: setupKey,
     queryFn: () => server.api!.aiSetup(),

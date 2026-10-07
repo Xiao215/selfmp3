@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { fonts, motion, radius, tagColors } from '@selfmp3/client'
 import type { CloudAccount } from '@selfmp3/shared'
 
-import { accountInitials } from '../../features/profile/profile.model'
+import { accountInitials } from './avatar.model'
 import { useAccent } from '../accent'
 import { useFade } from '../motion'
 import { User } from './Icons'

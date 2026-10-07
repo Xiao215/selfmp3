@@ -1,4 +1,5 @@
 import type { DeviceKind, Health, ScanResult } from '@selfmp3/shared'
+import { clamp01, plural } from '@selfmp3/shared'
 
 /**
  * Settings' rules, with nothing drawn: which sections a device shows, which one
@@ -148,7 +149,7 @@ export function activeSection<T extends string>(
   const first = sections[0]
   if (!first || viewHeight <= 0) return null
   const remaining = contentHeight - viewHeight - scrollY
-  const approach = Math.max(0, Math.min(1, 1 - remaining / viewHeight))
+  const approach = clamp01(1 - remaining / viewHeight)
   const line = scrollY + READING_LINE + (viewHeight - READING_LINE) * approach
   let current = first.id
   for (const section of sections) {
@@ -180,7 +181,8 @@ export function healthLine(
   } = {},
 ): string {
   if (health) {
-    const songs = health.songCount === undefined ? '' : ` · ${health.songCount} songs`
+    const songs =
+      health.songCount === undefined ? '' : ` · ${plural(health.songCount, 'song', 'songs')}`
     return `self.mp3 ${health.version}${songs} · ${health.storageDriver} storage`
   }
   if (asking.loading) return 'Checking your library…'
@@ -222,7 +224,7 @@ export function splitDevices<
 
 export function scanHint(result: ScanResult | undefined): string {
   if (!result) return 'Import any audio files dropped into the folder outside self.mp3.'
-  return `Last sweep found ${result.added} new and ${result.updated} updated; ${result.total} songs in the library.`
+  return `Last sweep found ${result.added} new and ${result.updated} updated; ${plural(result.total, 'song', 'songs')} in the library.`
 }
 
 /**

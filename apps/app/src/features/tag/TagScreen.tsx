@@ -12,6 +12,7 @@ import { PlaceMissing } from './PlaceMissing'
 import { PlacePage } from './PlacePage'
 import { existingTag, placeSongs } from './tag.model'
 import { usePlayerCommands } from '../../player/PlayerProvider'
+import { goBack } from '../../ui/useBackTo'
 
 /**
  * A tag's page, `/tag/<name>` (docs/ui-mock `P08`, `C06`). The name is found
@@ -110,8 +111,7 @@ export function TagScreen(): ReactNode {
         onClose={() => setEditing(false)}
         onDeleted={() => {
           setEditing(false)
-          if (router.canGoBack()) router.back()
-          else router.replace('/tags')
+          goBack(router, '/tags')
         }}
       />
     </>

@@ -13,6 +13,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { Song } from '@selfmp3/shared'
+import { artistOr } from '@selfmp3/shared'
 import {
   fonts,
   HIT_TARGET,
@@ -885,7 +886,7 @@ function WordsView({
             {song.title}
           </Text>
           <Text style={styles.wordsArtist} numberOfLines={1}>
-            {song.artist || 'Unknown artist'}
+            {artistOr(song.artist)}
           </Text>
         </View>
         {words.status === 'lyrics' && lyrics.language !== 'none' ? (

@@ -1,5 +1,5 @@
-import type { ErrorBody } from '@selfmp3/shared'
-import type { ZodError, ZodType, ZodTypeDef } from 'zod'
+import { formatZodError, type ErrorBody } from '@selfmp3/shared'
+import type { ZodType, ZodTypeDef } from 'zod'
 import { fromUtf8 } from './encoding.js'
 
 /**
@@ -105,16 +105,6 @@ export async function readJson<Output>(
   const parsed = schema.safeParse(data)
   if (!parsed.success) throw badRequest(formatZodError(parsed.error))
   return parsed.data
-}
-
-/** The same wording the server uses for a request that fails its schema. */
-export function formatZodError(error: ZodError): string {
-  return error.issues
-    .map(issue => {
-      const where = issue.path.join('.')
-      return where ? `${where}: ${issue.message}` : issue.message
-    })
-    .join('; ')
 }
 
 /**

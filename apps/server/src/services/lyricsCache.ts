@@ -4,6 +4,7 @@ import path from 'node:path'
 import { createHash } from 'node:crypto'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * Disk cache for things derived from lyrics: today, romanization.
@@ -54,7 +55,7 @@ export class LyricsCache {
       this.#logger.warn('could not write lyrics cache', {
         songId,
         kind,
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
     }
   }

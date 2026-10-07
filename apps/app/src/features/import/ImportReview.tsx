@@ -4,7 +4,12 @@ import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Redirect } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
-import { formatDuration, type ImportPreviewItem, type ImportSource } from '@selfmp3/shared'
+import {
+  artistOr,
+  formatDuration,
+  type ImportPreviewItem,
+  type ImportSource,
+} from '@selfmp3/shared'
 import {
   ApiError,
   HIT_TARGET,
@@ -875,7 +880,7 @@ const PhoneRow = memo(function PhoneRow({
         onPress={state === 'yours' ? undefined : () => onOpen(index)}
         disabled={state === 'yours'}
         accessibilityRole="button"
-        accessibilityLabel={`${item.title}, ${item.artist || 'Unknown artist'}`}
+        accessibilityLabel={`${item.title}, ${artistOr(item.artist)}`}
         accessibilityHint={state === 'yours' ? undefined : 'Opens it to hear it and fix its name'}
         accessibilityState={{ disabled: state === 'yours', busy: opening }}
         style={({ pressed }) => [
@@ -897,7 +902,7 @@ const PhoneRow = memo(function PhoneRow({
             {item.title || 'Untitled'}
           </Text>
           <Text style={styles.artist} numberOfLines={1}>
-            {item.artist || 'Unknown artist'}
+            {artistOr(item.artist)}
           </Text>
         </View>
         <EndWords item={item} state={state} words={words} wordsWarn={wordsWarn} />
@@ -1013,7 +1018,7 @@ const GridRow = memo(function GridRow({
                 {item.title || 'Untitled'}
               </Text>
               <Text style={[styles.artist, styles.colArtist]} numberOfLines={1}>
-                {item.artist || 'Unknown artist'}
+                {artistOr(item.artist)}
               </Text>
               <Text style={[styles.album, styles.colAlbum]} numberOfLines={1}>
                 {item.album}

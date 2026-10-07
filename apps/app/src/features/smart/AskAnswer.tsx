@@ -4,8 +4,8 @@ import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
-import { plural, type AskAnswer as Answer } from '@selfmp3/shared'
-import { failureText, radius, space } from '@selfmp3/client'
+import { artistOr, plural, type AskAnswer as Answer } from '@selfmp3/shared'
+import { STALE, failureText, radius, space } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -28,6 +28,7 @@ import type { AnswerKeys } from './answerKeys'
 import { Working } from './Working'
 import { newTicket, useAskProgress } from './useAskProgress'
 import { useSmartServer } from './useSmartServer'
+import { reachedConnection, viaKey } from '../../connection/via'
 
 /**
  * An ask's query key: the server it went to, the words first asked, the song
@@ -40,7 +41,7 @@ function askKey(
   playing: number | null,
   asked: readonly string[],
 ): readonly unknown[] {
-  return ['via-server', via, 'ai', 'ask', text, playing, asked]
+  return viaKey(via, 'ai', 'ask', text, playing, asked)
 }
 
 function askedFirst(key: readonly unknown[]): unknown {
@@ -90,7 +91,7 @@ export function AskAnswer({
   // What "this" meant when it was asked (A8): the song playing then, not whichever comes next.
   const [playingHere] = useState(() => player.current?.id ?? null)
   const playing = playingHere === null ? null : (server.onServer(playingHere) ?? null)
-  const via = server.reach.state === 'reachable' ? server.reach.connection.baseUrl : null
+  const via = reachedConnection(server.reach)?.baseUrl ?? null
   // The follow-ups said after `text`, and how many of them the answer showing takes in.
   const [thread, setThread] = useState({ text, said: [] as string[], at: 0 })
   const { said, at } = thread.text === text ? thread : { said: [], at: 0 }
@@ -110,7 +111,7 @@ export function AskAnswer({
     queryFn: ({ signal }) => server.api!.ask(latest, playing, ticket, before, signal),
     enabled: server.api !== null,
     retry: false,
-    staleTime: 10 * 60_000,
+    staleTime: STALE.tenMinutes,
     // A follow-up keeps the answer it changes on screen until the new one lands.
     placeholderData: (previous, query) =>
       query && askedFirst(query.queryKey) === text ? previous : undefined,
@@ -403,7 +404,7 @@ function SongPicks({
           <View style={styles.text}>
             <Text style={styles.title} numberOfLines={1}>
               {song.title}
-              <Text style={styles.muted}> · {song.artist || 'Unknown artist'}</Text>
+              <Text style={styles.muted}> · {artistOr(song.artist)}</Text>
             </Text>
             <Text style={styles.why} numberOfLines={1}>
               {why ?? ''}

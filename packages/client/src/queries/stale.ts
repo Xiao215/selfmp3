@@ -10,5 +10,6 @@ export const STALE = {
   minute: 60_000,
   fiveMinutes: 5 * 60_000,
   tenMinutes: 10 * 60_000,
+  halfHour: 30 * 60_000,
   hour: 60 * 60_000,
 } as const

@@ -6,6 +6,7 @@ import {
   type RomanizedLyrics,
 } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * Romanization, fully offline.
@@ -111,7 +112,7 @@ export class RomanizationService {
   warmUp(): void {
     void this.#loadKuroshiro().catch((error: unknown) => {
       this.#logger.warn('could not preload japanese dictionary', {
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
     })
   }
@@ -132,7 +133,7 @@ export class RomanizationService {
     const romaji = plan.includes('romaji')
       ? await this.#loadKuroshiro().catch((error: unknown) => {
           this.#logger.warn('japanese romanization unavailable', {
-            message: error instanceof Error ? error.message : String(error),
+            message: messageOf(error),
           })
           return null
         })

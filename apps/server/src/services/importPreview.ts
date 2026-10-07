@@ -26,6 +26,7 @@ import type { NeteaseMusic, NeteaseTrack } from './netease.js'
 import type { SpotifyLists } from './spotify.js'
 import { parseTrackList, type ListedTrack } from './trackLists.js'
 import type { YouTubeMatcher } from './youtubeMatch.js'
+import { messageOf } from '../util/errors.js'
 
 type PreviewDeps = {
   ytdlp: Pick<YtDlpService, 'status' | 'probe'>
@@ -272,7 +273,7 @@ async function probeLink(deps: PreviewDeps, url: string): Promise<Probed> {
   const spotify = spotifyLink(url)
   if (spotify) {
     const list = await deps.spotify.list(spotify).catch((error: unknown) => {
-      throw HttpError.unprocessable(error instanceof Error ? error.message : String(error))
+      throw HttpError.unprocessable(messageOf(error))
     })
     return {
       kind: spotify.kind === 'track' ? 'single' : 'playlist',
@@ -293,7 +294,7 @@ async function probeNetease(deps: PreviewDeps, url: string): Promise<Probed> {
     )
   }
   const list = await deps.netease.list(link).catch((error: unknown) => {
-    throw HttpError.unprocessable(error instanceof Error ? error.message : String(error))
+    throw HttpError.unprocessable(messageOf(error))
   })
   return {
     kind: link.kind === 'song' ? 'single' : 'playlist',
@@ -404,7 +405,7 @@ async function probeWithYtDlp(
   // private, not signed in), not a server fault — so 422 with the reason,
   // rather than a 500 that hides it behind "internal error".
   return deps.ytdlp.probe(url).catch((error: unknown) => {
-    throw HttpError.unprocessable(error instanceof Error ? error.message : String(error))
+    throw HttpError.unprocessable(messageOf(error))
   })
 }
 

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Pressable, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { hueFromString } from '@selfmp3/shared'
-import { oklchToHexAlpha } from '@selfmp3/client'
+import { oklchToHexAlpha, radius } from '@selfmp3/client'
 import { Check } from './Icons'
 
 /**
@@ -83,7 +83,7 @@ const styles = StyleSheet.create(() => ({
   swatchRing: {
     borderWidth: 2,
     borderColor: 'transparent',
-    borderRadius: 999,
+    borderRadius: radius.pill,
     padding: 2,
   },
   swatch: { alignItems: 'center', justifyContent: 'center' },

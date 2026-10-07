@@ -4,6 +4,7 @@ import {
   SyncManifestQuerySchema,
   type AnalysisStatus,
   type Library,
+  type LibraryVersion,
   type ScanResult,
   type SyncManifest,
 } from '@selfmp3/shared'
@@ -65,7 +66,7 @@ export function libraryRoutes(container: Container): Router {
   /** Cheap poll: has anything changed since the client's last fetch? */
   router.get(
     '/library/version',
-    route({}, () => ({
+    route({}, (): LibraryVersion => ({
       version: container.libraryVersion(),
       songCount: container.songs.count(),
     })),

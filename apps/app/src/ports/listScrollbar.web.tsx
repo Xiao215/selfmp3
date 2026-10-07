@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, ReactNode, RefObject } from 'react'
 import type { FlatList, LayoutChangeEvent } from 'react-native'
 import { useUnistyles } from 'react-native-unistyles'
-import { withAlpha } from '@selfmp3/client'
+import { radius, withAlpha } from '@selfmp3/client'
 import type { Song } from '@selfmp3/shared'
 import { useArt } from '../offline/useArt'
 import { usePlayingSongId } from '../player/PlayerProvider'
@@ -68,6 +68,10 @@ const EDGE = 28
 const LINGER_MS = 1100
 const BUBBLE_HEIGHT = 36
 const MARK_SIZE = 10
+/** The bar fading away once it is no longer wanted, slower than it came. */
+const BAR_OUT_MS = 350
+/** The playing song's mark on the track, fading in and out. */
+const MARK_IN_MS = 250
 /** react-native-web's own `System` stack: these are DOM elements, not `Text`. */
 const FONT_STACK =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
@@ -348,12 +352,12 @@ function Scrollbar({
           width: 16,
           height: Math.max(0, box.height - INSET * 2),
           zIndex: 11,
-          borderRadius: 999,
+          borderRadius: radius.pill,
           touchAction: 'none',
           backgroundColor: wide ? withAlpha(theme.colors.textPrimary, 0.06) : 'transparent',
           opacity: out ? 1 : 0,
           pointerEvents: out ? 'auto' : 'none',
-          transition: out ? fade(MOVE_MS.hoverIn, EASE_OUT_CSS) : fade(350, EASE_IN_CSS),
+          transition: out ? fade(MOVE_MS.hoverIn, EASE_OUT_CSS) : fade(BAR_OUT_MS, EASE_IN_CSS),
         }}
       >
         <div
@@ -363,7 +367,7 @@ function Scrollbar({
             top: 0,
             right: wide ? 3 : 5,
             width: wide ? 10 : 6,
-            borderRadius: 999,
+            borderRadius: radius.pill,
             backgroundColor: withAlpha(theme.colors.textPrimary, wide ? 0.5 : 0.3),
             transition: reduced
               ? 'none'
@@ -424,7 +428,7 @@ function Scrollbar({
             zIndex: 12,
             opacity: 0,
             pointerEvents: 'none',
-            transition: fade(250, EASE_OUT_CSS),
+            transition: fade(MARK_IN_MS, EASE_OUT_CSS),
           }}
         />
       ) : null}

@@ -1,5 +1,7 @@
 import { useMemo } from 'react'
 import {
+  WEEKDAYS,
+  calendarDaysAgo,
   type CreatePlaylist,
   EMPTY_SMART_RULES,
   formatLongDuration,
@@ -93,26 +95,20 @@ export function playlistsSubline(count: number, sort: PlaylistSort): string {
   return `${plural(count, 'playlist', 'playlists')} · ${order}`
 }
 
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-const DAY_MS = 24 * 60 * 60 * 1000
-
 /**
  * A stamp as a day a person would say: "today", "yesterday", "Tuesday", "last
  * week", "3 weeks ago", "last month", "5 months ago", "last year". Null when
  * the stamp cannot be read.
  *
- * Counted in calendar days where the reader is, not in 24-hour spans: a song
- * played at 23:00 was "yesterday" at 08:00 the next morning, nine hours later.
- * The server writes UTC without a zone (`2026-09-13 06:17:55`), which is read
- * as UTC; a bucket's ISO carries its own. A stamp from the future is today.
+ * Counted in calendar days where the reader is, not in 24-hour spans
+ * (`calendarDaysAgo`): a song played at 23:00 was "yesterday" at 08:00 the
+ * next morning. A stamp from the future is today.
  */
 export function relativeDay(value: string, now: Date): string | null {
-  const then = new Date(fromSqliteTime(value))
-  if (Number.isNaN(then.getTime())) return null
-  const midnight = (date: Date): number =>
-    new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
-  // Rounded, because a day that crosses a clock change is 23 or 25 hours long.
-  const days = Math.max(0, Math.round((midnight(now) - midnight(then)) / DAY_MS))
+  const ago = calendarDaysAgo(value, now)
+  if (ago === null) return null
+  const { then } = ago
+  const days = Math.max(0, ago.days)
   if (days === 0) return 'today'
   if (days === 1) return 'yesterday'
   if (days < 7) return WEEKDAYS[then.getDay()] ?? null

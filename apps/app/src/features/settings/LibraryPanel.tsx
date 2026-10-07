@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { useQueryClient } from '@tanstack/react-query'
-import { type Song } from '@selfmp3/shared'
+import { plural, type Song } from '@selfmp3/shared'
 import {
   queryKeys,
   useAnalysisStatus,
@@ -41,7 +41,7 @@ export function LibraryPanel({
   const running = analysis.data?.running === true
 
   return (
-    <Panel title="Library" hint={`${songs.length} songs`} anchor={anchor}>
+    <Panel title="Library" hint={plural(songs.length, 'song', 'songs')} anchor={anchor}>
       {libraryPath !== undefined ? (
         <Lead>
           Your music lives at <Text style={partStyles.code}>{libraryPath}</Text>. It is just a
@@ -58,7 +58,7 @@ export function LibraryPanel({
       </Row>
       <Row
         label="Audio analysis"
-        hint={`Works out each song’s tempo, key, energy and loudness from the file itself, on your server. It powers smart-playlist rules, “similar songs” and auto-mix. ${analysed} of ${songs.length} songs analysed.`}
+        hint={`Works out each song’s tempo, key, energy and loudness from the file itself, on your server. It powers smart-playlist rules, “similar songs” and auto-mix. ${analysed} of ${plural(songs.length, 'song', 'songs')} analysed.`}
       >
         <Button
           label={running ? 'Analysing…' : 'Analyse new songs'}

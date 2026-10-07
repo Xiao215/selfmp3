@@ -7,6 +7,8 @@ import {
   RemoveFromPlaylistSchema,
   ReorderPlaylistSchema,
   UpdatePlaylistSchema,
+  type Ok,
+  type RemovedFromPlaylist,
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
@@ -99,11 +101,11 @@ export function playlistRoutes(container: Container): Router {
 
   router.delete(
     '/playlists/:id',
-    route({ params: ParamsWithId }, ({ params }) => {
+    route({ params: ParamsWithId }, ({ params }): Ok => {
       requirePlaylist(params.id)
       container.playlists.delete(params.id)
       container.bumpLibraryVersion()
-      return { ok: true as const }
+      return { ok: true }
     }),
   )
 
@@ -115,10 +117,10 @@ export function playlistRoutes(container: Container): Router {
    */
   router.post(
     '/playlists/:id/played',
-    route({ params: ParamsWithId }, ({ params }) => {
+    route({ params: ParamsWithId }, ({ params }): Ok => {
       requirePlaylist(params.id)
       container.playlists.markPlayed(params.id)
-      return { ok: true as const }
+      return { ok: true }
     }),
   )
 
@@ -155,16 +157,19 @@ export function playlistRoutes(container: Container): Router {
    */
   router.post(
     '/playlists/:id/songs/remove',
-    route({ params: ParamsWithId, body: RemoveFromPlaylistSchema }, ({ params, body }) => {
-      const playlist = requirePlaylist(params.id)
-      if (playlist.kind === 'live') {
-        throw HttpError.badRequest(LIVE_BUILDS_ITSELF)
-      }
-      const removed = container.playlists.removeMany(params.id, body.songIds)
-      container.edits.playlistSongs(params.id, body.songIds)
-      if (removed > 0) container.bumpLibraryVersion()
-      return { removed, playlist: container.playlists.byId(params.id) }
-    }),
+    route(
+      { params: ParamsWithId, body: RemoveFromPlaylistSchema },
+      ({ params, body }): RemovedFromPlaylist => {
+        const playlist = requirePlaylist(params.id)
+        if (playlist.kind === 'live') {
+          throw HttpError.badRequest(LIVE_BUILDS_ITSELF)
+        }
+        const removed = container.playlists.removeMany(params.id, body.songIds)
+        container.edits.playlistSongs(params.id, body.songIds)
+        if (removed > 0) container.bumpLibraryVersion()
+        return { removed, playlist: container.playlists.byId(params.id) }
+      },
+    ),
   )
 
   router.delete(
@@ -183,7 +188,7 @@ export function playlistRoutes(container: Container): Router {
 
   router.put(
     '/playlists/:id/order',
-    route({ params: ParamsWithId, body: ReorderPlaylistSchema }, ({ params, body }) => {
+    route({ params: ParamsWithId, body: ReorderPlaylistSchema }, ({ params, body }): Ok => {
       // A playlist that follows tags takes a hand order too: it keeps finding
       // songs, and the ones it finds land after the order you set (Xiao,
       // 2026-09-21).
@@ -191,7 +196,7 @@ export function playlistRoutes(container: Container): Router {
       container.playlists.reorder(params.id, body.songIds)
       container.edits.playlist(params.id, ['order'])
       container.bumpLibraryVersion()
-      return { ok: true as const }
+      return { ok: true }
     }),
   )
 

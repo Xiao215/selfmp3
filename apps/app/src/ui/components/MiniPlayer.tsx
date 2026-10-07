@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
+import { artistOr } from '@selfmp3/shared'
 import { usePlayer, usePlayerProgress, usePlayerStalled } from '../../player/PlayerProvider'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
@@ -246,7 +247,7 @@ function Words({ song }: { song: Song }): ReactNode {
         {song.title}
       </Text>
       <Text style={styles.artist} numberOfLines={1}>
-        {song.artist || 'Unknown artist'}
+        {artistOr(song.artist)}
       </Text>
     </>
   )

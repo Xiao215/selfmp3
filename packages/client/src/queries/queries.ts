@@ -48,7 +48,12 @@ import { decodeMotion, type MotionCurve } from '../motion/motion.js'
 import { useClientState } from './context.js'
 import { hasLivePlaylists, withPlaylist, withSong, withTag } from './patchLibrary.js'
 import { STALE } from './stale.js'
-import type { CloudImportRequest, ImportRequestList, ImportRequestView } from '@selfmp3/replica'
+import {
+  isPendingRequest,
+  type CloudImportRequest,
+  type ImportRequestList,
+  type ImportRequestView,
+} from '@selfmp3/replica'
 
 /**
  * Server state, handled by TanStack Query.
@@ -111,6 +116,12 @@ export const queryKeys = {
   similar: (id: number | null, limit: number) => ['similar', id ?? 'none', limit] as const,
   analysis: ['analysis'] as const,
   devices: ['devices'] as const,
+  /**
+   * The device list as a server reached directly from a cloud library tells
+   * it: presence and Settings › Devices ask the same server the same question
+   * and share the answer.
+   */
+  devicesThrough: (baseUrl: string | null) => ['devices', 'through', baseUrl] as const,
   cloud: ['cloud'] as const,
   /** The stored doorman session's account, read on the device itself. */
   cloudSession: ['cloud-session'] as const,
@@ -288,8 +299,8 @@ export function useGems(limit = GEMS_LIMIT): UseQueryResult<ForgottenGems, Error
   })
 }
 
-/** Plays the listening history reads. */
-const HISTORY_PLAYS = 200
+/** Plays the listening history reads, from this device's server or one reached directly. */
+export const HISTORY_PLAYS = 200
 
 export function useHistory(enabled = true): UseQueryResult<PlayHistory, Error> {
   return useQuery({
@@ -1033,10 +1044,7 @@ export function useCloudImports(): UseQueryResult<ImportRequestList, Error> {
   return useQuery({
     queryKey: queryKeys.cloudImports,
     queryFn: () => clientApi().cloudImports(),
-    refetchInterval: query =>
-      query.state.data?.imports.some(item => item.state === 'waiting' || item.state === 'working')
-        ? 30_000
-        : false,
+    refetchInterval: query => (query.state.data?.imports.some(isPendingRequest) ? 30_000 : false),
   })
 }
 

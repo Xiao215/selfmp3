@@ -1,10 +1,11 @@
-import { createHash } from 'node:crypto'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { gzipSync } from 'node:zlib'
 import {
-  CLOUD_FORMAT,
-  CloudFormatSchema,
+  CLOUD_FORMAT_UNREADABLE,
+  cloudFormatProblem,
+  isCloudFormat,
+  newCloudFormatText,
   FORMAT_KEY,
   LOG_FOLDER,
   SNAPSHOTS_FOLDER,
@@ -17,6 +18,7 @@ import {
   newestSnapshotKey,
   parseEndpoint,
   parseLogKey,
+  lyricTextLines,
   parseLyrics,
   readLogFile,
   romanizedKey,
@@ -66,6 +68,8 @@ import {
   snapshotSongCount,
 } from './cloudSnapshot.js'
 import type { AdoptionResult, CloudAdopt } from './cloudAdopt.js'
+import { messageOf } from '../util/errors.js'
+import { sha256 } from '../util/hash.js'
 
 /**
  * Keeping the library and the cloud bucket in step (docs/SYNC.md).
@@ -165,7 +169,7 @@ interface UploadedLyrics {
 /** Whether a lyric text is Chinese or Japanese: words that should have romanized lines. */
 function wantsRomanized(text: string): boolean {
   const parsed = parseLyrics(text)
-  const lines = parsed.synced ? parsed.lines.map(line => line.text) : parsed.lines
+  const lines = lyricTextLines(parsed)
   return detectLyricsLanguage(lines) !== 'none'
 }
 
@@ -347,7 +351,7 @@ export class CloudSyncService {
         if (store && !this.#stopped) {
           this.#publish(store).catch(error => {
             this.#logger.warn('could not publish the imports’ snapshot', {
-              message: message(error),
+              message: messageOf(error),
             })
           })
         }
@@ -621,7 +625,7 @@ export class CloudSyncService {
       if (result.status === 'code') this.#signIn = { ...signIn, needsCode: true }
     } catch (error) {
       // Google takes its time and networks drop: keep asking until the deadline.
-      this.#logger.debug('sign-in not claimed yet', { message: message(error) })
+      this.#logger.debug('sign-in not claimed yet', { message: messageOf(error) })
     }
     if (this.#signIn?.attempt === signIn.attempt) this.#scheduleSignInPoll(this.#signInPollMs)
   }
@@ -643,7 +647,7 @@ export class CloudSyncService {
       this.#adoptAccount(session.token, await this.#doorman.me(session.token))
     } catch (error) {
       if (error instanceof CloudError && error.kind === 'auth') this.#sessionEnded(error)
-      this.#logger.warn('could not refresh the cloud account', { message: message(error) })
+      this.#logger.warn('could not refresh the cloud account', { message: messageOf(error) })
     }
   }
 
@@ -843,8 +847,11 @@ export class CloudSyncService {
           // will work either, and every try against a cap is one more call.
           if (error instanceof CloudError && error.kind !== 'other') throw error
           failed++
-          this.#lastError = `${file.title}: ${message(error)}`
-          this.#logger.warn('could not upload a song', { songId: file.id, message: message(error) })
+          this.#lastError = `${file.title}: ${messageOf(error)}`
+          this.#logger.warn('could not upload a song', {
+            songId: file.id,
+            message: messageOf(error),
+          })
         }
         done++
         this.#progress = { done, total, current: null }
@@ -889,7 +896,7 @@ export class CloudSyncService {
         return
       }
       this.#state = 'error'
-      this.#lastError = message(error)
+      this.#lastError = messageOf(error)
       this.#tryAgainLater(this.#lastError)
     } finally {
       if (generation === this.#generation) this.#progress = null
@@ -1029,7 +1036,7 @@ export class CloudSyncService {
     } catch (error) {
       // The next look, or the next pass, will say what is wrong.
       this.#logger.debug('could not look for changes from other devices', {
-        message: message(error),
+        message: messageOf(error),
       })
     }
   }
@@ -1116,7 +1123,7 @@ export class CloudSyncService {
     } catch (error) {
       throw new CloudError(
         'other',
-        publishUncheckableMessage(`its newest snapshot would not read: ${message(error)}`),
+        publishUncheckableMessage(`its newest snapshot would not read: ${messageOf(error)}`),
       )
     }
 
@@ -1270,7 +1277,7 @@ export class CloudSyncService {
     file: SongFileInfo,
   ): Promise<{ key: string; size: number } | null> {
     if (!file.hasArt) return null
-    const found = this.#deps.covers.find(file.id)
+    const found = await this.#deps.covers.find(file.id)
     if (!found) return null
     const data = await fsp.readFile(found.path)
     const key = coverKey(sha256(data), path.extname(found.path))
@@ -1367,7 +1374,7 @@ export class CloudSyncService {
       } catch (error) {
         this.#logger.warn('could not let go of a copy', {
           path: file.path,
-          message: message(error),
+          message: messageOf(error),
         })
       }
     }
@@ -1399,7 +1406,7 @@ export class CloudSyncService {
         if (error instanceof CloudError && error.kind !== 'other') throw error
         this.#logger.warn('could not delete a removed song’s file from the bucket', {
           key,
-          message: message(error),
+          message: messageOf(error),
         })
       }
     }
@@ -1453,7 +1460,7 @@ export class CloudSyncService {
     } catch (error) {
       return error instanceof CloudError
         ? error.message
-        : publishUncheckableMessage(`its newest snapshot would not read: ${message(error)}`)
+        : publishUncheckableMessage(`its newest snapshot would not read: ${messageOf(error)}`)
     }
 
     return publishWouldLoseLibrary(inBucket, songsHere)
@@ -1477,7 +1484,7 @@ export class CloudSyncService {
     } catch (error) {
       throw new CloudError(
         'other',
-        publishUncheckableMessage(`the bucket would not list: ${message(error)}`),
+        publishUncheckableMessage(`the bucket would not list: ${messageOf(error)}`),
       )
     }
     if (!key) return null
@@ -1488,7 +1495,7 @@ export class CloudSyncService {
     } catch (error) {
       throw new CloudError(
         'other',
-        publishUncheckableMessage(`its newest snapshot would not read: ${message(error)}`),
+        publishUncheckableMessage(`its newest snapshot would not read: ${messageOf(error)}`),
       )
     }
     if (!body)
@@ -1583,7 +1590,7 @@ export class CloudSyncService {
     } catch (error) {
       // An old snapshot left behind costs a few kilobytes; it is not worth failing over.
       this.#snapshotKeys = null
-      this.#logger.debug('could not delete old snapshots', { message: message(error) })
+      this.#logger.debug('could not delete old snapshots', { message: messageOf(error) })
     }
   }
 
@@ -1603,37 +1610,16 @@ export class CloudSyncService {
   async #checkFormat(store: CloudStore): Promise<void> {
     const existing = await store.get(FORMAT_KEY)
     if (existing) {
-      const parsed = CloudFormatSchema.safeParse(parseJson(existing))
-      if (!parsed.success) {
-        throw new CloudError(
-          'other',
-          'That folder of the bucket has a format.json that is not self.mp3’s. Choose another folder.',
-        )
-      }
-      if (parsed.data.format > CLOUD_FORMAT) {
-        throw new CloudError(
-          'other',
-          `This bucket was set up by a newer version of self.mp3 (format ${parsed.data.format}). ` +
-            'Update this server before connecting it.',
-        )
-      }
+      const problem = cloudFormatProblem(parseJson(existing), 'this server')
+      if (problem) throw new CloudError('other', problem)
       return
     }
 
-    const format = {
-      app: 'self.mp3',
-      format: CLOUD_FORMAT,
-      createdAt: this.#now().toISOString(),
-      createdBy: this.#deviceId(),
-    }
-    const body = Buffer.from(`${JSON.stringify(format, null, 2)}\n`)
-    await store.put(FORMAT_KEY, body, { contentType: 'application/json' })
+    const text = newCloudFormatText(this.#now().toISOString(), this.#deviceId())
+    await store.put(FORMAT_KEY, Buffer.from(text), { contentType: 'application/json' })
     const readBack = await store.get(FORMAT_KEY)
-    if (!readBack || !CloudFormatSchema.safeParse(parseJson(readBack)).success) {
-      throw new CloudError(
-        'auth',
-        'The key can write to the bucket but not read from it. It needs both.',
-      )
+    if (!readBack || !isCloudFormat(parseJson(readBack))) {
+      throw new CloudError('auth', CLOUD_FORMAT_UNREADABLE)
     }
   }
 
@@ -1735,18 +1721,10 @@ async function inBatches<T, R>(
   return results
 }
 
-function sha256(data: Buffer): string {
-  return createHash('sha256').update(data).digest('hex')
-}
-
 function parseJson(data: Buffer): unknown {
   try {
     return JSON.parse(data.toString('utf8'))
   } catch {
     return null
   }
-}
-
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

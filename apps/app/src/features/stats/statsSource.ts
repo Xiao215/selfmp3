@@ -1,10 +1,19 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { Song, Stats, StatsRange, Wrapped, WrappedRange } from '@selfmp3/shared'
-import { useHistory, useStats, useWrapped, type Api, type ServerConnection } from '@selfmp3/client'
+import {
+  STALE,
+  HISTORY_PLAYS,
+  useHistory,
+  useStats,
+  useWrapped,
+  type Api,
+  type ServerConnection,
+} from '@selfmp3/client'
 import { apiFor } from '../../api/client'
 import { useServerSongIds } from '../../connection/useServerSongIds'
 import { useSongsById } from '../../ui/songsById'
+import { noServer, viaKey } from '../../connection/via'
 
 /**
  * Where the numbers on Stats, the Report and Profile's month come from: whatever
@@ -20,12 +29,6 @@ import { useSongsById } from '../../ui/songsById'
  * every list goes through `useStatsSongs` on the way to the screen. Nothing
  * else on Stats, the Report or Profile has to know which library answered.
  */
-const noServer = (): Promise<never> => Promise.reject(new Error('no server to ask'))
-
-/** `['via-server', <address>, …]`, the same shape the Import screen's queries use. */
-const key = (via: ServerConnection | undefined, ...rest: readonly unknown[]) =>
-  ['via-server', via?.baseUrl, ...rest] as const
-
 /** What each of these hooks hands the screen, whichever library answered. */
 interface Answer<T> {
   readonly data: T | undefined
@@ -43,11 +46,11 @@ function useOwnOrVia<T>(
   ask: (api: Api) => Promise<T>,
 ): Answer<T> {
   const server = useQuery({
-    queryKey: key(via, ...rest),
+    queryKey: viaKey(via?.baseUrl, ...rest),
     queryFn: () => (via ? ask(apiFor(via)) : noServer()),
     enabled: via !== undefined,
     retry: false,
-    staleTime: 60_000,
+    staleTime: STALE.minute,
   })
   const chosen = via ? server : own
   return { data: chosen.data, isLoading: chosen.isLoading }
@@ -68,7 +71,7 @@ export function useWrappedFor(
 
 export function useHistoryFor(via: ServerConnection | undefined) {
   const own = useHistory(via === undefined)
-  return useOwnOrVia(via, own, ['history'], api => api.history(200))
+  return useOwnOrVia(via, own, ['history'], api => api.history(HISTORY_PLAYS))
 }
 
 /**

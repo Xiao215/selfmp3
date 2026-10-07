@@ -23,6 +23,7 @@ import type { SyncRepository } from '../repositories/sync.js'
 import type { TagRepository } from '../repositories/tags.js'
 import { sqliteTime } from '../repositories/stats.js'
 import type { SyncClock } from './localEdits.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * Other devices' changes, applied to this server's database (docs/SYNC.md).
@@ -112,7 +113,7 @@ export class CloudIngest {
         } catch (error) {
           this.#logger.warn(`could not apply a ${change.type} change from another device`, {
             uid: change.uid,
-            error: error instanceof Error ? error.message : String(error),
+            error: messageOf(error),
           })
         }
       }

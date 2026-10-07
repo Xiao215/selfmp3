@@ -14,6 +14,19 @@ import type { Song } from './schemas/song.js'
  * metadata fix, not something guessed here.
  */
 
+/**
+ * What a song with no artist is credited to. The server groups such songs
+ * under this same name in its stats and wrapped queries (repositories/stats.ts,
+ * repositories/wrapped.ts), so a client comparing a stats key with it must use
+ * this one string.
+ */
+export const UNKNOWN_ARTIST = 'Unknown artist'
+
+/** A song's artist as a line shows it: the string it has, or `UNKNOWN_ARTIST` when it is empty. */
+export function artistOr(artist: string | null | undefined): string {
+  return artist || UNKNOWN_ARTIST
+}
+
 export interface Artist {
   /** The name compared: trimmed, spaces collapsed, lowercased. */
   readonly key: string

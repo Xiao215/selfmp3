@@ -6,6 +6,9 @@
  * pages through — CORS, and writes — the way the doorman already does. The
  * page asks a server from this origin whenever it talks to one directly, which a
  * browser flags as another site unless the server says otherwise.
+ *
+ * The shell's own copy is `APP_ORIGIN` in packages/desktop-bridge, held equal
+ * to this by apps/desktop's `origins.test.ts`.
  */
 export const DESKTOP_APP_ORIGIN = 'app://selfmp3'
 

@@ -4,10 +4,10 @@ import { Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } fro
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
-import { formatDuration, plural } from '@selfmp3/shared'
+import { artistOr, formatDuration, plural } from '@selfmp3/shared'
 import {
+  STALE,
   clientApi,
-  oklchToHexAlpha,
   queryKeys,
   radius,
   tagColors,
@@ -18,12 +18,11 @@ import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useConnection } from '../../connection/ConnectionProvider'
-import { useOverlay } from '../../shell/Overlay'
-import { useEscape } from '../../shell/useEscape'
 import { isComposing } from '../../shell/composing'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Cover } from '../../ui/components/Cover'
+import { Dialog } from '../../ui/components/Dialog'
 import {
   BarChart,
   Download,
@@ -114,8 +113,6 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     setAsking(null)
     input.current?.focus()
   }
-  // Escape from an answer goes back to the results; from the results, closes.
-  useEscape(true, () => (asking === null ? onClose() : setAsking(null)), { layer: true })
 
   const songs = useMemo(() => library.data?.songs ?? [], [library.data])
   const songIds = useMemo(() => songs.map(song => song.id), [songs])
@@ -138,7 +135,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     // The lyrics index is the server's; a library in the cloud has no words to search.
     enabled: lyricsQuery !== '' && !fromCloud,
     retry: false,
-    staleTime: 60_000,
+    staleTime: STALE.minute,
     placeholderData: previous => previous,
   })
   const lyricHits = lyricsQuery ? (lyrics.data?.hits ?? []) : []
@@ -253,7 +250,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         recent.kind === 'song'
           ? {
               key: recentKey(recent),
-              label: `${recent.song.title}, ${recent.song.artist || 'Unknown artist'}`,
+              label: `${recent.song.title}, ${artistOr(recent.song.artist)}`,
               run: () => runRecent(recent),
               node: (
                 <>
@@ -267,7 +264,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
                       {recent.song.title}
                     </Text>
                     <Text style={styles.sub} numberOfLines={1}>
-                      {recent.song.artist || 'Unknown artist'}
+                      {artistOr(recent.song.artist)}
                     </Text>
                   </View>
                   <Text style={styles.hint}>
@@ -338,7 +335,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
       title: 'Songs',
       rows: found.songs.map(song => ({
         key: `song-${song.id}`,
-        label: `${song.title}, ${song.artist || 'Unknown artist'}`,
+        label: `${song.title}, ${artistOr(song.artist)}`,
         run: () => playSong(song.id),
         node: (
           <>
@@ -348,7 +345,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
                 {song.title}
               </Text>
               <Text style={styles.sub} numberOfLines={1}>
-                {song.artist || 'Unknown artist'}
+                {artistOr(song.artist)}
               </Text>
             </View>
             <Text style={styles.hint}>{formatDuration(song.duration)}</Text>
@@ -491,160 +488,147 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     event.stopPropagation()
   }
 
-  useOverlay(
-    <View
+  return (
+    <Dialog
+      onDismiss={onClose}
+      // Escape from an answer goes back to the results; from the results, closes.
+      onEscape={() => (asking === null ? onClose() : setAsking(null))}
+      label="Command palette"
+      frameStyle={[styles.frame, { paddingTop: window.height * (finePointer ? 0.14 : 0.06) }]}
+      // An answer that takes keys has them first, Enter included, wherever
+      // the focus is in the box: a click on one of its rows moves it there.
+      // Caught on the way down, so neither the box nor a row acts on it too.
+      onKeyDownCapture={answerKeys && asking !== null ? passToAnswer : undefined}
       style={[
-        styles.backdrop,
-        {
-          paddingTop: window.height * (finePointer ? 0.14 : 0.06),
-          backgroundColor: oklchToHexAlpha(0.1, 0.02, accent.hue, 0.6),
-        },
+        styles.panel,
+        // An answer gets more room than a list of results: Tidy up is a
+        // review of tens of changes, and every one is a line of names.
+        asking === null
+          ? { width: Math.min(620, width * 0.92), maxHeight: window.height * 0.66 }
+          : { width: Math.min(760, width * 0.92), maxHeight: window.height * ANSWER_HEIGHT },
       ]}
     >
-      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
-      <View
-        role="dialog"
-        aria-label="Command palette"
-        // An answer that takes keys has them first, Enter included, wherever
-        // the focus is in the box: a click on one of its rows moves it there.
-        // Caught on the way down, so neither the box nor a row acts on it too.
-        {...({
-          onKeyDownCapture: answerKeys && asking !== null ? passToAnswer : undefined,
-        } as object)}
-        style={[
-          styles.panel,
-          // An answer gets more room than a list of results: Tidy up is a
-          // review of tens of changes, and every one is a line of names.
-          asking === null
-            ? { width: Math.min(620, width * 0.92), maxHeight: window.height * 0.66 }
-            : { width: Math.min(760, width * 0.92), maxHeight: window.height * ANSWER_HEIGHT },
-        ]}
-      >
-        <View style={styles.inputRow}>
-          <Search size={18} color={theme.colors.textMuted} />
-          <TextInput
-            ref={input}
-            autoFocus
-            value={query}
-            editable={!locked}
-            onChangeText={text => {
-              setQuery(text)
-              setHighlighted(0)
-              setAsking(null)
-            }}
-            onKeyPress={event => {
-              const key = event.nativeEvent.key
-              if (key !== 'ArrowDown' && key !== 'ArrowUp') return
-              // The arrows move between an input method's candidates while
-              // one is composing; the rows are not theirs to move.
-              if (isComposing(event.nativeEvent as { isComposing?: boolean })) return
-              ;(event as unknown as { preventDefault: () => void }).preventDefault()
-              setHighlighted(stepIndex(active, key === 'ArrowDown' ? 1 : -1, rows.length))
-            }}
-            onSubmitEditing={() => {
-              if (locked) return
-              // Enter straight after a letter can beat the deferred results to
-              // the screen. It means what was typed, so it takes the first row
-              // of that — the highlight is back at the top after any letter.
-              if (shownQuery === query) activate(active)
-              else {
-                const first = groupsFor(resultsFor(query), query).flatMap(group => group.rows)[0]
-                first?.run()
-                if (!first?.keepsOpen) onClose()
-              }
-            }}
-            // Enter on the Ask row keeps the box open, and the answer's keys
-            // come through the box: it must not let go of the focus on Enter.
-            // React Native Web reads only the older blurOnSubmit.
-            submitBehavior="submit"
-            blurOnSubmit={false}
-            placeholder="Search songs, playlists, tags — or type a command"
-            placeholderTextColor={theme.colors.textMuted}
-            autoCapitalize="none"
-            autoCorrect={false}
-            spellCheck={false}
-            role="combobox"
-            aria-expanded
-            aria-label="Search songs, playlists and tags, or type a command"
-            style={styles.input}
-          />
-          {locked ? (
-            <StopButton onPress={stop} testID="ask-stop" />
-          ) : trimmed && asking === null ? (
-            <Text style={styles.count} accessibilityLiveRegion="polite">
-              {rows.length} {rows.length === 1 ? 'result' : 'results'}
-            </Text>
-          ) : null}
-        </View>
-
-        <ScrollView
-          // A listbox, so its options read as one list's choices. React
-          // Native's Role type has no "listbox"; react-native-web renders it.
-          {...({ role: 'listbox' } as object)}
-          contentContainerStyle={styles.results}
-          keyboardShouldPersistTaps="handled"
-        >
-          {asking !== null ? (
-            <AskAnswer
-              text={asking}
-              onDone={onClose}
-              listHeight={Math.max(240, window.height * ANSWER_HEIGHT - ANSWER_AROUND_LIST)}
-              onKeys={setAnswerKeys}
-              onWorking={setThinking}
-              onAsk={words => {
-                setQuery(words)
-                setAsking(words)
-              }}
-            />
-          ) : (
-            drawnGroups
-          )}
-          {asking === null && trimmed && rows.length === 0 ? (
-            <Text style={styles.empty}>
-              Nothing matches “{trimmed}”.{'\n'}
-              {/* A cloud library has no lyric index to search. */}
-              {fromCloud ? 'Try fewer letters.' : 'Try fewer letters, or part of a lyric.'}
-            </Text>
-          ) : null}
-        </ScrollView>
-
-        {finePointer ? (
-          <View style={styles.foot}>
-            {asking !== null && answerKeys
-              ? answerKeys.hints.map(([caps, word]) => (
-                  <Text key={word} style={styles.footText}>
-                    {caps.map((cap, index) => (
-                      <Text key={cap}>
-                        {index > 0 ? ' ' : ''}
-                        <Text style={styles.kbd}> {cap} </Text>
-                      </Text>
-                    ))}{' '}
-                    {word}
-                  </Text>
-                ))
-              : null}
-            {asking === null || !answerKeys ? (
-              <Text style={styles.footText}>
-                <Text style={styles.kbd}> ↑ </Text> <Text style={styles.kbd}> ↓ </Text> move
-              </Text>
-            ) : null}
-            {asking === null ? (
-              <Text style={styles.footText}>
-                <Text style={styles.kbd}> ↵ </Text> open
-              </Text>
-            ) : null}
-            <Text style={styles.footText}>
-              <Text style={styles.kbd}> esc </Text>{' '}
-              {asking === null ? 'close' : locked ? 'stop' : 'back to results'}
-            </Text>
-          </View>
+      <View style={styles.inputRow}>
+        <Search size={18} color={theme.colors.textMuted} />
+        <TextInput
+          ref={input}
+          autoFocus
+          value={query}
+          editable={!locked}
+          onChangeText={text => {
+            setQuery(text)
+            setHighlighted(0)
+            setAsking(null)
+          }}
+          onKeyPress={event => {
+            const key = event.nativeEvent.key
+            if (key !== 'ArrowDown' && key !== 'ArrowUp') return
+            // The arrows move between an input method's candidates while
+            // one is composing; the rows are not theirs to move.
+            if (isComposing(event.nativeEvent as { isComposing?: boolean })) return
+            ;(event as unknown as { preventDefault: () => void }).preventDefault()
+            setHighlighted(stepIndex(active, key === 'ArrowDown' ? 1 : -1, rows.length))
+          }}
+          onSubmitEditing={() => {
+            if (locked) return
+            // Enter straight after a letter can beat the deferred results to
+            // the screen. It means what was typed, so it takes the first row
+            // of that — the highlight is back at the top after any letter.
+            if (shownQuery === query) activate(active)
+            else {
+              const first = groupsFor(resultsFor(query), query).flatMap(group => group.rows)[0]
+              first?.run()
+              if (!first?.keepsOpen) onClose()
+            }
+          }}
+          // Enter on the Ask row keeps the box open, and the answer's keys
+          // come through the box: it must not let go of the focus on Enter.
+          // React Native Web reads only the older blurOnSubmit.
+          submitBehavior="submit"
+          blurOnSubmit={false}
+          placeholder="Search songs, playlists, tags — or type a command"
+          placeholderTextColor={theme.colors.textMuted}
+          autoCapitalize="none"
+          autoCorrect={false}
+          spellCheck={false}
+          role="combobox"
+          aria-expanded
+          aria-label="Search songs, playlists and tags, or type a command"
+          style={styles.input}
+        />
+        {locked ? (
+          <StopButton onPress={stop} testID="ask-stop" />
+        ) : trimmed && asking === null ? (
+          <Text style={styles.count} accessibilityLiveRegion="polite">
+            {plural(rows.length, 'result', 'results')}
+          </Text>
         ) : null}
       </View>
-    </View>,
-    true,
-  )
 
-  return null
+      <ScrollView
+        // A listbox, so its options read as one list's choices. React
+        // Native's Role type has no "listbox"; react-native-web renders it.
+        {...({ role: 'listbox' } as object)}
+        contentContainerStyle={styles.results}
+        keyboardShouldPersistTaps="handled"
+      >
+        {asking !== null ? (
+          <AskAnswer
+            text={asking}
+            onDone={onClose}
+            listHeight={Math.max(240, window.height * ANSWER_HEIGHT - ANSWER_AROUND_LIST)}
+            onKeys={setAnswerKeys}
+            onWorking={setThinking}
+            onAsk={words => {
+              setQuery(words)
+              setAsking(words)
+            }}
+          />
+        ) : (
+          drawnGroups
+        )}
+        {asking === null && trimmed && rows.length === 0 ? (
+          <Text style={styles.empty}>
+            Nothing matches “{trimmed}”.{'\n'}
+            {/* A cloud library has no lyric index to search. */}
+            {fromCloud ? 'Try fewer letters.' : 'Try fewer letters, or part of a lyric.'}
+          </Text>
+        ) : null}
+      </ScrollView>
+
+      {finePointer ? (
+        <View style={styles.foot}>
+          {asking !== null && answerKeys
+            ? answerKeys.hints.map(([caps, word]) => (
+                <Text key={word} style={styles.footText}>
+                  {caps.map((cap, index) => (
+                    <Text key={cap}>
+                      {index > 0 ? ' ' : ''}
+                      <Text style={styles.kbd}> {cap} </Text>
+                    </Text>
+                  ))}{' '}
+                  {word}
+                </Text>
+              ))
+            : null}
+          {asking === null || !answerKeys ? (
+            <Text style={styles.footText}>
+              <Text style={styles.kbd}> ↑ </Text> <Text style={styles.kbd}> ↓ </Text> move
+            </Text>
+          ) : null}
+          {asking === null ? (
+            <Text style={styles.footText}>
+              <Text style={styles.kbd}> ↵ </Text> open
+            </Text>
+          ) : null}
+          <Text style={styles.footText}>
+            <Text style={styles.kbd}> esc </Text>{' '}
+            {asking === null ? 'close' : locked ? 'stop' : 'back to results'}
+          </Text>
+        </View>
+      ) : null}
+    </Dialog>
+  )
 }
 
 /** How much of the window an answer may take, against 0.66 for results; the box stays where it was. */
@@ -653,15 +637,8 @@ const ANSWER_HEIGHT = 0.8
 const ANSWER_AROUND_LIST = 250
 
 const styles = StyleSheet.create(theme => ({
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
+  // Near the top rather than the middle, where the eye already is.
+  frame: { padding: 0, justifyContent: 'flex-start' },
   panel: {
     backgroundColor: theme.colors.surface1,
     borderRadius: radius.sheet,

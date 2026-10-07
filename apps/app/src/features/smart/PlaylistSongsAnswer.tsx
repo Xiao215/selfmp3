@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { plural, type AskAnswer } from '@selfmp3/shared'
+import { artistOr, plural, type AskAnswer } from '@selfmp3/shared'
 import {
   space,
   useAddToPlaylist,
@@ -108,7 +108,7 @@ export function PlaylistSongsAnswer({
                 <Text key={id} style={reviewText.name} numberOfLines={1}>
                   <Text style={reviewText.meta}>{index + 1}. </Text>
                   {song.title}
-                  <Text style={reviewText.meta}> · {song.artist || 'Unknown artist'}</Text>
+                  <Text style={reviewText.meta}> · {artistOr(song.artist)}</Text>
                 </Text>
               ) : null
             })}
@@ -222,7 +222,7 @@ export function PlaylistSongsAnswer({
       }
       songLine={song => {
         const why = here.why.get(song.id)
-        return `${song.artist || 'Unknown artist'}${why ? ` · ${why}` : ''}`
+        return `${artistOr(song.artist)}${why ? ` · ${why}` : ''}`
       }}
       applyLabel={(approved, leftOut) => {
         const count = approved.flatMap(each => keptSongs(each, leftOut)).length

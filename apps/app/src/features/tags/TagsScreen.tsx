@@ -26,7 +26,7 @@ import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { tabbing } from '../../shell/FocusStyle'
-import { setPaletteOpen } from '../../shell/palette'
+import { useOpenSearch } from '../../shell/palette'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
@@ -71,6 +71,7 @@ import {
   type TagEntry,
   type WaitingArtist,
 } from './tags.model'
+import { useGoBack } from '../../ui/useBackTo'
 
 /** Tiles at least this wide on a computer, as many as fit; two across on a phone. */
 const TILE_MIN_WIDTH = 220
@@ -169,16 +170,10 @@ export function TagsScreen(): ReactNode {
     : PHONE_COLUMNS
   const tileWidth = measured > 0 ? Math.floor((measured - GAP * (columns - 1)) / columns) : 0
 
-  const back = (): void => {
-    if (router.canGoBack()) router.back()
-    else router.replace('/')
-  }
+  const back = useGoBack('/')
   // The one Search, on its Tags scope: the page on a phone, the palette over
   // this page on a computer (docs/ui-mock `P18`, `C05`).
-  const openSearch = (): void => {
-    if (wide) setPaletteOpen(true)
-    else router.navigate({ pathname: '/search', params: { scope: 'tags' } })
-  }
+  const openSearch = useOpenSearch('tags')
   // Stable, because a tile is memoised and this is the prop every one of them holds.
   const edit = useCallback<EditTag>(tag => {
     editorAnchor.current = rowRefs.current.get(tag.id) ?? null
@@ -905,7 +900,7 @@ const styles = StyleSheet.create(theme => ({
     fontSize: 12.5,
     fontVariant: ['tabular-nums'],
   },
-  playZone: { position: 'absolute', top: 0, borderRadius: 999 },
+  playZone: { position: 'absolute', top: 0, borderRadius: radius.pill },
   more: { position: 'absolute', top: 8, right: 8 },
   moreButton: {
     width: 30,

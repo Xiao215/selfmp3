@@ -11,6 +11,7 @@ import { USER_AGENT } from '../config.js'
 import type { FetchLike } from './fetching.js'
 import type { YouTubeMusicLyrics } from './youtubeMusic.js'
 import type { NeteaseMusic } from './netease.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * Lyrics come from four places, in order of trust:
@@ -267,7 +268,7 @@ export class LyricsService {
       return (await response.json()) as T
     } catch (error) {
       this.#logger.debug('lyrics lookup failed', {
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
       return null
     }
@@ -307,7 +308,7 @@ export class LyricsService {
     } catch (error) {
       this.#logger.warn('could not save lyrics sidecar', {
         audioKey,
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
     }
 

@@ -1,4 +1,4 @@
-import { NATIVE_BACKGROUND } from '@selfmp3/shared'
+import { NATIVE_BACKGROUND, NATIVE_CARD } from '@selfmp3/shared'
 import { oklchToHex, oklchToHexAlpha } from './oklch.js'
 
 /**
@@ -131,7 +131,7 @@ const DARK = {
   // The one colour a window, a splash and a launcher icon are filled with
   // before any of this is running, so it is written down where they can read it.
   surface0: NATIVE_BACKGROUND,
-  surface1: '#151821',
+  surface1: NATIVE_CARD,
   surface2: '#1a1d25',
   surface3: '#1f2330',
   surfaceSelected: '#2c3140',
@@ -150,6 +150,11 @@ const DARK = {
   borderStrong: '#3e424d',
 }
 
+/** `backdrop`, at an accent hue. */
+function backdropFor(hue: number): string {
+  return oklchToHexAlpha(0.1, 0.02, hue, 0.6)
+}
+
 export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
   return {
     ...DARK,
@@ -157,7 +162,7 @@ export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
     /** Ink on the white primary fill: the round Play, a chosen chip, the active tab. */
     onPrimary: DARK.surface0,
     /**
-     * The floating bar, the search circle and controls over artwork: a
+     * The floating bar and controls over artwork: a
      * translucent fill the web blurs with `backdrop-filter`.
      */
     glass: '#1f222ceb',
@@ -177,6 +182,12 @@ export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
      * artwork rather than a surface.
      */
     coverShade: '#0a08108c',
+    /**
+     * The dim behind a dialog or a sheet: the ground's own near-black, tinted
+     * by the accent, the same in both themes because it darkens whatever page
+     * is under it.
+     */
+    backdrop: backdropFor(hue),
     // One series colour in the accent's hue, so a green theme draws green bars,
     // and recessive gridlines tinted by the hue.
     chartSeries: oklchToHex(0.62, 0.15, hue),
@@ -215,6 +226,7 @@ export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
     cardShadow: '#1b1a170f',
     floatShadow: '#1b1a1724',
     coverShade: '#0a08108c',
+    backdrop: backdropFor(hue),
     chartSeries: oklchToHex(0.55, 0.16, hue),
     chartGrid: '#ebe5d9',
   }
@@ -246,6 +258,8 @@ export const radius = {
   cardLg: 22,
   card: 18,
   mini: 16,
+  /** A row in a list: a song row, a listing or a change in the metadata dialog. */
+  row: 14,
   cover: 10,
   coverSm: 8,
 } as const
@@ -296,7 +310,7 @@ export const fonts = {
 /** `tokens.reference.css`'s `--hit-target`: the smallest comfortable touch target. */
 export const HIT_TARGET = 44
 
-/** The phone's floating tab bar and search circle (`P04`): 60 high, floating over the page. */
+/** The phone's floating tab bar (`P04`): 60 high, floating over the page. */
 export const NAV_HEIGHT = 60
 
 /** The floating mini player above the bar: 8 + a 44 cover + 8. */

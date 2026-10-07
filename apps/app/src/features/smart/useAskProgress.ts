@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { AskProgress } from '@selfmp3/shared'
 import { useSmartServer } from './useSmartServer'
+import { reachedConnection, viaKey } from '../../connection/via'
 
 /** A request's own name, for asking how it is going: unguessable, never reused. */
 export function newTicket(): string {
@@ -19,9 +20,9 @@ export function useAskProgress(
   active: boolean,
 ): AskProgress['steps'] | null {
   const server = useSmartServer()
-  const via = server.reach.state === 'reachable' ? server.reach.connection.baseUrl : null
+  const via = reachedConnection(server.reach)?.baseUrl ?? null
   const progress = useQuery({
-    queryKey: ['via-server', via, 'ai', 'ask-progress', ticket],
+    queryKey: viaKey(via, 'ai', 'ask-progress', ticket),
     queryFn: () => server.api!.askProgress(ticket!),
     enabled: server.api !== null && ticket !== null && active,
     refetchInterval: 500,

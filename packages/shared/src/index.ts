@@ -57,6 +57,7 @@ export * from './gems.js'
 export * from './coverTone.js'
 export * from './theme.js'
 export * from './math.js'
+export * from './dates.js'
 export * from './exhaustive.js'
 
 /** Audio file extensions the scanner will pick up. */

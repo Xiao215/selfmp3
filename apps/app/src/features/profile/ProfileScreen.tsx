@@ -11,7 +11,6 @@ import { Cover } from '../../ui/components/Cover'
 import { ChevronRight, Download, Settings, Sparkles } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useArt } from '../../offline/useArt'
-import { useServerDirect } from '../../connection/useServerDirect'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Avatar } from '../../ui/components/Avatar'
 import { useAccount } from './useAccount'
@@ -30,6 +29,7 @@ import {
   type ProfileRow,
   type ProfileRowId,
 } from './profile.model'
+import { useVia } from '../../connection/via'
 
 const ICONS: Record<ProfileRowId, typeof Settings> = {
   import: Download,
@@ -45,27 +45,13 @@ const ICONS: Record<ProfileRowId, typeof Settings> = {
  * at the foot of its sidebar, and draws the same page at its own width.
  */
 export function ProfileScreen(): ReactNode {
-  const { fromCloud } = useConnection()
-  return fromCloud ? <FromCloud /> : <FromServer />
-}
-
-/**
- * The card's numbers are the server's plays. A cloud library therefore has
- * them only while its server is within reach; without one the card says so,
- * and Stats, which it opens, explains the rest.
- */
-function FromCloud(): ReactNode {
-  const reach = useServerDirect()
-  return <WithStats via={reach.state === 'reachable' ? reach.connection : undefined} />
-}
-
-/** A server's own plays, always within reach. */
-function FromServer(): ReactNode {
-  return <WithStats via={undefined} />
-}
-
-/** From the window Stats opens on — the same cached answer, so the two agree. */
-function WithStats({ via }: { via: ServerConnection | undefined }): ReactNode {
+  /*
+   * The card's numbers are the server's plays. A cloud library therefore has
+   * them only while its server is within reach; without one the card says
+   * so, and Stats, which it opens, explains the rest. From the window Stats
+   * opens on — the same cached answer, so the two agree.
+   */
+  const via = useVia()
   const { data: stats, isLoading } = useStatsFor(via, '30d')
   return <ProfilePage stats={stats} loading={isLoading} via={via} />
 }

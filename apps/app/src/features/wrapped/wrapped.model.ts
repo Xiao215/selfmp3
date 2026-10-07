@@ -1,4 +1,4 @@
-import { WRAPPED_RANGE_LABELS, type Wrapped, type WrappedRange } from '@selfmp3/shared'
+import { WEEKDAYS, WRAPPED_RANGE_LABELS, type Wrapped, type WrappedRange } from '@selfmp3/shared'
 import { periodLabel, STATS_PERIODS } from '../stats/stats.model'
 
 /**
@@ -14,8 +14,6 @@ import { periodLabel, STATS_PERIODS } from '../stats/stats.model'
  * are Stats' own (`STATS_PERIODS`, `periodLabel`, `statsRangeFor`): the two
  * pages offer the same five.
  */
-
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 export function weekdayName(weekday: number): string {
   return WEEKDAYS[weekday] ?? '—'

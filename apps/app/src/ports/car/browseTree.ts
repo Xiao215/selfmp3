@@ -1,4 +1,5 @@
 import type { Playlist, Song } from '@selfmp3/shared'
+import { plural } from '@selfmp3/shared'
 
 /**
  * The library as a browsable hierarchy, for the car.
@@ -143,7 +144,7 @@ export function buildBrowseTree(input: BrowseInput, options: BrowseOptions = {})
     playlistItems.push({
       id,
       title: playlist.name,
-      subtitle: `${contents.length} song${contents.length === 1 ? '' : 's'}`,
+      subtitle: plural(contents.length, 'song', 'songs'),
       browsable: true,
       artSongId: contents.find(song => song.hasArt)?.id ?? null,
     })
@@ -184,7 +185,7 @@ export function buildBrowseTree(input: BrowseInput, options: BrowseOptions = {})
     artistItems.push({
       id,
       title: artist,
-      subtitle: `${tracks.length} song${tracks.length === 1 ? '' : 's'}`,
+      subtitle: plural(tracks.length, 'song', 'songs'),
       browsable: true,
       artSongId: sorted.find(song => song.hasArt)?.id ?? null,
     })

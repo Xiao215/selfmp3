@@ -131,8 +131,8 @@ describe('ArtistBackdropService', () => {
     expect(kept).not.toBeNull()
     expect(fs.readFileSync(kept!.path)).toEqual(BANNER)
     expect(picture).toHaveBeenCalledWith(YORUSHIKA)
-    expect(backdrops.kept('yorushika')?.rev).toBe(kept!.rev)
-    const portrait = backdrops.kept('Yorushika', 'portrait')
+    expect((await backdrops.kept('yorushika'))?.rev).toBe(kept!.rev)
+    const portrait = await backdrops.kept('Yorushika', 'portrait')
     expect(fs.readFileSync(portrait!.path)).toEqual(PORTRAIT)
     expect(portrait!.rev).toBe(kept!.rev)
 
@@ -156,14 +156,14 @@ describe('ArtistBackdropService', () => {
       yt.fetchImpl,
     )
     const first = await backdrops.find('Yorushika')
-    fs.rmSync(backdrops.kept('Yorushika', 'portrait')!.path)
+    fs.rmSync((await backdrops.kept('Yorushika', 'portrait'))!.path)
 
     // Half a pair is no pair: neither shape is served, and the next ask finds both.
-    expect(backdrops.kept('Yorushika')).toBeNull()
-    expect(backdrops.kept('Yorushika', 'portrait')).toBeNull()
+    expect(await backdrops.kept('Yorushika')).toBeNull()
+    expect(await backdrops.kept('Yorushika', 'portrait')).toBeNull()
     const again = await backdrops.find('Yorushika')
     expect(again?.path).toBe(first!.path)
-    expect(fs.readFileSync(backdrops.kept('Yorushika', 'portrait')!.path)).toEqual(PORTRAIT)
+    expect(fs.readFileSync((await backdrops.kept('Yorushika', 'portrait'))!.path)).toEqual(PORTRAIT)
   })
 
   it('lights nothing for songs that name different pages', async () => {

@@ -14,8 +14,6 @@ import {
   useToggleLoved,
   withAlpha,
 } from '@selfmp3/client'
-import { useConnection } from '../../connection/ConnectionProvider'
-import { useServerDirect } from '../../connection/useServerDirect'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerStalled } from '../../player/PlayerProvider'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -48,6 +46,8 @@ import {
   soundWords,
   type PlayStrip,
 } from './song.model'
+import { goBack, useGoBack } from '../../ui/useBackTo'
+import { useVia } from '../../connection/via'
 
 /**
  * A song's own page, `/song/<id>` (docs/ui-mock `P15`).
@@ -77,9 +77,7 @@ export function SongScreen(): ReactNode {
   if (song && shown !== id) setShown(id)
   const removedHere = !song && library !== undefined && shown === id
   useEffect(() => {
-    if (!removedHere) return
-    if (router.canGoBack()) router.back()
-    else router.replace('/library')
+    if (removedHere) goBack(router, '/library')
   }, [removedHere, router])
   if (!library || removedHere) return null
   if (!song) return <SongMissing />
@@ -110,10 +108,7 @@ function SongPage({ song }: { song: Song }): ReactNode {
   const tags = (library?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
   const isCurrent = player.current?.id === song.id
   const rest = bylineRest(song)
-  const back = (): void => {
-    if (router.canGoBack()) router.back()
-    else router.replace('/')
-  }
+  const back = useGoBack('/')
 
   return (
     <View style={styles.screen}>
@@ -291,15 +286,13 @@ function SongPage({ song }: { song: Song }): ReactNode {
  *
  * The count and the dates are the song record's and always there. When each
  * play happened is the server's history, which a cloud library reaches only
- * while its server can be reached (`useServerDirect`, as Stats and Home do);
+ * while its server can be reached (`useVia`, as Stats and Home do);
  * without it the sentence says what the record knows and the strip is left out.
  * Out of reach, it asks its own client, as Home does, which has no history to
  * give.
  */
 function YouAndThisSong({ song }: { song: Song }): ReactNode {
-  const { fromCloud } = useConnection()
-  const reach = useServerDirect({ enabled: fromCloud })
-  const via = fromCloud && reach.state === 'reachable' ? reach.connection : undefined
+  const via = useVia()
   const { data: history } = useHistoryFor(via)
   const songFor = useStatsSongs(via)
   const { story, strip } = useMemo(() => {

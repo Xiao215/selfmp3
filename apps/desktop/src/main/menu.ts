@@ -1,6 +1,7 @@
 import { Menu, app, shell } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { APP_MENU_ITEMS, MENU_SECTIONS, menuClickSends } from '@selfmp3/desktop-bridge'
+import { REPOSITORY_URL } from '@selfmp3/shared'
 
 import { sendCommand } from './commands.js'
 import { check } from './updates.js'
@@ -93,7 +94,7 @@ export function buildMenu(window_: () => BrowserWindow | null): void {
       submenu: [
         {
           label: 'self.mp3 on GitHub',
-          click: () => void shell.openExternal('https://github.com/Xiao215/selfmp3'),
+          click: () => void shell.openExternal(REPOSITORY_URL),
         },
       ],
     },

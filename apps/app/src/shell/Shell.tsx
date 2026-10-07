@@ -446,7 +446,7 @@ function Toasts({ left = 0 }: { left?: number }): ReactNode {
   return (
     <Animated.View
       // Centred in the page, which starts where the sidebar over it ends.
-      style={[styles.toasts, { left, bottom: 10 + chrome }, lift]}
+      style={[styles.toasts, { left, bottom: TOASTS_BOTTOM + chrome }, lift]}
       pointerEvents="box-none"
     >
       <ResumeToast />
@@ -455,12 +455,15 @@ function Toasts({ left = 0 }: { left?: number }): ReactNode {
   )
 }
 
+/** How far the toasts sit above the foot of the page, or above the chrome that floats there. */
+const TOASTS_BOTTOM = 10
+
 const styles = StyleSheet.create(theme => ({
   toasts: {
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 10,
+    bottom: TOASTS_BOTTOM,
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 16,

@@ -1,4 +1,4 @@
-import { SignInCodeSchema } from '@selfmp3/shared'
+import { signInCodeFromUrl } from '@selfmp3/shared'
 
 /**
  * Sign-in links coming back to the app, and the inbox they wait in.
@@ -23,8 +23,6 @@ export interface SignInLink {
   readonly code: string
 }
 
-const CODE = /(?:^|[#&?])signin-code=([0-9A-Za-z-]{1,32})/
-
 /**
  * The target and code in a returning link, or null for any other link.
  *
@@ -32,16 +30,14 @@ const CODE = /(?:^|[#&?])signin-code=([0-9A-Za-z-]{1,32})/
  * and `https://example.github.io/selfmp3/settings#…` are the same return.
  */
 export function signInLink(url: string): SignInLink | null {
-  const raw = CODE.exec(url)?.[1]
-  if (raw === undefined) return null
-  const code = SignInCodeSchema.safeParse(raw)
-  if (!code.success) return null
+  const code = signInCodeFromUrl(url)
+  if (code === null) return null
   const path = url
     .replace(/[?#].*$/, '')
     .replace(/^selfmp3:\/\//, '/')
     .replace(/\/+$/, '')
   const last = path.slice(path.lastIndexOf('/') + 1)
-  return last === 'welcome' || last === 'settings' ? { target: last, code: code.data } : null
+  return last === 'welcome' || last === 'settings' ? { target: last, code } : null
 }
 
 interface SignInInbox {

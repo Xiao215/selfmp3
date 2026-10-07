@@ -84,6 +84,8 @@ export class WrappedRepository {
       .all(...params)
       .map(toTopSong)
 
+    // 'Unknown artist' is `UNKNOWN_ARTIST` from @selfmp3/shared, which the app
+    // compares this key with: change the two together.
     const topArtists: TopEntry[] = this.#db
       .prepare<unknown[], { key: string; plays: number; ms: number | null }>(
         `SELECT COALESCE(NULLIF(s.artist, ''), 'Unknown artist') AS key,

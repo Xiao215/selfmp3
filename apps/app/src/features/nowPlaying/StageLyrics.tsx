@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { blurLayer } from '../../ports/blurLayer'
-import { activeLineIndex, type ParsedLyrics } from '@selfmp3/shared'
+import { activeLineIndex, lyricTextLines, type ParsedLyrics } from '@selfmp3/shared'
 import { radius, withAlpha } from '@selfmp3/client'
 import { usePlayerCommands, usePlayerProgress } from '../../player/PlayerProvider'
 import { LYRIC_ANCHOR, LYRIC_LEAD, MANUAL_SCROLL_MS } from './nowPlaying.model'
@@ -125,7 +125,7 @@ const LyricsList = memo(function LyricsList({
   }, [focus])
 
   const synced = parsed.synced ? parsed.lines : null
-  const lines = parsed.synced ? parsed.lines.map(line => line.text) : parsed.lines
+  const lines = lyricTextLines(parsed)
 
   useEffect(() => {
     if (!synced || boxHeight === 0) return

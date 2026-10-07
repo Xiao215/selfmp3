@@ -1,4 +1,4 @@
-import type { MetadataCandidate, Song, TidyField } from '@selfmp3/shared'
+import { DAY_MS, type MetadataCandidate, type Song, type TidyField } from '@selfmp3/shared'
 import { creditNames, mainArtist } from './library.js'
 import { foldedBare as bare } from './text.js'
 
@@ -32,7 +32,7 @@ interface Listed extends FoundName {
 
 /** How far apart in seconds a recording may be and still be the same one. */
 const SAME_LENGTH_S = 3
-const CACHE_MS = 24 * 60 * 60 * 1000
+const CACHE_MS = DAY_MS
 const CACHE_MAX = 5_000
 
 /** Whether `part`, as letters and digits, is inside `whole`. */

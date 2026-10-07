@@ -4,6 +4,7 @@ import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { useServerSongIds } from '../../connection/useServerSongIds'
+import { reachedConnection } from '../../connection/via'
 
 /**
  * How long a smart feature's answer may take. A model behind the claude CLI
@@ -34,11 +35,7 @@ const nothing = (): void => undefined
 export function useSmartServer(): SmartServer {
   const { fromCloud, connection } = useConnection()
   const reach = useServerDirect({ enabled: fromCloud })
-  const via = fromCloud
-    ? reach.state === 'reachable'
-      ? reach.connection
-      : undefined
-    : (connection ?? undefined)
+  const via = fromCloud ? reachedConnection(reach) : (connection ?? undefined)
   const ids = useServerSongIds(fromCloud ? via : undefined)
   const ready = via !== undefined && (!fromCloud || ids.ready)
   const api = useMemo(() => (ready && via ? apiFor(via, THINKING_MS) : null), [ready, via])

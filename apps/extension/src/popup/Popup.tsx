@@ -2,6 +2,7 @@ import { motion } from '@selfmp3/client/core'
 import { DEFAULT_APP_URL, IDLE_PACING, type ImportEnqueue, type ImportQueue } from '@selfmp3/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { isPendingRequest } from '@selfmp3/replica'
 import { ask, type Choices } from '../bridge.js'
 import { pageKind } from '../pageKind.js'
 import { currentPage } from './page.js'
@@ -384,11 +385,7 @@ export function Popup(): ReactNode {
       {ready && <QueueFooter queue={queue.data} onOpen={() => openApp('/import')} />}
       {viaBucket && (
         <BucketFooter
-          waiting={
-            (requests.data?.imports ?? []).filter(
-              each => each.state === 'waiting' || each.state === 'working',
-            ).length
-          }
+          waiting={(requests.data?.imports ?? []).filter(isPendingRequest).length}
           onOpen={() => openApp('/import')}
         />
       )}

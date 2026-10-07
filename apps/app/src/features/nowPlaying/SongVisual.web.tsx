@@ -16,6 +16,14 @@ import {
   type MotionTuning,
 } from './visualMotion.model'
 import {
+  createLayerCache,
+  DISC_SHADOW,
+  flashLift,
+  layersKey,
+  shadowSprite,
+  type LayerSize,
+} from './visualLayers.model'
+import {
   RING_FROM,
   RING_TO,
   rippleDisc,
@@ -38,6 +46,11 @@ import {
  * Reduce Motion draws a single still frame in its own effect and runs no loop at
  * all — it used to keep one going for as long as the page was open, working out
  * a key sixty times a second to decide to draw nothing.
+ *
+ * What does not move — the ground, its two washes and the disc's shadow — is
+ * painted once into canvases of its own and copied in each frame
+ * (`visualLayers.model.ts` says why, and when they are painted again). They
+ * are let go when the visual leaves the screen.
  */
 export function SongVisual({
   song,
@@ -51,6 +64,8 @@ export function SongVisual({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const { colors, tuning } = useVisualLook(song)
   const { image: cover, loaded: coverLoaded } = useCoverImage(coverUri)
+  const [layers] = useState(() => createLayerCache<Kept | null>(freeLayers))
+  useEffect(() => () => layers.release(), [layers])
 
   const live = useRef({ player, isPlaying, colors, tuning, sampler, cover })
   useEffect(() => {
@@ -84,12 +99,13 @@ export function SongVisual({
       if (!size) return
       const { colors: c, tuning: tu, sampler: s, cover: art } = live.current
       stillMotion(still, tu, s.source)
-      draw(ctx, size.width, size.height, c, tu, still, art.current)
+      const kept = layers.get(layersKey(size, c), () => paintLayers(size, c))
+      draw(ctx, size, c, tu, still, art.current, kept)
     }
     paint()
     const watch = watchSize(canvas, paint)
     return () => watch?.disconnect()
-  }, [reduced, song.id, colors, tuning, sampler.source, coverLoaded])
+  }, [reduced, song.id, colors, tuning, sampler.source, coverLoaded, layers])
 
   useEffect(() => {
     if (reduced) return undefined
@@ -119,7 +135,8 @@ export function SongVisual({
         return
       }
       stepMotion(motion, s, p.getPlayhead(), dt, playing, tu)
-      draw(ctx, size.width, size.height, c, tu, motion, live.current.cover.current)
+      const kept = layers.get(layersKey(size, c), () => paintLayers(size, c))
+      draw(ctx, size, c, tu, motion, live.current.cover.current, kept)
       /*
        * A paused canvas that has come to rest asks for no more frames: it used
        * to repaint the whole canvas sixty times a second for as long as the
@@ -142,7 +159,7 @@ export function SongVisual({
       watch?.disconnect()
       cancelAnimationFrame(frame)
     }
-  }, [restart, reduced, isPlaying, coverLoaded])
+  }, [restart, reduced, isPlaying, coverLoaded, layers])
 
   return (
     <canvas
@@ -200,10 +217,7 @@ function useCoverImage(uri: string | null): {
  * drawing back into the box's own units, or answers null while it has no box to
  * fill. Both the loop and the still frame start here.
  */
-function fit(
-  canvas: HTMLCanvasElement,
-  ctx: CanvasRenderingContext2D,
-): { width: number; height: number } | null {
+function fit(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): LayerSize | null {
   const width = canvas.clientWidth
   const height = canvas.clientHeight
   if (!width || !height) return null
@@ -213,7 +227,7 @@ function fit(
     canvas.height = Math.round(height * dpr)
   }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-  return { width, height }
+  return { width, height, dpr }
 }
 
 /**
@@ -231,32 +245,121 @@ function watchSize(canvas: HTMLCanvasElement, changed: () => void): ResizeObserv
 }
 
 type Ctx = CanvasRenderingContext2D
+/** A canvas off the screen, and how it is painted: either kind draws the same. */
+type Surface = HTMLCanvasElement | OffscreenCanvas
+type SurfaceCtx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
+
+/** What the visual paints once and copies in every frame (`visualLayers.model.ts`). */
+interface Kept {
+  /** The ground and its two washes, at the canvas's own size in pixels. */
+  readonly ground: Surface
+  /** The disc's shadow on its own, round the disc's middle. */
+  readonly shadow: Surface
+  /** How far the shadow's canvas reaches from the disc's middle, in points. */
+  readonly shadowHalf: number
+}
+
+/**
+ * A canvas that is never put on the page: an `OffscreenCanvas` where the
+ * browser has one, else a `<canvas>` that is never attached. Null where neither
+ * can paint (a test's DOM).
+ */
+function surface(width: number, height: number): { canvas: Surface; ctx: SurfaceCtx } | null {
+  if (typeof OffscreenCanvas !== 'undefined') {
+    const canvas = new OffscreenCanvas(width, height)
+    const ctx = canvas.getContext('2d')
+    return ctx ? { canvas, ctx } : null
+  }
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  return ctx ? { canvas, ctx } : null
+}
+
+/**
+ * Paints what does not move. The ground is the radial gradient from the
+ * ground's middle to its edge, with a wash of the first two inks in opposite
+ * corners, at the canvas's size and density. The shadow is the disc's, at its
+ * resting size: a disc drawn far off to the left of its own canvas with the
+ * shadow thrown back onto it, so only the shadow lands — blurred 50 and
+ * dropped 20 in canvas pixels, as it was when it was cast by the disc itself.
+ */
+function paintLayers(size: LayerSize, c: VisualColors): Kept | null {
+  const { width: w, height: h, dpr } = size
+  const ground = surface(Math.round(w * dpr), Math.round(h * dpr))
+  const radius = rippleDisc(w, h) / 2
+  const sprite = shadowSprite(radius, dpr)
+  const shadow = surface(sprite.side, sprite.side)
+  if (!ground || !shadow) return null
+
+  const g = ground.ctx
+  g.setTransform(dpr, 0, 0, dpr, 0, 0)
+  const [middle, edge] = c.ground
+  const fill = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.75)
+  fill.addColorStop(0, rgba(middle))
+  fill.addColorStop(1, rgba(edge))
+  g.fillStyle = fill
+  g.fillRect(0, 0, w, h)
+  wash(g, w * 0.2, h * 0.18, Math.max(w, h) * 0.6, c.inks[0], 0.2)
+  wash(g, w * 0.82, h * 0.84, Math.max(w, h) * 0.6, c.inks[1], 0.16)
+
+  // P24's disc sits above the page on a deep, soft shadow.
+  const s = shadow.ctx
+  const middleOf = sprite.side / 2
+  s.shadowColor = rgba(edge, DISC_SHADOW.alpha)
+  s.shadowBlur = DISC_SHADOW.blur
+  s.shadowOffsetX = sprite.side
+  s.shadowOffsetY = DISC_SHADOW.offsetY
+  s.beginPath()
+  s.arc(middleOf - sprite.side, middleOf, radius * dpr, 0, Math.PI * 2)
+  s.fillStyle = '#000'
+  s.fill()
+
+  return { ground: ground.canvas, shadow: shadow.canvas, shadowHalf: sprite.half }
+}
+
+/** Gives a kept canvas's pixels back now, rather than whenever it is collected. */
+function freeLayers(kept: Kept | null): void {
+  if (!kept) return
+  for (const canvas of [kept.ground, kept.shadow]) {
+    canvas.width = 0
+    canvas.height = 0
+  }
+}
 
 /**
  * Ripples (P24): the cover as a disc that kicks on each hit and sends a ring
  * out from behind it, as strong as the hit.
+ *
+ * The ground, its washes and the disc's shadow come from `kept`; what moves is
+ * drawn over them. The flash, which used to lighten the ground's middle, is a
+ * wash of white over it now, there only while a strong hit is fading; and the
+ * shadow, painted once at the disc's resting size, is stretched with the
+ * disc's kick.
  */
 function draw(
   ctx: Ctx,
-  w: number,
-  h: number,
+  { width: w, height: h }: LayerSize,
   c: VisualColors,
   tu: MotionTuning,
   m: MotionState,
   /** The song's cover, once it has loaded: the disc is the cover itself. */
   cover: HTMLImageElement | null,
+  kept: Kept | null,
 ): void {
-  const [middle, edge] = c.ground
-  const ground = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.75)
-  ground.addColorStop(0, rgba(lighten(middle, m.flash * 0.05)))
-  ground.addColorStop(1, rgba(edge))
-  ctx.fillStyle = ground
-  ctx.fillRect(0, 0, w, h)
-  wash(ctx, w * 0.2, h * 0.18, Math.max(w, h) * 0.6, c.inks[0], 0.2)
-  wash(ctx, w * 0.82, h * 0.84, Math.max(w, h) * 0.6, c.inks[1], 0.16)
-
   const cx = w / 2
   const cy = h / 2
+  if (kept) {
+    // Pixel for pixel: the kept ground is the canvas's own size.
+    ctx.save()
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.drawImage(kept.ground, 0, 0)
+    ctx.restore()
+  }
+  const lift = flashLift(m.flash)
+  if (lift > 0) wash(ctx, cx, cy, Math.max(w, h) * 0.75, [255, 255, 255], lift)
+
   const disc = rippleDisc(w, h)
   const halo = Math.min(1, 0.15 + 0.45 * m.glow + 0.3 * m.kick)
   wash(ctx, cx, cy, disc * 0.95, c.inks[0], 0.5 * halo, 0.4)
@@ -270,7 +373,12 @@ function draw(
     ctx.stroke()
   }
 
-  const r = (disc / 2) * (1 + 0.06 * m.kick)
+  const kick = 1 + 0.06 * m.kick
+  const r = (disc / 2) * kick
+  if (kept) {
+    const reach = kept.shadowHalf * kick
+    ctx.drawImage(kept.shadow, cx - reach, cy - reach, reach * 2, reach * 2)
+  }
   const fill = ctx.createRadialGradient(
     cx - r * 0.16,
     cy - r * 0.24,
@@ -282,16 +390,10 @@ function draw(
   fill.addColorStop(0, rgba(c.inks[2]))
   fill.addColorStop(0.7, rgba(c.inks[0]))
   fill.addColorStop(1, rgba(c.inks[1]))
-  ctx.save()
-  // P24's disc sits above the page on a deep, soft shadow.
-  ctx.shadowColor = rgba(edge, 0.6)
-  ctx.shadowBlur = 50
-  ctx.shadowOffsetY = 20
   ctx.beginPath()
   ctx.arc(cx, cy, r, 0, Math.PI * 2)
   ctx.fillStyle = fill
   ctx.fill()
-  ctx.restore()
 
   // The cover itself inside that circle (`P24`); the colours above stand in
   // until it has loaded, and for a song that has no cover.
@@ -318,7 +420,7 @@ function draw(
 
 /** A soft round glow of one ink, `alpha` at its middle (and out to `solid` of its radius), none at its edge. */
 function wash(
-  ctx: Ctx,
+  ctx: SurfaceCtx,
   x: number,
   y: number,
   radius: number,
@@ -331,8 +433,4 @@ function wash(
   glow.addColorStop(1, rgba(ink, 0))
   ctx.fillStyle = glow
   ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2)
-}
-
-function lighten([r, g, b]: Rgb, amount: number): Rgb {
-  return [r + (255 - r) * amount, g + (255 - g) * amount, b + (255 - b) * amount]
 }

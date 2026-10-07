@@ -50,11 +50,12 @@ describe('the generated theme', () => {
   it('writes every colour of both palettes, dark first and Paper for a light system', () => {
     const dark = declared(darkPart)
     const light = declared(lightPart)
+    // Every value is written as it is; the one number (`washAlpha`) reads back as text.
     for (const [key, value] of Object.entries(tokens.dark)) {
-      expect(dark.get(kebab(key)), key).toBe(value)
+      expect(dark.get(kebab(key)), key).toBe(String(value))
     }
     for (const [key, value] of Object.entries(tokens.light)) {
-      expect(light.get(kebab(key)), key).toBe(value)
+      expect(light.get(kebab(key)), key).toBe(String(value))
     }
     expect(dark.get('surface-0')).toBe('#0b0d13')
     expect(light.get('surface-0')).toBe('#f6f2ea')

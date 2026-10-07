@@ -11,13 +11,16 @@ compatibility_date = "2026-09-01"
 # uploaded version, would each be another way in to the same KV and secrets.
 preview_urls = false
 
-# @selfmp3/shared is TypeScript that is built to dist/ before anything can
-# import it, so Wrangler builds it first, before every `dev` and `deploy`.
-# `wrangler dev` rebuilds when either the doorman or the shared package changes.
+# @selfmp3/shared and @selfmp3/client are TypeScript that is built to dist/
+# before anything can import them, so Wrangler builds them first, before every
+# `dev` and `deploy` (the client's build builds shared, which it references).
+# The doorman takes only the client's colour tokens (`@selfmp3/client/tokens`),
+# for its pages. `wrangler dev` rebuilds when the doorman or either package
+# changes.
 [build]
-command = "npm run build --workspace @selfmp3/shared"
+command = "npm run build --workspace @selfmp3/client"
 cwd = "../.."
-watch_dir = ["src", "../../packages/shared/src"]
+watch_dir = ["src", "../../packages/shared/src", "../../packages/client/src/theme"]
 
 [vars]
 # The client ID of your OAuth client in the Google Cloud console. It is public:

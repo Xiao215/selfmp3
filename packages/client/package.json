@@ -12,6 +12,10 @@
     "./core": {
       "types": "./dist/core.d.ts",
       "default": "./dist/core.js"
+    },
+    "./tokens": {
+      "types": "./dist/theme/tokens.d.ts",
+      "default": "./dist/theme/tokens.js"
     }
   },
   "main": "./dist/index.js",

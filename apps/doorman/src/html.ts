@@ -1,3 +1,9 @@
+import {
+  darkPalette,
+  DEFAULT_ACCENT_HUE,
+  lightPalette,
+  type ThemePalette,
+} from '@selfmp3/client/tokens'
 import { sha256Base64 } from './encoding.js'
 
 /**
@@ -18,28 +24,30 @@ import { sha256Base64 } from './encoding.js'
  * harmless because of where it came from.
  */
 
-const STYLE = `
-:root {
-  color-scheme: dark;
-  --surface: oklch(0.16 0.012 268);
-  --card: oklch(0.19 0.014 268);
-  --border: oklch(0.3 0.016 268);
-  --text: oklch(0.97 0.005 268);
-  --text-secondary: oklch(0.76 0.012 268);
-  --accent: oklch(0.72 0.16 268);
-  --on-accent: oklch(0.15 0.02 268);
+/**
+ * The pages' colours are the app's own, from `@selfmp3/client/tokens` — the
+ * one module of the client package with nothing in it but the palettes, so
+ * the Worker bundles a few hundred lines of colour arithmetic and none of the
+ * client. They used to be a hand copy in OKLCH, which had drifted: a cool
+ * near-white where the app had moved to Paper's cream. Dark first, as the app
+ * is, and Paper when the system is light; the accent at the default hue, since
+ * a sign-in page has no device to read a chosen one from.
+ */
+function paletteVars(palette: ThemePalette): string {
+  return [
+    `--surface: ${palette.surface0};`,
+    `--card: ${palette.surface1};`,
+    `--border: ${palette.border};`,
+    `--text: ${palette.textPrimary};`,
+    `--text-secondary: ${palette.textSecondary};`,
+    `--accent: ${palette.accent};`,
+  ].join(' ')
 }
+
+const STYLE = `
+:root { color-scheme: dark; ${paletteVars(darkPalette(DEFAULT_ACCENT_HUE))} }
 @media (prefers-color-scheme: light) {
-  :root {
-    color-scheme: light;
-    --surface: oklch(0.985 0.004 268);
-    --card: oklch(1 0 0);
-    --border: oklch(0.89 0.008 268);
-    --text: oklch(0.22 0.015 268);
-    --text-secondary: oklch(0.44 0.014 268);
-    --accent: oklch(0.52 0.19 268);
-    --on-accent: oklch(0.99 0 0);
-  }
+  :root { color-scheme: light; ${paletteVars(lightPalette(DEFAULT_ACCENT_HUE))} }
 }
 * { box-sizing: border-box; }
 body {

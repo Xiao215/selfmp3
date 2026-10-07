@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Pressable, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { hueFromString } from '@selfmp3/shared'
-import { oklchToHexAlpha, radius } from '@selfmp3/client'
+import { radius, tagColors } from '@selfmp3/client'
 import { Check } from './Icons'
 
 /**
@@ -18,6 +18,10 @@ const HUES = [0, 22, 40, 58, 95, 140, 168, 192, 212, 235, 262, 290, 318] as cons
  * `first` is a hue that leads the row when the palette does not hold it — the
  * colour a tag already has, or the one a new name would be given — so what a
  * tag is about to look like is always one of the choices.
+ *
+ * Each swatch is the tag's own `tagColors`: filled with its dot, which is what
+ * a tag looks like on every chip and row, ringed in its ink when chosen, and
+ * ticked in `onDot`.
  */
 export function HueSwatches({
   value,
@@ -37,6 +41,7 @@ export function HueSwatches({
     <View style={styles.swatches} role="radiogroup" aria-label="Tag colour">
       {hues.map(hue => {
         const on = value === hue
+        const tone = tagColors(hue)
         return (
           <Pressable
             key={hue}
@@ -44,7 +49,7 @@ export function HueSwatches({
             accessibilityState={{ checked: on }}
             accessibilityLabel={`Hue ${hue}`}
             onPress={() => onChange(hue)}
-            style={[styles.swatchRing, on && { borderColor: oklchToHexAlpha(0.75, 0.14, hue, 1) }]}
+            style={[styles.swatchRing, on && { borderColor: tone.ink }]}
           >
             <View
               style={[
@@ -53,13 +58,11 @@ export function HueSwatches({
                   width: size,
                   height: size,
                   borderRadius: size / 2,
-                  backgroundColor: oklchToHexAlpha(0.62, 0.15, hue, 1),
+                  backgroundColor: tone.dot,
                 },
               ]}
             >
-              {on ? (
-                <Check size={size < 24 ? 10 : 12} color={oklchToHexAlpha(0.18, 0.03, hue, 1)} />
-              ) : null}
+              {on ? <Check size={size < 24 ? 10 : 12} color={tone.onDot} /> : null}
             </View>
           </Pressable>
         )

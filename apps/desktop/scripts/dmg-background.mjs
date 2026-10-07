@@ -1,8 +1,12 @@
 /**
  * The dmg window's background, rendered rather than committed.
  *
- * Quiet and light: the app's off-white, an arrow in the accent from the app to
- * Applications, and one line saying what to do. Drawn at 540×380 and again at
+ * Quiet and light: Paper's ground, an arrow in the accent from the app to
+ * Applications, and one line saying what to do in Paper's muted ink — all
+ * three read from the app's own light palette at the default accent hue
+ * (`@selfmp3/client/tokens`, built by `build:packages` before this runs), so
+ * the window is the app's colours rather than a copy of them. The palette is
+ * already hex, which is what librsvg, under `sharp`, can read. Drawn at 540×380 and again at
  * 2×; electron-builder joins the pair into one Retina TIFF with `tiffutil` and
  * sizes the window from the 1× file.
  *
@@ -18,6 +22,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { DEFAULT_ACCENT_HUE, lightPalette } from '@selfmp3/client/tokens'
 import sharp from 'sharp'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -38,18 +43,18 @@ const ICON_SIZE = 100
  */
 const CAPTION_Y = 300
 
-const ACCENT = '#7c6ae6'
+const { surface0: GROUND, accent: ACCENT, textMuted: CAPTION } = lightPalette(DEFAULT_ACCENT_HUE)
 const arrowFrom = APP_X + ICON_SIZE / 2 + 22
 const arrowTo = APPLICATIONS_X - ICON_SIZE / 2 - 24
 
 const svg =
   scale => `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH * scale}" height="${HEIGHT * scale}" viewBox="0 0 ${WIDTH} ${HEIGHT}">
-  <rect width="${WIDTH}" height="${HEIGHT}" fill="#f7f5fb"/>
+  <rect width="${WIDTH}" height="${HEIGHT}" fill="${GROUND}"/>
   <g fill="none" stroke="${ACCENT}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
     <path d="M${arrowFrom} ${ICON_Y} H${arrowTo - 4}"/>
     <path d="M${arrowTo - 16} ${ICON_Y - 13} L${arrowTo} ${ICON_Y} L${arrowTo - 16} ${ICON_Y + 13}"/>
   </g>
-  <text x="${WIDTH / 2}" y="${CAPTION_Y}" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="#8a8594">Drag self.mp3 to Applications</text>
+  <text x="${WIDTH / 2}" y="${CAPTION_Y}" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="${CAPTION}">Drag self.mp3 to Applications</text>
 </svg>`
 
 await mkdir(dirname(target), { recursive: true })

@@ -159,25 +159,9 @@ export function previous(state: QueueState): QueueState {
  * it starts again from a second copy of itself.
  */
 export function playNext(state: QueueState, songIds: readonly number[]): QueueState {
-  if (songIds.length === 0) return state
-
-  // Remove any existing copies first so "play next" moves rather than
-  // duplicates — a duplicate in a queue is almost never what was meant.
-  const current = state.index < 0 ? undefined : state.items[state.index]
-  const incoming = new Set(songIds)
-  const inserted = songIds.filter(id => id !== current)
-  if (inserted.length === 0) return state
-
-  const filtered = state.items.filter((id, i) => i === state.index || !incoming.has(id))
-  const currentIndex = current === undefined ? -1 : filtered.indexOf(current)
-  const at = currentIndex + 1
-
-  return {
-    ...state,
-    items: [...filtered.slice(0, at), ...inserted, ...filtered.slice(at)],
-    original: withOriginal(state, inserted),
-    index: currentIndex < 0 ? state.index : currentIndex,
-  }
+  // Moved rather than duplicated, as `insertAt` does: a duplicate in a queue
+  // is almost never what was meant.
+  return insertAt(state, songIds, state.index + 1)
 }
 
 /**

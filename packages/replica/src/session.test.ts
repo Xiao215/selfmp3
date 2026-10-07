@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { DoormanError, SESSION_KEY, createCloudSession } from './session.js'
+import { DoormanError, createCloudSession } from './session.js'
 import type { CloudPlatform, CloudRequestInit, CloudResponse, DeviceStore } from './platform.js'
+
+/** The key the service worker reads the session under (apps/app/sw/sw.ts). */
+const SESSION_KEY = 'cloud-session'
 
 /**
  * These are the first tests this code has ever had: it could not be tested

@@ -27,7 +27,7 @@ import type { CloudPlatform, CloudResponse } from './platform.js'
  */
 
 /** Also read by apps/app/sw/sw.ts, straight out of IndexedDB. Keep in step. */
-export const SESSION_KEY = 'cloud-session'
+const SESSION_KEY = 'cloud-session'
 const PENDING_KEY = 'cloud-pending-sign-in'
 /** As long as the doorman keeps an attempt. */
 const ATTEMPT_LIFETIME_MS = 10 * 60_000
@@ -51,12 +51,12 @@ export class DoormanError extends Error {
   }
 }
 
-export interface PendingSignIn {
+interface PendingSignIn {
   readonly attempt: string
   readonly until: number
 }
 
-export type ClaimOutcome =
+type ClaimOutcome =
   | { readonly status: 'pending' }
   | { readonly status: 'code' }
   | { readonly status: 'signed-in'; readonly session: CloudSession }

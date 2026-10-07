@@ -16,10 +16,12 @@
  * chances to change a route string nobody notices until a screen breaks.
  */
 import {
+  AffectedSchema,
   AnalysisStatusSchema,
   ArtistBackdropSchema,
   DeviceCommandResultSchema,
   DeviceListSchema,
+  ErrorBodySchema,
   HealthSchema,
   ImportEnqueueResultSchema,
   AlreadyHaveResponseSchema,
@@ -27,7 +29,13 @@ import {
   ImportFindResultSchema,
   ImportPreviewSchema,
   ImportQueueSchema,
+  ImportsClearedSchema,
+  ImportsPausedSchema,
+  ImportsRemovedSchema,
+  ImportsResumedSchema,
+  ImportsRetriedSchema,
   LibrarySchema,
+  LibraryVersionSchema,
   ApplyMetadataResultSchema,
   FixCoversStatusSchema,
   MetadataLookupResponseSchema,
@@ -44,8 +52,12 @@ import {
   LyricsResponseSchema,
   MotionSchema,
   LyricsSearchResponseSchema,
+  OkSchema,
+  PlayHistorySchema,
+  PlayRecordedSchema,
   PlaylistSchema,
   PlaylistSongsSchema,
+  RemovedFromPlaylistSchema,
   ScanResultSchema,
   SettingsSchema,
   SimilarSongsSchema,
@@ -56,6 +68,7 @@ import {
   SyncManifestSchema,
   CloudUidsSchema,
   TagSchema,
+  ToolStatusSchema,
   type CreateTag,
   BulkDeleteResultSchema,
   CloudStatusSchema,
@@ -80,22 +93,17 @@ import {
   type UpdatePlaylist,
   type UpdateSettings,
 } from '@selfmp3/shared'
-import { z } from 'zod'
+import type { z } from 'zod'
 import {
+  CloudRouteError,
   CloudServerViewSchema,
   ImportRequestListSchema,
   ImportRequestViewSchema,
   type CloudImportRequest,
 } from '@selfmp3/replica'
-import { CloudRouteError } from '@selfmp3/replica'
 
 import { ApiError } from './error.js'
 import type { ApiContext, ClientFetch, ClientSignal, CloudRequest } from '../platform.js'
-
-const ErrorResponseSchema = z.object({
-  error: z.string(),
-  code: z.string().optional(),
-})
 
 /**
  * Cloud answers already checked, by the object the replica answered with, then
@@ -132,18 +140,32 @@ async function cloudAnswer<S extends z.ZodTypeAny>(
   const checked = answers ? checkedAnswers.get(answers) : undefined
   if (checked?.has(schema)) return checked.get(schema)
   // A route that answers nothing is a 204 as far as the schemas are concerned.
+  const parsed = parseAnswer(schema, payload, path)
+  if (answers) {
+    const bySchema = checked ?? new Map<z.ZodTypeAny, unknown>()
+    bySchema.set(schema, parsed)
+    checkedAnswers.set(answers, bySchema)
+  }
+  return parsed
+}
+
+/**
+ * An answer checked against the schema the server validated it with. A shape
+ * that does not match is surfaced rather than swallowed — that is the entire
+ * point — as a 500 the screens can tell from the server being away.
+ */
+function parseAnswer<S extends z.ZodTypeAny>(
+  schema: S,
+  payload: unknown,
+  path: string,
+): z.output<S> {
   const parsed = schema.safeParse(payload)
   if (!parsed.success) {
     throw new ApiError(
       500,
-      `Unexpected answer for ${path}: ${parsed.error.issues[0]?.message ?? 'shape mismatch'}`,
+      `Unexpected answer from ${path}: ${parsed.error.issues[0]?.message ?? 'shape mismatch'}`,
       'contract_mismatch',
     )
-  }
-  if (answers) {
-    const bySchema = checked ?? new Map<z.ZodTypeAny, unknown>()
-    bySchema.set(schema, parsed.data)
-    checkedAnswers.set(answers, bySchema)
   }
   return parsed.data as z.output<S>
 }
@@ -218,7 +240,7 @@ export function createApi({ context, fetch }: ApiOptions) {
     if (response.status === 204) return schema.parse(undefined) as z.output<S>
 
     if (!response.ok) {
-      const parsed = ErrorResponseSchema.safeParse(await response.json().catch(() => null))
+      const parsed = ErrorBodySchema.safeParse(await response.json().catch(() => null))
       throw new ApiError(
         response.status,
         parsed.success ? parsed.data.error : `${method} ${path} failed (${response.status})`,
@@ -226,20 +248,8 @@ export function createApi({ context, fetch }: ApiOptions) {
       )
     }
 
-    const payload: unknown = await response.json()
-    const parsed = schema.safeParse(payload)
-    if (!parsed.success) {
-      // Surfacing this rather than swallowing it is the entire point.
-      throw new ApiError(
-        500,
-        `Unexpected response from ${path}: ${parsed.error.issues[0]?.message ?? 'shape mismatch'}`,
-        'contract_mismatch',
-      )
-    }
-    return parsed.data as z.output<S>
+    return parseAnswer(schema, await response.json(), path)
   }
-
-  const OkSchema = z.object({ ok: z.literal(true) }).passthrough()
 
   return {
     // --- which answerer -------------------------------------------------------
@@ -262,12 +272,7 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     library: () => request('GET', '/api/library', LibrarySchema),
 
-    libraryVersion: () =>
-      request(
-        'GET',
-        '/api/library/version',
-        z.object({ version: z.number(), songCount: z.number() }),
-      ),
+    libraryVersion: () => request('GET', '/api/library/version', LibraryVersionSchema),
 
     scan: () => request('POST', '/api/library/scan', ScanResultSchema),
 
@@ -291,7 +296,7 @@ export function createApi({ context, fetch }: ApiOptions) {
       request('POST', `/api/songs/${id}/loved`, SongSchema, { loved }),
 
     recordPlay: (id: number, event: PlayEvent) =>
-      request('POST', `/api/songs/${id}/played`, OkSchema, event),
+      request('POST', `/api/songs/${id}/played`, PlayRecordedSchema, event),
 
     recordSkip: (id: number, atSeconds: number, clientId?: string) =>
       request('POST', `/api/songs/${id}/skipped`, OkSchema, { atSeconds, clientId }),
@@ -310,20 +315,18 @@ export function createApi({ context, fetch }: ApiOptions) {
         LyricsSearchResponseSchema,
       ),
 
-    similar: (id: number, limit = 20) =>
+    similar: (id: number, limit: number) =>
       request('GET', `/api/songs/${id}/similar?limit=${limit}`, SimilarSongsSchema),
-
-    deleteSong: (id: number) => request('DELETE', `/api/songs/${id}`, OkSchema),
 
     /** The multi-select delete. */
     bulkDeleteSongs: (input: BulkDeleteSongs) =>
       request('POST', '/api/songs/bulk/delete', BulkDeleteResultSchema, input),
 
     bulkEditSongs: (input: BulkEditSongs) =>
-      request('POST', '/api/songs/bulk/edit', z.object({ affected: z.number() }), input),
+      request('POST', '/api/songs/bulk/edit', AffectedSchema, input),
 
     bulkLoved: (input: BulkLoved) =>
-      request('POST', '/api/songs/bulk/loved', z.object({ affected: z.number() }), input),
+      request('POST', '/api/songs/bulk/loved', AffectedSchema, input),
 
     // --- metadata polish ------------------------------------------------------
 
@@ -375,7 +378,6 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     untaggedTags: () => request('GET', '/api/ai/tags/untagged', TagReviewSchema),
 
-    /** A5 · the Report in a few sentences; `again` writes it afresh. */
     /** Fix metadata's Suggested card: the model's names for one song (`again`: a fresh answer). */
     suggestMetadata: (id: number, again = false, signal?: ClientSignal) =>
       request(
@@ -386,6 +388,7 @@ export function createApi({ context, fetch }: ApiOptions) {
         signal,
       ),
 
+    /** A5 · the Report in a few sentences; `again` writes it afresh. */
     written: (range: WrappedRange, again = false) =>
       request('GET', `/api/ai/written?range=${range}&again=${again ? 1 : 0}`, WrittenReportSchema),
 
@@ -413,8 +416,7 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     deleteTag: (id: number) => request('DELETE', `/api/tags/${id}`, OkSchema),
 
-    bulkTag: (input: BulkTag) =>
-      request('POST', '/api/tags/bulk', z.object({ affected: z.number() }), input),
+    bulkTag: (input: BulkTag) => request('POST', '/api/tags/bulk', AffectedSchema, input),
 
     // --- playlists ----------------------------------------------------------
 
@@ -440,12 +442,7 @@ export function createApi({ context, fetch }: ApiOptions) {
       request('DELETE', `/api/playlists/${id}/songs/${songId}`, PlaylistSchema),
 
     removeManyFromPlaylist: (id: number, songIds: number[]) =>
-      request(
-        'POST',
-        `/api/playlists/${id}/songs/remove`,
-        z.object({ removed: z.number(), playlist: PlaylistSchema.nullable() }),
-        { songIds },
-      ),
+      request('POST', `/api/playlists/${id}/songs/remove`, RemovedFromPlaylistSchema, { songIds }),
 
     reorderPlaylist: (id: number, songIds: number[]) =>
       request('PUT', `/api/playlists/${id}/order`, OkSchema, { songIds }),
@@ -456,15 +453,7 @@ export function createApi({ context, fetch }: ApiOptions) {
     // --- import -------------------------------------------------------------
 
     importTools: (refresh = false) =>
-      request(
-        'GET',
-        `/api/import/tools${refresh ? '?refresh=1' : ''}`,
-        z.object({
-          ytdlp: z.boolean(),
-          ffmpeg: z.boolean(),
-          ytdlpVersion: z.string().nullable(),
-        }),
-      ),
+      request('GET', `/api/import/tools${refresh ? '?refresh=1' : ''}`, ToolStatusSchema),
 
     importPreview: (url: string) =>
       request('POST', '/api/import/preview', ImportPreviewSchema, { url }),
@@ -511,17 +500,15 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     importNext: (id: string) => request('POST', `/api/import/jobs/${id}/next`, OkSchema),
 
-    pauseImports: () => request('POST', '/api/import/pause', z.object({ paused: z.number() })),
+    pauseImports: () => request('POST', '/api/import/pause', ImportsPausedSchema),
 
-    resumeImports: () => request('POST', '/api/import/resume', z.object({ resumed: z.number() })),
+    resumeImports: () => request('POST', '/api/import/resume', ImportsResumedSchema),
 
-    retryFailedImports: () =>
-      request('POST', '/api/import/retry-failed', z.object({ retried: z.number() })),
+    retryFailedImports: () => request('POST', '/api/import/retry-failed', ImportsRetriedSchema),
 
-    removeFailedImports: () =>
-      request('POST', '/api/import/remove-failed', z.object({ removed: z.number() })),
+    removeFailedImports: () => request('POST', '/api/import/remove-failed', ImportsRemovedSchema),
 
-    clearImports: () => request('POST', '/api/import/clear', z.object({ cleared: z.number() })),
+    clearImports: () => request('POST', '/api/import/clear', ImportsClearedSchema),
 
     // --- devices ------------------------------------------------------------
 
@@ -609,24 +596,10 @@ export function createApi({ context, fetch }: ApiOptions) {
     wrapped: (range: WrappedRange) =>
       request('GET', `/api/stats/wrapped?range=${range}`, WrappedSchema),
 
-    gems: (limit = 20) => request('GET', `/api/library/gems?limit=${limit}`, ForgottenGemsSchema),
+    gems: (limit: number) =>
+      request('GET', `/api/library/gems?limit=${limit}`, ForgottenGemsSchema),
 
-    history: (limit = 100) =>
-      request(
-        'GET',
-        `/api/stats/history?limit=${limit}`,
-        z.object({
-          events: z.array(
-            z.object({
-              songId: z.number(),
-              title: z.string(),
-              artist: z.string(),
-              hasArt: z.boolean(),
-              playedAt: z.string(),
-              completed: z.boolean(),
-            }),
-          ),
-        }),
-      ),
+    history: (limit: number) =>
+      request('GET', `/api/stats/history?limit=${limit}`, PlayHistorySchema),
   }
 }

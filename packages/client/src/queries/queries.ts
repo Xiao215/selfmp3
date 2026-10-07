@@ -9,6 +9,7 @@ import {
   type UseQueryResult,
 } from '@tanstack/react-query'
 import type {
+  Playlist,
   ApplyMetadata,
   BulkEditSongs,
   FixCoversStatus,
@@ -24,6 +25,8 @@ import type {
   WrappedRange,
   ForgottenGems,
   ImportQueue,
+  PlayHistory,
+  ScanResult,
   SimilarSongs,
   ToolStatus,
   LyricsResponse,
@@ -44,6 +47,7 @@ import {
 import { decodeMotion, type MotionCurve } from '../motion/motion.js'
 import { useClientState } from './context.js'
 import { hasLivePlaylists, withPlaylist, withSong, withTag } from './patchLibrary.js'
+import { STALE } from './stale.js'
 import type { CloudImportRequest, ImportRequestList, ImportRequestView } from '@selfmp3/replica'
 
 /**
@@ -93,6 +97,8 @@ export const queryKeys = {
   history: ['stats', 'history'] as const,
   playlists: playlistsKey,
   playlistSongs: (id: number) => [...playlistsKey, id, 'songs'] as const,
+  /** Where a members hook with no playlist to ask about sits, asking nothing. */
+  noPlaylist: [...playlistsKey, 'none'] as const,
   /** The phone's, for the two it asks for that a browser instead reads from `library`. */
   manifest: ['manifest'] as const,
   lyrics: (id: number) => ['lyrics', id] as const,
@@ -101,7 +107,8 @@ export const queryKeys = {
   metadataLookup: (songId: number) => ['metadata', 'lookup', songId] as const,
   fixCovers: ['metadata', 'fix-covers'] as const,
   lyricsSearch: (query: string) => ['lyrics', 'search', query] as const,
-  similar: (id: number) => ['similar', id] as const,
+  /** The limit is in the key: a different count is a different answer. */
+  similar: (id: number | null, limit: number) => ['similar', id ?? 'none', limit] as const,
   analysis: ['analysis'] as const,
   devices: ['devices'] as const,
   cloud: ['cloud'] as const,
@@ -171,19 +178,21 @@ export function useLibrary(): UseQueryResult<Library, Error> {
       // written twice, and reading the old copy first is slower than the answer.
       const fromCloud = api.answersFromCloud()
       let answered = false
+      /** The saved copy, read once: shown while the server is asked, and kept if it fails. */
+      let saved: Promise<Library | null> | undefined
       if (!fromCloud && client.getQueryData(queryKeys.library) === undefined) {
         // Opening the app: a server can take seconds to answer, or never (asleep,
         // fifteen seconds), and the saved copy is on this device. It is shown
         // meanwhile — dated 0, so it counts as stale and says it is not an
         // answer — and replaced by the answer, or kept beside the error, below.
-        void librarySnapshot()
+        saved = librarySnapshot()
           ?.read()
-          .then(saved => {
-            if (saved && !answered && client.getQueryData(queryKeys.library) === undefined) {
-              client.setQueryData(queryKeys.library, saved, { updatedAt: 0 })
-            }
-          })
-          .catch(() => undefined)
+          .catch(() => null)
+        void saved?.then(copy => {
+          if (copy && !answered && client.getQueryData(queryKeys.library) === undefined) {
+            client.setQueryData(queryKeys.library, copy, { updatedAt: 0 })
+          }
+        })
       }
       try {
         const library = await api.library()
@@ -204,14 +213,14 @@ export function useLibrary(): UseQueryResult<Library, Error> {
         // not there. Returning the copy as the answer hid the failure — the
         // phone said "13 songs" beside covers that would not load and playlists
         // that came back empty, and nothing on it could say why.
-        const cached = (await librarySnapshot()?.read()) ?? null
+        const cached = (await (saved ?? librarySnapshot()?.read())) ?? null
         if (cached && !client.getQueryData(queryKeys.library)) {
           client.setQueryData(queryKeys.library, cached)
         }
         throw error
       }
     },
-    staleTime: 30_000,
+    staleTime: STALE.halfMinute,
     // Asked again on coming back to the app, once it is that old. Off for the
     // app as a whole; the library is what a return is for.
     refetchOnWindowFocus: true,
@@ -223,18 +232,12 @@ export function useLibrary(): UseQueryResult<Library, Error> {
   })
 }
 
-/**
- * The server's settings, including the few every client has to agree about.
- *
- * How much of a song counts as a play is one of them: it is one number deciding
- * one thing, and two clients disagreeing means the same listening is counted
- * differently depending on which one was in your hand.
- */
+/** The server's settings: the ones every device of this library shares. */
 export function useSettings(): UseQueryResult<Settings, Error> {
   return useQuery({
     queryKey: queryKeys.settings,
     queryFn: () => clientApi().settings(),
-    staleTime: 5 * 60_000,
+    staleTime: STALE.fiveMinutes,
   })
 }
 
@@ -248,7 +251,7 @@ export function useStats(range: StatsRange, enabled = true): UseQueryResult<Stat
     queryKey: queryKeys.stats(range),
     queryFn: () => clientApi().stats(range),
     enabled,
-    staleTime: 60_000,
+    staleTime: STALE.minute,
   })
 }
 
@@ -257,9 +260,15 @@ export function useWrapped(range: WrappedRange, enabled = true): UseQueryResult<
     queryKey: queryKeys.wrapped(range),
     queryFn: () => clientApi().wrapped(range),
     enabled,
-    staleTime: 60_000,
+    staleTime: STALE.minute,
   })
 }
+
+/** How many forgotten gems a shelf shows, unless it asks for more. */
+const GEMS_LIMIT = 12
+
+/** How many neighbours a song's page shows, unless it asks otherwise. */
+const SIMILAR_LIMIT = 12
 
 /**
  * Forgotten gems.
@@ -269,7 +278,7 @@ export function useWrapped(range: WrappedRange, enabled = true): UseQueryResult<
  * user's finger. It reloads when the page is opened again, which is the only
  * time a different set is welcome.
  */
-export function useGems(limit = 12): UseQueryResult<ForgottenGems, Error> {
+export function useGems(limit = GEMS_LIMIT): UseQueryResult<ForgottenGems, Error> {
   return useQuery({
     queryKey: queryKeys.gems(limit),
     queryFn: () => clientApi().gems(limit),
@@ -279,12 +288,15 @@ export function useGems(limit = 12): UseQueryResult<ForgottenGems, Error> {
   })
 }
 
-export function useHistory(enabled = true) {
+/** Plays the listening history reads. */
+const HISTORY_PLAYS = 200
+
+export function useHistory(enabled = true): UseQueryResult<PlayHistory, Error> {
   return useQuery({
     queryKey: queryKeys.history,
-    queryFn: () => clientApi().history(200),
+    queryFn: () => clientApi().history(HISTORY_PLAYS),
     enabled,
-    staleTime: 60_000,
+    staleTime: STALE.minute,
   })
 }
 
@@ -320,7 +332,7 @@ export function useImportHistory(enabled: boolean): UseQueryResult<ImportQueue, 
     queryKey: queryKeys.importHistory,
     queryFn: () => clientApi().importQueue(HISTORY_LIMIT),
     enabled,
-    staleTime: 30_000,
+    staleTime: STALE.halfMinute,
   })
 }
 
@@ -329,7 +341,7 @@ export function useImportTools(enabled = true): UseQueryResult<ToolStatus, Error
     queryKey: queryKeys.importTools,
     queryFn: () => clientApi().importTools(),
     enabled,
-    staleTime: 60_000,
+    staleTime: STALE.minute,
     retry: false,
   })
 }
@@ -352,11 +364,15 @@ export function useImportTools(enabled = true): UseQueryResult<ToolStatus, Error
  *
  * `members: false` is for the edits that cannot reach a list — a tag made or
  * renamed, a playlist deleted, whose own list would only 404 if asked again.
+ * `failure` is what to say when it fails, for the app to show (`meta.failure`);
+ * left out for an edit whose screen shows its own error, so nothing is said twice.
+ *
+ * A mutation of no argument names `TArgs` as `void` (`useScanLibrary`), so
+ * `scan.mutate()` means what it reads as rather than wanting a meaningless one.
  */
 function useLibraryMutation<TArgs, TResult>(
   fn: (args: TArgs) => Promise<TResult>,
-  failure?: string,
-  { members = true }: { members?: boolean } = {},
+  { failure, members = true }: { failure?: string; members?: boolean } = {},
 ): UseMutationResult<TResult, Error, TArgs> {
   const client = useQueryClient()
   return useMutation({
@@ -365,39 +381,7 @@ function useLibraryMutation<TArgs, TResult>(
       void client.invalidateQueries({ queryKey: queryKeys.library })
       if (members) void client.invalidateQueries({ queryKey: queryKeys.playlists })
     },
-    ...failed(failure),
-  })
-}
-
-/**
- * What to say when an edit fails, for the app to show (`meta.failure`). Left
- * out for an edit whose screen shows its own error, so nothing is said twice.
- */
-function failed(failure: string | undefined): { meta?: { failure: string } } {
-  return failure === undefined ? {} : { meta: { failure } }
-}
-
-/**
- * The same wrapper for mutations that take no argument.
- *
- * `useLibraryMutation(() => clientApi().scan())` cannot infer `TArgs` from a
- * zero-parameter function, so it lands on `unknown` and callers are forced to
- * pass a meaningless argument to `mutate()`. Pinning `TArgs` to `void` here
- * makes `scan.mutate()` mean what it reads as. A scan can add or remove songs,
- * so the members always go with the library here.
- */
-function useVoidLibraryMutation<TResult>(
-  fn: () => Promise<TResult>,
-  failure?: string,
-): UseMutationResult<TResult, Error, void> {
-  const client = useQueryClient()
-  return useMutation<TResult, Error, void>({
-    mutationFn: fn,
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: queryKeys.library })
-      void client.invalidateQueries({ queryKey: queryKeys.playlists })
-    },
-    ...failed(failure),
+    ...(failure === undefined ? {} : { meta: { failure } }),
   })
 }
 
@@ -429,6 +413,15 @@ function putInLibrary(
   }
 }
 
+/**
+ * A playlist's answer put into the library held, as of now: what it holds is
+ * kept on the device once per library answer (the app's useKeepAlongside), and
+ * a playlist whose songs changed is a new answer as far as that goes.
+ */
+function putPlaylist(client: QueryClient, playlist: Playlist): void {
+  putInLibrary(client, library => withPlaylist(library, playlist, new Date().toISOString()))
+}
+
 /** Whether the library is being asked for right now — an optimistic edit cancels that, and owes it. */
 const libraryFetching = (client: QueryClient): boolean =>
   client.isFetching({ queryKey: queryKeys.library }) > 0
@@ -453,7 +446,7 @@ function refetchLivePlaylists(client: QueryClient): void {
 }
 
 export const useCreateTag = () =>
-  useLibraryMutation((tag: CreateTag) => clientApi().createTag(tag), undefined, { members: false })
+  useLibraryMutation((tag: CreateTag) => clientApi().createTag(tag), { members: false })
 
 /**
  * Delete a tag, gone from the library held at once: the editor closes as it
@@ -494,7 +487,6 @@ export function useDeleteTag() {
 export const useRenameTag = () =>
   useLibraryMutation(
     ({ id, name }: { id: number; name: string }) => clientApi().renameTag(id, name),
-    undefined,
     { members: false },
   )
 
@@ -558,7 +550,7 @@ export const useBulkTag = () =>
   useLibraryMutation(
     (input: { songIds: number[]; tagId: number; action: 'add' | 'remove' }) =>
       clientApi().bulkTag(input),
-    'Couldn’t tag those songs',
+    { failure: 'Couldn’t tag those songs' },
   )
 
 export function usePatchSong() {
@@ -573,9 +565,6 @@ export function usePatchSong() {
   })
 }
 
-export const useDeleteSong = () =>
-  useLibraryMutation((id: number) => clientApi().deleteSong(id), 'Couldn’t delete the song')
-
 /**
  * The multi-select delete.
  *
@@ -588,19 +577,20 @@ export const useBulkDeleteSongs = () =>
 
 /** Many songs' own edits at once: Tidy up's approved changes. */
 export const useBulkEditSongs = () =>
-  useLibraryMutation(
-    (input: BulkEditSongs) => clientApi().bulkEditSongs(input),
-    'Couldn’t save the changes',
-  )
+  useLibraryMutation((input: BulkEditSongs) => clientApi().bulkEditSongs(input), {
+    failure: 'Couldn’t save the changes',
+  })
 
 export const useBulkLoved = () =>
   useLibraryMutation(
     (input: { songIds: number[]; loved: boolean }) => clientApi().bulkLoved(input),
-    'Couldn’t change the hearts',
+    { failure: 'Couldn’t change the hearts' },
   )
 
 export const useScanLibrary = () =>
-  useVoidLibraryMutation(() => clientApi().scan(), 'Couldn’t scan the library')
+  useLibraryMutation<void, ScanResult>(() => clientApi().scan(), {
+    failure: 'Couldn’t scan the library',
+  })
 
 export function useUpdatePlaylist() {
   const client = useQueryClient()
@@ -609,7 +599,7 @@ export function useUpdatePlaylist() {
       clientApi().updatePlaylist(id, patch),
     meta: { failure: 'Couldn’t save the playlist' },
     onSuccess: (playlist, { id }) => {
-      putInLibrary(client, library => withPlaylist(library, playlist, new Date().toISOString()))
+      putPlaylist(client, playlist)
       // New rules are new members.
       void client.invalidateQueries({ queryKey: queryKeys.playlistSongs(id) })
     },
@@ -617,13 +607,10 @@ export function useUpdatePlaylist() {
 }
 
 export const useDeletePlaylist = () =>
-  useLibraryMutation(
-    (id: number) => clientApi().deletePlaylist(id),
-    'Couldn’t delete the playlist',
-    {
-      members: false,
-    },
-  )
+  useLibraryMutation((id: number) => clientApi().deletePlaylist(id), {
+    failure: 'Couldn’t delete the playlist',
+    members: false,
+  })
 
 /**
  * Stop a playlist following its tags.
@@ -639,7 +626,7 @@ export function useStopFollowing() {
     mutationFn: (id: number) => clientApi().stopFollowing(id),
     meta: { failure: 'Couldn’t stop following those tags' },
     onSuccess: (playlist, id) => {
-      putInLibrary(client, library => withPlaylist(library, playlist, new Date().toISOString()))
+      putPlaylist(client, playlist)
       void client.invalidateQueries({ queryKey: queryKeys.playlistSongs(id) })
     },
   })
@@ -712,7 +699,7 @@ export function useAddToPlaylist() {
     onSuccess: (playlist, { playlistId }) => {
       // The answer is the playlist with its new count and length; its members
       // are a question of their own.
-      putInLibrary(client, library => withPlaylist(library, playlist, new Date().toISOString()))
+      putPlaylist(client, playlist)
       void client.invalidateQueries({ queryKey: queryKeys.playlistSongs(playlistId) })
     },
   })
@@ -725,7 +712,7 @@ export function useRemoveFromPlaylist() {
       clientApi().removeFromPlaylist(playlistId, songId),
     meta: { failure: 'Couldn’t take the song off the playlist' },
     onSuccess: (playlist, { playlistId }) => {
-      putInLibrary(client, library => withPlaylist(library, playlist, new Date().toISOString()))
+      putPlaylist(client, playlist)
       void client.invalidateQueries({ queryKey: queryKeys.playlistSongs(playlistId) })
     },
   })
@@ -776,8 +763,8 @@ export function useRemoveManyFromPlaylist() {
       clientApi().removeManyFromPlaylist(playlistId, songIds),
     meta: { failure: 'Couldn’t take the songs off the playlist' },
     onSuccess: ({ playlist }, { playlistId }) => {
-      const answered = new Date().toISOString()
-      putInLibrary(client, library => (playlist ? withPlaylist(library, playlist, answered) : null))
+      if (playlist) putPlaylist(client, playlist)
+      else void client.invalidateQueries({ queryKey: queryKeys.library })
       void client.invalidateQueries({ queryKey: queryKeys.playlistSongs(playlistId) })
     },
   })
@@ -801,28 +788,36 @@ async function fetchPlaylistSongs(client: QueryClient, playlistId: number): Prom
   }
 }
 
-export function usePlaylistSongIds(playlistId: number | null) {
+/**
+ * A playlist's members, as one query whoever asks: the cover mosaics, an Ask
+ * answer's list and the playlist's own page read the same cache entry.
+ * `staleTime` is the asker's: see the two below.
+ */
+function usePlaylistMembers(
+  playlistId: number | null,
+  staleTime: number,
+): UseQueryResult<PlaylistSongs, Error> {
+  const { ready } = useClientState()
   const client = useQueryClient()
   return useQuery({
-    queryKey:
-      playlistId === null ? [...queryKeys.playlists, 'none'] : queryKeys.playlistSongs(playlistId),
-    queryFn: async () => {
-      if (playlistId === null) return { playlistId: 0, songIds: [] as number[] }
-      return fetchPlaylistSongs(client, playlistId)
-    },
-    enabled: playlistId !== null,
-    /*
-     * A cover mosaic asks for this, and there is one mosaic per playlist tile
-     * and per tag row — so a short stale time means every tile refetches on
-     * every visit to the tab. Freshness does not depend on this number: an edit
-     * to one playlist invalidates its own list, and one that may reach any
-     * list — a song edit with a live playlist present, a delete, a scan —
-     * invalidates the `queryKeys.playlists` prefix (`refetchLivePlaylists`,
-     * `useLibraryMutation`).
-     */
-    staleTime: 5 * 60_000,
+    queryKey: playlistId === null ? queryKeys.noPlaylist : queryKeys.playlistSongs(playlistId),
+    enabled: ready && playlistId !== null,
+    staleTime,
+    queryFn: () => fetchPlaylistSongs(client, playlistId ?? 0),
   })
 }
+
+/**
+ * The members for a cover mosaic, which there is one of per playlist tile and
+ * per tag row — so a short stale time meant every tile refetching on every
+ * visit to the tab. Freshness does not depend on this number: an edit to one
+ * playlist invalidates its own list, and one that may reach any list — a song
+ * edit with a live playlist present, a delete, a scan — invalidates the
+ * `queryKeys.playlists` prefix (`refetchLivePlaylists`, `useLibraryMutation`).
+ */
+export const usePlaylistSongIds = (
+  playlistId: number | null,
+): UseQueryResult<PlaylistSongs, Error> => usePlaylistMembers(playlistId, STALE.fiveMinutes)
 
 // --- metadata polish --------------------------------------------------------
 
@@ -837,7 +832,7 @@ export function useMetadataLookup(songId: number, enabled = true) {
     queryKey: queryKeys.metadataLookup(songId),
     queryFn: () => clientApi().lookupMetadata(songId),
     enabled,
-    staleTime: 10 * 60_000,
+    staleTime: STALE.tenMinutes,
     retry: false,
   })
 }
@@ -881,12 +876,15 @@ export function useFixCovers() {
  * songs laid out around "it has none" and rearrange itself when the answer
  * lands.
  */
-export function useSimilar(songId: number | null, limit = 12): UseQueryResult<SimilarSongs, Error> {
+export function useSimilar(
+  songId: number | null,
+  limit = SIMILAR_LIMIT,
+): UseQueryResult<SimilarSongs, Error> {
   return useQuery({
-    queryKey: songId === null ? ['similar', 'none'] : queryKeys.similar(songId),
+    queryKey: queryKeys.similar(songId, limit),
     queryFn: () => clientApi().similar(songId ?? 0, limit),
     enabled: songId !== null,
-    staleTime: 60_000,
+    staleTime: STALE.minute,
     placeholderData: keepPreviousData,
   })
 }
@@ -935,7 +933,7 @@ export function useDevices(streamConnected: boolean): UseQueryResult<DeviceList,
   return useQuery({
     queryKey: queryKeys.devices,
     queryFn: () => clientApi().devices(),
-    staleTime: 10_000,
+    staleTime: STALE.tenSeconds,
     refetchInterval: streamConnected ? false : 15_000,
     refetchIntervalInBackground: false,
     retry: false,
@@ -1032,44 +1030,23 @@ export function useRequestCloudImport(): UseMutationResult<
   })
 }
 
-// --- the phone's own ---------------------------------------------------------
-//
-// Four hooks only the phone needs, because a cloud library reads the same
-// facts out of the library response it already holds. They live in this one
-// queries file, which is the point of the package.
+// --- downloads, a playlist's page, and what a playing song brings ------------
 
-/**
- * The manifest: what the server thinks should be downloaded, and at what size.
- *
- * The phone syncs against it; a browser's offline panel worked from the
- * library instead, so this had no caller in a browser until now.
- */
+/** The manifest: what this device should keep for automatic downloads, and at what size. */
 export function useManifest(): UseQueryResult<SyncManifest, Error> {
   const { ready } = useClientState()
 
   return useQuery({
     queryKey: queryKeys.manifest,
     enabled: ready,
-    staleTime: 60_000,
+    staleTime: STALE.minute,
     queryFn: (): Promise<SyncManifest> => clientApi().manifest(),
   })
 }
 
-/** A playlist's songs in playlist order, with everything about each one. */
-export function usePlaylistSongs(playlistId: number | null): UseQueryResult<PlaylistSongs, Error> {
-  const { ready } = useClientState()
-  const client = useQueryClient()
-
-  return useQuery({
-    queryKey: queryKeys.playlistSongs(playlistId ?? 0),
-    enabled: ready && playlistId !== null,
-    staleTime: 30_000,
-    queryFn: (): Promise<PlaylistSongs> => {
-      if (playlistId === null) throw new Error('no playlist')
-      return fetchPlaylistSongs(client, playlistId)
-    },
-  })
-}
+/** A playlist's songs in playlist order, for its own page, which is asked again sooner. */
+export const usePlaylistSongs = (playlistId: number | null): UseQueryResult<PlaylistSongs, Error> =>
+  usePlaylistMembers(playlistId, STALE.halfMinute)
 
 /** Lyrics for a song, which do not change unless someone edits them. */
 export function useLyrics(songId: number | null): UseQueryResult<LyricsResponse, Error> {
@@ -1079,7 +1056,7 @@ export function useLyrics(songId: number | null): UseQueryResult<LyricsResponse,
   return useQuery({
     queryKey: queryKeys.lyrics(songId ?? 0),
     enabled: ready && songId !== null,
-    staleTime: 5 * 60_000,
+    staleTime: STALE.fiveMinutes,
     // A song with no lyrics is a 404 and will stay one; retrying is three more
     // requests for the same answer.
     retry: false,
@@ -1119,7 +1096,7 @@ export function useMotion(songId: number | null): MotionCurve | null {
   const query = useQuery({
     queryKey: queryKeys.motion(songId ?? 0),
     enabled: ready && songId !== null,
-    staleTime: 60 * 60_000,
+    staleTime: STALE.hour,
     // A song not analysed yet is a 404 until it is, and a device offline is
     // answered from its copy below; only a server stumbling is worth another go.
     retry: (failures, error) =>

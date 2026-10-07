@@ -1,4 +1,4 @@
-import type { Device } from '@selfmp3/shared'
+import { DAY_MS, type Device } from '@selfmp3/shared'
 
 /**
  * The Devices list in Settings, made short enough to read.
@@ -34,7 +34,7 @@ interface DeviceListView {
 }
 
 /** Seen within this long counts as recent. */
-const RECENT_DEVICE_MS = 24 * 60 * 60 * 1000
+const RECENT_DEVICE_MS = DAY_MS
 /** Rows shown before "Show N older devices", unless more are online. */
 export const RECENT_DEVICE_LIMIT = 5
 

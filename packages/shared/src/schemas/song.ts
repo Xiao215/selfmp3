@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { IdSchema, NameSchema, OptionalTextSchema } from './common.js'
 import { AudioFeaturesSchema } from './audioFeatures.js'
+import { DAY_MS } from '../math.js'
 
 /** Whether a song has lyrics, and whether they carry timestamps. */
 export const LyricsKindSchema = z.enum(['none', 'plain', 'synced'])
@@ -172,11 +173,7 @@ export type BulkEditSongs = z.infer<typeof BulkEditSongsSchema>
  */
 export const PlayEventSchema = z.object({
   /** Milliseconds of audio actually heard. */
-  msPlayed: z
-    .number()
-    .int()
-    .nonnegative()
-    .max(24 * 60 * 60 * 1000),
+  msPlayed: z.number().int().nonnegative().max(DAY_MS),
   /** True when the track ran to its natural end. */
   completed: z.boolean(),
   /**

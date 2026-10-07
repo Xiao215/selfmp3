@@ -10,3 +10,6 @@ export function clamp(value: number, min: number, max: number): number {
 export function clamp01(value: number): number {
   return clamp(value, 0, 1)
 }
+
+/** A day in milliseconds, for every "within the last N days" there is. */
+export const DAY_MS = 24 * 60 * 60 * 1000

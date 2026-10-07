@@ -77,7 +77,8 @@ export class DownloadQueue {
   /** The next rejection is the cancel that caused it, not a failure to report. */
   #cancelling = false
   #songsById = new Map<number, Song>()
-  #manifest: SyncManifest | null = null
+  /** The manifest's entries by song id: looked up once per download. */
+  #manifestById = new Map<number, SyncManifest['entries'][number]>()
   /**
    * Byte progress, told at most four times a second. `getState()` is always
    * current; only the telling is skipped.
@@ -154,7 +155,7 @@ export class DownloadQueue {
   }
 
   setManifest(manifest: SyncManifest | null): void {
-    this.#manifest = manifest
+    this.#manifestById = new Map(manifest?.entries.map(entry => [entry.id, entry]))
   }
 
   async load(): Promise<void> {
@@ -191,9 +192,10 @@ export class DownloadQueue {
   }
 
   enqueue(songIds: readonly number[]): void {
-    const fresh = pendingIds(this.#state.index, songIds).filter(
-      id => !this.#state.queue.includes(id),
-    )
+    // A set, not `queue.includes` per id: a whole library enqueued at once is
+    // thousands against thousands.
+    const queued = new Set(this.#state.queue)
+    const fresh = pendingIds(this.#state.index, songIds).filter(id => !queued.has(id))
     if (fresh.length === 0) return
     this.#patch({ queue: [...this.#state.queue, ...fresh], error: null })
     void this.#drain()
@@ -331,7 +333,10 @@ export class DownloadQueue {
         // A pause leaves the song at the head of the queue so resuming picks it
         // up again; success and failure both move on.
         if (!finished) break
-        this.#patch({ queue: this.#state.queue.filter(id => id !== songId) })
+        // The song is the head, unless it was forgotten meanwhile (`#forget`
+        // took it out already): dropping the head is one slice, not a walk.
+        const queue = this.#state.queue
+        if (queue[0] === songId) this.#patch({ queue: queue.slice(1) })
       }
     } finally {
       this.#running = false
@@ -356,7 +361,7 @@ export class DownloadQueue {
       return true
     }
 
-    const listed = this.#manifest?.entries.find(entry => entry.id === songId)
+    const listed = this.#manifestById.get(songId)
     const expectedBytes = listed?.sizeBytes ?? song.sizeBytes
     const onProgress = ({ bytesWritten, totalBytes }: TransferProgress): void => {
       // Every chunk, from a fast source. The state takes each one; listeners

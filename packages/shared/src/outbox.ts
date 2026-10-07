@@ -1,3 +1,5 @@
+import { DAY_MS } from './math.js'
+
 /**
  * The listening outbox: plays and skips that have not reached the server yet.
  *
@@ -110,7 +112,7 @@ const OUTBOX_MAX_AGE_DAYS = 400
  * practice nothing real is ever trimmed.
  */
 export function trimOutbox(events: readonly OutboxEvent[], now = Date.now()): OutboxEvent[] {
-  const cutoff = now - OUTBOX_MAX_AGE_DAYS * 24 * 60 * 60 * 1000
+  const cutoff = now - OUTBOX_MAX_AGE_DAYS * DAY_MS
   const fresh = events.filter(event => {
     const time = Date.parse(event.kind === 'play' ? event.playedAt : event.at)
     return Number.isNaN(time) || time >= cutoff

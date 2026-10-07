@@ -137,6 +137,8 @@ describe('/api/cloud/uids', () => {
             cursor: null,
           })
         }
+        // A captive portal: a 200 that is not the doorman's.
+        if (path === '/v1/health') return reply(200, '<html>Sign in to the Wi-Fi</html>')
         if (path.startsWith('/v1/files/')) {
           const key = path.slice('/v1/files/'.length)
           return files.has(key) ? reply(200, files.get(key)) : reply(404, {})
@@ -187,6 +189,13 @@ describe('/api/cloud/uids', () => {
   it('needs a session, like every other route that reads the bucket', async () => {
     await expect(device().cloudRequest('GET', '/api/cloud/uids', undefined)).rejects.toMatchObject({
       status: 401,
+    })
+  })
+
+  it('calls a 200 that is not the doorman’s offline, not an answer', async () => {
+    await expect(device().cloudRequest('GET', '/api/health', undefined)).rejects.toMatchObject({
+      status: 0,
+      code: 'offline',
     })
   })
 })

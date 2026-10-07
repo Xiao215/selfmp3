@@ -32,7 +32,7 @@ import { useSongColor } from '../../ui/useSongColor'
 import { ease, motionMs, spring, timing, useEntrance } from '../../ui/motion'
 import { MOVE_MS, PULL } from '../../ui/motion.model'
 import { takeCoverHandoff, type CoverFrame } from '../../ui/coverHandoff'
-import { leaveStage, setStageExit } from '../../shell/stageExit'
+import { setStageExit } from '../../shell/stageExit'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { RemoveSongs } from '../../ui/components/ConfirmRemoveSongs'
@@ -74,6 +74,8 @@ import { openQueueSheet } from '../queue/queueSheet.store'
 import { songLink } from '../song/song.model'
 import { tagLink } from '../tag/placeLinks'
 import { ArtistLinks } from './ArtistLinks'
+import { leaveTo, putAway } from './leaveNowPlaying'
+import { NothingPlaying } from './NothingPlaying'
 import { NowPlayingStage } from './NowPlayingStage'
 import {
   parseView,
@@ -118,25 +120,6 @@ export function NowPlayingScreen(): ReactNode {
       <PhoneNowPlaying />
     </OverlayProvider>
   )
-}
-
-/**
- * Putting the phone's page away. The address names the song, so the page can
- * be the first one there is — a refresh, a copied link — and then there is
- * nothing to go back to: Home is where closing it lands, as it is on a
- * computer (`NowPlayingStage`). Going back regardless did nothing at all, and
- * the router said so.
- *
- * Through `leaveStage`, so the page sinks to the foot before the route changes
- * rather than being cut away under a router that swaps routes at once
- * (`shell/stageExit.ts`, which the computer's page uses for the same reason).
- * Two quick presses start one sink and go back once.
- */
-function putAway(router: ReturnType<typeof useRouter>): void {
-  leaveStage(() => {
-    if (router.canGoBack()) router.back()
-    else router.replace('/')
-  })
 }
 
 function PhoneNowPlaying(): ReactNode {
@@ -190,12 +173,7 @@ function PhoneNowPlaying(): ReactNode {
               <ChevronDown size={22} color={theme.colors.textPrimary} />
             </IconButton>
           </View>
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>Nothing playing</Text>
-            <Text style={styles.emptyText}>
-              Start a song and it turns up here, with its lyrics.
-            </Text>
-          </View>
+          <NothingPlaying />
         </View>
       ) : (
         <PhonePage song={song} onRemove={setRemoving} />
@@ -256,12 +234,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
   // The song's own page is a page of the app, not of this modal: the modal
   // goes down first, so back from the song lands where Now Playing was opened.
   // Down and then along, not both at once, which is why the push is inside.
-  const openSong = (): void => {
-    leaveStage(() => {
-      if (router.canGoBack()) router.back()
-      router.push(songLink(song.id))
-    })
-  }
+  const openSong = (): void => leaveTo(router, songLink(song.id))
 
   /*
    * The page's two views pass each other (`M2`, 1): the one arriving springs up
@@ -615,7 +588,7 @@ function CoverView({
             {song.title}
           </Text>
           <Text style={styles.artist} numberOfLines={1}>
-            <ArtistLinks artist={song.artist} />
+            <ArtistLinks artist={song.artist} onOpen={href => leaveTo(router, href)} />
           </Text>
         </View>
         <IconButton
@@ -644,12 +617,7 @@ function CoverView({
             // A page of the app, so the modal goes down first, as the song's
             // own page does (`openSong`): pushed from inside it, the tag's page
             // landed under the modal, out of sight.
-            onPress={() =>
-              leaveStage(() => {
-                if (router.canGoBack()) router.back()
-                router.push(tagLink(tag.name))
-              })
-            }
+            onPress={() => leaveTo(router, tagLink(tag.name))}
           />
         ))}
         <Pressable
@@ -1272,21 +1240,4 @@ const styles = StyleSheet.create(theme => ({
   toolOn: { backgroundColor: theme.colors.textPrimary },
   toolText: { color: theme.colors.textPrimary, fontSize: 12, fontWeight: '600' },
   toolTextOn: { color: theme.colors.onPrimary },
-  empty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space.sm,
-    paddingHorizontal: space.xl,
-  },
-  emptyTitle: {
-    color: theme.colors.textSecondary,
-    fontSize: type.body,
-    fontWeight: '600',
-  },
-  emptyText: {
-    color: theme.colors.textMuted,
-    fontSize: 13,
-    textAlign: 'center',
-  },
 }))

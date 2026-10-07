@@ -259,3 +259,8 @@ export function bylineRest(song: Pick<Song, 'album' | 'duration'>): string {
     .filter(Boolean)
     .join(' · ')
 }
+
+/** A similar song played from "Sounds like" goes first, with the rest after it in their order. */
+export function playSimilarOrder(ids: readonly number[], chosen: number): number[] {
+  return [chosen, ...ids.filter(id => id !== chosen)]
+}

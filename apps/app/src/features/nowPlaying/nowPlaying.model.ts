@@ -217,16 +217,3 @@ export function upNextSeconds({
   if (remaining <= 0 || remaining > UP_NEXT_LEAD) return null
   return Math.ceil(remaining)
 }
-
-/**
- * How tall the similar-songs shelf is: heading, cards and the gap under them.
- * The shelf is drawn into exactly this height (`SimilarShelf`), so an empty
- * slot held while the neighbours are being fetched is the same height as a
- * full one.
- */
-export const SIMILAR_SHELF_HEIGHT = 144
-
-/** A similar song played from the shelf goes first, with the rest after it in their order. */
-export function playSimilarOrder(ids: readonly number[], chosen: number): number[] {
-  return [chosen, ...ids.filter(id => id !== chosen)]
-}

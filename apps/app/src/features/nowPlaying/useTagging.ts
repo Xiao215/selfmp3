@@ -15,7 +15,7 @@ export interface Tagging {
   readonly on: boolean
   /** Whether the editor is raised for the song playing. */
   readonly open: boolean
-  /** "Tagging · 3 to go". */
+  /** "Tagging · 3 to go"; empty outside the mode. */
   readonly line: string
   /** Raise the editor again, from the page's own tag button. */
   readonly raise: () => void
@@ -110,7 +110,8 @@ export function useTagging(): Tagging {
   return {
     on,
     open: on && open,
-    line: taggingLine(taggingLeft(player.songs, player.queue.index)),
+    // Counted only in the mode: it walks the whole queue, a whole library shuffled.
+    line: on ? taggingLine(taggingLeft(player.songs, player.queue.index)) : '',
     raise: () => setOpen(true),
     close,
     stop: leave,

@@ -11,9 +11,15 @@ import { ConfirmRemoveSongs } from './ConfirmRemoveSongs'
  * "keep the file" to tick, because the server keeps no copy to keep.
  */
 
-jest.mock('../../shell/useLayout', () => ({
-  useLayout: () => ({ wide: false, dense: false, compact: true, finePointer: false, width: 390 }),
-}))
+jest.mock('../../shell/useLayout', () => {
+  const layout = { wide: false, dense: false, compact: true, finePointer: false, width: 390 }
+  return {
+    useLayout: () => layout,
+    useLayoutValue: (select: (value: typeof layout) => unknown) => select(layout),
+    useWindowValue: (select: (value: object) => unknown) =>
+      select({ width: 390, height: 844, scale: 3, fontScale: 1 }),
+  }
+})
 
 const song = (id: number): Song =>
   ({ id, title: `Song ${id}`, artist: 'Artist' }) as unknown as Song

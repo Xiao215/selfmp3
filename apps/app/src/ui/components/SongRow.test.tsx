@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import type { Song, Tag } from '@selfmp3/shared'
 
+import { setRootWidth } from '../../shell/rootWidth'
 import { AccentProvider, useAccent } from '../accent'
 import { SongRow } from './SongRow'
 
@@ -160,5 +161,25 @@ describe('a row that is not playing', () => {
     expect(picker.accent?.hue).toBe(220)
     expect(mockRowRenders).toBe(drawn)
     jest.useRealTimers()
+  })
+
+  /*
+   * A row asked the layout for its width, so dragging a window's edge rendered
+   * every row on screen once a pixel. It asks whether the window is wide, and
+   * renders when that answer changes.
+   */
+  it('does not re-render while a window is resized within its width class', async () => {
+    await act(async () => setRootWidth(390))
+    await render(<SongRow {...playlistRow()} />)
+    const drawn = mockRowRenders
+
+    for (const width of [400, 480, 600, 700]) {
+      await act(async () => setRootWidth(width))
+    }
+    expect(mockRowRenders).toBe(drawn)
+
+    // Across the breakpoint it is a different row, and it says so.
+    await act(async () => setRootWidth(1200))
+    expect(mockRowRenders).toBeGreaterThan(drawn)
   })
 })

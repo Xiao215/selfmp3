@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Animated, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutValue } from '../../shell/useLayout'
 import { useFade, useMinimumBusy, usePresence } from '../motion'
 import { tip } from '../tip'
 import { Press } from './Press'
@@ -22,7 +22,7 @@ import { HIT_TARGET, motion, radius } from '@selfmp3/client'
  * The fourth shape, the round white Play, is `PlayButton` below; a page has at
  * most one.
  *
- * 44 high with a finger, 36 where there is a mouse (`useLayout().dense`). An
+ * 44 high with a finger, 36 where there is a mouse (`useLayoutValue`, `dense`). An
  * icon goes before the label; with no label at all it is round. Everything
  * sinks to 0.96 on the spring while pressed.
  *
@@ -57,7 +57,7 @@ export function Button({
   /** What a screen reader says when there is no label, or a fuller one: a square icon button. */
   accessibilityLabel?: string
 }): ReactNode {
-  const { dense } = useLayout()
+  const dense = useLayoutValue(layout => layout.dense)
   // What the button *does* follows `busy`; what it *shows* follows the held
   // spinner, so the extra moment a spinner is kept never blocks a second press.
   const inactive = disabled || busy

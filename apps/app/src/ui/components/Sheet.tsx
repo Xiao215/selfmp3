@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, useWindowDimensions, View } from 'react-native'
+import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { HIT_TARGET, motion, radius, space, type, withAlpha } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutValue, useWindowValue } from '../../shell/useLayout'
 import { PanelDenseContext, usePanelDense } from './panel'
 import { Press } from './Press'
 import { floating } from '../surfaces'
@@ -67,7 +67,8 @@ export function Sheet({
   testID?: string
 }): ReactNode {
   const insets = useSafeAreaInsets()
-  const { wide, dense } = useLayout()
+  const wide = useLayoutValue(layout => layout.wide)
+  const dense = useLayoutValue(layout => layout.dense)
   /*
    * How far the panel travels: its own height, once it has laid out. Until then
    * there is nothing to rise from — it used to fall back to the window's
@@ -78,21 +79,23 @@ export function Sheet({
    */
   const [panelHeight, setPanelHeight] = useState(0)
   const measured = panelHeight > 0
+  // Mounted from the moment it is asked for until its exit has played out.
+  // Adjusted during render rather than in an effect, so opening never costs
+  // a frame drawn without the sheet.
+  const [mounted, setMounted] = useState(open)
+  // The window's height only while there is a sheet to fit in it: a closed one
+  // — most are — has no reason to render for a window being resized.
+  const windowHeight = useWindowValue(window => (mounted ? window.height : 0))
   // A sheet that was never told its height would never rise: every platform
   // the app runs on reports a layout, but a panel held invisible on the
   // strength of that is a panel that could be lost. So the window's height
   // stands in if no layout has come by the next frame — the old travel, which
   // only makes the very first rise a little quick.
-  const window = useWindowDimensions()
   useEffect(() => {
     if (!open || wide || measured) return undefined
-    const frame = requestAnimationFrame(() => setPanelHeight(height => height || window.height))
+    const frame = requestAnimationFrame(() => setPanelHeight(height => height || windowHeight))
     return () => cancelAnimationFrame(frame)
-  }, [open, wide, measured, window.height])
-  // Mounted from the moment it is asked for until its exit has played out.
-  // Adjusted during render rather than in an effect, so opening never costs
-  // a frame drawn without the sheet.
-  const [mounted, setMounted] = useState(open)
+  }, [open, wide, measured, windowHeight])
   if (open && !mounted) setMounted(true)
   // State rather than a ref: it is read while rendering, and a ref read
   // during render is what the React Compiler objects to (see Equalizer).
@@ -244,7 +247,7 @@ export function Sheet({
                 keyboard.height > 0 ? space.sm : Math.max(insets.bottom, space.sm) + space.xs,
               maxHeight:
                 keyboard.height > 0
-                  ? window.height - keyboard.height - insets.top - space.sm
+                  ? windowHeight - keyboard.height - insets.top - space.sm
                   : undefined,
               // Invisible and still until it has been measured, then up from
               // below the foot, four points past its place, and back.

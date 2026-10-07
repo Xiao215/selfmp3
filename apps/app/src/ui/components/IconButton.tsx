@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { StyleSheet } from 'react-native-unistyles'
 import { HIT_TARGET, withAlpha } from '@selfmp3/client'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutValue } from '../../shell/useLayout'
 import { tip } from '../tip'
 import { Press } from './Press'
 
@@ -40,7 +40,7 @@ export function IconButton({
   /** On the control surface, for a button standing on its own in a header. */
   filled?: boolean
 }): ReactNode {
-  const { dense } = useLayout()
+  const dense = useLayoutValue(layout => layout.dense)
   const size = sizeProp ?? (dense ? (filled ? 36 : 34) : filled ? 40 : HIT_TARGET)
   return (
     /*

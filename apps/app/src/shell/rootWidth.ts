@@ -1,5 +1,4 @@
 import { createValueStore } from '../state/valueStore.model'
-import { useValueStore } from '../state/useValueStore'
 
 /**
  * How wide the app's own root view is, measured rather than asked for.
@@ -22,6 +21,6 @@ export function setRootWidth(next: number): void {
   if (rounded > 0) width.set(rounded)
 }
 
-export function useRootWidth(): number | null {
-  return useValueStore(width)
-}
+/** The width measured, or null before the root has laid out. */
+export const readRootWidth = width.get
+export const subscribeRootWidth = width.subscribe

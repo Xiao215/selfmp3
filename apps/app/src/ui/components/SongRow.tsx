@@ -1,6 +1,6 @@
 import { memo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { Animated, Pressable, Text, View, useWindowDimensions } from 'react-native'
+import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { GestureResponderEvent, StyleProp, ViewStyle } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
@@ -21,9 +21,9 @@ import {
 } from './rowTags'
 import { useSongPlayback } from '../../player/PlayerProvider'
 import { useSongDragSource } from '../../ports/songDrag'
-import { useContentWidth } from '../../shell/contentWidth'
+import { useContentWidthValue } from '../../shell/contentWidth'
 import { SIDEBAR_WIDTH } from '../../shell/Sidebar'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutValue, useWindowValue } from '../../shell/useLayout'
 import { tip } from '../tip'
 import { useSongColor } from '../useSongColor'
 import { Checkbox } from './Checkbox'
@@ -178,8 +178,11 @@ export const SongRow = memo(function SongRow({
   // turned the accent's blue. Every other row asks for nothing, and so does
   // not re-render when the accent changes.
   const songColor = useSongColor(song, artUri, active || wash.mounted)
-  const { wide, dense, width } = useLayout()
-  const contentWidth = useContentWidth()
+  // Asked as answers, not as the width: a window being dragged is a new width
+  // every pixel, and a new answer only when it crosses a line.
+  const wide = useLayoutValue(isWide)
+  const dense = useLayoutValue(isDense)
+  const room = usePageRoom()
   const [hovered, setHovered] = useState(false)
   const moreRef = useRef<View>(null)
   const tagAddRef = useRef<View>(null)
@@ -289,9 +292,8 @@ export const SongRow = memo(function SongRow({
 
   // With a mouse these wait for the pointer; a tablet at this width shows them.
   const revealed = !dense || hovered || menuOpen
-  const page = contentWidth ?? width - SIDEBAR_WIDTH
-  const albumColumn = page >= ALBUM_COLUMN_CONTENT_WIDTH
-  const tagChips = page >= TAG_CHIPS_CONTENT_WIDTH
+  const albumColumn = (room & ROOM_FOR_ALBUM) !== 0
+  const tagChips = (room & ROOM_FOR_CHIPS) !== 0
   const controlSize = dense ? 34 : HIT_TARGET
 
   return (
@@ -446,11 +448,41 @@ const DENSE_ROW_HEIGHT = 7 * 2 + 40
  * the wrong number places every row in the wrong spot.
  */
 export function useSongRowHeight(): number | null {
-  const { wide, dense } = useLayout()
-  const { fontScale } = useWindowDimensions()
-  if (fontScale > 1) return null
+  const wide = useLayoutValue(isWide)
+  const dense = useLayoutValue(isDense)
+  const enlarged = useWindowValue(window => window.fontScale > 1)
+  if (enlarged) return null
   if (!wide) return PHONE_ROW_HEIGHT
   return dense ? DENSE_ROW_HEIGHT : TOUCH_WIDE_ROW_HEIGHT
+}
+
+const isWide = (layout: { wide: boolean }): boolean => layout.wide
+const isDense = (layout: { dense: boolean }): boolean => layout.dense
+
+/** The page has room for the album column. */
+const ROOM_FOR_ALBUM = 1
+/** The page has room for the tag chips. */
+const ROOM_FOR_CHIPS = 2
+
+function roomFor(page: number): number {
+  return (
+    (page >= ALBUM_COLUMN_CONTENT_WIDTH ? ROOM_FOR_ALBUM : 0) |
+    (page >= TAG_CHIPS_CONTENT_WIDTH ? ROOM_FOR_CHIPS : 0)
+  )
+}
+
+/**
+ * Which of a desktop row's optional columns its page has room for, as one
+ * number: the page column the shell works out, or the window less the sidebar
+ * where nothing works it out (a row drawn alone). A number that changes when
+ * a column comes or goes, so a row renders then and not on every pixel.
+ */
+function usePageRoom(): number {
+  const fromPage = useContentWidthValue(width => (width === null ? -1 : roomFor(width)))
+  const fromWindow = useLayoutValue(layout =>
+    fromPage === -1 ? roomFor(layout.width - SIDEBAR_WIDTH) : 0,
+  )
+  return fromPage === -1 ? fromWindow : fromPage
 }
 
 /** Whether the song is on this device, beside its artist ("On this device"). */

@@ -23,9 +23,15 @@ jest.mock('@selfmp3/client', () => ({
 jest.mock('../../features/tag/useArtistNudge', () => ({
   useArtistNudge: () => ({ check: (_: string, go: () => void) => go(), nudge: null }),
 }))
-jest.mock('../../shell/useLayout', () => ({
-  useLayout: () => ({ wide: false, dense: false, compact: true, finePointer: false, width: 390 }),
-}))
+jest.mock('../../shell/useLayout', () => {
+  const layout = { wide: false, dense: false, compact: true, finePointer: false, width: 390 }
+  return {
+    useLayout: () => layout,
+    useLayoutValue: (select: (value: typeof layout) => unknown) => select(layout),
+    useWindowValue: (select: (value: object) => unknown) =>
+      select({ width: 390, height: 844, scale: 3, fontScale: 1 }),
+  }
+})
 
 describe('TagSearchList from another library', () => {
   it('offers a tag only this device has yet, and makes it there when ticked', async () => {

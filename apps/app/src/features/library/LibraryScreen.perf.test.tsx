@@ -25,9 +25,15 @@ jest.mock('../../connection/ConnectionProvider', () => ({
 // A browser-like device: nothing downloads by itself, so the list holds still.
 jest.mock('../../ports/install', () => ({ installedApp: false }))
 
-jest.mock('../../shell/useLayout', () => ({
-  useLayout: () => ({ wide: false, compact: true, dense: false, finePointer: false, width: 390 }),
-}))
+jest.mock('../../shell/useLayout', () => {
+  const layout = { wide: false, compact: true, dense: false, finePointer: false, width: 390 }
+  return {
+    useLayout: () => layout,
+    useLayoutValue: (select: (value: typeof layout) => unknown) => select(layout),
+    useWindowValue: (select: (value: object) => unknown) =>
+      select({ width: 390, height: 844, scale: 3, fontScale: 1 }),
+  }
+})
 
 // Each render of a row, with the props that differ from its last render: the
 // row is memoised, so a render is exactly a changed prop.

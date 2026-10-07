@@ -40,6 +40,7 @@ import { PRACTICE_PANEL_WIDTH, PracticePanel } from '../features/practice/Practi
 import { QueueRail, useQueueRailRoom } from '../features/queue/QueueRail'
 import { QueueSheet } from '../features/queue/QueueSheet'
 import { ContentWidthContext } from './contentWidth'
+import { createValueStore } from '../state/valueStore.model'
 import { setPaletteOpen, usePaletteOpen } from './palette'
 import { practiceOpen, setPracticeOpen, usePracticeOpen, usePracticeSection } from './practicePanel'
 
@@ -159,6 +160,12 @@ function Frame({
   const contentWidth = useDeferredValue(
     wide ? width - SIDEBAR_WIDTH - railRoom - practiceRoom : null,
   )
+  // Told to the page's readers once it has settled: a store, so that a row
+  // asking only whether its album column fits is not rendered for every pixel.
+  const [contentStore] = useState(() => createValueStore<number | null>(contentWidth))
+  useLayoutEffect(() => {
+    contentStore.set(contentWidth)
+  }, [contentStore, contentWidth])
   return (
     <View style={styles.root} testID={wide ? 'shell-wide' : chrome ? 'shell-compact' : undefined}>
       <View style={styles.columns}>
@@ -166,7 +173,7 @@ function Frame({
             page; drawn over the page by its `zIndex`, not by coming after it. */}
         {wide ? <SidebarSlot shown={sidebar} /> : null}
         <View style={styles.content}>
-          <ContentWidthContext.Provider value={contentWidth}>
+          <ContentWidthContext.Provider value={contentStore}>
             <PageStep wide={wide}>{children}</PageStep>
           </ContentWidthContext.Provider>
           {wide ? <Toasts left={sidebar ? SIDEBAR_WIDTH : 0} /> : null}

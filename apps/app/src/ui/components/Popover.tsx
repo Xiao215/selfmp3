@@ -1,12 +1,12 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { Animated, Pressable, ScrollView, useWindowDimensions } from 'react-native'
+import { Animated, Pressable, ScrollView } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context'
 import type { View as RNView } from 'react-native'
 import { motion, radius, space } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutValue, useWindowValue } from '../../shell/useLayout'
 import { useEscape } from '../../shell/useEscape'
 import { PanelDenseContext } from './panel'
 import { Sheet } from './Sheet'
@@ -66,7 +66,7 @@ export function Popover({
   align?: 'start' | 'end'
   testID?: string
 }): ReactNode {
-  const { wide } = useLayout()
+  const wide = useLayoutValue(layout => layout.wide)
 
   if (!wide || !anchorRef) {
     return (
@@ -127,8 +127,7 @@ function AnchoredPopover({
   width: number
   testID?: string
 }): ReactNode {
-  const { width: screenWidth, dense } = useLayout()
-  const { height: screenHeight } = useWindowDimensions()
+  const dense = useLayoutValue(layout => layout.dense)
   // The context rather than the hook, which throws outside a provider: a
   // control drawn alone in a test has no insets, and none to keep clear of.
   const safeTop = useContext(SafeAreaInsetsContext)?.top ?? 0
@@ -138,6 +137,10 @@ function AnchoredPopover({
   const [panelHeight, setPanelHeight] = useState(0)
   const [progress] = useState(() => new Animated.Value(0))
   const [mounted, setMounted] = useState(open)
+  // The room it opens into, only while there is a panel to place: a closed
+  // popover — most are — has no reason to render for a window being resized.
+  const screenWidth = useLayoutValue(layout => (mounted ? layout.width : 0))
+  const screenHeight = useWindowValue(window => (mounted ? window.height : 0))
   if (open && !mounted) setMounted(true)
   useEscape(open, onClose, { layer: true })
 

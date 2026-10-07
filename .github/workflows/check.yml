@@ -43,7 +43,11 @@ jobs:
 
       # With install scripts, unlike the Pages build: better-sqlite3 is a
       # native module and the server's tests are the reason this job exists.
+      # onnxruntime-node's install fetches its CUDA build on Linux x64; the
+      # listening model runs on CPUs only, from the build in the package.
       - run: npm ci
+        env:
+          ONNXRUNTIME_NODE_INSTALL: skip
 
       - name: Typecheck
         run: npm run typecheck

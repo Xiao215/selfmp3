@@ -33,6 +33,14 @@ export interface Part {
   readonly without: (understanding: Understanding) => Understanding
 }
 
+/** At most `n` characters, ending on a whole word with an ellipsis when cut. */
+function clip(text: string, n: number): string {
+  if (text.length <= n) return text
+  const cut = text.slice(0, n)
+  const space = cut.lastIndexOf(' ')
+  return `${(space > n / 2 ? cut.slice(0, space) : cut).trimEnd()}…`
+}
+
 const days = (n: number): string => (n === 1 ? 'today' : n === 7 ? 'this week' : `in ${n} days`)
 
 function rangeLabel(
@@ -103,6 +111,14 @@ export function parts(understanding: Understanding, tags: readonly Tag[]): Part[
   const year = yearLabel(understanding.year)
   if (year)
     out.push({ key: 'year', label: year, without: u => ({ ...u, year: { min: null, max: null } }) })
+  if (understanding.sound !== null) {
+    // The listening model's words, in English: it orders the songs, it shuts none out.
+    out.push({
+      key: 'sound',
+      label: `Sounds like ${clip(understanding.sound, 40)}`,
+      without: u => ({ ...u, sound: null }),
+    })
+  }
   if (understanding.words !== null) {
     out.push({
       key: 'words',

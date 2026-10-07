@@ -43,6 +43,9 @@ export default defineConfig({
     // exactly the kind of red that reads as green at a glance.
     exclude: [...configDefaults.exclude, 'apps/app/**/*.test.tsx'],
     environment: 'node',
+    // A server made in a test never downloads the listening model's 750 MB;
+    // the sound tests hand theirs a fake model instead.
+    env: { SELFMP3_SOUND: 'false' },
     globals: false,
   },
 })

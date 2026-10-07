@@ -21,6 +21,7 @@ const jpop: Understanding = {
   addedWithinDays: null,
   size: 1,
   minutes: null,
+  sound: null,
   brief: null,
 }
 

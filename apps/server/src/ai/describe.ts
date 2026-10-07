@@ -42,8 +42,8 @@ function lengthWords(seconds: number): string {
  */
 export const MAX_CANDIDATES = 300
 
-const PLAN_VERSION = 3
-const PICK_VERSION = 1
+const PLAN_VERSION = 4
+const PICK_VERSION = 2
 
 const RangeOut = z.object({ min: z.number().nullable(), max: z.number().nullable() })
 
@@ -63,6 +63,7 @@ export const PlanOut = z.object({
   addedWithinDays: z.number().int().min(1).max(3650).nullable(),
   size: z.number().int().min(1).max(2000).nullable(),
   minutes: z.number().int().min(1).max(1440).nullable(),
+  sound: z.string().max(120).nullable(),
   brief: z.string().max(200).nullable(),
 })
 
@@ -84,8 +85,11 @@ export const FILTERS_GUIDE = `The filters:
 - playedWithinDays / notPlayedWithinDays / addedWithinDays: when the description is about recency ("nothing I played this week" is notPlayedWithinDays 7; "new stuff" is addedWithinDays 30).
 - size: a number of songs, only if they say one.
 - minutes: how long it should play, only if they say a length ("2 hours" is 120, "half an hour" is 30). Never turn a length into a number of songs: songs differ in length, and the app counts them. Set size or minutes, never both.
-- brief: what the description wants that the filters cannot express, in a few words, such as "sounds like rain" or "good for reading". Null if the filters say it all.
+- sound: how the music should sound, in English, for a model that listens to every song: instruments, mood, genre and style in a short phrase, such as "calm orchestral music with strings and flute", "intense epic battle music", "solo classical piano", "upbeat Japanese pop with female vocals". Write it in English whatever language the description is in, and only in positive words: the listening model does not understand "no" or "without" (no vocals is words "without"). It orders the songs the other filters let in, best sounding first, and never removes one. Null when the description says nothing about how the music sounds.
+- brief: what the description wants that the filters and sound cannot express, in a few words, such as "named for rain" or "songs about leaving home". Null if they say it all.
 - name: a short, plain playlist name in the description's language, no emoji.
+
+Prefer sound to energy and bpm for how music feels: "calm", "intense", "dreamy" or "epic" is sound, and energy or bpm only when they ask for a level or a tempo outright.
 
 Rules: use only tag and artist names that appear in the library exactly. If the description names a tag or artist the library lacks, put that wish in brief instead of inventing a name. Prefer fewer filters: every filter you add removes songs. Anything the description welcomes, even "a few X are fine", is a place: add it, and say the mix in brief ("mostly piano, a few Genshin"). When a filter would shut out a place they asked for (the words filter shutting out every song of an artist they named), leave the filter out and say it in brief.`
 
@@ -99,12 +103,22 @@ const PICK_SYSTEM = `You choose songs for a playlist from a numbered table of so
 
 You are given the description they wrote, what it most wants beyond the filters already applied, how many songs to choose, and the table. Every song in the table already passed the filters.
 
-Reply with JSON only: picks, each the song's number from the table (n) and why it fits in at most ten plain words, written for the listener ("slow solo piano", "named for rain"). Choose the songs that fit the description best, in a good listening order. Never use a number that is not in the table, never repeat one, and choose no more than asked. If fewer fit well, choose fewer.`
+Reply with JSON only: picks, each the song's number from the table (n) and why it fits in at most ten plain words, written for the listener ("slow solo piano", "named for rain"). Choose the songs that fit the description best, in a good listening order. When the table has a sound column, a listening model has already heard every song: it scores 0–100 how well the song sounds like what was asked, the table is in that order, and you should trust it over what a title suggests. Never use a number that is not in the table, never repeat one, and choose no more than asked. If fewer fit well, choose fewer.`
+
+/** The listening model's two questions (sound/sound.ts); each answers null when it cannot. */
+interface SoundRanker {
+  /** How well each song sounds like the words. */
+  match(text: string, songIds: readonly number[]): Promise<Map<number, number> | null>
+  /** How close each song sounds to one song. */
+  closeTo(seedId: number, songIds: readonly number[]): Map<number, number> | null
+}
 
 export interface DescribeDeps {
   readonly llm: Llm
   readonly songs: () => Song[]
   readonly tags: () => Tag[]
+  /** Absent, or answering null, where no song has been heard: songs are then sampled. */
+  readonly sound?: SoundRanker
   readonly now?: () => number
   readonly remembered?: Remembered
 }
@@ -249,6 +263,43 @@ export function songsFitting(
   })
 }
 
+/**
+ * Each song's place, 0–100, in how it sounds: the description's sound, how
+ * close it is to a song they are steering from, or both, averaged. Songs the
+ * model has not heard have no place. Null when there is nothing to order by.
+ */
+async function soundOrder(
+  sound: SoundRanker | undefined,
+  songs: readonly Song[],
+  understanding: Understanding,
+  like: number | null,
+): Promise<Map<number, number> | null> {
+  if (!sound || songs.length === 0) return null
+  const ids = songs.map(song => song.id)
+  const sources = [
+    understanding.sound ? await sound.match(understanding.sound, ids) : null,
+    like !== null ? sound.closeTo(like, ids) : null,
+  ].filter((scores): scores is Map<number, number> => scores !== null && scores.size > 0)
+  if (sources.length === 0) return null
+  // Places rather than raw scores: a sentence and a song sit at different
+  // distances from the same music, and only their orders can be averaged.
+  const places = sources.map(scores => {
+    const ranked = [...scores.entries()].sort((a, b) => a[1] - b[1])
+    return new Map(
+      ranked.map(([id], index) => [
+        id,
+        ranked.length === 1 ? 100 : (100 * index) / (ranked.length - 1),
+      ]),
+    )
+  })
+  const out = new Map<number, number>()
+  for (const id of ids) {
+    const each = places.map(place => place.get(id)).filter((p): p is number => p !== undefined)
+    if (each.length === places.length) out.set(id, each.reduce((a, b) => a + b, 0) / each.length)
+  }
+  return out.size > 0 ? out : null
+}
+
 /** A stable order that is not the library's: the same words give the same sample. */
 function sample(songs: readonly Song[], seed: string, n: number): Song[] {
   if (songs.length <= n) return [...songs]
@@ -350,6 +401,8 @@ export async function narrowAndPick(
   unknown: string[],
   avoid: readonly number[] = [],
   steps: Steps = NO_STEPS,
+  /** A song they are steering from ("more like this"): the songs are ordered by how close they sound to it. */
+  like: number | null = null,
 ): Promise<DescribeResult> {
   const now = deps.now?.() ?? Date.now()
   const remembered = deps.remembered ?? new Remembered()
@@ -382,6 +435,22 @@ export async function narrowAndPick(
       : `${fitting.length} ${fitting.length === 1 ? 'song fits' : 'songs fit'}${loosened.length > 0 ? `, once ${loosened.join(', ')} was let go` : ''}`,
   )
 
+  // How they sound, when the words or the song steered from say: the songs in
+  // that order, best first, and the ones not heard yet after them.
+  let places: Map<number, number> | null = null
+  if (fitting.length > 1 && (understanding.sound !== null || like !== null)) {
+    steps.begin(
+      understanding.sound
+        ? `Listening for “${understanding.sound}”`
+        : 'Listening for songs like it',
+    )
+    places = await soundOrder(deps.sound, fitting, understanding, like)
+    steps.done(places ? `Heard ${places.size} of them` : 'No song has been heard yet')
+  }
+  const ordered = places
+    ? [...fitting].sort((a, b) => (places.get(b.id) ?? -1) - (places.get(a.id) ?? -1))
+    : null
+
   // 3 · Pick, only when there is something to judge.
   const byId = new Map(songs.map(song => [song.id, song]))
   const length = (picked: readonly DescribePick[]): number =>
@@ -398,14 +467,17 @@ export async function narrowAndPick(
 
   /** One round of the model choosing `count` of `candidates`. */
   const pickFrom = async (candidates: readonly Song[], count: number): Promise<DescribePick[]> => {
-    const table = sample(candidates, text, MAX_CANDIDATES)
+    const table = places
+      ? inOrder(candidates).slice(0, MAX_CANDIDATES)
+      : sample(candidates, text, MAX_CANDIDATES)
     const prompt = [
       `The description: ${text}`,
       `What it wants beyond the filters: ${understanding.brief ?? 'nothing more; choose the songs that suit the description best'}`,
+      ...(places && understanding.sound ? [`How it should sound: ${understanding.sound}`] : []),
       `Choose up to ${count} songs.`,
       '',
-      'The table (number | title | artist | album | year | tags | energy | tempo | length | words | plays):',
-      songTable(table, tags, now),
+      `The table (number | title | artist | album | year | tags | energy | tempo | length | words | plays${places ? ' | sound' : ''}):`,
+      songTable(table, tags, now, places ? song => soundColumn(places, song) : undefined),
     ].join('\n')
     const answer = await remembered.get(
       Remembered.key('describe-pick', PICK_VERSION, prompt),
@@ -424,7 +496,7 @@ export async function narrowAndPick(
   }
 
   let picks: DescribePick[]
-  const everything = fitting.map(song => ({ songId: song.id, why: null }))
+  const everything = (ordered ?? fitting).map(song => ({ songId: song.id, why: null }))
   if (fitting.length === 0) {
     picks = []
   } else if (
@@ -432,6 +504,10 @@ export async function narrowAndPick(
     (target === null ? fitting.length <= size : length(everything) <= target)
   ) {
     picks = everything
+  } else if (understanding.brief === null && ordered) {
+    // Nothing is wanted that the listening has not already judged: the songs
+    // that sound most like it, as many as were asked for, with no model call.
+    picks = fillToLength(everything)
   } else {
     steps.begin(
       target !== null
@@ -468,7 +544,7 @@ export async function narrowAndPick(
       const more = await pickFrom(unchosen(), Math.ceil(short() / Math.max(average, 1)))
       picked = [...picked, ...more]
     }
-    for (const song of sample(unchosen(), text, unchosen().length)) {
+    for (const song of places ? inOrder(unchosen()) : sample(unchosen(), text, unchosen().length)) {
       if (short() <= average / 2) break
       picked = [...picked, { songId: song.id, why: null }]
     }
@@ -480,5 +556,28 @@ export async function narrowAndPick(
     return picked.slice(0, MAX_PICKS)
   }
 
+  /** The best-sounding first, as many as were asked for, or as long as was asked. */
+  function fillToLength(inSoundOrder: DescribePick[]): DescribePick[] {
+    if (target === null) return inSoundOrder.slice(0, size)
+    const out: DescribePick[] = []
+    for (const pick of inSoundOrder) {
+      if (length(out) >= target - average / 2) break
+      out.push(pick)
+    }
+    return out.slice(0, MAX_PICKS)
+  }
+
+  /** Songs in the order they sound, best first; the ones not heard keep their place after. */
+  function inOrder(candidates: readonly Song[]): Song[] {
+    const rank = new Map((ordered ?? []).map((song, index) => [song.id, index]))
+    return [...candidates].sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0))
+  }
+
   return { understanding: applied, fit: fitting.length, loosened, unknown, picks }
+}
+
+/** The sound column: a song's place, 0–100, or "?" for one not heard yet. */
+function soundColumn(places: Map<number, number>, song: Song): string {
+  const place = places.get(song.id)
+  return place === undefined ? 'sound ?' : `sound ${Math.round(place)}`
 }

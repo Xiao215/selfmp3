@@ -57,6 +57,7 @@ export class SmartFeatures {
     setup: AiSetup
     songs: () => Song[]
     tags: () => Tag[]
+    sound?: AskDeps['sound']
     stats: (range: Stats['range']) => Stats
     lyrics: (query: string) => { songId: number; line: string }[]
     wrapped: (range: WrappedRange) => Wrapped

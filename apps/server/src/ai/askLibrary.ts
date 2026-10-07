@@ -47,6 +47,7 @@ export const EVERYTHING: z.infer<typeof PlanOut> = {
   addedWithinDays: null,
   size: null,
   minutes: null,
+  sound: null,
   brief: null,
 }
 

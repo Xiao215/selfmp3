@@ -82,6 +82,12 @@ export function resolveDirs(env: NodeJS.ProcessEnv = process.env): {
   }
 }
 
+/**
+ * The listening model's files, as `scripts/sound-models` exports them: a
+ * release of this repository, so a Pi downloads them once, from where the code is.
+ */
+const SOUND_MODELS_URL = 'https://github.com/Xiao215/selfmp3/releases/download/sound-models-v1'
+
 const BooleanFromEnv = z
   .union([z.boolean(), z.enum(['true', 'false', '1', '0', 'yes', 'no'])])
   .transform(value =>
@@ -216,6 +222,25 @@ const ConfigSchema = z.object({
    * directory unless absolute; null means a real bucket, signed in to.
    */
   cloudDir: z.string().trim().min(1).nullable().default(null),
+
+  /**
+   * The listening model (docs/features/audio-intelligence.md, "How songs
+   * sound"): CLaMP 3, which gives each song a vector for "sounds like" and lets
+   * Ask find music by how it sounds. Its files (about 750 MB) are downloaded to
+   * `<data>/models` the first time analysis wants them.
+   */
+  sound: z
+    .object({
+      enabled: BooleanFromEnv.default(true),
+      /**
+       * Where the model files are: the GitHub release by default, or a folder
+       * on this machine that holds them already (a checkout's own export).
+       */
+      models: z.string().trim().min(1).default(SOUND_MODELS_URL),
+      /** CPU threads the model may use, so a Pi keeps cores for everything else. */
+      threads: z.coerce.number().int().min(1).max(64).default(2),
+    })
+    .default({}),
 })
 
 export type Config = Readonly<z.infer<typeof ConfigSchema>>
@@ -260,6 +285,11 @@ function readEnv(): unknown {
     logLevel: env['SELFMP3_LOG_LEVEL'] ?? undefined,
     scanOnBoot: env['SELFMP3_SCAN_ON_BOOT'] ?? undefined,
     cloudDir: env['SELFMP3_CLOUD_DIR'] || undefined,
+    sound: {
+      enabled: env['SELFMP3_SOUND'] || undefined,
+      models: env['SELFMP3_SOUND_MODELS'] || undefined,
+      threads: env['SELFMP3_SOUND_THREADS'] || undefined,
+    },
   }
 }
 

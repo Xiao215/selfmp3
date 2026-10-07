@@ -58,6 +58,13 @@ export const UnderstandingSchema = z.object({
    */
   minutes: z.number().int().min(1).max(1440).nullable().default(null),
   /**
+   * How the music should sound, in English, for the server's listening model
+   * (docs/features/audio-intelligence.md, "How songs sound"): "calm orchestral
+   * music with strings and flute". It orders the songs the other parts let
+   * in; it never shuts one out. Null when the words say nothing about it.
+   */
+  sound: z.string().trim().min(1).max(120).nullable().default(null),
+  /**
    * What the words want that the parts above cannot say: "for reading", "sounds
    * like rain". Null when the parts say all of it.
    */

@@ -55,6 +55,7 @@ const base: Understanding = {
   addedWithinDays: null,
   size: null,
   minutes: null,
+  sound: null,
   brief: null,
 }
 
@@ -90,6 +91,13 @@ describe('parts', () => {
     const [chip] = parts(nineties, TAGS)
     expect(chip!.label).toBe('1990s')
     expect(chip!.without(nineties)).toEqual(base)
+  })
+
+  it('says how it should sound, cut short, and lets it go', () => {
+    const understanding = { ...base, sound: 'calm orchestral music with strings, flute and a harp' }
+    const [chip] = parts(understanding, TAGS)
+    expect(chip!.label).toBe('Sounds like calm orchestral music with strings,…')
+    expect(chip!.without(understanding)).toEqual(base)
   })
 
   it('takes one part away and leaves the rest', () => {

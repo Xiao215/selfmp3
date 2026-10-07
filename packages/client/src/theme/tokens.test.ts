@@ -52,6 +52,13 @@ describe('oklchToHex', () => {
     expect(built.accentSelected).toMatch(/^#[0-9a-f]{6}47$/)
   })
 
+  it('washes a song or the accent at one strength per theme', () => {
+    expect(buildAccent(268, 'dark').washAlpha).toBe(0.26)
+    expect(buildAccent(268, 'light').washAlpha).toBe(0.18)
+    // The light accent's wash is drawn at it too: 18% is the byte 0x2e.
+    expect(buildAccent(268, 'light').accentWash).toBe(`${buildAccent(268, 'light').accent}2e`)
+  })
+
   it('leaves the palette exactly where it was written by hand', () => {
     // These four were hand-derived at hue 268 before any of this existed;
     // computing them has to land on the same values or the app changes colour.

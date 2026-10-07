@@ -44,30 +44,41 @@ export function buildAccent(
   onAccent: string
   /** The filled pill behind the current tab's icon: `oklch(0.45 0.13 h / 0.26)`. */
   accentPill: string
-  /** The progress wash behind the mini player: a 26% wash of the song colour. */
+  /**
+   * How strong a progress wash is behind a card's played part: 26% in the
+   * dark, 18% on Paper. A number, not a colour, because the colour is the
+   * song's and is only known at run time (the mini player's wash); the
+   * accent's own wash below is drawn at it.
+   */
+  washAlpha: number
+  /** The accent, washed at `washAlpha`. */
   accentWash: string
   /** A selected row: `oklch(0.34 0.07 h / 0.28)`. */
   accentSelected: string
 } {
   if (scheme === 'light') {
+    const washAlpha = 0.18
     return {
       accent: oklchToHex(0.52, 0.19, hue),
       accentStrong: oklchToHex(0.46, 0.21, hue),
       accentDim: oklchToHex(0.9, 0.05, hue),
       onAccent: oklchToHex(0.99, 0, 0),
       accentPill: oklchToHexAlpha(0.52, 0.19, hue, 0.14),
-      accentWash: oklchToHexAlpha(0.52, 0.19, hue, 0.18),
+      washAlpha,
+      accentWash: oklchToHexAlpha(0.52, 0.19, hue, washAlpha),
       // The light theme draws a selected row in the dim accent itself.
       accentSelected: oklchToHex(0.9, 0.05, hue),
     }
   }
+  const washAlpha = 0.26
   return {
     accent: oklchToHex(0.72, 0.16, hue),
     accentStrong: oklchToHex(0.78, 0.18, hue),
     accentDim: oklchToHex(0.42, 0.1, hue),
     onAccent: oklchToHex(0.15, 0.02, hue),
     accentPill: oklchToHexAlpha(0.45, 0.13, hue, 0.26),
-    accentWash: oklchToHexAlpha(0.72, 0.16, hue, 0.26),
+    washAlpha,
+    accentWash: oklchToHexAlpha(0.72, 0.16, hue, washAlpha),
     // A tint, not a slab. At 0.4 alpha a screen of ticked rows was a wall of
     // colour with the artwork fighting through it, and the tick on each row —
     // which is what actually says "selected" — had nothing to stand against

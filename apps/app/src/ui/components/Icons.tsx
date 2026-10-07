@@ -16,8 +16,10 @@ import { Circle, Path, Rect, Svg } from 'react-native-svg'
  * badge sits on, for icons that knock a shape out of a filled badge.
  */
 
-/** A colour in the theme's palette, named. */
-export type IconTone = keyof ThemePalette
+/** A colour in the theme's palette, named: any of its tokens but the one number, `washAlpha`. */
+export type IconTone = {
+  [K in keyof ThemePalette]: ThemePalette[K] extends string ? K : never
+}[keyof ThemePalette]
 
 interface IconProps {
   readonly size?: number

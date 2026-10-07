@@ -24,6 +24,8 @@ describe('reducing a link to what identifies it', () => {
       'https://music.youtube.com/watch?v=by4SYYWlhEs',
       'https://youtu.be/by4SYYWlhEs',
       'https://www.youtube.com/watch?v=by4SYYWlhEs&list=RDAMVM&index=1',
+      'https://www.youtube.com/shorts/by4SYYWlhEs',
+      'https://www.youtube.com/embed/by4SYYWlhEs',
     ]
     const ids = new Set(forms.map(normaliseUrl))
     expect(ids).toEqual(new Set(['yt:by4SYYWlhEs']))

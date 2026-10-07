@@ -14,6 +14,7 @@ import { floating, sectionTitle } from '../../ui/surfaces'
 import { IconButton } from '../../ui/components/IconButton'
 import { X } from '../../ui/components/Icons'
 import { MetadataDialog } from './MetadataDialog'
+import { reachedConnection } from '../../connection/via'
 
 /**
  * "Fix metadata…", whichever kind of library this device has.
@@ -35,7 +36,7 @@ export function FixMetadata({ song, onClose }: { song: Song; onClose: () => void
 
 function CloudFix({ song, onClose }: { song: Song; onClose: () => void }): ReactNode {
   const reach = useServerDirect()
-  const via = reach.state === 'reachable' ? reach.connection : undefined
+  const via = reachedConnection(reach)
   const ids = useServerSongIds(via)
   const askFor = via ? ids.onServer(song.id) : undefined
 

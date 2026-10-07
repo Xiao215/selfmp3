@@ -9,6 +9,7 @@ import {
   type SongIdTranslation,
 } from '@selfmp3/client'
 import { apiFor } from '../api/client'
+import { noServer } from './via'
 
 /**
  * This device's song ids and a reached server's, lined up
@@ -33,7 +34,7 @@ export function useServerSongIds(via: ServerConnection | undefined): SongIdTrans
   })
   const theirs = useQuery({
     queryKey: queryKeys.cloudUids('via-server', baseUrl),
-    queryFn: () => (via ? apiFor(via).cloudUids() : Promise.reject(new Error('no server to ask'))),
+    queryFn: () => (via ? apiFor(via).cloudUids() : noServer()),
     enabled: via !== undefined,
     retry: false,
     staleTime: STALE.minute,

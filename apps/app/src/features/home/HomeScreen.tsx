@@ -7,9 +7,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { useRouter } from 'expo-router'
 import { artistOr, plural } from '@selfmp3/shared'
 import type { Song, Stats } from '@selfmp3/shared'
-import { fonts, radius, tagColors, type, useLibrary, type ServerConnection } from '@selfmp3/client'
-import { useConnection } from '../../connection/ConnectionProvider'
-import { useServerDirect } from '../../connection/useServerDirect'
+import { fonts, radius, tagColors, type, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { useDragScroll } from '../../ports/dragScroll'
 import { Avatar } from '../../ui/components/Avatar'
@@ -51,6 +49,7 @@ import {
   type HomeTile,
   type SundayCard,
 } from './home.model'
+import { useVia } from '../../connection/via'
 
 /**
  * Home: where the app opens (docs/ui-mock `P04`, `C03`).
@@ -71,17 +70,7 @@ import {
  * (Xiao, 2026-09-22).
  */
 export function HomeScreen(): ReactNode {
-  const { fromCloud } = useConnection()
-  return fromCloud ? <CloudStats /> : <WithStats via={undefined} />
-}
-
-function CloudStats(): ReactNode {
-  const reach = useServerDirect()
-  return <WithStats via={reach.state === 'reachable' ? reach.connection : undefined} />
-}
-
-function WithStats({ via }: { via: ServerConnection | undefined }): ReactNode {
-  const { data: stats } = useStatsFor(via, '7d')
+  const { data: stats } = useStatsFor(useVia(), '7d')
   return <HomePage stats={stats} />
 }
 

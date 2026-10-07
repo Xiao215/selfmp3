@@ -111,6 +111,12 @@ export const queryKeys = {
   similar: (id: number | null, limit: number) => ['similar', id ?? 'none', limit] as const,
   analysis: ['analysis'] as const,
   devices: ['devices'] as const,
+  /**
+   * The device list as a server reached directly from a cloud library tells
+   * it: presence and Settings › Devices ask the same server the same question
+   * and share the answer.
+   */
+  devicesThrough: (baseUrl: string | null) => ['devices', 'through', baseUrl] as const,
   cloud: ['cloud'] as const,
   /** The stored doorman session's account, read on the device itself. */
   cloudSession: ['cloud-session'] as const,

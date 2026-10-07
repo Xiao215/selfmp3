@@ -28,6 +28,7 @@ import type { AnswerKeys } from './answerKeys'
 import { Working } from './Working'
 import { newTicket, useAskProgress } from './useAskProgress'
 import { useSmartServer } from './useSmartServer'
+import { reachedConnection, viaKey } from '../../connection/via'
 
 /**
  * An ask's query key: the server it went to, the words first asked, the song
@@ -40,7 +41,7 @@ function askKey(
   playing: number | null,
   asked: readonly string[],
 ): readonly unknown[] {
-  return ['via-server', via, 'ai', 'ask', text, playing, asked]
+  return viaKey(via, 'ai', 'ask', text, playing, asked)
 }
 
 function askedFirst(key: readonly unknown[]): unknown {
@@ -90,7 +91,7 @@ export function AskAnswer({
   // What "this" meant when it was asked (A8): the song playing then, not whichever comes next.
   const [playingHere] = useState(() => player.current?.id ?? null)
   const playing = playingHere === null ? null : (server.onServer(playingHere) ?? null)
-  const via = server.reach.state === 'reachable' ? server.reach.connection.baseUrl : null
+  const via = reachedConnection(server.reach)?.baseUrl ?? null
   // The follow-ups said after `text`, and how many of them the answer showing takes in.
   const [thread, setThread] = useState({ text, said: [] as string[], at: 0 })
   const { said, at } = thread.text === text ? thread : { said: [], at: 0 }

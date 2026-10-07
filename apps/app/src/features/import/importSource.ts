@@ -19,6 +19,7 @@ import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { library as cloudLibrary } from '../../replica'
 import { useSongsLanding } from './useSongsLanding'
+import { noServer, viaKey } from '../../connection/via'
 
 /**
  * Whom the Import screen talks to: whatever answers this device, or — from a
@@ -74,16 +75,15 @@ export function useImportSource(
   )
   const keys = useMemo(
     () => ({
-      library: ['via-server', baseUrl, 'library'] as const,
-      queue: ['via-server', baseUrl, 'queue'] as const,
-      history: ['via-server', baseUrl, 'history'] as const,
-      tools: ['via-server', baseUrl, 'tools'] as const,
+      library: viaKey(baseUrl, 'library'),
+      queue: viaKey(baseUrl, 'queue'),
+      history: viaKey(baseUrl, 'history'),
+      tools: viaKey(baseUrl, 'tools'),
     }),
     [baseUrl],
   )
   const queryClient = useQueryClient()
 
-  const noServer = (): Promise<never> => Promise.reject(new Error('no server to ask'))
   const serverLibrary = useQuery({
     queryKey: keys.library,
     queryFn: () => (server ? server.library() : noServer()),
@@ -167,8 +167,7 @@ export function useImportSource(
       refetchTools: serverTools.refetch,
       queue,
       history: serverHistory.data,
-      invalidateQueue: () =>
-        queryClient.invalidateQueries({ queryKey: ['via-server', baseUrl] as const }),
+      invalidateQueue: () => queryClient.invalidateQueries({ queryKey: viaKey(baseUrl) }),
       editQueue,
       invalidateLibrary: () => queryClient.invalidateQueries({ queryKey: keys.library }),
     }

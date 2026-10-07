@@ -11,6 +11,7 @@ import { card, label } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { useSmartServer } from './useSmartServer'
 import { useSmartSwitches } from './useSmartSwitches'
+import { reachedConnection, viaKey } from '../../connection/via'
 
 /**
  * A5 · the Report in a few sentences (docs/features/ai.md), under the page.
@@ -22,8 +23,8 @@ export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
   const server = useSmartServer()
   const { written } = useSmartSwitches()
   const queryClient = useQueryClient()
-  const via = server.reach.state === 'reachable' ? server.reach.connection.baseUrl : null
-  const key = ['via-server', via, 'ai', 'written', range]
+  const via = reachedConnection(server.reach)?.baseUrl ?? null
+  const key = viaKey(via, 'ai', 'written', range)
   const answer = useQuery({
     queryKey: key,
     queryFn: () => server.api!.written(range),

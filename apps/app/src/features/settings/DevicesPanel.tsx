@@ -31,6 +31,7 @@ import { useServerDirect } from '../../connection/useServerDirect'
 import { prefs } from '../../ports/prefs'
 import { Lead, Panel, partStyles, Row } from './SettingsParts'
 import { splitDevices } from './settings.model'
+import { reachedConnection } from '../../connection/via'
 
 /** Whether the device list came from a server just now, is being looked for, or cannot be had. */
 type DevicesReach = 'reachable' | 'looking' | 'away'
@@ -77,8 +78,8 @@ function ServerDevices({ anchor }: { anchor: (node: View | null) => void }): Rea
 function CloudDevices({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
   const server = useServerDirect()
   const client = useQueryClient()
-  const connection = server.state === 'reachable' ? server.connection : null
-  const key = [...queryKeys.devices, 'through', connection?.baseUrl ?? null] as const
+  const connection = reachedConnection(server) ?? null
+  const key = queryKeys.devicesThrough(connection?.baseUrl ?? null)
   const list = useQuery({
     queryKey: key,
     queryFn: () => {

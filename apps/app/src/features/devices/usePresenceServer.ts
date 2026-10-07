@@ -3,6 +3,7 @@ import { PRESENCE_LOOK_AGAIN_MS, type Reach, type ServerConnection } from '@self
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { useAppFocused } from '../../ui/useAppFocused'
+import { reachedConnection } from '../../connection/via'
 
 /**
  * Which server presence talks to, and when it is allowed to go looking.
@@ -76,7 +77,7 @@ export function usePresenceServer({
   return useMemo(
     () =>
       fromCloud
-        ? { connection: reach.state === 'reachable' ? reach.connection : null, reach }
+        ? { connection: reachedConnection(reach) ?? null, reach }
         : { connection, reach: null },
     [fromCloud, connection, reach],
   )

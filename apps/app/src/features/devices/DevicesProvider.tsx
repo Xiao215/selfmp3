@@ -194,10 +194,7 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
   const lastSentRef = useRef<PlaybackState | null>(null)
 
   const devicesKey = useMemo(
-    () =>
-      fromCloud
-        ? ([...queryKeys.devices, 'through', server?.baseUrl ?? null] as const)
-        : queryKeys.devices,
+    () => (fromCloud ? queryKeys.devicesThrough(server?.baseUrl ?? null) : queryKeys.devices),
     [fromCloud, server],
   )
 

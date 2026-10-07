@@ -157,6 +157,11 @@ describe('a tag, from its hue', () => {
     })
   })
 
+  it('ticks a swatch in the darker of the tile’s two colours', () => {
+    expect(tagColors(150, 'dark').onDot).toBe(tagColors(150, 'dark').tile)
+    expect(tagColors(150, 'light').onDot).toBe(tagColors(150, 'light').tileInk)
+  })
+
   it('gives two hues two different tiles', () => {
     expect(tagColors(20, 'dark').tile).not.toBe(tagColors(150, 'dark').tile)
   })

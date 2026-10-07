@@ -110,21 +110,31 @@ export function tagColors(
   tileInk: string
   /** The dot on a chip, a row and the sidebar. */
   dot: string
+  /**
+   * A mark drawn on the dot at swatch size — the tick on the chosen hue in
+   * the colour picker: the darker of the tile's two colours, since both
+   * themes' dots are light enough to want dark ink.
+   */
+  onDot: string
   /** The name in its hue, on the ground. */
   ink: string
 } {
   if (scheme === 'light') {
+    const tileInk = oklchToHex(0.38, 0.11, hue)
     return {
       tile: oklchToHex(0.93, 0.045, hue),
-      tileInk: oklchToHex(0.38, 0.11, hue),
+      tileInk,
       dot: oklchToHex(0.66, 0.15, hue),
+      onDot: tileInk,
       ink: oklchToHex(0.42, 0.1, hue),
     }
   }
+  const tile = oklchToHex(0.32, 0.07, hue)
   return {
-    tile: oklchToHex(0.32, 0.07, hue),
+    tile,
     tileInk: oklchToHex(0.85, 0.1, hue),
     dot: oklchToHex(0.8, 0.12, hue),
+    onDot: tile,
     ink: oklchToHex(0.86, 0.09, hue),
   }
 }

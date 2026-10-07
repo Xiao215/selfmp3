@@ -1,4 +1,5 @@
 import type { CloudPlatform, DeviceStore, TextCache } from '@selfmp3/replica'
+import { CLOUD_FILES_CACHE } from '../../sw/names'
 import { appPath } from './appPath'
 import { desktop } from './desktop/bridge'
 import { doormanUrl } from './doormanUrl'
@@ -33,19 +34,17 @@ const store: DeviceStore = {
   update: (key, change) => updateStored(key, change),
 }
 
-/** Lyrics, in the Cache API: out of IndexedDB, which the replica fills. */
-const FILES_CACHE = 'selfmp3-cloud-files-v1'
-
+/** Lyrics, in the Cache API (`CLOUD_FILES_CACHE`): out of IndexedDB, which the replica fills. */
 const cacheApiTextCache: TextCache = {
   read: async key => {
     if (typeof caches === 'undefined') return null
-    const cache = await caches.open(FILES_CACHE)
+    const cache = await caches.open(CLOUD_FILES_CACHE)
     const cached = await cache.match(appPath(`cloud-files/${key}`))
     return cached ? cached.text() : null
   },
   write: async (key, text) => {
     if (typeof caches === 'undefined') return
-    const cache = await caches.open(FILES_CACHE)
+    const cache = await caches.open(CLOUD_FILES_CACHE)
     await cache.put(
       appPath(`cloud-files/${key}`),
       new Response(text, { headers: { 'Content-Type': 'text/plain' } }),
@@ -53,7 +52,7 @@ const cacheApiTextCache: TextCache = {
   },
   clear: async () => {
     if (typeof caches === 'undefined') return
-    await caches.delete(FILES_CACHE)
+    await caches.delete(CLOUD_FILES_CACHE)
   },
 }
 

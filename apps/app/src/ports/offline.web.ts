@@ -1,3 +1,5 @@
+import { AUDIO_CACHE, REFRESH_HEADER } from '../../sw/names'
+
 /**
  * The browser's audio cache: keeping, listing, sizing and removing songs.
  *
@@ -44,9 +46,6 @@ function streamUrlFor(songId: number): string {
  * at once by bumping it.
  */
 
-/** `AUDIO_CACHE` in sw.ts names the same cache, and the two have to agree. */
-const AUDIO_CACHE = 'selfmp3-audio-v1'
-
 /**
  * How a song's copy is looked up: by its path alone, as the service worker
  * looks it up (sw.ts, `handleAudio`).
@@ -60,13 +59,6 @@ const AUDIO_CACHE = 'selfmp3-audio-v1'
  * came back as "downloaded" at the next launch.
  */
 const ANY_VERSION: CacheQueryOptions = { ignoreSearch: true }
-
-/**
- * How a download tells the service worker it wants the file itself, not the
- * copy already kept. The other half is `REFRESH_HEADER` in sw.ts, which has no
- * imports on purpose; the two have to agree.
- */
-const REFRESH_HEADER = 'x-selfmp3-refresh'
 
 /** The song id a cache key names, or null for anything else. */
 function songIdOfKey(url: string): number | null {

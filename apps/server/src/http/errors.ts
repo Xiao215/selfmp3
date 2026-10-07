@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express'
 import { ZodError } from 'zod'
 import type { Logger } from '../logger.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * One error type for the whole server.
@@ -96,7 +97,7 @@ export function errorHandler(logger: Logger) {
       return
     }
 
-    const message = error instanceof Error ? error.message : String(error)
+    const message = messageOf(error)
 
     /*
      * A body the JSON parser could not read is the sender's mistake, not ours:

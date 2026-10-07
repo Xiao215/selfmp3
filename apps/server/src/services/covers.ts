@@ -8,6 +8,7 @@ import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
 import { readCapped } from './fetching.js'
 import { isSquareCover, squareCover } from './squareCover.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * This server's copy of every cover, in `data/covers/<id>`.
@@ -73,7 +74,7 @@ export class CoverService {
       // Missing art is cosmetic; a placeholder gradient is shown instead.
       this.#logger.warn('could not cache cover art', {
         songId,
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
     }
   }
@@ -135,7 +136,7 @@ export class CoverService {
       this.#logger.warn('could not make a thumbnail', {
         songId,
         size,
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
       return cover
     }
@@ -161,7 +162,7 @@ export class CoverService {
       } catch (error) {
         this.#logger.warn('could not square a cover', {
           songId,
-          message: error instanceof Error ? error.message : String(error),
+          message: messageOf(error),
         })
       }
       // Between covers, so a big library's pass never holds the server up.

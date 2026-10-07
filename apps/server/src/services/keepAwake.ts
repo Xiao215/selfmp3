@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import type { Logger } from '../logger.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * Keeps the server awake while it is actually doing something for somebody.
@@ -84,7 +85,7 @@ export function createKeepAwake(
       logger.debug('holding the machine awake')
     } catch (error) {
       logger.warn('could not hold the machine awake', {
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
       child = null
     }

@@ -5,6 +5,7 @@ import { highlightMatch, type LyricsSearchRepository } from '../repositories/lyr
 import { unattendedLyricText, type LyricsService } from './lyrics.js'
 import type { MetadataService } from './metadata.js'
 import { LyricsCache } from './lyricsCache.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * Keeps the lyric search index in step with the lyrics the server holds.
@@ -90,7 +91,7 @@ export class LyricsIndexService {
       }
     } catch (error) {
       this.#logger.warn('lyrics backfill stopped early', {
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
     } finally {
       this.#backfilling = false

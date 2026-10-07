@@ -3,6 +3,7 @@ import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { CoverService } from './covers.js'
 import { ffmpegFailure, runFfmpeg } from './ffmpeg.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * The colour of every cover, picked once, here.
@@ -79,7 +80,7 @@ export class CoverToneService {
           } catch (error) {
             this.#logger.warn('could not read a cover’s colour', {
               songId: next.id,
-              message: error instanceof Error ? error.message : String(error),
+              message: messageOf(error),
             })
           }
         }

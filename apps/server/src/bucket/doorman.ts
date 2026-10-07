@@ -15,6 +15,7 @@ import {
   type CloudPutOptions,
   type CloudStore,
 } from './store.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * Talking to the doorman (docs/SYNC.md; the Worker is apps/doorman).
@@ -257,5 +258,5 @@ function filePath(key: string): string {
  */
 function whyFetchFailed(error: unknown): string {
   const reason = error instanceof Error && error.cause instanceof Error ? error.cause : error
-  return reason instanceof Error ? reason.message : String(reason)
+  return messageOf(reason)
 }

@@ -10,6 +10,7 @@ import type { LyricsCache } from './lyricsCache.js'
 import type { MotionStore } from './motionStore.js'
 import type { LyricsIndexService } from './lyricsIndex.js'
 import { removeFolderIfEmpty } from './libraryLayout.js'
+import { messageOf } from '../util/errors.js'
 
 /** What became of a request to remove some songs. */
 interface RemovalResult {
@@ -141,7 +142,7 @@ export class SongRemovalService {
       } catch (error) {
         this.#logger.warn('could not tidy up a song removed on another device', {
           path: song.path,
-          message: error instanceof Error ? error.message : String(error),
+          message: messageOf(error),
         })
       }
     }

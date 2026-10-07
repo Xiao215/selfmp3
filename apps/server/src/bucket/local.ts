@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { CloudError, type CloudObject, type CloudPutOptions, type CloudStore } from './store.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * A folder standing in for the bucket.
@@ -122,5 +123,5 @@ function isMissing(error: unknown): boolean {
 
 function explain(error: unknown): CloudError {
   if (error instanceof CloudError) return error
-  return new CloudError('other', error instanceof Error ? error.message : String(error))
+  return new CloudError('other', messageOf(error))
 }

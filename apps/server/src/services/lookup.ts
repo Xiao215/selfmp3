@@ -5,6 +5,7 @@ import type { FetchLike } from './fetching.js'
 import { RateLimiter } from './rateLimiter.js'
 import { rankCandidates, type LookupQuery } from './lookupScore.js'
 import { coverArtArchiveUrl, parseItunes, parseMusicBrainz } from './lookupParsers.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * Metadata lookup against free public databases.
@@ -63,7 +64,7 @@ async function getJson(deps: ProviderDeps, url: string): Promise<unknown> {
   } catch (error) {
     deps.logger.warn('lookup request errored', {
       url,
-      message: error instanceof Error ? error.message : String(error),
+      message: messageOf(error),
     })
     return null
   }
@@ -165,7 +166,7 @@ export class MusicBrainzProvider implements MetadataProvider {
       } catch (error) {
         this.#deps.logger.debug('cover art check failed', {
           url,
-          message: error instanceof Error ? error.message : String(error),
+          message: messageOf(error),
         })
       }
     }
@@ -232,7 +233,7 @@ export class MetadataLookupService {
           // fail the other one — degrade to "no candidates from this source".
           this.#logger.warn('provider failed', {
             provider: provider.name,
-            message: error instanceof Error ? error.message : String(error),
+            message: messageOf(error),
           })
           return []
         }

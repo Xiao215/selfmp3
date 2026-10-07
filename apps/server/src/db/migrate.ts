@@ -1,5 +1,6 @@
 import type { Database } from 'better-sqlite3'
 import type { Logger } from '../logger.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * The database schema, and how a database comes to have it.
@@ -568,9 +569,6 @@ function apply(db: Database, logger: Logger, version: number, migration: Migrati
     db.exec('COMMIT')
   } catch (error) {
     db.exec('ROLLBACK')
-    throw new Error(
-      `Migration ${version} (${migration.name}) failed: ` +
-        (error instanceof Error ? error.message : String(error)),
-    )
+    throw new Error(`Migration ${version} (${migration.name}) failed: ` + messageOf(error))
   }
 }

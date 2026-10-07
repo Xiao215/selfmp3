@@ -35,6 +35,7 @@ import {
 import { alreadyHave, libraryIndex, normaliseUrl } from '../services/alreadyHave.js'
 import { importRun } from '../services/importRun.js'
 import { isCoverUrl } from '../services/previewCoverTone.js'
+import { messageOf } from '../util/errors.js'
 
 const ParamsWithJobId = z.object({ id: z.string().uuid() })
 const ListenQuery = z.object({ url: z.string().url().max(2_000) })
@@ -205,7 +206,7 @@ export function importRoutes(container: Container): Router {
       const asked = req.headers.range
       const open = async (): Promise<Response> => {
         const source = await container.listen.source(query.url).catch((error: unknown) => {
-          throw HttpError.unprocessable(error instanceof Error ? error.message : String(error))
+          throw HttpError.unprocessable(messageOf(error))
         })
         return fetch(source, {
           headers: { Range: asked ?? 'bytes=0-' },

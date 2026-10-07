@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import path from 'node:path'
 import {
   audioKey,
@@ -21,6 +20,7 @@ import type { TagRepository } from '../repositories/tags.js'
 import { audioSignature, NO_FILE_SIGNATURE, tagsLyricsSignature } from './cloudSignatures.js'
 import { isFreeOnDisk, songKeyCandidates } from './libraryLayout.js'
 import type { SyncClock } from './localEdits.js'
+import { sha256 } from '../util/hash.js'
 
 /**
  * Taking on the library that is already in the bucket (docs/SYNC.md).
@@ -397,8 +397,4 @@ export class CloudAdopt {
       this.#clock.observe(hlc)
     }
   }
-}
-
-function sha256(data: Buffer): string {
-  return createHash('sha256').update(data).digest('hex')
 }

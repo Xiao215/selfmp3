@@ -17,6 +17,7 @@ import type { CoverService } from './covers.js'
 import { asksYouTube, type YtDlpService } from './ytdlp.js'
 import { RateLimitedError, type YtThrottleService } from './ytThrottle.js'
 import { isFreeOnDisk, songKeyCandidates } from './libraryLayout.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * The download worker.
@@ -279,7 +280,7 @@ export class ImportQueueService {
           .catch(error => {
             this.#logger.error('job crashed', {
               jobId: job.id,
-              message: error instanceof Error ? error.message : String(error),
+              message: messageOf(error),
             })
           })
           .finally(() => {
@@ -329,7 +330,7 @@ export class ImportQueueService {
         return
       }
 
-      const message = error instanceof Error ? error.message : String(error)
+      const message = messageOf(error)
       const current = this.#imports.byId(job.id)
       const uploading = error instanceof UploadError
 
@@ -597,7 +598,7 @@ export class ImportQueueService {
     try {
       await this.#cloud.uploadSong(songId, { more: this.#imports.counts().queued > 0 })
     } catch (error) {
-      throw new UploadError(error instanceof Error ? error.message : String(error))
+      throw new UploadError(messageOf(error))
     }
   }
 

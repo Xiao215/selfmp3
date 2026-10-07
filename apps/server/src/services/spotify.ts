@@ -2,6 +2,7 @@ import { cleanArtist, cleanTitle, type SpotifyLink } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import { BROWSER_USER_AGENT, type FetchLike } from './fetching.js'
 import { parseDurationValue, type ListedTrack } from './trackLists.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * A Spotify playlist, album or track, read from its public embed page.
@@ -40,7 +41,7 @@ export class SpotifyLists {
       if (!response.ok) throw new Error(`Spotify answered ${response.status}`)
       html = await response.text()
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
+      const message = messageOf(error)
       this.#logger.warn('spotify fetch failed', { link, message })
       throw new Error(`Could not reach Spotify (${message}). ${INSTEAD}`)
     }

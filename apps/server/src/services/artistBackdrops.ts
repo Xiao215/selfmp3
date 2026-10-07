@@ -10,6 +10,7 @@ import { readCapped, type FetchLike } from './fetching.js'
 import { YouTubeMusicApi } from './youtubeMusicApi.js'
 import { pictureAt, type YouTubeMusicArtists } from './youtubeMusicArtist.js'
 import { fits, isSameSong, searchSongs } from './youtubeMusicSongs.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * An artist's picture, from their page on YouTube Music: the banner over the
@@ -229,7 +230,7 @@ export class ArtistBackdropService {
       return await readCapped(response, MAX_PICTURE_BYTES)
     } catch (error) {
       this.#logger.debug('could not fetch the picture', {
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
       return null
     }
@@ -263,7 +264,7 @@ export class ArtistBackdropService {
       )
       // Missing is cosmetic: the page is lit by a song's cover instead.
       this.#logger.warn('could not keep the picture', {
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
       return null
     }

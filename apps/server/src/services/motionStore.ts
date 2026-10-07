@@ -5,6 +5,7 @@ import { MOTION_VERSION, type Motion } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { MotionCurveData } from './dsp.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * Each song's motion curve (packages/shared/src/schemas/motion.ts), one JSON file per song under
@@ -45,7 +46,7 @@ export class MotionStore {
       // No curve is a visual that follows the tempo instead: never worth failing analysis over.
       this.#logger.warn('could not write a motion curve', {
         songId,
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
     }
   }

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { formatDuration, fuzzyRank, type Song } from '@selfmp3/shared'
+import { artistOr, formatDuration, fuzzyRank, type Song } from '@selfmp3/shared'
 import {
   failureText,
   radius,
@@ -181,7 +181,7 @@ export function AddSongsSheet({
                       {song.title}
                     </Text>
                     <Text style={styles.artist} numberOfLines={1}>
-                      {song.artist || 'Unknown artist'}
+                      {artistOr(song.artist)}
                     </Text>
                   </View>
                   <Text style={styles.time}>{formatDuration(song.duration)}</Text>

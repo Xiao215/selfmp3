@@ -9,6 +9,7 @@ import {
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { CoverTone, ImportCoverTone, ImportPreviewItem } from '@selfmp3/shared'
+import { clamp } from '@selfmp3/shared'
 import { radius, withAlpha, type ServerConnection } from '@selfmp3/client'
 import { mediaUrlFor } from '../../api/client'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -298,7 +299,7 @@ export function ListenBar({
       accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
       onAccessibilityAction={event => {
         const step = event.nativeEvent.actionName === 'increment' ? 10 : -10
-        onSeek(Math.max(0, Math.min(duration, position + step)))
+        onSeek(clamp(position + step, 0, duration))
       }}
       testID="listen-bar"
       {...responder.panHandlers}

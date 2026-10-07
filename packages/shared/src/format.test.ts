@@ -107,6 +107,7 @@ describe('plural', () => {
     expect(plural(1, 'song', 'songs')).toBe('1 song')
     expect(plural(0, 'song', 'songs')).toBe('0 songs')
     expect(plural(13, 'song', 'songs')).toBe('13 songs')
+    expect(plural(1234, 'song', 'songs')).toBe('1,234 songs')
   })
 
   it('takes both words, for the ones English does not make by adding an s', () => {

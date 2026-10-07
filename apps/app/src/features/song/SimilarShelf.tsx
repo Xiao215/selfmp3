@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
+import { artistOr } from '@selfmp3/shared'
 import { radius, space, type, withAlpha } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
@@ -51,7 +52,7 @@ export function SimilarShelf({
               })
             }
             accessibilityRole="button"
-            accessibilityLabel={`Play ${song.title} by ${song.artist || 'Unknown artist'}`}
+            accessibilityLabel={`Play ${song.title} by ${artistOr(song.artist)}`}
             style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
           >
             <Cover uri={artFor(song)} title={song.album || song.title} size={SHELF_COVER} />
@@ -59,7 +60,7 @@ export function SimilarShelf({
               {song.title}
             </Text>
             <Text style={styles.cardArtist} numberOfLines={1}>
-              {song.artist || 'Unknown artist'}
+              {artistOr(song.artist)}
             </Text>
           </Pressable>
         ))}

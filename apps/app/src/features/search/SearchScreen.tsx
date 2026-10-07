@@ -6,7 +6,15 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { plural, type LyricsSearchHit, type Song, type Tag, type Artist } from '@selfmp3/shared'
-import { clientApi, isDownloaded, queryKeys, radius, tagColors, useLibrary } from '@selfmp3/client'
+import {
+  STALE,
+  clientApi,
+  isDownloaded,
+  queryKeys,
+  radius,
+  tagColors,
+  useLibrary,
+} from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
@@ -42,6 +50,10 @@ import {
   SEARCH_SCOPES,
   type SearchScope,
 } from './search.model'
+import { useGoBack } from '../../ui/useBackTo'
+
+/** What a song played from Search names Up next: the rows and the lyric hits alike. */
+const FROM_SEARCH = { kind: 'songs', origin: 'search', name: 'Search' } as const
 
 /**
  * Search (docs/ui-mock `P18`, `P19`): one page, whichever door it was opened
@@ -83,7 +95,7 @@ export function SearchScreen(): ReactNode {
     // The lyrics index is the server's; a library in the cloud has no words to search.
     enabled: lyricsQuery !== '' && !fromCloud,
     retry: false,
-    staleTime: 60_000,
+    staleTime: STALE.minute,
     placeholderData: previous => previous,
   })
   const lyricHits = typed && lyricsQuery ? (lyrics.data?.hits ?? []) : []
@@ -99,10 +111,7 @@ export function SearchScreen(): ReactNode {
     [router],
   )
 
-  const close = (): void => {
-    if (router.canGoBack()) router.back()
-    else router.replace('/')
-  }
+  const close = useGoBack('/')
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -386,7 +395,7 @@ function TagResult({ tag }: { tag: Tag }): ReactNode {
     <Pressable
       onPress={() => openTag(tag)}
       accessibilityRole="button"
-      accessibilityLabel={`${tag.name}, tag, ${tag.songCount} songs`}
+      accessibilityLabel={`${tag.name}, tag, ${plural(tag.songCount, 'song', 'songs')}`}
       style={({ pressed }) => [styles.place, pressed && styles.pressed]}
     >
       <View style={styles.figure}>
@@ -413,7 +422,7 @@ function ArtistResult({
     <Pressable
       onPress={() => onOpen(artist)}
       accessibilityRole="button"
-      accessibilityLabel={`${artist.name}, artist, ${count} songs`}
+      accessibilityLabel={`${artist.name}, artist, ${plural(count, 'song', 'songs')}`}
       style={({ pressed }) => [styles.place, pressed && styles.pressed]}
     >
       <View style={styles.figure}>
@@ -499,7 +508,7 @@ function useSongRows(
   const onPress = useCallback((_event: GestureResponderEvent, song: Song) => {
     const { ids: now, playFrom } = latest.current
     const index = now.indexOf(song.id)
-    if (index >= 0) playFrom(now, index)
+    if (index >= 0) playFrom(now, index, { source: FROM_SEARCH })
   }, [])
   const onMore = useCallback((node: View | null, song: Song) => {
     anchor.current = node
@@ -562,11 +571,7 @@ function LyricResults({
           <Pressable
             key={`${hit.songId}-${index}`}
             testID={`search-lyric-${index}`}
-            onPress={() =>
-              player.playFrom([hit.songId], 0, {
-                source: { kind: 'songs', origin: 'search', name: 'Search' },
-              })
-            }
+            onPress={() => player.playFrom([hit.songId], 0, { source: FROM_SEARCH })}
             accessibilityRole="button"
             accessibilityLabel={`${hit.title}: ${hit.line}`}
             style={({ pressed }) => [styles.lyric, pressed && styles.pressed]}

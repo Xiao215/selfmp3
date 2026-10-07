@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Circle, Svg } from 'react-native-svg'
-import { pickResumeState, type Device } from '@selfmp3/shared'
+import { artistOr, pickResumeState, type Device } from '@selfmp3/shared'
 import { handoffTarget, radius, shortDeviceName, useLibrary } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { usePlaybackMemoryState } from '../../player/usePlaybackMemory'
@@ -113,7 +113,7 @@ export function ResumeToast(): ReactNode {
       >
         <Text style={[styles.label, { color: accent.accent }]}>Continue</Text>
         <Text style={styles.song} numberOfLines={1}>
-          {song.title} — {song.artist || 'Unknown artist'}
+          {song.title} — {artistOr(song.artist)}
         </Text>
         <Text style={styles.from} numberOfLines={1}>
           from {shortDeviceName(candidate.name)}

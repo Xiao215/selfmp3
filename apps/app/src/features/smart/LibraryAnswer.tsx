@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
+import { artistOr, formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
 import { radius, space, useLibrary } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -115,7 +115,7 @@ export function LibraryAnswer({
               <Cover uri={artFor(song)} title={song.album || song.title} size={36} />
               <Text style={[styles.title, styles.grow]} numberOfLines={1}>
                 {song.title}
-                <Text style={styles.muted}> · {song.artist || 'Unknown artist'}</Text>
+                <Text style={styles.muted}> · {artistOr(song.artist)}</Text>
               </Text>
               <Play size={14} color={theme.colors.textSecondary} />
             </Pressable>

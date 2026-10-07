@@ -18,6 +18,7 @@ import {
   type ServerEvent,
 } from '@selfmp3/shared'
 import {
+  STALE,
   clientApi,
   handoffTarget,
   queryKeys,
@@ -193,10 +194,7 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
   const lastSentRef = useRef<PlaybackState | null>(null)
 
   const devicesKey = useMemo(
-    () =>
-      fromCloud
-        ? ([...queryKeys.devices, 'through', server?.baseUrl ?? null] as const)
-        : queryKeys.devices,
+    () => (fromCloud ? queryKeys.devicesThrough(server?.baseUrl ?? null) : queryKeys.devices),
     [fromCloud, server],
   )
 
@@ -339,7 +337,7 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
       return api.devices()
     },
     enabled: server !== null,
-    staleTime: 10_000,
+    staleTime: STALE.tenSeconds,
     refetchInterval: connected ? false : 15_000,
     refetchIntervalInBackground: false,
     retry: false,

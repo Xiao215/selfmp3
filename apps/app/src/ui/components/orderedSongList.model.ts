@@ -1,3 +1,4 @@
+import { clamp } from '@selfmp3/shared'
 /**
  * The rules of moving a row in an ordered list (`OrderedSongList`: a
  * playlist's songs, an answer's), with nothing drawn.
@@ -14,7 +15,7 @@ export function moveItem<T>(items: readonly T[], from: number, to: number): T[] 
   if (from < 0 || from >= next.length) return next
   const [moved] = next.splice(from, 1)
   if (moved === undefined) return next
-  next.splice(Math.max(0, Math.min(to, next.length)), 0, moved)
+  next.splice(clamp(to, 0, next.length), 0, moved)
   return next
 }
 
@@ -25,7 +26,7 @@ export function moveItem<T>(items: readonly T[], from: number, to: number): T[] 
 export function dropIndex(from: number, dy: number, rowHeight: number, count: number): number {
   if (count <= 0) return 0
   const rows = rowHeight > 0 ? Math.round(dy / rowHeight) : 0
-  return Math.max(0, Math.min(count - 1, from + rows))
+  return clamp(from + rows, 0, count - 1)
 }
 
 /**

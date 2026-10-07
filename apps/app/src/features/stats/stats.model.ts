@@ -6,7 +6,15 @@ import type {
   TopSong,
   WrappedRange,
 } from '@selfmp3/shared'
-import { artistKey, DAY_HOURS, EARLY_HOURS, NIGHT_HOURS, splitArtists } from '@selfmp3/shared'
+import {
+  plural,
+  artistKey,
+  DAY_HOURS,
+  EARLY_HOURS,
+  NIGHT_HOURS,
+  splitArtists,
+  UNKNOWN_ARTIST,
+} from '@selfmp3/shared'
 
 /**
  * Listening stats, without the screen.
@@ -93,9 +101,6 @@ export function peakHourWords(hour: number): string {
   if (DAY_HOURS.includes(hour)) return 'Daytime listener'
   return 'Evening listener'
 }
-
-const plural = (count: number, one: string, many: string): string =>
-  `${count.toLocaleString()} ${count === 1 ? one : many}`
 
 export function daysLabel(days: number): string {
   return plural(days, 'day', 'days')
@@ -278,9 +283,6 @@ export type RankedRow =
   | (RankedBase & { readonly kind: 'song'; readonly songId: number; readonly artist: string })
   | (RankedBase & { readonly kind: 'artist'; readonly known: boolean })
   | (RankedBase & { readonly kind: 'tag' })
-
-/** What the server calls a song with no artist; it is not a place to open. */
-const UNKNOWN_ARTIST = 'Unknown artist'
 
 /** Songs by plays, as the server ranks them. */
 export function rankedSongs(top: readonly TopSong[], limit = RANKED_ROWS): RankedRow[] {

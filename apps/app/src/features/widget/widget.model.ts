@@ -1,4 +1,5 @@
 import type { Song, Tag } from '@selfmp3/shared'
+import { artistOr } from '@selfmp3/shared'
 import { tagColors } from '@selfmp3/client'
 
 /**
@@ -90,7 +91,7 @@ export function widgetSnapshot(input: {
   const nowPlaying = song
     ? {
         title: song.title,
-        artist: song.artist || 'Unknown artist',
+        artist: artistOr(song.artist),
         playing: input.playing,
         endsAt: input.playing ? Math.round(input.now / 1000) + left : 0,
         remaining: input.playing ? 0 : left,

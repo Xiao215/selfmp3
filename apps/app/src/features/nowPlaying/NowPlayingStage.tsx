@@ -16,6 +16,7 @@ import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
 import type { NativeStackNavigationProp } from 'expo-router'
 import Svg, { Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
+import { artistOr } from '@selfmp3/shared'
 import type { Rgb } from '@selfmp3/client'
 import { fonts, motion, radius, rgba, tempoMark, useLibrary, withAlpha } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
@@ -770,7 +771,7 @@ function Stage({
               {song.title}
             </Text>
             <Text style={styles.headArtist} numberOfLines={1}>
-              {song.artist || 'Unknown artist'}
+              {artistOr(song.artist)}
             </Text>
           </View>
         ) : (
@@ -967,7 +968,7 @@ function StageUpNext({
           {upNext.title}
         </Text>
         <Text style={styles.upNextArtist} numberOfLines={1}>
-          {upNext.artist || 'Unknown artist'}
+          {artistOr(upNext.artist)}
         </Text>
       </View>
       <Next size={16} color={theme.colors.textSecondary} />

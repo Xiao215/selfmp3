@@ -1,4 +1,4 @@
-import { formatRelative, type Stats } from '@selfmp3/shared'
+import { plural, formatRelative, type Stats } from '@selfmp3/shared'
 import type { DevicePlace } from '../settings/settings.model'
 import { durationWords, formatHour, peakHour, peakHourWords } from '../stats/stats.model'
 
@@ -91,8 +91,8 @@ export function profileLine({
   now?: Date
 }): string {
   const parts: string[] = []
-  if (songs !== undefined) parts.push(`${songs.toLocaleString()} ${songs === 1 ? 'song' : 'songs'}`)
-  if (tags !== undefined) parts.push(`${tags.toLocaleString()} ${tags === 1 ? 'tag' : 'tags'}`)
+  if (songs !== undefined) parts.push(plural(songs, 'song', 'songs'))
+  if (tags !== undefined) parts.push(plural(tags, 'tag', 'tags'))
   if (error) parts.push(fromCloud ? 'can’t reach the cloud' : 'can’t reach your server')
   else if (pending || !syncedAt) parts.push('connecting…')
   else parts.push(`synced ${formatRelative(syncedAt, now)}`)
@@ -159,25 +159,4 @@ export function monthCardSpoken(card: MonthCard | null): string {
   return `Stats. ${MONTH_CARD_TITLE}: ${card.listened} listened, ${card.plays} ${
     card.plays === '1' ? 'play' : 'plays'
   }, a streak of ${card.streak} ${card.streakUnit}${repeat}`
-}
-
-/**
- * The letters on the round mark when the account has no picture: one from
- * each of the first two words of the name, or the first of the address.
- * Null when there is neither, and the plain figure is drawn instead.
- */
-export function accountInitials(
-  account: { name: string | null; email: string } | null,
-): string | null {
-  const name = account?.name?.trim()
-  if (name) {
-    const letters = name
-      .split(/\s+/)
-      .slice(0, 2)
-      .map(word => Array.from(word)[0]?.toUpperCase() ?? '')
-      .join('')
-    if (letters) return letters
-  }
-  const email = account?.email.trim()
-  return email ? (Array.from(email)[0]?.toUpperCase() ?? null) : null
 }

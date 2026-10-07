@@ -1,5 +1,5 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
-import { queryKeys } from '@selfmp3/client'
+import { STALE, queryKeys } from '@selfmp3/client'
 import type { DoormanMe } from '@selfmp3/shared'
 
 import { session as cloud } from '../../replica'
@@ -18,6 +18,6 @@ export function useCloudSession(): UseQueryResult<DoormanMe | null, Error> {
   return useQuery({
     queryKey: queryKeys.cloudSession,
     queryFn: async () => (await cloud.loadSession())?.me ?? null,
-    staleTime: 60_000,
+    staleTime: STALE.minute,
   })
 }

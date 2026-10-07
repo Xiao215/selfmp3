@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Animated } from 'react-native'
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native'
 import { spring } from '../motion'
+import { clamp01 } from '@selfmp3/shared'
 
 interface Box {
   readonly x: number
@@ -156,7 +157,7 @@ export function useSlidingHighlight<K extends string>(
 
 /** Where a highlight sliding from `from` to `to` is at `progress` of the way. */
 function boxBetween(from: Box, to: Box, progress: number): Box {
-  const p = Math.max(0, Math.min(1, progress))
+  const p = clamp01(progress)
   return {
     x: from.x + (to.x - from.x) * p,
     y: from.y + (to.y - from.y) * p,

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { RefObject } from 'react'
 import type { View } from 'react-native'
+import { plural } from '@selfmp3/shared'
 
 /**
  * The browser's drag and drop, for dragging songs onto a sidebar playlist.
@@ -76,10 +77,7 @@ export function useSongDragSource(
       const carried = ids.current()
       if (!event.dataTransfer || carried.length === 0) return
       event.dataTransfer.setData(TYPE, JSON.stringify(carried))
-      event.dataTransfer.setData(
-        'text/plain',
-        `${carried.length} song${carried.length === 1 ? '' : 's'}`,
-      )
+      event.dataTransfer.setData('text/plain', plural(carried.length, 'song', 'songs'))
       event.dataTransfer.effectAllowed = 'copy'
       setDragging(true)
     }

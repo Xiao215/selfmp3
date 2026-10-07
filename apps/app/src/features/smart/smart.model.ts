@@ -1,5 +1,5 @@
 import { ApiError } from '@selfmp3/client'
-import { formatLongDuration } from '@selfmp3/shared'
+import { plural, formatLongDuration } from '@selfmp3/shared'
 import type {
   AiCheck,
   AskAnswer,
@@ -212,7 +212,7 @@ export function describeNotes(result: DescribeResult, picked: number): string[] 
   const notes: string[] = []
   notes.push(
     result.fit === picked
-      ? `${picked} song${picked === 1 ? '' : 's'} fit`
+      ? `${plural(picked, 'song', 'songs')} fit`
       : `Picked ${picked} of the ${result.fit} that fit`,
   )
   if (result.loosened.length > 0) {

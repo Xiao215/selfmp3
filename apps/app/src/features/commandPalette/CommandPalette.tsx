@@ -4,8 +4,9 @@ import { Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } fro
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
-import { formatDuration, plural } from '@selfmp3/shared'
+import { artistOr, formatDuration, plural } from '@selfmp3/shared'
 import {
+  STALE,
   clientApi,
   queryKeys,
   radius,
@@ -134,7 +135,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     // The lyrics index is the server's; a library in the cloud has no words to search.
     enabled: lyricsQuery !== '' && !fromCloud,
     retry: false,
-    staleTime: 60_000,
+    staleTime: STALE.minute,
     placeholderData: previous => previous,
   })
   const lyricHits = lyricsQuery ? (lyrics.data?.hits ?? []) : []
@@ -249,7 +250,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         recent.kind === 'song'
           ? {
               key: recentKey(recent),
-              label: `${recent.song.title}, ${recent.song.artist || 'Unknown artist'}`,
+              label: `${recent.song.title}, ${artistOr(recent.song.artist)}`,
               run: () => runRecent(recent),
               node: (
                 <>
@@ -263,7 +264,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
                       {recent.song.title}
                     </Text>
                     <Text style={styles.sub} numberOfLines={1}>
-                      {recent.song.artist || 'Unknown artist'}
+                      {artistOr(recent.song.artist)}
                     </Text>
                   </View>
                   <Text style={styles.hint}>
@@ -334,7 +335,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
       title: 'Songs',
       rows: found.songs.map(song => ({
         key: `song-${song.id}`,
-        label: `${song.title}, ${song.artist || 'Unknown artist'}`,
+        label: `${song.title}, ${artistOr(song.artist)}`,
         run: () => playSong(song.id),
         node: (
           <>
@@ -344,7 +345,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
                 {song.title}
               </Text>
               <Text style={styles.sub} numberOfLines={1}>
-                {song.artist || 'Unknown artist'}
+                {artistOr(song.artist)}
               </Text>
             </View>
             <Text style={styles.hint}>{formatDuration(song.duration)}</Text>
@@ -559,7 +560,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           <StopButton onPress={stop} testID="ask-stop" />
         ) : trimmed && asking === null ? (
           <Text style={styles.count} accessibilityLiveRegion="polite">
-            {rows.length} {rows.length === 1 ? 'result' : 'results'}
+            {plural(rows.length, 'result', 'results')}
           </Text>
         ) : null}
       </View>

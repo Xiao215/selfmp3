@@ -6,6 +6,7 @@ import { oklchToHexAlpha, radius } from '@selfmp3/client'
 import { ChevronDown, ChevronRight } from '../../ui/components/Icons'
 import { Slider } from '../../ui/components/Slider'
 import { card, label as labelText, serif } from '../../ui/surfaces'
+import { clamp01 } from '@selfmp3/shared'
 
 /**
  * The pieces every Settings section is made of: one row anatomy — name, a
@@ -146,7 +147,7 @@ export function Meter({ fraction, label }: { fraction: number; label?: string })
       aria-valuemax={100}
       aria-valuenow={Math.round(fraction * 100)}
     >
-      <View style={[styles.meterFill, { width: `${Math.max(0, Math.min(1, fraction)) * 100}%` }]} />
+      <View style={[styles.meterFill, { width: `${clamp01(fraction) * 100}%` }]} />
     </View>
   )
 }

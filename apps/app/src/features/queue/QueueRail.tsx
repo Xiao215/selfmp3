@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { formatDuration, type Song } from '@selfmp3/shared'
+import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
 import { radius, space, type, withAlpha } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
@@ -571,7 +571,7 @@ function PlayingRow({
           {row.song.title}
         </Text>
         <Text style={styles.sub} numberOfLines={1}>
-          {row.song.artist || 'Unknown artist'} · {formatDuration(row.song.duration)}
+          {artistOr(row.song.artist)} · {formatDuration(row.song.duration)}
         </Text>
       </View>
     </Pressable>
@@ -691,7 +691,7 @@ const RailRow = memo(function RailRow({
             testID={`queue-row-${index}`}
             onPress={() => actions.play(index)}
             accessibilityRole="button"
-            accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
+            accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
             style={({ pressed }) => [styles.press, pressed && styles.pressed]}
             {...web}
           >
@@ -727,7 +727,7 @@ function RowFace({
           {song.title}
         </Text>
         <Text style={styles.sub} numberOfLines={1}>
-          {song.artist || 'Unknown artist'} · {formatDuration(song.duration)}
+          {artistOr(song.artist)} · {formatDuration(song.duration)}
         </Text>
       </View>
     </View>

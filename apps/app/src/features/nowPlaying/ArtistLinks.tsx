@@ -2,7 +2,7 @@ import { Fragment } from 'react'
 import type { ReactNode } from 'react'
 import { Text } from 'react-native'
 import { useRouter, type Href } from 'expo-router'
-import { splitArtists } from '@selfmp3/shared'
+import { splitArtists, UNKNOWN_ARTIST } from '@selfmp3/shared'
 import { artistLink } from '../tag/placeLinks'
 
 /**
@@ -27,7 +27,7 @@ export function ArtistLinks({
 }): ReactNode {
   const router = useRouter()
   const names = splitArtists(artist)
-  if (names.length === 0) return 'Unknown artist'
+  if (names.length === 0) return UNKNOWN_ARTIST
   return (
     <>
       {names.map((name, i) => (

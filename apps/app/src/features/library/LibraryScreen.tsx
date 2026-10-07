@@ -1,5 +1,4 @@
-import { router } from 'expo-router'
-import { setPaletteOpen } from '../../shell/palette'
+import { useOpenSearch } from '../../shell/palette'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
@@ -67,6 +66,7 @@ export function LibraryScreen(): ReactNode {
   const shuffleIconOnly = contentWidth !== null && contentWidth < SHUFFLE_LABEL_WIDTH
   const player = usePlayer()
   const { state: downloads, installed } = useDownloads()
+  const openSearch = useOpenSearch('songs')
 
   // Everything this screen knows is in the model, which draws nothing and is
   // tested without a simulator. What is left here is drawing.
@@ -393,11 +393,7 @@ export function LibraryScreen(): ReactNode {
             filter, not a search.
           */}
           <Pressable
-            onPress={() =>
-              wide
-                ? setPaletteOpen(true)
-                : router.navigate({ pathname: '/search', params: { scope: 'songs' } })
-            }
+            onPress={openSearch}
             accessibilityRole="search"
             accessibilityLabel="Search songs"
             testID="library-search"

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { LayoutChangeEvent } from 'react-native'
 import { usePathname, useRouter } from 'expo-router'
-import { clamp01 } from '@selfmp3/shared'
+import { artistOr, clamp01 } from '@selfmp3/shared'
 import { warmCoverPalette } from '../features/nowPlaying/useCoverPalette'
 import {
   loopRegionPercent,
@@ -61,6 +61,7 @@ import { useLayout } from './useLayout'
 import { setPracticeOpen, usePracticeOpen } from './practicePanel'
 import { floating } from '../ui/surfaces'
 import { PlayPauseIcon } from '../ui/components/PlayPauseIcon'
+import { goBack } from '../ui/useBackTo'
 
 /**
  * The transport across the foot of the desktop layout.
@@ -125,11 +126,7 @@ export function PlayerBar(): ReactNode {
 
   const pathname = usePathname()
   const onPage = pathname === '/now-playing'
-  const closePage = (): void =>
-    leaveStage(() => {
-      if (router.canGoBack()) router.back()
-      else router.replace('/')
-    })
+  const closePage = (): void => leaveStage(() => goBack(router, '/'))
   const coverRef = useRef<View>(null)
   const openPage = (): void => {
     // Where the cover is, for the stage's cover to grow from (`M3`, 2).
@@ -186,7 +183,7 @@ export function PlayerBar(): ReactNode {
                   {song.title}
                 </Text>
                 <Text style={styles.artist} numberOfLines={1}>
-                  {song.artist || 'Unknown artist'}
+                  {artistOr(song.artist)}
                 </Text>
               </View>
             </Pressable>
@@ -568,7 +565,7 @@ function VolumeSlider({
     // slider's own (see SeekBar).
     const moveTo = (x: number, y: number): void => {
       if (length <= 0) return
-      onChange(Math.max(0, Math.min(1, vertical ? 1 - y / length : x / length)))
+      onChange(clamp01(vertical ? 1 - y / length : x / length))
     }
     return PanResponder.create({
       onStartShouldSetPanResponder: () => true,

@@ -1,4 +1,7 @@
 import {
+  DAY_MS,
+  plural,
+  artistOr,
   WRAPPED_RANGE_DAYS,
   type DailyPlays,
   type Wrapped,
@@ -147,7 +150,7 @@ export function timesWord(count: number): string {
 /** "372 minutes" ("1 minute"). */
 function minutesPhrase(minutes: number): string {
   const whole = Math.round(minutes)
-  return `${whole.toLocaleString()} ${whole === 1 ? 'minute' : 'minutes'}`
+  return plural(whole, 'minute', 'minutes')
 }
 
 /** "3h 01": an artist's or a tag's time, as a chart column prints it. */
@@ -161,7 +164,7 @@ export function clockHour(hour: number): string {
   return `${String(hour).padStart(2, '0')}:00`
 }
 
-const days = (count: number): string => `${count.toLocaleString()} ${count === 1 ? 'day' : 'days'}`
+const days = (count: number): string => plural(count, 'day', 'days')
 
 /**
  * "14 times, 6 of them on one Saturday": how the number one was played, and
@@ -180,7 +183,6 @@ export function repeatDetail(wrapped: Pick<Wrapped, 'topSongs' | 'mostInOneDay'>
 
 // --- dates ---------------------------------------------------------------------
 
-const DAY_MS = 86_400_000
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /*
@@ -371,7 +373,7 @@ function numberOne(wrapped: Wrapped): NumberOne | null {
   return {
     songId: top.songId,
     title: top.title,
-    line: `${top.artist || 'Unknown artist'} · ${repeatDetail(wrapped) ?? ''}`,
+    line: `${artistOr(top.artist)} · ${repeatDetail(wrapped) ?? ''}`,
   }
 }
 
@@ -483,7 +485,7 @@ export function wallLook(input: LookInput): WallLook {
       ? []
       : Array.from({ length: WALL_TILES }, (_, i) => songs[i % songs.length] as (typeof songs)[0])
   const when = timeOfDay(wrapped.peakHour?.hour)
-  const across = `across ${wrapped.totals.songsPlayed.toLocaleString()} ${wrapped.totals.songsPlayed === 1 ? 'song' : 'songs'}`
+  const across = `across ${plural(wrapped.totals.songsPlayed, 'song', 'songs')}`
   const top = wrapped.topSongs[0]
   return {
     tiles,

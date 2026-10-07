@@ -1,4 +1,11 @@
-import { DAY_MS, fromSqliteTime, type Song, type Tag } from '@selfmp3/shared'
+import {
+  artistOr,
+  DAY_MS,
+  fromSqliteTime,
+  UNKNOWN_ARTIST,
+  type Song,
+  type Tag,
+} from '@selfmp3/shared'
 import { tally } from './text.js'
 
 /**
@@ -26,7 +33,7 @@ export function creditNames(artist: string): string[] {
 }
 
 export function mainArtist(artist: string): string {
-  return creditNames(artist)[0] ?? 'Unknown artist'
+  return creditNames(artist)[0] ?? UNKNOWN_ARTIST
 }
 
 /** With words: lyrics were found and nobody said it has none. */
@@ -133,7 +140,7 @@ export function songTable(
       return [
         `#${index + 1}`,
         song.title,
-        song.artist || 'Unknown artist',
+        artistOr(song.artist),
         song.album || '-',
         song.year ?? 'year ?',
         song.tagIds

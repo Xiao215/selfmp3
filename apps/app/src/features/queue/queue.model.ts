@@ -1,4 +1,5 @@
 import {
+  clamp,
   plural,
   formatLongDuration,
   playNext,
@@ -162,7 +163,7 @@ export function dragTarget(
   { first, last }: { first: number; last: number },
 ): number {
   const rows = rowHeight > 0 ? Math.round(dy / rowHeight) : 0
-  return Math.max(first, Math.min(last, from + rows))
+  return clamp(from + rows, first, last)
 }
 
 // --- Undo ---------------------------------------------------------------------

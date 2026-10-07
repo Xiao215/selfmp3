@@ -1,4 +1,4 @@
-import { fuzzyRank, type Library, type Artist } from '@selfmp3/shared'
+import { plural, fuzzyRank, type Library, type Artist } from '@selfmp3/shared'
 import { isUntagged } from '../tag/tag.model'
 import { recentItems, searchLibrary, type RecentItem } from '../search/search.model'
 
@@ -68,7 +68,7 @@ export function paletteCommands(
           },
         ]
       : []),
-    { id: 'shuffle-all', label: 'Shuffle everything', hint: `${songCount} songs` },
+    { id: 'shuffle-all', label: 'Shuffle everything', hint: plural(songCount, 'song', 'songs') },
     // Not offered on a bucket library: there is no folder to scan.
     ...(fromCloud ? [] : [{ id: 'rescan-library' as const, label: 'Rescan library folder' }]),
   ]

@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { useRouter } from 'expo-router'
-import { plural, formatDuration, type Song, type Tag } from '@selfmp3/shared'
+import { artistOr, plural, formatDuration, type Song, type Tag } from '@selfmp3/shared'
 import { fonts, isDownloaded, motion, radius, space, type, withAlpha } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
@@ -557,7 +557,7 @@ function PlayingCard({
           <Text style={styles.cardTitle} numberOfLines={1}>
             {song.title}
           </Text>
-          <PlayingLine artist={song.artist || 'Unknown artist'} />
+          <PlayingLine artist={artistOr(song.artist)} />
         </View>
       </Pressable>
       <Pressable

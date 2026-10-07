@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { clientApi, failureText, queryKeys, useCreatePlaylist, useLibrary } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { showToast } from '../../ui/toast'
-import { followRules } from '../library/saveTags'
+import { followRules } from './followRules'
 import { newPlaylist } from '../playlists/playlists.model'
 import {
   describeSource,

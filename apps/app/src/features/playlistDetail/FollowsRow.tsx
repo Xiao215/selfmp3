@@ -11,7 +11,7 @@ import { Plus } from '../../ui/components/Icons'
 import { ListenTags } from '../../ui/components/ListenTags'
 import { card } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
-import { followRules } from '../library/saveTags'
+import { followRules } from '../lists/followRules'
 import { followedTagIds, hasRulesBeyondTags } from './follows.model'
 
 /**

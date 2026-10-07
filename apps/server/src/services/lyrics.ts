@@ -8,6 +8,7 @@ import {
 import type { StorageDriver } from '../storage/index.js'
 import type { Logger } from '../logger.js'
 import { USER_AGENT } from '../config.js'
+import type { FetchLike } from './fetching.js'
 import type { YouTubeMusicLyrics } from './youtubeMusic.js'
 import type { NeteaseMusic } from './netease.js'
 
@@ -58,8 +59,6 @@ interface RemoteLyrics {
  * up again every time it plays.
  */
 type Instrumental = 'instrumental'
-
-type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
 
 interface LrclibRecord {
   syncedLyrics?: string | null

@@ -6,7 +6,8 @@ import { SongRepository } from '../repositories/songs.js'
 import { SyncRepository } from '../repositories/sync.js'
 import { LocalEdits, SyncClock } from './localEdits.js'
 import { ReleaseYearService, releaseYearOf } from './releaseYears.js'
-import { YouTubeMusicApi, type FetchLike } from './youtubeMusicApi.js'
+import type { FetchLike } from './fetching.js'
+import { YouTubeMusicApi } from './youtubeMusicApi.js'
 
 /** YouTube Music's `next` for a video, cut to what the pass reads. */
 function nextResponse(videoId: string, byline: string, type = 'MUSIC_VIDEO_TYPE_ATV'): unknown {

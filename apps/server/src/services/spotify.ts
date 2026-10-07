@@ -1,5 +1,6 @@
 import { cleanArtist, cleanTitle, type SpotifyLink } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
+import { BROWSER_USER_AGENT, type FetchLike } from './fetching.js'
 import { parseDurationValue, type ListedTrack } from './trackLists.js'
 
 /**
@@ -12,8 +13,6 @@ import { parseDurationValue, type ListedTrack } from './trackLists.js'
  */
 
 const SPOTIFY_TIMEOUT_MS = 15_000
-
-type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
 
 /** A Spotify page's songs, with its name. */
 export interface SpotifyList {
@@ -36,7 +35,7 @@ export class SpotifyLists {
     try {
       const response = await this.#fetch(`https://open.spotify.com/embed/${link.kind}/${link.id}`, {
         signal: AbortSignal.timeout(SPOTIFY_TIMEOUT_MS),
-        headers: { 'user-agent': 'Mozilla/5.0 (Macintosh) self.mp3', accept: 'text/html' },
+        headers: { 'user-agent': BROWSER_USER_AGENT, accept: 'text/html' },
       })
       if (!response.ok) throw new Error(`Spotify answered ${response.status}`)
       html = await response.text()

@@ -6,7 +6,8 @@ import { artistKey, splitArtists, type ArtistPictureShape, type Song } from '@se
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
-import { YouTubeMusicApi, type FetchLike } from './youtubeMusicApi.js'
+import type { FetchLike } from './fetching.js'
+import { YouTubeMusicApi } from './youtubeMusicApi.js'
 import { pictureAt, type YouTubeMusicArtists } from './youtubeMusicArtist.js'
 import { fits, isSameSong, searchSongs } from './youtubeMusicSongs.js'
 

@@ -1,14 +1,8 @@
 import type { YouTubeChannel } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { ProbedTrack } from './ytdlp.js'
-import {
-  findAll,
-  findKey,
-  largestThumbnail,
-  runs,
-  YouTubeMusicApi,
-  type FetchLike,
-} from './youtubeMusicApi.js'
+import { findAll, findKey, largestThumbnail, runs, YouTubeMusicApi } from './youtubeMusicApi.js'
+import type { FetchLike } from './fetching.js'
 import { songRow } from './youtubeMusicLists.js'
 
 /**

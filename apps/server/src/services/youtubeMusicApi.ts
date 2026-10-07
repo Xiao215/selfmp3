@@ -1,4 +1,5 @@
 import type { Logger } from '../logger.js'
+import type { FetchLike } from './fetching.js'
 
 /**
  * The private API the YouTube Music apps speak, shared by everything here that
@@ -29,8 +30,6 @@ export const SONG_SEARCH_FOR_MATCHING = 'EgWKAQIIAWoMEA4QChADEAQQCRAF'
 
 /** Songs only, as the YouTube Music web app sends it: the import review's search (youtubeMusicLists.ts). */
 export const SONG_SEARCH_AS_THE_WEB_APP = 'EgWKAQIIAWoKEAoQCRADEAQQBQ%3D%3D'
-
-export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
 
 export class YouTubeMusicApi {
   readonly #logger: Logger

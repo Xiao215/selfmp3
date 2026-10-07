@@ -12,8 +12,8 @@ import {
   runsOf,
   SONG_SEARCH_AS_THE_WEB_APP,
   YouTubeMusicApi,
-  type FetchLike,
 } from './youtubeMusicApi.js'
+import type { FetchLike } from './fetching.js'
 
 /**
  * Lists of songs from YouTube Music itself: a search, an album, a playlist.

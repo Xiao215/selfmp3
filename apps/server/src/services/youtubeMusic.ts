@@ -7,8 +7,8 @@ import {
   parseLength,
   runs,
   YouTubeMusicApi,
-  type FetchLike,
 } from './youtubeMusicApi.js'
+import type { FetchLike } from './fetching.js'
 import {
   askNext,
   AUDIO_TRACK,

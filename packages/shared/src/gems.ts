@@ -1,4 +1,5 @@
 import { gemsThresholdDays } from './schemas/gems.js'
+import { DAY_MS } from './math.js'
 import { fromSqliteTime } from './sync.js'
 
 /**
@@ -17,8 +18,6 @@ import { fromSqliteTime } from './sync.js'
 
 /** Below this a song was only ever passing through. */
 const MIN_PLAYS = 5
-
-const DAY_MS = 24 * 60 * 60 * 1000
 
 /** What the ranking reads of a song: a `Song` and a `CloudSong` both have it. */
 interface GemFields {
@@ -45,7 +44,10 @@ interface ForgottenGemsResult<S extends GemFields> {
 /** Days since the first song was added — how old the library is. */
 export function libraryAgeDays(songs: readonly GemFields[], now = Date.now()): number {
   if (songs.length === 0) return 0
-  const first = Math.min(...songs.map(song => fromSqliteTime(song.addedAt)))
+  // A loop, not `Math.min(...)`: spreading a whole library into one call's
+  // arguments is an engine limit away from a RangeError.
+  let first = Infinity
+  for (const song of songs) first = Math.min(first, fromSqliteTime(song.addedAt))
   return Math.max(0, (now - first) / DAY_MS)
 }
 

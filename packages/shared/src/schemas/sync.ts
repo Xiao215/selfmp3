@@ -3,6 +3,7 @@ import { CloudDeviceIdSchema, CloudSmartRulesSchema, HlcSchema, UidSchema } from
 import { HueSchema, NameSchema } from './common.js'
 import { PlaylistKindSchema } from './playlist.js'
 import { SongFieldsSchema } from './song.js'
+import { DAY_MS } from '../math.js'
 import { TagNameSchema } from './tag.js'
 
 /**
@@ -50,11 +51,7 @@ export const SongPlayedSchema = z.object({
   playId: EventIdSchema,
   /** When it was heard, which may be long before the change reached anyone. */
   playedAt: z.string().datetime({ offset: true }),
-  msPlayed: z
-    .number()
-    .int()
-    .nonnegative()
-    .max(24 * 60 * 60 * 1000),
+  msPlayed: z.number().int().nonnegative().max(DAY_MS),
   completed: z.boolean(),
 })
 

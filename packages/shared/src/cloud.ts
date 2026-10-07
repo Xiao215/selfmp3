@@ -264,15 +264,12 @@ export function toCloudRules(
   tagUid: (tagId: number) => string | null,
 ): CloudSmartRules {
   return {
-    match: rules.match,
+    ...rules,
     rules: rules.rules.map(rule =>
       rule.field === 'tag'
         ? { field: 'tag', op: rule.op, tagUid: tagUid(rule.tagId) ?? MISSING_TAG_UID }
         : rule,
     ),
-    orderBy: rules.orderBy,
-    order: rules.order,
-    limit: rules.limit,
   }
 }
 
@@ -288,14 +285,11 @@ export function fromCloudRules(
   tagId: (tagUid: string) => number | null,
 ): SmartRules {
   return {
-    match: rules.match,
+    ...rules,
     rules: rules.rules.map(rule =>
       rule.field === 'tag'
         ? { field: 'tag', op: rule.op, tagId: tagId(rule.tagUid) ?? UNKNOWN_TAG_ID }
         : rule,
     ),
-    orderBy: rules.orderBy,
-    order: rules.order,
-    limit: rules.limit,
   }
 }

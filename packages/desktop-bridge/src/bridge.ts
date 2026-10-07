@@ -24,6 +24,9 @@ import type {
  * subscribed to. Every listener registration answers with the function that
  * removes it, because a React effect that cannot unsubscribe leaks a listener
  * per mount.
+ *
+ * A member here is a promise that something answers it: nothing goes here
+ * until its handler exists.
  */
 export interface DesktopBridge {
   /** Constant for the life of the process, so the page may read it once. */
@@ -138,22 +141,4 @@ export interface DesktopBridge {
    * the Dock menu with what is on.
    */
   setPlaybackState(state: DockPlaybackState): Promise<void>
-}
-
-/*
- * A member of this interface is a promise that something answers it: nothing
- * goes here until its handler exists.
- */
-
-export type {
-  Command,
-  DesktopInfo,
-  DockPlaybackState,
-  DownloadRequest,
-  DownloadResult,
-  FileKind,
-  FileStat,
-  TransferProgress,
-  UpdateStatus,
-  Usage,
 }

@@ -77,9 +77,9 @@ export function pickCoverTone(pixels: ArrayLike<number>): CoverTone | null {
   const cosSum = new Float64Array(HUE_BINS)
   let counted = 0
 
-  for (let i = 0; i + 3 < pixels.length; i += 4) {
-    if ((pixels[i + 3] ?? 0) < 128) continue
-    const { l, c, h } = rgbToOklch(pixels[i] ?? 0, pixels[i + 1] ?? 0, pixels[i + 2] ?? 0)
+  // Converted once, for this pass and the palette's.
+  const colours = opaqueColours(pixels)
+  for (const { l, c, h } of colours) {
     // Near-black and near-white are not the cover — a skyline, a border, the
     // black bars either side of square art in a video's frame — so they count
     // for nothing, not even towards how grey the cover is: counted before,
@@ -95,7 +95,7 @@ export function pickCoverTone(pixels: ArrayLike<number>): CoverTone | null {
     cosSum[bin] = (cosSum[bin] ?? 0) + Math.cos(radians) * c
   }
 
-  const palette = pickCoverPalette(pixels)
+  const palette = paletteOf(colours)
   if (palette.length === 0) return null
   const grey: CoverTone = { hue: 0, chroma: 0, palette }
   if (counted === 0) return grey
@@ -143,13 +143,24 @@ const PALETTE_MIN_SHARE = 0.02
  * start from pixels spread evenly through the cover sorted by lightness.
  */
 export function pickCoverPalette(pixels: ArrayLike<number>): CoverSwatch[] {
-  const points: [number, number, number][] = []
+  return paletteOf(opaqueColours(pixels))
+}
+
+/** Each pixel a cover shows — more than half opaque — in OKLCH. */
+function opaqueColours(pixels: ArrayLike<number>): Oklch[] {
+  const colours: Oklch[] = []
   for (let i = 0; i + 3 < pixels.length; i += 4) {
     if ((pixels[i + 3] ?? 0) < 128) continue
-    const { l, c, h } = rgbToOklch(pixels[i] ?? 0, pixels[i + 1] ?? 0, pixels[i + 2] ?? 0)
-    const radians = (h * Math.PI) / 180
-    points.push([l, c * Math.cos(radians), c * Math.sin(radians)])
+    colours.push(rgbToOklch(pixels[i] ?? 0, pixels[i + 1] ?? 0, pixels[i + 2] ?? 0))
   }
+  return colours
+}
+
+function paletteOf(colours: readonly Oklch[]): CoverSwatch[] {
+  const points: [number, number, number][] = colours.map(({ l, c, h }) => {
+    const radians = (h * Math.PI) / 180
+    return [l, c * Math.cos(radians), c * Math.sin(radians)]
+  })
   if (points.length === 0) return []
 
   const k = Math.min(PALETTE_SIZE, points.length)

@@ -45,22 +45,29 @@ export function sortSongs(
   return sorted
 }
 
+/**
+ * `localeCompare`'s order, from one collator made once: called inside a sort
+ * it builds its comparison afresh on every call, which on a phone's engine is
+ * most of what sorting a library costs.
+ */
+const text = new Intl.Collator().compare
+
 /** Songs by one field, before the direction is applied. */
 function compare(a: Song, b: Song, field: SongSortField): number {
   switch (field) {
     case 'title':
-      return a.title.localeCompare(b.title)
+      return text(a.title, b.title)
     case 'artist':
-      return a.artist.localeCompare(b.artist) || a.title.localeCompare(b.title)
+      return text(a.artist, b.artist) || text(a.title, b.title)
     case 'album':
-      return a.album.localeCompare(b.album) || (a.trackNo ?? 0) - (b.trackNo ?? 0)
+      return text(a.album, b.album) || (a.trackNo ?? 0) - (b.trackNo ?? 0)
     case 'duration':
       return a.duration - b.duration
     case 'playCount':
       return a.playCount - b.playCount
     case 'lastPlayedAt':
       // Both are set: the other case never reaches here.
-      return (a.lastPlayedAt ?? '').localeCompare(b.lastPlayedAt ?? '')
+      return text(a.lastPlayedAt ?? '', b.lastPlayedAt ?? '')
     case 'random':
       /*
        * By id, not at random.
@@ -74,6 +81,6 @@ function compare(a: Song, b: Song, field: SongSortField): number {
       return 0
     case 'addedAt':
     default:
-      return a.addedAt.localeCompare(b.addedAt)
+      return text(a.addedAt, b.addedAt)
   }
 }

@@ -2,9 +2,9 @@ import { join } from 'node:path'
 
 import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
-import { DEEP_LINK_SCHEME } from '@selfmp3/desktop-bridge'
+import { DEEP_LINK_SCHEME, EVENTS } from '@selfmp3/desktop-bridge'
 
-import { DeepLinks, deepLinkFromArgv } from './deepLinks.js'
+import { DeepLinks, deepLinkFromArgv, followPage } from './deepLinks.js'
 import { desktopInfo, registerIpc } from './ipc.js'
 import { buildMenu } from './menu.js'
 import { startNowPlaying } from './nowPlaying.js'
@@ -40,13 +40,16 @@ let quitting = false
 const isQuitting = (): boolean => quitting
 
 /**
- * The one window, and the handler that forgets it.
+ * The one window, the handler that forgets it, and the deep links that follow
+ * its page.
  *
- * Both have to happen together: `mainWindow` still pointing at a destroyed
- * window is how `showWindow` ends up calling `show()` on nothing.
+ * All three happen together: `mainWindow` still pointing at a destroyed
+ * window is how `showWindow` ends up calling `show()` on nothing, and a window
+ * made again has to take the links over from the one that went.
  */
 function openWindow(): void {
   mainWindow = createWindow({ preload: preloadPath(), devUrl, quitting: isQuitting })
+  followPage(deepLinks, mainWindow.webContents, EVENTS.deepLink)
   mainWindow.on('closed', () => {
     mainWindow = null
   })
@@ -108,7 +111,7 @@ if (!app.requestSingleInstanceLock()) {
       const info = desktopInfo({ development: devUrl !== null })
       openWindow()
 
-      registerIpc({ info, deepLinks, window: currentWindow })
+      registerIpc({ info, window: currentWindow })
       buildMenu(currentWindow)
       startNowPlaying(currentWindow)
 

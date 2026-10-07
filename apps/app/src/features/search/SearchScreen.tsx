@@ -52,6 +52,9 @@ import {
 } from './search.model'
 import { useGoBack } from '../../ui/useBackTo'
 
+/** What a song played from Search names Up next: the rows and the lyric hits alike. */
+const FROM_SEARCH = { kind: 'songs', origin: 'search', name: 'Search' } as const
+
 /**
  * Search (docs/ui-mock `P18`, `P19`): one page, whichever door it was opened
  * from. `?scope=` is the scope it starts on and `?q=` what it starts with; the
@@ -505,7 +508,7 @@ function useSongRows(
   const onPress = useCallback((_event: GestureResponderEvent, song: Song) => {
     const { ids: now, playFrom } = latest.current
     const index = now.indexOf(song.id)
-    if (index >= 0) playFrom(now, index)
+    if (index >= 0) playFrom(now, index, { source: FROM_SEARCH })
   }, [])
   const onMore = useCallback((node: View | null, song: Song) => {
     anchor.current = node
@@ -568,11 +571,7 @@ function LyricResults({
           <Pressable
             key={`${hit.songId}-${index}`}
             testID={`search-lyric-${index}`}
-            onPress={() =>
-              player.playFrom([hit.songId], 0, {
-                source: { kind: 'songs', origin: 'search', name: 'Search' },
-              })
-            }
+            onPress={() => player.playFrom([hit.songId], 0, { source: FROM_SEARCH })}
             accessibilityRole="button"
             accessibilityLabel={`${hit.title}: ${hit.line}`}
             style={({ pressed }) => [styles.lyric, pressed && styles.pressed]}

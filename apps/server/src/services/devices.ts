@@ -9,8 +9,9 @@ import type { EventHub, EventSink } from './events.js'
  * Heartbeats go straight to the table and out to every stream. Beyond that
  * the service runs two small timers: a presence sweep, so a device that
  * simply closed its tab flips to offline on everyone else's screen without
- * anyone having to send anything; and a library-version watch, so a change
- * made from the server shows up on the phone without a refetch on focus.
+ * anyone having to send anything; and, while any stream is open, a
+ * library-version watch, so a change made from the server shows up on the
+ * phone without a refetch on focus.
  */
 
 /** How often to check whether anyone dropped off the presence window. */
@@ -39,6 +40,7 @@ export class DeviceService {
   #forgetting: ReturnType<typeof setInterval> | null = null
   #lastOnline = ''
   #lastVersion = -1
+  #started = false
 
   constructor(options: {
     devices: DeviceRepository
@@ -60,20 +62,18 @@ export class DeviceService {
     this.#forgetting = setInterval(() => this.forgetStale(), FORGET_EVERY_MS)
     this.#forgetting.unref()
 
-    this.#lastVersion = this.#libraryVersion()
     this.#sweep = setInterval(() => this.#sweepPresence(), SWEEP_MS)
     this.#sweep.unref()
-    this.#versionWatch = setInterval(() => this.#watchVersion(), VERSION_MS)
-    this.#versionWatch.unref()
+    this.#started = true
   }
 
   stop(): void {
+    this.#started = false
     if (this.#sweep) clearInterval(this.#sweep)
-    if (this.#versionWatch) clearInterval(this.#versionWatch)
     if (this.#forgetting) clearInterval(this.#forgetting)
     this.#sweep = null
-    this.#versionWatch = null
     this.#forgetting = null
+    this.#stopVersionWatch()
     this.#hub.stop()
   }
 
@@ -119,12 +119,31 @@ export class DeviceService {
     return removed
   }
 
-  /** A new stream: subscribe it and replay the current state so it starts correct. */
+  /**
+   * A new stream: subscribe it and replay the current state so it starts
+   * correct. The version watch runs only while some stream is open — with
+   * none, there is nobody to tell, and the next to open is sent the version
+   * here.
+   */
   connect(sink: EventSink, deviceId: string | null): () => void {
     const unsubscribe = this.#hub.subscribe(sink, deviceId)
     this.#hub.send(sink, { type: 'devices', ...this.list() })
-    this.#hub.send(sink, { type: 'library', version: this.#libraryVersion() })
-    return unsubscribe
+    const version = this.#libraryVersion()
+    this.#hub.send(sink, { type: 'library', version })
+    if (this.#started && !this.#versionWatch) {
+      this.#lastVersion = version
+      this.#versionWatch = setInterval(() => this.#watchVersion(), VERSION_MS)
+      this.#versionWatch.unref()
+    }
+    return () => {
+      unsubscribe()
+      if (this.#hub.size === 0) this.#stopVersionWatch()
+    }
+  }
+
+  #stopVersionWatch(): void {
+    if (this.#versionWatch) clearInterval(this.#versionWatch)
+    this.#versionWatch = null
   }
 
   #sweepPresence(): void {

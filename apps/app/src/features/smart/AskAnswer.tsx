@@ -18,6 +18,7 @@ import { ChangeField, TrailStep } from './ChangeIt'
 import { rangeWords } from './smart.model'
 import { GetMusicAnswer } from './GetMusicAnswer'
 import { LibraryAnswer } from './LibraryAnswer'
+import { PlaybackAnswer } from './PlaybackAnswer'
 import { PlaylistSongsAnswer } from './PlaylistSongsAnswer'
 import { PlaylistsAnswer } from './PlaylistsAnswer'
 import { RememberAnswer } from './RememberAnswer'
@@ -51,7 +52,8 @@ function askedFirst(key: readonly unknown[]): unknown {
 /**
  * The answer to an Ask in the Search box (S1, docs/features/ai.md), drawn in
  * place of the results. One request, one answer you act on: every answer is a
- * proposal with its own button, and nothing changes until it is pressed.
+ * proposal with its own button, and nothing changes until it is pressed —
+ * except controlling what plays ("skip this song"), which is done at once.
  *
  * Under it, a follow-up ("only the albums", "skip the Inazuma ones"): asked
  * again with everything said before it, the new answer in place of the old,
@@ -262,6 +264,8 @@ function Drawn({
       )
     case 'remember':
       return <RememberAnswer note={answer.note} onDone={onDone} />
+    case 'playback':
+      return <PlaybackAnswer answer={answer} />
     case 'getMusic':
       return <GetMusicAnswer answer={answer} onDone={onDone} />
     case 'playlists':

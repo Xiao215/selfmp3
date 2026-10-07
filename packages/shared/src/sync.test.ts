@@ -45,7 +45,6 @@ function song(id: string, overrides: Partial<CloudSong> = {}): CloudSong {
     instrumental: false,
     loved: false,
     playCount: 0,
-    skipCount: 0,
     lastPlayedAt: null,
     addedAt: '2026-09-01 10:00:00',
     sourceUrl: null,
@@ -322,7 +321,7 @@ describe('removing a song', () => {
   })
 })
 
-describe('plays and skips', () => {
+describe('plays', () => {
   it('add up, and the same play twice counts once', () => {
     const played: Change = {
       type: 'songPlayed',
@@ -339,18 +338,9 @@ describe('plays and skips', () => {
       played,
       { ...played, hlc: at(9, 'web-bbbb') },
       { ...played, playId: 'play-0002', playedAt: '2026-09-09T07:00:00.000Z' },
-      {
-        type: 'songSkipped',
-        hlc: at(2),
-        uid: SONG_A,
-        skipId: 'skip-0001',
-        skippedAt: '2026-09-09T08:00:00.000Z',
-        atSeconds: 12,
-      },
     ])
     expect(library.songs.get(SONG_A)).toMatchObject({
       playCount: 2,
-      skipCount: 1,
       // Only moves forward: the play from earlier that morning arrived last.
       lastPlayedAt: '2026-09-09 08:30:00',
     })

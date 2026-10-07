@@ -1,12 +1,18 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Library, Playlist, PlaylistSongs, Song } from '@selfmp3/shared'
 import type { Api } from '../api/api.js'
 import { configureClient } from '../runtime.js'
-import { queryKeys, useBulkDeleteSongs, useCreateTag, useSetSongTags } from './queries.js'
+import {
+  queryKeys,
+  useBulkDeleteSongs,
+  useCreateTag,
+  useLibrary,
+  useSetSongTags,
+} from './queries.js'
 
 /*
  * What an edit asks for again, checked at the cache: a playlist's member list
@@ -57,8 +63,13 @@ const live = playlist(20, {
 })
 const manual = playlist(21)
 
+/** What the stub server answers `GET /api/library` with, and every offline copy saved. */
+let serverLibrary: Library
+const savedCopies: Library[] = []
+
 configureClient({
   api: {
+    library: () => Promise.resolve(serverLibrary),
     setSongTags: (id: number, tagIds: number[]) => Promise.resolve(song(id, { tagIds })),
     bulkDeleteSongs: () => Promise.resolve({ removed: 1, failed: [] }),
     createTag: ({ name }: { name: string }) =>
@@ -66,6 +77,13 @@ configureClient({
     onCloudLibraryChanged: () => () => undefined,
     answersFromCloud: () => false,
   } as unknown as Api,
+  librarySnapshot: {
+    read: () => Promise.resolve(null),
+    write: library => {
+      savedCopies.push(library)
+      return Promise.resolve()
+    },
+  },
 })
 
 const roots: Root[] = []
@@ -154,5 +172,40 @@ describe('useCreateTag', () => {
 
     expect(invalidated(client, queryKeys.playlistSongs(live.id))).toBe(false)
     expect(invalidated(client, queryKeys.library)).toBe(true)
+  })
+})
+
+describe('useLibrary', () => {
+  it('saves the offline copy when the version moves, not on every answer', async () => {
+    savedCopies.length = 0
+    serverLibrary = library([manual])
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    mount(client, useLibrary)
+    await vi.waitFor(() => expect(savedCopies).toHaveLength(1))
+
+    // Asked again with nothing edited: a play may have changed the counts, but
+    // that waits for the interval rather than rewriting the whole copy now.
+    serverLibrary = { ...library([manual]), generatedAt: '2026-09-14T10:00:30.000Z' }
+    await act(() => client.refetchQueries({ queryKey: queryKeys.library }))
+    expect(savedCopies).toHaveLength(1)
+
+    serverLibrary = { ...library([manual]), version: 4 }
+    await act(() => client.refetchQueries({ queryKey: queryKeys.library }))
+    expect(savedCopies.map(copy => copy.version)).toEqual([3, 4])
+  })
+
+  it('saves the first answer after the library held is let go, whatever its version', async () => {
+    savedCopies.length = 0
+    serverLibrary = library([manual])
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    mount(client, useLibrary)
+    await vi.waitFor(() => expect(savedCopies).toHaveLength(1))
+
+    // Another server, say, whose library happens to be at the same version.
+    act(() => client.clear())
+    serverLibrary = { ...library([live]), version: 3 }
+    mount(client, useLibrary)
+    await vi.waitFor(() => expect(savedCopies).toHaveLength(2))
+    expect(savedCopies.map(copy => copy.playlists[0]?.id)).toEqual([manual.id, live.id])
   })
 })

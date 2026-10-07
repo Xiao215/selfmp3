@@ -17,7 +17,6 @@ describe('smart features turned off in Settings', () => {
   const variables = [
     'SELFMP3_DATA_DIR',
     'SELFMP3_LIBRARY_DIR',
-    'SELFMP3_STORAGE_DRIVER',
     'SELFMP3_LOG_LEVEL',
     'SELFMP3_CLOUD_DIR',
     'SELFMP3_AI_BASE_URL',
@@ -39,6 +38,7 @@ describe('smart features turned off in Settings', () => {
         action: 'tidy',
         filters: null,
         songs: null,
+        playback: null,
         find: null,
         stats: null,
         playlists: null,
@@ -59,7 +59,6 @@ describe('smart features turned off in Settings', () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-ai-'))
     process.env['SELFMP3_DATA_DIR'] = path.join(root, 'data')
     process.env['SELFMP3_LIBRARY_DIR'] = path.join(root, 'library')
-    process.env['SELFMP3_STORAGE_DRIVER'] = 'local'
     process.env['SELFMP3_LOG_LEVEL'] = 'silent'
     process.env['SELFMP3_CLOUD_DIR'] = 'bucket'
     process.env['SELFMP3_AI_BASE_URL'] =

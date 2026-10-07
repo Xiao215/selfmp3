@@ -345,7 +345,6 @@ describe('snapshot schema', () => {
     instrumental: false,
     loved: true,
     playCount: 3,
-    skipCount: 0,
     lastPlayedAt: null,
     addedAt: '2026-09-01 10:00:00',
     sourceUrl: null,

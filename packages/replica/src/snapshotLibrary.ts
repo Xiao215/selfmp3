@@ -127,7 +127,6 @@ export function snapshotToLibrary(
       lyricsKind: song.lyrics?.kind ?? 'none',
       instrumental: song.instrumental,
       playCount: song.playCount,
-      skipCount: song.skipCount,
       loved: song.loved,
       sourceUrl: song.sourceUrl,
       lastPlayedAt: song.lastPlayedAt,

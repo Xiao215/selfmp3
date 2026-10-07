@@ -287,7 +287,6 @@ export class CloudAdopt {
       instrumental: song.instrumental,
       loved: song.loved,
       playCount: song.playCount,
-      skipCount: song.skipCount,
       lastPlayedAt: song.lastPlayedAt,
       addedAt: song.addedAt,
       sourceUrl: song.sourceUrl,

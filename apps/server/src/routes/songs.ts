@@ -10,7 +10,6 @@ import {
   SetSongTagsSchema,
   SimilarQuerySchema,
   similarSongs,
-  SkipEventSchema,
   SongPatchSchema,
   type Affected,
   type BulkDeleteResult,
@@ -178,28 +177,6 @@ export function songRoutes(container: Container): Router {
         return inserted
       })
       return { ok: true, duplicate: !recorded }
-    }),
-  )
-
-  /**
-   * A skip. Sent twice, counted once — the same bargain a play gets.
-   *
-   * The outbox keeps a skip whose response was lost and sends it again, so
-   * without the id a flaky connection quietly inflates the count that feeds
-   * forgotten gems, Wrapped and any smart rule built on it. `counted_skips` is
-   * the same table the cloud path dedupes against, so the two agree.
-   */
-  router.post(
-    '/songs/:id/skipped',
-    route({ params: ParamsWithId, body: SkipEventSchema }, ({ params, body }): PlayRecorded => {
-      songOrThrow(params.id)
-      const counted = transact(container.db, () => {
-        if (body.clientId !== undefined && !container.syncRepo.countSkip(body.clientId))
-          return false
-        container.songs.recordSkip(params.id)
-        return true
-      })
-      return { ok: true, duplicate: !counted }
     }),
   )
 

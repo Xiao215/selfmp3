@@ -151,6 +151,10 @@ configureClient({
       writeCachedMotion(songId, motion)
     },
   },
+  later: (ms, run) => {
+    const timer = setTimeout(run, ms)
+    return () => clearTimeout(timer)
+  },
 })
 
 /**

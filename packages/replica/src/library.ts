@@ -143,7 +143,7 @@ interface Replica {
   library: SyncLibrary
   view: CloudLibrary
   /**
-   * `library` has changes `view` does not show yet: plays and skips, recorded
+   * `library` has changes `view` does not show yet: plays, recorded
    * without rebuilding the view (`recordChanges`' `deferView`). The next read
    * rebuilds it, once for however many there were.
    */
@@ -167,7 +167,7 @@ interface Written {
 
 interface RecordOptions {
   /**
-   * Leave the view as it is until something reads it. For plays and skips:
+   * Leave the view as it is until something reads it. For plays:
    * the outbox sends a phone's waiting plays one at a time, and rebuilding the
    * whole library for each — replaying it, and writing it to the device — was
    * the most expensive thing a play did. The edit may read only ids from the
@@ -716,7 +716,7 @@ export function createCloudLibrary(
   ): Promise<T> {
     const r = await open(session)
     return exclusive(async () => {
-      // A deferred edit reads only ids, which plays and skips never change.
+      // A deferred edit reads only ids, which plays never change.
       if (!options.deferView && r.viewStale) await show(r)
       const { changes, answer } = build({ view: r.view, stamp: () => r.clock.tick() })
       if (changes.length > 0) {

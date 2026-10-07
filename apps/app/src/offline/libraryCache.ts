@@ -6,7 +6,8 @@ import { LibrarySchema, type Library } from '@selfmp3/shared'
  *
  * `GET /api/library` is the whole library in one response, so caching it is
  * one file and the app opens with a full, browsable library on a plane. It is
- * written after every successful fetch and read once at launch.
+ * written when an answer's version moves, otherwise at most every few minutes
+ * (`librarySnapshotWrites.ts` in packages/client), and read once at launch.
  *
  * Parsed back through the same zod schema on read: a cache written by an older
  * build of the app is exactly the kind of thing that would otherwise crash on

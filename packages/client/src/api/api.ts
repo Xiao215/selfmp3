@@ -298,9 +298,6 @@ export function createApi({ context, fetch }: ApiOptions) {
     recordPlay: (id: number, event: PlayEvent) =>
       request('POST', `/api/songs/${id}/played`, PlayRecordedSchema, event),
 
-    recordSkip: (id: number, atSeconds: number, clientId?: string) =>
-      request('POST', `/api/songs/${id}/skipped`, OkSchema, { atSeconds, clientId }),
-
     lyrics: (id: number) => request('GET', `/api/songs/${id}/lyrics`, LyricsResponseSchema),
 
     /** How loud the song is and where its hits are, over time: a 404 coded `not-analysed` until analysis has run. */

@@ -17,7 +17,7 @@ import { TagNameSchema } from './tag.js'
  * Names are past tense: a change is something that happened, not a request.
  */
 
-/** Plays and skips carry an id of their own, so the same one twice counts once. */
+/** Plays carry an id of their own, so the same one twice counts once. */
 const EventIdSchema = z.string().min(8).max(64)
 
 const at = { hlc: HlcSchema, uid: UidSchema }
@@ -53,14 +53,6 @@ export const SongPlayedSchema = z.object({
   playedAt: z.string().datetime({ offset: true }),
   msPlayed: z.number().int().nonnegative().max(DAY_MS),
   completed: z.boolean(),
-})
-
-export const SongSkippedSchema = z.object({
-  type: z.literal('songSkipped'),
-  ...at,
-  skipId: EventIdSchema,
-  skippedAt: z.string().datetime({ offset: true }),
-  atSeconds: z.number().nonnegative(),
 })
 
 export const TagFieldsSchema = z.object({
@@ -153,7 +145,6 @@ export const ChangeSchema = z.discriminatedUnion('type', [
   SongTaggedSchema,
   SongRemovedSchema,
   SongPlayedSchema,
-  SongSkippedSchema,
   TagCreatedSchema,
   TagEditedSchema,
   TagRemovedSchema,

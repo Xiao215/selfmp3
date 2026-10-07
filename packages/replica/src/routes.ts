@@ -16,7 +16,6 @@ import {
   SetSongTagsSchema,
   SettingsSchema,
   SimilarQuerySchema,
-  SkipEventSchema,
   SongPatchSchema,
   UpdatePlaylistSchema,
   extractUrls,
@@ -261,21 +260,6 @@ export function createCloudRoutes(
             answer: (): PlayRecorded => ({ ok: true, duplicate: false }),
           }),
           // The outbox sends a phone's waiting plays one after another.
-          { deferView: true },
-        )
-      },
-    ],
-    [
-      'POST',
-      '/api/songs/:id/skipped',
-      ({ session, params, body }) => {
-        const { atSeconds, clientId } = parseInput(SkipEventSchema, body)
-        return recordChanges(
-          session,
-          ctx => ({
-            changes: edits.skipSong(ctx, id(params), atSeconds, clientId),
-            answer: () => ({ ok: true }),
-          }),
           { deferView: true },
         )
       },
@@ -594,7 +578,6 @@ export function createCloudRoutes(
       version: 'web',
       uptimeSeconds: 0,
       libraryPath: 'the cloud',
-      storageDriver: 'cloud',
       songCount: 0,
     }
   }

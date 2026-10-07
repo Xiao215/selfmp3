@@ -87,7 +87,6 @@ export interface Container {
   readonly imports: ImportRepository
   readonly audioFeatures: AudioFeaturesRepository
   readonly cloudRepo: CloudRepository
-  readonly syncRepo: SyncRepository
 
   readonly metadata: MetadataService
   readonly lyrics: LyricsService
@@ -473,7 +472,6 @@ export function createContainer(configured: Config): Container {
     imports,
     audioFeatures,
     cloudRepo,
-    syncRepo,
     metadata,
     lyrics,
     covers,

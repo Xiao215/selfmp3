@@ -220,13 +220,6 @@ describe('the bucket', () => {
     expect(p.store.seen.get(SESSION_KEY)).toEqual(next)
   })
 
-  it('says when the doorman is too old to ask Backblaze', async () => {
-    const cloud = createCloudSession(platform(() => reply(404, { error: 'not found' })))
-    await expect(
-      cloud.connectBackblaze(session, { keyId: '004abc', applicationKey: 'K004' }),
-    ).rejects.toMatchObject({ status: 404, code: 'no-route' })
-  })
-
   it('forgets the bucket at the doorman, and the session follows', async () => {
     const p = platform(() => reply(200, ME))
     const cloud = createCloudSession(p)

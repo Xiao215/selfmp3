@@ -181,13 +181,6 @@ export class CloudIngest {
         return counted
       }
 
-      case 'songSkipped': {
-        const id = this.#sync.songId(change.uid)
-        if (id === null || !this.#sync.countSkip(change.skipId)) return false
-        this.#songs.recordSkip(id)
-        return true
-      }
-
       case 'tagCreated': {
         if (this.#sync.tag(change.uid)) return false
         // Made on two devices under one name before either heard of the

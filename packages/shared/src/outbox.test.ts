@@ -97,15 +97,9 @@ describe('trimOutbox', () => {
 
 describe('parseOutbox', () => {
   it('keeps well-formed events and drops the rest', () => {
-    const skip: OutboxEvent = {
-      kind: 'skip',
-      id: 's',
-      songId: 2,
-      atSeconds: 4,
-      at: '2026-09-01T00:00:00Z',
-    }
-    const parsed = parseOutbox([play('a'), skip, { kind: 'play', id: 'x' }, null, 'nope'])
-    expect(parsed.map(event => event.id)).toEqual(['a', 's'])
+    const otherKind = { kind: 'other', id: 's', songId: 2 }
+    const parsed = parseOutbox([play('a'), otherKind, { kind: 'play', id: 'x' }, null, 'nope'])
+    expect(parsed.map(event => event.id)).toEqual(['a'])
   })
 
   it('reads a missing or corrupt store as empty', () => {

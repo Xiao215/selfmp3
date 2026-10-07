@@ -312,27 +312,3 @@ Make sure you opened the app from the home screen icon rather than from a Safari
 Your phone is probably relaying through a Tailscale server rather than connecting directly.
 `tailscale netcheck` on the server will tell you. It usually resolves itself; enabling UPnP on
 your router helps.
-
----
-
-## Later: moving your music to cloud storage
-
-If you decide you want your library reachable even with the server switched off entirely, the
-storage layer already supports S3-compatible object storage (Cloudflare R2, Backblaze B2):
-
-```bash
-npm install @aws-sdk/client-s3
-```
-
-```bash
-SELFMP3_STORAGE_DRIVER=s3 \
-SELFMP3_S3_BUCKET=my-music \
-SELFMP3_S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com \
-SELFMP3_S3_ACCESS_KEY_ID=... \
-SELFMP3_S3_SECRET_ACCESS_KEY=... \
-npm start
-```
-
-You would also need the API itself running somewhere always-on (a small VPS or Fly.io
-machine) for this to buy you anything — which is the real cost, not the storage. R2 charges
-no egress fees and roughly $0.015/GB-month, so 100 GB of music is about $1.50/mo.

@@ -290,14 +290,6 @@ describe('CloudIngest', () => {
         msPlayed: 90_000,
         completed: true,
       },
-      {
-        type: 'songSkipped',
-        hlc: at(29),
-        uid: C,
-        skipId: 'skip-00000001',
-        skippedAt: '2026-09-01T09:05:00.000Z',
-        atSeconds: 3,
-      },
       // For something that is not here, nothing happens.
       { type: 'songEdited', hlc: at(30), uid: '9'.repeat(32), fields: { title: 'Ghost' } },
     ]
@@ -307,12 +299,11 @@ describe('CloudIngest', () => {
     const phone = replayed(before, changes)
 
     expect(comparable(after)).toEqual(comparable(phone))
-    expect(result.applied).toBe(19)
+    expect(result.applied).toBe(18)
     // And it is the library it should be, not just the same wrong one twice.
     const song = (uid: string) => after.songs.find(s => s.uid === uid)
     expect(song(A)).toMatchObject({ title: 'Alpha (Server)', artist: 'Phone', tagUids: [] })
     expect(song(B)).toMatchObject({ loved: true, year: 1999, playCount: 1, tagUids: [CHILL] })
-    expect(song(C)?.skipCount).toBe(1)
     expect(after.aliases).toEqual({ [twin]: CHILL })
     expect(after.tags.find(tag => tag.uid === night)).toMatchObject({ name: 'night', hue: 300 })
     expect(after.tags.some(tag => tag.uid === RAIN)).toBe(false)
@@ -418,14 +409,7 @@ describe('CloudIngest', () => {
         addSong('50% Off', { artist: 'Sale_Band' }),
         addSong('Old', { artist: 'Aurora' }),
       ]
-      const [one, two, three, four, five, six] = ids as [
-        number,
-        number,
-        number,
-        number,
-        number,
-        number,
-      ]
+      const [one, two, three, four, five] = ids as [number, number, number, number, number, number]
       songs.patch(one, { loved: true })
       songs.patch(four, { loved: true })
       for (const [id, plays] of [
@@ -436,7 +420,6 @@ describe('CloudIngest', () => {
       ] as const) {
         for (let i = 0; i < plays; i++) songs.recordPlay(id, `2026-08-2${i} 10:00:00`)
       }
-      songs.recordSkip(six)
       const chill = tags.create('chill').id
       tags.setSongTags(one, [chill])
       tags.setSongTags(three, [chill])
@@ -464,7 +447,6 @@ describe('CloudIngest', () => {
         { ...base, rules: [{ field: 'tag', op: 'has', tagUid: MISSING_TAG_UID }] },
         { ...base, rules: [{ field: 'year', op: 'lt', value: 2010 }] },
         { ...base, rules: [{ field: 'playCount', op: 'gte', value: 5 }] },
-        { ...base, rules: [{ field: 'skipCount', op: 'eq', value: 1 }] },
         { ...base, rules: [{ field: 'duration', op: 'gt', value: 103 }] },
         { ...base, rules: [{ field: 'loved', op: 'is', value: true }] },
         { ...base, rules: [{ field: 'hasLyrics', op: 'is', value: false }] },

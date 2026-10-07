@@ -1,7 +1,7 @@
 import { DAY_MS } from './math.js'
 
 /**
- * The listening outbox: plays and skips that have not reached the server yet.
+ * The listening outbox: plays that have not reached the server yet.
  *
  * Every client reports a play the moment it counts, and with the server asleep
  * that request fails. Swallowing the failure would lose every song heard on a
@@ -14,7 +14,7 @@ import { DAY_MS } from './math.js'
  * file on the phone) is each client's business.
  */
 
-interface OutboxPlay {
+export interface OutboxEvent {
   readonly kind: 'play'
   /** Doubles as the server-side `clientId`, which is what makes a resend safe. */
   readonly id: string
@@ -24,16 +24,6 @@ interface OutboxPlay {
   /** ISO 8601, taken when the play counted rather than when it was sent. */
   readonly playedAt: string
 }
-
-interface OutboxSkip {
-  readonly kind: 'skip'
-  readonly id: string
-  readonly songId: number
-  readonly atSeconds: number
-  readonly at: string
-}
-
-export type OutboxEvent = OutboxPlay | OutboxSkip
 
 /**
  * What to do with an event after one attempt to send it.
@@ -70,8 +60,8 @@ interface FlushResult {
 /**
  * Send events oldest first, stopping at the first one that has to wait.
  *
- * Order is kept on purpose: a play and a later skip of the same song arrive in
- * the order they happened, and "last played" only ever moves forward.
+ * Order is kept on purpose: two plays of the same song arrive in the order they
+ * happened, and "last played" only ever moves forward.
  */
 export async function flushOutbox(
   events: readonly OutboxEvent[],
@@ -114,30 +104,28 @@ const OUTBOX_MAX_AGE_DAYS = 400
 export function trimOutbox(events: readonly OutboxEvent[], now = Date.now()): OutboxEvent[] {
   const cutoff = now - OUTBOX_MAX_AGE_DAYS * DAY_MS
   const fresh = events.filter(event => {
-    const time = Date.parse(event.kind === 'play' ? event.playedAt : event.at)
+    const time = Date.parse(event.playedAt)
     return Number.isNaN(time) || time >= cutoff
   })
   return fresh.length > OUTBOX_MAX_EVENTS ? fresh.slice(fresh.length - OUTBOX_MAX_EVENTS) : fresh
 }
 
-/** Drop anything that does not look like an event — the store is not trusted. */
+/**
+ * Drop anything that does not look like a play — the store is not trusted. A
+ * kind other than `play` is dropped with the rest.
+ */
 export function parseOutbox(value: unknown): OutboxEvent[] {
   if (!Array.isArray(value)) return []
   return value.filter((item): item is OutboxEvent => {
     if (typeof item !== 'object' || item === null) return false
     const event = item as Record<string, unknown>
     if (typeof event['id'] !== 'string' || typeof event['songId'] !== 'number') return false
-    if (event['kind'] === 'play') {
-      return (
-        typeof event['msPlayed'] === 'number' &&
-        typeof event['completed'] === 'boolean' &&
-        typeof event['playedAt'] === 'string'
-      )
-    }
-    if (event['kind'] === 'skip') {
-      return typeof event['atSeconds'] === 'number' && typeof event['at'] === 'string'
-    }
-    return false
+    return (
+      event['kind'] === 'play' &&
+      typeof event['msPlayed'] === 'number' &&
+      typeof event['completed'] === 'boolean' &&
+      typeof event['playedAt'] === 'string'
+    )
   })
 }
 

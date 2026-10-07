@@ -113,7 +113,6 @@ export const CloudSongSchema = z.object({
   instrumental: z.boolean(),
   loved: z.boolean(),
   playCount: z.number().int().nonnegative(),
-  skipCount: z.number().int().nonnegative(),
   lastPlayedAt: z.string().nullable(),
   addedAt: z.string(),
   sourceUrl: z.string().nullable(),

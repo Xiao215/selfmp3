@@ -96,7 +96,6 @@ export async function startFakeServer(): Promise<FakeServer> {
         ok: true,
         version: 'fake',
         uptimeSeconds: 1,
-        storageDriver: 'local',
         ...(authorised ? { songCount: library.songs.length } : {}),
       })
     }

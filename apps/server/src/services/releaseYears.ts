@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from 'node:timers/promises'
 import { youtubeVideoId } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
@@ -123,7 +124,7 @@ export class ReleaseYearService {
           continue
         }
 
-        if (asked > 0) await new Promise(resolve => setTimeout(resolve, this.#gapMs))
+        if (asked > 0) await sleep(this.#gapMs)
         asked++
         const response = await askNext(this.#api, videoId)
         // Nothing to say is an answer; no reply is not, and the song is asked again.

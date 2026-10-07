@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from 'node:timers/promises'
+
 /**
  * How fast this server is willing to ask YouTube for things.
  *
@@ -325,7 +327,7 @@ export class YtThrottleService {
       if (deadline !== null && this.#now() + wait > deadline) return false
       // Never sleep the whole wait in one go: the pause can be lifted by hand,
       // and a caller asleep for fifteen minutes would not notice.
-      await sleep(Math.max(50, Math.min(wait, RECHECK_MS)), signal)
+      await sleep(Math.max(50, Math.min(wait, RECHECK_MS)), undefined, { signal })
     }
   }
 
@@ -340,18 +342,4 @@ export class YtThrottleService {
     const now = this.#now()
     this.#store.save(resetRatchet(this.#store.get(now), now))
   }
-}
-
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal?.removeEventListener('abort', onAbort)
-      resolve()
-    }, ms)
-    const onAbort = (): void => {
-      clearTimeout(timer)
-      reject(signal?.reason instanceof Error ? signal.reason : new Error('aborted'))
-    }
-    signal?.addEventListener('abort', onAbort, { once: true })
-  })
 }

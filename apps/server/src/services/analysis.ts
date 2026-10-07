@@ -1,5 +1,6 @@
 import path from 'node:path'
 import fsp from 'node:fs/promises'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { ANALYSIS_VERSION, type AnalysisStatus } from '@selfmp3/shared'
 import { stagingDir, type Config } from '../config.js'
 import type { Logger } from '../logger.js'
@@ -481,8 +482,4 @@ async function timed<T>(promise: Promise<T>): Promise<{ value: T; ms: number }> 
   const startedAt = Date.now()
   const value = await promise
   return { value, ms: Date.now() - startedAt }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
 }

@@ -1,13 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  emptyReason,
-  matchNote,
-  noMatchesTitle,
-  songTagLookup,
-  stripTags,
-  unreachableCopy,
-} from './library.model'
+import { emptyReason, matchNote, noMatchesTitle, stripTags, unreachableCopy } from './library.model'
 
 describe('saying the library cannot be reached', () => {
   it('names the address it tried, without the scheme', () => {
@@ -36,26 +29,6 @@ describe('a filter that matched nothing', () => {
   it('blames the tags when some are chosen', () => {
     expect(noMatchesTitle(true)).toBe('Nothing matches these tags')
     expect(noMatchesTitle(false)).toBe('Nothing matches')
-  })
-})
-
-describe('a song’s tags', () => {
-  const tags = [
-    { id: 1, name: 'chill' },
-    { id: 2, name: 'loud' },
-  ]
-
-  it('are the tags its ids name, skipping ids no tag has', () => {
-    const lookup = songTagLookup(tags)
-    expect(lookup({ tagIds: [2, 9, 1] }).map(tag => tag.name)).toEqual(['loud', 'chill'])
-  })
-
-  it('are the same array for the same song, so its row is not redrawn', () => {
-    const lookup = songTagLookup(tags)
-    const song = { tagIds: [1] }
-    expect(lookup(song)).toBe(lookup(song))
-    // A song with no tags shares one empty array.
-    expect(lookup({ tagIds: [] })).toBe(lookup({ tagIds: [] }))
   })
 })
 

@@ -4,10 +4,9 @@ import { DEFAULT_FILTER, type LibraryFilter } from '@selfmp3/client'
 /**
  * The library filter as a store rather than as React state in a provider.
  *
- * In state, every letter typed into the search was a new context value, and a
- * new context value renders every reader — the sidebar's whole tag list among
- * them, which shows nothing a query changes. A store lets each reader pick the
- * part it shows and render only when that part changes.
+ * In state, every change to it was a new context value, and a new context
+ * value renders everything below the provider that reads it. A store keeps the
+ * context value fixed, and only what reads the filter renders when it changes.
  */
 export interface LibraryFilterStore {
   readonly get: () => LibraryFilter

@@ -1,6 +1,7 @@
 import { placeSongs, type Place } from '../tag/tag.model'
 import {
   DescribeResultSchema,
+  fromSqliteTime,
   artistKey,
   libraryArtists,
   type Playlist,
@@ -23,7 +24,8 @@ import {
  */
 
 /** Songs played as a list that is neither a tag, an artist nor a playlist. */
-type SongsOrigin = 'search' | 'similar' | 'selection' | 'gems' | 'untagged' | 'found'
+const SONGS_ORIGINS = ['search', 'similar', 'selection', 'gems', 'untagged', 'found'] as const
+type SongsOrigin = (typeof SONGS_ORIGINS)[number]
 
 export type ListSource =
   | { readonly kind: 'library' }
@@ -81,6 +83,18 @@ interface Known {
   readonly playlists: readonly Pick<Playlist, 'id' | 'name'>[]
 }
 
+/** The tags with these ids, in the order of the ids; ids no tag has are left out. */
+export function tagsWithIds<T extends { readonly id: number }>(
+  ids: readonly number[],
+  tags: readonly T[],
+): T[] {
+  const byId = new Map(tags.map(tag => [tag.id, tag]))
+  return ids.flatMap(id => {
+    const tag = byId.get(id)
+    return tag ? [tag] : []
+  })
+}
+
 /** Names joined as a combination reads: "原神纯音乐 or YOASOBI". */
 export function combinedName(names: readonly string[]): string {
   return names.join(' or ')
@@ -133,7 +147,7 @@ export function librarySource(
   tagIds: readonly number[],
   tags: readonly Pick<Tag, 'id' | 'name'>[],
 ): ListSource {
-  const chosen = tagIds.flatMap(id => tags.filter(tag => tag.id === id))
+  const chosen = tagsWithIds(tagIds, tags)
   const [only] = chosen
   if (!only) return { kind: 'library' }
   if (chosen.length === 1) return { kind: 'tag', tagId: only.id, name: only.name }
@@ -209,12 +223,7 @@ export function describeSource(source: ListSource, known: Known): SourceLine {
       }
     }
     case 'combined': {
-      const names = [
-        ...source.tagIds.flatMap(id => {
-          const tag = known.tags.find(each => each.id === id)
-          return tag ? [tag.name] : []
-        }),
-      ]
+      const names = tagsWithIds(source.tagIds, known.tags).map(tag => tag.name)
       const whole = names.length === source.tagIds.length
       // An artist's name is not something that changes under it; a tag's is.
       return plain(
@@ -280,7 +289,7 @@ export function savePlan(
         ? null
         : songs(source.name)
     case 'combined': {
-      const tags = source.tagIds.flatMap(id => known.tags.filter(tag => tag.id === id))
+      const tags = tagsWithIds(source.tagIds, known.tags)
       if (
         source.artistKeys.length === 0 &&
         tags.length > 0 &&
@@ -347,17 +356,8 @@ export function parseListSource(value: unknown): ListSource | null {
     case 'songs': {
       const name = text('name')
       const origin = text('origin')
-      const origins: readonly string[] = [
-        'search',
-        'similar',
-        'selection',
-        'gems',
-        'untagged',
-        'found',
-      ] satisfies readonly SongsOrigin[]
-      return name !== null && origin !== null && origins.includes(origin)
-        ? { kind: 'songs', origin: origin as SongsOrigin, name }
-        : null
+      const known = SONGS_ORIGINS.find(each => each === origin)
+      return name !== null && known !== undefined ? { kind: 'songs', origin: known, name } : null
     }
     default:
       return null
@@ -503,7 +503,7 @@ export function parseRecentLists(raw: string | null): readonly RecentList[] {
 /** A song's `lastPlayedAt` (the server's UTC `YYYY-MM-DD HH:MM:SS`) in ms, or null. */
 function playedAtMs(lastPlayedAt: string | null): number | null {
   if (!lastPlayedAt) return null
-  const ms = Date.parse(`${lastPlayedAt.replace(' ', 'T')}Z`)
+  const ms = fromSqliteTime(lastPlayedAt)
   return Number.isNaN(ms) ? null : ms
 }
 

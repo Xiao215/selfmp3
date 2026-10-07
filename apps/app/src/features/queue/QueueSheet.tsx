@@ -697,7 +697,7 @@ const styles = StyleSheet.create(theme => ({
     right: 0,
     bottom: 0,
     // The dim every sheet in the app draws behind itself (`Sheet`).
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    backgroundColor: theme.colors.backdrop,
   },
   panel: {
     position: 'absolute',

@@ -62,7 +62,7 @@ export function layersKey({ width, height, dpr }: LayerSize, colors: VisualColor
  * there are never two full-size canvases held at once. `release` lets go of
  * whatever is held, for when the visual leaves the screen.
  */
-export interface LayerCache<T> {
+interface LayerCache<T> {
   get(key: string, make: () => T): T
   release(): void
 }

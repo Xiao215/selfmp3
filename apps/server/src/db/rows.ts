@@ -1,5 +1,5 @@
 import { CoverSwatchSchema, LyricsKindSchema } from '@selfmp3/shared'
-import type { CoverSwatch, LyricsKind, Song, AudioFeatures, Tag } from '@selfmp3/shared'
+import type { CoverSwatch, CoverTone, LyricsKind, Song, AudioFeatures, Tag } from '@selfmp3/shared'
 
 /**
  * The shape of rows as SQLite actually returns them, and the mappers that turn
@@ -93,15 +93,15 @@ function toLyricsKind(value: string): LyricsKind {
 
 /**
  * A stored palette, when there is a sound one. A column written by hand or cut
- * short reads as no palette rather than failing the whole library.
+ * short reads as no colour at all rather than failing the whole library.
  */
-function paletteOf(value: string | null): { palette?: CoverSwatch[] } {
-  if (!value) return {}
+function paletteOf(value: string | null): CoverSwatch[] | null {
+  if (!value) return null
   try {
-    const parsed = CoverSwatchSchema.array().max(8).safeParse(JSON.parse(value))
-    return parsed.success && parsed.data.length > 0 ? { palette: parsed.data } : {}
+    const parsed = CoverSwatchSchema.array().min(1).max(8).safeParse(JSON.parse(value))
+    return parsed.success ? parsed.data : null
   } catch {
-    return {}
+    return null
   }
 }
 
@@ -114,6 +114,16 @@ function parseIdList(value: string | null | undefined): number[] {
     if (Number.isInteger(n) && n > 0) out.push(n)
   }
   return out
+}
+
+/**
+ * Only the colour of the cover the song has now: one read from a cover since
+ * replaced is not sent while the new one waits to be read.
+ */
+function coverToneOf(row: SongRow): CoverTone | null {
+  if (row.cover_hue === null || row.cover_tone_rev !== row.art_rev) return null
+  const palette = paletteOf(row.cover_palette)
+  return palette ? { hue: row.cover_hue, chroma: row.cover_chroma ?? 0, palette } : null
 }
 
 export function toSong(row: SongRow): Song {
@@ -131,12 +141,7 @@ export function toSong(row: SongRow): Song {
     mime: row.mime,
     hasArt: row.has_art === 1,
     rev: songRev(row),
-    // Only the colour of the cover the song has now: one read from a cover
-    // since replaced is not sent while the new one waits to be read.
-    coverTone:
-      row.cover_hue !== null && row.cover_tone_rev === row.art_rev
-        ? { hue: row.cover_hue, chroma: row.cover_chroma ?? 0, ...paletteOf(row.cover_palette) }
-        : null,
+    coverTone: coverToneOf(row),
     lyricsKind: toLyricsKind(row.lyrics_kind),
     instrumental: row.instrumental === 1,
     playCount: row.play_count,

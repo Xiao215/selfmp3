@@ -87,9 +87,9 @@ describe('colour from the cover’s palette', () => {
     expect(lightness(colors.inks[2])).toBeGreaterThan(lightness(colors.inks[1]))
   })
 
-  it('draws as it always did when a cover has no palette yet', () => {
+  it('draws in the song’s own hue when there is no cover colour', () => {
     expect(visualColors(30, '8B', undefined)).toEqual(visualColors(30, '8B'))
-    expect(visualColors(30, '8B', [])).toEqual(visualColors(30, '8B'))
+    expect(visualColors(30, '8B', null)).toEqual(visualColors(30, '8B'))
   })
 })
 

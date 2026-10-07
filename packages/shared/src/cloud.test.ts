@@ -356,6 +356,14 @@ describe('snapshot schema', () => {
     expect(CloudSongSchema.safeParse(song).success).toBe(true)
   })
 
+  it('reads a cover colour without a palette as no colour', () => {
+    const palette = [{ l: 0.6, c: 0.1, h: 200, share: 1 }]
+    const tone = (coverTone: unknown) => CloudSongSchema.parse({ ...song, coverTone }).coverTone
+    expect(tone({ hue: 200, chroma: 0.1, palette })).toEqual({ hue: 200, chroma: 0.1, palette })
+    expect(tone({ hue: 200, chroma: 0.1 })).toBeNull()
+    expect(tone(undefined)).toBeNull()
+  })
+
   it('refuses a song that points anywhere but a hash in its own folder', () => {
     for (const key of [
       `covers/${SHA}.m4a`,

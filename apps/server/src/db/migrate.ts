@@ -571,6 +571,15 @@ const MIGRATIONS: readonly Migration[] = [
       DROP TABLE release_years_to_check;
     `,
   },
+  {
+    // Every cover colour carries its palette now (schemas/song.ts), and a
+    // colour stored without one reads as no colour. Any such row is read
+    // again, so it gets both.
+    name: 'read cover colours stored without a palette again',
+    sql: `
+      UPDATE songs SET cover_tone_rev = NULL WHERE cover_palette IS NULL AND cover_hue IS NOT NULL;
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

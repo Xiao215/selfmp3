@@ -89,6 +89,20 @@ export const CloudLyricsSchema = z.object({
 })
 export type CloudLyrics = z.infer<typeof CloudLyricsSchema>
 
+/**
+ * A song's cover colour as a snapshot carries it. Snapshots written before
+ * every field was written explicitly may leave it out, and one may lack the
+ * palette; either reads as no colour, which the next snapshot puts right.
+ */
+// TODO(after the Pi publishes): replace with `CoverToneSchema.nullable()`; buildSnapshot
+// writes null when there is no colour, and every tone it writes has a palette.
+const SnapshotCoverToneSchema = CoverToneSchema.extend({
+  palette: CoverToneSchema.shape.palette.optional(),
+})
+  .nullable()
+  .optional()
+  .transform(tone => (tone?.palette ? { ...tone, palette: tone.palette } : null))
+
 export const CloudSongSchema = z.object({
   uid: UidSchema,
   title: z.string(),
@@ -102,8 +116,7 @@ export const CloudSongSchema = z.object({
   audio: CloudAudioSchema,
   cover: CloudCoverSchema.nullable(),
   /** The cover's colour, as the server picked it (schemas/song.ts). Null until it has read the cover. */
-  // TODO(after the Pi publishes): drop `.optional()` here; buildSnapshot writes null.
-  coverTone: CoverToneSchema.nullable().optional(),
+  coverTone: SnapshotCoverToneSchema,
   lyrics: CloudLyricsSchema.nullable(),
   /**
    * The song's motion curve (schemas/motion.ts), as JSON in `lyrics/`: how loud

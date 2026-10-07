@@ -443,7 +443,7 @@ export class SongRepository {
     this.#setCoverTone.run(
       tone?.hue ?? null,
       tone?.chroma ?? null,
-      tone?.palette && tone.palette.length > 0 ? JSON.stringify(tone.palette) : null,
+      tone ? JSON.stringify(tone.palette) : null,
       artRev,
       id,
       artRev,

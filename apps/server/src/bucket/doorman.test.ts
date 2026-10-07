@@ -1,5 +1,9 @@
+import http from 'node:http'
+import type { AddressInfo } from 'node:net'
+import { getGlobalDispatcher, setGlobalDispatcher } from 'undici'
 import { describe, expect, it } from 'vitest'
 import type { DoormanMe } from '@selfmp3/shared'
+import { speakHttp1 } from '../http/outgoing.js'
 import { DoormanClient } from './doorman.js'
 import { CloudError } from './store.js'
 
@@ -165,13 +169,38 @@ describe('DoormanClient', () => {
       expect(await store.get('audio/missing.m4a')).toBeNull()
     })
 
+    // Through a real socket and the HTTP/1.1 agent the server installs at boot
+    // (http/outgoing.ts): a length of our own beside fetch's once reached that
+    // agent as two on Node 22, which refused every upload before it was sent.
     it('writes a file with its type, encoding and length', async () => {
-      const { client, calls } = stand(() => new Response(null, { status: 204 }))
-      await client.store('t', 'test').put('snapshots/x.json', Buffer.from('gzipped'), {
-        contentType: 'application/json',
-        contentEncoding: 'gzip',
+      const received: { method?: string; headers?: http.IncomingHttpHeaders; body?: string } = {}
+      const server = http.createServer((req, res) => {
+        const chunks: Buffer[] = []
+        req.on('data', (chunk: Buffer) => chunks.push(chunk))
+        req.on('end', () => {
+          Object.assign(received, {
+            method: req.method,
+            headers: req.headers,
+            body: Buffer.concat(chunks).toString(),
+          })
+          res.writeHead(204).end()
+        })
       })
-      expect(calls[0]).toMatchObject({
+      await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+      const before = getGlobalDispatcher()
+      speakHttp1()
+      try {
+        const { port } = server.address() as AddressInfo
+        const client = new DoormanClient(`http://127.0.0.1:${port}`)
+        await client.store('t', 'test').put('snapshots/x.json', Buffer.from('gzipped'), {
+          contentType: 'application/json',
+          contentEncoding: 'gzip',
+        })
+      } finally {
+        setGlobalDispatcher(before)
+        await new Promise(resolve => server.close(resolve))
+      }
+      expect(received).toMatchObject({
         method: 'PUT',
         body: 'gzipped',
         headers: {

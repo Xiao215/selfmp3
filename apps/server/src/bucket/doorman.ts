@@ -86,7 +86,9 @@ export class DoormanClient {
       headers['Content-Type'] = 'application/json'
       body = JSON.stringify(options.json)
     } else if (options.body) {
-      headers['Content-Length'] = String(options.body.length)
+      // No Content-Length of our own: fetch sends one for a byte body, and on
+      // Node 22 its copy and ours reach undici's Agent as two, which it
+      // refuses outright ("invalid content-length header").
       body = new Uint8Array(options.body.buffer, options.body.byteOffset, options.body.length)
     }
 

@@ -48,16 +48,14 @@ RUN npm run build --workspace @selfmp3/shared && npm run build --workspace @self
 # sharp's native build for this platform is one, and the server cannot start
 # without it (the S3 SDK comes along too).
 #
-# The two native modules are loaded the way the server itself will load them,
-# from its own entry point rather than from /app, and on the image's own
-# platform: an image whose server would not start fails to build rather than
-# being published. Resolving from /app would have missed exactly this.
-RUN rm -rf node_modules packages/shared/node_modules \
+# npm puts a package in apps/server/node_modules rather than the root's when
+# the server wants a different version from the rest of the repo (undici, for
+# one), so the runtime stage copies that folder too. It is made here so that
+# copy has something to take even when nothing is nested.
+RUN rm -rf node_modules packages/shared/node_modules apps/server/node_modules \
  && npm ci --workspace @selfmp3/shared --workspace @selfmp3/server \
       --omit=dev --no-audit --no-fund \
- && node -e "const need = require('module').createRequire('/app/apps/server/dist/main.js'); \
-             need('sharp'); \
-             new (need('better-sqlite3'))(':memory:').close()"
+ && mkdir -p apps/server/node_modules
 
 # --- runtime ----------------------------------------------------------------
 FROM node:22-alpine
@@ -104,9 +102,23 @@ COPY --from=server --chown=node:node /app/node_modules ./node_modules
 COPY --from=server --chown=node:node /app/packages/shared/package.json ./packages/shared/
 COPY --from=server --chown=node:node /app/packages/shared/dist ./packages/shared/dist
 COPY --from=server --chown=node:node /app/apps/server/package.json ./apps/server/
+COPY --from=server --chown=node:node /app/apps/server/node_modules ./apps/server/node_modules
 COPY --from=server --chown=node:node /app/apps/server/dist ./apps/server/dist
 # The server's own page, read from beside `dist` at runtime.
 COPY --from=server --chown=node:node /app/apps/server/public ./apps/server/public
+
+# Every package the server declares is imported from the server's own folder,
+# in this stage, on the image's own platform, and the native SQLite binding is
+# opened: an image whose server would not start fails to build rather than
+# being published. Checking in the build stage missed a package the copies
+# above had left behind, which is how a published image once could not start.
+RUN cd apps/server && node --input-type=module -e " \
+      import { readFileSync } from 'node:fs'; \
+      const pkg = JSON.parse(readFileSync('package.json', 'utf8')); \
+      for (const name of Object.keys({ ...pkg.dependencies, ...pkg.optionalDependencies })) \
+        await import(name); \
+      const { default: Database } = await import('better-sqlite3'); \
+      new Database(':memory:').close()"
 
 # Music and database live outside the image. Owned by the runtime user so a
 # fresh bind mount is writable without any chown on the host.

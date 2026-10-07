@@ -1,7 +1,7 @@
 import { clamp, rgbToOklch, type CoverTone } from '@selfmp3/shared'
 import { oklchToHex } from '../theme/oklch.js'
-import { hslToRgb } from './palette.js'
-import { currentColorScheme, type ColorScheme } from '../theme/tokens.js'
+import { hexToRgb } from './palette.js'
+import { currentColorScheme, tagColors, type ColorScheme } from '../theme/tokens.js'
 
 /**
  * What to draw a playing song in, from its cover's colour.
@@ -24,11 +24,12 @@ export interface SongColors {
 }
 
 /**
- * The letter tile's colour, for a song with no cover: `Cover` draws it as
- * `hsl(hue, 28%, 26%)`, so the tint matches what is on screen.
+ * The letter tile's colour, for a song with no cover: `Cover` draws it as a
+ * tag's tile in that hue (`tagColors(hue).tile`), so the tint matches what is
+ * on screen in either theme.
  */
-export function tileTone(hue: number): CoverTone {
-  const [r, g, b] = hslToRgb(hue, 0.28, 0.26)
+export function tileTone(hue: number, scheme: ColorScheme = currentColorScheme()): CoverTone {
+  const [r, g, b] = hexToRgb(tagColors(hue, scheme).tile)
   const { c, h } = rgbToOklch(r, g, b)
   return { hue: h, chroma: c }
 }

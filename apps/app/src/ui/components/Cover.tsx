@@ -3,7 +3,7 @@ import { Animated, Image, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { ReactNode } from 'react'
 import { hueFromString } from '@selfmp3/shared'
-import { motion, radius } from '@selfmp3/client'
+import { motion, radius, tagColors } from '@selfmp3/client'
 import { ease, timing } from '../motion'
 
 /**
@@ -89,16 +89,18 @@ export function Cover({
   )
 
   const lettered = uri === null || failed
+  // The letter tile is a tag's tile in the title's hue — deep with light ink
+  // in the dark, a pale tint with dark ink on Paper — so a song with no
+  // picture sits among the tag tiles as one of them, and its row's tint
+  // (`tileTone`) is worked out from the same colour.
+  const tile = lettered ? tagColors(hueFromString(title)) : null
   return (
-    <View
-      style={[
-        styles.cover,
-        dimensions,
-        lettered && { backgroundColor: `hsl(${hueFromString(title)}, 28%, 26%)` },
-      ]}
-    >
-      {lettered ? (
-        <Text style={[styles.letter, { fontSize: size * 0.4 }]} numberOfLines={1}>
+    <View style={[styles.cover, dimensions, tile && { backgroundColor: tile.tile }]}>
+      {tile ? (
+        <Text
+          style={[styles.letter, { color: tile.tileInk, fontSize: size * 0.4 }]}
+          numberOfLines={1}
+        >
           {title.trim().charAt(0).toUpperCase() || '?'}
         </Text>
       ) : null}
@@ -133,8 +135,5 @@ const styles = StyleSheet.create(theme => ({
   },
   // Over the letter, filling the tile, so the corners are the tile's own.
   picture: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  letter: {
-    color: theme.colors.textSecondary,
-    fontWeight: '600',
-  },
+  letter: { fontWeight: '600' },
 }))

@@ -10,6 +10,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { Play } from '../../ui/components/Icons'
+import { useSongsById } from '../../ui/songsById'
 import { songCount } from './Review'
 import { parts, sortWords } from './smart.model'
 import { useSmartServer } from './useSmartServer'
@@ -39,7 +40,7 @@ export function LibraryAnswer({
   const { data: library } = useLibrary()
   const artFor = useArt(ROW_COVER_SIZE)
   const [shows, setShows] = useState(SHOWS)
-  const songsById = new Map((library?.songs ?? []).map(song => [song.id, song]))
+  const songsById = useSongsById()
   const songs = answer.songIds.flatMap(id => {
     const here = server.onDevice(id)
     const song = here === undefined ? undefined : songsById.get(here)

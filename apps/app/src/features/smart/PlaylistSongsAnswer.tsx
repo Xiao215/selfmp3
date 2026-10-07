@@ -12,6 +12,7 @@ import {
   useReorderPlaylist,
 } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
+import { useSongsById } from '../../ui/songsById'
 import { showToast } from '../../ui/toast'
 import type { AnswerKeys } from './answerKeys'
 import { Review, reviewText } from './Review'
@@ -59,7 +60,7 @@ export function PlaylistSongsAnswer({
     () => playlistEditHere(answer, server.onDevice, current),
     [answer, server.onDevice, current],
   )
-  const songsById = new Map((library?.songs ?? []).map(song => [song.id, song]))
+  const songsById = useSongsById()
 
   if (!playlist) return <Text style={reviewText.line}>That playlist is gone.</Text>
   if (!members) return <Text style={reviewText.note}>Reading {playlist.name}…</Text>

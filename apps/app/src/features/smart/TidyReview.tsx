@@ -2,7 +2,8 @@ import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { plural, type Song, type TidyField, type TidyResult } from '@selfmp3/shared'
-import { useBulkEditSongs, useLibrary } from '@selfmp3/client'
+import { useBulkEditSongs } from '@selfmp3/client'
+import { useSongsById } from '../../ui/songsById'
 import { showToast } from '../../ui/toast'
 import type { AnswerKeys } from './answerKeys'
 import { Review, reviewText, songCount, type ReviewRowState } from './Review'
@@ -38,12 +39,8 @@ export function TidyReview({
   onKeys?: (keys: AnswerKeys | null) => void
 }): ReactNode {
   const server = useSmartServer()
-  const { data: library } = useLibrary()
   const save = useBulkEditSongs()
-  const songsById = useMemo(
-    () => new Map((library?.songs ?? []).map(song => [song.id, song])),
-    [library],
-  )
+  const songsById = useSongsById()
   const here = useMemo(
     () => tidyHere(result.changes, server.onDevice, songsById),
     [result.changes, server.onDevice, songsById],

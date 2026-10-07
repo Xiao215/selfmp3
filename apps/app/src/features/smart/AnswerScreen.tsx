@@ -23,6 +23,7 @@ import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/Selection
 import { SheetItem } from '../../ui/components/Sheet'
 import { showToast } from '../../ui/toast'
 import { artShadow, label as labelText, serif } from '../../ui/surfaces'
+import { useSongsById } from '../../ui/songsById'
 import { useSongColor } from '../../ui/useSongColor'
 import type { ListSource } from '../lists/lists.model'
 import { PlaylistCover } from '../playlists/PlaylistCover'
@@ -60,6 +61,7 @@ export function AnswerScreen(): ReactNode {
   const player = usePlayer()
   const queryClient = useQueryClient()
   const { data: library } = useLibrary()
+  const byId = useSongsById()
   const artFor = useArt()
   const [edited, setEdited] = useState<Understanding | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -71,7 +73,6 @@ export function AnswerScreen(): ReactNode {
   const result = kept?.result
   const songs = useMemo(() => {
     if (!result) return []
-    const byId = new Map((library?.songs ?? []).map(song => [song.id, song]))
     const picked = picksHere(result, server.onDevice).flatMap(pick => byId.get(pick.songId) ?? [])
     const order = kept?.order
     if (!order) return picked
@@ -80,7 +81,7 @@ export function AnswerScreen(): ReactNode {
     return [...picked].sort(
       (a, b) => (place.get(a.id) ?? order.length) - (place.get(b.id) ?? order.length),
     )
-  }, [result, kept?.order, library, server.onDevice])
+  }, [result, kept?.order, byId, server.onDevice])
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   const selection = useSelection(ids)
   const selectedSongs = useMemo(

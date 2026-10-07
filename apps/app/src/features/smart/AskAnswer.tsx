@@ -5,7 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { plural, type AskAnswer as Answer } from '@selfmp3/shared'
-import { failureText, radius, space, useLibrary } from '@selfmp3/client'
+import { failureText, radius, space } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -13,6 +13,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { Play, Sparkle } from '../../ui/components/Icons'
+import { useSongsById } from '../../ui/songsById'
 import { ChangeField, TrailStep } from './ChangeIt'
 import { placePath, rangeWords } from './smart.model'
 import { GetMusicAnswer } from './GetMusicAnswer'
@@ -328,10 +329,10 @@ function Found({
   onDone: () => void
 }): ReactNode {
   const server = useSmartServer()
-  const { data: library } = useLibrary()
+  const songsById = useSongsById()
   const here = answer.picks.filter(pick => {
     const id = server.onDevice(pick.songId)
-    return id !== undefined && library?.songs.some(song => song.id === id)
+    return id !== undefined && songsById.has(id)
   })
   if (here.length === 0) {
     return <Text style={styles.line}>No song of yours fits that. Try other words for it.</Text>
@@ -355,9 +356,8 @@ function SongPicks({
   const { theme } = useUnistyles()
   const server = useSmartServer()
   const player = usePlayer()
-  const { data: library } = useLibrary()
+  const songsById = useSongsById()
   const artFor = useArt(ROW_COVER_SIZE)
-  const songsById = new Map((library?.songs ?? []).map(song => [song.id, song]))
   const found = picks.flatMap(pick => {
     const id = server.onDevice(pick.songId)
     const song = id === undefined ? undefined : songsById.get(id)

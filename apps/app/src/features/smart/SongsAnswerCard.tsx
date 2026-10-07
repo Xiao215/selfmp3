@@ -4,10 +4,11 @@ import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
-import { radius, space, useLibrary } from '@selfmp3/client'
+import { radius, space } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { ChevronRight, Play } from '../../ui/components/Icons'
+import { useSongsById } from '../../ui/songsById'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import type { ListSource } from '../lists/lists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
@@ -42,12 +43,11 @@ export function SongsAnswerCard({
   const player = usePlayer()
   const fly = useFlyToUpNext()
   const coverRef = useRef<View>(null)
-  const { data: library } = useLibrary()
+  const known = useSongsById()
   // Kept from the first, so a change made here (`ChangeIt`) is the answer shown.
   const id = keepAnswer(text, answer.describe)
   const kept = useKeptAnswer(id)
   const result = kept?.result ?? answer.describe
-  const known = new Map((library?.songs ?? []).map(song => [song.id, song]))
   const picked = picksHere(result, server.onDevice)
     .map(pick => pick.songId)
     .filter(each => known.has(each))

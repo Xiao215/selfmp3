@@ -30,6 +30,7 @@ import { useAccent } from '../../ui/accent'
 import { showToast } from '../../ui/toast'
 import { artShadow, label as labelText } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
+import { useSongsById } from '../../ui/songsById'
 import { useSongColor } from '../../ui/useSongColor'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
@@ -131,12 +132,14 @@ export function PlaylistDetailScreen(): ReactNode {
   const manual = playlist?.kind === 'manual'
   const tags = useMemo(() => library.data?.tags ?? [], [library.data])
 
-  const songs = useMemo(() => {
-    const byId = new Map((library.data?.songs ?? []).map(song => [song.id, song]))
-    return (contents.data?.songIds ?? [])
-      .map(id => byId.get(id))
-      .filter((song): song is Song => song !== undefined)
-  }, [library.data, contents.data])
+  const byId = useSongsById()
+  const songs = useMemo(
+    () =>
+      (contents.data?.songIds ?? [])
+        .map(id => byId.get(id))
+        .filter((song): song is Song => song !== undefined),
+    [byId, contents.data],
+  )
   const songIds = useMemo(() => songs.map(song => song.id), [songs])
   const inPlaylist = useMemo(() => new Set(songIds), [songIds])
   // The page is lit by the first cover it has, as a tag's page is.

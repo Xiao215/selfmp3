@@ -1,15 +1,10 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { Song, Stats, StatsRange, Wrapped, WrappedRange } from '@selfmp3/shared'
-import {
-  useHistory,
-  useLibrary,
-  useStats,
-  useWrapped,
-  type ServerConnection,
-} from '@selfmp3/client'
+import { useHistory, useStats, useWrapped, type ServerConnection } from '@selfmp3/client'
 import { apiFor } from '../../api/client'
 import { useServerSongIds } from '../../connection/useServerSongIds'
+import { useSongsById } from '../../ui/songsById'
 
 /**
  * Where the numbers on Stats, the Report and Profile's month come from: whatever
@@ -88,12 +83,8 @@ export function useHistoryFor(via: ServerConnection | undefined) {
 export function useStatsSongs(
   via: ServerConnection | undefined,
 ): (songId: number) => Song | undefined {
-  const { data: library } = useLibrary()
+  const byId = useSongsById()
   const ids = useServerSongIds(via)
-  const byId = useMemo(
-    () => new Map((library?.songs ?? []).map(song => [song.id, song])),
-    [library],
-  )
   return useMemo(
     () => (songId: number) => {
       const here = via ? ids.onDevice(songId) : songId

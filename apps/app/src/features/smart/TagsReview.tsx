@@ -4,6 +4,7 @@ import { Text, View } from 'react-native'
 import { plural, type TagReview } from '@selfmp3/shared'
 import { useLibrary } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
+import { useSongsById } from '../../ui/songsById'
 import { showToast } from '../../ui/toast'
 import type { AnswerKeys } from './answerKeys'
 import { Review, reviewText, songCount, type ReviewRowState } from './Review'
@@ -36,10 +37,7 @@ export function TagsReview({
   const server = useSmartServer()
   const { data: library } = useLibrary()
   const change = useTagChanges()
-  const songsById = useMemo(
-    () => new Map((library?.songs ?? []).map(song => [song.id, song])),
-    [library],
-  )
+  const songsById = useSongsById()
   const here = useMemo(
     () => tagChangesHere(review.changes, server.onDevice, songsById, library?.tags ?? []),
     [review.changes, server.onDevice, songsById, library?.tags],

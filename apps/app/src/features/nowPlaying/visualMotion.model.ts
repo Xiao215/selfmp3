@@ -160,10 +160,15 @@ export function stepMotion(
       state.armed = true
   }
 
-  for (const ring of state.rings) ring.age += dt
-  state.rings = state.rings.filter(
-    ring => ring.age < tuning.ringLife && ring.id > state.nextRing - 1 - MAX_RINGS,
-  )
+  // Kept in place rather than filtered into a new array: this runs every frame.
+  let kept = 0
+  for (const ring of state.rings) {
+    ring.age += dt
+    if (ring.age < tuning.ringLife && ring.id > state.nextRing - 1 - MAX_RINGS) {
+      state.rings[kept++] = ring
+    }
+  }
+  state.rings.length = kept
 }
 
 /**

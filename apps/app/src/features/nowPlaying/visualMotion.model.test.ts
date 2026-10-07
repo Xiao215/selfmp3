@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { curveSampler, type MotionCurveLike, type MotionSampler } from './motionSource.model'
+import type { MotionCurve } from '@selfmp3/client'
+import { curveSampler, type MotionSampler } from './motionSource.model'
 import {
   createMotionState,
   DEFAULT_REFRACTORY,
@@ -171,7 +172,7 @@ describe('a synthetic curve, end to end', () => {
       loudness[i] = 230
       onset[i] = i % 10 === 0 ? 255 : 20
     }
-    const curve: MotionCurveLike = { rate: 20, duration: 8, loudness, onset }
+    const curve: MotionCurve = { rate: 20, duration: 8, loudness, onset }
     const { fired } = run(curveSampler(curve), 8)
     // The first hit's frame starts at 3 s; interpolation reaches it a drawn frame early.
     expect(fired.filter(t => t < 2.95)).toEqual([])

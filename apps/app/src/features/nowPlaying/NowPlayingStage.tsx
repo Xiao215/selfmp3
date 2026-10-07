@@ -417,7 +417,6 @@ function Stage({
   const hasLyrics = words.status === 'lyrics'
   // Not while offline: the words may exist, and there is text to say why they are not here.
   const noLyrics = words.status === 'missing' && !words.offline
-  const sampler = useMotionSampler(song, noLyrics)
   // Only on its own tab: About is text, and wants the calm ground.
   const showVisual = noLyrics && shownTab === 'lyrics'
   const box = stageCover(geometry)
@@ -436,6 +435,9 @@ function Stage({
   const visualPresence = usePresence(showVisual, MOVE_MS.stageVisual, motion.fast, {
     easeIn: Easing.out(Easing.quad),
   })
+  // Following the music only while the visual is there, its fade out included:
+  // About has no visual, so it neither fetches the curve nor asks to listen.
+  const sampler = useMotionSampler(song, visualPresence.mounted)
   /*
    * And the same fade again when the mode changes, because the mode is what
    * moves it: it is re-laid in the other place in one frame, so it fades in

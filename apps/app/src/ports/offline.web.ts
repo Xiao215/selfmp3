@@ -44,7 +44,22 @@ function streamUrlFor(songId: number): string {
  * at once by bumping it.
  */
 
-export const AUDIO_CACHE = 'selfmp3-audio-v1'
+/** `AUDIO_CACHE` in sw.ts names the same cache, and the two have to agree. */
+const AUDIO_CACHE = 'selfmp3-audio-v1'
+
+/**
+ * How a song's copy is looked up: by its path alone, as the service worker
+ * looks it up (sw.ts, `handleAudio`).
+ *
+ * The key is the stream address, and its query carries the song's revision
+ * and, from a server, the token. Matched whole, a copy kept before either
+ * changed was a different song to this file and the same song to the worker:
+ * it was not found to be kept, so it was fetched again beside itself; the
+ * worker went on playing whichever copy came first, the old one; and removing
+ * the song deleted only the new key, so the old copy played on offline and
+ * came back as "downloaded" at the next launch.
+ */
+const ANY_VERSION: CacheQueryOptions = { ignoreSearch: true }
 
 /**
  * How a download tells the service worker it wants the file itself, not the
@@ -53,24 +68,22 @@ export const AUDIO_CACHE = 'selfmp3-audio-v1'
  */
 const REFRESH_HEADER = 'x-selfmp3-refresh'
 
-/** Cache keys are the stream URLs themselves, so the SW can match on request. */
-function audioCacheKey(songId: number): string {
-  return streamUrlFor(songId)
-}
-
 /** The song id a cache key names, or null for anything else. */
 function songIdOfKey(url: string): number | null {
   const match = /\/api\/stream\/(\d+)$/.exec(new URL(url).pathname)
   return match?.[1] ? Number(match[1]) : null
 }
 
-/*
- * The Cache API is there on the installed desktop app's `app://selfmp3` page,
- * but it stores only http and https requests: `cache.put` throws "Request
- * scheme 'app' is unsupported". So it counts only on a web page. The installed
- * app keeps songs as files through the shell instead.
+/**
+ * Whether this browser can keep songs at all.
+ *
+ * The Cache API only exists in a secure context, so a phone on plain
+ * `http://192.168…` has none of this. It is there on the installed desktop
+ * app's `app://selfmp3` page, but it stores only http and https requests:
+ * `cache.put` throws "Request scheme 'app' is unsupported". So it counts only
+ * on a web page; the installed app keeps songs as files through the shell.
  */
-function cachesAvailable(): boolean {
+export function offlineStorageAvailable(): boolean {
   return (
     typeof caches !== 'undefined' &&
     typeof window !== 'undefined' &&
@@ -78,17 +91,9 @@ function cachesAvailable(): boolean {
   )
 }
 
-/**
- * Whether this browser can keep songs at all. The Cache API only exists in a
- * secure context, so a phone on plain `http://192.168…` has none of this — and
- */
-export function offlineStorageAvailable(): boolean {
-  return cachesAvailable()
-}
-
 /** Ids of every song currently held offline. */
 export async function cachedSongIds(): Promise<Set<number>> {
-  if (!cachesAvailable()) return new Set()
+  if (!offlineStorageAvailable()) return new Set()
   try {
     const cache = await caches.open(AUDIO_CACHE)
     const keys = await cache.keys()
@@ -104,10 +109,10 @@ export async function cachedSongIds(): Promise<Set<number>> {
 }
 
 export async function isCached(songId: number): Promise<boolean> {
-  if (!cachesAvailable()) return false
+  if (!offlineStorageAvailable()) return false
   try {
     const cache = await caches.open(AUDIO_CACHE)
-    return (await cache.match(audioCacheKey(songId))) !== undefined
+    return (await cache.match(streamUrlFor(songId), ANY_VERSION)) !== undefined
   } catch {
     return false
   }
@@ -120,11 +125,11 @@ export async function isCached(songId: number): Promise<boolean> {
  */
 export async function cachedBytes(ids: Iterable<number>): Promise<Map<number, number>> {
   const bytes = new Map<number, number>()
-  if (!cachesAvailable()) return bytes
+  if (!offlineStorageAvailable()) return bytes
   try {
     const cache = await caches.open(AUDIO_CACHE)
     for (const songId of ids) {
-      const response = await cache.match(audioCacheKey(songId))
+      const response = await cache.match(streamUrlFor(songId), ANY_VERSION)
       if (!response) continue
       const length = Number(response.headers.get('content-length') ?? Number.NaN)
       bytes.set(songId, Number.isFinite(length) ? length : 0)
@@ -160,10 +165,11 @@ export async function cacheSong(
   signal?: AbortSignal,
   onProgress?: (fraction: DownloadFraction) => void,
 ): Promise<number> {
-  if (!cachesAvailable()) throw new Error('offline storage is not available in this browser')
+  if (!offlineStorageAvailable())
+    throw new Error('offline storage is not available in this browser')
 
   const cache = await caches.open(AUDIO_CACHE)
-  const url = audioCacheKey(songId)
+  const url = streamUrlFor(songId)
 
   const response = await fetch(url, {
     cache: 'reload',
@@ -182,6 +188,7 @@ export async function cacheSong(
     // The response itself, not a clone: a clone tees the body, and the half
     // nobody reads holds the whole song in memory until it is collected.
     await cache.put(url, response)
+    await dropOtherVersions(cache, url)
     return total ?? 0
   }
 
@@ -207,16 +214,29 @@ export async function cacheSong(
       headers: response.headers,
     }),
   )
+  await dropOtherVersions(cache, url)
   return total ?? received
 }
 
+/**
+ * The copies of this song kept under another revision or token, now that this
+ * one is: after the new copy is in, so a failed fetch never leaves the song
+ * with none.
+ */
+async function dropOtherVersions(cache: Cache, url: string): Promise<void> {
+  const kept = new Request(url).url
+  for (const request of await cache.keys(url, ANY_VERSION)) {
+    if (request.url !== kept) await cache.delete(request)
+  }
+}
+
 export async function uncacheSong(songId: number): Promise<void> {
-  if (!cachesAvailable()) return
+  if (!offlineStorageAvailable()) return
   const cache = await caches.open(AUDIO_CACHE)
-  await cache.delete(audioCacheKey(songId))
+  await cache.delete(streamUrlFor(songId), ANY_VERSION)
 }
 
 export async function clearAudioCache(): Promise<void> {
-  if (!cachesAvailable()) return
+  if (!offlineStorageAvailable()) return
   await caches.delete(AUDIO_CACHE)
 }

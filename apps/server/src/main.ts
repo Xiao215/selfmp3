@@ -222,9 +222,24 @@ function startLibrary(container: Container): void {
       })
   }
 
+  // Covers kept from before every cover was made square (squareCover.ts).
+  const squareCovers = (): void => {
+    const withArt = container.songs
+      .all()
+      .filter(song => song.hasArt)
+      .map(song => song.id)
+    void container.covers
+      .squareKept(withArt)
+      .then(squared => {
+        if (squared > 0) container.bumpLibraryVersion()
+      })
+      .catch(() => undefined)
+  }
+
   if (!config.scanOnBoot) {
     warmLyrics()
     startCloud()
+    squareCovers()
   }
 
   if (config.scanOnBoot) {
@@ -236,6 +251,7 @@ function startLibrary(container: Container): void {
         if (result.added || result.updated) container.bumpLibraryVersion()
         // Lyrics+: index lyrics for search once the scan knows which songs have them.
         warmLyrics()
+        squareCovers()
       })
       .catch((error: unknown) => {
         logger.error('initial scan failed', {

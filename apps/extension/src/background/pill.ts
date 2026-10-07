@@ -1,6 +1,7 @@
 import type { ImportRequestView } from '@selfmp3/replica'
 import { youtubeVideoId, youtubeWatchUrl, type ImportJob } from '@selfmp3/shared'
 import type { Handlers, PageRequest, PillState } from '../bridge.js'
+import type { Route } from './connection.js'
 
 /**
  * What the pill on a YouTube page is told (B1).
@@ -57,7 +58,13 @@ export function stateOfRequest(request: ImportRequestView): PillState {
   return idle
 }
 
-export function createPageHandler(handlers: Handlers) {
+/**
+ * The pill's channel. `mode` is the worker's memoised route, not `status`:
+ * the pill only needs to know which side answers, and `status` asks the
+ * server for its health on top — a request per poll, every 1.5 s while a
+ * song imports.
+ */
+export function createPageHandler(handlers: Handlers, mode: () => Promise<Route['mode']>) {
   /** The job for this video, whichever form of link it was queued under. */
   async function jobFor(videoId: string): Promise<ImportJob | null> {
     const queue = await handlers.queue({ type: 'queue' })
@@ -74,7 +81,7 @@ export function createPageHandler(handlers: Handlers) {
     const videoId = youtubeVideoId(request.url)
     if (!videoId) return idle
     const url = youtubeWatchUrl(videoId)
-    const viaBucket = (await handlers.status({ type: 'status' })).mode === 'bucket'
+    const viaBucket = (await mode()) === 'bucket'
 
     if (request.type === 'pillState') {
       const hit = await handlers.songFor({ type: 'songFor', url })

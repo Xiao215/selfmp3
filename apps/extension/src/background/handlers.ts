@@ -9,7 +9,7 @@ import { DEFAULT_LOCAL_SERVER_URL, youtubeVideoId, type ImportJob } from '@selfm
 import { z } from 'zod'
 import type { Handlers, Status } from '../bridge.js'
 import type { Cloud } from './cloud.js'
-import { createRouter, type Route } from './connection.js'
+import { createRouter, type Route, type Router } from './connection.js'
 import { LibraryCache } from './library.js'
 import { serverApi } from './server.js'
 import type { KeyValueStore } from './store.js'
@@ -53,6 +53,11 @@ interface HandlerDeps {
   readonly watcher?: JobWatcher
   /** The bucket. Absent in a test with no cloud in it; signing in then refuses. */
   readonly cloud?: Cloud
+  /**
+   * Which side answers, shared with the pill's channel so both read one
+   * memoised route (`workerRouter`). Built here when a test leaves it out.
+   */
+  readonly router?: Router
 }
 
 /**
@@ -84,10 +89,13 @@ async function storedServer(store: KeyValueStore): Promise<ServerConnection | nu
   return parsed.success ? parsed.data : null
 }
 
-export function createHandlers({ store, fetch, watcher, cloud }: HandlerDeps): Handlers {
-  const library = new LibraryCache(store)
-
-  const router = createRouter({
+/** Where an import goes right now, worked out from what the worker keeps (connection.ts). */
+export function workerRouter({
+  store,
+  fetch,
+  cloud,
+}: Pick<HandlerDeps, 'store' | 'fetch' | 'cloud'>): Router {
+  return createRouter({
     typedServer: () => storedServer(store),
     signedIn: async () => (cloud ? (await cloud.session()) !== null : false),
     cloudServer: async () => (cloud ? cloud.server() : null),
@@ -100,6 +108,16 @@ export function createHandlers({ store, fetch, watcher, cloud }: HandlerDeps): H
       }
     },
   })
+}
+
+export function createHandlers({
+  store,
+  fetch,
+  watcher,
+  cloud,
+  router = workerRouter({ store, fetch, cloud }),
+}: HandlerDeps): Handlers {
+  const library = new LibraryCache(store)
 
   /** Why a route with no way through has no way through, in the words a page shows. */
   function refuse(route: Route): Refusal {

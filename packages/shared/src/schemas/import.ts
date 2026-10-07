@@ -255,19 +255,6 @@ export const ImportShareResultSchema = ImportEnqueueResultSchema.extend({
 })
 export type ImportShareResult = z.infer<typeof ImportShareResultSchema>
 
-/** Result of probing YouTube Music with the configured cookies. */
-export const YtCookieTestSchema = z.object({
-  ok: z.boolean(),
-  /** How cookies are configured, echoed back so the UI can explain itself. */
-  source: z.enum(['none', 'browser', 'file']),
-  /** Tracks found in Liked Music when the probe worked. */
-  count: z.number().int().nonnegative().nullable(),
-  playlistTitle: z.string().nullable(),
-  /** An actionable explanation when it did not. */
-  error: z.string().nullable(),
-})
-export type YtCookieTest = z.infer<typeof YtCookieTestSchema>
-
 /**
  * Why the queue is not moving, when it is not moving for a reason that is
  * nobody's fault.

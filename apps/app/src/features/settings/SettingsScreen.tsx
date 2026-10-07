@@ -118,8 +118,9 @@ export function SettingsScreen(): ReactNode {
   const shortcuts = sections.some(section => section.id === 'shortcuts') ? menuCommands : null
   const column = width >= INDEX_COLUMN
   const scrollRef = useRef<ScrollView>(null)
-  // Each shown panel's view, and where it was last measured in the scroll content.
-  const anchors = useRef(new Map<SectionId, View>())
+  // Each shown panel's view, kept by `anchorAt`, and where it was last measured
+  // in the scroll content.
+  const [anchors] = useState(() => new Map<SectionId, View>())
   const tops = useRef(new Map<SectionId, number>())
   const headRef = useRef<View>(null)
   const chipBarRef = useRef<View>(null)
@@ -146,18 +147,20 @@ export function SettingsScreen(): ReactNode {
   }
   // One callback per section for the page's life, so a redraw does not detach
   // and reattach every panel's view.
-  const anchorCallbacks = useRef(new Map<SectionId, (node: View | null) => void>())
-  const anchorAt = (id: SectionId): ((node: View | null) => void) => {
-    let callback = anchorCallbacks.current.get(id)
-    if (!callback) {
-      callback = node => {
-        if (node) anchors.current.set(id, node)
-        else anchors.current.delete(id)
+  const [anchorAt] = useState(() => {
+    const callbacks = new Map<SectionId, (node: View | null) => void>()
+    return (id: SectionId): ((node: View | null) => void) => {
+      let callback = callbacks.get(id)
+      if (!callback) {
+        callback = node => {
+          if (node) anchors.set(id, node)
+          else anchors.delete(id)
+        }
+        callbacks.set(id, callback)
       }
-      anchorCallbacks.current.set(id, callback)
+      return callback
     }
-    return callback
-  }
+  })
 
   /**
    * Where every shown panel is now, in the scroll content, and how tall the
@@ -190,7 +193,7 @@ export function SettingsScreen(): ReactNode {
     const [origin, bar, placed] = await Promise.all([
       at(head),
       chips ? at(chips) : null,
-      Promise.all([...anchors.current].map(async ([id, node]) => ({ id, place: await at(node) }))),
+      Promise.all([...anchors].map(async ([id, node]) => ({ id, place: await at(node) }))),
     ])
     if (!origin) return
     chipBarHeight.current = bar?.height ?? 0

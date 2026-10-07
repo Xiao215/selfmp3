@@ -4,7 +4,7 @@ import {
   normalizeText,
   rankCandidates,
   scoreCandidate,
-  similarity,
+  candidateSimilarity,
 } from './lookupScore.js'
 
 describe('normalizeText', () => {
@@ -29,24 +29,24 @@ describe('normalizeText', () => {
   })
 })
 
-describe('similarity', () => {
+describe('candidateSimilarity', () => {
   it('is 1 for equal text after normalisation', () => {
-    expect(similarity('Bohemian Rhapsody', 'bohemian rhapsody (Official Video)')).toBe(1)
+    expect(candidateSimilarity('Bohemian Rhapsody', 'bohemian rhapsody (Official Video)')).toBe(1)
   })
 
   it('is high for a typo and low for a different song', () => {
-    expect(similarity('Bohemian Rhapsody', 'Bohemian Rapsody')).toBeGreaterThan(0.8)
-    expect(similarity('Bohemian Rhapsody', 'Under Pressure')).toBeLessThan(0.3)
+    expect(candidateSimilarity('Bohemian Rhapsody', 'Bohemian Rapsody')).toBeGreaterThan(0.8)
+    expect(candidateSimilarity('Bohemian Rhapsody', 'Under Pressure')).toBeLessThan(0.3)
   })
 
   it('rewards containment proportionally', () => {
-    const contained = similarity('Nocturne', 'Nocturne Study in E')
+    const contained = candidateSimilarity('Nocturne', 'Nocturne Study in E')
     expect(contained).toBeGreaterThan(0.4)
     expect(contained).toBeLessThan(1)
   })
 
   it('is 0 when either side is empty', () => {
-    expect(similarity('', 'anything')).toBe(0)
+    expect(candidateSimilarity('', 'anything')).toBe(0)
   })
 })
 

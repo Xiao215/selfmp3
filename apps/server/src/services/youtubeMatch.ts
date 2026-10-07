@@ -68,8 +68,14 @@ function fold(raw: string): string {
     .trim()
 }
 
-/** 0–1 similarity: the better of edit similarity and token overlap. */
-export function similarity(a: string, b: string): number {
+/**
+ * 0–1 similarity: the better of edit similarity and token overlap, over text
+ * folded to pinyin. Not lookupScore.ts's `candidateSimilarity`, on purpose:
+ * this one compares names across scripts (周杰伦 / 周杰倫) and has a cheap
+ * threshold form (`similarAtLeast`) for checking a whole library, where that
+ * one scores catalogue entries in one script against tags with release noise.
+ */
+export function matchSimilarity(a: string, b: string): number {
   const x = normalizeForMatch(a)
   const y = normalizeForMatch(b)
   if (!x || !y) return 0
@@ -93,9 +99,9 @@ export function foldForMatch(raw: string): Folded {
 }
 
 /**
- * `similarity(a, b) >= threshold`, the same answer, cheaply.
+ * `matchSimilarity(a, b) >= threshold`, the same answer, cheaply.
  *
- * The full edit distance is most of `similarity`'s cost, and a duplicate check
+ * The full edit distance is most of `matchSimilarity`'s cost, and a duplicate check
  * asks it of every song in the library for every song pasted: 50 against
  * 1,400 took 300 ms, all of it on the one thread every request waits on. Asked
  * only whether a threshold is reached, the word overlap answers first when it
@@ -111,7 +117,7 @@ export function similarAtLeast(a: Folded, b: Folded, threshold: number): boolean
   return 1 - editDistance(a.text, b.text, allowed) / longest >= threshold
 }
 
-/** The word half of `similarity`. */
+/** The word half of `matchSimilarity`. */
 function overlap(wordsA: ReadonlySet<string>, wordsB: ReadonlySet<string>): number {
   let shared = 0
   for (const word of wordsA) if (wordsB.has(word)) shared++
@@ -192,15 +198,15 @@ export function scoreHit(source: ListedTrack, hit: MatchHit): number {
   const channel = hit.channel.replace(/\s*-\s*topic$/i, '').replace(/vevo$/i, '')
   const parts = videoTitle.split(/\s+[-–—|:]\s+|\s*[–—]\s*|\s+"|"\s*/).filter(part => part.trim())
 
-  let title = similarity(sourceTitle, videoTitle)
-  for (const part of parts) title = Math.max(title, similarity(sourceTitle, part))
+  let title = matchSimilarity(sourceTitle, videoTitle)
+  for (const part of parts) title = Math.max(title, matchSimilarity(sourceTitle, part))
 
   let artist: number
   if (!sourceArtist.trim()) {
     artist = 0.6
   } else {
-    artist = similarity(sourceArtist, channel)
-    for (const part of parts) artist = Math.max(artist, similarity(sourceArtist, part))
+    artist = matchSimilarity(sourceArtist, channel)
+    for (const part of parts) artist = Math.max(artist, matchSimilarity(sourceArtist, part))
     // Artist named anywhere in the video title still counts for a lot.
     const allTokens = normalizeForMatch(sourceArtist).split(' ')
     const meaningful = allTokens.filter(token => !STOPWORDS.has(token))

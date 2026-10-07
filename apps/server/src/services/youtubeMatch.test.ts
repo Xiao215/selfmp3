@@ -8,7 +8,7 @@ import {
   type MatchHit,
   searchQuery,
   similarAtLeast,
-  similarity,
+  matchSimilarity,
   YouTubeMatcher,
 } from './youtubeMatch.js'
 import { createLogger } from '../logger.js'
@@ -27,17 +27,17 @@ const getLucky = {
   duration: 248,
 }
 
-describe('normalizeForMatch / similarity', () => {
+describe('normalizeForMatch / matchSimilarity', () => {
   it('ignores case, accents, punctuation and ampersands', () => {
     expect(normalizeForMatch('Déjà Vu!')).toBe('deja vu')
     expect(normalizeForMatch('Earth, Wind & Fire')).toBe('earth wind and fire')
-    expect(similarity('Beyoncé - Déjà Vu', 'beyonce deja vu')).toBe(1)
+    expect(matchSimilarity('Beyoncé - Déjà Vu', 'beyonce deja vu')).toBe(1)
   })
 
   it('scores containment highly and unrelated text low', () => {
-    expect(similarity('Get Lucky', 'Daft Punk Get Lucky Official Audio')).toBeGreaterThan(0.8)
-    expect(similarity('Get Lucky', 'Around the World')).toBeLessThan(0.4)
-    expect(similarity('', 'x')).toBe(0)
+    expect(matchSimilarity('Get Lucky', 'Daft Punk Get Lucky Official Audio')).toBeGreaterThan(0.8)
+    expect(matchSimilarity('Get Lucky', 'Around the World')).toBeLessThan(0.4)
+    expect(matchSimilarity('', 'x')).toBe(0)
   })
 
   it('answers a threshold exactly as the full score would', () => {
@@ -63,7 +63,7 @@ describe('normalizeForMatch / similarity', () => {
       for (const b of texts) {
         for (const threshold of [0.75, 0.9]) {
           expect(similarAtLeast(foldForMatch(a), foldForMatch(b), threshold), `${a} / ${b}`).toBe(
-            similarity(a, b) >= threshold,
+            matchSimilarity(a, b) >= threshold,
           )
         }
       }
@@ -199,23 +199,23 @@ const song = (partial: Partial<ProbedTrack> & { title: string }): ProbedTrack =>
 describe('Chinese names', () => {
   it('reads simplified and traditional characters alike', () => {
     expect(normalizeForMatch('周杰伦')).toBe(normalizeForMatch('周杰倫'))
-    expect(similarity('逃跑计划', '逃跑計劃')).toBe(1)
-    expect(similarity('夜空中最亮的星', '夜空中最亮的星')).toBe(1)
+    expect(matchSimilarity('逃跑计划', '逃跑計劃')).toBe(1)
+    expect(matchSimilarity('夜空中最亮的星', '夜空中最亮的星')).toBe(1)
   })
 
   it('still tells different songs apart', () => {
-    expect(similarity('晴天', '稻香')).toBeLessThan(0.5)
+    expect(matchSimilarity('晴天', '稻香')).toBeLessThan(0.5)
   })
 
   it('does not find a name inside another by its characters', () => {
     // 忘我 shares both its characters with 我不曾忘记, in the other order.
-    expect(similarity('我不曾忘记', '忘我')).toBeLessThan(0.4)
-    expect(similarity('我不曾忘记', '忘‧記')).toBeLessThan(0.5)
+    expect(matchSimilarity('我不曾忘记', '忘我')).toBeLessThan(0.4)
+    expect(matchSimilarity('我不曾忘记', '忘‧記')).toBeLessThan(0.5)
   })
 
   it('still finds a name inside a longer title', () => {
-    expect(similarity('孤勇者', '孤勇者 Warrior of the Darkness')).toBeGreaterThan(0.8)
-    expect(similarity('周杰伦', '周杰倫 Jay Chou')).toBeGreaterThan(0.8)
+    expect(matchSimilarity('孤勇者', '孤勇者 Warrior of the Darkness')).toBeGreaterThan(0.8)
+    expect(matchSimilarity('周杰伦', '周杰倫 Jay Chou')).toBeGreaterThan(0.8)
   })
 })
 

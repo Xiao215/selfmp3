@@ -73,14 +73,17 @@ function diceSimilarity(a: string, b: string): number {
 }
 
 /**
- * 0..1 similarity between two free-text fields.
+ * 0..1 similarity between two free-text fields. Not youtubeMatch.ts's
+ * `matchSimilarity`, on purpose: this one strips release noise ("Remastered
+ * 2011", "feat.") and rewards a near-typo, for catalogue entries in the same
+ * script as the tags; that one folds Chinese to pinyin to match across scripts.
  *
  * Exact (after normalisation) is 1. Containment — "Nocturne" inside "Nocturne
  * Study in E" — is high but not perfect. Otherwise bigram overlap, with a
  * small bonus when the edit distance is tiny (a typo rather than a different
  * song).
  */
-export function similarity(rawA: string, rawB: string): number {
+export function candidateSimilarity(rawA: string, rawB: string): number {
   const a = normalizeText(rawA)
   const b = normalizeText(rawB)
   if (!a || !b) return 0
@@ -118,7 +121,7 @@ export function scoreCandidate(
   let artistWeight = 0.3
   let durationWeight = 0.15
 
-  const artistSim = query.artist.trim() ? similarity(candidate.artist, query.artist) : null
+  const artistSim = query.artist.trim() ? candidateSimilarity(candidate.artist, query.artist) : null
   if (artistSim === null) {
     titleWeight += artistWeight
     artistWeight = 0
@@ -131,7 +134,7 @@ export function scoreCandidate(
   }
 
   const score =
-    titleWeight * similarity(candidate.title, query.title) +
+    titleWeight * candidateSimilarity(candidate.title, query.title) +
     artistWeight * (artistSim ?? 0) +
     durationWeight * (duration ?? 0)
 

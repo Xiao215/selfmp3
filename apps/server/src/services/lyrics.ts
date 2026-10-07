@@ -1,4 +1,3 @@
-import fsp from 'node:fs/promises'
 import {
   isSynced,
   LYRIC_EXTENSIONS,
@@ -152,7 +151,7 @@ export class LyricsService {
    * again, and a song's folder should say what it has.
    */
   async writeSidecar(audioKey: string, text: string, synced: boolean): Promise<void> {
-    const stem = audioKey.replace(/\.[^.]+$/, '')
+    const stem = stemOf(audioKey)
     const key = stem + (synced ? '.lrc' : '.txt')
     await this.#storage.write(key, Buffer.from(text, 'utf8'))
     if (synced) await this.#storage.delete(`${stem}.txt`).catch(() => undefined)
@@ -322,29 +321,18 @@ export class LyricsService {
 
   /** Cheap check used by the scanner: does this song have lyrics at all? */
   async detectKind(audioKey: string, embedded: string | null): Promise<LyricsKind> {
-    const sidecar = await this.findSidecar(audioKey)
-    if (sidecar) {
-      try {
-        const text = (await this.#storage.read(sidecar.key)).toString('utf8')
-        if (text.trim()) return isSynced(text) ? 'synced' : 'plain'
-      } catch {
-        // Unreadable sidecar counts as no lyrics.
-      }
-    }
+    // An unreadable or empty sidecar counts as none, and the tags are asked.
+    const sidecar = await this.readSidecar(audioKey)
+    if (sidecar) return sidecar.kind
     if (embedded?.trim()) return isSynced(embedded) ? 'synced' : 'plain'
     return 'none'
   }
 
   /** Remove a song's sidecar, used when a song is deleted from the library. */
   async deleteSidecar(audioKey: string): Promise<void> {
-    const stem = audioKey.replace(/\.[^.]+$/, '')
+    const stem = stemOf(audioKey)
     for (const extension of LYRIC_EXTENSIONS) {
-      const local = this.#storage.localPath(stem + extension)
-      if (local) {
-        await fsp.rm(local, { force: true }).catch(() => undefined)
-      } else {
-        await this.#storage.delete(stem + extension).catch(() => undefined)
-      }
+      await this.#storage.delete(stem + extension).catch(() => undefined)
     }
   }
 }

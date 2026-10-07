@@ -114,14 +114,25 @@ export function staggerDelay(index: number, count: number = Infinity): number {
 }
 
 /**
+ * The app's two curves as control points, which `ui/motion.ts`'s `ease`,
+ * Reanimated's layout moves (`rowMotion.ts`) and a browser's own CSS are each
+ * built from: `out` for arriving, `in` for leaving.
+ */
+type Bezier = readonly [number, number, number, number]
+export const EASE_OUT_POINTS: Bezier = [0.2, 0.8, 0.2, 1]
+export const EASE_IN_POINTS: Bezier = [0.4, 0, 1, 1]
+
+const css = (points: Bezier): string => `cubic-bezier(${points.join(', ')})`
+
+/**
  * The app's ease-out as a browser writes it (`ui/motion.ts`'s `ease.out`),
  * for the few moves a browser makes itself: a row warming under a pointer, a
  * slider's thumb.
  */
-export const EASE_OUT_CSS = 'cubic-bezier(0.2, 0.8, 0.2, 1)'
+export const EASE_OUT_CSS = css(EASE_OUT_POINTS)
 
 /** `ease.in` as a browser writes it, for a browser's own exits. */
-export const EASE_IN_CSS = 'cubic-bezier(0.4, 0, 1, 1)'
+export const EASE_IN_CSS = css(EASE_IN_POINTS)
 
 /** How far a pressed thing sinks (`M1`, "Press"): a control, and a row, which is wide enough that 0.96 would walk its ends. */
 export const PRESS = { control: 0.96, row: 0.985 } as const

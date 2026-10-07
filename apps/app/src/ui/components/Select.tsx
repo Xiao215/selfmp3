@@ -154,7 +154,7 @@ export function Select<T extends string | number>({
           ? groups.map((group, index) => (
               <View key={group.label}>
                 <Text style={[styles.groupLabel, index > 0 && styles.groupDivided]}>
-                  {group.label.toUpperCase()}
+                  {group.label}
                 </Text>
                 {group.options.map(item)}
               </View>
@@ -178,20 +178,20 @@ const styles = StyleSheet.create(theme => ({
   },
   // Open, the control is a step lighter: tone, not an edge.
   fieldOpen: { backgroundColor: theme.colors.surface3 },
-  /* `.select-trigger` with a mouse: 7 by 10, 13-point type. */
+  /* With a mouse: 7 by 10, 13-point type. */
   controlDense: {
     minHeight: 36,
     paddingLeft: 10,
     paddingRight: 9,
   },
-  /* `.select-trigger-small`: 5 by 8, 12-point type. */
+  /* `small`: 5 by 8, 12-point type. */
   controlSmall: {
     minHeight: 30,
     gap: 6,
     paddingLeft: space.sm,
     paddingRight: 7,
   },
-  /* `.select-trigger-inline`: part of a sentence, on a lighter ground. */
+  /* `inline`: part of a sentence, on a lighter ground. */
   controlInline: {
     minHeight: 0,
     gap: 4,

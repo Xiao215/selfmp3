@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { AccessibilityInfo, Animated, Easing } from 'react-native'
 import { motion } from '@selfmp3/client'
-import { backOut, MOVE_MS, OVERSHOOT_S, PRESS, sessionMemory, staggerDelay } from './motion.model'
+import {
+  backOut,
+  EASE_IN_POINTS,
+  EASE_OUT_POINTS,
+  MOVE_MS,
+  OVERSHOOT_S,
+  PRESS,
+  sessionMemory,
+  staggerDelay,
+} from './motion.model'
 
 /**
  * Every move in the app goes through here (docs/ui-mock `M1`, and
@@ -94,8 +103,8 @@ export function spring(
  * back, for the mini player's rise and a sheet's (`motion.model.ts`).
  */
 export const ease = {
-  out: Easing.bezier(0.2, 0.8, 0.2, 1),
-  in: Easing.bezier(0.4, 0, 1, 1),
+  out: Easing.bezier(...EASE_OUT_POINTS),
+  in: Easing.bezier(...EASE_IN_POINTS),
   overshoot: backOut(OVERSHOOT_S),
 } as const
 

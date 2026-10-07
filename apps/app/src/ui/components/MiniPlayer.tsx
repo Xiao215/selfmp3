@@ -126,6 +126,14 @@ function MiniPlayerInner(): ReactNode {
   // The card as a whole sinks under a finger (`M1`, 1), to a row's depth:
   // tapping it is how Now Playing opens, and it is the tap made most often.
   const press = usePressScale(PRESS.row)
+  // The rise and the press on one transform, built once: the card re-renders
+  // with the player, and an interpolation made in the render is a new node
+  // for the native driver every time.
+  const [arrival] = useState(() => ({
+    // The overshoot is a curve past 1; the card is never more than opaque.
+    opacity: rise.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
+    transform: [{ translateY: rise.interpolate(RISE_RANGE) }, ...press.style.transform],
+  }))
   const coverRef = useRef<View>(null)
   const open = (): void => {
     // Where the cover is, for Now Playing's cover to grow from (`M2`, 1).
@@ -150,15 +158,7 @@ function MiniPlayerInner(): ReactNode {
       style={[
         styles.bar,
         { bottom: navBottom(insets.bottom) + NAV_HEIGHT + MINI_PLAYER_GAP },
-        {
-          // The overshoot is a curve past 1; the card is never more than opaque.
-          opacity: rise.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0, 1],
-            extrapolate: 'clamp',
-          }),
-          transform: [{ translateY: rise.interpolate(RISE_RANGE) }, ...press.style.transform],
-        },
+        arrival,
       ]}
       pointerEvents={sinking ? 'none' : 'auto'}
     >
@@ -233,6 +233,9 @@ const RISE_KEY = 'mini-player-rise'
 /** From under the bar to its place, and five points past it on the way (`M1`). */
 const RISE_RANGE = overshootRange(MINI_PLAYER_HEIGHT, 5)
 
+/** Room from each edge of the display (the tab bar under it keeps 16). */
+const EDGE = 12
+
 /** How far the words step as one song's give way to the next's. */
 const WORDS_STEP = 8
 
@@ -269,8 +272,8 @@ function MiniProgress({ color }: { color: string }): ReactNode {
 const styles = StyleSheet.create(theme => ({
   bar: {
     position: 'absolute',
-    left: 12,
-    right: 12,
+    left: EDGE,
+    right: EDGE,
     height: MINI_PLAYER_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',

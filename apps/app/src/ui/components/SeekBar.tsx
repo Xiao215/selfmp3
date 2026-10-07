@@ -8,6 +8,7 @@ import { useAccent } from '../accent'
 import { space, type, withAlpha } from '@selfmp3/client'
 import { spring } from '../motion'
 import { SEEK_STEP_SECONDS } from '../../player/progress.model'
+import { ADJUST_ACTIONS } from './slider.model'
 
 /**
  * Closer than this to a seek, the player is taken to be there. Wide enough for
@@ -16,8 +17,6 @@ import { SEEK_STEP_SECONDS } from '../../player/progress.model'
 const SEEK_LANDED_SECONDS = 2.1
 /** How long a let-go position is held against an engine still reporting the old one. */
 const SEEK_SETTLE_MS = 1000
-/** What a screen reader can do to an adjustable: the same pair its sibling `Slider` offers. */
-const ADJUST_ACTIONS = [{ name: 'increment' }, { name: 'decrement' }] as const
 
 /**
  * Scrubber: a 6px track with a 16px thumb that is always there, in a hit area

@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { EVENTS, type UpdateStatus } from '@selfmp3/desktop-bridge'
+import { z } from 'zod'
 
 import { isNewer, LATEST_RELEASE_API, RELEASES_URL, versionFromTag } from '@selfmp3/shared'
 
@@ -48,6 +49,16 @@ declare const __SELFMP3_SIGNED__: boolean
 function canInstall(): boolean {
   return app.isPackaged && __SELFMP3_SIGNED__
 }
+
+/**
+ * The two fields of GitHub's latest-release answer this reads. Either one
+ * missing or odd falls back rather than failing: no tag is "nothing to compare
+ * with", no page is the releases list.
+ */
+const LatestReleaseSchema = z.object({
+  tag_name: z.string().catch(''),
+  html_url: z.string().catch(RELEASES_URL),
+})
 
 function publish(window_: BrowserWindow | null, next: Partial<UpdateStatus>): void {
   status = { ...status, ...next }
@@ -97,10 +108,8 @@ export async function check(window_: BrowserWindow | null): Promise<UpdateStatus
       signal: AbortSignal.timeout(10_000),
     })
     if (!response.ok) throw new Error(`GitHub answered ${response.status}`)
-    const body = (await response.json()) as { tag_name?: unknown; html_url?: unknown }
-    const tag = typeof body.tag_name === 'string' ? body.tag_name : ''
+    const { tag_name: tag, html_url: url } = LatestReleaseSchema.parse(await response.json())
     const found = versionFromTag(tag)
-    const url = typeof body.html_url === 'string' ? body.html_url : RELEASES_URL
     if (found === null) {
       publish(window_, { state: 'none', message: 'no release to compare with' })
       return status

@@ -13,7 +13,7 @@ import { Bucket, BucketError, type BucketTarget } from './bucket.js'
 import { requireSession, type Context } from './context.js'
 import type { Session } from './sessions.js'
 import { fromUtf8, toBase64, utf8 } from './encoding.js'
-import { DoormanError, badRequest, json, readJson, unprocessable } from './http.js'
+import { DoormanError, badRequest, isLoopbackHost, json, readJson, unprocessable } from './http.js'
 
 /**
  * Who is signed in, and connecting the one bucket that belongs to them.
@@ -200,8 +200,7 @@ function targetFrom(input: CloudConnect, dev: boolean): BucketTarget {
   // The doorman is on the public internet: songs must not cross it in the
   // clear. A bucket on this computer is the one exception, and only in
   // `wrangler dev --env dev`, whose settings say DEV.
-  const host = new URL(endpoint.url).hostname
-  const local = host === 'localhost' || host === '127.0.0.1'
+  const local = isLoopbackHost(new URL(endpoint.url).hostname)
   if (endpoint.url.startsWith('http:') && !(dev && local)) {
     throw unprocessable('The endpoint has to be an https:// address.')
   }

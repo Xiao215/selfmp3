@@ -1,7 +1,7 @@
 # The server image, for a Raspberry Pi (arm64) and anything else (amd64).
 #
 # Built on every push to main that could change it, and on demand. Published to
-# ghcr.io/<owner>/selfmp3 as `latest` and as the commit's short hash, so a Pi
+# ghcr.io/<owner>/selfmp3 as `latest` and as the full commit SHA, so a Pi
 # runs `docker compose pull` rather than building anything itself.
 #
 # Each architecture is built on a runner of its own kind and pushed by digest;

@@ -3,6 +3,7 @@ import { pageKind } from '../pageKind.js'
 // The generated tokens (scripts/theme.mjs), as text for the pill's shadow root.
 import THEME from '../ui/theme.css'
 import { findAnchor, siteOf } from './anchors.js'
+import type { PillState } from '../bridge.js'
 import { askPage } from './ask.js'
 import { createPill, PILL_TAG, type PillHandles } from './pill.js'
 
@@ -28,6 +29,11 @@ const LOOK_EVERY_MS = 100
 const SETTLE_MS = 200
 /** Per address: enough to survive YouTube's redraws, few enough to stop a loop. */
 const REPAIRS = 5
+/** Following an import of ours: the first look, then closely while it downloads, for the percentage. */
+const FOLLOW_FIRST_MS = 1_000
+const FOLLOW_IMPORTING_MS = 1_500
+/** A song waiting its turn in a long queue is asked after only every so often. */
+const FOLLOW_QUEUED_MS = 10_000
 
 let pill: PillHandles | null = null
 let repairs = 0
@@ -36,9 +42,17 @@ let polling = false
 
 const site = siteOf(location.hostname)
 
+/** The address last read, and its video: the observer below asks on every mutation YouTube makes. */
+let readHref: string | null = null
+let readVideoId: string | null = null
+
 function videoIdNow(): string | null {
-  const kind = pageKind(location.href)
-  return kind.kind === 'song' ? kind.videoId : null
+  if (location.href !== readHref) {
+    readHref = location.href
+    const kind = pageKind(readHref)
+    readVideoId = kind.kind === 'song' ? kind.videoId : null
+  }
+  return readVideoId
 }
 
 /** Take every pill away this instant: another one is going into the same row. */
@@ -64,14 +78,15 @@ function dismissPills(): void {
   going?.leave()
 }
 
-/** Ask what the pill should say, and draw it. */
-async function refresh(videoId: string): Promise<void> {
+/** Ask what the pill should say, and draw it; what it was told, or null when the worker did not answer. */
+async function refresh(videoId: string): Promise<PillState | null> {
   const reply = await askPage({
     type: 'pillState',
     url: youtubeWatchUrl(videoId),
   })
-  if (!pill || pill.videoId !== videoId) return
-  if (reply.ok) pill.draw(reply.value)
+  if (!reply.ok) return null
+  if (pill && pill.videoId === videoId) pill.draw(reply.value)
+  return reply.value
 }
 
 /** While an import of ours is going, keep the pill's percentage moving. */
@@ -80,24 +95,17 @@ function follow(videoId: string): void {
   polling = true
   const again = (): void => {
     void (async () => {
-      const current = videoIdNow()
-      if (!pill || current !== videoId) {
+      if (!pill || videoIdNow() !== videoId) {
         polling = false
         return
       }
-      const reply = await askPage({
-        type: 'pillState',
-        url: youtubeWatchUrl(videoId),
-      })
-      if (reply.ok && pill.videoId === videoId) pill.draw(reply.value)
-      // Closely while it downloads, for the percentage; a song waiting its
-      // turn in a long queue is asked after every so often.
-      if (reply.ok && reply.value.state === 'importing') setTimeout(again, 1_500)
-      else if (reply.ok && reply.value.state === 'queued') setTimeout(again, 10_000)
+      const state = (await refresh(videoId))?.state
+      if (state === 'importing') setTimeout(again, FOLLOW_IMPORTING_MS)
+      else if (state === 'queued') setTimeout(again, FOLLOW_QUEUED_MS)
       else polling = false
     })()
   }
-  setTimeout(again, 1_000)
+  setTimeout(again, FOLLOW_FIRST_MS)
 }
 
 function clicked(clickedPill: PillHandles): void {

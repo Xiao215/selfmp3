@@ -1,6 +1,6 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
-import { appApi } from '../env.js'
+import { dismissToasts, skipWithoutYtDlp } from './helpers.js'
 
 /**
  * Importing a list of song names: paste them in Import's box, look them up,
@@ -13,23 +13,6 @@ import { appApi } from '../env.js'
  */
 
 const SONGS = 'YOASOBI - 群青\nアイドル by YOASOBI'
-
-async function skipWithoutYtDlp(page: Page): Promise<void> {
-  const tools = await page.request
-    .get(`${appApi}/api/import/tools`)
-    .then(async response =>
-      response.ok() ? ((await response.json()) as { ytdlp?: boolean }) : null,
-    )
-    .catch(() => null)
-  test.skip(!tools?.ytdlp, 'the Mac has no yt-dlp to import with')
-}
-
-/** The resume toast floats over the bottom of a phone-sized screen. */
-async function dismissToasts(page: Page): Promise<void> {
-  for (const button of await page.getByRole('button', { name: 'Dismiss' }).all()) {
-    await button.click().catch(() => {})
-  }
-}
 
 test.describe('a list of song names', () => {
   test('pasted in the box, looked up, and known as yours', async ({ page }) => {

@@ -50,8 +50,9 @@ const request = (patch: Partial<ImportRequestView> = {}): ImportRequestView => (
   ...patch,
 })
 
-const status = (mode: 'server' | 'bucket') => () =>
-  Promise.resolve({ mode, server: null, account: null, songCount: null })
+/** The pill's channel over `handlers`, with the route pointing where the test says. */
+const pageHandler = (handlers: Handlers, mode: 'server' | 'bucket' = 'server') =>
+  createPageHandler(handlers, () => Promise.resolve(mode))
 
 function fakeHandlers(patch: Partial<Record<keyof Handlers, unknown>>): {
   handlers: Handlers
@@ -59,7 +60,7 @@ function fakeHandlers(patch: Partial<Record<keyof Handlers, unknown>>): {
 } {
   const enqueued: unknown[] = []
   const handlers = {
-    status: status('server'),
+    status: () => Promise.reject(new Error('the pill reads the route, not the status')),
     choices: () => Promise.resolve({ tags: [], defaultTagIds: [], lastTagIds: [7] }),
     requests: () => Promise.resolve({ imports: [] }),
     queue: () => Promise.resolve({ jobs: [], active: 0, queued: 0 }),
@@ -125,7 +126,7 @@ describe('stateOfRequest', () => {
 describe('what a page may ask', () => {
   it('says nothing at all about a link that is not a video', async () => {
     const { handlers } = fakeHandlers({})
-    const handle = createPageHandler(handlers)
+    const handle = pageHandler(handlers)
     expect(await handle({ type: 'pillState', url: 'https://example.com/' })).toMatchObject({
       state: 'idle',
     })
@@ -142,7 +143,7 @@ describe('what a page may ask', () => {
           playCount: 41,
         }),
     })
-    expect(await createPageHandler(handlers)({ type: 'pillState', url: IDOL })).toMatchObject({
+    expect(await pageHandler(handlers)({ type: 'pillState', url: IDOL })).toMatchObject({
       state: 'have',
     })
   })
@@ -151,7 +152,7 @@ describe('what a page may ask', () => {
     const { handlers } = fakeHandlers({
       queue: () => Promise.resolve({ jobs: [job()], active: 1, queued: 0 }),
     })
-    expect(await createPageHandler(handlers)({ type: 'pillState', url: IDOL })).toMatchObject({
+    expect(await pageHandler(handlers)({ type: 'pillState', url: IDOL })).toMatchObject({
       state: 'importing',
       progress: 40,
     })
@@ -159,7 +160,7 @@ describe('what a page may ask', () => {
 
   it('imports with the tags the last import went in with, and tells the page nothing about your library', async () => {
     const { handlers, enqueued } = fakeHandlers({})
-    const state = await createPageHandler(handlers)({ type: 'pillImport', url: IDOL })
+    const state = await pageHandler(handlers)({ type: 'pillImport', url: IDOL })
     expect(state).toMatchObject({ state: 'queued' })
     // The last import's tags and no playlist: the page chooses nothing, and
     // the server adds the default tags itself.
@@ -185,7 +186,7 @@ describe('what a page may ask', () => {
           items: [{ ...item, alreadyHave: true }],
         }),
     })
-    expect(await createPageHandler(handlers)({ type: 'pillImport', url: IDOL })).toMatchObject({
+    expect(await pageHandler(handlers)({ type: 'pillImport', url: IDOL })).toMatchObject({
       state: 'have',
     })
     expect(enqueued).toHaveLength(0)
@@ -193,10 +194,9 @@ describe('what a page may ask', () => {
 
   it('finds the link already left in the bucket, whichever form it was left under', async () => {
     const { handlers } = fakeHandlers({
-      status: status('bucket'),
       requests: () => Promise.resolve({ imports: [request()] }),
     })
-    expect(await createPageHandler(handlers)({ type: 'pillState', url: IDOL })).toMatchObject({
+    expect(await pageHandler(handlers, 'bucket')({ type: 'pillState', url: IDOL })).toMatchObject({
       state: 'waiting',
     })
   })
@@ -208,14 +208,13 @@ describe('what a page may ask', () => {
   it('leaves the link in the bucket when the server is away, without a preview', async () => {
     const left: unknown[] = []
     const { handlers, enqueued } = fakeHandlers({
-      status: status('bucket'),
       preview: () => Promise.reject(new Error('the server should never be asked')),
       requestImport: (input: unknown) => {
         left.push(input)
         return Promise.resolve(request())
       },
     })
-    expect(await createPageHandler(handlers)({ type: 'pillImport', url: IDOL })).toMatchObject({
+    expect(await pageHandler(handlers, 'bucket')({ type: 'pillImport', url: IDOL })).toMatchObject({
       state: 'waiting',
     })
     expect(left).toEqual([{ type: 'requestImport', url: IDOL, tagIds: [7] }])

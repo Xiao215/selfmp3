@@ -3,6 +3,7 @@ import type { ImportRequestView } from '@selfmp3/replica'
 import {
   plural,
   formatDuration,
+  fromSqliteTime,
   youtubeVideoId,
   type ImportEnqueue,
   type ImportJob,
@@ -194,11 +195,6 @@ export function requestForLink(
   )
 }
 
-/** A server's `2026-09-14 08:30:00` is UTC without saying so; an ISO time says so. */
-function stampTime(stamp: string): number {
-  return new Date(stamp.includes('T') ? stamp : `${stamp.replace(' ', 'T')}Z`).getTime()
-}
-
 /** How long a finished import is still news when the popup opens again. */
 const RECENT_MS = 10 * 60_000
 
@@ -223,7 +219,8 @@ export function jobForLink(
     matches.find(job => startedHere.has(job.id)) ??
     matches.find(job => job.status === 'queued' || job.status === 'running') ??
     matches.find(
-      job => job.status !== 'cancelled' && now.getTime() - stampTime(job.updatedAt) < RECENT_MS,
+      job =>
+        job.status !== 'cancelled' && now.getTime() - fromSqliteTime(job.updatedAt) < RECENT_MS,
     ) ??
     null
   )
@@ -276,7 +273,7 @@ const DAY_MONTH_YEAR = new Intl.DateTimeFormat('en-GB', {
 
 /** "In your library since 12 Aug · played 41 times". */
 export function sinceLine(hit: SongHit, now: Date): string {
-  const added = new Date(stampTime(hit.addedAt))
+  const added = new Date(fromSqliteTime(hit.addedAt))
   const date =
     added.getUTCFullYear() === now.getUTCFullYear()
       ? DAY_MONTH.format(added)

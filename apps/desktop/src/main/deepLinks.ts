@@ -18,25 +18,56 @@ export function deepLinkFromArgv(argv: readonly string[]): string | null {
 }
 
 export class DeepLinks {
-  #listener: ((url: string) => void) | null = null
+  /** The page that can hear a link now, or null while there is none. */
+  #send: ((url: string) => void) | null = null
   /**
-   * Links that arrived before the page was listening.
+   * Links that arrived while no page could hear them.
    *
    * A cold launch from a sign-in return is exactly this case: the URL is on
-   * the command line before there is a window, let alone a React effect. Held
-   * rather than dropped, or signing in from a closed app would do nothing.
+   * the command line before the window's page has loaded, let alone run the
+   * module that listens. Held rather than dropped, or signing in from a
+   * closed app would do nothing — `webContents.send` to a page that is still
+   * loading goes nowhere.
    */
   readonly #pending: string[] = []
 
   deliver(url: string | null): void {
     if (url === null) return
-    if (this.#listener) this.#listener(url)
+    if (this.#send) this.#send(url)
     else this.#pending.push(url)
   }
 
-  listen(listener: (url: string) => void): void {
-    this.#listener = listener
+  /** A page has loaded and listens: hand it what was held, and everything after. */
+  ready(send: (url: string) => void): void {
+    this.#send = send
     const waiting = this.#pending.splice(0, this.#pending.length)
-    for (const url of waiting) listener(url)
+    for (const url of waiting) send(url)
   }
+
+  /** The page is reloading or gone: hold links again until the next `ready`. */
+  unready(): void {
+    this.#send = null
+  }
+}
+
+/** As much of a window's `webContents` as following its page takes. */
+export interface LinkPage {
+  on(event: 'did-start-loading' | 'did-finish-load' | 'destroyed', listener: () => void): unknown
+  send(channel: string, url: string): void
+}
+
+/**
+ * Deliver links to `page` only while it has a loaded page to hear them.
+ *
+ * Called for every window the shell makes, so a window made again — after the
+ * last one closed, off macOS — takes over the stream. A load starting (the
+ * first one, or a reload) holds links until it finishes; `did-finish-load`
+ * comes after the export's scripts have run, which is when the page's own
+ * listener exists (apps/app's `ports/deepLinks.web.ts` subscribes as its
+ * module loads, and keeps what arrives before a screen asks).
+ */
+export function followPage(links: DeepLinks, page: LinkPage, channel: string): void {
+  page.on('did-start-loading', () => links.unready())
+  page.on('did-finish-load', () => links.ready(url => page.send(channel, url)))
+  page.on('destroyed', () => links.unready())
 }

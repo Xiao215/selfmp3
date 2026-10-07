@@ -1,5 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
+import { appApi } from '../env.js'
+
 /**
  * Selectors, derived from the app's accessible names rather than test ids.
  *
@@ -120,16 +122,11 @@ export async function skipIfNoLibrary(page: Page, need = 1): Promise<void> {
  * Start a song the way a person does, at whichever width the test is running.
  *
  * There is no one control for this, which is why it lives here rather than in
- * a spec. Above the 820 breakpoint the row reveals a play button on hover
- * (`.song-index-play` is `display: none` until `.song-row:hover`), so it has
- * to be hovered into existence before it can be clicked. Below 820 the index
- * column is not rendered at all — `showIndex={!isMobile}` — so that button is
- * not hidden, it is absent, and the row itself is the control: a finger taps
- * once, a mouse double-clicks (`onDoubleClick={play}` on the row).
- *
- * Both paths call the same `play()`. Keeping the choice in one helper is also
- * what makes phase 2 cheap: when these flows are pointed at `apps/app`, this
- * is the single place that knows how a row is started.
+ * a spec. With a pointer, at computer width, a row's number turns into a
+ * `Play <title>` button only while the pointer is over the row (`revealed` in
+ * apps/app's `SongRow.tsx`), so it has to be hovered into existence before it
+ * can be clicked. At phone width that button is never drawn, and the row
+ * itself is the control.
  */
 export async function playSong(page: Page, row: Locator): Promise<void> {
   const title = await titleOf(row)
@@ -152,7 +149,7 @@ export async function playSong(page: Page, row: Locator): Promise<void> {
  * This is the check that the song is *playing* rather than that the UI said it
  * would: a stream URL built wrong still flips the button to Pause, and then
  * nothing ever advances. It cannot be read from an `<audio>` element, because
- * there are none in the document — `engine.ts` builds its two with
+ * there are none in the document — `engine.web.ts` builds its elements with
  * `new Audio()` and never appends them, so `document.querySelector('audio')`
  * is always null. The scrubber's value is the engine's `currentTime`, and it
  * has the advantage of being the number a person can see.
@@ -223,4 +220,44 @@ export async function topRow(page: Page): Promise<Locator> {
     }
   }
   return rows.nth(top)
+}
+
+/** As much of `/api/library` as the specs that read it directly need. */
+export interface LibraryTag {
+  id: number
+  name: string
+}
+export interface LibrarySong {
+  tagIds: number[]
+  missing: boolean
+  playCount: number
+}
+
+/** The library as the server has it, for a spec that works out what the app should show. */
+export async function libraryData(
+  page: Page,
+): Promise<{ songs: LibrarySong[]; tags: LibraryTag[] }> {
+  const response = await page.request.get(`${appApi}/api/library`)
+  return (await response.json()) as { songs: LibrarySong[]; tags: LibraryTag[] }
+}
+
+/** Skip a flow that reads a link or a name, on a server with no yt-dlp to do it with. */
+export async function skipWithoutYtDlp(page: Page): Promise<void> {
+  const tools = await page.request
+    .get(`${appApi}/api/import/tools`)
+    .then(async response =>
+      response.ok() ? ((await response.json()) as { ytdlp?: boolean }) : null,
+    )
+    .catch(() => null)
+  test.skip(!tools?.ytdlp, 'the server has no yt-dlp to read links with')
+}
+
+/**
+ * The resume toast ("Continue … from your other device") floats over the
+ * bottom of a phone-sized screen, which is where Import's buttons end up.
+ */
+export async function dismissToasts(page: Page): Promise<void> {
+  for (const button of await page.getByRole('button', { name: 'Dismiss' }).all()) {
+    await button.click().catch(() => {})
+  }
 }

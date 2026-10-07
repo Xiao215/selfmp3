@@ -153,6 +153,11 @@ export async function readBytes(
   return out
 }
 
+/** `localhost` or `127.0.0.1`: this computer, as an address names it. */
+export function isLoopbackHost(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1'
+}
+
 /** Let go of a body nobody is going to read, so its connection is freed. */
 export async function discard(response: Response): Promise<void> {
   await response.body?.cancel().catch(() => undefined)

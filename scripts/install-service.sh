@@ -7,10 +7,11 @@
 
 set -euo pipefail
 
-LABEL="com.selfmp3.server"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
-LOG_DIR="$HOME/Library/Logs"
+# PORT, SERVICE_LABEL and the log files, shared with the other scripts.
+# shellcheck source=./_dirs.sh
+source "$PROJECT_DIR/scripts/_dirs.sh"
+PLIST="$HOME/Library/LaunchAgents/$SERVICE_LABEL.plist"
 
 # --- checks -----------------------------------------------------------------
 
@@ -37,7 +38,7 @@ if [[ ! -f "$PROJECT_DIR/apps/server/dist/main.js" ]]; then
   exit 1
 fi
 
-mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR"
+mkdir -p "$HOME/Library/LaunchAgents" "$(dirname "$SERVICE_LOG")"
 
 # launchd runs with a minimal PATH, so yt-dlp and ffmpeg from Homebrew would be
 # invisible. Both Intel and Apple Silicon prefixes are included.
@@ -52,7 +53,7 @@ cat > "$PLIST" <<PLIST_EOF
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>$LABEL</string>
+    <string>$SERVICE_LABEL</string>
 
     <key>ProgramArguments</key>
     <array>
@@ -72,7 +73,7 @@ cat > "$PLIST" <<PLIST_EOF
         <key>SELFMP3_HOST</key>
         <string>127.0.0.1</string>
         <key>SELFMP3_PORT</key>
-        <string>4600</string>
+        <string>$PORT</string>
         <!-- Add SELFMP3_AUTH_TOKEN here if you want a shared secret. -->
     </dict>
 
@@ -90,9 +91,9 @@ cat > "$PLIST" <<PLIST_EOF
     <integer>10</integer>
 
     <key>StandardOutPath</key>
-    <string>$LOG_DIR/selfmp3.log</string>
+    <string>$SERVICE_LOG</string>
     <key>StandardErrorPath</key>
-    <string>$LOG_DIR/selfmp3.error.log</string>
+    <string>$SERVICE_ERROR_LOG</string>
 
     <key>ProcessType</key>
     <string>Background</string>
@@ -103,22 +104,22 @@ PLIST_EOF
 # --- (re)load ---------------------------------------------------------------
 
 # Ignore the error when nothing was loaded to begin with.
-launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+launchctl bootout "gui/$(id -u)/$SERVICE_LABEL" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
-launchctl kickstart -k "gui/$(id -u)/$LABEL"
+launchctl kickstart -k "gui/$(id -u)/$SERVICE_LABEL"
 
 echo
 echo "self.mp3 is now running in the background."
 echo
-echo "  Local:   http://localhost:4600"
-echo "  Logs:    tail -f $LOG_DIR/selfmp3.log"
-echo "  Restart: launchctl kickstart -k gui/$(id -u)/$LABEL"
-echo "  Stop:    launchctl bootout gui/$(id -u)/$LABEL"
+echo "  Local:   http://localhost:$PORT"
+echo "  Logs:    tail -f $SERVICE_LOG"
+echo "  Restart: launchctl kickstart -k gui/$(id -u)/$SERVICE_LABEL"
+echo "  Stop:    launchctl bootout gui/$(id -u)/$SERVICE_LABEL"
 echo
 echo "Note: it binds to 127.0.0.1 only. To reach it from your phone, put"
 echo "Tailscale in front of it:"
 echo
-echo "  tailscale serve --bg 4600"
+echo "  tailscale serve --bg $PORT"
 echo
 echo "That also gives you real HTTPS, which iOS requires for offline downloads."
 echo "See docs/SETUP.md for the full walkthrough."

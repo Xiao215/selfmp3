@@ -2,7 +2,8 @@ import { ApiError } from '@selfmp3/client/core'
 import { IDLE_PACING, type ImportJob } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import { fixtureLibrary, HELLO_URL, IDOL_URL, memoryStore } from '../../verify/fixtures.js'
-import { createHandlers, explain, forPages, Refusal } from './handlers.js'
+import { BridgeError } from '../bridge.js'
+import { createHandlers, explain, forPages } from './handlers.js'
 import { createWatcher } from './watcher.js'
 
 const library = fixtureLibrary()
@@ -154,7 +155,7 @@ describe('connecting', () => {
       account: null,
       songCount: null,
     })
-    await expect(handlers.signIn({ type: 'signIn' })).rejects.toBeInstanceOf(Refusal)
+    await expect(handlers.signIn({ type: 'signIn' })).rejects.toBeInstanceOf(BridgeError)
   })
 })
 
@@ -227,7 +228,7 @@ describe('asking about a link', () => {
   it('asks for a server before it looks anything up', async () => {
     const handlers = createHandlers({ store: memoryStore(), fetch: fakeServer(null).fetch })
     await expect(handlers.preview({ type: 'preview', url: IDOL_URL })).rejects.toBeInstanceOf(
-      Refusal,
+      BridgeError,
     )
   })
 })
@@ -275,7 +276,7 @@ describe('explain', () => {
       message: 'This video is private.',
       status: 422,
     })
-    expect(explain(new Refusal('Connect first.', 428))).toEqual({
+    expect(explain(new BridgeError('Connect first.', 428))).toEqual({
       message: 'Connect first.',
       status: 428,
     })

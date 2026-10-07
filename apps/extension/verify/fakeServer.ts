@@ -1,6 +1,12 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { EXTENSION_ORIGIN, IDLE_PACING, type ImportEnqueue, type ImportJob } from '@selfmp3/shared'
+import {
+  EXTENSION_ORIGIN,
+  IDLE_PACING,
+  toSqliteTime,
+  type ImportEnqueue,
+  type ImportJob,
+} from '@selfmp3/shared'
 import { fixtureLibrary, previewFor } from './fixtures.js'
 
 export const TOKEN = 'fake-token'
@@ -23,7 +29,7 @@ const STEPS: readonly Pick<ImportJob, 'status' | 'step' | 'progress'>[] = [
   { status: 'done', step: 'finished', progress: 100 },
 ]
 
-const now = (): string => new Date().toISOString().slice(0, 19).replace('T', ' ')
+const now = (): string => toSqliteTime(Date.now())
 
 /**
  * A self.mp3 server with the part of the API the extension uses, and the real

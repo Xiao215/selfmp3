@@ -1,7 +1,15 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { appApi } from '../env.js'
-import { escaped, libraryReady, openLibrary, skipIfNoLibrary, songRows } from './helpers.js'
+import {
+  escaped,
+  libraryData,
+  libraryReady,
+  openLibrary,
+  skipIfNoLibrary,
+  songRows,
+  type LibrarySong,
+  type LibraryTag,
+} from './helpers.js'
 
 /**
  * Tags as places (docs/UI-MIGRATION.md, Phase 4; docs/ui-mock `P07`).
@@ -16,21 +24,6 @@ import { escaped, libraryReady, openLibrary, skipIfNoLibrary, songRows } from '.
  * the second half checks the rule it rests on: several tags mean *any* of
  * them, so every tag added makes the list longer.
  */
-
-interface LibraryTag {
-  id: number
-  name: string
-}
-interface LibrarySong {
-  tagIds: number[]
-  missing: boolean
-  playCount: number
-}
-
-async function libraryData(page: Page): Promise<{ songs: LibrarySong[]; tags: LibraryTag[] }> {
-  const response = await page.request.get(`${appApi}/api/library`)
-  return (await response.json()) as { songs: LibrarySong[]; tags: LibraryTag[] }
-}
 
 /**
  * The tags in All tags' order: by the plays of the songs each carries, then

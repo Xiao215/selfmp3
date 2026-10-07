@@ -56,7 +56,7 @@ async function writablePathFor(kind: FileKind, name: string): Promise<string> {
  * messages a second, each parsed in the preload and each re-rendering whatever
  * shows downloads. The last is always sent, so the bar finishes where the file did.
  */
-export const PROGRESS_INTERVAL_MS = 250
+const PROGRESS_INTERVAL_MS = 250
 
 /** Whether a report is due now, and whether one is owed for the bytes since the last. */
 export function progressGate(
@@ -118,10 +118,12 @@ export async function download(
     const declared = Number(response.headers.get('Content-Length') ?? 0)
     const totalBytes = continuing ? resumeFrom + declared : declared
 
-    let written = continuing ? resumeFrom : 0
-    const sink = createWriteStream(part, { flags: continuing ? 'a' : 'w' })
     const body = response.body
     if (body === null) throw new Error('no body')
+    let written = continuing ? resumeFrom : 0
+    // Opened only once there is something to write: a stream opened first and
+    // then abandoned keeps its file open and leaves the `.part` truncated.
+    const sink = createWriteStream(part, { flags: continuing ? 'a' : 'w' })
 
     const reader = body.getReader()
     /*

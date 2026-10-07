@@ -3,7 +3,7 @@ import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import { z } from 'zod'
-import { DEFAULT_DOORMAN_URL, DEFAULT_SERVER_PORT } from '@selfmp3/shared'
+import { DEFAULT_APP_URL, DEFAULT_DOORMAN_URL, DEFAULT_SERVER_PORT } from '@selfmp3/shared'
 import { loadDotEnv } from './dotenv.js'
 
 /**
@@ -125,6 +125,18 @@ const ConfigSchema = z.object({
     .nullable()
     .default(null),
 
+  /**
+   * Where the app you listen in is published: the server's page links there,
+   * and a public address lets that site's origin call this server. The
+   * project's own Pages site unless you publish your own build.
+   */
+  appUrl: z
+    .string()
+    .trim()
+    .url()
+    .transform(value => value.replace(/\/+$/, ''))
+    .default(DEFAULT_APP_URL),
+
   /** Where the audio files live. `readEnv` always supplies it (`resolveDirs`). */
   libraryDir: z.string().min(1),
 
@@ -163,8 +175,6 @@ const ConfigSchema = z.object({
       endpoint: z.string().default(''),
       accessKeyId: z.string().default(''),
       secretAccessKey: z.string().default(''),
-      /** Seconds a presigned stream URL stays valid. */
-      signedUrlTtl: z.coerce.number().int().min(60).max(86_400).default(3600),
     })
     .default({}),
 
@@ -221,6 +231,13 @@ const ConfigSchema = z.object({
 export type Config = Readonly<z.infer<typeof ConfigSchema>>
 
 /**
+ * The configuration the server runs with: `authToken` settled, never null.
+ * `createContainer` makes it (repositories/auth.ts), and everything that
+ * answers a request reads this rather than the `Config` it was made from.
+ */
+export type ServingConfig = Config & { readonly authToken: string }
+
+/**
  * Where a file waits before it belongs to the library: yt-dlp writes its
  * downloads here, and analysis fetches object-storage files here so ffmpeg has
  * a real path. Named once so the two never end up looking in different folders.
@@ -235,6 +252,7 @@ function readEnv(): unknown {
     port: env['SELFMP3_PORT'] ?? undefined,
     host: env['SELFMP3_HOST'] ?? undefined,
     publicUrl: env['SELFMP3_PUBLIC_URL'] || undefined,
+    appUrl: env['SELFMP3_APP_URL'] || undefined,
     // Resolved here rather than as schema defaults so a profile set by `.env`
     // (read just before this) chooses the folders too, not only one exported.
     ...resolveDirs(env),
@@ -247,7 +265,6 @@ function readEnv(): unknown {
       endpoint: env['SELFMP3_S3_ENDPOINT'] ?? undefined,
       accessKeyId: env['SELFMP3_S3_ACCESS_KEY_ID'] ?? undefined,
       secretAccessKey: env['SELFMP3_S3_SECRET_ACCESS_KEY'] ?? undefined,
-      signedUrlTtl: env['SELFMP3_S3_SIGNED_URL_TTL'] ?? undefined,
     },
     ai: {
       baseUrl: env['SELFMP3_AI_BASE_URL'] || undefined,

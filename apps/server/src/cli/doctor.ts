@@ -6,6 +6,13 @@ import { formatBytes } from '@selfmp3/shared'
 import type { ServerClient } from './api.js'
 import { YTDLP_STALE_DAYS, ytdlpAgeDays } from '../services/ytdlp.js'
 
+/**
+ * `selfmp3 doctor`: the six things that are usually wrong when something does
+ * not work — node, yt-dlp, ffmpeg, the server, and its two folders — each on
+ * one line with a tick or a cross. Mirrors scripts/doctor.sh but runs anywhere
+ * node does, including inside the Docker image.
+ */
+
 const exec = promisify(execFile)
 
 /**
@@ -16,12 +23,6 @@ const exec = promisify(execFile)
 const YTDLP_UPDATE_HINT = fs.existsSync('/.dockerenv')
   ? 'docker compose pull && docker compose up -d'
   : 'brew upgrade yt-dlp'
-
-/**
- * `selfmp3 doctor`: the five things that are usually wrong when something does
- * not work, each on one line with a tick or a cross. Mirrors scripts/doctor.sh
- * but runs anywhere node does — including inside the Docker image.
- */
 
 interface DoctorLine {
   readonly ok: boolean
@@ -99,7 +100,8 @@ export async function runDoctor(
     ok: health !== null,
     label: 'server',
     detail: health
-      ? `${client.baseUrl} — v${health.version}, ${health.songCount} songs, up ${Math.round(health.uptimeSeconds / 60)} min`
+      ? // The count is only told to a caller the server knows: this computer, or one with its token.
+        `${client.baseUrl} — v${health.version}${health.songCount === undefined ? '' : `, ${health.songCount} songs`}, up ${Math.round(health.uptimeSeconds / 60)} min`
       : `${client.baseUrl} — not running (selfmp3 start)`,
   })
 

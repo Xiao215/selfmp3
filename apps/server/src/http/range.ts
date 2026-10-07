@@ -33,7 +33,7 @@ export interface RangeSource {
 }
 
 /** True when the client's cached copy is still good. */
-function isFresh(req: Request, etag: string, lastModified: Date): boolean {
+export function isFresh(req: Request, etag: string, lastModified: Date): boolean {
   const ifNoneMatch = req.headers['if-none-match']
   if (ifNoneMatch) {
     return ifNoneMatch

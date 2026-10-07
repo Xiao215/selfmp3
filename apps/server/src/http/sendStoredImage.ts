@@ -1,5 +1,9 @@
-import fs from 'node:fs'
+import type fs from 'node:fs'
+import fsp from 'node:fs/promises'
 import type { Request, Response } from 'express'
+import { fileEtag } from '../storage/driver.js'
+import { HttpError } from './errors.js'
+import { isFresh } from './range.js'
 
 /**
  * A file the server keeps as an image — a cover, an artist's picture — sent
@@ -26,15 +30,21 @@ export async function sendStoredImage(
   res: Response,
   image: { readonly path: string; readonly contentType: string },
 ): Promise<void> {
-  const stat = fs.statSync(image.path)
-  const etag = `"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`
+  let stat: fs.Stats
+  try {
+    stat = await fsp.stat(image.path)
+  } catch {
+    // Gone between being found and being sent: as missing as never there.
+    throw HttpError.notFound('no such image')
+  }
+  const etag = fileEtag(stat.size, stat.mtimeMs)
   const caching = {
     'Content-Type': image.contentType,
     ETag: etag,
     'Cache-Control': 'private, max-age=604800',
   }
 
-  if (req.headers['if-none-match'] === etag) {
+  if (isFresh(req, etag, stat.mtime)) {
     res.set(caching).status(304).end()
     return
   }

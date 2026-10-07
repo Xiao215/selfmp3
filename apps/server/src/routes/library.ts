@@ -116,10 +116,7 @@ export function libraryRoutes(container: Container): Router {
     route({ query: SyncManifestQuerySchema }, ({ query }): SyncManifest => {
       let entries = container.songs.manifest()
       if (query.scope === 'playlists') {
-        const inPlaylists = new Set<number>()
-        for (const playlist of container.playlists.all()) {
-          for (const id of container.playlists.songIds(playlist)) inPlaylists.add(id)
-        }
+        const inPlaylists = container.playlists.everySongId()
         entries = entries.filter(entry => inPlaylists.has(entry.id))
       }
       return {
@@ -129,20 +126,6 @@ export function libraryRoutes(container: Container): Router {
         entries,
       }
     }),
-  )
-
-  /** Server-side full-text search, for when the client is not holding the library. */
-  router.get(
-    '/search',
-    route(
-      {
-        query: z.object({
-          q: z.string().trim().max(200).default(''),
-          limit: z.coerce.number().int().min(1).max(200).default(50),
-        }),
-      },
-      ({ query }) => ({ songs: container.songs.search(query.q, query.limit) }),
-    ),
   )
 
   return router

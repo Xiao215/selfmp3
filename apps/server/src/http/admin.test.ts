@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createApp } from '../app.js'
-import { loadConfig, type Config } from '../config.js'
+import { loadConfig, type ServingConfig } from '../config.js'
 import { createContainer, type Container } from '../container.js'
 import { PUBLIC_DIR } from './admin.js'
 
@@ -28,7 +28,7 @@ describe('the server serves its own page', () => {
   ] as const
   const saved = new Map<string, string | undefined>()
   let root = ''
-  let config: Config
+  let config: ServingConfig
   let container: Container
   let server: http.Server
   let origin = ''
@@ -44,8 +44,8 @@ describe('the server serves its own page', () => {
     // The API answers nothing without a bucket; a folder stands in for one.
     process.env['SELFMP3_CLOUD_DIR'] = 'bucket'
 
-    config = loadConfig()
-    container = createContainer(config)
+    container = createContainer(loadConfig())
+    config = container.config
     server = http.createServer(createApp(container))
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
     origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
@@ -63,7 +63,7 @@ describe('the server serves its own page', () => {
 
   const get = (url: string): Promise<Response> =>
     fetch(`${origin}${url}`, {
-      headers: config.authToken ? { Authorization: `Bearer ${config.authToken}` } : {},
+      headers: { Authorization: `Bearer ${config.authToken}` },
     })
 
   it('answers the root with the page, and asks for its two files', async () => {

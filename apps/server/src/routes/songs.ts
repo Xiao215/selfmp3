@@ -1,16 +1,12 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import {
-  BooleanQuerySchema,
   BulkDeleteSongsSchema,
   BulkEditSongsSchema,
   BulkLovedSchema,
-  IdSchema,
-  isSynced,
   MOTION_VERSION,
   PlayEventSchema,
   SONG_FIELDS,
-  SaveLyricsSchema,
   SetSongTagsSchema,
   similarSongs,
   SkipEventSchema,
@@ -20,27 +16,23 @@ import {
   type PlayRecorded,
   type SimilarSongs,
   type Song,
+  type SongFields,
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
+import { ParamsWithId, requireSong } from '../http/params.js'
 import { transact } from '../db/index.js'
 import { sqliteTime } from '../repositories/stats.js'
-import { revealInFileManager } from '../services/reveal.js'
-import { isLocalRequest } from '../http/local.js'
 import { romanizedLines } from '../services/romanizedLines.js'
 
-const ParamsWithId = z.object({ id: IdSchema })
+/** The fields a patch sets, in `SONG_FIELDS` order: what an edit to it is stamped with. */
+const fieldsOf = (patch: Partial<SongFields>): (keyof SongFields)[] =>
+  SONG_FIELDS.filter(field => patch[field] !== undefined)
 
 export function songRoutes(container: Container): Router {
   const router = Router()
-
-  /** Look up a song or fail with a proper 404 rather than an undefined later. */
-  const requireSong = (id: number) => {
-    const song = container.songs.byId(id)
-    if (!song) throw HttpError.notFound(`no song with id ${id}`)
-    return song
-  }
+  const songOrThrow = (id: number): Song => requireSong(container.songs, id)
 
   /**
    * The 404 for a song with no words, remembering that about it first. It has
@@ -87,39 +79,40 @@ export function songRoutes(container: Container): Router {
     }),
   )
 
-  /** Many songs' edits in one transaction: Tidy up's approved changes. */
+  /**
+   * Many songs' edits in one transaction: Tidy up's approved changes, up to a
+   * couple of thousand at once. Which songs still exist is asked once, and the
+   * edits are stamped a field list at a time — one approval is one edit — so
+   * the request is a handful of statements rather than several per song.
+   */
   router.post(
     '/songs/bulk/edit',
     route({ body: BulkEditSongsSchema }, ({ body }) => {
-      const here = body.edits.filter(edit => container.songs.byId(edit.songId))
+      const present = container.songs.existingIds(body.edits.map(edit => edit.songId))
+      const here = body.edits.filter(edit => present.has(edit.songId))
+      const byFields = new Map<string, { fields: (keyof SongFields)[]; ids: number[] }>()
+      for (const { songId, patch } of here) {
+        const fields = fieldsOf(patch)
+        const key = fields.join(',')
+        const group = byFields.get(key) ?? { fields, ids: [] }
+        group.ids.push(songId)
+        byFields.set(key, group)
+      }
       transact(container.db, () => {
         for (const { songId, patch } of here) container.songs.patch(songId, patch)
+        for (const { fields, ids } of byFields.values()) container.edits.songs(ids, fields)
       })
-      for (const { songId, patch } of here) {
-        container.edits.songs(
-          [songId],
-          SONG_FIELDS.filter(field => patch[field] !== undefined),
-        )
-      }
       if (here.length > 0) container.bumpLibraryVersion()
       return { affected: here.length }
     }),
   )
 
-  router.get(
-    '/songs/:id',
-    route({ params: ParamsWithId }, ({ params }) => requireSong(params.id)),
-  )
-
   router.patch(
     '/songs/:id',
     route({ params: ParamsWithId, body: SongPatchSchema }, ({ params, body }) => {
-      requireSong(params.id)
+      songOrThrow(params.id)
       container.songs.patch(params.id, body)
-      container.edits.songs(
-        [params.id],
-        SONG_FIELDS.filter(field => body[field] !== undefined),
-      )
+      container.edits.songs([params.id], fieldsOf(body))
       container.bumpLibraryVersion()
       return container.songs.byId(params.id)
     }),
@@ -128,7 +121,7 @@ export function songRoutes(container: Container): Router {
   router.put(
     '/songs/:id/tags',
     route({ params: ParamsWithId, body: SetSongTagsSchema }, ({ params, body }) => {
-      const song = requireSong(params.id)
+      const song = songOrThrow(params.id)
       // Silently drop ids for tags that no longer exist rather than 400ing —
       // a phone working from a stale library should not hit an error wall.
       const valid = container.tags.exists(body.tagIds)
@@ -148,7 +141,7 @@ export function songRoutes(container: Container): Router {
   router.post(
     '/songs/:id/loved',
     route({ params: ParamsWithId, body: z.object({ loved: z.boolean() }) }, ({ params, body }) => {
-      requireSong(params.id)
+      songOrThrow(params.id)
       container.songs.patch(params.id, { loved: body.loved })
       container.edits.songs([params.id], ['loved'])
       container.bumpLibraryVersion()
@@ -167,7 +160,7 @@ export function songRoutes(container: Container): Router {
   router.post(
     '/songs/:id/played',
     route({ params: ParamsWithId, body: PlayEventSchema }, ({ params, body }): PlayRecorded => {
-      requireSong(params.id)
+      songOrThrow(params.id)
       // A play sent late carries when it happened; one sent twice carries the
       // same client id both times, and the second changes nothing.
       const playedAt = sqliteTime(body.playedAt)
@@ -197,7 +190,7 @@ export function songRoutes(container: Container): Router {
   router.post(
     '/songs/:id/skipped',
     route({ params: ParamsWithId, body: SkipEventSchema }, ({ params, body }) => {
-      requireSong(params.id)
+      songOrThrow(params.id)
       const counted = transact(container.db, () => {
         if (body.clientId !== undefined && !container.syncRepo.countSkip(body.clientId))
           return false
@@ -205,31 +198,6 @@ export function songRoutes(container: Container): Router {
         return true
       })
       return { ok: true as const, duplicate: !counted }
-    }),
-  )
-
-  /**
-   * Show the song's file in Finder, on the computer running self.mp3.
-   *
-   * Refused for anything but the browser on that computer — see
-   * `isLocalRequest` for why loopback alone is not enough.
-   */
-  router.post(
-    '/songs/:id/reveal',
-    route({ params: ParamsWithId }, async ({ params, req }) => {
-      const song = requireSong(params.id)
-      if (!isLocalRequest(req)) {
-        throw HttpError.forbidden('Show in Finder only works on the computer that runs self.mp3')
-      }
-      const absolute = container.storage.localPath(song.path)
-      if (!absolute) {
-        throw HttpError.conflict('your library is in cloud storage, so there is no folder to show')
-      }
-      if (!(await container.storage.exists(song.path))) {
-        throw HttpError.notFound('this song is in the bucket, not on this computer')
-      }
-      await revealInFileManager(absolute)
-      return { ok: true as const }
     }),
   )
 
@@ -242,7 +210,7 @@ export function songRoutes(container: Container): Router {
         query: z.object({ limit: z.coerce.number().int().min(1).max(100).default(20) }),
       },
       ({ params, query }): SimilarSongs => {
-        const seed = requireSong(params.id)
+        const seed = songOrThrow(params.id)
         return {
           songId: seed.id,
           songs: similarSongs(seed, container.songs.all(), query.limit),
@@ -254,72 +222,46 @@ export function songRoutes(container: Container): Router {
   /**
    * Lyrics, resolved through sidecar -> embedded tag -> lrclib.
    *
-   * `refresh=1` skips the local sources and goes straight to the network, for
-   * when the cached copy is wrong or badly timed. It is also how a song marked
-   * instrumental gets looked up again: without it, such a song never is.
+   * Local lyrics win even over the instrumental flag, but a song known to have
+   * no words is not asked about again on every play.
    */
   router.get(
     '/songs/:id/lyrics',
-    route(
-      {
-        params: ParamsWithId,
-        query: z.object({ refresh: BooleanQuerySchema }),
-      },
-      async ({ params, query }): Promise<LyricsResponse> => {
-        const song = requireSong(params.id)
-        const lookup = {
-          artist: song.artist,
-          title: song.title,
-          album: song.album,
-          duration: song.duration,
-          sourceUrl: song.sourceUrl,
-        }
+    route({ params: ParamsWithId }, async ({ params }): Promise<LyricsResponse> => {
+      const song = songOrThrow(params.id)
+      const metadata = await container.metadata.read(song.path)
+      const resolved = await container.lyrics.resolve(
+        song.id,
+        song.path,
+        metadata.embeddedLyrics,
+        song.instrumental
+          ? null
+          : {
+              artist: song.artist,
+              title: song.title,
+              album: song.album,
+              duration: song.duration,
+              sourceUrl: song.sourceUrl,
+            },
+      )
 
-        if (query.refresh) {
-          const remote = await container.lyrics.fetchRemote(lookup)
-          if (remote === 'instrumental') throw instrumental(song)
-          if (!remote) throw HttpError.notFound('no lyrics found for this track')
-          await container.lyrics.writeSidecar(song.path, remote.text, remote.synced)
-          container.songs.setLyricsKind(params.id, remote.synced ? 'synced' : 'plain')
-          container.songs.setInstrumental(params.id, false)
-          container.bumpLibraryVersion()
-          container.lyricsIndex.index(song.id, remote.text)
-          return {
-            source: 'remote',
-            kind: remote.synced ? 'synced' : 'plain',
-            text: remote.text,
-            romanized: await romanizedLines(container, song.id, remote.text),
-          }
-        }
+      if (resolved === 'instrumental') throw instrumental(song)
+      if (!resolved) {
+        if (song.instrumental) throw instrumental(song)
+        throw HttpError.notFound('no lyrics for this track')
+      }
 
-        // Local lyrics win even over the instrumental flag, but a song known to
-        // have no words is not asked about again on every play.
-        const metadata = await container.metadata.read(song.path)
-        const resolved = await container.lyrics.resolve(
-          song.id,
-          song.path,
-          metadata.embeddedLyrics,
-          song.instrumental ? null : lookup,
-        )
+      // Keep the stored flag honest so smart playlists and the offline
+      // mirror agree with what is actually on disk.
+      if (song.lyricsKind !== resolved.kind) {
+        container.songs.setLyricsKind(params.id, resolved.kind)
+        container.bumpLibraryVersion()
+      }
 
-        if (resolved === 'instrumental') throw instrumental(song)
-        if (!resolved) {
-          if (song.instrumental) throw instrumental(song)
-          throw HttpError.notFound('no lyrics for this track')
-        }
-
-        // Keep the stored flag honest so smart playlists and the offline
-        // mirror agree with what is actually on disk.
-        if (song.lyricsKind !== resolved.kind) {
-          container.songs.setLyricsKind(params.id, resolved.kind)
-          container.bumpLibraryVersion()
-        }
-
-        container.lyricsIndex.index(song.id, resolved.text)
-        // The romaji rides with the words: made once per text, kept with them.
-        return { ...resolved, romanized: await romanizedLines(container, song.id, resolved.text) }
-      },
-    ),
+      container.lyricsIndex.index(song.id, resolved.text)
+      // The romaji rides with the words: made once per text, kept with them.
+      return { ...resolved, romanized: await romanizedLines(container, song.id, resolved.text) }
+    }),
   )
 
   /**
@@ -335,7 +277,7 @@ export function songRoutes(container: Container): Router {
   router.get(
     '/songs/:id/motion',
     route({ params: ParamsWithId }, async ({ params, res }) => {
-      requireSong(params.id)
+      songOrThrow(params.id)
       const stored = container.audioFeatures.bySong(params.id)
         ? await container.motion.read(params.id)
         : null
@@ -350,62 +292,6 @@ export function songRoutes(container: Container): Router {
       // Sent as written; `send` answers a matching If-None-Match with a 304.
       res.type('application/json').send(stored.json)
       return undefined
-    }),
-  )
-
-  /**
-   * Save hand-edited or hand-timed lyrics as a sidecar.
-   *
-   * Words written by hand mean the song is not instrumental after all, so the
-   * flag is cleared. Clearing the lyrics leaves it alone.
-   */
-  router.put(
-    '/songs/:id/lyrics',
-    route(
-      {
-        params: ParamsWithId,
-        body: SaveLyricsSchema,
-      },
-      async ({ params, body }) => {
-        const song = requireSong(params.id)
-        const trimmed = body.text.trim()
-
-        if (!trimmed) {
-          await container.lyrics.deleteSidecar(song.path)
-          container.songs.setLyricsKind(params.id, 'none')
-          container.bumpLibraryVersion()
-          container.lyricsIndex.remove(song.id)
-          await container.lyricsCache.delete(song.id)
-          return { ok: true as const, kind: 'none' as const }
-        }
-
-        // The same test every reader applies to the same text. A looser one
-        // here meant the stored kind could disagree with what the player, the
-        // search index and the phone all work out for themselves.
-        const synced = isSynced(trimmed)
-        // Remove the other sidecar format first so a .txt and .lrc for the
-        // same song cannot disagree.
-        await container.lyrics.deleteSidecar(song.path)
-        await container.lyrics.writeSidecar(song.path, body.text, synced)
-        container.songs.setLyricsKind(params.id, synced ? 'synced' : 'plain')
-        container.songs.setInstrumental(params.id, false)
-        container.edits.songs([params.id], ['instrumental'])
-        container.bumpLibraryVersion()
-        container.lyricsIndex.index(song.id, body.text)
-        // New words, new romaji, ready before anyone asks for them.
-        void romanizedLines(container, song.id, body.text).catch(() => undefined)
-        return { ok: true as const, kind: synced ? ('synced' as const) : ('plain' as const) }
-      },
-    ),
-  )
-
-  /** Remove a song from the library, on every device. */
-  router.delete(
-    '/songs/:id',
-    route({ params: ParamsWithId }, async ({ params }) => {
-      const song = requireSong(params.id)
-      await container.songRemoval.remove([song.id])
-      return { ok: true as const }
     }),
   )
 

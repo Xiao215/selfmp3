@@ -8,7 +8,6 @@ import type {
   WrappedRange,
   WrittenReport,
   DescribeResult,
-  MetadataCandidate,
   MetadataSuggestion,
   RefineRequest,
   Stats,
@@ -18,6 +17,15 @@ import type {
 } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
+import type { LyricsSearchRepository } from '../repositories/lyricsSearch.js'
+import type { PlaylistRepository } from '../repositories/playlists.js'
+import type { SettingsRepository } from '../repositories/settings.js'
+import type { SongRepository } from '../repositories/songs.js'
+import type { StatsRepository } from '../repositories/stats.js'
+import type { TagRepository } from '../repositories/tags.js'
+import type { WrappedRepository } from '../repositories/wrapped.js'
+import type { MetadataLookupService } from '../services/lookup.js'
+import type { NeteaseMusic } from '../services/netease.js'
 import { ask } from './ask.js'
 import type { AskDeps } from './askActions.js'
 import type { AskPlaylist } from './askLibrary.js'
@@ -34,7 +42,7 @@ import {
   type GenerateRequest,
   type Llm,
 } from './llm.js'
-import type { FindNames } from './names.js'
+import { catalogueFinder, type FindNames, type MetadataLookup } from './names.js'
 import { tidy } from './tidy.js'
 import { written } from './written.js'
 import { tagReview } from './tagReview.js'
@@ -45,14 +53,6 @@ type SmartDeps = AskDeps & {
   wrapped: (range: WrappedRange) => Wrapped
   lookup?: MetadataLookup
 }
-
-/** The catalogues' listings for a song, as Fix metadata shows them. */
-type MetadataLookup = (query: {
-  title: string
-  artist: string
-  album: string
-  duration: number
-}) => Promise<readonly MetadataCandidate[]>
 
 /**
  * The smart features as the rest of the server sees them: one object, built
@@ -196,6 +196,55 @@ export function setupFor(config: Pick<Config, 'ai'>): AiSetup {
   if (!ai.baseUrl) return { address: null, models }
   const url = new URL(ai.baseUrl)
   return { address: `${url.protocol}//${url.host}${url.pathname}`.replace(/\/+$/, ''), models }
+}
+
+/**
+ * The smart features over this library, wired the one way the server runs
+ * them. `eval.ts` builds them here too, so what it prints is what a device
+ * would be answered — catalogues, standing notes and the web switch included.
+ */
+export function smartFeaturesFor(sources: {
+  readonly config: Pick<Config, 'ai'>
+  readonly logger: Logger
+  readonly songs: Pick<SongRepository, 'all'>
+  readonly tags: Pick<TagRepository, 'all'>
+  readonly stats: Pick<StatsRepository, 'build'>
+  readonly wrapped: Pick<WrappedRepository, 'build'>
+  readonly playlists: Pick<PlaylistRepository, 'all' | 'songIds'>
+  readonly lyricsSearch: Pick<LyricsSearchRepository, 'search'>
+  readonly settings: Pick<SettingsRepository, 'get'>
+  readonly netease: Pick<NeteaseMusic, 'search' | 'searchAlbums' | 'albumTracks'>
+  readonly lookup: Pick<MetadataLookupService, 'lookup'>
+}): SmartFeatures {
+  const { config, logger, songs, tags, stats, wrapped, playlists, settings, netease } = sources
+  const lookup: MetadataLookup = query => sources.lookup.lookup(query)
+  const catalogue = (words: string) => netease.search(words)
+  return new SmartFeatures({
+    llm: llmFor(config, logger),
+    setup: setupFor(config),
+    songs: () => songs.all(),
+    tags: () => tags.all(),
+    stats: range => stats.build(range),
+    lyrics: query =>
+      sources.lyricsSearch.search(query).map(row => ({ songId: row.song_id, line: row.line })),
+    wrapped: range => wrapped.build(range),
+    playlists: () =>
+      playlists.all().map(playlist => ({
+        name: playlist.name,
+        kind: playlist.kind,
+        songIds: () => playlists.songIds(playlist),
+      })),
+    notes: () => settings.get().smartNotes,
+    catalogue,
+    web: () => settings.get().smartWeb,
+    music: {
+      albums: words => netease.searchAlbums(words),
+      albumTracks: id => netease.albumTracks(id),
+      songs: catalogue,
+    },
+    findNames: catalogueFinder({ netease: catalogue, lookup }),
+    lookup,
+  })
 }
 
 /** The configured model, or the stand-in that says smart features are off. */

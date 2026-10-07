@@ -611,6 +611,7 @@ async function poll() {
     const foot = document.getElementById('reachable')
     foot.textContent = cloud || health ? '' : 'Not answering.'
     document.getElementById('version').textContent = health ? `self.mp3 ${health.version}` : ''
+    if (health?.appUrl) document.getElementById('pages-link').href = `${health.appUrl}/`
   } catch {
     /* Drawn from whatever was last known; the footer says when nothing is. */
   }

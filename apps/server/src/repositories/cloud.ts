@@ -161,6 +161,12 @@ export class CloudRepository {
   readonly #forgetFile
   readonly #rememberRemoved
   readonly #wasRemoved
+  readonly #untrash
+  readonly #songWithAudio
+  readonly #unsentOfSize
+  readonly #totals
+  readonly #tagUids
+  readonly #playlistUids
 
   constructor(db: Db) {
     this.#db = db
@@ -235,6 +241,25 @@ export class CloudRepository {
     )
     this.#wasRemoved = db.prepare<[string], { n: number }>(
       'SELECT COUNT(*) AS n FROM removed_songs WHERE uid = ?',
+    )
+    this.#untrash = db.prepare('DELETE FROM cloud_trash WHERE key = ?')
+    this.#songWithAudio = db.prepare<[string], { id: number }>(
+      `SELECT s.id FROM cloud_songs c JOIN songs s ON s.id = c.song_id
+        WHERE c.audio_key = ? ORDER BY s.id ASC LIMIT 1`,
+    )
+    this.#unsentOfSize = db.prepare<[number], { id: number; path: string }>(
+      `SELECT s.id, s.path FROM songs s LEFT JOIN cloud_songs c ON c.song_id = s.id
+        WHERE c.song_id IS NULL AND s.size_bytes = ? ORDER BY s.id`,
+    )
+    this.#totals = db.prepare<[], { songs: number; in_cloud: number; bytes: number | null }>(
+      `SELECT
+         (SELECT COUNT(*) FROM songs) AS songs,
+         (SELECT COUNT(*) FROM cloud_songs c JOIN songs s ON s.id = c.song_id) AS in_cloud,
+         (SELECT SUM(size) FROM cloud_files) AS bytes`,
+    )
+    this.#tagUids = db.prepare<[], { id: number; uid: string }>('SELECT id, uid FROM tags')
+    this.#playlistUids = db.prepare<[], { id: number; uid: string }>(
+      'SELECT id, uid FROM playlists',
     )
   }
 
@@ -382,7 +407,7 @@ export class CloudRepository {
   /** The bucket no longer has this file: out of the trash and the listing both. */
   forgetFile(key: string): void {
     this.#db.transaction(() => {
-      this.#db.prepare('DELETE FROM cloud_trash WHERE key = ?').run(key)
+      this.#untrash.run(key)
       this.#forgetFile.run(key)
     })()
   }
@@ -395,13 +420,7 @@ export class CloudRepository {
    * newer one, since the newer is the likelier to be the accident.
    */
   songWithAudio(audioKey: string): number | null {
-    const row = this.#db
-      .prepare<[string], { id: number }>(
-        `SELECT s.id FROM cloud_songs c JOIN songs s ON s.id = c.song_id
-          WHERE c.audio_key = ? ORDER BY s.id ASC LIMIT 1`,
-      )
-      .get(audioKey)
-    return row?.id ?? null
+    return this.#songWithAudio.get(audioKey)?.id ?? null
   }
 
   /**
@@ -414,12 +433,7 @@ export class CloudRepository {
    * each file, and one that is not on this disk is simply not a match.
    */
   unsentSongsOfSize(sizeBytes: number): { id: number; path: string }[] {
-    return this.#db
-      .prepare<[number], { id: number; path: string }>(
-        `SELECT s.id, s.path FROM songs s LEFT JOIN cloud_songs c ON c.song_id = s.id
-          WHERE c.song_id IS NULL AND s.size_bytes = ? ORDER BY s.id`,
-      )
-      .all(sizeBytes)
+    return this.#unsentOfSize.all(sizeBytes)
   }
 
   hasFile(key: string): boolean {
@@ -465,27 +479,16 @@ export class CloudRepository {
    * bucket, and the size of everything in the bucket this server knows of.
    */
   totals(): { songs: number; songsInCloud: number; bytes: number } {
-    const row = this.#db
-      .prepare<[], { songs: number; in_cloud: number; bytes: number | null }>(
-        `SELECT
-           (SELECT COUNT(*) FROM songs) AS songs,
-           (SELECT COUNT(*) FROM cloud_songs c JOIN songs s ON s.id = c.song_id) AS in_cloud,
-           (SELECT SUM(size) FROM cloud_files) AS bytes`,
-      )
-      .get()
+    const row = this.#totals.get()
     return { songs: row?.songs ?? 0, songsInCloud: row?.in_cloud ?? 0, bytes: row?.bytes ?? 0 }
   }
 
   tagUids(): Map<number, string> {
-    const rows = this.#db.prepare<[], { id: number; uid: string }>('SELECT id, uid FROM tags').all()
-    return new Map(rows.map(row => [row.id, row.uid]))
+    return new Map(this.#tagUids.all().map(row => [row.id, row.uid]))
   }
 
   playlistUids(): Map<number, string> {
-    const rows = this.#db
-      .prepare<[], { id: number; uid: string }>('SELECT id, uid FROM playlists')
-      .all()
-    return new Map(rows.map(row => [row.id, row.uid]))
+    return new Map(this.#playlistUids.all().map(row => [row.id, row.uid]))
   }
 }
 

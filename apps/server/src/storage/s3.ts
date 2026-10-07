@@ -1,6 +1,5 @@
 import { Readable } from 'node:stream'
 import type * as S3 from '@aws-sdk/client-s3'
-import type * as Presigner from '@aws-sdk/s3-request-presigner'
 import type { S3Client, S3ClientConfig } from '@aws-sdk/client-s3'
 import { AUDIO_EXTENSIONS } from '@selfmp3/shared'
 import type { Config } from '../config.js'
@@ -17,40 +16,51 @@ import { normalizeKey, type StorageDriver, type StorageStat } from './driver.js'
  * types cost nothing at runtime, so those are the SDK's own.
  *
  * To switch:
- *   npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+ *   npm install @aws-sdk/client-s3
  *   SELFMP3_STORAGE_DRIVER=s3 SELFMP3_S3_BUCKET=... npm start
  */
 
 export type S3Module = typeof S3
-type PresignerModule = typeof Presigner
 
 /** Also used by the cloud bucket client, `bucket/store.ts`. */
-export async function loadS3(): Promise<{ s3: S3Module; presigner: PresignerModule }> {
+export async function loadS3(): Promise<S3Module> {
   try {
-    const [s3, presigner] = await Promise.all([
-      import('@aws-sdk/client-s3'),
-      import('@aws-sdk/s3-request-presigner'),
-    ])
-    return { s3, presigner }
+    return await import('@aws-sdk/client-s3')
   } catch {
     throw new Error(
       'The S3 storage driver needs the AWS SDK. Install it with:\n' +
-        '  npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner',
+        '  npm install @aws-sdk/client-s3',
     )
   }
+}
+
+/** The SDK's error's name, or nothing for anything that is not an Error. */
+export function errorName(error: unknown): string {
+  return error instanceof Error ? error.name : ''
+}
+
+/** The HTTP status an SDK error carries in its metadata, when it has one. */
+export function errorStatus(error: unknown): number | undefined {
+  if (typeof error !== 'object' || error === null || !('$metadata' in error)) return undefined
+  const metadata = (error as { $metadata?: { httpStatusCode?: unknown } }).$metadata
+  return typeof metadata?.httpStatusCode === 'number' ? metadata.httpStatusCode : undefined
+}
+
+/** Whether an SDK error says there is no such object — and only that. */
+export function isNotFound(error: unknown): boolean {
+  const name = errorName(error)
+  return name === 'NotFound' || name === 'NoSuchKey' || errorStatus(error) === 404
 }
 
 export class S3StorageDriver implements StorageDriver {
   readonly name = 's3'
   readonly #bucket: string
-  readonly #ttl: number
-  #modules: { s3: S3Module; presigner: PresignerModule } | null = null
+  #module: S3Module | null = null
   #client: S3Client | null = null
   readonly #clientOptions: S3ClientConfig
 
   constructor(config: Config['s3']) {
     this.#bucket = config.bucket
-    this.#ttl = config.signedUrlTtl
     this.#clientOptions = {
       region: config.region,
       ...(config.endpoint ? { endpoint: config.endpoint, forcePathStyle: true } : {}),
@@ -65,10 +75,10 @@ export class S3StorageDriver implements StorageDriver {
     }
   }
 
-  async #ready(): Promise<{ s3: S3Module; presigner: PresignerModule; client: S3Client }> {
-    this.#modules ??= await loadS3()
-    this.#client ??= new this.#modules.s3.S3Client(this.#clientOptions)
-    return { ...this.#modules, client: this.#client }
+  async #ready(): Promise<{ s3: S3Module; client: S3Client }> {
+    this.#module ??= await loadS3()
+    this.#client ??= new this.#module.S3Client(this.#clientOptions)
+    return { s3: this.#module, client: this.#client }
   }
 
   async stat(key: string): Promise<StorageStat | null> {
@@ -83,8 +93,11 @@ export class S3StorageDriver implements StorageDriver {
         modifiedAt: head.LastModified ?? new Date(0),
         etag: head.ETag ?? `"${size.toString(16)}"`,
       }
-    } catch {
-      return null
+    } catch (error) {
+      // Only a missing object is missing. A refused key or a dropped connection
+      // said "not found" would have the scan mark the whole library gone.
+      if (isNotFound(error)) return null
+      throw error
     }
   }
 
@@ -166,12 +179,6 @@ export class S3StorageDriver implements StorageDriver {
         return body instanceof Readable ? body : Readable.from([await streamToBuffer(body)])
       },
     }
-  }
-
-  async signedUrl(key: string): Promise<string | null> {
-    const { s3, presigner, client } = await this.#ready()
-    const command = new s3.GetObjectCommand({ Bucket: this.#bucket, Key: normalizeKey(key) })
-    return presigner.getSignedUrl(client, command, { expiresIn: this.#ttl })
   }
 
   localPath(): string | null {

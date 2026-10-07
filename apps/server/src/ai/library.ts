@@ -1,4 +1,5 @@
-import type { Song, Tag } from '@selfmp3/shared'
+import { fromSqliteTime, type Song, type Tag } from '@selfmp3/shared'
+import { tally } from './text.js'
 
 /**
  * What a model is shown of the library (docs/features/ai.md, "the context
@@ -31,12 +32,6 @@ export function mainArtist(artist: string): string {
 /** With words: lyrics were found and nobody said it has none. */
 export function hasWords(song: Song): boolean {
   return song.lyricsKind !== 'none' && !song.instrumental
-}
-
-function tally(values: Iterable<string>): [string, number][] {
-  const counts = new Map<string, number>()
-  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1)
-  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
 }
 
 function top(entries: [string, number][], n: number): string {
@@ -116,9 +111,7 @@ function minutes(seconds: number): string {
 
 function daysAgo(iso: string | null, now: number): string {
   if (!iso) return 'never played'
-  const days = Math.floor(
-    (now - Date.parse(iso.replace(' ', 'T') + (iso.endsWith('Z') ? '' : 'Z'))) / 86_400_000,
-  )
+  const days = Math.floor((now - fromSqliteTime(iso)) / 86_400_000)
   return days <= 0 ? 'played today' : `played ${days}d ago`
 }
 

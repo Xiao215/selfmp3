@@ -11,9 +11,11 @@ import {
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
+import { ParamsWithId } from '../http/params.js'
 
-const ParamsWithId = z.object({ id: IdSchema })
 const ParamsWithSong = z.object({ id: IdSchema, songId: IdSchema })
+
+const LIVE_BUILDS_ITSELF = 'a live playlist builds itself — edit its rules instead'
 
 export function playlistRoutes(container: Container): Router {
   const router = Router()
@@ -36,11 +38,6 @@ export function playlistRoutes(container: Container): Router {
       container.bumpLibraryVersion()
       return created
     }),
-  )
-
-  router.get(
-    '/playlists/:id',
-    route({ params: ParamsWithId }, ({ params }) => requirePlaylist(params.id)),
   )
 
   /** Ordered song ids. Live playlists resolve their rules on every read. */
@@ -130,11 +127,12 @@ export function playlistRoutes(container: Container): Router {
     route({ params: ParamsWithId, body: AddToPlaylistSchema }, ({ params, body }) => {
       const playlist = requirePlaylist(params.id)
       if (playlist.kind === 'live') {
-        throw HttpError.badRequest('a live playlist builds itself — edit its rules instead')
+        throw HttpError.badRequest(LIVE_BUILDS_ITSELF)
       }
 
       // Drop ids that are not real songs rather than failing the whole request.
-      const valid = body.songIds.filter(id => container.songs.byId(id) !== null)
+      const present = container.songs.existingIds(body.songIds)
+      const valid = body.songIds.filter(id => present.has(id))
       if (valid.length === 0) throw HttpError.badRequest('none of those songs exist')
 
       if (body.position === undefined) container.playlists.add(params.id, valid)
@@ -160,7 +158,7 @@ export function playlistRoutes(container: Container): Router {
     route({ params: ParamsWithId, body: RemoveFromPlaylistSchema }, ({ params, body }) => {
       const playlist = requirePlaylist(params.id)
       if (playlist.kind === 'live') {
-        throw HttpError.badRequest('a live playlist builds itself — edit its rules instead')
+        throw HttpError.badRequest(LIVE_BUILDS_ITSELF)
       }
       const removed = container.playlists.removeMany(params.id, body.songIds)
       container.edits.playlistSongs(params.id, body.songIds)
@@ -174,7 +172,7 @@ export function playlistRoutes(container: Container): Router {
     route({ params: ParamsWithSong }, ({ params }) => {
       const playlist = requirePlaylist(params.id)
       if (playlist.kind === 'live') {
-        throw HttpError.badRequest('a live playlist builds itself — edit its rules instead')
+        throw HttpError.badRequest(LIVE_BUILDS_ITSELF)
       }
       container.playlists.remove(params.id, params.songId)
       container.edits.playlistSongs(params.id, [params.songId])

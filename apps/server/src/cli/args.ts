@@ -20,7 +20,7 @@ interface ParsedCli {
   readonly command: Command
   /** Base URL of a running server, e.g. `http://localhost:4600`. */
   readonly url: string | null
-  /** Bearer token, when the server has one configured. */
+  /** The server's token, for a server on another computer; this one's needs none. */
   readonly token: string | null
 }
 
@@ -32,7 +32,7 @@ Usage: selfmp3 <command> [options]
 
 Commands
   start                 run the server in the foreground
-  scan                  rescan the library folder (server must be running)
+  scan                  import what was dropped into the inbox folder (server must be running)
   import <url...>       queue one or more links for download (server must be running)
   backup <dest-dir>     copy the music and the database into <dest-dir>, only what changed
   doctor                check node, yt-dlp, ffmpeg, the server and the folders
@@ -40,7 +40,7 @@ Commands
 
 Options
   --url <base>          server address (default: http://localhost:$SELFMP3_PORT or ${DEFAULT_SERVER_PORT})
-  --token <token>       bearer token, if SELFMP3_AUTH_TOKEN is set on the server
+  --token <token>       the server's token, when --url is another computer (printed in its log)
   --version, -v         print the version
   --help, -h            show this message
 `

@@ -77,6 +77,7 @@ export class LyricsSearchRepository {
   readonly #insertLine
   readonly #search
   readonly #unindexed
+  readonly #forget
 
   constructor(db: Db) {
     this.#db = db
@@ -110,6 +111,7 @@ export class LyricsSearchRepository {
       LEFT JOIN lyrics_index li ON li.song_id = s.id
       WHERE s.lyrics_kind != 'none' AND li.song_id IS NULL
     `)
+    this.#forget = db.prepare('DELETE FROM lyrics_index WHERE song_id = ?')
   }
 
   /** Hash of the text the song was last indexed from, or null when never indexed. */
@@ -142,7 +144,7 @@ export class LyricsSearchRepository {
   remove(songId: number): void {
     this.#db.transaction(() => {
       this.#clearLines.run(songId)
-      this.#db.prepare('DELETE FROM lyrics_index WHERE song_id = ?').run(songId)
+      this.#forget.run(songId)
     })()
   }
 

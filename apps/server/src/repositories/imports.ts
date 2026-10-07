@@ -38,6 +38,20 @@ interface ImportJobRow {
   updated_at: string
 }
 
+/**
+ * A job that can still be called off: waiting, or downloading. Past the
+ * download the song is moved into the library, tagged and uploaded; a cancel
+ * marked then was written over when the job finished anyway, and the song was
+ * added all the same. One job's Cancel and Pause all draw this same line.
+ */
+const CANCELLABLE = `(status = 'queued' OR (status = 'running' AND step IN ('resolving','downloading')))`
+
+/** What calling a job off writes. */
+export const CANCELLED = `status = 'cancelled', step = 'finished', updated_at = datetime('now')`
+
+/** What putting a job back in the queue writes: from the top, with no reason left on it. */
+const REQUEUED = `status = 'queued', step = 'waiting', error = NULL, progress = NULL, updated_at = datetime('now')`
+
 function toJob(row: ImportJobRow): ImportJob {
   let tagIds: number[] = []
   try {
@@ -82,6 +96,23 @@ export class ImportRepository {
   readonly #resetRunning
   readonly #deleteFinished
   readonly #maxPosition
+  readonly #claim
+  readonly #openFacts
+  readonly #finishesSince
+  readonly #cancel
+  readonly #retry
+  readonly #front
+  readonly #shiftDown
+  readonly #setPosition
+  readonly #cancelAll
+  readonly #retryCancelled
+  readonly #retryFailed
+  readonly #dismissFailed
+  readonly #clearFinished
+  readonly #dismiss
+  readonly #finishUploaded
+  readonly #pendingUrls
+  readonly #pending
 
   constructor(db: Db) {
     this.#db = db
@@ -159,6 +190,62 @@ export class ImportRepository {
     this.#maxPosition = db.prepare<[], { max: number | null }>(
       'SELECT MAX(position) AS max FROM import_jobs',
     )
+    this.#claim = db.prepare(
+      "UPDATE import_jobs SET status = 'running', step = 'resolving', attempts = attempts + 1, updated_at = datetime('now') WHERE id = ?",
+    )
+    this.#openFacts = db.prepare<
+      [],
+      { started: string | null; open: number; moving: number | null }
+    >(
+      `SELECT MIN(created_at) AS started, COUNT(*) AS open,
+              SUM(status IN ('queued','running')) AS moving
+         FROM import_jobs
+        WHERE status IN ('queued','running','cancelled')
+           OR (status = 'error' AND step = 'uploading')`,
+    )
+    this.#finishesSince = db.prepare<[string], { at: string }>(
+      "SELECT updated_at AS at FROM import_jobs WHERE status = 'done' AND updated_at >= ? ORDER BY updated_at",
+    )
+    this.#cancel = db.prepare(`UPDATE import_jobs SET ${CANCELLED} WHERE id = ? AND ${CANCELLABLE}`)
+    this.#retry = db.prepare(
+      `UPDATE import_jobs SET ${REQUEUED} WHERE id = ? AND status IN ('error','cancelled')`,
+    )
+    this.#front = db.prepare<[string], { position: number | null }>(
+      "SELECT MIN(position) AS position FROM import_jobs WHERE status = 'queued' AND id <> ?",
+    )
+    this.#shiftDown = db.prepare(
+      'UPDATE import_jobs SET position = position + 1 WHERE position >= ? AND position < ?',
+    )
+    this.#setPosition = db.prepare('UPDATE import_jobs SET position = ? WHERE id = ?')
+    this.#cancelAll = db.prepare<[], { id: string }>(
+      `UPDATE import_jobs SET ${CANCELLED} WHERE ${CANCELLABLE} RETURNING id`,
+    )
+    this.#retryCancelled = db.prepare(
+      `UPDATE import_jobs SET ${REQUEUED} WHERE status = 'cancelled'`,
+    )
+    this.#retryFailed = db.prepare(
+      `UPDATE import_jobs SET ${REQUEUED} WHERE status = 'error' AND step <> 'uploading'`,
+    )
+    this.#dismissFailed = db.prepare(
+      "DELETE FROM import_jobs WHERE status = 'error' AND step <> 'uploading'",
+    )
+    this.#clearFinished = db.prepare("DELETE FROM import_jobs WHERE status = 'done'")
+    this.#dismiss = db.prepare(
+      "DELETE FROM import_jobs WHERE id = ? AND status IN ('error','cancelled')",
+    )
+    this.#finishUploaded = db.prepare(
+      `UPDATE import_jobs
+          SET status = 'done', step = 'finished', progress = 100, error = NULL,
+              updated_at = datetime('now')
+        WHERE status = 'error' AND step = 'uploading'
+          AND song_id IN (SELECT song_id FROM cloud_songs)`,
+    )
+    this.#pendingUrls = db.prepare<[], { url: string }>(
+      "SELECT url FROM import_jobs WHERE status IN ('queued','running')",
+    )
+    this.#pending = db.prepare<[string], { n: number }>(
+      "SELECT COUNT(*) AS n FROM import_jobs WHERE url = ? AND status IN ('queued','running')",
+    )
   }
 
   enqueue(
@@ -213,11 +300,7 @@ export class ImportRepository {
     const run = this.#db.transaction(() => {
       const row = this.#nextQueued.get()
       if (!row) return null
-      this.#db
-        .prepare(
-          "UPDATE import_jobs SET status = 'running', step = 'resolving', attempts = attempts + 1, updated_at = datetime('now') WHERE id = ?",
-        )
-        .run(row.id)
+      this.#claim.run(row.id)
       const claimed = this.#byId.get(row.id)
       return claimed ? toJob(claimed) : null
     })
@@ -267,22 +350,9 @@ export class ImportRepository {
    * stretch it back to yesterday — and what finished since then is its.
    */
   runFacts(): { open: number; moving: number; finishes: string[] } | null {
-    const open = this.#db
-      .prepare<[], { started: string | null; open: number; moving: number | null }>(
-        `SELECT MIN(created_at) AS started, COUNT(*) AS open,
-                SUM(status IN ('queued','running')) AS moving
-           FROM import_jobs
-          WHERE status IN ('queued','running','cancelled')
-             OR (status = 'error' AND step = 'uploading')`,
-      )
-      .get()
+    const open = this.#openFacts.get()
     if (!open?.started) return null
-    const finishes = this.#db
-      .prepare<[string], { at: string }>(
-        "SELECT updated_at AS at FROM import_jobs WHERE status = 'done' AND updated_at >= ? ORDER BY updated_at",
-      )
-      .all(open.started)
-      .map(row => row.at)
+    const finishes = this.#finishesSince.all(open.started).map(row => row.at)
     return { open: open.open, moving: open.moving ?? 0, finishes }
   }
 
@@ -294,30 +364,13 @@ export class ImportRepository {
     }
   }
 
-  /**
-   * Cancel a job that has not started adding its song. Past the download the
-   * song is moved into the library, tagged and uploaded; a cancel marked then
-   * was written over when the job finished anyway, and the song was added all
-   * the same.
-   */
+  /** Cancel a job that has not started adding its song (`CANCELLABLE`). */
   cancel(id: string): boolean {
-    const info = this.#db
-      .prepare(
-        `UPDATE import_jobs SET status = 'cancelled', step = 'finished', updated_at = datetime('now')
-          WHERE id = ?
-            AND (status = 'queued' OR (status = 'running' AND step IN ('resolving','downloading')))`,
-      )
-      .run(id)
-    return info.changes > 0
+    return this.#cancel.run(id).changes > 0
   }
 
   retry(id: string): boolean {
-    const info = this.#db
-      .prepare(
-        "UPDATE import_jobs SET status = 'queued', step = 'waiting', error = NULL, progress = NULL, updated_at = datetime('now') WHERE id = ? AND status IN ('error','cancelled')",
-      )
-      .run(id)
-    return info.changes > 0
+    return this.#retry.run(id).changes > 0
   }
 
   /**
@@ -333,18 +386,10 @@ export class ImportRepository {
     const run = this.#db.transaction(() => {
       const row = this.#byId.get(id)
       if (!row || (row.status !== 'queued' && row.status !== 'cancelled')) return false
-      const front = this.#db
-        .prepare<[string], { position: number | null }>(
-          "SELECT MIN(position) AS position FROM import_jobs WHERE status = 'queued' AND id <> ?",
-        )
-        .get(id)?.position
+      const front = this.#front.get(id)?.position
       if (front != null && front < row.position) {
-        this.#db
-          .prepare(
-            'UPDATE import_jobs SET position = position + 1 WHERE position >= ? AND position < ?',
-          )
-          .run(front, row.position)
-        this.#db.prepare('UPDATE import_jobs SET position = ? WHERE id = ?').run(front, id)
+        this.#shiftDown.run(front, row.position)
+        this.#setPosition.run(front, id)
       }
       if (row.status === 'cancelled') this.retry(id)
       return true
@@ -359,14 +404,7 @@ export class ImportRepository {
    * anyway.
    */
   cancelAll(): string[] {
-    return this.#db
-      .prepare<[], { id: string }>(
-        `UPDATE import_jobs SET status = 'cancelled', step = 'finished', updated_at = datetime('now')
-          WHERE status = 'queued' OR (status = 'running' AND step IN ('resolving','downloading'))
-          RETURNING id`,
-      )
-      .all()
-      .map(row => row.id)
+    return this.#cancelAll.all().map(row => row.id)
   }
 
   /**
@@ -375,11 +413,7 @@ export class ImportRepository {
    * with its reason, for its own Retry.
    */
   retryCancelled(): number {
-    return this.#db
-      .prepare(
-        "UPDATE import_jobs SET status = 'queued', step = 'waiting', error = NULL, progress = NULL, updated_at = datetime('now') WHERE status = 'cancelled'",
-      )
-      .run().changes
+    return this.#retryCancelled.run().changes
   }
 
   /**
@@ -390,11 +424,7 @@ export class ImportRepository {
    * all's.
    */
   retryFailed(): number {
-    return this.#db
-      .prepare(
-        "UPDATE import_jobs SET status = 'queued', step = 'waiting', error = NULL, progress = NULL, updated_at = datetime('now') WHERE status = 'error' AND step <> 'uploading'",
-      )
-      .run().changes
+    return this.#retryFailed.run().changes
   }
 
   /**
@@ -403,9 +433,7 @@ export class ImportRepository {
    * same reason it is not retried.
    */
   dismissFailed(): number {
-    return this.#db
-      .prepare("DELETE FROM import_jobs WHERE status = 'error' AND step <> 'uploading'")
-      .run().changes
+    return this.#dismissFailed.run().changes
   }
 
   /**
@@ -415,7 +443,7 @@ export class ImportRepository {
    * half of their queue with them. Each has its own Dismiss (`dismiss`).
    */
   clearFinished(): number {
-    return this.#db.prepare("DELETE FROM import_jobs WHERE status = 'done'").run().changes
+    return this.#clearFinished.run().changes
   }
 
   /**
@@ -426,10 +454,7 @@ export class ImportRepository {
    * (cloudSync.ts).
    */
   dismiss(id: string): boolean {
-    const info = this.#db
-      .prepare("DELETE FROM import_jobs WHERE id = ? AND status IN ('error','cancelled')")
-      .run(id)
-    return info.changes > 0
+    return this.#dismiss.run(id).changes > 0
   }
 
   /** Called at boot: nothing can still be running if the process just started. */
@@ -449,34 +474,16 @@ export class ImportRepository {
    * can see it too.
    */
   finishUploaded(): number {
-    return this.#db
-      .prepare(
-        `UPDATE import_jobs
-            SET status = 'done', step = 'finished', progress = 100, error = NULL,
-                updated_at = datetime('now')
-          WHERE status = 'error' AND step = 'uploading'
-            AND song_id IN (SELECT song_id FROM cloud_songs)`,
-      )
-      .run().changes
+    return this.#finishUploaded.run().changes
   }
 
   /** The links of every job queued or running, for a preview to say which songs are already coming. */
   pendingUrls(): string[] {
-    return this.#db
-      .prepare<[], { url: string }>(
-        "SELECT url FROM import_jobs WHERE status IN ('queued','running')",
-      )
-      .all()
-      .map(row => row.url)
+    return this.#pendingUrls.all().map(row => row.url)
   }
 
   /** True when this URL is already queued or running, to avoid duplicates. */
   isPending(url: string): boolean {
-    const row = this.#db
-      .prepare<[string], { n: number }>(
-        "SELECT COUNT(*) AS n FROM import_jobs WHERE url = ? AND status IN ('queued','running')",
-      )
-      .get(url)
-    return (row?.n ?? 0) > 0
+    return (this.#pending.get(url)?.n ?? 0) > 0
   }
 }

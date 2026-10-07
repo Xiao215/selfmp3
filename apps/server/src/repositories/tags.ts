@@ -13,6 +13,8 @@ export class TagRepository {
   readonly #clearSongTags
   readonly #linkSongTag
   readonly #unlinkSongTag
+  readonly #insertSynced
+  readonly #pruneEmpty
 
   constructor(db: Db) {
     this.#db = db
@@ -42,6 +44,10 @@ export class TagRepository {
       'INSERT OR IGNORE INTO song_tags (song_id, tag_id) VALUES (?, ?)',
     )
     this.#unlinkSongTag = db.prepare('DELETE FROM song_tags WHERE song_id = ? AND tag_id = ?')
+    this.#insertSynced = db.prepare('INSERT INTO tags (uid, name, hue) VALUES (?, ?, ?)')
+    this.#pruneEmpty = db.prepare(
+      'DELETE FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM song_tags)',
+    )
   }
 
   all(): Tag[] {
@@ -79,10 +85,7 @@ export class TagRepository {
    * has checked the name is free (`SyncRepository.tagNamed`).
    */
   insertSynced(uid: string, name: string, hue: number): number {
-    const info = this.#db
-      .prepare('INSERT INTO tags (uid, name, hue) VALUES (?, ?, ?)')
-      .run(uid, name, hue)
-    return Number(info.lastInsertRowid)
+    return Number(this.#insertSynced.run(uid, name, hue).lastInsertRowid)
   }
 
   update(id: number, changes: { name?: string; hue?: number }): Tag | null {
@@ -116,9 +119,7 @@ export class TagRepository {
    * just created has no songs yet, and is yours to fill.
    */
   pruneEmpty(): number {
-    return this.#db
-      .prepare('DELETE FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM song_tags)')
-      .run().changes
+    return this.#pruneEmpty.run().changes
   }
 
   /** Replace a song's tags wholesale. Caller wraps this in a transaction. */

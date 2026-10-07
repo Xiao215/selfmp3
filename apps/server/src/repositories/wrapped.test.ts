@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import Database from 'better-sqlite3'
 import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
-import { longestRun, WrappedRepository } from './wrapped.js'
+import { runs } from './listening.js'
+import { WrappedRepository } from './wrapped.js'
 
 /**
  * Runs the real migrations on an in-memory database and seeds play events
@@ -208,12 +209,12 @@ describe('WrappedRepository windows', () => {
   })
 })
 
-describe('longestRun', () => {
+describe('runs', () => {
   it('counts consecutive dates', () => {
-    expect(longestRun([])).toBe(0)
-    expect(longestRun(['2026-01-01'])).toBe(1)
-    expect(longestRun(['2026-01-01', '2026-01-02', '2026-01-04', '2026-01-05', '2026-01-06'])).toBe(
-      3,
-    )
+    expect(runs([]).longest).toBe(0)
+    expect(runs(['2026-01-01']).longest).toBe(1)
+    expect(
+      runs(['2026-01-01', '2026-01-02', '2026-01-04', '2026-01-05', '2026-01-06']).longest,
+    ).toBe(3)
   })
 })

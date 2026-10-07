@@ -7,9 +7,20 @@ import {
   type SmartRules,
   type UpdatePlaylist,
 } from '@selfmp3/shared'
+import type Database from 'better-sqlite3'
 import type { Db } from '../db/index.js'
 import type { PlaylistRow } from '../db/rows.js'
 import { compileSmartRules } from '../services/smartPlaylist.js'
+
+/** A playlist row with its counts, as both reads of whole playlists want it. */
+const PLAYLIST_SELECT = `
+  SELECT p.*,
+         (SELECT COUNT(*) FROM playlist_items WHERE playlist_id = p.id) AS song_count,
+         (SELECT COALESCE(SUM(s.duration), 0)
+            FROM playlist_items pi JOIN songs s ON s.id = pi.song_id
+           WHERE pi.playlist_id = p.id) AS total_duration
+  FROM playlists p
+`
 
 /**
  * Playlists, both kinds.
@@ -30,28 +41,25 @@ export class PlaylistRepository {
   readonly #insertItem
   readonly #removeItem
   readonly #clearItems
+  readonly #insertSynced
+  readonly #setUpdatedAt
+  readonly #makeManual
+  readonly #markPlayed
+  readonly #touch
+  readonly #kinds
+  /**
+   * Live playlists' rule queries, by their SQL: there is one per rule set, and
+   * every library read asks each of them again, so each is prepared once.
+   */
+  readonly #ruleStatements = new Map<string, Database.Statement<unknown[]>>()
 
   constructor(db: Db) {
     this.#db = db
 
-    this.#all = db.prepare<[], PlaylistRow>(`
-      SELECT p.*,
-             (SELECT COUNT(*) FROM playlist_items WHERE playlist_id = p.id) AS song_count,
-             (SELECT COALESCE(SUM(s.duration), 0)
-                FROM playlist_items pi JOIN songs s ON s.id = pi.song_id
-               WHERE pi.playlist_id = p.id) AS total_duration
-      FROM playlists p
-      ORDER BY p.pinned DESC, p.name COLLATE NOCASE
-    `)
-
-    this.#byId = db.prepare<[number], PlaylistRow>(`
-      SELECT p.*,
-             (SELECT COUNT(*) FROM playlist_items WHERE playlist_id = p.id) AS song_count,
-             (SELECT COALESCE(SUM(s.duration), 0)
-                FROM playlist_items pi JOIN songs s ON s.id = pi.song_id
-               WHERE pi.playlist_id = p.id) AS total_duration
-      FROM playlists p WHERE p.id = ?
-    `)
+    this.#all = db.prepare<[], PlaylistRow>(
+      `${PLAYLIST_SELECT} ORDER BY p.pinned DESC, p.name COLLATE NOCASE`,
+    )
+    this.#byId = db.prepare<[number], PlaylistRow>(`${PLAYLIST_SELECT} WHERE p.id = ?`)
 
     this.#insert = db.prepare(`
       INSERT INTO playlists (name, description, kind, rules)
@@ -81,6 +89,21 @@ export class PlaylistRepository {
       'DELETE FROM playlist_items WHERE playlist_id = ? AND song_id = ?',
     )
     this.#clearItems = db.prepare('DELETE FROM playlist_items WHERE playlist_id = ?')
+    this.#insertSynced = db.prepare(
+      `INSERT INTO playlists (uid, name, description, kind, rules, pinned, created_at, updated_at)
+       VALUES (@uid, @name, @description, @kind, @rules, @pinned, @createdAt, @createdAt)`,
+    )
+    this.#setUpdatedAt = db.prepare('UPDATE playlists SET updated_at = ? WHERE id = ?')
+    this.#makeManual = db.prepare(
+      "UPDATE playlists SET kind = 'manual', rules = NULL, updated_at = datetime('now') WHERE id = ?",
+    )
+    this.#markPlayed = db.prepare(
+      "UPDATE playlists SET last_played_at = datetime('now') WHERE id = ?",
+    )
+    this.#touch = db.prepare("UPDATE playlists SET updated_at = datetime('now') WHERE id = ?")
+    this.#kinds = db.prepare<[], { id: number; kind: string; rules: string | null }>(
+      'SELECT id, kind, rules FROM playlists',
+    )
   }
 
   /**
@@ -130,14 +153,23 @@ export class PlaylistRepository {
     }
   }
 
+  /** The statement for a rule's SQL, prepared the first time it is asked for. */
+  #ruleStatement<Row>(sql: string): Database.Statement<unknown[], Row> {
+    let statement = this.#ruleStatements.get(sql)
+    if (!statement) {
+      statement = this.#db.prepare<unknown[]>(sql)
+      this.#ruleStatements.set(sql, statement)
+    }
+    // One cache for every row shape; each SQL text only ever has the one.
+    return statement as Database.Statement<unknown[], Row>
+  }
+
   #liveStats(rules: SmartRules): { count: number; duration: number } {
     const { sql, params } = compileSmartRules(rules)
-    const row = this.#db
-      .prepare<unknown[], { count: number; duration: number | null }>(
-        `SELECT COUNT(*) AS count, COALESCE(SUM(duration), 0) AS duration
-           FROM songs WHERE id IN (${sql})`,
-      )
-      .get(...params)
+    const row = this.#ruleStatement<{ count: number; duration: number | null }>(
+      `SELECT COUNT(*) AS count, COALESCE(SUM(duration), 0) AS duration
+         FROM songs WHERE id IN (${sql})`,
+    ).get(...params)
     return { count: row?.count ?? 0, duration: row?.duration ?? 0 }
   }
 
@@ -172,16 +204,11 @@ export class PlaylistRepository {
       createdAt: string
     } & PlaylistRules,
   ): number {
-    const info = this.#db
-      .prepare(
-        `INSERT INTO playlists (uid, name, description, kind, rules, pinned, created_at, updated_at)
-         VALUES (@uid, @name, @description, @kind, @rules, @pinned, @createdAt, @createdAt)`,
-      )
-      .run({
-        ...input,
-        rules: input.rules ? JSON.stringify(input.rules) : null,
-        pinned: input.pinned ? 1 : 0,
-      })
+    const info = this.#insertSynced.run({
+      ...input,
+      rules: input.rules ? JSON.stringify(input.rules) : null,
+      pinned: input.pinned ? 1 : 0,
+    })
     return Number(info.lastInsertRowid)
   }
 
@@ -191,7 +218,7 @@ export class PlaylistRepository {
    * this comes after them and says otherwise.
    */
   setUpdatedAt(id: number, updatedAt: string): void {
-    this.#db.prepare('UPDATE playlists SET updated_at = ? WHERE id = ?').run(updatedAt, id)
+    this.#setUpdatedAt.run(updatedAt, id)
   }
 
   update(id: number, patch: UpdatePlaylist): Playlist | null {
@@ -241,11 +268,7 @@ export class PlaylistRepository {
     this.#db.transaction(() => {
       this.#clearItems.run(playlist.id)
       keep.forEach((songId, index) => this.#insertItem.run(playlist.id, songId, index))
-      this.#db
-        .prepare(
-          "UPDATE playlists SET kind = 'manual', rules = NULL, updated_at = datetime('now') WHERE id = ?",
-        )
-        .run(playlist.id)
+      this.#makeManual.run(playlist.id)
     })()
   }
 
@@ -258,21 +281,37 @@ export class PlaylistRepository {
    * playing a list is not editing it, and sync reads that column as "changed".
    */
   markPlayed(id: number): void {
-    this.#db.prepare("UPDATE playlists SET last_played_at = datetime('now') WHERE id = ?").run(id)
+    this.#markPlayed.run(id)
   }
 
   /** Ordered song ids, resolving a live playlist's rules on the fly. */
-  songIds(playlist: Playlist): number[] {
+  songIds(playlist: Pick<Playlist, 'id' | 'kind' | 'rules'>): number[] {
     if (playlist.kind === 'live') {
       if (!playlist.rules) return []
       const { sql, params } = compileSmartRules(playlist.rules)
-      const matched = this.#db
-        .prepare<unknown[], { id: number }>(sql)
+      const matched = this.#ruleStatement<{ id: number }>(sql)
         .all(...params)
         .map(row => row.id)
       return this.#inKeptOrder(playlist.id, matched)
     }
     return this.#items.all(playlist.id).map(row => row.song_id)
+  }
+
+  /**
+   * Every song in at least one playlist, live ones resolved as they stand.
+   * Without the counts `all()` works out for every live playlist, which a
+   * caller after only the ids would pay for and throw away.
+   */
+  everySongId(): Set<number> {
+    const ids = new Set<number>()
+    for (const row of this.#kinds.all()) {
+      const shape = playlistRules(
+        row.kind === 'live' ? 'live' : 'manual',
+        row.kind === 'live' ? this.#parseRules(row.rules) : null,
+      )
+      for (const id of this.songIds({ id: row.id, ...shape })) ids.add(id)
+    }
+    return ids
   }
 
   /**
@@ -309,19 +348,20 @@ export class PlaylistRepository {
       // positions in place, which is simpler to reason about and cheap at
       // playlist scale.
       const existing = this.#items.all(playlistId).map(row => row.song_id)
-      const incoming = songIds.filter(id => !existing.includes(id))
+      const already = new Set(existing)
+      const incoming = songIds.filter(id => !already.has(id))
       const clamped = Math.min(Math.max(position, 0), existing.length)
       const merged = [...existing.slice(0, clamped), ...incoming, ...existing.slice(clamped)]
       this.#clearItems.run(playlistId)
       merged.forEach((songId, index) => this.#insertItem.run(playlistId, songId, index))
     })
     run()
-    this.#touch(playlistId)
+    this.#touch.run(playlistId)
   }
 
   remove(playlistId: number, songId: number): void {
     this.#removeItem.run(playlistId, songId)
-    this.#touch(playlistId)
+    this.#touch.run(playlistId)
   }
 
   /**
@@ -338,7 +378,7 @@ export class PlaylistRepository {
       return affected
     })
     const affected = run([...new Set(songIds)])
-    this.#touch(playlistId)
+    this.#touch.run(playlistId)
     return affected
   }
 
@@ -371,10 +411,6 @@ export class PlaylistRepository {
       merged.forEach((songId, index) => this.#insertItem.run(playlistId, songId, index))
     })
     run()
-    this.#touch(playlistId)
-  }
-
-  #touch(id: number): void {
-    this.#db.prepare("UPDATE playlists SET updated_at = datetime('now') WHERE id = ?").run(id)
+    this.#touch.run(playlistId)
   }
 }

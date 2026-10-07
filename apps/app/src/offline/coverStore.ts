@@ -1,4 +1,4 @@
-import { library, cloudPlatform, session as cloudSession } from '../replica'
+import { doormanAuth, doormanFileUrl, library, session as cloudSession } from '../replica'
 import { createCoverChanges } from './coverChanges'
 
 /**
@@ -248,9 +248,7 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
         const signedIn = await cloudSession.loadSession()
         if (!signedIn) return null
 
-        return await platform.keepCloud(name, `${cloudPlatform.doormanUrl}/v1/files/${key}`, {
-          Authorization: `Bearer ${signedIn.token}`,
-        })
+        return await platform.keepCloud(name, doormanFileUrl(key), doormanAuth(signedIn.token))
       } catch (error) {
         // A missing cover is survivable — the letter tile is behind it — but it
         // should not be silent: swallowing this is what made an expo-file-system

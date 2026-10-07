@@ -1,8 +1,7 @@
-import { useCallback, useState, useSyncExternalStore } from 'react'
+import { useCallback, useMemo, useState, useSyncExternalStore } from 'react'
 import type { Song } from '@selfmp3/shared'
-import { mediaUrlFor } from '../api/client'
-import { artAddress, serverRoutes } from '../api/mediaAddress.model'
-import { bucketMedia } from '../ports/bucketMedia'
+import { artAddress } from '../api/mediaAddress.model'
+import { mediaSourcesFor } from '../api/mediaSources'
 import { useConnection } from '../connection/ConnectionProvider'
 import { watchCovers } from './coverChanges'
 import {
@@ -48,6 +47,15 @@ export function useArt(drawnAt: number = KEPT_COVER_SIZE): (song: Song) => Art {
     watchCovers({ subscribe: subscribeCovers, version: coversVersion }),
   )
   const seen = useSyncExternalStore(watch.subscribe, watch.seen, watch.seen)
+  // Built once per library rather than once per row per render.
+  const kept = useMemo(
+    () => mediaSourcesFor(connection, fromCloud, KEPT_COVER_SIZE),
+    [connection, fromCloud],
+  )
+  const drawn = useMemo(
+    () => (drawnAt === KEPT_COVER_SIZE ? kept : mediaSourcesFor(connection, fromCloud, drawnAt)),
+    [kept, connection, fromCloud, drawnAt],
+  )
 
   return useCallback(
     (song: Song): Art => {
@@ -57,18 +65,14 @@ export function useArt(drawnAt: number = KEPT_COVER_SIZE): (song: Song) => Art {
       // not `connection`: an address left over from talking to a server is
       // still stored, and asking whether one exists sends the loader to a
       // server that is not running — or to another library's song 12.
-      const address = artAddress(song.id, song.rev, {
-        bucket: bucketMedia,
-        server: connection ? serverRoutes(mediaUrlFor(connection), KEPT_COVER_SIZE) : null,
-        fromCloud,
-      })
+      const address = artAddress(song.id, song.rev, kept)
       // A copy on this device, kept the moment the picture answers. It is what
       // is drawn once it exists: it is there when the network is not, and it is
       // the same picture when it is. A tab keeps none, and draws the address.
       if (fromCloud) void ensureCover(song.id)
       else if (address) void ensureServerCover(song.id, song.rev, address)
-      const kept = coverFor(song.id)
-      if (kept) return kept
+      const onDevice = coverFor(song.id)
+      if (onDevice) return onDevice
       // A song with a picture this device is still fetching: say it is coming,
       // so it is not drawn as a song without one and then swapped.
       if (!address) return fromCloud && keepsCovers && !coverFailed(song.id) ? undefined : null
@@ -78,17 +82,12 @@ export function useArt(drawnAt: number = KEPT_COVER_SIZE): (song: Song) => Art {
        * The kept copy above is always `KEPT_COVER_SIZE`: a device that keeps
        * one keeps it sharp, and draws that rather than this.
        */
-      if (drawnAt === KEPT_COVER_SIZE) return address
-      return artAddress(song.id, song.rev, {
-        bucket: bucketMedia,
-        server: connection ? serverRoutes(mediaUrlFor(connection), drawnAt) : null,
-        fromCloud,
-      })
+      return drawn === kept ? address : artAddress(song.id, song.rev, drawn)
     },
     // `seen` is not read, but it is why this is a new function when one of
     // this screen's covers changes: a screen that memoizes on it (a
     // playlist's mosaic) must look again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [connection, fromCloud, watch, seen, drawnAt],
+    [fromCloud, watch, seen, kept, drawn],
   )
 }

@@ -13,3 +13,13 @@ export const session = createCloudSession(cloudPlatform)
 export const library = createCloudLibrary(cloudPlatform, session)
 export const { cloudRequest } = createCloudRoutes(cloudPlatform, session, library)
 export { cloudPlatform }
+
+/** A file in the bucket, as the doorman serves it: `key` is where the bucket keeps it. */
+export function doormanFileUrl(key: string): string {
+  return `${cloudPlatform.doormanUrl}/v1/files/${key}`
+}
+
+/** The header the doorman reads, and the only thing it reads, to let a request through. */
+export function doormanAuth(token: string): Record<string, string> {
+  return { Authorization: `Bearer ${token}` }
+}

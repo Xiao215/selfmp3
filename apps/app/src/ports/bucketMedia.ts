@@ -1,5 +1,5 @@
 import type { MediaRoutes } from '../api/mediaAddress.model'
-import { cloudPlatform } from '../replica'
+import { doormanAuth, doormanFileUrl } from '../replica'
 
 /**
  * Addresses this platform can have answered from the bucket, for a library
@@ -50,8 +50,8 @@ export function configureBucketMedia(next: BucketMediaSetup | null): void {
 export const bucketMedia: MediaRoutes | null = {
   stream: songId => {
     const key = setup.bearer === null ? null : setup.pathOf(songId)
-    return key === null ? '' : `${cloudPlatform.doormanUrl}/v1/files/${key}`
+    return key === null ? '' : doormanFileUrl(key)
   },
   art: () => null,
-  headers: () => (setup.bearer === null ? null : { Authorization: `Bearer ${setup.bearer}` }),
+  headers: () => (setup.bearer === null ? null : doormanAuth(setup.bearer)),
 }

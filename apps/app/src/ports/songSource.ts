@@ -2,7 +2,7 @@ import type { Song } from '@selfmp3/shared'
 import type { ServerConnection } from '@selfmp3/client'
 
 import { mediaUrlFor } from '../api/client'
-import { cloudPlatform, session as cloudSession } from '../replica'
+import { doormanAuth, doormanFileUrl, session as cloudSession } from '../replica'
 
 /**
  * Where a song's bytes come from.
@@ -25,10 +25,7 @@ export async function sourceFor(
 ): Promise<{ url: string; headers?: Record<string, string> }> {
   const signedIn = await cloudSession.loadSession().catch(() => null)
   if (signedIn) {
-    return {
-      url: `${cloudPlatform.doormanUrl}/v1/files/${song.path}`,
-      headers: { Authorization: `Bearer ${signedIn.token}` },
-    }
+    return { url: doormanFileUrl(song.path), headers: doormanAuth(signedIn.token) }
   }
   if (!connection) throw new Error('no server, and not signed in to the cloud')
   return { url: mediaUrlFor(connection).stream(song.id) }

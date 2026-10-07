@@ -16,7 +16,7 @@ import type { AudioFeaturesRepository } from '../repositories/audioFeatures.js'
 import type { CloudRepository } from '../repositories/cloud.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
 import type { SongRepository } from '../repositories/songs.js'
-import type { SyncRepository } from '../repositories/sync.js'
+import type { StampKind, SyncRepository } from '../repositories/sync.js'
 import type { TagRepository } from '../repositories/tags.js'
 import { audioSignature, NO_FILE_SIGNATURE, tagsLyricsSignature } from './cloudSignatures.js'
 import { isFreeOnDisk, songKeyCandidates } from './libraryLayout.js'
@@ -391,11 +391,7 @@ export class CloudAdopt {
    * moves it: an edit made here next has to come after everything this server
    * has seen, or it loses to a stamp already in its own database.
    */
-  #stamp(
-    kind: 'song' | 'songTag' | 'tag' | 'playlist' | 'playlistSong',
-    uid: string,
-    stamps: Readonly<Record<string, string>> | undefined,
-  ): void {
+  #stamp(kind: StampKind, uid: string, stamps: Readonly<Record<string, string>> | undefined): void {
     for (const [field, hlc] of Object.entries(stamps ?? {})) {
       this.#sync.setStamp(kind, uid, field, hlc)
       this.#clock.observe(hlc)

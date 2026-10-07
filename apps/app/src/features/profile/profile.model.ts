@@ -1,4 +1,3 @@
-import type { Href } from 'expo-router'
 import { formatRelative, type Stats } from '@selfmp3/shared'
 import type { DevicePlace } from '../settings/settings.model'
 import { durationWords, formatHour, peakHour, peakHourWords } from '../stats/stats.model'
@@ -17,7 +16,7 @@ export type ProfileRowId = 'import' | 'report' | 'settings'
 export interface ProfileRow {
   readonly id: ProfileRowId
   readonly label: string
-  readonly href: Href
+  readonly href: string
   /** The quiet line under the label: what is behind the row. */
   readonly hint: string
 }

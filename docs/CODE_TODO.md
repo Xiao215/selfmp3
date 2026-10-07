@@ -616,3 +616,17 @@ All answered the same day (2026-10-07) and done:
 - [x] **Snapshot writes** — written at once when the library version moves, else at most every five minutes.
 - [x] **The replica's doorman-404 shim** — deleted; the deployed doorman has the route.
 - [x] **Colour leftovers** — CoverFlight, MiniPlayer's wash alpha, `useFade`+`usePresence`, the settings notices (T-123), the no-cover tile (T-125), the hue swatches (T-126), and the dmg and doorman pages all come from the palettes now.
+
+## Legacy removal (2026-10-07, same day)
+
+The owner's rule from here on: migrate rather than accommodate an older shape. A sweep of the server, packages, app, doorman, extension and desktop found the places that still did, checked each against the live database, and removed them:
+
+- Boot passes that had finished their work: squaring kept covers, and the release-year back-fill (migration 32 drops its queue).
+- Schema defaults for data an older build wrote: import previews and drafts, a cover colour without a palette (migration 33 re-reads any), `audioFeatures` and `lastPlayedAt`, the downloads index, an error body without a code.
+- Covers looked up by every extension (migration 34 clears art with no recorded format), and nullable `uid` columns filled by triggers (migration 35 rebuilds `songs`, `tags` and `playlists` with a `NOT NULL` default; the runner can now switch foreign keys off for such a rebuild and refuses to commit on a `foreign_key_check` row).
+- A typed server address in a production build, and the guards for one left beside a sign-in; a 404 read as "your server is older"; a browser adopting cached songs nothing said it downloaded.
+- The service worker now keeps the tab's cloud files cache across deploys (it was swept on every one).
+
+Every migration was run against a copy of the live database (29 → 35: integrity ok, no foreign-key rows, every table identical apart from the intended columns).
+
+Still to do: the cloud snapshot schema stays lenient for `coverTone`, `motion`, `audioFeatures`, `upTo` and a palette-less tone until the live server has published a snapshot written by this code (`TODO(after the Pi publishes)` in `schemas/cloud.ts`). The doorman's `/privacy` redirect stays until the Google consent screen is confirmed to name the Pages address.

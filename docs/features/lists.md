@@ -32,7 +32,9 @@ The verbs: **Play** (replaces Up next, from anywhere), **Add to Up next**, **Sav
 ## A song picked from Library
 
 A tap (or a click, or the row's ▶) on a song in Library plays **that song alone**: Up next
-becomes just it, and whatever it held before is gone (Xiao, 2026-10-03). It used to be the
+becomes just it, and whatever it held before is gone (Xiao, 2026-10-03). The palette's song
+rows and lyric hits do the same: it searches the whole library, so there is no list around
+the song (`playAlone` in `lists.model.ts`). It used to be the
 whole library from that row, which put every row above it in Up next as already played and
 every row below it as next. The whole list plays from **Shuffle** — the head on a computer,
 next to Sort on a phone — or **Play these tags** with tags on. A tag's, an artist's or a

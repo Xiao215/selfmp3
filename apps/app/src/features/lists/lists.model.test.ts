@@ -10,6 +10,7 @@ import {
   parseListSource,
   parseRecentLists,
   placesSource,
+  playAlone,
   recentSongIds,
   savePlan,
   songsToSave,
@@ -130,6 +131,14 @@ describe('what Save makes', () => {
       savePlan({ kind: 'songs', origin: 'search', name: 'Search' }, queue([5]), known),
     ).toBeNull()
     expect(savePlan({ kind: 'songs', origin: 'untagged', name: 'x' }, q, known)).toBeNull()
+  })
+})
+
+describe('a song picked from a general list', () => {
+  it('plays that song alone, with no source: Up next is just it, nameless, with no Save', () => {
+    const calls: unknown[][] = []
+    playAlone({ playFrom: (...args: unknown[]) => void calls.push(args) }, 42)
+    expect(calls).toEqual([[[42], 0]])
   })
 })
 

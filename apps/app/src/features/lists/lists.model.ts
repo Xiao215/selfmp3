@@ -57,6 +57,23 @@ export type ListSource =
     }
   | { readonly kind: 'songs'; readonly origin: SongsOrigin; readonly name: string }
 
+/**
+ * A song picked out of a general list — a Library row, a song or a lyric hit
+ * in the palette — played alone: Up next becomes just it, and whatever it held
+ * is gone (Xiao, 2026-10-03). A song chosen from the whole library is the one
+ * wanted, not the rows around it. One song is not a list, so it goes with no
+ * source: Up next wears no name for it and offers no Save. A list that is a
+ * place — a tag's, an artist's or a playlist's page, an answer — still plays
+ * the list from the row, and so does Search, whose rows are what was searched
+ * for (docs/features/lists.md).
+ */
+export function playAlone(
+  player: { readonly playFrom: (songIds: readonly number[], startIndex: number) => void },
+  songId: number,
+): void {
+  player.playFrom([songId], 0)
+}
+
 /** What a source's line links to, as plain data the screen hands the router. */
 interface SourceLink {
   readonly pathname: string

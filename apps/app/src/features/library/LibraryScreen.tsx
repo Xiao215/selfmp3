@@ -36,7 +36,7 @@ import { useDragScroll } from '../../ports/dragScroll'
 import { useContentWidth } from '../../shell/contentWidth'
 import { noMatchesTitle, stripTags, useLibraryModel } from './library.model'
 import { noteTagUsed, useRecentTagIds } from './recentTags.store'
-import { librarySource } from '../lists/lists.model'
+import { librarySource, playAlone } from '../lists/lists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { usePullToRefresh } from './usePullToRefresh'
 import { useSongTagLookup } from '../../ui/songTags'
@@ -182,13 +182,11 @@ export function LibraryScreen(): ReactNode {
     // Shift and Cmd on the web, and a tap in selection mode, select; a plain
     // tap still plays.
     if (now.selection.click(song.id, modifiersOf(event))) return
-    // That song and nothing after it, and whatever Up next held is gone: a
-    // song picked out of the whole library is the one wanted, not the 1,300
-    // rows around it, which used to fill Up next on both sides (Xiao,
-    // 2026-10-03). The whole list plays from Shuffle, or Play with tags on.
-    // One song is not a list, so Up next wears no name and offers no Save: the
-    // tags ticked are not what is playing (docs/features/lists.md).
-    now.playFrom([song.id], 0)
+    // That song and nothing after it, and whatever Up next held is gone: the
+    // 1,300 rows around it used to fill Up next on both sides (`playAlone`).
+    // The whole list plays from Shuffle, or Play with tags on; the tags ticked
+    // are not what is playing, so Up next wears no name for the one song.
+    playAlone(now, song.id)
   }, [])
   const onRowMore = songMenu.onMore
   // Holding a row selects it; the ⋯ opens the menu.

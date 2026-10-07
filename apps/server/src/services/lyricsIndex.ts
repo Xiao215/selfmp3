@@ -1,4 +1,4 @@
-import { parseLyrics, type LyricsSearchHit } from '@selfmp3/shared'
+import { lyricTextLines, parseLyrics, type LyricsSearchHit } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
 import { highlightMatch, type LyricsSearchRepository } from '../repositories/lyricsSearch.js'
@@ -42,7 +42,7 @@ export class LyricsIndexService {
     const hash = LyricsCache.hash(text)
     if (this.#search.indexedHash(songId) === hash) return
     const parsed = parseLyrics(text)
-    const lines = parsed.synced ? parsed.lines.map(line => line.text) : parsed.lines
+    const lines = lyricTextLines(parsed)
     this.#search.replace(songId, hash, lines)
   }
 

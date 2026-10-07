@@ -16,6 +16,7 @@ import {
   newestSnapshotKey,
   parseEndpoint,
   parseLogKey,
+  lyricTextLines,
   parseLyrics,
   readLogFile,
   romanizedKey,
@@ -166,7 +167,7 @@ interface UploadedLyrics {
 /** Whether a lyric text is Chinese or Japanese: words that should have romanized lines. */
 function wantsRomanized(text: string): boolean {
   const parsed = parseLyrics(text)
-  const lines = parsed.synced ? parsed.lines.map(line => line.text) : parsed.lines
+  const lines = lyricTextLines(parsed)
   return detectLyricsLanguage(lines) !== 'none'
 }
 

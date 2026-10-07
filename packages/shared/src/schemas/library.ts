@@ -22,6 +22,13 @@ export const LibrarySchema = z.object({
 })
 export type Library = z.infer<typeof LibrarySchema>
 
+/** `/api/library/version`: whether anything changed since the last read, without the library. */
+export const LibraryVersionSchema = z.object({
+  version: z.number(),
+  songCount: z.number().int().nonnegative(),
+})
+export type LibraryVersion = z.infer<typeof LibraryVersionSchema>
+
 /** What a sweep of the server's inbox folder found (services/scanner.ts). */
 export const ScanResultSchema = z.object({
   added: z.number().int().nonnegative(),

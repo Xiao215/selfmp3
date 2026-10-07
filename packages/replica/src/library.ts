@@ -18,6 +18,7 @@ import {
   unfoldedLogKeys,
   type Change,
   type CloudSnapshot,
+  type LibraryVersion,
   type LogFile,
   type SyncLibrary,
   type SyncManifest,
@@ -189,7 +190,7 @@ export interface CloudLibraryApi {
    * again. Answers the way to stop listening.
    */
   onCloudLibraryChanged: (listener: () => void) => () => void
-  cloudLibraryVersion: (session: CloudSession) => Promise<{ version: number; songCount: number }>
+  cloudLibraryVersion: (session: CloudSession) => Promise<LibraryVersion>
   recordChanges: <T>(
     session: CloudSession,
     build: (ctx: EditContext) => { changes: readonly Change[]; answer: (view: CloudLibrary) => T },
@@ -697,9 +698,7 @@ export function createCloudLibrary(
     }
   }
 
-  async function cloudLibraryVersion(
-    session: CloudSession,
-  ): Promise<{ version: number; songCount: number }> {
+  async function cloudLibraryVersion(session: CloudSession): Promise<LibraryVersion> {
     const view = await loadCloudLibrary(session)
     return { version: view.library.version, songCount: view.library.songs.length }
   }

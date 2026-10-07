@@ -36,4 +36,3 @@ export type ImportRequestList = z.infer<typeof ImportRequestListSchema>
  * a server that never said.
  */
 export const CloudServerViewSchema = z.object({ server: CloudServerSchema.nullable() })
-export type CloudServerView = z.infer<typeof CloudServerViewSchema>

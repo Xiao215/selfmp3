@@ -64,3 +64,17 @@ export const StatsSchema = z.object({
   topSongs: z.array(TopSongSchema),
 })
 export type Stats = z.infer<typeof StatsSchema>
+
+/** One play in `/api/stats/history`, newest first: the song as it was named then. */
+export const PlayHistoryEventSchema = z.object({
+  songId: IdSchema,
+  title: z.string(),
+  artist: z.string(),
+  hasArt: z.boolean(),
+  playedAt: z.string(),
+  completed: z.boolean(),
+})
+export type PlayHistoryEvent = z.infer<typeof PlayHistoryEventSchema>
+
+export const PlayHistorySchema = z.object({ events: z.array(PlayHistoryEventSchema) })
+export type PlayHistory = z.infer<typeof PlayHistorySchema>

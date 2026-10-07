@@ -20,6 +20,10 @@ export const OptionalTextSchema = z.string().trim().max(500).default('')
 export const OkSchema = z.object({ ok: z.literal(true) })
 export type Ok = z.infer<typeof OkSchema>
 
+/** How many things a bulk edit changed: `/songs/bulk/edit`, `/songs/bulk/loved`, `/tags/bulk`. */
+export const AffectedSchema = z.object({ affected: z.number().int().nonnegative() })
+export type Affected = z.infer<typeof AffectedSchema>
+
 /**
  * A boolean in a query string.
  *

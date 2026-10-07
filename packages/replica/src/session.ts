@@ -51,12 +51,12 @@ export class DoormanError extends Error {
   }
 }
 
-export interface PendingSignIn {
+interface PendingSignIn {
   readonly attempt: string
   readonly until: number
 }
 
-export type ClaimOutcome =
+type ClaimOutcome =
   | { readonly status: 'pending' }
   | { readonly status: 'code' }
   | { readonly status: 'signed-in'; readonly session: CloudSession }

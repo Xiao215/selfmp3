@@ -325,6 +325,13 @@ export const ToolStatusSchema = z.object({
 })
 export type ToolStatus = z.infer<typeof ToolStatusSchema>
 
+/** What Pause all, Resume all, Retry all, Remove all and Clear answer: how many jobs each moved. */
+export const ImportsPausedSchema = z.object({ paused: z.number().int().nonnegative() })
+export const ImportsResumedSchema = z.object({ resumed: z.number().int().nonnegative() })
+export const ImportsRetriedSchema = z.object({ retried: z.number().int().nonnegative() })
+export const ImportsRemovedSchema = z.object({ removed: z.number().int().nonnegative() })
+export const ImportsClearedSchema = z.object({ cleared: z.number().int().nonnegative() })
+
 /** The colour of a review song's cover, read by the server (services/previewCoverTone.ts). */
 export const ImportCoverToneSchema = z.object({
   tone: CoverToneSchema.nullable(),

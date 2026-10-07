@@ -22,6 +22,9 @@ import {
   extractUrls,
   forgottenGems,
   similarSongs,
+  type Affected,
+  type PlayRecorded,
+  type RemovedFromPlaylist,
   type Settings,
 } from '@selfmp3/shared'
 import { z } from 'zod'
@@ -34,7 +37,7 @@ import { DoormanError, type CloudSession, type CloudSessionApi } from './session
 import type { CloudLibrary } from './snapshotLibrary.js'
 
 /** As much of a query string as any route reads. */
-export interface RouteQuery {
+interface RouteQuery {
   get(name: string): string | null
 }
 
@@ -216,7 +219,7 @@ export function createCloudRoutes(
           ).length
           return {
             changes: edits.loveSongs(ctx, input.songIds, input.loved),
-            answer: () => ({ affected }),
+            answer: (): Affected => ({ affected }),
           }
         })
       },
@@ -230,7 +233,7 @@ export function createCloudRoutes(
           const here = input.edits.filter(edit => ctx.view.uids.songs.has(edit.songId))
           return {
             changes: here.flatMap(edit => edits.editSong(ctx, edit.songId, edit.patch)),
-            answer: () => ({ affected: here.length }),
+            answer: (): Affected => ({ affected: here.length }),
           }
         })
       },
@@ -255,7 +258,7 @@ export function createCloudRoutes(
           session,
           ctx => ({
             changes: edits.playSong(ctx, id(params), event),
-            answer: () => ({ ok: true, duplicate: false }),
+            answer: (): PlayRecorded => ({ ok: true, duplicate: false }),
           }),
           // The outbox sends a phone's waiting plays one after another.
           { deferView: true },
@@ -344,7 +347,7 @@ export function createCloudRoutes(
           ).length
           return {
             changes: edits.tagSongs(ctx, input.tagId, input.songIds, on),
-            answer: () => ({ affected }),
+            answer: (): Affected => ({ affected }),
           }
         })
       },
@@ -404,7 +407,7 @@ export function createCloudRoutes(
           const removed = [...new Set(songIds)].filter(songId => inIt.has(songId)).length
           return {
             changes: edits.removeFromPlaylist(ctx, id(params), songIds),
-            answer: view => ({
+            answer: (view): RemovedFromPlaylist => ({
               removed,
               playlist: playlistOf(view, view.uids.playlists.get(id(params))),
             }),

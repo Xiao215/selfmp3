@@ -132,6 +132,8 @@ export function songTable(
   songs: readonly Song[],
   tags: readonly Tag[],
   now: number = Date.now(),
+  /** One more column, last, when the caller has something per song to add. */
+  extra?: (song: Song) => string,
 ): string {
   const names = new Map(tags.map(tag => [tag.id, tag.name]))
   return songs
@@ -152,6 +154,7 @@ export function songTable(
         minutes(song.duration),
         hasWords(song) ? 'words' : 'no words',
         `${song.playCount} plays, ${daysAgo(song.lastPlayedAt, now)}`,
+        ...(extra ? [extra(song)] : []),
       ].join(' | ')
     })
     .join('\n')

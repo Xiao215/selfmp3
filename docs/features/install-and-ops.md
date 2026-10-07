@@ -67,17 +67,24 @@ launchd.
 
 Multi-stage, and the two builds are separate. The app's web export is built on the *build*
 platform (`node:22-bookworm-slim`), so a Pi's image is not cross-compiled through emulation
-for a step that only produces static files. The server stage is `node:22-alpine` plus
-`python3 make g++`, because better-sqlite3 and sharp compile from source when no prebuilt
-binary matches (musl on arm64, for one); it installs, builds, then installs again with
-`--omit=dev` and checks both native modules load. The runtime stage is a clean
-`node:22-alpine` with `ffmpeg`, `yt-dlp` and `tini`, and copies only those production
-`node_modules` plus the three `dist/` folders and their `package.json` files. The layout
-mirrors the repo so the workspace symlinks in `node_modules` still point somewhere real.
+for a step that only produces static files. The server stage is `node:22-bookworm-slim` plus
+`python3 make g++`, for a native module with no prebuilt binary for the platform; it
+installs, builds, then installs again with `--omit=dev`, keeping only this platform's build
+of onnxruntime (the listening model's runtime ships every platform's, about 290 MB). The
+runtime stage is a clean `node:22-bookworm-slim` with `ffmpeg`, `yt-dlp` and `tini`, and
+copies only those production `node_modules` plus the three `dist/` folders and their
+`package.json` files, then imports every one of them and opens SQLite so an image that
+could not start fails to build. The layout mirrors the repo so the workspace symlinks in
+`node_modules` still point somewhere real.
+
+The image was Alpine until the listening model: onnxruntime-node ships builds for glibc
+only, and on musl the model could not load at all. The model's own files are not in the
+image; the server downloads them into the data volume (`data/models/`, about 750 MB) the
+first time analysis wants them.
 
 - Runs as `node`, not root; `/app/library` and `/app/data` are volumes, chowned in the image
   so a fresh bind mount is writable.
-- `HEALTHCHECK` hits `/api/health` with busybox `wget`. That route is exempt from bearer
+- `HEALTHCHECK` hits `/api/health` with the image's own `node` (the slim image has no `wget`). That route is exempt from bearer
   auth, so the check works whatever token the server is using — its own or one set in
   `SELFMP3_AUTH_TOKEN`. In a container the loopback exemption is no help: the container is
   its own machine, so a request from the host is a request from the network.

@@ -180,7 +180,12 @@ export function songRoutes(container: Container): Router {
     }),
   )
 
-  /** Nearest neighbours by tempo, key, energy, loudness, tags and artist. */
+  /**
+   * The songs that sound most like this one, as the listening model heard them
+   * (sound/sound.ts), nudged by shared tags and the artist. A song not heard
+   * yet falls back to tempo, key, energy and loudness, and so do the songs
+   * that fill the list past the ones heard.
+   */
   router.get(
     '/songs/:id/similar',
     route(
@@ -190,9 +195,11 @@ export function songRoutes(container: Container): Router {
       },
       ({ params, query }): SimilarSongs => {
         const seed = songOrThrow(params.id)
+        const library = container.songs.all()
+        const byFeatures = similarSongs(seed, library, query.limit)
         return {
           songId: seed.id,
-          songs: similarSongs(seed, container.songs.all(), query.limit),
+          songs: container.sound.similar(seed, library, query.limit, byFeatures) ?? byFeatures,
         }
       },
     ),

@@ -69,6 +69,7 @@ export class SmartFeatures {
     setup: AiSetup
     songs: () => Song[]
     tags: () => Tag[]
+    sound?: AskDeps['sound']
     stats: (range: Stats['range']) => Stats
     lyrics: (query: string) => { songId: number; line: string }[]
     wrapped: (range: WrappedRange) => Wrapped
@@ -208,6 +209,8 @@ export function smartFeaturesFor(sources: {
   readonly logger: Logger
   readonly songs: Pick<SongRepository, 'all'>
   readonly tags: Pick<TagRepository, 'all'>
+  /** The listening model, for Ask's songs in the order they sound (sound/sound.ts). */
+  readonly sound?: AskDeps['sound']
   readonly stats: Pick<StatsRepository, 'build'>
   readonly wrapped: Pick<WrappedRepository, 'build'>
   readonly playlists: Pick<PlaylistRepository, 'all' | 'songIds'>
@@ -224,6 +227,7 @@ export function smartFeaturesFor(sources: {
     setup: setupFor(config),
     songs: () => songs.all(),
     tags: () => tags.all(),
+    sound: sources.sound,
     stats: range => stats.build(range),
     lyrics: query =>
       sources.lyricsSearch.search(query).map(row => ({ songId: row.song_id, line: row.line })),

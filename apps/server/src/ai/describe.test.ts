@@ -22,6 +22,7 @@ const nothing: Understanding = {
   addedWithinDays: null,
   size: null,
   minutes: null,
+  sound: null,
   brief: null,
 }
 
@@ -199,6 +200,71 @@ group('describe', () => {
     await narrowAndPick(deps(scriptedLlm({})), 'jpop', parts, [], [], steps)
     expect(progress.steps('ticket-123456')).toEqual([{ text: '3 songs fit', done: true }])
     expect(progress.steps('someone-else')).toEqual([])
+  })
+
+  it('orders the songs by how they sound and takes the best, with no pick, when that is all it wants', async () => {
+    const llm = scriptedLlm({})
+    // The listening model hears song 5 as the most "calm", then 1, then 2.
+    const heard = new Map([
+      [5, 0.3],
+      [1, 0.2],
+      [2, 0.1],
+    ])
+    const sound = {
+      match: (_text: string, ids: readonly number[]) =>
+        Promise.resolve(new Map(ids.filter(id => heard.has(id)).map(id => [id, heard.get(id)!]))),
+      closeTo: () => null,
+    }
+    const calm = { ...nothing, sound: 'calm orchestral music', size: 2 }
+    const result = await narrowAndPick({ ...deps(llm), sound }, 'calm', calm, [])
+    expect(result.picks.map(pick => pick.songId)).toEqual([5, 1])
+    expect(llm.asked).toHaveLength(0)
+  })
+
+  it('gives the model the best-sounding songs, in that order, with a sound column', async () => {
+    const llm = scriptedLlm({ 'describe-pick': [{ picks: [{ n: 1, why: 'calm' }] }] })
+    const sound = {
+      match: (_text: string, ids: readonly number[]) =>
+        Promise.resolve(new Map(ids.map(id => [id, id === 6 ? 0.9 : id === 4 ? 0.5 : 0]))),
+      closeTo: () => null,
+    }
+    const parts = { ...nothing, anyTags: ['原神纯音乐'], sound: 'calm', brief: 'for sleeping' }
+    const result = await narrowAndPick({ ...deps(llm), sound }, 'calm for sleep', parts, [])
+    expect(result.picks.map(pick => pick.songId)).toEqual([6])
+    const prompt = String(llm.asked[0]?.prompt)
+    expect(prompt).toContain('How it should sound: calm')
+    expect(prompt).toContain('| plays | sound):')
+    expect(prompt).toMatch(
+      /#1 \| [^\n]* \| sound 100\n#2 \| [^\n]* \| sound 50\n#3 \| [^\n]* \| sound 0/,
+    )
+  })
+
+  it('steers from a song by how close the others sound to it', async () => {
+    const llm = scriptedLlm({})
+    const sound = {
+      match: () => Promise.resolve(null),
+      closeTo: (seed: number, ids: readonly number[]) =>
+        new Map(ids.filter(id => id !== seed).map(id => [id, id === 3 ? 0.9 : 0.1 * id])),
+    }
+    const parts = { ...nothing, anyTags: ['古典'], size: 1 }
+    const result = await narrowAndPick(
+      { ...deps(llm), sound },
+      'more like this',
+      parts,
+      [],
+      [],
+      undefined,
+      1,
+    )
+    expect(result.picks.map(pick => pick.songId)).toEqual([3])
+  })
+
+  it('samples as before when no song has been heard', async () => {
+    const llm = scriptedLlm({})
+    const sound = { match: () => Promise.resolve(null), closeTo: () => null }
+    const parts = { ...nothing, anyTags: ['jpop'], sound: 'upbeat' }
+    const result = await narrowAndPick({ ...deps(llm), sound }, 'upbeat jpop', parts, [])
+    expect(result.picks).toHaveLength(3)
   })
 
   it('skips the plan when the device sends the parts back', async () => {

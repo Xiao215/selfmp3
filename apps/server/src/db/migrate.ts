@@ -525,6 +525,21 @@ const MIGRATIONS: readonly Migration[] = [
     `,
   },
   {
+    // How each song sounds, as the listening model hears it (sound/): 768
+    // little-endian float32s of unit length. `model` names the model that
+    // made it, so a new one hears every song again. A null vector records a
+    // song that could not be heard, so the loop does not try it forever.
+    name: 'a sound vector for each song',
+    sql: `
+      CREATE TABLE song_sound_vectors (
+        song_id INTEGER PRIMARY KEY REFERENCES songs(id) ON DELETE CASCADE,
+        model   TEXT    NOT NULL,
+        vector  BLOB,
+        made_at TEXT    NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+  },
+  {
     // Nothing records a skip any more: no client ever sent one, and the route,
     // the sync change and the smart-playlist rule that read the count are
     // gone. The count and the ids of skips already counted go with them.

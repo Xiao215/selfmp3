@@ -304,6 +304,9 @@ the top of the checkout (copy `.env.example`; git ignores `.env`).
 | `SELFMP3_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error`, `silent` |
 | `SELFMP3_SCAN_ON_BOOT` | `true` | Sweep the inbox folder at startup, so a file dropped in while the server was off is imported |
 | `SELFMP3_CLOUD_DIR` | unset | A folder to use as the bucket instead of an account — the dev profile and the verify lanes run with one. Relative to the data directory unless absolute |
+| `SELFMP3_SOUND` | `true` | The listening model, which hears each song for “Sounds like” and for Ask ([audio-intelligence.md](docs/features/audio-intelligence.md#how-songs-sound)). Its files, about 750 MB, are downloaded to the data folder the first time it is wanted. `false` turns it off |
+| `SELFMP3_SOUND_MODELS` | the `sound-models-v1` release | Where the model's files come from: an address, or a folder that already holds them ([scripts/sound-models](scripts/sound-models/README.md)) |
+| `SELFMP3_SOUND_THREADS` | `2` | CPU threads the model may use while it listens |
 
 The bucket every device syncs with is set up separately, in [SYNC.md](docs/SYNC.md).
 

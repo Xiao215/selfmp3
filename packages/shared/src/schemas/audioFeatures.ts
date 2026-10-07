@@ -44,5 +44,20 @@ export const AnalysisStatusSchema = z.object({
   /** Songs that failed in this run. */
   failed: z.number().int().nonnegative(),
   current: z.object({ id: IdSchema, title: z.string() }).nullable(),
+  /** The listening model's half of the work: each song's sound vector. */
+  sound: z.object({
+    /**
+     * off: switched off on this server. waiting: not wanted yet, while songs
+     * still wait for their tempo and key. fetching: downloading the model the
+     * first time. ready: listening. failed: the model could not be had, and
+     * `message` says why.
+     */
+    state: z.enum(['off', 'waiting', 'fetching', 'ready', 'failed']),
+    /** Songs that have a sound vector. */
+    heard: z.number().int().nonnegative(),
+    /** Songs still waiting for one. */
+    pending: z.number().int().nonnegative(),
+    message: z.string().nullable(),
+  }),
 })
 export type AnalysisStatus = z.infer<typeof AnalysisStatusSchema>

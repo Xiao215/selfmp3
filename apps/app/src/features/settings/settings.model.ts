@@ -1,4 +1,4 @@
-import type { DeviceKind, Health, ScanResult } from '@selfmp3/shared'
+import type { AnalysisStatus, DeviceKind, Health, ScanResult } from '@selfmp3/shared'
 import { clamp01, plural } from '@selfmp3/shared'
 
 /**
@@ -250,4 +250,36 @@ export function downloadHint(state: {
     ? ''
     : ' Apple menu \u203a About This Mac says whether this Mac has Apple silicon or an Intel chip.'
   return `${version}${what}${which}`
+}
+
+/** What the listening model is doing, in the words Settings shows under its row. */
+export function soundHint(sound: AnalysisStatus['sound'], songs: number): string {
+  const what =
+    'A model on your server listens to each song once, for “Sounds like” and for Ask to find music by how it sounds.'
+  switch (sound.state) {
+    case 'off':
+      return `${what} It is switched off on this server.`
+    case 'waiting':
+      return `${what} It starts once every song has its tempo and key.`
+    case 'fetching':
+      return `${what} The server is downloading it (about 750 MB) the first time it is wanted.`
+    case 'failed':
+      return `${what} The server could not get it${sound.message ? `: ${sound.message}` : ''}. It tries again within the hour.`
+    case 'ready':
+      return `${what} ${sound.heard} of ${plural(songs, 'song', 'songs')} heard${sound.pending > 0 ? ` · ${sound.pending} to go` : ''}.`
+  }
+}
+
+/**
+ * The line under Audio analysis while it runs: measuring tempo and key, or,
+ * once every song has those, listening, which on a big library takes days.
+ */
+export function analysisProgress(status: AnalysisStatus | undefined): string {
+  const listening = status?.pending === 0 && status.sound.pending > 0
+  const toGo = listening ? status.sound.pending : (status?.pending ?? 0)
+  return [
+    listening ? 'Listening' : 'Analysing',
+    status?.current ? ` — ${status.current.title}` : '…',
+    toGo > 0 ? ` · ${toGo} to go` : '',
+  ].join('')
 }

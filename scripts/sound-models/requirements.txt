@@ -1,0 +1,13 @@
+# What export.py needs, at the versions the release was made with (2026-10-07).
+# CLaMP 3's code is written against transformers 4.40.
+torch==2.14.1
+transformers==4.40.0
+huggingface-hub==0.36.2
+numpy==1.26.4
+onnx==1.23.2
+onnxruntime==1.30.0
+onnxscript==0.7.2
+# Imported by CLaMP 3's own modules.
+nnAudio==0.3.3
+unidecode==1.3.6
+scipy==1.17.1

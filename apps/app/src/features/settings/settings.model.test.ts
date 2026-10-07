@@ -10,6 +10,8 @@ import {
   healthLine,
   landingOffset,
   RECENT_DEVICE_WINDOW_MS,
+  soundHint,
+  analysisProgress,
   scanHint,
   sectionsFor,
   splitDevices,
@@ -184,5 +186,56 @@ describe('settings', () => {
     expect(scanHint({ added: 1, updated: 2, total: 13, durationMs: 40 })).toBe(
       'Last sweep found 1 new and 2 updated; 13 songs in the library.',
     )
+  })
+})
+
+describe('soundHint', () => {
+  const sound = { state: 'ready' as const, heard: 40, pending: 2, message: null }
+
+  it('counts the songs heard and the ones to go', () => {
+    expect(soundHint(sound, 42)).toMatch(/40 of 42 songs heard · 2 to go\.$/)
+    expect(soundHint({ ...sound, heard: 42, pending: 0 }, 42)).toMatch(/42 of 42 songs heard\.$/)
+  })
+
+  it('says why the model is not there yet', () => {
+    expect(soundHint({ ...sound, state: 'fetching' }, 42)).toMatch(
+      /downloading it \(about 750 MB\)/,
+    )
+    expect(soundHint({ ...sound, state: 'waiting' }, 42)).toMatch(
+      /once every song has its tempo and key\.$/,
+    )
+    expect(soundHint({ ...sound, state: 'off' }, 42)).toMatch(/switched off on this server\.$/)
+    expect(
+      soundHint({ ...sound, state: 'failed', message: 'downloading mert.onnx failed: 404' }, 42),
+    ).toMatch(
+      /could not get it: downloading mert.onnx failed: 404\. It tries again within the hour\.$/,
+    )
+  })
+})
+
+describe('analysisProgress', () => {
+  const status = {
+    running: true,
+    pending: 3,
+    done: 1,
+    failed: 0,
+    current: { id: 1, title: '晴天' },
+    sound: { state: 'ready' as const, heard: 0, pending: 40, message: null },
+  }
+
+  it('says it is measuring while songs still need their tempo and key', () => {
+    expect(analysisProgress(status)).toBe('Analysing — 晴天 · 3 to go')
+  })
+
+  it('says it is listening once they all have them', () => {
+    expect(analysisProgress({ ...status, pending: 0 })).toBe('Listening — 晴天 · 40 to go')
+    expect(
+      analysisProgress({
+        ...status,
+        pending: 0,
+        current: null,
+        sound: { ...status.sound, pending: 0 },
+      }),
+    ).toBe('Analysing…')
   })
 })

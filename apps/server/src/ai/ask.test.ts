@@ -21,6 +21,7 @@ const noFilters = {
   addedWithinDays: null,
   size: null,
   minutes: null,
+  sound: null,
   brief: null,
 }
 

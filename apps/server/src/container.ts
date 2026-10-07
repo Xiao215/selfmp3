@@ -11,6 +11,7 @@ import { StatsRepository } from './repositories/stats.js'
 import { WrappedRepository } from './repositories/wrapped.js'
 import { ImportRepository } from './repositories/imports.js'
 import { AudioFeaturesRepository } from './repositories/audioFeatures.js'
+import { SoundVectorsRepository } from './repositories/soundVectors.js'
 import { MetadataService } from './services/metadata.js'
 import { LyricsService } from './services/lyrics.js'
 import { YouTubeMusicLyrics } from './services/youtubeMusic.js'
@@ -40,6 +41,7 @@ import { romanizedLines } from './services/romanizedLines.js'
 import { publishedAddresses } from './services/addresses.js'
 import { LyricsIndexService } from './services/lyricsIndex.js'
 import { AnalysisService } from './services/analysis.js'
+import { SoundService } from './sound/sound.js'
 import { CoverToneService } from './services/coverTones.js'
 import { ReleaseYearService } from './services/releaseYears.js'
 import { PreviewCoverTones } from './services/previewCoverTone.js'
@@ -119,6 +121,8 @@ export interface Container {
   /** The one way a song leaves the library, whatever asked for it. */
   readonly songRemoval: SongRemovalService
   readonly analysis: AnalysisService
+  /** How songs sound, as the listening model hears them (sound/sound.ts). */
+  readonly sound: SoundService
   readonly devices: DeviceService
   readonly cloudSync: CloudSyncService
   /** Stamps edits made here, so they combine with other devices' (docs/SYNC.md). */
@@ -176,6 +180,7 @@ export function createContainer(configured: Config): Container {
   const imports = new ImportRepository(db)
   const lyricsSearch = new LyricsSearchRepository(db)
   const audioFeatures = new AudioFeaturesRepository(db)
+  const sound = new SoundService({ config, vectors: new SoundVectorsRepository(db), logger })
   const deviceRepo = new DeviceRepository(db)
   const cloudRepo = new CloudRepository(db)
   const syncRepo = new SyncRepository(db)
@@ -249,8 +254,10 @@ export function createContainer(configured: Config): Container {
     ingest,
     adopt,
     // The last thing that needs a song's audio here; once it is done, the
-    // copy on this disk may go.
-    analysed: songId => audioFeatures.isAnalysed(songId, ANALYSIS_VERSION),
+    // copy on this disk may go. With the listening model ready, that includes
+    // being heard, so hearing it later does not cost a download.
+    analysed: songId =>
+      audioFeatures.isAnalysed(songId, ANALYSIS_VERSION) && (!sound.isReady || sound.has(songId)),
     cloudDir: config.cloudDir ?? undefined,
     publishAnyway: config.publishAnyway,
     importRequests,
@@ -385,6 +392,7 @@ export function createContainer(configured: Config): Container {
     logger,
     songs,
     tags,
+    sound,
     stats,
     wrapped,
     playlists,
@@ -410,6 +418,7 @@ export function createContainer(configured: Config): Container {
     importQueue,
     // A song whose copy here has gone is fetched from the bucket to analyse.
     fetchAudio: songId => cloudSync.fetchAudio(songId),
+    sound,
     logger,
     // A version bump makes clients refetch; do it in batches, and once at the
     // end, so a long first run does not have every phone re-downloading the
@@ -498,6 +507,7 @@ export function createContainer(configured: Config): Container {
     lyricsIndex,
     songRemoval,
     analysis,
+    sound,
     devices,
     cloudSync,
     edits,
@@ -510,6 +520,7 @@ export function createContainer(configured: Config): Container {
       libraryWatcher.stop()
       devices.stop()
       analysis.stop()
+      void sound.close()
       coverTones.stop()
       releaseYears.stop()
       importQueue.stop()

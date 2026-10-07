@@ -298,6 +298,7 @@ describe('Recently played', () => {
         addedWithinDays: null,
         size: null,
         minutes: null,
+        sound: null,
         brief: null,
       },
       fit: 9,

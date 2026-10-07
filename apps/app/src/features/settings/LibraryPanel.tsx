@@ -15,7 +15,7 @@ import {
 import { Button } from '../../ui/components/Button'
 import { Refresh, Sparkles, X } from '../../ui/components/Icons'
 import { Lead, Notice, Panel, partStyles, Row } from './SettingsParts'
-import { scanHint, type Confirming } from './settings.model'
+import { analysisProgress, scanHint, soundHint, type Confirming } from './settings.model'
 import {
   coverArtHint,
   coverProgress,
@@ -58,7 +58,7 @@ export function LibraryPanel({
       </Row>
       <Row
         label="Audio analysis"
-        hint={`Works out each song’s tempo, key, energy and loudness from the file itself, on your server. It powers smart-playlist rules, “similar songs” and auto-mix. ${analysed} of ${plural(songs.length, 'song', 'songs')} analysed.`}
+        hint={`Works out each song’s tempo, key, energy and loudness from the file itself, on your server. It powers smart-playlist rules and auto-mix. ${analysed} of ${plural(songs.length, 'song', 'songs')} analysed.`}
       >
         <Button
           label={running ? 'Analysing…' : 'Analyse new songs'}
@@ -74,12 +74,12 @@ export function LibraryPanel({
           />
         ) : null}
       </Row>
+      {analysis.data ? (
+        <Row label="How songs sound" hint={soundHint(analysis.data.sound, songs.length)} />
+      ) : null}
       {running ? (
         <View style={partStyles.progress} accessibilityLiveRegion="polite">
-          <Text style={partStyles.progressText}>
-            Analysing{analysis.data?.current ? ` — ${analysis.data.current.title}` : '…'}
-            {analysis.data && analysis.data.pending > 0 ? ` · ${analysis.data.pending} to go` : ''}
-          </Text>
+          <Text style={partStyles.progressText}>{analysisProgress(analysis.data)}</Text>
         </View>
       ) : null}
       <CoverArtRow songs={songs} last />

@@ -132,7 +132,7 @@ climbed when the one below cannot answer:
    seeing a song.
 3. **A candidate table**: only the songs that survived the deterministic filter, capped by
    a token budget, one compact line each (`#12 | title | artist | album | year | tags | energy |
-   bpm | length | words | plays`). Rows are numbered `#1…#n` for this call instead of carrying uids:
+   bpm | length | words | plays`, and `sound 87` when the songs are in the order they sound). Rows are numbered `#1…#n` for this call instead of carrying uids:
    shorter, and a number outside the table is caught by the check.
 4. **One song in depth** (its lyrics, say): only for a feature about one song. None built
    here climbs to it.
@@ -382,8 +382,10 @@ narrows (energy, tempo, the years it came out, words, loved, when played or adde
 and cannot say "古典 or 原神纯音乐, and calm".
 
 1. **Plan** (fast tier). Shown rungs 1–2 of the ladder and your words. Returns the parts,
-   a name, how many songs you asked for if you did, and a **brief**: whatever in your words
-   the parts cannot say ("sounds like rain", "for reading"). The check spells each tag and
+   a name, how many songs you asked for if you did, a **sound**: how the music should sound,
+   in English, for the listening model ("calm orchestral music with strings and flute";
+   [audio-intelligence.md](audio-intelligence.md#how-songs-sound)), and a **brief**: whatever
+   in your words the parts and the sound cannot say ("named for rain", "songs about leaving"). The check spells each tag and
    artist the library's way and sets aside names the library does not have, which the
    answer lists.
 2. **Narrow** (no model, `songsFitting`). Nothing fits: the narrowing parts are let go one
@@ -391,15 +393,20 @@ and cannot say "古典 or 原神纯音乐, and calm".
    tags), until something does, and the answer says what was let go. Places are never let
    go. A song not analysed yet does not pass an energy range, so a request about unanalysed
    songs loosens the energy and leaves "slow" to the pick.
-3. **Pick** (smart tier), only when there is a brief or more songs fit than were asked for
-   (25 when not said). Shown your words, the brief and the candidate table (rung 3, at most
-   300 rows). Returns songs by row number, each with a reason of a few words. The check
-   keeps only numbers in the table, drops repeats, and stops at the size asked for.
-4. **Answer**: the parts as applied, how many songs fit, what was let go and what the
+3. **Listen** (the listening model, no language model), only with a sound, or a song
+   playing to steer from ("more like this"): the songs that fit are put in the order they
+   sound like it, best first; the ones not heard yet come after. It never removes a song.
+4. **Pick** (smart tier), only when there is a brief or more songs fit than were asked for
+   (25 when not said). With a sound and no brief, the best-sounding are taken as they are,
+   with no call. Otherwise shown your words, the brief, the sound and the candidate table
+   (rung 3, at most 300 rows: the best-sounding, when there is a sound, with a `sound` column
+   0–100; a sample otherwise). Returns songs by row number, each with a reason of a few words.
+   The check keeps only numbers in the table, drops repeats, and stops at the size asked for.
+5. **Answer**: the parts as applied, how many songs fit, what was let go and what the
    library lacks, and the picks with reasons.
 
 Taking a chip away does not read the words again: **Pick again** sends the parts back and
-only steps 2 and 3 run.
+only steps 2 to 4 run.
 
 ## Tags: your tags put right
 

@@ -4,9 +4,13 @@
 #   docker build -t selfmp3 .                    # or build it yourself
 #
 # Two stages:
-#   server   the server and its production dependencies, on Alpine, where
-#            better-sqlite3 is compiled for the runtime's C library.
+#   server   the server and its production dependencies, on Debian (slim), so
+#            the native modules match the runtime's C library.
 #   runtime  that, plus ffmpeg, yt-dlp and tini, running as an ordinary user.
+#
+# Debian rather than Alpine since the listening model came (apps/server/src/sound):
+# onnxruntime-node ships builds for glibc only, and on musl the model could not
+# load at all. Everything else here is happy on either.
 #
 # There used to be a third stage that built the app's web export, because the
 # server served it. It serves its own setup page now (apps/server/src/http/admin.ts),
@@ -15,11 +19,17 @@
 # GitHub Pages, in the desktop app and on your phone.
 
 # --- server -----------------------------------------------------------------
-FROM node:22-alpine AS server
+FROM node:22-bookworm-slim AS server
 
-# better-sqlite3 compiles from source when no prebuilt binary matches the
-# platform (musl on arm64, for one).
-RUN apk add --no-cache python3 make g++
+# better-sqlite3 downloads a prebuilt binary for glibc on both architectures,
+# and compiles from source only when none matches; this is for that case.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3 make g++ \
+ && rm -rf /var/lib/apt/lists/*
+
+# onnxruntime-node's install would fetch its CUDA build on x64. The model runs
+# on the CPU, from the build already in the package.
+ENV ONNXRUNTIME_NODE_INSTALL=skip
 
 WORKDIR /app
 
@@ -52,35 +62,42 @@ RUN npm run build --workspace @selfmp3/shared && npm run build --workspace @self
 # the server wants a different version from the rest of the repo (undici, for
 # one), so the runtime stage copies that folder too. It is made here so that
 # copy has something to take even when nothing is nested.
+#
+# onnxruntime-node carries its runtime for every platform (about 290 MB); only
+# this one's is kept.
 RUN rm -rf node_modules packages/shared/node_modules apps/server/node_modules \
  && npm ci --workspace @selfmp3/shared --workspace @selfmp3/server \
       --omit=dev --no-audit --no-fund \
- && mkdir -p apps/server/node_modules
+ && mkdir -p apps/server/node_modules \
+ && for ort in node_modules/onnxruntime-node apps/server/node_modules/onnxruntime-node; do \
+      [ -d "$ort/bin/napi-v6" ] || continue; \
+      find "$ort/bin/napi-v6" -mindepth 1 -maxdepth 1 ! -name linux -exec rm -rf {} +; \
+      find "$ort/bin/napi-v6/linux" -mindepth 1 -maxdepth 1 ! -name "$(node -p process.arch)" -exec rm -rf {} +; \
+    done
 
 # --- runtime ----------------------------------------------------------------
-FROM node:22-alpine
+FROM node:22-bookworm-slim
 
-# Alpine's yt-dlp package tracks the stable branch and runs many months behind
-# — 2025.11.12 at the time of writing, against a tool YouTube breaks on a scale
-# of weeks. An out-of-date yt-dlp is the single most common cause of downloads
-# failing, so it comes from PyPI instead, which is current.
+# A distribution's yt-dlp package tracks the stable branch and runs many months
+# behind, against a tool YouTube breaks on a scale of weeks. An out-of-date
+# yt-dlp is the single most common cause of downloads failing, so it comes from
+# PyPI instead, which is current.
 #
-# It goes in a venv rather than over Alpine's own python because pip refuses to
+# It goes in a venv rather than over Debian's own python because pip refuses to
 # write into a distro-managed site-packages (PEP 668), and --break-system-packages
 # is the wrong side of that argument. `[default]` is upstream's documented
 # install: it brings mutagen, which is what embeds cover art into an m4a, and
 # yt-dlp-ejs, the scripts that solve YouTube's player challenges. Those run on
 # the node already in this image, which the server points yt-dlp at (BASE_ARGS
-# in services/ytdlp.ts). Every wheel has a musllinux build, so nothing compiles.
-#
-# The official standalone binaries are deliberately not used: they are built
-# against glibc and this image is musl.
+# in services/ytdlp.ts). Every wheel has a manylinux build, so nothing compiles.
 #
 # YTDLP_REFRESH exists only to be changed. The build cache would otherwise hand
 # a scheduled rebuild the same layer, and the whole point of rebuilding weekly
 # is to pick up a yt-dlp that did not exist last week. CI passes the ISO week.
 ARG YTDLP_REFRESH=0
-RUN apk add --no-cache ffmpeg tini python3 \
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ffmpeg tini python3 python3-venv ca-certificates \
+ && rm -rf /var/lib/apt/lists/* \
  && echo "yt-dlp refresh: ${YTDLP_REFRESH}" \
  && python3 -m venv /opt/ytdlp \
  && /opt/ytdlp/bin/pip install --no-cache-dir --upgrade pip "yt-dlp[default]" \
@@ -129,9 +146,10 @@ USER node
 EXPOSE 4600
 
 # The health route is unauthenticated on purpose, so this works with a token set.
+# Asked with the node already here: the slim image has no wget or curl.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD wget -qO- "http://127.0.0.1:${SELFMP3_PORT}/api/health" >/dev/null || exit 1
+  CMD node -e "fetch('http://127.0.0.1:' + process.env.SELFMP3_PORT + '/api/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
 
 # tini reaps zombies from yt-dlp/ffmpeg and forwards SIGTERM for a clean shutdown.
-ENTRYPOINT ["/sbin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "apps/server/dist/main.js"]

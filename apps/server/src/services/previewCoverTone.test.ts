@@ -6,16 +6,21 @@ import { isCoverUrl, PreviewCoverTones } from './previewCoverTone.js'
 const TONE: CoverTone = { hue: 200, chroma: 0.1 }
 const COVER = 'https://yt3.googleusercontent.com/abc=w544-h544-l90-rj'
 
-function tones(options: { status?: number; tone?: CoverTone | null } = {}) {
+function tones(
+  options: { status?: number; tone?: CoverTone | null; landedAt?: string; body?: Uint8Array } = {},
+) {
   const fetched: string[] = []
   const read = vi.fn(() => Promise.resolve(options.tone === undefined ? TONE : options.tone))
   const service = new PreviewCoverTones({
     logger: createLogger('silent'),
     fetch: ((url: string) => {
       fetched.push(url)
-      return Promise.resolve(
-        new Response(new Uint8Array([1, 2, 3]), { status: options.status ?? 200 }),
-      )
+      const response = new Response(options.body ?? new Uint8Array([1, 2, 3]), {
+        status: options.status ?? 200,
+      })
+      // Where the request ended up after redirects, as fetch reports it.
+      Object.defineProperty(response, 'url', { value: options.landedAt ?? url })
+      return Promise.resolve(response)
     }) as typeof fetch,
     read,
   })
@@ -48,6 +53,21 @@ describe('PreviewCoverTones', () => {
     expect(a).toEqual(TONE)
     expect(b).toEqual(TONE)
     expect(read).toHaveBeenCalledTimes(1)
+  })
+
+  it('follows a redirect only to where covers are kept', async () => {
+    const elsewhere = tones({ landedAt: 'https://localhost:4600/api/health' })
+    expect(await elsewhere.service.tone(COVER)).toBeNull()
+    expect(elsewhere.read).not.toHaveBeenCalled()
+
+    const moved = tones({ landedAt: 'https://i.ytimg.com/vi/x/hqdefault.jpg' })
+    expect(await moved.service.tone(COVER)).toEqual(TONE)
+  })
+
+  it('will not hold a picture too large to be a cover', async () => {
+    const { service, read } = tones({ body: new Uint8Array((4 << 20) + 1) })
+    expect(await service.tone(COVER)).toBeNull()
+    expect(read).not.toHaveBeenCalled()
   })
 
   it('answers null for a picture it could not fetch, and asks again next time', async () => {

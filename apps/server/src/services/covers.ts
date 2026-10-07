@@ -6,6 +6,7 @@ import sharp from 'sharp'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
+import { readCapped } from './fetching.js'
 import { isSquareCover, squareCover } from './squareCover.js'
 
 /**
@@ -237,21 +238,3 @@ export class CoverService {
 
 /** Cover art is tens of kilobytes; past this it is not cover art. */
 const MAX_COVER_BYTES = 8 * 1024 * 1024
-
-/**
- * The body, or null if it runs past `limit`.
- *
- * Read in chunks rather than through `arrayBuffer()` so an unannounced huge
- * response is dropped as it arrives instead of after it has all been held.
- */
-async function readCapped(response: Response, limit: number): Promise<Buffer | null> {
-  if (!response.body) return null
-  const chunks: Buffer[] = []
-  let total = 0
-  for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
-    total += chunk.byteLength
-    if (total > limit) return null
-    chunks.push(Buffer.from(chunk))
-  }
-  return Buffer.concat(chunks)
-}

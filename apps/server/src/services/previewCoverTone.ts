@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import type { CoverTone } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import { readCoverTone } from './coverTones.js'
+import { readCapped } from './fetching.js'
 
 /**
  * The colour of a cover the library does not hold yet: a song on the import
@@ -101,9 +102,15 @@ export class PreviewCoverTones {
 
   async #pick(url: string): Promise<CoverTone | null> {
     const response = await this.#fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
+    // A redirect is followed, but only to where covers are kept: the address
+    // was checked, and the one it led to has to pass the same check.
+    if (response.url && !isCoverUrl(response.url)) {
+      await response.body?.cancel()
+      throw new Error('the picture moved somewhere covers are not kept')
+    }
     if (!response.ok) throw new Error(`the picture answered ${response.status}`)
-    const bytes = Buffer.from(await response.arrayBuffer())
-    if (bytes.byteLength > MAX_BYTES) throw new Error('the picture is too large to be a cover')
+    const bytes = await readCapped(response, MAX_BYTES)
+    if (!bytes) throw new Error('the picture is too large to be a cover')
 
     // ffmpeg reads a file; the picture is one for as long as that takes.
     const dir = await mkdtemp(join(tmpdir(), 'selfmp3-cover-'))

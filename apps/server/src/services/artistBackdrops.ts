@@ -6,7 +6,7 @@ import { artistKey, splitArtists, type ArtistPictureShape, type Song } from '@se
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
-import type { FetchLike } from './fetching.js'
+import { readCapped, type FetchLike } from './fetching.js'
 import { YouTubeMusicApi } from './youtubeMusicApi.js'
 import { pictureAt, type YouTubeMusicArtists } from './youtubeMusicArtist.js'
 import { fits, isSameSong, searchSongs } from './youtubeMusicSongs.js'
@@ -63,6 +63,9 @@ const EXTENSIONS: Record<ArtistPictureShape, string> = {
 }
 
 const REQUEST_TIMEOUT_MS = 10_000
+
+/** A banner is about 125 KB; past this, what came back is not one. */
+const MAX_PICTURE_BYTES = 4 * 1024 * 1024
 
 interface KeptPicture {
   readonly path: string
@@ -223,7 +226,7 @@ export class ArtistBackdropService {
     try {
       const response = await this.#fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
       if (!response.ok) return null
-      return Buffer.from(await response.arrayBuffer())
+      return await readCapped(response, MAX_PICTURE_BYTES)
     } catch (error) {
       this.#logger.debug('could not fetch the picture', {
         message: error instanceof Error ? error.message : String(error),

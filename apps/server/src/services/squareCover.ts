@@ -64,9 +64,3 @@ const TRIM_THRESHOLD = 24
 
 /** A trim that leaves less of the picture than this was cutting into it. */
 const KEEP_AREA = 0.25
-
-/** Whether a stored cover needs squaring, from its header alone. */
-export async function isSquareCover(data: Buffer | string): Promise<boolean> {
-  const meta = await sharp(data).metadata()
-  return !meta.width || !meta.height || meta.width === meta.height
-}

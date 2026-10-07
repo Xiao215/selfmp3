@@ -7,7 +7,7 @@ import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
 import { readCapped } from './fetching.js'
-import { isSquareCover, squareCover } from './squareCover.js'
+import { squareCover } from './squareCover.js'
 import { messageOf } from '../util/errors.js'
 
 /**
@@ -140,36 +140,6 @@ export class CoverService {
       })
       return cover
     }
-  }
-
-  /**
-   * Square the covers kept before `save` squared them — once, in the
-   * background, at start. Each one changed is saved again, which counts its
-   * revision on: phones fetch it afresh, the next cloud pass puts it in the
-   * bucket, and its colour is read again. One already square costs a look at
-   * its header, so later starts pass through quickly.
-   */
-  async squareKept(songIds: readonly number[]): Promise<number> {
-    let squared = 0
-    for (const songId of songIds) {
-      const cover = await this.find(songId)
-      if (!cover) continue
-      try {
-        if (await isSquareCover(cover.path)) continue
-        const data = await fsp.readFile(cover.path)
-        await this.save(songId, data, path.extname(cover.path))
-        squared += 1
-      } catch (error) {
-        this.#logger.warn('could not square a cover', {
-          songId,
-          message: messageOf(error),
-        })
-      }
-      // Between covers, so a big library's pass never holds the server up.
-      await new Promise(resolve => setImmediate(resolve))
-    }
-    if (squared > 0) this.#logger.info('squared kept covers', { squared })
-    return squared
   }
 
   /**

@@ -1,6 +1,6 @@
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
-import { isSquareCover, squareCover } from './squareCover.js'
+import { squareCover } from './squareCover.js'
 
 const RED = { r: 220, g: 30, b: 40 }
 const BLACK = { r: 0, g: 0, b: 0 }
@@ -85,10 +85,5 @@ describe('squareCover', () => {
     expect(out.extension).toBe('.png')
     expect((await sharp(out.data).metadata()).format).toBe('png')
     expect(await sizeOf(out.data)).toEqual({ width: 200, height: 200 })
-  })
-
-  it('tells a square cover from one that needs squaring', async () => {
-    expect(await isSquareCover(await picture(64, 64, RED))).toBe(true)
-    expect(await isSquareCover(await picture(64, 36, RED))).toBe(false)
   })
 })

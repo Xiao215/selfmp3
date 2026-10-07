@@ -731,7 +731,7 @@ Xcode, no Android SDK.
   interruption handling.
 - Downloads: `expo-file-system`'s `DownloadTask` pause/resume path, and whether
   a paused download survives the app being backgrounded.
-- Play/skip reporting reaching the server, and the play-count threshold feeling
+- Play reporting reaching the server, and the play-count threshold feeling
   right in practice.
 - Android Auto: that the app appears in the launcher. (`RemotePlayId` /
   `RemotePlaySearch` no longer belong on this list — reading the package

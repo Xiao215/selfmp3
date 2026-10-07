@@ -23,7 +23,6 @@ function makeDb(): Database.Database {
       duration REAL NOT NULL DEFAULT 0,
       year INTEGER,
       play_count INTEGER NOT NULL DEFAULT 0,
-      skip_count INTEGER NOT NULL DEFAULT 0,
       loved INTEGER NOT NULL DEFAULT 0,
       has_art INTEGER NOT NULL DEFAULT 0,
       lyrics_kind TEXT NOT NULL DEFAULT 'none',

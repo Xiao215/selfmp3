@@ -71,7 +71,6 @@ export const SongSchema = z.object({
    */
   instrumental: z.boolean(),
   playCount: z.number().int().nonnegative(),
-  skipCount: z.number().int().nonnegative(),
   loved: z.boolean(),
   sourceUrl: z.string().nullable(),
   lastPlayedAt: z.string().nullable(),
@@ -196,20 +195,6 @@ export const PlayRecordedSchema = z.object({
   duplicate: z.boolean(),
 })
 export type PlayRecorded = z.infer<typeof PlayRecordedSchema>
-
-export const SkipEventSchema = z.object({
-  atSeconds: z.number().nonnegative(),
-  /**
-   * The outbox's own id for this skip, so one sent twice counts once.
-   *
-   * Same reasoning as a play's `clientId`: a phone that loses the response
-   * keeps the event and sends it again, and without something to recognise it
-   * by the skip is counted each time. Optional because a client that has
-   * nothing to resend need not have an id.
-   */
-  clientId: z.string().min(8).max(64).optional(),
-})
-export type SkipEvent = z.infer<typeof SkipEventSchema>
 
 export const LyricsResponseSchema = z.object({
   /** `cloud` is the bucket's copy: what a server that keeps no copy of its own answers with. */

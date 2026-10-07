@@ -40,7 +40,6 @@ const song = (u: string, overrides: Partial<CloudSong> = {}): CloudSong => ({
   instrumental: false,
   loved: false,
   playCount: 0,
-  skipCount: 0,
   lastPlayedAt: null,
   addedAt: '2026-09-01 10:00:00',
   sourceUrl: null,
@@ -162,15 +161,6 @@ describe('editing songs', () => {
     })
     const view = d.apply([...first, ...again])
     expect(view.library.songs.find(s => s.title === 'Song c')?.playCount).toBe(1)
-  })
-
-  it('counts a skip under the outbox’s own id, so a resend counts once', () => {
-    const d = device()
-    const first = edits.skipSong(d.ctx(), d.idOf('songs', 'c'), 12, 'outbox-654321')
-    const again = edits.skipSong(d.ctx(), d.idOf('songs', 'c'), 12, 'outbox-654321')
-    expect(first[0]).toMatchObject({ skipId: 'outbox-654321' })
-    const view = d.apply([...first, ...again])
-    expect(view.library.songs.find(s => s.title === 'Song c')?.skipCount).toBe(1)
   })
 
   it('refuses a song this device does not have', () => {

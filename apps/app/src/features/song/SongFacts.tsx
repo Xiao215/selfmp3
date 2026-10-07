@@ -149,11 +149,6 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
             </Text>
           </Fact>
         ) : null}
-        {song.skipCount > 0 ? (
-          <Fact label="Skipped">
-            <Text style={styles.strong}>{plural(song.skipCount, 'time', 'times')}</Text>
-          </Fact>
-        ) : null}
         <Fact label="Added">
           <Text style={styles.strong}>{formatAddedDate(song.addedAt)}</Text>
         </Fact>

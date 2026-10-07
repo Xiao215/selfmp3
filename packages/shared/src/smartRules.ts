@@ -120,7 +120,6 @@ function matcher(rule: CloudSmartRule, now: number): (song: CloudSong) => boolea
         : song => !song.tagUids.includes(rule.tagUid)
 
     case 'playCount':
-    case 'skipCount':
     case 'duration':
     case 'year': {
       const field = rule.field

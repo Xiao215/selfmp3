@@ -50,7 +50,6 @@ interface AdoptedSong {
   instrumental: boolean
   loved: boolean
   playCount: number
-  skipCount: number
   lastPlayedAt: string | null
   addedAt: string
   sourceUrl: string | null
@@ -87,7 +86,6 @@ export class SongRepository {
   readonly #setSourceUrl
   readonly #deleteById
   readonly #recordPlay
-  readonly #recordSkip
   readonly #setArt
   readonly #artExt
   readonly #setLyricsKind
@@ -127,11 +125,11 @@ export class SongRepository {
       INSERT INTO songs (
         uid, path, title, artist, album, album_artist, track_no, year, duration,
         size_bytes, mime, mtime_ms, has_art, art_ext, lyrics_kind, instrumental,
-        play_count, skip_count, loved, source_url, last_played_at, added_at
+        play_count, loved, source_url, last_played_at, added_at
       ) VALUES (
         @uid, @path, @title, @artist, @album, @albumArtist, @trackNo, @year, @duration,
         @sizeBytes, @mime, 0, 0, NULL, @lyricsKind, @instrumental,
-        @playCount, @skipCount, @loved, @sourceUrl, @lastPlayedAt, @addedAt
+        @playCount, @loved, @sourceUrl, @lastPlayedAt, @addedAt
       )
     `)
 
@@ -170,8 +168,6 @@ export class SongRepository {
              updated_at     = datetime('now')
        WHERE id = @id
     `)
-
-    this.#recordSkip = db.prepare('UPDATE songs SET skip_count = skip_count + 1 WHERE id = ?')
 
     this.#setArt = db.prepare(
       'UPDATE songs SET has_art = ?, art_ext = ?, art_rev = art_rev + 1 WHERE id = ?',
@@ -410,10 +406,6 @@ export class SongRepository {
   /** `playedAt` in SQLite's UTC format, or null for now (see `sqliteTime`). */
   recordPlay(id: number, playedAt: string | null = null): void {
     this.#recordPlay.run({ id, at: playedAt })
-  }
-
-  recordSkip(id: number): void {
-    this.#recordSkip.run(id)
   }
 
   setArt(id: number, hasArt: boolean, extension: string | null): void {

@@ -35,7 +35,6 @@ export interface SongRow {
   lyrics_kind: string
   instrumental: number
   play_count: number
-  skip_count: number
   loved: number
   source_url: string | null
   last_played_at: string | null
@@ -141,7 +140,6 @@ export function toSong(row: SongRow): Song {
     lyricsKind: toLyricsKind(row.lyrics_kind),
     instrumental: row.instrumental === 1,
     playCount: row.play_count,
-    skipCount: row.skip_count,
     loved: row.loved === 1,
     sourceUrl: row.source_url,
     lastPlayedAt: row.last_played_at,

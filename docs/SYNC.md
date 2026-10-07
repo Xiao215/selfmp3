@@ -263,14 +263,14 @@ anything**, and takes on every song in it that it does not already have
 | | |
 |---|---|
 | **When** | Once per bucket, on the first pass after connecting, signing in, or starting up — and again when you press *Publish now*, which starts over. Nothing is published until it has finished, an import's own publish included. |
-| **What it makes** | A whole song row per song: uid, title, artist, album, year, track, duration, loved, play and skip counts, when it was added and last played, where it came from, its tags, its place in each manual playlist, its analysed features, its cover's colour, and the per-field stamps that decide how a later edit combines with it. Tags and playlists it does not have, likewise. The bucket's file keys go into `cloud_songs`, so publishing re-emits the song it was handed instead of uploading files that are already up there. |
+| **What it makes** | A whole song row per song: uid, title, artist, album, year, track, duration, loved, play count, when it was added and last played, where it came from, its tags, its place in each manual playlist, its analysed features, its cover's colour, and the per-field stamps that decide how a later edit combines with it. Tags and playlists it does not have, likewise. The bucket's file keys go into `cloud_songs`, so publishing re-emits the song it was handed instead of uploading files that are already up there. |
 | **Matching** | By uid first, and then by the audio itself. A song already here under the same uid is left exactly as it is, field for field — a snapshot is not a change with a stamp, so it must never win an edit; anything genuinely later still arrives through the other device's log. A song here under a *different* uid whose audio is the same file — the bucket names audio by the hash of its bytes, so the same key is the same song — is left alone too, and the other uid is kept as an alias (`song_aliases`), so a change or a playlist that names it still finds the song. Ten of the bucket's fifty-two here ends at fifty-two, not sixty-two, whatever the two sides call the ten, and a second run adopts nothing. |
 | **A song the bucket has no audio for** | Gets its row — its tags, its plays and its place in a playlist are all still true — but nothing in `cloud_songs`, so it is left out of what this server publishes. No device is ever pointed at a file it cannot download. |
 | **When it cannot read the bucket** | It stops, and publishes nothing. "I could not read the library" must never come out the far side as "there is no library": that is the reading that publishes over it. |
 | **`SELFMP3_PUBLISH_ANYWAY=1`** | Skips adoption as well as the guard below. It is how you say *this server's library is the one I want everywhere*, and merging the bucket's in first would be the opposite of that. |
 
 **What is not adopted.** The snapshot's `upTo` cursors: this server reads every log file from the
-beginning on its first pass instead. Replaying is idempotent by design — plays and skips are
+beginning on its first pass instead. Replaying is idempotent by design — plays are
 deduplicated by id, edits by stamp — and a device tidies its log away once a snapshot has folded
 it in, so there is usually nothing there to replay. Adopting a cursor would mean skipping a change
 on the strength of a snapshot whose songs this server may have *declined* to overwrite. Requests
@@ -330,7 +330,7 @@ changes moves its own clock past it.
 | Song fields, loved, tag names and colours, playlist names and rules | The change with the latest stamp wins, per field. Editing the title on the phone and the artist on the server keeps both. |
 | A tag on a song, a song in a playlist | The latest of "on" and "off" wins, so a tag taken off after it was put on stays off. |
 | Playlist order | The latest order wins; songs it does not mention keep their place after the ones it does, so reordering an old view never drops a song another device added. |
-| Plays and skips | Only ever added. The same one twice counts once. |
+| Plays | Only ever added. The same one twice counts once. |
 | New tags and playlists | The device makes the `uid`, so a playlist can be made offline and have songs added to it before any other device has heard of it. A tag made twice under one name on two devices becomes one tag, and the second uid still finds it. |
 | Deleting | For good: a change to something that is not there is ignored, so a late edit never brings back a deleted playlist. A removed song's files are deleted from the bucket by the next pass after the snapshot without it, unless another song still names them, and every device deletes the copy it kept. |
 

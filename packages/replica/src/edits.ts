@@ -154,26 +154,6 @@ export function playSong(ctx: EditContext, id: number, event: PlayEvent): Change
   ]
 }
 
-export function skipSong(
-  ctx: EditContext,
-  id: number,
-  atSeconds: number,
-  clientId?: string,
-): Change[] {
-  return [
-    {
-      type: 'songSkipped',
-      hlc: ctx.stamp(),
-      uid: songUid(ctx, id),
-      // The outbox's own id, as for a play: a skip sent twice still counts once,
-      // here and on the server, which dedupes the same ids.
-      skipId: clientId ?? make(ctx),
-      skippedAt: nowOf(ctx).toISOString(),
-      atSeconds,
-    },
-  ]
-}
-
 // --- Tags ------------------------------------------------------------------------
 
 /**

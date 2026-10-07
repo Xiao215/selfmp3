@@ -69,7 +69,6 @@ describe('/api/cloud/uids', () => {
     instrumental: false,
     loved: false,
     playCount: 0,
-    skipCount: 0,
     lastPlayedAt: null,
     addedAt: '2026-09-01 10:00:00',
     sourceUrl: null,

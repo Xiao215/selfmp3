@@ -112,7 +112,6 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
       instrumental: song.instrumental,
       loved: song.loved,
       playCount: song.playCount,
-      skipCount: song.skipCount,
       lastPlayedAt: song.lastPlayedAt,
       addedAt: song.addedAt,
       sourceUrl: song.sourceUrl,

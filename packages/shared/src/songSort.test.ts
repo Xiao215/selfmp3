@@ -26,7 +26,6 @@ function song(id: number, overrides: Partial<Song> = {}): Song {
     hasArt: false,
     lyricsKind: 'none',
     playCount: 0,
-    skipCount: 0,
     lastPlayedAt: null,
     addedAt: '2026-01-01 00:00:00',
     missing: false,

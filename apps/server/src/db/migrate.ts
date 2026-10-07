@@ -524,6 +524,16 @@ const MIGRATIONS: readonly Migration[] = [
         SELECT id FROM songs WHERE source_url IS NOT NULL;
     `,
   },
+  {
+    // Nothing records a skip any more: no client ever sent one, and the route,
+    // the sync change and the smart-playlist rule that read the count are
+    // gone. The count and the ids of skips already counted go with them.
+    name: 'forget skips',
+    sql: `
+      ALTER TABLE songs DROP COLUMN skip_count;
+      DROP TABLE counted_skips;
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

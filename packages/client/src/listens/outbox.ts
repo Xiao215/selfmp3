@@ -13,7 +13,7 @@ import { clientApi } from '../runtime.js'
 import type { OutboxStore } from '../platform.js'
 
 /**
- * Plays and skips, held on this device until the server has them.
+ * Plays, held on this device until the server has them.
  *
  * Written down first and sent from there, rather than sent the moment it
  * counts and dropped if the server does not answer — which on a phone is most
@@ -73,17 +73,12 @@ export function createListenOutbox(store: OutboxStore): ListenOutbox {
 
   async function send(event: OutboxEvent): Promise<SendOutcome> {
     try {
-      if (event.kind === 'play') {
-        await clientApi().recordPlay(event.songId, {
-          msPlayed: event.msPlayed,
-          completed: event.completed,
-          playedAt: event.playedAt,
-          clientId: event.id,
-        })
-      } else {
-        // The event's own id, so a skip whose response was lost counts once.
-        await clientApi().recordSkip(event.songId, event.atSeconds, event.id)
-      }
+      await clientApi().recordPlay(event.songId, {
+        msPlayed: event.msPlayed,
+        completed: event.completed,
+        playedAt: event.playedAt,
+        clientId: event.id,
+      })
       return 'sent'
     } catch (error) {
       return error instanceof ApiError ? outcomeForStatus(error.status) : 'retry'

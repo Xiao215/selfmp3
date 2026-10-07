@@ -8,12 +8,18 @@ import { Slider } from '../../ui/components/Slider'
 import { Panel, Row } from './SettingsParts'
 import { accentName } from './settings.model'
 
+/**
+ * Each preset's swatch colour, worked out once: the panel redraws on every
+ * frame of a hue drag, and building seven accents per frame was most of it.
+ */
+const PRESET_SWATCHES = ACCENT_PRESETS.map(preset => ({
+  ...preset,
+  color: buildAccent(preset.hue).accent,
+}))
+
 export function AppearancePanel({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
   const { theme: ui } = useUnistyles()
   const accent = useAccent()
-  const chooseTheme = (choice: ThemeChoice): void => {
-    accent.setTheme(choice)
-  }
   return (
     <Panel title="Appearance" hint="on this device" anchor={anchor}>
       <Row
@@ -22,7 +28,7 @@ export function AppearancePanel({ anchor }: { anchor: (node: View | null) => voi
       >
         <Select<ThemeChoice>
           value={accent.theme}
-          onChange={chooseTheme}
+          onChange={accent.setTheme}
           options={[
             { value: 'dark', label: 'Dark' },
             { value: 'light', label: 'Light' },
@@ -37,7 +43,7 @@ export function AppearancePanel({ anchor }: { anchor: (node: View | null) => voi
         last
       >
         <View style={styles.swatches}>
-          {ACCENT_PRESETS.map(preset => (
+          {PRESET_SWATCHES.map(preset => (
             <Pressable
               key={preset.hue}
               onPress={() => accent.setHue(preset.hue)}
@@ -47,7 +53,7 @@ export function AppearancePanel({ anchor }: { anchor: (node: View | null) => voi
               accessibilityState={{ selected: accent.hue === preset.hue }}
               style={[
                 styles.swatch,
-                { backgroundColor: buildAccent(preset.hue).accent },
+                { backgroundColor: preset.color },
                 accent.hue === preset.hue && { borderColor: ui.colors.textPrimary },
               ]}
             />

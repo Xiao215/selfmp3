@@ -5,6 +5,7 @@ import {
   ImportEnqueueSchema,
   ImportPreviewSchema,
   ImportQueueSchema,
+  OkSchema,
   TagNameSchema,
   TagSchema,
 } from '@selfmp3/shared'
@@ -105,8 +106,6 @@ export const SongHitSchema = z.object({
   playCount: z.number().int().nonnegative(),
 })
 export type SongHit = z.infer<typeof SongHitSchema>
-
-const OkSchema = z.object({ ok: z.literal(true) })
 
 export const REPLIES = {
   status: StatusSchema,

@@ -72,6 +72,11 @@ export const MOVE_MS = {
   tooltip: 120,
   /** How long a finger or a pointer rests on a row before the row lifts to be moved. */
   hold: 350,
+  /**
+   * How long a held song row or chip waits before it answers with its menu or
+   * a selection: a different gesture from `hold`, which lifts a row to move it.
+   */
+  longPress: 450,
   /** The least time a spinner stays once shown, so a short wait never flickers one. */
   busyHold: 300,
   /** Covers flying from what was played into the Up next button, each this far behind the one before. */

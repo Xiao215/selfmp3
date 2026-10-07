@@ -14,7 +14,7 @@ import { useArt } from '../../offline/useArt'
 import { useDragScroll } from '../../ports/dragScroll'
 import { Avatar } from '../../ui/components/Avatar'
 import { useAccount } from '../profile/useAccount'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { setPaletteOpen } from '../../shell/palette'
 import { useBottomInset } from '../../shell/bottomInset'
 import { useContentWidth } from '../../shell/contentWidth'
@@ -591,7 +591,7 @@ function Tile({
  * was never saved can be saved from Up next.
  */
 function Recents({ recents, wide }: { recents: readonly HomeRecent[]; wide: boolean }): ReactNode {
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const router = useRouter()
   const art = useArt()
   const { data: library } = useLibrary()

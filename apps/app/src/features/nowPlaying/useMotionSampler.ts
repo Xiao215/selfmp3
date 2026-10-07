@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useMotion, type FrequencyAnalyser } from '@selfmp3/client'
 import type { Song } from '@selfmp3/shared'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { canHearMusic } from '../../ports/liveAudio'
 import { chooseSampler, type MotionSampler } from './motionSource.model'
 import { useMotionReduced } from '../../ui/motion'
@@ -26,7 +26,7 @@ let heard: FrequencyAnalyser | null = null
  * handed the same node and changes nothing.
  */
 export function useMotionSampler(song: Song, active: boolean): MotionSampler {
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const reduced = useMotionReduced()
 
   // The curve analysis stored for this song, fetched only while a visual shows:

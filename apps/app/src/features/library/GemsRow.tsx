@@ -6,7 +6,7 @@ import { formatRelative } from '@selfmp3/shared'
 import { space, useGems } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { prefs } from '../../ports/prefs'
 import { useLayout } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
@@ -33,7 +33,7 @@ const GEMS = { kind: 'songs', origin: 'gems', name: 'Forgotten gems' } as const
 export function GemsRow(): ReactNode {
   const { theme } = useUnistyles()
   const gems = useGems(12)
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const artFor = useArt(ROW_COVER_SIZE)
   const { wide } = useLayout()
   const [collapsed, setCollapsedState] = useState(() => prefs.get(COLLAPSED_KEY) === 'true')

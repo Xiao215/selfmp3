@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Library } from '@selfmp3/shared'
 import { clientApi, failureText, queryKeys } from '@selfmp3/client'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { showToast } from '../../ui/toast'
 import type { ListSource } from '../lists/lists.model'
 
@@ -25,18 +25,11 @@ interface PlaylistPlayback {
  * that does not keep it (a cloud library) is simply not asked twice.
  */
 export function usePlaylistPlayback(): PlaylistPlayback {
-  const player = usePlayer()
+  // The player's commands, made once: closed over here they never change, so
+  // these callbacks — which the playlists grid hands every memoised tile — do
+  // not either.
+  const player = usePlayerCommands()
   const client = useQueryClient()
-  /*
-   * The player, read when a playlist starts rather than closed over. The
-   * player's object is new on every play and pause, and these callbacks are
-   * what the playlists grid hands every memoised tile: closed over, a pause
-   * redrew every tile and the four covers in each.
-   */
-  const playerRef = useRef(player)
-  useEffect(() => {
-    playerRef.current = player
-  }, [player])
 
   // Up next wears the playlist's name: read from this device's library, where
   // every playlist already is.
@@ -73,28 +66,28 @@ export function usePlaylistPlayback(): PlaylistPlayback {
   const play = useCallback(
     (playlistId: number, songIds: readonly number[]): void => {
       if (songIds.length === 0) return
-      playerRef.current.playFrom(songIds, 0, { shuffle: false, source: sourceFor(playlistId) })
+      player.playFrom(songIds, 0, { shuffle: false, source: sourceFor(playlistId) })
       markPlayed(playlistId)
     },
-    [markPlayed, sourceFor],
+    [player, markPlayed, sourceFor],
   )
 
   const playFrom = useCallback(
     (playlistId: number, songIds: readonly number[], index: number): void => {
       if (songIds.length === 0) return
-      playerRef.current.playFrom(songIds, index, { source: sourceFor(playlistId) })
+      player.playFrom(songIds, index, { source: sourceFor(playlistId) })
       markPlayed(playlistId)
     },
-    [markPlayed, sourceFor],
+    [player, markPlayed, sourceFor],
   )
 
   const shuffle = useCallback(
     (playlistId: number, songIds: readonly number[]): void => {
       if (songIds.length === 0) return
-      playerRef.current.playShuffled(songIds, sourceFor(playlistId))
+      player.playShuffled(songIds, sourceFor(playlistId))
       markPlayed(playlistId)
     },
-    [markPlayed, sourceFor],
+    [player, markPlayed, sourceFor],
   )
 
   const playById = useCallback(

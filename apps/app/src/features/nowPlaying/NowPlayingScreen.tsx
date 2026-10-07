@@ -27,7 +27,13 @@ import {
   withAlpha,
 } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
-import { usePlayer, usePlayerProgress, usePracticeState } from '../../player/PlayerProvider'
+import {
+  usePlayer,
+  usePlayerCommands,
+  usePlayerPlaying,
+  usePlayerProgress,
+  usePracticeState,
+} from '../../player/PlayerProvider'
 import { useSongColor } from '../../ui/useSongColor'
 import { ease, motionMs, spring, timing, useEntrance } from '../../ui/motion'
 import { MOVE_MS, PULL } from '../../ui/motion.model'
@@ -743,7 +749,7 @@ function BreathingCover({
   opening: Animated.Value
   handed: CoverFrame | null
 }): ReactNode {
-  const player = usePlayer()
+  const playing = usePlayerPlaying()
   // The app's own width, not the window's (`shell/rootWidth.ts`).
   const { width } = useLayout()
   const window = useWindowDimensions()
@@ -753,15 +759,15 @@ function BreathingCover({
     Math.floor(room ? Math.min(room.width, room.height) : Math.min(width - space.lg * 2, 342)),
   )
 
-  const [breath] = useState(() => new Animated.Value(player.isPlaying ? 1 : PAUSED_COVER_SCALE))
+  const [breath] = useState(() => new Animated.Value(playing ? 1 : PAUSED_COVER_SCALE))
   useEffect(() => {
     // A pause is a settling and a play is a lift, so the two are not the same
     // move backwards: it shrinks on a curve and grows back on the spring, which
     // gives the cover the small living overshoot on play that a timed curve of
     // the same length both ways cannot.
-    if (player.isPlaying) spring(breath, 1)
+    if (playing) spring(breath, 1)
     else timing(breath, PAUSED_COVER_SCALE, MOVE_MS.breath, undefined, { easing: ease.out })
-  }, [player.isPlaying, breath])
+  }, [playing, breath])
 
   /*
    * The cover's travel from the mini player's (`M2`, 1), as two numbers and a
@@ -859,7 +865,8 @@ function WordsView({
   fingerOnWords: Flag
 }): ReactNode {
   const { theme } = useUnistyles()
-  const player = usePlayer()
+  const player = usePlayerCommands()
+  const playing = usePlayerPlaying()
   // The app's own width, not the window's (`shell/rootWidth.ts`).
   const { width } = useLayout()
   const words = lyrics.words
@@ -945,11 +952,9 @@ function WordsView({
         </IconButton>
         <PlayButton
           onPress={player.toggle}
-          label={player.isPlaying ? 'Pause' : 'Play'}
+          label={playing ? 'Pause' : 'Play'}
           size={60}
-          icon={
-            <PlayPauseIcon playing={player.isPlaying} size={26} color={theme.colors.onPrimary} />
-          }
+          icon={<PlayPauseIcon playing={playing} size={26} color={theme.colors.onPrimary} />}
         />
         <IconButton onPress={player.next} label="Next">
           <Next size={28} color={theme.colors.textPrimary} />
@@ -1041,7 +1046,7 @@ function MoreSheet({
  * blurred cover, the controls, the foot and the sheets around it.
  */
 function PhoneSeek({ color }: { color: string }): ReactNode {
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const { loopA, loopB } = usePracticeState()
   const progress = usePlayerProgress()
   return (

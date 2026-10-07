@@ -11,7 +11,7 @@ import { AddSongsSheet } from '../playlistDetail/AddSongsSheet'
 import { PlaceMissing } from './PlaceMissing'
 import { PlacePage } from './PlacePage'
 import { existingTag, placeSongs } from './tag.model'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 
 /**
  * A tag's page, `/tag/<name>` (docs/ui-mock `P08`, `C06`). The name is found
@@ -23,7 +23,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 export function TagScreen(): ReactNode {
   const router = useRouter()
   const { name, play } = useLocalSearchParams<{ name: string; play?: string }>()
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const { data: library } = useLibrary()
   const [menuOpen, setMenuOpen] = useState(false)
   const [editing, setEditing] = useState(false)

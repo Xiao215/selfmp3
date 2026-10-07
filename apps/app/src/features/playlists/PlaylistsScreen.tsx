@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router'
 import { formatLongDuration, type Playlist } from '@selfmp3/shared'
 import { radius, space, useGems } from '@selfmp3/client'
 import { prefs } from '../../ports/prefs'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { tip } from '../../ui/tip'
@@ -235,7 +235,7 @@ function NewTile({
  */
 function GemsTile({ width }: { width: number | undefined }): ReactNode {
   const gems = useGems(30)
-  const player = usePlayer()
+  const player = usePlayerCommands()
 
   const data = gems.data
   if (gems.isError || !data || data.songs.length === 0) return null

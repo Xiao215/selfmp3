@@ -21,7 +21,7 @@ import { tagLink } from '../../features/tag/placeLinks'
 import { useArt } from '../../offline/useArt'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button } from './Button'
 import { Chip } from './Chip'
 import { RemoveSongs } from './ConfirmRemoveSongs'
@@ -152,7 +152,7 @@ function Items({
 }): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const fly = useFlyToUpNext()
   const artFor = useArt()
   const { data: library } = useLibrary()

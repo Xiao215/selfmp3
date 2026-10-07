@@ -47,16 +47,22 @@ jest.mock('../../offline/DownloadsProvider', () => ({
 }))
 jest.mock('../../offline/useArt', () => ({ useArt: () => () => null }))
 jest.mock('../../player/PlayerProvider', () => ({
-  usePlayer: () => ({
+  usePlayerCommands: () => ({
     playNext: jest.fn(),
     addToQueue: jest.fn(),
     playFrom: jest.fn(),
     forgetSongs: mockForgetSongs,
   }),
 }))
-jest.mock('../../shell/useLayout', () => ({
-  useLayout: () => ({ wide: false, dense: false, compact: true, finePointer: false, width: 390 }),
-}))
+jest.mock('../../shell/useLayout', () => {
+  const layout = { wide: false, dense: false, compact: true, finePointer: false, width: 390 }
+  return {
+    useLayout: () => layout,
+    useLayoutValue: (select: (value: typeof layout) => unknown) => select(layout),
+    useWindowValue: (select: (value: object) => unknown) =>
+      select({ width: 390, height: 844, scale: 3, fontScale: 1 }),
+  }
+})
 
 const SONG = {
   id: 4,

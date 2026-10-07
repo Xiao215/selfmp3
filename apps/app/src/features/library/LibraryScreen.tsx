@@ -11,7 +11,7 @@ import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { isDownloaded, HIT_TARGET, radius, space, type } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
@@ -65,7 +65,7 @@ export function LibraryScreen(): ReactNode {
   const contentWidth = useContentWidth()
   const headWide = wide && (contentWidth === null || contentWidth >= HEAD_ROW_WIDTH)
   const shuffleIconOnly = contentWidth !== null && contentWidth < SHUFFLE_LABEL_WIDTH
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const { state: downloads, installed } = useDownloads()
 
   // Everything this screen knows is in the model, which draws nothing and is

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { radius, rgba, type Rgb } from '@selfmp3/client'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands, usePlayerPlaying } from '../../player/PlayerProvider'
 import { useMotionReduced } from '../../ui/motion'
 import { useVisualLook } from './useVisualLook'
 import {
@@ -45,16 +45,16 @@ export function SongVisual({
   rounded = false,
   cover: coverUri = null,
 }: SongVisualProps): ReactNode {
-  const player = usePlayer()
-  const { isPlaying } = player
+  const player = usePlayerCommands()
+  const isPlaying = usePlayerPlaying()
   const reduced = useMotionReduced()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const { colors, tuning } = useVisualLook(song)
   const { image: cover, loaded: coverLoaded } = useCoverImage(coverUri)
 
-  const live = useRef({ player, colors, tuning, sampler, cover })
+  const live = useRef({ player, isPlaying, colors, tuning, sampler, cover })
   useEffect(() => {
-    live.current = { player, colors, tuning, sampler, cover }
+    live.current = { player, isPlaying, colors, tuning, sampler, cover }
   })
 
   /*
@@ -111,14 +111,14 @@ export function SongVisual({
     const tick = (now: number): void => {
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
-      const { player: p, colors: c, tuning: tu, sampler: s } = live.current
+      const { player: p, isPlaying: playing, colors: c, tuning: tu, sampler: s } = live.current
       const size = fit(canvas, ctx)
       // Nothing laid out yet: rest, and let the size watcher below wake it.
       if (!size) {
         frame = watch ? 0 : requestAnimationFrame(tick)
         return
       }
-      stepMotion(motion, s, p.getPlayhead(), dt, p.isPlaying, tu)
+      stepMotion(motion, s, p.getPlayhead(), dt, playing, tu)
       draw(ctx, size.width, size.height, c, tu, motion, live.current.cover.current)
       /*
        * A paused canvas that has come to rest asks for no more frames: it used
@@ -130,7 +130,7 @@ export function SongVisual({
        * draws one frame before its cover has loaded, and that frame's stand-in
        * colours used to stay on the disc until play.
        */
-      frame = isSettled(motion) && !p.isPlaying ? 0 : requestAnimationFrame(tick)
+      frame = isSettled(motion) && !playing ? 0 : requestAnimationFrame(tick)
     }
 
     const wake = (): void => {

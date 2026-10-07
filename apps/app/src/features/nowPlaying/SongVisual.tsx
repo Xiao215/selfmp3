@@ -8,7 +8,7 @@ import Animated, {
 } from 'react-native-reanimated'
 import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from 'react-native-svg'
 import { radius, rgba } from '@selfmp3/client'
-import { usePlayer, usePracticeState } from '../../player/PlayerProvider'
+import { usePlayerCommands, usePlayerPlaying, usePracticeState } from '../../player/PlayerProvider'
 import { useMotionReduced } from '../../ui/motion'
 import { useVisualLook } from './useVisualLook'
 import {
@@ -64,7 +64,8 @@ export function SongVisual({
   rounded = false,
   cover = null,
 }: SongVisualProps): ReactNode {
-  const player = usePlayer()
+  const player = usePlayerCommands()
+  const isPlaying = usePlayerPlaying()
   const reduced = useMotionReduced()
   const [size, setSize] = useState<Size | null>(null)
   const { colors, tuning } = useVisualLook(song)
@@ -88,13 +89,13 @@ export function SongVisual({
   const held = useRef<{ key: string; motion: MotionState } | null>(null)
   const restart = `${song.id}|${sampler.source}`
 
-  const live = useRef({ player, sampler, tuning })
+  const live = useRef({ isPlaying, sampler, tuning })
   useEffect(() => {
-    live.current = { player, sampler, tuning }
+    live.current = { isPlaying, sampler, tuning }
   })
 
   // The clock: each progress tick (and a seek, which arrives as one), play and pause, and the rate.
-  const { subscribeProgress, getPosition, isPlaying } = player
+  const { subscribeProgress, getPosition } = player
   const { rate } = usePracticeState()
   useEffect(() => {
     clock.tick(getPosition(), performance.now())
@@ -140,8 +141,8 @@ export function SongVisual({
       const now = performance.now()
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
-      const { player: p, sampler: s, tuning: tu } = live.current
-      stepMotion(motion, s, clock.read(now), dt, p.isPlaying, tu)
+      const { isPlaying: playing, sampler: s, tuning: tu } = live.current
+      stepMotion(motion, s, clock.read(now), dt, playing, tu)
       const settled = write(motion, drawn, tu, first, frame, ringWidths)
       first = false
       /*
@@ -149,7 +150,7 @@ export function SongVisual({
        * than stepping sixty times a second behind a page nobody is looking at; `isPlaying` in the dependencies starts it again, and
        * the motion it starts from is the one it left off at.
        */
-      handle = settled && !p.isPlaying ? 0 : requestAnimationFrame(tick)
+      handle = settled && !playing ? 0 : requestAnimationFrame(tick)
     }
     handle = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(handle)

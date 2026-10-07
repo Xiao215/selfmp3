@@ -9,7 +9,7 @@ import { failureText, radius, space } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { Play, Sparkle } from '../../ui/components/Icons'
@@ -374,7 +374,7 @@ function SongPicks({
 }): ReactNode {
   const { theme } = useUnistyles()
   const server = useSmartServer()
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const songsById = useSongsById()
   const artFor = useArt(ROW_COVER_SIZE)
   const found = picks.flatMap(pick => {

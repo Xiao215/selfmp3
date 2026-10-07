@@ -21,7 +21,7 @@ import {
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
@@ -105,7 +105,7 @@ export function PlaylistDetailScreen(): ReactNode {
   const manifest = useManifest()
   const contents = usePlaylistSongs(Number.isInteger(playlistId) ? playlistId : null)
   const pull = usePullToRefresh(contents.refetch)
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const playback = usePlaylistPlayback()
   const updatePlaylist = useUpdatePlaylist()
   const deletePlaylist = useDeletePlaylist()

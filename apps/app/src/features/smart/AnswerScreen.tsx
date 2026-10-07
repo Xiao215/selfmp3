@@ -7,7 +7,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { formatLongDuration, plural, type Understanding } from '@selfmp3/shared'
 import { clientApi, failureText, queryKeys, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { Button, PlayButton } from '../../ui/components/Button'
@@ -56,7 +56,7 @@ export function AnswerScreen(): ReactNode {
   const { id } = useLocalSearchParams<{ id?: string }>()
   const kept = useKeptAnswer(id)
   const server = useSmartServer()
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const queryClient = useQueryClient()
   const { data: library } = useLibrary()
   const byId = useSongsById()

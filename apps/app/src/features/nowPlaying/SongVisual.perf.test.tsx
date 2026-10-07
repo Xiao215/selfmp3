@@ -11,11 +11,11 @@ import { visualFeel } from './visuals.model'
 let mockPlaying = true
 
 jest.mock('../../player/PlayerProvider', () => ({
-  usePlayer: () => ({
-    isPlaying: mockPlaying,
+  usePlayerCommands: () => ({
     getPosition: () => 12,
     subscribeProgress: () => () => undefined,
   }),
+  usePlayerPlaying: () => mockPlaying,
   usePracticeState: () => ({
     loopA: null,
     loopB: null,

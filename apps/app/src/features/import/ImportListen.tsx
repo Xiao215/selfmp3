@@ -11,7 +11,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { CoverTone, ImportCoverTone, ImportPreviewItem } from '@selfmp3/shared'
 import { radius, withAlpha, type ServerConnection } from '@selfmp3/client'
 import { mediaUrlFor } from '../../api/client'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands, usePlayerPlaying } from '../../player/PlayerProvider'
 import { createValueStore, type ValueStore } from '../../state/valueStore.model'
 import { createListenAudio } from '../../ports/listen'
 import { useConnection } from '../../connection/ConnectionProvider'
@@ -54,7 +54,8 @@ export function useListen(
   via: ServerConnection | undefined,
   api: { importCoverTone: (url: string) => Promise<ImportCoverTone> },
 ) {
-  const player = usePlayer()
+  const player = usePlayerCommands()
+  const playerPlaying = usePlayerPlaying()
   const { connection: own } = useConnection()
   // A cloud library previews through the server it reached (ImportViaServer), not
   // through whatever address this device happens to have stored.
@@ -94,17 +95,17 @@ export function useListen(
   }, [audio, position])
 
   // Pressing play on the song itself ends the interlude.
-  const wasPlaying = useRef(player.isPlaying)
+  const wasPlaying = useRef(playerPlaying)
   useEffect(() => {
-    if (player.isPlaying && !wasPlaying.current) {
+    if (playerPlaying && !wasPlaying.current) {
       audio?.pause()
       resume.current = false
     }
-    wasPlaying.current = player.isPlaying
-  }, [audio, player.isPlaying])
+    wasPlaying.current = playerPlaying
+  }, [audio, playerPlaying])
 
   const makeRoom = (): void => {
-    if (!player.isPlaying) return
+    if (!playerPlaying) return
     resume.current = true
     player.toggle()
   }
@@ -145,7 +146,7 @@ export function useListen(
     position.set(0)
     const carryOn = resume.current && (options.resume ?? true)
     resume.current = false
-    if (carryOn && !player.isPlaying) player.toggle()
+    if (carryOn && !playerPlaying) player.toggle()
   }
 
   const latest = useRef({ toggle, seek, close })

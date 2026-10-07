@@ -6,7 +6,7 @@ import { formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
 import { radius, space, useLibrary } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { Play } from '../../ui/components/Icons'
@@ -32,7 +32,7 @@ export function LibraryAnswer({
 }): ReactNode {
   const { theme } = useUnistyles()
   const server = useSmartServer()
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const { data: library } = useLibrary()
   const artFor = useArt(ROW_COVER_SIZE)
   const [shows, setShows] = useState(SONGS_SHOW)

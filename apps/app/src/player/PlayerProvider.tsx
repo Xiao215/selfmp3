@@ -222,7 +222,7 @@ export interface PlayerApi {
  * reads it through `usePlayerCommands()` and is not rendered again for a
  * play, a pause or a song added to Up next.
  */
-type PlayerCommands = Pick<
+export type PlayerCommands = Pick<
   PlayerApi,
   | 'playFrom'
   | 'playShuffled'
@@ -1203,6 +1203,16 @@ export function useSongLoaded(): boolean {
   // the room at its foot.
   const store = useContext(PlayerStoresContext)?.playback ?? NO_PLAYBACK
   const read = useCallback(() => store.get().songId !== null, [store])
+  return useSyncExternalStore(store.subscribe, read, read)
+}
+
+/**
+ * Whether something is playing, and nothing else of the player: for a control
+ * that only draws play or pause, or stops the music while it makes its own.
+ */
+export function usePlayerPlaying(): boolean {
+  const store = useContext(PlayerStoresContext)?.playback ?? NO_PLAYBACK
+  const read = useCallback(() => store.get().playing, [store])
   return useSyncExternalStore(store.subscribe, read, read)
 }
 

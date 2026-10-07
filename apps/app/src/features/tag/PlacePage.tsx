@@ -9,7 +9,7 @@ import type { Song } from '@selfmp3/shared'
 import { fonts, isDownloaded, tagColors, type, useLibrary } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
@@ -86,7 +86,7 @@ export function PlacePage({
   const { theme } = useUnistyles()
   const router = useRouter()
   const { wide } = useLayout()
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const artFor = useArt()
   const { data: library } = useLibrary()
   // What was picked, read against the library now: a tag renamed or
@@ -433,7 +433,7 @@ function PlaceSongs({
   /** What "all" means on this page, for the selection bar. */
   scope: string
 }): ReactNode {
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const artFor = useArt()
   const { wide } = useLayout()
   const { state: downloads } = useDownloads()

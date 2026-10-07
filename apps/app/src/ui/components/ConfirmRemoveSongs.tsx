@@ -5,7 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { plural, type Song } from '@selfmp3/shared'
 import { HIT_TARGET, oklchToHexAlpha, radius, space, useBulkDeleteSongs } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
@@ -37,7 +37,7 @@ export function RemoveSongs({
   /** Removed: close whatever asked. */
   onDone: () => void
 }): ReactNode {
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const { dropDownloads } = useDownloads()
   const bulkDelete = useBulkDeleteSongs()
   const [error, setError] = useState<string | null>(null)

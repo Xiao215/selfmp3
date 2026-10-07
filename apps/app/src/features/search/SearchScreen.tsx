@@ -11,7 +11,7 @@ import { useConnection } from '../../connection/ConnectionProvider'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
@@ -471,7 +471,7 @@ function useSongRows(
   renderSong: (info: { item: Song; index: number }) => ReactElement
   menu: ReactNode
 } {
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const artFor = useArt(ROW_COVER_SIZE)
   const router = useRouter()
   const { data: library } = useLibrary()
@@ -540,7 +540,7 @@ function LyricResults({
   cloud: boolean
 }): ReactNode {
   const { data: library } = useLibrary()
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const artFor = useArt(ROW_COVER_SIZE)
   const accent = useAccent()
   const byId = useMemo(

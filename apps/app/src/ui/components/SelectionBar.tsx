@@ -22,7 +22,7 @@ import {
 } from '@selfmp3/client'
 import { playlistsToAddTo } from '../../features/playlists/playlists.model'
 import { useDownloads } from '../../offline/DownloadsProvider'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { ease, timing, usePresence } from '../motion'
 import { MOVE_MS, overshootRange } from '../motion.model'
@@ -193,7 +193,7 @@ export function SelectionBar({
    */
   const { top: statusBar } = useSafeAreaInsets()
   const { data: library } = useLibrary()
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const { state: downloads, downloadByHand, removeByHand } = useDownloads()
 
   const bulkLoved = useBulkLoved()

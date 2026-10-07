@@ -20,7 +20,7 @@ import type { Rgb } from '@selfmp3/client'
 import { fonts, motion, radius, rgba, tempoMark, useLibrary, withAlpha } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
-import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
+import { usePlayer, usePlayerCommands, usePlayerProgress } from '../../player/PlayerProvider'
 import { setStageExit } from '../../shell/stageExit'
 import { setStageArriving } from '../../shell/stageArrival'
 import { stackMoves } from '../../ports/stackMoves'
@@ -932,7 +932,7 @@ function StageUpNext({
   chromeShown: Animated.Value
 }): ReactNode {
   const { theme } = useUnistyles()
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const artFor = useArt(ROW_COVER_SIZE)
   const progress = usePlayerProgress()
   const [lowered] = useState(() => ({

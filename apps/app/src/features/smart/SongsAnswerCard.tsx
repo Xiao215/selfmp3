@@ -5,7 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
 import { radius, space } from '@selfmp3/client'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { ChevronRight, Play } from '../../ui/components/Icons'
 import { useSongsById } from '../../ui/songsById'
@@ -40,7 +40,7 @@ export function SongsAnswerCard({
   const { theme } = useUnistyles()
   const router = useRouter()
   const server = useSmartServer()
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const fly = useFlyToUpNext()
   const coverRef = useRef<View>(null)
   const known = useSongsById()

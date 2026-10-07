@@ -23,7 +23,7 @@ import {
   useLibrary,
 } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { tabbing } from '../../shell/FocusStyle'
 import { setPaletteOpen } from '../../shell/palette'
@@ -105,7 +105,7 @@ type HoldRef = (tagId: number, node: View | null) => void
 export function TagsScreen(): ReactNode {
   const { wide, width, finePointer } = useLayout()
   const router = useRouter()
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const { data: library } = useLibrary()
   const playAndTag = usePlayAndTag()
   const [adding, setAdding] = useState(false)
@@ -115,8 +115,7 @@ export function TagsScreen(): ReactNode {
   /*
    * The tile handlers are made once and take the tag they act on. As arrows in
    * the grid below they were new on every render, so every tile — and the
-   * cover in each — redrew whenever the screen did, which on this page is
-   * every play, pause and skip (`usePlayer` above).
+   * cover in each — redrew whenever the screen did.
    */
   const latest = useRef({ player, router })
   useEffect(() => {
@@ -615,8 +614,7 @@ function Entry({
 /**
  * One tag's tile: its record (`TagSleeve`), then its name and size. Memoised,
  * and handed handlers that take the tag they act on rather than closing over
- * it: this page reads the player, so without both every tile and every cover
- * redrew on every pause.
+ * it, so a render of the page redraws no tile and no cover.
  */
 const TagTile = memo(function TagTile({
   standing,

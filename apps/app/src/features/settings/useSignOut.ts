@@ -9,7 +9,7 @@ import { clearCachedMotion } from '../../offline/motionCache'
 import { clearCachedPlaylists } from '../../offline/playlistCache'
 import { clearRecent } from '../../ports/recentCopies'
 import { useConnection } from '../../connection/ConnectionProvider'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { SIGNED_OUT_ROUTE, signOutOfCloud } from './signOut'
 
 /**
@@ -21,7 +21,7 @@ export function useSignOut(): () => Promise<void> {
   const router = useRouter()
   const { signedOutOfCloud } = useConnection()
   const { forgetExcluded, queue: downloadQueue } = useDownloads()
-  const player = usePlayer()
+  const player = usePlayerCommands()
 
   return useCallback(
     () =>

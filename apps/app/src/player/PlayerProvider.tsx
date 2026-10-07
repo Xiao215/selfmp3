@@ -37,7 +37,6 @@ import {
   listenedDelta,
   peekPlayable,
   recoverPlayback,
-  useLibrary,
   useSameArray,
   useSettings,
 } from '@selfmp3/client'
@@ -79,6 +78,7 @@ import {
 } from './progress.model'
 import { createValueStore, type ValueStore } from '../state/valueStore.model'
 import { useValueStore } from '../state/useValueStore'
+import { useSongsById } from '../ui/songsById'
 
 export type { PlayerProgress }
 
@@ -286,7 +286,6 @@ const PlayerStoresContext = createContext<PlayerStores | null>(null)
 
 export function PlayerProvider({ children }: { children: ReactNode }): ReactNode {
   const { connection, fromCloud } = useConnection()
-  const library = useLibrary()
   const { queue: downloadQueue, checkPlay, mayPlay, keepPlayed } = useDownloads()
   const { data: serverSettings } = useSettings()
 
@@ -307,11 +306,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     practice: createValueStore(practiceOf(engine.state), samePractice),
   }))
 
-  const songsById = useMemo(() => {
-    const map = new Map<number, Song>()
-    for (const song of library.data?.songs ?? []) map.set(song.id, song)
-    return map
-  }, [library.data])
+  const songsById = useSongsById()
 
   // Refs so the engine's callbacks always see current values without being
   // torn down and rewired on every render.

@@ -9,6 +9,7 @@ import { noteTagUsed } from '../library/recentTags.store'
 import { tagLink } from '../tag/placeLinks'
 import { closeQueueSheet } from './queueSheet.store'
 import { queueRows, removalOf, restoreMoves, UNDO_MS } from './queue.model'
+import { songsById } from '../../ui/songsById'
 
 /** No rows: what a shut Up next is handed, so it does not resolve the whole queue for nothing. */
 const NO_ROWS: ReturnType<typeof queueRows> = { playing: null, next: [], played: [] }
@@ -48,8 +49,7 @@ export function useQueueEdits(shown: boolean): {
   })
 
   const rows = useMemo(
-    () =>
-      shown ? queueRows(player.queue, new Map(player.songs.map(song => [song.id, song]))) : NO_ROWS,
+    () => (shown ? queueRows(player.queue, songsById(player.songs)) : NO_ROWS),
     [shown, player.queue, player.songs],
   )
 

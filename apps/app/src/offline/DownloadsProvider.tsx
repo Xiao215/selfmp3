@@ -40,6 +40,7 @@ import { prefs as prefStore } from '../ports/prefs'
 import { useConnection } from '../connection/ConnectionProvider'
 import { useConnectionKind } from './connectionKind'
 import { downloadQueue } from './downloads'
+import { useSongsById } from '../ui/songsById'
 
 /**
  * React's view of the download queue, and the rules around it.
@@ -402,10 +403,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
   }, [])
 
   // The player's commands are made once; they read the latest rules through this.
-  const songsById = useMemo(
-    () => new Map((library.data?.songs ?? []).map(song => [song.id, song])),
-    [library.data],
-  )
+  const songsById = useSongsById()
   const rules = useRef({
     index: state.index,
     network,

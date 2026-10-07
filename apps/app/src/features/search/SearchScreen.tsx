@@ -42,6 +42,7 @@ import {
   SEARCH_SCOPES,
   type SearchScope,
 } from './search.model'
+import { useSongsById } from '../../ui/songsById'
 
 /**
  * Search (docs/ui-mock `P18`, `P19`): one page, whichever door it was opened
@@ -539,14 +540,10 @@ function LyricResults({
   hits: readonly LyricsSearchHit[]
   cloud: boolean
 }): ReactNode {
-  const { data: library } = useLibrary()
   const player = usePlayerCommands()
   const artFor = useArt(ROW_COVER_SIZE)
   const accent = useAccent()
-  const byId = useMemo(
-    () => new Map((library?.songs ?? []).map(song => [song.id, song])),
-    [library],
-  )
+  const byId = useSongsById()
   if (cloud) {
     return (
       <Text style={styles.nothing}>

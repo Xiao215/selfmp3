@@ -105,6 +105,17 @@ function servedName(songId: number, rev: string): string {
   return `${songId}-${rev.replace(/[^a-zA-Z0-9.-]/g, '_')}.jpg`
 }
 
+/** The song and revision a kept server cover was named for, or null for any other file. */
+export function parseServedName(name: string): { songId: number; rev: string } | null {
+  const match = /^(\d+)-(.*)\.jpg$/.exec(name)
+  return match ? { songId: Number(match[1]), rev: match[2] ?? '' } : null
+}
+
+/** A cover's file, whatever the bucket's picture was: a cloud cover keeps its own extension. */
+export function isPicture(name: string): boolean {
+  return /\.(jpe?g|png|webp|gif)$/i.test(name)
+}
+
 export function createCoverStore(platform: CoverPlatform): CoverStore {
   /** Resolved cloud covers by song id, so a list that re-renders does not re-ask. */
   const known = new Map<number, string | null>()
@@ -116,6 +127,12 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
   const served = new Map<number, { rev: string; uri: string }>()
   /** Addresses tried this launch: a server that is away is asked once per song, not per render. */
   const tried = new Set<string>()
+  /**
+   * Songs whose cloud cover was looked for on the disk and is not there yet.
+   * Looking is a file check on the JS thread, asked by every render of every
+   * row; it waits here until `ensureCover` has fetched the file or given up.
+   */
+  const notOnDisk = new Set<number>()
 
   /**
    * Whoever wants to know when a cover arrives — the list, mostly — told which
@@ -164,12 +181,15 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
    * without waiting.
    */
   const peek = (songId: number): string | undefined => {
-    if (!platform.peekCloud || !platform.canKeep()) return undefined
+    if (!platform.peekCloud || !platform.canKeep() || notOnDisk.has(songId)) return undefined
     try {
       const key = library.cloudCoverKeyNow(songId)
       if (!key) return undefined
       const uri = platform.peekCloud(nameFromKey(key))
-      if (!uri) return undefined
+      if (!uri) {
+        notOnDisk.add(songId)
+        return undefined
+      }
       known.set(songId, uri)
       return uri
     } catch {
@@ -265,6 +285,8 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
     fetching.set(songId, work)
     const uri = await work
     fetching.delete(songId)
+    // Fetched or given up on: either way the disk is worth a look again.
+    notOnDisk.delete(songId)
     if (uri) {
       known.set(songId, uri)
       failed.delete(songId)
@@ -289,6 +311,7 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
     failed.clear()
     served.clear()
     tried.clear()
+    notOnDisk.clear()
     try {
       await platform.forgetFiles()
     } catch {

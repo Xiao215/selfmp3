@@ -1,5 +1,5 @@
 import { coverFiles } from '../ports/coverFiles'
-import { createCoverStore, type CoverPlatform } from './coverStore'
+import { createCoverStore, isPicture, parseServedName, type CoverPlatform } from './coverStore'
 
 /**
  * Cover art from the bucket, for the platforms Metro calls web: the installed
@@ -32,9 +32,8 @@ const platform: CoverPlatform = {
     void (async () => {
       try {
         for (const name of await files.list()) {
-          const match = /^(\d+)-(.*)\.jpg$/.exec(name)
-          if (!match) continue
-          found(Number(match[1]), match[2] ?? '', files.uriFor(name))
+          const served = parseServedName(name)
+          if (served) found(served.songId, served.rev, files.uriFor(name))
         }
       } catch {
         // Nothing kept, or nothing readable: the server is asked as before.
@@ -69,16 +68,11 @@ const platform: CoverPlatform = {
   },
 }
 
-const store = createCoverStore(platform)
-
 /**
  * Whether this device keeps covers at all: the installed app does, and a tab,
  * which draws each cover from its own address, does not.
  */
 export const keepsCovers = coverFiles !== null
-
-/** A cover's file, whatever the bucket's picture was: a cloud cover keeps its own extension. */
-const PICTURE = /\.(jpe?g|png|webp|gif)$/i
 
 /**
  * The covers this device still holds, for Welcome to show a device that signed
@@ -92,18 +86,20 @@ export async function keptCovers(limit: number): Promise<readonly string[]> {
   const files = coverFiles
   if (!files) return []
   try {
-    const names = (await files.list()).filter(name => PICTURE.test(name))
+    const names = (await files.list()).filter(isPicture)
     return names.slice(0, limit).map(name => files.uriFor(name))
   } catch {
     return []
   }
 }
 
-export const subscribeCovers = store.subscribeCovers
-export const coversVersion = store.coversVersion
-export const coverFor = store.coverFor
-export const coverFailed = store.coverFailed
-export const ensureServerCover = store.ensureServerCover
-export const ensureCover = store.ensureCover
-export const forgetCovers = store.forgetCovers
+export const {
+  subscribeCovers,
+  coversVersion,
+  coverFor,
+  coverFailed,
+  ensureServerCover,
+  ensureCover,
+  forgetCovers,
+} = createCoverStore(platform)
 export { KEPT_COVER_SIZE } from './coverStore'

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { listeningPersonality, personalityLine, type PersonalityInput } from './personality.js'
+import {
+  hourBand,
+  listeningPersonality,
+  personalityLine,
+  type PersonalityInput,
+} from './personality.js'
 
 function hours(plan: Record<number, number>): number[] {
   const out = Array.from({ length: 24 }, () => 0)
@@ -91,5 +96,18 @@ describe('listeningPersonality', () => {
 
   it('joins traits with a middle dot', () => {
     expect(personalityLine(['Night owl', 'Repeat listener'])).toBe('Night owl · Repeat listener')
+  })
+})
+
+describe('hourBand', () => {
+  it('puts every hour of the day in exactly the band the traits count it in', () => {
+    const bands = Array.from({ length: 24 }, (_, hour) => hourBand(hour))
+    expect(bands).toEqual([
+      ...Array<string>(5).fill('night'), // 00–04
+      ...Array<string>(5).fill('early'), // 05–09
+      ...Array<string>(8).fill('day'), // 10–17
+      ...Array<string>(4).fill('evening'), // 18–21
+      ...Array<string>(2).fill('night'), // 22–23
+    ])
   })
 })

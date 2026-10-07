@@ -1,9 +1,11 @@
 import {
   DAY_MS,
+  hourBand,
   plural,
   artistOr,
   WRAPPED_RANGE_DAYS,
   type DailyPlays,
+  type HourBand,
   type Wrapped,
   type WrappedRange,
 } from '@selfmp3/shared'
@@ -106,24 +108,27 @@ export function masthead(range: WrappedRange): string {
  * When most of the listening happened, as the rest of a sentence: "at night".
  * Null with no plays, so a sentence can leave the clause out.
  *
- * Its own bands (night from 21:00, morning until noon), not the ones the
- * traits and Stats' Peak hour use (`NIGHT_HOURS` and the rest in
- * packages/shared/src/personality.ts): so the Report can say "mostly at
- * night" of a 21:00 peak that Stats calls an evening.
+ * Read off the shared `hourBand` (packages/shared/src/personality.ts), the
+ * same bands the traits count in and Stats' Peak hour names, so a 21:00 peak
+ * is "in the evening" here and an "Evening listener" there. The day band runs
+ * 10:00–17:59, morning and afternoon both, so it reads "during the day".
  */
-export function timeOfDay(hour: number | null | undefined): string | null {
-  if (hour === null || hour === undefined) return null
-  if (hour >= 21 || hour < 5) return 'at night'
-  if (hour < 12) return 'in the morning'
-  if (hour < 17) return 'in the afternoon'
-  return 'in the evening'
+const TIME_OF_DAY: Record<HourBand, string> = {
+  night: 'at night',
+  early: 'in the morning',
+  day: 'during the day',
+  evening: 'in the evening',
 }
 
-/** The front page's headline says it the way a newspaper would. */
+export function timeOfDay(hour: number | null | undefined): string | null {
+  if (hour === null || hour === undefined) return null
+  return TIME_OF_DAY[hourBand(hour)]
+}
+
+/** The front page's headline says it the way a newspaper would: night is "after dark". */
 function timeOfDayHeadline(hour: number | null | undefined): string | null {
-  const when = timeOfDay(hour)
-  if (when === null) return null
-  return when === 'at night' ? 'after dark' : when
+  if (hour === null || hour === undefined) return null
+  return hourBand(hour) === 'night' ? 'after dark' : TIME_OF_DAY[hourBand(hour)]
 }
 
 const COUNT_WORDS = [

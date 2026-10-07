@@ -28,6 +28,7 @@ import {
   wordsSize,
   type LookInput,
 } from './looks.model'
+import { peakHourWords } from '../stats/stats.model'
 
 /*
  * Midday UTC, so the window's last day is the 19th in every time zone this
@@ -124,7 +125,8 @@ describe('words', () => {
     expect(timeOfDay(23)).toBe('at night')
     expect(timeOfDay(3)).toBe('at night')
     expect(timeOfDay(8)).toBe('in the morning')
-    expect(timeOfDay(14)).toBe('in the afternoon')
+    expect(timeOfDay(11)).toBe('during the day')
+    expect(timeOfDay(14)).toBe('during the day')
     expect(timeOfDay(19)).toBe('in the evening')
     expect(timeOfDay(null)).toBeNull()
     expect(timesWord(1)).toBe('once')
@@ -133,6 +135,30 @@ describe('words', () => {
     expect(hoursMinutes(181)).toBe('3h 01')
     expect(hoursMinutes(42)).toBe('0h 42')
     expect(clockHour(9)).toBe('09:00')
+  })
+
+  it('names a time of day by the same bands as Stats’ Peak hour, edges included', () => {
+    // Each band's first and last hour, said by the Report and by Stats.
+    const said = [21, 22, 4, 5, 9, 10, 17, 18].map(hour => [timeOfDay(hour), peakHourWords(hour)])
+    expect(said).toEqual([
+      ['in the evening', 'Evening listener'],
+      ['at night', 'Night owl'],
+      ['at night', 'Night owl'],
+      ['in the morning', 'Early bird'],
+      ['in the morning', 'Early bird'],
+      ['during the day', 'Daytime listener'],
+      ['during the day', 'Daytime listener'],
+      ['in the evening', 'Evening listener'],
+    ])
+  })
+
+  it('puts night in the headline as "after dark" and every other band as the sentence does', () => {
+    const headline = (hour: number) =>
+      frontPageLook({ ...INPUT, wrapped: { ...WRAPPED, peakHour: { hour, plays: 30 } } }).headline
+    expect(headline(2)).toBe('Listener logs 372 minutes, most of them after dark')
+    expect(headline(7)).toBe('Listener logs 372 minutes, most of them in the morning')
+    expect(headline(13)).toBe('Listener logs 372 minutes, most of them during the day')
+    expect(headline(21)).toBe('Listener logs 372 minutes, most of them in the evening')
   })
 
   it('tells the number one’s own day only when it was that song’s', () => {

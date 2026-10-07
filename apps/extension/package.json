@@ -8,9 +8,11 @@
     "build": "node scripts/build.mjs",
     "zip": "node scripts/zip.mjs",
     "typecheck": "tsc --build",
-    "clean": "rm -rf dist dist-types release tsconfig.tsbuildinfo"
+    "clean": "rm -rf dist dist-types release tsconfig.tsbuildinfo src/ui/theme.css src/ui/fonts.css"
   },
   "devDependencies": {
+    "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
+    "@expo-google-fonts/instrument-serif": "^0.4.1",
     "@selfmp3/client": "*",
     "@selfmp3/replica": "*",
     "@selfmp3/shared": "*",

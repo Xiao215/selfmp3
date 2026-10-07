@@ -6,7 +6,15 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { plural, type LyricsSearchHit, type Song, type Tag, type Artist } from '@selfmp3/shared'
-import { clientApi, isDownloaded, queryKeys, radius, tagColors, useLibrary } from '@selfmp3/client'
+import {
+  STALE,
+  clientApi,
+  isDownloaded,
+  queryKeys,
+  radius,
+  tagColors,
+  useLibrary,
+} from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
@@ -84,7 +92,7 @@ export function SearchScreen(): ReactNode {
     // The lyrics index is the server's; a library in the cloud has no words to search.
     enabled: lyricsQuery !== '' && !fromCloud,
     retry: false,
-    staleTime: 60_000,
+    staleTime: STALE.minute,
     placeholderData: previous => previous,
   })
   const lyricHits = typed && lyricsQuery ? (lyrics.data?.hits ?? []) : []

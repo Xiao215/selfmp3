@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ApplyMetadata, MetadataLookupResponse } from '@selfmp3/shared'
 import {
+  STALE,
   queryKeys,
   useApplyMetadata,
   useMetadataLookup,
@@ -39,12 +40,6 @@ interface MetadataSource {
 
 const noServer = (): Promise<never> => Promise.reject(new Error('no server to ask'))
 
-/**
- * How long a server's lookup answer is taken as current. The server keeps the
- * catalogues' answers for a day; the dialog re-asks after an apply anyway.
- */
-const LOOKUP_STALE_MS = 10 * 60_000
-
 export function useMetadataSource(
   via: ServerConnection | undefined,
   songId: number,
@@ -59,7 +54,7 @@ export function useMetadataSource(
     queryKey: ['via-server', via?.baseUrl, 'metadata', 'lookup', songId] as const,
     queryFn: () => (via ? apiFor(via).lookupMetadata(songId) : noServer()),
     enabled: via !== undefined,
-    staleTime: LOOKUP_STALE_MS,
+    staleTime: STALE.tenMinutes,
     retry: false,
   })
 

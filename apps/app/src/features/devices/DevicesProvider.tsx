@@ -18,6 +18,7 @@ import {
   type ServerEvent,
 } from '@selfmp3/shared'
 import {
+  STALE,
   clientApi,
   handoffTarget,
   queryKeys,
@@ -339,7 +340,7 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
       return api.devices()
     },
     enabled: server !== null,
-    staleTime: 10_000,
+    staleTime: STALE.tenSeconds,
     refetchInterval: connected ? false : 15_000,
     refetchIntervalInBackground: false,
     retry: false,

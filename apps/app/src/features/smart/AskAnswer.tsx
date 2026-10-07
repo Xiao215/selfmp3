@@ -5,7 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { artistOr, plural, type AskAnswer as Answer } from '@selfmp3/shared'
-import { failureText, radius, space } from '@selfmp3/client'
+import { STALE, failureText, radius, space } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -110,7 +110,7 @@ export function AskAnswer({
     queryFn: ({ signal }) => server.api!.ask(latest, playing, ticket, before, signal),
     enabled: server.api !== null,
     retry: false,
-    staleTime: 10 * 60_000,
+    staleTime: STALE.tenMinutes,
     // A follow-up keeps the answer it changes on screen until the new one lands.
     placeholderData: (previous, query) =>
       query && askedFirst(query.queryKey) === text ? previous : undefined,

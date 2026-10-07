@@ -1,7 +1,15 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { Song, Stats, StatsRange, Wrapped, WrappedRange } from '@selfmp3/shared'
-import { useHistory, useStats, useWrapped, type Api, type ServerConnection } from '@selfmp3/client'
+import {
+  STALE,
+  HISTORY_PLAYS,
+  useHistory,
+  useStats,
+  useWrapped,
+  type Api,
+  type ServerConnection,
+} from '@selfmp3/client'
 import { apiFor } from '../../api/client'
 import { useServerSongIds } from '../../connection/useServerSongIds'
 import { useSongsById } from '../../ui/songsById'
@@ -47,7 +55,7 @@ function useOwnOrVia<T>(
     queryFn: () => (via ? ask(apiFor(via)) : noServer()),
     enabled: via !== undefined,
     retry: false,
-    staleTime: 60_000,
+    staleTime: STALE.minute,
   })
   const chosen = via ? server : own
   return { data: chosen.data, isLoading: chosen.isLoading }
@@ -68,7 +76,7 @@ export function useWrappedFor(
 
 export function useHistoryFor(via: ServerConnection | undefined) {
   const own = useHistory(via === undefined)
-  return useOwnOrVia(via, own, ['history'], api => api.history(200))
+  return useOwnOrVia(via, own, ['history'], api => api.history(HISTORY_PLAYS))
 }
 
 /**

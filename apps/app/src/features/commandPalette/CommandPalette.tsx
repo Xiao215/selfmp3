@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { artistOr, formatDuration, plural } from '@selfmp3/shared'
 import {
+  STALE,
   clientApi,
   oklchToHexAlpha,
   queryKeys,
@@ -138,7 +139,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     // The lyrics index is the server's; a library in the cloud has no words to search.
     enabled: lyricsQuery !== '' && !fromCloud,
     retry: false,
-    staleTime: 60_000,
+    staleTime: STALE.minute,
     placeholderData: previous => previous,
   })
   const lyricHits = lyricsQuery ? (lyrics.data?.hits ?? []) : []

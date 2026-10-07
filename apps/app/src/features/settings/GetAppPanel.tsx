@@ -7,6 +7,7 @@ import { macApp } from '../../ports/macApp'
 import { Button } from '../../ui/components/Button'
 import { Panel, Row } from './SettingsParts'
 import { downloadHint } from './settings.model'
+import { STALE } from '@selfmp3/client'
 
 /**
  * The desktop app, offered from a browser tab on a Mac — the one place it is
@@ -23,7 +24,7 @@ export function GetAppPanel({ anchor }: { anchor: (node: View | null) => void })
     queryKey: ['github', 'latest-release'],
     queryFn: () => macApp.latest(),
     retry: false,
-    staleTime: 60 * 60_000,
+    staleTime: STALE.hour,
   })
   const [chip, setChip] = useState<MacChip | null>(null)
 

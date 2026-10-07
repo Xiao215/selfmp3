@@ -15,7 +15,14 @@ import Constants from 'expo-constants'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useQuery } from '@tanstack/react-query'
 import { type Settings } from '@selfmp3/shared'
-import { clientApi, queryKeys, radius, useSettings, useUpdateSettings } from '@selfmp3/client'
+import {
+  STALE,
+  clientApi,
+  queryKeys,
+  radius,
+  useSettings,
+  useUpdateSettings,
+} from '@selfmp3/client'
 import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanizationPref'
 import { loginItem } from '../../ports/loginItem'
 import { macApp } from '../../ports/macApp'
@@ -100,7 +107,7 @@ export function SettingsScreen(): ReactNode {
     queryKey: queryKeys.health,
     queryFn: () => clientApi().health(),
     retry: false,
-    staleTime: 60_000,
+    staleTime: STALE.minute,
   })
 
   // A mouse or trackpad stands in for a keyboard, and only the installed app —

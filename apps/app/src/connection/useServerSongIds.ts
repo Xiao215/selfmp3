@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
+  STALE,
   clientApi,
   queryKeys,
   songIdTranslation,
@@ -28,14 +29,14 @@ export function useServerSongIds(via: ServerConnection | undefined): SongIdTrans
     queryKey: queryKeys.cloudUids('device'),
     queryFn: () => clientApi().cloudUids(),
     enabled: via !== undefined,
-    staleTime: 60_000,
+    staleTime: STALE.minute,
   })
   const theirs = useQuery({
     queryKey: queryKeys.cloudUids('via-server', baseUrl),
     queryFn: () => (via ? apiFor(via).cloudUids() : Promise.reject(new Error('no server to ask'))),
     enabled: via !== undefined,
     retry: false,
-    staleTime: 60_000,
+    staleTime: STALE.minute,
   })
 
   // A pass over both libraries; only a library gaining songs changes the answer.

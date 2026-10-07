@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { formatRelative, type Device } from '@selfmp3/shared'
 import {
+  STALE,
   clientApi,
   deviceListView,
   failureText,
@@ -86,7 +87,7 @@ function CloudDevices({ anchor }: { anchor: (node: View | null) => void }): Reac
     },
     enabled: connection !== null,
     retry: false,
-    staleTime: 10_000,
+    staleTime: STALE.tenSeconds,
   })
   const reach: DevicesReach =
     connection === null

@@ -288,8 +288,8 @@ export function useGems(limit = GEMS_LIMIT): UseQueryResult<ForgottenGems, Error
   })
 }
 
-/** Plays the listening history reads. */
-const HISTORY_PLAYS = 200
+/** Plays the listening history reads, from this device's server or one reached directly. */
+export const HISTORY_PLAYS = 200
 
 export function useHistory(enabled = true): UseQueryResult<PlayHistory, Error> {
   return useQuery({

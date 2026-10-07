@@ -4,7 +4,7 @@ import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { WrappedRange } from '@selfmp3/shared'
-import { failureText, radius, space } from '@selfmp3/client'
+import { STALE, failureText, radius, space } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { Refresh, Sparkle } from '../../ui/components/Icons'
 import { card, label } from '../../ui/surfaces'
@@ -29,7 +29,7 @@ export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
     queryFn: () => server.api!.written(range),
     enabled: written && server.api !== null,
     retry: false,
-    staleTime: 30 * 60_000,
+    staleTime: STALE.halfHour,
   })
   const [again, setAgain] = useState(false)
 

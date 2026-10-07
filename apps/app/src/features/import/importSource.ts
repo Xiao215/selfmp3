@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ImportQueue, Library, Tag, ToolStatus } from '@selfmp3/shared'
 import {
+  STALE,
   changeQueue,
   clientApi,
   queryKeys,
@@ -87,7 +88,7 @@ export function useImportSource(
     queryKey: keys.library,
     queryFn: () => (server ? server.library() : noServer()),
     enabled: server !== null,
-    staleTime: 30_000,
+    staleTime: STALE.halfMinute,
   })
   const serverQueue = useQuery({
     queryKey: keys.queue,
@@ -104,13 +105,13 @@ export function useImportSource(
     queryKey: keys.history,
     queryFn: () => (server ? server.importQueue(HISTORY_LIMIT) : noServer()),
     enabled: server !== null && history,
-    staleTime: 30_000,
+    staleTime: STALE.halfMinute,
   })
   const serverTools = useQuery({
     queryKey: keys.tools,
     queryFn: () => (server ? server.importTools() : noServer()),
     enabled: server !== null,
-    staleTime: 60_000,
+    staleTime: STALE.minute,
     retry: false,
   })
 

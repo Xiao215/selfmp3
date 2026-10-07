@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQuery } from '@tanstack/react-query'
-import { failureText, space } from '@selfmp3/client'
+import { STALE, failureText, space } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { Button } from '../../ui/components/Button'
 import { Sheet } from '../../ui/components/Sheet'
@@ -30,7 +30,7 @@ export function SuggestTagsSheet({
     queryFn: () => server.api!.untaggedTags(),
     enabled: open && server.api !== null,
     retry: false,
-    staleTime: 10 * 60_000,
+    staleTime: STALE.tenMinutes,
   })
 
   let body: ReactNode

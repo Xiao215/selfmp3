@@ -94,8 +94,6 @@ export class SongRepository {
   readonly #manifest
   readonly #setLoved
   readonly #withoutArt
-  readonly #nextYearToCheck
-  readonly #yearChecked
   readonly #nextWithoutCoverTone
   readonly #setCoverTone
   readonly #allPaths
@@ -186,19 +184,6 @@ export class SongRepository {
       "UPDATE songs SET loved = ?, updated_at = datetime('now') WHERE id = ? AND loved != ?",
     )
     this.#withoutArt = db.prepare<[], SongRow>(`${SONG_SELECT} WHERE s.has_art = 0 ORDER BY s.id`)
-    this.#nextYearToCheck = db.prepare<
-      [number],
-      { id: number; year: number | null; source_url: string | null; edited: number }
-    >(
-      `SELECT s.id, s.year, s.source_url,
-              EXISTS (SELECT 1 FROM sync_stamps t
-                       WHERE t.kind = 'song' AND t.uid = s.uid AND t.field = 'year') AS edited
-         FROM release_years_to_check c
-         JOIN songs s ON s.id = c.song_id
-        WHERE c.song_id > ?
-        ORDER BY c.song_id LIMIT 1`,
-    )
-    this.#yearChecked = db.prepare('DELETE FROM release_years_to_check WHERE song_id = ?')
     this.#nextWithoutCoverTone = db.prepare<[], { id: number; art_rev: number }>(
       `SELECT id, art_rev FROM songs
         WHERE has_art = 1
@@ -442,27 +427,6 @@ export class SongRepository {
   /** Songs with no cover art, for the cover-art pass. */
   withoutArt(): Song[] {
     return this.#withoutArt.all().map(toSong)
-  }
-
-  /**
-   * The next song after `afterId` the release-year pass has to ask about
-   * (services/releaseYears.ts). `edited` is a year someone typed, which the
-   * pass leaves alone.
-   */
-  nextYearToCheck(afterId: number): {
-    id: number
-    year: number | null
-    sourceUrl: string | null
-    edited: boolean
-  } | null {
-    const row = this.#nextYearToCheck.get(afterId)
-    return row
-      ? { id: row.id, year: row.year, sourceUrl: row.source_url, edited: row.edited === 1 }
-      : null
-  }
-
-  yearChecked(id: number): void {
-    this.#yearChecked.run(id)
   }
 
   /** The next song whose cover has not had its colour read, as the cover is now. */

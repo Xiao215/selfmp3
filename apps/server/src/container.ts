@@ -43,7 +43,6 @@ import { LyricsIndexService } from './services/lyricsIndex.js'
 import { AnalysisService } from './services/analysis.js'
 import { SoundService } from './sound/sound.js'
 import { CoverToneService } from './services/coverTones.js'
-import { ReleaseYearService } from './services/releaseYears.js'
 import { PreviewCoverTones } from './services/previewCoverTone.js'
 import { DeviceRepository } from './repositories/devices.js'
 import { AuthRepository } from './repositories/auth.js'
@@ -110,8 +109,6 @@ export interface Container {
   readonly lookup: MetadataLookupService
   readonly smart: SmartFeatures
   readonly fixCovers: FixCoversService
-  /** Each song's release year, asked of YouTube Music once (services/releaseYears.ts). */
-  readonly releaseYears: ReleaseYearService
   readonly keepAwake: KeepAwakeService
   readonly lyricsCache: LyricsCache
   /** Each song's motion curve, written by analysis (services/motionStore.ts). */
@@ -434,8 +431,6 @@ export function createContainer(configured: Config): Container {
   covers.onSaved = () => coverTones.kick()
   coverTones.kick()
 
-  const releaseYears = new ReleaseYearService({ songs, edits, logger, onChange: bump })
-
   // Analysis runs after the work that matters: new and changed files are
   // queued as they are ingested, and a finished scan nudges the loop.
   scanner.onIngested = (songId, change) => {
@@ -499,7 +494,6 @@ export function createContainer(configured: Config): Container {
     lookup,
     smart,
     fixCovers,
-    releaseYears,
     keepAwake,
     lyricsCache,
     motion,
@@ -522,7 +516,6 @@ export function createContainer(configured: Config): Container {
       analysis.stop()
       void sound.close()
       coverTones.stop()
-      releaseYears.stop()
       importQueue.stop()
       cloudSync.stop()
       // Let the machine sleep again even if a stream is still winding down.

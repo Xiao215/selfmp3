@@ -182,8 +182,6 @@ function startLibrary(container: Container): void {
   const { config, logger } = container
 
   container.importQueue.start()
-  // Once per library: the years songs came out, for the ones downloaded with their upload's.
-  void container.releaseYears.start()
   // Rescan on folder changes (drag-and-drop into Finder) when the setting is
   // on, and every `autoScanMinutes` when that is set.
   container.libraryWatcher.apply()

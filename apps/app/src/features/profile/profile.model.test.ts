@@ -49,9 +49,9 @@ describe('the Profile page', () => {
   })
 
   it('uses the account’s first name when there is one, and the page’s when not', () => {
-    expect(profileName('Xiao Zhang')).toEqual({ name: 'Xiao', initial: 'X' })
-    expect(profileName('  ')).toEqual({ name: 'Profile', initial: null })
-    expect(profileName(null)).toEqual({ name: 'Profile', initial: null })
+    expect(profileName('Xiao Zhang')).toBe('Xiao')
+    expect(profileName('  ')).toBe('Profile')
+    expect(profileName(null)).toBe('Profile')
   })
 
   it('says what the library holds, then whether this device is in step with it', () => {

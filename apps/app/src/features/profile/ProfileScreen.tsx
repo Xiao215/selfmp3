@@ -112,7 +112,7 @@ function Person(): ReactNode {
   const account = useAccount()
   const { fromCloud } = useConnection()
   const library = useLibrary()
-  const { name } = profileName(account?.name ?? null)
+  const name = profileName(account?.name)
   const line = profileLine({
     songs: library.data?.songs.length,
     tags: library.data?.tags.length,
@@ -239,7 +239,7 @@ function Row({ row }: { row: ProfileRow }): ReactNode {
 
   return (
     <Pressable
-      onPress={() => router.push(row.href as never)}
+      onPress={() => router.push(row.href)}
       accessibilityRole="link"
       accessibilityLabel={`${row.label}, ${row.hint}`}
       testID={`profile-${row.id}`}

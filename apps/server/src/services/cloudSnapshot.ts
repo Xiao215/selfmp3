@@ -96,8 +96,8 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
       audio: { key: state.audioKey, size: state.audioSize, mime: song.mime },
       cover: state.coverKey !== null ? { key: state.coverKey, size: state.coverSize ?? 0 } : null,
       // The cover's colour, when there is a cover to be the colour of and it has
-      // been read. Left out otherwise.
-      ...(state.coverKey !== null && song.coverTone ? { coverTone: song.coverTone } : {}),
+      // been read. Null otherwise: every field is written, none left out.
+      coverTone: state.coverKey !== null ? song.coverTone : null,
       lyrics:
         state.lyricsKey !== null && state.lyricsKind !== null
           ? {
@@ -107,8 +107,8 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
               romanized: state.romanizedKey,
             }
           : null,
-      // The curve, once analysis has made one and it is up. Left out before.
-      ...(state.motionKey !== null ? { motion: state.motionKey } : {}),
+      // The curve, once analysis has made one and it is up. Null before.
+      motion: state.motionKey,
       instrumental: song.instrumental,
       loved: song.loved,
       playCount: song.playCount,

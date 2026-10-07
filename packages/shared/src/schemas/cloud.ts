@@ -101,14 +101,16 @@ export const CloudSongSchema = z.object({
   duration: z.number().nonnegative(),
   audio: CloudAudioSchema,
   cover: CloudCoverSchema.nullable(),
-  /** The cover's colour, as the server picked it (schemas/song.ts). Absent until it has read the cover. */
+  /** The cover's colour, as the server picked it (schemas/song.ts). Null until it has read the cover. */
+  // TODO(after the Pi publishes): drop `.optional()` here; buildSnapshot writes null.
   coverTone: CoverToneSchema.nullable().optional(),
   lyrics: CloudLyricsSchema.nullable(),
   /**
    * The song's motion curve (schemas/motion.ts), as JSON in `lyrics/`: how loud
    * it is and where the hits are, for the visuals on a device that cannot
-   * listen live. Absent until the server has analysed the song and put it up.
+   * listen live. Null until the server has analysed the song and put it up.
    */
+  // TODO(after the Pi publishes): drop `.optional()` here; buildSnapshot writes null.
   motion: fileKey('lyrics').nullable().optional(),
   instrumental: z.boolean(),
   loved: z.boolean(),
@@ -117,6 +119,7 @@ export const CloudSongSchema = z.object({
   addedAt: z.string(),
   sourceUrl: z.string().nullable(),
   tagUids: z.array(UidSchema),
+  // TODO(after the Pi publishes): drop `.default(null)` here; buildSnapshot writes it.
   audioFeatures: AudioFeaturesSchema.nullable().default(null),
   /** Per field: title, artist, loved, … */
   stamps: StampsSchema.optional(),
@@ -255,6 +258,7 @@ export const CloudSnapshotSchema = z.object({
    * For each device, the last of its log files already folded into this
    * snapshot. A device reading it replays only the files after these.
    */
+  // TODO(after the Pi publishes): drop `.default({})` here; buildSnapshot writes it.
   upTo: z.record(z.string(), z.number().int().nonnegative()).default({}),
   songs: z.array(CloudSongSchema),
   tags: z.array(CloudTagSchema),

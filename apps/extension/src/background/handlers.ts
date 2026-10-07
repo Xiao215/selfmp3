@@ -7,7 +7,7 @@ import {
 } from '@selfmp3/client/core'
 import { DEFAULT_LOCAL_SERVER_URL, youtubeVideoId, type ImportJob } from '@selfmp3/shared'
 import { z } from 'zod'
-import type { Handlers, Status } from '../bridge.js'
+import { BridgeError, type Handlers, type Status } from '../bridge.js'
 import type { Cloud } from './cloud.js'
 import { createRouter, type Route, type Router } from './connection.js'
 import { LibraryCache } from './library.js'
@@ -28,17 +28,6 @@ const ServerConnectionSchema = z.object({ baseUrl: z.string(), token: z.string()
  * `normaliseBaseUrl` gives every typed-in server a scheme.
  */
 const BUCKET: ServerConnection = { baseUrl: 'bucket', token: null }
-
-/** A failure the popup shows as it is: what went wrong, and what to do about it. */
-export class Refusal extends Error {
-  readonly status: number
-
-  constructor(message: string, status: number) {
-    super(message)
-    this.name = 'Refusal'
-    this.status = status
-  }
-}
 
 /** As much of the watcher as the handlers use (watcher.ts). */
 interface JobWatcher {
@@ -120,14 +109,14 @@ export function createHandlers({
   const library = new LibraryCache(store)
 
   /** Why a route with no way through has no way through, in the words a page shows. */
-  function refuse(route: Route): Refusal {
+  function refuse(route: Route): BridgeError {
     if (route.mode === 'away') {
-      return new Refusal(
+      return new BridgeError(
         `Nothing answered at ${route.connection.baseUrl}. Turn your server on, or sign in with Google so links can wait in your bucket.`,
         0,
       )
     }
-    return new Refusal('Connect the extension to your library in its options first.', 428)
+    return new BridgeError('Connect the extension to your library in its options first.', 428)
   }
 
   /** Whichever side answers, and the API client for it. */
@@ -146,19 +135,25 @@ export function createHandlers({
   }
 
   /** The server itself, for the things only it can do: reading a link, and the queue. */
-  async function direct(): Promise<Api> {
-    const { route, api } = await answering()
+  async function direct(): Promise<{ api: Api; identity: ServerConnection }> {
+    const { route, api, identity } = await answering()
     if (route.mode !== 'server') {
-      throw new Refusal(
+      throw new BridgeError(
         'Your server has to be awake to read a link. Leave it in your bucket instead and it will be fetched when the server wakes.',
         0,
       )
     }
-    return api
+    return { api, identity }
+  }
+
+  /** The library or the account changed: what was cached about the old one goes. */
+  async function forgetLibrary(): Promise<void> {
+    await library.forget()
+    router.forget()
   }
 
   function needsCloud(): Cloud {
-    if (!cloud) throw new Refusal('This build has no bucket to sign in to.', 501)
+    if (!cloud) throw new BridgeError('This build has no bucket to sign in to.', 501)
     return cloud
   }
 
@@ -172,7 +167,7 @@ export function createHandlers({
   async function bucket(): Promise<Cloud> {
     const side = needsCloud()
     if (!(await side.session())) {
-      throw new Refusal(
+      throw new BridgeError(
         'Sign in with Google in the options, and links can wait in your bucket while the server is off.',
         428,
       )
@@ -218,7 +213,7 @@ export function createHandlers({
     async connect({ baseUrl, token }) {
       const address = normaliseBaseUrl(baseUrl)
       if (!address) {
-        throw new Refusal(
+        throw new BridgeError(
           `That doesn’t look like an address. Try ${DEFAULT_LOCAL_SERVER_URL}, or your server’s ts.net address.`,
           400,
         )
@@ -227,7 +222,7 @@ export function createHandlers({
       try {
         await serverApi(candidate, fetch, PROBE_TIMEOUT_MS).health()
       } catch {
-        throw new Refusal(
+        throw new BridgeError(
           `Nothing answered at ${address}. Is the self.mp3 server running, and can this computer reach it?`,
           0,
         )
@@ -238,7 +233,7 @@ export function createHandlers({
         await serverApi(candidate, fetch).libraryVersion()
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
-          throw new Refusal(
+          throw new BridgeError(
             candidate.token ? 'The server refused that token.' : 'That server needs its token.',
             401,
           )
@@ -246,15 +241,13 @@ export function createHandlers({
         throw error
       }
       await store.write(SERVER_KEY, candidate)
-      await library.forget()
-      router.forget()
+      await forgetLibrary()
       return status()
     },
 
     async disconnect() {
       await store.remove(SERVER_KEY)
-      await library.forget()
-      router.forget()
+      await forgetLibrary()
       return status()
     },
 
@@ -266,24 +259,23 @@ export function createHandlers({
     signIn: async () => ({ url: await needsCloud().beginSignIn() }),
 
     async claimSignIn({ code }) {
-      const signedIn = await needsCloud().claimSignIn(code)
-      await library.forget()
-      router.forget()
+      const side = needsCloud()
+      const signedIn = await side.claimSignIn(code)
+      await forgetLibrary()
       // The first read of the bucket happens here, while the options page is
       // waiting on it, rather than in the first popup someone opens.
-      await needsCloud().open(signedIn)
+      await side.open(signedIn)
       return status()
     },
 
     async signOut() {
       await needsCloud().signOut()
-      await library.forget()
-      router.forget()
+      await forgetLibrary()
       return status()
     },
 
     async preview({ url }) {
-      return (await direct()).importPreview(url)
+      return (await direct()).api.importPreview(url)
     },
 
     async choices() {
@@ -321,8 +313,8 @@ export function createHandlers({
     },
 
     async enqueue({ request, label }) {
-      const { identity } = await answering()
-      const result = await (await direct()).importEnqueue(request)
+      const { api, identity } = await direct()
+      const result = await api.importEnqueue(request)
       await rememberTags(store, identity, request.tagIds)
       // The badge and the notification are about what this extension started.
       await watcher?.add(result.jobs, label)
@@ -332,15 +324,15 @@ export function createHandlers({
     // Read plainly: the watcher and the pill ask through here too, and neither
     // is anyone looking at the queue. The popup's asking is `forPages`.
     async queue() {
-      return (await direct()).importQueue()
+      return (await direct()).api.importQueue()
     },
 
     async cancel({ id }) {
-      return (await direct()).cancelImport(id)
+      return (await direct()).api.cancelImport(id)
     },
 
     async retry({ id }) {
-      return (await direct()).retryImport(id)
+      return (await direct()).api.retryImport(id)
     },
 
     async requestImport({ url, tagIds }) {
@@ -398,7 +390,7 @@ export function forPages(handlers: Handlers, watcher: JobWatcher | undefined): H
 
 /** Any failure, in words a page can show. */
 export function explain(error: unknown): { message: string; status: number } {
-  if (error instanceof Refusal) return { message: error.message, status: error.status }
+  if (error instanceof BridgeError) return { message: error.message, status: error.status }
   if (error instanceof ApiError) {
     if (error.isOffline) return { message: 'Your server isn’t answering.', status: 0 }
     if (error.status === 401) {

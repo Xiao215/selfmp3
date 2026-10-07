@@ -73,7 +73,7 @@ export class CoverToneService {
         if (!next) break
 
         let tone: CoverTone | null = null
-        const found = this.#covers.find(next.id)
+        const found = await this.#covers.find(next.id)
         if (found) {
           try {
             tone = await this.#read(found.path)

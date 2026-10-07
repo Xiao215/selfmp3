@@ -32,7 +32,7 @@ export function artistRoutes(container: Container): Router {
   router.get(
     '/artists/backdrop/image',
     route({ query: ByNameAndShape }, async ({ query, req, res }) => {
-      const kept = container.artistBackdrops.kept(query.name, query.shape)
+      const kept = await container.artistBackdrops.kept(query.name, query.shape)
       if (!kept) throw HttpError.notFound('no picture for this artist')
       await sendStoredImage(req, res, kept)
       return undefined

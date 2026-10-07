@@ -92,7 +92,7 @@ export class CoverService {
     songId: number,
     size: number,
   ): Promise<{ path: string; contentType: string } | null> {
-    const cover = this.find(songId)
+    const cover = await this.find(songId)
     if (!cover) return null
     const stat = await fsp.stat(cover.path)
     const dir = path.join(this.#dir, 'thumbs')
@@ -152,7 +152,7 @@ export class CoverService {
   async squareKept(songIds: readonly number[]): Promise<number> {
     let squared = 0
     for (const songId of songIds) {
-      const cover = this.find(songId)
+      const cover = await this.find(songId)
       if (!cover) continue
       try {
         if (await isSquareCover(cover.path)) continue
@@ -177,7 +177,7 @@ export class CoverService {
    * recorded on the row is looked for first, so the usual case is one look;
    * the others are for a cover kept before the row said.
    */
-  find(songId: number): { path: string; contentType: string } | null {
+  async find(songId: number): Promise<{ path: string; contentType: string } | null> {
     const recorded = this.#songs.artExt(songId)
     const order: readonly string[] =
       recorded !== null && (EXTENSIONS as readonly string[]).includes(recorded)
@@ -185,7 +185,7 @@ export class CoverService {
         : EXTENSIONS
     for (const extension of order) {
       const file = this.#pathFor(songId, extension)
-      if (fs.existsSync(file)) {
+      if (await isFile(file)) {
         return { path: file, contentType: CONTENT_TYPES[extension] ?? 'image/jpeg' }
       }
     }

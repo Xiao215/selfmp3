@@ -33,7 +33,7 @@ describe('CoverService.save', () => {
     const files = fs.readdirSync(path.join(dataDir, 'covers')).sort()
     // Only the new one: an old 7.jpg would otherwise be found first and served.
     expect(files).toEqual(['7.png'])
-    expect(covers.find(7)?.path.endsWith('7.png')).toBe(true)
+    expect((await covers.find(7))?.path.endsWith('7.png')).toBe(true)
     expect(setArt).toHaveBeenLastCalledWith(7, true, '.png')
   })
 
@@ -47,7 +47,7 @@ describe('CoverService.save', () => {
     fs.writeFileSync(path.join(dataDir, 'covers', '5.jpg'), image(1))
     fs.writeFileSync(path.join(dataDir, 'covers', '5.webp'), image(2))
 
-    expect(covers.find(5)).toMatchObject({ contentType: 'image/webp' })
+    expect(await covers.find(5)).toMatchObject({ contentType: 'image/webp' })
   })
 
   it('leaves other songs’ covers alone', async () => {

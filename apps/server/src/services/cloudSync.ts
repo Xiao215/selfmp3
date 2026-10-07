@@ -1275,7 +1275,7 @@ export class CloudSyncService {
     file: SongFileInfo,
   ): Promise<{ key: string; size: number } | null> {
     if (!file.hasArt) return null
-    const found = this.#deps.covers.find(file.id)
+    const found = await this.#deps.covers.find(file.id)
     if (!found) return null
     const data = await fsp.readFile(found.path)
     const key = coverKey(sha256(data), path.extname(found.path))

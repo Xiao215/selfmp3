@@ -112,11 +112,11 @@ export class ArtistBackdropService {
    * Both shapes or neither: one rev names the pair, so a copy kept before
    * portraits were is found again, the pair with it.
    */
-  kept(name: string, shape: ArtistPictureShape = 'banner'): KeptPicture | null {
+  async kept(name: string, shape: ArtistPictureShape = 'banner'): Promise<KeptPicture | null> {
     const key = artistKey(name)
     try {
-      const banner = fs.statSync(this.#file(key, EXTENSIONS.banner))
-      if (!fs.existsSync(this.#file(key, EXTENSIONS.portrait))) return null
+      const banner = await fsp.stat(this.#file(key, EXTENSIONS.banner))
+      await fsp.access(this.#file(key, EXTENSIONS.portrait))
       return {
         path: this.#file(key, EXTENSIONS[shape]),
         contentType: 'image/jpeg',
@@ -129,7 +129,7 @@ export class ArtistBackdropService {
 
   /** The kept picture, or one found now; null when there is none to be had. */
   async find(name: string): Promise<KeptPicture | null> {
-    const kept = this.kept(name)
+    const kept = await this.kept(name)
     if (kept) return kept
     const key = artistKey(name)
     if (!key || (await this.#saidNoneLately(key))) return null

@@ -92,7 +92,7 @@ export function mediaRoutes(container: Container): Router {
       async ({ params, query, req, res }) => {
         const cover =
           query.size === undefined
-            ? container.covers.find(params.id)
+            ? await container.covers.find(params.id)
             : await container.covers.thumbnail(params.id, snapArtSize(query.size))
         if (!cover) throw HttpError.notFound('no cover art')
         await sendStoredImage(req, res, cover)

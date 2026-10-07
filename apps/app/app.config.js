@@ -33,6 +33,12 @@ const config = {
   ios: {
     bundleIdentifier: 'com.selfmp3.app',
     supportsTablet: true,
+    // The same mark as layers (an Icon Composer file: the notes over a
+    // ground), so the home screen's Dark, Clear and Tinted looks are drawn on
+    // purpose rather than guessed from a flat PNG. Dark lifts the notes a
+    // step on the system's black; Tinted and Clear take the notes' shading
+    // in grey. Xcode renders the flat icons older iOS versions need from it.
+    icon: './assets/AppIcon.icon',
     infoPlist: {
       // Background audio. Without this the player stops the moment the screen
       // locks, which is most of what this app is for.
@@ -66,6 +72,10 @@ const config = {
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: NATIVE_BACKGROUND,
+      // The notes alone in one colour, placed exactly as in the foreground.
+      // With Themed icons on, the launcher paints them in the wallpaper's
+      // colours; without this layer ours stays full colour among the rest.
+      monochromeImage: './assets/monochrome-icon.png',
     },
     // FOREGROUND_SERVICE* come from react-native-track-player's own manifest;
     // these two are ours: network access and the wake lock the player holds

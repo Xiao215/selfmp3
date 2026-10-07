@@ -51,9 +51,3 @@ const outbox = createListenOutbox({
 })
 
 export const { flushListens, recordListen } = outbox
-
-/*
- * `recordSkipListen` and `subscribePendingListens` are the package's too and
- * work here, but nothing calls them yet: there is no skip button that records
- * one and no badge that shows the count.
- */

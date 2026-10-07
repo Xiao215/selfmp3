@@ -189,9 +189,15 @@ export const SongRow = memo(function SongRow({
   // With a mouse a row drags onto a playlist in the sidebar. Nothing on a phone.
   const rowRef = useRef<View>(null)
   useSongDragSource(rowRef, () => [song.id], wide && dense)
-  // The held row gives a little under the finger, on the one spring (`M1`,
-  // 1): a row's depth, since a row is wide enough that a control's would walk
-  // its ends.
+  // The held row gives a little under the finger or the mouse, on the one
+  // spring (`M1`, 1): a row's depth, since a row is wide enough that a
+  // control's would walk its ends. Both widths spring from the row's main
+  // press target only, so the ⋯, a tag or the select circle press as
+  // themselves. On a computer it sits outside hover, which is the row's
+  // background, and outside selection, which is the same press read with its
+  // modifier keys; a drag to the sidebar starts by ending the press
+  // (react-native-web ends the gesture on `dragstart`), so the row springs back
+  // as the drag image leaves it.
   const press = usePressScale(PRESS.row)
   // What holding the row does, the same at both widths: nothing where
   // something outside the row has the hold (`null`), what the list asked
@@ -351,6 +357,7 @@ export const SongRow = memo(function SongRow({
               ? () => onToggleSelect(song)
               : onHold
           }
+          {...press.handlers}
           delayLongPress={MOVE_MS.longPress}
           accessibilityRole="button"
           accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}

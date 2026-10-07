@@ -32,12 +32,25 @@ export interface PersonalityInput {
 
 /**
  * The hours of each time of day, local: 22:00–04:59 is night, 05:00–09:59 is
- * early, 10:00–17:59 is the day, and what is left is the evening. Exported so
- * Stats' Peak hour names an hour by the same bands these traits count in.
+ * early, 10:00–17:59 is the day, and what is left (18:00–21:59) is the
+ * evening. The traits below count plays in these bands, and every other place
+ * that names a time of day — Stats' Peak hour, the Report's "mostly at night"
+ * — asks `hourBand`, so no two screens disagree about when night starts.
  */
-export const NIGHT_HOURS: readonly number[] = [22, 23, 0, 1, 2, 3, 4]
-export const EARLY_HOURS: readonly number[] = [5, 6, 7, 8, 9]
-export const DAY_HOURS: readonly number[] = [10, 11, 12, 13, 14, 15, 16, 17]
+const NIGHT_HOURS: readonly number[] = [22, 23, 0, 1, 2, 3, 4]
+const EARLY_HOURS: readonly number[] = [5, 6, 7, 8, 9]
+const DAY_HOURS: readonly number[] = [10, 11, 12, 13, 14, 15, 16, 17]
+
+/** One of the four times of day above. */
+export type HourBand = 'night' | 'early' | 'day' | 'evening'
+
+/** Which time of day a local hour (0–23) falls in, by the bands above. */
+export function hourBand(hour: number): HourBand {
+  if (NIGHT_HOURS.includes(hour)) return 'night'
+  if (EARLY_HOURS.includes(hour)) return 'early'
+  if (DAY_HOURS.includes(hour)) return 'day'
+  return 'evening'
+}
 
 /** Fewer plays than this and no pattern is worth claiming. */
 const PERSONALITY_MIN_PLAYS = 10

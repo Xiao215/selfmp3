@@ -1,4 +1,5 @@
 import type {
+  HourBand,
   HourlyPlays,
   Stats,
   StatsRange,
@@ -6,15 +7,7 @@ import type {
   TopSong,
   WrappedRange,
 } from '@selfmp3/shared'
-import {
-  plural,
-  artistKey,
-  DAY_HOURS,
-  EARLY_HOURS,
-  NIGHT_HOURS,
-  splitArtists,
-  UNKNOWN_ARTIST,
-} from '@selfmp3/shared'
+import { plural, artistKey, hourBand, splitArtists, UNKNOWN_ARTIST } from '@selfmp3/shared'
 
 /**
  * Listening stats, without the screen.
@@ -90,16 +83,20 @@ export function peakHour(hourly: readonly HourlyPlays[]): HourlyPlays | null {
 }
 
 /**
- * What the busiest hour says about you, under Peak hour: read off the bands
- * the Report's "Night owl" and "Early bird" traits count in
- * (`packages/shared/src/personality.ts`), so the two never disagree about
- * when night starts.
+ * What the busiest hour says about you, under Peak hour: read off the shared
+ * `hourBand` (`packages/shared/src/personality.ts`), the bands the Report's
+ * "Night owl" and "Early bird" traits count in and its "mostly at night"
+ * names, so none of them disagree about when night starts.
  */
+const PEAK_HOUR_WORDS: Record<HourBand, string> = {
+  night: 'Night owl',
+  early: 'Early bird',
+  day: 'Daytime listener',
+  evening: 'Evening listener',
+}
+
 export function peakHourWords(hour: number): string {
-  if (NIGHT_HOURS.includes(hour)) return 'Night owl'
-  if (EARLY_HOURS.includes(hour)) return 'Early bird'
-  if (DAY_HOURS.includes(hour)) return 'Daytime listener'
-  return 'Evening listener'
+  return PEAK_HOUR_WORDS[hourBand(hour)]
 }
 
 export function daysLabel(days: number): string {

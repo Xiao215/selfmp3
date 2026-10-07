@@ -45,6 +45,7 @@ import { askable } from '../smart/smart.model'
 import { StopButton } from '../smart/StopButton'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { noteTagUsed } from '../library/recentTags.store'
+import { playAlone } from '../lists/lists.model'
 import { lyricsQueryFor } from '../search/search.model'
 import { artistLink, tagLink } from '../tag/placeLinks'
 import { usePlayAndTag } from '../tag/usePlayAndTag'
@@ -168,9 +169,14 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         return
     }
   }
+  /**
+   * A song row, a lyric hit or a recent song: that song alone, Up next cleared,
+   * as a Library row plays it (`playAlone`). The palette is a search of the
+   * whole library, not a place, so there is no list around the song to play.
+   * A lyric hit the library no longer holds is left alone.
+   */
   const playSong = (songId: number): void => {
-    const index = songIds.indexOf(songId)
-    if (index >= 0) player.playFrom(songIds, index, { source: { kind: 'library' } })
+    if (songIds.includes(songId)) playAlone(player, songId)
   }
   const openPlaylist = (playlistId: number): void => router.navigate(`/playlists/${playlistId}`)
   /** The loaded song carries on where it is rather than starting again. */

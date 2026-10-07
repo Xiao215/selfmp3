@@ -11,6 +11,7 @@ import {
   parseRecentLists,
   placesSource,
   playAlone,
+  recentKind,
   recentSongIds,
   savePlan,
   songsToSave,
@@ -134,6 +135,26 @@ describe('what Save makes', () => {
   })
 })
 
+describe('Home’s Recently played songs, played again', () => {
+  const recent: ListSource = { kind: 'songs', origin: 'recent', name: 'Recently played' }
+
+  it('names Up next "Recently played", with nowhere to go', () => {
+    expect(describeSource(recent, known)).toEqual({
+      label: 'Recently played',
+      asked: false,
+      link: null,
+      saved: false,
+    })
+    expect(recentKind(recent)).toBe('Recently played')
+  })
+
+  it('offers no Save, and is not remembered as a list inside Recently played', () => {
+    expect(savePlan(recent, queue([1, 2, 3]), known)).toBeNull()
+    expect(sourceKey(recent, [1, 2, 3])).toBeNull()
+    expect(withListStarted([], recent, [1, 2, 3], 100)).toEqual([])
+  })
+})
+
 describe('a song picked from a general list', () => {
   it('plays that song alone, with no source: Up next is just it, nameless, with no Save', () => {
     const calls: unknown[][] = []
@@ -185,6 +206,7 @@ describe('reading a source back', () => {
       { kind: 'combined', tagIds: [1, 2], artistKeys: ['k'], name: 'a or b' },
       { kind: 'answer', text: 'calm', name: 'Calm' },
       { kind: 'songs', origin: 'gems', name: 'Forgotten gems' },
+      { kind: 'songs', origin: 'recent', name: 'Recently played' },
     ]
     for (const source of sources) {
       expect(parseListSource(JSON.parse(JSON.stringify(source)))).toEqual(source)

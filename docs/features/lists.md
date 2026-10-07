@@ -46,9 +46,10 @@ name for it and offers no Save, and Recently played shows it as that song.
 Every Play says what it is playing: `player.playFrom(ids, index, { source })` and
 `player.playShuffled(ids, source)` (`ListSource` in `lists.model.ts`). A tag, an artist, a
 playlist, tags combined, an answer to Ask, songs (similar to a song, songs you picked,
-forgotten gems, found by a search, songs that need a tag), or the whole library. Left out,
-Up next is nameless — a handoff from another device, the car. The source rides in the
-playback session (`player/session.model.ts`), so a reopened app comes back by the same name.
+forgotten gems, found by a search, songs that need a tag, Home's Recently played songs), or
+the whole library. Left out, Up next is nameless — a handoff from another device, the car.
+The source rides in the playback session (`player/session.model.ts`), so a reopened app
+comes back by the same name.
 
 The line is drawn from the source **as the library has it now**: a renamed tag shows its new
 name; a tag or playlist deleted while it plays reads "Late drive (deleted)", and Save comes
@@ -58,6 +59,8 @@ back for it. Tapping the line opens what it names.
 
 Shown only where saving would make something new (`savePlan`): never for a tag, an artist,
 a playlist or the whole library, which are places of their own, and never for one song.
+Nor for songs that need a tag, a chore rather than a list, or Home's Recently played songs,
+which Home already keeps (and which Recently played does not remember as a list of its own).
 
 - **Tags combined** make a playlist that fills from them (`followRules`), so new songs join.
 - **Anything else** makes a playlist of the songs in Up next as they are, in the list's own

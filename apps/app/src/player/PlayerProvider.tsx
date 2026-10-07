@@ -66,7 +66,6 @@ import { handleRemoteCommands } from './remoteCommands'
 import { useNowPlaying } from './useNowPlaying'
 import {
   createProgressStore,
-  createValueStore,
   differsBesidesClock,
   samePlayback,
   samePractice,
@@ -76,9 +75,10 @@ import {
   type PracticeState,
   type ProgressStore,
   type SongPlaybackState,
-  type ValueStore,
   type VolumeState,
 } from './progress.model'
+import { createValueStore, type ValueStore } from '../state/valueStore.model'
+import { useValueStore } from '../state/useValueStore'
 
 export type { PlayerProgress }
 
@@ -1158,7 +1158,7 @@ const STALL_SHOWS_AFTER_MS = 320
 /** Waiting on the network mid-song, which shows differently from paused. */
 export function usePlayerStalled(): boolean {
   const { stalled } = useStores()
-  return useSyncExternalStore(stalled.subscribe, stalled.get, stalled.get)
+  return useValueStore(stalled)
 }
 
 /**
@@ -1167,13 +1167,13 @@ export function usePlayerStalled(): boolean {
  */
 export function usePlayerVolume(): VolumeState {
   const { volume } = useStores()
-  return useSyncExternalStore(volume.subscribe, volume.get, volume.get)
+  return useValueStore(volume)
 }
 
 /** The loop, the count-in, the speed and the pitch lock, as they stand. */
 export function usePracticeState(): PracticeState {
   const { practice } = useStores()
-  return useSyncExternalStore(practice.subscribe, practice.get, practice.get)
+  return useValueStore(practice)
 }
 
 /** For a row drawn outside any player, such as a test: nothing is ever loaded. */

@@ -1,6 +1,7 @@
 import { activeTab } from '../ui/components/bottomNav.model'
 import { MOVE_MS } from '../ui/motion.model'
 import { addressOf } from './backGesture'
+import { FULL_SCREEN_ROUTES } from './fullScreen.model'
 
 /**
  * When the page steps in, and from which side (docs/ui-mock `M2`, 4 and `M3`, 5).
@@ -16,8 +17,6 @@ import { addressOf } from './backGesture'
 /** The phone's tabs, left to right, and Search's circle after them. */
 const PHONE_ORDER = ['/', '/library', '/playlists', '/search'] as const
 
-const OWN_ENTRANCE = ['/now-playing', '/welcome', '/storage', '/first-sync']
-
 /**
  * What a page change is counted by, or null for a page that does not count.
  *
@@ -27,7 +26,7 @@ const OWN_ENTRANCE = ['/now-playing', '/welcome', '/storage', '/first-sync']
  * from Home, and Settings from Profile, arrived instantly.
  */
 export function pageKey(pathname: string, wide: boolean, stackMoves = true): string | null {
-  if (OWN_ENTRANCE.includes(pathname)) return null
+  if (FULL_SCREEN_ROUTES.includes(pathname)) return null
   if (wide || !stackMoves) return pathname
   return activeTab(pathname) ?? (pathname === '/search' ? '/search' : null)
 }

@@ -1,4 +1,5 @@
 import { activeTab } from '../ui/components/bottomNav.model'
+import { GATE_ROUTES } from './fullScreen.model'
 
 /**
  * Which screens iOS's swipe-back gesture belongs on.
@@ -22,22 +23,20 @@ import { activeTab } from '../ui/components/bottomNav.model'
  * button. Nothing here changes either.
  */
 export function swipeBackAllowed(routeName: string): boolean {
-  if (GATES.includes(routeName)) return false
   const address = addressOf(routeName)
+  if (GATE_ROUTES.includes(address)) return false
   // A tab's own page is the one its tab points at; every other page a tab
   // lights — Settings under Profile, a playlist under Playlists — was pushed onto it.
   return activeTab(address) !== address
 }
 
-/**
- * The way in, which nothing is behind.
- *
- * Both replace the screen they leave rather than push onto it, so there is
- * usually nothing to pop; saying so anyway keeps a stray swipe on Welcome from
- * revealing the library it just turned away, and one on First sync from going
- * back to a Welcome that has already let the person in.
+/*
+ * The way in (`GATE_ROUTES`) has nothing behind it: each replaces the screen
+ * it leaves rather than pushing onto it, so there is usually nothing to pop;
+ * saying so anyway keeps a stray swipe on Welcome from revealing the library
+ * it just turned away, and one on First sync from going back to a Welcome
+ * that has already let the person in.
  */
-const GATES = ['welcome', 'storage', 'first-sync']
 
 /**
  * The address a route name draws: `index` is `/`, `playlists/index` and

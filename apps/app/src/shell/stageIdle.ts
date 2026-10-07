@@ -1,3 +1,5 @@
+import { createValueStore } from '../state/valueStore.model'
+
 /**
  * Whether Now Playing's Focus page has gone still.
  *
@@ -6,23 +8,8 @@
  * the moment anything moves, so the page says so here and the shell
  * listens.
  */
+const idle = createValueStore(false)
 
-let idle = false
-const listeners = new Set<() => void>()
-
-export function setStageIdle(next: boolean): void {
-  if (next === idle) return
-  idle = next
-  for (const listener of listeners) listener()
-}
-
-export function subscribeStageIdle(listener: () => void): () => void {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
-}
-
-export function stageIdle(): boolean {
-  return idle
-}
+export const setStageIdle = idle.set
+export const subscribeStageIdle = idle.subscribe
+export const stageIdle = idle.get

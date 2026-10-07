@@ -560,11 +560,6 @@ export class CloudSyncService {
     }
   }
 
-  /** Wait for a sign-in to finish or give up. For tests. */
-  async whenSignedIn(): Promise<void> {
-    while (this.#signIn) await new Promise(resolve => setTimeout(resolve, 5))
-  }
-
   /**
    * Connect a bucket to the signed-in Google account. The doorman tries the
    * key before it keeps it, and says what was wrong if it was. Throws
@@ -601,17 +596,10 @@ export class CloudSyncService {
       return
     }
     try {
+      // Asked without a code, the doorman only ever says whether one is waiting.
       const result = await this.#doorman.claim(signIn.attempt)
       if (this.#signIn !== signIn) return
-      if (result.status === 'code') {
-        this.#signIn = { ...signIn, needsCode: true }
-      } else if (result.status === 'signed-in') {
-        // A doorman from before sign-in codes.
-        this.#signIn = null
-        this.#logger.info('signed in to the cloud', { account: result.me.email })
-        this.#adoptAccount(result.token, result.me)
-        return
-      }
+      if (result.status === 'code') this.#signIn = { ...signIn, needsCode: true }
     } catch (error) {
       // Google takes its time and networks drop: keep asking until the deadline.
       this.#logger.debug('sign-in not claimed yet', { message: message(error) })

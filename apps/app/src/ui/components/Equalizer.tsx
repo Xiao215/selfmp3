@@ -1,16 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Easing, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { useAccent } from '../accent'
+import { useAccentColor } from '../accent'
 
 /**
  * The three bars that say a song is playing.
  *
- * The web does this with a CSS keyframe per bar and different durations, so
- * they drift out of step and never look mechanical. React Native has no
- * keyframes, so each bar gets its own looping Animated value with the same
- * three durations — 0.9s, 0.7s and 1.1s — which produces the same wander.
+ * Each bar has its own looping Animated value and its own duration — 0.9s,
+ * 0.7s and 1.1s — so they drift out of step and never look mechanical.
  *
  * Paused freezes them part-way rather than hiding them: a stopped equaliser
  * still says *this* is the song. It keeps going under Reduce Motion, on
@@ -38,8 +36,10 @@ export function Equalizer({
   color?: string
   size?: number
 }): ReactNode {
-  const accent = useAccent()
-  const barColor = color ?? accent.accent
+  // The accent only when no colour is given: a playing row always gives its
+  // own, and then the accent picker has nothing to say to it.
+  const accent = useAccentColor(color === undefined)
+  const barColor = color ?? accent
   // Created once, through state rather than a ref: these are read while
   // rendering, and a ref read during render is exactly what the compiler
   // objects to — correctly, since a ref is not a render input.
@@ -118,24 +118,25 @@ export function Equalizer({
     }
   }, [paused, bars])
 
+  // Full height, scaled down from its foot: 2 points to `size`. Built once per
+  // size, not per render: an interpolation made in the render is a new node
+  // handed to the native driver every time the row around it re-renders.
+  const shapes = useMemo(
+    () =>
+      bars.map(bar => ({
+        height: size,
+        transformOrigin: 'bottom',
+        transform: [
+          { scaleY: bar.interpolate({ inputRange: [0, 1], outputRange: [2 / size, 1] }) },
+        ],
+      })),
+    [bars, size],
+  )
+
   return (
     <View style={[styles.row, { height: size }]}>
-      {bars.map((bar, index) => (
-        <Animated.View
-          key={index}
-          style={[
-            styles.bar,
-            {
-              backgroundColor: barColor,
-              // Full height, scaled down from its foot: 2 points to `size`, as before.
-              height: size,
-              transformOrigin: 'bottom',
-              transform: [
-                { scaleY: bar.interpolate({ inputRange: [0, 1], outputRange: [2 / size, 1] }) },
-              ],
-            },
-          ]}
-        />
+      {shapes.map((shape, index) => (
+        <Animated.View key={index} style={[styles.bar, shape, { backgroundColor: barColor }]} />
       ))}
     </View>
   )

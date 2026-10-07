@@ -1,13 +1,21 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import type { ReactNode } from 'react'
 import { buildAccent, currentColorScheme, DEFAULT_ACCENT_HUE, type Accent } from '@selfmp3/client'
 
 import { setAppIconHue } from '../ports/appIcon'
 import { prefs } from '../ports/prefs'
 import { ACCENT_KEY, readHue, readTheme, THEME_KEY, type ThemeChoice } from './appearancePrefs'
-import { applyAccentHue, applyThemeChoice, onSchemeChange } from './theme/unistyles'
-
-export type { ThemeChoice }
+import { applyAccentHue, applyThemeChoice, useShownScheme } from './theme/unistyles'
 
 /**
  * This device's accent colour.
@@ -102,26 +110,64 @@ export function AccentProvider({ children }: { children: ReactNode }): ReactNode
   }, [])
 
   const [theme, setThemeState] = useState<ThemeChoice>(readTheme)
-  const setTheme = useCallback(
-    (next: ThemeChoice) => {
-      setThemeState(next)
-      prefs.set(THEME_KEY, next)
-      applyThemeChoice(next, hue)
-    },
-    [hue],
-  )
+  const setTheme = useCallback((next: ThemeChoice) => {
+    setThemeState(next)
+    prefs.set(THEME_KEY, next)
+    applyThemeChoice(next)
+  }, [])
 
   // The accent's shades differ between dark and light, and "System" can flip
   // the scheme with nobody touching this provider.
-  const [scheme, setScheme] = useState(currentColorScheme)
-  useEffect(() => onSchemeChange(setScheme), [])
+  const scheme = useShownScheme()
 
   const value = useMemo<AccentApi>(
     () => ({ hue, setHue, theme, setTheme, ...buildAccent(hue, scheme) }),
     [hue, setHue, theme, setTheme, scheme],
   )
 
+  // The accent colour for the few that read it outside this context, so that
+  // only they hear a change (`useAccentColor`).
+  useLayoutEffect(() => publishAccentColor(value.accent), [value.accent])
+
   return <AccentContext.Provider value={value}>{children}</AccentContext.Provider>
+}
+
+/*
+ * The accent colour, outside React's context. Everything that reads the
+ * context re-renders on every frame of a drag on the accent picker, which is
+ * right for a screen's few controls and wrong for a list: every song row asks
+ * for its playing colour, and only one of them is playing. `useAccentColor`
+ * reads this instead, and a row that is not asking does not hear it change.
+ */
+let accentColor: string | null = null
+const accentListeners = new Set<() => void>()
+
+function publishAccentColor(next: string): void {
+  if (next === accentColor) return
+  accentColor = next
+  for (const listener of accentListeners) listener()
+}
+
+function subscribeAccent(listener: () => void): () => void {
+  accentListeners.add(listener)
+  return () => accentListeners.delete(listener)
+}
+
+/** Before the provider has published one: the hue it is about to start from. */
+function readAccentColor(): string {
+  accentColor ??= buildAccent(readHue(), currentColorScheme()).accent
+  return accentColor
+}
+
+/**
+ * The accent colour, or `fallback` while `wanted` is false — and while it is
+ * false, no re-render when the accent changes. For a component of which there
+ * are hundreds and which needs the accent only now and then: a song row needs
+ * it only while it is the playing one.
+ */
+export function useAccentColor(wanted = true, fallback = ''): string {
+  const read = useCallback(() => (wanted ? readAccentColor() : fallback), [wanted, fallback])
+  return useSyncExternalStore(subscribeAccent, read, read)
 }
 
 /**

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { neutralWash, songColors, tileTone, type SongColors } from '@selfmp3/client'
 import { hasColour, hueFromString, pickCoverTone, type CoverTone, type Song } from '@selfmp3/shared'
 import { readCoverPixels } from '../ports/coverPixels'
-import { useAccent } from './accent'
+import { useAccentColor } from './accent'
 
 /* Covers read on this device: one read per key for the session. */
 const tones = new Map<string, CoverTone | null>()
@@ -51,10 +51,18 @@ function useCoverTone(
  * keeps the accent for the text, so it still reads as playing, not selected.
  *
  * Only asked for the song that is playing — its row, the player bar, the mini
- * player — never for a whole list.
+ * player — never for a whole list. A list's row passes `needed` false while
+ * it is not the playing one, and then hears nothing, the accent picker
+ * included: the accent is read from its own store (`useAccentColor`), and
+ * only while it is needed. What comes back then is not a colour to draw.
  */
-export function useSongColor(song: Song | null, uri: string | null | undefined): SongColors {
-  const accent = useAccent()
+export function useSongColor(
+  given: Song | null,
+  uri: string | null | undefined,
+  needed = true,
+): SongColors {
+  const song = needed ? given : null
+  const accent = useAccentColor(needed)
   const sent = song?.coverTone ?? null
   const read = useCoverTone(
     song ? `${song.id}:${song.rev}` : null,
@@ -63,7 +71,7 @@ export function useSongColor(song: Song | null, uri: string | null | undefined):
   )
 
   if (song && !song.hasArt) return songColors(tileTone(hueFromString(song.album || song.title)))
-  return colorsOf(sent ?? read, accent.accent)
+  return colorsOf(sent ?? read, accent)
 }
 
 function colorsOf(tone: CoverTone | null, accent: string): SongColors {
@@ -77,5 +85,5 @@ function colorsOf(tone: CoverTone | null, accent: string): SongColors {
  * accent until there is one, or where the cover has no colour of its own.
  */
 export function useToneColors(tone: CoverTone | null): SongColors {
-  return colorsOf(tone, useAccent().accent)
+  return colorsOf(tone, useAccentColor())
 }

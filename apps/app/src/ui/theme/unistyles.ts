@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from 'react'
 import { Appearance } from 'react-native'
 import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles'
 import {
@@ -54,7 +55,8 @@ StyleSheet.configure({
 // follow the theme on screen, for the few things drawn outside a stylesheet.
 applyColorScheme(resolveScheme(choice, Appearance.getColorScheme()), hue)
 
-const listeners = new Set<(scheme: ColorScheme) => void>()
+/** Whatever draws a colour worked out in JavaScript, told when the scheme changes. */
+const listeners = new Set<() => void>()
 
 /**
  * The hue each theme was last built at, so neither is rebuilt for a hue it
@@ -74,16 +76,7 @@ function show(scheme: ColorScheme, accentHue: number): void {
   recolour(scheme, accentHue)
   UnistylesRuntime.setTheme(scheme)
   applyColorScheme(scheme, accentHue)
-  for (const listener of listeners) listener(scheme)
-}
-
-/**
- * Hear about every change of the scheme on screen, for colours worked out in
- * JavaScript rather than in a stylesheet. Returns the unsubscribe.
- */
-export function onSchemeChange(listener: (scheme: ColorScheme) => void): () => void {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
+  for (const listener of listeners) listener()
 }
 
 // "System" changes with the device: the OS at dusk, or a browser's own setting.
@@ -93,10 +86,24 @@ Appearance.addChangeListener(({ colorScheme }) => {
   if (scheme !== currentColorScheme()) show(scheme, currentHue)
 })
 
+/**
+ * The scheme on screen, re-rendering the caller when it changes: for colours
+ * worked out in JavaScript (`tagColors`, `buildAccent`) rather than read from
+ * a stylesheet, which Unistyles restyles by itself.
+ */
+export function useShownScheme(): ColorScheme {
+  return useSyncExternalStore(subscribeScheme, currentColorScheme, currentColorScheme)
+}
+
+function subscribeScheme(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
 /** Show a theme now: dark, light, or whatever the device itself is set to. */
-export function applyThemeChoice(next: ThemeChoice, accentHue: number): void {
+export function applyThemeChoice(next: ThemeChoice): void {
   choice = next
-  show(resolveScheme(next, Appearance.getColorScheme()), accentHue)
+  show(resolveScheme(next, Appearance.getColorScheme()), currentHue)
 }
 
 /**

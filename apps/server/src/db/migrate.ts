@@ -16,6 +16,14 @@ import { messageOf } from '../util/errors.js'
 interface Migration {
   readonly name: string
   readonly sql: string
+  /**
+   * Run with foreign keys off: a migration that rebuilds a table other tables
+   * point at (SQLite's twelve-step ALTER TABLE). With them on, dropping the
+   * old table deletes every row that points at it, by cascade. They cannot be
+   * switched inside a transaction, so `apply` switches them around it, and
+   * checks every reference still holds before it commits.
+   */
+  readonly foreignKeysOff?: true
 }
 
 /** Where the migrations `SCHEMA` replaced left off, so no database has to be made again. */
@@ -588,6 +596,139 @@ const MIGRATIONS: readonly Migration[] = [
       UPDATE songs SET has_art = 0 WHERE has_art = 1 AND art_ext IS NULL;
     `,
   },
+  {
+    // Every song, tag and playlist gets its uid as it is made, from the
+    // column's own default, and can never be without one. The uid triggers
+    // filled it in just after the insert, which left the column nullable and
+    // the code checking for a null nothing ever kept. ALTER TABLE cannot give a
+    // column a NOT NULL or a random default, so each table is made again under
+    // a new name, filled, swapped in, and given back its indexes and the
+    // triggers that are not the uid ones. Column order is unchanged.
+    name: 'every song, tag and playlist has a uid from the start',
+    foreignKeysOff: true,
+    sql: `
+      CREATE TABLE songs_new (
+        id             INTEGER PRIMARY KEY,
+        path           TEXT    NOT NULL UNIQUE,
+        title          TEXT    NOT NULL,
+        artist         TEXT    NOT NULL DEFAULT '',
+        album          TEXT    NOT NULL DEFAULT '',
+        album_artist   TEXT    NOT NULL DEFAULT '',
+        track_no       INTEGER,
+        year           INTEGER,
+        duration       REAL    NOT NULL DEFAULT 0,
+        size_bytes     INTEGER NOT NULL DEFAULT 0,
+        mime           TEXT    NOT NULL DEFAULT 'audio/mp4',
+        mtime_ms       INTEGER NOT NULL DEFAULT 0,
+        has_art        INTEGER NOT NULL DEFAULT 0,
+        art_ext        TEXT,
+        lyrics_kind    TEXT    NOT NULL DEFAULT 'none',
+        play_count     INTEGER NOT NULL DEFAULT 0,
+        loved          INTEGER NOT NULL DEFAULT 0,
+        -- The link an import came from: how its own timed lyrics are found.
+        source_url     TEXT,
+        last_played_at TEXT,
+        added_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+        updated_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+        art_rev        INTEGER NOT NULL DEFAULT 0,
+        -- Set when lrclib says a track has no words, or when you mark it so. Not a
+        -- lyrics_kind value, because the scanner rewrites that column from the
+        -- files on every rescan, and smart playlists read lyrics_kind != 'none' as
+        -- "has lyrics".
+        instrumental   INTEGER NOT NULL DEFAULT 0,
+        -- How the song is known outside this database (docs/SYNC.md). The integer
+        -- id stays a local handle: SQLite reuses ids after a delete, and another
+        -- device would hand out the same numbers.
+        uid            TEXT    NOT NULL DEFAULT (lower(hex(randomblob(16)))),
+        -- The cover's most vivid colour, picked from a 24×24 drawing of it so no
+        -- device has to decode the image to draw the playing song in it, and the
+        -- handful of colours it is made of (JSON, most of the cover first), which
+        -- the no-lyrics visuals draw in. cover_tone_rev is the art_rev they were
+        -- picked from: a new cover makes them stale. A cover with no colour in it
+        -- keeps a null hue with the revision set, so it is not read again.
+        cover_hue      REAL,
+        cover_chroma   REAL,
+        cover_tone_rev INTEGER,
+        cover_palette  TEXT
+      );
+      INSERT INTO songs_new (
+        id, path, title, artist, album, album_artist, track_no, year, duration, size_bytes,
+        mime, mtime_ms, has_art, art_ext, lyrics_kind, play_count, loved, source_url,
+        last_played_at, added_at, updated_at, art_rev, instrumental, uid, cover_hue,
+        cover_chroma, cover_tone_rev, cover_palette
+      )
+      SELECT
+        id, path, title, artist, album, album_artist, track_no, year, duration, size_bytes,
+        mime, mtime_ms, has_art, art_ext, lyrics_kind, play_count, loved, source_url,
+        last_played_at, added_at, updated_at, art_rev, instrumental,
+        coalesce(uid, lower(hex(randomblob(16)))), cover_hue,
+        cover_chroma, cover_tone_rev, cover_palette
+      FROM songs;
+      DROP TABLE songs;
+      ALTER TABLE songs_new RENAME TO songs;
+      CREATE INDEX idx_songs_added  ON songs(added_at DESC);
+      CREATE INDEX idx_songs_artist ON songs(artist COLLATE NOCASE);
+      CREATE INDEX idx_songs_album  ON songs(album COLLATE NOCASE);
+      CREATE INDEX idx_songs_plays  ON songs(play_count DESC);
+      CREATE INDEX idx_songs_source ON songs(source_url) WHERE source_url IS NOT NULL;
+      CREATE INDEX idx_songs_size   ON songs(size_bytes);
+      CREATE UNIQUE INDEX idx_songs_uid ON songs(uid);
+      CREATE TRIGGER lyrics_fts_song_delete AFTER DELETE ON songs BEGIN
+        DELETE FROM lyrics_fts WHERE song_id = old.id;
+      END;
+      CREATE TRIGGER sync_stamps_song_delete AFTER DELETE ON songs BEGIN
+        DELETE FROM sync_stamps WHERE kind IN ('song','songTag') AND uid = old.uid;
+        DELETE FROM sync_stamps WHERE kind = 'playlistSong' AND field = old.uid;
+      END;
+
+      CREATE TABLE tags_new (
+        id         INTEGER PRIMARY KEY,
+        name       TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+        hue        INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+        uid        TEXT    NOT NULL DEFAULT (lower(hex(randomblob(16))))
+      );
+      INSERT INTO tags_new (id, name, hue, created_at, uid)
+      SELECT id, name, hue, created_at, coalesce(uid, lower(hex(randomblob(16)))) FROM tags;
+      DROP TABLE tags;
+      ALTER TABLE tags_new RENAME TO tags;
+      CREATE UNIQUE INDEX idx_tags_uid ON tags(uid);
+      CREATE TRIGGER sync_stamps_tag_delete AFTER DELETE ON tags BEGIN
+        DELETE FROM sync_stamps WHERE kind = 'tag' AND uid = old.uid;
+        DELETE FROM sync_stamps WHERE kind = 'songTag' AND field = old.uid;
+      END;
+
+      CREATE TABLE playlists_new (
+        id             INTEGER PRIMARY KEY,
+        name           TEXT    NOT NULL,
+        description    TEXT    NOT NULL DEFAULT '',
+        kind           TEXT    NOT NULL DEFAULT 'manual' CHECK (kind IN ('manual','live')),
+        rules          TEXT,
+        pinned         INTEGER NOT NULL DEFAULT 0,
+        created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+        updated_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+        uid            TEXT    NOT NULL DEFAULT (lower(hex(randomblob(16)))),
+        -- Set when a playlist is started as one (Play, Shuffle, a row in it), so
+        -- the playlists page can put the ones in use first. Not synced: it moves
+        -- on every play, and an edit stamp for it would put a playlist in every
+        -- device's log each time music started.
+        last_played_at TEXT
+      );
+      INSERT INTO playlists_new (
+        id, name, description, kind, rules, pinned, created_at, updated_at, uid, last_played_at
+      )
+      SELECT
+        id, name, description, kind, rules, pinned, created_at, updated_at,
+        coalesce(uid, lower(hex(randomblob(16)))), last_played_at
+      FROM playlists;
+      DROP TABLE playlists;
+      ALTER TABLE playlists_new RENAME TO playlists;
+      CREATE UNIQUE INDEX idx_playlists_uid ON playlists(uid);
+      CREATE TRIGGER sync_stamps_playlist_delete AFTER DELETE ON playlists BEGIN
+        DELETE FROM sync_stamps WHERE kind IN ('playlist','playlistSong') AND uid = old.uid;
+      END;
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */
@@ -624,15 +765,25 @@ export function migrate(db: Database, logger: Logger): void {
 function apply(db: Database, logger: Logger, version: number, migration: Migration): void {
   logger.info(`applying migration ${version}: ${migration.name}`)
 
+  // Only outside a transaction does this take: inside one it is silently ignored.
+  const foreignKeys = db.pragma('foreign_keys', { simple: true }) as number
+  if (migration.foreignKeysOff) db.pragma('foreign_keys = OFF')
+
   // better-sqlite3 cannot run DDL inside its transaction() wrapper reliably
   // when the statements include CREATE VIRTUAL TABLE, so drive it manually.
   db.exec('BEGIN')
   try {
     db.exec(migration.sql)
+    if (migration.foreignKeysOff) {
+      const broken = db.pragma('foreign_key_check') as unknown[]
+      if (broken.length > 0) throw new Error(`${broken.length} references no longer hold`)
+    }
     db.pragma(`user_version = ${version}`)
     db.exec('COMMIT')
   } catch (error) {
     db.exec('ROLLBACK')
     throw new Error(`Migration ${version} (${migration.name}) failed: ` + messageOf(error))
+  } finally {
+    if (migration.foreignKeysOff) db.pragma(`foreign_keys = ${foreignKeys ? 'ON' : 'OFF'}`)
   }
 }

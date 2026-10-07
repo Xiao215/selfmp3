@@ -10,14 +10,9 @@ import type {
  * The one client this app is using, and where it keeps its offline copy.
  *
  * Held at module scope rather than passed through a React context, which is a
- * deliberate trade. Both apps already kept exactly one `api` as a module export
- * and imported it directly, so this is where it already lived; keeping it there
- * is what let the 27 query hooks move across verbatim instead of each growing a
- * `useClient()` line, and 27 hand edits is 27 chances to change one.
- *
- * It also means the download queue and the playback service can make requests,
- * which they do today from outside the component tree where there is no context
- * to read.
+ * deliberate trade. The query hooks read it without each growing a
+ * `useClient()` line, and the download queue and the playback service can make
+ * requests from outside the component tree, where there is no context to read.
  *
  * What it costs: two clients in one process is not possible, and a test has to
  * configure and reset rather than wrap. Neither has come up. If the universal

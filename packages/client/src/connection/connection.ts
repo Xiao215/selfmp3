@@ -1,9 +1,8 @@
 /**
  * Where the server is, and how to make sense of what someone typed.
  *
- * The reading and writing stay in the phone app because `expo-secure-store` is
- * the phone's; the *rules* live here because they are not, and because the
- * app needs exactly the same ones in a browser.
+ * Where the address is kept is the app's (its `secrets` port, per platform);
+ * the *rules* live here, because every platform needs exactly the same ones.
  */
 
 import type { ApiTransport } from '../platform.js'
@@ -90,12 +89,9 @@ export function normaliseBaseUrl(input: string): string | null {
 }
 
 /**
- * The transport for a phone-shaped client: an absolute address it was told
- * about, with a bearer token if the server has one.
- *
- * The browser does not use this — it talks to its own origin under a base path
- * and carries no credentials, because Tailscale is the security boundary — so
- * this is the one place the two genuinely differ, and it is eight lines.
+ * The transport to a server: an absolute address this device was told about,
+ * with a bearer token if the server has one. Every platform reaches a server
+ * this way; only how a request times out is the app's (`ClientFetch`).
  */
 export function serverTransport(connection: ServerConnection): ApiTransport {
   const token = connection.token

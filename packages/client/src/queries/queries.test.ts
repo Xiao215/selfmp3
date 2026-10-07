@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Library, Playlist, PlaylistSongs, Song } from '@selfmp3/shared'
 import type { Api } from '../api/api.js'
 import { configureClient } from '../runtime.js'
-import { queryKeys, useCreateTag, useDeleteSong, useSetSongTags } from './queries.js'
+import { queryKeys, useBulkDeleteSongs, useCreateTag, useSetSongTags } from './queries.js'
 
 /*
  * What an edit asks for again, checked at the cache: a playlist's member list
@@ -60,7 +60,7 @@ const manual = playlist(21)
 configureClient({
   api: {
     setSongTags: (id: number, tagIds: number[]) => Promise.resolve(song(id, { tagIds })),
-    deleteSong: () => Promise.resolve({ ok: true }),
+    bulkDeleteSongs: () => Promise.resolve({ removed: 1, failed: [] }),
     createTag: ({ name }: { name: string }) =>
       Promise.resolve({ id: 12, name, hue: 0, songCount: 0 }),
     onCloudLibraryChanged: () => () => undefined,
@@ -133,12 +133,12 @@ describe('useSetSongTags', () => {
   })
 })
 
-describe('useDeleteSong', () => {
+describe('useBulkDeleteSongs', () => {
   it('asks for the members again whether or not a playlist is live', async () => {
     const client = seeded([manual])
-    const mutation = mount(client, useDeleteSong)
+    const mutation = mount(client, useBulkDeleteSongs)
 
-    await act(() => mutation().mutateAsync(1))
+    await act(() => mutation().mutateAsync({ songIds: [1] }))
 
     expect(invalidated(client, queryKeys.playlistSongs(manual.id))).toBe(true)
     expect(invalidated(client, queryKeys.library)).toBe(true)

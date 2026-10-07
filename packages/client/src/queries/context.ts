@@ -19,7 +19,10 @@ export interface ClientState {
   readonly ready: boolean
 }
 
-const ClientStateContext = createContext<ClientState>({ ready: true })
+const READY: ClientState = { ready: true }
+const NOT_READY: ClientState = { ready: false }
+
+const ClientStateContext = createContext<ClientState>(READY)
 
 export function ClientStateProvider({
   ready,
@@ -30,7 +33,9 @@ export function ClientStateProvider({
 }): ReactElement {
   // `createElement` rather than JSX: this package compiles without the DOM, and
   // a .ts file keeps it honest about being platform-free.
-  return createElement(ClientStateContext.Provider, { value: { ready } }, children)
+  // One object per state, so a render of the provider that changes nothing
+  // re-renders none of the hooks that read it.
+  return createElement(ClientStateContext.Provider, { value: ready ? READY : NOT_READY }, children)
 }
 
 /**

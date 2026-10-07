@@ -152,21 +152,8 @@ const DARK = {
 
 export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
   return {
-    surface0: DARK.surface0,
-    surface1: DARK.surface1,
-    surface2: DARK.surface2,
-    surface3: DARK.surface3,
-    surfaceSelected: DARK.surfaceSelected,
-    textPrimary: DARK.textPrimary,
-    textSecondary: DARK.textSecondary,
-    textMuted: DARK.textMuted,
+    ...DARK,
     ...buildAccent(hue, 'dark'),
-    danger: DARK.danger,
-    warning: DARK.warning,
-    good: DARK.good,
-    remove: DARK.remove,
-    border: DARK.border,
-    borderStrong: DARK.borderStrong,
     /** Ink on the white primary fill: the round Play, a chosen chip, the active tab. */
     onPrimary: DARK.surface0,
     /**

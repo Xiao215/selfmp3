@@ -23,6 +23,21 @@ import type { ServerEventStream } from '@selfmp3/client'
 const FIRST_RETRY_MS = 1_000
 const MAX_RETRY_MS = 30_000
 
+/**
+ * How much one connection may carry before it is opened afresh.
+ *
+ * XHR keeps the whole response since the stream opened — `responseText` in
+ * JS and the bytes behind it natively — and nothing frees either until the
+ * connection ends. The server sends every device's state on every heartbeat,
+ * every ten seconds from each device, and the stream stays up all the while
+ * music plays in a pocket, so a long evening's listening grew it by megabytes
+ * an hour and made each event's scan longer than the last: the lag that came
+ * with a long session, and memory iOS kills a background app for (Xiao,
+ * 2026-10-07). A new connection starts empty, and the server replays the
+ * current state to it as its first frames, so nothing is missed.
+ */
+export const RECYCLE_AFTER_CHARS = 128 * 1024
+
 export const serverEvents: ServerEventStream = {
   open({ url, onEvent, onOpen, onClose }) {
     let closed = false
@@ -40,9 +55,22 @@ export const serverEvents: ServerEventStream = {
       let consumed = 0
       let opened = false
 
+      /*
+       * Once per connection, and only for the one this stream is reading. A
+       * failed XHR reports itself twice — readyState 4 and then `onerror` (or
+       * `ontimeout`) — and each used to schedule a connection of its own, so
+       * every drop doubled the streams: a phone that slept and woke through an
+       * evening held six at once, iOS's limit for one host, and every other
+       * request to the server queued behind them until it timed out. The app
+       * said the server could not be reached while it answered, tags did not
+       * save, and each stream kept its own growing response (Xiao, 2026-10-07).
+       */
+      let ended = false
       const scheduleRetry = (): void => {
-        if (closed) return
+        if (closed || ended || request !== xhr) return
+        ended = true
         onClose()
+        if (timer !== null) clearTimeout(timer)
         timer = setTimeout(connect, retryMs)
         retryMs = Math.min(retryMs * 2, MAX_RETRY_MS)
       }
@@ -69,7 +97,24 @@ export const serverEvents: ServerEventStream = {
           boundary = text.indexOf('\n\n', consumed)
         }
 
-        if (xhr.readyState === 4) scheduleRetry()
+        if (xhr.readyState === 4) {
+          scheduleRetry()
+          return
+        }
+        // Long enough: open a fresh one now and let this one go, without a
+        // close in between — the stream never went down, so nobody falls back
+        // to polling for the moment it takes.
+        if (consumed >= RECYCLE_AFTER_CHARS) {
+          xhr.onreadystatechange = null
+          xhr.onerror = null
+          xhr.ontimeout = null
+          try {
+            xhr.abort()
+          } catch {
+            // Already finished; nothing to abort.
+          }
+          connect()
+        }
       }
 
       xhr.onerror = scheduleRetry

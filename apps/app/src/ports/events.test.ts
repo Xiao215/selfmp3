@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ServerEventSchema, type ServerEvent } from '@selfmp3/shared'
 
-import { serverEvents } from './events'
+import { RECYCLE_AFTER_CHARS, serverEvents } from './events'
 
 /**
  * The phone's server-sent-events reader, without a phone.
@@ -170,6 +170,44 @@ describe('the phone reading the server’s event stream', () => {
     expect(FakeXhr.instances).toHaveLength(2)
     vi.advanceTimersByTime(1)
     expect(FakeXhr.instances).toHaveLength(3)
+  })
+
+  it('reconnects once for a drop the XHR reports twice, so streams never multiply', () => {
+    current().respond()
+    const dropped = current()
+    // A failed request ends (readyState 4) and then errors: one drop.
+    dropped.end()
+    dropped.onerror?.()
+    dropped.ontimeout?.()
+    expect(closes).toBe(1)
+    vi.advanceTimersByTime(60_000)
+    expect(FakeXhr.instances).toHaveLength(2)
+
+    // The next one drops the same way, and is still replaced by one.
+    current().end()
+    current().onerror?.()
+    vi.advanceTimersByTime(60_000)
+    expect(FakeXhr.instances).toHaveLength(3)
+  })
+
+  it('opens a fresh connection once one has carried enough, without saying it closed', () => {
+    const event = validEvent()
+    current().respond()
+    const first = current()
+    const ping = ': ping\n\n'
+    first.push(ping.repeat(Math.ceil(RECYCLE_AFTER_CHARS / ping.length)))
+    expect(first.aborted).toBe(true)
+    expect(FakeXhr.instances).toHaveLength(2)
+    expect(closes).toBe(0)
+    // The old one's end is not a drop: it schedules nothing.
+    first.end()
+    vi.advanceTimersByTime(60_000)
+    expect(FakeXhr.instances).toHaveLength(2)
+    expect(closes).toBe(0)
+    // And the new one reads from its own start.
+    current().respond()
+    current().push(frame(event))
+    expect(events).toEqual([event])
   })
 
   it('stops for good when closed: aborts the request and never reconnects', () => {

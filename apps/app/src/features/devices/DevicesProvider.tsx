@@ -290,6 +290,10 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
 
   // --- incoming: the stream ------------------------------------------------
 
+  // The library version the stream last said. Every new connection says it
+  // first thing, and a phone in a pocket reconnects often: the same number
+  // again is nothing new, and refetching the whole library for it was.
+  const libraryVersion = useRef<number | null>(null)
   const onEvent = useCallback(
     (event: ServerEvent): void => {
       switch (event.type) {
@@ -300,6 +304,8 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
           if (event.deviceId === identityRef.current.deviceId) executeRef.current(event.command)
           return
         case 'library':
+          if (libraryVersion.current === event.version) return
+          libraryVersion.current = event.version
           void client.invalidateQueries({ queryKey: queryKeys.library })
           return
       }

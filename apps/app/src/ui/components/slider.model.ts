@@ -1,6 +1,9 @@
+import { oklchToHex } from '@selfmp3/client'
+
 /**
  * A slider's arithmetic, shared by both of its drawings: where along the track
- * a value sits, and which value a point on the track means.
+ * a value sits, and which value a point on the track means — and the colours
+ * of the rainbow track the accent is chosen from.
  */
 
 interface SliderRange {
@@ -23,3 +26,15 @@ export function fractionOf(value: number, { min, max }: SliderRange): number {
   if (max <= min) return 0
   return Math.max(0, Math.min(1, (value - min) / (max - min)))
 }
+
+/**
+ * The rainbow track's stops, worked out once. The track does not follow the
+ * accent — it is what the accent is being chosen from — so these are the same
+ * seven colours on every frame of a drag.
+ */
+export const HUE_STOPS: readonly { readonly hue: number; readonly color: string }[] = [
+  0, 60, 120, 180, 240, 300, 360,
+].map(hue => ({ hue, color: oklchToHex(0.72, 0.16, hue) }))
+
+/** What a screen reader can do to a slider or the seek bar: a step either way. */
+export const ADJUST_ACTIONS = [{ name: 'increment' }, { name: 'decrement' }] as const

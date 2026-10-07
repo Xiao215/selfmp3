@@ -103,11 +103,17 @@ export function Sheet({
   // while it is up — the tag picker's list shortens as you type — and without
   // this the rise would play again every time it did.
   const risen = useRef(false)
+  // Whether it has been open since it last went down: a sheet that has never
+  // been opened has no exit to play. Most are mounted closed — every list's
+  // song menu, its tag picker — and each one sent two moves on mount.
+  const up = useRef(false)
   // Escape closes it on the web. Nothing on a phone.
   useEscape(open, onClose, { layer: true })
 
   useEffect(() => {
     if (!open) {
+      if (!up.current) return
+      up.current = false
       // Back down from wherever it is, including wherever a pull left it: the
       // pull runs out on the same curve and clock as the exit, so a panel let
       // go of part-way down carries on down rather than snapping up first.
@@ -118,6 +124,7 @@ export function Sheet({
       })
       return
     }
+    up.current = true
     // A phone's sheet rises by its own height and cannot start until it has
     // been measured; a computer's window only fades and settles, and can.
     if (risen.current || (!wide && !measured)) return
@@ -426,7 +433,7 @@ const styles = StyleSheet.create(theme => ({
   itemActive: {
     backgroundColor: theme.colors.surface2,
   },
-  /* `.popover-item`: 8 by 10, 13-point type, where there is a mouse. */
+  /* In a panel with a mouse: 8 by 10, 13-point type. */
   itemDense: {
     minHeight: 0,
     gap: 9,

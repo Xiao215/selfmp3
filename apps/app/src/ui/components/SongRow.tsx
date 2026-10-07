@@ -1,12 +1,24 @@
 import { memo, useId, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { Animated, Pressable, Text, View, useWindowDimensions } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { GestureResponderEvent, StyleProp, ViewStyle } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { formatDuration, type Song, type Tag } from '@selfmp3/shared'
 import { HIT_TARGET, motion, radius, space, tagColors, type } from '@selfmp3/client'
-import { chipBudget, fitTags, rememberChipWidth, TAG_CHIP_MAX_WIDTH, useChipWidth } from './rowTags'
+import {
+  chipBudget,
+  CHIP_DOT,
+  CHIP_FONT_SIZE,
+  CHIP_PADDING_X,
+  rememberChipWidth,
+  TAG_ADD_WIDTH,
+  TAG_CHIP_MAX_WIDTH,
+  TAG_GAP,
+  TAG_SLOT_PADDING_LEFT,
+  TAG_SLOT_WIDTH,
+  useFittedTags,
+} from './rowTags'
 import { useSongPlayback } from '../../player/PlayerProvider'
 import { useSongDragSource } from '../../ports/songDrag'
 import { useContentWidth } from '../../shell/contentWidth'
@@ -17,8 +29,9 @@ import { useSongColor } from '../useSongColor'
 import { Checkbox } from './Checkbox'
 import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
-import { spring, useFade, usePresence } from '../motion'
+import { useFade, usePresence, usePressScale } from '../motion'
 import { EASE_OUT_CSS, MOVE_MS, PRESS } from '../motion.model'
+import { useShownScheme } from '../theme/unistyles'
 import { floating } from '../surfaces'
 import { Downloaded, More, NotDownloaded, Play, Plus } from './Icons'
 
@@ -61,11 +74,11 @@ const TAG_CHIPS_CONTENT_WIDTH = 520
  * loaded song is asked of the player by the row itself (`useSongPlayback`)
  * rather than handed down, which would redraw every row on every song change.
  *
- * A playlist's rows are these rows. What a playlist adds — a grip to drag by,
- * the lifted look while a row is being moved — arrives as `leading` and
- * `lifted`, so there is one song row in the app and not one per page; the
- * rows it passes make room for it themselves. Taking a song off a playlist is in its ⋯ menu,
- * where every other thing done to a song already is.
+ * A playlist's rows are these rows. What a playlist adds — the lifted look
+ * while a row is being moved — arrives as `lifted`, so there is one song row
+ * in the app and not one per page; the rows it passes make room for it
+ * themselves. Taking a song off a playlist is in its ⋯ menu, where every
+ * other thing done to a song already is.
  */
 export const SongRow = memo(function SongRow({
   testID,
@@ -74,7 +87,6 @@ export const SongRow = memo(function SongRow({
   active: activeOverride,
   downloaded,
   notDownloadedMark = false,
-  playing: playingOverride,
   onPress,
   onMore,
   selecting = false,
@@ -87,7 +99,6 @@ export const SongRow = memo(function SongRow({
   onLongPress,
   menuOpen = false,
   unavailable = false,
-  leading,
   lifted = false,
 }: {
   /** Named so a flow can tap a row by position: `song-row-0`. */
@@ -102,8 +113,6 @@ export const SongRow = memo(function SongRow({
    * such a song may not play; a browser streams, and leaves it unmarked.
    */
   notDownloadedMark?: boolean
-  /** Whether the song is the one actually sounding, for the equaliser. Left out, the player says. */
-  playing?: boolean
   /**
    * The press event comes through, so a list can read Shift and Cmd on the web.
    * So does the song, so one handler can serve every row.
@@ -151,17 +160,12 @@ export const SongRow = memo(function SongRow({
    * server is not answering. Drawn faded, as a song whose file is missing is.
    */
   unavailable?: boolean
-  /**
-   * Drawn at the very start of the row, before the checkbox: a playlist's grip.
-   * Memoise it at the call site, or the row's memo stops holding.
-   */
-  leading?: ReactNode
   /** This row is the one being moved, so it rides above its neighbours. */
   lifted?: boolean
 }): ReactNode {
   const playback = useSongPlayback(song.id)
   const active = activeOverride ?? playback !== null
-  const playing = playingOverride ?? playback === 'playing'
+  const playing = playback === 'playing'
   // The wash and the equaliser, arriving as this row becomes the playing one
   // and leaving as it stops (`M2`, 5): in from the right over 260 ms, back out
   // over a short fade, and drawn for as long as the leaving takes. A row that
@@ -170,8 +174,9 @@ export const SongRow = memo(function SongRow({
   const wash = usePresence(active, MOVE_MS.wash, motion.base)
   // The playing row wears its cover's colour, and keeps it while its wash
   // draws back: asked for nothing the moment it stopped, the leaving wash
-  // turned the accent's blue. Every other row asks for nothing.
-  const songColor = useSongColor(active || wash.mounted ? song : null, artUri)
+  // turned the accent's blue. Every other row asks for nothing, and so does
+  // not re-render when the accent changes.
+  const songColor = useSongColor(song, artUri, active || wash.mounted)
   const { wide, dense, width } = useLayout()
   const contentWidth = useContentWidth()
   const [hovered, setHovered] = useState(false)
@@ -182,13 +187,22 @@ export const SongRow = memo(function SongRow({
   useSongDragSource(rowRef, () => [song.id], wide && dense)
   // The held row gives a little under the finger, on the one spring (`M1`,
   // 1): a row's depth, since a row is wide enough that a control's would walk
-  // its ends. Both widths use it — a mouse pressing a title gets the same
-  // answer a finger does.
-  const [scale] = useState(() => new Animated.Value(1))
-  const press = (down: boolean): void => void spring(scale, down ? PRESS.row : 1)
-  const pressHandlers = { onPressIn: () => press(true), onPressOut: () => press(false) }
+  // its ends.
+  const press = usePressScale(PRESS.row)
+  // What holding the row does, the same at both widths: nothing where
+  // something outside the row has the hold (`null`), what the list asked
+  // for, or the ⋯ menu.
+  const onHold =
+    onLongPress === null
+      ? undefined
+      : onLongPress
+        ? () => onLongPress(song)
+        : onMore
+          ? () => onMore(moreRef.current, song)
+          : undefined
 
-  const tint = [
+  // What the row is, as well as which song: picked, out of reach, being moved.
+  const states = [
     // Selected: a translucent accent that reads as picked on the dark UI.
     selected && styles.selected,
     unavailable && styles.unavailable,
@@ -198,17 +212,15 @@ export const SongRow = memo(function SongRow({
 
   if (!wide) {
     return (
-      <Animated.View style={{ transform: [{ scale }] }}>
+      <Animated.View style={press.style}>
         {/*
           The row is a container, and the thing you press is inside it. In a
           browser only this shape works: react-native-web renders a button as a
-          real <button>, and a row that was one would nest the ⋯
-          inside it. The web has always drawn a role="row" with buttons as
-          siblings.
+          real <button>, and a row that was one would nest the ⋯ inside it, so
+          the row is a role="row" with its buttons as siblings.
         */}
-        <View testID={testID} role="row" style={[styles.row, ...tint]}>
+        <View testID={testID} role="row" style={[styles.row, ...states]}>
           {wash.mounted ? <RowWash color={songColor.color} progress={wash.progress} /> : null}
-          {leading}
           {selecting && onToggleSelect ? (
             <SelectBox
               song={song}
@@ -220,17 +232,9 @@ export const SongRow = memo(function SongRow({
 
           <Pressable
             onPress={event => onPress(event, song)}
-            onLongPress={
-              onLongPress === null
-                ? undefined
-                : onLongPress
-                  ? () => onLongPress(song)
-                  : onMore
-                    ? () => onMore(moreRef.current, song)
-                    : undefined
-            }
-            {...pressHandlers}
-            delayLongPress={450}
+            onLongPress={onHold}
+            {...press.handlers}
+            delayLongPress={MOVE_MS.longPress}
             accessibilityRole="button"
             accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
             accessibilityState={{ selected: active }}
@@ -252,12 +256,7 @@ export const SongRow = memo(function SongRow({
                 {song.title}
               </Text>
               <View style={styles.subtitleRow}>
-                {/* The web calls this "On this device", and draws exactly this. */}
-                {downloaded ? (
-                  <Downloaded size={13} tone="good" />
-                ) : notDownloadedMark ? (
-                  <NotDownloaded size={13} tone="textMuted" />
-                ) : null}
+                <HereMark downloaded={downloaded} notDownloadedMark={notDownloadedMark} />
                 <Text style={styles.subtitle} numberOfLines={1}>
                   {song.artist || 'Unknown artist'} · {formatDuration(song.duration)}
                 </Text>
@@ -278,17 +277,7 @@ export const SongRow = memo(function SongRow({
           ) : null}
 
           {onMore ? (
-            <View ref={moreRef} collapsable={false}>
-              <Pressable
-                onPress={() => onMore?.(moreRef.current, song)}
-                accessibilityRole="button"
-                accessibilityLabel={`More actions for ${song.title}`}
-                {...tip('More')}
-                style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}
-              >
-                <More size={16} tone="textMuted" />
-              </Pressable>
-            </View>
+            <MoreButton moreRef={moreRef} song={song} onMore={onMore} style={styles.control} />
           ) : null}
         </View>
       </Animated.View>
@@ -305,17 +294,16 @@ export const SongRow = memo(function SongRow({
   const controlSize = dense ? 34 : HIT_TARGET
 
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
+    <Animated.View style={press.style}>
       <View
         ref={rowRef}
         testID={testID}
         role="row"
-        style={[styles.rowWide, dense && (hovered || menuOpen) && styles.rowHovered, ...tint]}
+        style={[styles.rowWide, dense && (hovered || menuOpen) && styles.rowHovered, ...states]}
         onPointerEnter={dense ? () => setHovered(true) : undefined}
         onPointerLeave={dense ? () => setHovered(false) : undefined}
       >
         {wash.mounted ? <RowWash color={songColor.color} progress={wash.progress} /> : null}
-        {leading}
         {onToggleSelect && (dense || selecting || selected) ? (
           // A finger gets no circle waiting in every row (docs/ui-mock `T09`): it
           // holds a row to start choosing, as on a phone, and the circles come
@@ -349,23 +337,18 @@ export const SongRow = memo(function SongRow({
 
         <Pressable
           onPress={event => onPress(event, song)}
-          // The same three answers as the phone's row above, in the same order.
-          // This branch used to ignore `onLongPress` altogether, so a row whose
-          // hold belonged to something else — a playlist row being moved — still
-          // opened its ⋯ menu 450ms in, and the menu's own backdrop then
-          // swallowed every press after it (Xiao, 2026-09-21).
+          // The phone's answers, with one more before the menu: a finger at this
+          // width holds a row to start choosing. This branch used to ignore
+          // `onLongPress` altogether, so a row whose hold belonged to something
+          // else — a playlist row being moved — still opened its ⋯ menu 450ms
+          // in, and the menu's own backdrop then swallowed every press after it
+          // (Xiao, 2026-09-21).
           onLongPress={
-            onLongPress === null
-              ? undefined
-              : onLongPress
-                ? () => onLongPress(song)
-                : !dense && onToggleSelect
-                  ? () => onToggleSelect(song)
-                  : onMore
-                    ? () => onMore(moreRef.current, song)
-                    : undefined
+            onLongPress === undefined && !dense && onToggleSelect
+              ? () => onToggleSelect(song)
+              : onHold
           }
-          delayLongPress={450}
+          delayLongPress={MOVE_MS.longPress}
           accessibilityRole="button"
           accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
           accessibilityState={{ selected: active }}
@@ -373,20 +356,11 @@ export const SongRow = memo(function SongRow({
         >
           <Cover uri={artUri} title={song.album || song.title} size={40} />
           <View style={styles.text}>
-            <View style={styles.titleRow}>
-              <Text
-                style={[styles.titleWide, active && { color: songColor.tint }]}
-                numberOfLines={1}
-              >
-                {song.title}
-              </Text>
-            </View>
+            <Text style={[styles.titleWide, active && { color: songColor.tint }]} numberOfLines={1}>
+              {song.title}
+            </Text>
             <View style={styles.subtitleRow}>
-              {downloaded ? (
-                <Downloaded size={13} tone="good" />
-              ) : notDownloadedMark ? (
-                <NotDownloaded size={13} tone="textMuted" />
-              ) : null}
+              <HereMark downloaded={downloaded} notDownloadedMark={notDownloadedMark} />
               <Text style={styles.artist} numberOfLines={1}>
                 {song.artist || 'Unknown artist'}
               </Text>
@@ -437,21 +411,12 @@ export const SongRow = memo(function SongRow({
           <Text style={styles.durationWide}>{formatDuration(song.duration)}</Text>
           {onMore ? (
             <Reveal shown={revealed}>
-              <View ref={moreRef} collapsable={false}>
-                <Pressable
-                  onPress={() => onMore?.(moreRef.current, song)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`More actions for ${song.title}`}
-                  {...tip('More')}
-                  style={({ pressed }) => [
-                    styles.controlWide,
-                    { width: controlSize, height: controlSize },
-                    pressed && styles.controlPressed,
-                  ]}
-                >
-                  <More size={16} tone="textMuted" />
-                </Pressable>
-              </View>
+              <MoreButton
+                moreRef={moreRef}
+                song={song}
+                onMore={onMore}
+                style={[styles.controlWide, { width: controlSize, height: controlSize }]}
+              />
             </Reveal>
           ) : null}
         </View>
@@ -485,6 +450,46 @@ export function useSongRowHeight(): number | null {
   if (fontScale > 1) return null
   if (!wide) return PHONE_ROW_HEIGHT
   return dense ? DENSE_ROW_HEIGHT : TOUCH_WIDE_ROW_HEIGHT
+}
+
+/** Whether the song is on this device, beside its artist ("On this device"). */
+function HereMark({
+  downloaded,
+  notDownloadedMark,
+}: {
+  downloaded: boolean
+  notDownloadedMark: boolean
+}): ReactNode {
+  if (downloaded) return <Downloaded size={13} tone="good" />
+  if (notDownloadedMark) return <NotDownloaded size={13} tone="textMuted" />
+  return null
+}
+
+/** The ⋯, handing itself to `onMore` so a menu can open beside it. */
+function MoreButton({
+  moreRef,
+  song,
+  onMore,
+  style,
+}: {
+  moreRef: RefObject<View | null>
+  song: Song
+  onMore: (anchor: View | null, song: Song) => void
+  style: StyleProp<ViewStyle>
+}): ReactNode {
+  return (
+    <View ref={moreRef} collapsable={false}>
+      <Pressable
+        onPress={() => onMore(moreRef.current, song)}
+        accessibilityRole="button"
+        accessibilityLabel={`More actions for ${song.title}`}
+        {...tip('More')}
+        style={({ pressed }) => [style, pressed && styles.controlPressed]}
+      >
+        <More size={16} tone="textMuted" />
+      </Pressable>
+    </View>
+  )
 }
 
 function SelectBox({
@@ -531,14 +536,22 @@ function RowTags({
   onToggleTag?: (tagId: number) => void
   onShowAll: (anchor: View | null) => void
 }): ReactNode {
-  const widthOf = useChipWidth()
   const moreRef = useRef<View>(null)
-  const { shown, hidden } = fitTags(tags, widthOf, chipBudget({ hasAddButton }))
+  const { shown, hidden } = useFittedTags(tags, chipBudget({ hasAddButton }))
+  // The dots are worked out here rather than read from a stylesheet, so they
+  // follow the theme by asking for it: a row is memoised, and nothing else
+  // re-renders it when light turns to dark.
+  const scheme = useShownScheme()
 
   return (
     <>
       {shown.map(tag => (
-        <RowTag key={tag.id} tag={tag} onPress={() => onToggleTag?.(tag.id)} />
+        <RowTag
+          key={tag.id}
+          tag={tag}
+          dot={tagColors(tag.hue, scheme).dot}
+          onPress={() => onToggleTag?.(tag.id)}
+        />
       ))}
       {hidden > 0 ? (
         <View ref={moreRef} collapsable={false}>
@@ -568,8 +581,16 @@ function RowTags({
  * It reports the width it drew at, once: a name is the same width on every
  * row, so one measurement is what tells every other row whether this tag fits.
  */
-function RowTag({ tag, onPress }: { tag: Tag; onPress: () => void }): ReactNode {
-  const { dot } = tagColors(tag.hue)
+function RowTag({
+  tag,
+  dot,
+  onPress,
+}: {
+  tag: Tag
+  /** The tag's hue as a dot, in the scheme on screen. */
+  dot: string
+  onPress: () => void
+}): ReactNode {
   return (
     <Pressable
       onPress={onPress}
@@ -667,7 +688,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: 14,
     overflow: 'hidden',
   },
-  /* `.song-row` at desktop width: 7 by 10, 12 between cells. */
+  /* At desktop width: 7 by 10, 12 between cells. */
   rowWide: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -721,7 +742,6 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
     ...floating(theme.colors),
   },
-  /* Where a held row would land, on the top edge of the row it is over. */
 
   art: {
     position: 'relative',
@@ -736,7 +756,6 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.row,
     fontWeight: '600',
   },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minWidth: 0 },
   titleWide: {
     flexShrink: 1,
     color: theme.colors.textPrimary,
@@ -765,7 +784,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.coverShade,
     borderRadius: radius.cover,
   },
-  /* `.song-list.is-selecting .song-select` at phone width. */
+  /* The checkbox's column at phone width, there only while selecting. */
   select: {
     width: 34,
     height: HIT_TARGET,
@@ -773,7 +792,7 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /* `.song-select` at desktop width: 24 wide, always in the layout. */
+  /* The checkbox's column at desktop width: 24 wide. */
   selectWide: {
     width: 24,
     height: 24,
@@ -798,12 +817,23 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textMuted,
     fontSize: 12,
   },
-  tags: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 5 },
-  tagsPhone: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 0, maxWidth: 170 },
-  tagsColumn: { width: 180, paddingLeft: 20, overflow: 'hidden', flexWrap: 'nowrap' },
+  tags: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: TAG_GAP },
+  tagsPhone: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: TAG_GAP,
+    flexShrink: 0,
+    maxWidth: 170,
+  },
+  tagsColumn: {
+    width: TAG_SLOT_WIDTH,
+    paddingLeft: TAG_SLOT_PADDING_LEFT,
+    overflow: 'hidden',
+    flexWrap: 'nowrap',
+  },
   tagAdd: {
-    width: 22,
-    height: 22,
+    width: TAG_ADD_WIDTH,
+    height: TAG_ADD_WIDTH,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.pill,
@@ -814,17 +844,17 @@ const styles = StyleSheet.create(theme => ({
   rowTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: TAG_GAP,
     borderRadius: radius.pill,
     paddingVertical: 4,
-    paddingHorizontal: space.sm,
+    paddingHorizontal: CHIP_PADDING_X,
     backgroundColor: theme.colors.surface2,
     // No one name may take the slot: past this it ends in an ellipsis.
     maxWidth: TAG_CHIP_MAX_WIDTH,
   },
   rowTagMoreText: { color: theme.colors.textSecondary },
-  rowTagDot: { width: 6, height: 6, borderRadius: 3 },
-  rowTagText: { fontSize: 11, color: theme.colors.textPrimary, flexShrink: 1 },
+  rowTagDot: { width: CHIP_DOT, height: CHIP_DOT, borderRadius: CHIP_DOT / 2 },
+  rowTagText: { fontSize: CHIP_FONT_SIZE, color: theme.colors.textPrimary, flexShrink: 1 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   control: {
     width: HIT_TARGET,

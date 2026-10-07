@@ -1,10 +1,9 @@
 import type { ReactNode } from 'react'
-import { Animated, Pressable } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { HIT_TARGET, withAlpha } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
-import { usePressScale } from '../motion'
 import { tip } from '../tip'
+import { Press } from './Press'
 
 /**
  * A round target for an icon (docs/ui-mock `S2`).
@@ -42,7 +41,6 @@ export function IconButton({
   filled?: boolean
 }): ReactNode {
   const { dense } = useLayout()
-  const press = usePressScale()
   const size = sizeProp ?? (dense ? (filled ? 36 : 34) : filled ? 40 : HIT_TARGET)
   return (
     /*
@@ -52,28 +50,27 @@ export function IconButton({
      * scaling that about its centre walked the button ten points to the
      * right every time it was pressed.
      */
-    <Animated.View style={[press.style, { width: size, height: size }]}>
-      <Pressable
-        {...press.handlers}
-        onPress={onPress}
-        disabled={disabled}
-        hitSlop={size < HIT_TARGET ? (HIT_TARGET - size) / 2 : 0}
-        testID={testID}
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        {...tip(caption ?? label)}
-        accessibilityState={{ disabled, selected: active }}
-        style={({ pressed }) => [
-          styles.button,
-          { width: size, height: size, borderRadius: size / 2 },
-          filled && styles.filled,
-          pressed && !disabled && (filled ? styles.filledPressed : styles.pressed),
-          disabled && styles.disabled,
-        ]}
-      >
-        {children}
-      </Pressable>
-    </Animated.View>
+    <Press
+      depth="control"
+      wrap={{ width: size, height: size }}
+      onPress={onPress}
+      disabled={disabled}
+      hitSlop={size < HIT_TARGET ? (HIT_TARGET - size) / 2 : 0}
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      {...tip(caption ?? label)}
+      accessibilityState={{ disabled, selected: active }}
+      style={({ pressed }) => [
+        styles.button,
+        { width: size, height: size, borderRadius: size / 2 },
+        filled && styles.filled,
+        pressed && !disabled && (filled ? styles.filledPressed : styles.pressed),
+        disabled && styles.disabled,
+      ]}
+    >
+      {children}
+    </Press>
   )
 }
 

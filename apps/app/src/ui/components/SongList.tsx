@@ -75,7 +75,7 @@ export function SongList({
   renderSong: (info: { item: Song; index: number }) => ReactElement | null
   /** What the table is called, e.g. "Library songs". */
   label: string
-  empty?: ReactNode
+  empty?: ReactElement | null
   contentContainerStyle?: StyleProp<ViewStyle>
   /**
    * Every row's height, when every row is exactly that tall (`useSongRowHeight`).
@@ -206,7 +206,7 @@ export function SongList({
           {...(pinned ? pinnedHeaderProps(stayAfter) : null)}
           onRefresh={onRefresh}
           refreshing={refreshing}
-          ListEmptyComponent={empty as ReactElement}
+          ListEmptyComponent={empty}
           CellRendererComponent={CellRendererComponent}
         />
       </PinnedHeaderScope>

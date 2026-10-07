@@ -67,8 +67,8 @@ function Panel({
 }: {
   selected: readonly number[]
   onToggle: (tagId: number) => void
-  /** Shown as a Done button when the panel is something that closes. */
-  onDone?: () => void
+  /** The Done button: the panel closes. */
+  onDone: () => void
   summary?: string
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -182,7 +182,7 @@ function Panel({
       </ScrollView>
 
       {/* On a phone they take the foot, where a thumb is and where a panel ends. */}
-      {!wide && (summary !== undefined || onDone !== undefined) ? (
+      {!wide ? (
         <View style={styles.footRow}>
           {foot({ summary, onDone, accent: accent.accent, spread: true })}
         </View>
@@ -199,7 +199,7 @@ function foot({
   spread = false,
 }: {
   summary?: string
-  onDone?: () => void
+  onDone: () => void
   accent: string
   /** A row of its own: the summary to the left, Done to the right, count or no count. */
   spread?: boolean
@@ -208,17 +208,15 @@ function foot({
     <>
       {summary ? <Text style={styles.summary}>{summary}</Text> : null}
       {spread ? <View style={styles.footSpacer} /> : null}
-      {onDone ? (
-        <Pressable
-          onPress={onDone}
-          accessibilityRole="button"
-          accessibilityLabel="Done choosing tags"
-          style={({ pressed }) => [styles.done, pressed && { opacity: 0.7 }]}
-          testID="listen-tags-done"
-        >
-          <Text style={[styles.doneLabel, { color: accent }]}>Done</Text>
-        </Pressable>
-      ) : null}
+      <Pressable
+        onPress={onDone}
+        accessibilityRole="button"
+        accessibilityLabel="Done choosing tags"
+        style={({ pressed }) => [styles.done, pressed && { opacity: 0.7 }]}
+        testID="listen-tags-done"
+      >
+        <Text style={[styles.doneLabel, { color: accent }]}>Done</Text>
+      </Pressable>
     </>
   )
 }

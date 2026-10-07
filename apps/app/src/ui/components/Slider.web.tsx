@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { motion, oklchToHex } from '@selfmp3/client'
+import { motion } from '@selfmp3/client'
 import { useUnistyles } from 'react-native-unistyles'
 import { useAccent } from '../accent'
-import { fractionOf } from './slider.model'
+import { fractionOf, HUE_STOPS } from './slider.model'
 import type { SliderProps } from './slider.types'
 import { EASE_OUT_CSS } from '../motion.model'
 
@@ -29,10 +29,6 @@ import { EASE_OUT_CSS } from '../motion.model'
  * rather than through `ui/motion.ts`: the rules are in a stylesheet with no
  * component around them to ask.
  */
-const HUE_STOPS = [0, 60, 120, 180, 240, 300, 360]
-  .map(hue => oklchToHex(0.72, 0.16, hue))
-  .join(', ')
-/** `ease.out` as CSS writes it (`ui/motion.ts`). */
 const CSS = `
 @property --progress { syntax: '<percentage>'; inherits: true; initial-value: 0%; }
 .selfmp3-range { appearance: none; -webkit-appearance: none; box-sizing: border-box; margin: 0;
@@ -55,7 +51,7 @@ const CSS = `
 .selfmp3-range:hover::-moz-range-thumb, .selfmp3-range:active::-moz-range-thumb,
 .selfmp3-range:focus-visible::-moz-range-thumb { opacity: 1; }
 .selfmp3-range.is-hue { height: 22px; border-radius: 999px;
-  background-image: linear-gradient(to right, ${HUE_STOPS}); }
+  background-image: linear-gradient(to right, ${HUE_STOPS.map(stop => stop.color).join(', ')}); }
 .selfmp3-range.is-hue::-webkit-slider-thumb { opacity: 1; width: 15px; height: 15px;
   border: 2px solid var(--range-ring); }
 .selfmp3-range.is-hue::-moz-range-thumb { opacity: 1; width: 15px; height: 15px;

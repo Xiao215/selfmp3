@@ -194,7 +194,7 @@ export function SelectionBar({
   const { top: statusBar } = useSafeAreaInsets()
   const { data: library } = useLibrary()
   const player = usePlayer()
-  const { state: downloads, queue: downloadQueue } = useDownloads()
+  const { state: downloads, downloadByHand, removeByHand } = useDownloads()
 
   const bulkLoved = useBulkLoved()
   const addToPlaylist = useAddToPlaylist()
@@ -318,16 +318,25 @@ export function SelectionBar({
     setMenuOpen(false)
     setPlaylistsOpen(false)
   }
-  /** Run a menu action, close the menu, and say what happened. */
-  const act = (run: () => void, message?: string) => (): void => {
+  /** Run a menu action and close the menu. */
+  const act = (run: () => void) => (): void => {
     run()
     closeMenu()
-    if (message) showToast(message, 'good')
   }
+  /**
+   * Said once the server has taken the edit, not as it is sent: a failure is
+   * said by the app's own error toast (`meta.failure`), and a "Loved 3 songs"
+   * ahead of it would contradict it.
+   */
+  const saidOnSuccess = (message: string) => ({
+    onSuccess: () => showToast(message, 'good'),
+  })
   const removeSelectedFromPlaylist = (): void => {
     if (!playlist) return
-    removeFromPlaylist.mutate({ playlistId: playlist.id, songIds: ids })
-    showToast(`Removed ${count} ${songWord} from ${playlist.name}`, 'good')
+    removeFromPlaylist.mutate(
+      { playlistId: playlist.id, songIds: ids },
+      saidOnSuccess(`Removed ${count} ${songWord} from ${playlist.name}`),
+    )
   }
 
   const done = (
@@ -572,9 +581,11 @@ export function SelectionBar({
               <SheetItem
                 icon={<Heart size={15} color={theme.colors.textSecondary} />}
                 label={`Love ${count - lovedCount === count ? 'all' : 'the rest'}`}
-                onPress={act(
-                  () => bulkLoved.mutate({ songIds: ids, loved: true }),
-                  `Loved ${plural(count - lovedCount, 'song', 'songs')}`,
+                onPress={act(() =>
+                  bulkLoved.mutate(
+                    { songIds: ids, loved: true },
+                    saidOnSuccess(`Loved ${plural(count - lovedCount, 'song', 'songs')}`),
+                  ),
                 )}
               />
             ) : null}
@@ -582,9 +593,11 @@ export function SelectionBar({
               <SheetItem
                 icon={<Heart size={15} filled color={theme.colors.danger} />}
                 label={`Remove ${lovedCount === count ? 'all' : lovedCount} from loved`}
-                onPress={act(
-                  () => bulkLoved.mutate({ songIds: ids, loved: false }),
-                  `Removed ${lovedCount} from loved`,
+                onPress={act(() =>
+                  bulkLoved.mutate(
+                    { songIds: ids, loved: false },
+                    saidOnSuccess(`Removed ${lovedCount} from loved`),
+                  ),
                 )}
               />
             ) : null}
@@ -611,9 +624,11 @@ export function SelectionBar({
                   <SheetItem
                     key={list.id}
                     label={list.name}
-                    onPress={act(
-                      () => addToPlaylist.mutate({ playlistId: list.id, songIds: ids }),
-                      `Added ${count} ${songWord} to ${list.name}`,
+                    onPress={act(() =>
+                      addToPlaylist.mutate(
+                        { playlistId: list.id, songIds: ids },
+                        saidOnSuccess(`Added ${count} ${songWord} to ${list.name}`),
+                      ),
                     )}
                   />
                 ))}
@@ -632,7 +647,9 @@ export function SelectionBar({
               <SheetItem
                 icon={<CloudDownload size={15} color={theme.colors.textSecondary} />}
                 label={`Download ${held.length > 0 ? 'the rest' : 'all'}`}
-                onPress={act(() => downloadQueue.enqueue(ids))}
+                // By hand, as a song's menu downloads: picked songs stay, and a
+                // song removed by hand before is no longer kept off this device.
+                onPress={act(() => downloadByHand(ids))}
               />
             ) : null}
             {held.length > 0 ? (
@@ -643,10 +660,14 @@ export function SelectionBar({
                 }`}
                 onPress={act(() => {
                   const removing = held.length
-                  void downloadQueue
-                    .remove(held.map(song => song.id))
+                  // By hand, so the removal is remembered: the queue's own remove
+                  // left the next automatic pass to fetch them straight back.
+                  removeByHand(held.map(song => song.id))
                     .then(() =>
                       showToast(`Removed ${plural(removing, 'download', 'downloads')}`, 'good'),
+                    )
+                    .catch((caught: unknown) =>
+                      showToast(failureText('Couldn’t remove the downloads', caught), 'error'),
                     )
                 })}
               />

@@ -6,7 +6,7 @@ import { motion } from '@selfmp3/client'
 import { Pause, Play } from './Icons'
 import { ease, timing, useFade, useMinimumBusy, usePresence } from '../motion'
 import { MOVE_MS } from '../motion.model'
-import { tap } from '../haptics'
+import { lightTap } from '../../ports/haptics'
 
 /**
  * Play or Pause, shrinking away and back through the swap: the old glyph
@@ -61,7 +61,7 @@ export function PlayPauseIcon({
     // itself, which once the swap has happened would freeze the glyph coming
     // back in, half faded.
     let landed = false
-    tap()
+    lightTap()
     const out = timing(
       turn,
       0,

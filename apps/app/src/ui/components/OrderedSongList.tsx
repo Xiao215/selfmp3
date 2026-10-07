@@ -313,8 +313,8 @@ interface RowActions {
  * is how the queue sheet and the rail say the same thing. Taking a song off the
  * playlist is in the ⋯ menu, where everything else done to a song already is.
  *
- * Only the handlers that need this row's place are made here — the press,
- * which plays from it, and the four that carry a move. The rest are the
+ * Only the handlers that need this row's song or place are made here — the
+ * press, which plays from it, and those that carry a move. The rest are the
  * screen's own, handed down unchanged, so the memo holds.
  */
 const OrderedRow = memo(function OrderedRow({
@@ -353,8 +353,6 @@ const OrderedRow = memo(function OrderedRow({
     [actions, songId],
   )
   const onDragStart = useCallback(() => actions.dragStart(songId), [actions, songId])
-  const onDragMove = useCallback((dy: number) => actions.dragMove(songId, dy), [actions, songId])
-  const onDragEnd = useCallback((dy: number) => actions.dragEnd(songId, dy), [actions, songId])
   const onPress = useCallback(
     (event: GestureResponderEvent) => actions.press(event, songId, index),
     [actions, songId, index],
@@ -364,16 +362,14 @@ const OrderedRow = memo(function OrderedRow({
   // used to stand in for it on a computer is gone — six dots on every row
   // read as clutter, and a mouse can hold a row as well as a finger can
   // (Xiao, 2026-09-21).
-  const holds = reorderable
-
   return (
     <HoldToReorder
-      enabled={holds}
+      enabled={reorderable}
       onHolding={onHolding}
       onStart={onDragStart}
       // An ordered list's rows only ever move up and down.
-      onMove={(_dx, dy) => onDragMove(dy)}
-      onEnd={(_dx, dy) => onDragEnd(dy)}
+      onMove={(_dx, dy) => actions.dragMove(songId, dy)}
+      onEnd={(_dx, dy) => actions.dragEnd(songId, dy)}
       onLayoutHeight={index === 0 ? actions.measure : undefined}
     >
       <SongRow
@@ -392,7 +388,7 @@ const OrderedRow = memo(function OrderedRow({
         onMore={actions.more}
         onToggleSelect={actions.toggleSelect}
         // `null` while the hold is the move's: see `SongRow`.
-        onLongPress={holds ? null : actions.longPress}
+        onLongPress={reorderable ? null : actions.longPress}
       />
     </HoldToReorder>
   )

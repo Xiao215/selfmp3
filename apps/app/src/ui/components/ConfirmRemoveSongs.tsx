@@ -92,8 +92,8 @@ export function RemoveSongs({
  * to keep, and a copy left on a disk somewhere is exactly how removed songs
  * used to come back.
  *
- * Because there is no toast to say it in, a failure is shown inside the
- * dialog, which stays open, rather than closing it and reporting underneath.
+ * A failure is shown inside the dialog, which stays open so that trying again
+ * is one press, rather than closing it and reporting underneath.
  */
 export function ConfirmRemoveSongs({
   songs,

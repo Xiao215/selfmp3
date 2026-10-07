@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from 'react'
+import { useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Animated, Pressable, ScrollView, useWindowDimensions } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -20,6 +20,9 @@ import { ease, motionMs } from '../motion'
  * One component, two shapes, and the caller does not know which it got:
  * `docs/ARCHITECTURE.md` foundation 5, and its "does not port one-to-one" note
  * that a popover anchored to a button becomes a sheet below the breakpoint.
+ * With nothing to anchor to — a menu opened by holding a row, a picker opened
+ * from a menu that has closed — it is a sheet at every width, which on a
+ * computer is a small window in the middle of it.
  *
  * React Native has no `position: fixed`, so above the breakpoint the anchor is
  * measured with `measureInWindow` and the panel is drawn by the shell's
@@ -41,8 +44,8 @@ export function Popover({
 }: {
   open: boolean
   onClose: () => void
-  /** The control this belongs to. Measured when it opens. */
-  anchorRef: RefObject<RNView | null>
+  /** The control this belongs to, measured when it opens. Without one it is a sheet. */
+  anchorRef?: RefObject<RNView | null>
   /** Shown when it falls back to a sheet, where a panel has room for a heading. */
   title?: string
   titleTone?: 'heading' | 'label'
@@ -65,7 +68,7 @@ export function Popover({
 }): ReactNode {
   const { wide } = useLayout()
 
-  if (!wide) {
+  if (!wide || !anchorRef) {
     return (
       <Sheet open={open} onClose={onClose} title={title} titleTone={titleTone} testID={testID}>
         {children}
@@ -156,7 +159,12 @@ function AnchoredPopover({
    * Reduce Motion reaches it: it lands at once, and the callback still runs.
    * It leaves on `ease.in`, as everything on its way out does.
    */
+  // Whether it has been open since it last closed: one mounted closed — most
+  // are — has nothing to close, and started a move on mount for nothing.
+  const wasOpen = useRef(false)
   useEffect(() => {
+    if (!open && !wasOpen.current) return
+    wasOpen.current = open
     Animated.timing(progress, {
       toValue: open ? 1 : 0,
       duration: motionMs(open ? motion.base : motion.fast),

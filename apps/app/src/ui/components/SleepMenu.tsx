@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -32,7 +32,13 @@ export function SleepMenu({
   anchorRef?: RefObject<View | null>
 }): ReactNode {
   const player = usePlayer()
-  const remaining = useRemaining(player.sleepTimerEndsAt)
+  // Ticking only while the menu is up: it is mounted for as long as the bar
+  // or the page that opens it is, and a closed menu has nothing to count.
+  const now = useClock(player.sleepTimerEndsAt, 1_000, open)
+  const remaining =
+    player.sleepTimerEndsAt === null
+      ? ''
+      : formatDuration(Math.max(0, player.sleepTimerEndsAt - now) / 1000)
   const off = player.sleepTimerEndsAt === null && !player.sleepAtSongEnd
   const status = player.sleepAtSongEnd
     ? 'Stops when this song ends'
@@ -104,26 +110,28 @@ export function SleepMenu({
  */
 export function useSleepMinutesLeft(endsAt: number | null): string | null {
   const { sleepAtSongEnd } = usePlayer()
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (endsAt === null) return undefined
-    const timer = setInterval(() => setNow(Date.now()), 5_000)
-    return () => clearInterval(timer)
-  }, [endsAt])
+  const now = useClock(endsAt, 5_000, true)
   if (sleepAtSongEnd) return 'End of song'
   if (endsAt === null) return null
   return `${Math.max(1, Math.ceil((endsAt - now) / 60_000))} min`
 }
 
-/** "12:04" until the timer runs out, ticking once a second while it is set. */
-function useRemaining(endsAt: number | null): string {
+/**
+ * The time, read again every `everyMs` while a timer is set and `ticking`
+ * says anybody is looking — and read afresh before the first paint once it
+ * starts, so a menu opened long after the last tick does not show where the
+ * timer was then.
+ */
+function useClock(endsAt: number | null, everyMs: number, ticking: boolean): number {
   const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (endsAt === null) return undefined
-    const timer = setInterval(() => setNow(Date.now()), 1_000)
+  useLayoutEffect(() => {
+    if (endsAt === null || !ticking) return undefined
+    const read = (): void => setNow(Date.now())
+    read()
+    const timer = setInterval(read, everyMs)
     return () => clearInterval(timer)
-  }, [endsAt])
-  return endsAt === null ? '' : formatDuration(Math.max(0, endsAt - now) / 1000)
+  }, [endsAt, everyMs, ticking])
+  return now
 }
 
 const styles = StyleSheet.create(theme => ({

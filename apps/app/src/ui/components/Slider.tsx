@@ -3,24 +3,16 @@ import type { ReactNode } from 'react'
 import { Animated, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
-import { motion, oklchToHex } from '@selfmp3/client'
+import { motion } from '@selfmp3/client'
 import { spring, timing } from '../motion'
-import { fractionOf, valueAt } from './slider.model'
+import { ADJUST_ACTIONS, fractionOf, HUE_STOPS, valueAt } from './slider.model'
 import type { SliderProps } from './slider.types'
 
 const THUMB = 18
+/** How tall the slider's target is: a finger's, around a thin track. */
+const HIT = 36
 /** How far the thumb grows under a finger, on the spring, as every press does. */
 const GRAB = 1.2
-/*
- * The rainbow track's stops, worked out once rather than per render. A drag
- * re-renders this component on every touch move, and the seven conversions
- * are the same seven colours every time — the track does not follow the
- * accent, it is what the accent is being chosen from.
- */
-const HUE_STOPS = [0, 60, 120, 180, 240, 300, 360].map(hue => ({
-  hue,
-  color: oklchToHex(0.72, 0.16, hue),
-}))
 
 /**
  * The rainbow the accent is chosen from.
@@ -132,7 +124,7 @@ export function Slider({
       aria-valuemin={min}
       aria-valuemax={max}
       aria-valuenow={shown}
-      accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+      accessibilityActions={ADJUST_ACTIONS}
       onAccessibilityAction={event => {
         const next = Math.max(
           min,
@@ -167,7 +159,7 @@ const THUMB_SHAPE = {
 } as const
 
 const styles = StyleSheet.create(theme => ({
-  hit: { height: 36, justifyContent: 'center' },
+  hit: { height: HIT, justifyContent: 'center' },
   track: { height: 4, borderRadius: 2, backgroundColor: theme.colors.surface3, overflow: 'hidden' },
   hueTrack: {
     height: 6,
@@ -182,7 +174,7 @@ const styles = StyleSheet.create(theme => ({
   // array and Unistyles can no longer tell two of its own styles apart merged.
   thumbSlot: {
     position: 'absolute',
-    top: 18 - THUMB / 2,
+    top: HIT / 2 - THUMB / 2,
     width: THUMB,
     height: THUMB,
   },

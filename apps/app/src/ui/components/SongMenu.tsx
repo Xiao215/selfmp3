@@ -22,7 +22,6 @@ import { useArt } from '../../offline/useArt'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
 import { usePlayer } from '../../player/PlayerProvider'
-import { useLayout } from '../../shell/useLayout'
 import { Button } from './Button'
 import { Chip } from './Chip'
 import { RemoveSongs } from './ConfirmRemoveSongs'
@@ -41,7 +40,7 @@ import {
   X,
 } from './Icons'
 import { Popover } from './Popover'
-import { Sheet, SheetItem } from './Sheet'
+import { SheetItem } from './Sheet'
 import { TagPicker } from './TagPicker'
 
 /**
@@ -86,7 +85,6 @@ export function SongMenu({
   anchorRef?: RefObject<RNView | null>
 }): ReactNode {
   const { data: library } = useLibrary()
-  const { wide } = useLayout()
   const [tagging, setTagging] = useState<number | null>(null)
   const [removing, setRemoving] = useState<Song | null>(null)
   // The song as the library has it now, so the picker shows the tags after a change.
@@ -112,21 +110,15 @@ export function SongMenu({
 
   return (
     <>
-      {wide && anchorRef ? (
-        <Popover
-          open={song !== null}
-          onClose={onClose}
-          anchorRef={anchorRef}
-          width={300}
-          testID="song-menu"
-        >
-          {items}
-        </Popover>
-      ) : (
-        <Sheet testID="song-menu" open={song !== null} onClose={onClose}>
-          {items}
-        </Sheet>
-      )}
+      <Popover
+        open={song !== null}
+        onClose={onClose}
+        anchorRef={anchorRef}
+        width={300}
+        testID="song-menu"
+      >
+        {items}
+      </Popover>
 
       {/* Where the menu was: over the same ⋯, not in the middle of the window. */}
       <TagPicker song={taggingSong} onClose={() => setTagging(null)} anchorRef={anchorRef} />

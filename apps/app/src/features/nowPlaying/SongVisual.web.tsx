@@ -1,12 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { radius, rgba, type Rgb } from '@selfmp3/client'
-import type { Song } from '@selfmp3/shared'
 import { usePlayer } from '../../player/PlayerProvider'
-import type { MotionSampler } from './motionSource.model'
 import { useMotionReduced } from '../../ui/motion'
 import { useVisualLook } from './useVisualLook'
-import { recordVisualFrame } from './visualDebug'
 import {
   createMotionState,
   isSettled,
@@ -18,17 +15,13 @@ import {
   type MotionState,
   type MotionTuning,
 } from './visualMotion.model'
-import { RING_FROM, RING_TO, rippleDisc, type VisualColors } from './visuals.model'
-
-export interface SongVisualProps {
-  song: Song
-  /** What the visual follows: the sound, the song's curve, or its tempo (`useMotionSampler`). */
-  sampler: MotionSampler
-  /** Round the corners, for a visual in a box rather than one filling the screen. */
-  rounded?: boolean
-  /** The song's cover: Ripples' disc is the cover itself (docs/ui-mock `P24`). */
-  cover?: string | null
-}
+import {
+  RING_FROM,
+  RING_TO,
+  rippleDisc,
+  type SongVisualProps,
+  type VisualColors,
+} from './visuals.model'
 
 /**
  * A song's visual in a browser and the desktop app: a canvas, drawn once a
@@ -125,18 +118,7 @@ export function SongVisual({
         frame = watch ? 0 : requestAnimationFrame(tick)
         return
       }
-      const seconds = p.getPlayhead()
-      stepMotion(motion, s, seconds, dt, p.isPlaying, tu)
-      recordVisualFrame({
-        t: seconds,
-        source: s.source,
-        level: motion.level,
-        onset: motion.onset,
-        glow: motion.glow,
-        fired: motion.fired,
-        rings: motion.rings.length,
-        ...(s as { trace?: object }).trace,
-      })
+      stepMotion(motion, s, p.getPlayhead(), dt, p.isPlaying, tu)
       draw(ctx, size.width, size.height, c, tu, motion, live.current.cover.current)
       /*
        * A paused canvas that has come to rest asks for no more frames: it used

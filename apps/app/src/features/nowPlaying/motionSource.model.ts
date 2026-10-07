@@ -1,4 +1,5 @@
-import type { FrequencyAnalyser } from '@selfmp3/client'
+import { sampleMotion, type FrequencyAnalyser, type MotionCurve } from '@selfmp3/client'
+import { clamp01 } from '@selfmp3/shared'
 import { beatKick, beatPhase, type VisualFeel } from './visuals.model'
 
 /**
@@ -31,39 +32,14 @@ export interface MotionSampler {
 export type MotionSourceKind = MotionSampler['source']
 
 /**
- * The stored curve, decoded: the same shape as `MotionCurve` from
- * `@selfmp3/client`, spelled out here so this file stands on its own until the
- * client's is in. A structural type, so the client's value fits it unchanged.
+ * Level 0–1 and onset 0–1 at a time: the client's `sampleMotion`, with silence
+ * before the start (where `sampleMotion` reads the first frame) and from the
+ * curve's `duration` on, however far its bytes run. A seek before or past the
+ * analysed part draws nothing rather than a frozen frame.
  */
-export interface MotionCurveLike {
-  /** Frames per second. */
-  readonly rate: number
-  /** Seconds the frames cover. */
-  readonly duration: number
-  /** One byte a frame: -60 dBFS at 0 to 0 dBFS at 255. */
-  readonly loudness: Uint8Array
-  /** One byte a frame: onset strength, the song's 98th percentile at 255. */
-  readonly onset: Uint8Array
-}
-
-type CurveSample = (curve: MotionCurveLike, seconds: number) => { level: number; onset: number }
-
-/**
- * Level 0–1 and onset 0–1 at a time, linearly interpolated between frames; 0
- * before the start and past the end. Behaves exactly as the client's
- * `sampleMotion`, which replaces it once that is in.
- */
-export const sampleCurve: CurveSample = (curve, seconds) => {
-  const frames = Math.min(curve.loudness.length, curve.onset.length)
-  if (!(seconds >= 0) || seconds >= curve.duration || frames === 0) return { level: 0, onset: 0 }
-  const at = seconds * curve.rate
-  const i = Math.floor(at)
-  if (i >= frames) return { level: 0, onset: 0 }
-  const j = Math.min(frames - 1, i + 1)
-  const f = at - i
-  const lerp = (bytes: Uint8Array): number =>
-    ((bytes[i] ?? 0) + ((bytes[j] ?? 0) - (bytes[i] ?? 0)) * f) / 255
-  return { level: lerp(curve.loudness), onset: lerp(curve.onset) }
+export function sampleCurve(curve: MotionCurve, seconds: number): { level: number; onset: number } {
+  if (!(seconds >= 0) || seconds >= curve.duration) return { level: 0, onset: 0 }
+  return sampleMotion(curve, seconds)
 }
 
 /* ------------------------------------------------------------------ level */
@@ -81,7 +57,7 @@ const LOUD_DB = -9
 function levelFromDb(db: number): number {
   if (!Number.isFinite(db)) return 0
   const x = (db - QUIET_DB) / (LOUD_DB - QUIET_DB)
-  return Math.pow(Math.max(0, Math.min(1, x)), 1.6)
+  return Math.pow(clamp01(x), 1.6)
 }
 
 /** The curve's loudness byte (0–1 across -60 to 0 dBFS) as a visual level. */
@@ -96,7 +72,7 @@ function shapeBin(value: number): number {
   // A modern master sits near the top of the analyser's range, and a gentle
   // curve reads every bin as full; a steep one leaves room for quiet. The
   // loudness reference below was measured on this curve, so it stays.
-  return Math.min(1, Math.pow(Math.max(0, Math.min(1, value)), 2.6) * 1.25)
+  return Math.min(1, Math.pow(clamp01(value), 2.6) * 1.25)
 }
 
 /** The share of the analyser's bins with any music in them: the top quarter is almost always empty. */
@@ -125,12 +101,6 @@ const FLUX_FLOOR = 0.03
 const SEEK_JUMP = 0.75
 /** Seconds after a seek before a rise can count as a hit: the analyser's own smoothing settling. */
 const SEEK_SETTLE = 0.3
-
-/** The live sampler's raw numbers from its last frame, for calibrating it against real songs. */
-interface LiveTrace {
-  rms: number
-  flux: number
-}
 
 /** An analyser that can also answer in decibels, unclipped: a browser's `AnalyserNode`. */
 interface DecibelAnalyser extends FrequencyAnalyser {
@@ -171,10 +141,7 @@ function liveLevel(rms: number): number {
  * top of its range, and a loud chorus's bass sits there: every kick would be
  * 255 rising to 255, and the loudest part of a song would have no hits at all.
  */
-export function liveSampler(
-  analyser: FrequencyAnalyser,
-  now: () => number = clock,
-): MotionSampler & { readonly trace: LiveTrace } {
+export function liveSampler(analyser: FrequencyAnalyser, now: () => number = clock): MotionSampler {
   const count = analyser.frequencyBinCount
   const decibels = hasDecibels(analyser) ? analyser : null
   const bytes = decibels ? null : new Uint8Array(count)
@@ -183,7 +150,6 @@ export function liveSampler(
   const usable = Math.max(1, Math.floor(count * LIVE_USABLE))
   const low = Math.max(2, Math.round(usable * LIVE_LOW))
   const average = new Float32Array(low)
-  const trace: LiveTrace = { rms: 0, flux: 0 }
   let primed = false
   let settling = 0
   let peak = FLUX_FLOOR
@@ -208,7 +174,6 @@ export function liveSampler(
 
   return {
     source: 'live',
-    trace,
     sample(seconds) {
       const at = now()
       const dt = last === null ? 1 / 60 : Math.max(0, Math.min(0.1, at - last))
@@ -229,8 +194,7 @@ export function liveSampler(
         const shaped = shapeBin(values[i] ?? 0)
         squares += shaped * shaped
       }
-      trace.rms = Math.sqrt(squares / usable)
-      const level = liveLevel(trace.rms)
+      const level = liveLevel(Math.sqrt(squares / usable))
 
       let flux = 0
       const follow = 1 - Math.exp(-dt / FLUX_MEMORY)
@@ -247,7 +211,6 @@ export function liveSampler(
       } else {
         primed = true
       }
-      trace.flux = flux
       peak = Math.max(flux, FLUX_FLOOR, peak * Math.exp(-dt / FLUX_PEAK_DECAY))
       return { level, onset: Math.min(1, flux / peak) }
     },
@@ -321,10 +284,7 @@ export function curveHits(onset: Uint8Array, rate: number): Float32Array {
  * drawing at 30 frames a second could step straight over it. A seek or a
  * pause (the playhead jumping or standing) reads only where it is.
  */
-export function curveSampler(
-  curve: MotionCurveLike,
-  sample: CurveSample = sampleCurve,
-): MotionSampler {
+export function curveSampler(curve: MotionCurve): MotionSampler {
   const frames = Math.min(curve.loudness.length, curve.onset.length)
   const hits = curveHits(curve.onset.subarray(0, frames), curve.rate)
   const hitAt = (seconds: number): number => {
@@ -335,7 +295,7 @@ export function curveSampler(
   return {
     source: 'curve',
     sample(seconds) {
-      const here = sample(curve, seconds)
+      const here = sampleCurve(curve, seconds)
       let onset = seconds < curve.duration ? hitAt(seconds) : 0
       const gap = seconds - previous
       if (previous >= 0 && gap > 0 && gap < 0.25 && seconds < curve.duration) {
@@ -377,7 +337,7 @@ export function chooseSampler({
 }: {
   canHear: boolean
   analyser: FrequencyAnalyser | null
-  curve: MotionCurveLike | null
+  curve: MotionCurve | null
   feel: VisualFeel
 }): MotionSampler {
   if (canHear && analyser) return liveSampler(analyser)

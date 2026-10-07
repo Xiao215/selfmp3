@@ -129,7 +129,8 @@ export function TagThem({
           key={tag.id}
           label={tag.name}
           hue={tag.hue}
-          selected={selected.has(tag.id)}
+          // Only the chosen tags are drawn here, so every chip is on.
+          selected
           compact
           onPress={() => toggle(tag.id)}
         />

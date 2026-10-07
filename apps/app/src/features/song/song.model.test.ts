@@ -4,6 +4,7 @@ import {
   busiestDay,
   bylineRest,
   hourWords,
+  playSimilarOrder,
   playStrip,
   songLink,
   songPlays,
@@ -188,5 +189,12 @@ describe('bylineRest', () => {
   it('is the album and the length, leaving out what is empty', () => {
     expect(bylineRest({ album: 'Elma', duration: 272 })).toBe('Elma · 4:32')
     expect(bylineRest({ album: ' ', duration: 0 })).toBe('')
+  })
+})
+
+describe('the similar-songs shelf', () => {
+  it('plays the chosen song first, then the rest in their order', () => {
+    expect(playSimilarOrder([4, 7, 9, 2], 9)).toEqual([9, 4, 7, 2])
+    expect(playSimilarOrder([4, 7], 4)).toEqual([4, 7])
   })
 })

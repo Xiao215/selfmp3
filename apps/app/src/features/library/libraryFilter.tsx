@@ -34,7 +34,7 @@ function useStore(): LibraryFilterStore {
   return shared ?? local
 }
 
-/** The whole filter: the library list, which a query changes. */
+/** The whole filter — tags, order, "on this device" — and a way to change it. */
 export function useLibraryFilter(): FilterState {
   const store = useStore()
   const filter = useSyncExternalStore(store.subscribe, store.get, store.get)

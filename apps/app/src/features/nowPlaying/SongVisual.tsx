@@ -7,10 +7,8 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated'
 import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from 'react-native-svg'
-import type { Song } from '@selfmp3/shared'
 import { radius, rgba } from '@selfmp3/client'
 import { usePlayer, usePracticeState } from '../../player/PlayerProvider'
-import type { MotionSampler } from './motionSource.model'
 import { useMotionReduced } from '../../ui/motion'
 import { useVisualLook } from './useVisualLook'
 import {
@@ -26,18 +24,14 @@ import {
   type MotionState,
   type MotionTuning,
 } from './visualMotion.model'
-import { RING_FROM, RING_TO, rippleDisc, type VisualColors } from './visuals.model'
+import {
+  RING_FROM,
+  RING_TO,
+  rippleDisc,
+  type SongVisualProps,
+  type VisualColors,
+} from './visuals.model'
 import { useAppFocused } from '../../ui/useAppFocused'
-
-export interface SongVisualProps {
-  song: Song
-  /** What the visual follows: the song's curve on a phone, or its tempo (`useMotionSampler`). */
-  sampler: MotionSampler
-  /** Round the corners, for a visual in a box rather than one filling the screen. */
-  rounded?: boolean
-  /** The song's cover: Ripples' disc is the cover itself (docs/ui-mock `P24`). */
-  cover?: string | null
-}
 
 /**
  * A song's visual on a phone (and an iPad): plain views, moved once a frame.

@@ -18,9 +18,10 @@ import Svg, { Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from '
 import type { Song } from '@selfmp3/shared'
 import type { Rgb } from '@selfmp3/client'
 import { fonts, motion, radius, rgba, tempoMark, useLibrary, withAlpha } from '@selfmp3/client'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
-import { leaveStage, setStageExit } from '../../shell/stageExit'
+import { setStageExit } from '../../shell/stageExit'
 import { setStageArriving } from '../../shell/stageArrival'
 import { stackMoves } from '../../ports/stackMoves'
 import { titleBarInset } from '../../ports/titleBarInset'
@@ -74,6 +75,8 @@ import { useCoverPalette } from './useCoverPalette'
 import { useIdle } from './useIdle'
 import { useSongWords } from './useSongWords'
 import { ArtistLinks } from './ArtistLinks'
+import { putAway } from './leaveNowPlaying'
+import { NothingPlaying } from './NothingPlaying'
 import { TaggingLine } from './TaggingLine'
 import { useTagging, type Tagging } from './useTagging'
 import { tagLink } from '../tag/placeLinks'
@@ -117,11 +120,7 @@ export function NowPlayingStage(): ReactNode {
   // Asked here rather than on the stage, so a queue that runs out ends it too.
   const tagging = useTagging()
 
-  const close = (): void =>
-    leaveStage(() => {
-      if (router.canGoBack()) router.back()
-      else router.replace('/')
-    })
+  const close = (): void => putAway(router)
 
   if (!song) return <EmptyStage onClose={close} />
 
@@ -149,10 +148,7 @@ function EmptyStage({ onClose }: { onClose: () => void }): ReactNode {
           <ChevronDown size={22} color={theme.colors.textSecondary} />
         </IconButton>
       </View>
-      <View style={styles.empty}>
-        <Text style={styles.emptyTitle}>Nothing playing</Text>
-        <Text style={styles.emptyText}>Start a song and it turns up here, with its lyrics.</Text>
-      </View>
+      <NothingPlaying />
     </View>
   )
 }
@@ -417,7 +413,6 @@ function Stage({
   const hasLyrics = words.status === 'lyrics'
   // Not while offline: the words may exist, and there is text to say why they are not here.
   const noLyrics = words.status === 'missing' && !words.offline
-  const sampler = useMotionSampler(song, noLyrics)
   // Only on its own tab: About is text, and wants the calm ground.
   const showVisual = noLyrics && shownTab === 'lyrics'
   const box = stageCover(geometry)
@@ -436,6 +431,9 @@ function Stage({
   const visualPresence = usePresence(showVisual, MOVE_MS.stageVisual, motion.fast, {
     easeIn: Easing.out(Easing.quad),
   })
+  // Following the music only while the visual is there, its fade out included:
+  // About has no visual, so it neither fetches the curve nor asks to listen.
+  const sampler = useMotionSampler(song, visualPresence.mounted)
   /*
    * And the same fade again when the mode changes, because the mode is what
    * moves it: it is re-laid in the other place in one frame, so it fades in
@@ -935,7 +933,7 @@ function StageUpNext({
 }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
-  const artFor = useArt()
+  const artFor = useArt(ROW_COVER_SIZE)
   const progress = usePlayerProgress()
   const [lowered] = useState(() => ({
     transform: [
@@ -1131,7 +1129,4 @@ const styles = StyleSheet.create(theme => ({
   },
   upNextTitle: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
   upNextArtist: { color: theme.colors.textMuted, fontSize: 12 },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
-  emptyTitle: { color: theme.colors.textSecondary, fontSize: 14, fontWeight: '600' },
-  emptyText: { color: theme.colors.textMuted, fontSize: 13, textAlign: 'center' },
 }))

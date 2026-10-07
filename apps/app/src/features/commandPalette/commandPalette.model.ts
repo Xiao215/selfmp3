@@ -6,7 +6,8 @@ export type { RecentItem }
 
 /**
  * The command palette's rules, with nothing drawn: which commands there are, what a
- * query finds, when lyrics are worth searching, and moving through the list.
+ * query finds, and moving through the list. When lyrics are worth searching is
+ * Search's rule (`lyricsQueryFor`), which the palette shares.
  */
 
 export type PaletteCommandId =

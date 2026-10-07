@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { clientApi, failureText, queryKeys, useLibrary } from '@selfmp3/client'
@@ -39,10 +39,23 @@ export function useSaveUpNext(): {
   const { data: library } = useLibrary()
   const [saving, setSaving] = useState(false)
 
-  const known = { tags: library?.tags ?? [], playlists: library?.playlists ?? [] }
   const source = player.source
-  const line = source && player.queue.items.length > 0 ? describeSource(source, known) : null
-  const plan = source && library ? savePlan(source, player.queue, known) : null
+  const queue = player.queue
+  // Worked out when what they read changes, not on every render of Up next: a
+  // plan reads the whole queue, which is every row of a library shuffled, and
+  // the rail renders for each row a drag crosses.
+  const known = useMemo(
+    () => ({ tags: library?.tags ?? [], playlists: library?.playlists ?? [] }),
+    [library],
+  )
+  const line = useMemo(
+    () => (source && queue.items.length > 0 ? describeSource(source, known) : null),
+    [source, queue.items.length, known],
+  )
+  const plan = useMemo(
+    () => (source && library ? savePlan(source, queue, known) : null),
+    [source, library, queue, known],
+  )
 
   const { setSource } = player
   const save = useCallback(() => {

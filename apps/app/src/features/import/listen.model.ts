@@ -17,10 +17,14 @@ export type ListenTrack = Pick<
   'url' | 'title' | 'artist' | 'duration' | 'thumbnail'
 >
 
+/**
+ * The preview, apart from where it is in the song: that moves four times a
+ * second and is kept on its own (`useListen`'s `position`), so the review is
+ * not drawn again at every tick for the one bar that moves.
+ */
 export interface Listening {
   readonly track: ListenTrack
   readonly status: ListenStatus
-  readonly currentTime: number
   /** The song's, as the review knows it; from the audio when the review does not (0 until it knows). */
   readonly duration: number
   /** The cover's colour, once the server has read it (ImportListen.tsx); null until then, or for a cover without one. */
@@ -35,7 +39,6 @@ export const canListen = (item: Pick<ImportPreviewItem, 'url'>): boolean =>
 export const startListening = (track: ListenTrack, tone: CoverTone | null = null): Listening => ({
   track,
   status: 'loading',
-  currentTime: 0,
   duration: track.duration,
   tone,
 })
@@ -46,19 +49,19 @@ export const startListening = (track: ListenTrack, tone: CoverTone | null = null
  * (a phone's player read 8:00 into a 4:01 song), and the bar would then run to
  * the middle and stop. The audio's length is for a song the review has none
  * for, a search's or an artist's page's, and until then the bar has no length.
+ *
+ * The same object when nothing it holds changed, which is most reports: only
+ * the position moved, and that is not the preview's to hold.
  */
 export function followAudio(current: Listening, state: ListenState): Listening {
   const known = current.track.duration > 0
-  return {
-    ...current,
-    status: state.status,
-    currentTime: state.currentTime,
-    duration: known
-      ? current.track.duration
-      : Number.isFinite(state.duration) && state.duration > 0
-        ? state.duration
-        : current.duration,
-  }
+  const duration = known
+    ? current.track.duration
+    : Number.isFinite(state.duration) && state.duration > 0
+      ? state.duration
+      : current.duration
+  if (state.status === current.status && duration === current.duration) return current
+  return { ...current, status: state.status, duration }
 }
 
 /** A preview whose track has left the review (cancelled, imported, a new link fetched) stops. */

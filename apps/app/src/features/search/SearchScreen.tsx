@@ -5,10 +5,11 @@ import type { GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
-import type { LyricsSearchHit, Song, Tag, Artist } from '@selfmp3/shared'
+import { plural, type LyricsSearchHit, type Song, type Tag, type Artist } from '@selfmp3/shared'
 import { clientApi, isDownloaded, queryKeys, radius, tagColors, useLibrary } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useDownloads } from '../../offline/DownloadsProvider'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
@@ -21,6 +22,7 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SongList } from '../../ui/components/SongList'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { SongRow } from '../../ui/components/SongRow'
+import { useSongTagLookup } from '../../ui/songTags'
 import { useDebounced } from '../../ui/useDebounced'
 import { label as labelText } from '../../ui/surfaces'
 import { artistLink, tagLink } from '../tag/placeLinks'
@@ -200,7 +202,6 @@ export function SearchScreen(): ReactNode {
                 lyricHits={lyricHits}
                 onSeeAll={setScope}
                 onArtist={openArtist}
-                query={shown}
               />
             ) : scope === 'tags' ? (
               found.tags.map(tag => <TagResult key={tag.id} tag={tag} />)
@@ -307,13 +308,11 @@ function AllResults({
   lyricHits,
   onSeeAll,
   onArtist,
-  query,
 }: {
   found: ReturnType<typeof searchLibrary>
   lyricHits: readonly LyricsSearchHit[]
   onSeeAll: (scope: SearchScope) => void
   onArtist: (artist: Artist) => void
-  query: string
 }): ReactNode {
   const { places, songs } = allResults(found)
   return (
@@ -339,7 +338,7 @@ function AllResults({
             title="Songs"
             more={found.songs.length > songs.length ? () => onSeeAll('songs') : null}
           />
-          <SongRows songs={songs} testPrefix="search-song" query={query} />
+          <SongRows songs={songs} testPrefix="search-song" />
         </View>
       ) : null}
       {lyricHits.length > 0 ? (
@@ -396,9 +395,7 @@ function TagResult({ tag }: { tag: Tag }): ReactNode {
       <Text style={styles.placeName} numberOfLines={1}>
         {tag.name}
       </Text>
-      <Text style={styles.placeHint}>
-        {tag.songCount} {tag.songCount === 1 ? 'song' : 'songs'} · tag
-      </Text>
+      <Text style={styles.placeHint}>{plural(tag.songCount, 'song', 'songs')} · tag</Text>
     </Pressable>
   )
 }
@@ -425,16 +422,14 @@ function ArtistResult({
       <Text style={styles.placeName} numberOfLines={1}>
         {artist.name}
       </Text>
-      <Text style={styles.placeHint}>
-        {count} {count === 1 ? 'song' : 'songs'} · artist
-      </Text>
+      <Text style={styles.placeHint}>{plural(count, 'song', 'songs')} · artist</Text>
     </Pressable>
   )
 }
 
 /** The Songs scope: every match, in a list that only draws what is on screen. */
 function SongResults({ songs, query }: { songs: readonly Song[]; query: string }): ReactNode {
-  const rows = useSongRows(songs, 'search-song', query)
+  const rows = useSongRows(songs, 'search-song')
   return (
     <>
       <SongList
@@ -455,13 +450,11 @@ function SongResults({ songs, query }: { songs: readonly Song[]; query: string }
 function SongRows({
   songs,
   testPrefix,
-  query = '',
 }: {
   songs: readonly Song[]
   testPrefix: string
-  query?: string
 }): ReactNode {
-  const rows = useSongRows(songs, testPrefix, query)
+  const rows = useSongRows(songs, testPrefix)
   return (
     <>
       {songs.map((song, index) => rows.renderSong({ item: song, index }))}
@@ -474,28 +467,25 @@ function SongRows({
 function useSongRows(
   songs: readonly Song[],
   testPrefix: string,
-  query: string,
 ): {
   renderSong: (info: { item: Song; index: number }) => ReactElement
   menu: ReactNode
 } {
   const player = usePlayer()
-  const artFor = useArt()
+  const artFor = useArt(ROW_COVER_SIZE)
   const router = useRouter()
   const { data: library } = useLibrary()
   const { state: downloads } = useDownloads()
   const [menuSong, setMenuSong] = useState<Song | null>(null)
   // Search is one of the lists that shows tags on its rows (`S3`); a chip opens the tag.
-  const tagsById = useMemo(
-    () => new Map((library?.tags ?? []).map(tag => [tag.id, tag])),
-    [library],
-  )
+  const tagsOf = useSongTagLookup()
+  const tags = library?.tags
   const onTag = useCallback(
     (tagId: number) => {
-      const tag = tagsById.get(tagId)
+      const tag = tags?.find(each => each.id === tagId)
       if (tag) router.navigate(tagLink(tag.name))
     },
-    [tagsById, router],
+    [tags, router],
   )
   const anchor = useRef<View | null>(null)
   const ids = useMemo(() => songs.map(song => song.id), [songs])
@@ -528,16 +518,11 @@ function useSongRows(
         onMore={onMore}
         menuOpen={menuSong?.id === item.id}
         index={index}
-        tags={item.tagIds.flatMap(id => {
-          const tag = tagsById.get(id)
-          return tag ? [tag] : []
-        })}
+        tags={tagsOf(item)}
         onToggleTag={onTag}
       />
     ),
-    // The query is not drawn, but a new one is a new list: rows re-key with it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [artFor, downloads.index, onPress, onMore, menuSong, testPrefix, query, tagsById, onTag],
+    [artFor, downloads.index, onPress, onMore, menuSong, testPrefix, tagsOf, onTag],
   )
 
   return {
@@ -556,8 +541,12 @@ function LyricResults({
 }): ReactNode {
   const { data: library } = useLibrary()
   const player = usePlayer()
-  const artFor = useArt()
+  const artFor = useArt(ROW_COVER_SIZE)
   const accent = useAccent()
+  const byId = useMemo(
+    () => new Map((library?.songs ?? []).map(song => [song.id, song])),
+    [library],
+  )
   if (cloud) {
     return (
       <Text style={styles.nothing}>
@@ -568,7 +557,7 @@ function LyricResults({
   return (
     <>
       {hits.map((hit, index) => {
-        const song = library?.songs.find(entry => entry.id === hit.songId)
+        const song = byId.get(hit.songId)
         return (
           <Pressable
             key={`${hit.songId}-${index}`}

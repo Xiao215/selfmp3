@@ -1,5 +1,6 @@
 import { hexToRgb, oklchToHex, type Rgb } from '@selfmp3/client'
-import { clamp, type CoverSwatch, type AudioFeatures } from '@selfmp3/shared'
+import { clamp, clamp01, type CoverSwatch, type AudioFeatures, type Song } from '@selfmp3/shared'
+import type { MotionSampler } from './motionSource.model'
 
 /**
  * What a song with no lyrics shows where the words would be: Ripples, the
@@ -25,12 +26,11 @@ const WARM_HUE = 45
 
 export function keyedHue(hue: number, camelot: string | null | undefined): number {
   const mood = camelot?.endsWith('A') ? COOL_HUE : camelot?.endsWith('B') ? WARM_HUE : null
-  const base = ((hue % 360) + 360) % 360
+  const base = wrapHue(hue)
   if (mood === null) return base
   // The shorter way round the wheel, so 350° warms through 0°, not back through 180°.
   const toward = ((mood - base + 540) % 360) - 180
-  const pulled = base + Math.max(-KEY_PULL, Math.min(KEY_PULL, toward))
-  return ((pulled % 360) + 360) % 360
+  return wrapHue(base + clamp(toward, -KEY_PULL, KEY_PULL))
 }
 
 /**
@@ -128,6 +128,17 @@ function paletteColors(palette: readonly CoverSwatch[], leadHue: number): Visual
   }
 }
 
+/** What either `SongVisual` twin draws from: the canvas in a browser, the views on a phone. */
+export interface SongVisualProps {
+  readonly song: Song
+  /** What the visual follows: the sound, the song's curve, or its tempo (`useMotionSampler`). */
+  readonly sampler: MotionSampler
+  /** Round the corners, for a visual in a box rather than one filling the screen. */
+  readonly rounded?: boolean
+  /** The song's cover: Ripples' disc is the cover itself (docs/ui-mock `P24`). */
+  readonly cover?: string | null
+}
+
 /** Ripples' disc across: P24's 230 on a 390-wide phone, and no more than half the shorter side. */
 export function rippleDisc(width: number, height: number): number {
   return Math.min(width, height) * 0.5
@@ -154,7 +165,7 @@ export function visualFeel(features: AudioFeatures | null | undefined): VisualFe
   const bpm = features?.bpm
   return {
     // A tempo detector's half- and double-time answers stay in a drawable range.
-    bpm: bpm == null ? 96 : Math.max(50, Math.min(200, bpm)),
+    bpm: bpm == null ? 96 : clamp(bpm, 50, 200),
     energy: features?.energy ?? 0.45,
     loudness: loudnessLevel(features?.loudnessLufs ?? null),
   }
@@ -163,7 +174,7 @@ export function visualFeel(features: AudioFeatures | null | undefined): VisualFe
 /** Integrated loudness from about −30 LUFS (quiet) to −6 (a loud master), as 0–1. */
 export function loudnessLevel(lufs: number | null): number {
   if (lufs == null || !Number.isFinite(lufs)) return 0.5
-  return Math.max(0, Math.min(1, (lufs + 30) / 24))
+  return clamp01((lufs + 30) / 24)
 }
 
 /** Where in the beat the song is, 0 at the beat to just under 1. */

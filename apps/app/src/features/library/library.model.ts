@@ -17,6 +17,7 @@ import {
   type LibraryFilter,
 } from '@selfmp3/client'
 
+import { tagsWithIds } from '../lists/lists.model'
 import { useLibraryFilter } from './libraryFilter'
 
 /**
@@ -25,7 +26,7 @@ import { useLibraryFilter } from './libraryFilter'
  * `docs/ARCHITECTURE.md` foundation 3: one folder per feature, and the model file
  * imports from `packages/*` and React and nothing else — no `react-native`, no
  * `expo-*`, no component. That is not tidiness for its own sake. It means the
- * rules that decide what a search shows, what "nothing matches" means as
+ * rules that decide what the tags narrow the list to, what "nothing matches" means as
  * opposed to "nothing here yet", and which tags are worth offering can be run
  * by vitest in milliseconds with no simulator and no browser, and it means the
  * screen underneath is a renderer rather than a place where logic hides.
@@ -50,8 +51,6 @@ interface LibraryModel {
   songIds: number[]
   /** Only the tags actually in use, which is what the strip offers. */
   tags: readonly Tag[]
-  /** A song's tags, the same array for the same song until the tags change, so a row's memo holds. */
-  songTags: (song: Song) => readonly Tag[]
   /** The title: "chill · 中文", or "Library". Also the name a saved playlist takes. */
   heading: string
   /** At least one tag is chosen. */
@@ -83,7 +82,7 @@ interface LibraryModel {
 
 export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
   const library = useLibrary()
-  // Shared with the desktop sidebar, which chooses tags for this list.
+  // Kept above the screen, so the strip and the order are still set on coming back.
   const [filter, setFilter] = useLibraryFilter()
 
   const songs = useMemo(() => library.data?.songs ?? [], [library.data])
@@ -99,8 +98,7 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
   )
   const songIds = useMemo(() => visible.map(song => song.id), [visible])
 
-  const songTags = useMemo(() => songTagLookup(allTags), [allTags])
-  const chosenTags = useMemo(() => tagsFor(allTags, filter.tagIds), [allTags, filter.tagIds])
+  const chosenTags = useMemo(() => tagsWithIds(filter.tagIds, allTags), [allTags, filter.tagIds])
   const allMatched = useMemo(() => bothTagsCount(visible, filter.tagIds), [visible, filter.tagIds])
 
   /*
@@ -136,7 +134,6 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       visible,
       songIds,
       tags,
-      songTags,
       heading: filterHeading(filter, allTags),
       tagFiltered: tagFiltered(filter),
       chosenTags,
@@ -161,7 +158,6 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       visible,
       songIds,
       tags,
-      songTags,
       allTags,
       chosenTags,
       allMatched,
@@ -174,41 +170,6 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       toggleDownloadedOnly,
     ],
   )
-}
-
-/** The tags with these ids, in the order of the ids. */
-function tagsFor(allTags: readonly Tag[], ids: readonly number[]): Tag[] {
-  return ids.flatMap(id => allTags.filter(tag => tag.id === id))
-}
-
-const NO_TAGS: readonly never[] = []
-
-/**
- * Each song's tags, looked up once per song and then kept.
- *
- * A row is memoised, and a fresh array of the same tags is a changed prop:
- * building the list in the render redrew every row each time. Kept by the
- * song object, so a song that did not change — every one but the song just
- * loved, after a love — keeps its array, and a library refetch that hands the
- * same songs back (React Query keeps unchanged objects) keeps them all.
- */
-export function songTagLookup<T extends { readonly id: number }>(
-  allTags: readonly T[],
-): (song: { readonly tagIds: readonly number[] }) => readonly T[] {
-  const byId = new Map(allTags.map(tag => [tag.id, tag]))
-  const made = new WeakMap<object, readonly T[]>()
-  return song => {
-    if (song.tagIds.length === 0) return NO_TAGS
-    let found = made.get(song)
-    if (!found) {
-      found = song.tagIds.flatMap(id => {
-        const tag = byId.get(id)
-        return tag ? [tag] : []
-      })
-      made.set(song, found)
-    }
-    return found
-  }
 }
 
 /**

@@ -279,7 +279,6 @@ export function createContainer(configured: Config): Container {
   }
 
   const scanner = new ScannerService({
-    config,
     storage,
     songs,
     metadata,

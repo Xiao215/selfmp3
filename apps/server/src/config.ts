@@ -216,6 +216,14 @@ const ConfigSchema = z.object({
    * directory unless absolute; null means a real bucket, signed in to.
    */
   cloudDir: z.string().trim().min(1).nullable().default(null),
+
+  /**
+   * Publish this server's library to the bucket as it stands: no taking on
+   * the bucket's library first, and no refusing to replace a bigger one
+   * (services/cloudSync.ts, docs/SYNC.md). The escape hatch for "this
+   * server's library is the one I want everywhere".
+   */
+  publishAnyway: BooleanFromEnv.default(false),
 })
 
 export type Config = Readonly<z.infer<typeof ConfigSchema>>
@@ -260,6 +268,7 @@ function readEnv(): unknown {
     logLevel: env['SELFMP3_LOG_LEVEL'] ?? undefined,
     scanOnBoot: env['SELFMP3_SCAN_ON_BOOT'] ?? undefined,
     cloudDir: env['SELFMP3_CLOUD_DIR'] || undefined,
+    publishAnyway: env['SELFMP3_PUBLISH_ANYWAY'] || undefined,
   }
 }
 

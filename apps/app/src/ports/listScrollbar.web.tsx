@@ -68,6 +68,10 @@ const EDGE = 28
 const LINGER_MS = 1100
 const BUBBLE_HEIGHT = 36
 const MARK_SIZE = 10
+/** The bar fading away once it is no longer wanted, slower than it came. */
+const BAR_OUT_MS = 350
+/** The playing song's mark on the track, fading in and out. */
+const MARK_IN_MS = 250
 /** react-native-web's own `System` stack: these are DOM elements, not `Text`. */
 const FONT_STACK =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
@@ -353,7 +357,7 @@ function Scrollbar({
           backgroundColor: wide ? withAlpha(theme.colors.textPrimary, 0.06) : 'transparent',
           opacity: out ? 1 : 0,
           pointerEvents: out ? 'auto' : 'none',
-          transition: out ? fade(MOVE_MS.hoverIn, EASE_OUT_CSS) : fade(350, EASE_IN_CSS),
+          transition: out ? fade(MOVE_MS.hoverIn, EASE_OUT_CSS) : fade(BAR_OUT_MS, EASE_IN_CSS),
         }}
       >
         <div
@@ -424,7 +428,7 @@ function Scrollbar({
             zIndex: 12,
             opacity: 0,
             pointerEvents: 'none',
-            transition: fade(250, EASE_OUT_CSS),
+            transition: fade(MARK_IN_MS, EASE_OUT_CSS),
           }}
         />
       ) : null}

@@ -621,6 +621,11 @@ function Foot(): ReactNode {
 /** The round mark on the rail's own row. */
 const AVATAR = 30
 
+/** The corners of a row in the rail: a destination, a playlist, a tag, the status. */
+const ITEM_RADIUS = 12
+/** The type of a row's name in the rail, and of its search and new-tag fields. */
+const ITEM_TEXT = 13
+
 /** How dim a playlist that cannot take the song goes while one is carried. */
 const DIM_WHILE_DRAGGING = 0.35
 
@@ -667,7 +672,7 @@ const styles = StyleSheet.create(theme => ({
     gap: space.md,
     paddingHorizontal: space.sm,
     paddingVertical: space.sm,
-    borderRadius: 12,
+    borderRadius: ITEM_RADIUS,
   },
   label: {
     color: theme.colors.textSecondary,
@@ -689,7 +694,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface3,
     _web: { transitionDuration: `${MOVE_MS.hoverIn}ms` },
   },
-  searchText: { flex: 1, color: theme.colors.textMuted, fontSize: 13 },
+  searchText: { flex: 1, color: theme.colors.textMuted, fontSize: ITEM_TEXT },
   searchKeys: { flexDirection: 'row', gap: 3 },
   searchKey: {
     minWidth: 18,
@@ -710,13 +715,13 @@ const styles = StyleSheet.create(theme => ({
     gap: space.sm,
     minHeight: 32,
     paddingHorizontal: 6,
-    borderRadius: 12,
+    borderRadius: ITEM_RADIUS,
     // Clear until a song is dragged over: then the dashed edge is the drop
     // target itself.
     borderWidth: 1,
     borderColor: 'transparent',
   },
-  playlistName: { flex: 1, color: theme.colors.textSecondary, fontSize: 13 },
+  playlistName: { flex: 1, color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
   loadingHint: { paddingHorizontal: 10, paddingVertical: 4 },
   dropping: {
     borderStyle: 'dashed',
@@ -729,7 +734,7 @@ const styles = StyleSheet.create(theme => ({
   // The radius is the highlight's own: the sliding fill is a view behind the
   // rows, not the row itself, so without it the lit destination had square
   // corners while every row it slid between was rounded.
-  itemOn: { backgroundColor: theme.colors.surface3, borderRadius: 12 },
+  itemOn: { backgroundColor: theme.colors.surface3, borderRadius: ITEM_RADIUS },
   labelOn: { color: theme.colors.textPrimary, fontWeight: '600' },
   rowPressed: { backgroundColor: theme.colors.surface2 },
   dropHint: { fontSize: 11, paddingHorizontal: 10, paddingBottom: 2 },
@@ -763,7 +768,7 @@ const styles = StyleSheet.create(theme => ({
   tagHues: { paddingTop: 6, marginHorizontal: -4 },
   tagInput: {
     color: theme.colors.textPrimary,
-    fontSize: 13,
+    fontSize: ITEM_TEXT,
     backgroundColor: theme.colors.surface2,
     borderRadius: radius.pill,
     paddingVertical: 6,
@@ -785,7 +790,7 @@ const styles = StyleSheet.create(theme => ({
   suggestionText: { color: theme.colors.textSecondary, fontSize: 11 },
   tagList: { flex: 1 },
   tagListContent: { gap: 1 },
-  tagRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 12 },
+  tagRow: { flexDirection: 'row', alignItems: 'center', borderRadius: ITEM_RADIUS },
   tagMain: {
     flex: 1,
     minWidth: 0,
@@ -798,7 +803,7 @@ const styles = StyleSheet.create(theme => ({
     paddingLeft: 10,
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  tagName: { flex: 1, color: theme.colors.textSecondary, fontSize: 13 },
+  tagName: { flex: 1, color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
   count: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
   tagAction: { paddingVertical: 6, paddingHorizontal: 5 },
   tagRowHovered: {
@@ -826,7 +831,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 10,
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: 12,
+    borderRadius: ITEM_RADIUS,
   },
   // Whether the library can be reached, as a dot on the avatar's shoulder.
   statusDot: {
@@ -841,7 +846,7 @@ const styles = StyleSheet.create(theme => ({
   },
   statusText: { flex: 1, minWidth: 0, gap: 1 },
   statusDetail: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
-  footLabel: { color: theme.colors.textSecondary, fontSize: 13 },
+  footLabel: { color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
 }))
 
 /**

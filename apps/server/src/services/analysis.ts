@@ -182,7 +182,7 @@ export class AnalysisService {
 
         this.#current = { id: song.id, title: song.title }
         try {
-          await this.analyze(song.id, song.path, song.duration)
+          await this.#analyze(song.id, song.path, song.duration)
           this.#done++
         } catch (error) {
           this.#failed++
@@ -226,8 +226,8 @@ export class AnalysisService {
     this.#onProgress(this.#done, true)
   }
 
-  /** Analyse one song and store the result. Exposed for the tests and the route. */
-  async analyze(songId: number, key: string, duration: number): Promise<void> {
+  /** Analyse one song and store the result. */
+  async #analyze(songId: number, key: string, duration: number): Promise<void> {
     const startedAt = Date.now()
     const { file, cleanup } = await this.#localFile(songId, key)
 

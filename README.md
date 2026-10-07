@@ -307,8 +307,8 @@ the top of the checkout (copy `.env.example`; git ignores `.env`).
 | `SELFMP3_CLOUD_DIR` | unset | A folder to use as the bucket instead of an account — the dev profile and the verify lanes run with one. Relative to the data directory unless absolute |
 
 For the `s3` driver, also set `SELFMP3_S3_BUCKET`, `SELFMP3_S3_REGION`,
-`SELFMP3_S3_ENDPOINT`, `SELFMP3_S3_ACCESS_KEY_ID` and `SELFMP3_S3_SECRET_ACCESS_KEY`
-(and optionally `SELFMP3_S3_SIGNED_URL_TTL`, in seconds). That is the server's own storage;
+`SELFMP3_S3_ENDPOINT`, `SELFMP3_S3_ACCESS_KEY_ID` and `SELFMP3_S3_SECRET_ACCESS_KEY`.
+That is the server's own storage;
 the bucket every device syncs with is set up separately, in [SYNC.md](docs/SYNC.md).
 
 Day-to-day behaviour — crossfade, the watched folder, romanization — lives in the app's

@@ -344,7 +344,7 @@ Each is an interface in `packages/client`, implemented twice in `apps/app/src/po
 | `DeviceStore` | small persistent values | IndexedDB (exists in `packages/replica`) | files (exists) |
 | `Keyboard` | global shortcuts, the command palette trigger | `document` keydown | no-op, or hardware keyboard on iPad later |
 | `Share` | receive a shared link, share a wrapped card | Web Share Target, `navigator.share` | `expo-sharing`, an intent filter |
-| `Files` | reveal a song's file | server endpoint (on the server itself only) | unavailable, declared |
+| `Files` | reveal a song's file | unavailable (the desktop app reveals its downloads folder) | unavailable, declared |
 | `Media session` | lock-screen metadata | `navigator.mediaSession` | track-player metadata |
 
 The engine port declares capabilities — `crossfade`, `analyser`, `loop` — and

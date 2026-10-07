@@ -34,6 +34,10 @@ function Sync(): ReactNode {
   )
 
   useEffect(() => {
+    // The covers this snapshot draws. Only they stay read: each is the whole
+    // picture as text, and keeping every one since launch kept a long
+    // session's every song's.
+    const used = new Set<string>()
     const snapshot = widgetSnapshot({
       tiles,
       current,
@@ -44,6 +48,7 @@ function Sync(): ReactNode {
       coverOf: song => {
         const uri = coverFor(song.id)
         if (!uri) return ''
+        used.add(uri)
         const known = covers.current.get(uri)
         if (known !== undefined) return known
         const read = widgetCover(uri)
@@ -51,6 +56,7 @@ function Sync(): ReactNode {
         return read
       },
     })
+    for (const uri of covers.current.keys()) if (!used.has(uri)) covers.current.delete(uri)
     if (!snapshotChanged(sent.current, snapshot)) return
     sent.current = snapshot
     sendWidgetSnapshot(snapshot)

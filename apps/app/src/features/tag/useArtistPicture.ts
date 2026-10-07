@@ -50,6 +50,9 @@ export function useArtistPicture(
     // An answer holds for the session: the server keeps a picture once found,
     // and one it has none for is not asked about again for a week.
     staleTime: Number.POSITIVE_INFINITY,
+    // A few bytes each, and one dropped meant the face blinking out and back
+    // the next time the page opened.
+    gcTime: Number.POSITIVE_INFINITY,
   })
 
   if (!server || name === null || isError) return null

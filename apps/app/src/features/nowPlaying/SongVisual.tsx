@@ -27,6 +27,7 @@ import {
   type MotionTuning,
 } from './visualMotion.model'
 import { RING_FROM, RING_TO, rippleDisc, type VisualColors } from './visuals.model'
+import { useAppFocused } from '../../ui/useAppFocused'
 
 export interface SongVisualProps {
   song: Song
@@ -118,8 +119,16 @@ export function SongVisual({
     write(still, drawn, tuning, true, frame, ringWidths)
   }, [reduced, size, tuning, sampler.source, drawn, frame, ringWidths])
 
+  /*
+   * Only while the app is in front. In the background React Native's frame
+   * request is a timer due at once, with no display to wait for, so this loop
+   * spun a core flat out under a locked screen while the song played — what
+   * iOS ends a background app for (Xiao, 2026-10-07). It carries on from
+   * where it was when the app comes back.
+   */
+  const awake = useAppFocused()
   useEffect(() => {
-    if (!size || reduced) return undefined
+    if (!size || reduced || !awake) return undefined
     const kept = held.current
     let motion: MotionState
     if (kept && kept.key === restart) motion = kept.motion
@@ -150,7 +159,7 @@ export function SongVisual({
     }
     handle = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(handle)
-  }, [restart, reduced, size, drawn, clock, frame, ringWidths, isPlaying])
+  }, [restart, reduced, size, drawn, clock, frame, ringWidths, isPlaying, awake])
 
   return (
     <View

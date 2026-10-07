@@ -96,7 +96,12 @@ const queryClient = new QueryClient({
       // then the cached library beats a spinner that never ends.
       retry: 1,
       refetchOnWindowFocus: false,
-      gcTime: 24 * 60 * 60 * 1000,
+      // How long an answer nothing on screen reads is kept. It was a day, for
+      // every question — each song's lyrics and motion, each artist, each
+      // Ask — and a long session held all of them. Nothing here is persisted,
+      // so a day bought no offline copy: those are the snapshots
+      // (`api/client.ts`). The library itself is always read, so never dropped.
+      gcTime: 10 * 60 * 1000,
     },
   },
 })

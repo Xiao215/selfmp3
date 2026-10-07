@@ -13,6 +13,7 @@ import { floating } from '../surfaces'
 import { activeTab, type TabHref } from './bottomNav.model'
 import { Home, ListMusic, Music } from './Icons'
 import { useSlidingHighlight } from './SlidingHighlight'
+import { singularPlaces } from '../../ports/singularPlaces'
 
 /**
  * The phone's tab bar (docs/ui-mock `P04`): a capsule floating over the page
@@ -84,7 +85,17 @@ function BottomNavInner(): ReactNode {
                 onPress={() => {
                   // A lit tab still goes to its own first page: Home from
                   // Settings, Playlists from a playlist, as a phone's tab bar does.
-                  if (pathname !== tab.href) router.navigate(tab.href)
+                  if (pathname === tab.href) return
+                  // On a phone, back down to the tab if it is in the stack, or
+                  // in place of the page on top if not: a tab is a place, not a
+                  // page on a pile. Navigating pushed one every tap, and a long
+                  // session's stack grew without end — every page still a
+                  // native screen, every navigation walking all of them
+                  // (Xiao, 2026-10-07). A browser keeps one of each place
+                  // already (`ports/singularPlaces`), and its history is the
+                  // pile the back button walks.
+                  if (singularPlaces) router.navigate(tab.href)
+                  else router.dismissTo(tab.href)
                 }}
                 testID={`tab-${tab.id}`}
                 accessibilityRole="tab"

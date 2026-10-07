@@ -1,6 +1,6 @@
 import { HlcClock, type SongFields } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
-import type { SyncRepository } from '../repositories/sync.js'
+import type { StampKind, SyncRepository } from '../repositories/sync.js'
 
 /**
  * This server's clock for stamping changes (packages/shared/src/hlc.ts). Made the
@@ -75,12 +75,7 @@ export class LocalEdits {
   tagOnSongs(tagId: number, songIds: readonly number[]): void {
     const tag = this.#sync.uids('tags', [tagId]).get(tagId)
     if (!tag || songIds.length === 0) return
-    const hlc = this.#clock.tick()
-    this.#db.transaction(() => {
-      for (const song of this.#sync.uids('songs', songIds).values()) {
-        this.#sync.setStamp('songTag', song, tag, hlc)
-      }
-    })()
+    this.#stampAll('songTag', this.#sync.uids('songs', songIds).values(), [tag])
   }
 
   tag(id: number, fields: readonly ('name' | 'hue')[]): void {
@@ -103,11 +98,7 @@ export class LocalEdits {
   }
 
   /** One edit, one stamp, however many things it touched. */
-  #stampAll(
-    kind: 'song' | 'songTag' | 'tag' | 'playlist' | 'playlistSong',
-    uids: Iterable<string>,
-    fields: readonly string[],
-  ): void {
+  #stampAll(kind: StampKind, uids: Iterable<string>, fields: readonly string[]): void {
     const targets = [...uids]
     if (targets.length === 0 || fields.length === 0) return
     const hlc = this.#clock.tick()

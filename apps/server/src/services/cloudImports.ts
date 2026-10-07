@@ -98,8 +98,11 @@ export class CloudImportService {
 
     const title =
       preview.kind === 'playlist' ? preview.playlistTitle : (preview.items[0]?.title ?? null)
+    // `inQueue` knows a queued song by its video under any spelling of the
+    // link; a song found by its name only got its link after the preview
+    // looked, so the queue is asked about that link as well.
     const fresh = preview.items.filter(
-      item => !item.alreadyHave && !this.#imports.isPending(item.url),
+      item => !item.alreadyHave && !item.inQueue && !this.#imports.isPending(item.url),
     )
     if (fresh.length === 0) {
       this.#requests.finish(request.uid, {

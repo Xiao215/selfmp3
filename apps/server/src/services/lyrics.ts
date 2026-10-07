@@ -1,4 +1,3 @@
-import fsp from 'node:fs/promises'
 import {
   isSynced,
   LYRIC_EXTENSIONS,
@@ -9,6 +8,7 @@ import {
 import type { StorageDriver } from '../storage/index.js'
 import type { Logger } from '../logger.js'
 import { USER_AGENT } from '../config.js'
+import type { FetchLike } from './fetching.js'
 import type { YouTubeMusicLyrics } from './youtubeMusic.js'
 import type { NeteaseMusic } from './netease.js'
 
@@ -59,8 +59,6 @@ interface RemoteLyrics {
  * up again every time it plays.
  */
 type Instrumental = 'instrumental'
-
-type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
 
 interface LrclibRecord {
   syncedLyrics?: string | null
@@ -119,14 +117,19 @@ export class LyricsService {
       : null
   }
 
-  /** Path of an existing sidecar for this audio key, or null. */
+  /**
+   * Path of an existing sidecar for this audio key, or null. Every extension
+   * is asked at once; the first in `LYRIC_EXTENSIONS` order that is there wins.
+   */
   async findSidecar(audioKey: string): Promise<{ key: string; extension: string } | null> {
-    const stem = audioKey.replace(/\.[^.]+$/, '')
-    for (const extension of LYRIC_EXTENSIONS) {
-      const key = stem + extension
-      if (await this.#storage.exists(key)) return { key, extension }
-    }
-    return null
+    const stem = stemOf(audioKey)
+    const found = await Promise.all(
+      LYRIC_EXTENSIONS.map(async extension => {
+        const key = stem + extension
+        return (await this.#storage.exists(key)) ? { key, extension } : null
+      }),
+    )
+    return found.find(sidecar => sidecar !== null) ?? null
   }
 
   async readSidecar(audioKey: string): Promise<LyricsResult | null> {
@@ -147,7 +150,7 @@ export class LyricsService {
    * again, and a song's folder should say what it has.
    */
   async writeSidecar(audioKey: string, text: string, synced: boolean): Promise<void> {
-    const stem = audioKey.replace(/\.[^.]+$/, '')
+    const stem = stemOf(audioKey)
     const key = stem + (synced ? '.lrc' : '.txt')
     await this.#storage.write(key, Buffer.from(text, 'utf8'))
     if (synced) await this.#storage.delete(`${stem}.txt`).catch(() => undefined)
@@ -317,31 +320,43 @@ export class LyricsService {
 
   /** Cheap check used by the scanner: does this song have lyrics at all? */
   async detectKind(audioKey: string, embedded: string | null): Promise<LyricsKind> {
-    const sidecar = await this.findSidecar(audioKey)
-    if (sidecar) {
-      try {
-        const text = (await this.#storage.read(sidecar.key)).toString('utf8')
-        if (text.trim()) return isSynced(text) ? 'synced' : 'plain'
-      } catch {
-        // Unreadable sidecar counts as no lyrics.
-      }
-    }
+    // An unreadable or empty sidecar counts as none, and the tags are asked.
+    const sidecar = await this.readSidecar(audioKey)
+    if (sidecar) return sidecar.kind
     if (embedded?.trim()) return isSynced(embedded) ? 'synced' : 'plain'
     return 'none'
   }
 
   /** Remove a song's sidecar, used when a song is deleted from the library. */
   async deleteSidecar(audioKey: string): Promise<void> {
-    const stem = audioKey.replace(/\.[^.]+$/, '')
+    const stem = stemOf(audioKey)
     for (const extension of LYRIC_EXTENSIONS) {
-      const local = this.#storage.localPath(stem + extension)
-      if (local) {
-        await fsp.rm(local, { force: true }).catch(() => undefined)
-      } else {
-        await this.#storage.delete(stem + extension).catch(() => undefined)
-      }
+      await this.#storage.delete(stem + extension).catch(() => undefined)
     }
   }
+}
+
+/**
+ * A song's words as this server holds them, without asking the network: a
+ * sidecar, the bucket's copy, or the audio file's own tags. What the search
+ * index and the romaji backfill read, since both run unattended.
+ *
+ * Embedded words are handed on as the file has them, untrimmed, as the lyrics
+ * routes and the cloud upload hand them on: romaji is kept under a hash of
+ * the text, and a trimmed copy would be kept where nobody asks.
+ */
+export async function unattendedLyricText(
+  deps: {
+    readonly lyrics: { stored(songId: number, audioKey: string): Promise<{ text: string } | null> }
+    /** MetadataService: never throws, and reads an unreadable file as having no tags. */
+    readonly metadata: { read(key: string): Promise<{ embeddedLyrics: string | null }> }
+  },
+  song: { readonly id: number; readonly path: string },
+): Promise<string | null> {
+  const stored = await deps.lyrics.stored(song.id, song.path)
+  if (stored) return stored.text
+  const embedded = (await deps.metadata.read(song.path)).embeddedLyrics
+  return embedded?.trim() ? embedded : null
 }
 
 function hasSynced(record: LrclibRecord): record is LrclibRecord & { syncedLyrics: string } {
@@ -370,4 +385,9 @@ function closestFirst(records: readonly LrclibRecord[], duration: number): Lrcli
   const gap = (record: LrclibRecord): number =>
     record.duration ? Math.abs(record.duration - duration) : Number.POSITIVE_INFINITY
   return [...records].sort((a, b) => gap(a) - gap(b))
+}
+
+/** An audio key without its extension: what a sidecar beside it is named after. */
+function stemOf(audioKey: string): string {
+  return audioKey.replace(/\.[^.]+$/, '')
 }

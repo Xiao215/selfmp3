@@ -6,14 +6,19 @@ import sharp from 'sharp'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
+import { readCapped } from './fetching.js'
 import { isSquareCover, squareCover } from './squareCover.js'
 
 /**
- * Cover art cache.
+ * This server's copy of every cover, in `data/covers/<id>`.
  *
- * Art is extracted from the audio file once and written to `data/covers/<id>`,
- * rather than re-parsing a 6 MB file every time a list of forty songs scrolls
- * past. The cache is disposable: delete the folder and a rescan rebuilds it.
+ * A cover arrives once — read out of a file the inbox sweep found, fetched
+ * with an import, or picked by hand — and is kept here rather than re-read
+ * from a 6 MB file every time a list of forty songs scrolls past. It is not a
+ * cache to throw away: the audio it came from is let go once it is in the
+ * bucket (docs/SYNC.md), `/api/art/:id` serves only what is here, and the
+ * cloud pass uploads the cover from here. Delete the folder and the covers
+ * are gone from this server.
  */
 
 const EXTENSIONS = ['.jpg', '.png', '.webp'] as const
@@ -91,7 +96,7 @@ export class CoverService {
     const stat = await fsp.stat(cover.path)
     const dir = path.join(this.#dir, 'thumbs')
     const file = path.join(dir, `${songId}-${size}-${Math.floor(stat.mtimeMs).toString(16)}.jpg`)
-    if (fs.existsSync(file)) return { path: file, contentType: 'image/jpeg' }
+    if (await isFile(file)) return { path: file, contentType: 'image/jpeg' }
     let making = this.#making.get(file)
     if (!making) {
       making = this.#makeThumbnail(songId, size, cover, file).finally(() =>
@@ -166,9 +171,18 @@ export class CoverService {
     return squared
   }
 
-  /** Locate a cached cover, whatever format it was stored in. */
+  /**
+   * Locate a kept cover, whatever format it was stored in. The format `save`
+   * recorded on the row is looked for first, so the usual case is one look;
+   * the others are for a cover kept before the row said.
+   */
   find(songId: number): { path: string; contentType: string } | null {
-    for (const extension of EXTENSIONS) {
+    const recorded = this.#songs.artExt(songId)
+    const order: readonly string[] =
+      recorded !== null && (EXTENSIONS as readonly string[]).includes(recorded)
+        ? [recorded, ...EXTENSIONS.filter(other => other !== recorded)]
+        : EXTENSIONS
+    for (const extension of order) {
       const file = this.#pathFor(songId, extension)
       if (fs.existsSync(file)) {
         return { path: file, contentType: CONTENT_TYPES[extension] ?? 'image/jpeg' }
@@ -231,23 +245,12 @@ export class CoverService {
   }
 }
 
+async function isFile(file: string): Promise<boolean> {
+  return fsp.access(file).then(
+    () => true,
+    () => false,
+  )
+}
+
 /** Cover art is tens of kilobytes; past this it is not cover art. */
 const MAX_COVER_BYTES = 8 * 1024 * 1024
-
-/**
- * The body, or null if it runs past `limit`.
- *
- * Read in chunks rather than through `arrayBuffer()` so an unannounced huge
- * response is dropped as it arrives instead of after it has all been held.
- */
-async function readCapped(response: Response, limit: number): Promise<Buffer | null> {
-  if (!response.body) return null
-  const chunks: Buffer[] = []
-  let total = 0
-  for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
-    total += chunk.byteLength
-    if (total > limit) return null
-    chunks.push(Buffer.from(chunk))
-  }
-  return Buffer.concat(chunks)
-}

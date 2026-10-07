@@ -82,6 +82,10 @@ describe('CloudSyncService', () => {
   let buckets: Map<string, MemoryCloudStore>
   let bucket: MemoryCloudStore
   let sync: CloudSyncService
+  /** The service `sync` is, with some of its dependencies changed. */
+  let makeSync: (
+    changed: Partial<ConstructorParameters<typeof CloudSyncService>[0]>,
+  ) => CloudSyncService
   let clock: number
 
   beforeEach(() => {
@@ -135,7 +139,6 @@ describe('CloudSyncService', () => {
       Promise.reject(new Error('offline')),
     )
     scanner = new ScannerService({
-      config: { dataDir } as Config,
       storage,
       songs,
       metadata: new MetadataService(storage, logger),
@@ -151,7 +154,7 @@ describe('CloudSyncService', () => {
     buckets.set(CONNECT.bucket, bucket)
     clock = Date.parse('2026-09-11T10:00:00Z')
 
-    sync = new CloudSyncService({
+    const deps: ConstructorParameters<typeof CloudSyncService>[0] = {
       cloud,
       songs,
       tags,
@@ -176,9 +179,12 @@ describe('CloudSyncService', () => {
       debounceMs: 5,
       retryDelaysMs: [30],
       publishDeferMs: 40,
+      publishDeferMaxMs: 120,
       // A second apart per call, so every snapshot gets a name of its own.
       now: () => new Date((clock += 1000)),
-    })
+    }
+    makeSync = changed => new CloudSyncService({ ...deps, ...changed })
+    sync = makeSync({})
   })
 
   /** Services a test made besides `sync`, stopped with it. */
@@ -1223,20 +1229,17 @@ describe('CloudSyncService', () => {
     })
 
     it('publishes this server’s library, unmerged, when told to publish anyway', async () => {
-      process.env['SELFMP3_PUBLISH_ANYWAY'] = '1'
-      try {
-        addSong('A - One', 'one')
-        seedBucket(theirLibrary())
-        await connect()
+      sync.stop()
+      sync = makeSync({ publishAnyway: true })
+      addSong('A - One', 'one')
+      seedBucket(theirLibrary())
+      await connect()
 
-        // The escape hatch is total: it is how you say "this server's library
-        // is the one I want everywhere", and merging the bucket's in first
-        // would be the opposite of that.
-        expect(songs.all()).toHaveLength(1)
-        expect(latest().songs).toHaveLength(1)
-      } finally {
-        delete process.env['SELFMP3_PUBLISH_ANYWAY']
-      }
+      // The escape hatch is total: it is how you say "this server's library
+      // is the one I want everywhere", and merging the bucket's in first
+      // would be the opposite of that.
+      expect(songs.all()).toHaveLength(1)
+      expect(latest().songs).toHaveLength(1)
     })
   })
 
@@ -1885,6 +1888,8 @@ describe('CloudSyncService', () => {
   })
 
   describe('signing in through the doorman', () => {
+    /** The code the fake doorman shows when a test does not name one. */
+    const CODE = '7H3N9PQR'
     /**
      * The doorman as the server sees it: Google "finishes" a sign-in when a test
      * says so, each session belongs to an account, and an account's bucket is
@@ -1896,7 +1901,7 @@ describe('CloudSyncService', () => {
       readonly finished = new Map<string, string>()
       readonly accounts = new Map<string, DoormanMe>()
       readonly signedOut: string[] = []
-      /** attempt → the code shown once Google finished, for a doorman that asks for one. */
+      /** attempt → the code shown once Google finished. */
       readonly codes = new Map<string, string>()
       meFailure: CloudError | null = null
 
@@ -1904,11 +1909,11 @@ describe('CloudSyncService', () => {
         attempt: string,
         token: string,
         storage: DoormanMe['storage'] = null,
-        code?: string,
+        code = CODE,
       ): void {
         this.accounts.set(token, { email: 'me@example.com', name: 'Me', picture: null, storage })
         this.finished.set(attempt, token)
-        if (code) this.codes.set(attempt, code)
+        this.codes.set(attempt, code)
       }
 
       claim(attempt: string, code?: string): Promise<DoormanClaimResult> {
@@ -1919,9 +1924,9 @@ describe('CloudSyncService', () => {
             ? Promise.resolve({ status: 'pending' })
             : Promise.reject(new CloudError('other', 'wrong code'))
         }
-        const wanted = this.codes.get(attempt)
-        if (wanted !== undefined && code === undefined) return Promise.resolve({ status: 'code' })
-        if (wanted !== undefined && code !== wanted) {
+        // Asked without a code, a finished sign-in only says a code is waiting.
+        if (code === undefined) return Promise.resolve({ status: 'code' })
+        if (code !== this.codes.get(attempt)) {
           // A wrong code ends the attempt.
           this.finished.delete(attempt)
           return Promise.reject(new CloudError('other', 'That isn’t the code. Start again.'))
@@ -2010,10 +2015,23 @@ describe('CloudSyncService', () => {
       return service
     }
 
+    /** Poll until `done` says so, or give up after a couple of hundred milliseconds. */
+    const until = async (done: () => boolean): Promise<void> => {
+      for (let tries = 0; tries < 100 && !done(); tries++) {
+        await new Promise(resolve => setTimeout(resolve, 2))
+      }
+    }
+
+    /** Google finishes, the poll sees the code is waiting, and the code is typed in. */
+    const claimWithCode = async (service: CloudSyncService, code = CODE): Promise<void> => {
+      await until(() => service.status().signInNeedsCode)
+      await service.enterSignInCode(code)
+      await service.whenIdle()
+    }
+
     const signIn = async (service: CloudSyncService): Promise<void> => {
       service.beginSignIn(ATTEMPT)
-      await service.whenSignedIn()
-      await service.whenIdle()
+      await claimWithCode(service)
     }
 
     it('asks for the code Google’s sign-in ended with, and claims the session with it', async () => {
@@ -2022,9 +2040,7 @@ describe('CloudSyncService', () => {
 
       service.beginSignIn(ATTEMPT)
       doorman.finish(ATTEMPT, 'session-1', STORAGE, '4F7K2QXM')
-      for (let tries = 0; tries < 100 && !service.status().signInNeedsCode; tries++) {
-        await new Promise(resolve => setTimeout(resolve, 2))
-      }
+      await until(() => service.status().signInNeedsCode)
       // Starting the attempt was not enough: without the code, no session.
       expect(service.status()).toMatchObject({
         signingIn: true,
@@ -2048,9 +2064,7 @@ describe('CloudSyncService', () => {
 
       service.beginSignIn(ATTEMPT)
       doorman.finish(ATTEMPT, 'session-1', STORAGE, '4F7K2QXM')
-      for (let tries = 0; tries < 100 && !service.status().signInNeedsCode; tries++) {
-        await new Promise(resolve => setTimeout(resolve, 2))
-      }
+      await until(() => service.status().signInNeedsCode)
       await expect(service.enterSignInCode('AAAAAAAA')).rejects.toThrow(/isn’t the code/)
       expect(service.status()).toMatchObject({ signingIn: false, account: null, connected: false })
       // And the right code afterwards finds nothing to claim.
@@ -2065,8 +2079,7 @@ describe('CloudSyncService', () => {
       service.beginSignIn(ATTEMPT)
       expect(service.status()).toMatchObject({ signingIn: true, account: null })
       doorman.finish(ATTEMPT, 'session-1', STORAGE)
-      await service.whenSignedIn()
-      await service.whenIdle()
+      await claimWithCode(service)
 
       expect(service.status()).toMatchObject({
         doormanUrl: 'https://doorman.test',
@@ -2173,7 +2186,7 @@ describe('CloudSyncService', () => {
       const service = withDoorman(new FakeDoorman(), () => new Date(time))
       service.beginSignIn(ATTEMPT)
       time += 11 * 60_000
-      await service.whenSignedIn()
+      await until(() => !service.status().signingIn)
       expect(service.status()).toMatchObject({ signingIn: false, account: null })
     })
 

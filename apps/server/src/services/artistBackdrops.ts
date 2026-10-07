@@ -6,7 +6,8 @@ import { artistKey, splitArtists, type ArtistPictureShape, type Song } from '@se
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
-import { YouTubeMusicApi, type FetchLike } from './youtubeMusicApi.js'
+import { readCapped, type FetchLike } from './fetching.js'
+import { YouTubeMusicApi } from './youtubeMusicApi.js'
 import { pictureAt, type YouTubeMusicArtists } from './youtubeMusicArtist.js'
 import { fits, isSameSong, searchSongs } from './youtubeMusicSongs.js'
 
@@ -62,6 +63,9 @@ const EXTENSIONS: Record<ArtistPictureShape, string> = {
 }
 
 const REQUEST_TIMEOUT_MS = 10_000
+
+/** A banner is about 125 KB; past this, what came back is not one. */
+const MAX_PICTURE_BYTES = 4 * 1024 * 1024
 
 interface KeptPicture {
   readonly path: string
@@ -121,7 +125,7 @@ export class ArtistBackdropService {
     const kept = this.kept(name)
     if (kept) return kept
     const key = artistKey(name)
-    if (!key || this.#saidNoneLately(key)) return null
+    if (!key || (await this.#saidNoneLately(key))) return null
 
     let finding = this.#finding.get(key)
     if (!finding) {
@@ -222,7 +226,7 @@ export class ArtistBackdropService {
     try {
       const response = await this.#fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
       if (!response.ok) return null
-      return Buffer.from(await response.arrayBuffer())
+      return await readCapped(response, MAX_PICTURE_BYTES)
     } catch (error) {
       this.#logger.debug('could not fetch the picture', {
         message: error instanceof Error ? error.message : String(error),
@@ -265,9 +269,9 @@ export class ArtistBackdropService {
     }
   }
 
-  #saidNoneLately(key: string): boolean {
+  async #saidNoneLately(key: string): Promise<boolean> {
     try {
-      return Date.now() - fs.statSync(this.#file(key, '.none')).mtimeMs < NONE_TTL_MS
+      return Date.now() - (await fsp.stat(this.#file(key, '.none'))).mtimeMs < NONE_TTL_MS
     } catch {
       return false
     }

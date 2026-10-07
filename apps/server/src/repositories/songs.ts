@@ -89,6 +89,7 @@ export class SongRepository {
   readonly #recordPlay
   readonly #recordSkip
   readonly #setArt
+  readonly #artExt
   readonly #setLyricsKind
   readonly #setInstrumental
   readonly #count
@@ -174,6 +175,9 @@ export class SongRepository {
 
     this.#setArt = db.prepare(
       'UPDATE songs SET has_art = ?, art_ext = ?, art_rev = art_rev + 1 WHERE id = ?',
+    )
+    this.#artExt = db.prepare<[number], { art_ext: string | null }>(
+      'SELECT art_ext FROM songs WHERE id = ?',
     )
     this.#setLyricsKind = db.prepare('UPDATE songs SET lyrics_kind = ? WHERE id = ?')
     this.#setInstrumental = db.prepare('UPDATE songs SET instrumental = ? WHERE id = ?')
@@ -414,6 +418,11 @@ export class SongRepository {
 
   setArt(id: number, hasArt: boolean, extension: string | null): void {
     this.#setArt.run(hasArt ? 1 : 0, extension, id)
+  }
+
+  /** The extension the song's kept cover was saved with (`setArt`), or null. */
+  artExt(id: number): string | null {
+    return this.#artExt.get(id)?.art_ext ?? null
   }
 
   setLyricsKind(id: number, kind: string): void {

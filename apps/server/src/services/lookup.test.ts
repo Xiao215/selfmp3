@@ -2,12 +2,8 @@ import fs from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { createLogger } from '../logger.js'
 import { RateLimiter } from './rateLimiter.js'
-import {
-  ItunesProvider,
-  MetadataLookupService,
-  MusicBrainzProvider,
-  type FetchLike,
-} from './lookup.js'
+import type { FetchLike } from './fetching.js'
+import { ItunesProvider, MetadataLookupService, MusicBrainzProvider } from './lookup.js'
 
 const logger = createLogger('silent')
 const query = { title: 'Bohemian Rhapsody', artist: 'Queen', album: '', duration: 355 }

@@ -1,4 +1,5 @@
 import path from 'node:path'
+import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import { isSquareCoverUrl, sanitizeFilename, type ImportJob, type Settings } from '@selfmp3/shared'
 import { stagingDir, type Config } from '../config.js'
@@ -130,7 +131,7 @@ export class ImportQueueService {
   start(): void {
     const orphaned = this.#imports.resetOrphaned()
     if (orphaned > 0) this.#logger.info('requeued interrupted jobs', { count: orphaned })
-    this.#imports.pruneOlderThanDays(30)
+    this.#imports.pruneOlderThanDays(KEEP_FINISHED_JOBS_DAYS)
     this.kick()
   }
 
@@ -491,8 +492,7 @@ export class ImportQueueService {
 
       libraryKey = await this.#claimLibraryKey(name, path.extname(downloaded))
 
-      const data = await fsp.readFile(stagedPath)
-      await this.#storage.write(libraryKey, data)
+      await this.#storage.write(libraryKey, fs.createReadStream(stagedPath))
 
       const realDuration = duration || (await this.#ytdlp.probeDuration(stagedPath))
 
@@ -617,6 +617,9 @@ export class ImportQueueService {
     throw new Error('could not find a free name for this song in the library')
   }
 }
+
+/** Finished jobs older than this are cleared from the queue's history at boot. */
+const KEEP_FINISHED_JOBS_DAYS = 30
 
 /** A song shorter than this cannot be told from its preview by length, and is not checked. */
 const PREVIEW_CHECK_FROM_S = 60

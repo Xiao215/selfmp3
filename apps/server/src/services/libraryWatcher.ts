@@ -16,11 +16,16 @@ import { debounce, type Debounced } from './debounce.js'
  * it covers both places this server runs with zero dependencies and no native
  * build step. chokidar's extra machinery — polling fallbacks, glob matching,
  * `awaitWriteFinish` — solves problems this app does not have: the scanner is
- * already incremental (unchanged size+mtime is skipped) and idempotent, so a
- * file still being copied is simply picked up again by the next debounced
- * scan once its size settles.
+ * already incremental (a file whose mtime is unchanged is skipped) and
+ * idempotent, so a file still being copied is simply picked up again by the
+ * next debounced scan once it stops changing.
  *
  * Only the local storage driver has a folder to watch; with S3 this is a no-op.
+ *
+ * Besides watching, a sweep every `autoScanMinutes`, for wherever watching
+ * misses a change (a network share, object storage). Both follow the settings
+ * as they are each time `apply` is called, so changing either takes effect
+ * without a restart.
  */
 
 /** Quiet period after the last event before scanning. Finder copies in bursts. */
@@ -51,6 +56,8 @@ export class LibraryWatcherService {
   readonly #rescan: Debounced
 
   #watcher: fs.FSWatcher | null = null
+  #autoScan: NodeJS.Timeout | null = null
+  #autoScanMinutes = 0
   #stopped = false
 
   constructor(deps: {
@@ -73,17 +80,33 @@ export class LibraryWatcherService {
     return this.#watcher !== null
   }
 
-  /** Start or stop according to the current `watchLibrary` setting. */
+  /** Start or stop according to the current `watchLibrary` and `autoScanMinutes` settings. */
   apply(): void {
     if (this.#stopped) return
-    const wanted = this.#settings.get().watchLibrary && this.#config.storageDriver === 'local'
+    const settings = this.#settings.get()
+    const wanted = settings.watchLibrary && this.#config.storageDriver === 'local'
     if (wanted && !this.#watcher) this.#start()
     else if (!wanted && this.#watcher) this.#close()
+    this.#applyAutoScan(settings.autoScanMinutes)
   }
 
   stop(): void {
     this.#stopped = true
     this.#close()
+    this.#applyAutoScan(0)
+  }
+
+  /** A sweep every `minutes`, or none for 0; restarted only when the number changes. */
+  #applyAutoScan(minutes: number): void {
+    if (minutes === this.#autoScanMinutes) return
+    if (this.#autoScan) clearInterval(this.#autoScan)
+    this.#autoScan = null
+    this.#autoScanMinutes = minutes
+    if (minutes <= 0) return
+    this.#autoScan = setInterval(() => this.#scan(), minutes * 60_000)
+    // Do not hold the process open just for the timer.
+    this.#autoScan.unref()
+    this.#logger.info('automatic rescan enabled', { everyMinutes: minutes })
   }
 
   #start(): void {

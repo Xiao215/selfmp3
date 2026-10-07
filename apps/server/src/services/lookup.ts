@@ -1,6 +1,7 @@
 import type { MetadataCandidate } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import { USER_AGENT } from '../config.js'
+import type { FetchLike } from './fetching.js'
 import { RateLimiter } from './rateLimiter.js'
 import { rankCandidates, type LookupQuery } from './lookupScore.js'
 import { coverArtArchiveUrl, parseItunes, parseMusicBrainz } from './lookupParsers.js'
@@ -25,8 +26,6 @@ const CACHE_MAX_ENTRIES = 500
 /** How many MusicBrainz recordings get a Cover Art Archive check. */
 const MUSICBRAINZ_ART_CHECKS = 3
 const RELEASES_PER_RECORDING = 2
-
-export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
 
 interface MetadataProvider {
   readonly name: MetadataCandidate['source']

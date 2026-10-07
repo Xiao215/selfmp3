@@ -1,6 +1,5 @@
 import path from 'node:path'
 import { mimeForExtension, type ScanResult } from '@selfmp3/shared'
-import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
 import type { SongRepository } from '../repositories/songs.js'
@@ -46,7 +45,6 @@ export class ScannerService {
   onScanComplete: ((result: ScanResult) => void) | null = null
 
   constructor(deps: {
-    config: Config
     storage: StorageDriver
     songs: SongRepository
     metadata: MetadataService

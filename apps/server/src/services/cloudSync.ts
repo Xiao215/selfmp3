@@ -53,6 +53,7 @@ import type { ImportRequestRepository } from '../repositories/importRequests.js'
 import type { CloudIngest, IngestResult } from './cloudIngest.js'
 import type { CoverService } from './covers.js'
 import { removeFolderIfEmpty } from './libraryLayout.js'
+import { audioSignature, NO_FILE_SIGNATURE, tagsLyricsSignature } from './cloudSignatures.js'
 import type { LyricsService } from './lyrics.js'
 import type { MetadataService } from './metadata.js'
 import type { MotionStore } from './motionStore.js'
@@ -81,7 +82,7 @@ import type { AdoptionResult, CloudAdopt } from './cloudAdopt.js'
  * What was uploaded, and from which state of each song, is kept in
  * `cloud_songs`. A song whose file, cover and lyric sidecar are unchanged is
  * not read at all, so a pass over a library that is already up there costs a
- * database query and a stat per song.
+ * database query and a few stats per song, a batch of songs at a time.
  *
  * The bucket is the library and this server keeps no copy of it. So a pass
  * ends by letting go: the audio of every song that is wholly in the bucket,
@@ -94,7 +95,8 @@ import type { AdoptionResult, CloudAdopt } from './cloudAdopt.js'
 const DEFAULT_DEBOUNCE_MS = 4_000
 
 /** After a pass fails outright — offline, or the key refused — try again after these. */
-const RETRY_DELAYS_MS = [60_000, 120_000, 300_000, 900_000, 1_800_000]
+const FIRST_RETRY_MS = 60_000
+const RETRY_DELAYS_MS = [FIRST_RETRY_MS, 120_000, 300_000, 900_000, 1_800_000]
 
 /** Snapshots this server keeps in the bucket; older ones are deleted. */
 const SNAPSHOTS_KEPT = 3
@@ -110,6 +112,9 @@ const SNAPSHOTS_KEPT = 3
 const LOG_POLL_MS = 10 * 60_000
 
 const LOG_READS_AT_ONCE = 6
+
+/** Songs whose files are looked at together while a pass works out what changed. */
+const SIGNATURES_AT_ONCE = 16
 
 /**
  * How long a snapshot waits while imports are still coming, and the most it
@@ -138,6 +143,15 @@ interface Signatures {
   readonly motion: string
   /** Whether the audio is on this disk: what a changed audio signature needs to be sent from. */
   readonly audioHere: boolean
+  /** Whether a lyric sidecar is on this disk beside it. */
+  readonly sidecarHere: boolean
+}
+
+/** A song wholly in the bucket as it is here, and what of it this disk still holds. */
+interface Settled {
+  readonly file: SongFileInfo
+  readonly audioHere: boolean
+  readonly sidecarHere: boolean
 }
 
 /** A song's words in the bucket, and their romanized lines beside them. */
@@ -218,6 +232,13 @@ interface CloudSyncDeps {
   readonly debounceMs?: number
   /** How long a snapshot waits while imports are still coming (`PUBLISH_DEFER_MS`). */
   readonly publishDeferMs?: number
+  /** The most it waits during a run that never pauses (`PUBLISH_DEFER_MAX_MS`). */
+  readonly publishDeferMaxMs?: number
+  /**
+   * Publish this server's library as it stands (`SELFMP3_PUBLISH_ANYWAY`):
+   * no adoption first, and no refusing to replace a bigger library.
+   */
+  readonly publishAnyway?: boolean
   readonly now?: () => Date
   readonly signInPollMs?: number
   readonly logPollMs?: number
@@ -230,7 +251,6 @@ export class CloudSyncService {
   readonly #logger: Logger
   readonly #openStore: (connection: CloudConnection) => CloudStore
   readonly #doorman: Doorman | null
-  readonly #debounceMs: number
   readonly #now: () => Date
   readonly #signInPollMs: number
   readonly #logPollMs: number
@@ -311,7 +331,6 @@ export class CloudSyncService {
     this.#openStore = deps.openStore ?? (connection => new S3CloudStore(connection))
     const openDoorman = deps.openDoorman ?? ((url: string) => new DoormanClient(url))
     this.#doorman = deps.doormanUrl ? openDoorman(deps.doormanUrl) : null
-    this.#debounceMs = deps.debounceMs ?? DEFAULT_DEBOUNCE_MS
     /*
      * The shared debounce, for its ceiling.
      *
@@ -320,7 +339,7 @@ export class CloudSyncService {
      * it goes — held the cloud off for the whole burst, however long that was.
      * `maxWaitMs` is what guarantees the pass still happens during one.
      */
-    this.#kickDebounce = debounce(() => void this.#pass(), this.#debounceMs)
+    this.#kickDebounce = debounce(() => void this.#pass(), deps.debounceMs ?? DEFAULT_DEBOUNCE_MS)
     const defer = deps.publishDeferMs ?? PUBLISH_DEFER_MS
     this.#publishLater = debounce(
       () => {
@@ -334,7 +353,7 @@ export class CloudSyncService {
         }
       },
       defer,
-      Math.max(defer, deps.publishDeferMs === undefined ? PUBLISH_DEFER_MAX_MS : defer * 3),
+      Math.max(defer, deps.publishDeferMaxMs ?? PUBLISH_DEFER_MAX_MS),
     )
     this.#now = deps.now ?? (() => new Date())
     this.#signInPollMs = deps.signInPollMs ?? SIGN_IN_POLL_MS
@@ -560,11 +579,6 @@ export class CloudSyncService {
     }
   }
 
-  /** Wait for a sign-in to finish or give up. For tests. */
-  async whenSignedIn(): Promise<void> {
-    while (this.#signIn) await new Promise(resolve => setTimeout(resolve, 5))
-  }
-
   /**
    * Connect a bucket to the signed-in Google account. The doorman tries the
    * key before it keeps it, and says what was wrong if it was. Throws
@@ -601,17 +615,10 @@ export class CloudSyncService {
       return
     }
     try {
+      // Asked without a code, the doorman only ever says whether one is waiting.
       const result = await this.#doorman.claim(signIn.attempt)
       if (this.#signIn !== signIn) return
-      if (result.status === 'code') {
-        this.#signIn = { ...signIn, needsCode: true }
-      } else if (result.status === 'signed-in') {
-        // A doorman from before sign-in codes.
-        this.#signIn = null
-        this.#logger.info('signed in to the cloud', { account: result.me.email })
-        this.#adoptAccount(result.token, result.me)
-        return
-      }
+      if (result.status === 'code') this.#signIn = { ...signIn, needsCode: true }
     } catch (error) {
       // Google takes its time and networks drop: keep asking until the deadline.
       this.#logger.debug('sign-in not claimed yet', { message: message(error) })
@@ -731,7 +738,7 @@ export class CloudSyncService {
     if (!file) throw new Error('the song is no longer in the library')
 
     await this.#prepareBucket(store)
-    await this.#uploadSongFiles(store, file, this.#deps.cloud.states().get(songId) ?? null)
+    await this.#uploadSongFiles(store, file, this.#deps.cloud.state(songId))
     if (more) {
       this.#publishLater.trigger()
       return
@@ -780,13 +787,18 @@ export class CloudSyncService {
 
       // Work out what changed first, so progress counts real work.
       const states = cloud.states()
+      const files = cloud.songFiles()
+      const signed = await inBatches(files, SIGNATURES_AT_ONCE, file =>
+        this.#signatures(file, states.get(file.id) ?? null),
+      )
       const changed: Array<{ file: SongFileInfo; signatures: Signatures }> = []
       /** Songs wholly in the bucket as they are here: what may be let go of below. */
-      const settled: SongFileInfo[] = []
+      const settled: Settled[] = []
       let withoutCopy = 0
-      for (const file of cloud.songFiles()) {
+      for (const [index, file] of files.entries()) {
         const state = states.get(file.id)
-        const signatures = await this.#signatures(file, state)
+        const signatures = signed[index] as Signatures
+        const { audioHere, sidecarHere } = signatures
         if (
           state &&
           state.audioSig === signatures.audio &&
@@ -794,7 +806,7 @@ export class CloudSyncService {
           state.lyricsSig === signatures.lyrics &&
           state.motionSig === signatures.motion
         ) {
-          settled.push(file)
+          settled.push({ file, audioHere, sidecarHere })
           continue
         }
         // New audio has to be read from a copy here. A cover, a curve or the
@@ -821,7 +833,11 @@ export class CloudSyncService {
         this.#progress = { done, total, current: file.title }
         try {
           await this.#uploadSongFiles(store, file, states.get(file.id) ?? null, signatures)
-          settled.push(file)
+          settled.push({
+            file,
+            audioHere: signatures.audioHere,
+            sidecarHere: signatures.sidecarHere,
+          })
         } catch (error) {
           // Offline, a refused key, no bucket, a used-up cap: nothing else
           // will work either, and every try against a cap is one more call.
@@ -884,7 +900,7 @@ export class CloudSyncService {
   #tryAgainLater(why: string): void {
     if (this.#stopped) return
     const delays = this.#retryDelaysMs
-    const delay = delays[Math.min(this.#retryIndex, delays.length - 1)] ?? 60_000
+    const delay = delays[Math.min(this.#retryIndex, delays.length - 1)] ?? FIRST_RETRY_MS
     this.#retryIndex++
     this.#logger.warn('cloud pass failed, will try again', {
       message: why,
@@ -1007,7 +1023,9 @@ export class CloudSyncService {
       // A new Wi-Fi network is a new address, with nothing else about the
       // library to say: the snapshot goes up again so a device can still find
       // this server.
-      else if (this.#serverNow() !== this.#publishedServer) void this.#publish(store)
+      else if (this.#serverKey(this.#deps.server?.()) !== this.#publishedServer) {
+        void this.#publish(store)
+      }
     } catch (error) {
       // The next look, or the next pass, will say what is wrong.
       this.#logger.debug('could not look for changes from other devices', {
@@ -1081,21 +1099,12 @@ export class CloudSyncService {
     // The escape hatch is total: it is how you say "this server's library is
     // the one I want everywhere", and merging the bucket's into it first would
     // be the opposite of that.
-    if (!adopt || process.env['SELFMP3_PUBLISH_ANYWAY'] === '1') {
+    if (!adopt || this.#deps.publishAnyway) {
       this.#adopted = true
       return
     }
 
-    // Listing is separate from reading, for the reason #refuseToLoseLibrary gives.
-    let newest: string | null
-    try {
-      newest = newestSnapshotKey((await store.list(SNAPSHOTS_FOLDER)).map(object => object.key))
-    } catch (error) {
-      throw new CloudError(
-        'other',
-        publishUncheckableMessage(`the bucket would not list: ${message(error)}`),
-      )
-    }
+    const newest = await this.#newestSnapshot(store)
     if (!newest) {
       this.#adopted = true
       return
@@ -1103,9 +1112,7 @@ export class CloudSyncService {
 
     let snapshot: CloudSnapshot
     try {
-      const body = await store.get(newest)
-      if (!body) throw new Error(`${newest} has gone`)
-      snapshot = parseSnapshot(body)
+      snapshot = parseSnapshot(newest.body)
     } catch (error) {
       throw new CloudError(
         'other',
@@ -1118,7 +1125,7 @@ export class CloudSyncService {
     if (result.songs === 0 && result.tags === 0 && result.playlists === 0) return
 
     this.#logger.info('took on the library already in the bucket', {
-      from: newest,
+      from: newest.key,
       songs: result.songs,
       tags: result.tags,
       playlists: result.playlists,
@@ -1166,25 +1173,25 @@ export class CloudSyncService {
    * were cleared by hand), which is `none`, and sends the song up without them.
    */
   async #signatures(file: SongFileInfo, state: CloudSongState | null = null): Promise<Signatures> {
-    const audio = `${file.sizeBytes}-${file.mtimeMs}`
-    const cover = file.hasArt ? `art-${file.artRev}` : 'none'
+    const audio = audioSignature(file.sizeBytes, file.mtimeMs)
+    const cover = file.hasArt ? `art-${file.artRev}` : NO_FILE_SIGNATURE
     const curve = (await this.#deps.motion?.stat(file.id)) ?? null
-    const motion = curve ? `motion-${curve.size}-${Math.round(curve.mtimeMs)}` : 'none'
+    const motion = curve ? `motion-${curve.size}-${Math.round(curve.mtimeMs)}` : NO_FILE_SIGNATURE
     const audioHere = await this.#deps.storage.exists(file.path)
     const sidecar = await this.#deps.lyrics.findSidecar(file.path)
     if (!sidecar) {
       const lyrics = audioHere
-        ? `tags-${audio}`
+        ? tagsLyricsSignature(audio)
         : file.lyricsKind === 'none'
-          ? 'none'
-          : (state?.lyricsSig ?? 'none')
-      return { audio, cover, lyrics, motion, audioHere }
+          ? NO_FILE_SIGNATURE
+          : (state?.lyricsSig ?? NO_FILE_SIGNATURE)
+      return { audio, cover, lyrics, motion, audioHere, sidecarHere: false }
     }
     const stat = await this.#deps.storage.stat(sidecar.key)
     const lyrics = stat
       ? `sidecar${sidecar.extension}-${stat.sizeBytes}-${stat.modifiedAt.getTime()}`
-      : `tags-${audio}`
-    return { audio, cover, lyrics, motion, audioHere }
+      : tagsLyricsSignature(audio)
+    return { audio, cover, lyrics, motion, audioHere, sidecarHere: true }
   }
 
   /** Upload whatever of one song's files the bucket does not have yet. */
@@ -1338,17 +1345,20 @@ export class CloudSyncService {
    * has not reached yet keeps it a while longer. From here on the words are
    * read from the bucket (`fetchLyrics`), and the pass knows they are current
    * because nothing here can have changed them (`#signatures`).
+   *
+   * What is here is what `#signatures` saw at the start of the pass, so a
+   * library already let go costs no second look. A sidecar written since then
+   * has not been sent yet, and stays for the next pass to send.
    */
-  async #letGo(settled: readonly SongFileInfo[]): Promise<void> {
+  async #letGo(settled: readonly Settled[]): Promise<void> {
     const analysed = this.#deps.analysed
     if (!analysed) return
     const { storage, lyrics } = this.#deps
     let released = 0
-    for (const file of settled) {
+    for (const { file, audioHere, sidecarHere } of settled) {
       if (this.#stopped) return
+      if (!audioHere && !sidecarHere) continue
       if (!analysed(file.id)) continue
-      const audioHere = await storage.exists(file.path)
-      if (!audioHere && !(await lyrics.findSidecar(file.path))) continue
       try {
         if (audioHere) await storage.delete(file.path)
         await lyrics.deleteSidecar(file.path)
@@ -1429,30 +1439,21 @@ export class CloudSyncService {
    * exactly what is supposed to happen. A bucket that cannot be read is.
    */
   async #refuseToLoseLibrary(store: CloudStore, songsHere: number): Promise<string | null> {
-    if (process.env['SELFMP3_PUBLISH_ANYWAY'] === '1') return null
+    if (this.#deps.publishAnyway) return null
 
-    // Listing is separate from reading on purpose. An empty snapshots folder is
-    // a fact — the bucket has no library — and the ordinary first run. Failing
-    // to list is not that fact, and must not be mistaken for it.
-    let newest: string | null
-    try {
-      newest = newestSnapshotKey((await store.list(SNAPSHOTS_FOLDER)).map(object => object.key))
-    } catch (error) {
-      return publishUncheckableMessage(`the bucket would not list: ${message(error)}`)
-    }
-    if (!newest) return null
-
-    // From here every failure means "there is a library and I cannot see it",
+    // Every failure here means "there is a library and I cannot see it",
     // which is the one situation this guard exists for. It used to swallow all
     // of these and publish, which is how it sat here for its whole life looking
     // like protection while protecting nothing.
     let inBucket: number
     try {
-      const body = await store.get(newest)
-      if (!body) return publishUncheckableMessage('its newest snapshot has gone')
-      inBucket = snapshotSongCount(body)
+      const newest = await this.#newestSnapshot(store)
+      if (!newest) return null
+      inBucket = snapshotSongCount(newest.body)
     } catch (error) {
-      return publishUncheckableMessage(`its newest snapshot would not read: ${message(error)}`)
+      return error instanceof CloudError
+        ? error.message
+        : publishUncheckableMessage(`its newest snapshot would not read: ${message(error)}`)
     }
 
     return publishWouldLoseLibrary(inBucket, songsHere)
@@ -1460,9 +1461,43 @@ export class CloudSyncService {
       : null
   }
 
-  /** The addresses as the snapshot would carry them now, or null with none to carry. */
-  #serverNow(): string | null {
-    const server = this.#deps.server?.()
+  /**
+   * The bucket's newest snapshot, or null when it holds none: what adoption
+   * takes on and what the guard counts.
+   *
+   * Listing is separate from reading on purpose. An empty snapshots folder is
+   * a fact — the bucket has no library — and the ordinary first run. Failing
+   * to list is not that fact, and must not be mistaken for it, so every
+   * failure here throws the message that says publishing was refused.
+   */
+  async #newestSnapshot(store: CloudStore): Promise<{ key: string; body: Buffer } | null> {
+    let key: string | null
+    try {
+      key = newestSnapshotKey((await store.list(SNAPSHOTS_FOLDER)).map(object => object.key))
+    } catch (error) {
+      throw new CloudError(
+        'other',
+        publishUncheckableMessage(`the bucket would not list: ${message(error)}`),
+      )
+    }
+    if (!key) return null
+
+    let body: Buffer | null
+    try {
+      body = await store.get(key)
+    } catch (error) {
+      throw new CloudError(
+        'other',
+        publishUncheckableMessage(`its newest snapshot would not read: ${message(error)}`),
+      )
+    }
+    if (!body)
+      throw new CloudError('other', publishUncheckableMessage('its newest snapshot has gone'))
+    return { key, body }
+  }
+
+  /** The addresses as a snapshot carries them, to notice when they have changed. */
+  #serverKey(server: CloudServer | undefined): string | null {
     return server === undefined ? null : JSON.stringify(server)
   }
 
@@ -1490,7 +1525,7 @@ export class CloudSyncService {
     importRequests?.settle()
 
     const server = this.#deps.server?.()
-    this.#publishedServer = server === undefined ? null : JSON.stringify(server)
+    this.#publishedServer = this.#serverKey(server)
     const snapshot = buildSnapshot({
       stamps: sync?.allStamps() ?? [],
       aliases: sync?.aliases() ?? new Map(),

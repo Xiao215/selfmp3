@@ -1,11 +1,11 @@
-import { cleanArtist, cleanTitle, neteaseLink } from '@selfmp3/shared'
+import { cleanArtist, cleanTitle, neteaseLink, youtubeVideoId } from '@selfmp3/shared'
 import { foldForMatch, similarAtLeast, type Folded } from './youtubeMatch.js'
 
 /**
  * Is this track already in the library?
  *
  * One rule for every way a song can arrive — a pasted link, a shared link, a
- * migrated playlist — because there were two, and the weaker one let things
+ * list of names — because there were two, and the weaker one let things
  * through. The import preview compared `artist::title` as exact lowercased
  * strings; a dev library ended up with the same ZUTOMAYO track ten times over,
  * because YouTube gave the channel as "ZUTOMAYO" one week and "ずっと真夜中で
@@ -93,18 +93,18 @@ export function libraryIndex<T extends LibrarySong>(songs: readonly T[]): Librar
 }
 
 /**
- * The same video on `youtube.com`, `music.youtube.com` and `youtu.be` is the
- * same file, so a link is reduced to what identifies it, as is a 网易云 song
- * in any of its spellings. Anything else is compared whole, minus the noise a
- * share button adds.
+ * The same video on `youtube.com`, `music.youtube.com`, `youtu.be`, as a Short
+ * or as an embed is the same file, so a link is reduced to what identifies it
+ * (`youtubeVideoId`), as is a 网易云 song in any of its spellings. Anything
+ * else is compared whole, minus the noise a share button adds.
  */
 export function normaliseUrl(raw: string | null | undefined): string | null {
   const trimmed = raw?.trim()
   if (!trimmed) return null
   const netease = neteaseLink(trimmed)
   if (netease?.kind === 'song') return `ne:${netease.id}`
-  const video = /[?&]v=([\w-]{6,})/.exec(trimmed) ?? /youtu\.be\/([\w-]{6,})/.exec(trimmed)
-  if (video?.[1]) return `yt:${video[1]}`
+  const video = youtubeVideoId(trimmed)
+  if (video) return `yt:${video}`
   return trimmed.replace(/[?&](si|feature|utm_[\w-]+)=[^&]*/g, '').replace(/[?&]$/, '')
 }
 

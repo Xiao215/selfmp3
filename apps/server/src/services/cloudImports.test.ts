@@ -189,6 +189,19 @@ describe('links other devices ask to import', () => {
     expect(requests.byUid(REQUEST)).toMatchObject({ state: 'done', songUids: [], error: null })
   })
 
+  it('queues nothing the queue already has under another spelling of the link', async () => {
+    const preview = single('Sunrise')
+    resolve = () =>
+      Promise.resolve({
+        ...preview,
+        items: preview.items.map(item => ({ ...item, inQueue: true })),
+      })
+    ingest.apply([ask()])
+    await service.process()
+    expect(imports.counts().queued).toBe(0)
+    expect(requests.byUid(REQUEST)).toMatchObject({ state: 'done', songUids: [] })
+  })
+
   it('queues nothing for a request called off while its link was looked up', async () => {
     let answer: (preview: ImportPreview) => void = () => undefined
     resolve = () => new Promise(resolvePreview => (answer = resolvePreview))

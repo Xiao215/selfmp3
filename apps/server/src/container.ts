@@ -253,6 +253,7 @@ export function createContainer(configured: Config): Container {
     // copy on this disk may go.
     analysed: songId => audioFeatures.isAnalysed(songId, ANALYSIS_VERSION),
     cloudDir: config.cloudDir ?? undefined,
+    publishAnyway: config.publishAnyway,
     importRequests,
     doormanUrl: config.doormanUrl,
     romanize: (songId, text) => romanizedLines({ lyricsCache, romanization }, songId, text),
@@ -278,7 +279,6 @@ export function createContainer(configured: Config): Container {
   }
 
   const scanner = new ScannerService({
-    config,
     storage,
     songs,
     metadata,

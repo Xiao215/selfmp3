@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import Database from 'better-sqlite3'
 import type { DeviceHeartbeat } from '@selfmp3/shared'
 import { migrate } from '../db/migrate.js'
@@ -135,5 +135,48 @@ describe('DeviceService', () => {
     advance(2_000)
     expect(service.forgetStale()).toBe(1)
     expect(service.list().devices.map(device => device.id)).toEqual(['phone-000001'])
+  })
+})
+
+describe('the library-version watch', () => {
+  it('tells open streams of a new version, and stops looking once none are open', () => {
+    vi.useFakeTimers()
+    try {
+      const db = new Database(':memory:')
+      migrate(db, logger)
+      let version = 1
+      let asked = 0
+      const service = new DeviceService({
+        devices: new DeviceRepository(db),
+        hub: new EventHub(logger),
+        logger,
+        libraryVersion: () => {
+          asked++
+          return version
+        },
+      })
+      service.start()
+      const sink = new BufferSink()
+      const close = service.connect(sink, 'phone')
+
+      version = 2
+      vi.advanceTimersByTime(2_000)
+      expect(sink.text).toContain('"version":2')
+
+      close()
+      const before = asked
+      version = 3
+      vi.advanceTimersByTime(10_000)
+      // Nobody open: the version is not even read.
+      expect(asked).toBe(before)
+
+      // The next stream starts from the version as it is.
+      const next = new BufferSink()
+      service.connect(next, 'phone')
+      expect(next.text).toContain('"version":3')
+      service.stop()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

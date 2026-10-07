@@ -1,13 +1,14 @@
 import {
-  CLOUD_FORMAT,
+  CLOUD_FORMAT_UNREADABLE,
   CloudConnectSchema,
-  CloudFormatSchema,
   DoormanBackblazeConnectSchema,
   FORMAT_KEY,
+  cloudFormatProblem,
   formatZodError,
+  isCloudFormat,
+  newCloudFormatText,
   parseEndpoint,
   type CloudConnect,
-  type CloudFormat,
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { Bucket, BucketError, type BucketTarget } from './bucket.js'
@@ -227,40 +228,30 @@ function targetFrom(input: CloudConnect, dev: boolean): BucketTarget {
 
 /**
  * Make sure the bucket is one this build may write to: `format.json` says so,
- * or there is none yet and this writes it — and reads it back. The same rules,
- * and the same words, as the server's `#checkFormat`.
+ * or there is none yet and this writes it — and reads it back. The rules and
+ * the words are shared's (`cloudFormatProblem`), which the server's
+ * `#checkFormat` judges by too.
  */
 async function checkFormat(bucket: Bucket, now: () => number): Promise<void> {
   const existing = await bucket.read(FORMAT_KEY, FORMAT_MAX_BYTES + 1)
   if (existing) {
-    const parsed =
-      existing.length <= FORMAT_MAX_BYTES ? CloudFormatSchema.safeParse(parseJson(existing)) : null
-    if (!parsed?.success) {
-      throw unprocessable(
-        'That folder of the bucket has a format.json that is not self.mp3’s. Choose another folder.',
-      )
-    }
-    if (parsed.data.format > CLOUD_FORMAT) {
-      throw unprocessable(
-        `This bucket was set up by a newer version of self.mp3 (format ${parsed.data.format}). ` +
-          'Update the doorman before connecting it.',
-      )
-    }
+    // Far bigger than a format.json is not one, whatever it says.
+    const document = existing.length <= FORMAT_MAX_BYTES ? parseJson(existing) : null
+    const problem = cloudFormatProblem(document, 'the doorman')
+    if (problem) throw unprocessable(problem)
     return
   }
 
-  const format: CloudFormat = {
-    app: 'self.mp3',
-    format: CLOUD_FORMAT,
-    createdAt: new Date(now()).toISOString(),
-    createdBy: 'doorman',
-  }
-  await bucket.write(FORMAT_KEY, utf8(`${JSON.stringify(format, null, 2)}\n`), {
-    contentType: 'application/json',
-  })
+  await bucket.write(
+    FORMAT_KEY,
+    utf8(newCloudFormatText(new Date(now()).toISOString(), 'doorman')),
+    {
+      contentType: 'application/json',
+    },
+  )
   const readBack = await bucket.read(FORMAT_KEY, FORMAT_MAX_BYTES + 1)
-  if (!readBack || !CloudFormatSchema.safeParse(parseJson(readBack)).success) {
-    throw unprocessable('The key can write to the bucket but not read from it. It needs both.')
+  if (!readBack || !isCloudFormat(parseJson(readBack))) {
+    throw unprocessable(CLOUD_FORMAT_UNREADABLE)
   }
 }
 

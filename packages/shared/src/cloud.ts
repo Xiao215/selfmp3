@@ -1,4 +1,9 @@
-import type { CloudSmartRules } from './schemas/cloud.js'
+import {
+  CLOUD_FORMAT,
+  CloudFormatSchema,
+  type CloudFormat,
+  type CloudSmartRules,
+} from './schemas/cloud.js'
 import type { SmartRules } from './schemas/smart.js'
 
 /**
@@ -84,6 +89,45 @@ export function motionKey(sha256: string): string {
 }
 
 export const FORMAT_KEY = 'format.json'
+
+/**
+ * The format.json a new bucket gets, at the format this build writes, as its
+ * text: pretty, with a newline, so it reads well in a provider's file browser.
+ */
+export function newCloudFormatText(createdAt: string, createdBy: string): string {
+  const format: CloudFormat = { app: 'self.mp3', format: CLOUD_FORMAT, createdAt, createdBy }
+  return `${JSON.stringify(format, null, 2)}\n`
+}
+
+/** Whether a parsed document is a format.json at all: what a read-back checks. */
+export function isCloudFormat(document: unknown): boolean {
+  return CloudFormatSchema.safeParse(document).success
+}
+
+/**
+ * Whether this build may use a bucket whose format.json says `document`
+ * (parsed; null when it would not parse): null when it may, and otherwise the
+ * words for the person connecting it. The server and the doorman judge a
+ * bucket alike and say so alike; `update` names what to update when the bucket
+ * is newer than this build — "this server", "the doorman".
+ */
+export function cloudFormatProblem(document: unknown, update: string): string | null {
+  const parsed = CloudFormatSchema.safeParse(document)
+  if (!parsed.success) {
+    return 'That folder of the bucket has a format.json that is not self.mp3’s. Choose another folder.'
+  }
+  if (parsed.data.format > CLOUD_FORMAT) {
+    return (
+      `This bucket was set up by a newer version of self.mp3 (format ${parsed.data.format}). ` +
+      `Update ${update} before connecting it.`
+    )
+  }
+  return null
+}
+
+/** A key that wrote format.json and could not read it back. */
+export const CLOUD_FORMAT_UNREADABLE =
+  'The key can write to the bucket but not read from it. It needs both.'
 export const SNAPSHOTS_FOLDER = 'snapshots/'
 
 /**

@@ -3,8 +3,10 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { gzipSync } from 'node:zlib'
 import {
-  CLOUD_FORMAT,
-  CloudFormatSchema,
+  CLOUD_FORMAT_UNREADABLE,
+  cloudFormatProblem,
+  isCloudFormat,
+  newCloudFormatText,
   FORMAT_KEY,
   LOG_FOLDER,
   SNAPSHOTS_FOLDER,
@@ -1603,37 +1605,16 @@ export class CloudSyncService {
   async #checkFormat(store: CloudStore): Promise<void> {
     const existing = await store.get(FORMAT_KEY)
     if (existing) {
-      const parsed = CloudFormatSchema.safeParse(parseJson(existing))
-      if (!parsed.success) {
-        throw new CloudError(
-          'other',
-          'That folder of the bucket has a format.json that is not self.mp3’s. Choose another folder.',
-        )
-      }
-      if (parsed.data.format > CLOUD_FORMAT) {
-        throw new CloudError(
-          'other',
-          `This bucket was set up by a newer version of self.mp3 (format ${parsed.data.format}). ` +
-            'Update this server before connecting it.',
-        )
-      }
+      const problem = cloudFormatProblem(parseJson(existing), 'this server')
+      if (problem) throw new CloudError('other', problem)
       return
     }
 
-    const format = {
-      app: 'self.mp3',
-      format: CLOUD_FORMAT,
-      createdAt: this.#now().toISOString(),
-      createdBy: this.#deviceId(),
-    }
-    const body = Buffer.from(`${JSON.stringify(format, null, 2)}\n`)
-    await store.put(FORMAT_KEY, body, { contentType: 'application/json' })
+    const text = newCloudFormatText(this.#now().toISOString(), this.#deviceId())
+    await store.put(FORMAT_KEY, Buffer.from(text), { contentType: 'application/json' })
     const readBack = await store.get(FORMAT_KEY)
-    if (!readBack || !CloudFormatSchema.safeParse(parseJson(readBack)).success) {
-      throw new CloudError(
-        'auth',
-        'The key can write to the bucket but not read from it. It needs both.',
-      )
+    if (!readBack || !isCloudFormat(parseJson(readBack))) {
+      throw new CloudError('auth', CLOUD_FORMAT_UNREADABLE)
     }
   }
 

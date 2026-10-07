@@ -4,6 +4,7 @@ import {
   UNKNOWN_TAG_ID,
   audioKey,
   cleanExtension,
+  cloudFormatProblem,
   coverKey,
   fromCloudRules,
   isCloudFileKey,
@@ -13,6 +14,7 @@ import {
   logKey,
   lyricsKey,
   newCloudDeviceId,
+  newCloudFormatText,
   newUid,
   newestSnapshotKey,
   parseEndpoint,
@@ -379,5 +381,20 @@ describe('snapshot schema', () => {
       playlists: [],
     })
     expect(parsed.upTo).toEqual({})
+  })
+})
+
+describe('format.json', () => {
+  it('lets this build use a bucket written at its own format or an older one', () => {
+    const written: unknown = JSON.parse(newCloudFormatText('2026-10-07T00:00:00.000Z', 'mac-1'))
+    expect(written).toMatchObject({ app: 'self.mp3', createdBy: 'mac-1' })
+    expect(cloudFormatProblem(written, 'this server')).toBeNull()
+  })
+
+  it('names what to update when the bucket is newer, and refuses one that is not ours', () => {
+    const newer = { app: 'self.mp3', format: 99, createdAt: '', createdBy: 'x' }
+    expect(cloudFormatProblem(newer, 'the doorman')).toMatch(/format 99\).*Update the doorman/)
+    expect(cloudFormatProblem(null, 'this server')).toMatch(/not self\.mp3’s/)
+    expect(cloudFormatProblem({ app: 'other' }, 'this server')).toMatch(/not self\.mp3’s/)
   })
 })

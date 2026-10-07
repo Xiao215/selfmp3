@@ -4,7 +4,7 @@ import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Circle, Svg } from 'react-native-svg'
 import { pickResumeState, type Device } from '@selfmp3/shared'
-import { handoffTarget, shortDeviceName, useLibrary } from '@selfmp3/client'
+import { handoffTarget, radius, shortDeviceName, useLibrary } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { usePlaybackMemoryState } from '../../player/usePlaybackMemory'
 import { useLayout } from '../../shell/useLayout'
@@ -173,7 +173,7 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 5,
     paddingLeft: 5,
     paddingRight: 7,
-    borderRadius: 999,
+    borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,
     ...floating(theme.colors),
   },
@@ -185,7 +185,7 @@ const styles = StyleSheet.create(theme => ({
     flexShrink: 1,
     paddingVertical: 7,
     paddingHorizontal: 12,
-    borderRadius: 999,
+    borderRadius: radius.pill,
   },
   mainTouch: { paddingVertical: 10 },
   mainHovered: { backgroundColor: theme.colors.surface3 },

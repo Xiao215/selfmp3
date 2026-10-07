@@ -907,7 +907,7 @@ const styles = StyleSheet.create(theme => ({
     fontSize: 12.5,
     fontVariant: ['tabular-nums'],
   },
-  playZone: { position: 'absolute', top: 0, borderRadius: 999 },
+  playZone: { position: 'absolute', top: 0, borderRadius: radius.pill },
   more: { position: 'absolute', top: 8, right: 8 },
   moreButton: {
     width: 30,

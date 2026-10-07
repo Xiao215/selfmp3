@@ -1,18 +1,14 @@
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
-import { oklchToHexAlpha, radius, space } from '@selfmp3/client'
+import { radius } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { useServerSongIds } from '../../connection/useServerSongIds'
-import { useOverlay } from '../../shell/Overlay'
-import { useEscape } from '../../shell/useEscape'
-import { useAccent } from '../../ui/accent'
-import { floating, sectionTitle } from '../../ui/surfaces'
-import { IconButton } from '../../ui/components/IconButton'
-import { X } from '../../ui/components/Icons'
+import { floating } from '../../ui/surfaces'
+import { Dialog, DialogHead } from '../../ui/components/Dialog'
 import { MetadataDialog } from './MetadataDialog'
 
 /**
@@ -92,51 +88,15 @@ function Shell({
   testID: string
   children: ReactNode
 }): ReactNode {
-  const { theme } = useUnistyles()
-  const accent = useAccent()
-  useEscape(true, onClose, { layer: true })
-
-  useOverlay(
-    <View
-      style={[styles.backdrop, { backgroundColor: oklchToHexAlpha(0.1, 0.02, accent.hue, 0.6) }]}
-    >
-      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
-      <View
-        style={styles.dialog}
-        role="dialog"
-        aria-modal
-        accessibilityLabel="Fix metadata"
-        accessibilityViewIsModal
-        testID={testID}
-      >
-        <View style={styles.head}>
-          <Text style={styles.title} accessibilityRole="header">
-            Fix metadata
-          </Text>
-          <IconButton onPress={onClose} label="Close">
-            <X size={16} color={theme.colors.textSecondary} />
-          </IconButton>
-        </View>
-        <View style={styles.body}>{children}</View>
-      </View>
-    </View>,
-    true,
+  return (
+    <Dialog onDismiss={onClose} label="Fix metadata" testID={testID} style={styles.dialog}>
+      <DialogHead title="Fix metadata" onClose={onClose} style={styles.head} />
+      <View style={styles.body}>{children}</View>
+    </Dialog>
   )
-
-  return null
 }
 
 const styles = StyleSheet.create(theme => ({
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: space.lg,
-  },
   dialog: {
     width: '100%',
     maxWidth: 460,
@@ -146,15 +106,11 @@ const styles = StyleSheet.create(theme => ({
     ...floating(theme.colors),
   },
   head: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingTop: 16,
     paddingRight: 14,
     paddingBottom: 4,
     paddingLeft: 22,
   },
-  title: sectionTitle(theme.colors),
   body: { paddingTop: 4, paddingHorizontal: 22, paddingBottom: 22, gap: 8 },
   cardTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600', marginTop: 16 },
   cardBody: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 19 },

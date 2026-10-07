@@ -349,7 +349,7 @@ const styles = StyleSheet.create(theme => ({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    backgroundColor: theme.colors.backdrop,
   },
   panel: {
     position: 'absolute',

@@ -685,7 +685,7 @@ const styles = StyleSheet.create(theme => ({
     paddingLeft: space.lg,
     paddingRight: space.sm,
     marginHorizontal: space.xs,
-    borderRadius: 14,
+    borderRadius: radius.row,
     overflow: 'hidden',
   },
   /* At desktop width: 7 by 10, 12 between cells. */
@@ -696,7 +696,7 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 7,
     paddingHorizontal: 10,
     marginHorizontal: space.sm,
-    borderRadius: 14,
+    borderRadius: radius.row,
     overflow: 'hidden',
     _web: {
       transitionProperty: 'background-color',

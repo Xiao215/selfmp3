@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { motion } from '@selfmp3/client'
+import { motion, radius } from '@selfmp3/client'
 import { useUnistyles } from 'react-native-unistyles'
 import { useAccent } from '../accent'
 import { fractionOf, HUE_STOPS } from './slider.model'
@@ -50,7 +50,7 @@ const CSS = `
   transition: opacity ${motion.fast}ms ${EASE_OUT_CSS}; }
 .selfmp3-range:hover::-moz-range-thumb, .selfmp3-range:active::-moz-range-thumb,
 .selfmp3-range:focus-visible::-moz-range-thumb { opacity: 1; }
-.selfmp3-range.is-hue { height: 22px; border-radius: 999px;
+.selfmp3-range.is-hue { height: 22px; border-radius: ${radius.pill}px;
   background-image: linear-gradient(to right, ${HUE_STOPS.map(stop => stop.color).join(', ')}); }
 .selfmp3-range.is-hue::-webkit-slider-thumb { opacity: 1; width: 15px; height: 15px;
   border: 2px solid var(--range-ring); }

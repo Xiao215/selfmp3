@@ -30,16 +30,14 @@ import {
   type TextField,
 } from './metadata.model'
 import { useArt } from '../../offline/useArt'
-import { useOverlay } from '../../shell/Overlay'
-import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
-import { floating, label as groupLabel, sectionTitle } from '../../ui/surfaces'
+import { floating, label as groupLabel } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
-import { IconButton } from '../../ui/components/IconButton'
-import { Check, Sparkle, X } from '../../ui/components/Icons'
+import { Dialog, DialogHead } from '../../ui/components/Dialog'
+import { Check, Sparkle } from '../../ui/components/Icons'
 
 /** A source's badge at one hue, as an OKLCH pair: ground, ink. */
 const badgeTone = (hue: number): [string, string] => [
@@ -95,7 +93,6 @@ export function MetadataDialog({
   // Full screen on a phone, so the head clears the status bar and the foot the home bar.
   const insets = useSafeAreaInsets()
   const { lookup, apply } = useMetadataSource(via, askFor, song.id)
-  useEscape(true, onClose, { layer: true })
 
   const candidates = lookup.data?.candidates ?? []
   // The model's suggestion, when it has been asked for (`useMetadataSuggestion`).
@@ -349,73 +346,58 @@ export function MetadataDialog({
     </View>
   )
 
-  useOverlay(
-    <View
-      style={[
-        styles.backdrop,
-        !wide && styles.backdropNarrow,
-        { backgroundColor: oklchToHexAlpha(0.1, 0.02, accent.hue, 0.6) },
-      ]}
+  return (
+    <Dialog
+      onDismiss={onClose}
+      label="Fix metadata"
+      testID="metadata-dialog"
+      // Full screen on a phone: no room round it, and the panel takes the width.
+      frameStyle={!wide && styles.frameNarrow}
+      style={[styles.dialog, wide ? styles.dialogWide : styles.dialogNarrow]}
     >
-      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
+      <DialogHead
+        title="Fix metadata"
+        onClose={onClose}
+        style={[styles.head, !wide && { paddingTop: 14 + insets.top }]}
+      />
+
+      {wide ? (
+        <View style={styles.bodyWide}>
+          <ScrollView style={styles.currentScroll}>{current}</ScrollView>
+          <ScrollView style={styles.candidatesScroll}>{suggestions}</ScrollView>
+        </View>
+      ) : (
+        <ScrollView style={styles.bodyNarrow}>
+          {current}
+          {suggestions}
+        </ScrollView>
+      )}
+
       <View
-        style={[styles.dialog, wide ? styles.dialogWide : styles.dialogNarrow]}
-        role="dialog"
-        aria-modal
-        accessibilityLabel="Fix metadata"
-        accessibilityViewIsModal
-        testID="metadata-dialog"
+        style={[styles.foot, !wide && [styles.footNarrow, { paddingBottom: 12 + insets.bottom }]]}
       >
-        <View style={[styles.head, !wide && { paddingTop: 14 + insets.top }]}>
-          <Text style={styles.title} accessibilityRole="header">
-            Fix metadata
+        {apply.isError ? (
+          <Text style={[styles.hint, styles.footLead, { color: theme.colors.warning }]}>
+            {apply.error?.message ?? 'Couldn’t apply the changes.'}
           </Text>
-          <IconButton onPress={onClose} label="Close">
-            <X size={16} color={theme.colors.textSecondary} />
-          </IconButton>
-        </View>
-
-        {wide ? (
-          <View style={styles.bodyWide}>
-            <ScrollView style={styles.currentScroll}>{current}</ScrollView>
-            <ScrollView style={styles.candidatesScroll}>{suggestions}</ScrollView>
-          </View>
-        ) : (
-          <ScrollView style={styles.bodyNarrow}>
-            {current}
-            {suggestions}
-          </ScrollView>
-        )}
-
-        <View
-          style={[styles.foot, !wide && [styles.footNarrow, { paddingBottom: 12 + insets.bottom }]]}
-        >
-          {apply.isError ? (
-            <Text style={[styles.hint, styles.footLead, { color: theme.colors.warning }]}>
-              {apply.error?.message ?? 'Couldn’t apply the changes.'}
-            </Text>
-          ) : coverLater ? (
-            // Downloaded by the server into the bucket, which this device sees
-            // with the next sync rather than the moment the dialog closes.
-            <Text style={[styles.hint, styles.footLead]}>
-              The new cover shows after your server’s next sync.
-            </Text>
-          ) : null}
-          <Button label="Cancel" onPress={onClose} />
-          <Button
-            label={applyLabel(count, apply.isPending)}
-            variant="primary"
-            icon={<Check size={15} color={accent.onAccent} />}
-            disabled={count === 0 || apply.isPending}
-            onPress={submit}
-          />
-        </View>
+        ) : coverLater ? (
+          // Downloaded by the server into the bucket, which this device sees
+          // with the next sync rather than the moment the dialog closes.
+          <Text style={[styles.hint, styles.footLead]}>
+            The new cover shows after your server’s next sync.
+          </Text>
+        ) : null}
+        <Button label="Cancel" onPress={onClose} />
+        <Button
+          label={applyLabel(count, apply.isPending)}
+          variant="primary"
+          icon={<Check size={15} color={accent.onAccent} />}
+          disabled={count === 0 || apply.isPending}
+          onPress={submit}
+        />
       </View>
-    </View>,
-    true,
+    </Dialog>
   )
-
-  return null
 }
 
 /**
@@ -542,17 +524,7 @@ function Pill({ text }: { text: string }): ReactNode {
 }
 
 const styles = StyleSheet.create(theme => ({
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-  },
-  backdropNarrow: { padding: 0, alignItems: 'stretch' },
+  frameNarrow: { padding: 0, alignItems: 'stretch' },
   dialog: { backgroundColor: theme.colors.surface1, overflow: 'hidden' },
   dialogWide: {
     width: '100%',
@@ -564,15 +536,11 @@ const styles = StyleSheet.create(theme => ({
   },
   dialogNarrow: { flex: 1 },
   head: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingTop: 14,
     paddingRight: 14,
     paddingBottom: 12,
     paddingLeft: 22,
   },
-  title: sectionTitle(theme.colors),
   bodyWide: { flex: 1, minHeight: 0, flexDirection: 'row' },
   bodyNarrow: { flex: 1 },
   // The song as it is, a panel one step up from the dialog rather than a column behind a rule.
@@ -620,7 +588,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 12,
     paddingVertical: 8,
     paddingHorizontal: 10,
-    borderRadius: 14,
+    borderRadius: radius.row,
   },
   candidatePressed: { backgroundColor: theme.colors.surface2 },
   // What a model offers is dashed until it is taken (docs/features/ai.md, rule 2).
@@ -631,7 +599,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 12,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 14,
+    borderRadius: radius.row,
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: theme.colors.surface3,
@@ -665,7 +633,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 10,
     paddingVertical: 7,
     paddingHorizontal: 8,
-    borderRadius: 14,
+    borderRadius: radius.row,
   },
   diffRowNarrow: { alignItems: 'flex-start', paddingVertical: 9 },
   diffPressed: { backgroundColor: theme.colors.surface2 },

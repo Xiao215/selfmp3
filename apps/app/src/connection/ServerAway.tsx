@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { awayCopy, type Reach, type ServerNeed } from '@selfmp3/client'
+import { awayCopy, space, type Reach, type ServerNeed } from '@selfmp3/client'
 import { useAccent } from '../ui/accent'
 import { Button } from '../ui/components/Button'
 import { Refresh } from '../ui/components/Icons'
@@ -60,16 +60,23 @@ export function ServerAway({
   )
 }
 
+/** The card's type: its title, and the line or two under it. */
+const TEXT = { title: 15, body: 13, bodyLine: 19 } as const
+/** Room inside the card. */
+const CARD_PADDING = 18
+/** Between the spinner and what it says. */
+const LOOKING_GAP = 10
+
 const styles = StyleSheet.create(theme => ({
-  looking: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 24 },
-  lookingText: { color: theme.colors.textMuted, fontSize: 13 },
+  looking: { flexDirection: 'row', alignItems: 'center', gap: LOOKING_GAP, marginTop: space.xl },
+  lookingText: { color: theme.colors.textMuted, fontSize: TEXT.body },
   card: {
-    marginTop: 24,
-    padding: 18,
-    gap: 8,
+    marginTop: space.xl,
+    padding: CARD_PADDING,
+    gap: space.sm,
     ...card(theme.colors),
   },
-  cardTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  cardBody: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 19 },
-  actions: { flexDirection: 'row', marginTop: 8 },
+  cardTitle: { color: theme.colors.textPrimary, fontSize: TEXT.title, fontWeight: '600' },
+  cardBody: { color: theme.colors.textSecondary, fontSize: TEXT.body, lineHeight: TEXT.bodyLine },
+  actions: { flexDirection: 'row', marginTop: space.sm },
 }))

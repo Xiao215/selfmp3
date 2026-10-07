@@ -389,7 +389,7 @@ const styles = StyleSheet.create(theme => ({
     left: 7,
     paddingVertical: 2,
     paddingHorizontal: 7,
-    borderRadius: 999,
+    borderRadius: radius.pill,
     backgroundColor: theme.colors.glass,
   },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },

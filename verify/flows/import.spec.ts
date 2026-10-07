@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { appApi } from '../env.js'
+import { dismissToasts, skipWithoutYtDlp } from './helpers.js'
 
 /**
  * Importing: look a link up, review it — untick its song and tick it back,
@@ -16,26 +16,6 @@ import { appApi } from '../env.js'
 
 const LINK = 'https://www.youtube.com/watch?v=jNQXAC9IVRw'
 const TITLE = 'Me at the zoo'
-
-/**
- * The resume toast ("Continue … from your other device") floats over the
- * bottom of a phone-sized screen, which is where the review's buttons end up.
- */
-async function dismissToasts(page: Page): Promise<void> {
-  for (const button of await page.getByRole('button', { name: 'Dismiss' }).all()) {
-    await button.click().catch(() => {})
-  }
-}
-
-async function skipWithoutYtDlp(page: Page): Promise<void> {
-  const tools = await page.request
-    .get(`${appApi}/api/import/tools`)
-    .then(async response =>
-      response.ok() ? ((await response.json()) as { ytdlp?: boolean }) : null,
-    )
-    .catch(() => null)
-  test.skip(!tools?.ytdlp, 'the Mac has no yt-dlp to read links with')
-}
 
 /** Whether this run is the phone's layout, where rows swipe and open in place. */
 function onPhone(page: Page): boolean {

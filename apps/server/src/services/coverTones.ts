@@ -84,6 +84,8 @@ export class CoverToneService {
             })
           }
         }
+        // Stopped while reading: the database may be closed by now.
+        if (this.#stopped) break
         // Kept even when there is none, against this revision of the cover,
         // so a cover that cannot be read is not read again until it changes.
         this.#songs.setCoverTone(next.id, next.artRev, tone)

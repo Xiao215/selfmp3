@@ -20,10 +20,13 @@ describe('CoverService.save', () => {
 
   it('replaces a cover in another format instead of leaving it behind', async () => {
     dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-covers-'))
-    const setArt = vi.fn()
+    let recorded: string | null = null
+    const setArt = vi.fn((_id: number, _has: boolean, extension: string | null) => {
+      recorded = extension
+    })
     const covers = new CoverService(
       { dataDir } as Config,
-      { setArt, artExt: () => null } as unknown as SongRepository,
+      { setArt, artExt: () => recorded } as unknown as SongRepository,
       createLogger('silent'),
     )
 
@@ -37,7 +40,7 @@ describe('CoverService.save', () => {
     expect(setArt).toHaveBeenLastCalledWith(7, true, '.png')
   })
 
-  it('looks for the format the row recorded first', async () => {
+  it('looks only for the format the row recorded', async () => {
     dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-covers-'))
     const covers = new CoverService(
       { dataDir } as Config,
@@ -48,6 +51,18 @@ describe('CoverService.save', () => {
     fs.writeFileSync(path.join(dataDir, 'covers', '5.webp'), image(2))
 
     expect(await covers.find(5)).toMatchObject({ contentType: 'image/webp' })
+  })
+
+  it('finds no cover when the row recorded none', async () => {
+    dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-covers-'))
+    const covers = new CoverService(
+      { dataDir } as Config,
+      { setArt: vi.fn(), artExt: () => null } as unknown as SongRepository,
+      createLogger('silent'),
+    )
+    fs.writeFileSync(path.join(dataDir, 'covers', '5.jpg'), image(1))
+
+    expect(await covers.find(5)).toBeNull()
   })
 
   it('leaves other songs’ covers alone', async () => {
@@ -76,7 +91,7 @@ describe('CoverService.thumbnail', () => {
     dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-covers-'))
     const covers = new CoverService(
       { dataDir } as Config,
-      { setArt: vi.fn(), artExt: () => null } as unknown as SongRepository,
+      { setArt: vi.fn(), artExt: () => '.jpg' } as unknown as SongRepository,
       createLogger('silent'),
     )
     const original = await sharp({

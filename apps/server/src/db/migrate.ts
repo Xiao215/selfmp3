@@ -580,6 +580,14 @@ const MIGRATIONS: readonly Migration[] = [
       UPDATE songs SET cover_tone_rev = NULL WHERE cover_palette IS NULL AND cover_hue IS NOT NULL;
     `,
   },
+  {
+    // A kept cover is found by the format its row recorded (services/covers.ts),
+    // so a song that says it has one without saying which has none to serve.
+    name: 'a cover with no recorded format is no cover',
+    sql: `
+      UPDATE songs SET has_art = 0 WHERE has_art = 1 AND art_ext IS NULL;
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

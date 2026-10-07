@@ -60,9 +60,8 @@ export class CoverService {
       }))
       const ext = (EXTENSIONS as readonly string[]).includes(squared) ? squared : '.jpg'
       await fsp.writeFile(this.#pathFor(songId, ext), data)
-      // A cover in another format stays behind otherwise — and `find` checks
-      // formats in a fixed order, so an old .jpg would keep being served over
-      // a new .png, and the replacement would seem not to have happened.
+      // A cover in another format would stay behind otherwise, a stale file
+      // nothing serves: `find` looks only for the format recorded below.
       await Promise.all(
         EXTENSIONS.filter(other => other !== ext).map(other =>
           fsp.rm(this.#pathFor(songId, other), { force: true }),
@@ -142,24 +141,13 @@ export class CoverService {
     }
   }
 
-  /**
-   * Locate a kept cover, whatever format it was stored in. The format `save`
-   * recorded on the row is looked for first, so the usual case is one look;
-   * the others are for a cover kept before the row said.
-   */
+  /** A kept cover, in the format `save` recorded on the row; null for none. */
   async find(songId: number): Promise<{ path: string; contentType: string } | null> {
-    const recorded = this.#songs.artExt(songId)
-    const order: readonly string[] =
-      recorded !== null && (EXTENSIONS as readonly string[]).includes(recorded)
-        ? [recorded, ...EXTENSIONS.filter(other => other !== recorded)]
-        : EXTENSIONS
-    for (const extension of order) {
-      const file = this.#pathFor(songId, extension)
-      if (await isFile(file)) {
-        return { path: file, contentType: CONTENT_TYPES[extension] ?? 'image/jpeg' }
-      }
-    }
-    return null
+    const extension = this.#songs.artExt(songId)
+    if (extension === null) return null
+    const file = this.#pathFor(songId, extension)
+    if (!(await isFile(file))) return null
+    return { path: file, contentType: CONTENT_TYPES[extension] ?? 'image/jpeg' }
   }
 
   async delete(songId: number): Promise<void> {

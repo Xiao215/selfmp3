@@ -1,4 +1,5 @@
 import {
+  clamp01,
   artistOr,
   isNeteaseUrl,
   isYouTubeUrl,
@@ -91,13 +92,13 @@ export function listenDetail(listening: Pick<Listening, 'track' | 'status'>): st
 /** How far along the bar is filled, 0 to 1. Nothing while the length is unknown. */
 export function playedRatio(position: number, duration: number): number {
   if (!(duration > 0) || !Number.isFinite(position)) return 0
-  return Math.max(0, Math.min(1, position / duration))
+  return clamp01(position / duration)
 }
 
 /** Where a drag at `x` along a bar `width` wide lands, in seconds. */
 export function seekAt(x: number, width: number, duration: number): number {
   if (!(width > 0) || !(duration > 0)) return 0
-  return Math.max(0, Math.min(1, x / width)) * duration
+  return clamp01(x / width) * duration
 }
 
 /**

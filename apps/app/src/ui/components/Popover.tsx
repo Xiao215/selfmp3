@@ -12,6 +12,7 @@ import { PanelDenseContext } from './panel'
 import { Sheet } from './Sheet'
 import { floating } from '../surfaces'
 import { ease, motionMs } from '../motion'
+import { clamp } from '@selfmp3/shared'
 
 /**
  * A small panel attached to the control that opened it — or a sheet, when
@@ -184,7 +185,7 @@ function AnchoredPopover({
   const startsAtControl = align === 'start' || rightAligned < space.sm
   const left = anchor
     ? startsAtControl
-      ? Math.max(space.sm, Math.min(anchor.x, screenWidth - width - space.sm))
+      ? clamp(anchor.x, space.sm, screenWidth - width - space.sm)
       : Math.min(rightAligned, screenWidth - width - space.sm)
     : 0
   const roomBelow = anchor ? screenHeight - (anchor.y + anchor.height) - space.sm * 2 : 0

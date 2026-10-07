@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, PanResponder, Text, View, type LayoutChangeEvent } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { formatDuration } from '@selfmp3/shared'
+import { clamp, clamp01, formatDuration } from '@selfmp3/shared'
 import type { LoopRegion } from '@selfmp3/client'
 import { useAccent } from '../accent'
 import { space, type, withAlpha } from '@selfmp3/client'
@@ -91,7 +91,7 @@ export function SeekBar({
     // always the bar, and stays correct as the bar moves around the screen.
     const secondsAt = (x: number): number => {
       if (width <= 0 || duration <= 0) return 0
-      return Math.max(0, Math.min(1, x / width)) * duration
+      return clamp01(x / width) * duration
     }
 
     return PanResponder.create({
@@ -112,7 +112,7 @@ export function SeekBar({
   }, [width, duration, onSeek])
 
   const shown = dragging ?? held ?? position
-  const ratio = duration > 0 ? Math.max(0, Math.min(1, shown / duration)) : 0
+  const ratio = duration > 0 ? clamp01(shown / duration) : 0
   /*
    * How far along, rounded to a tenth of a per cent. `ProgressWash.tsx`
    * explains this at length and the reason is the same one: on the web every
@@ -144,7 +144,7 @@ export function SeekBar({
   const onAccessibilityAction = (event: { nativeEvent: { actionName: string } }): void => {
     const step =
       event.nativeEvent.actionName === 'increment' ? SEEK_STEP_SECONDS : -SEEK_STEP_SECONDS
-    const target = Math.max(0, Math.min(duration, shown + step))
+    const target = clamp(shown + step, 0, duration)
     setPending(target)
     onSeek(target)
   }

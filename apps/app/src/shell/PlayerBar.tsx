@@ -565,7 +565,7 @@ function VolumeSlider({
     // slider's own (see SeekBar).
     const moveTo = (x: number, y: number): void => {
       if (length <= 0) return
-      onChange(Math.max(0, Math.min(1, vertical ? 1 - y / length : x / length)))
+      onChange(clamp01(vertical ? 1 - y / length : x / length))
     }
     return PanResponder.create({
       onStartShouldSetPanResponder: () => true,

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
-import { plural, artistOr } from '@selfmp3/shared'
+import { clamp, plural, artistOr } from '@selfmp3/shared'
 import { onMac, radius, space, withAlpha } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -256,7 +256,7 @@ export function Review<T extends Reviewed>({
     if (key === 'ArrowDown' || key === 'ArrowUp') {
       if (stops.length === 0) return true
       const from = atIndex < 0 ? (key === 'ArrowDown' ? -1 : stops.length) : atIndex
-      const to = Math.max(0, Math.min(stops.length - 1, from + (key === 'ArrowDown' ? 1 : -1)))
+      const to = clamp(from + (key === 'ArrowDown' ? 1 : -1), 0, stops.length - 1)
       setAt(stops[to]!.id)
       return true
     }

@@ -1,5 +1,5 @@
 import { sampleMotion, type FrequencyAnalyser, type MotionCurve } from '@selfmp3/client'
-import { clamp01 } from '@selfmp3/shared'
+import { clamp, clamp01 } from '@selfmp3/shared'
 import { beatKick, beatPhase, type VisualFeel } from './visuals.model'
 
 /**
@@ -176,7 +176,7 @@ export function liveSampler(analyser: FrequencyAnalyser, now: () => number = clo
     source: 'live',
     sample(seconds) {
       const at = now()
-      const dt = last === null ? 1 / 60 : Math.max(0, Math.min(0.1, at - last))
+      const dt = last === null ? 1 / 60 : clamp(at - last, 0, 0.1)
       last = at
       // A seek, or the next song, jumps the playhead and the whole spectrum
       // with it. That is not a hit: forget the running average and the peak,

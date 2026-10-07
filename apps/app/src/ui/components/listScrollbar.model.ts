@@ -1,4 +1,4 @@
-import { artistOr, formatDuration, fromSqliteTime, plural } from '@selfmp3/shared'
+import { clamp, artistOr, formatDuration, fromSqliteTime, plural } from '@selfmp3/shared'
 import type { Song, SongSortField } from '@selfmp3/shared'
 
 /**
@@ -76,7 +76,7 @@ export const MIN_THUMB = 36
 /** The thumb's length: the share of the list on screen, never shorter than `MIN_THUMB`. */
 export function thumbLength({ viewport, content, track }: ScrollMetrics): number {
   if (content <= 0) return track
-  return Math.max(MIN_THUMB, Math.min(track, (track * viewport) / content))
+  return clamp((track * viewport) / content, MIN_THUMB, track)
 }
 
 /** How far down the list can scroll. */
@@ -89,14 +89,14 @@ export function thumbOffset(scrollTop: number, metrics: ScrollMetrics): number {
   const range = scrollRange(metrics)
   if (range === 0) return 0
   const room = metrics.track - thumbLength(metrics)
-  return (Math.max(0, Math.min(range, scrollTop)) / range) * room
+  return (clamp(scrollTop, 0, range) / range) * room
 }
 
 /** The scroll position that puts the thumb's top at `offset`: a drag, or a click on the track. */
 export function scrollForThumb(offset: number, metrics: ScrollMetrics): number {
   const room = metrics.track - thumbLength(metrics)
   if (room <= 0) return 0
-  return (Math.max(0, Math.min(room, offset)) / room) * scrollRange(metrics)
+  return (clamp(offset, 0, room) / room) * scrollRange(metrics)
 }
 
 /**
@@ -125,7 +125,7 @@ export function rowAt(scrollTop: number, span: RowSpan): number {
   const height = rowHeight(span)
   if (span.count === 0 || height === 0) return 0
   const index = Math.floor((scrollTop - span.header) / height)
-  return Math.max(0, Math.min(span.count - 1, index))
+  return clamp(index, 0, span.count - 1)
 }
 
 /** Whether row `index` is anywhere in the window at a scroll position. */
@@ -151,5 +151,5 @@ export function rowMark(index: number, metrics: ScrollMetrics, span: RowSpan): n
 /** The scroll position with row `index` in the middle of the window. */
 export function scrollToRow(index: number, metrics: ScrollMetrics, span: RowSpan): number {
   const middle = rowTop(index, span) + rowHeight(span) / 2 - metrics.viewport / 2
-  return Math.max(0, Math.min(scrollRange(metrics), middle))
+  return clamp(middle, 0, scrollRange(metrics))
 }

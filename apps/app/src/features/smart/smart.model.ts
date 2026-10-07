@@ -111,7 +111,7 @@ export function parts(understanding: Understanding, tags: readonly Tag[]): Part[
   if (year)
     out.push({ key: 'year', label: year, without: u => ({ ...u, year: { min: null, max: null } }) })
   if (understanding.sound !== null) {
-    // The listening model's words, in English: it orders the songs, it shuts none out.
+    // The listening model's words, in English: only songs that sound like it, best first.
     out.push({
       key: 'sound',
       label: `Sounds like ${clip(understanding.sound, 40)}`,

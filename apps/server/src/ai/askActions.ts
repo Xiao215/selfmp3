@@ -160,10 +160,10 @@ const FIND_SYSTEM = `Someone is looking for one song in their own library that t
 
 const songs = action({
   name: 'songs',
-  when: 'they want music: a playlist made, or something to listen to. Fill "filters". In "songs", play is true when they want it now ("play…", "put on…", "something for right now"), false when they want it kept ("make a playlist…"); next is true when they want it after the song playing ("next", "after this", "queue up…", "up next"), or when they ask to steer what is playing ("more like this", "something calmer"). When a song is playing and they say "this", "like this" or "after this", the songs are already ordered by how close they sound to it, so "more like this" needs no filters; describe a change from it in sound ("calmer", "more upbeat", "with piano") and add its tags or artists only when they want the same kind ("more Genshin like this").',
-  fields: z.object({ play: z.boolean(), next: z.boolean() }),
+  when: 'they want music: a playlist made, or something to listen to. Fill "filters". In "songs", play is true when they want it now ("play…", "put on…", "something for right now"), false when they want it kept ("make a playlist…"); next is true when they want it after the song playing ("next", "after this", "queue up…", "up next"), or when they ask to steer what is playing ("more like this", "something calmer"); like is true only when a song is playing and they want music that sounds like it ("more like this", "similar to this", "this but calmer"), and the songs are then ordered by how close they sound to it, so "more like this" needs no filters. Describe a change from it in sound ("calmer", "more upbeat", "with piano") and add its tags or artists only when they want the same kind ("more Genshin like this"). Otherwise like is false, even with a song playing ("play some YOASOBI next").',
+  fields: z.object({ play: z.boolean(), next: z.boolean(), like: z.boolean() }),
   filters: 'required',
-  run: async ({ deps, text, playing, nowPlaying, steps }, { play, next }, filters) => {
+  run: async ({ deps, text, playing, nowPlaying, steps }, { play, next, like }, filters) => {
     const steering = next && playing !== undefined
     // Up next is a handful after this song, not a playlist's worth, unless a number was said.
     const plan = steering ? { ...filters!, size: filters!.size ?? NEXT_SIZE } : filters!
@@ -175,8 +175,8 @@ const songs = action({
       unknown,
       [],
       steps,
-      // Steering from the song playing: what sounds close to it comes first.
-      steering ? playing.id : null,
+      // Only when they asked for music like it: what sounds close to it comes first.
+      like && playing ? playing.id : null,
     )
     // The song playing is what they are steering from, never one of the picks.
     const describe = { ...found, picks: found.picks.filter(pick => pick.songId !== playing?.id) }

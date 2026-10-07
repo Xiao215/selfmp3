@@ -161,7 +161,7 @@ describe('ask', () => {
       'ask-route': [
         route({
           action: 'songs',
-          songs: { play: true, next: false },
+          songs: { play: true, next: false, like: false },
           filters: { ...noFilters, artists: ['YOASOBI'] },
         }),
       ],
@@ -180,7 +180,7 @@ describe('ask', () => {
       'ask-route': [
         route({
           action: 'songs',
-          songs: { play: false, next: true },
+          songs: { play: false, next: true, like: false },
           filters: { ...noFilters, artists: ['YOASOBI'] },
         }),
       ],
@@ -192,12 +192,43 @@ describe('ask', () => {
     expect(d.llm.asked[0]!.prompt).toContain(`Now playing: ${playing.title} | ${playing.artist}`)
   })
 
+  it('orders by how the song playing sounds only when they ask for music like it', async () => {
+    const seeds: number[] = []
+    const sound = {
+      match: () => Promise.resolve(null),
+      closeTo: (seed: number, ids: readonly number[]) => {
+        seeds.push(seed)
+        return new Map(ids.filter(id => id !== seed).map(id => [id, id / 100]))
+      },
+    }
+    const steer = (like: boolean) => ({
+      ...deps({
+        'ask-route': [
+          route({
+            action: 'songs',
+            songs: { play: false, next: true, like },
+            filters: { ...noFilters, anyTags: ['原神纯音乐'] },
+          }),
+        ],
+      }),
+      sound,
+    })
+    await ask(steer(false), 'play some Genshin next', 7)
+    expect(seeds).toEqual([])
+    const answer = await ask(steer(true), 'more like this', 7)
+    expect(seeds).toEqual([7])
+    // The closest-sounding first, the song playing left out.
+    expect(answer.kind === 'songs' && answer.describe.picks.map(pick => pick.songId)).toEqual([
+      6, 5, 4,
+    ])
+  })
+
   it('does not lead with next when nothing is playing', async () => {
     const d = deps({
       'ask-route': [
         route({
           action: 'songs',
-          songs: { play: false, next: true },
+          songs: { play: false, next: true, like: false },
           filters: { ...noFilters, artists: ['YOASOBI'] },
         }),
       ],

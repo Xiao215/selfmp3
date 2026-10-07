@@ -629,4 +629,4 @@ The owner's rule from here on: migrate rather than accommodate an older shape. A
 
 Every migration was run against a copy of the live database (29 → 35: integrity ok, no foreign-key rows, every table identical apart from the intended columns).
 
-Still to do: the cloud snapshot schema stays lenient for `coverTone`, `motion`, `audioFeatures`, `upTo` and a palette-less tone until the live server has published a snapshot written by this code (`TODO(after the Pi publishes)` in `schemas/cloud.ts`). The doorman's `/privacy` redirect stays until the Google consent screen is confirmed to name the Pages address.
+Still to do: the cloud snapshot schema stays lenient for `coverTone`, `motion`, `audioFeatures`, `upTo` and a palette-less tone until the live server has published a snapshot written by this code (`TODO(after the Pi publishes)` in `schemas/cloud.ts`). The doorman's `/privacy` redirect is gone too (main 8ebb10df): the consent screen names the Pages address.

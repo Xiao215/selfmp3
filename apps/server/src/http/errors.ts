@@ -1,3 +1,4 @@
+import { formatZodError } from '@selfmp3/shared'
 import type { NextFunction, Request, Response } from 'express'
 import { ZodError } from 'zod'
 import type { Logger } from '../logger.js'
@@ -49,16 +50,6 @@ export class HttpError extends Error {
   static failedDependency(message: string): HttpError {
     return new HttpError(424, message, 'failed_dependency')
   }
-}
-
-/** Turn a zod failure into something a human can act on. */
-export function formatZodError(error: ZodError): string {
-  return error.issues
-    .map(issue => {
-      const where = issue.path.join('.')
-      return where ? `${where}: ${issue.message}` : issue.message
-    })
-    .join('; ')
 }
 
 export function notFoundHandler(_req: Request, res: Response): void {

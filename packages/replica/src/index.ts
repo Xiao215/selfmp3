@@ -18,6 +18,8 @@ export {
   CloudServerViewSchema,
   ImportRequestListSchema,
   ImportRequestViewSchema,
+  isPendingRequest,
+  sameLink,
   type CloudImportRequest,
   type ImportRequestList,
   type ImportRequestView,

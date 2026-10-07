@@ -5,7 +5,7 @@ import { Readable } from 'node:stream'
 
 import { protocol } from 'electron'
 import { answerRange } from '@selfmp3/shared'
-import { APP_ORIGIN, MEDIA_PREFIX, fileKindSchema } from '@selfmp3/desktop-bridge'
+import { APP_ORIGIN, APP_SCHEME, MEDIA_PREFIX, fileKindSchema } from '@selfmp3/desktop-bridge'
 
 import { directoryFor } from './files.js'
 import { contentTypeFor, isRoute, resolveWithinRoot } from './paths.js'
@@ -26,7 +26,7 @@ import { contentTypeFor, isRoute, resolveWithinRoot } from './paths.js'
 export function registerAppScheme(): void {
   protocol.registerSchemesAsPrivileged([
     {
-      scheme: 'app',
+      scheme: APP_SCHEME,
       privileges: {
         standard: true,
         secure: true,
@@ -51,7 +51,7 @@ interface ProtocolRoots {
 }
 
 export function handleAppScheme(roots: ProtocolRoots): void {
-  protocol.handle('app', async request => {
+  protocol.handle(APP_SCHEME, async request => {
     const url = new URL(request.url)
 
     if (url.pathname.startsWith(MEDIA_PREFIX)) {

@@ -6,13 +6,23 @@ import { bucketMedia } from '../ports/bucketMedia'
 import { useConnection } from '../connection/ConnectionProvider'
 import { watchCovers } from './coverChanges'
 import {
+  coverFailed,
   coverFor,
   coversVersion,
   ensureCover,
   ensureServerCover,
   KEPT_COVER_SIZE,
+  keepsCovers,
   subscribeCovers,
 } from './covers'
+
+/**
+ * What a cover is drawn from: an address, null for a song with no picture to
+ * show (none at all, or one that could not be had), or undefined for one on
+ * its way — a cloud cover this device is fetching — which `Cover` draws as a
+ * quiet tile rather than as the letter a song without a picture gets.
+ */
+export type Art = string | null | undefined
 
 /**
  * Where a song's artwork comes from, for whichever screen is asking.
@@ -32,7 +42,7 @@ import {
  * whenever any cover arrives, which would render the library, the player bar
  * and every open sheet for one playlist tile's picture.
  */
-export function useArt(drawnAt: number = KEPT_COVER_SIZE): (song: Song) => string | null {
+export function useArt(drawnAt: number = KEPT_COVER_SIZE): (song: Song) => Art {
   const { connection, fromCloud } = useConnection()
   const [watch] = useState(() =>
     watchCovers({ subscribe: subscribeCovers, version: coversVersion }),
@@ -40,7 +50,7 @@ export function useArt(drawnAt: number = KEPT_COVER_SIZE): (song: Song) => strin
   const seen = useSyncExternalStore(watch.subscribe, watch.seen, watch.seen)
 
   return useCallback(
-    (song: Song): string | null => {
+    (song: Song): Art => {
       if (!song.hasArt) return null
       watch.ask(song.id)
       // Whichever address this library has, if it has one. `fromCloud` decides,
@@ -59,6 +69,9 @@ export function useArt(drawnAt: number = KEPT_COVER_SIZE): (song: Song) => strin
       else if (address) void ensureServerCover(song.id, song.rev, address)
       const kept = coverFor(song.id)
       if (kept) return kept
+      // A song with a picture this device is still fetching: say it is coming,
+      // so it is not drawn as a song without one and then swapped.
+      if (!address) return fromCloud && keepsCovers && !coverFailed(song.id) ? undefined : null
       /*
        * Nothing kept — a browser tab — so what is drawn is the server's own
        * address, and it can be asked for the size actually being drawn.

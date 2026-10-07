@@ -16,9 +16,13 @@ const tones = new Map<string, CoverTone | null>()
  * is. A cover that failed to load is not remembered, so it is tried afresh the
  * next time it is asked for.
  */
-function useCoverTone(key: string | null, uri: string | null, read: boolean): CoverTone | null {
+function useCoverTone(
+  key: string | null,
+  uri: string | null | undefined,
+  read: boolean,
+): CoverTone | null {
   const [, setRead] = useState(0)
-  const unread = read && key !== null && uri !== null && !tones.has(key)
+  const unread = read && key !== null && !!uri && !tones.has(key)
 
   useEffect(() => {
     if (!unread || !key || !uri) return undefined
@@ -49,7 +53,7 @@ function useCoverTone(key: string | null, uri: string | null, read: boolean): Co
  * Only asked for the song that is playing — its row, the player bar, the mini
  * player — never for a whole list.
  */
-export function useSongColor(song: Song | null, uri: string | null): SongColors {
+export function useSongColor(song: Song | null, uri: string | null | undefined): SongColors {
   const accent = useAccent()
   const sent = song?.coverTone ?? null
   const read = useCoverTone(

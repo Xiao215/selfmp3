@@ -117,7 +117,7 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
   const [shareError, setShareError] = useState<string | null>(null)
 
   const art = useCallback(
-    (songId: number): string | null => {
+    (songId: number): string | null | undefined => {
       const song = songFor(songId)
       return song ? artFor(song) : null
     },
@@ -257,7 +257,7 @@ function ReportFrame({
   share,
   children,
 }: FrameState & {
-  topArt: string | null
+  topArt: string | null | undefined
   share: ReactNode
   children: ReactNode
 }): ReactNode {
@@ -369,7 +369,7 @@ function LookStage({
   look: LookId
   input: LookInput
   hue: number
-  art: (songId: number) => string | null
+  art: (songId: number) => string | null | undefined
   tagHue: (tag: string) => number | undefined
 }): ReactNode {
   const { wide } = useLayout()
@@ -416,7 +416,7 @@ function LookPicker({
   value: LookId
   onChange: (look: LookId) => void
   hue: number
-  topArt: string | null
+  topArt: string | null | undefined
 }): ReactNode {
   const { wide } = useLayout()
   return (

@@ -407,7 +407,7 @@ function PlayingCard({
   onToggle,
 }: {
   song: Song
-  artUri: string | null
+  artUri: string | null | undefined
   playing: boolean
   onOpen: () => void
   onToggle: () => void

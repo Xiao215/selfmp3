@@ -1,28 +1,40 @@
-import { useMemo, useState } from 'react'
-import { Animated, Text, View } from 'react-native'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Animated, Image, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { ReactNode } from 'react'
 import { hueFromString } from '@selfmp3/shared'
 import { motion, radius } from '@selfmp3/client'
-import { useFade } from '../motion'
+import { ease, timing } from '../motion'
 
 /**
- * Cover art, with a placeholder: a solid colour derived from the title and
- * its first letter. Deriving the hue from the text
- * means a given album always gets the same colour, which turns out to be
- * surprisingly good at making a list scannable.
+ * How soon a picture has to arrive to be simply there rather than fade in: one
+ * already in the cache answers within a frame or two, and fading that in over
+ * the empty tile was a cover visibly turning up every time a row did.
+ */
+const QUICK_MS = 120
+
+/**
+ * Cover art, and what stands in for it.
  *
- * The placeholder also stands in for art that fails to load — a server that is
- * not running, mostly. Without it, every cover on an offline phone was a
+ * Three ways it can be. A picture, once it has decoded. A quiet tile in the
+ * surface's own colour while one is coming — an address still loading, or a
+ * cover this device is still fetching (`useArt` says `undefined`). And a
+ * letter tile — a solid colour from the title and its first letter — for a
+ * song with no picture, or one whose picture failed: a server that is not
+ * running, mostly. Without the letter every cover on an offline phone was a
  * blank grey square, which reads as broken rather than as "no picture".
  *
- * The placeholder is always drawn, and the picture fades in over it once it has
- * decoded (`motion.base`): a cover used to pop into place the frame it was
- * ready, and a list scrolled through a hundred of them popping. Because the
- * placeholder is underneath rather than beside it, art that fails needs no
- * fallback of its own — nothing is ever swapped, and nothing is ever blank. A
- * picture already in the cache fires `onLoad` too, so it fades in the same way,
- * within the first frames of the row appearing.
+ * The letter used to be drawn under every cover, always, with the picture
+ * fading in over it: every cover that was still on its way showed a letter
+ * first and then swapped it for the picture, which Xiao saw as the app showing
+ * the wrong cover for half a second (2026-10-07). The letter now means only
+ * "there is no picture", and a picture already to hand is shown at once; one
+ * that takes longer fades in over the quiet tile (`motion.base`), so a list
+ * scrolled through a hundred of them does not pop.
+ *
+ * A new address for the same tile — a server's cover kept on the device and
+ * drawn from the file after that — keeps the picture it had under the new one
+ * until the new one has drawn, rather than going back to empty in between.
  */
 export function Cover({
   uri,
@@ -30,7 +42,8 @@ export function Cover({
   size = 44,
   radius: cornerRadius,
 }: {
-  uri: string | null
+  /** The picture; null for none to show, undefined for one on its way (`offline/useArt.ts`). */
+  uri: string | null | undefined
   title: string
   size?: number
   /** The corners, when the size's own choice is wrong: 0 inside a mosaic. */
@@ -38,13 +51,29 @@ export function Cover({
 }): ReactNode {
   // The address that failed, so a new one gets its own chance: the server may be back.
   const [failedUri, setFailedUri] = useState<string | null>(null)
-  const failed = uri !== null && failedUri === uri
-  // The address that has decoded, rather than a plain flag: a row handed a new
-  // cover fades the new one in instead of showing it at once because the last
-  // one had loaded.
+  const failed = !!uri && failedUri === uri
+  // The address that last decoded. While it is not this one, it is the picture
+  // left under the one loading.
   const [loadedUri, setLoadedUri] = useState<string | null>(null)
-  const shown = useFade(uri !== null && loadedUri === uri, motion.base, motion.base)
-  const fade = useMemo(() => ({ opacity: shown }), [shown])
+  const under = uri && loadedUri && loadedUri !== uri && loadedUri !== failedUri ? loadedUri : null
+  const [shown] = useState(() => new Animated.Value(0))
+  // When this address was first drawn, to tell a cached picture from a slow one.
+  const askedAt = useRef(0)
+  useLayoutEffect(() => {
+    askedAt.current = Date.now()
+    if (uri && loadedUri === uri) return
+    shown.setValue(0)
+    // Only a new address can make the picture loaded or not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uri, shown])
+
+  const onLoad = (): void => {
+    if (!uri) return
+    // At once when it was already to hand, or when the last picture is under it.
+    if (under || Date.now() - askedAt.current < QUICK_MS) shown.setValue(1)
+    else timing(shown, 1, motion.base, undefined, { easing: ease.out })
+    setLoadedUri(uri)
+  }
 
   // Held, rather than a new object on every render of every cover in a list:
   // for a given call site these three numbers never change.
@@ -59,18 +88,34 @@ export function Cover({
     [size, cornerRadius],
   )
 
-  const hue = hueFromString(title)
+  const lettered = uri === null || failed
   return (
-    <View style={[styles.cover, dimensions, { backgroundColor: `hsl(${hue}, 28%, 26%)` }]}>
-      <Text style={[styles.letter, { fontSize: size * 0.4 }]} numberOfLines={1}>
-        {title.trim().charAt(0).toUpperCase() || '?'}
-      </Text>
+    <View
+      style={[
+        styles.cover,
+        dimensions,
+        lettered && { backgroundColor: `hsl(${hueFromString(title)}, 28%, 26%)` },
+      ]}
+    >
+      {lettered ? (
+        <Text style={[styles.letter, { fontSize: size * 0.4 }]} numberOfLines={1}>
+          {title.trim().charAt(0).toUpperCase() || '?'}
+        </Text>
+      ) : null}
+      {under ? (
+        <Image
+          source={{ uri: under }}
+          style={styles.picture}
+          resizeMode="cover"
+          accessibilityIgnoresInvertColors
+        />
+      ) : null}
       {uri && !failed ? (
         <Animated.Image
           source={{ uri }}
-          style={[styles.picture, fade]}
+          style={[styles.picture, { opacity: shown }]}
           resizeMode="cover"
-          onLoad={() => setLoadedUri(uri)}
+          onLoad={onLoad}
           onError={() => setFailedUri(uri)}
           accessibilityIgnoresInvertColors
         />

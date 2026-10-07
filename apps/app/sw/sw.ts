@@ -293,6 +293,11 @@ async function networkFirst(request: Request): Promise<Response> {
  * forever. The others go after the store, by their exact addresses: dropped
  * by path before the store, two requests for one cover that missed together
  * each swept before either had stored, and both versions stayed.
+ *
+ * A version is its `v`, not the whole query: a row asks for a cover at
+ * `size=128` and the player bar for the same one at full size, and each
+ * store used to sweep out the other, so the two went back to the network in
+ * turn and a row's cover came in late every time the song played.
  */
 async function cacheFirst(
   request: Request,
@@ -308,9 +313,12 @@ async function cacheFirst(
       const cache = await caches.open(cacheName)
       await cache.put(request, response.clone())
       if (options.replaceOtherVersions) {
+        const asked = new URL(request.url).searchParams.get('v')
         const versions = await cache.keys(new URL(request.url).pathname, { ignoreSearch: true })
         await Promise.all(
-          versions.filter(version => version.url !== request.url).map(v => cache.delete(v)),
+          versions
+            .filter(version => new URL(version.url).searchParams.get('v') !== asked)
+            .map(v => cache.delete(v)),
         )
       }
     }

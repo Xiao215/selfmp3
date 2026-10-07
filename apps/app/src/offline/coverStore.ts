@@ -61,6 +61,11 @@ export interface CoverPlatform {
   readonly prime: (found: (songId: number, rev: string, uri: string) => void) => void
   /** Where this device already holds the cloud cover named `name`, if it does. */
   readonly haveCloud: (name: string) => Promise<string | null>
+  /**
+   * The same, answered at once where the platform can look without waiting —
+   * a phone's file system can. Left out where it cannot.
+   */
+  readonly peekCloud?: (name: string) => string | null
   /** Fetch the cloud cover `name` from `url`; where it now is, or null. May throw. */
   readonly keepCloud: (
     name: string,
@@ -79,6 +84,8 @@ interface CoverStore {
   /** Bumped once per announcement: how a reader tells it missed one. */
   readonly coversVersion: () => number
   readonly coverFor: (songId: number) => string | undefined
+  /** Whether the last try at a song's cloud cover found nothing to show. */
+  readonly coverFailed: (songId: number) => boolean
   readonly ensureServerCover: (
     songId: number,
     rev: string | undefined,
@@ -142,8 +149,35 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
   /** The cover kept here for one song: a kept server cover before a cloud one. */
   const coverFor = (songId: number): string | undefined => {
     prime()
-    return served.get(songId)?.uri ?? (known.get(songId) || undefined)
+    const kept = served.get(songId)?.uri ?? (known.get(songId) || undefined)
+    if (kept || known.has(songId)) return kept
+    return peek(songId)
   }
+
+  /**
+   * A cloud cover already on this device, found in the render that asks for
+   * it. The cloud covers are not primed — their names are hashes, not songs —
+   * so every cover of every launch used to be a letter tile for the frames it
+   * took `ensureCover` to look on disk and announce it, and then a picture:
+   * the switch Xiao saw on every list (2026-10-07). The library held in
+   * memory already names the file, and a phone can see whether it is there
+   * without waiting.
+   */
+  const peek = (songId: number): string | undefined => {
+    if (!platform.peekCloud || !platform.canKeep()) return undefined
+    try {
+      const key = library.cloudCoverKeyNow(songId)
+      if (!key) return undefined
+      const uri = platform.peekCloud(nameFromKey(key))
+      if (!uri) return undefined
+      known.set(songId, uri)
+      return uri
+    } catch {
+      return undefined
+    }
+  }
+
+  const coverFailed = (songId: number): boolean => failed.has(songId) && !fetching.has(songId)
 
   /**
    * Keep a server's cover on this device, from the address the server serves it
@@ -268,6 +302,7 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
     subscribeCovers: changes.subscribe,
     coversVersion: changes.version,
     coverFor,
+    coverFailed,
     ensureServerCover,
     ensureCover,
     forgetCovers,

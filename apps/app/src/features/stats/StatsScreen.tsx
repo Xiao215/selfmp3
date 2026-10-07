@@ -373,7 +373,7 @@ function LeadCard({
   open,
   testID,
 }: {
-  art: string | null
+  art: string | null | undefined
   rank: number
   name: string
   note: string

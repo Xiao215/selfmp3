@@ -534,7 +534,7 @@ function PlayingRow({
   onDropSongs,
 }: {
   row: QueueRow
-  artUri: string | null
+  artUri: string | null | undefined
   playing: boolean
   onOpen: () => void
   onDropSongs: (at: number, songIds: readonly number[]) => void
@@ -595,7 +595,7 @@ const RailRow = memo(function RailRow({
   actions,
 }: {
   row: QueueRow
-  artUri: string | null
+  artUri: string | null | undefined
   kind: 'next' | 'played'
   /** This row is out being dragged: its place stays, empty, until it lands. */
   placeholder: boolean
@@ -702,7 +702,7 @@ function RowFace({
   grip = false,
 }: {
   song: Song
-  artUri: string | null
+  artUri: string | null | undefined
   grip?: boolean
 }): ReactNode {
   const { theme } = useUnistyles()

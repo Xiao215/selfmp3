@@ -102,6 +102,7 @@ export async function keptCovers(limit: number): Promise<readonly string[]> {
 export const subscribeCovers = store.subscribeCovers
 export const coversVersion = store.coversVersion
 export const coverFor = store.coverFor
+export const coverFailed = store.coverFailed
 export const ensureServerCover = store.ensureServerCover
 export const ensureCover = store.ensureCover
 export const forgetCovers = store.forgetCovers

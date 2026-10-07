@@ -117,7 +117,15 @@ function songsById(songs: readonly Song[]): ReadonlyMap<number, Song> {
  * falls back to the song's own coloured letter rather than leaving a hole. A
  * cover draws at a fixed size, so the cell measures itself and hands it on.
  */
-function Tile({ song, uri, half }: { song: Song; uri: string | null; half: boolean }): ReactNode {
+function Tile({
+  song,
+  uri,
+  half,
+}: {
+  song: Song
+  uri: string | null | undefined
+  half: boolean
+}): ReactNode {
   const [side, setSide] = useState(0)
   return (
     <View

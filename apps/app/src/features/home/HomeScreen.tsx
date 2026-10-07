@@ -461,7 +461,7 @@ function TileGrid({
   columns: number
   /** Whether a tile is narrower than `SMALL_TILE`, and its name a size down. */
   small: boolean
-  artFor: (tile: HomeTile) => string | null
+  artFor: (tile: HomeTile) => string | null | undefined
   onOpen: (tile: HomeTile) => void
 }): ReactNode {
   const [arrive] = useState(() => session.first('home-tiles'))
@@ -517,7 +517,7 @@ function Tile({
   /** Whether this paint is the one the tiles fade up in. */
   arrive: boolean
   small: boolean
-  artUri: string | null
+  artUri: string | null | undefined
   onPress: () => void
 }): ReactNode {
   const { wide } = useLayout()
@@ -751,7 +751,11 @@ function ThisWeek({
 }
 
 /** The colours of the week's number one: its cover's, or the accent without one. */
-function useSundayTone(song: Song | null): { uri: string | null; tint: string; color: string } {
+function useSundayTone(song: Song | null): {
+  uri: string | null | undefined
+  tint: string
+  color: string
+} {
   const art = useArt()
   const uri = song ? art(song) : null
   return { uri, ...useSongColor(song, uri) }

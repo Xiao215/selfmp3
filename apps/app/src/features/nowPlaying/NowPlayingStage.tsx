@@ -577,7 +577,8 @@ function Stage({
           {uri ? (
             <Image source={{ uri }} style={styles.coverImage} resizeMode="cover" />
           ) : (
-            <Cover uri={null} title={song.album || song.title} size={box.size} />
+            // `uri` itself, not null: a cover still on its way is a quiet tile, not a letter.
+            <Cover uri={uri} title={song.album || song.title} size={box.size} />
           )}
         </Moving>
       </Animated.View>

@@ -93,7 +93,7 @@ export const SongRow = memo(function SongRow({
   /** Named so a flow can tap a row by position: `song-row-0`. */
   testID?: string
   song: Song
-  artUri: string | null
+  artUri: string | null | undefined
   /** Draw as the loaded song. Left out, the row asks the player, which is what a list wants. */
   active?: boolean
   downloaded: boolean

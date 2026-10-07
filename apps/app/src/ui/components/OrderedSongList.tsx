@@ -335,7 +335,7 @@ const OrderedRow = memo(function OrderedRow({
   testID: string
   song: Song
   index: number
-  artUri: string | null
+  artUri: string | null | undefined
   downloaded: boolean
   notDownloadedMark: boolean
   unavailable: boolean

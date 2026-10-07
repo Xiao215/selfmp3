@@ -167,6 +167,11 @@ export interface CloudLibraryApi {
   cloudMotion: (session: CloudSession | null, songId: number) => Promise<Motion | null>
   /** A song's cover in the bucket (`covers/<sha256>.<ext>`), or null. */
   cloudCoverKey: (songId: number) => Promise<string | null>
+  /**
+   * The same, answered now from the library held in memory: undefined while
+   * none is loaded yet, when only `cloudCoverKey` can say.
+   */
+  cloudCoverKeyNow: (songId: number) => string | null | undefined
   cloudManifest: (scope: 'library' | 'playlists') => SyncManifest
   forgetCloudLibrary: () => Promise<void>
 }
@@ -828,6 +833,12 @@ export function createCloudLibrary(
     return (await filesOf(songId))?.cover ?? null
   }
 
+  function cloudCoverKeyNow(songId: number): string | null | undefined {
+    const files = replica?.view.files
+    if (!files) return undefined
+    return files[songId]?.cover ?? null
+  }
+
   /** What this device should keep, for automatic downloads: every song, or those in playlists. */
   function cloudManifest(scope: 'library' | 'playlists'): SyncManifest {
     const view = replica?.view
@@ -898,6 +909,7 @@ export function createCloudLibrary(
     cloudLyrics,
     cloudMotion,
     cloudCoverKey,
+    cloudCoverKeyNow,
     cloudManifest,
     forgetCloudLibrary,
   }

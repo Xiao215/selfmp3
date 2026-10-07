@@ -542,7 +542,13 @@ function PlaceSongs({
   )
 }
 
-function AlbumHeading({ song, artUri }: { song: Song; artUri: string | null }): ReactNode {
+function AlbumHeading({
+  song,
+  artUri,
+}: {
+  song: Song
+  artUri: string | null | undefined
+}): ReactNode {
   const album = song.album.trim()
   return (
     <View style={styles.album}>

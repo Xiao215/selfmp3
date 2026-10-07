@@ -17,7 +17,10 @@ const keyOf = (song: Song): string => `${song.id}:${song.rev ?? ''}`
  * the palette is already known and the page comes up in its own light rather
  * than in a stand-in for the frames the read takes.
  */
-export function warmCoverPalette(song: Song, uri: string | null): Promise<Palette | null> {
+export function warmCoverPalette(
+  song: Song,
+  uri: string | null | undefined,
+): Promise<Palette | null> {
   const key = keyOf(song)
   const known = palettes.get(key)
   if (known) return Promise.resolve(known)
@@ -42,7 +45,7 @@ export function warmCoverPalette(song: Song, uri: string | null): Promise<Palett
  * no tone, no art, or on a platform that can't read it follows the hue its
  * letter tile already uses.
  */
-export function useCoverPalette(song: Song, uri: string | null): Palette {
+export function useCoverPalette(song: Song, uri: string | null | undefined): Palette {
   const key = keyOf(song)
   const [, setRead] = useState(0)
 

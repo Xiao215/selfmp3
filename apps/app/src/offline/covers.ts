@@ -55,6 +55,12 @@ const platform: CoverPlatform = {
     return Promise.resolve(file.exists ? file.uri : null)
   },
 
+  // The same look, synchronous: expo-file-system's `exists` is.
+  peekCloud: name => {
+    const file = new File(CACHE, name)
+    return file.exists ? file.uri : null
+  },
+
   // `downloadFileAsync`, not a `DownloadTask`. A task is the right shape for a
   // song — progress, pause, resume — but on iOS it defaults to a *background*
   // URLSession, which is for a few large transfers that outlive the app, not
@@ -126,6 +132,7 @@ export function keptCovers(limit: number): Promise<readonly string[]> {
 export const subscribeCovers = store.subscribeCovers
 export const coversVersion = store.coversVersion
 export const coverFor = store.coverFor
+export const coverFailed = store.coverFailed
 export const ensureServerCover = store.ensureServerCover
 export const ensureCover = store.ensureCover
 export const forgetCovers = store.forgetCovers

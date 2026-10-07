@@ -28,7 +28,7 @@ export function CoverLight({
   blur = 0,
 }: {
   color: string
-  art: string | null
+  art: string | null | undefined
   blur?: number
 }): ReactNode {
   const { layers, fade } = useCrossfade({ color, art }, `${color}|${art ?? ''}`)
@@ -52,7 +52,7 @@ function Light({
   blur,
 }: {
   color: string
-  art: string | null
+  art: string | null | undefined
   blur: number
 }): ReactNode {
   const { theme } = useUnistyles()

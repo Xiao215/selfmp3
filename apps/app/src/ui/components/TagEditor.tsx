@@ -3,7 +3,7 @@ import type { ReactNode, RefObject } from 'react'
 import { Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { View as RNView } from 'react-native'
-import { TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
+import { plural, TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
 import {
   HIT_TARGET,
   radius,
@@ -90,9 +90,7 @@ function Editor({
         <Text style={styles.titleText} numberOfLines={1}>
           Tag <Text style={styles.titleName}>{tag.name}</Text>
         </Text>
-        <Text style={styles.hint}>
-          {tag.songCount} {tag.songCount === 1 ? 'song' : 'songs'}
-        </Text>
+        <Text style={styles.hint}>{plural(tag.songCount, 'song', 'songs')}</Text>
       </View>
 
       <View style={styles.section}>
@@ -143,8 +141,8 @@ function Editor({
       ) : (
         <View>
           <Text style={[styles.hint, styles.confirm]}>
-            Delete “{tag.name}”? Its {tag.songCount}{' '}
-            {tag.songCount === 1 ? 'song stays' : 'songs stay'} in your library.
+            Delete “{tag.name}”? Its {plural(tag.songCount, 'song stays', 'songs stay')} in your
+            library.
           </Text>
           <SheetItem
             icon={<Trash size={15} color={theme.colors.danger} />}

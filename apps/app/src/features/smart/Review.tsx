@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
-import { artistOr } from '@selfmp3/shared'
+import { plural, artistOr } from '@selfmp3/shared'
 import { onMac, radius, space, withAlpha } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -351,7 +351,9 @@ export function Review<T extends Reviewed>({
               }}
               accessibilityRole="button"
               accessibilityLabel={
-                opened ? 'Hide the songs' : `Show the ${each.songIds.length} songs`
+                opened
+                  ? 'Hide the songs'
+                  : `Show the ${plural(each.songIds.length, 'song', 'songs')}`
               }
               hitSlop={8}
               style={({ pressed }) => [styles.open, pressed && styles.pressed]}
@@ -516,7 +518,7 @@ export function Review<T extends Reviewed>({
 
 /** "1,342 songs": a library's size reads better with its thousands marked. */
 export function songCount(count: number): string {
-  return `${count.toLocaleString('en')} ${count === 1 ? 'song' : 'songs'}`
+  return plural(count, 'song', 'songs')
 }
 
 function More({

@@ -572,7 +572,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
             <StopButton onPress={stop} testID="ask-stop" />
           ) : trimmed && asking === null ? (
             <Text style={styles.count} accessibilityLiveRegion="polite">
-              {rows.length} {rows.length === 1 ? 'result' : 'results'}
+              {plural(rows.length, 'result', 'results')}
             </Text>
           ) : null}
         </View>

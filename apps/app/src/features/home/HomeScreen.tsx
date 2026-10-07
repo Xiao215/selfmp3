@@ -566,7 +566,7 @@ function Tile({
             {tile.tag.name}
           </Text>
           <Text style={[styles.tileCount, { color: colours.tileInk }]}>
-            {tile.songs} {tile.songs === 1 ? 'song' : 'songs'}
+            {plural(tile.songs, 'song', 'songs')}
           </Text>
           {tile.cover ? (
             <View style={[styles.tileCover, wide && styles.tileCoverWide]} pointerEvents="none">

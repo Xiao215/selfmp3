@@ -163,7 +163,7 @@ export function ConfirmRemoveSongs({
               ))}
               {rest > 0 ? (
                 <Text style={[styles.listItem, styles.listRest]}>
-                  and {rest} more {rest === 1 ? 'song' : 'songs'}
+                  and {plural(rest, 'more song', 'more songs')}
                 </Text>
               ) : null}
             </View>

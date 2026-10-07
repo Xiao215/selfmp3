@@ -100,7 +100,10 @@ export function hueFromString(input: string): number {
  * ways to do one thing and a coin flip on which the next author picks. It
  * lives beside `formatDuration` for the same reason that does: a formatting
  * bug is visible to the user everywhere at once.
+ *
+ * The number is grouped as English writes it, "1,234 songs", on every device:
+ * the words around it are English too.
  */
 export function plural(count: number, one: string, many: string): string {
-  return `${count} ${count === 1 ? one : many}`
+  return `${count.toLocaleString('en')} ${count === 1 ? one : many}`
 }

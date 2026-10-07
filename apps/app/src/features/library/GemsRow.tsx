@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { artistOr, formatRelative } from '@selfmp3/shared'
+import { plural, artistOr, formatRelative } from '@selfmp3/shared'
 import { space, useGems } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
@@ -93,8 +93,7 @@ export function GemsRow(): ReactNode {
           )}
           <Text style={styles.titleLabel}>Forgotten gems</Text>
           <Text style={styles.hint} numberOfLines={1}>
-            {data.total} {data.total === 1 ? 'song' : 'songs'} you liked, unplayed for{' '}
-            {data.minDays}+ days
+            {plural(data.total, 'song', 'songs')} you liked, unplayed for {data.minDays}+ days
           </Text>
         </Pressable>
         {collapsed ? null : (

@@ -395,7 +395,7 @@ function Tags(): ReactNode {
         <Pressable
           onPress={() => router.navigate('/tags')}
           accessibilityRole="link"
-          accessibilityLabel={`All ${tags.length} tags`}
+          accessibilityLabel={`All ${plural(tags.length, 'tag', 'tags')}`}
           testID="sidebar-tags"
           style={styles.groupTitleMain}
         >

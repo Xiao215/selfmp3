@@ -1,4 +1,4 @@
-import { formatRelative, type Stats } from '@selfmp3/shared'
+import { plural, formatRelative, type Stats } from '@selfmp3/shared'
 import type { DevicePlace } from '../settings/settings.model'
 import { durationWords, formatHour, peakHour, peakHourWords } from '../stats/stats.model'
 
@@ -91,8 +91,8 @@ export function profileLine({
   now?: Date
 }): string {
   const parts: string[] = []
-  if (songs !== undefined) parts.push(`${songs.toLocaleString()} ${songs === 1 ? 'song' : 'songs'}`)
-  if (tags !== undefined) parts.push(`${tags.toLocaleString()} ${tags === 1 ? 'tag' : 'tags'}`)
+  if (songs !== undefined) parts.push(plural(songs, 'song', 'songs'))
+  if (tags !== undefined) parts.push(plural(tags, 'tag', 'tags'))
   if (error) parts.push(fromCloud ? 'can’t reach the cloud' : 'can’t reach your server')
   else if (pending || !syncedAt) parts.push('connecting…')
   else parts.push(`synced ${formatRelative(syncedAt, now)}`)

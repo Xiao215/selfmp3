@@ -5,7 +5,7 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-nati
 import type { LayoutChangeEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { formatLongDuration, type Playlist } from '@selfmp3/shared'
+import { plural, formatLongDuration, type Playlist } from '@selfmp3/shared'
 import { radius, space, useGems } from '@selfmp3/client'
 import { prefs } from '../../ports/prefs'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -265,7 +265,7 @@ function GemsTile({ width }: { width: number | undefined }): ReactNode {
           Forgotten gems
         </Text>
         <Text style={styles.tileSub} numberOfLines={1}>
-          {data.songs.length} songs · {formatLongDuration(duration)}
+          {plural(data.songs.length, 'song', 'songs')} · {formatLongDuration(duration)}
         </Text>
       </Pressable>
     </View>

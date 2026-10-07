@@ -7,6 +7,7 @@ import type {
   WrappedRange,
 } from '@selfmp3/shared'
 import {
+  plural,
   artistKey,
   DAY_HOURS,
   EARLY_HOURS,
@@ -100,9 +101,6 @@ export function peakHourWords(hour: number): string {
   if (DAY_HOURS.includes(hour)) return 'Daytime listener'
   return 'Evening listener'
 }
-
-const plural = (count: number, one: string, many: string): string =>
-  `${count.toLocaleString()} ${count === 1 ? one : many}`
 
 export function daysLabel(days: number): string {
   return plural(days, 'day', 'days')

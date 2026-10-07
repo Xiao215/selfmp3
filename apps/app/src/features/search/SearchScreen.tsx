@@ -386,7 +386,7 @@ function TagResult({ tag }: { tag: Tag }): ReactNode {
     <Pressable
       onPress={() => openTag(tag)}
       accessibilityRole="button"
-      accessibilityLabel={`${tag.name}, tag, ${tag.songCount} songs`}
+      accessibilityLabel={`${tag.name}, tag, ${plural(tag.songCount, 'song', 'songs')}`}
       style={({ pressed }) => [styles.place, pressed && styles.pressed]}
     >
       <View style={styles.figure}>
@@ -413,7 +413,7 @@ function ArtistResult({
     <Pressable
       onPress={() => onOpen(artist)}
       accessibilityRole="button"
-      accessibilityLabel={`${artist.name}, artist, ${count} songs`}
+      accessibilityLabel={`${artist.name}, artist, ${plural(count, 'song', 'songs')}`}
       style={({ pressed }) => [styles.place, pressed && styles.pressed]}
     >
       <View style={styles.figure}>

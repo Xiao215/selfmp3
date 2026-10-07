@@ -4,7 +4,7 @@ import { Animated, Pressable, Text, View, useWindowDimensions } from 'react-nati
 import { StyleSheet } from 'react-native-unistyles'
 import type { GestureResponderEvent, StyleProp, ViewStyle } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
-import { artistOr, formatDuration, type Song, type Tag } from '@selfmp3/shared'
+import { plural, artistOr, formatDuration, type Song, type Tag } from '@selfmp3/shared'
 import { HIT_TARGET, motion, radius, space, tagColors, type } from '@selfmp3/client'
 import {
   chipBudget,
@@ -558,7 +558,7 @@ function RowTags({
           <Pressable
             onPress={() => onShowAll(moreRef.current)}
             accessibilityRole="button"
-            accessibilityLabel={`${hidden} more ${hidden === 1 ? 'tag' : 'tags'}`}
+            accessibilityLabel={plural(hidden, 'more tag', 'more tags')}
             {...tip(
               tags
                 .slice(shown.length)

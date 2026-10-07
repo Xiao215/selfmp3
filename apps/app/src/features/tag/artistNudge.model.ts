@@ -1,4 +1,5 @@
 import type { Artist } from '@selfmp3/shared'
+import { plural } from '@selfmp3/shared'
 
 /**
  * The nudge a new tag gets when its name is an artist's (docs/ui-mock `P11`),
@@ -17,6 +18,6 @@ export function nudgeTitle(name: string): string {
 /** What the artist already is, and what a tag is for instead. */
 export function nudgeBody(artist: Pick<Artist, 'name' | 'songIds'>): string {
   const count = artist.songIds.length
-  const songs = `${count.toLocaleString()} ${count === 1 ? 'song' : 'songs'}`
+  const songs = plural(count, 'song', 'songs')
   return `${artist.name} is already an artist here, with their ${songs}. A tag is for songs you choose, whoever made them.`
 }

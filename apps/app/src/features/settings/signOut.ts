@@ -1,3 +1,4 @@
+import { plural } from '@selfmp3/shared'
 /**
  * Signing this device out of the cloud.
  *
@@ -59,5 +60,5 @@ export function signOutWarning(pendingChanges: number): string {
   const base = 'Songs downloaded to this device are removed; your music stays in the bucket.'
   if (pendingChanges <= 0) return base
   const one = pendingChanges === 1
-  return `${base} ${pendingChanges} change${one ? '' : 's'} made here ${one ? 'has' : 'have'} not reached it yet and will be lost if ${one ? 'it' : 'they'} cannot be sent now.`
+  return `${base} ${plural(pendingChanges, 'change', 'changes')} made here ${one ? 'has' : 'have'} not reached it yet and will be lost if ${one ? 'it' : 'they'} cannot be sent now.`
 }

@@ -4,6 +4,7 @@ import { ActivityIndicator, Linking, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import * as Crypto from 'expo-crypto'
 import {
+  plural,
   formatBytes,
   formatRelative,
   newUid,
@@ -245,9 +246,7 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
 
       <Row
         label="In the cloud"
-        hint={`${status.songs.inCloud} of ${status.songs.total} ${
-          status.songs.total === 1 ? 'song' : 'songs'
-        } · ${formatBytes(status.bytesInCloud)}${
+        hint={`${status.songs.inCloud} of ${plural(status.songs.total, 'song', 'songs')} · ${formatBytes(status.bytesInCloud)}${
           status.lastSnapshotAt ? ` · last published ${formatRelative(status.lastSnapshotAt)}` : ''
         }`}
       >

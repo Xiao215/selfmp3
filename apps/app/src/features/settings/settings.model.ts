@@ -1,4 +1,5 @@
 import type { DeviceKind, Health, ScanResult } from '@selfmp3/shared'
+import { plural } from '@selfmp3/shared'
 
 /**
  * Settings' rules, with nothing drawn: which sections a device shows, which one
@@ -180,7 +181,8 @@ export function healthLine(
   } = {},
 ): string {
   if (health) {
-    const songs = health.songCount === undefined ? '' : ` · ${health.songCount} songs`
+    const songs =
+      health.songCount === undefined ? '' : ` · ${plural(health.songCount, 'song', 'songs')}`
     return `self.mp3 ${health.version}${songs} · ${health.storageDriver} storage`
   }
   if (asking.loading) return 'Checking your library…'
@@ -222,7 +224,7 @@ export function splitDevices<
 
 export function scanHint(result: ScanResult | undefined): string {
   if (!result) return 'Import any audio files dropped into the folder outside self.mp3.'
-  return `Last sweep found ${result.added} new and ${result.updated} updated; ${result.total} songs in the library.`
+  return `Last sweep found ${result.added} new and ${result.updated} updated; ${plural(result.total, 'song', 'songs')} in the library.`
 }
 
 /**

@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { libraryArtists } from '@selfmp3/shared'
+import { plural, libraryArtists } from '@selfmp3/shared'
 import { radius, tagColors, useLibrary } from '@selfmp3/client'
 import { useRecentTagIds } from '../library/recentTags.store'
 import { songsById } from '../../ui/songsById'
@@ -111,7 +111,7 @@ function AddSheetBody({
         accessibilityRole="checkbox"
         accessibilityState={{ checked: on }}
         aria-checked={on}
-        accessibilityLabel={`${placeName(place)}, ${placeSize(place)} songs`}
+        accessibilityLabel={`${placeName(place)}, ${plural(placeSize(place), 'song', 'songs')}`}
         style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       >
         {place.kind === 'tag' ? (
@@ -142,7 +142,7 @@ function AddSheetBody({
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder={`Search ${plural(tags.length, 'tag')} and ${plural(artists.length, 'artist')}`}
+            placeholder={`Search ${plural(tags.length, 'tag', 'tags')} and ${plural(artists.length, 'artist', 'artists')}`}
             placeholderTextColor={theme.colors.textMuted}
             autoCapitalize="none"
             autoCorrect={false}
@@ -208,7 +208,7 @@ function AddSheetBody({
         <Button
           variant="primary"
           grow
-          label={count === 1 ? 'Show 1 song' : `Show ${count} songs`}
+          label={`Show ${plural(count, 'song', 'songs')}`}
           disabled={draft.length === 0}
           onPress={() => onShow(draft)}
           testID="add-sheet-show"
@@ -220,11 +220,6 @@ function AddSheetBody({
 
 /** A row's mark, a tag's dot tile or an artist's face. */
 const FACE = 32
-
-/** "1 tag", "46 tags". */
-function plural(count: number, word: string): string {
-  return `${count} ${count === 1 ? word : `${word}s`}`
-}
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: 10, paddingBottom: 8 },

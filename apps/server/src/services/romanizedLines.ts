@@ -2,6 +2,7 @@ import type { RomanizedLyrics, Song } from '@selfmp3/shared'
 import { CloudError } from '../bucket/store.js'
 import type { Logger } from '../logger.js'
 import { LyricsCache } from './lyricsCache.js'
+import { unattendedLyricText } from './lyrics.js'
 import type { RomanizationService } from './romanization.js'
 
 /**
@@ -17,15 +18,29 @@ import type { RomanizationService } from './romanization.js'
  * romanize and nothing to store — and when the dictionary failed to load,
  * which is not remembered, so the next request tries again.
  */
+interface RomanizeDeps {
+  readonly lyricsCache: LyricsCache
+  readonly romanization: RomanizationService
+}
+
 export async function romanizedLines(
-  deps: { readonly lyricsCache: LyricsCache; readonly romanization: RomanizationService },
+  deps: RomanizeDeps,
   songId: number,
   text: string,
 ): Promise<string[] | null> {
   const hash = LyricsCache.hash(text)
   const cached = await deps.lyricsCache.read<RomanizedLyrics>(songId, 'romanized', hash)
   if (cached) return linesOf(cached)
+  return romanizeAndKeep(deps, songId, text, hash)
+}
 
+/** Romanize a text the cache does not have yet, and keep the result under its hash. */
+async function romanizeAndKeep(
+  deps: RomanizeDeps,
+  songId: number,
+  text: string,
+  hash: string,
+): Promise<string[] | null> {
   const { lyrics, complete } = await deps.romanization.romanize(text)
   if (!complete) return null
   await deps.lyricsCache.write(songId, 'romanized', hash, lyrics)
@@ -37,9 +52,9 @@ export async function romanizedLines(
  *
  * Runs after boot, behind the lyrics index, so a library imported before
  * romaji travelled with the lyrics has it ready before a phone asks. A
- * song's cache hit is a file check, so a second run is quick; the network is
- * never asked here — words a song does not have yet get their romaji when
- * they arrive.
+ * song's cache hit is a file check, so a second run is quick; no words are
+ * looked up online here — words a song does not have yet get their romaji
+ * when they arrive.
  */
 export async function romanizeLibrary(deps: {
   readonly songs: { all(): readonly Song[] }
@@ -53,14 +68,11 @@ export async function romanizeLibrary(deps: {
   for (const song of deps.songs.all()) {
     if (song.lyricsKind === 'none') continue
     try {
-      const stored = await deps.lyrics.stored(song.id, song.path)
-      const text =
-        stored?.text ??
-        (await deps.metadata.read(song.path).catch(() => null))?.embeddedLyrics?.trim()
+      const text = await unattendedLyricText(deps, song)
       if (!text) continue
       const hash = LyricsCache.hash(text)
       if (await deps.lyricsCache.read<RomanizedLyrics>(song.id, 'romanized', hash)) continue
-      if ((await romanizedLines(deps, song.id, text)) !== null) made++
+      if ((await romanizeAndKeep(deps, song.id, text, hash)) !== null) made++
     } catch (error) {
       // Words a song keeps only in the bucket are read from there, and a
       // bucket that refuses one read refuses them all: a boot with the key

@@ -349,6 +349,29 @@ export class LyricsService {
   }
 }
 
+/**
+ * A song's words as this server holds them, without asking the network: a
+ * sidecar, the bucket's copy, or the audio file's own tags. What the search
+ * index and the romaji backfill read, since both run unattended.
+ *
+ * Embedded words are handed on as the file has them, untrimmed, as the lyrics
+ * routes and the cloud upload hand them on: romaji is kept under a hash of
+ * the text, and a trimmed copy would be kept where nobody asks.
+ */
+export async function unattendedLyricText(
+  deps: {
+    readonly lyrics: { stored(songId: number, audioKey: string): Promise<{ text: string } | null> }
+    /** MetadataService: never throws, and reads an unreadable file as having no tags. */
+    readonly metadata: { read(key: string): Promise<{ embeddedLyrics: string | null }> }
+  },
+  song: { readonly id: number; readonly path: string },
+): Promise<string | null> {
+  const stored = await deps.lyrics.stored(song.id, song.path)
+  if (stored) return stored.text
+  const embedded = (await deps.metadata.read(song.path)).embeddedLyrics
+  return embedded?.trim() ? embedded : null
+}
+
 function hasSynced(record: LrclibRecord): record is LrclibRecord & { syncedLyrics: string } {
   return Boolean(record.syncedLyrics?.trim())
 }

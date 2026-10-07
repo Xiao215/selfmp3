@@ -1,6 +1,5 @@
 import { memo, useId, useRef, useState } from 'react'
-import type { RefObject } from 'react'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { Animated, Pressable, Text, View, useWindowDimensions } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { GestureResponderEvent, StyleProp, ViewStyle } from 'react-native'
@@ -190,7 +189,17 @@ export const SongRow = memo(function SongRow({
   // 1): a row's depth, since a row is wide enough that a control's would walk
   // its ends.
   const press = usePressScale(PRESS.row)
-  const onHold = longPressFor({ onLongPress, onMore, moreRef, song })
+  // What holding the row does, the same at both widths: nothing where
+  // something outside the row has the hold (`null`), what the list asked
+  // for, or the ⋯ menu.
+  const onHold =
+    onLongPress === null
+      ? undefined
+      : onLongPress
+        ? () => onLongPress(song)
+        : onMore
+          ? () => onMore(moreRef.current, song)
+          : undefined
 
   // What the row is, as well as which song: picked, out of reach, being moved.
   const states = [
@@ -441,28 +450,6 @@ export function useSongRowHeight(): number | null {
   if (fontScale > 1) return null
   if (!wide) return PHONE_ROW_HEIGHT
   return dense ? DENSE_ROW_HEIGHT : TOUCH_WIDE_ROW_HEIGHT
-}
-
-/**
- * What holding the row does, the same at both widths: nothing where something
- * outside the row has the hold (`null`), what the list asked for, or the ⋯
- * menu.
- */
-function longPressFor({
-  onLongPress,
-  onMore,
-  moreRef,
-  song,
-}: {
-  onLongPress: ((song: Song) => void) | null | undefined
-  onMore: ((anchor: View | null, song: Song) => void) | undefined
-  moreRef: RefObject<View | null>
-  song: Song
-}): (() => void) | undefined {
-  if (onLongPress === null) return undefined
-  if (onLongPress) return () => onLongPress(song)
-  if (onMore) return () => onMore(moreRef.current, song)
-  return undefined
 }
 
 /** Whether the song is on this device, beside its artist ("On this device"). */

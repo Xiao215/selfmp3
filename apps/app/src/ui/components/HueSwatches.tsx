@@ -2,11 +2,11 @@ import type { ReactNode } from 'react'
 import { Pressable, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { hueFromString } from '@selfmp3/shared'
-import { oklchToHexAlpha } from '@selfmp3/client'
+import { oklchToHexAlpha, radius } from '@selfmp3/client'
 import { Check } from './Icons'
 
 /**
- * Twelve hues around the wheel, skipping the muddy stretch between yellow and
+ * Thirteen hues around the wheel, skipping the muddy stretch between yellow and
  * green where chips stop looking like different colours from each other.
  */
 const HUES = [0, 22, 40, 58, 95, 140, 168, 192, 212, 235, 262, 290, 318] as const
@@ -83,7 +83,7 @@ const styles = StyleSheet.create(() => ({
   swatchRing: {
     borderWidth: 2,
     borderColor: 'transparent',
-    borderRadius: 999,
+    borderRadius: radius.pill,
     padding: 2,
   },
   swatch: { alignItems: 'center', justifyContent: 'center' },

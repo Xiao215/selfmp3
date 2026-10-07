@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import path from 'node:path'
 import {
   audioKey,
@@ -16,10 +15,12 @@ import type { AudioFeaturesRepository } from '../repositories/audioFeatures.js'
 import type { CloudRepository } from '../repositories/cloud.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
 import type { SongRepository } from '../repositories/songs.js'
-import type { SyncRepository } from '../repositories/sync.js'
+import type { StampKind, SyncRepository } from '../repositories/sync.js'
 import type { TagRepository } from '../repositories/tags.js'
+import { audioSignature, NO_FILE_SIGNATURE, tagsLyricsSignature } from './cloudSignatures.js'
 import { isFreeOnDisk, songKeyCandidates } from './libraryLayout.js'
 import type { SyncClock } from './localEdits.js'
+import { sha256 } from '../util/hash.js'
 
 /**
  * Taking on the library that is already in the bucket (docs/SYNC.md).
@@ -60,25 +61,6 @@ export interface AdoptionResult {
 }
 
 const NOTHING: AdoptionResult = { songs: 0, tags: 0, playlists: 0, withoutAudio: 0 }
-
-/**
- * What `cloud_songs` says about a song nobody on this device has read.
- *
- * The signatures are what the upload pass compares a song's row, cover
- * revision, lyric sidecar and motion curve against to decide whether to send
- * it again. Each is set to exactly the value the pass works out for a song
- * that has no file of that kind here — the audio's from its size and a time of
- * zero, the lyrics' likewise or `none` where the bucket has none, and `none`
- * for a cover and a curve — so an
- * adopted song is *unchanged* to the pass, and the snapshot goes on naming the
- * bucket's files rather than trying to upload what this server never had.
- */
-const NO_LOCAL_FILE = 'none'
-
-/** The audio's signature as `cloudSync.ts` reads it from a row no file has ever set. */
-function adoptedAudioSignature(size: number): string {
-  return `${size}-0`
-}
 
 /** A song in the snapshot that is one this server already has, under another uid. */
 interface SameSong {
@@ -335,7 +317,13 @@ export class CloudAdopt {
     // `reconcileFiles` leaves out a song whose file the bucket has lost.
     if (!audioPresent) return
 
-    const audioSig = adoptedAudioSignature(song.audio.size)
+    // What `cloud_songs` says about a song nobody on this device has read:
+    // each signature is exactly what the pass works out for a song with no
+    // file of that kind here (cloudSignatures.ts) — the audio's from its size
+    // and a row time of zero — so an adopted song is *unchanged* to the pass,
+    // and the snapshot goes on naming the bucket's files rather than trying to
+    // upload what this server never had.
+    const audioSig = audioSignature(song.audio.size, 0)
     this.#cloud.saveState({
       songId: id,
       audioKey: song.audio.key,
@@ -343,14 +331,14 @@ export class CloudAdopt {
       audioSig,
       coverKey: song.cover?.key ?? null,
       coverSize: song.cover?.size ?? null,
-      coverSig: NO_LOCAL_FILE,
+      coverSig: NO_FILE_SIGNATURE,
       lyricsKey: song.lyrics?.key ?? null,
       lyricsSize: song.lyrics?.size ?? null,
       lyricsKind: song.lyrics?.kind ?? null,
       romanizedKey: song.lyrics?.romanized ?? null,
-      lyricsSig: song.lyrics ? `tags-${audioSig}` : NO_LOCAL_FILE,
+      lyricsSig: song.lyrics ? tagsLyricsSignature(audioSig) : NO_FILE_SIGNATURE,
       motionKey: song.motion ?? null,
-      motionSig: NO_LOCAL_FILE,
+      motionSig: NO_FILE_SIGNATURE,
     })
     // So the next pass does not ask the bucket whether it has files it just
     // told us about.
@@ -403,18 +391,10 @@ export class CloudAdopt {
    * moves it: an edit made here next has to come after everything this server
    * has seen, or it loses to a stamp already in its own database.
    */
-  #stamp(
-    kind: 'song' | 'songTag' | 'tag' | 'playlist' | 'playlistSong',
-    uid: string,
-    stamps: Readonly<Record<string, string>> | undefined,
-  ): void {
+  #stamp(kind: StampKind, uid: string, stamps: Readonly<Record<string, string>> | undefined): void {
     for (const [field, hlc] of Object.entries(stamps ?? {})) {
       this.#sync.setStamp(kind, uid, field, hlc)
       this.#clock.observe(hlc)
     }
   }
-}
-
-function sha256(data: Buffer): string {
-  return createHash('sha256').update(data).digest('hex')
 }

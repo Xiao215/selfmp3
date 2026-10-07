@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
-import { onMac, radius, space, useLibrary, withAlpha } from '@selfmp3/client'
+import { clamp, plural, artistOr } from '@selfmp3/shared'
+import { onMac, radius, space, withAlpha } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
 import { ChevronDown, ChevronRight, Sparkle } from '../../ui/components/Icons'
+import { useSongsById } from '../../ui/songsById'
 import { label as labelText } from '../../ui/surfaces'
 import type { AnswerKeys } from './answerKeys'
 import { keptSongs, leftOutKey, reviewBands, tickedAtFirst, type Reviewed } from './smart.model'
@@ -24,13 +26,13 @@ const CHANGE_TEXT = BAND_TEXT + 18 + 12
 
 /** How many changes a heading shows before "N more". */
 const SECTION_SHOWS = 3
-/** How many songs an opened change lists first. */
-const SONGS_SHOW = 8
+/** How many songs an opened change lists first; Ask's library answer lists as many. */
+export const SONGS_SHOW = 8
 /**
  * How many more each "Show more" adds. A change can be on a thousand songs,
  * and every one drawn at once is a long wait for a list nobody reads to the end.
  */
-const SONGS_MORE = 50
+export const SONGS_MORE = 50
 
 const COMMAND =
   typeof navigator !== 'undefined' && onMac(navigator.userAgent, navigator.maxTouchPoints ?? 0)
@@ -111,12 +113,8 @@ export function Review<T extends Reviewed>({
   /** Changes drawn open to their songs from the start, by key. */
   openAtFirst?: readonly string[]
 }): ReactNode {
-  const { data: library } = useLibrary()
+  const songsById = useSongsById()
   const artFor = useArt(ROW_COVER_SIZE)
-  const songsById = useMemo(
-    () => new Map((library?.songs ?? []).map(song => [song.id, song])),
-    [library],
-  )
   const [ticked, setTicked] = useState<ReadonlySet<string> | null>(null)
   const [leftOut, setLeftOut] = useState<ReadonlySet<string>>(new Set())
   /** Headings showing every change, changes open to their songs, and how many songs opened ones show. */
@@ -258,7 +256,7 @@ export function Review<T extends Reviewed>({
     if (key === 'ArrowDown' || key === 'ArrowUp') {
       if (stops.length === 0) return true
       const from = atIndex < 0 ? (key === 'ArrowDown' ? -1 : stops.length) : atIndex
-      const to = Math.max(0, Math.min(stops.length - 1, from + (key === 'ArrowDown' ? 1 : -1)))
+      const to = clamp(from + (key === 'ArrowDown' ? 1 : -1), 0, stops.length - 1)
       setAt(stops[to]!.id)
       return true
     }
@@ -353,7 +351,9 @@ export function Review<T extends Reviewed>({
               }}
               accessibilityRole="button"
               accessibilityLabel={
-                opened ? 'Hide the songs' : `Show the ${each.songIds.length} songs`
+                opened
+                  ? 'Hide the songs'
+                  : `Show the ${plural(each.songIds.length, 'song', 'songs')}`
               }
               hitSlop={8}
               style={({ pressed }) => [styles.open, pressed && styles.pressed]}
@@ -384,7 +384,7 @@ export function Review<T extends Reviewed>({
                   }}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: kept }}
-                  accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
+                  accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
                   style={({ pressed }) => [
                     styles.song,
                     at === songStop && styles.at,
@@ -518,7 +518,7 @@ export function Review<T extends Reviewed>({
 
 /** "1,342 songs": a library's size reads better with its thousands marked. */
 export function songCount(count: number): string {
-  return `${count.toLocaleString('en')} ${count === 1 ? 'song' : 'songs'}`
+  return plural(count, 'song', 'songs')
 }
 
 function More({

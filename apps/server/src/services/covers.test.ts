@@ -23,7 +23,7 @@ describe('CoverService.save', () => {
     const setArt = vi.fn()
     const covers = new CoverService(
       { dataDir } as Config,
-      { setArt } as unknown as SongRepository,
+      { setArt, artExt: () => null } as unknown as SongRepository,
       createLogger('silent'),
     )
 
@@ -33,15 +33,28 @@ describe('CoverService.save', () => {
     const files = fs.readdirSync(path.join(dataDir, 'covers')).sort()
     // Only the new one: an old 7.jpg would otherwise be found first and served.
     expect(files).toEqual(['7.png'])
-    expect(covers.find(7)?.path.endsWith('7.png')).toBe(true)
+    expect((await covers.find(7))?.path.endsWith('7.png')).toBe(true)
     expect(setArt).toHaveBeenLastCalledWith(7, true, '.png')
+  })
+
+  it('looks for the format the row recorded first', async () => {
+    dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-covers-'))
+    const covers = new CoverService(
+      { dataDir } as Config,
+      { setArt: vi.fn(), artExt: () => '.webp' } as unknown as SongRepository,
+      createLogger('silent'),
+    )
+    fs.writeFileSync(path.join(dataDir, 'covers', '5.jpg'), image(1))
+    fs.writeFileSync(path.join(dataDir, 'covers', '5.webp'), image(2))
+
+    expect(await covers.find(5)).toMatchObject({ contentType: 'image/webp' })
   })
 
   it('leaves other songs’ covers alone', async () => {
     dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-covers-'))
     const covers = new CoverService(
       { dataDir } as Config,
-      { setArt: vi.fn() } as unknown as SongRepository,
+      { setArt: vi.fn(), artExt: () => null } as unknown as SongRepository,
       createLogger('silent'),
     )
 
@@ -63,7 +76,7 @@ describe('CoverService.thumbnail', () => {
     dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-covers-'))
     const covers = new CoverService(
       { dataDir } as Config,
-      { setArt: vi.fn() } as unknown as SongRepository,
+      { setArt: vi.fn(), artExt: () => null } as unknown as SongRepository,
       createLogger('silent'),
     )
     const original = await sharp({

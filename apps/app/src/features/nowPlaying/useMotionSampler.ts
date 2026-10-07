@@ -1,10 +1,9 @@
 import { useMemo } from 'react'
 import { useMotion, type FrequencyAnalyser } from '@selfmp3/client'
 import type { Song } from '@selfmp3/shared'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { canHearMusic } from '../../ports/liveAudio'
-import { chooseSampler, type MotionCurveLike, type MotionSampler } from './motionSource.model'
-import { debugCurve } from './visualDebug'
+import { chooseSampler, type MotionSampler } from './motionSource.model'
 import { useMotionReduced } from '../../ui/motion'
 import { visualFeel } from './visuals.model'
 
@@ -27,16 +26,14 @@ let heard: FrequencyAnalyser | null = null
  * handed the same node and changes nothing.
  */
 export function useMotionSampler(song: Song, active: boolean): MotionSampler {
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const reduced = useMotionReduced()
 
-  const forced = debugCurve()
   // The curve analysis stored for this song, fetched only while a visual shows:
   // a song with lyrics never needs it. Offline it comes from the device's copy.
-  const stored: MotionCurveLike | null = useMotion(active ? song.id : null)
-  const curve = forced ?? stored
+  const curve = useMotion(active ? song.id : null)
 
-  const canHear = canHearMusic() && !forced
+  const canHear = canHearMusic()
   const listen = canHear && active && !reduced
   const ask = player.analyser
   const analyser = useMemo(

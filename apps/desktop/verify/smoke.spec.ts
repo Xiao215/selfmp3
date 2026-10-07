@@ -13,7 +13,7 @@ import { appApi, desktopRoot, executable, freshUserData, launchApp, serverHasSon
  * Two kinds of test here, and the difference matters when you read a run:
  * everything about the *shell* — the window, the origin, what the page can and
  * cannot reach — needs nothing but the built app, and runs anywhere. The flow
- * that plays a song needs a server with the thirteen-song dev library on it,
+ * that plays a song needs a server with the dev library on it,
  * which is a Mac; it says so and skips rather than pretending.
  */
 

@@ -4,7 +4,8 @@ import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useMutation } from '@tanstack/react-query'
 import type { DescribeResult, Understanding } from '@selfmp3/shared'
-import { clientApi, failureText, radius, space, useLibrary } from '@selfmp3/client'
+import { artistOr } from '@selfmp3/shared'
+import { failureText, radius, space, useCreatePlaylist, useLibrary } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { Button } from '../../ui/components/Button'
@@ -12,7 +13,8 @@ import { Checkbox } from '../../ui/components/Checkbox'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
 import { X } from '../../ui/components/Icons'
-import { followRules } from '../library/saveTags'
+import { useSongsById } from '../../ui/songsById'
+import { followRules } from '../lists/followRules'
 import { newPlaylist } from '../playlists/playlists.model'
 import { describeNotes, onlyTags, parts, picksHere, tagIdsFor } from './smart.model'
 import { useSmartServer } from './useSmartServer'
@@ -45,6 +47,7 @@ export function SongsAnswer({
   const { theme } = useUnistyles()
   const server = useSmartServer()
   const { data: library } = useLibrary()
+  const { mutateAsync: createPlaylist } = useCreatePlaylist()
   const artFor = useArt(ROW_COVER_SIZE)
 
   const [result, setResult] = useState(first)
@@ -69,7 +72,7 @@ export function SongsAnswer({
   })
 
   const tags = library?.tags ?? []
-  const songsById = new Map((library?.songs ?? []).map(song => [song.id, song]))
+  const songsById = useSongsById()
   const understanding = edited ?? result.understanding
   const picks = picksHere(result, server.onDevice).filter(
     pick => !left.has(pick.songId) && songsById.has(pick.songId),
@@ -92,13 +95,12 @@ export function SongsAnswer({
           }),
         })
         if (!input) return
-        onSaved((await clientApi().createPlaylist(input)).id)
+        onSaved((await createPlaylist({ input })).id)
         return
       }
       const input = newPlaylist('manual', title)
       if (!input) return
-      const created = await clientApi().createPlaylist(input)
-      await clientApi().addToPlaylist(created.id, { songIds: picks.map(each => each.songId) })
+      const created = await createPlaylist({ input, songIds: picks.map(each => each.songId) })
       onSaved(created.id)
     } catch (caught) {
       setError(failureText(`Couldn’t make “${title}”`, caught))
@@ -151,7 +153,7 @@ export function SongsAnswer({
                     {song.title}
                   </Text>
                   <Text style={styles.why} numberOfLines={1}>
-                    {each.why ?? (song.artist || 'Unknown artist')}
+                    {each.why ?? artistOr(song.artist)}
                   </Text>
                 </View>
                 <Pressable

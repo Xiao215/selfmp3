@@ -4,15 +4,11 @@ import { describe, expect, it } from 'vitest'
 import {
   emptyHint,
   emptyTitle,
-  facts,
   figure,
-  figureUnit,
   longerRanges,
-  rangeShort,
   shareFileName,
   tryLabel,
   weekdayName,
-  WRAPPED_RANGES,
 } from './wrapped.model'
 
 const WRAPPED: Wrapped = WrappedSchema.parse({
@@ -35,35 +31,18 @@ const WRAPPED: Wrapped = WrappedSchema.parse({
 })
 
 describe('wrapped', () => {
-  it('leads with the minutes, and the hours once there are some', () => {
+  it('leads with the minutes', () => {
     expect(figure(330.4)).toBe('330')
-    expect(figureUnit(330.4)).toBe('minutes · 5 hr 30 min')
-    expect(figureUnit(42)).toBe('minutes')
   })
 
-  it('states six facts, with a dash where there is nothing to say', () => {
-    expect(facts(WRAPPED)).toEqual([
-      { label: 'Plays', value: '182' },
-      { label: 'Songs', value: '13' },
-      { label: 'Days with music', value: '4' },
-      { label: 'Longest streak', value: '4 days' },
-      { label: 'Peak hour', value: '11pm', hint: '16 plays' },
-      { label: 'Best day', value: 'Saturday', hint: '145 plays' },
-    ])
-    const quiet = facts({ ...WRAPPED, peakHour: null, peakWeekday: null, longestStreakDays: 1 })
-    expect(quiet.slice(3)).toEqual([
-      { label: 'Longest streak', value: '1 day' },
-      { label: 'Peak hour', value: '—', hint: undefined },
-      { label: 'Best day', value: '—', hint: undefined },
-    ])
+  it('names a weekday, and a dash for one it does not know', () => {
+    expect(weekdayName(6)).toBe('Saturday')
     expect(weekdayName(9)).toBe('—')
   })
 
   it('offers only longer windows when one is empty', () => {
-    expect(WRAPPED_RANGES).toEqual(['week', 'month', 'quarter', 'year', 'all'])
     expect(longerRanges('week')).toEqual(['month', 'quarter', 'year', 'all'])
     expect(longerRanges('all')).toEqual([])
-    expect(rangeShort('quarter')).toBe('3 months')
     expect(tryLabel('year')).toBe('Try year')
     expect(tryLabel('quarter')).toBe('Try 3 months')
     expect(emptyHint('quarter')).toMatch(/last 3 months/)

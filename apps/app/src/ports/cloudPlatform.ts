@@ -1,10 +1,10 @@
-import { DEFAULT_DOORMAN_URL } from '@selfmp3/shared'
 import type { CloudPlatform, DeviceStore, TextCache } from '@selfmp3/replica'
-import Constants from 'expo-constants'
 import * as Crypto from 'expo-crypto'
 import { Directory, File, Paths } from 'expo-file-system'
 import * as Linking from 'expo-linking'
 import { AppState, Platform } from 'react-native'
+
+import { doormanUrl } from './doormanUrl'
 
 /**
  * What a phone gives `@selfmp3/replica` (packages/replica/src/platform.ts).
@@ -114,17 +114,6 @@ const textCache: TextCache = {
     return Promise.resolve()
   },
 }
-
-/**
- * The doorman this build signs in through.
- *
- * Checked for being a string rather than merely present, because Expo turns a
- * null in `extra` into `{}` on the way through — which is not null, so a `??`
- * fallback keeps it, and the address silently becomes "[object Object]".
- */
-const configured = (Constants.expoConfig?.extra as { doormanUrl?: unknown } | undefined)?.doormanUrl
-const doormanUrl =
-  typeof configured === 'string' && configured.length > 0 ? configured : DEFAULT_DOORMAN_URL
 
 export const cloudPlatform: CloudPlatform = {
   doormanUrl,

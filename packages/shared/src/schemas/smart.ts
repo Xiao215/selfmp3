@@ -79,15 +79,24 @@ export const SmartRuleSchema = z.discriminatedUnion('field', [
 ])
 export type SmartRule = z.infer<typeof SmartRuleSchema>
 
-export const SmartRulesSchema = z.object({
-  /** 'all' is AND, 'any' is OR. */
-  match: z.enum(['all', 'any']).default('all'),
-  rules: z.array(SmartRuleSchema).max(20).default([]),
-  orderBy: SongSortFieldSchema.default('addedAt'),
-  order: SortDirectionSchema.default('desc'),
-  /** Cap the result set — what makes "Top 50 most played" possible. */
-  limit: z.number().int().min(1).max(5000).nullable().default(null),
-})
+/**
+ * A set of rules around whichever rule shape names a tag: by this device's id
+ * here, by uid in the bucket (`CloudSmartRulesSchema`). One factory, so the two
+ * cannot drift apart in their bounds.
+ */
+export function smartRulesShape<R extends z.ZodTypeAny>(rule: R) {
+  return z.object({
+    /** 'all' is AND, 'any' is OR. */
+    match: z.enum(['all', 'any']).default('all'),
+    rules: z.array(rule).max(20).default([]),
+    orderBy: SongSortFieldSchema.default('addedAt'),
+    order: SortDirectionSchema.default('desc'),
+    /** Cap the result set — what makes "Top 50 most played" possible. */
+    limit: z.number().int().min(1).max(5000).nullable().default(null),
+  })
+}
+
+export const SmartRulesSchema = smartRulesShape(SmartRuleSchema)
 export type SmartRules = z.infer<typeof SmartRulesSchema>
 
 export const EMPTY_SMART_RULES: SmartRules = {

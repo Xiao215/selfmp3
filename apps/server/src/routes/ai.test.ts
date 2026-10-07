@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createApp } from '../app.js'
-import { loadConfig, type Config } from '../config.js'
+import { loadConfig, type ServingConfig } from '../config.js'
 import { createContainer, type Container } from '../container.js'
 
 /**
@@ -24,7 +24,7 @@ describe('smart features turned off in Settings', () => {
   ] as const
   const saved = new Map<string, string | undefined>()
   let root = ''
-  let config: Config
+  let config: ServingConfig
   let container: Container
   let server: http.Server
   let model: http.Server
@@ -65,8 +65,8 @@ describe('smart features turned off in Settings', () => {
     process.env['SELFMP3_AI_BASE_URL'] =
       `http://127.0.0.1:${(model.address() as AddressInfo).port}/v1`
 
-    config = loadConfig()
-    container = createContainer(config)
+    container = createContainer(loadConfig())
+    config = container.config
     server = http.createServer(createApp(container))
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
     origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
@@ -88,7 +88,7 @@ describe('smart features turned off in Settings', () => {
       method,
       headers: {
         'Content-Type': 'application/json',
-        ...(config.authToken ? { Authorization: `Bearer ${config.authToken}` } : {}),
+        Authorization: `Bearer ${config.authToken}`,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     })
@@ -99,6 +99,7 @@ describe('smart features turned off in Settings', () => {
       smartTidy: false,
       smartTags: false,
       smartWritten: false,
+      smartMetadata: false,
     })
     for (const [method, url, body] of [
       ['POST', '/api/ai/ask', { text: 'check my song names' }],
@@ -106,6 +107,7 @@ describe('smart features turned off in Settings', () => {
       ['GET', '/api/ai/tidy'],
       ['GET', '/api/ai/tags/untagged'],
       ['GET', '/api/ai/written?range=month'],
+      ['GET', '/api/ai/songs/1/metadata'],
     ] as const) {
       const response = await call(method, url, body)
       expect(response.status, url).toBe(403)

@@ -42,7 +42,7 @@ export function usePlayReporting({
   connection,
 }: {
   /** The library, for the song's length: how much counts as a play. */
-  readonly songs: RefObject<Map<number, Song>>
+  readonly songs: RefObject<ReadonlyMap<number, Song>>
   /** A song listened to is one worth keeping here, where songs stream. */
   readonly keepPlayed: (songId: number) => void
   /** Only to send again when the server this device talks to changes. */

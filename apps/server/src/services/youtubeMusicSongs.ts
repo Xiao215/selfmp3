@@ -1,4 +1,13 @@
-import { findAll, findKey, runs, WEB_CLIENT, type YouTubeMusicApi } from './youtubeMusicApi.js'
+import {
+  findAll,
+  findKey,
+  parseLength,
+  rowColumns,
+  rowVideoId,
+  SONG_SEARCH_FOR_MATCHING,
+  WEB_CLIENT,
+  type YouTubeMusicApi,
+} from './youtubeMusicApi.js'
 
 /**
  * Songs on YouTube Music as its search names them, and whether one of them
@@ -6,9 +15,6 @@ import { findAll, findKey, runs, WEB_CLIENT, type YouTubeMusicApi } from './yout
  * share these: its timed lyrics (youtubeMusic.ts) and its artist's own page
  * (artistBackdrops.ts), which is found through the songs rather than the name.
  */
-
-/** The search's "Songs" filter: studio tracks only, no videos or playlists. */
-const SONGS_ONLY = 'EgWKAQIIAWoMEA4QChADEAQQCRAF'
 
 /**
  * How far the track's length may be from the file's for it to be the same
@@ -52,20 +58,22 @@ export async function searchSongs(
   input: SongLookup,
 ): Promise<Track[] | null> {
   const query = `${input.artist} ${input.title}`.trim()
-  const response = await api.post('search', { query, params: SONGS_ONLY }, WEB_CLIENT)
+  const response = await api.post('search', { query, params: SONG_SEARCH_FOR_MATCHING }, WEB_CLIENT)
   if (!response) return null
 
   const tracks: Track[] = []
   for (const item of findAll(response, 'musicResponsiveListItemRenderer')) {
-    const videoId = findKey((item as Record<string, unknown>)['playlistItemData'], 'videoId')
-    if (typeof videoId !== 'string') continue
+    const videoId = rowVideoId(item)
+    if (videoId === null) continue
     // Column one is the title; column two reads "Artist • Album • 3:27", and
     // the artist in it links to the artist's page.
-    const columns = findAll(item, 'musicResponsiveListItemFlexColumnRenderer')
-    const texts = columns.map(column => runs((column as Record<string, unknown>)['text']).join(''))
+    const columns = rowColumns(item)
+    const texts = columns.map(column =>
+      column.map(run => (typeof run.text === 'string' ? run.text : '')).join(''),
+    )
     const details = (texts[1] ?? '').split(' • ')
-    const artistChannelId = findAll(columns[1], 'browseEndpoint')
-      .map(endpoint => (endpoint as { browseId?: unknown }).browseId)
+    const artistChannelId = (columns[1] ?? [])
+      .map(run => run.navigationEndpoint?.browseEndpoint?.browseId)
       .find((id): id is string => typeof id === 'string' && id.startsWith('UC'))
     tracks.push({
       videoId,
@@ -116,11 +124,14 @@ function normalize(text: string): string {
     .replace(/[\s\p{P}\p{S}]/gu, '')
 }
 
-/** "3:27" or "1:02:03" to seconds. */
-export function parseLength(text: string): number | null {
-  if (!/^\d+(?::\d{2}){1,2}$/.test(text.trim())) return null
-  return text
-    .trim()
-    .split(':')
-    .reduce((total, part) => total * 60 + Number(part), 0)
+/** The `next` response YouTube Music's player gives for a video, or null when it did not answer. */
+export function askNext(api: YouTubeMusicApi, videoId: string): Promise<unknown> {
+  return api.post('next', { videoId, isAudioOnly: true }, WEB_CLIENT)
+}
+
+/** The player's queue entry for `videoId` in a `next` response: its title, byline and length. */
+export function nextEntry(response: unknown, videoId: string): Record<string, unknown> | undefined {
+  return findAll(response, 'playlistPanelVideoRenderer').find(
+    item => (item as { videoId?: unknown }).videoId === videoId,
+  ) as Record<string, unknown> | undefined
 }

@@ -1,4 +1,5 @@
 import {
+  clamp,
   plural,
   formatLongDuration,
   playNext,
@@ -43,18 +44,24 @@ export function queueRows(
   return { playing, next: resolve(sections.next), played: resolve(sections.played) }
 }
 
+/** "6 songs" and "24 min": how many are still to come, and for how long. */
+function nextTotals(next: readonly QueueRow[]): { songs: string; time: string } {
+  const seconds = next.reduce((sum, row) => sum + row.song.duration, 0)
+  return { songs: plural(next.length, 'song', 'songs'), time: formatLongDuration(seconds) }
+}
+
 /** "6 songs · 24 min": what is still to come, under the rail's title. */
 export function nextSummary(next: readonly QueueRow[]): string {
   if (next.length === 0) return 'Nothing after this one'
-  const seconds = next.reduce((sum, row) => sum + row.song.duration, 0)
-  return `${plural(next.length, 'song', 'songs')} · ${formatLongDuration(seconds)}`
+  const { songs, time } = nextTotals(next)
+  return `${songs} · ${time}`
 }
 
 /** "Next · 6 songs, 24 min": the label over the sheet's next rows. */
 export function nextLabel(next: readonly QueueRow[]): string {
   if (next.length === 0) return 'Nothing next'
-  const seconds = next.reduce((sum, row) => sum + row.song.duration, 0)
-  return `Next · ${plural(next.length, 'song', 'songs')}, ${formatLongDuration(seconds)}`
+  const { songs, time } = nextTotals(next)
+  return `Next · ${songs}, ${time}`
 }
 
 /**
@@ -156,7 +163,7 @@ export function dragTarget(
   { first, last }: { first: number; last: number },
 ): number {
   const rows = rowHeight > 0 ? Math.round(dy / rowHeight) : 0
-  return Math.max(first, Math.min(last, from + rows))
+  return clamp(from + rows, first, last)
 }
 
 // --- Undo ---------------------------------------------------------------------

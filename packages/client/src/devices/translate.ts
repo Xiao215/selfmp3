@@ -66,16 +66,8 @@ export function translateState(state: PlaybackState, into: SongIdLookup): Playba
   const songId = into(state.songId)
   if (songId === undefined) return unnamed(state)
 
-  const queueIds: number[] = []
-  let queueIndex = -1
-  for (const [position, id] of state.queueIds.entries()) {
-    const there = into(id)
-    if (there === undefined) continue
-    if (position === state.queueIndex) queueIndex = queueIds.length
-    queueIds.push(there)
-  }
-
-  return { ...state, songId, queueIds, queueIndex }
+  const { queueIds, queueIndex } = translateQueue(state.queueIds, state.queueIndex, into)
+  return { ...state, songId, queueIds, queueIndex: queueIndex ?? -1 }
 }
 
 /**
@@ -94,14 +86,7 @@ export function translateCommand(command: DeviceCommand, into: SongIdLookup): De
 
   if (command.queueIds === undefined) return { ...command, songId }
 
-  const queueIds: number[] = []
-  let queueIndex: number | undefined
-  for (const [position, id] of command.queueIds.entries()) {
-    const there = into(id)
-    if (there === undefined) continue
-    if (position === command.queueIndex) queueIndex = queueIds.length
-    queueIds.push(there)
-  }
+  const { queueIds, queueIndex } = translateQueue(command.queueIds, command.queueIndex, into)
 
   /*
    * The index is dropped rather than sent as something that fits the schema
@@ -114,4 +99,26 @@ export function translateCommand(command: DeviceCommand, into: SongIdLookup): De
   delete translated.queueIndex
   if (queueIndex !== undefined) translated.queueIndex = queueIndex
   return translated
+}
+
+/**
+ * A queue in the other numbering: an entry with no translation is dropped, and
+ * the index follows the entry it pointed at by position, so a queue holding a
+ * song twice still points at the copy it pointed at. `queueIndex` is undefined
+ * when that entry was one of the dropped.
+ */
+function translateQueue(
+  ids: readonly number[],
+  index: number | undefined,
+  into: (songId: number) => number | undefined,
+): { queueIds: number[]; queueIndex: number | undefined } {
+  const queueIds: number[] = []
+  let queueIndex: number | undefined
+  for (const [position, id] of ids.entries()) {
+    const there = into(id)
+    if (there === undefined) continue
+    if (position === index) queueIndex = queueIds.length
+    queueIds.push(there)
+  }
+  return { queueIds, queueIndex }
 }

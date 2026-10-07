@@ -1,7 +1,9 @@
 import type { YouTubeChannel } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { ProbedTrack } from './ytdlp.js'
-import { findAll, findKey, runs, YouTubeMusicApi, type FetchLike } from './youtubeMusicApi.js'
+import { findAll, findKey, largestThumbnail, runs, YouTubeMusicApi } from './youtubeMusicApi.js'
+import type { FetchLike } from './fetching.js'
+import { songRow } from './youtubeMusicLists.js'
 
 /**
  * An artist's songs, from their page on YouTube Music.
@@ -48,13 +50,16 @@ export class YouTubeMusicArtists {
     const seeAll = findAll(shelf, 'browseEndpoint')
       .map(endpoint => (endpoint as { browseId?: unknown }).browseId)
       .find((id): id is string => typeof id === 'string' && id.startsWith('VL'))
+    // Read as any list's rows are: a row names its own artists and album
+    // where it links them, and is the page's artist where it does not.
+    const name = headerTitle(page)
     const tracks = findAll(shelf, 'musicResponsiveListItemRenderer')
-      .map(toTrack)
+      .map(item => songRow(item, { artist: name }))
       .filter((track): track is ProbedTrack => track !== null)
     if (!seeAll && tracks.length === 0) return null
 
     return {
-      artist: headerTitle(page) || tracks[0]?.artist || '',
+      artist: name || tracks[0]?.artist || '',
       playlistUrl: seeAll ? `https://music.youtube.com/playlist?list=${seeAll.slice(2)}` : null,
       tracks,
     }
@@ -105,34 +110,5 @@ function headerTitle(page: unknown): string {
 
 /** The largest of the header's pictures, or null where the header has none. */
 function headerImage(page: unknown): string | null {
-  const thumbnails = findKey(headerRenderer(page)?.['thumbnail'], 'thumbnails')
-  const largest = Array.isArray(thumbnails)
-    ? (thumbnails.at(-1) as { url?: unknown } | undefined)?.url
-    : undefined
-  return typeof largest === 'string' ? largest : null
-}
-
-/** One row of the songs list. Columns read title, artist, plays, album. */
-function toTrack(item: unknown): ProbedTrack | null {
-  const row = item as Record<string, unknown>
-  const videoId = findKey(row['playlistItemData'], 'videoId')
-  if (typeof videoId !== 'string') return null
-
-  const columns = findAll(row, 'musicResponsiveListItemFlexColumnRenderer').map(column =>
-    runs((column as Record<string, unknown>)['text']).join(''),
-  )
-  const thumbnails = findKey(row['thumbnail'], 'thumbnails')
-  const largest = Array.isArray(thumbnails)
-    ? (thumbnails.at(-1) as { url?: unknown } | undefined)?.url
-    : undefined
-
-  return {
-    url: `https://music.youtube.com/watch?v=${videoId}`,
-    title: columns[0] ?? '',
-    artist: columns[1] ?? '',
-    album: '',
-    // Not on the page; the download reads the real length.
-    duration: 0,
-    thumbnail: typeof largest === 'string' ? largest : null,
-  }
+  return largestThumbnail(headerRenderer(page))
 }

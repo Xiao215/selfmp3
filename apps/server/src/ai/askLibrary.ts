@@ -10,6 +10,7 @@ import {
 import { mainArtist } from './library.js'
 import { LlmError } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
+import { tally } from './text.js'
 
 /**
  * Two of Ask's answers that read the library rather than the listening
@@ -86,11 +87,9 @@ export function sortSongs(songs: readonly Song[], by: AskSort, order: AskOrder):
   })
 }
 
-function tally(values: Iterable<string>): { label: string; count: number }[] {
-  const counts = new Map<string, number>()
-  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1)
-  return [...counts]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+/** The most common few, as a library answer lists them. */
+function top(values: Iterable<string>): { label: string; count: number }[] {
+  return tally(values)
     .slice(0, TOP)
     .map(([label, count]) => ({ label, count }))
 }
@@ -116,7 +115,15 @@ function chooses(understanding: Understanding): boolean {
   )
 }
 
-const none = (say: string): AskAnswer => ({ kind: 'none', say, try: [] })
+/** Not something the box can do, with what it can do instead. */
+export const none = (say: string, tries: readonly string[] = []): AskAnswer => ({
+  kind: 'none',
+  say,
+  try: tries
+    .map(each => each.trim())
+    .filter(Boolean)
+    .slice(0, 2),
+})
 
 /** "How many YOASOBI songs do I have", "what did I add this week", "my longest song". */
 export function libraryAnswer(
@@ -149,11 +156,9 @@ export function libraryAnswer(
     songIds: sorted.slice(0, understanding.size ?? LIST_SIZE).map(song => song.id),
     sortBy: question.sortBy,
     order: question.order,
-    artists: tally(fitting.map(song => mainArtist(song.artist))),
-    albums: tally(fitting.map(song => song.album).filter(Boolean)),
-    tags: tally(
-      fitting.flatMap(song => song.tagIds.map(id => names.get(id) ?? '')).filter(Boolean),
-    ),
+    artists: top(fitting.map(song => mainArtist(song.artist))),
+    albums: top(fitting.map(song => song.album).filter(Boolean)),
+    tags: top(fitting.flatMap(song => song.tagIds.map(id => names.get(id) ?? '')).filter(Boolean)),
   }
 }
 

@@ -6,6 +6,7 @@ interface SmartSwitches {
   readonly tidy: boolean
   readonly tags: boolean
   readonly written: boolean
+  readonly metadata: boolean
 }
 
 /**
@@ -21,5 +22,6 @@ export function useSmartSwitches(): SmartSwitches {
     tidy: data?.smartTidy ?? true,
     tags: data?.smartTags ?? true,
     written: data?.smartWritten ?? true,
+    metadata: data?.smartMetadata ?? true,
   }
 }

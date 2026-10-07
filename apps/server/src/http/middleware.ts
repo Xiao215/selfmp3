@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
-import { DEFAULT_APP_URL, DESKTOP_APP_ORIGIN, EXTENSION_ORIGIN } from '@selfmp3/shared'
-import type { Config } from '../config.js'
+import { DESKTOP_APP_ORIGIN, EXTENSION_ORIGIN } from '@selfmp3/shared'
+import type { Config, ServingConfig } from '../config.js'
 import type { Logger } from '../logger.js'
 import { HttpError } from './errors.js'
 import { isLocalRequest } from './local.js'
@@ -67,15 +67,7 @@ export function loggedUrl(originalUrl: string): string {
  * server behind a VPN, but it costs one line and removes a whole category of
  * "well, technically" from the threat model.
  */
-export function bearerAuth(config: Config): RequestHandler {
-  const expected = config.authToken
-  // Only reachable in a test that built a config by hand: the container settles
-  // this before anything can serve. Left as a pass-through rather than a throw,
-  // since a server with no token is what this used to be.
-  if (!expected) return (_req, _res, next) => next()
-
-  const expectedBuffer = Buffer.from(expected, 'utf8')
-
+export function bearerAuth(config: Pick<ServingConfig, 'authToken'>): RequestHandler {
   return (req: Request, _res: Response, next: NextFunction): void => {
     // Health checks stay open so a monitor, launchd or a container HEALTHCHECK
     // does not need the secret. This is mounted at `/api`, so express has
@@ -84,47 +76,42 @@ export function bearerAuth(config: Config): RequestHandler {
     if (req.path === '/health' || req.path === '/api/health') return next()
 
     if (isLocalRequest(req)) return next()
-
-    // The <audio> element cannot send an Authorization header, so media URLs
-    // accept the token as a query parameter instead.
-    const header = req.headers.authorization
-    const fromHeader = header?.startsWith('Bearer ') === true ? header.slice(7) : null
-    const rawQueryToken = req.query['token']
-    const fromQuery = typeof rawQueryToken === 'string' ? rawQueryToken : null
-    const provided = fromHeader ?? fromQuery
-
-    if (!provided) return next(HttpError.unauthorized())
-
-    const providedBuffer = Buffer.from(provided, 'utf8')
-    const ok =
-      providedBuffer.length === expectedBuffer.length &&
-      crypto.timingSafeEqual(providedBuffer, expectedBuffer)
-
-    if (!ok) return next(HttpError.unauthorized('invalid token'))
+    const provided = tokenOf(req)
+    if (provided === null) return next(HttpError.unauthorized())
+    if (!matches(provided, config.authToken)) return next(HttpError.unauthorized('invalid token'))
     next()
   }
 }
 
 /**
- * Whether this request carried the right token — or came from this computer,
- * which needs none, or there is no token to carry at all.
+ * Whether this request carried the right token, or came from this computer,
+ * which needs none.
  *
  * For the routes that answer without authenticating and would still rather not
  * say everything they know to whoever asked. It has to agree with `bearerAuth`
  * about who is let in, or `/api/health` would hold back from somebody at the
- * keyboard what every other route on the same machine tells them freely.
+ * keyboard what every other route on the same machine tells them freely — so
+ * both are built from the same two pieces below.
  */
-export function isAuthenticated(req: Request, config: Config): boolean {
-  const expected = config.authToken
-  if (!expected) return true
+export function isAuthenticated(req: Request, config: Pick<ServingConfig, 'authToken'>): boolean {
   if (isLocalRequest(req)) return true
+  const provided = tokenOf(req)
+  return provided !== null && matches(provided, config.authToken)
+}
 
+/**
+ * The token a request carries: `Authorization: Bearer …`, or `?token=` — the
+ * <audio> element cannot send a header, so media URLs carry it in the query.
+ */
+function tokenOf(req: Request): string | null {
   const header = req.headers.authorization
-  const fromHeader = header?.startsWith('Bearer ') === true ? header.slice(7) : null
-  const rawQueryToken = req.query['token']
-  const provided = fromHeader ?? (typeof rawQueryToken === 'string' ? rawQueryToken : null)
-  if (provided === null) return false
+  if (header?.startsWith('Bearer ')) return header.slice(7)
+  const fromQuery = req.query['token']
+  return typeof fromQuery === 'string' && fromQuery !== '' ? fromQuery : null
+}
 
+/** A timing-safe comparison of what was sent against the token. */
+function matches(provided: string, expected: string): boolean {
   const providedBuffer = Buffer.from(provided, 'utf8')
   const expectedBuffer = Buffer.from(expected, 'utf8')
   return (
@@ -133,8 +120,8 @@ export function isAuthenticated(req: Request, config: Config): boolean {
   )
 }
 
-/** The published web app's own origin, which is all of `DEFAULT_APP_URL` we need. */
-export const APP_SITE_ORIGIN = new URL(DEFAULT_APP_URL).origin
+/** What the origin checks read of the configuration. */
+type OriginConfig = Pick<Config, 'corsOrigins' | 'publicUrl' | 'appUrl'>
 
 /**
  * Every origin this server answers to, beyond the page it serves itself.
@@ -144,7 +131,7 @@ export const APP_SITE_ORIGIN = new URL(DEFAULT_APP_URL).origin
  * by hand. The published site is the fourth, and only when `SELFMP3_PUBLIC_URL`
  * is set — a public address exists so that a device away from the house can
  * reach this server, and the app on that device is the one served from
- * `DEFAULT_APP_URL`. Allowing it is therefore not a second decision: it is what
+ * `appUrl`. Allowing it is therefore not a second decision: it is what
  * the first one was for, and leaving it out would publish an address that every
  * browser then refuses to call.
  *
@@ -153,9 +140,9 @@ export const APP_SITE_ORIGIN = new URL(DEFAULT_APP_URL).origin
  * loopback host, and a tunnel forwards the real one), so it still needs the
  * token like any other.
  */
-export function allowedOrigins(config: Config): Set<string> {
+export function allowedOrigins(config: OriginConfig): Set<string> {
   const origins = new Set([...config.corsOrigins, DESKTOP_APP_ORIGIN, EXTENSION_ORIGIN])
-  if (config.publicUrl) origins.add(APP_SITE_ORIGIN)
+  if (config.publicUrl) origins.add(new URL(config.appUrl).origin)
   return origins
 }
 
@@ -207,7 +194,7 @@ export function requireCloud(connected: () => boolean): RequestHandler {
  * served from `app://selfmp3`, which no website can claim. So is the browser
  * extension, whose origin carries an id only its own committed key produces.
  */
-export function sameOriginWrites(config: Config): RequestHandler {
+export function sameOriginWrites(config: OriginConfig): RequestHandler {
   const allowed = allowedOrigins(config)
 
   return (req: Request, _res: Response, next: NextFunction): void => {
@@ -229,8 +216,8 @@ export function sameOriginWrites(config: Config): RequestHandler {
   }
 }
 
-/** CORS, for the origins listed in config, the desktop app's own and the extension's. */
-export function cors(config: Config): RequestHandler {
+/** CORS, for every origin `allowedOrigins` names. */
+export function cors(config: OriginConfig): RequestHandler {
   const allowed = allowedOrigins(config)
 
   return (req: Request, res: Response, next: NextFunction): void => {
@@ -252,9 +239,9 @@ export function cors(config: Config): RequestHandler {
        * that response away unless the server says credentials were allowed,
        * so an explicitly allowed origin got its library and then silence.
        *
-       * Only ever sent to an origin already on the list, which is empty
-       * unless somebody set `SELFMP3_CORS_ORIGINS` on purpose. The app the
-       * server serves itself is same-origin and never reaches this.
+       * Only ever sent to an origin already on the list: the desktop app's,
+       * the extension's, the published site's when there is a public address,
+       * and whatever `SELFMP3_CORS_ORIGINS` names by hand (`allowedOrigins`).
        */
       res.setHeader('Access-Control-Allow-Credentials', 'true')
       /*
@@ -282,9 +269,11 @@ export function cors(config: Config): RequestHandler {
 /**
  * Security headers.
  *
- * The CSP is strict but has to allow blob: and data: for cover art the client
- * builds locally, and 'unsafe-inline' for styles because the UI sets a few
- * CSS custom properties inline (progress positions, tag hues).
+ * The server serves no app any more, only its own page (`admin.ts`) and the
+ * API, so the CSP is what that page needs: its own script and stylesheet, the
+ * two inline `style` attributes it draws (a field's width, the upload
+ * meter), and images from anywhere for the covers the API serves. Every
+ * other kind of content is the page's own or nothing.
  */
 export function securityHeaders(): RequestHandler {
   const csp = [
@@ -306,7 +295,7 @@ export function securityHeaders(): RequestHandler {
     res.setHeader('X-Content-Type-Options', 'nosniff')
     res.setHeader('Referrer-Policy', 'no-referrer')
     res.setHeader('X-Frame-Options', 'DENY')
-    // Let the page use the Media Session API and keep playing in the background.
+    // The page wants none of these, so no script on it can ask for them.
     res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), microphone=()')
     next()
   }

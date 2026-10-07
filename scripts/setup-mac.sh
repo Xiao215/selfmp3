@@ -121,11 +121,10 @@ ok "data     ${DIM}$DATA_DIR${RESET}"
 # --- background service -----------------------------------------------------
 
 step "Background service"
-LABEL="com.selfmp3.server"
 if (( SKIP_SERVICE )); then
   warn "skipped (--no-service). Start it by hand with:  npm start"
-elif launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1; then
-  ok "already installed (launchd: $LABEL)"
+elif launchctl print "gui/$(id -u)/$SERVICE_LABEL" >/dev/null 2>&1; then
+  ok "already installed (launchd: $SERVICE_LABEL)"
   echo "  ${DIM}Restarting it picks up the build you just made.${RESET}"
   if ask "Restart the service now?"; then
     ./scripts/install-service.sh
@@ -144,7 +143,7 @@ fi
 echo
 echo "${BOLD}All set.${RESET}"
 echo
-echo "  Open:        http://localhost:4600"
+echo "  Open:        http://localhost:$PORT"
 echo "  Check:       ./scripts/doctor.sh"
 echo "  Import:      npm run cli -- import <url>"
 echo "  Your phone:  docs/SETUP.md"

@@ -9,7 +9,8 @@ import { NameSchema, OptionalTextSchema } from './common.js'
  * (or the confidence threshold, for the cover-art pass) decides what lands.
  */
 
-export const MetadataSourceSchema = z.enum(['itunes', 'musicbrainz'])
+/** Where a suggestion came from: a catalogue, or the model reading them (`ai`). */
+export const MetadataSourceSchema = z.enum(['itunes', 'musicbrainz', 'ai'])
 export type MetadataSource = z.infer<typeof MetadataSourceSchema>
 
 export const MetadataCandidateSchema = z.object({
@@ -31,6 +32,26 @@ export const MetadataLookupResponseSchema = z.object({
   candidates: z.array(MetadataCandidateSchema),
 })
 export type MetadataLookupResponse = z.infer<typeof MetadataLookupResponseSchema>
+
+/**
+ * The model's suggestion for one song's names (Fix metadata's Suggested
+ * card, docs/features/ai.md): what it would change, why, and which listing it
+ * follows. Every name in it was found in the song's own words or a catalogue's
+ * listing — one that was not is dropped and named in `dropped`.
+ */
+export const MetadataSuggestionSchema = z.object({
+  /** Null when the song looks right as it is. */
+  suggestion: MetadataCandidateSchema.nullable(),
+  /** One sentence: what it changed and on what grounds. */
+  why: z.string(),
+  /** The index of the listing in `candidates` it follows, or null. */
+  agrees: z.number().int().nonnegative().nullable(),
+  /** Fields it answered with a name found nowhere, left as they were. */
+  dropped: z.array(z.string()),
+  /** The listings it read: the lookup's own, so `agrees` points into the list the dialog shows. */
+  candidates: z.array(MetadataCandidateSchema),
+})
+export type MetadataSuggestion = z.infer<typeof MetadataSuggestionSchema>
 
 /** The subset of a candidate the user chose to apply. */
 export const ApplyMetadataSchema = z

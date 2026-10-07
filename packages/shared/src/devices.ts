@@ -1,3 +1,4 @@
+import { DAY_MS } from './math.js'
 import type { Device, PlaybackState } from './schemas/devices.js'
 
 /**
@@ -13,7 +14,7 @@ export const DEVICE_ONLINE_MS = 30_000
 export const DEVICE_HEARTBEAT_MS = 10_000
 
 /** A state older than this is not worth offering to resume. */
-const RESUME_MAX_AGE_MS = 24 * 60 * 60 * 1000
+const RESUME_MAX_AGE_MS = DAY_MS
 
 export function isDeviceOnline(
   lastSeenAt: number,

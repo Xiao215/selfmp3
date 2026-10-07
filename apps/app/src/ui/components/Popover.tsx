@@ -1,17 +1,18 @@
-import { useContext, useEffect, useMemo, useState } from 'react'
+import { useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { Animated, Pressable, ScrollView, useWindowDimensions } from 'react-native'
+import { Animated, Pressable, ScrollView } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context'
 import type { View as RNView } from 'react-native'
 import { motion, radius, space } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutValue, useWindowValue } from '../../shell/useLayout'
 import { useEscape } from '../../shell/useEscape'
 import { PanelDenseContext } from './panel'
 import { Sheet } from './Sheet'
 import { floating } from '../surfaces'
 import { ease, motionMs } from '../motion'
+import { clamp } from '@selfmp3/shared'
 
 /**
  * A small panel attached to the control that opened it — or a sheet, when
@@ -20,6 +21,9 @@ import { ease, motionMs } from '../motion'
  * One component, two shapes, and the caller does not know which it got:
  * `docs/ARCHITECTURE.md` foundation 5, and its "does not port one-to-one" note
  * that a popover anchored to a button becomes a sheet below the breakpoint.
+ * With nothing to anchor to — a menu opened by holding a row, a picker opened
+ * from a menu that has closed — it is a sheet at every width, which on a
+ * computer is a small window in the middle of it.
  *
  * React Native has no `position: fixed`, so above the breakpoint the anchor is
  * measured with `measureInWindow` and the panel is drawn by the shell's
@@ -41,8 +45,8 @@ export function Popover({
 }: {
   open: boolean
   onClose: () => void
-  /** The control this belongs to. Measured when it opens. */
-  anchorRef: RefObject<RNView | null>
+  /** The control this belongs to, measured when it opens. Without one it is a sheet. */
+  anchorRef?: RefObject<RNView | null>
   /** Shown when it falls back to a sheet, where a panel has room for a heading. */
   title?: string
   titleTone?: 'heading' | 'label'
@@ -63,9 +67,9 @@ export function Popover({
   align?: 'start' | 'end'
   testID?: string
 }): ReactNode {
-  const { wide } = useLayout()
+  const wide = useLayoutValue(layout => layout.wide)
 
-  if (!wide) {
+  if (!wide || !anchorRef) {
     return (
       <Sheet open={open} onClose={onClose} title={title} titleTone={titleTone} testID={testID}>
         {children}
@@ -124,8 +128,7 @@ function AnchoredPopover({
   width: number
   testID?: string
 }): ReactNode {
-  const { width: screenWidth, dense } = useLayout()
-  const { height: screenHeight } = useWindowDimensions()
+  const dense = useLayoutValue(layout => layout.dense)
   // The context rather than the hook, which throws outside a provider: a
   // control drawn alone in a test has no insets, and none to keep clear of.
   const safeTop = useContext(SafeAreaInsetsContext)?.top ?? 0
@@ -135,6 +138,10 @@ function AnchoredPopover({
   const [panelHeight, setPanelHeight] = useState(0)
   const [progress] = useState(() => new Animated.Value(0))
   const [mounted, setMounted] = useState(open)
+  // The room it opens into, only while there is a panel to place: a closed
+  // popover — most are — has no reason to render for a window being resized.
+  const screenWidth = useLayoutValue(layout => (mounted ? layout.width : 0))
+  const screenHeight = useWindowValue(window => (mounted ? window.height : 0))
   if (open && !mounted) setMounted(true)
   useEscape(open, onClose, { layer: true })
 
@@ -156,7 +163,12 @@ function AnchoredPopover({
    * Reduce Motion reaches it: it lands at once, and the callback still runs.
    * It leaves on `ease.in`, as everything on its way out does.
    */
+  // Whether it has been open since it last closed: one mounted closed — most
+  // are — has nothing to close, and started a move on mount for nothing.
+  const wasOpen = useRef(false)
   useEffect(() => {
+    if (!open && !wasOpen.current) return
+    wasOpen.current = open
     Animated.timing(progress, {
       toValue: open ? 1 : 0,
       duration: motionMs(open ? motion.base : motion.fast),
@@ -176,7 +188,7 @@ function AnchoredPopover({
   const startsAtControl = align === 'start' || rightAligned < space.sm
   const left = anchor
     ? startsAtControl
-      ? Math.max(space.sm, Math.min(anchor.x, screenWidth - width - space.sm))
+      ? clamp(anchor.x, space.sm, screenWidth - width - space.sm)
       : Math.min(rightAligned, screenWidth - width - space.sm)
     : 0
   const roomBelow = anchor ? screenHeight - (anchor.y + anchor.height) - space.sm * 2 : 0

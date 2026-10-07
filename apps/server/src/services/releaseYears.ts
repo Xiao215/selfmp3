@@ -1,9 +1,10 @@
+import { setTimeout as sleep } from 'node:timers/promises'
 import { youtubeVideoId } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { LocalEdits } from './localEdits.js'
-import { findAll, findKey, runs, WEB_CLIENT, YouTubeMusicApi } from './youtubeMusicApi.js'
-import { AUDIO_TRACK } from './youtubeMusicSongs.js'
+import { findKey, runs, YouTubeMusicApi } from './youtubeMusicApi.js'
+import { askNext, AUDIO_TRACK, nextEntry } from './youtubeMusicSongs.js'
 
 /**
  * The year each song already here came out, asked once.
@@ -45,15 +46,9 @@ const LET_GO_AFTER = 3
  * release's year. A music video's line is the channel and its views.
  */
 export function releaseYearOf(response: unknown, videoId: string, now = new Date()): number | null {
-  const renderer = findAll(response, 'playlistPanelVideoRenderer').find(
-    item => (item as { videoId?: unknown }).videoId === videoId,
-  )
+  const renderer = nextEntry(response, videoId)
   if (!renderer || findKey(renderer, 'musicVideoType') !== AUDIO_TRACK) return null
-  const last = runs((renderer as { longBylineText?: unknown }).longBylineText)
-    .join('')
-    .split(' • ')
-    .at(-1)
-    ?.trim()
+  const last = runs(renderer['longBylineText']).join('').split(' • ').at(-1)?.trim()
   if (!last || !/^\d{4}$/.test(last)) return null
   const year = Number(last)
   return year >= 1900 && year <= now.getFullYear() + 1 ? year : null
@@ -129,9 +124,9 @@ export class ReleaseYearService {
           continue
         }
 
-        if (asked > 0) await new Promise(resolve => setTimeout(resolve, this.#gapMs))
+        if (asked > 0) await sleep(this.#gapMs)
         asked++
-        const response = await this.#api.post('next', { videoId, isAudioOnly: true }, WEB_CLIENT)
+        const response = await askNext(this.#api, videoId)
         // Nothing to say is an answer; no reply is not, and the song is asked again.
         if (!response) {
           missed.push(next.id)

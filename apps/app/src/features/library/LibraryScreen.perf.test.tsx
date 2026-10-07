@@ -1,3 +1,4 @@
+import { Profiler } from 'react'
 import { act, render } from '@testing-library/react-native'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
@@ -24,9 +25,15 @@ jest.mock('../../connection/ConnectionProvider', () => ({
 // A browser-like device: nothing downloads by itself, so the list holds still.
 jest.mock('../../ports/install', () => ({ installedApp: false }))
 
-jest.mock('../../shell/useLayout', () => ({
-  useLayout: () => ({ wide: false, compact: true, dense: false, finePointer: false, width: 390 }),
-}))
+jest.mock('../../shell/useLayout', () => {
+  const layout = { wide: false, compact: true, dense: false, finePointer: false, width: 390 }
+  return {
+    useLayout: () => layout,
+    useLayoutValue: (select: (value: typeof layout) => unknown) => select(layout),
+    useWindowValue: (select: (value: object) => unknown) =>
+      select({ width: 390, height: 844, scale: 3, fontScale: 1 }),
+  }
+})
 
 // Each render of a row, with the props that differ from its last render: the
 // row is memoised, so a render is exactly a changed prop.
@@ -49,6 +56,10 @@ jest.mock('../../ui/components/SongRow', () => {
   return { ...actual, SongRow: Counted }
 })
 
+/** The engine's listener, so a test can say the music started or stopped. */
+const mockEngine: { listener: ((state: Record<string, unknown>) => void) | null } = {
+  listener: null,
+}
 jest.mock('../../ports/engine', () => {
   const state = {
     playing: false,
@@ -71,7 +82,10 @@ jest.mock('../../ports/engine', () => {
       state,
       currentSongId: null,
       playhead: 0,
-      subscribe: () => noop,
+      subscribe: (listener: (next: typeof state) => void) => {
+        mockEngine.listener = listener as never
+        return noop
+      },
       configure: noop,
       load: async () => undefined,
       play: async () => undefined,
@@ -220,5 +234,75 @@ describe('a like, at phone width', () => {
     expect(mockChanged).toEqual([['song', 'tags']])
     expect(playerReaders).toBe(0)
     expect(downloadsReaders).toBe(0)
+  })
+})
+
+/**
+ * Play and pause are the commonest change there is, and the library has no
+ * reason to hear of either: it starts songs, and each row asks whether it is
+ * the one playing (`useSongPlayback`). The screen once read the whole player
+ * for its Play button, so every pause drew the screen again.
+ */
+describe('play and pause, at phone width', () => {
+  it('render nothing on the library screen', async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { staleTime: Infinity, retry: false, gcTime: Infinity } },
+    })
+    client.setQueryData(queryKeys.library, library(30))
+    let screenCommits = 0
+
+    await render(
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <QueryClientProvider client={client}>
+          <DownloadsProvider>
+            <PlayerProvider>
+              <LibraryFilterProvider>
+                <OverlayProvider>
+                  <Profiler id="library" onRender={() => screenCommits++}>
+                    <LibraryScreen />
+                  </Profiler>
+                  <PlayerReader />
+                </OverlayProvider>
+              </LibraryFilterProvider>
+            </PlayerProvider>
+          </DownloadsProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>,
+    )
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 20))
+    })
+    screenCommits = 0
+    mockRowRenders = 0
+    playerReaders = 0
+
+    const stopped = {
+      playing: false,
+      currentTime: 0,
+      duration: 0,
+      volume: 1,
+      muted: false,
+      rate: 1,
+      stalled: false,
+      error: null,
+      loopA: null,
+      loopB: null,
+      countingIn: false,
+      preservesPitch: true,
+    }
+    await act(async () => {
+      mockEngine.listener?.({ ...stopped, playing: true })
+    })
+    await act(async () => {
+      mockEngine.listener?.(stopped)
+    })
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 20))
+    })
+
+    // What reads the player heard both; the library heard neither.
+    expect(playerReaders).toBeGreaterThan(0)
+    expect(screenCommits).toBe(0)
+    expect(mockRowRenders).toBe(0)
   })
 })

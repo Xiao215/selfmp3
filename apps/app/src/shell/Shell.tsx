@@ -34,12 +34,13 @@ import { motion } from '@selfmp3/client'
 import { pageKey, stepSide } from './pageStep'
 import { stackMoves } from '../ports/stackMoves'
 import { onDeepLinkRoute } from '../ports/deepLinks'
-import { usePlayer } from '../player/PlayerProvider'
+import { usePlayerCommands, useSongLoaded } from '../player/PlayerProvider'
 import { SEEK_STEP_SECONDS, VOLUME_STEP } from '../player/progress.model'
 import { PRACTICE_PANEL_WIDTH, PracticePanel } from '../features/practice/PracticePanel'
 import { QueueRail, useQueueRailRoom } from '../features/queue/QueueRail'
 import { QueueSheet } from '../features/queue/QueueSheet'
 import { ContentWidthContext } from './contentWidth'
+import { createValueStore } from '../state/valueStore.model'
 import { setPaletteOpen, usePaletteOpen } from './palette'
 import { practiceOpen, setPracticeOpen, usePracticeOpen, usePracticeSection } from './practicePanel'
 
@@ -78,7 +79,9 @@ export function Shell({
 
   return (
     <OverlayProvider>
-      {frame(wide, chrome, sidebar, barHidden, children)}
+      <Frame wide={wide && chrome} chrome={chrome} sidebar={sidebar} barHidden={barHidden}>
+        {children}
+      </Frame>
       <PlaybackNotices />
       <PaletteHost />
       <MenuCommands />
@@ -124,20 +127,6 @@ export function Shell({
  * side until the slide ended (Xiao's recording, 2026-09-21). Now the column
  * is one width always, and Now Playing is simply the page with no padding.
  */
-function frame(
-  wide: boolean,
-  chrome: boolean,
-  sidebar: boolean,
-  barHidden: boolean,
-  children: ReactNode,
-): ReactNode {
-  return (
-    <Frame wide={wide && chrome} chrome={chrome} sidebar={sidebar} barHidden={barHidden}>
-      {children}
-    </Frame>
-  )
-}
-
 function Frame({
   wide,
   chrome,
@@ -171,6 +160,12 @@ function Frame({
   const contentWidth = useDeferredValue(
     wide ? width - SIDEBAR_WIDTH - railRoom - practiceRoom : null,
   )
+  // Told to the page's readers once it has settled: a store, so that a row
+  // asking only whether its album column fits is not rendered for every pixel.
+  const [contentStore] = useState(() => createValueStore<number | null>(contentWidth))
+  useLayoutEffect(() => {
+    contentStore.set(contentWidth)
+  }, [contentStore, contentWidth])
   return (
     <View style={styles.root} testID={wide ? 'shell-wide' : chrome ? 'shell-compact' : undefined}>
       <View style={styles.columns}>
@@ -178,7 +173,7 @@ function Frame({
             page; drawn over the page by its `zIndex`, not by coming after it. */}
         {wide ? <SidebarSlot shown={sidebar} /> : null}
         <View style={styles.content}>
-          <ContentWidthContext.Provider value={contentWidth}>
+          <ContentWidthContext.Provider value={contentStore}>
             <PageStep wide={wide}>{children}</PageStep>
           </ContentWidthContext.Provider>
           {wide ? <Toasts left={sidebar ? SIDEBAR_WIDTH : 0} /> : null}
@@ -263,9 +258,8 @@ function SidebarSlot({ shown }: { shown: boolean }): ReactNode {
  * tree than the page, so drawn over it.
  */
 function BarSlot({ hidden }: { hidden: boolean }): ReactNode {
-  const player = usePlayer()
   const insets = useSafeAreaInsets()
-  const loaded = player.current !== null
+  const loaded = useSongLoaded()
   // The bar itself slides, on the native driver; the room the page gives it
   // is simply given, in the same frame, because the room is at the foot of a
   // list whose end is off the screen. It used to be the slot's height that
@@ -393,7 +387,7 @@ function DeepLinkRoutes(): ReactNode {
  * with a menu bar, and a no-op everywhere else.
  */
 function MenuCommands(): ReactNode {
-  const player = usePlayer()
+  const player = usePlayerCommands()
   useCommands({
     library: () => router.navigate('/library'),
     playlists: () => router.navigate('/playlists'),
@@ -452,7 +446,7 @@ function Toasts({ left = 0 }: { left?: number }): ReactNode {
   return (
     <Animated.View
       // Centred in the page, which starts where the sidebar over it ends.
-      style={[styles.toasts, { left, bottom: 10 + chrome }, lift]}
+      style={[styles.toasts, { left, bottom: TOASTS_BOTTOM + chrome }, lift]}
       pointerEvents="box-none"
     >
       <ResumeToast />
@@ -461,12 +455,15 @@ function Toasts({ left = 0 }: { left?: number }): ReactNode {
   )
 }
 
+/** How far the toasts sit above the foot of the page, or above the chrome that floats there. */
+const TOASTS_BOTTOM = 10
+
 const styles = StyleSheet.create(theme => ({
   toasts: {
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 10,
+    bottom: TOASTS_BOTTOM,
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 16,

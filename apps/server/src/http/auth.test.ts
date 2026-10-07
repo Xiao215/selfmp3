@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createApp } from '../app.js'
-import { loadConfig, type Config } from '../config.js'
+import { loadConfig, type ServingConfig } from '../config.js'
 import { createContainer, type Container } from '../container.js'
 
 /**
@@ -37,7 +37,7 @@ describe('reaching the API', () => {
   ] as const
   const saved = new Map<string, string | undefined>()
   let root = ''
-  let config: Config
+  let config: ServingConfig
   let container: Container
   let server: http.Server
   let port = 0
@@ -97,7 +97,7 @@ describe('reaching the API', () => {
   }
 
   const bearer = (): Record<string, string> => ({
-    authorization: `Bearer ${config.authToken ?? ''}`,
+    authorization: `Bearer ${config.authToken}`,
   })
 
   /** A real address of this machine that is not loopback, if it has one. */
@@ -189,7 +189,7 @@ describe('reaching the API', () => {
     // work the same way — and the token has to survive being put in a URL.
     const query = await get({
       connectTo: lanAddress ?? '',
-      url: `/api/library?token=${encodeURIComponent(config.authToken ?? '')}`,
+      url: `/api/library?token=${encodeURIComponent(config.authToken)}`,
     })
     expect(query.status).toBe(200)
   })

@@ -4,13 +4,23 @@ import { ActivityIndicator, Linking, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import * as Crypto from 'expo-crypto'
 import {
+  plural,
   formatBytes,
   formatRelative,
   newUid,
   type CloudConnect,
   type CloudStatus,
 } from '@selfmp3/shared'
-import { useCloudActions, useCloudStatus } from '@selfmp3/client'
+import {
+  useCloudCancelSignIn,
+  useCloudConnect,
+  useCloudConnectStorage,
+  useCloudDisconnect,
+  useCloudEnterCode,
+  useCloudSignIn,
+  useCloudStatus,
+  useCloudSync,
+} from '@selfmp3/client'
 import { onSignInCode, signInReturnUrl } from '../../ports/signInReturn'
 import { LINK_GRACE_MS } from '../signIn/signIn.model'
 import { Button } from '../../ui/components/Button'
@@ -96,7 +106,9 @@ const attemptId = (): string => newUid(into => into.set(Crypto.getRandomBytes(in
  */
 function SignIn({ status, again = false }: { status: CloudStatus; again?: boolean }): ReactNode {
   const { theme } = useUnistyles()
-  const { signIn, cancelSignIn, enterCode } = useCloudActions()
+  const signIn = useCloudSignIn()
+  const cancelSignIn = useCloudCancelSignIn()
+  const enterCode = useCloudEnterCode()
   const lost = useLinkLost(status.signingIn && status.signInNeedsCode)
 
   // Opened from the press itself, so a browser does not block it. Starting
@@ -198,7 +210,7 @@ function useLinkLost(googleDone: boolean): boolean {
  * code over once.
  */
 function SignInReturn(): ReactNode {
-  const { enterCode } = useCloudActions()
+  const enterCode = useCloudEnterCode()
   const { data: status } = useCloudStatus()
   const [arrived, setArrived] = useState(false)
   const { mutate } = enterCode
@@ -226,7 +238,8 @@ function SignInReturn(): ReactNode {
 }
 
 function Connected({ status, onChange }: { status: CloudStatus; onChange: () => void }): ReactNode {
-  const { sync, disconnect } = useCloudActions()
+  const sync = useCloudSync()
+  const disconnect = useCloudDisconnect()
   const [confirming, setConfirming] = useState(false)
   const target = status.target
   const syncing = status.state === 'syncing'
@@ -245,9 +258,7 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
 
       <Row
         label="In the cloud"
-        hint={`${status.songs.inCloud} of ${status.songs.total} ${
-          status.songs.total === 1 ? 'song' : 'songs'
-        } · ${formatBytes(status.bytesInCloud)}${
+        hint={`${status.songs.inCloud} of ${plural(status.songs.total, 'song', 'songs')} · ${formatBytes(status.bytesInCloud)}${
           status.lastSnapshotAt ? ` · last published ${formatRelative(status.lastSnapshotAt)}` : ''
         }`}
       >
@@ -385,13 +396,17 @@ function BucketForm({
   onCancel: (() => void) | null
 }): ReactNode {
   const { theme } = useUnistyles()
-  const { connect, connectStorage, disconnect } = useCloudActions()
+  const connect = useCloudConnect()
+  const connectStorage = useCloudConnectStorage()
+  const disconnect = useCloudDisconnect()
   const account = status.account
   const action = account ? connectStorage : connect
   const initial = status.target
 
   // The same form as Where it lives, judged by the same rules (storage.model).
   const [address, setAddress] = useState<AddressFields>({
+    // Only `https://` comes off: it is what an address without one means, and
+    // an `http://` one (a bucket on this network) has to keep saying so.
     endpoint: initial?.endpoint.replace(/^https:\/\//, '') ?? '',
     region: initial?.region ?? '',
     bucket: initial?.bucket ?? '',

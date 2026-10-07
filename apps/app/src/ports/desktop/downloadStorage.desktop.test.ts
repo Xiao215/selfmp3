@@ -29,6 +29,8 @@ vi.mock('../../api/client', () => ({ mediaUrlFor: () => ({ stream: () => '' }) }
 vi.mock('../../replica', () => ({
   cloudPlatform: { doormanUrl: 'https://doorman.example' },
   session: { loadSession: async () => null },
+  doormanFileUrl: (key: string) => `https://doorman.example/v1/files/${key}`,
+  doormanAuth: (token: string) => ({ Authorization: `Bearer ${token}` }),
 }))
 
 const index = {

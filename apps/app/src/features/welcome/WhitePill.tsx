@@ -6,8 +6,8 @@ import { radius } from '@selfmp3/client'
 import { usePressScale } from '../../ui/motion'
 
 /**
- * The one button on Welcome and on First sync: a white pill, 54 high, as `P01`
- * and `P03` draw it.
+ * The one button on each page on the way in — Welcome, Where it lives and
+ * First sync: a white pill, 54 high, as `P01` and `P03` draw it.
  *
  * White rather than the accent, as the round Play is: it is the only thing on
  * the page to press, and on the way in the accent has not been chosen yet.

@@ -4,6 +4,7 @@ import type { ServerConnection } from '@selfmp3/client'
 import { apiFor, mediaUrlFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
+import { noServer, reachedConnection, viaKey } from '../../connection/via'
 
 /** An artist's picture, in both the shapes the server keeps it. */
 interface ArtistPicture {
@@ -32,24 +33,19 @@ export function useArtistPicture(
   const { connection, fromCloud } = useConnection()
   const reach = useServerDirect({ enabled: fromCloud && via === undefined && name !== null })
   const server: ServerConnection | undefined =
-    via ??
-    (fromCloud
-      ? reach.state === 'reachable'
-        ? reach.connection
-        : undefined
-      : (connection ?? undefined))
+    via ?? (fromCloud ? reachedConnection(reach) : (connection ?? undefined))
 
   const { data, isPending, isError } = useQuery({
-    queryKey: ['via-server', server?.baseUrl, 'artist-backdrop', artistKey(name ?? '')],
-    queryFn: () =>
-      server && name !== null
-        ? apiFor(server).artistBackdrop(name)
-        : Promise.reject(new Error('no server to ask')),
+    queryKey: viaKey(server?.baseUrl, 'artist-backdrop', artistKey(name ?? '')),
+    queryFn: () => (server && name !== null ? apiFor(server).artistBackdrop(name) : noServer()),
     enabled: server !== undefined && name !== null,
     retry: false,
     // An answer holds for the session: the server keeps a picture once found,
     // and one it has none for is not asked about again for a week.
     staleTime: Number.POSITIVE_INFINITY,
+    // A few bytes each, and one dropped meant the face blinking out and back
+    // the next time the page opened.
+    gcTime: Number.POSITIVE_INFINITY,
   })
 
   if (!server || name === null || isError) return null

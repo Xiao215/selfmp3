@@ -1,6 +1,19 @@
 import type { Logger } from '../logger.js'
 import type { ProbedTrack } from './ytdlp.js'
-import { findAll, findKey, runs, YouTubeMusicApi, type FetchLike } from './youtubeMusicApi.js'
+import {
+  findAll,
+  findKey,
+  largestThumbnail,
+  pageTypeOf,
+  parseLength,
+  rowColumns,
+  rowVideoId,
+  runs,
+  runsOf,
+  SONG_SEARCH_AS_THE_WEB_APP,
+  YouTubeMusicApi,
+} from './youtubeMusicApi.js'
+import type { FetchLike } from './fetching.js'
 
 /**
  * Lists of songs from YouTube Music itself: a search, an album, a playlist.
@@ -16,9 +29,6 @@ import { findAll, findKey, runs, YouTubeMusicApi, type FetchLike } from './youtu
  * has yt-dlp read the whole of it, and keeps what YouTube Music said of each
  * song it did name (importPreview.ts).
  */
-
-/** The search filter for songs, as the YouTube Music web app sends it. */
-const SONGS_FILTER = 'EgWKAQIIAWoKEAoQCRADEAQQBQ%3D%3D'
 
 /** A list with a name: an album's, a playlist's. */
 export interface SongList {
@@ -37,7 +47,7 @@ export class YouTubeMusicLists {
 
   /** The songs a search finds, or null when YouTube Music did not answer. */
   async songs(query: string): Promise<ProbedTrack[] | null> {
-    const page = await this.#api.post('search', { query, params: SONGS_FILTER })
+    const page = await this.#api.post('search', { query, params: SONG_SEARCH_AS_THE_WEB_APP })
     if (!page) return null
     return rows(page, {})
   }
@@ -98,15 +108,12 @@ function pageHeader(page: unknown): PageHeader {
   const header = (findKey(page, 'musicResponsiveHeaderRenderer') ??
     findKey(page, 'musicDetailHeaderRenderer') ??
     {}) as Record<string, unknown>
-  const thumbnails = findKey(header['thumbnail'], 'thumbnails')
-  const largest = Array.isArray(thumbnails)
-    ? (thumbnails.at(-1) as { url?: unknown } | undefined)?.url
-    : undefined
+  const largest = largestThumbnail(header)
   const counted = /(\d[\d,]*)\s+(song|track)/i.exec(runs(header['secondSubtitle']).join(''))
   return {
     title: runs(header['title']).join('').trim(),
     artist: artistsIn(header['straplineTextOne'] ?? header['subtitle']).join(', '),
-    thumbnail: typeof largest === 'string' ? coverSized(largest) : null,
+    thumbnail: largest !== null ? coverSized(largest) : null,
     count: counted?.[1] ? Number(counted[1].replaceAll(',', '')) : null,
   }
 }
@@ -135,33 +142,11 @@ function rows(page: unknown, defaults: RowDefaults): ProbedTrack[] {
     .filter((track): track is ProbedTrack => track !== null)
 }
 
-interface Run {
-  readonly text?: unknown
-  readonly navigationEndpoint?: {
-    readonly browseEndpoint?: {
-      readonly browseId?: unknown
-      readonly browseEndpointContextSupportedConfigs?: {
-        readonly browseEndpointContextMusicConfig?: { readonly pageType?: unknown }
-      }
-    }
-  }
-}
-
-function runsOf(value: unknown): Run[] {
-  const list = (value as { runs?: unknown } | undefined)?.runs
-  return Array.isArray(list) ? (list as Run[]) : []
-}
-
-function pageTypeOf(run: Run): unknown {
-  return run.navigationEndpoint?.browseEndpoint?.browseEndpointContextSupportedConfigs
-    ?.browseEndpointContextMusicConfig?.pageType
-}
-
 /** The album the page's rows are from, by the first row that names one. */
 function albumIdIn(page: unknown): string | null {
   for (const item of findAll(page, 'musicResponsiveListItemRenderer')) {
-    for (const column of findAll(item, 'musicResponsiveListItemFlexColumnRenderer')) {
-      for (const run of runsOf((column as { text?: unknown }).text)) {
+    for (const column of rowColumns(item)) {
+      for (const run of column) {
         if (pageTypeOf(run) !== 'MUSIC_PAGE_TYPE_ALBUM') continue
         const id = run.navigationEndpoint?.browseEndpoint?.browseId
         if (typeof id === 'string' && id.startsWith('MPREb_')) return id
@@ -180,8 +165,6 @@ function artistsIn(value: unknown): string[] {
   )
 }
 
-const LENGTH = /^\d+:\d\d(:\d\d)?$/
-
 /**
  * One row of a list. The first column is the title; the others read
  * "Artist • Album • 3:45" in a search, or one thing each on an album or a
@@ -190,13 +173,10 @@ const LENGTH = /^\d+:\d\d(:\d\d)?$/
  * album's rows name neither, which the page does for them.
  */
 export function songRow(item: unknown, defaults: RowDefaults = {}): ProbedTrack | null {
-  const row = item as Record<string, unknown>
-  const videoId = findKey(row['playlistItemData'], 'videoId')
-  if (typeof videoId !== 'string') return null
+  const videoId = rowVideoId(item)
+  if (videoId === null) return null
 
-  const columns = findAll(row, 'musicResponsiveListItemFlexColumnRenderer').map(column =>
-    runsOf((column as { text?: unknown }).text),
-  )
+  const columns = rowColumns(item)
   const title = (columns[0] ?? [])
     .map(run => (typeof run.text === 'string' ? run.text : ''))
     .join('')
@@ -208,7 +188,7 @@ export function songRow(item: unknown, defaults: RowDefaults = {}): ProbedTrack 
   let duration = 0
   const texts = [
     ...columns.slice(1).flat(),
-    ...findAll(row, 'musicResponsiveListItemFixedColumnRenderer').flatMap(column =>
+    ...findAll(item, 'musicResponsiveListItemFixedColumnRenderer').flatMap(column =>
       runsOf((column as { text?: unknown }).text),
     ),
   ]
@@ -218,13 +198,10 @@ export function songRow(item: unknown, defaults: RowDefaults = {}): ProbedTrack 
     const pageType = pageTypeOf(run)
     if (pageType === 'MUSIC_PAGE_TYPE_ARTIST') artists.push(text)
     else if (pageType === 'MUSIC_PAGE_TYPE_ALBUM') album = text
-    else if (LENGTH.test(text)) duration = seconds(text)
+    else duration = parseLength(text) ?? duration
   }
 
-  const thumbnails = findKey(row['thumbnail'], 'thumbnails')
-  const largest = Array.isArray(thumbnails)
-    ? (thumbnails.at(-1) as { url?: unknown } | undefined)?.url
-    : undefined
+  const largest = largestThumbnail(item)
 
   return {
     url: `https://music.youtube.com/watch?v=${videoId}`,
@@ -232,16 +209,8 @@ export function songRow(item: unknown, defaults: RowDefaults = {}): ProbedTrack 
     artist: artists.length > 0 ? artists.join(', ') : (defaults.artist ?? ''),
     album: album || (defaults.album ?? ''),
     duration,
-    thumbnail: typeof largest === 'string' ? coverSized(largest) : (defaults.thumbnail ?? null),
+    thumbnail: largest !== null ? coverSized(largest) : (defaults.thumbnail ?? null),
   }
-}
-
-/** "3:45" or "1:02:03" in seconds. */
-function seconds(text: string): number {
-  return text
-    .split(':')
-    .map(Number)
-    .reduce((total, part) => total * 60 + part, 0)
 }
 
 /**

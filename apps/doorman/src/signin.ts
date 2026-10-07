@@ -1,6 +1,13 @@
 import { SIGN_IN_CODE_ALPHABET, SignInAttemptSchema } from '@selfmp3/shared'
 import { z } from 'zod'
-import { fromBase64Url, fromUtf8, randomBytes, toBase64Url, utf8 } from './encoding.js'
+import {
+  TOKEN_PATTERN,
+  fromBase64Url,
+  fromUtf8,
+  randomBytes,
+  toBase64Url,
+  utf8,
+} from './encoding.js'
 
 /**
  * The parts of a sign-in the doorman keeps nowhere.
@@ -54,7 +61,7 @@ const StateSchema = z.object({
   /** Where the browser goes afterwards, already checked; or nowhere. */
   returnTo: z.string().nullable(),
   /** Put in the ID token by Google, and the root of the PKCE verifier. */
-  nonce: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+  nonce: z.string().regex(TOKEN_PATTERN),
   /** When the sign-in stops being good, in milliseconds. */
   exp: z.number().int(),
 })

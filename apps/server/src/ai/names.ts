@@ -1,5 +1,6 @@
-import type { MetadataCandidate, Song, TidyField } from '@selfmp3/shared'
+import { DAY_MS, type MetadataCandidate, type Song, type TidyField } from '@selfmp3/shared'
 import { creditNames, mainArtist } from './library.js'
+import { foldedBare as bare } from './text.js'
 
 /**
  * A song's names as music catalogues list them (docs/features/ai.md, A4,
@@ -31,16 +32,8 @@ interface Listed extends FoundName {
 
 /** How far apart in seconds a recording may be and still be the same one. */
 const SAME_LENGTH_S = 3
-const CACHE_MS = 24 * 60 * 60 * 1000
+const CACHE_MS = DAY_MS
 const CACHE_MAX = 5_000
-
-/** Letters and digits only, lower case, widths and accents folded: "Ｌｉｙｕｅ" and "liyue" are one. */
-const bare = (value: string): string =>
-  value
-    .normalize('NFKD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]/gu, '')
 
 /** Whether `part`, as letters and digits, is inside `whole`. */
 export function within(part: string, whole: string): boolean {
@@ -73,22 +66,26 @@ export function sameRecording(song: Song, listed: Listed): boolean {
 }
 
 /** The words of a found name a field's new value must come from. */
-export function foundFor(field: TidyField, found: FoundName): string {
+export function nameField(field: TidyField, found: FoundName): string {
   return field === 'title' ? found.title : field === 'album' ? found.album : found.artist
 }
 
+/** 网易云's search, as `NeteaseMusic.search` gives it. */
+export type CatalogueSearch = (
+  words: string,
+) => Promise<readonly { title: string; artist: string; album: string; duration: number }[]>
+
+/** MusicBrainz's and iTunes' listings for a song, as `MetadataLookupService.lookup` gives them. */
+export type MetadataLookup = (query: {
+  title: string
+  artist: string
+  album: string
+  duration: number
+}) => Promise<readonly MetadataCandidate[]>
+
 interface Catalogues {
-  /** 网易云's search, as `NeteaseMusic.search` gives it. */
-  readonly netease: (
-    words: string,
-  ) => Promise<readonly { title: string; artist: string; album: string; duration: number }[]>
-  /** MusicBrainz and iTunes, as `MetadataLookupService.lookup` gives them. */
-  readonly lookup: (query: {
-    title: string
-    artist: string
-    album: string
-    duration: number
-  }) => Promise<readonly MetadataCandidate[]>
+  readonly netease: CatalogueSearch
+  readonly lookup: MetadataLookup
 }
 
 /** A finder over the catalogues, remembering each song's answer for a day. */

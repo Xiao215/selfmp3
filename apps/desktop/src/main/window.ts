@@ -1,10 +1,10 @@
 import { join } from 'node:path'
 
-import { BrowserWindow, shell } from 'electron'
+import { BrowserWindow, screen, shell } from 'electron'
 
 import { NATIVE_BACKGROUND } from '@selfmp3/shared'
 
-import { MINIMUM_SIZE, displaysNow, openingBounds, rememberBounds } from './bounds.js'
+import { MINIMUM_SIZE, openingBounds, rememberBounds } from './bounds.js'
 import { APP_ORIGIN } from '@selfmp3/desktop-bridge'
 
 /**
@@ -36,7 +36,7 @@ export function createWindow({
 }): BrowserWindow {
   const mac = process.platform === 'darwin'
   const window_ = new BrowserWindow({
-    ...openingBounds(displaysNow()),
+    ...openingBounds(screen.getAllDisplays()),
     minWidth: MINIMUM_SIZE.width,
     minHeight: MINIMUM_SIZE.height,
     // The traffic lights over the sidebar, and no bar above the app. Only on

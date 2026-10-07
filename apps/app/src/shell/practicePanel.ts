@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react'
 
+import { createValueStore } from '../state/valueStore.model'
+
 /**
  * Whether the desktop's practice panel is open, and which of its groups it was
  * opened for.
@@ -16,44 +18,34 @@ import { useSyncExternalStore } from 'react'
 /** A group the panel can be asked to open on. */
 type PracticeSection = 'loop' | 'speed' | 'key'
 
-let open = false
-let section: PracticeSection | null = null
-const listeners = new Set<() => void>()
+interface PanelState {
+  readonly open: boolean
+  readonly section: PracticeSection | null
+}
+
+const panel = createValueStore<PanelState>(
+  { open: false, section: null },
+  (a, b) => a.open === b.open && a.section === b.section,
+)
 
 /** Read outside a render — the application menu's toggle, which is not one. */
 export function practiceOpen(): boolean {
-  return open
+  return panel.get().open
 }
 
 /** `at`: the group to open and scroll to; none opens the panel as it last was. */
 export function setPracticeOpen(next: boolean, at: PracticeSection | null = null): void {
-  const nextSection = next ? at : null
-  if (next === open && nextSection === section) return
-  open = next
-  section = nextSection
-  for (const listener of listeners) listener()
+  panel.set({ open: next, section: next ? at : null })
 }
 
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
-}
+const readOpen = (): boolean => panel.get().open
+const readSection = (): PracticeSection | null => panel.get().section
 
 export function usePracticeOpen(): boolean {
-  return useSyncExternalStore(
-    subscribe,
-    () => open,
-    () => open,
-  )
+  return useSyncExternalStore(panel.subscribe, readOpen, readOpen)
 }
 
 /** The group the open panel was asked to show, if any. */
 export function usePracticeSection(): PracticeSection | null {
-  return useSyncExternalStore(
-    subscribe,
-    () => section,
-    () => section,
-  )
+  return useSyncExternalStore(panel.subscribe, readSection, readSection)
 }

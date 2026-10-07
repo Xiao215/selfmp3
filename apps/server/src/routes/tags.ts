@@ -1,19 +1,18 @@
 import { Router } from 'express'
-import { z } from 'zod'
-import { BulkTagSchema, CreateTagSchema, IdSchema, RenameTagSchema } from '@selfmp3/shared'
+import {
+  BulkTagSchema,
+  CreateTagSchema,
+  RenameTagSchema,
+  type Affected,
+  type Ok,
+} from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
-
-const ParamsWithId = z.object({ id: IdSchema })
+import { ParamsWithId } from '../http/params.js'
 
 export function tagRoutes(container: Container): Router {
   const router = Router()
-
-  router.get(
-    '/tags',
-    route({}, () => container.tags.all()),
-  )
 
   /**
    * Creating a tag that already exists returns the existing one rather than
@@ -57,18 +56,18 @@ export function tagRoutes(container: Container): Router {
   /** Deleting a tag never touches the songs that carried it. */
   router.delete(
     '/tags/:id',
-    route({ params: ParamsWithId }, ({ params }) => {
+    route({ params: ParamsWithId }, ({ params }): Ok => {
       if (!container.tags.byId(params.id)) throw HttpError.notFound('no such tag')
       container.tags.delete(params.id)
       container.bumpLibraryVersion()
-      return { ok: true as const }
+      return { ok: true }
     }),
   )
 
   /** Tag or untag many songs at once — the multi-select path in the UI. */
   router.post(
     '/tags/bulk',
-    route({ body: BulkTagSchema }, ({ body }) => {
+    route({ body: BulkTagSchema }, ({ body }): Affected => {
       if (!container.tags.byId(body.tagId)) throw HttpError.notFound('no such tag')
       const affected = container.tags.bulk(body.songIds, body.tagId, body.action)
       container.edits.tagOnSongs(body.tagId, body.songIds)

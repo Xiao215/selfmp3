@@ -1,8 +1,9 @@
 import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Library } from '@selfmp3/shared'
-import { clientApi, queryKeys } from '@selfmp3/client'
-import { usePlayer } from '../../player/PlayerProvider'
+import { clientApi, failureText, queryKeys } from '@selfmp3/client'
+import { usePlayerCommands } from '../../player/PlayerProvider'
+import { showToast } from '../../ui/toast'
 import type { ListSource } from '../lists/lists.model'
 
 interface PlaylistPlayback {
@@ -24,7 +25,10 @@ interface PlaylistPlayback {
  * that does not keep it (a cloud library) is simply not asked twice.
  */
 export function usePlaylistPlayback(): PlaylistPlayback {
-  const player = usePlayer()
+  // The player's commands, made once: closed over here they never change, so
+  // these callbacks — which the playlists grid hands every memoised tile — do
+  // not either.
+  const player = usePlayerCommands()
   const client = useQueryClient()
 
   // Up next wears the playlist's name: read from this device's library, where
@@ -99,7 +103,10 @@ export function usePlaylistPlayback(): PlaylistPlayback {
       void clientApi()
         .playlistSongs(playlistId)
         .then(({ songIds }) => run(songIds))
-        .catch(() => undefined)
+        .catch((caught: unknown) => {
+          // Pressed on a tile or in the sidebar: nothing playing is no answer.
+          showToast(failureText('Couldn’t play the playlist', caught), 'error')
+        })
     },
     [client, play, shuffle],
   )

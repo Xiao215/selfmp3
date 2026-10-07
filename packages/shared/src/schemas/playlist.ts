@@ -98,6 +98,16 @@ export const RemoveFromPlaylistSchema = z.object({
 export type RemoveFromPlaylist = z.infer<typeof RemoveFromPlaylistSchema>
 
 /**
+ * What taking a selection off a playlist answers: how many were on it, and the
+ * playlist as it is now (null when it is gone).
+ */
+export const RemovedFromPlaylistSchema = z.object({
+  removed: z.number().int().nonnegative(),
+  playlist: PlaylistSchema.nullable(),
+})
+export type RemovedFromPlaylist = z.infer<typeof RemovedFromPlaylistSchema>
+
+/**
  * Reordering sends the full ordered id list rather than a move instruction.
  * It is a few more bytes but it is idempotent, which matters when a client
  * retries a request over a flaky connection.

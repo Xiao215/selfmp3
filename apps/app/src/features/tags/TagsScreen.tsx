@@ -23,10 +23,10 @@ import {
   useLibrary,
 } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { tabbing } from '../../shell/FocusStyle'
-import { setPaletteOpen } from '../../shell/palette'
+import { useOpenSearch } from '../../shell/palette'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
@@ -71,6 +71,7 @@ import {
   type TagEntry,
   type WaitingArtist,
 } from './tags.model'
+import { useGoBack } from '../../ui/useBackTo'
 
 /** Tiles at least this wide on a computer, as many as fit; two across on a phone. */
 const TILE_MIN_WIDTH = 220
@@ -105,7 +106,7 @@ type HoldRef = (tagId: number, node: View | null) => void
 export function TagsScreen(): ReactNode {
   const { wide, width, finePointer } = useLayout()
   const router = useRouter()
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const { data: library } = useLibrary()
   const playAndTag = usePlayAndTag()
   const [adding, setAdding] = useState(false)
@@ -115,8 +116,7 @@ export function TagsScreen(): ReactNode {
   /*
    * The tile handlers are made once and take the tag they act on. As arrows in
    * the grid below they were new on every render, so every tile — and the
-   * cover in each — redrew whenever the screen did, which on this page is
-   * every play, pause and skip (`usePlayer` above).
+   * cover in each — redrew whenever the screen did.
    */
   const latest = useRef({ player, router })
   useEffect(() => {
@@ -170,16 +170,10 @@ export function TagsScreen(): ReactNode {
     : PHONE_COLUMNS
   const tileWidth = measured > 0 ? Math.floor((measured - GAP * (columns - 1)) / columns) : 0
 
-  const back = (): void => {
-    if (router.canGoBack()) router.back()
-    else router.replace('/')
-  }
+  const back = useGoBack('/')
   // The one Search, on its Tags scope: the page on a phone, the palette over
   // this page on a computer (docs/ui-mock `P18`, `C05`).
-  const openSearch = (): void => {
-    if (wide) setPaletteOpen(true)
-    else router.navigate({ pathname: '/search', params: { scope: 'tags' } })
-  }
+  const openSearch = useOpenSearch('tags')
   // Stable, because a tile is memoised and this is the prop every one of them holds.
   const edit = useCallback<EditTag>(tag => {
     editorAnchor.current = rowRefs.current.get(tag.id) ?? null
@@ -615,8 +609,7 @@ function Entry({
 /**
  * One tag's tile: its record (`TagSleeve`), then its name and size. Memoised,
  * and handed handlers that take the tag they act on rather than closing over
- * it: this page reads the player, so without both every tile and every cover
- * redrew on every pause.
+ * it, so a render of the page redraws no tile and no cover.
  */
 const TagTile = memo(function TagTile({
   standing,
@@ -907,7 +900,7 @@ const styles = StyleSheet.create(theme => ({
     fontSize: 12.5,
     fontVariant: ['tabular-nums'],
   },
-  playZone: { position: 'absolute', top: 0, borderRadius: 999 },
+  playZone: { position: 'absolute', top: 0, borderRadius: radius.pill },
   more: { position: 'absolute', top: 8, right: 8 },
   moreButton: {
     width: 30,

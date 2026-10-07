@@ -37,13 +37,6 @@ export interface StorageDriver {
   rangeSource(key: string, mime: string): Promise<RangeSource | null>
 
   /**
-   * A URL the client can fetch directly, bypassing this server. Local storage
-   * has no such thing and returns null; object storage returns a presigned
-   * URL. Callers must handle null by streaming through the API instead.
-   */
-  signedUrl(key: string): Promise<string | null>
-
-  /**
    * An absolute local path, when one exists. Only used by tools that must
    * touch the real filesystem — ffprobe, and reading embedded tags. Object
    * storage returns null and those code paths fall back to downloading first.
@@ -56,6 +49,16 @@ export interface StorageStat {
   readonly modifiedAt: Date
   /** Stable across reads, changes when the content changes. */
   readonly etag: string
+}
+
+/**
+ * A file's ETag from its size and modification time: a new file under the
+ * same name is a new tag. The one formula for every file this server sends —
+ * the audio, a stored image, the sync manifest's entries — so a tag one of
+ * them hands out is the tag the other would.
+ */
+export function fileEtag(sizeBytes: number, mtimeMs: number): string {
+  return `"${sizeBytes.toString(16)}-${Math.floor(mtimeMs).toString(16)}"`
 }
 
 /** Normalise a key: forward slashes, no leading slash, no `..` traversal. */

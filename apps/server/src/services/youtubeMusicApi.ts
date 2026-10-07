@@ -1,4 +1,6 @@
 import type { Logger } from '../logger.js'
+import type { FetchLike } from './fetching.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * The private API the YouTube Music apps speak, shared by everything here that
@@ -15,7 +17,20 @@ export const WEB_CLIENT = { clientName: 'WEB_REMIX', clientVersion: '1.20240101.
 export const ANDROID_CLIENT = { clientName: 'ANDROID_MUSIC', clientVersion: '7.21.50', hl: 'en' }
 const REQUEST_TIMEOUT_MS = 8_000
 
-export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
+/*
+ * The search's "Songs" filter, as two parts of this server send it. Both ask
+ * for songs only (`8a 01 02 08 01`); they differ in the result shelves they
+ * name after that (`6a …`), and so in what comes back and in what order. The
+ * timed-lyrics and artist-page lookups were tuned against the first and the
+ * import review against the second, so each keeps its own rather than have
+ * one's matches move under the other.
+ */
+
+/** Songs only, as the lyrics and artist-page lookups ask (youtubeMusicSongs.ts). */
+export const SONG_SEARCH_FOR_MATCHING = 'EgWKAQIIAWoMEA4QChADEAQQCRAF'
+
+/** Songs only, as the YouTube Music web app sends it: the import review's search (youtubeMusicLists.ts). */
+export const SONG_SEARCH_AS_THE_WEB_APP = 'EgWKAQIIAWoKEAoQCRADEAQQBQ%3D%3D'
 
 export class YouTubeMusicApi {
   readonly #logger: Logger
@@ -44,18 +59,80 @@ export class YouTubeMusicApi {
     } catch (error) {
       this.#logger.debug('lookup failed', {
         endpoint,
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
       return null
     }
   }
 }
 
+/** One piece of a text block, and the page it leads to, if any. */
+export interface Run {
+  readonly text?: unknown
+  readonly navigationEndpoint?: {
+    readonly browseEndpoint?: {
+      readonly browseId?: unknown
+      readonly browseEndpointContextSupportedConfigs?: {
+        readonly browseEndpointContextMusicConfig?: { readonly pageType?: unknown }
+      }
+    }
+  }
+}
+
+/** The runs of a `{ runs: [...] }` block. */
+export function runsOf(value: unknown): Run[] {
+  const list = (value as { runs?: unknown } | undefined)?.runs
+  return Array.isArray(list) ? (list as Run[]) : []
+}
+
 /** The text of a `{ runs: [{ text }] }` block. */
 export function runs(value: unknown): string[] {
-  const list = (value as { runs?: unknown } | undefined)?.runs
-  if (!Array.isArray(list)) return []
-  return list.map(run => (run as { text?: unknown }).text).filter(t => typeof t === 'string')
+  return runsOf(value)
+    .map(run => run.text)
+    .filter((text): text is string => typeof text === 'string')
+}
+
+/** The kind of page a run leads to: `MUSIC_PAGE_TYPE_ARTIST`, `…_ALBUM`, or nothing. */
+export function pageTypeOf(run: Run): unknown {
+  return run.navigationEndpoint?.browseEndpoint?.browseEndpointContextSupportedConfigs
+    ?.browseEndpointContextMusicConfig?.pageType
+}
+
+/** The video a list row plays, or null for a row that is not a song. */
+export function rowVideoId(row: unknown): string | null {
+  const videoId = findKey((row as Record<string, unknown>)['playlistItemData'], 'videoId')
+  return typeof videoId === 'string' ? videoId : null
+}
+
+/** A list row's flex columns, each as its runs: the title first, then the rest. */
+export function rowColumns(row: unknown): Run[][] {
+  return findAll(row, 'musicResponsiveListItemFlexColumnRenderer').map(column =>
+    runsOf((column as { text?: unknown }).text),
+  )
+}
+
+/**
+ * The address of the largest picture under `owner.thumbnail`, or null. Every
+ * picture list here — a row's, a page header's — is smallest first.
+ */
+export function largestThumbnail(owner: unknown): string | null {
+  const thumbnails = findKey(
+    (owner as Record<string, unknown> | undefined)?.['thumbnail'],
+    'thumbnails',
+  )
+  const largest = Array.isArray(thumbnails)
+    ? (thumbnails.at(-1) as { url?: unknown } | undefined)?.url
+    : undefined
+  return typeof largest === 'string' ? largest : null
+}
+
+/** "3:27" or "1:02:03" to seconds; null for anything else. */
+export function parseLength(text: string): number | null {
+  if (!/^\d+(?::\d{2}){1,2}$/.test(text.trim())) return null
+  return text
+    .trim()
+    .split(':')
+    .reduce((total, part) => total * 60 + Number(part), 0)
 }
 
 /** Every value under `key`, anywhere in a response. Responses nest deep and move. */

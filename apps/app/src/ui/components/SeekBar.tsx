@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, PanResponder, Text, View, type LayoutChangeEvent } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { formatDuration } from '@selfmp3/shared'
+import { clamp, clamp01, formatDuration } from '@selfmp3/shared'
 import type { LoopRegion } from '@selfmp3/client'
 import { useAccent } from '../accent'
 import { space, type, withAlpha } from '@selfmp3/client'
 import { spring } from '../motion'
 import { SEEK_STEP_SECONDS } from '../../player/progress.model'
+import { ADJUST_ACTIONS } from './slider.model'
 
 /**
  * Closer than this to a seek, the player is taken to be there. Wide enough for
@@ -16,8 +17,6 @@ import { SEEK_STEP_SECONDS } from '../../player/progress.model'
 const SEEK_LANDED_SECONDS = 2.1
 /** How long a let-go position is held against an engine still reporting the old one. */
 const SEEK_SETTLE_MS = 1000
-/** What a screen reader can do to an adjustable: the same pair its sibling `Slider` offers. */
-const ADJUST_ACTIONS = [{ name: 'increment' }, { name: 'decrement' }] as const
 
 /**
  * Scrubber: a 6px track with a 16px thumb that is always there, in a hit area
@@ -92,7 +91,7 @@ export function SeekBar({
     // always the bar, and stays correct as the bar moves around the screen.
     const secondsAt = (x: number): number => {
       if (width <= 0 || duration <= 0) return 0
-      return Math.max(0, Math.min(1, x / width)) * duration
+      return clamp01(x / width) * duration
     }
 
     return PanResponder.create({
@@ -113,9 +112,9 @@ export function SeekBar({
   }, [width, duration, onSeek])
 
   const shown = dragging ?? held ?? position
-  const ratio = duration > 0 ? Math.max(0, Math.min(1, shown / duration)) : 0
+  const ratio = duration > 0 ? clamp01(shown / duration) : 0
   /*
-   * How far along, rounded to a tenth of a per cent. `ProgressWash.tsx` (45-59)
+   * How far along, rounded to a tenth of a per cent. `ProgressWash.tsx`
    * explains this at length and the reason is the same one: on the web every
    * distinct value written into a style becomes its own atomic CSS rule, and an
    * unrounded width from a position that ticks several times a second is a new
@@ -145,7 +144,7 @@ export function SeekBar({
   const onAccessibilityAction = (event: { nativeEvent: { actionName: string } }): void => {
     const step =
       event.nativeEvent.actionName === 'increment' ? SEEK_STEP_SECONDS : -SEEK_STEP_SECONDS
-    const target = Math.max(0, Math.min(duration, shown + step))
+    const target = clamp(shown + step, 0, duration)
     setPending(target)
     onSeek(target)
   }
@@ -154,66 +153,67 @@ export function SeekBar({
     setWidth(event.nativeEvent.layout.width)
   }
 
+  // Whole points, for the reason the fill is rounded: an unrounded position
+  // was a new CSS rule for every tick of every song.
+  const thumbLeft = Math.max(0, Math.round(width * at - (inline ? THUMB_INLINE : THUMB) / 2))
+
+  const bar = (
+    <View
+      style={[styles.hit, inline && styles.hitInline]}
+      onLayout={onLayout}
+      accessibilityRole="adjustable"
+      accessibilityLabel="Seek"
+      accessibilityValue={{ min: 0, max: Math.round(duration), now: Math.round(shown) }}
+      /*
+       * The same numbers again as ARIA props: `react-native-web` renders
+       * `accessibilityRole="adjustable"` as `role="slider"` and then drops
+       * `accessibilityValue`, leaving a slider that announces no position.
+       * React Native maps these to the same place, so it is the one spelling
+       * that works on both.
+       */
+      aria-valuemin={0}
+      aria-valuemax={Math.round(duration)}
+      aria-valuenow={Math.round(shown)}
+      accessibilityActions={ADJUST_ACTIONS}
+      onAccessibilityAction={onAccessibilityAction}
+      {...responder.panHandlers}
+    >
+      {loop ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.loop,
+            inline && styles.loopInline,
+            {
+              left: `${loop.left}%`,
+              width: `${loop.width}%`,
+              borderColor: fill,
+              backgroundColor: withAlpha(fill, 0.16),
+            },
+          ]}
+        />
+      ) : null}
+      {/* Draws only: a touch on the thumb must reach the bar, see the responder. */}
+      <View pointerEvents="none" style={[styles.track, inline && styles.trackInline]}>
+        <View
+          style={[
+            styles.fill,
+            inline && styles.fillInline,
+            { width: fillWidth, backgroundColor: fill },
+          ]}
+        />
+        <Animated.View
+          style={[styles.thumb, inline && styles.thumbInline, { left: thumbLeft }, thumbScale]}
+        />
+      </View>
+    </View>
+  )
+
   if (inline) {
     return (
       <View style={styles.inline}>
         <Text style={styles.timeInline}>{formatDuration(shown)}</Text>
-        <View style={styles.inlineTrack}>
-          <View
-            style={[styles.hit, inline && styles.hitInline]}
-            onLayout={onLayout}
-            accessibilityRole="adjustable"
-            accessibilityLabel="Seek"
-            accessibilityValue={{ min: 0, max: Math.round(duration), now: Math.round(shown) }}
-            /*
-             * The same numbers again as ARIA props: `react-native-web` renders
-             * `accessibilityRole="adjustable"` as `role="slider"` and then drops
-             * `accessibilityValue`, leaving a slider that announces no position.
-             * React Native maps these to the same place, so it is the one
-             * spelling that works on both.
-             */
-            aria-valuemin={0}
-            aria-valuemax={Math.round(duration)}
-            aria-valuenow={Math.round(shown)}
-            accessibilityActions={ADJUST_ACTIONS}
-            onAccessibilityAction={onAccessibilityAction}
-            {...responder.panHandlers}
-          >
-            {loop ? (
-              <View
-                pointerEvents="none"
-                style={[
-                  styles.loop,
-                  inline && styles.loopInline,
-                  {
-                    left: `${loop.left}%`,
-                    width: `${loop.width}%`,
-                    borderColor: fill,
-                    backgroundColor: withAlpha(fill, 0.16),
-                  },
-                ]}
-              />
-            ) : null}
-            {/* Draws only: a touch on the thumb must reach the bar, see the responder. */}
-            <View pointerEvents="none" style={[styles.track, inline && styles.trackInline]}>
-              <View
-                style={[
-                  styles.fill,
-                  inline && styles.fillInline,
-                  { width: fillWidth, backgroundColor: fill },
-                ]}
-              />
-              <Animated.View
-                style={[
-                  styles.thumb,
-                  inline && styles.thumbInline,
-                  { left: Math.max(0, width * at - (inline ? THUMB_INLINE : THUMB) / 2) },
-                  thumbScale,
-                ]}
-              />
-            </View>
-          </View>
-        </View>
+        <View style={styles.inlineTrack}>{bar}</View>
         <Text style={styles.timeInline}>{formatDuration(duration)}</Text>
       </View>
     )
@@ -221,42 +221,7 @@ export function SeekBar({
 
   return (
     <View style={styles.wrapper}>
-      <View
-        style={styles.hit}
-        onLayout={onLayout}
-        accessibilityRole="adjustable"
-        accessibilityLabel="Seek"
-        accessibilityValue={{ min: 0, max: Math.round(duration), now: Math.round(shown) }}
-        /* The same ARIA props as the inline bar above, for the same reason. */
-        aria-valuemin={0}
-        aria-valuemax={Math.round(duration)}
-        aria-valuenow={Math.round(shown)}
-        accessibilityActions={ADJUST_ACTIONS}
-        onAccessibilityAction={onAccessibilityAction}
-        {...responder.panHandlers}
-      >
-        {loop ? (
-          <View
-            pointerEvents="none"
-            style={[
-              styles.loop,
-              {
-                left: `${loop.left}%`,
-                width: `${loop.width}%`,
-                borderColor: fill,
-                backgroundColor: withAlpha(fill, 0.16),
-              },
-            ]}
-          />
-        ) : null}
-        {/* Draws only: a touch on the thumb must reach the bar, see the responder. */}
-        <View pointerEvents="none" style={styles.track}>
-          <View style={[styles.fill, { width: fillWidth, backgroundColor: fill }]} />
-          <Animated.View
-            style={[styles.thumb, { left: Math.max(0, width * at - THUMB / 2) }, thumbScale]}
-          />
-        </View>
-      </View>
+      {bar}
       {/* Elapsed on the left, what is left on the right. */}
       <View style={styles.times}>
         <Text style={styles.time}>{formatDuration(shown)}</Text>
@@ -272,7 +237,7 @@ const THUMB_INLINE = 12
 const THUMB_GRABBED = 1.2
 
 const styles = StyleSheet.create(theme => ({
-  /* `.player-progress`: the times either side, 11-point and tabular. */
+  /* The player bar's: the times either side, 11-point and tabular. */
   inline: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -292,8 +257,8 @@ const styles = StyleSheet.create(theme => ({
   trackInline: { height: 4, borderRadius: 2 },
   fillInline: { height: 4, borderRadius: 2 },
   thumbInline: { width: THUMB_INLINE, height: THUMB_INLINE, borderRadius: THUMB_INLINE / 2 },
-  /* `.loop-region`: low-contrast, a little taller than the track. Its two edges are
-     the loop's ends, the mark itself, so they stay. */
+  /* The practice loop: low-contrast, a little taller than the track. Its two
+     edges are the loop's ends, the mark itself, so they stay. */
   loop: {
     position: 'absolute',
     top: '50%',

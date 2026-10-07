@@ -9,9 +9,11 @@ import {
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { CoverTone, ImportCoverTone, ImportPreviewItem } from '@selfmp3/shared'
+import { clamp } from '@selfmp3/shared'
 import { radius, withAlpha, type ServerConnection } from '@selfmp3/client'
 import { mediaUrlFor } from '../../api/client'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands, usePlayerPlaying } from '../../player/PlayerProvider'
+import { createValueStore } from '../../state/valueStore.model'
 import { createListenAudio } from '../../ports/listen'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Cover } from '../../ui/components/Cover'
@@ -45,19 +47,23 @@ const tonesByCover = new Map<string, CoverTone | null>()
  *
  * `toggle`, `seek` and `close` keep their identity from render to render: the
  * review's rows are memoised, and a new function each tick would redraw every
- * row of a long playlist four times a second.
+ * row of a long playlist four times a second. For the same reason where the
+ * song is, which moves at each of those ticks, is not part of `listening`: it
+ * is `position`, which only the bar and its times read (`useValueStore`).
  */
 export function useListen(
   via: ServerConnection | undefined,
   api: { importCoverTone: (url: string) => Promise<ImportCoverTone> },
 ) {
-  const player = usePlayer()
+  const player = usePlayerCommands()
+  const playerPlaying = usePlayerPlaying()
   const { connection: own } = useConnection()
   // A cloud library previews through the server it reached (ImportViaServer), not
   // through whatever address this device happens to have stored.
   const connection = via ?? own
   const [audio] = useState(() => createListenAudio())
   const [listening, setListening] = useState<Listening | null>(null)
+  const [position] = useState(() => createValueStore(0))
   /** Something was playing when previewing began; it carries on when the preview closes. */
   const resume = useRef(false)
 
@@ -79,27 +85,28 @@ export function useListen(
 
   useEffect(() => {
     if (!audio) return
-    const unsubscribe = audio.subscribe(state =>
-      setListening(current => (current ? followAudio(current, state) : current)),
-    )
+    const unsubscribe = audio.subscribe(state => {
+      position.set(state.currentTime)
+      setListening(current => (current ? followAudio(current, state) : current))
+    })
     return () => {
       unsubscribe()
       audio.dispose()
     }
-  }, [audio])
+  }, [audio, position])
 
   // Pressing play on the song itself ends the interlude.
-  const wasPlaying = useRef(player.isPlaying)
+  const wasPlaying = useRef(playerPlaying)
   useEffect(() => {
-    if (player.isPlaying && !wasPlaying.current) {
+    if (playerPlaying && !wasPlaying.current) {
       audio?.pause()
       resume.current = false
     }
-    wasPlaying.current = player.isPlaying
-  }, [audio, player.isPlaying])
+    wasPlaying.current = playerPlaying
+  }, [audio, playerPlaying])
 
   const makeRoom = (): void => {
-    if (!player.isPlaying) return
+    if (!playerPlaying) return
     resume.current = true
     player.toggle()
   }
@@ -117,6 +124,7 @@ export function useListen(
       return
     }
     makeRoom()
+    position.set(0)
     setListening(startListening(track, tonesByCover.get(track.thumbnail ?? '') ?? null))
     audio.play(mediaUrlFor(connection).importListen(track.url))
     colourIn(track)
@@ -125,7 +133,7 @@ export function useListen(
   const seek = (seconds: number): void => {
     if (!audio || !listening) return
     audio.seek(seconds)
-    setListening({ ...listening, currentTime: seconds })
+    position.set(seconds)
   }
 
   /**
@@ -136,9 +144,10 @@ export function useListen(
   const close = (options: { resume?: boolean } = {}): void => {
     audio?.stop()
     setListening(null)
+    position.set(0)
     const carryOn = resume.current && (options.resume ?? true)
     resume.current = false
-    if (carryOn && !player.isPlaying) player.toggle()
+    if (carryOn && !playerPlaying) player.toggle()
   }
 
   const latest = useRef({ toggle, seek, close })
@@ -154,7 +163,7 @@ export function useListen(
     [],
   )
 
-  return { listening, ...steady }
+  return { listening, position, ...steady }
 }
 
 /**
@@ -286,7 +295,7 @@ export function ListenBar({
       accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
       onAccessibilityAction={event => {
         const step = event.nativeEvent.actionName === 'increment' ? 10 : -10
-        onSeek(Math.max(0, Math.min(duration, position + step)))
+        onSeek(clamp(position + step, 0, duration))
       }}
       testID="listen-bar"
       {...responder.panHandlers}

@@ -114,8 +114,8 @@ export function useKeepAlongside(): void {
               )
             }
           }
-          // Words go with a kept file: an installed app's downloads, or a
-          // browser's played copies, which the download queue also keeps.
+          // Words go with a kept file, which only an installed app has: a
+          // browser tab streams, and asks for the words when it plays.
           if (!installed || !isDownloaded(latest.current.index, song.id)) return
           if (!cancelled && !(await hasCachedLyrics(song.id))) {
             try {

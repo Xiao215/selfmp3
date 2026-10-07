@@ -4,11 +4,14 @@ import { loadConfig } from '../config.js'
 import { createLogger } from '../logger.js'
 import { LyricsSearchRepository } from '../repositories/lyricsSearch.js'
 import { PlaylistRepository } from '../repositories/playlists.js'
+import { SettingsRepository } from '../repositories/settings.js'
 import { SongRepository } from '../repositories/songs.js'
 import { StatsRepository } from '../repositories/stats.js'
 import { TagRepository } from '../repositories/tags.js'
 import { WrappedRepository } from '../repositories/wrapped.js'
-import { SmartFeatures, llmFor, setupFor } from './smart.js'
+import { MetadataLookupService } from '../services/lookup.js'
+import { NeteaseMusic } from '../services/netease.js'
+import { smartFeaturesFor } from './smart.js'
 
 /**
  * Asks the real model about a real library and prints what came back, for a
@@ -22,8 +25,8 @@ import { SmartFeatures, llmFor, setupFor } from './smart.js'
  *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> written month
  *   PLAYING=<song id> npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> ask "something calmer like this next"
  *
- * The database is opened read-only, and nothing but the model is reached:
- * no server starts and no bucket is touched. Point it at a copy all the same
+ * The database is opened read-only, and nothing but the model and the music
+ * catalogues are reached: no server starts and no bucket is touched. Point it at a copy all the same
  * (`sqlite3 selfmp3.db ".backup /tmp/copy.db"`). The model comes from the same
  * SELFMP3_AI_* settings the server reads.
  */
@@ -42,25 +45,19 @@ const config = loadConfig()
 const logger = createLogger('info')
 const db = new Database(file, { readonly: true })
 const songs = new SongRepository(db)
-const tags = new TagRepository(db)
-const stats = new StatsRepository(db)
-const lyrics = new LyricsSearchRepository(db)
-const wrapped = new WrappedRepository(db)
-const playlists = new PlaylistRepository(db)
-const smart = new SmartFeatures({
-  llm: llmFor(config, logger),
-  setup: setupFor(config),
-  songs: () => songs.all(),
-  tags: () => tags.all(),
-  stats: range => stats.build(range),
-  lyrics: query => lyrics.search(query).map(row => ({ songId: row.song_id, line: row.line })),
-  wrapped: range => wrapped.build(range),
-  playlists: () =>
-    playlists.all().map(playlist => ({
-      name: playlist.name,
-      kind: playlist.kind,
-      songIds: () => playlists.songIds(playlist),
-    })),
+// The same wiring the server uses (ai/smart.ts), over this copy of the library.
+const smart = smartFeaturesFor({
+  config,
+  logger,
+  songs,
+  tags: new TagRepository(db),
+  stats: new StatsRepository(db),
+  wrapped: new WrappedRepository(db),
+  playlists: new PlaylistRepository(db),
+  lyricsSearch: new LyricsSearchRepository(db),
+  settings: new SettingsRepository(db),
+  netease: new NeteaseMusic(logger),
+  lookup: new MetadataLookupService(logger),
 })
 const titleOf = new Map(songs.all().map(song => [song.id, `${song.title} · ${song.artist}`]))
 

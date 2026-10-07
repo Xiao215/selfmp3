@@ -2,14 +2,12 @@ import { File, Paths } from 'expo-file-system'
 import { parseOutbox, type OutboxEvent } from '@selfmp3/shared'
 import { createListenOutbox } from '@selfmp3/client'
 
-import '../api/client'
-
 /**
  * The phone's listen outbox: `packages/client`'s, over a JSON file.
  *
  * The rules live in the package because every client enforces the same rules,
  * each over its own storage. What is left here is the file itself, which is
- * the phone's: in a browser expo-file-system is the stand-in in webStubs/.
+ * the phone's; a browser keeps the same in IndexedDB (`listenOutbox.web.ts`).
  *
  * One JS thread, one copy: the file is only the durable mirror of `events`.
  */
@@ -53,9 +51,3 @@ const outbox = createListenOutbox({
 })
 
 export const { flushListens, recordListen } = outbox
-
-/*
- * `recordSkipListen` and `subscribePendingListens` are the package's too and
- * work here, but nothing calls them yet: there is no skip button that records
- * one and no badge that shows the count.
- */

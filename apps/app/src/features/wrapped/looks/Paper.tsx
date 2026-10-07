@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { fonts, lightPalette } from '@selfmp3/client'
+import { fonts } from '@selfmp3/client'
 import { Cover } from '../../../ui/components/Cover'
 import { lookInk, paperLook } from '../looks.model'
 import { PrintedTag, type LookProps } from './parts'
@@ -17,7 +17,6 @@ export const PAPER_SIZE = { width: 350, height: 600 } as const
 export function PaperLook({ input, hue, art, tagHue }: LookProps): ReactNode {
   const look = paperLook(input)
   const ink = lookInk('paper', hue)
-  const paper = lightPalette(hue)
   return (
     <View style={[styles.page, { backgroundColor: ink.ground }]}>
       <View style={styles.head}>
@@ -76,9 +75,9 @@ export function PaperLook({ input, hue, art, tagHue }: LookProps): ReactNode {
                 name={tag}
                 hue={tagHue(tag)}
                 scheme="light"
-                fill={paper.surface1}
+                fill={ink.sheet}
                 ink={ink.ink}
-                shadow={paper.floatShadow}
+                shadow={ink.shadow}
               />
             ))}
           </View>

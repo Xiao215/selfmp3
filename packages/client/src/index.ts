@@ -37,6 +37,7 @@ export { configureClient, clientApi, librarySnapshot, type ClientRuntime } from 
 
 export { ClientStateProvider, useClientState, type ClientState } from './queries/context.js'
 export * from './queries/queries.js'
+export { STALE } from './queries/stale.js'
 // A recomputed list kept as the same array while its items are the same.
 export { useSameArray } from './queries/useSameArray.js'
 
@@ -54,6 +55,7 @@ export * from './queue/autoMix.js'
 
 /** Filtering and sorting a library, which every client does the same way. */
 export * from './library/filter.js'
+export * from './library/names.js'
 export * from './library/recentTags.js'
 
 /** Presence and handoff: pure rules, shared by every client. */

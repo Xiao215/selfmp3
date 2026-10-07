@@ -11,7 +11,8 @@ import { AddSongsSheet } from '../playlistDetail/AddSongsSheet'
 import { PlaceMissing } from './PlaceMissing'
 import { PlacePage } from './PlacePage'
 import { existingTag, placeSongs } from './tag.model'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
+import { goBack } from '../../ui/useBackTo'
 
 /**
  * A tag's page, `/tag/<name>` (docs/ui-mock `P08`, `C06`). The name is found
@@ -23,7 +24,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 export function TagScreen(): ReactNode {
   const router = useRouter()
   const { name, play } = useLocalSearchParams<{ name: string; play?: string }>()
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const { data: library } = useLibrary()
   const [menuOpen, setMenuOpen] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -101,7 +102,7 @@ export function TagScreen(): ReactNode {
       <AddSongsSheet
         open={tagging}
         onClose={() => setTagging(false)}
-        playlistName={tag.name}
+        targetName={tag.name}
         target={{ kind: 'tag', tagId: tag.id, inTag }}
       />
       <TagEditor
@@ -110,8 +111,7 @@ export function TagScreen(): ReactNode {
         onClose={() => setEditing(false)}
         onDeleted={() => {
           setEditing(false)
-          if (router.canGoBack()) router.back()
-          else router.replace('/tags')
+          goBack(router, '/tags')
         }}
       />
     </>

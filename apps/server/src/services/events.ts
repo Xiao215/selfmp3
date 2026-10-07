@@ -1,5 +1,6 @@
 import type { ServerEvent } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * The live event stream.
@@ -131,7 +132,7 @@ export class EventHub {
         subscriber.sink.end?.()
       } catch (error) {
         this.#logger.debug('event stream would not close', {
-          message: error instanceof Error ? error.message : String(error),
+          message: messageOf(error),
         })
       }
     }
@@ -145,7 +146,7 @@ export class EventHub {
       // A socket that died without a close event; drop it rather than retry.
       this.#subscribers.delete(subscriber)
       this.#logger.debug('event stream write failed', {
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
       return false
     }

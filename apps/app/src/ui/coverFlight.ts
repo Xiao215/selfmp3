@@ -26,7 +26,7 @@ export interface Flight {
   readonly from: FlightFrame
   readonly to: FlightFrame
   /** Up to three covers, the first on top; null draws the placeholder. */
-  readonly uris: readonly (string | null)[]
+  readonly uris: readonly (string | null | undefined)[]
 }
 
 const targets = new Set<View>()
@@ -71,7 +71,7 @@ function measure(node: View): Promise<FlightFrame | null> {
  */
 export function flyToUpNext(
   from: View | null,
-  uris: readonly (string | null)[],
+  uris: readonly (string | null | undefined)[],
   upNextShown: boolean,
 ): void {
   if (upNextShown || !from || uris.length === 0) return

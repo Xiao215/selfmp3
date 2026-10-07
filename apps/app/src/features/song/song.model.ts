@@ -1,4 +1,13 @@
-import { formatDuration, fromSqliteTime, type AudioFeatures, type Song } from '@selfmp3/shared'
+import {
+  calendarDaysAgo,
+  DAY_MS,
+  formatDuration,
+  fromSqliteTime,
+  startOfLocalDay,
+  WEEKDAYS,
+  type AudioFeatures,
+  type Song,
+} from '@selfmp3/shared'
 
 /**
  * The words and numbers on a song's own page (docs/ui-mock `P15`), worked out
@@ -17,8 +26,6 @@ export function songLink(id: number): string {
   return `/song/${id}`
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000
-
 /** A date from the server or the bucket, read as UTC (`fromSqliteTime`). */
 function parseWhen(value: string): Date {
   return new Date(fromSqliteTime(value))
@@ -26,10 +33,10 @@ function parseWhen(value: string): Date {
 
 /** How long ago, in the words a person uses: "today", "3 weeks ago", "a year ago". */
 export function timeAgo(value: string, now: Date): string {
-  const then = parseWhen(value)
-  if (Number.isNaN(then.getTime())) return 'a while ago'
   // By calendar day, so a song added last night is "yesterday" this morning.
-  const days = Math.round((startOfDay(now) - startOfDay(then)) / DAY_MS)
+  const ago = calendarDaysAgo(value, now)
+  if (ago === null) return 'a while ago'
+  const { days } = ago
   if (days <= 0) return 'today'
   if (days === 1) return 'yesterday'
   if (days < 7) return `${days} days ago`
@@ -40,10 +47,6 @@ export function timeAgo(value: string, now: Date): string {
 
 function count(n: number, one: string, many: string): string {
   return n <= 1 ? `${one} ago` : `${n} ${many} ago`
-}
-
-function startOfDay(date: Date): number {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
 }
 
 /**
@@ -112,15 +115,13 @@ export function usualHour(dates: readonly Date[]): number | null {
   return bestCount * 2 >= dates.length ? best : null
 }
 
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-
 /** The one day it was played most, when that was three times or more. */
 export function busiestDay(
   dates: readonly Date[],
 ): { readonly plays: number; readonly weekday: string } | null {
   const byDay = new Map<number, { plays: number; weekday: string }>()
   for (const date of dates) {
-    const key = startOfDay(date)
+    const key = startOfLocalDay(date)
     const entry = byDay.get(key) ?? { plays: 0, weekday: WEEKDAYS[date.getDay()] ?? '' }
     entry.plays += 1
     byDay.set(key, entry)
@@ -258,4 +259,9 @@ export function bylineRest(song: Pick<Song, 'album' | 'duration'>): string {
   return [song.album.trim(), song.duration > 0 ? formatDuration(song.duration) : '']
     .filter(Boolean)
     .join(' · ')
+}
+
+/** A similar song played from "Sounds like" goes first, with the rest after it in their order. */
+export function playSimilarOrder(ids: readonly number[], chosen: number): number[] {
+  return [chosen, ...ids.filter(id => id !== chosen)]
 }

@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import { useRouter } from 'expo-router'
 import { useLibrary } from '@selfmp3/client'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { untaggedSongs } from './tag.model'
 
 /**
@@ -16,7 +16,7 @@ import { untaggedSongs } from './tag.model'
  */
 export function usePlayAndTag(): { readonly count: number; readonly start: () => void } {
   const router = useRouter()
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const { data: library } = useLibrary()
   // A pass over the whole library; its answer only changes when the library does.
   const ids = useMemo(

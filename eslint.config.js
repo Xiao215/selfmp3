@@ -60,7 +60,6 @@ export default tseslint.config(
       '**/*.config.ts',
       'scripts/**/*.js',
       'scripts/**/*.mjs',
-      'verify/**/*.mjs',
       // The shell's esbuild build and its development launcher: plain node,
       // outside every tsconfig, like the scripts above.
       'apps/desktop/scripts/**/*.mjs',
@@ -103,10 +102,9 @@ export default tseslint.config(
   },
   {
     /*
-     * Tests, what they hand each other, and the service worker sit outside the
-     * app's tsconfig projects — tests and their fixtures because they should
-     * not ship in the build output, sw.ts because it needs the WebWorker lib
-     * rather than the DOM one (see tsconfig.sw.json).
+     * Tests, and the fixtures they hand each other, sit outside every
+     * workspace's tsconfig project, so that they do not ship in its build
+     * output.
      *
      * typescript-eslint's project service therefore cannot resolve types for
      * them, so type-aware rules are switched off here.

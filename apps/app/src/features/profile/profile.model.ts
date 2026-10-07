@@ -1,4 +1,4 @@
-import { formatRelative, type Stats } from '@selfmp3/shared'
+import { plural, formatRelative, type Stats } from '@selfmp3/shared'
 import type { DevicePlace } from '../settings/settings.model'
 import { durationWords, formatHour, peakHour, peakHourWords } from '../stats/stats.model'
 
@@ -49,21 +49,20 @@ export function profileRows({ place }: { place: DevicePlace }): readonly Profile
 }
 
 /**
- * The name at the top. Not every kind of library knows one: a server signed in
- * to Google does, a device reading the bucket does not, and a server with no
- * cloud has nobody to ask. Without one the page is just "Profile", and the mark
- * shows the figure rather than a letter.
+ * The first word of the name Google gave — "Xiao" from "Xiao Zhang", the whole
+ * name when it is one word — or null when there is no name to go by.
  */
-export function profileName(accountName: string | null | undefined): {
-  name: string
-  initial: string | null
-} {
-  const name = accountName?.trim()
-  // The page's own name when nobody is signed in: it is Profile, not "You".
-  if (!name) return { name: 'Profile', initial: null }
-  // The first name, as the board has it; the whole name when it is one word.
-  const first = name.split(/\s+/)[0] ?? name
-  return { name: first, initial: Array.from(first)[0]?.toUpperCase() ?? null }
+export function firstName(name: string | null | undefined): string | null {
+  return name?.trim().split(/\s+/)[0] || null
+}
+
+/**
+ * The name at the top: the account's first name, as the board has it. A server
+ * with no cloud has nobody to ask, and then the page is just "Profile" — its
+ * own name, not "You".
+ */
+export function profileName(accountName: string | null | undefined): string {
+  return firstName(accountName) ?? 'Profile'
 }
 
 /**
@@ -92,11 +91,11 @@ export function profileLine({
   now?: Date
 }): string {
   const parts: string[] = []
-  if (songs !== undefined) parts.push(`${songs.toLocaleString()} ${songs === 1 ? 'song' : 'songs'}`)
-  if (tags !== undefined) parts.push(`${tags.toLocaleString()} ${tags === 1 ? 'tag' : 'tags'}`)
+  if (songs !== undefined) parts.push(plural(songs, 'song', 'songs'))
+  if (tags !== undefined) parts.push(plural(tags, 'tag', 'tags'))
   if (error) parts.push(fromCloud ? 'can’t reach the cloud' : 'can’t reach your server')
   else if (pending || !syncedAt) parts.push('connecting…')
-  else parts.push(`synced ${formatRelative(new Date(syncedAt).toISOString(), now)}`)
+  else parts.push(`synced ${formatRelative(syncedAt, now)}`)
   return parts.join(' · ')
 }
 
@@ -160,25 +159,4 @@ export function monthCardSpoken(card: MonthCard | null): string {
   return `Stats. ${MONTH_CARD_TITLE}: ${card.listened} listened, ${card.plays} ${
     card.plays === '1' ? 'play' : 'plays'
   }, a streak of ${card.streak} ${card.streakUnit}${repeat}`
-}
-
-/**
- * The letters on the round mark when the account has no picture: one from
- * each of the first two words of the name, or the first of the address.
- * Null when there is neither, and the plain figure is drawn instead.
- */
-export function accountInitials(
-  account: { name: string | null; email: string } | null,
-): string | null {
-  const name = account?.name?.trim()
-  if (name) {
-    const letters = name
-      .split(/\s+/)
-      .slice(0, 2)
-      .map(word => Array.from(word)[0]?.toUpperCase() ?? '')
-      .join('')
-    if (letters) return letters
-  }
-  const email = account?.email.trim()
-  return email ? (Array.from(email)[0]?.toUpperCase() ?? null) : null
 }

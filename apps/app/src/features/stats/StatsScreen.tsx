@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -32,6 +32,7 @@ import {
   type RankKind,
   type StatsPeriod,
 } from './stats.model'
+import { useSvgId } from '../../ui/useSvgId'
 
 /** The line beside Listened, in its own box's units. */
 const SPARK = { width: 120, height: 56 }
@@ -373,7 +374,7 @@ function LeadCard({
   open,
   testID,
 }: {
-  art: string | null
+  art: string | null | undefined
   rank: number
   name: string
   note: string
@@ -384,7 +385,7 @@ function LeadCard({
   const { theme } = useUnistyles()
   const [loaded, setLoaded] = useState<string | null>(null)
   const shown = useFade(art !== null && loaded === art, motion.base, motion.base)
-  const shade = `statslead${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  const shade = useSvgId('statslead')
 
   return (
     <Pressable
@@ -446,7 +447,7 @@ function LeadCard({
  * shows them, or the cover of theirs they are played for, round so it still
  * reads as a person beside the square covers of songs.
  */
-function ArtistFace({
+function RankedArtistFace({
   name,
   known,
   cover,
@@ -482,7 +483,7 @@ function RankedLine({
 }: {
   row: RankedRow
   song: Song | undefined
-  /** An artist's stand-in cover (`ArtistFace`). */
+  /** An artist's stand-in cover (`RankedArtistFace`). */
   cover: Song | undefined
   hue: number | undefined
   via: ServerConnection | undefined
@@ -507,7 +508,7 @@ function RankedLine({
     row.kind === 'song' ? (
       <Cover uri={song ? artFor(song) : null} title={row.name} size={36} />
     ) : row.kind === 'artist' ? (
-      <ArtistFace name={row.name} known={row.known} cover={cover} via={via} />
+      <RankedArtistFace name={row.name} known={row.known} cover={cover} via={via} />
     ) : (
       <View style={styles.tagSquare}>
         <View

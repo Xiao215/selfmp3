@@ -1,4 +1,5 @@
 import type { Song, Tag } from '@selfmp3/shared'
+import { artistOr } from '@selfmp3/shared'
 import { tagColors } from '@selfmp3/client'
 
 /**
@@ -18,7 +19,7 @@ import { tagColors } from '@selfmp3/client'
 export const WIDGET_KEY = 'widget.snapshot'
 
 /** How many tiles the tags widget has: two by two. */
-const WIDGET_TILES = 4
+export const WIDGET_TILES = 4
 
 interface WidgetTile {
   readonly name: string
@@ -90,7 +91,7 @@ export function widgetSnapshot(input: {
   const nowPlaying = song
     ? {
         title: song.title,
-        artist: song.artist || 'Unknown artist',
+        artist: artistOr(song.artist),
         playing: input.playing,
         endsAt: input.playing ? Math.round(input.now / 1000) + left : 0,
         remaining: input.playing ? 0 : left,
@@ -110,11 +111,7 @@ export function widgetSnapshot(input: {
  */
 export function snapshotChanged(before: WidgetSnapshot | null, after: WidgetSnapshot): boolean {
   if (!before) return true
-  const tilesOf = (snapshot: WidgetSnapshot): string =>
-    JSON.stringify(
-      snapshot.tiles.map(tile => [tile.name, tile.fill, tile.songs, tile.cover.length]),
-    )
-  if (tilesOf(before) !== tilesOf(after)) return true
+  if (!sameTiles(before.tiles, after.tiles)) return true
   const playingBefore = before.nowPlaying
   const playingAfter = after.nowPlaying
   if (!playingBefore || !playingAfter) return playingBefore !== playingAfter
@@ -126,4 +123,24 @@ export function snapshotChanged(before: WidgetSnapshot | null, after: WidgetSnap
     return true
   if (playingAfter.playing) return Math.abs(playingBefore.endsAt - playingAfter.endsAt) > 5
   return Math.abs(playingBefore.remaining - playingAfter.remaining) > 5
+}
+
+/**
+ * The tiles as the widget would draw them, the same: names, colours, counts,
+ * and whether each has its cover. Asked on every playhead tick, so a field
+ * comparison rather than a string built of both lists each time.
+ */
+function sameTiles(before: readonly WidgetTile[], after: readonly WidgetTile[]): boolean {
+  if (before === after) return true
+  if (before.length !== after.length) return false
+  return before.every((tile, index) => {
+    const other = after[index]
+    return (
+      other !== undefined &&
+      tile.name === other.name &&
+      tile.fill === other.fill &&
+      tile.songs === other.songs &&
+      tile.cover.length === other.cover.length
+    )
+  })
 }

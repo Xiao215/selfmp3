@@ -2,12 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { motion, oklchToHexAlpha } from '@selfmp3/client'
+import { motion } from '@selfmp3/client'
 import { spring, useFade, usePresence } from '../motion'
 import { Check, Minus } from './Icons'
-
-/* The tick on a danger box: near-white, and the same in either theme. */
-const DANGER_TICK = oklchToHexAlpha(0.99, 0, 0, 1)
 
 /** How small the mark starts before the spring brings it up to size. */
 const MARK_FROM = 0.6
@@ -17,12 +14,8 @@ const MARK_FROM = 0.6
  * dash when only some of what it stands for is on.
  *
  * Only the mark. The thing you press, and what it is called, belong to the
- * caller — a row's checkbox, the selection bar's select-all and the delete
- * confirmation's "also delete the files" are three different controls that
- * happen to draw the same square.
- *
- * `danger` is the confirmation's: ticking the box that deletes files turns it
- * red rather than accent.
+ * caller — a row's checkbox, the selection bar's select-all and a tag
+ * picker's row are different controls that happen to draw the same circle.
  *
  * One view tree, not one per state: the ring is always there, the fill is a
  * layer over it whose opacity fades in over `motion.fast`, and the tick grows
@@ -34,11 +27,9 @@ const MARK_FROM = 0.6
 export function Checkbox({
   checked,
   mixed = false,
-  tone = 'accent',
 }: {
   checked: boolean
   mixed?: boolean
-  tone?: 'accent' | 'danger'
 }): ReactNode {
   const on = checked || mixed
   const fill = useFade(on, motion.fast, motion.fast)
@@ -70,22 +61,11 @@ export function Checkbox({
       <View style={styles.ring} pointerEvents="none" />
       <Animated.View
         pointerEvents="none"
-        style={[
-          checked ? (tone === 'danger' ? styles.fillDanger : styles.fillAccent) : styles.fillMixed,
-          lit,
-        ]}
+        style={[checked ? styles.fillAccent : styles.fillMixed, lit]}
       />
       {mounted ? (
         <Animated.View style={mark} pointerEvents="none">
-          {checked ? (
-            tone === 'danger' ? (
-              <Check size={12} color={DANGER_TICK} />
-            ) : (
-              <Check size={12} tone="onAccent" />
-            )
-          ) : (
-            <Minus size={12} tone="textPrimary" />
-          )}
+          {checked ? <Check size={12} tone="onAccent" /> : <Minus size={12} tone="textPrimary" />}
         </Animated.View>
       ) : null}
     </View>
@@ -113,9 +93,9 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
   },
   ring: { ...SHAPE, borderWidth: RING, borderColor: theme.colors.borderStrong },
-  // Ticked, in the accent or in red, and the half-ticked box between them —
-  // all three from the palette, so a list of checkboxes is recoloured by the
-  // accent picker without any of them being re-rendered. Each is one whole
+  // Ticked, in the accent, and the half-ticked box: both from the palette, so
+  // a list of checkboxes is recoloured by the accent picker without any of
+  // them being re-rendered. Each is one whole
   // Unistyles style, because an `Animated.View` flattens its style array and
   // Unistyles can no longer tell two of its own styles apart once merged.
   fillAccent: {
@@ -123,12 +103,6 @@ const styles = StyleSheet.create(theme => ({
     borderWidth: RING,
     backgroundColor: theme.colors.accent,
     borderColor: theme.colors.accent,
-  },
-  fillDanger: {
-    ...SHAPE,
-    borderWidth: RING,
-    backgroundColor: theme.colors.danger,
-    borderColor: theme.colors.danger,
   },
   fillMixed: {
     ...SHAPE,

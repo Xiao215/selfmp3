@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ImportQueue, Library, Tag, ToolStatus } from '@selfmp3/shared'
 import {
+  STALE,
   changeQueue,
   clientApi,
   queryKeys,
@@ -18,6 +19,7 @@ import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { library as cloudLibrary } from '../../replica'
 import { useSongsLanding } from './useSongsLanding'
+import { noServer, viaKey } from '../../connection/via'
 
 /**
  * Whom the Import screen talks to: whatever answers this device, or — from a
@@ -73,21 +75,20 @@ export function useImportSource(
   )
   const keys = useMemo(
     () => ({
-      library: ['via-server', baseUrl, 'library'] as const,
-      queue: ['via-server', baseUrl, 'queue'] as const,
-      history: ['via-server', baseUrl, 'history'] as const,
-      tools: ['via-server', baseUrl, 'tools'] as const,
+      library: viaKey(baseUrl, 'library'),
+      queue: viaKey(baseUrl, 'queue'),
+      history: viaKey(baseUrl, 'history'),
+      tools: viaKey(baseUrl, 'tools'),
     }),
     [baseUrl],
   )
   const queryClient = useQueryClient()
 
-  const noServer = (): Promise<never> => Promise.reject(new Error('no server to ask'))
   const serverLibrary = useQuery({
     queryKey: keys.library,
     queryFn: () => (server ? server.library() : noServer()),
     enabled: server !== null,
-    staleTime: 30_000,
+    staleTime: STALE.halfMinute,
   })
   const serverQueue = useQuery({
     queryKey: keys.queue,
@@ -104,13 +105,13 @@ export function useImportSource(
     queryKey: keys.history,
     queryFn: () => (server ? server.importQueue(HISTORY_LIMIT) : noServer()),
     enabled: server !== null && history,
-    staleTime: 30_000,
+    staleTime: STALE.halfMinute,
   })
   const serverTools = useQuery({
     queryKey: keys.tools,
     queryFn: () => (server ? server.importTools() : noServer()),
     enabled: server !== null,
-    staleTime: 60_000,
+    staleTime: STALE.minute,
     retry: false,
   })
 
@@ -166,8 +167,7 @@ export function useImportSource(
       refetchTools: serverTools.refetch,
       queue,
       history: serverHistory.data,
-      invalidateQueue: () =>
-        queryClient.invalidateQueries({ queryKey: ['via-server', baseUrl] as const }),
+      invalidateQueue: () => queryClient.invalidateQueries({ queryKey: viaKey(baseUrl) }),
       editQueue,
       invalidateLibrary: () => queryClient.invalidateQueries({ queryKey: keys.library }),
     }

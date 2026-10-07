@@ -16,6 +16,12 @@ export const ForgottenGemsSchema = z.object({
 })
 export type ForgottenGems = z.infer<typeof ForgottenGemsSchema>
 
+/** `/api/library/gems?limit=`: how many to answer with, whoever answers. */
+export const GemsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+})
+export type GemsQuery = z.infer<typeof GemsQuerySchema>
+
 /** Never look further back than this: two months without a play is "forgotten". */
 const GEMS_MAX_DAYS = 60
 /** A library only two weeks old cannot have forgotten anything yet. */

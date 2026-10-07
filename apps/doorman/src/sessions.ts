@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { recall, remember, type BoundedCache } from './boundedCache.js'
-import { randomToken, sha256Hex } from './encoding.js'
+import { TOKEN_PATTERN, randomToken, sha256Hex } from './encoding.js'
 import { getRecord, putRecord, type KvStore } from './kv.js'
 
 /**
@@ -24,26 +24,21 @@ import { getRecord, putRecord, type KvStore } from './kv.js'
 
 const SESSION_TTL_SECONDS = 180 * 24 * 60 * 60
 
-/** base64url of 32 random bytes. Anything else is not worth a KV read. */
-const TOKEN = /^[A-Za-z0-9_-]{43}$/
-
-const SessionSchema = z.object({
+/** Who Google says signed in: what a session and a waiting sign-in both keep. */
+export const IdentitySchema = z.object({
   /** The Google account's id: stable, unlike its email address. */
   sub: z.string().min(1),
   email: z.string(),
   name: z.string().nullable(),
   picture: z.string().nullable(),
+})
+export type Identity = z.infer<typeof IdentitySchema>
+
+const SessionSchema = IdentitySchema.extend({
   /** Compared with the account's last "sign out everywhere". */
   createdAt: z.string().datetime(),
 })
 export type Session = z.infer<typeof SessionSchema>
-
-export interface Identity {
-  readonly sub: string
-  readonly email: string
-  readonly name: string | null
-  readonly picture: string | null
-}
 
 export type SessionCache = BoundedCache<Session>
 
@@ -73,13 +68,14 @@ export class Sessions {
   }
 
   async find(token: string): Promise<Session | null> {
-    if (!TOKEN.test(token)) return null
+    // A token is `randomToken`'s shape; anything else is not worth a KV read.
+    if (!TOKEN_PATTERN.test(token)) return null
     return this.#find(await sessionKey(token))
   }
 
   /** Sign a device out. False when there was no such session to end. */
   async end(token: string): Promise<boolean> {
-    if (!TOKEN.test(token)) return false
+    if (!TOKEN_PATTERN.test(token)) return false
     // One hash, for the lookup and the delete alike.
     const key = await sessionKey(token)
     if (!(await this.#find(key))) return false

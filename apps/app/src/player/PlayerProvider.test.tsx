@@ -90,6 +90,8 @@ jest.mock('../offline/DownloadsProvider', () => ({
 jest.mock('../replica', () => ({
   session: { loadSession: () => Promise.resolve(null) },
   cloudPlatform: { doormanUrl: '' },
+  doormanFileUrl: (key: string) => `https://doorman.example/v1/files/${key}`,
+  doormanAuth: (token: string) => ({ Authorization: `Bearer ${token}` }),
 }))
 jest.mock('../offline/covers', () => ({
   coverFor: () => undefined,

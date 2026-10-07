@@ -4,8 +4,8 @@ import { useLibrary } from '@selfmp3/client'
 import { coverFor } from '../../offline/covers'
 import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { hasWidget, sendWidgetSnapshot, widgetCover } from '../../ports/widget'
-import { HOME_TILES, homeTiles } from '../home/home.model'
-import { snapshotChanged, widgetSnapshot, type WidgetSnapshot } from './widget.model'
+import { homeTiles } from '../home/home.model'
+import { snapshotChanged, WIDGET_TILES, widgetSnapshot, type WidgetSnapshot } from './widget.model'
 
 /**
  * Keeps the home-screen widget in step with the app (docs/ui-mock `P28`):
@@ -29,11 +29,15 @@ function Sync(): ReactNode {
   const covers = useRef(new Map<string, string>())
 
   const tiles = useMemo(
-    () => (library ? homeTiles(library.tags, library.songs, HOME_TILES) : []),
+    () => (library ? homeTiles(library.tags, library.songs, WIDGET_TILES) : []),
     [library],
   )
 
   useEffect(() => {
+    // The covers this snapshot draws. Only they stay read: each is the whole
+    // picture as text, and keeping every one since launch kept a long
+    // session's every song's.
+    const used = new Set<string>()
     const snapshot = widgetSnapshot({
       tiles,
       current,
@@ -44,6 +48,7 @@ function Sync(): ReactNode {
       coverOf: song => {
         const uri = coverFor(song.id)
         if (!uri) return ''
+        used.add(uri)
         const known = covers.current.get(uri)
         if (known !== undefined) return known
         const read = widgetCover(uri)
@@ -51,6 +56,7 @@ function Sync(): ReactNode {
         return read
       },
     })
+    for (const uri of covers.current.keys()) if (!used.has(uri)) covers.current.delete(uri)
     if (!snapshotChanged(sent.current, snapshot)) return
     sent.current = snapshot
     sendWidgetSnapshot(snapshot)

@@ -1,5 +1,6 @@
 import { CloudImportSchema, type CloudImport } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
+import { CANCELLED } from './imports.js'
 
 type ImportRequestState = CloudImport['state']
 
@@ -65,15 +66,67 @@ function toRequest(row: RequestRow): ImportRequest {
  */
 export class ImportRequestRepository {
   readonly #db: Db
+  readonly #byUid
+  readonly #record
+  readonly #cancel
+  readonly #cancelJobs
+  readonly #waiting
+  readonly #startWorking
+  readonly #linkJob
+  readonly #finish
+  readonly #working
+  readonly #jobsOf
+  readonly #recent
 
   constructor(db: Db) {
     this.#db = db
+    this.#byUid = db.prepare<[string], RequestRow>('SELECT * FROM import_requests WHERE uid = ?')
+    this.#record = db.prepare(
+      `INSERT INTO import_requests (uid, url, tag_uids, playlist_uid, requested_by, requested_at, updated_at)
+       VALUES (@uid, @url, @tagUids, @playlistUid, @requestedBy, @requestedAt, @requestedAt)
+       ON CONFLICT (uid) DO NOTHING`,
+    )
+    this.#cancel = db.prepare(
+      `UPDATE import_requests SET state = 'cancelled', updated_at = MAX(updated_at, ?)
+        WHERE uid = ? AND state IN ('waiting','working')`,
+    )
+    // Only what has not started: a song already downloading for it is let finish.
+    this.#cancelJobs = db.prepare(
+      `UPDATE import_jobs SET ${CANCELLED} WHERE request_uid = ? AND status = 'queued'`,
+    )
+    this.#waiting = db.prepare<[], RequestRow>(
+      "SELECT * FROM import_requests WHERE state = 'waiting' ORDER BY requested_at",
+    )
+    this.#startWorking = db.prepare(
+      `UPDATE import_requests SET state = 'working', title = ?, updated_at = datetime('now')
+        WHERE uid = ? AND state = 'waiting'`,
+    )
+    this.#linkJob = db.prepare('UPDATE import_jobs SET request_uid = ? WHERE id = ?')
+    this.#finish = db.prepare(
+      `UPDATE import_requests
+          SET state = @state, title = COALESCE(@title, title), song_uids = @songUids,
+              error = @error, updated_at = datetime('now')
+        WHERE uid = @uid AND state IN ('waiting','working')`,
+    )
+    this.#working = db.prepare<[], RequestRow>(
+      "SELECT * FROM import_requests WHERE state = 'working'",
+    )
+    this.#jobsOf = db.prepare<
+      [string],
+      { status: string; error: string | null; song_uid: string | null }
+    >(
+      `SELECT j.status, j.error, s.uid AS song_uid
+         FROM import_jobs j LEFT JOIN songs s ON s.id = j.song_id
+        WHERE j.request_uid = ?`,
+    )
+    this.#recent = db.prepare<[string, number], RequestRow>(
+      `SELECT * FROM import_requests WHERE requested_at >= datetime('now', ?)
+        ORDER BY requested_at DESC LIMIT ?`,
+    )
   }
 
   byUid(uid: string): ImportRequest | null {
-    const row = this.#db
-      .prepare<[string], RequestRow>('SELECT * FROM import_requests WHERE uid = ?')
-      .get(uid)
+    const row = this.#byUid.get(uid)
     return row ? toRequest(row) : null
   }
 
@@ -86,15 +139,7 @@ export class ImportRequestRepository {
     requestedBy: string
     requestedAt: string
   }): boolean {
-    return (
-      this.#db
-        .prepare(
-          `INSERT INTO import_requests (uid, url, tag_uids, playlist_uid, requested_by, requested_at, updated_at)
-           VALUES (@uid, @url, @tagUids, @playlistUid, @requestedBy, @requestedAt, @requestedAt)
-           ON CONFLICT (uid) DO NOTHING`,
-        )
-        .run({ ...request, tagUids: JSON.stringify(request.tagUids) }).changes > 0
-    )
+    return this.#record.run({ ...request, tagUids: JSON.stringify(request.tagUids) }).changes > 0
   }
 
   /**
@@ -102,44 +147,21 @@ export class ImportRequestRepository {
    * worked on loses the songs still waiting to download. True when it changed.
    */
   cancel(uid: string, at: string): boolean {
-    const changed = this.#db
-      .prepare(
-        `UPDATE import_requests SET state = 'cancelled', updated_at = MAX(updated_at, ?)
-          WHERE uid = ? AND state IN ('waiting','working')`,
-      )
-      .run(at, uid).changes
-    if (changed > 0) {
-      this.#db
-        .prepare(
-          `UPDATE import_jobs SET status = 'cancelled', step = 'finished', updated_at = datetime('now')
-            WHERE request_uid = ? AND status = 'queued'`,
-        )
-        .run(uid)
-    }
+    const changed = this.#cancel.run(at, uid).changes
+    if (changed > 0) this.#cancelJobs.run(uid)
     return changed > 0
   }
 
   /** Requests no device that can fetch has looked at yet, oldest first. */
   waiting(): ImportRequest[] {
-    return this.#db
-      .prepare<[], RequestRow>(
-        "SELECT * FROM import_requests WHERE state = 'waiting' ORDER BY requested_at",
-      )
-      .all()
-      .map(toRequest)
+    return this.#waiting.all().map(toRequest)
   }
 
   /** Its songs are queued: they are these jobs. */
   startWorking(uid: string, title: string | null, jobIds: readonly string[]): void {
     this.#db.transaction(() => {
-      this.#db
-        .prepare(
-          `UPDATE import_requests SET state = 'working', title = ?, updated_at = datetime('now')
-            WHERE uid = ? AND state = 'waiting'`,
-        )
-        .run(title, uid)
-      const link = this.#db.prepare('UPDATE import_jobs SET request_uid = ? WHERE id = ?')
-      for (const id of jobIds) link.run(uid, id)
+      this.#startWorking.run(title, uid)
+      for (const id of jobIds) this.#linkJob.run(uid, id)
     })()
   }
 
@@ -152,14 +174,7 @@ export class ImportRequestRepository {
       error: string | null
     },
   ): void {
-    this.#db
-      .prepare(
-        `UPDATE import_requests
-            SET state = @state, title = COALESCE(@title, title), song_uids = @songUids,
-                error = @error, updated_at = datetime('now')
-          WHERE uid = @uid AND state IN ('waiting','working')`,
-      )
-      .run({ uid, ...outcome, songUids: JSON.stringify(outcome.songUids) })
+    this.#finish.run({ uid, ...outcome, songUids: JSON.stringify(outcome.songUids) })
   }
 
   /**
@@ -168,18 +183,10 @@ export class ImportRequestRepository {
    * finished jobs from the queue does not lose how a request went.
    */
   settle(): number {
-    const working = this.#db
-      .prepare<[], RequestRow>("SELECT * FROM import_requests WHERE state = 'working'")
-      .all()
+    const working = this.#working.all()
     let settled = 0
     for (const request of working) {
-      const jobs = this.#db
-        .prepare<[string], { status: string; error: string | null; song_uid: string | null }>(
-          `SELECT j.status, j.error, s.uid AS song_uid
-             FROM import_jobs j LEFT JOIN songs s ON s.id = j.song_id
-            WHERE j.request_uid = ?`,
-        )
-        .all(request.uid)
+      const jobs = this.#jobsOf.all(request.uid)
       if (jobs.some(job => job.status === 'queued' || job.status === 'running')) continue
       const songUids = jobs.flatMap(job =>
         job.status === 'done' && job.song_uid ? [job.song_uid] : [],
@@ -198,12 +205,6 @@ export class ImportRequestRepository {
 
   /** The requests every device should know about: the last week's, newest first. */
   recent(days = 7, limit = 100): ImportRequest[] {
-    return this.#db
-      .prepare<[string, number], RequestRow>(
-        `SELECT * FROM import_requests WHERE requested_at >= datetime('now', ?)
-          ORDER BY requested_at DESC LIMIT ?`,
-      )
-      .all(`-${days} days`, limit)
-      .map(toRequest)
+    return this.#recent.all(`-${days} days`, limit).map(toRequest)
   }
 }

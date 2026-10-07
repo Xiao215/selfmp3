@@ -38,10 +38,9 @@ export const UnderstandingSchema = z.object({
   bpm: RangeSchema,
   /**
    * The years the songs came out, as YouTube Music gives a release's year. A
-   * song with no year does not pass a set range. Defaults open, so the parts
-   * an older app sends back still read.
+   * song with no year does not pass a set range.
    */
-  year: RangeSchema.default({ min: null, max: null }),
+  year: RangeSchema,
   /** With words, without (instrumental, or no lyrics found), or either. */
   words: z.enum(['with', 'without']).nullable(),
   loved: z.boolean().nullable(),

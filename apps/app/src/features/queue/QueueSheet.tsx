@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
@@ -6,11 +6,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { useRouter } from 'expo-router'
-import { plural, formatDuration, type Song } from '@selfmp3/shared'
+import { artistOr, plural, formatDuration, type Song, type Tag } from '@selfmp3/shared'
 import { fonts, isDownloaded, motion, radius, space, type, withAlpha } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
-import { usePlayerProgress } from '../../player/PlayerProvider'
+import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
 import { ease, motionMs, spring, timing } from '../../ui/motion'
@@ -61,8 +62,7 @@ const SHEET_TOP = 16
 export function QueueSheet(): ReactNode {
   const open = useQueueSheetOpen()
   const { wide } = useLayout()
-  const edits = useQueueEdits()
-  const loaded = edits.player.current !== null
+  const loaded = usePlayer().current !== null
   const shown = open && loaded && !wide
 
   // Nothing left to show: the queue was cleared, or its last song removed.
@@ -75,8 +75,31 @@ export function QueueSheet(): ReactNode {
   const [mounted, setMounted] = useState(shown)
   if (shown && !mounted) setMounted(true)
   const gone = useCallback(() => setMounted(false), [])
+  // Here, above the panel, so an Undo raised before it shut still reaches the queue.
+  const edits = useQueueEdits(mounted)
 
   return mounted ? <SheetPanel shown={shown} onGone={gone} edits={edits} /> : null
+}
+
+/**
+ * What a row's handlers do, read when they run. Made once for the sheet, so a
+ * row's memo holds while the queue plays on and while another row is carried
+ * past it: each row used to be handed new arrows on every render, and every
+ * row of the sheet redrew, gestures and all, for each row a drag crossed.
+ */
+interface SheetRowActions {
+  readonly play: (index: number) => void
+  readonly remove: (index: number) => void
+  readonly openTag: (tagId: number) => void
+  readonly holding: (songId: number, holding: boolean) => void
+  readonly start: (index: number, songId: number) => void
+  readonly move: (index: number, dy: number) => void
+  readonly end: (index: number, dy: number) => void
+  readonly measured: (height: number) => void
+  /** The finger's travel, which the carried row follows without a render. */
+  readonly dragY: Animated.Value
+  /** The scale the held row wears (`useLiftScale`). */
+  readonly lift: Animated.Value
 }
 
 function SheetPanel({
@@ -92,7 +115,7 @@ function SheetPanel({
   const insets = useSafeAreaInsets()
   const { height } = useWindowDimensions()
   const router = useRouter()
-  const artFor = useArt()
+  const artFor = useArt(ROW_COVER_SIZE)
   const { state: downloads, installed } = useDownloads()
   const { player, rows, remove, tagsOf, openTag } = edits
   const [progress] = useState(() => new Animated.Value(0))
@@ -134,18 +157,22 @@ function SheetPanel({
    * fast enough puts it away. Only the head, not the list, so a pull on the
    * rows is still a scroll.
    */
-  const pullDown = Gesture.Pan()
-    .activeOffsetY(8)
-    .failOffsetX([-20, 20])
-    .runOnJS(true)
-    .onUpdate(event => pull.setValue(Math.max(0, event.translationY)))
-    .onEnd((event, success) => {
-      if (success && (event.translationY > PULL.close || event.velocityY > PULL.flick)) {
-        closeQueueSheet()
-      } else {
-        spring(pull, 0)
-      }
-    })
+  const pullDown = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetY(8)
+        .failOffsetX([-20, 20])
+        .runOnJS(true)
+        .onUpdate(event => pull.setValue(Math.max(0, event.translationY)))
+        .onEnd((event, success) => {
+          if (success && (event.translationY > PULL.close || event.velocityY > PULL.flick)) {
+            closeQueueSheet()
+          } else {
+            spring(pull, 0)
+          }
+        }),
+    [pull],
+  )
 
   // The row being held and the row it would land on; the travel is `dragY`,
   // which moves the lifted row without a render.
@@ -161,6 +188,8 @@ function SheetPanel({
    * (`useLiftScale`).
    */
   const lift = useLiftScale()
+  // Its made-once parts on their own, so the row actions below are made once too.
+  const { lift: liftScale, holding: holdRow, start: liftRow, drop: dropRow } = lift
   // State rather than a ref: the rows making room read it while rendering.
   const [rowHeight, setRowHeight] = useState(0)
   /*
@@ -174,6 +203,49 @@ function SheetPanel({
   const first = rows.next[0]?.index ?? 0
   const last = rows.next[rows.next.length - 1]?.index ?? 0
 
+  /*
+   * What the row handlers read when they run: the rows a move may land among,
+   * a row's height, and the player. Kept current after every render; read only
+   * inside events.
+   */
+  const latest = useRef({ first, last, rowHeight, player, remove, openTag })
+  useEffect(() => {
+    latest.current = { first, last, rowHeight, player, remove, openTag }
+  })
+  const actions = useMemo<SheetRowActions>(() => {
+    const target = (index: number, dy: number): number => {
+      const now = latest.current
+      return dragTarget(index, dy, now.rowHeight, now)
+    }
+    return {
+      play: index => latest.current.player.jumpTo(index),
+      remove: index => latest.current.remove(index),
+      openTag: tagId => latest.current.openTag(tagId),
+      holding: holdRow,
+      start: (index, songId) => {
+        dragY.setValue(0)
+        liftRow(songId)
+        setDrag({ from: index, over: index })
+      },
+      move: (index, dy) => {
+        dragY.setValue(dy)
+        const over = target(index, dy)
+        setDrag(now => (now && now.over === over ? now : { from: index, over }))
+      },
+      end: (index, dy) => {
+        setDrag(null)
+        // Dropped: the scale settles back on the spring with a tap, and the
+        // row keeps wearing it into its new place.
+        dropRow()
+        const to = target(index, dy)
+        if (to !== index) latest.current.player.reorderQueue(index, to)
+      },
+      measured: setRowHeight,
+      dragY,
+      lift: liftScale,
+    }
+  }, [dragY, liftScale, holdRow, liftRow, dropRow])
+
   const playing = rows.playing
   const openNowPlaying = (): void => {
     closeQueueSheet()
@@ -182,69 +254,24 @@ function SheetPanel({
 
   const row = (entry: QueueRow, movable: boolean): ReactNode => {
     const here = isDownloaded(downloads.index, entry.song.id)
-    const lifted = drag?.from === entry.index
-    // Wearing the scale without being carried: the hold is still being
-    // counted, or the row has just been let go and is settling. Only the
-    // scale then — `dragY` is left where the finger put it (see `onEnd`), so
-    // a settling row that also read it would settle in the wrong place.
-    const swelling = !lifted && lift.wearing === entry.song.id
     return (
-      <MakeRoom
+      <SheetRow
         key={entry.song.id}
+        song={entry.song}
+        index={entry.index}
+        movable={movable}
         shift={drag && movable ? roomShift(entry.index, drag.from, drag.over) : 0}
         step={rowHeight}
         carrying={drag !== null}
-        style={
-          lifted
-            ? [styles.liftedCell, { transform: [{ translateY: dragY }, { scale: lift.lift }] }]
-            : swelling
-              ? [styles.liftedCell, { transform: [{ scale: lift.lift }] }]
-              : null
-        }
-      >
-        <SwipeToRemove enabled={drag === null} onRemove={() => remove(entry.index)}>
-          <HoldToReorder
-            enabled={movable}
-            onHolding={holding => lift.holding(entry.song.id, holding)}
-            onStart={() => {
-              dragY.setValue(0)
-              lift.start(entry.song.id)
-              setDrag({ from: entry.index, over: entry.index })
-            }}
-            onMove={(_dx, dy) => {
-              dragY.setValue(dy)
-              const over = dragTarget(entry.index, dy, rowHeight, { first, last })
-              setDrag(now => (now && now.over === over ? now : { from: entry.index, over }))
-            }}
-            onEnd={(_dx, dy) => {
-              setDrag(null)
-              // Dropped: the scale settles back on the spring with a tap, and
-              // the row keeps wearing it into its new place.
-              lift.drop()
-              const to = dragTarget(entry.index, dy, rowHeight, { first, last })
-              if (to !== entry.index) player.reorderQueue(entry.index, to)
-            }}
-            onLayoutHeight={entry.index === first ? h => setRowHeight(h) : undefined}
-          >
-            <View style={!movable && styles.played}>
-              <SongRow
-                testID={`queue-row-${entry.index}`}
-                song={entry.song}
-                artUri={artFor(entry.song)}
-                active={false}
-                downloaded={here}
-                notDownloadedMark={installed && !here}
-                onPress={() => player.jumpTo(entry.index)}
-                tags={tagsOf(entry.song)}
-                onToggleTag={openTag}
-                // The hold is the move's, not a menu's.
-                onLongPress={null}
-                lifted={lifted}
-              />
-            </View>
-          </HoldToReorder>
-        </SwipeToRemove>
-      </MakeRoom>
+        lifted={drag?.from === entry.index}
+        wearingLift={lift.wearing === entry.song.id}
+        measures={entry.index === first}
+        artUri={artFor(entry.song)}
+        downloaded={here}
+        notDownloadedMark={installed && !here}
+        tags={tagsOf(entry.song)}
+        actions={actions}
+      />
     )
   }
 
@@ -368,6 +395,103 @@ function SheetPanel({
   )
 }
 
+/** One row of the sheet: the song, swiped to remove, held to move. */
+const SheetRow = memo(function SheetRow({
+  song,
+  index,
+  movable,
+  shift,
+  step,
+  carrying,
+  lifted,
+  wearingLift,
+  measures,
+  artUri,
+  downloaded,
+  notDownloadedMark,
+  tags,
+  actions,
+}: {
+  song: Song
+  index: number
+  /** Still to come, so it can be held and moved; played rows stay put. */
+  movable: boolean
+  shift: -1 | 0 | 1
+  step: number
+  carrying: boolean
+  /** This is the row being carried. */
+  lifted: boolean
+  /** This row wears the lift: its hold is being counted, it is carried, or it is settling. */
+  wearingLift: boolean
+  /** The first row to come, whose height is the step every drag is counted in. */
+  measures: boolean
+  artUri: string | null | undefined
+  downloaded: boolean
+  notDownloadedMark: boolean
+  tags: readonly Tag[]
+  actions: SheetRowActions
+}): ReactNode {
+  const onHolding = useCallback(
+    (holding: boolean) => actions.holding(song.id, holding),
+    [actions, song.id],
+  )
+  const onStart = useCallback(() => actions.start(index, song.id), [actions, index, song.id])
+  const onMove = useCallback((_dx: number, dy: number) => actions.move(index, dy), [actions, index])
+  const onEnd = useCallback((_dx: number, dy: number) => actions.end(index, dy), [actions, index])
+  const onRemove = useCallback(() => actions.remove(index), [actions, index])
+  const onPress = useCallback(() => actions.play(index), [actions, index])
+  // Wearing the scale without being carried: the hold is still being counted,
+  // or the row has just been let go and is settling. Only the scale then —
+  // `dragY` is left where the finger put it (see `end`), so a settling row that
+  // also read it would settle in the wrong place.
+  const swelling = !lifted && wearingLift
+  return (
+    <MakeRoom
+      shift={shift}
+      step={step}
+      carrying={carrying}
+      style={
+        lifted
+          ? [
+              styles.liftedCell,
+              { transform: [{ translateY: actions.dragY }, { scale: actions.lift }] },
+            ]
+          : swelling
+            ? [styles.liftedCell, { transform: [{ scale: actions.lift }] }]
+            : null
+      }
+    >
+      <SwipeToRemove enabled={!carrying} onRemove={onRemove}>
+        <HoldToReorder
+          enabled={movable}
+          onHolding={onHolding}
+          onStart={onStart}
+          onMove={onMove}
+          onEnd={onEnd}
+          onLayoutHeight={measures ? actions.measured : undefined}
+        >
+          <View style={!movable && styles.played}>
+            <SongRow
+              testID={`queue-row-${index}`}
+              song={song}
+              artUri={artUri}
+              active={false}
+              downloaded={downloaded}
+              notDownloadedMark={notDownloadedMark}
+              onPress={onPress}
+              tags={tags}
+              onToggleTag={actions.openTag}
+              // The hold is the move's, not a menu's.
+              onLongPress={null}
+              lifted={lifted}
+            />
+          </View>
+        </HoldToReorder>
+      </SwipeToRemove>
+    </MakeRoom>
+  )
+})
+
 /**
  * A row of the queue, stepping one row up or down while a held row is carried
  * past it, 180 ms each, so the neighbours make room one at a time (`M2`, 6);
@@ -407,7 +531,7 @@ function PlayingCard({
   onToggle,
 }: {
   song: Song
-  artUri: string | null
+  artUri: string | null | undefined
   playing: boolean
   onOpen: () => void
   onToggle: () => void
@@ -433,7 +557,7 @@ function PlayingCard({
           <Text style={styles.cardTitle} numberOfLines={1}>
             {song.title}
           </Text>
-          <PlayingLine artist={song.artist || 'Unknown artist'} />
+          <PlayingLine artist={artistOr(song.artist)} />
         </View>
       </Pressable>
       <Pressable
@@ -487,8 +611,8 @@ function SwipeToRemove({
   const window = useWindowDimensions()
   const width = measured > 0 ? measured : window.width
   const [going, setGoing] = useState(false)
-  // Rebuilt on every render of the list, so it is read through a ref rather
-  // than watched: an effect that restarted with it would never reach its end.
+  // Read through a ref rather than watched: an effect that restarted with it
+  // would never reach its end.
   const remove = useRef(onRemove)
   useEffect(() => {
     remove.current = onRemove
@@ -516,25 +640,31 @@ function SwipeToRemove({
     return () => clearTimeout(timer)
   }, [going, x])
 
-  const swipe = Gesture.Pan()
-    .enabled(enabled)
-    .activeOffsetX([-SWIPE_START, Number.MAX_SAFE_INTEGER])
-    .failOffsetY([-SWIPE_VERTICAL_SLOP, SWIPE_VERTICAL_SLOP])
-    .runOnJS(true)
-    .onUpdate(event => x.setValue(swipeOffset(event.translationX, width)))
-    // The distance decides, not whether the recogniser calls its end a success:
-    // in a browser a released pointer ends it as cancelled, and the row sprang
-    // back from a full swipe.
-    .onEnd(event => {
-      if (swipeRemoves(event.translationX, width)) {
-        // On `ease.in`, as everything that leaves is: the row carries on off
-        // the edge rather than easing to a stop at it.
-        timing(x, -width, motion.base, undefined, { easing: ease.in })
-        setGoing(true)
-      } else {
-        spring(x, 0)
-      }
-    })
+  // Made again only when it is switched or the row's width changes: a new
+  // gesture each render was a native handler reconfigured each render.
+  const swipe = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(enabled)
+        .activeOffsetX([-SWIPE_START, Number.MAX_SAFE_INTEGER])
+        .failOffsetY([-SWIPE_VERTICAL_SLOP, SWIPE_VERTICAL_SLOP])
+        .runOnJS(true)
+        .onUpdate(event => x.setValue(swipeOffset(event.translationX, width)))
+        // The distance decides, not whether the recogniser calls its end a success:
+        // in a browser a released pointer ends it as cancelled, and the row sprang
+        // back from a full swipe.
+        .onEnd(event => {
+          if (swipeRemoves(event.translationX, width)) {
+            // On `ease.in`, as everything that leaves is: the row carries on off
+            // the edge rather than easing to a stop at it.
+            timing(x, -width, motion.base, undefined, { easing: ease.in })
+            setGoing(true)
+          } else {
+            spring(x, 0)
+          }
+        }),
+    [enabled, width, x],
+  )
 
   return (
     <GestureDetector gesture={swipe}>
@@ -567,7 +697,7 @@ const styles = StyleSheet.create(theme => ({
     right: 0,
     bottom: 0,
     // The dim every sheet in the app draws behind itself (`Sheet`).
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    backgroundColor: theme.colors.backdrop,
   },
   panel: {
     position: 'absolute',

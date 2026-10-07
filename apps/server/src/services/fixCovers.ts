@@ -4,6 +4,7 @@ import type { SongRepository } from '../repositories/songs.js'
 import type { CoverService } from './covers.js'
 import type { MetadataLookupService } from './lookup.js'
 import { CONFIDENT_SCORE } from './lookupScore.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * The background "find missing cover art" pass.
@@ -91,7 +92,7 @@ export class FixCoversService {
         // One bad song must not stop the pass for the other nine hundred.
         this.#logger.warn('cover lookup failed', {
           songId: song.id,
-          message: error instanceof Error ? error.message : String(error),
+          message: messageOf(error),
         })
       }
       this.#status = { ...this.#status, done: this.#status.done + 1 }

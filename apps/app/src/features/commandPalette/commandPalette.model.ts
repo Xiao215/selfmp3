@@ -1,4 +1,4 @@
-import { fuzzyRank, type Library, type Artist } from '@selfmp3/shared'
+import { plural, fuzzyRank, type Library, type Artist } from '@selfmp3/shared'
 import { isUntagged } from '../tag/tag.model'
 import { recentItems, searchLibrary, type RecentItem } from '../search/search.model'
 
@@ -6,7 +6,8 @@ export type { RecentItem }
 
 /**
  * The command palette's rules, with nothing drawn: which commands there are, what a
- * query finds, when lyrics are worth searching, and moving through the list.
+ * query finds, and moving through the list. When lyrics are worth searching is
+ * Search's rule (`lyricsQueryFor`), which the palette shares.
  */
 
 export type PaletteCommandId =
@@ -67,7 +68,7 @@ export function paletteCommands(
           },
         ]
       : []),
-    { id: 'shuffle-all', label: 'Shuffle everything', hint: `${songCount} songs` },
+    { id: 'shuffle-all', label: 'Shuffle everything', hint: plural(songCount, 'song', 'songs') },
     // Not offered on a bucket library: there is no folder to scan.
     ...(fromCloud ? [] : [{ id: 'rescan-library' as const, label: 'Rescan library folder' }]),
   ]

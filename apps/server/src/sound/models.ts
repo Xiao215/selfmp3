@@ -6,6 +6,7 @@ import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { USER_AGENT, type Config } from '../config.js'
 import type { Logger } from '../logger.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * The listening model's files, and getting them onto this machine.
@@ -129,7 +130,7 @@ export class SoundModelFiles {
     } catch (error) {
       this.#state = 'failed'
       this.#failedAt = Date.now()
-      this.#message = error instanceof Error ? error.message : String(error)
+      this.#message = messageOf(error)
       this.#logger.warn('could not get the listening model', { message: this.#message })
       return null
     }

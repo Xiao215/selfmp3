@@ -55,7 +55,7 @@ run(process.execPath, [join(here, 'build.mjs')])
 
 // Never electron-builder's own publishing: a git tag makes it try, and it
 // would want a token. The workflow attaches the files to the release itself.
-const args = ['electron-builder', '--config', 'electron-builder.yml', '--publish', 'never']
+const args = ['--config', 'electron-builder.yml', '--publish', 'never']
 // Anything after `--` on this script's own command line, so
 // `npm run dist -- --dir --linux` still works for a smoke build.
 const extra = process.argv.slice(2)
@@ -109,4 +109,4 @@ console.log(
     (tier === 'signed' ? `, ${notarising ? 'notarising' : 'not notarised'}` : '') +
     (tier === 'development' ? ` with "${identity}", for this Mac only` : ''),
 )
-run(join(desktop, '..', '..', 'node_modules', '.bin', 'electron-builder'), args.slice(1))
+run(join(desktop, '..', '..', 'node_modules', '.bin', 'electron-builder'), args)

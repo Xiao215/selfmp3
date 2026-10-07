@@ -138,7 +138,8 @@ export function filterSongs(
   filter: LibraryFilter,
   isDownloaded: (songId: number) => boolean,
 ): Song[] {
-  let result = [...songs]
+  // No copy of its own: each filter makes a new array, and so does the sort.
+  let result: readonly Song[] = songs
 
   if (tagFiltered(filter)) {
     result = result.filter(song => tagMatchCount(song, filter.tagIds) > 0)

@@ -127,8 +127,8 @@ configureClient({
   api,
   librarySnapshot: {
     read: readCachedLibrary,
-    // This device's cache write is fire-and-forget by design — it hands the work
-    // to a background task and returns — so there is nothing to await.
+    // Nothing to await: a phone writes the file before this returns, and a
+    // browser hands the write to IndexedDB and lets it land when it lands.
     write: async library => {
       writeCachedLibrary(library)
     },
@@ -170,13 +170,12 @@ export function apiFor(connection: ServerConnection, timeoutMs: number = REQUEST
 }
 
 /**
- * Media URLs for the currently connected server, or null when there is none.
+ * Media URLs for a connected server.
  *
- * server only, and it cannot be otherwise: these are handed to the OS audio
- * player and CarPlay's image loader, neither of which lets a header be
- * attached, so the token rides in the query string. The doorman reads the
- * bearer header and nothing else — which is why a song from the bucket has to
- * be downloaded to a file and played from disk rather than streamed by URL.
+ * The token rides in the query string: these addresses are handed to an
+ * `<audio>` element, an image loader and the lock screen, none of which lets
+ * a header be attached. The bucket's addresses are another matter, since the
+ * doorman reads the bearer header and nothing else (`ports/bucketMedia.ts`).
  */
 export function mediaUrlFor(connection: ServerConnection) {
   return createMediaUrl(serverTransport(connection))

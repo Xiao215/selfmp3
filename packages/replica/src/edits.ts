@@ -46,17 +46,29 @@ function tagUid(ctx: EditContext, id: number): string {
   return uid
 }
 
-export function song(ctx: EditContext, id: number): Song {
-  const found = ctx.view.library.songs.find(each => each.id === id)
+function song(ctx: EditContext, id: number): Song {
+  const found = ctx.view.byId.songs.get(id)
   if (!found) throw notFound('song')
   return found
 }
 
-export function playlist(ctx: EditContext, id: number): Playlist & { uid: string } {
-  const found = ctx.view.library.playlists.find(each => each.id === id)
+function playlist(ctx: EditContext, id: number): Playlist & { uid: string } {
+  const found = ctx.view.byId.playlists.get(id)
   const uid = ctx.view.uids.playlists.get(id)
   if (!found || !uid) throw notFound('playlist')
   return { ...found, uid }
+}
+
+/**
+ * The songs of these ids this device has, each once, with its uid. A song gone
+ * since the screen was drawn is left out rather than refused, as the server
+ * does for a list.
+ */
+function knownSongs(ctx: EditContext, ids: readonly number[]): [number, string][] {
+  return [...new Set(ids)].flatMap(id => {
+    const uid = ctx.view.uids.songs.get(id)
+    return uid ? [[id, uid] as [number, string]] : []
+  })
 }
 
 function manual(ctx: EditContext, id: number, refusal: string): Playlist & { uid: string } {
@@ -73,10 +85,12 @@ export function editSong(ctx: EditContext, id: number, patch: SongPatch): Change
 
 /** Loved or not, for every song asked about that is still here. */
 export function loveSongs(ctx: EditContext, ids: readonly number[], loved: boolean): Change[] {
-  return [...new Set(ids)].flatMap(id => {
-    const uid = ctx.view.uids.songs.get(id)
-    return uid ? [{ type: 'songEdited' as const, hlc: ctx.stamp(), uid, fields: { loved } }] : []
-  })
+  return knownSongs(ctx, ids).map(([, uid]) => ({
+    type: 'songEdited' as const,
+    hlc: ctx.stamp(),
+    uid,
+    fields: { loved },
+  }))
 }
 
 /** A song's tags, all at once: the ones that go on, and the ones that come off. */
@@ -107,18 +121,22 @@ export function tagSongs(
   on: boolean,
 ): Change[] {
   const tag = tagUid(ctx, tagId)
-  return [...new Set(songIds)].flatMap(id => {
-    const uid = ctx.view.uids.songs.get(id)
-    return uid ? [{ type: 'songTagged' as const, hlc: ctx.stamp(), uid, tagUid: tag, on }] : []
-  })
+  return knownSongs(ctx, songIds).map(([, uid]) => ({
+    type: 'songTagged' as const,
+    hlc: ctx.stamp(),
+    uid,
+    tagUid: tag,
+    on,
+  }))
 }
 
 /** Out of the library, on every device. */
 export function removeSongs(ctx: EditContext, ids: readonly number[]): Change[] {
-  return [...new Set(ids)].flatMap(id => {
-    const uid = ctx.view.uids.songs.get(id)
-    return uid ? [{ type: 'songRemoved' as const, hlc: ctx.stamp(), uid }] : []
-  })
+  return knownSongs(ctx, ids).map(([, uid]) => ({
+    type: 'songRemoved' as const,
+    hlc: ctx.stamp(),
+    uid,
+  }))
 }
 
 export function playSong(ctx: EditContext, id: number, event: PlayEvent): Change[] {
@@ -136,13 +154,20 @@ export function playSong(ctx: EditContext, id: number, event: PlayEvent): Change
   ]
 }
 
-export function skipSong(ctx: EditContext, id: number, atSeconds: number): Change[] {
+export function skipSong(
+  ctx: EditContext,
+  id: number,
+  atSeconds: number,
+  clientId?: string,
+): Change[] {
   return [
     {
       type: 'songSkipped',
       hlc: ctx.stamp(),
       uid: songUid(ctx, id),
-      skipId: make(ctx),
+      // The outbox's own id, as for a play: a skip sent twice still counts once,
+      // here and on the server, which dedupes the same ids.
+      skipId: clientId ?? make(ctx),
       skippedAt: nowOf(ctx).toISOString(),
       atSeconds,
     },
@@ -266,20 +291,20 @@ export function addToPlaylist(
   position: number | undefined,
 ): Change[] {
   const found = manual(ctx, id, 'a live playlist builds itself — edit its rules instead')
-  const valid = [...new Set(songIds)].filter(songId => ctx.view.uids.songs.has(songId))
+  const valid = knownSongs(ctx, songIds)
   if (valid.length === 0) {
     throw new CloudRouteError(400, 'none of those songs exist', 'bad_request')
   }
-  const changes: Change[] = valid.map(songId => ({
+  const changes: Change[] = valid.map(([, songUid]) => ({
     type: 'playlistSong' as const,
     hlc: ctx.stamp(),
     uid: found.uid,
-    songUid: songUid(ctx, songId),
+    songUid,
     on: true,
   }))
   if (position !== undefined) {
     const current = ctx.view.playlistSongs[id] ?? []
-    const incoming = valid.filter(songId => !current.includes(songId))
+    const incoming = valid.map(([songId]) => songId).filter(songId => !current.includes(songId))
     const at = Math.min(Math.max(position, 0), current.length)
     const order = [...current.slice(0, at), ...incoming, ...current.slice(at)]
     changes.push({
@@ -298,20 +323,13 @@ export function removeFromPlaylist(
   songIds: readonly number[],
 ): Change[] {
   const found = manual(ctx, id, 'a live playlist builds itself — edit its rules instead')
-  return [...new Set(songIds)].flatMap(songId => {
-    const uid = ctx.view.uids.songs.get(songId)
-    return uid
-      ? [
-          {
-            type: 'playlistSong' as const,
-            hlc: ctx.stamp(),
-            uid: found.uid,
-            songUid: uid,
-            on: false,
-          },
-        ]
-      : []
-  })
+  return knownSongs(ctx, songIds).map(([, songUid]) => ({
+    type: 'playlistSong' as const,
+    hlc: ctx.stamp(),
+    uid: found.uid,
+    songUid,
+    on: false,
+  }))
 }
 
 // --- Importing -------------------------------------------------------------------

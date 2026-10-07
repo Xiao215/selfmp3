@@ -68,7 +68,9 @@ function fakeSongs(pending: Array<{ id: number; artRev: number }>): {
 const coversAt = (present: number[]): CoverService =>
   ({
     find: (id: number) =>
-      present.includes(id) ? { path: `/covers/${id}.png`, contentType: 'image/png' } : null,
+      Promise.resolve(
+        present.includes(id) ? { path: `/covers/${id}.png`, contentType: 'image/png' } : null,
+      ),
   }) as unknown as CoverService
 
 describe('CoverToneService', () => {

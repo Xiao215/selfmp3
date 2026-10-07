@@ -3,8 +3,8 @@ import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Circle, Svg } from 'react-native-svg'
-import { pickResumeState, type Device } from '@selfmp3/shared'
-import { handoffTarget, shortDeviceName, useLibrary } from '@selfmp3/client'
+import { artistOr, pickResumeState, type Device } from '@selfmp3/shared'
+import { handoffTarget, radius, shortDeviceName, useLibrary } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { usePlaybackMemoryState } from '../../player/usePlaybackMemory'
 import { useLayout } from '../../shell/useLayout'
@@ -57,12 +57,18 @@ export function ResumeToast(): ReactNode {
     if (decided.current || devices.length === 0 || !library.data || !memory.settled) {
       return undefined
     }
-    decided.current = true
     // This device came back to its own last song. Offering another device's
     // on top of it asks the person to choose between two things they did not ask for.
-    if (memory.restoredSongId !== null) return undefined
+    if (memory.restoredSongId !== null) {
+      decided.current = true
+      return undefined
+    }
     const songs = library.data.songs
+    // Decided inside the timer, not before it: a new device list or library
+    // arriving in between clears this timer, and the next run must still be
+    // allowed to make the decision.
     const timer = setTimeout(() => {
+      decided.current = true
       const now = playerRef.current
       if (now.isPlaying) return
       const picked = pickResumeState(devices, { thisDeviceId: deviceId, now: Date.now() })
@@ -107,7 +113,7 @@ export function ResumeToast(): ReactNode {
       >
         <Text style={[styles.label, { color: accent.accent }]}>Continue</Text>
         <Text style={styles.song} numberOfLines={1}>
-          {song.title} — {song.artist || 'Unknown artist'}
+          {song.title} — {artistOr(song.artist)}
         </Text>
         <Text style={styles.from} numberOfLines={1}>
           from {shortDeviceName(candidate.name)}
@@ -167,7 +173,7 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 5,
     paddingLeft: 5,
     paddingRight: 7,
-    borderRadius: 999,
+    borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,
     ...floating(theme.colors),
   },
@@ -179,7 +185,7 @@ const styles = StyleSheet.create(theme => ({
     flexShrink: 1,
     paddingVertical: 7,
     paddingHorizontal: 12,
-    borderRadius: 999,
+    borderRadius: radius.pill,
   },
   mainTouch: { paddingVertical: 10 },
   mainHovered: { backgroundColor: theme.colors.surface3 },

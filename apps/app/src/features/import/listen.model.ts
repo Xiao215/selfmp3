@@ -1,4 +1,11 @@
-import { isNeteaseUrl, isYouTubeUrl, type CoverTone, type ImportPreviewItem } from '@selfmp3/shared'
+import {
+  clamp01,
+  artistOr,
+  isNeteaseUrl,
+  isYouTubeUrl,
+  type CoverTone,
+  type ImportPreviewItem,
+} from '@selfmp3/shared'
 
 /** What a preview is doing, as the audio reports it (the `listen` port's state). */
 export type ListenStatus = 'loading' | 'playing' | 'paused' | 'error'
@@ -17,10 +24,14 @@ export type ListenTrack = Pick<
   'url' | 'title' | 'artist' | 'duration' | 'thumbnail'
 >
 
+/**
+ * The preview, apart from where it is in the song: that moves four times a
+ * second and is kept on its own (`useListen`'s `position`), so the review is
+ * not drawn again at every tick for the one bar that moves.
+ */
 export interface Listening {
   readonly track: ListenTrack
   readonly status: ListenStatus
-  readonly currentTime: number
   /** The song's, as the review knows it; from the audio when the review does not (0 until it knows). */
   readonly duration: number
   /** The cover's colour, once the server has read it (ImportListen.tsx); null until then, or for a cover without one. */
@@ -35,7 +46,6 @@ export const canListen = (item: Pick<ImportPreviewItem, 'url'>): boolean =>
 export const startListening = (track: ListenTrack, tone: CoverTone | null = null): Listening => ({
   track,
   status: 'loading',
-  currentTime: 0,
   duration: track.duration,
   tone,
 })
@@ -46,19 +56,19 @@ export const startListening = (track: ListenTrack, tone: CoverTone | null = null
  * (a phone's player read 8:00 into a 4:01 song), and the bar would then run to
  * the middle and stop. The audio's length is for a song the review has none
  * for, a search's or an artist's page's, and until then the bar has no length.
+ *
+ * The same object when nothing it holds changed, which is most reports: only
+ * the position moved, and that is not the preview's to hold.
  */
 export function followAudio(current: Listening, state: ListenState): Listening {
   const known = current.track.duration > 0
-  return {
-    ...current,
-    status: state.status,
-    currentTime: state.currentTime,
-    duration: known
-      ? current.track.duration
-      : Number.isFinite(state.duration) && state.duration > 0
-        ? state.duration
-        : current.duration,
-  }
+  const duration = known
+    ? current.track.duration
+    : Number.isFinite(state.duration) && state.duration > 0
+      ? state.duration
+      : current.duration
+  if (state.status === current.status && duration === current.duration) return current
+  return { ...current, status: state.status, duration }
 }
 
 /** A preview whose track has left the review (cancelled, imported, a new link fetched) stops. */
@@ -76,19 +86,19 @@ export function listenLabel(title: string, status: ListenStatus | null): string 
 export function listenDetail(listening: Pick<Listening, 'track' | 'status'>): string {
   return listening.status === 'error'
     ? 'Couldn’t play this one from YouTube'
-    : listening.track.artist || 'Unknown artist'
+    : artistOr(listening.track.artist)
 }
 
 /** How far along the bar is filled, 0 to 1. Nothing while the length is unknown. */
 export function playedRatio(position: number, duration: number): number {
   if (!(duration > 0) || !Number.isFinite(position)) return 0
-  return Math.max(0, Math.min(1, position / duration))
+  return clamp01(position / duration)
 }
 
 /** Where a drag at `x` along a bar `width` wide lands, in seconds. */
 export function seekAt(x: number, width: number, duration: number): number {
   if (!(width > 0) || !(duration > 0)) return 0
-  return Math.max(0, Math.min(1, x / width)) * duration
+  return clamp01(x / width) * duration
 }
 
 /**

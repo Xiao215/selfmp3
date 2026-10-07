@@ -11,7 +11,6 @@ import {
   stageGeometry,
   swipeOutcome,
   upNextSeconds,
-  playSimilarOrder,
   type PhoneView,
 } from './nowPlaying.model'
 import { PULL } from '../../ui/motion.model'
@@ -163,12 +162,5 @@ describe('the phone page', () => {
     expect(letGo({ view: 'cover', dy: -60, vy: -1.2 })).toBe('lyrics')
     expect(letGo({ view: 'cover', dy: 60, vy: 0.3 })).toBeNull()
     expect(letGo({ view: 'cover', dy: 30, vy: 3 })).toBeNull()
-  })
-})
-
-describe('the similar-songs shelf', () => {
-  it('plays the chosen song first, then the rest in their order', () => {
-    expect(playSimilarOrder([4, 7, 9, 2], 9)).toEqual([9, 4, 7, 2])
-    expect(playSimilarOrder([4, 7], 4)).toEqual([4, 7])
   })
 })

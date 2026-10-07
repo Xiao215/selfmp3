@@ -3,9 +3,9 @@ import type { ReactNode } from 'react'
 import { Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { plural, formatLongDuration, type Tag } from '@selfmp3/shared'
-import { clientApi, failureText, queryKeys, radius, space, useLibrary } from '@selfmp3/client'
+import { failureText, radius, space, useCreatePlaylist, useLibrary } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { isComposing } from '../../shell/composing'
 import { useAccent } from '../../ui/accent'
@@ -14,7 +14,7 @@ import { Chip } from '../../ui/components/Chip'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { ListMusic, Sparkle } from '../../ui/components/Icons'
 import { Sheet } from '../../ui/components/Sheet'
-import { followRules } from '../library/saveTags'
+import { followRules } from '../lists/followRules'
 import { AddSongsSheet } from '../playlistDetail/AddSongsSheet'
 import { exactTag, matchingTags } from '../smart/smart.model'
 import { SongsAnswer } from '../smart/SongsAnswer'
@@ -44,7 +44,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   const { theme } = useUnistyles()
   const accent = useAccent()
   const router = useRouter()
-  const client = useQueryClient()
+  const { mutateAsync: createPlaylist } = useCreatePlaylist()
   const server = useSmartServer()
   const { data: library } = useLibrary()
 
@@ -88,7 +88,6 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   }
 
   const finish = (id: number): void => {
-    void client.invalidateQueries({ queryKey: queryKeys.library })
     reset()
     onClose()
     router.push({ pathname: '/playlists/[id]', params: { id: String(id) } })
@@ -103,9 +102,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   const createWith = async (songIds: readonly number[]): Promise<void> => {
     const input = newPlaylist('manual', picking ?? '')
     if (!input) return
-    const created = await clientApi().createPlaylist(input)
-    await clientApi().addToPlaylist(created.id, { songIds: [...songIds] })
-    finish(created.id)
+    finish((await createPlaylist({ input, songIds })).id)
   }
 
   const follow = async (): Promise<void> => {
@@ -117,7 +114,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
         rules: followRules({ tagIds, sort: 'addedAt', descending: true }),
       })
       if (!input) return
-      finish((await clientApi().createPlaylist(input)).id)
+      finish((await createPlaylist({ input })).id)
     } catch (caught) {
       setError(failureText(`Couldn’t make “${tagsName}”`, caught))
     } finally {
@@ -156,7 +153,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
       <AddSongsSheet
         open={open}
         onClose={cancel}
-        playlistName={picking}
+        targetName={picking}
         target={{ kind: 'new', create: createWith }}
       />
     )

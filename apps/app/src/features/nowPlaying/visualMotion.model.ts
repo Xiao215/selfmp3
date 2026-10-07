@@ -1,4 +1,4 @@
-import { clamp01 } from '@selfmp3/shared'
+import { clamp, clamp01 } from '@selfmp3/shared'
 import type { MotionSampler, MotionSourceKind } from './motionSource.model'
 import type { VisualFeel } from './visuals.model'
 
@@ -100,7 +100,7 @@ export function motionTuning(feel: VisualFeel, bpmKnown: boolean): MotionTuning 
   const beat = 60 / feel.bpm
   return {
     refractory: bpmKnown ? 0.6 * beat : DEFAULT_REFRACTORY,
-    ringLife: Math.max(1.4, Math.min(2.6, 4 * beat)),
+    ringLife: clamp(4 * beat, 1.4, 2.6),
     feel,
   }
 }
@@ -160,10 +160,15 @@ export function stepMotion(
       state.armed = true
   }
 
-  for (const ring of state.rings) ring.age += dt
-  state.rings = state.rings.filter(
-    ring => ring.age < tuning.ringLife && ring.id > state.nextRing - 1 - MAX_RINGS,
-  )
+  // Kept in place rather than filtered into a new array: this runs every frame.
+  let kept = 0
+  for (const ring of state.rings) {
+    ring.age += dt
+    if (ring.age < tuning.ringLife && ring.id > state.nextRing - 1 - MAX_RINGS) {
+      state.rings[kept++] = ring
+    }
+  }
+  state.rings.length = kept
 }
 
 /**
@@ -280,7 +285,7 @@ export class PlayheadClock {
   /** Seconds into the song at `now` (milliseconds, on the same clock as the ticks). */
   read(now: number): number {
     if (!this.#playing) return this.#position
-    const ahead = Math.max(0, Math.min(PLAYHEAD_REACH, (now - this.#at) / 1000))
+    const ahead = clamp((now - this.#at) / 1000, 0, PLAYHEAD_REACH)
     return this.#position + ahead * this.#rate
   }
 }

@@ -6,6 +6,7 @@ import {
   DeviceIdSchema,
   type DeviceCommandResult,
   type DeviceList,
+  type Ok,
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
@@ -59,11 +60,11 @@ export function deviceRoutes(container: Container): Router {
 
   router.delete(
     '/devices/:id',
-    route({ params: ParamsWithDevice }, ({ params }) => {
+    route({ params: ParamsWithDevice }, ({ params }): Ok => {
       if (!container.devices.forget(params.id)) {
         throw HttpError.notFound(`no device with id ${params.id}`)
       }
-      return { ok: true as const }
+      return { ok: true }
     }),
   )
 

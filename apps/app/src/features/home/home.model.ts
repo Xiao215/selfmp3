@@ -10,7 +10,8 @@ import { tagsMostPlayed } from '../tag/tag.model'
 
 /**
  * Home, without the screen (docs/ui-mock `P04`, `C03`): what the greeting says,
- * which four tags get a tile, and what was played last.
+ * which tags get a tile (four on a phone, six on a computer), and what was
+ * played last.
  *
  * Home is where the app opens. It is a way in rather than a list of
  * everything: the tags you play most, as places, and the songs you were just

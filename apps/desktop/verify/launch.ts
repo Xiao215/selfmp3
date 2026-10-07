@@ -35,12 +35,9 @@ const keychainFlags = process.platform === 'darwin' ? ['--use-mock-keychain'] : 
 /**
  * The Electron binary to launch, and the app to launch with it.
  *
- * `node_modules/electron/dist/electron` is the *Linux* binary name — on a Mac
- * the package puts it at `dist/Electron.app/Contents/MacOS/Electron` — so the
- * path is asked of the electron package, which writes the per-platform relative
- * path into `path.txt` at install time and whose main export is the resolved
- * string. Spelling it out here is what made `verify:desktop` die with ENOENT
- * before a single test ran on macOS.
+ * The binary is asked of the electron package, as `scripts/electronPath.mjs`
+ * does and says why: a path spelled out here is the Linux one, and made
+ * `verify:desktop` die with ENOENT before a single test ran on macOS.
  *
  * Both halves are overridable, because "the app under test is the unpackaged
  * `dist/main.cjs`" is a default rather than a fact about the suite: pointing

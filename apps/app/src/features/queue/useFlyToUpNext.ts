@@ -1,9 +1,9 @@
 import { useCallback } from 'react'
 import type { View } from 'react-native'
-import { useLibrary } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { flyToUpNext } from '../../ui/coverFlight'
+import { useSongsById } from '../../ui/songsById'
 import { useQueueSheetOpen } from './queueSheet.store'
 
 /**
@@ -14,16 +14,16 @@ import { useQueueSheetOpen } from './queueSheet.store'
 export function useFlyToUpNext(): (from: View | null, songIds: readonly number[]) => void {
   const open = useQueueSheetOpen()
   const artFor = useArt(ROW_COVER_SIZE)
-  const { data: library } = useLibrary()
+  const byId = useSongsById()
   return useCallback(
     (from, songIds) => {
-      const byId = new Map((library?.songs ?? []).map(song => [song.id, song]))
+      // Three covers at most.
       const uris = songIds.slice(0, 3).flatMap(id => {
         const song = byId.get(id)
         return song ? [artFor(song)] : []
       })
       flyToUpNext(from, uris, open)
     },
-    [open, artFor, library],
+    [open, artFor, byId],
   )
 }

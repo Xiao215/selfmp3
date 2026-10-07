@@ -4,12 +4,14 @@ import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { WrappedRange } from '@selfmp3/shared'
-import { failureText, radius, space } from '@selfmp3/client'
+import { STALE, failureText, radius, space } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { Refresh, Sparkle } from '../../ui/components/Icons'
 import { card, label } from '../../ui/surfaces'
+import { showToast } from '../../ui/toast'
 import { useSmartServer } from './useSmartServer'
 import { useSmartSwitches } from './useSmartSwitches'
+import { reachedConnection, viaKey } from '../../connection/via'
 
 /**
  * A5 · the Report in a few sentences (docs/features/ai.md), under the page.
@@ -21,14 +23,14 @@ export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
   const server = useSmartServer()
   const { written } = useSmartSwitches()
   const queryClient = useQueryClient()
-  const via = server.reach.state === 'reachable' ? server.reach.connection.baseUrl : null
-  const key = ['via-server', via, 'ai', 'written', range]
+  const via = reachedConnection(server.reach)?.baseUrl ?? null
+  const key = viaKey(via, 'ai', 'written', range)
   const answer = useQuery({
     queryKey: key,
     queryFn: () => server.api!.written(range),
     enabled: written && server.api !== null,
     retry: false,
-    staleTime: 30 * 60_000,
+    staleTime: STALE.halfHour,
   })
   const [again, setAgain] = useState(false)
 
@@ -37,8 +39,9 @@ export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
     setAgain(true)
     try {
       queryClient.setQueryData(key, await server.api.written(range, true))
-    } catch {
-      // The card keeps what it had; the next look tries again.
+    } catch (caught) {
+      // The card keeps what it had; the press is told why nothing changed.
+      showToast(failureText('Couldn’t write it again', caught), 'error')
     } finally {
       setAgain(false)
     }

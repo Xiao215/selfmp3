@@ -19,12 +19,22 @@ import type { Tag } from '@selfmp3/shared'
  * enough that the correction is rarely visible.
  */
 
-/** The slot, as `SongRow`'s styles set it out. */
-const TAG_SLOT_WIDTH = 180
-const TAG_SLOT_PADDING_LEFT = 20
-const TAG_GAP = 5
+/*
+ * The slot and its chips, as `SongRow`'s styles draw them: the styles read
+ * these, so the arithmetic below and the row on screen cannot drift apart.
+ */
+/** The slot at the end of a row with an album column. */
+export const TAG_SLOT_WIDTH = 180
+export const TAG_SLOT_PADDING_LEFT = 20
+/** Between chips, and between a chip's dot and its name. */
+export const TAG_GAP = 5
 /** The dashed ⊕, which keeps its place in the slot whether or not it is lit. */
-const TAG_ADD_WIDTH = 22
+export const TAG_ADD_WIDTH = 22
+/** A chip's padding either side of what it holds. */
+export const CHIP_PADDING_X = 8
+/** The dot of the tag's hue before a chip's name. */
+export const CHIP_DOT = 6
+export const CHIP_FONT_SIZE = 11
 /**
  * At most this many chips on a row, then a count (docs/ui-mock `S3`: "More
  * tags than fit: show two and a count"), however much room there is.
@@ -33,9 +43,6 @@ const ROW_TAG_LIMIT = 2
 /** No single chip may take the slot: a long name ends in an ellipsis instead. */
 export const TAG_CHIP_MAX_WIDTH = 96
 
-const CHIP_PADDING = 16
-const CHIP_FONT_SIZE = 11
-
 /** Room for the chips and the count, once the ⊕ has taken its place. */
 export function chipBudget({ hasAddButton }: { hasAddButton: boolean }): number {
   const content = TAG_SLOT_WIDTH - TAG_SLOT_PADDING_LEFT
@@ -43,15 +50,22 @@ export function chipBudget({ hasAddButton }: { hasAddButton: boolean }): number 
 }
 
 /**
- * What a chip will be about this wide, before it has ever been drawn.
- *
- * Latin letters run a little over half the font size; the kana, hanzi and
- * hangul this library is full of are square, so they take the whole of it.
+ * What a chip will be about this wide, before it has ever been drawn: its
+ * padding, its dot and the gap after it, and its name.
  */
 export function estimateChipWidth(name: string): number {
-  let text = 0
-  for (const ch of name) text += isFullWidth(ch) ? CHIP_FONT_SIZE : CHIP_FONT_SIZE * 0.55
-  return Math.min(TAG_CHIP_MAX_WIDTH, Math.ceil(text) + CHIP_PADDING)
+  return Math.min(TAG_CHIP_MAX_WIDTH, textWidth(name) + CHIP_PADDING_X * 2 + CHIP_DOT + TAG_GAP)
+}
+
+/**
+ * About how wide `text` is at a chip's size. Latin letters run a little over
+ * half the font size; the kana, hanzi and hangul this library is full of are
+ * square, so they take the whole of it.
+ */
+function textWidth(text: string): number {
+  let width = 0
+  for (const ch of text) width += isFullWidth(ch) ? CHIP_FONT_SIZE : CHIP_FONT_SIZE * 0.55
+  return Math.ceil(width)
 }
 
 function isFullWidth(ch: string): boolean {
@@ -67,9 +81,9 @@ function isFullWidth(ch: string): boolean {
   )
 }
 
-/** "+3", at the width it will draw at. */
+/** "+3", at the width it will draw at: a chip's padding, and no dot. */
 function countPillWidth(hidden: number): number {
-  return estimateChipWidth(`+${hidden}`)
+  return textWidth(`+${hidden}`) + CHIP_PADDING_X * 2
 }
 
 /**
@@ -110,34 +124,42 @@ function rowWidth(tags: readonly Tag[], widthOf: (tag: Tag) => number, shown: nu
  */
 const measured = new Map<string, number>()
 const listeners = new Set<() => void>()
-let version = 0
 
 const subscribe = (listener: () => void): (() => void) => {
   listeners.add(listener)
   return () => listeners.delete(listener)
 }
-const getVersion = (): number => version
 
 /** A chip, reporting the width it drew at. Ignored unless it is news. */
 export function rememberChipWidth(name: string, width: number): void {
   const rounded = Math.ceil(width)
   if (rounded <= 0 || measured.get(name) === rounded) return
   measured.set(name, rounded)
-  version += 1
   for (const listener of listeners) listener()
 }
 
 /** For the tests, which must not inherit widths from one another. */
 export function forgetChipWidths(): void {
   measured.clear()
-  version += 1
 }
 
+const widthOf = (tag: Tag): number => measured.get(tag.name) ?? estimateChipWidth(tag.name)
+
 /**
- * How wide a tag's chip is, re-rendering the caller when a width it used was
- * only an estimate and the real one has since been drawn.
+ * The tags a row has room for, and how many are left for the count (`fitTags`,
+ * at the widths drawn so far).
+ *
+ * A new width somewhere re-renders only the rows it changes the answer for.
+ * Every chip reports its width once, and on a first screen of songs that is
+ * dozens of reports: each one used to redraw the tags of every row on screen.
+ * The store's answer for a row is how many of its tags fit, a number, so a
+ * report that leaves that number alone is no render at all.
  */
-export function useChipWidth(): (tag: Tag) => number {
-  useSyncExternalStore(subscribe, getVersion, getVersion)
-  return tag => measured.get(tag.name) ?? estimateChipWidth(tag.name)
+export function useFittedTags(
+  tags: readonly Tag[],
+  budget: number,
+): { shown: readonly Tag[]; hidden: number } {
+  const fits = (): number => fitTags(tags, widthOf, budget).shown.length
+  const count = useSyncExternalStore(subscribe, fits, fits)
+  return { shown: tags.slice(0, count), hidden: tags.length - count }
 }

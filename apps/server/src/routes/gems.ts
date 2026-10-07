@@ -1,6 +1,5 @@
 import { Router } from 'express'
-import { z } from 'zod'
-import { forgottenGems, type ForgottenGems } from '@selfmp3/shared'
+import { forgottenGems, GemsQuerySchema, type ForgottenGems } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 
@@ -16,20 +15,17 @@ export function gemsRoutes(container: Container): Router {
 
   router.get(
     '/library/gems',
-    route(
-      { query: z.object({ limit: z.coerce.number().int().min(1).max(100).default(20) }) },
-      ({ query }): ForgottenGems => {
-        const { gems, minDays, total } = forgottenGems(container.songs.all(), {
-          limit: query.limit,
-        })
-        return {
-          songs: gems.map(gem => gem.song),
-          minDays,
-          total,
-          generatedAt: new Date().toISOString(),
-        }
-      },
-    ),
+    route({ query: GemsQuerySchema }, ({ query }): ForgottenGems => {
+      const { gems, minDays, total } = forgottenGems(container.songs.all(), {
+        limit: query.limit,
+      })
+      return {
+        songs: gems.map(gem => gem.song),
+        minDays,
+        total,
+        generatedAt: new Date().toISOString(),
+      }
+    }),
   )
 
   return router

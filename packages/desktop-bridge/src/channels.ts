@@ -50,6 +50,9 @@ export const EVENTS = {
 /** The name the preload puts on the window, and nothing else goes on it. */
 export const BRIDGE_GLOBAL = 'selfmp3Desktop'
 
+/** The privileged scheme the installed app's page is served from (`main/protocol.ts`). */
+export const APP_SCHEME = 'app'
+
 /**
  * Where the page lives in an installed app.
  *
@@ -57,8 +60,13 @@ export const BRIDGE_GLOBAL = 'selfmp3Desktop'
  * serves this origin (`main/protocol.ts` says why a privileged scheme and not
  * `file:`), the preload builds `mediaUrl` against it, and the window's
  * navigation guard uses it to decide what still counts as the app.
+ *
+ * Shared's `DESKTOP_APP_ORIGIN` is the same origin, for the server and the
+ * doorman, which let it through. This package does not depend on shared — the
+ * preload is bundled from it, and should not carry shared's schemas — so the
+ * two are held equal by a test in apps/desktop (`origins.test.ts`).
  */
-export const APP_ORIGIN = 'app://selfmp3'
+export const APP_ORIGIN = `${APP_SCHEME}://selfmp3`
 
 /** Under `APP_ORIGIN`: songs and covers on disk, served with a real 206. */
 export const MEDIA_PREFIX = '/_media/'

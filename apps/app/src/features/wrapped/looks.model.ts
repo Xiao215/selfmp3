@@ -1,7 +1,9 @@
 import {
+  DAY_MS,
+  plural,
+  artistOr,
   WRAPPED_RANGE_DAYS,
   type DailyPlays,
-  type StatsRange,
   type Wrapped,
   type WrappedRange,
 } from '@selfmp3/shared'
@@ -67,19 +69,6 @@ export interface LookInput {
   readonly daily: readonly DailyPlays[]
 }
 
-/** Stats names the same windows differently; `daily` is asked for by its name. */
-const STATS_RANGE: Record<WrappedRange, StatsRange> = {
-  week: '7d',
-  month: '30d',
-  quarter: '90d',
-  year: '365d',
-  all: 'all',
-}
-
-export function statsRangeOf(range: WrappedRange): StatsRange {
-  return STATS_RANGE[range]
-}
-
 // --- words every look shares ---------------------------------------------------
 
 /**
@@ -116,6 +105,11 @@ export function masthead(range: WrappedRange): string {
 /**
  * When most of the listening happened, as the rest of a sentence: "at night".
  * Null with no plays, so a sentence can leave the clause out.
+ *
+ * Its own bands (night from 21:00, morning until noon), not the ones the
+ * traits and Stats' Peak hour use (`NIGHT_HOURS` and the rest in
+ * packages/shared/src/personality.ts): so the Report can say "mostly at
+ * night" of a 21:00 peak that Stats calls an evening.
  */
 export function timeOfDay(hour: number | null | undefined): string | null {
   if (hour === null || hour === undefined) return null
@@ -156,7 +150,7 @@ export function timesWord(count: number): string {
 /** "372 minutes" ("1 minute"). */
 function minutesPhrase(minutes: number): string {
   const whole = Math.round(minutes)
-  return `${whole.toLocaleString()} ${whole === 1 ? 'minute' : 'minutes'}`
+  return plural(whole, 'minute', 'minutes')
 }
 
 /** "3h 01": an artist's or a tag's time, as a chart column prints it. */
@@ -170,7 +164,7 @@ export function clockHour(hour: number): string {
   return `${String(hour).padStart(2, '0')}:00`
 }
 
-const days = (count: number): string => `${count.toLocaleString()} ${count === 1 ? 'day' : 'days'}`
+const days = (count: number): string => plural(count, 'day', 'days')
 
 /**
  * "14 times, 6 of them on one Saturday": how the number one was played, and
@@ -189,7 +183,6 @@ export function repeatDetail(wrapped: Pick<Wrapped, 'topSongs' | 'mostInOneDay'>
 
 // --- dates ---------------------------------------------------------------------
 
-const DAY_MS = 86_400_000
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /*
@@ -380,7 +373,7 @@ function numberOne(wrapped: Wrapped): NumberOne | null {
   return {
     songId: top.songId,
     title: top.title,
-    line: `${top.artist || 'Unknown artist'} · ${repeatDetail(wrapped) ?? ''}`,
+    line: `${artistOr(top.artist)} · ${repeatDetail(wrapped) ?? ''}`,
   }
 }
 
@@ -492,7 +485,7 @@ export function wallLook(input: LookInput): WallLook {
       ? []
       : Array.from({ length: WALL_TILES }, (_, i) => songs[i % songs.length] as (typeof songs)[0])
   const when = timeOfDay(wrapped.peakHour?.hour)
-  const across = `across ${wrapped.totals.songsPlayed.toLocaleString()} ${wrapped.totals.songsPlayed === 1 ? 'song' : 'songs'}`
+  const across = `across ${plural(wrapped.totals.songsPlayed, 'song', 'songs')}`
   const top = wrapped.topSongs[0]
   return {
     tiles,
@@ -716,9 +709,31 @@ interface LookInk {
   readonly second: string
   readonly quiet: string
   readonly accent: string
+  /** A shade under the ground: a calendar's empty day, the calendar's swatch. */
+  readonly well: string
+  /** A sheet laid on the ground: a printed tag's pill. */
+  readonly sheet: string
+  /** The shadow such a sheet casts. */
+  readonly shadow: string
 }
 
+/**
+ * Each look's inks per hue, worked out once: a look and its swatch ask on
+ * every draw, and each answer builds a whole palette.
+ */
+const inks = new Map<string, LookInk>()
+
 export function lookInk(look: LookId, hue: number): LookInk {
+  const key = `${look}:${hue}`
+  let ink = inks.get(key)
+  if (!ink) {
+    ink = inksOf(look, hue)
+    inks.set(key, ink)
+  }
+  return ink
+}
+
+function inksOf(look: LookId, hue: number): LookInk {
   if (look === 'wall') {
     const dark = darkPalette(hue)
     return {
@@ -728,6 +743,9 @@ export function lookInk(look: LookId, hue: number): LookInk {
       second: dark.textSecondary,
       quiet: dark.textMuted,
       accent: dark.accent,
+      well: dark.surface3,
+      sheet: dark.surface1,
+      shadow: dark.floatShadow,
     }
   }
   if (look === 'words') {
@@ -740,6 +758,9 @@ export function lookInk(look: LookId, hue: number): LookInk {
       second: tile.tileInk,
       quiet: tile.tileInk,
       accent: tile.tileInk,
+      well: dark.surface3,
+      sheet: dark.surface1,
+      shadow: dark.floatShadow,
     }
   }
   const paper = lightPalette(hue)
@@ -751,5 +772,8 @@ export function lookInk(look: LookId, hue: number): LookInk {
     second: paper.textSecondary,
     quiet: paper.textMuted,
     accent: paper.accent,
+    well: paper.surface3,
+    sheet: paper.surface1,
+    shadow: paper.floatShadow,
   }
 }

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { formatDuration, type Song } from '@selfmp3/shared'
+import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
 import { radius, space, type, withAlpha } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
@@ -68,7 +68,6 @@ const ROWS_FADE_FROM = 2 / 3
  */
 export function QueueRail(): ReactNode {
   const shown = useQueueRailShown()
-  const edits = useQueueEdits()
 
   // Kept up from the moment it is asked for until its exit has played out, as
   // the phone's sheet is: shut, the rail slides away first and only then is it
@@ -77,6 +76,7 @@ export function QueueRail(): ReactNode {
   const [mounted, setMounted] = useState(shown)
   if (shown && !mounted) setMounted(true)
   const gone = useCallback(() => setMounted(false), [])
+  const edits = useQueueEdits(mounted)
 
   return mounted ? <Rail shown={shown} onGone={gone} edits={edits} /> : null
 }
@@ -445,7 +445,8 @@ function Rail({
               {rows.next.map(row => (
                 <RailRow
                   key={row.song.id}
-                  row={row}
+                  song={row.song}
+                  index={row.index}
                   artUri={artFor(row.song)}
                   kind="next"
                   placeholder={drag?.from === row.index}
@@ -463,7 +464,8 @@ function Rail({
                   {rows.played.map(row => (
                     <RailRow
                       key={row.song.id}
-                      row={row}
+                      song={row.song}
+                      index={row.index}
                       artUri={artFor(row.song)}
                       kind="played"
                       placeholder={false}
@@ -534,7 +536,7 @@ function PlayingRow({
   onDropSongs,
 }: {
   row: QueueRow
-  artUri: string | null
+  artUri: string | null | undefined
   playing: boolean
   onOpen: () => void
   onDropSongs: (at: number, songIds: readonly number[]) => void
@@ -569,7 +571,7 @@ function PlayingRow({
           {row.song.title}
         </Text>
         <Text style={styles.sub} numberOfLines={1}>
-          {row.song.artist || 'Unknown artist'} · {formatDuration(row.song.duration)}
+          {artistOr(row.song.artist)} · {formatDuration(row.song.duration)}
         </Text>
       </View>
     </Pressable>
@@ -583,9 +585,14 @@ const REMOVE_KEYS = new Set(['Delete', 'Backspace'])
  * A song still to come, or one that has played (greyed, no grip). A click
  * plays it. Keys and the right-click menu arrive as a browser's events, which
  * react-native-web hands to a pressable; a phone has neither.
+ *
+ * The song and its place come as two props, not the queue's row object: those
+ * are made afresh whenever the queue changes, and handed one, every row of a
+ * whole library shuffled — thousands — redrew at each new song.
  */
 const RailRow = memo(function RailRow({
-  row,
+  song,
+  index,
   artUri,
   kind,
   placeholder,
@@ -594,8 +601,10 @@ const RailRow = memo(function RailRow({
   settling,
   actions,
 }: {
-  row: QueueRow
-  artUri: string | null
+  song: Song
+  /** Its index in the queue's `items`. */
+  index: number
+  artUri: string | null | undefined
   kind: 'next' | 'played'
   /** This row is out being dragged: its place stays, empty, until it lands. */
   placeholder: boolean
@@ -607,7 +616,6 @@ const RailRow = memo(function RailRow({
   actions: RowActions
 }): ReactNode {
   const rowRef = useRef<View>(null)
-  const { index, song } = row
   const room = useMakeRoom(shift, ROW_HEIGHT, carrying)
 
   /*
@@ -630,16 +638,16 @@ const RailRow = memo(function RailRow({
     [actions, song.id],
   )
   const onDragStart = useCallback(
-    (x: number) => actions.dragStart(row, rowRef.current, x),
-    [actions, row],
+    (x: number) => actions.dragStart({ song, index }, rowRef.current, x),
+    [actions, song, index],
   )
   const onDragMove = useCallback(
-    (moveX: number, moveY: number) => actions.dragMove(row.index, moveX, moveY),
-    [actions, row],
+    (moveX: number, moveY: number) => actions.dragMove(index, moveX, moveY),
+    [actions, index],
   )
   const onDragEnd = useCallback(
-    (moveX: number, moveY: number) => actions.dragEnd(row.index, moveX, moveY),
-    [actions, row],
+    (moveX: number, moveY: number) => actions.dragEnd(index, moveX, moveY),
+    [actions, index],
   )
   const web = {
     onKeyDown: (event: { nativeEvent: { key: string }; preventDefault: () => void }) => {
@@ -649,7 +657,7 @@ const RailRow = memo(function RailRow({
     },
     onContextMenu: (event: { preventDefault: () => void }) => {
       event.preventDefault()
-      actions.menu(rowRef.current, row)
+      actions.menu(rowRef.current, { song, index })
     },
   }
 
@@ -683,7 +691,7 @@ const RailRow = memo(function RailRow({
             testID={`queue-row-${index}`}
             onPress={() => actions.play(index)}
             accessibilityRole="button"
-            accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
+            accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
             style={({ pressed }) => [styles.press, pressed && styles.pressed]}
             {...web}
           >
@@ -702,7 +710,7 @@ function RowFace({
   grip = false,
 }: {
   song: Song
-  artUri: string | null
+  artUri: string | null | undefined
   grip?: boolean
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -719,7 +727,7 @@ function RowFace({
           {song.title}
         </Text>
         <Text style={styles.sub} numberOfLines={1}>
-          {song.artist || 'Unknown artist'} · {formatDuration(song.duration)}
+          {artistOr(song.artist)} · {formatDuration(song.duration)}
         </Text>
       </View>
     </View>

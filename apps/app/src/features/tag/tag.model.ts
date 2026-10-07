@@ -61,7 +61,7 @@ export function placeSongs<S extends Song>(places: readonly Place[], songs: read
 /** "12 songs · 46 min", under a place's name. */
 export function placeSummary(songs: readonly Pick<Song, 'duration'>[]): string {
   const seconds = songs.reduce((sum, song) => sum + song.duration, 0)
-  const count = `${songs.length.toLocaleString()} ${songs.length === 1 ? 'song' : 'songs'}`
+  const count = plural(songs.length, 'song', 'songs')
   return songs.length === 0 ? count : `${count} · ${formatLongDuration(seconds)}`
 }
 
@@ -79,7 +79,7 @@ export function untaggedSongs<T extends Pick<Song, 'id' | 'tagIds' | 'addedAt'>>
 
 /** "2 songs have no tag yet", on the card at the top of All tags. */
 export function untaggedCardTitle(count: number): string {
-  return `${count.toLocaleString()} ${count === 1 ? 'song has' : 'songs have'} no tag yet`
+  return `${plural(count, 'song has', 'songs have')} no tag yet`
 }
 
 export interface TagStanding {
@@ -128,7 +128,7 @@ export function tagsMostPlayed(tags: readonly Tag[], songs: readonly Song[]): Ta
 /** "20 songs · 1 h 22 min", under a tag in All tags. */
 export function tagLine(standing: Pick<TagStanding, 'songs' | 'seconds'>): string {
   const count = standing.songs.length
-  const songs = `${count.toLocaleString()} ${count === 1 ? 'song' : 'songs'}`
+  const songs = plural(count, 'song', 'songs')
   return count === 0 ? songs : `${songs} · ${formatLongDuration(standing.seconds)}`
 }
 
@@ -269,6 +269,6 @@ export function albumsOf(songs: readonly Song[]): AlbumGroup[] {
 /** "20 songs · 6 albums", under an artist's name. */
 export function artistSummary(songs: readonly Song[]): string {
   const albums = new Set(songs.map(song => song.album.trim()).filter(Boolean)).size
-  const count = `${songs.length.toLocaleString()} ${songs.length === 1 ? 'song' : 'songs'}`
+  const count = plural(songs.length, 'song', 'songs')
   return albums > 0 ? `${count} · ${plural(albums, 'album', 'albums')}` : count
 }

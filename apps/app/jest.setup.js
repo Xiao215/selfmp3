@@ -10,7 +10,7 @@ require('./src/ui/theme/unistyles')
 // against fakes of its own dependencies proves the fakes work.
 
 // The player's native side, which the engine port speaks to. The web build
-// stubs the same module out of its bundle (metro.config.js).
+// never reaches it: every importer has a web twin or is the phone's alone.
 jest.mock('react-native-track-player', () => ({
   __esModule: true,
   default: { registerPlaybackService: jest.fn(), addEventListener: jest.fn() },

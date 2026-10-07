@@ -1,9 +1,9 @@
-import { DEFAULT_LOCAL_SERVER_URL } from '@selfmp3/shared'
+import { DEFAULT_LOCAL_SERVER_URL, signInCodeFromUrl } from '@selfmp3/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { ask, BridgeError, type Status } from '../bridge.js'
 import { Logo, TagChip } from '../ui/parts.js'
-import { codeFromRedirect, signInFailure } from './signIn.js'
+import { signInFailure } from './signIn.js'
 
 /**
  * Where the extension imports to: the same Google account as every other
@@ -47,7 +47,7 @@ export function Options(): ReactNode {
     mutationFn: async (): Promise<Status> => {
       const { url } = await ask({ type: 'signIn' })
       const back = await chrome.identity.launchWebAuthFlow({ url, interactive: true })
-      const code = back ? codeFromRedirect(back) : null
+      const code = back ? signInCodeFromUrl(back) : null
       if (!code) throw new Error('Google came back without a sign-in code.')
       return ask({ type: 'claimSignIn', code })
     },

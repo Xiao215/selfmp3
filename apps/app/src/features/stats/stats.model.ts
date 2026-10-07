@@ -1,5 +1,20 @@
-import type { HourlyPlays, Stats, StatsRange, TopEntry, TopSong } from '@selfmp3/shared'
-import { artistKey, splitArtists } from '@selfmp3/shared'
+import type {
+  HourlyPlays,
+  Stats,
+  StatsRange,
+  TopEntry,
+  TopSong,
+  WrappedRange,
+} from '@selfmp3/shared'
+import {
+  plural,
+  artistKey,
+  DAY_HOURS,
+  EARLY_HOURS,
+  NIGHT_HOURS,
+  splitArtists,
+  UNKNOWN_ARTIST,
+} from '@selfmp3/shared'
 
 /**
  * Listening stats, without the screen.
@@ -10,8 +25,12 @@ import { artistKey, splitArtists } from '@selfmp3/shared'
  * `C15`), then one ranked module of what was played most.
  */
 
-/** The window the page shows. */
-export type StatsPeriod = 'week' | 'month' | 'quarter' | 'year' | 'all'
+/**
+ * The window the page shows. The same five windows as the Report's, by the
+ * same names, so Stats and the Report share this list, its labels and the
+ * endpoint's name for each (`statsRangeFor`).
+ */
+export type StatsPeriod = WrappedRange
 
 export const STATS_PERIODS: readonly StatsPeriod[] = ['week', 'month', 'quarter', 'year', 'all']
 
@@ -25,6 +44,11 @@ const PERIOD_LABELS: Record<StatsPeriod, string> = {
 
 export function periodLabel(period: StatsPeriod): string {
   return PERIOD_LABELS[period]
+}
+
+/** Whether an address's `range` names one of the windows. */
+export function isStatsPeriod(value: string | undefined): value is StatsPeriod {
+  return (STATS_PERIODS as readonly string[]).includes(value ?? '')
 }
 
 const STATS_RANGE_OF: Record<StatsPeriod, StatsRange> = {
@@ -66,19 +90,17 @@ export function peakHour(hourly: readonly HourlyPlays[]): HourlyPlays | null {
 }
 
 /**
- * What the busiest hour says about you, under Peak hour: the same bands the
- * Report's "Night owl" and "Early bird" use (`packages/shared/src/personality.ts`),
- * so the two pages never disagree about when night starts.
+ * What the busiest hour says about you, under Peak hour: read off the bands
+ * the Report's "Night owl" and "Early bird" traits count in
+ * (`packages/shared/src/personality.ts`), so the two never disagree about
+ * when night starts.
  */
 export function peakHourWords(hour: number): string {
-  if (hour >= 22 || hour <= 4) return 'Night owl'
-  if (hour <= 9) return 'Early bird'
-  if (hour <= 17) return 'Daytime listener'
+  if (NIGHT_HOURS.includes(hour)) return 'Night owl'
+  if (EARLY_HOURS.includes(hour)) return 'Early bird'
+  if (DAY_HOURS.includes(hour)) return 'Daytime listener'
   return 'Evening listener'
 }
-
-const plural = (count: number, one: string, many: string): string =>
-  `${count.toLocaleString()} ${count === 1 ? one : many}`
 
 export function daysLabel(days: number): string {
   return plural(days, 'day', 'days')
@@ -261,9 +283,6 @@ export type RankedRow =
   | (RankedBase & { readonly kind: 'song'; readonly songId: number; readonly artist: string })
   | (RankedBase & { readonly kind: 'artist'; readonly known: boolean })
   | (RankedBase & { readonly kind: 'tag' })
-
-/** What the server calls a song with no artist; it is not a place to open. */
-const UNKNOWN_ARTIST = 'Unknown artist'
 
 /** Songs by plays, as the server ranks them. */
 export function rankedSongs(top: readonly TopSong[], limit = RANKED_ROWS): RankedRow[] {

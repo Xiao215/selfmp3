@@ -9,7 +9,6 @@ import { Popover } from './Popover'
 import { Press } from './Press'
 import { SheetItem } from './Sheet'
 import { Check, ChevronDown } from './Icons'
-import { label as labelText } from '../surfaces'
 
 interface SelectOption<T> {
   readonly value: T
@@ -17,11 +16,6 @@ interface SelectOption<T> {
   /** A quieter note beside the label, e.g. how sure a match is. */
   readonly hint?: string
   readonly disabled?: boolean
-}
-
-interface SelectGroup<T> {
-  readonly label: string
-  readonly options: readonly SelectOption<T>[]
 }
 
 /**
@@ -32,10 +26,8 @@ interface SelectGroup<T> {
  * they arrive as a sheet — decided by the primitive, not by the caller, which
  * is foundation 5.
  *
- * Options come flat, or in labelled groups (the smart-playlist field list:
- * Text, Tags, Numbers…). Three sizes: the ordinary control, `small` for a row
- * of them, and `inline` for one that sits inside a sentence ("Match all of
- * these rules").
+ * Three sizes: the ordinary control, `small` for a row of them, and `inline`
+ * for one that sits inside a sentence ("Match all of these rules").
  *
  * Not a native picker: the list is styled to match everything around it, and
  * an iOS wheel beside it would be a different control wearing the same label.
@@ -47,15 +39,13 @@ interface SelectGroup<T> {
 export function Select<T extends string | number>({
   value,
   options,
-  groups,
   onChange,
   label,
   testID,
   size = 'normal',
 }: {
   value: T
-  options?: readonly SelectOption<T>[]
-  groups?: readonly SelectGroup<T>[]
+  options: readonly SelectOption<T>[]
   onChange: (value: T) => void
   /** What is being chosen, e.g. "Sort by". Read out before the current value. */
   label: string
@@ -78,8 +68,7 @@ export function Select<T extends string | number>({
     }),
     [turn],
   )
-  const all = groups ? groups.flatMap(group => group.options) : (options ?? [])
-  const current = all.find(option => option.value === value)
+  const current = options.find(option => option.value === value)
 
   const item = (option: SelectOption<T>): ReactNode => (
     <SheetItem
@@ -150,16 +139,7 @@ export function Select<T extends string | number>({
         title={label}
         titleTone="label"
       >
-        {groups
-          ? groups.map((group, index) => (
-              <View key={group.label}>
-                <Text style={[styles.groupLabel, index > 0 && styles.groupDivided]}>
-                  {group.label.toUpperCase()}
-                </Text>
-                {group.options.map(item)}
-              </View>
-            ))
-          : all.map(item)}
+        {options.map(item)}
       </Popover>
     </>
   )
@@ -178,20 +158,20 @@ const styles = StyleSheet.create(theme => ({
   },
   // Open, the control is a step lighter: tone, not an edge.
   fieldOpen: { backgroundColor: theme.colors.surface3 },
-  /* `.select-trigger` with a mouse: 7 by 10, 13-point type. */
+  /* With a mouse: 7 by 10, 13-point type. */
   controlDense: {
     minHeight: 36,
     paddingLeft: 10,
     paddingRight: 9,
   },
-  /* `.select-trigger-small`: 5 by 8, 12-point type. */
+  /* `small`: 5 by 8, 12-point type. */
   controlSmall: {
     minHeight: 30,
     gap: 6,
     paddingLeft: space.sm,
     paddingRight: 7,
   },
-  /* `.select-trigger-inline`: part of a sentence, on a lighter ground. */
+  /* `inline`: part of a sentence, on a lighter ground. */
   controlInline: {
     minHeight: 0,
     gap: 4,
@@ -220,16 +200,5 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textPrimary,
     fontSize: type.body,
     flexShrink: 1,
-  },
-  groupLabel: {
-    ...labelText(theme.colors),
-    paddingTop: 6,
-    paddingHorizontal: 10,
-    paddingBottom: 4,
-  },
-  // A group after the first is set apart by room, not a rule.
-  groupDivided: {
-    marginTop: space.sm,
-    paddingTop: 9,
   },
 }))

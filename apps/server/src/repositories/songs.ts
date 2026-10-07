@@ -1,6 +1,8 @@
 import type { CoverTone, Song, SongPatch } from '@selfmp3/shared'
+import type Database from 'better-sqlite3'
 import type { Db } from '../db/index.js'
 import { toSong, type SongRow } from '../db/rows.js'
+import { fileEtag } from '../storage/driver.js'
 
 /**
  * All SQL that touches the `songs` table lives here.
@@ -87,11 +89,20 @@ export class SongRepository {
   readonly #recordPlay
   readonly #recordSkip
   readonly #setArt
+  readonly #artExt
   readonly #setLyricsKind
   readonly #setInstrumental
-  readonly #search
   readonly #count
   readonly #manifest
+  readonly #setLoved
+  readonly #withoutArt
+  readonly #nextYearToCheck
+  readonly #yearChecked
+  readonly #nextWithoutCoverTone
+  readonly #setCoverTone
+  readonly #allPaths
+  /** `patch` statements by the columns they set: a handful of shapes, each prepared once. */
+  readonly #patches = new Map<string, Database.Statement>()
 
   constructor(db: Db) {
     this.#db = db
@@ -165,22 +176,44 @@ export class SongRepository {
     this.#setArt = db.prepare(
       'UPDATE songs SET has_art = ?, art_ext = ?, art_rev = art_rev + 1 WHERE id = ?',
     )
+    this.#artExt = db.prepare<[number], { art_ext: string | null }>(
+      'SELECT art_ext FROM songs WHERE id = ?',
+    )
     this.#setLyricsKind = db.prepare('UPDATE songs SET lyrics_kind = ? WHERE id = ?')
     this.#setInstrumental = db.prepare('UPDATE songs SET instrumental = ? WHERE id = ?')
-
-    // FTS5 with a bm25 ranking. Column weights bias toward title matches,
-    // which is what people mean when they half-remember a song.
-    this.#search = db.prepare<[string, number], SongRow>(`
-      ${SONG_SELECT}
-      JOIN songs_fts ON songs_fts.rowid = s.id
-      WHERE songs_fts MATCH ?
-      ORDER BY bm25(songs_fts, 10.0, 5.0, 1.0)
-      LIMIT ?
-    `)
 
     this.#count = db.prepare<[], { n: number }>('SELECT COUNT(*) AS n FROM songs')
     this.#manifest = db.prepare<[], { id: number; size_bytes: number; mtime_ms: number }>(
       'SELECT id, size_bytes, mtime_ms FROM songs ORDER BY id',
+    )
+    this.#setLoved = db.prepare(
+      "UPDATE songs SET loved = ?, updated_at = datetime('now') WHERE id = ? AND loved != ?",
+    )
+    this.#withoutArt = db.prepare<[], SongRow>(`${SONG_SELECT} WHERE s.has_art = 0 ORDER BY s.id`)
+    this.#nextYearToCheck = db.prepare<
+      [number],
+      { id: number; year: number | null; source_url: string | null; edited: number }
+    >(
+      `SELECT s.id, s.year, s.source_url,
+              EXISTS (SELECT 1 FROM sync_stamps t
+                       WHERE t.kind = 'song' AND t.uid = s.uid AND t.field = 'year') AS edited
+         FROM release_years_to_check c
+         JOIN songs s ON s.id = c.song_id
+        WHERE c.song_id > ?
+        ORDER BY c.song_id LIMIT 1`,
+    )
+    this.#yearChecked = db.prepare('DELETE FROM release_years_to_check WHERE song_id = ?')
+    this.#nextWithoutCoverTone = db.prepare<[], { id: number; art_rev: number }>(
+      `SELECT id, art_rev FROM songs
+        WHERE has_art = 1
+          AND (cover_tone_rev IS NULL OR cover_tone_rev != art_rev)
+        ORDER BY id LIMIT 1`,
+    )
+    this.#setCoverTone = db.prepare(
+      'UPDATE songs SET cover_hue = ?, cover_chroma = ?, cover_palette = ?, cover_tone_rev = ? WHERE id = ? AND art_rev = ?',
+    )
+    this.#allPaths = db.prepare<[], { id: number; path: string; mtime_ms: number }>(
+      'SELECT id, path, mtime_ms FROM songs',
     )
   }
 
@@ -279,11 +312,15 @@ export class SongRepository {
     }
 
     if (assignments.length === 0) return
-    this.#db
-      .prepare(
-        `UPDATE songs SET ${assignments.join(', ')}, updated_at = datetime('now') WHERE id = @id`,
+    const set = assignments.join(', ')
+    let statement = this.#patches.get(set)
+    if (!statement) {
+      statement = this.#db.prepare(
+        `UPDATE songs SET ${set}, updated_at = datetime('now') WHERE id = @id`,
       )
-      .run(values)
+      this.#patches.set(set, statement)
+    }
+    statement.run(values)
   }
 
   /** Where an imported song came from: how its own lyrics are found later. */
@@ -311,6 +348,23 @@ export class SongRepository {
       .all(...unique)
     const byId = new Map(rows.map(row => [row.id, toSong(row)]))
     return unique.map(id => byId.get(id)).filter(song => song !== undefined)
+  }
+
+  /** Which of these ids are songs here: one query, for checking a batch from a device. */
+  existingIds(ids: readonly number[]): Set<number> {
+    const found = new Set<number>()
+    const unique = [...new Set(ids)]
+    // In slices, well under SQLite's limit on bound parameters.
+    for (let start = 0; start < unique.length; start += 500) {
+      const slice = unique.slice(start, start + 500)
+      const rows = this.#db
+        .prepare<number[], { id: number }>(
+          `SELECT id FROM songs WHERE id IN (${slice.map(() => '?').join(',')})`,
+        )
+        .all(...slice)
+      for (const row of rows) found.add(row.id)
+    }
+    return found
   }
 
   /**
@@ -342,14 +396,11 @@ export class SongRepository {
   setLovedMany(ids: readonly number[], loved: boolean): number {
     if (ids.length === 0) return 0
 
-    const statement = this.#db.prepare(
-      "UPDATE songs SET loved = ?, updated_at = datetime('now') WHERE id = ? AND loved != ?",
-    )
     const value = loved ? 1 : 0
 
     const run = this.#db.transaction((unique: readonly number[]) => {
       let affected = 0
-      for (const id of unique) affected += statement.run(value, id, value).changes
+      for (const id of unique) affected += this.#setLoved.run(value, id, value).changes
       return affected
     })
 
@@ -369,6 +420,11 @@ export class SongRepository {
     this.#setArt.run(hasArt ? 1 : 0, extension, id)
   }
 
+  /** The extension the song's kept cover was saved with (`setArt`), or null. */
+  artExt(id: number): string | null {
+    return this.#artExt.get(id)?.art_ext ?? null
+  }
+
   setLyricsKind(id: number, kind: string): void {
     this.#setLyricsKind.run(kind, id)
   }
@@ -376,28 +432,6 @@ export class SongRepository {
   /** Remember (or forget) that a song has no words, so lyrics are not looked up. */
   setInstrumental(id: number, on: boolean): void {
     this.#setInstrumental.run(on ? 1 : 0, id)
-  }
-
-  /**
-   * Full-text search.
-   *
-   * User input is turned into a prefix query per token and every token is
-   * quoted, so FTS5 operators typed by accident (`*`, `NEAR`, an unbalanced
-   * quote) are treated as literal text instead of blowing up the query.
-   */
-  search(query: string, limit = 50): Song[] {
-    const tokens = query
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .map(token => `"${token.replace(/"/g, '""')}"*`)
-    if (tokens.length === 0) return []
-    try {
-      return this.#search.all(tokens.join(' '), limit).map(toSong)
-    } catch {
-      // A malformed MATCH expression should degrade to "no results", never 500.
-      return []
-    }
   }
 
   count(): number {
@@ -409,19 +443,15 @@ export class SongRepository {
     return this.#manifest.all().map(row => ({
       id: row.id,
       sizeBytes: row.size_bytes,
-      etag: `"${row.size_bytes.toString(16)}-${row.mtime_ms.toString(16)}"`,
+      etag: fileEtag(row.size_bytes, row.mtime_ms),
     }))
   }
 
   /** Songs with no cover art, for the cover-art pass. */
   withoutArt(): Song[] {
-    return this.#db
-      .prepare<[], SongRow>(`${SONG_SELECT} WHERE s.has_art = 0 ORDER BY s.id`)
-      .all()
-      .map(toSong)
+    return this.#withoutArt.all().map(toSong)
   }
 
-  /** The next song whose cover has not had its colour read, as the cover is now. */
   /**
    * The next song after `afterId` the release-year pass has to ask about
    * (services/releaseYears.ts). `edited` is a year someone typed, which the
@@ -433,38 +463,19 @@ export class SongRepository {
     sourceUrl: string | null
     edited: boolean
   } | null {
-    const row = this.#db
-      .prepare<
-        [number],
-        { id: number; year: number | null; source_url: string | null; edited: number }
-      >(
-        `SELECT s.id, s.year, s.source_url,
-                EXISTS (SELECT 1 FROM sync_stamps t
-                         WHERE t.kind = 'song' AND t.uid = s.uid AND t.field = 'year') AS edited
-           FROM release_years_to_check c
-           JOIN songs s ON s.id = c.song_id
-          WHERE c.song_id > ?
-          ORDER BY c.song_id LIMIT 1`,
-      )
-      .get(afterId)
+    const row = this.#nextYearToCheck.get(afterId)
     return row
       ? { id: row.id, year: row.year, sourceUrl: row.source_url, edited: row.edited === 1 }
       : null
   }
 
   yearChecked(id: number): void {
-    this.#db.prepare('DELETE FROM release_years_to_check WHERE song_id = ?').run(id)
+    this.#yearChecked.run(id)
   }
 
+  /** The next song whose cover has not had its colour read, as the cover is now. */
   nextWithoutCoverTone(): { id: number; artRev: number } | null {
-    const row = this.#db
-      .prepare<[], { id: number; art_rev: number }>(
-        `SELECT id, art_rev FROM songs
-          WHERE has_art = 1
-            AND (cover_tone_rev IS NULL OR cover_tone_rev != art_rev)
-          ORDER BY id LIMIT 1`,
-      )
-      .get()
+    const row = this.#nextWithoutCoverTone.get()
     return row ? { id: row.id, artRev: row.art_rev } : null
   }
 
@@ -473,18 +484,14 @@ export class SongRepository {
    * read from: one replaced meanwhile has a newer revision, and is read again.
    */
   setCoverTone(id: number, artRev: number, tone: CoverTone | null): void {
-    this.#db
-      .prepare(
-        'UPDATE songs SET cover_hue = ?, cover_chroma = ?, cover_palette = ?, cover_tone_rev = ? WHERE id = ? AND art_rev = ?',
-      )
-      .run(
-        tone?.hue ?? null,
-        tone?.chroma ?? null,
-        tone?.palette && tone.palette.length > 0 ? JSON.stringify(tone.palette) : null,
-        artRev,
-        id,
-        artRev,
-      )
+    this.#setCoverTone.run(
+      tone?.hue ?? null,
+      tone?.chroma ?? null,
+      tone?.palette && tone.palette.length > 0 ? JSON.stringify(tone.palette) : null,
+      artRev,
+      id,
+      artRev,
+    )
   }
 
   /**
@@ -492,11 +499,7 @@ export class SongRepository {
    * file at a known path is re-read only when its time has moved.
    */
   allPaths(): Map<string, { id: number; mtimeMs: number }> {
-    const rows = this.#db
-      .prepare<[], { id: number; path: string; mtime_ms: number }>(
-        'SELECT id, path, mtime_ms FROM songs',
-      )
-      .all()
+    const rows = this.#allPaths.all()
     return new Map(rows.map(row => [row.path, { id: row.id, mtimeMs: row.mtime_ms }]))
   }
 }

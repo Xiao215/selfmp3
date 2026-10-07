@@ -1,5 +1,5 @@
 import { ANALYSIS_VERSION } from '@selfmp3/shared'
-import type { Config } from './config.js'
+import type { Config, ServingConfig } from './config.js'
 import { createLogger, type Logger } from './logger.js'
 import { openDatabase, type Db } from './db/index.js'
 import { createStorage, type StorageDriver } from './storage/index.js'
@@ -30,8 +30,7 @@ import { ThrottleRepository } from './repositories/throttle.js'
 import { ImportQueueService } from './services/importQueue.js'
 import { LibraryWatcherService } from './services/libraryWatcher.js'
 import { MetadataLookupService } from './services/lookup.js'
-import { catalogueFinder } from './ai/names.js'
-import { llmFor, setupFor, SmartFeatures } from './ai/smart.js'
+import { smartFeaturesFor, type SmartFeatures } from './ai/smart.js'
 import { FixCoversService } from './services/fixCovers.js'
 import { LyricsSearchRepository } from './repositories/lyricsSearch.js'
 import { createKeepAwake, type KeepAwakeService } from './services/keepAwake.js'
@@ -76,7 +75,7 @@ export interface Container {
    * settled before the database was open: `authToken` is never null here. Read
    * this rather than what was handed to `createContainer`.
    */
-  readonly config: Config
+  readonly config: ServingConfig
   readonly logger: Logger
   readonly db: Db
   readonly storage: StorageDriver
@@ -166,9 +165,10 @@ export function createContainer(configured: Config): Container {
    * Everything below is handed this config rather than the one passed in, so
    * nothing can end up reading the unsettled copy.
    */
-  const config: Config = configured.authToken
-    ? configured
-    : Object.freeze({ ...configured, authToken: new AuthRepository(db).token() })
+  const config: ServingConfig = Object.freeze({
+    ...configured,
+    authToken: configured.authToken ?? new AuthRepository(db).token(),
+  })
 
   const storage = createStorage(config, logger)
 
@@ -260,6 +260,7 @@ export function createContainer(configured: Config): Container {
     analysed: songId =>
       audioFeatures.isAnalysed(songId, ANALYSIS_VERSION) && (!sound.isReady || sound.has(songId)),
     cloudDir: config.cloudDir ?? undefined,
+    publishAnyway: config.publishAnyway,
     importRequests,
     doormanUrl: config.doormanUrl,
     romanize: (songId, text) => romanizedLines({ lyricsCache, romanization }, songId, text),
@@ -285,7 +286,6 @@ export function createContainer(configured: Config): Container {
   }
 
   const scanner = new ScannerService({
-    config,
     storage,
     songs,
     metadata,
@@ -388,34 +388,19 @@ export function createContainer(configured: Config): Container {
   })
 
   const lookup = new MetadataLookupService(logger)
-  const smart = new SmartFeatures({
-    llm: llmFor(config, logger),
-    setup: setupFor(config),
-    songs: () => songs.all(),
-    tags: () => tags.all(),
+  const smart = smartFeaturesFor({
+    config,
+    logger,
+    songs,
+    tags,
     sound,
-    stats: range => stats.build(range),
-    lyrics: query =>
-      lyricsSearch.search(query).map(row => ({ songId: row.song_id, line: row.line })),
-    wrapped: range => wrapped.build(range),
-    playlists: () =>
-      playlists.all().map(playlist => ({
-        name: playlist.name,
-        kind: playlist.kind,
-        songIds: () => playlists.songIds(playlist),
-      })),
-    notes: () => settings.get().smartNotes,
-    catalogue: words => netease.search(words),
-    web: () => settings.get().smartWeb,
-    music: {
-      albums: words => netease.searchAlbums(words),
-      albumTracks: id => netease.albumTracks(id),
-      songs: words => netease.search(words),
-    },
-    findNames: catalogueFinder({
-      netease: words => netease.search(words),
-      lookup: query => lookup.lookup(query),
-    }),
+    stats,
+    wrapped,
+    playlists,
+    lyricsSearch,
+    settings,
+    netease,
+    lookup,
   })
   const fixCovers = new FixCoversService({
     songs,

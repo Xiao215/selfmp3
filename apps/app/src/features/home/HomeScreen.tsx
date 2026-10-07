@@ -1,21 +1,19 @@
-import { useEffect, useId, useMemo, useState, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
 import type { ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
-import { useRouter, type Href } from 'expo-router'
-import { plural } from '@selfmp3/shared'
+import { useRouter } from 'expo-router'
+import { artistOr, plural } from '@selfmp3/shared'
 import type { Song, Stats } from '@selfmp3/shared'
-import { fonts, radius, tagColors, type, useLibrary, type ServerConnection } from '@selfmp3/client'
-import { useConnection } from '../../connection/ConnectionProvider'
-import { useServerDirect } from '../../connection/useServerDirect'
+import { fonts, radius, tagColors, type, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { useDragScroll } from '../../ports/dragScroll'
 import { Avatar } from '../../ui/components/Avatar'
 import { useAccount } from '../profile/useAccount'
-import { usePlayer } from '../../player/PlayerProvider'
-import { setPaletteOpen } from '../../shell/palette'
+import { usePlayerCommands } from '../../player/PlayerProvider'
+import { useOpenSearch } from '../../shell/palette'
 import { useBottomInset } from '../../shell/bottomInset'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
@@ -51,6 +49,8 @@ import {
   type HomeTile,
   type SundayCard,
 } from './home.model'
+import { useSvgId } from '../../ui/useSvgId'
+import { useVia } from '../../connection/via'
 
 /**
  * Home: where the app opens (docs/ui-mock `P04`, `C03`).
@@ -71,25 +71,24 @@ import {
  * (Xiao, 2026-09-22).
  */
 export function HomeScreen(): ReactNode {
-  const { fromCloud } = useConnection()
-  return fromCloud ? <CloudStats /> : <WithStats via={undefined} />
-}
-
-function CloudStats(): ReactNode {
-  const reach = useServerDirect()
-  return <WithStats via={reach.state === 'reachable' ? reach.connection : undefined} />
-}
-
-function WithStats({ via }: { via: ServerConnection | undefined }): ReactNode {
-  const { data: stats } = useStatsFor(via, '7d')
+  const { data: stats } = useStatsFor(useVia(), '7d')
   return <HomePage stats={stats} />
 }
 
-/** The clock, to the minute, for the greeting. */
+/**
+ * The clock, for the greeting and the Sunday card: both read only the hour
+ * and the day, so a tick inside the same hour keeps the same Date and the page
+ * is not drawn again for it.
+ */
 function useNow(): Date {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 30_000)
+    const timer = setInterval(() => {
+      const next = new Date()
+      setNow(shown =>
+        shown.getHours() === next.getHours() && shown.getDay() === next.getDay() ? shown : next,
+      )
+    }, 30_000)
     return () => clearInterval(timer)
   }, [])
   return now
@@ -126,10 +125,7 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
 
   // The one Search, starting on All: the page on a phone, the palette over
   // this page on a computer (docs/ui-mock `P18`, `C05`).
-  const openSearch = (): void => {
-    if (wide) setPaletteOpen(true)
-    else router.navigate({ pathname: '/search', params: { scope: 'all' } })
-  }
+  const openSearch = useOpenSearch('all')
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -272,7 +268,7 @@ function SundayLead({
  */
 function ToneWash({ color }: { color: string }): ReactNode {
   // Gradient ids are document ids on the web: two cards must not share one.
-  const id = `tone${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  const id = useSvgId('tone')
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       {/* Pinned to the edges and a unit box stretched over it, as ProgressWash's fade is. */}
@@ -461,7 +457,7 @@ function TileGrid({
   columns: number
   /** Whether a tile is narrower than `SMALL_TILE`, and its name a size down. */
   small: boolean
-  artFor: (tile: HomeTile) => string | null
+  artFor: (tile: HomeTile) => string | null | undefined
   onOpen: (tile: HomeTile) => void
 }): ReactNode {
   const [arrive] = useState(() => session.first('home-tiles'))
@@ -517,7 +513,7 @@ function Tile({
   /** Whether this paint is the one the tiles fade up in. */
   arrive: boolean
   small: boolean
-  artUri: string | null
+  artUri: string | null | undefined
   onPress: () => void
 }): ReactNode {
   const { wide } = useLayout()
@@ -557,7 +553,7 @@ function Tile({
             {tile.tag.name}
           </Text>
           <Text style={[styles.tileCount, { color: colours.tileInk }]}>
-            {tile.songs} {tile.songs === 1 ? 'song' : 'songs'}
+            {plural(tile.songs, 'song', 'songs')}
           </Text>
           {tile.cover ? (
             <View style={[styles.tileCover, wide && styles.tileCoverWide]} pointerEvents="none">
@@ -582,7 +578,7 @@ function Tile({
  * was never saved can be saved from Up next.
  */
 function Recents({ recents, wide }: { recents: readonly HomeRecent[]; wide: boolean }): ReactNode {
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const router = useRouter()
   const art = useArt()
   const { data: library } = useLibrary()
@@ -621,7 +617,7 @@ function Recents({ recents, wide }: { recents: readonly HomeRecent[]; wide: bool
                 {song.title}
               </Text>
               <Text style={styles.recentArtist} numberOfLines={1}>
-                {song.artist || 'Unknown artist'}
+                {artistOr(song.artist)}
               </Text>
             </Pressable>
           )
@@ -635,7 +631,7 @@ function Recents({ recents, wide }: { recents: readonly HomeRecent[]; wide: bool
             onPress={() => {
               // A list opens, as any list's tile does; playing it is its page's Play.
               if (line.link) {
-                router.push(line.link as unknown as Href)
+                router.push(line.link)
                 return
               }
               if (entry.source.kind === 'answer' && entry.answer) {
@@ -714,6 +710,8 @@ function ThisWeek({
   onOpenWeek: () => void
 }): ReactNode {
   const router = useRouter()
+  // Worked out once for the head and the foot, which are both in the song's colour.
+  const tone = useSundayTone(sunday ? sundaySong : null)
   const column = beside ? styles.sideColumn : styles.stack
   if (!stats) return <View style={column} />
   const time = listened(stats.totals.minutes)
@@ -725,7 +723,7 @@ function ThisWeek({
       <SectionHead title="This week" action={null} />
       <View style={cards}>
         <View style={[styles.weekCard, half]} testID="home-this-week">
-          {sunday ? <WeekReadyHead card={sunday} song={sundaySong} /> : null}
+          {sunday ? <WeekReadyHead card={sunday} song={sundaySong} tone={tone} /> : null}
           <View style={styles.weekNumbers}>
             <Figure value={time.big} unit={time.small} caption="listened" />
             <Figure value={String(stats.totals.plays)} unit="" caption="plays" />
@@ -737,7 +735,7 @@ function ThisWeek({
             />
           </View>
           {sunday ? (
-            <OpenWeek card={sunday} song={sundaySong} onOpen={onOpenWeek} />
+            <OpenWeek card={sunday} tone={tone} onOpen={onOpenWeek} />
           ) : (
             <Pressable onPress={() => router.navigate('/stats')} accessibilityRole="link">
               <Text style={styles.linkSmall}>Stats and report</Text>
@@ -751,7 +749,13 @@ function ThisWeek({
 }
 
 /** The colours of the week's number one: its cover's, or the accent without one. */
-function useSundayTone(song: Song | null): { uri: string | null; tint: string; color: string } {
+interface SundayTone {
+  readonly uri: string | null | undefined
+  readonly tint: string
+  readonly color: string
+}
+
+function useSundayTone(song: Song | null): SundayTone {
   const art = useArt()
   const uri = song ? art(song) : null
   return { uri, ...useSongColor(song, uri) }
@@ -761,8 +765,15 @@ function useSundayTone(song: Song | null): { uri: string | null; tint: string; c
  * This week's head on a Sunday: the number one, over a wash of its cover's
  * colour that goes under the whole card, so it is drawn first.
  */
-function WeekReadyHead({ card, song }: { card: SundayCard; song: Song | null }): ReactNode {
-  const tone = useSundayTone(song)
+function WeekReadyHead({
+  card,
+  song,
+  tone,
+}: {
+  card: SundayCard
+  song: Song | null
+  tone: SundayTone
+}): ReactNode {
   const lead = card.song
   return (
     <>
@@ -789,14 +800,13 @@ function WeekReadyHead({ card, song }: { card: SundayCard; song: Song | null }):
 /** And its foot: the button that opens the week, in the song's colour. */
 function OpenWeek({
   card,
-  song,
+  tone,
   onOpen,
 }: {
   card: SundayCard
-  song: Song | null
+  tone: SundayTone
   onOpen: () => void
 }): ReactNode {
-  const tone = useSundayTone(song)
   const lead = card.song
   return (
     <Pressable

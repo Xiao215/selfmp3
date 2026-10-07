@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, useWindowDimensions, View } from 'react-native'
+import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { HIT_TARGET, motion, radius, space, type, withAlpha } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutValue, useWindowValue } from '../../shell/useLayout'
 import { PanelDenseContext, usePanelDense } from './panel'
 import { Press } from './Press'
 import { floating } from '../surfaces'
 import { ease, spring, timing } from '../motion'
 import { MOVE_MS, overshootRange, PULL } from '../motion.model'
+import { useKeyboardLift } from '../../ports/keyboardLift'
 
 /**
  * How far a computer's dialog rises as it fades in: this sheet's wide shape,
@@ -66,7 +67,8 @@ export function Sheet({
   testID?: string
 }): ReactNode {
   const insets = useSafeAreaInsets()
-  const { wide, dense } = useLayout()
+  const wide = useLayoutValue(layout => layout.wide)
+  const dense = useLayoutValue(layout => layout.dense)
   /*
    * How far the panel travels: its own height, once it has laid out. Until then
    * there is nothing to rise from — it used to fall back to the window's
@@ -77,21 +79,23 @@ export function Sheet({
    */
   const [panelHeight, setPanelHeight] = useState(0)
   const measured = panelHeight > 0
+  // Mounted from the moment it is asked for until its exit has played out.
+  // Adjusted during render rather than in an effect, so opening never costs
+  // a frame drawn without the sheet.
+  const [mounted, setMounted] = useState(open)
+  // The window's height only while there is a sheet to fit in it: a closed one
+  // — most are — has no reason to render for a window being resized.
+  const windowHeight = useWindowValue(window => (mounted ? window.height : 0))
   // A sheet that was never told its height would never rise: every platform
   // the app runs on reports a layout, but a panel held invisible on the
   // strength of that is a panel that could be lost. So the window's height
   // stands in if no layout has come by the next frame — the old travel, which
   // only makes the very first rise a little quick.
-  const window = useWindowDimensions()
   useEffect(() => {
     if (!open || wide || measured) return undefined
-    const frame = requestAnimationFrame(() => setPanelHeight(height => height || window.height))
+    const frame = requestAnimationFrame(() => setPanelHeight(height => height || windowHeight))
     return () => cancelAnimationFrame(frame)
-  }, [open, wide, measured, window.height])
-  // Mounted from the moment it is asked for until its exit has played out.
-  // Adjusted during render rather than in an effect, so opening never costs
-  // a frame drawn without the sheet.
-  const [mounted, setMounted] = useState(open)
+  }, [open, wide, measured, windowHeight])
   if (open && !mounted) setMounted(true)
   // State rather than a ref: it is read while rendering, and a ref read
   // during render is what the React Compiler objects to (see Equalizer).
@@ -102,11 +106,17 @@ export function Sheet({
   // while it is up — the tag picker's list shortens as you type — and without
   // this the rise would play again every time it did.
   const risen = useRef(false)
+  // Whether it has been open since it last went down: a sheet that has never
+  // been opened has no exit to play. Most are mounted closed — every list's
+  // song menu, its tag picker — and each one sent two moves on mount.
+  const up = useRef(false)
   // Escape closes it on the web. Nothing on a phone.
   useEscape(open, onClose, { layer: true })
 
   useEffect(() => {
     if (!open) {
+      if (!up.current) return
+      up.current = false
       // Back down from wherever it is, including wherever a pull left it: the
       // pull runs out on the same curve and clock as the exit, so a panel let
       // go of part-way down carries on down rather than snapping up first.
@@ -117,6 +127,7 @@ export function Sheet({
       })
       return
     }
+    up.current = true
     // A phone's sheet rises by its own height and cannot start until it has
     // been measured; a computer's window only fades and settles, and can.
     if (risen.current || (!wide && !measured)) return
@@ -159,9 +170,16 @@ export function Sheet({
   )
   // The rise, plus whatever a finger has added to it. Rebuilt only when the
   // panel's own height — the distance — changes.
+  // Above the keyboard while one is up: a field in a sheet is near its top,
+  // and the rows it searches are what the keyboard would cover.
+  const keyboard = useKeyboardLift(mounted && !wide)
   const rise = useMemo(
-    () => Animated.add(progress.interpolate(overshootRange(panelHeight, 4)), pull),
-    [progress, pull, panelHeight],
+    () =>
+      Animated.add(
+        Animated.add(progress.interpolate(overshootRange(panelHeight, 4)), pull),
+        keyboard.lift,
+      ),
+    [progress, pull, panelHeight, keyboard.lift],
   )
   const settle = useMemo(
     () => ({
@@ -223,7 +241,14 @@ export function Sheet({
           style={[
             styles.panel,
             {
-              paddingBottom: Math.max(insets.bottom, space.sm) + space.xs,
+              // The keyboard covers the home indicator's room; above it the
+              // panel needs none, and no taller than the window it leaves.
+              paddingBottom:
+                keyboard.height > 0 ? space.sm : Math.max(insets.bottom, space.sm) + space.xs,
+              maxHeight:
+                keyboard.height > 0
+                  ? windowHeight - keyboard.height - insets.top - space.sm
+                  : undefined,
               // Invisible and still until it has been measured, then up from
               // below the foot, four points past its place, and back.
               opacity: measured ? 1 : 0,
@@ -327,7 +352,7 @@ const styles = StyleSheet.create(theme => ({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    backgroundColor: theme.colors.backdrop,
   },
   panel: {
     position: 'absolute',
@@ -362,6 +387,9 @@ const styles = StyleSheet.create(theme => ({
   },
   content: {
     alignSelf: 'stretch',
+    // Gives way when the panel is held under the keyboard's line, so a list in
+    // it scrolls in the room left rather than running off the top.
+    flexShrink: 1,
   },
   // The room above the grabber belongs to the handle rather than the panel, so
   // that a finger landing on it is landing on the thing that pulls.
@@ -408,7 +436,7 @@ const styles = StyleSheet.create(theme => ({
   itemActive: {
     backgroundColor: theme.colors.surface2,
   },
-  /* `.popover-item`: 8 by 10, 13-point type, where there is a mouse. */
+  /* In a panel with a mouse: 8 by 10, 13-point type. */
   itemDense: {
     minHeight: 0,
     gap: 9,

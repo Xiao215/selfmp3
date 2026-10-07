@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { detectLyricsLanguage, parseLyrics, type LyricsLanguage, type Song } from '@selfmp3/shared'
+import {
+  detectLyricsLanguage,
+  lyricTextLines,
+  parseLyrics,
+  type LyricsLanguage,
+  type Song,
+} from '@selfmp3/shared'
 import { ApiError, useLyrics, usePatchSong } from '@selfmp3/client'
 import { forgetNoWords, rememberNoWords, useNoWords } from './noWords'
 import { resolveSongWords, type SongWords } from './nowPlaying.model'
@@ -40,7 +46,7 @@ export function useSongWords(song: Song): {
   const parsed = useMemo(() => (lyrics.data ? parseLyrics(lyrics.data.text) : null), [lyrics.data])
   const language: LyricsLanguage = useMemo(() => {
     if (!parsed) return 'none'
-    return detectLyricsLanguage(parsed.synced ? parsed.lines.map(line => line.text) : parsed.lines)
+    return detectLyricsLanguage(lyricTextLines(parsed))
   }, [parsed])
 
   // Pinyin and romaji are switched apart; the song's language picks which.

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -17,7 +18,11 @@ import { useSaveUpNext } from '../lists/useSaveUpNext'
  * pressed it turns into "Saved" where it stood, so you can see it worked. In a
  * narrow rail the name gives way; the button never does.
  */
-export function UpNextSource({ onOpen }: { onOpen?: () => void }): ReactNode {
+export const UpNextSource = memo(function UpNextSource({
+  onOpen,
+}: {
+  onOpen?: () => void
+}): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
   const { line, plan, saving, save } = useSaveUpNext()
@@ -28,7 +33,7 @@ export function UpNextSource({ onOpen }: { onOpen?: () => void }): ReactNode {
   const open = line.link
     ? (): void => {
         onOpen?.()
-        router.navigate(line.link as unknown as Href)
+        router.navigate(line.link as Href)
       }
     : undefined
 
@@ -65,7 +70,7 @@ export function UpNextSource({ onOpen }: { onOpen?: () => void }): ReactNode {
       ) : null}
     </View>
   )
-}
+})
 
 const styles = StyleSheet.create(theme => ({
   row: {

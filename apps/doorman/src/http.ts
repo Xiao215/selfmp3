@@ -1,5 +1,5 @@
-import type { ErrorBody } from '@selfmp3/shared'
-import type { ZodError, ZodType, ZodTypeDef } from 'zod'
+import { formatZodError, type ErrorBody } from '@selfmp3/shared'
+import type { ZodType, ZodTypeDef } from 'zod'
 import { fromUtf8 } from './encoding.js'
 
 /**
@@ -107,16 +107,6 @@ export async function readJson<Output>(
   return parsed.data
 }
 
-/** The same wording the server uses for a request that fails its schema. */
-export function formatZodError(error: ZodError): string {
-  return error.issues
-    .map(issue => {
-      const where = issue.path.join('.')
-      return where ? `${where}: ${issue.message}` : issue.message
-    })
-    .join('; ')
-}
-
 /**
  * Up to `limit` bytes of a body, and the rest left unread. For bodies the
  * doorman reads itself — small JSON, the bucket's XML — so that an answer
@@ -151,6 +141,11 @@ export async function readBytes(
     if (offset >= out.length) break
   }
   return out
+}
+
+/** `localhost` or `127.0.0.1`: this computer, as an address names it. */
+export function isLoopbackHost(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1'
 }
 
 /** Let go of a body nobody is going to read, so its connection is freed. */

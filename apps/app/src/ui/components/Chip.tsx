@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePressScale } from '../motion'
+import { MOVE_MS } from '../motion.model'
 import { radius, tagColors, type } from '@selfmp3/client'
 import { Check } from './Icons'
 import { Press } from './Press'
@@ -79,7 +80,7 @@ export function Chip({
         {...press.handlers}
         onPress={onPress}
         onLongPress={onLongPress}
-        delayLongPress={450}
+        delayLongPress={MOVE_MS.longPress}
         accessibilityRole="button"
         accessibilityLabel={
           count === undefined ? label : `${label}, ${plural(count, 'song', 'songs')}`

@@ -30,8 +30,6 @@ import type { OutboxStore } from '../platform.js'
  * comes back `retry`, and nothing is lost.
  */
 
-type Listener = (pending: number) => void
-
 /*
  * Function-typed properties rather than methods, so that destructuring one off
  * — which is how the app re-exports them — carries no `this`. None of them has
@@ -40,19 +38,11 @@ type Listener = (pending: number) => void
 export interface ListenOutbox {
   /** A play that has just counted. Stored first, then sent. */
   readonly recordListen: (songId: number, msPlayed: number, completed: boolean) => void
-  readonly recordSkipListen: (songId: number, atSeconds: number) => void
   /** Send what is waiting. Resolves to how many events the server took. */
   readonly flushListens: () => Promise<number>
-  /** How many events are waiting, now and whenever it changes. */
-  readonly subscribePendingListens: (listener: Listener) => () => void
-  /** Load the count once at start-up, before anything has been recorded. */
-  readonly loadPendingListens: () => Promise<number>
 }
 
 export function createListenOutbox(store: OutboxStore): ListenOutbox {
-  const listeners = new Set<Listener>()
-  let pending = 0
-
   /**
    * Storage can be missing or refuse — private browsing, a full disk, an
    * unreadable file. The events then live in memory for this session, which is
@@ -60,23 +50,15 @@ export function createListenOutbox(store: OutboxStore): ListenOutbox {
    */
   let memoryFallback: OutboxEvent[] | null = null
 
-  function notify(count: number): void {
-    pending = count
-    for (const listener of listeners) listener(count)
-  }
-
   async function change(fn: (events: OutboxEvent[]) => OutboxEvent[]): Promise<OutboxEvent[]> {
     if (memoryFallback === null) {
       try {
-        const next = await store.update(current => trimOutbox(fn(parseOutbox(current))))
-        notify(next.length)
-        return next
+        return await store.update(current => trimOutbox(fn(parseOutbox(current))))
       } catch {
         memoryFallback = []
       }
     }
     memoryFallback = trimOutbox(fn(memoryFallback))
-    notify(memoryFallback.length)
     return memoryFallback
   }
 
@@ -148,25 +130,6 @@ export function createListenOutbox(store: OutboxStore): ListenOutbox {
         playedAt: new Date().toISOString(),
       })
     },
-    recordSkipListen: (songId, atSeconds) => {
-      void add({
-        kind: 'skip',
-        id: makeOutboxId(),
-        songId,
-        atSeconds,
-        at: new Date().toISOString(),
-      })
-    },
     flushListens,
-    subscribePendingListens: listener => {
-      listeners.add(listener)
-      listener(pending)
-      return () => listeners.delete(listener)
-    },
-    loadPendingListens: async () => {
-      const events = await read()
-      notify(events.length)
-      return events.length
-    },
   }
 }

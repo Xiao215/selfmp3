@@ -51,8 +51,3 @@ export const LyricsSearchResponseSchema = z.object({
   hits: z.array(LyricsSearchHitSchema),
 })
 export type LyricsSearchResponse = z.infer<typeof LyricsSearchResponseSchema>
-
-export const SaveLyricsSchema = z.object({
-  text: z.string().max(100_000),
-})
-export type SaveLyrics = z.infer<typeof SaveLyricsSchema>

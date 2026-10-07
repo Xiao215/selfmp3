@@ -1,8 +1,8 @@
-import { spawn } from 'node:child_process'
 import type { AnalysisStatus, Song } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { SoundVectorsRepository } from '../repositories/soundVectors.js'
+import { ffmpegFailure, runFfmpeg } from '../services/ffmpeg.js'
 import { Clamp3, type SoundModel } from './clamp3.js'
 import { SOUND_MODEL, SoundModelFiles } from './models.js'
 import { dot, SOUND_SAMPLE_RATE, WINDOW_SECONDS, windowStarts } from './vectors.js'
@@ -212,7 +212,7 @@ export class SoundService {
  * The windows `windowStarts` chooses, decoded back to back at 24 kHz mono:
  * one ffmpeg, an input per window, joined by its concat filter.
  */
-export function decodeWindows(file: string, duration: number): Promise<Float32Array> {
+export async function decodeWindows(file: string, duration: number): Promise<Float32Array> {
   const starts = windowStarts(duration)
   const inputs = starts.flatMap(start => [
     '-ss',
@@ -244,34 +244,15 @@ export function decodeWindows(file: string, duration: number): Promise<Float32Ar
     '-',
   ]
 
-  return new Promise<Float32Array>((resolve, reject) => {
-    const child = spawn('ffmpeg', args, { shell: false, windowsHide: true })
-    const parts: Buffer[] = []
-    let stderr = ''
-    let settled = false
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL')
-      finish(new Error('ffmpeg timed out decoding the windows'))
-    }, DECODE_TIMEOUT_MS)
-    const finish = (error: Error | null): void => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      if (error) return reject(error)
-      const bytes = Buffer.concat(parts)
-      const pcm = new Float32Array(Math.floor(bytes.length / 4))
-      for (let i = 0; i < pcm.length; i++) pcm[i] = bytes.readFloatLE(i * 4)
-      resolve(pcm)
-    }
-    child.stdout.on('data', (chunk: Buffer) => parts.push(chunk))
-    child.stderr.on('data', (chunk: Buffer) => {
-      if (stderr.length < 4096) stderr += chunk.toString('utf8')
-    })
-    child.on('error', error => finish(new Error(`could not run ffmpeg: ${error.message}`)))
-    child.on('close', code => {
-      if (code !== 0)
-        finish(new Error(stderr.trim().split('\n').pop() || `ffmpeg exited with ${code}`))
-      else finish(null)
-    })
+  const parts: Buffer[] = []
+  const result = await runFfmpeg(args, {
+    timeoutMs: DECODE_TIMEOUT_MS,
+    timeoutMessage: 'ffmpeg timed out decoding the windows',
+    onStdout: chunk => parts.push(chunk),
   })
+  if (result.code !== 0) throw ffmpegFailure(result)
+  const bytes = Buffer.concat(parts)
+  const pcm = new Float32Array(Math.floor(bytes.length / 4))
+  for (let i = 0; i < pcm.length; i++) pcm[i] = bytes.readFloatLE(i * 4)
+  return pcm
 }

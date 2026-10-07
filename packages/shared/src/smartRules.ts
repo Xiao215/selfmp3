@@ -1,5 +1,6 @@
 import { compatibleCamelot } from './audioFeatures.js'
 import { assertNever } from './exhaustive.js'
+import { DAY_MS } from './math.js'
 import type { CloudSmartRule, CloudSmartRules, CloudSong } from './schemas/cloud.js'
 import type { SongSortField } from './schemas/common.js'
 import { asciiLower, toSqliteTime } from './sync.js'
@@ -42,12 +43,16 @@ export function livePlaylistSongs(
   } else {
     const value = SORT_VALUES[rules.orderBy]
     const direction = rules.order === 'asc' ? 1 : -1
-    ordered = [...kept].sort(
-      (a, b) =>
-        compareNullsLast(value(a), value(b), direction) ||
-        compareNullsLast(a.addedAt, b.addedAt, direction) ||
-        compareNullsLast(a.uid, b.uid, direction),
-    )
+    // Each song's sort value worked out once, not on both sides of every comparison.
+    ordered = kept
+      .map(song => ({ song, sort: value(song) }))
+      .sort(
+        (a, b) =>
+          compareNullsLast(a.sort, b.sort, direction) ||
+          compareNullsLast(a.song.addedAt, b.song.addedAt, direction) ||
+          compareNullsLast(a.song.uid, b.song.uid, direction),
+      )
+      .map(({ song }) => song)
   }
 
   const limited = rules.limit === null ? ordered : ordered.slice(0, rules.limit)
@@ -130,7 +135,7 @@ function matcher(rule: CloudSmartRule, now: number): (song: CloudSong) => boolea
     case 'lastPlayedAt': {
       const field = rule.field
       if (rule.op === 'never') return song => song[field] === null
-      const since = toSqliteTime(now - rule.days * 24 * 60 * 60 * 1000)
+      const since = toSqliteTime(now - rule.days * DAY_MS)
       // "Not played in the last N days" includes never played, as the SQL does.
       return rule.op === 'inLastDays'
         ? song => song[field] !== null && (song[field] ?? '') >= since

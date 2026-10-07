@@ -18,6 +18,7 @@ import {
   type ServerEvent,
 } from '@selfmp3/shared'
 import {
+  STALE,
   clientApi,
   handoffTarget,
   queryKeys,
@@ -193,10 +194,7 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
   const lastSentRef = useRef<PlaybackState | null>(null)
 
   const devicesKey = useMemo(
-    () =>
-      fromCloud
-        ? ([...queryKeys.devices, 'through', server?.baseUrl ?? null] as const)
-        : queryKeys.devices,
+    () => (fromCloud ? queryKeys.devicesThrough(server?.baseUrl ?? null) : queryKeys.devices),
     [fromCloud, server],
   )
 
@@ -290,6 +288,10 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
 
   // --- incoming: the stream ------------------------------------------------
 
+  // The library version the stream last said. Every new connection says it
+  // first thing, and a phone in a pocket reconnects often: the same number
+  // again is nothing new, and refetching the whole library for it was.
+  const libraryVersion = useRef<number | null>(null)
   const onEvent = useCallback(
     (event: ServerEvent): void => {
       switch (event.type) {
@@ -300,6 +302,8 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
           if (event.deviceId === identityRef.current.deviceId) executeRef.current(event.command)
           return
         case 'library':
+          if (libraryVersion.current === event.version) return
+          libraryVersion.current = event.version
           void client.invalidateQueries({ queryKey: queryKeys.library })
           return
       }
@@ -333,7 +337,7 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
       return api.devices()
     },
     enabled: server !== null,
-    staleTime: 10_000,
+    staleTime: STALE.tenSeconds,
     refetchInterval: connected ? false : 15_000,
     refetchIntervalInBackground: false,
     retry: false,
@@ -370,6 +374,11 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
 
   // --- handoff -------------------------------------------------------------
 
+  /*
+   * Take over from that device: adopt its queue and position, then stop it
+   * there, so the same song is not coming out of two rooms at once. Both the
+   * sheet's "Play here" and a `transfer` command asked of this device.
+   */
   const playHere = useCallback(
     (device: Device): void => {
       // `device.state` is already in this device's numbers: the list it came
@@ -457,14 +466,9 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
           return
         }
         case 'transfer': {
-          // "Take over from that one": adopt its state, then stop it, so the
-          // same song is not coming out of two rooms at once.
+          // "Take over from that one".
           const from = devicesRef.current.find(device => device.id === command.fromDeviceId)
-          if (!from) return
-          const target = handoffTarget(from.state, Date.now())
-          if (!target) return
-          local.playFrom([...target.queueIds], target.index, { position: target.position })
-          send(from.id, { type: 'pause' })
+          if (from) playHere(from)
           return
         }
         case 'setVolume':
@@ -472,7 +476,7 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
           return
       }
     },
-    [send],
+    [playHere],
   )
 
   useEffect(() => {

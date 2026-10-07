@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { CoverToneSchema } from './song.js'
 import { HLC_PATTERN } from '../hlc.js'
-import { HueSchema, IdSchema, SongSortFieldSchema, SortDirectionSchema } from './common.js'
+import { HueSchema, IdSchema } from './common.js'
 import { SignInCodeSchema } from './doorman.js'
 import { AudioFeaturesSchema } from './audioFeatures.js'
 import {
@@ -11,6 +11,7 @@ import {
   KeyRuleSchema,
   NumberRuleSchema,
   TextRuleSchema,
+  smartRulesShape,
 } from './smart.js'
 
 /**
@@ -157,13 +158,7 @@ export const CloudSmartRuleSchema = z.discriminatedUnion('field', [
 ])
 export type CloudSmartRule = z.infer<typeof CloudSmartRuleSchema>
 
-export const CloudSmartRulesSchema = z.object({
-  match: z.enum(['all', 'any']),
-  rules: z.array(CloudSmartRuleSchema),
-  orderBy: SongSortFieldSchema,
-  order: SortDirectionSchema,
-  limit: z.number().int().min(1).nullable(),
-})
+export const CloudSmartRulesSchema = smartRulesShape(CloudSmartRuleSchema)
 export type CloudSmartRules = z.infer<typeof CloudSmartRulesSchema>
 
 const CloudPlaylistBaseSchema = z.object({
@@ -341,7 +336,7 @@ export const CloudStatusSchema = z.object({
   /** Waiting for Google to finish a sign-in started from this server. */
   signingIn: z.boolean(),
   /** Google has finished; the code it showed is wanted, to claim the session. */
-  signInNeedsCode: z.boolean().default(false),
+  signInNeedsCode: z.boolean(),
   /** A bucket is in use: connected directly, or belonging to the signed-in account. */
   connected: z.boolean(),
   /** Where it is connected to. The key itself is never sent back. */

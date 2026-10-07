@@ -2,7 +2,15 @@ import { createHash } from 'node:crypto'
 import { Readable } from 'node:stream'
 import type { S3Client } from '@aws-sdk/client-s3'
 import type { CloudConnection } from '../repositories/cloud.js'
-import { loadS3, streamToBuffer, type S3Module } from '../storage/s3.js'
+import {
+  errorName,
+  errorStatus,
+  isNotFound,
+  loadS3,
+  streamToBuffer,
+  type S3Module,
+} from '../storage/s3.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * The cloud bucket, as the sync sees it: a handful of operations on keys
@@ -76,7 +84,7 @@ export class S3CloudStore implements CloudStore {
 
   constructor(connection: CloudConnection) {
     this.#connection = connection
-    const host = connection.endpoint.replace(/^https?:\/\//, '')
+    const host = hostOf(connection.endpoint)
     const folder = connection.prefix
       ? `${connection.bucket}/${connection.prefix}`
       : connection.bucket
@@ -84,7 +92,7 @@ export class S3CloudStore implements CloudStore {
   }
 
   #client(): Promise<{ s3: S3Module; client: S3Client }> {
-    this.#ready ??= loadS3().then(({ s3 }) => ({
+    this.#ready ??= loadS3().then(s3 => ({
       s3,
       client: new s3.S3Client({
         region: this.#connection.region,
@@ -221,7 +229,7 @@ export class S3CloudStore implements CloudStore {
   /** Turn an SDK error into one that says what to do about it. */
   #explain(error: unknown): CloudError {
     if (error instanceof CloudError) return error
-    const host = this.#connection.endpoint.replace(/^https?:\/\//, '')
+    const host = hostOf(this.#connection.endpoint)
     const name = errorName(error)
     const status = errorStatus(error)
     const code = errorCode(error)
@@ -232,7 +240,7 @@ export class S3CloudStore implements CloudStore {
         `There is no bucket called “${this.#connection.bucket}” at ${host}.`,
       )
     }
-    const said = error instanceof Error ? error.message : ''
+    const said = messageOf(error)
     if (
       status === 401 ||
       status === 403 ||
@@ -273,19 +281,13 @@ export class S3CloudStore implements CloudStore {
     ) {
       return new CloudError('network', `Could not reach ${host}.`)
     }
-    const message = error instanceof Error ? error.message : String(error)
-    return new CloudError('other', `${host}: ${message}`)
+    return new CloudError('other', `${host}: ${said}`)
   }
 }
 
-function errorName(error: unknown): string {
-  return error instanceof Error ? error.name : ''
-}
-
-function errorStatus(error: unknown): number | undefined {
-  if (typeof error !== 'object' || error === null || !('$metadata' in error)) return undefined
-  const metadata = (error as { $metadata?: { httpStatusCode?: unknown } }).$metadata
-  return typeof metadata?.httpStatusCode === 'number' ? metadata.httpStatusCode : undefined
+/** `https://s3.us-west-004.backblazeb2.com` → `s3.us-west-004.backblazeb2.com`, for messages. */
+export function hostOf(url: string): string {
+  return url.replace(/^https?:\/\//, '')
 }
 
 function errorCode(error: unknown): string {
@@ -295,9 +297,4 @@ function errorCode(error: unknown): string {
   // Node's fetch hides the socket error one level down.
   const cause = (error as { cause?: { code?: unknown } }).cause
   return typeof cause?.code === 'string' ? cause.code : ''
-}
-
-function isNotFound(error: unknown): boolean {
-  const name = errorName(error)
-  return name === 'NotFound' || name === 'NoSuchKey' || errorStatus(error) === 404
 }

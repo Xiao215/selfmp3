@@ -13,3 +13,17 @@
  * app itself. This is the only package all three already load.
  */
 export const NATIVE_BACKGROUND = '#0b0d13'
+
+/**
+ * The dark theme's card (`surface1`), which the home-screen widget is filled
+ * with: its Xcode target's colours are written at prebuild time, by the same
+ * plain-Node config that reads `NATIVE_BACKGROUND`.
+ */
+export const NATIVE_CARD = '#151821'
+
+/**
+ * The accent at its default hue in the dark theme, for the widget's tint.
+ * packages/client works the accent out from the hue; its tests hold the two
+ * to the same colour.
+ */
+export const NATIVE_ACCENT = '#7a9eff'

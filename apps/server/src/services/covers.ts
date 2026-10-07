@@ -6,13 +6,20 @@ import sharp from 'sharp'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
+import { readCapped } from './fetching.js'
+import { isSquareCover, squareCover } from './squareCover.js'
+import { messageOf } from '../util/errors.js'
 
 /**
- * Cover art cache.
+ * This server's copy of every cover, in `data/covers/<id>`.
  *
- * Art is extracted from the audio file once and written to `data/covers/<id>`,
- * rather than re-parsing a 6 MB file every time a list of forty songs scrolls
- * past. The cache is disposable: delete the folder and a rescan rebuilds it.
+ * A cover arrives once — read out of a file the inbox sweep found, fetched
+ * with an import, or picked by hand — and is kept here rather than re-read
+ * from a 6 MB file every time a list of forty songs scrolls past. It is not a
+ * cache to throw away: the audio it came from is let go once it is in the
+ * bucket (docs/SYNC.md), `/api/art/:id` serves only what is here, and the
+ * cloud pass uploads the cover from here. Delete the folder and the covers
+ * are gone from this server.
  */
 
 const EXTENSIONS = ['.jpg', '.png', '.webp'] as const
@@ -43,9 +50,15 @@ export class CoverService {
     return path.join(this.#dir, `${songId}${extension}`)
   }
 
-  async save(songId: number, data: Buffer, extension: string): Promise<void> {
-    const ext = (EXTENSIONS as readonly string[]).includes(extension) ? extension : '.jpg'
+  async save(songId: number, given: Buffer, extension: string): Promise<void> {
     try {
+      // Square before it is kept, so every copy of it everywhere is
+      // (squareCover.ts). A picture sharp cannot read is kept as it came.
+      const { data, extension: squared } = await squareCover(given, extension).catch(() => ({
+        data: given,
+        extension,
+      }))
+      const ext = (EXTENSIONS as readonly string[]).includes(squared) ? squared : '.jpg'
       await fsp.writeFile(this.#pathFor(songId, ext), data)
       // A cover in another format stays behind otherwise — and `find` checks
       // formats in a fixed order, so an old .jpg would keep being served over
@@ -61,7 +74,7 @@ export class CoverService {
       // Missing art is cosmetic; a placeholder gradient is shown instead.
       this.#logger.warn('could not cache cover art', {
         songId,
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
     }
   }
@@ -79,12 +92,12 @@ export class CoverService {
     songId: number,
     size: number,
   ): Promise<{ path: string; contentType: string } | null> {
-    const cover = this.find(songId)
+    const cover = await this.find(songId)
     if (!cover) return null
     const stat = await fsp.stat(cover.path)
     const dir = path.join(this.#dir, 'thumbs')
     const file = path.join(dir, `${songId}-${size}-${Math.floor(stat.mtimeMs).toString(16)}.jpg`)
-    if (fs.existsSync(file)) return { path: file, contentType: 'image/jpeg' }
+    if (await isFile(file)) return { path: file, contentType: 'image/jpeg' }
     let making = this.#making.get(file)
     if (!making) {
       making = this.#makeThumbnail(songId, size, cover, file).finally(() =>
@@ -123,17 +136,56 @@ export class CoverService {
       this.#logger.warn('could not make a thumbnail', {
         songId,
         size,
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
       return cover
     }
   }
 
-  /** Locate a cached cover, whatever format it was stored in. */
-  find(songId: number): { path: string; contentType: string } | null {
-    for (const extension of EXTENSIONS) {
+  /**
+   * Square the covers kept before `save` squared them — once, in the
+   * background, at start. Each one changed is saved again, which counts its
+   * revision on: phones fetch it afresh, the next cloud pass puts it in the
+   * bucket, and its colour is read again. One already square costs a look at
+   * its header, so later starts pass through quickly.
+   */
+  async squareKept(songIds: readonly number[]): Promise<number> {
+    let squared = 0
+    for (const songId of songIds) {
+      const cover = await this.find(songId)
+      if (!cover) continue
+      try {
+        if (await isSquareCover(cover.path)) continue
+        const data = await fsp.readFile(cover.path)
+        await this.save(songId, data, path.extname(cover.path))
+        squared += 1
+      } catch (error) {
+        this.#logger.warn('could not square a cover', {
+          songId,
+          message: messageOf(error),
+        })
+      }
+      // Between covers, so a big library's pass never holds the server up.
+      await new Promise(resolve => setImmediate(resolve))
+    }
+    if (squared > 0) this.#logger.info('squared kept covers', { squared })
+    return squared
+  }
+
+  /**
+   * Locate a kept cover, whatever format it was stored in. The format `save`
+   * recorded on the row is looked for first, so the usual case is one look;
+   * the others are for a cover kept before the row said.
+   */
+  async find(songId: number): Promise<{ path: string; contentType: string } | null> {
+    const recorded = this.#songs.artExt(songId)
+    const order: readonly string[] =
+      recorded !== null && (EXTENSIONS as readonly string[]).includes(recorded)
+        ? [recorded, ...EXTENSIONS.filter(other => other !== recorded)]
+        : EXTENSIONS
+    for (const extension of order) {
       const file = this.#pathFor(songId, extension)
-      if (fs.existsSync(file)) {
+      if (await isFile(file)) {
         return { path: file, contentType: CONTENT_TYPES[extension] ?? 'image/jpeg' }
       }
     }
@@ -194,23 +246,12 @@ export class CoverService {
   }
 }
 
+async function isFile(file: string): Promise<boolean> {
+  return fsp.access(file).then(
+    () => true,
+    () => false,
+  )
+}
+
 /** Cover art is tens of kilobytes; past this it is not cover art. */
 const MAX_COVER_BYTES = 8 * 1024 * 1024
-
-/**
- * The body, or null if it runs past `limit`.
- *
- * Read in chunks rather than through `arrayBuffer()` so an unannounced huge
- * response is dropped as it arrives instead of after it has all been held.
- */
-async function readCapped(response: Response, limit: number): Promise<Buffer | null> {
-  if (!response.body) return null
-  const chunks: Buffer[] = []
-  let total = 0
-  for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
-    total += chunk.byteLength
-    if (total > limit) return null
-    chunks.push(Buffer.from(chunk))
-  }
-  return Buffer.concat(chunks)
-}

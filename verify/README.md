@@ -44,7 +44,7 @@ own address unless `SELFMP3_BUILD_URL` names a build served elsewhere:
 SELFMP3_BUILD_URL=http://localhost:8090 npm run verify:flows
 ```
 
-`npm run dev` sets `SELFMP3_PROFILE=dev`, so this is the thirteen-song dev
+`npm run dev` sets `SELFMP3_PROFILE=dev`, so this is the dev
 library in `~/Music/selfmp3-dev`, never the real one. The flows need at least
 two songs in it; the ones that need more say so and skip themselves.
 

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { EMPTY_QUEUE, type QueueState } from '@selfmp3/shared'
-import { launchPlayback, parseSession, sessionFromQueue } from './session.model'
+import {
+  launchPlayback,
+  parseSession,
+  positionNote,
+  sessionFromQueue,
+  withLatestPosition,
+} from './session.model'
 
 const queue = (items: number[], index: number): QueueState => ({
   ...EMPTY_QUEUE,
@@ -41,6 +47,21 @@ describe('the saved session', () => {
     expect(parseSession('not json')).toBeNull()
     expect(parseSession(JSON.stringify({ queueIds: [1, 2], index: 5, position: 1 }))).toBeNull()
     expect(parseSession(JSON.stringify({ queueIds: ['a'], index: 0, position: 1 }))).toBeNull()
+  })
+})
+
+describe('the position, kept apart from the queue', () => {
+  const saved = parseSession(JSON.stringify(sessionFromQueue(queue([3, 1, 2], 1), 10)))
+
+  it('moves the saved session on to where its song has got since', () => {
+    expect(withLatestPosition(saved, positionNote(queue([3, 1, 2], 1), 95))?.position).toBe(95)
+  })
+
+  it('leaves the session alone for a note about another song, or for junk', () => {
+    expect(withLatestPosition(saved, positionNote(queue([3, 1, 2], 2), 95))?.position).toBe(10)
+    expect(withLatestPosition(saved, 'not json')?.position).toBe(10)
+    expect(withLatestPosition(saved, null)?.position).toBe(10)
+    expect(positionNote(EMPTY_QUEUE, 5)).toBeNull()
   })
 })
 

@@ -6,6 +6,7 @@ import { ApiError, normaliseBaseUrl, radius, space, type } from '@selfmp3/client
 import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
+import { plural } from '@selfmp3/shared'
 
 /**
  * Connecting to a server by typing its address: development builds only.
@@ -59,7 +60,7 @@ export function ServerAddress({
         setNote(
           health.songCount === undefined
             ? `Reached self.mp3 ${health.version}`
-            : `Found ${health.songCount} songs on ${health.libraryPath ?? 'this server'}`,
+            : `Found ${plural(health.songCount, 'song', 'songs')} on ${health.libraryPath ?? 'this server'}`,
         )
 
         // /api/health is unauthenticated, so prove the token separately

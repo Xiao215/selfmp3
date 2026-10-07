@@ -1,4 +1,4 @@
-import { library, cloudPlatform, session as cloudSession } from '../replica'
+import { doormanAuth, doormanFileUrl, library, session as cloudSession } from '../replica'
 import { createCoverChanges } from './coverChanges'
 
 /**
@@ -61,6 +61,11 @@ export interface CoverPlatform {
   readonly prime: (found: (songId: number, rev: string, uri: string) => void) => void
   /** Where this device already holds the cloud cover named `name`, if it does. */
   readonly haveCloud: (name: string) => Promise<string | null>
+  /**
+   * The same, answered at once where the platform can look without waiting —
+   * a phone's file system can. Left out where it cannot.
+   */
+  readonly peekCloud?: (name: string) => string | null
   /** Fetch the cloud cover `name` from `url`; where it now is, or null. May throw. */
   readonly keepCloud: (
     name: string,
@@ -79,6 +84,8 @@ interface CoverStore {
   /** Bumped once per announcement: how a reader tells it missed one. */
   readonly coversVersion: () => number
   readonly coverFor: (songId: number) => string | undefined
+  /** Whether the last try at a song's cloud cover found nothing to show. */
+  readonly coverFailed: (songId: number) => boolean
   readonly ensureServerCover: (
     songId: number,
     rev: string | undefined,
@@ -98,6 +105,17 @@ function servedName(songId: number, rev: string): string {
   return `${songId}-${rev.replace(/[^a-zA-Z0-9.-]/g, '_')}.jpg`
 }
 
+/** The song and revision a kept server cover was named for, or null for any other file. */
+export function parseServedName(name: string): { songId: number; rev: string } | null {
+  const match = /^(\d+)-(.*)\.jpg$/.exec(name)
+  return match ? { songId: Number(match[1]), rev: match[2] ?? '' } : null
+}
+
+/** A cover's file, whatever the bucket's picture was: a cloud cover keeps its own extension. */
+export function isPicture(name: string): boolean {
+  return /\.(jpe?g|png|webp|gif)$/i.test(name)
+}
+
 export function createCoverStore(platform: CoverPlatform): CoverStore {
   /** Resolved cloud covers by song id, so a list that re-renders does not re-ask. */
   const known = new Map<number, string | null>()
@@ -109,6 +127,12 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
   const served = new Map<number, { rev: string; uri: string }>()
   /** Addresses tried this launch: a server that is away is asked once per song, not per render. */
   const tried = new Set<string>()
+  /**
+   * Songs whose cloud cover was looked for on the disk and is not there yet.
+   * Looking is a file check on the JS thread, asked by every render of every
+   * row; it waits here until `ensureCover` has fetched the file or given up.
+   */
+  const notOnDisk = new Set<number>()
 
   /**
    * Whoever wants to know when a cover arrives — the list, mostly — told which
@@ -142,8 +166,38 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
   /** The cover kept here for one song: a kept server cover before a cloud one. */
   const coverFor = (songId: number): string | undefined => {
     prime()
-    return served.get(songId)?.uri ?? (known.get(songId) || undefined)
+    const kept = served.get(songId)?.uri ?? (known.get(songId) || undefined)
+    if (kept || known.has(songId)) return kept
+    return peek(songId)
   }
+
+  /**
+   * A cloud cover already on this device, found in the render that asks for
+   * it. The cloud covers are not primed — their names are hashes, not songs —
+   * so every cover of every launch used to be a letter tile for the frames it
+   * took `ensureCover` to look on disk and announce it, and then a picture:
+   * the switch Xiao saw on every list (2026-10-07). The library held in
+   * memory already names the file, and a phone can see whether it is there
+   * without waiting.
+   */
+  const peek = (songId: number): string | undefined => {
+    if (!platform.peekCloud || !platform.canKeep() || notOnDisk.has(songId)) return undefined
+    try {
+      const key = library.cloudCoverKeyNow(songId)
+      if (!key) return undefined
+      const uri = platform.peekCloud(nameFromKey(key))
+      if (!uri) {
+        notOnDisk.add(songId)
+        return undefined
+      }
+      known.set(songId, uri)
+      return uri
+    } catch {
+      return undefined
+    }
+  }
+
+  const coverFailed = (songId: number): boolean => failed.has(songId) && !fetching.has(songId)
 
   /**
    * Keep a server's cover on this device, from the address the server serves it
@@ -214,9 +268,7 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
         const signedIn = await cloudSession.loadSession()
         if (!signedIn) return null
 
-        return await platform.keepCloud(name, `${cloudPlatform.doormanUrl}/v1/files/${key}`, {
-          Authorization: `Bearer ${signedIn.token}`,
-        })
+        return await platform.keepCloud(name, doormanFileUrl(key), doormanAuth(signedIn.token))
       } catch (error) {
         // A missing cover is survivable — the letter tile is behind it — but it
         // should not be silent: swallowing this is what made an expo-file-system
@@ -233,6 +285,8 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
     fetching.set(songId, work)
     const uri = await work
     fetching.delete(songId)
+    // Fetched or given up on: either way the disk is worth a look again.
+    notOnDisk.delete(songId)
     if (uri) {
       known.set(songId, uri)
       failed.delete(songId)
@@ -257,6 +311,7 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
     failed.clear()
     served.clear()
     tried.clear()
+    notOnDisk.clear()
     try {
       await platform.forgetFiles()
     } catch {
@@ -268,6 +323,7 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
     subscribeCovers: changes.subscribe,
     coversVersion: changes.version,
     coverFor,
+    coverFailed,
     ensureServerCover,
     ensureCover,
     forgetCovers,

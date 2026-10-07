@@ -91,7 +91,10 @@ jobs:
             and choose **Load unpacked** — or load `apps/extension/dist` from a
             checkout, which is the same thing without the download.
 
-            It imports through your own self.mp3 server: give it the address you
-            open self.mp3 at, and its token if you set one.
+            Its options page opens on first install. Sign in with the same
+            Google account as your phone and the app: it finds your server from
+            your library, and while the server is off, links wait in your bucket.
+            Or type your server's own address there instead (and its token, if
+            it asks for one).
 
             See [docs/features/browser-extension.md](../blob/main/docs/features/browser-extension.md).

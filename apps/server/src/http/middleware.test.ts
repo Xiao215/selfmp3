@@ -1,9 +1,11 @@
 import type { NextFunction, Request, Response } from 'express'
 import { EXTENSION_ORIGIN } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
-import type { Config } from '../config.js'
 import { HttpError } from './errors.js'
-import { APP_SITE_ORIGIN, cors, loggedUrl, sameOriginWrites } from './middleware.js'
+import { cors, loggedUrl, sameOriginWrites } from './middleware.js'
+
+const APP_URL = 'https://music.example.org/selfmp3'
+const APP_SITE_ORIGIN = new URL(APP_URL).origin
 
 /**
  * The guard that keeps another website from writing to your library.
@@ -14,8 +16,11 @@ import { APP_SITE_ORIGIN, cors, loggedUrl, sameOriginWrites } from './middleware
  * from a page that merely knows the address.
  */
 
-const config = (corsOrigins: string[], publicUrl: string | null = null): Config =>
-  ({ corsOrigins, publicUrl }) as unknown as Config
+const config = (corsOrigins: string[], publicUrl: string | null = null) => ({
+  corsOrigins,
+  publicUrl,
+  appUrl: APP_URL,
+})
 
 function run(
   method: string,

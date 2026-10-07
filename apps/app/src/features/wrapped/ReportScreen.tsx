@@ -4,7 +4,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'rea
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import type { WrappedRange } from '@selfmp3/shared'
-import { lightPalette, useLibrary, withAlpha, type ServerConnection } from '@selfmp3/client'
+import { failureText, useLibrary, withAlpha, type ServerConnection } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
@@ -14,7 +14,7 @@ import { canSaveLook, saveLook } from '../../ports/saveLook'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
-import { useBackTo } from '../../ui/components/BackRow'
+import { useBackTo } from '../../ui/useBackTo'
 import { BackButton } from '../../ui/components/BackButton'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
@@ -33,19 +33,11 @@ import {
   LOOK_LABELS,
   looksFor,
   lookToDraw,
-  statsRangeOf,
   type LookId,
   type LookInput,
 } from './looks.model'
-import {
-  emptyHint,
-  emptyTitle,
-  longerRanges,
-  rangeShort,
-  tryLabel,
-  WRAPPED_RANGES,
-  shareFileName,
-} from './wrapped.model'
+import { emptyHint, emptyTitle, longerRanges, tryLabel, shareFileName } from './wrapped.model'
+import { isStatsPeriod, periodLabel, STATS_PERIODS, statsRangeFor } from '../stats/stats.model'
 
 /** How wide a portrait look is drawn on a computer: its board's own width, near enough. */
 const PORTRAIT_ON_COMPUTER = 480
@@ -68,9 +60,7 @@ export function ReportScreen(): ReactNode {
   // The window it opens on: the address's, when it names one — Home's Sunday
   // card opens the week (`P06`) — and otherwise the month.
   const { range: asked } = useLocalSearchParams<{ range?: string }>()
-  const [range, setRange] = useState<WrappedRange>(() =>
-    (WRAPPED_RANGES as readonly string[]).includes(asked ?? '') ? (asked as WrappedRange) : 'month',
-  )
+  const [range, setRange] = useState<WrappedRange>(() => (isStatsPeriod(asked) ? asked : 'month'))
   // Null until a look is picked, so the default follows the width it is drawn at.
   const [chosen, setChosen] = useState<LookId | null>(null)
   const frame: FrameState = {
@@ -106,7 +96,7 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
   const { wide } = useLayout()
   const { data: wrapped, isLoading } = useWrappedFor(via, frame.range)
   // The day by day the calendar, the receipt's bars and the front page's grid need.
-  const { data: stats } = useStatsFor(via, statsRangeOf(frame.range))
+  const { data: stats } = useStatsFor(via, statsRangeFor(frame.range))
   // The report names songs the way whichever library answered numbers them;
   // this is the same song as this device knows it (statsSource.ts).
   const songFor = useStatsSongs(via)
@@ -117,7 +107,7 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
   const [shareError, setShareError] = useState<string | null>(null)
 
   const art = useCallback(
-    (songId: number): string | null => {
+    (songId: number): string | null | undefined => {
       const song = songFor(songId)
       return song ? artFor(song) : null
     },
@@ -151,7 +141,7 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
     try {
       await saveLook(page.current, shareFileName(wrapped), LOOK_VIEWS[frame.look].size.width * 2)
     } catch (error) {
-      setShareError(error instanceof Error ? error.message : 'could not make the image')
+      setShareError(failureText('Couldn’t save the image', error))
     } finally {
       setSharing(false)
     }
@@ -257,7 +247,7 @@ function ReportFrame({
   share,
   children,
 }: FrameState & {
-  topArt: string | null
+  topArt: string | null | undefined
   share: ReactNode
   children: ReactNode
 }): ReactNode {
@@ -286,9 +276,9 @@ function ReportFrame({
                 value={range}
                 onChange={onRange}
                 label="Time range"
-                options={WRAPPED_RANGES.map(option => ({
+                options={STATS_PERIODS.map(option => ({
                   value: option,
-                  label: rangeShort(option),
+                  label: periodLabel(option),
                 }))}
               />
               {share}
@@ -332,9 +322,9 @@ function ReportFrame({
                 onChange={onRange}
                 label="Time range"
                 size="small"
-                options={WRAPPED_RANGES.map(option => ({
+                options={STATS_PERIODS.map(option => ({
                   value: option,
-                  label: rangeShort(option),
+                  label: periodLabel(option),
                 }))}
               />
               {share}
@@ -369,7 +359,7 @@ function LookStage({
   look: LookId
   input: LookInput
   hue: number
-  art: (songId: number) => string | null
+  art: (songId: number) => string | null | undefined
   tagHue: (tag: string) => number | undefined
 }): ReactNode {
   const { wide } = useLayout()
@@ -416,7 +406,7 @@ function LookPicker({
   value: LookId
   onChange: (look: LookId) => void
   hue: number
-  topArt: string | null
+  topArt: string | null | undefined
 }): ReactNode {
   const { wide } = useLayout()
   return (
@@ -466,7 +456,7 @@ function LookPicker({
  * that would otherwise vanish into the page.
  */
 function swatchOf(look: LookId, hue: number): string {
-  if (look === 'calendar') return lightPalette(hue).surface3
+  if (look === 'calendar') return lookInk(look, hue).well
   if (look === 'wall') return lookInk(look, hue).tone
   return lookInk(look, hue).ground
 }

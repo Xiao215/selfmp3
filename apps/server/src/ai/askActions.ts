@@ -4,11 +4,12 @@ import {
   AskPlaceSchema,
   AskSortSchema,
   AskStatsRangeSchema,
+  editDistance,
   type AskAnswer,
   type Song,
   type Stats,
 } from '@selfmp3/shared'
-import { EVERYTHING, libraryAnswer, playlistSongs, type AskPlaylist } from './askLibrary.js'
+import { EVERYTHING, libraryAnswer, none, playlistSongs, type AskPlaylist } from './askLibrary.js'
 import {
   PickOut,
   groundPicks,
@@ -20,11 +21,12 @@ import {
 } from './describe.js'
 import { songTable } from './library.js'
 import { Remembered } from './llm.js'
-import type { FindNames } from './names.js'
+import type { CatalogueSearch, FindNames } from './names.js'
 import type { Steps } from './progress.js'
 import { explore } from './explore.js'
 import { getMusic, type MusicCatalogue } from './getMusic.js'
 import { tagReview } from './tagReview.js'
+import { bare } from './text.js'
 import { tidy } from './tidy.js'
 
 /**
@@ -49,9 +51,7 @@ export interface AskDeps extends DescribeDeps {
   /** How they want things done, for every request (Settings › Smart features). */
   readonly notes?: () => readonly string[]
   /** 网易云's search, for looking things up (`explore.ts`). */
-  readonly catalogue?: (
-    words: string,
-  ) => Promise<readonly { title: string; artist: string; album: string; duration: number }[]>
+  readonly catalogue?: CatalogueSearch
   /** Settings' web switch: whether looking things up may search the web. */
   readonly web?: () => boolean
   /** 网易云's albums and songs, for music to import (`getMusic.ts`). */
@@ -98,35 +98,6 @@ function action<F>(entry: AskAction<F>): AskAction<F> {
   return entry
 }
 
-/** Not something the box can do, with what it can do instead. */
-export const none = (say: string, tries: readonly string[] = []): AskAnswer => ({
-  kind: 'none',
-  say,
-  try: tries
-    .map(each => each.trim())
-    .filter(Boolean)
-    .slice(0, 2),
-})
-
-const lower = (value: string): string => value.toLowerCase()
-
-/** Letters and digits only, lower case: "chill · chinese · hype" and "chill chinese hype" are one. */
-const bare = (value: string): string => value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
-
-function editDistance(a: string, b: string): number {
-  const row = Array.from({ length: b.length + 1 }, (_, index) => index)
-  for (let i = 1; i <= a.length; i++) {
-    let diagonal = row[0]!
-    row[0] = i
-    for (let j = 1; j <= b.length; j++) {
-      const above = row[j]!
-      row[j] = Math.min(above + 1, row[j - 1]! + 1, diagonal + (a[i - 1] === b[j - 1] ? 0 : 1))
-      diagonal = above
-    }
-  }
-  return row[b.length]!
-}
-
 /**
  * The playlist a name means, by its exact name, or null. Spelled the way
  * people type a name they half remember — "chill chiense hype" is "chill ·
@@ -143,7 +114,11 @@ export function matchPlaylist(
   if (exact) return exact.name
   const slips = Math.max(2, Math.floor(wanted.length * 0.2))
   const near = playlists
-    .map(playlist => ({ name: playlist.name, far: editDistance(wanted, bare(playlist.name)) }))
+    // Anything past `slips` comes back as `slips + 1`, which the filter drops.
+    .map(playlist => ({
+      name: playlist.name,
+      far: editDistance(wanted, bare(playlist.name), slips),
+    }))
     .filter(each => each.far <= slips)
     .sort((a, b) => a.far - b.far)
   if (near.length === 0 || (near.length > 1 && near[0]!.far === near[1]!.far)) return null
@@ -158,15 +133,15 @@ const FIND_VERSION = 1
 const NEXT_SIZE = 10
 
 /** Songs whose title, artist or album holds a term, then ones whose lyrics do, once each. */
-export function foundFor(
+export function songsMatching(
   terms: readonly string[],
   songs: readonly Song[],
   lyrics: AskDeps['lyrics'],
 ): { song: Song; line: string | null }[] {
-  const wanted = terms.map(term => lower(term.trim())).filter(Boolean)
+  const wanted = terms.map(term => term.trim().toLowerCase()).filter(Boolean)
   const found = new Map<number, { song: Song; line: string | null }>()
   for (const song of songs) {
-    const text = lower(`${song.title} ${song.artist} ${song.album}`)
+    const text = `${song.title} ${song.artist} ${song.album}`.toLowerCase()
     if (wanted.some(term => text.includes(term))) found.set(song.id, { song, line: null })
   }
   const byId = new Map(songs.map(song => [song.id, song]))
@@ -223,7 +198,7 @@ const find = action({
       .map(term => `“${term}”`)
       .join(', ')
     steps.begin(`Looking for ${quoted} in titles and lyrics`)
-    const found = foundFor(terms, deps.songs(), deps.lyrics)
+    const found = songsMatching(terms, deps.songs(), deps.lyrics)
     steps.done(found.length === 0 ? 'Nothing matched' : `${found.length} could be it`)
     if (found.length === 0) return { kind: 'find', terms, picks: [] }
     steps.begin('Choosing the one you mean')

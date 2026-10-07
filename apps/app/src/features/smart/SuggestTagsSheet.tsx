@@ -2,13 +2,14 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQuery } from '@tanstack/react-query'
-import { failureText, space } from '@selfmp3/client'
+import { STALE, failureText, space } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { Button } from '../../ui/components/Button'
 import { Sheet } from '../../ui/components/Sheet'
 import { TagsReview } from './TagsReview'
 import { Working } from './Working'
 import { useSmartServer } from './useSmartServer'
+import { reachedConnection, viaKey } from '../../connection/via'
 
 /**
  * Suggest tags, from Tags' untagged card: the tag review (docs/features/ai.md,
@@ -24,13 +25,13 @@ export function SuggestTagsSheet({
   onClose: () => void
 }): ReactNode {
   const server = useSmartServer()
-  const via = server.reach.state === 'reachable' ? server.reach.connection.baseUrl : null
+  const via = reachedConnection(server.reach)?.baseUrl ?? null
   const answer = useQuery({
-    queryKey: ['via-server', via, 'ai', 'tags', 'untagged'],
+    queryKey: viaKey(via, 'ai', 'tags', 'untagged'),
     queryFn: () => server.api!.untaggedTags(),
     enabled: open && server.api !== null,
     retry: false,
-    staleTime: 10 * 60_000,
+    staleTime: STALE.tenMinutes,
   })
 
   let body: ReactNode

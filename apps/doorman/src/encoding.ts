@@ -68,6 +68,9 @@ export function randomBytes(length: number): Uint8Array {
   return bytes
 }
 
+/** What `randomToken` writes, and so the only shape a token or a nonce of ours has. */
+export const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/
+
 /** A fresh random token: 32 bytes, base64url, 43 characters. */
 export function randomToken(): string {
   return toBase64Url(randomBytes(32))

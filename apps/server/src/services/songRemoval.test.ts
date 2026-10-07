@@ -207,7 +207,7 @@ describe('SongRemovalService', () => {
 
       await removal.remove([id])
 
-      expect(covers.find(id)).toBeNull()
+      expect(await covers.find(id)).toBeNull()
       expect(cacheFolder(id)).toBe(false)
       expect(search.indexedHash(id)).toBeNull()
     })

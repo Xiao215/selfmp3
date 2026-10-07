@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { createValueStore } from '../state/valueStore.model'
 
 /**
  * How wide the app's own root view is, measured rather than asked for.
@@ -13,24 +13,14 @@ import { useSyncExternalStore } from 'react'
  * context around the whole app would redraw it from the top on every change
  * anyway.
  */
-let width: number | null = null
-const listeners = new Set<() => void>()
+const width = createValueStore<number | null>(null)
 
 export function setRootWidth(next: number): void {
   const rounded = Math.round(next)
   // Zero happens while a view is being laid out; it is not a width.
-  if (rounded <= 0 || rounded === width) return
-  width = rounded
-  for (const listener of listeners) listener()
+  if (rounded > 0) width.set(rounded)
 }
 
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
-}
-
-const read = (): number | null => width
-
-export function useRootWidth(): number | null {
-  return useSyncExternalStore(subscribe, read, read)
-}
+/** The width measured, or null before the root has laid out. */
+export const readRootWidth = width.get
+export const subscribeRootWidth = width.subscribe

@@ -4,9 +4,10 @@ import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { View as RNView } from 'react-native'
 import { useRouter } from 'expo-router'
-import { formatDuration, type Song } from '@selfmp3/shared'
+import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
 import {
   clientApi,
+  failureText,
   isDownloaded,
   space,
   type,
@@ -21,8 +22,8 @@ import { tagLink } from '../../features/tag/placeLinks'
 import { useArt } from '../../offline/useArt'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
-import { usePlayer } from '../../player/PlayerProvider'
-import { useLayout } from '../../shell/useLayout'
+import { usePlayerCommands } from '../../player/PlayerProvider'
+import { showToast } from '../toast'
 import { Button } from './Button'
 import { Chip } from './Chip'
 import { RemoveSongs } from './ConfirmRemoveSongs'
@@ -41,7 +42,7 @@ import {
   X,
 } from './Icons'
 import { Popover } from './Popover'
-import { Sheet, SheetItem } from './Sheet'
+import { SheetItem } from './Sheet'
 import { TagPicker } from './TagPicker'
 
 /**
@@ -86,7 +87,6 @@ export function SongMenu({
   anchorRef?: RefObject<RNView | null>
 }): ReactNode {
   const { data: library } = useLibrary()
-  const { wide } = useLayout()
   const [tagging, setTagging] = useState<number | null>(null)
   const [removing, setRemoving] = useState<Song | null>(null)
   // The song as the library has it now, so the picker shows the tags after a change.
@@ -112,21 +112,15 @@ export function SongMenu({
 
   return (
     <>
-      {wide && anchorRef ? (
-        <Popover
-          open={song !== null}
-          onClose={onClose}
-          anchorRef={anchorRef}
-          width={300}
-          testID="song-menu"
-        >
-          {items}
-        </Popover>
-      ) : (
-        <Sheet testID="song-menu" open={song !== null} onClose={onClose}>
-          {items}
-        </Sheet>
-      )}
+      <Popover
+        open={song !== null}
+        onClose={onClose}
+        anchorRef={anchorRef}
+        width={300}
+        testID="song-menu"
+      >
+        {items}
+      </Popover>
 
       {/* Where the menu was: over the same ⋯, not in the middle of the window. */}
       <TagPicker song={taggingSong} onClose={() => setTagging(null)} anchorRef={anchorRef} />
@@ -160,7 +154,7 @@ function Items({
 }): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const fly = useFlyToUpNext()
   const artFor = useArt()
   const { data: library } = useLibrary()
@@ -178,10 +172,7 @@ function Items({
   const manualPlaylists = playlistsToAddTo(library?.playlists ?? []).filter(
     list => list.id !== playlist?.id,
   )
-  const byline = [
-    song.artist || 'Unknown artist',
-    song.duration > 0 ? formatDuration(song.duration) : '',
-  ]
+  const byline = [artistOr(song.artist), song.duration > 0 ? formatDuration(song.duration) : '']
     .filter(Boolean)
     .join(' · ')
 
@@ -199,7 +190,9 @@ function Items({
           source: { kind: 'songs', origin: 'similar', name: `Similar to ${song.title}` },
         }),
       )
-      .catch(() => undefined)
+      .catch((caught: unknown) =>
+        showToast(failureText('Couldn’t find similar songs', caught), 'error'),
+      )
   }
 
   const icon = (Glyph: typeof Queue) => <Glyph size={16} color={theme.colors.textSecondary} />

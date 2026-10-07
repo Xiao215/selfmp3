@@ -7,13 +7,17 @@ import {
   RemoveFromPlaylistSchema,
   ReorderPlaylistSchema,
   UpdatePlaylistSchema,
+  type Ok,
+  type RemovedFromPlaylist,
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
+import { ParamsWithId } from '../http/params.js'
 
-const ParamsWithId = z.object({ id: IdSchema })
 const ParamsWithSong = z.object({ id: IdSchema, songId: IdSchema })
+
+const LIVE_BUILDS_ITSELF = 'a live playlist builds itself — edit its rules instead'
 
 export function playlistRoutes(container: Container): Router {
   const router = Router()
@@ -36,11 +40,6 @@ export function playlistRoutes(container: Container): Router {
       container.bumpLibraryVersion()
       return created
     }),
-  )
-
-  router.get(
-    '/playlists/:id',
-    route({ params: ParamsWithId }, ({ params }) => requirePlaylist(params.id)),
   )
 
   /** Ordered song ids. Live playlists resolve their rules on every read. */
@@ -102,11 +101,11 @@ export function playlistRoutes(container: Container): Router {
 
   router.delete(
     '/playlists/:id',
-    route({ params: ParamsWithId }, ({ params }) => {
+    route({ params: ParamsWithId }, ({ params }): Ok => {
       requirePlaylist(params.id)
       container.playlists.delete(params.id)
       container.bumpLibraryVersion()
-      return { ok: true as const }
+      return { ok: true }
     }),
   )
 
@@ -118,10 +117,10 @@ export function playlistRoutes(container: Container): Router {
    */
   router.post(
     '/playlists/:id/played',
-    route({ params: ParamsWithId }, ({ params }) => {
+    route({ params: ParamsWithId }, ({ params }): Ok => {
       requirePlaylist(params.id)
       container.playlists.markPlayed(params.id)
-      return { ok: true as const }
+      return { ok: true }
     }),
   )
 
@@ -130,11 +129,12 @@ export function playlistRoutes(container: Container): Router {
     route({ params: ParamsWithId, body: AddToPlaylistSchema }, ({ params, body }) => {
       const playlist = requirePlaylist(params.id)
       if (playlist.kind === 'live') {
-        throw HttpError.badRequest('a live playlist builds itself — edit its rules instead')
+        throw HttpError.badRequest(LIVE_BUILDS_ITSELF)
       }
 
       // Drop ids that are not real songs rather than failing the whole request.
-      const valid = body.songIds.filter(id => container.songs.byId(id) !== null)
+      const present = container.songs.existingIds(body.songIds)
+      const valid = body.songIds.filter(id => present.has(id))
       if (valid.length === 0) throw HttpError.badRequest('none of those songs exist')
 
       if (body.position === undefined) container.playlists.add(params.id, valid)
@@ -157,16 +157,19 @@ export function playlistRoutes(container: Container): Router {
    */
   router.post(
     '/playlists/:id/songs/remove',
-    route({ params: ParamsWithId, body: RemoveFromPlaylistSchema }, ({ params, body }) => {
-      const playlist = requirePlaylist(params.id)
-      if (playlist.kind === 'live') {
-        throw HttpError.badRequest('a live playlist builds itself — edit its rules instead')
-      }
-      const removed = container.playlists.removeMany(params.id, body.songIds)
-      container.edits.playlistSongs(params.id, body.songIds)
-      if (removed > 0) container.bumpLibraryVersion()
-      return { removed, playlist: container.playlists.byId(params.id) }
-    }),
+    route(
+      { params: ParamsWithId, body: RemoveFromPlaylistSchema },
+      ({ params, body }): RemovedFromPlaylist => {
+        const playlist = requirePlaylist(params.id)
+        if (playlist.kind === 'live') {
+          throw HttpError.badRequest(LIVE_BUILDS_ITSELF)
+        }
+        const removed = container.playlists.removeMany(params.id, body.songIds)
+        container.edits.playlistSongs(params.id, body.songIds)
+        if (removed > 0) container.bumpLibraryVersion()
+        return { removed, playlist: container.playlists.byId(params.id) }
+      },
+    ),
   )
 
   router.delete(
@@ -174,7 +177,7 @@ export function playlistRoutes(container: Container): Router {
     route({ params: ParamsWithSong }, ({ params }) => {
       const playlist = requirePlaylist(params.id)
       if (playlist.kind === 'live') {
-        throw HttpError.badRequest('a live playlist builds itself — edit its rules instead')
+        throw HttpError.badRequest(LIVE_BUILDS_ITSELF)
       }
       container.playlists.remove(params.id, params.songId)
       container.edits.playlistSongs(params.id, [params.songId])
@@ -185,7 +188,7 @@ export function playlistRoutes(container: Container): Router {
 
   router.put(
     '/playlists/:id/order',
-    route({ params: ParamsWithId, body: ReorderPlaylistSchema }, ({ params, body }) => {
+    route({ params: ParamsWithId, body: ReorderPlaylistSchema }, ({ params, body }): Ok => {
       // A playlist that follows tags takes a hand order too: it keeps finding
       // songs, and the ones it finds land after the order you set (Xiao,
       // 2026-09-21).
@@ -193,7 +196,7 @@ export function playlistRoutes(container: Container): Router {
       container.playlists.reorder(params.id, body.songIds)
       container.edits.playlist(params.id, ['order'])
       container.bumpLibraryVersion()
-      return { ok: true as const }
+      return { ok: true }
     }),
   )
 

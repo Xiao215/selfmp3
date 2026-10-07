@@ -75,6 +75,26 @@ export const SignInCodeSchema = z
   .transform(normalizeSignInCode)
   .pipe(z.string().regex(/^[0-9A-HJKMNP-TV-Z]{8}$/, 'not a sign-in code'))
 
+/**
+ * Where the doorman puts the code when it sends the browser back to where the
+ * sign-in started: in the fragment, `#signin-code=4F7K-2QXM`, which never
+ * leaves the browser.
+ */
+export const SIGN_IN_CODE_FRAGMENT = 'signin-code'
+
+const CODE_IN_URL = new RegExp(`(?:^|[#&?])${SIGN_IN_CODE_FRAGMENT}=([0-9A-Za-z-]{1,32})`)
+
+/**
+ * The code in an address the doorman sent back, normalised as a claim wants
+ * it, or null when the address carries none or what it carries is not a code.
+ */
+export function signInCodeFromUrl(url: string): string | null {
+  const raw = CODE_IN_URL.exec(url)?.[1]
+  if (raw === undefined) return null
+  const code = SignInCodeSchema.safeParse(raw)
+  return code.success ? code.data : null
+}
+
 export const DoormanClaimRequestSchema = z.object({
   attempt: SignInAttemptSchema,
   /** Left out to ask how things stand; sent to claim the session. */

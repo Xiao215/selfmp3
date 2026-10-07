@@ -39,13 +39,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run typecheck && npm run typecheck:verify && npm run lint && npm run format:check && npm run check:exports && npm run check:comments && npm run test && npm run check:app",
-    "clean": "npm run clean --workspaces --if-present && rm -rf tsconfig.tsbuildinfo apps/mobile apps/web packages/cloud",
+    "clean": "npm run clean --workspaces --if-present && rm -rf tsconfig.tsbuildinfo",
     "verify:flows": "playwright test -c verify/playwright.config.ts flows --project=desktop --project=phone",
     "test:app": "npm run test --workspace @selfmp3/app",
     "verify:desktop": "playwright test -c apps/desktop/verify/playwright.config.ts",
     "verify:extension": "playwright test -c apps/extension/verify/playwright.config.ts"
   },
   "overrides": {
+    "@types/react": "19.2.18",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native-reanimated": "4.5.5",

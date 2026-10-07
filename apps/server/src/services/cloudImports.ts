@@ -3,6 +3,7 @@ import type { Logger } from '../logger.js'
 import type { ImportRequest, ImportRequestRepository } from '../repositories/importRequests.js'
 import type { ImportRepository } from '../repositories/imports.js'
 import type { SyncRepository } from '../repositories/sync.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * Links other devices asked this server to import (docs/SYNC.md).
@@ -78,7 +79,7 @@ export class CloudImportService {
     try {
       preview = await this.#resolve(request.url)
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
+      const message = messageOf(error)
       this.#logger.warn('could not look up a link another device sent', {
         url: request.url,
         message,
@@ -98,8 +99,11 @@ export class CloudImportService {
 
     const title =
       preview.kind === 'playlist' ? preview.playlistTitle : (preview.items[0]?.title ?? null)
+    // `inQueue` knows a queued song by its video under any spelling of the
+    // link; a song found by its name only got its link after the preview
+    // looked, so the queue is asked about that link as well.
     const fresh = preview.items.filter(
-      item => !item.alreadyHave && !this.#imports.isPending(item.url),
+      item => !item.alreadyHave && !item.inQueue && !this.#imports.isPending(item.url),
     )
     if (fresh.length === 0) {
       this.#requests.finish(request.uid, {

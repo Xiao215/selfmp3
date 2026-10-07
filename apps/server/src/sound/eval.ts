@@ -5,6 +5,7 @@ import Database from 'better-sqlite3'
 import { createLogger } from '../logger.js'
 import { migrate } from '../db/migrate.js'
 import { SoundVectorsRepository } from '../repositories/soundVectors.js'
+import { messageOf } from '../util/errors.js'
 import { SOUND_MODEL } from './models.js'
 import { SoundService } from './sound.js'
 
@@ -73,7 +74,7 @@ for (const [index, name] of files.entries()) {
     await sound.hear(index + 1, file, duration)
     times.push(Date.now() - startedAt)
   } catch (error) {
-    console.log(`could not hear ${name}: ${error instanceof Error ? error.message : String(error)}`)
+    console.log(`could not hear ${name}: ${messageOf(error)}`)
   }
 }
 const sorted = [...times].sort((a, b) => a - b)

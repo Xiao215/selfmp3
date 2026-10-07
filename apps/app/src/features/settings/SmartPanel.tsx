@@ -10,6 +10,7 @@ import { Check, Refresh, Sparkle, X } from '../../ui/components/Icons'
 import { modelHop, serverHop, type Hop } from '../smart/smart.model'
 import { useSmartServer } from '../smart/useSmartServer'
 import { Panel, Row } from './SettingsParts'
+import { reachedConnection, viaKey } from '../../connection/via'
 
 /**
  * Smart features (docs/features/ai.md): where your server asks a model, and a
@@ -25,7 +26,7 @@ import { Panel, Row } from './SettingsParts'
  * less than that.
  */
 const SWITCHES: readonly {
-  key: 'smartAsk' | 'smartTidy' | 'smartTags' | 'smartWritten' | 'smartWeb'
+  key: 'smartAsk' | 'smartTidy' | 'smartTags' | 'smartWritten' | 'smartMetadata' | 'smartWeb'
   label: string
   sees: string
 }[] = [
@@ -50,6 +51,11 @@ const SWITCHES: readonly {
     sees: 'Sends the Report’s numbers and the songs, artists and tags it names.',
   },
   {
+    key: 'smartMetadata',
+    label: 'Fix metadata',
+    sees: 'Suggest on a song’s Fix metadata. Sends that song’s names, length, file name and the link it came from, with the catalogue listings found for it.',
+  },
+  {
     key: 'smartWeb',
     label: 'Search the web',
     sees: 'Off until you turn it on. When your library and the music catalogues don’t have the answer, Ask may search the web: the names in question go to a search engine, and it takes longer.',
@@ -68,8 +74,8 @@ export function SmartPanel({
 }): ReactNode {
   const server = useSmartServer()
   const queryClient = useQueryClient()
-  const via = server.reach.state === 'reachable' ? server.reach.connection.baseUrl : null
-  const setupKey = ['via-server', via, 'ai', 'setup']
+  const via = reachedConnection(server.reach)?.baseUrl ?? null
+  const setupKey = viaKey(via, 'ai', 'setup')
   const setup = useQuery({
     queryKey: setupKey,
     queryFn: () => server.api!.aiSetup(),

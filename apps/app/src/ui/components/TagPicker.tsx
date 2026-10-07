@@ -22,7 +22,6 @@ import { Plus } from './Icons'
 import { usePanelDense } from './panel'
 import { Popover } from './Popover'
 import { Press } from './Press'
-import { Sheet } from './Sheet'
 import { tagChanges, tagsAcross } from './tagPicker.model'
 
 /**
@@ -88,7 +87,7 @@ export function SelectionTagPicker({
  * A small window: over the button that opened it when there is one (the
  * player bar's, the selection bar's More), and otherwise — opened from a
  * song's menu, which closes as it opens — a sheet, which on a computer is a
- * small centred window.
+ * small centred window (`Popover` decides).
  */
 function PickerWindow({
   open,
@@ -103,18 +102,18 @@ function PickerWindow({
   title?: string
   children: ReactNode
 }): ReactNode {
-  const { wide } = useLayout()
-  if (wide && anchorRef) {
-    return (
-      <Popover open={open} onClose={onClose} anchorRef={anchorRef} width={320} testID="tag-picker">
-        {children}
-      </Popover>
-    )
-  }
   return (
-    <Sheet open={open} onClose={onClose} title={title} titleTone="label" testID="tag-picker">
+    <Popover
+      open={open}
+      onClose={onClose}
+      anchorRef={anchorRef}
+      width={320}
+      title={title}
+      titleTone="label"
+      testID="tag-picker"
+    >
       {children}
-    </Sheet>
+    </Popover>
   )
 }
 
@@ -132,20 +131,32 @@ function SelectionPicker({
   const [shown, setShown] = useState(() => tagsAcross(songs))
   const latest = useRef(shown)
   const bulkTag = useBulkTag()
+  const { wide } = useLayout()
   return (
     <TagSearchList
       selected={shown.all}
       mixed={shown.some}
       onChange={next => {
-        const { add, remove, after } = tagChanges(latest.current, next)
+        const before = latest.current
+        const { add, remove, after } = tagChanges(before, next)
         latest.current = after
         setShown(after)
+        // A tap the library did not take goes back to what is true, as a
+        // song's picker does — unless another tap has landed since, which
+        // owns the boxes now. The failure itself is said by the app's toast.
+        const undo = {
+          onError: () => {
+            if (latest.current !== after) return
+            latest.current = before
+            setShown(before)
+          },
+        }
         const songIds = songs.map(song => song.id)
-        for (const tagId of add) bulkTag.mutate({ songIds, tagId, action: 'add' })
-        for (const tagId of remove) bulkTag.mutate({ songIds, tagId, action: 'remove' })
+        for (const tagId of add) bulkTag.mutate({ songIds, tagId, action: 'add' }, undo)
+        for (const tagId of remove) bulkTag.mutate({ songIds, tagId, action: 'remove' }, undo)
       }}
       onLeave={onLeave}
-      autoFocus
+      autoFocus={wide}
     />
   )
 }
@@ -153,15 +164,35 @@ function SelectionPicker({
 function Picker({ song, onLeave }: { song: Song; onLeave: () => void }): ReactNode {
   const [selected, setSelected] = useState<ReadonlySet<number>>(() => new Set(song.tagIds))
   const setSongTags = useSetSongTags()
+  const { wide } = useLayout()
+  // The last set the library took, for a tick that did not: the box goes back
+  // to what is true rather than showing a tag the song does not have.
+  const saved = useRef<ReadonlySet<number>>(selected)
+  // The newest tick. A failed one puts the boxes back only if nothing was
+  // ticked after it: a later tick sends the whole set again, and its own
+  // answer decides.
+  const newest = useRef(0)
   return (
     <TagSearchList
       selected={selected}
       onChange={next => {
         setSelected(next)
-        setSongTags.mutate({ songId: song.id, tagIds: [...next] })
+        const tick = ++newest.current
+        // Each tick's own promise, not `mutate`'s callbacks: those are kept
+        // for the newest call only, so quick ticks lost every answer but the
+        // last, and a failure went back to the set the picker opened with —
+        // an empty box over a tag the song had (Xiao, 2026-10-07).
+        setSongTags.mutateAsync({ songId: song.id, tagIds: [...next] }).then(
+          answer => {
+            saved.current = new Set(answer.tagIds)
+          },
+          () => {
+            if (newest.current === tick) setSelected(saved.current)
+          },
+        )
       }}
       onLeave={onLeave}
-      autoFocus
+      autoFocus={wide}
     />
   )
 }
@@ -243,7 +274,20 @@ export function TagSearchList({
     latest.current = selected
   }, [selected])
 
-  const ranked = useMemo(() => fuzzyRank(query, tags, each => each.tag.name), [query, tags])
+  /*
+   * With nothing typed, the song's own tags come first, so the one to take off
+   * is at the top rather than wherever the alphabet put it. Ordered by what was
+   * ticked when the picker opened, so a row does not jump away from the finger
+   * that has just ticked it.
+   */
+  const [openedWith] = useState(selected)
+  const ranked = useMemo(() => {
+    const matches = fuzzyRank(query, tags, each => each.tag.name)
+    if (query.trim()) return matches
+    const first = (match: (typeof matches)[number]): number =>
+      match.item.there && openedWith.has(match.item.tag.id) ? 0 : 1
+    return [...matches].sort((a, b) => first(a) - first(b))
+  }, [query, tags, openedWith])
   const hasExact = ranked.some(match => match.exact)
   const trimmed = query.trim()
 
@@ -297,7 +341,7 @@ export function TagSearchList({
   }
 
   return (
-    <View>
+    <View style={styles.root}>
       <TextInput
         style={[
           styles.input,
@@ -320,7 +364,13 @@ export function TagSearchList({
         accessibilityLabel="Search or create a tag"
       />
 
-      <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={styles.list}
+        keyboardShouldPersistTaps="handled"
+        // A scroll through the list puts the keyboard away, so the rows it
+        // covered are there to tap.
+        keyboardDismissMode="on-drag"
+      >
         {ranked.map(({ item: offered }) => {
           const { tag: item, there } = offered
           const on = there && selected.has(item.id)
@@ -414,7 +464,9 @@ const styles = StyleSheet.create(theme => ({
     minHeight: 34,
     paddingHorizontal: space.sm + 2,
   },
-  list: { maxHeight: 320 },
+  // Gives way, with the list, when a sheet is held above the keyboard.
+  root: { flexShrink: 1 },
+  list: { maxHeight: 320, flexShrink: 1 },
   item: {
     flexDirection: 'row',
     alignItems: 'center',

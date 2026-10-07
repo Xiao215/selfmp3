@@ -4,7 +4,15 @@ import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQueryClient } from '@tanstack/react-query'
 import { plural, type AskAnswer, type Playlist } from '@selfmp3/shared'
-import { clientApi, failureText, queryKeys, radius, space, useLibrary } from '@selfmp3/client'
+import {
+  clientApi,
+  failureText,
+  queryKeys,
+  radius,
+  space,
+  useCreatePlaylist,
+  useLibrary,
+} from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { showToast } from '../../ui/toast'
@@ -34,6 +42,7 @@ export function PlaylistsAnswer({
 }): ReactNode {
   const { data: library } = useLibrary()
   const queryClient = useQueryClient()
+  const { mutateAsync: createPlaylist } = useCreatePlaylist()
   const found = answer.names.flatMap(
     name => library?.playlists.filter(playlist => playlist.name === name) ?? [],
   )
@@ -81,15 +90,14 @@ export function PlaylistsAnswer({
 
   const restore = async (kept: readonly Kept[]): Promise<void> => {
     try {
-      const api = clientApi()
       for (const { playlist, songIds } of kept) {
         const input = newPlaylist(playlist.kind, playlist.name, {
           description: playlist.description,
           rules: playlist.rules ?? undefined,
         })
         if (!input) continue
-        const made = await api.createPlaylist(input)
-        if (songIds.length > 0) await api.addToPlaylist(made.id, { songIds: [...songIds] })
+        // The library is asked once, below, for all of them.
+        await createPlaylist({ input, songIds, refresh: 'none' })
       }
       await refresh()
       showToast(kept.length === 1 ? 'It’s back' : 'They’re back', 'good')

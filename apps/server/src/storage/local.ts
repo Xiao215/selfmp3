@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
@@ -5,7 +6,7 @@ import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { AUDIO_EXTENSIONS } from '@selfmp3/shared'
 import type { RangeSource } from '../http/range.js'
-import { normalizeKey, type StorageDriver, type StorageStat } from './driver.js'
+import { fileEtag, normalizeKey, type StorageDriver, type StorageStat } from './driver.js'
 
 const AUDIO_EXTENSION_SET = new Set<string>(AUDIO_EXTENSIONS)
 
@@ -52,7 +53,7 @@ export class LocalStorageDriver implements StorageDriver {
       return {
         sizeBytes: stat.size,
         modifiedAt: stat.mtime,
-        etag: `"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`,
+        etag: fileEtag(stat.size, stat.mtimeMs),
       }
     } catch {
       return null
@@ -70,8 +71,8 @@ export class LocalStorageDriver implements StorageDriver {
         return
       }
       for (const entry of entries) {
-        // Skip dotfiles and macOS resource forks.
-        if (entry.name.startsWith('.') || entry.name.startsWith('._')) continue
+        // Skip dotfiles, macOS's `._` resource forks among them.
+        if (entry.name.startsWith('.')) continue
         const absolute = path.join(dir, entry.name)
         if (entry.isDirectory()) {
           await walk(absolute)
@@ -97,8 +98,9 @@ export class LocalStorageDriver implements StorageDriver {
     await fsp.mkdir(path.dirname(absolute), { recursive: true })
 
     // Write to a temp file and rename, so a crash mid-write can never leave a
-    // truncated audio file that the scanner would then happily index.
-    const temp = `${absolute}.${process.pid}.tmp`
+    // truncated audio file that the scanner would then happily index. Named
+    // uniquely, so two writes of one key at once cannot share a temp file.
+    const temp = `${absolute}.${randomUUID()}.tmp`
     try {
       if (Buffer.isBuffer(data)) {
         await fsp.writeFile(temp, data)
@@ -131,11 +133,6 @@ export class LocalStorageDriver implements StorageDriver {
       open: (start, end, signal) =>
         Promise.resolve(fs.createReadStream(absolute, { start, end, signal })),
     }
-  }
-
-  signedUrl(): Promise<string | null> {
-    // Local files have no externally fetchable URL; callers stream via the API.
-    return Promise.resolve(null)
   }
 
   localPath(key: string): string | null {

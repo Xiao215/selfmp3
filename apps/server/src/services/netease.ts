@@ -7,6 +7,8 @@ import {
   type NeteaseLink,
 } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
+import { BROWSER_USER_AGENT, type FetchLike } from './fetching.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * 网易云音乐: its songs, albums, playlists and artists, and its lyrics.
@@ -42,8 +44,6 @@ const DETAIL_CHUNK = 400
 const COVER_PARAM = '?param=1000y1000'
 /** A search result's cover is a row's thumbnail: small, so a list of them arrives at once. */
 const THUMB_PARAM = '?param=200y200'
-
-type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
 
 /** One 网易云 song, as a review shows it. */
 export interface NeteaseTrack {
@@ -264,7 +264,7 @@ export class NeteaseMusic {
         ...init,
         headers: {
           ...(init.headers as Record<string, string> | undefined),
-          'User-Agent': 'Mozilla/5.0 (Macintosh) self.mp3',
+          'User-Agent': BROWSER_USER_AGENT,
           Referer: 'https://music.163.com/',
           'X-Real-IP': MAINLAND_ADDRESS,
         },
@@ -277,7 +277,7 @@ export class NeteaseMusic {
     } catch (error) {
       this.#logger.debug('lookup failed', {
         url,
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
       return null
     }

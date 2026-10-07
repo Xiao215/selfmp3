@@ -1,4 +1,12 @@
-import type { Song, Tag } from '@selfmp3/shared'
+import {
+  artistOr,
+  DAY_MS,
+  fromSqliteTime,
+  UNKNOWN_ARTIST,
+  type Song,
+  type Tag,
+} from '@selfmp3/shared'
+import { tally } from './text.js'
 
 /**
  * What a model is shown of the library (docs/features/ai.md, "the context
@@ -25,18 +33,12 @@ export function creditNames(artist: string): string[] {
 }
 
 export function mainArtist(artist: string): string {
-  return creditNames(artist)[0] ?? 'Unknown artist'
+  return creditNames(artist)[0] ?? UNKNOWN_ARTIST
 }
 
 /** With words: lyrics were found and nobody said it has none. */
 export function hasWords(song: Song): boolean {
   return song.lyricsKind !== 'none' && !song.instrumental
-}
-
-function tally(values: Iterable<string>): [string, number][] {
-  const counts = new Map<string, number>()
-  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1)
-  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
 }
 
 function top(entries: [string, number][], n: number): string {
@@ -116,9 +118,7 @@ function minutes(seconds: number): string {
 
 function daysAgo(iso: string | null, now: number): string {
   if (!iso) return 'never played'
-  const days = Math.floor(
-    (now - Date.parse(iso.replace(' ', 'T') + (iso.endsWith('Z') ? '' : 'Z'))) / 86_400_000,
-  )
+  const days = Math.floor((now - fromSqliteTime(iso)) / DAY_MS)
   return days <= 0 ? 'played today' : `played ${days}d ago`
 }
 
@@ -142,7 +142,7 @@ export function songTable(
       return [
         `#${index + 1}`,
         song.title,
-        song.artist || 'Unknown artist',
+        artistOr(song.artist),
         song.album || '-',
         song.year ?? 'year ?',
         song.tagIds

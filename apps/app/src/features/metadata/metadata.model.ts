@@ -1,4 +1,4 @@
-import { plural } from '@selfmp3/shared'
+import { artistOr, formatDuration, plural } from '@selfmp3/shared'
 import type { ApplyMetadata, FixCoversStatus, MetadataCandidate, Song } from '@selfmp3/shared'
 
 /**
@@ -26,6 +26,7 @@ export const FIELD_LABELS: Record<Field, string> = {
 export const SOURCE_LABELS: Record<MetadataCandidate['source'], string> = {
   itunes: 'iTunes',
   musicbrainz: 'MusicBrainz',
+  ai: 'Suggested',
 }
 
 interface Diff {
@@ -66,7 +67,11 @@ export function diffFields(
     diffs.push({
       field: 'artwork',
       current: song.hasArt ? 'current cover' : '—',
-      proposed: `cover from ${SOURCE_LABELS[candidate.source]}`,
+      // The Suggested card's cover is the listing's it follows, not the model's own.
+      proposed:
+        candidate.source === 'ai'
+          ? 'cover from the listing'
+          : `cover from ${SOURCE_LABELS[candidate.source]}`,
       value: candidate.artworkUrl,
     })
   }
@@ -177,12 +182,9 @@ export function diffLabel(diff: Diff, hasArt: boolean): string {
 }
 
 /** "YOASOBI · Idol - Single · 2023 · 3:33", from what the suggestion has. */
-export function candidateLine(
-  candidate: MetadataCandidate,
-  formatDuration: (seconds: number) => string,
-): string {
+export function candidateLine(candidate: MetadataCandidate): string {
   return [
-    candidate.artist || 'Unknown artist',
+    artistOr(candidate.artist),
     candidate.album || null,
     candidate.year ?? null,
     candidate.durationSec ? formatDuration(candidate.durationSec) : null,

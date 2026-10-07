@@ -121,7 +121,10 @@ export function OfflinePanel({
 
       <Stats
         items={[
-          { value: String(tally.here), label: `of ${tally.songs} songs downloaded` },
+          {
+            value: String(tally.here),
+            label: `of ${plural(tally.songs, 'song', 'songs')} downloaded`,
+          },
           // The disk, where there is one to ask. The index and the folder can
           // disagree — a `.part` left by an interrupted download, a cover kept
           // beside a song — and the folder is the one that is true.

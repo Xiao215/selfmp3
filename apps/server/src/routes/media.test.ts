@@ -6,7 +6,7 @@ import path from 'node:path'
 import sharp from 'sharp'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createApp } from '../app.js'
-import { loadConfig, type Config } from '../config.js'
+import { loadConfig, type ServingConfig } from '../config.js'
 import { createContainer, type Container } from '../container.js'
 
 /**
@@ -26,7 +26,7 @@ describe('GET /api/art/:id', () => {
   ] as const
   const saved = new Map<string, string | undefined>()
   let root = ''
-  let config: Config
+  let config: ServingConfig
   let container: Container
   let server: http.Server
   let origin = ''
@@ -42,8 +42,8 @@ describe('GET /api/art/:id', () => {
     // The API answers nothing without a bucket; a folder stands in for one.
     process.env['SELFMP3_CLOUD_DIR'] = 'bucket'
 
-    config = loadConfig()
-    container = createContainer(config)
+    container = createContainer(loadConfig())
+    config = container.config
     const cover = await sharp({
       create: { width: 300, height: 300, channels: 3, background: '#2040c0' },
     })
@@ -68,7 +68,7 @@ describe('GET /api/art/:id', () => {
 
   const get = (url: string): Promise<Response> =>
     fetch(`${origin}${url}`, {
-      headers: config.authToken ? { Authorization: `Bearer ${config.authToken}` } : {},
+      headers: { Authorization: `Bearer ${config.authToken}` },
     })
 
   it('serves the cover itself', async () => {

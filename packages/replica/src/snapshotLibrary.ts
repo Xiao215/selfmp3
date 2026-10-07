@@ -53,6 +53,12 @@ export interface CloudLibrary {
   readonly imports: readonly ImportRequestView[]
   /** Where the server that wrote the snapshot listens, or null from one that never said. */
   readonly server: CloudServer | null
+  /** Each song, tag and playlist by its id here: what a route answers with, found without a walk. */
+  readonly byId: {
+    readonly songs: ReadonlyMap<number, Song>
+    readonly tags: ReadonlyMap<number, Tag>
+    readonly playlists: ReadonlyMap<number, Playlist>
+  }
   /** The uid behind each id in this library, for turning an edit into a change. */
   readonly uids: {
     readonly songs: ReadonlyMap<number, string>
@@ -132,7 +138,7 @@ export function snapshotToLibrary(
   })
 
   const libraryTags: Tag[] = snapshot.tags.map(tag => {
-    const id = tagIdOf.get(tag.uid) ?? idFor(tags, tag.uid)
+    const id = idFor(tags, tag.uid)
     return { id, name: tag.name, hue: tag.hue, songCount: songCountByTag.get(id) ?? 0 }
   })
 
@@ -192,6 +198,11 @@ export function snapshotToLibrary(
       }))
       .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt)),
     server: snapshot.server ?? null,
+    byId: {
+      songs: new Map(librarySongs.map(song => [song.id, song])),
+      tags: new Map(libraryTags.map(tag => [tag.id, tag])),
+      playlists: new Map(libraryPlaylists.map(playlist => [playlist.id, playlist])),
+    },
     uids: {
       songs: flip(songIdOf),
       tags: flip(tagIdOf),

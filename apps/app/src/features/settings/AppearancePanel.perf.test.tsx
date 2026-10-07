@@ -7,9 +7,15 @@ import { OverlayProvider } from '../../shell/Overlay'
 import { AccentProvider, useAccent } from '../../ui/accent'
 import { AppearancePanel } from './AppearancePanel'
 
-jest.mock('../../shell/useLayout', () => ({
-  useLayout: () => ({ wide: false, compact: true, dense: false, finePointer: false, width: 390 }),
-}))
+jest.mock('../../shell/useLayout', () => {
+  const layout = { wide: false, compact: true, dense: false, finePointer: false, width: 390 }
+  return {
+    useLayout: () => layout,
+    useLayoutValue: (select: (value: typeof layout) => unknown) => select(layout),
+    useWindowValue: (select: (value: object) => unknown) =>
+      select({ width: 390, height: 844, scale: 3, fontScale: 1 }),
+  }
+})
 
 const METRICS = {
   frame: { x: 0, y: 0, width: 390, height: 844 },

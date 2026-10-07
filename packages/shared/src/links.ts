@@ -29,9 +29,6 @@ export function extractUrls(text: string, limit = 20): string[] {
   return urls
 }
 
-/** Liked Music on YouTube Music: a private playlist that only resolves with cookies. */
-export const YT_LIKED_MUSIC_URL = 'https://music.youtube.com/playlist?list=LM'
-
 /** True for any YouTube / YouTube Music link, in either of the two hosts and the short form. */
 export function isYouTubeUrl(url: string): boolean {
   try {

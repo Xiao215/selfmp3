@@ -1,3 +1,5 @@
+import { DoormanError } from '@selfmp3/replica'
+
 /**
  * Signing in, without the screen: what it says at each point, and when a
  * sign-in whose way back never arrived is given up on.
@@ -58,9 +60,7 @@ export function signInFailure(error: unknown, pageOrigin: string | null): string
  */
 function unanswered(error: unknown): boolean {
   if (error instanceof TypeError) return true
-  if (typeof error !== 'object' || error === null) return false
-  const { status, code } = error as { status?: unknown; code?: unknown }
-  return status === 0 && code !== 'no-doorman'
+  return error instanceof DoormanError && error.status === 0 && error.code !== 'no-doorman'
 }
 
 /** The stage after asking the doorman how the attempt stands. Only a wait is moved on. */

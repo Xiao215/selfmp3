@@ -16,9 +16,15 @@ jest.mock('./DevicesProvider', () => ({
 jest.mock('../../player/PlayerProvider', () => ({
   usePlayer: () => ({ current: { id: 4, title: 'Nocturne' } }),
 }))
-jest.mock('../../shell/useLayout', () => ({
-  useLayout: () => ({ wide: false, finePointer: false }),
-}))
+jest.mock('../../shell/useLayout', () => {
+  const layout = { wide: false, finePointer: false }
+  return {
+    useLayout: () => layout,
+    useLayoutValue: (select: (value: typeof layout) => unknown) => select(layout),
+    useWindowValue: (select: (value: object) => unknown) =>
+      select({ width: 390, height: 844, scale: 3, fontScale: 1 }),
+  }
+})
 
 function state(patch: Partial<PlaybackState> = {}): PlaybackState {
   return {

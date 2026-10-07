@@ -1,16 +1,18 @@
-import { readFileSync, writeFileSync, renameSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { app, screen } from 'electron'
+import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
+
+import { writeFileAtomicSync } from './writeAtomic.js'
 
 /**
  * Where the window was, and whether it is still somewhere that exists.
  *
  * Kept in `userData/window.json` rather than in the page: the page is a web
  * build shared with the browser, and a browser has no business knowing about
- * window frames. It is written on move and resize, debounced, and read once
- * before the window is made.
+ * window frames. It is written on move and resize, debounced, at once when the
+ * window closes, and read once before the window is made.
  *
  * The clamping is the part that matters. A window remembered on a monitor that
  * is now unplugged opens at coordinates no display covers, which on macOS is a
@@ -76,35 +78,34 @@ export function openingBounds(displays: readonly Electron.Display[]): Partial<Bo
   }
 }
 
+/** How long a window has to stay still before its frame is written. */
+const SAVE_DEBOUNCE_MS = 400
+
 /**
  * Keep the frame as it changes. Debounced, because dragging a window fires
- * `move` on every frame and this writes to disk.
+ * `move` on every frame and this writes to disk — but written at once on
+ * `close`: on the way out there are no 400 ms left for a timer to fire in, and
+ * a debounce restarted by the close itself would lose the last move too.
  */
 export function rememberBounds(window_: BrowserWindow): void {
   let pending: NodeJS.Timeout | null = null
-  const save = (): void => {
+  const write = (): void => {
     if (pending) clearTimeout(pending)
-    pending = setTimeout(() => {
-      pending = null
-      // A full-screen or maximised frame is the display's, not the window's:
-      // keeping it would open a plain window the size of the screen next time.
-      if (window_.isDestroyed() || window_.isFullScreen() || window_.isMaximized()) return
-      try {
-        const path = file()
-        const temporary = `${path}.tmp`
-        writeFileSync(temporary, JSON.stringify(window_.getNormalBounds()), { mode: 0o600 })
-        renameSync(temporary, path)
-      } catch {
-        // A window that cannot be remembered is not worth a crash on quit.
-      }
-    }, 400)
+    pending = null
+    // A full-screen or maximised frame is the display's, not the window's:
+    // keeping it would open a plain window the size of the screen next time.
+    if (window_.isDestroyed() || window_.isFullScreen() || window_.isMaximized()) return
+    try {
+      writeFileAtomicSync(file(), JSON.stringify(window_.getNormalBounds()))
+    } catch {
+      // A window that cannot be remembered is not worth a crash on quit.
+    }
   }
-  window_.on('move', save)
-  window_.on('resize', save)
-  window_.on('close', save)
-}
-
-/** Everything that is plugged in right now. Separated so the rule can be tested. */
-export function displaysNow(): readonly Electron.Display[] {
-  return screen.getAllDisplays()
+  const later = (): void => {
+    if (pending) clearTimeout(pending)
+    pending = setTimeout(write, SAVE_DEBOUNCE_MS)
+  }
+  window_.on('move', later)
+  window_.on('resize', later)
+  window_.on('close', write)
 }

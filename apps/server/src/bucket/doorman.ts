@@ -8,7 +8,14 @@ import {
   type DoormanClaimResult,
   type DoormanMe,
 } from '@selfmp3/shared'
-import { CloudError, type CloudObject, type CloudPutOptions, type CloudStore } from './store.js'
+import {
+  CloudError,
+  hostOf,
+  type CloudObject,
+  type CloudPutOptions,
+  type CloudStore,
+} from './store.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * Talking to the doorman (docs/SYNC.md; the Worker is apps/doorman).
@@ -26,9 +33,7 @@ interface RequestOptions {
   readonly json?: unknown
   readonly body?: Buffer
   readonly headers?: Record<string, string>
-  /** Hand a 404 back to the caller instead of throwing: "no such file" is an answer. */
-  readonly allow404?: boolean
-  /** Answers besides 2xx that are the caller's to read, not failures. */
+  /** Answers besides 2xx that are the caller's to read, not failures: 404 is "no such file". */
   readonly allowStatus?: readonly number[]
   /** Call the request off: the player that asked for a range has moved on. */
   readonly signal?: AbortSignal
@@ -107,13 +112,7 @@ export class DoormanClient {
       )
     }
 
-    if (
-      response.ok ||
-      (options.allow404 && response.status === 404) ||
-      options.allowStatus?.includes(response.status)
-    ) {
-      return response
-    }
+    if (response.ok || options.allowStatus?.includes(response.status)) return response
 
     const { message, code } = await explain(response)
     if (response.status === 401) {
@@ -177,7 +176,7 @@ class DoormanCloudStore implements CloudStore {
   async head(key: string): Promise<CloudObject | null> {
     const response = await this.#doorman.request('HEAD', filePath(key), {
       token: this.#token,
-      allow404: true,
+      allowStatus: [404],
     })
     if (response.status === 404) return null
     return { key, size: Number(response.headers.get('content-length') ?? 0) }
@@ -186,7 +185,7 @@ class DoormanCloudStore implements CloudStore {
   async get(key: string): Promise<Buffer | null> {
     const response = await this.#doorman.request('GET', filePath(key), {
       token: this.#token,
-      allow404: true,
+      allowStatus: [404],
     })
     if (response.status === 404) return null
     return Buffer.from(await response.arrayBuffer())
@@ -202,7 +201,7 @@ class DoormanCloudStore implements CloudStore {
     // back (docs/SYNC.md), which is how every browser tab streams already.
     const response = await this.#doorman.request('GET', filePath(key), {
       token: this.#token,
-      allow404: true,
+      allowStatus: [404],
       headers: { Range: `bytes=${start}-${end}` },
       signal,
     })
@@ -243,7 +242,7 @@ class DoormanCloudStore implements CloudStore {
   }
 
   async delete(key: string): Promise<void> {
-    await this.#doorman.request('DELETE', filePath(key), { token: this.#token, allow404: true })
+    await this.#doorman.request('DELETE', filePath(key), { token: this.#token, allowStatus: [404] })
   }
 }
 
@@ -259,9 +258,5 @@ function filePath(key: string): string {
  */
 function whyFetchFailed(error: unknown): string {
   const reason = error instanceof Error && error.cause instanceof Error ? error.cause : error
-  return reason instanceof Error ? reason.message : String(reason)
-}
-
-function hostOf(url: string): string {
-  return url.replace(/^https?:\/\//, '')
+  return messageOf(reason)
 }

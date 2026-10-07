@@ -3,7 +3,7 @@ import type { Tag } from '@selfmp3/shared'
 import { SONGS, TAGS, scriptedLlm } from './fixtures/library.js'
 import { LlmError } from './llm.js'
 import {
-  fromLibrary,
+  placeFromLibrary,
   groupSongs,
   missingFromAlbum,
   sameNames,
@@ -35,9 +35,9 @@ const group = (g: string, overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 })
 
-describe('fromLibrary', () => {
+describe('placeFromLibrary', () => {
   it('takes the tag every tagged song on the album shares', () => {
-    expect(fromLibrary(byId(12), tagged, TAGS)).toEqual({
+    expect(placeFromLibrary(tagged, TAGS)(byId(12))).toEqual({
       tag: TAGS[0],
       why: 'The rest of Best of Chopin is in 古典',
     })
@@ -45,9 +45,9 @@ describe('fromLibrary', () => {
 
   it('needs two of the artist’s songs before the artist decides', () => {
     // Yorushika has one tagged song: not enough to speak for another album.
-    expect(fromLibrary(byId(13), tagged, TAGS)).toBeNull()
+    expect(placeFromLibrary(tagged, TAGS)(byId(13))).toBeNull()
     const more = [...tagged, { ...byId(9), id: 99, album: 'Elma' }]
-    expect(fromLibrary(byId(13), more, TAGS)?.tag.name).toBe('jpop')
+    expect(placeFromLibrary(more, TAGS)(byId(13))?.tag.name).toBe('jpop')
   })
 })
 

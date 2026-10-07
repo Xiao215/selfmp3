@@ -2,21 +2,18 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
+import { artistOr, formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
 import { radius, space, useLibrary } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { Play } from '../../ui/components/Icons'
-import { songCount } from './Review'
+import { useSongsById } from '../../ui/songsById'
+import { songCount, SONGS_MORE, SONGS_SHOW } from './Review'
 import { parts, sortWords } from './smart.model'
 import { useSmartServer } from './useSmartServer'
-
-/** How many songs show first, and how many more each "Show more" adds. */
-const SHOWS = 8
-const MORE = 50
 
 /**
  * A question about what is in the library ("how many YOASOBI songs do I
@@ -35,11 +32,11 @@ export function LibraryAnswer({
 }): ReactNode {
   const { theme } = useUnistyles()
   const server = useSmartServer()
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const { data: library } = useLibrary()
   const artFor = useArt(ROW_COVER_SIZE)
-  const [shows, setShows] = useState(SHOWS)
-  const songsById = new Map((library?.songs ?? []).map(song => [song.id, song]))
+  const [shows, setShows] = useState(SONGS_SHOW)
+  const songsById = useSongsById()
   const songs = answer.songIds.flatMap(id => {
     const here = server.onDevice(id)
     const song = here === undefined ? undefined : songsById.get(here)
@@ -118,19 +115,19 @@ export function LibraryAnswer({
               <Cover uri={artFor(song)} title={song.album || song.title} size={36} />
               <Text style={[styles.title, styles.grow]} numberOfLines={1}>
                 {song.title}
-                <Text style={styles.muted}> · {song.artist || 'Unknown artist'}</Text>
+                <Text style={styles.muted}> · {artistOr(song.artist)}</Text>
               </Text>
               <Play size={14} color={theme.colors.textSecondary} />
             </Pressable>
           ))}
           {shown.length < songs.length ? (
             <Pressable
-              onPress={() => setShows(shown.length + MORE)}
+              onPress={() => setShows(shown.length + SONGS_MORE)}
               accessibilityRole="button"
               style={styles.more}
             >
               <Text style={styles.moreText}>
-                Show {Math.min(MORE, songs.length - shown.length)} more
+                Show {Math.min(SONGS_MORE, songs.length - shown.length)} more
               </Text>
             </Pressable>
           ) : null}

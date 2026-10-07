@@ -1,6 +1,7 @@
-import { createHash } from 'node:crypto'
 import { z } from 'zod/v4'
 import type { Logger } from '../logger.js'
+import { messageOf } from '../util/errors.js'
+import { sha256 } from '../util/hash.js'
 
 /**
  * The one door to a language model (docs/features/ai.md).
@@ -168,7 +169,7 @@ async function runCall(tools: readonly LlmTool[], call: ToolCall): Promise<strin
       ? `${result.slice(0, RESULT_CHARS)}… (cut short: ask for less)`
       : result
   } catch (caught) {
-    return JSON.stringify({ error: caught instanceof Error ? caught.message : String(caught) })
+    return JSON.stringify({ error: messageOf(caught) })
   }
 }
 
@@ -254,7 +255,7 @@ export function openAiCompatible(
       if (stop?.aborted) throw stopped(task)
       throw new LlmError(
         'unreachable',
-        `The model at ${settings.baseUrl} did not answer: ${caught instanceof Error ? caught.message : String(caught)}`,
+        `The model at ${settings.baseUrl} did not answer: ${messageOf(caught)}`,
       )
     }
     if (!response.ok) {
@@ -375,7 +376,7 @@ export class Remembered {
   ) {}
 
   static key(...parts: readonly unknown[]): string {
-    return createHash('sha256').update(JSON.stringify(parts)).digest('hex')
+    return sha256(JSON.stringify(parts))
   }
 
   async get<T>(key: string, make: () => Promise<T>, now = Date.now()): Promise<T> {

@@ -1,8 +1,9 @@
-import { spawn } from 'node:child_process'
 import { pickCoverTone, type CoverTone } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { CoverService } from './covers.js'
+import { ffmpegFailure, runFfmpeg } from './ffmpeg.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * The colour of every cover, picked once, here.
@@ -72,14 +73,14 @@ export class CoverToneService {
         if (!next) break
 
         let tone: CoverTone | null = null
-        const found = this.#covers.find(next.id)
+        const found = await this.#covers.find(next.id)
         if (found) {
           try {
             tone = await this.#read(found.path)
           } catch (error) {
             this.#logger.warn('could not read a cover’s colour', {
               songId: next.id,
-              message: error instanceof Error ? error.message : String(error),
+              message: messageOf(error),
             })
           }
         }
@@ -108,48 +109,28 @@ export class CoverToneService {
  * while a device reading the square it drew found orange, so the visual and
  * the bar coloured the same song differently.
  */
-export function readCoverTone(file: string): Promise<CoverTone | null> {
-  return new Promise((resolve, reject) => {
-    const args = [
-      '-v',
-      'error',
-      '-i',
-      file,
-      '-frames:v',
-      '1',
-      '-vf',
-      `crop=w='min(iw,ih)':h='min(iw,ih)',scale=${SAMPLE}:${SAMPLE}`,
-      '-f',
-      'rawvideo',
-      '-pix_fmt',
-      'rgba',
-      'pipe:1',
-    ]
-    const child = spawn('ffmpeg', args, { shell: false, windowsHide: true })
-    const chunks: Buffer[] = []
-    let stderr = ''
-    let settled = false
-
-    const finish = (error: Error | null): void => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      if (error) reject(error)
-      else resolve(pickCoverTone(Buffer.concat(chunks)))
-    }
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL')
-      finish(new Error('ffmpeg timed out reading the cover'))
-    }, READ_TIMEOUT_MS)
-
-    child.stdout.on('data', (chunk: Buffer) => chunks.push(chunk))
-    child.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString()
-    })
-    child.on('error', error => finish(new Error(`could not run ffmpeg: ${error.message}`)))
-    child.on('close', code => {
-      if (code === 0) finish(null)
-      else finish(new Error(stderr.trim().split('\n').pop() || `ffmpeg exited with ${code}`))
-    })
+export async function readCoverTone(file: string): Promise<CoverTone | null> {
+  const args = [
+    '-v',
+    'error',
+    '-i',
+    file,
+    '-frames:v',
+    '1',
+    '-vf',
+    `crop=w='min(iw,ih)':h='min(iw,ih)',scale=${SAMPLE}:${SAMPLE}`,
+    '-f',
+    'rawvideo',
+    '-pix_fmt',
+    'rgba',
+    'pipe:1',
+  ]
+  const chunks: Buffer[] = []
+  const result = await runFfmpeg(args, {
+    timeoutMs: READ_TIMEOUT_MS,
+    timeoutMessage: 'ffmpeg timed out reading the cover',
+    onStdout: chunk => chunks.push(chunk),
   })
+  if (result.code !== 0) throw ffmpegFailure(result)
+  return pickCoverTone(Buffer.concat(chunks))
 }

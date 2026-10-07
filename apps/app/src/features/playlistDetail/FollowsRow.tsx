@@ -11,7 +11,7 @@ import { Plus } from '../../ui/components/Icons'
 import { ListenTags } from '../../ui/components/ListenTags'
 import { card } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
-import { followRules } from '../library/saveTags'
+import { followRules } from '../lists/followRules'
 import { followedTagIds, hasRulesBeyondTags } from './follows.model'
 
 /**
@@ -163,7 +163,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 3,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 999,
+    borderRadius: radius.pill,
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: theme.colors.borderStrong,

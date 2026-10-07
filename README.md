@@ -6,6 +6,8 @@ A private music library you run yourself. Import songs from a link or drop in fi
 already have, tag them your way, and play them on your computer and your phone, with no
 signal if need be.
 
+![Home in the Mac app: your tags as tiles, this week's listening, and what you played last](docs/screenshots/home.webp)
+
 It is for one person, or a household, who wants their music as files they own rather than
 a catalogue they rent. There is no account to make with anyone, no subscription and no
 telemetry. The music is a folder of audio files and the metadata is one SQLite database
@@ -28,6 +30,7 @@ asleep.
 
 ## Contents
 
+- [A look around](#a-look-around)
 - [Where it runs](#where-it-runs)
 - [What it does](#what-it-does)
 - [Quick start](#quick-start)
@@ -38,6 +41,36 @@ asleep.
 - [Backing up](#backing-up)
 - [A note on importing](#a-note-on-importing)
 - [Licence](#licence)
+
+---
+
+## A look around
+
+A real library of 1,472 songs, in the Mac app.
+
+**The song that is playing**, with its synced lyrics, tempo, key and tags beside the cover.
+
+![Now playing: the cover, the song's details and its synced lyrics](docs/screenshots/now-playing.webp)
+
+**The library**, filtered by tag, sorted, and searched on the device.
+
+![The library: every song with its cover, artist, album and length, and a row of tag filters](docs/screenshots/library.webp)
+
+**Tags**, each a record with its own colour, and the tags that sit inside it.
+
+![Tags: each tag as a record sleeve with its song count and running time](docs/screenshots/tags.webp)
+
+**Stats** for a week, a month, a year or all time.
+
+![Stats: time listened, peak hour, streak, and the top songs, artists and tags](docs/screenshots/stats.webp)
+
+**At phone width**, as in the iPhone and Android app, the same screens laid out for one hand.
+
+<p>
+  <img src="docs/screenshots/phone-home.webp" width="32%" alt="Home on a phone">
+  <img src="docs/screenshots/phone-library.webp" width="32%" alt="The library on a phone">
+  <img src="docs/screenshots/phone-now-playing.webp" width="32%" alt="Now playing on a phone">
+</p>
 
 ---
 
@@ -62,8 +95,9 @@ doing.
 | **Controls outside the app** | — | The browser's media controls | Lock screen, Control Center, Android Auto (partly) | Media keys, Now Playing in Control Center, the menu bar |
 | **Keyboard** | — | Space for play and pause | — | The application menu's shortcuts, and `⌘K` for Search |
 
-On a phone the tabs are **Library · Playlists · Import · You**; You holds Stats & report,
-Untagged, Tags and Settings. On a computer those live in the sidebar.
+On a phone the tabs are **Home · Library · Playlists**. The rest is reached from Home: the
+tags from its tiles, Import from its +, and Profile from its avatar, which leads on to Stats,
+the report and Settings. On a computer those live in the sidebar.
 
 **Stats, the Untagged inbox and looking metadata up are the server's own.** They need its
 database and the calls only it makes, so the app hides them whenever the library it is
@@ -276,8 +310,8 @@ the top of the checkout (copy `.env.example`; git ignores `.env`).
 | `SELFMP3_SOUND_THREADS` | `2` | CPU threads the model may use while it listens |
 
 For the `s3` driver, also set `SELFMP3_S3_BUCKET`, `SELFMP3_S3_REGION`,
-`SELFMP3_S3_ENDPOINT`, `SELFMP3_S3_ACCESS_KEY_ID` and `SELFMP3_S3_SECRET_ACCESS_KEY`
-(and optionally `SELFMP3_S3_SIGNED_URL_TTL`, in seconds). That is the server's own storage;
+`SELFMP3_S3_ENDPOINT`, `SELFMP3_S3_ACCESS_KEY_ID` and `SELFMP3_S3_SECRET_ACCESS_KEY`.
+That is the server's own storage;
 the bucket every device syncs with is set up separately, in [SYNC.md](docs/SYNC.md).
 
 Day-to-day behaviour — crossfade, the watched folder, romanization — lives in the app's

@@ -1,8 +1,16 @@
 import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
-import { oklchToHex } from './oklch.js'
-import { buildAccent, colors, DEFAULT_ACCENT_HUE, tagColors } from './tokens.js'
+import { NATIVE_ACCENT } from '@selfmp3/shared'
+import { oklchToHex, oklchToHexAlpha } from './oklch.js'
+import {
+  buildAccent,
+  colors,
+  darkPalette,
+  DEFAULT_ACCENT_HUE,
+  lightPalette,
+  tagColors,
+} from './tokens.js'
 
 /**
  * The phone's arithmetic against the browser's.
@@ -144,5 +152,20 @@ describe('a tag, from its hue', () => {
 
   it('gives two hues two different tiles', () => {
     expect(tagColors(20, 'dark').tile).not.toBe(tagColors(150, 'dark').tile)
+  })
+})
+
+describe('the dim behind a dialog', () => {
+  // One value everywhere: dialogs and sheets once used three slightly different ones.
+  it('is the accent-tinted near-black at 0.6, in both themes', () => {
+    expect(darkPalette(150).backdrop).toBe(oklchToHexAlpha(0.1, 0.02, 150, 0.6))
+    expect(lightPalette(150).backdrop).toBe(darkPalette(150).backdrop)
+  })
+})
+
+describe('the widget', () => {
+  // Its Xcode target is coloured at prebuild time from @selfmp3/shared.
+  it('is tinted with the accent the app starts on', () => {
+    expect(buildAccent(DEFAULT_ACCENT_HUE, 'dark').accent).toBe(NATIVE_ACCENT)
   })
 })

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CloudSnapshot } from '@selfmp3/shared'
 import * as edits from './edits.js'
-import { createCloudLibrary, FILES_KEY } from './library.js'
+import { createCloudLibrary } from './library.js'
 import { createCloudSession, type CloudSession } from './session.js'
 import type { CloudPlatform, CloudResponse, DeviceStore, TextCache } from './platform.js'
 
@@ -15,6 +15,9 @@ import type { CloudPlatform, CloudResponse, DeviceStore, TextCache } from './pla
  * replay a different library depending on which it read. So that contract is
  * what these hold down.
  */
+
+/** The key the service worker reads each song's files under (apps/app/sw/sw.ts). */
+const FILES_KEY = 'cloud-files'
 
 const DOORMAN = 'https://doorman.test'
 const TOKEN = 'tok'.padEnd(32, '0')
@@ -394,6 +397,55 @@ describe('opening', () => {
     const againSession = createCloudSession(againPlatform)
     const view = await createCloudLibrary(againPlatform, againSession).loadCloudLibrary(SESSION)
     expect(view.library.songs).toEqual([])
+  })
+
+  it('reads a kept outbox change by change, keeping its name and its numbering', async () => {
+    const store = memoryStore()
+    const known = {
+      type: 'songEdited',
+      hlc: '0mfx3k2p1.0000.test-aaaaaaaa',
+      uid: 'a'.repeat(32),
+      fields: { loved: true },
+    }
+    store.data.set('cloud-outbox', {
+      device: 'test-aaaaaaaa',
+      last: null,
+      nextSeq: 3,
+      pending: [known, { type: 'from-a-crash' }],
+      inflight: null,
+    })
+    const made = build(store)
+    await signedIn(made)
+    await made.library.loadCloudLibrary(SESSION)
+
+    expect(made.library.pendingCloudChanges()).toBe(1)
+    expect(store.data.get('cloud-outbox')).toMatchObject({
+      device: 'test-aaaaaaaa',
+      nextSeq: 3,
+      pending: [known],
+    })
+  })
+
+  it('fetches the library again when the kept copy does not read as one', async () => {
+    const store = memoryStore()
+    store.data.set('cloud-base', { key: 'snapshots/x.json', snapshot: { songs: 'half' } })
+    const made = build(store)
+    await signedIn(made)
+    const view = await made.library.loadCloudLibrary(SESSION)
+    expect(view.library.songs).toEqual([])
+    expect(store.data.get('cloud-base')).toEqual({ key: null, snapshot: null })
+  })
+
+  it('does not keep what it opened for an account signed out of meanwhile', async () => {
+    const store = memoryStore()
+    const made = build(store)
+    await signedIn(made)
+    const opening = made.library.loadCloudLibrary(SESSION)
+    await made.library.forgetCloudLibrary()
+    await expect(opening).rejects.toMatchObject({ status: 401 })
+    // The next open starts afresh, under a new name, rather than handing back the old one.
+    await made.library.loadCloudLibrary(SESSION)
+    expect(made.library.pendingCloudChanges()).toBe(0)
   })
 })
 

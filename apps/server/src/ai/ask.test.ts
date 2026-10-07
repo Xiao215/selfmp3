@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Stats } from '@selfmp3/shared'
 import { ask, followed, routeForm, routeSystem, withNotes } from './ask.js'
-import { ASK_ACTIONS, foundFor, matchPlaylist } from './askActions.js'
+import { ASK_ACTIONS, matchPlaylist, songsMatching } from './askActions.js'
 import { SONGS, TAGS, scriptedLlm } from './fixtures/library.js'
 
 const NOW = Date.parse('2026-10-03T12:00:00Z')
@@ -553,10 +553,10 @@ describe('a dead end', () => {
   })
 })
 
-describe('foundFor', () => {
+describe('songsMatching', () => {
   it('matches titles, artists and albums, then lyrics, once each', () => {
     const lyrics = (query: string) => (query === 'yoasobi' ? [{ songId: 7, line: 'a line' }] : [])
-    const found = foundFor(['YOASOBI'], SONGS, lyrics)
+    const found = songsMatching(['YOASOBI'], SONGS, lyrics)
     expect(found.map(each => [each.song.id, each.line])).toEqual([
       [7, 'a line'],
       [8, null],

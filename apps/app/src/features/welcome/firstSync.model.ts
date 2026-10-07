@@ -1,4 +1,5 @@
-import { formatBytes } from '@selfmp3/shared'
+import { plural, formatBytes } from '@selfmp3/shared'
+import { firstName } from '../profile/profile.model'
 import { STORAGE_ROUTE } from './storage.model'
 
 /**
@@ -73,7 +74,7 @@ export function keepEverySongCopy(
 
 /** "Hello, Xiao", by the first word of the name Google gave, or plain "Hello". */
 export function helloLine(name: string | null | undefined): string {
-  const first = name?.trim().split(/\s+/)[0]
+  const first = firstName(name)
   return first ? `Hello, ${first}` : 'Hello'
 }
 
@@ -99,10 +100,6 @@ interface Arrival {
   readonly fraction: number
 }
 
-function count(n: number, one: string): string {
-  return `${n} ${one}${n === 1 ? '' : 's'}`
-}
-
 /**
  * How the library's arrival reads.
  *
@@ -114,9 +111,9 @@ function count(n: number, one: string): string {
 export function arrival(library: LibrarySoFar | null): Arrival {
   if (library === null) return { summary: null, detail: null, fraction: 0 }
   const summary = [
-    count(library.songs, 'song'),
-    count(library.tags, 'tag'),
-    count(library.playlists, 'playlist'),
+    plural(library.songs, 'song', 'songs'),
+    plural(library.tags, 'tag', 'tags'),
+    plural(library.playlists, 'playlist', 'playlists'),
   ].join(' · ')
   if (!library.keepsCovers || library.withArt === 0) return { summary, detail: null, fraction: 1 }
   const here = Math.min(library.coversHere, library.withArt)

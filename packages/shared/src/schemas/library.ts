@@ -22,6 +22,13 @@ export const LibrarySchema = z.object({
 })
 export type Library = z.infer<typeof LibrarySchema>
 
+/** `/api/library/version`: whether anything changed since the last read, without the library. */
+export const LibraryVersionSchema = z.object({
+  version: z.number(),
+  songCount: z.number().int().nonnegative(),
+})
+export type LibraryVersion = z.infer<typeof LibraryVersionSchema>
+
 /** What a sweep of the server's inbox folder found (services/scanner.ts). */
 export const ScanResultSchema = z.object({
   added: z.number().int().nonnegative(),
@@ -73,6 +80,12 @@ export const SimilarSongsSchema = z.object({
 })
 export type SimilarSongs = z.infer<typeof SimilarSongsSchema>
 
+/** `/api/songs/:id/similar?limit=`: how many neighbours, whoever answers. */
+export const SimilarQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+})
+export type SimilarQuery = z.infer<typeof SimilarQuerySchema>
+
 /**
  * What `/api/health` says.
  *
@@ -89,5 +102,7 @@ export const HealthSchema = z.object({
   storageDriver: z.string(),
   libraryPath: z.string().optional(),
   songCount: z.number().int().nonnegative().optional(),
+  /** Where this server's owner listens in a browser: its page links there. Not a secret. */
+  appUrl: z.string().optional(),
 })
 export type Health = z.infer<typeof HealthSchema>

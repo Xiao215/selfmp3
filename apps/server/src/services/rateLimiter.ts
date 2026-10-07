@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from 'node:timers/promises'
+
 /**
  * A minimal "at most one call every N milliseconds" gate.
  *
@@ -18,7 +20,7 @@ export class RateLimiter {
   ) {
     this.#intervalMs = intervalMs
     this.#now = hooks.now ?? (() => Date.now())
-    this.#sleep = hooks.sleep ?? (ms => new Promise(resolve => setTimeout(resolve, ms)))
+    this.#sleep = hooks.sleep ?? (ms => sleep(ms))
   }
 
   /** Resolves once the caller is allowed to make its request. */

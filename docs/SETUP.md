@@ -321,7 +321,7 @@ If you decide you want your library reachable even with the server switched off 
 storage layer already supports S3-compatible object storage (Cloudflare R2, Backblaze B2):
 
 ```bash
-npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+npm install @aws-sdk/client-s3
 ```
 
 ```bash

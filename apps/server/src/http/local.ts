@@ -3,13 +3,10 @@ import type { Request } from 'express'
 /**
  * Whether a request came from the machine the server is running on.
  *
- * Two things ask this, and both turn on the same distinction. "Show in Finder"
- * (`services/reveal.ts`) only makes sense for a browser on that same machine: a
- * phone asking would open a Finder window on the server across the room. And
- * the bearer check (`middleware.ts`) exempts it, because somebody at the
- * keyboard can read `selfmp3.db` and the library folder anyway — asking them
- * for a key they could pick up buys nothing and would make the server's own
- * page demand a token for no reason.
+ * The bearer check (`middleware.ts`) exempts such a request, because somebody
+ * at the keyboard can read `selfmp3.db` and the library folder anyway — asking
+ * them for a key they could pick up buys nothing and would make the server's
+ * own page demand a token for no reason.
  *
  * Requests must arrive over loopback *and* ask for a loopback host. The second
  * check matters because `tailscale serve` also connects from loopback — but a

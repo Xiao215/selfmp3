@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { formatDuration, fuzzyRank, type Song } from '@selfmp3/shared'
+import { artistOr, formatDuration, fuzzyRank, type Song } from '@selfmp3/shared'
 import {
   failureText,
   radius,
@@ -56,12 +56,13 @@ const NOTHING: ReadonlySet<number> = new Set()
 export function AddSongsSheet({
   open,
   onClose,
-  playlistName,
+  targetName,
   target,
 }: {
   open: boolean
   onClose: () => void
-  playlistName: string
+  /** What the songs go to: the playlist's name (one being made, too), or the tag's. */
+  targetName: string
   target: AddSongsTarget
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -133,7 +134,7 @@ export function AddSongsSheet({
       setAdded(new Set())
     } catch (caught) {
       // The picks stay, so trying again is one press.
-      setError(failureText(`Couldn’t make “${playlistName}”`, caught))
+      setError(failureText(`Couldn’t make “${targetName}”`, caught))
     } finally {
       setCreating(false)
     }
@@ -143,7 +144,7 @@ export function AddSongsSheet({
     <Sheet
       open={open}
       onClose={close}
-      title={tagging ? `Tag songs “${playlistName}”` : `Add to ${playlistName}`}
+      title={tagging ? `Tag songs “${targetName}”` : `Add to ${targetName}`}
       width={480}
       testID="add-songs"
     >
@@ -180,7 +181,7 @@ export function AddSongsSheet({
                       {song.title}
                     </Text>
                     <Text style={styles.artist} numberOfLines={1}>
-                      {song.artist || 'Unknown artist'}
+                      {artistOr(song.artist)}
                     </Text>
                   </View>
                   <Text style={styles.time}>{formatDuration(song.duration)}</Text>

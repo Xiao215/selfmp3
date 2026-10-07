@@ -1,5 +1,7 @@
 import { z } from 'zod/v4'
 import {
+  DAY_MS,
+  fromSqliteTime,
   UnderstandingSchema,
   type DescribePick,
   type DescribeRequest,
@@ -10,8 +12,8 @@ import {
 } from '@selfmp3/shared'
 import { creditNames, hasWords, libraryShape, songTable } from './library.js'
 import { LlmError, Remembered, type Llm } from './llm.js'
-
 import { NO_STEPS, type Steps } from './progress.js'
+
 /**
  * A1c · Describe a playlist (docs/features/ai.md).
  *
@@ -205,10 +207,6 @@ function unset(understanding: Understanding, part: (typeof LOOSEN_ORDER)[number]
   }
 }
 
-function sqliteMs(iso: string): number {
-  return Date.parse(iso.includes('T') ? iso : `${iso.replace(' ', 'T')}Z`)
-}
-
 function inRange(
   value: number | null | undefined,
   range: { min: number | null; max: number | null },
@@ -235,7 +233,7 @@ export function songsFitting(
   const artists = understanding.artists.map(name => name.toLowerCase())
   const hasPlaces = understanding.anyTags.length > 0 || understanding.artists.length > 0
   const within = (iso: string | null, n: number | null): boolean =>
-    n === null || (iso !== null && now - sqliteMs(iso) <= n * 86_400_000)
+    n === null || (iso !== null && now - fromSqliteTime(iso) <= n * DAY_MS)
 
   return songs.filter(song => {
     if (hasPlaces) {

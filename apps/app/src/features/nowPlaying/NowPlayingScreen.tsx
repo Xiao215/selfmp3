@@ -13,6 +13,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { Song } from '@selfmp3/shared'
+import { artistOr } from '@selfmp3/shared'
 import {
   fonts,
   HIT_TARGET,
@@ -27,12 +28,18 @@ import {
   withAlpha,
 } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
-import { usePlayer, usePlayerProgress, usePracticeState } from '../../player/PlayerProvider'
+import {
+  usePlayer,
+  usePlayerCommands,
+  usePlayerPlaying,
+  usePlayerProgress,
+  usePracticeState,
+} from '../../player/PlayerProvider'
 import { useSongColor } from '../../ui/useSongColor'
 import { ease, motionMs, spring, timing, useEntrance } from '../../ui/motion'
 import { MOVE_MS, PULL } from '../../ui/motion.model'
 import { takeCoverHandoff, type CoverFrame } from '../../ui/coverHandoff'
-import { leaveStage, setStageExit } from '../../shell/stageExit'
+import { setStageExit } from '../../shell/stageExit'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { RemoveSongs } from '../../ui/components/ConfirmRemoveSongs'
@@ -74,6 +81,8 @@ import { openQueueSheet } from '../queue/queueSheet.store'
 import { songLink } from '../song/song.model'
 import { tagLink } from '../tag/placeLinks'
 import { ArtistLinks } from './ArtistLinks'
+import { leaveTo, putAway } from './leaveNowPlaying'
+import { NothingPlaying } from './NothingPlaying'
 import { NowPlayingStage } from './NowPlayingStage'
 import {
   parseView,
@@ -118,25 +127,6 @@ export function NowPlayingScreen(): ReactNode {
       <PhoneNowPlaying />
     </OverlayProvider>
   )
-}
-
-/**
- * Putting the phone's page away. The address names the song, so the page can
- * be the first one there is — a refresh, a copied link — and then there is
- * nothing to go back to: Home is where closing it lands, as it is on a
- * computer (`NowPlayingStage`). Going back regardless did nothing at all, and
- * the router said so.
- *
- * Through `leaveStage`, so the page sinks to the foot before the route changes
- * rather than being cut away under a router that swaps routes at once
- * (`shell/stageExit.ts`, which the computer's page uses for the same reason).
- * Two quick presses start one sink and go back once.
- */
-function putAway(router: ReturnType<typeof useRouter>): void {
-  leaveStage(() => {
-    if (router.canGoBack()) router.back()
-    else router.replace('/')
-  })
 }
 
 function PhoneNowPlaying(): ReactNode {
@@ -190,12 +180,7 @@ function PhoneNowPlaying(): ReactNode {
               <ChevronDown size={22} color={theme.colors.textPrimary} />
             </IconButton>
           </View>
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>Nothing playing</Text>
-            <Text style={styles.emptyText}>
-              Start a song and it turns up here, with its lyrics.
-            </Text>
-          </View>
+          <NothingPlaying />
         </View>
       ) : (
         <PhonePage song={song} onRemove={setRemoving} />
@@ -256,12 +241,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
   // The song's own page is a page of the app, not of this modal: the modal
   // goes down first, so back from the song lands where Now Playing was opened.
   // Down and then along, not both at once, which is why the push is inside.
-  const openSong = (): void => {
-    leaveStage(() => {
-      if (router.canGoBack()) router.back()
-      router.push(songLink(song.id))
-    })
-  }
+  const openSong = (): void => leaveTo(router, songLink(song.id))
 
   /*
    * The page's two views pass each other (`M2`, 1): the one arriving springs up
@@ -351,13 +331,22 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
     })
     return () => setStageExit(null)
   }, [arrival])
+  /*
+   * Whether the finger now down came down on the words. Dragging down there
+   * is reading back up the song, not a pull: the list is kept on the sung
+   * line, so it is almost never at its top, and the page took any drag down
+   * of 12 points before the list's own scroll had begun — a flick back
+   * through the verse flipped the page to the cover (Xiao, 2026-10-07). The
+   * head strip above the words still pulls, and the chevron still goes back.
+   */
+  const [fingerOnWords] = useState(() => new Flag())
   const pan = useMemo(() => {
     const settle = (): void => void spring(pull, 0)
     return PanResponder.create({
       onMoveShouldSetPanResponder: (_event, gesture) =>
         Math.abs(gesture.dy) > 12 &&
         Math.abs(gesture.dy) > Math.abs(gesture.dx) * 2 &&
-        (view === 'cover' || gesture.dy > 0),
+        (view === 'cover' || (gesture.dy > 0 && !fingerOnWords.on())),
       onPanResponderMove: (_event, gesture) =>
         pull.setValue(view === 'cover' ? gesture.dy : Math.max(0, gesture.dy)),
       onPanResponderRelease: (_event, gesture) => {
@@ -382,7 +371,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
       },
       onPanResponderTerminate: settle,
     })
-  }, [pull, router, view])
+  }, [pull, router, view, fingerOnWords])
 
   // Where the mini player's cover was a moment before it pushed this route
   // (`ui/coverHandoff.ts`). Taken once, and here rather than in the cover view:
@@ -458,6 +447,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
             noLyrics={noLyrics}
             sampler={sampler}
             onBack={() => setView('cover')}
+            fingerOnWords={fingerOnWords}
           />
         </Animated.View>
       ) : null}
@@ -554,7 +544,7 @@ function CoverView({
   handed,
 }: {
   song: Song
-  uri: string | null
+  uri: string | null | undefined
   color: string
   noLyrics: boolean
   /** The page opening, 0 to 1; already 1 by the time the words have been and gone. */
@@ -605,7 +595,7 @@ function CoverView({
             {song.title}
           </Text>
           <Text style={styles.artist} numberOfLines={1}>
-            <ArtistLinks artist={song.artist} />
+            <ArtistLinks artist={song.artist} onOpen={href => leaveTo(router, href)} />
           </Text>
         </View>
         <IconButton
@@ -631,7 +621,10 @@ function CoverView({
             hue={tag.hue}
             selected={false}
             compact
-            onPress={() => router.navigate(tagLink(tag.name))}
+            // A page of the app, so the modal goes down first, as the song's
+            // own page does (`openSong`): pushed from inside it, the tag's page
+            // landed under the modal, out of sight.
+            onPress={() => leaveTo(router, tagLink(tag.name))}
           />
         ))}
         <Pressable
@@ -752,12 +745,12 @@ function BreathingCover({
   handed,
 }: {
   song: Song
-  uri: string | null
+  uri: string | null | undefined
   onPress: () => void
   opening: Animated.Value
   handed: CoverFrame | null
 }): ReactNode {
-  const player = usePlayer()
+  const playing = usePlayerPlaying()
   // The app's own width, not the window's (`shell/rootWidth.ts`).
   const { width } = useLayout()
   const window = useWindowDimensions()
@@ -767,15 +760,15 @@ function BreathingCover({
     Math.floor(room ? Math.min(room.width, room.height) : Math.min(width - space.lg * 2, 342)),
   )
 
-  const [breath] = useState(() => new Animated.Value(player.isPlaying ? 1 : PAUSED_COVER_SCALE))
+  const [breath] = useState(() => new Animated.Value(playing ? 1 : PAUSED_COVER_SCALE))
   useEffect(() => {
     // A pause is a settling and a play is a lift, so the two are not the same
     // move backwards: it shrinks on a curve and grows back on the spring, which
     // gives the cover the small living overshoot on play that a timed curve of
     // the same length both ways cannot.
-    if (player.isPlaying) spring(breath, 1)
+    if (playing) spring(breath, 1)
     else timing(breath, PAUSED_COVER_SCALE, MOVE_MS.breath, undefined, { easing: ease.out })
-  }, [player.isPlaying, breath])
+  }, [playing, breath])
 
   /*
    * The cover's travel from the mini player's (`M2`, 1), as two numbers and a
@@ -861,16 +854,20 @@ function WordsView({
   noLyrics,
   sampler,
   onBack,
+  fingerOnWords,
 }: {
   song: Song
-  uri: string | null
+  uri: string | null | undefined
   lyrics: ReturnType<typeof useSongWords>
   noLyrics: boolean
   sampler: MotionSampler
   onBack: () => void
+  /** Set while a finger that came down on the words is still down: the page's pull leaves it to the list. */
+  fingerOnWords: Flag
 }): ReactNode {
   const { theme } = useUnistyles()
-  const player = usePlayer()
+  const player = usePlayerCommands()
+  const playing = usePlayerPlaying()
   // The app's own width, not the window's (`shell/rootWidth.ts`).
   const { width } = useLayout()
   const words = lyrics.words
@@ -889,7 +886,7 @@ function WordsView({
             {song.title}
           </Text>
           <Text style={styles.wordsArtist} numberOfLines={1}>
-            {song.artist || 'Unknown artist'}
+            {artistOr(song.artist)}
           </Text>
         </View>
         {words.status === 'lyrics' && lyrics.language !== 'none' ? (
@@ -922,7 +919,14 @@ function WordsView({
           <SongVisual song={song} sampler={sampler} cover={uri} rounded />
         </View>
       ) : (
-        <View style={styles.words}>
+        <View
+          style={styles.words}
+          // Raw touches reach the view they landed in whoever holds the
+          // gesture, so this is told of the lift even after the list has it.
+          onTouchStart={() => fingerOnWords.set(true)}
+          onTouchEnd={() => fingerOnWords.set(false)}
+          onTouchCancel={() => fingerOnWords.set(false)}
+        >
           {words.status === 'lyrics' ? (
             <StageLyrics
               parsed={words.parsed}
@@ -949,11 +953,9 @@ function WordsView({
         </IconButton>
         <PlayButton
           onPress={player.toggle}
-          label={player.isPlaying ? 'Pause' : 'Play'}
+          label={playing ? 'Pause' : 'Play'}
           size={60}
-          icon={
-            <PlayPauseIcon playing={player.isPlaying} size={26} color={theme.colors.onPrimary} />
-          }
+          icon={<PlayPauseIcon playing={playing} size={26} color={theme.colors.onPrimary} />}
         />
         <IconButton onPress={player.next} label="Next">
           <Next size={28} color={theme.colors.textPrimary} />
@@ -1045,7 +1047,7 @@ function MoreSheet({
  * blurred cover, the controls, the foot and the sheets around it.
  */
 function PhoneSeek({ color }: { color: string }): ReactNode {
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const { loopA, loopB } = usePracticeState()
   const progress = usePlayerProgress()
   return (
@@ -1064,6 +1066,20 @@ const REPEAT_LABEL: Record<'off' | 'all' | 'one', string> = {
   off: 'Repeat off',
   all: 'Repeat all',
   one: 'Repeat this song',
+}
+
+/**
+ * A yes or no that touch handlers set and a gesture reads, outside React's
+ * drawing: whether the finger now down came down on the words.
+ */
+class Flag {
+  #on = false
+  set(on: boolean): void {
+    this.#on = on
+  }
+  on(): boolean {
+    return this.#on
+  }
 }
 
 const styles = StyleSheet.create(theme => ({
@@ -1230,21 +1246,4 @@ const styles = StyleSheet.create(theme => ({
   toolOn: { backgroundColor: theme.colors.textPrimary },
   toolText: { color: theme.colors.textPrimary, fontSize: 12, fontWeight: '600' },
   toolTextOn: { color: theme.colors.onPrimary },
-  empty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space.sm,
-    paddingHorizontal: space.xl,
-  },
-  emptyTitle: {
-    color: theme.colors.textSecondary,
-    fontSize: type.body,
-    fontWeight: '600',
-  },
-  emptyText: {
-    color: theme.colors.textMuted,
-    fontSize: 13,
-    textAlign: 'center',
-  },
 }))

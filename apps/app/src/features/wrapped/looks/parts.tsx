@@ -12,7 +12,7 @@ export interface LookProps {
   /** This device's accent hue: the looks are printed in its inks (`lookInk`). */
   readonly hue: number
   /** A song's cover, as this device can show it; null draws the lettered placeholder. */
-  readonly art: (songId: number) => string | null
+  readonly art: (songId: number) => string | null | undefined
   /** A tag's hue, from the library; a name the library no longer has is given one. */
   readonly tagHue: (tag: string) => number | undefined
 }

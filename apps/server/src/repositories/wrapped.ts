@@ -9,6 +9,7 @@ import {
   type WrappedRange,
 } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
+import { runs, toMinutes } from './listening.js'
 
 /**
  * "Wrapped, anytime" — a summary of a listening window.
@@ -83,6 +84,8 @@ export class WrappedRepository {
       .all(...params)
       .map(toTopSong)
 
+    // 'Unknown artist' is `UNKNOWN_ARTIST` from @selfmp3/shared, which the app
+    // compares this key with: change the two together.
     const topArtists: TopEntry[] = this.#db
       .prepare<unknown[], { key: string; plays: number; ms: number | null }>(
         `SELECT COALESCE(NULLIF(s.artist, ''), 'Unknown artist') AS key,
@@ -166,7 +169,7 @@ export class WrappedRepository {
       )
       .all(...params)
       .map(row => row.date)
-    const longestStreakDays = longestRun(dates)
+    const longestStreakDays = runs(dates).longest
 
     const plays = totals?.plays ?? 0
     const minutes = toMinutes(totals?.ms ?? 0)
@@ -226,10 +229,6 @@ function toTopSong(row: SongPlaysRow): TopSong {
   }
 }
 
-function toMinutes(ms: number | null): number {
-  return Math.round(((ms ?? 0) / 60_000) * 10) / 10
-}
-
 /** SQLite's "YYYY-MM-DD HH:MM:SS" (UTC) as an ISO string. */
 function toIso(sqlite: string): string {
   const parsed = fromSqliteTime(sqlite)
@@ -251,26 +250,4 @@ function peak<K extends string>(
   })
   if (best < 0) return null
   return { [key]: best, plays: bestPlays } as { [P in K]: number } & { plays: number }
-}
-
-/** Longest run of consecutive dates in a sorted, distinct list of YYYY-MM-DD. */
-export function longestRun(dates: readonly string[]): number {
-  if (dates.length === 0) return 0
-  let longest = 1
-  let run = 1
-  for (let i = 1; i < dates.length; i++) {
-    const previous = dates[i - 1]
-    const current = dates[i]
-    if (previous === undefined || current === undefined) continue
-    run = dayGap(previous, current) === 1 ? run + 1 : 1
-    if (run > longest) longest = run
-  }
-  return longest
-}
-
-function dayGap(from: string, to: string): number {
-  const a = Date.parse(`${from}T00:00:00Z`)
-  const b = Date.parse(`${to}T00:00:00Z`)
-  if (!Number.isFinite(a) || !Number.isFinite(b)) return Number.POSITIVE_INFINITY
-  return Math.round((b - a) / 86_400_000)
 }

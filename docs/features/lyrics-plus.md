@@ -79,16 +79,10 @@ GET /api/songs/:id/lyrics
   usual; the flag is left alone.
 - A flagged song with no local lyrics answers `404 instrumental` without
   touching the network. When lrclib is the one saying so, the flag is set first.
-- `?refresh=1` skips the sidecar and always asks online — YouTube Music's timed
-  lyrics, then lrclib: lyrics found are written as a sidecar and clear the flag
-  (no screen in the app asks for this any more); an instrumental answer sets it and returns
-  `404 instrumental`; nothing at all is the usual `404 not_found`.
 - Only lrclib's exact match is believed about a track having no words. The
   fuzzy search fallback readily returns the karaoke version of a song with
   words, and a wrong flag would stop the song from ever being looked up again.
 - Imports with lyric fetching on set the flag when lrclib says so.
-- `PUT /api/songs/:id/lyrics` with non-empty text clears the flag — you wrote
-  words for it, so it has some.
 - `PATCH /api/songs/:id { instrumental: true | false }` sets or clears it by
   hand.
 

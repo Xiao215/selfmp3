@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Easing, FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated'
-import { MOVE_MS } from './motion.model'
+import { EASE_IN_POINTS, EASE_OUT_POINTS, MOVE_MS } from './motion.model'
 import { useMotionReduced } from './motion'
 
 /**
@@ -26,11 +26,11 @@ export function useRowMotion(): {
   const reduced = useMotionReduced()
   return useMemo(() => {
     if (reduced) return {}
-    const out = Easing.bezier(0.2, 0.8, 0.2, 1)
+    const out = Easing.bezier(...EASE_OUT_POINTS)
     return {
       layout: LinearTransition.duration(MOVE_MS.rowMove).easing(out),
       entering: FadeIn.duration(MOVE_MS.rowIn).easing(out),
-      exiting: FadeOut.duration(MOVE_MS.rowOut).easing(Easing.bezier(0.4, 0, 1, 1)),
+      exiting: FadeOut.duration(MOVE_MS.rowOut).easing(Easing.bezier(...EASE_IN_POINTS)),
     }
   }, [reduced])
 }

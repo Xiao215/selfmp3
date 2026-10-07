@@ -14,19 +14,19 @@ import { parseListSource, type ListSource } from '../features/lists/lists.model'
 
 export const SESSION_KEY = 'player.session'
 
+/**
+ * Where the song had got to, kept apart from the queue: it is the part that
+ * changes every few seconds while a song plays, and the queue — a list of
+ * thousands, a whole library shuffled — need not be written out again with it.
+ */
+export const POSITION_KEY = 'player.position'
+
 interface SavedSession {
   readonly queueIds: readonly number[]
   readonly index: number
   /** Seconds into the song at `index`. */
   readonly position: number
   /** What Up next was called, so it comes back by the same name. */
-  readonly source: ListSource | null
-}
-
-interface LaunchPlayback {
-  readonly queueIds: readonly number[]
-  readonly index: number
-  readonly position: number
   readonly source: ListSource | null
 }
 
@@ -41,6 +41,32 @@ export function sessionFromQueue(
     index: queue.index,
     position: Math.max(0, position),
     source,
+  }
+}
+
+/** The song playing and how far in, as `POSITION_KEY` keeps it; null with nothing playing. */
+export function positionNote(queue: QueueState, position: number): string | null {
+  const songId = queue.items[queue.index]
+  return songId === undefined ? null : JSON.stringify({ songId, position: Math.max(0, position) })
+}
+
+/**
+ * The saved session, at the position written since it was, when that note is
+ * about the session's own song; as it was otherwise.
+ */
+export function withLatestPosition(
+  saved: SavedSession | null,
+  note: string | null,
+): SavedSession | null {
+  if (!saved || !note) return saved
+  try {
+    const value = JSON.parse(note) as { songId?: unknown; position?: unknown }
+    if (value.songId !== saved.queueIds[saved.index] || typeof value.position !== 'number') {
+      return saved
+    }
+    return { ...saved, position: Math.max(0, value.position) }
+  } catch {
+    return saved
   }
 }
 
@@ -74,7 +100,7 @@ export function launchPlayback(
   saved: SavedSession | null,
   addressSong: unknown,
   known: ReadonlySet<number>,
-): LaunchPlayback | null {
+): SavedSession | null {
   const named =
     typeof addressSong === 'string' && /^\d+$/.test(addressSong) && known.has(Number(addressSong))
       ? Number(addressSong)

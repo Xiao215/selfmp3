@@ -60,6 +60,15 @@ describe('uids and the search index', () => {
     expect(db.pragma('integrity_check', { simple: true })).toBe('ok')
   }
 
+  /** The songs the title index finds for one word, asked of the index itself. */
+  const indexed = (word: string): { id: number; title: string }[] =>
+    db
+      .prepare<[string], { id: number; title: string }>(
+        `SELECT s.id, s.title FROM songs s JOIN songs_fts ON songs_fts.rowid = s.id
+          WHERE songs_fts MATCH ? ORDER BY s.id`,
+      )
+      .all(`"${word}"*`)
+
   it('gives every new song, tag and playlist a uid of its own', () => {
     const one = insert('Sunrise')
     const two = insert('Sunset')
@@ -97,20 +106,20 @@ describe('uids and the search index', () => {
     insert('Sunrise')
     insert('Nocturne Study in E', 'Kaito Mori')
     indexIsSound()
-    expect(songs.search('nocturne').map(song => song.title)).toEqual(['Nocturne Study in E'])
+    expect(indexed('nocturne').map(song => song.title)).toEqual(['Nocturne Study in E'])
   })
 
   it('follows a rename, and a play no longer rewrites the index', () => {
     const id = insert('Sunrise')
     songs.patch(id, { title: 'Daybreak' })
     indexIsSound()
-    expect(songs.search('daybreak').map(song => song.id)).toEqual([id])
-    expect(songs.search('sunrise')).toEqual([])
+    expect(indexed('daybreak').map(song => song.id)).toEqual([id])
+    expect(indexed('sunrise')).toEqual([])
 
     new StatsRepository(db).record(id, 120_000, true, null, null)
     songs.recordPlay(id)
     indexIsSound()
-    expect(songs.search('daybreak').map(song => song.id)).toEqual([id])
+    expect(indexed('daybreak').map(song => song.id)).toEqual([id])
   })
 
   it('reads song files with their uids for the sync', () => {

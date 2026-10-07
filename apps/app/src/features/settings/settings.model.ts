@@ -1,4 +1,5 @@
 import type { AnalysisStatus, DeviceKind, Health, ScanResult } from '@selfmp3/shared'
+import { clamp01, plural } from '@selfmp3/shared'
 
 /**
  * Settings' rules, with nothing drawn: which sections a device shows, which one
@@ -83,14 +84,21 @@ export function onThisDevice(place: DevicePlace): string {
  * `offered`: a browser tab on a Mac is offered the desktop app to install
  * (`ports/macApp`); the app itself, a phone and a Windows browser are not.
  */
-export function sectionsFor(
-  fromCloud: boolean,
+export function sectionsFor({
+  fromCloud,
   installed = true,
   keyboard = true,
   shell = false,
-  place: DevicePlace = 'phone',
+  place = 'phone',
   offered = false,
-): readonly { id: SectionId; label: string }[] {
+}: {
+  readonly fromCloud: boolean
+  readonly installed?: boolean
+  readonly keyboard?: boolean
+  readonly shell?: boolean
+  readonly place?: DevicePlace
+  readonly offered?: boolean
+}): readonly { id: SectionId; label: string }[] {
   return ALL_SECTIONS.filter(
     section =>
       (!fromCloud || !section.server) &&
@@ -141,7 +149,7 @@ export function activeSection<T extends string>(
   const first = sections[0]
   if (!first || viewHeight <= 0) return null
   const remaining = contentHeight - viewHeight - scrollY
-  const approach = Math.max(0, Math.min(1, 1 - remaining / viewHeight))
+  const approach = clamp01(1 - remaining / viewHeight)
   const line = scrollY + READING_LINE + (viewHeight - READING_LINE) * approach
   let current = first.id
   for (const section of sections) {
@@ -173,7 +181,8 @@ export function healthLine(
   } = {},
 ): string {
   if (health) {
-    const songs = health.songCount === undefined ? '' : ` · ${health.songCount} songs`
+    const songs =
+      health.songCount === undefined ? '' : ` · ${plural(health.songCount, 'song', 'songs')}`
     return `self.mp3 ${health.version}${songs} · ${health.storageDriver} storage`
   }
   if (asking.loading) return 'Checking your library…'
@@ -215,7 +224,7 @@ export function splitDevices<
 
 export function scanHint(result: ScanResult | undefined): string {
   if (!result) return 'Import any audio files dropped into the folder outside self.mp3.'
-  return `Last sweep found ${result.added} new and ${result.updated} updated; ${result.total} songs in the library.`
+  return `Last sweep found ${result.added} new and ${result.updated} updated; ${plural(result.total, 'song', 'songs')} in the library.`
 }
 
 /**
@@ -257,7 +266,7 @@ export function soundHint(sound: AnalysisStatus['sound'], songs: number): string
     case 'failed':
       return `${what} The server could not get it${sound.message ? `: ${sound.message}` : ''}. It tries again within the hour.`
     case 'ready':
-      return `${what} ${sound.heard} of ${songs} songs heard${sound.pending > 0 ? ` · ${sound.pending} to go` : ''}.`
+      return `${what} ${sound.heard} of ${plural(songs, 'song', 'songs')} heard${sound.pending > 0 ? ` · ${sound.pending} to go` : ''}.`
   }
 }
 

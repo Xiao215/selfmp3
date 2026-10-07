@@ -1,5 +1,6 @@
 import {
   DoormanClaimRequestSchema,
+  SIGN_IN_CODE_FRAGMENT,
   SignInAttemptSchema,
   formatSignInCode,
   type DoormanClaimResult,
@@ -9,10 +10,18 @@ import { isAllowed, nobodyAllowed, requireSession, type Context } from './contex
 import { randomToken } from './encoding.js'
 import { GoogleError, authUrl, checkIdToken, exchangeCode } from './google.js'
 import { page } from './html.js'
-import { DoormanError, forbidden, json, noContent, readJson, unauthorized } from './http.js'
+import {
+  DoormanError,
+  forbidden,
+  isLoopbackHost,
+  json,
+  noContent,
+  readJson,
+  unauthorized,
+} from './http.js'
 import type { DoormanKeys } from './keys.js'
 import { getRecord, putRecord } from './kv.js'
-import { bearerToken, type Identity } from './sessions.js'
+import { IdentitySchema, bearerToken, type Identity } from './sessions.js'
 import {
   SIGN_IN_TTL_MS,
   codeMatches,
@@ -60,11 +69,7 @@ import {
 const ATTEMPT_TTL_SECONDS = SIGN_IN_TTL_MS / 1000
 
 /** What the callback leaves under the attempt for the claim. No code, no token. */
-const AttemptRecordSchema = z.object({
-  sub: z.string().min(1),
-  email: z.string(),
-  name: z.string().nullable(),
-  picture: z.string().nullable(),
+const AttemptRecordSchema = IdentitySchema.extend({
   /** A MAC of the code shown, tied to the attempt (see signin.ts). */
   codeTag: z.string(),
   /** Milliseconds; KV's own expiry is the backstop. */
@@ -192,7 +197,7 @@ export async function callback(ctx: Context): Promise<Response> {
     return new Response(null, {
       status: 302,
       headers: {
-        location: withFragment(state.returnTo, `signin-code=${signInCode}`),
+        location: withFragment(state.returnTo, `${SIGN_IN_CODE_FRAGMENT}=${signInCode}`),
         'cache-control': 'no-store',
         'referrer-policy': 'no-referrer',
       },
@@ -300,7 +305,7 @@ function redirectUri(ctx: Context): string {
 function safeReturn(
   value: string | null,
   origins: ReadonlySet<string>,
-  schemes: ReadonlySet<string> = new Set(),
+  schemes: ReadonlySet<string>,
 ): string | null {
   if (!value || value.length > 1024) return null
   let url: URL
@@ -317,8 +322,7 @@ function safeReturn(
    * never on. The scheme has to be checked with it, not instead of it.
    */
   const web = url.protocol === 'http:' || url.protocol === 'https:'
-  const loopback =
-    url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1')
+  const loopback = url.protocol === 'http:' && isLoopbackHost(url.hostname)
   // A phone has no origin to come back to, so it is named by its scheme
   // instead. That is weaker than an origin — iOS lets any app claim a scheme,
   // so another one could take this redirect — and it is safe here for the

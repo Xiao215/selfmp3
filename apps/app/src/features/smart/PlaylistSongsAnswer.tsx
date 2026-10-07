@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { plural, type AskAnswer } from '@selfmp3/shared'
+import { artistOr, plural, type AskAnswer } from '@selfmp3/shared'
 import {
   space,
   useAddToPlaylist,
@@ -12,6 +12,7 @@ import {
   useReorderPlaylist,
 } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
+import { useSongsById } from '../../ui/songsById'
 import { showToast } from '../../ui/toast'
 import type { AnswerKeys } from './answerKeys'
 import { Review, reviewText } from './Review'
@@ -19,11 +20,6 @@ import { keptSongs, parts, playlistEditHere, sortWords, type Reviewed } from './
 import { useSmartServer } from './useSmartServer'
 
 type Answer = Extract<AskAnswer, { kind: 'playlistSongs' }>
-
-/** The one change an add or a remove is, in a review's terms. */
-interface Edit extends Reviewed {
-  readonly change: { readonly key: string; readonly by: 'rule' | 'model' }
-}
 
 /**
  * Ask's answer to "add … to", "take … out of" and "sort" one playlist
@@ -59,7 +55,7 @@ export function PlaylistSongsAnswer({
     () => playlistEditHere(answer, server.onDevice, current),
     [answer, server.onDevice, current],
   )
-  const songsById = new Map((library?.songs ?? []).map(song => [song.id, song]))
+  const songsById = useSongsById()
 
   if (!playlist) return <Text style={reviewText.line}>That playlist is gone.</Text>
   if (!members) return <Text style={reviewText.note}>Reading {playlist.name}…</Text>
@@ -112,7 +108,7 @@ export function PlaylistSongsAnswer({
                 <Text key={id} style={reviewText.name} numberOfLines={1}>
                   <Text style={reviewText.meta}>{index + 1}. </Text>
                   {song.title}
-                  <Text style={reviewText.meta}> · {song.artist || 'Unknown artist'}</Text>
+                  <Text style={reviewText.meta}> · {artistOr(song.artist)}</Text>
                 </Text>
               ) : null
             })}
@@ -156,9 +152,10 @@ export function PlaylistSongsAnswer({
     )
   }
 
-  const edit: Edit = { change: { key: 'edit', by: answer.by }, songIds: here.songIds }
+  // The one change an add or a remove is, in a review's terms.
+  const edit: Reviewed = { change: { key: 'edit', by: answer.by }, songIds: here.songIds }
   const apply = async (
-    approved: readonly Edit[],
+    approved: readonly Reviewed[],
     leftOut: ReadonlySet<string>,
   ): Promise<boolean> => {
     const songIds = approved.flatMap(each => keptSongs(each, leftOut))
@@ -225,7 +222,7 @@ export function PlaylistSongsAnswer({
       }
       songLine={song => {
         const why = here.why.get(song.id)
-        return `${song.artist || 'Unknown artist'}${why ? ` · ${why}` : ''}`
+        return `${artistOr(song.artist)}${why ? ` · ${why}` : ''}`
       }}
       applyLabel={(approved, leftOut) => {
         const count = approved.flatMap(each => keptSongs(each, leftOut)).length

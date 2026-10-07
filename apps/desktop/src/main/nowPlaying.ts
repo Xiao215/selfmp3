@@ -67,7 +67,7 @@ function drawDock(window_: () => BrowserWindow | null): void {
   )
 }
 
-/** Called by the `setPlaybackState` handler, and once at startup. */
+/** Called by the `setPlaybackState` handler, whenever the page's playback changes. */
 export function setPlaybackState(
   next: DockPlaybackState,
   window_: () => BrowserWindow | null,

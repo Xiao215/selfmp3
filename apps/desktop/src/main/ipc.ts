@@ -5,6 +5,7 @@ import { app, ipcMain, shell, type BrowserWindow } from 'electron'
 import {
   CHANNELS,
   EVENTS,
+  desktopInfoSchema,
   dockPlaybackStateSchema,
   downloadRequestSchema,
   externalUrlSchema,
@@ -22,7 +23,6 @@ import {
 import * as files from './files.js'
 import * as updates from './updates.js'
 
-import type { DeepLinks } from './deepLinks.js'
 import { setPlaybackState } from './nowPlaying.js'
 import { encryptionAvailable, secretStore } from './secrets.js'
 
@@ -39,7 +39,7 @@ import { encryptionAvailable, secretStore } from './secrets.js'
 export function desktopInfo({ development }: { development: boolean }): DesktopInfo {
   const userData = app.getPath('userData')
   return {
-    platform: process.platform as DesktopInfo['platform'],
+    platform: desktopInfoSchema.shape.platform.parse(process.platform),
     version: app.getVersion(),
     // "Xiao's MacBook Pro" — what a browser has to guess from a user agent.
     hostname: hostname().replace(/\.local$/, ''),
@@ -55,11 +55,9 @@ export function desktopInfo({ development }: { development: boolean }): DesktopI
 
 export function registerIpc({
   info,
-  deepLinks,
   window: window_,
 }: {
   readonly info: DesktopInfo
-  readonly deepLinks: DeepLinks
   readonly window: () => BrowserWindow | null
 }): void {
   // Answered synchronously: the preload reads it at load, before the page runs.
@@ -149,9 +147,5 @@ export function registerIpc({
 
   ipcMain.handle(CHANNELS.setPlaybackState, (_event, state: unknown) => {
     setPlaybackState(dockPlaybackStateSchema.parse(state), window_)
-  })
-
-  deepLinks.listen(url => {
-    window_()?.webContents.send(EVENTS.deepLink, url)
   })
 }

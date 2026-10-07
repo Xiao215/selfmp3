@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
-import { plural, type Song, type TidyField, type TidyResult } from '@selfmp3/shared'
-import { useBulkEditSongs, useLibrary } from '@selfmp3/client'
+import { artistOr, plural, type Song, type TidyField, type TidyResult } from '@selfmp3/shared'
+import { useBulkEditSongs } from '@selfmp3/client'
+import { useSongsById } from '../../ui/songsById'
 import { showToast } from '../../ui/toast'
 import type { AnswerKeys } from './answerKeys'
 import { Review, reviewText, songCount, type ReviewRowState } from './Review'
@@ -38,12 +39,8 @@ export function TidyReview({
   onKeys?: (keys: AnswerKeys | null) => void
 }): ReactNode {
   const server = useSmartServer()
-  const { data: library } = useLibrary()
   const save = useBulkEditSongs()
-  const songsById = useMemo(
-    () => new Map((library?.songs ?? []).map(song => [song.id, song])),
-    [library],
-  )
+  const songsById = useSongsById()
   const here = useMemo(
     () => tidyHere(result.changes, server.onDevice, songsById),
     [result.changes, server.onDevice, songsById],
@@ -98,7 +95,7 @@ export function TidyReview({
       const song = songsById.get(each.songIds[0]!)
       if (!song) return `${field} · 1 song`
       return each.change.field === 'title'
-        ? `${field} · ${song.artist || 'Unknown artist'}`
+        ? `${field} · ${artistOr(song.artist)}`
         : `${field} · on ${song.title}`
     }
     if (state.on && state.kept.length < each.songIds.length) {
@@ -181,6 +178,6 @@ export function TidyReview({
 
 /** What tells one song from another in an opened change: what the change does not touch. */
 function songLine(song: Song, field: TidyField): string {
-  if (field === 'title') return song.artist || 'Unknown artist'
+  if (field === 'title') return artistOr(song.artist)
   return song.album || song.artist || 'No album'
 }

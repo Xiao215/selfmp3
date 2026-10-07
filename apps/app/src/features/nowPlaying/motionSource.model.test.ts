@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { FrequencyAnalyser } from '@selfmp3/client'
+import type { FrequencyAnalyser, MotionCurve } from '@selfmp3/client'
 
 import {
   beatSampler,
@@ -9,14 +9,13 @@ import {
   curveSampler,
   liveSampler,
   sampleCurve,
-  type MotionCurveLike,
 } from './motionSource.model'
 import { visualFeel } from './visuals.model'
 
 const feel = visualFeel(null)
 
 /** A curve from plain numbers: loudness in dBFS and onset 0–1, one per 50 ms frame. */
-function curveOf(db: readonly number[], onset: readonly number[]): MotionCurveLike {
+function curveOf(db: readonly number[], onset: readonly number[]): MotionCurve {
   return {
     rate: 20,
     duration: db.length / 20,
@@ -40,7 +39,7 @@ function fakeAnalyser(frame: (call: number) => number[]): FrequencyAnalyser {
 }
 
 describe('reading the stored curve', () => {
-  const curve: MotionCurveLike = {
+  const curve: MotionCurve = {
     rate: 20,
     duration: 0.15,
     loudness: Uint8Array.from([0, 255, 51]),
@@ -62,7 +61,7 @@ describe('reading the stored curve', () => {
   })
 
   it('is silent for an empty curve', () => {
-    const empty: MotionCurveLike = {
+    const empty: MotionCurve = {
       rate: 20,
       duration: 0,
       loudness: new Uint8Array(),

@@ -4,6 +4,7 @@ import { speakHttp1 } from './http/outgoing.js'
 import { beyondThisComputer, listenAddresses, publishedAddresses } from './services/addresses.js'
 import { romanizeLibrary } from './services/romanizedLines.js'
 import { createApp } from './app.js'
+import { messageOf } from './util/errors.js'
 
 /**
  * Entry point.
@@ -107,22 +108,6 @@ function main(): void {
 
   startLibrary(container)
 
-  const autoScanMinutes = container.settings.get().autoScanMinutes
-  let scanTimer: NodeJS.Timeout | null = null
-  if (autoScanMinutes > 0) {
-    scanTimer = setInterval(() => {
-      void container.scanner
-        .scan()
-        .then(result => {
-          if (result.added || result.updated) container.bumpLibraryVersion()
-        })
-        .catch(() => undefined)
-    }, autoScanMinutes * 60_000)
-    // Do not hold the process open just for the timer.
-    scanTimer.unref()
-    logger.info('automatic rescan enabled', { everyMinutes: autoScanMinutes })
-  }
-
   /*
    * `code` is what the process exits with once everything has closed: 0 for a
    * signal, 1 for a crash. launchd and every other supervisor read that number
@@ -132,8 +117,6 @@ function main(): void {
     if (shuttingDown) return
     shuttingDown = true
     logger.info(`received ${signal}, shutting down`)
-
-    if (scanTimer) clearInterval(scanTimer)
 
     // Everything in the background, including the event streams: one is
     // answered and then held open for the life of the tab, so `server.close`
@@ -162,7 +145,7 @@ function main(): void {
 
   process.on('unhandledRejection', reason => {
     logger.error('unhandled promise rejection', {
-      message: reason instanceof Error ? reason.message : String(reason),
+      message: messageOf(reason),
       stack: reason instanceof Error ? reason.stack : undefined,
     })
   })
@@ -201,7 +184,8 @@ function startLibrary(container: Container): void {
   container.importQueue.start()
   // Once per library: the years songs came out, for the ones downloaded with their upload's.
   void container.releaseYears.start()
-  // Rescan on folder changes (drag-and-drop into Finder) when the setting is on.
+  // Rescan on folder changes (drag-and-drop into Finder) when the setting is
+  // on, and every `autoScanMinutes` when that is set.
   container.libraryWatcher.apply()
   // Publishing, and any links other devices asked for while this server was off.
   const startCloud = (): void => {
@@ -214,10 +198,28 @@ function startLibrary(container: Container): void {
   const warmLyrics = (): void => {
     void container.lyricsIndex
       .backfill()
-      .then(() => romanizeLibrary({ ...container, logger }))
+      .then(() => romanizeLibrary(container))
       .catch((error: unknown) => {
         logger.warn('romanizing the library stopped early', {
-          message: error instanceof Error ? error.message : String(error),
+          message: messageOf(error),
+        })
+      })
+  }
+
+  // Covers kept from before every cover was made square (squareCover.ts).
+  const squareCovers = (): void => {
+    const withArt = container.cloudRepo
+      .songFiles()
+      .filter(song => song.hasArt)
+      .map(song => song.id)
+    void container.covers
+      .squareKept(withArt)
+      .then(squared => {
+        if (squared > 0) container.bumpLibraryVersion()
+      })
+      .catch((error: unknown) => {
+        logger.warn('squaring kept covers stopped early', {
+          message: messageOf(error),
         })
       })
   }
@@ -225,9 +227,8 @@ function startLibrary(container: Container): void {
   if (!config.scanOnBoot) {
     warmLyrics()
     startCloud()
-  }
-
-  if (config.scanOnBoot) {
+    squareCovers()
+  } else {
     // Deliberately not awaited: the API is already serving, and a first scan of
     // a large library should not delay that.
     void container.scanner
@@ -236,10 +237,11 @@ function startLibrary(container: Container): void {
         if (result.added || result.updated) container.bumpLibraryVersion()
         // Lyrics+: index lyrics for search once the scan knows which songs have them.
         warmLyrics()
+        squareCovers()
       })
       .catch((error: unknown) => {
         logger.error('initial scan failed', {
-          message: error instanceof Error ? error.message : String(error),
+          message: messageOf(error),
         })
       })
       // Publishing reads what the scan found, so it waits for it — however it went.
@@ -252,6 +254,6 @@ function startLibrary(container: Container): void {
 try {
   main()
 } catch (error) {
-  console.error(error instanceof Error ? error.message : String(error))
+  console.error(messageOf(error))
   process.exit(1)
 }

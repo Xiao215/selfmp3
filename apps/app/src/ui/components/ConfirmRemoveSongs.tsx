@@ -1,20 +1,17 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { plural, type Song } from '@selfmp3/shared'
-import { HIT_TARGET, oklchToHexAlpha, radius, space, useBulkDeleteSongs } from '@selfmp3/client'
+import { HIT_TARGET, radius, space, useBulkDeleteSongs } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
-import { usePlayer } from '../../player/PlayerProvider'
-import { useOverlay } from '../../shell/Overlay'
-import { useEscape } from '../../shell/useEscape'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
-import { useAccent } from '../accent'
 import { showToast } from '../toast'
 import { Button } from './Button'
+import { Dialog, DialogHead } from './Dialog'
 import { floating } from '../surfaces'
-import { IconButton } from './IconButton'
-import { Trash, X } from './Icons'
+import { Trash } from './Icons'
 
 /**
  * Removing songs from the library, from the question to the word afterwards:
@@ -37,7 +34,7 @@ export function RemoveSongs({
   /** Removed: close whatever asked. */
   onDone: () => void
 }): ReactNode {
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const { dropDownloads } = useDownloads()
   const bulkDelete = useBulkDeleteSongs()
   const [error, setError] = useState<string | null>(null)
@@ -92,8 +89,8 @@ export function RemoveSongs({
  * to keep, and a copy left on a disk somewhere is exactly how removed songs
  * used to come back.
  *
- * Because there is no toast to say it in, a failure is shown inside the
- * dialog, which stays open, rather than closing it and reporting underneath.
+ * A failure is shown inside the dialog, which stays open so that trying again
+ * is one press, rather than closing it and reporting underneath.
  */
 export function ConfirmRemoveSongs({
   songs,
@@ -110,7 +107,6 @@ export function ConfirmRemoveSongs({
   onConfirm: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  const accent = useAccent()
   const { wide } = useLayout()
 
   const count = songs.length
@@ -122,86 +118,65 @@ export function ConfirmRemoveSongs({
   const cancel = (): void => {
     if (!pending) onCancel()
   }
-  useEscape(true, cancel, { layer: true })
 
-  useOverlay(
-    <View
-      style={[styles.backdrop, { backgroundColor: oklchToHexAlpha(0.1, 0.02, accent.hue, 0.62) }]}
+  return (
+    <Dialog
+      onDismiss={cancel}
+      dismissLabel="Cancel"
+      testID="confirm-remove-songs"
+      style={styles.dialog}
     >
-      <Pressable style={StyleSheet.absoluteFill} onPress={cancel} accessibilityLabel="Cancel" />
-      <View
-        style={styles.dialog}
-        role="dialog"
-        aria-modal
-        accessibilityViewIsModal
-        testID="confirm-remove-songs"
-      >
-        <View style={styles.head}>
-          <Text style={styles.title} accessibilityRole="header">
-            {only ? `Remove “${only.title}”` : `Remove ${count} ${songWord}`} from your library?
-          </Text>
-          <IconButton onPress={cancel} label="Cancel">
-            <X size={16} color={theme.colors.textSecondary} />
-          </IconButton>
-        </View>
+      <DialogHead
+        title={`${only ? `Remove “${only.title}”` : `Remove ${count} ${songWord}`} from your library?`}
+        onClose={cancel}
+        closeLabel="Cancel"
+        style={styles.head}
+        titleStyle={styles.title}
+      />
 
-        <ScrollView contentContainerStyle={styles.body}>
-          <Text style={styles.lede}>
-            The {count === 1 ? 'song' : `${count} songs`} and everything about{' '}
-            {count === 1 ? 'it' : 'them'} — tags, play counts, playlist places — leave your library
-            on every device, and{' '}
-            <Text style={styles.strong}>anything downloaded here is deleted from this device</Text>.{' '}
-            <Text style={[styles.strong, styles.strongDestructive]}>This cannot be undone.</Text>
-          </Text>
+      <ScrollView contentContainerStyle={styles.body}>
+        <Text style={styles.lede}>
+          The {count === 1 ? 'song' : `${count} songs`} and everything about{' '}
+          {count === 1 ? 'it' : 'them'} — tags, play counts, playlist places — leave your library on
+          every device, and{' '}
+          <Text style={styles.strong}>anything downloaded here is deleted from this device</Text>.{' '}
+          <Text style={[styles.strong, styles.strongDestructive]}>This cannot be undone.</Text>
+        </Text>
 
-          {named.length === 0 ? null : (
-            <View style={styles.list}>
-              {named.map((title, index) => (
-                <Text key={`${title}-${index}`} style={styles.listItem} numberOfLines={1}>
-                  {title}
-                </Text>
-              ))}
-              {rest > 0 ? (
-                <Text style={[styles.listItem, styles.listRest]}>
-                  and {rest} more {rest === 1 ? 'song' : 'songs'}
-                </Text>
-              ) : null}
-            </View>
-          )}
+        {named.length === 0 ? null : (
+          <View style={styles.list}>
+            {named.map((title, index) => (
+              <Text key={`${title}-${index}`} style={styles.listItem} numberOfLines={1}>
+                {title}
+              </Text>
+            ))}
+            {rest > 0 ? (
+              <Text style={[styles.listItem, styles.listRest]}>
+                and {plural(rest, 'more song', 'more songs')}
+              </Text>
+            ) : null}
+          </View>
+        )}
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-        </ScrollView>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+      </ScrollView>
 
-        <View style={[styles.actions, !wide && styles.actionsCompact]}>
-          <Button label="Cancel" onPress={cancel} disabled={pending} grow={!wide} />
-          <Button
-            label={pending ? 'Working…' : only ? 'Remove song' : `Remove ${count} ${songWord}`}
-            icon={<Trash size={15} color={theme.colors.danger} />}
-            variant="danger"
-            onPress={onConfirm}
-            disabled={pending}
-            grow={!wide}
-          />
-        </View>
+      <View style={[styles.actions, !wide && styles.actionsCompact]}>
+        <Button label="Cancel" onPress={cancel} disabled={pending} grow={!wide} />
+        <Button
+          label={pending ? 'Working…' : only ? 'Remove song' : `Remove ${count} ${songWord}`}
+          icon={<Trash size={15} color={theme.colors.danger} />}
+          variant="danger"
+          onPress={onConfirm}
+          disabled={pending}
+          grow={!wide}
+        />
       </View>
-    </View>,
-    true,
+    </Dialog>
   )
-
-  return null
 }
 
 const styles = StyleSheet.create(theme => ({
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: space.lg,
-  },
   dialog: {
     width: '100%',
     maxWidth: 460,
@@ -212,9 +187,7 @@ const styles = StyleSheet.create(theme => ({
     ...floating(theme.colors),
   },
   head: {
-    flexDirection: 'row',
     alignItems: 'flex-start',
-    justifyContent: 'space-between',
     gap: space.md,
     paddingTop: space.lg,
     paddingRight: space.md,

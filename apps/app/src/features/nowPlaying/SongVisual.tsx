@@ -7,10 +7,8 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated'
 import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from 'react-native-svg'
-import type { Song } from '@selfmp3/shared'
 import { radius, rgba } from '@selfmp3/client'
-import { usePlayer, usePracticeState } from '../../player/PlayerProvider'
-import type { MotionSampler } from './motionSource.model'
+import { usePlayerCommands, usePlayerPlaying, usePracticeState } from '../../player/PlayerProvider'
 import { useMotionReduced } from '../../ui/motion'
 import { useVisualLook } from './useVisualLook'
 import {
@@ -26,17 +24,14 @@ import {
   type MotionState,
   type MotionTuning,
 } from './visualMotion.model'
-import { RING_FROM, RING_TO, rippleDisc, type VisualColors } from './visuals.model'
-
-export interface SongVisualProps {
-  song: Song
-  /** What the visual follows: the song's curve on a phone, or its tempo (`useMotionSampler`). */
-  sampler: MotionSampler
-  /** Round the corners, for a visual in a box rather than one filling the screen. */
-  rounded?: boolean
-  /** The song's cover: Ripples' disc is the cover itself (docs/ui-mock `P24`). */
-  cover?: string | null
-}
+import {
+  RING_FROM,
+  RING_TO,
+  rippleDisc,
+  type SongVisualProps,
+  type VisualColors,
+} from './visuals.model'
+import { useAppFocused } from '../../ui/useAppFocused'
 
 /**
  * A song's visual on a phone (and an iPad): plain views, moved once a frame.
@@ -69,7 +64,8 @@ export function SongVisual({
   rounded = false,
   cover = null,
 }: SongVisualProps): ReactNode {
-  const player = usePlayer()
+  const player = usePlayerCommands()
+  const isPlaying = usePlayerPlaying()
   const reduced = useMotionReduced()
   const [size, setSize] = useState<Size | null>(null)
   const { colors, tuning } = useVisualLook(song)
@@ -93,13 +89,13 @@ export function SongVisual({
   const held = useRef<{ key: string; motion: MotionState } | null>(null)
   const restart = `${song.id}|${sampler.source}`
 
-  const live = useRef({ player, sampler, tuning })
+  const live = useRef({ isPlaying, sampler, tuning })
   useEffect(() => {
-    live.current = { player, sampler, tuning }
+    live.current = { isPlaying, sampler, tuning }
   })
 
   // The clock: each progress tick (and a seek, which arrives as one), play and pause, and the rate.
-  const { subscribeProgress, getPosition, isPlaying } = player
+  const { subscribeProgress, getPosition } = player
   const { rate } = usePracticeState()
   useEffect(() => {
     clock.tick(getPosition(), performance.now())
@@ -118,8 +114,16 @@ export function SongVisual({
     write(still, drawn, tuning, true, frame, ringWidths)
   }, [reduced, size, tuning, sampler.source, drawn, frame, ringWidths])
 
+  /*
+   * Only while the app is in front. In the background React Native's frame
+   * request is a timer due at once, with no display to wait for, so this loop
+   * spun a core flat out under a locked screen while the song played — what
+   * iOS ends a background app for (Xiao, 2026-10-07). It carries on from
+   * where it was when the app comes back.
+   */
+  const awake = useAppFocused()
   useEffect(() => {
-    if (!size || reduced) return undefined
+    if (!size || reduced || !awake) return undefined
     const kept = held.current
     let motion: MotionState
     if (kept && kept.key === restart) motion = kept.motion
@@ -137,8 +141,8 @@ export function SongVisual({
       const now = performance.now()
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
-      const { player: p, sampler: s, tuning: tu } = live.current
-      stepMotion(motion, s, clock.read(now), dt, p.isPlaying, tu)
+      const { isPlaying: playing, sampler: s, tuning: tu } = live.current
+      stepMotion(motion, s, clock.read(now), dt, playing, tu)
       const settled = write(motion, drawn, tu, first, frame, ringWidths)
       first = false
       /*
@@ -146,11 +150,11 @@ export function SongVisual({
        * than stepping sixty times a second behind a page nobody is looking at; `isPlaying` in the dependencies starts it again, and
        * the motion it starts from is the one it left off at.
        */
-      handle = settled && !p.isPlaying ? 0 : requestAnimationFrame(tick)
+      handle = settled && !playing ? 0 : requestAnimationFrame(tick)
     }
     handle = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(handle)
-  }, [restart, reduced, size, drawn, clock, frame, ringWidths, isPlaying])
+  }, [restart, reduced, size, drawn, clock, frame, ringWidths, isPlaying, awake])
 
   return (
     <View

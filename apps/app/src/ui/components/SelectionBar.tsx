@@ -2,27 +2,26 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { plural } from '@selfmp3/shared'
+import { artistOr, plural } from '@selfmp3/shared'
 import type { Song } from '@selfmp3/shared'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useQueryClient } from '@tanstack/react-query'
 import {
-  clientApi,
   failureText,
   isDownloaded,
   motion,
-  queryKeys,
   radius,
   space,
   useAddToPlaylist,
   useBulkLoved,
   useLibrary,
   useRemoveManyFromPlaylist,
+  uniqueName,
+  useCreatePlaylist,
 } from '@selfmp3/client'
 import { playlistsToAddTo } from '../../features/playlists/playlists.model'
 import { useDownloads } from '../../offline/DownloadsProvider'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { ease, timing, usePresence } from '../motion'
 import { MOVE_MS, overshootRange } from '../motion.model'
@@ -193,8 +192,8 @@ export function SelectionBar({
    */
   const { top: statusBar } = useSafeAreaInsets()
   const { data: library } = useLibrary()
-  const player = usePlayer()
-  const { state: downloads, queue: downloadQueue } = useDownloads()
+  const player = usePlayerCommands()
+  const { state: downloads, downloadByHand, removeByHand } = useDownloads()
 
   const bulkLoved = useBulkLoved()
   const addToPlaylist = useAddToPlaylist()
@@ -286,22 +285,19 @@ export function SelectionBar({
     list => list.id !== playlist?.id,
   )
   const router = useRouter()
-  const queryClient = useQueryClient()
+  const { mutateAsync: createPlaylist } = useCreatePlaylist()
 
   /** A playlist of exactly these songs, opened with its name ready to type. */
   const newPlaylistWithSelection = async (): Promise<void> => {
-    const taken = new Set((library?.playlists ?? []).map(list => list.name))
-    let name = 'New playlist'
-    for (let n = 2; taken.has(name); n++) name = `New playlist ${n}`
+    const name = uniqueName(
+      'New playlist',
+      (library?.playlists ?? []).map(list => list.name),
+    )
     try {
-      const created = await clientApi().createPlaylist({
-        name,
-        description: '',
-        kind: 'manual',
-        rules: null,
+      const created = await createPlaylist({
+        input: { name, description: '', kind: 'manual', rules: null },
+        songIds: ids,
       })
-      await clientApi().addToPlaylist(created.id, { songIds: ids })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.library })
       onDone()
       router.push({ pathname: '/playlists/[id]', params: { id: String(created.id), rename: '1' } })
     } catch (caught) {
@@ -318,16 +314,25 @@ export function SelectionBar({
     setMenuOpen(false)
     setPlaylistsOpen(false)
   }
-  /** Run a menu action, close the menu, and say what happened. */
-  const act = (run: () => void, message?: string) => (): void => {
+  /** Run a menu action and close the menu. */
+  const act = (run: () => void) => (): void => {
     run()
     closeMenu()
-    if (message) showToast(message, 'good')
   }
+  /**
+   * Said once the server has taken the edit, not as it is sent: a failure is
+   * said by the app's own error toast (`meta.failure`), and a "Loved 3 songs"
+   * ahead of it would contradict it.
+   */
+  const saidOnSuccess = (message: string) => ({
+    onSuccess: () => showToast(message, 'good'),
+  })
   const removeSelectedFromPlaylist = (): void => {
     if (!playlist) return
-    removeFromPlaylist.mutate({ playlistId: playlist.id, songIds: ids })
-    showToast(`Removed ${count} ${songWord} from ${playlist.name}`, 'good')
+    removeFromPlaylist.mutate(
+      { playlistId: playlist.id, songIds: ids },
+      saidOnSuccess(`Removed ${count} ${songWord} from ${playlist.name}`),
+    )
   }
 
   const done = (
@@ -572,9 +577,11 @@ export function SelectionBar({
               <SheetItem
                 icon={<Heart size={15} color={theme.colors.textSecondary} />}
                 label={`Love ${count - lovedCount === count ? 'all' : 'the rest'}`}
-                onPress={act(
-                  () => bulkLoved.mutate({ songIds: ids, loved: true }),
-                  `Loved ${plural(count - lovedCount, 'song', 'songs')}`,
+                onPress={act(() =>
+                  bulkLoved.mutate(
+                    { songIds: ids, loved: true },
+                    saidOnSuccess(`Loved ${plural(count - lovedCount, 'song', 'songs')}`),
+                  ),
                 )}
               />
             ) : null}
@@ -582,9 +589,11 @@ export function SelectionBar({
               <SheetItem
                 icon={<Heart size={15} filled color={theme.colors.danger} />}
                 label={`Remove ${lovedCount === count ? 'all' : lovedCount} from loved`}
-                onPress={act(
-                  () => bulkLoved.mutate({ songIds: ids, loved: false }),
-                  `Removed ${lovedCount} from loved`,
+                onPress={act(() =>
+                  bulkLoved.mutate(
+                    { songIds: ids, loved: false },
+                    saidOnSuccess(`Removed ${lovedCount} from loved`),
+                  ),
                 )}
               />
             ) : null}
@@ -611,9 +620,11 @@ export function SelectionBar({
                   <SheetItem
                     key={list.id}
                     label={list.name}
-                    onPress={act(
-                      () => addToPlaylist.mutate({ playlistId: list.id, songIds: ids }),
-                      `Added ${count} ${songWord} to ${list.name}`,
+                    onPress={act(() =>
+                      addToPlaylist.mutate(
+                        { playlistId: list.id, songIds: ids },
+                        saidOnSuccess(`Added ${count} ${songWord} to ${list.name}`),
+                      ),
                     )}
                   />
                 ))}
@@ -632,7 +643,9 @@ export function SelectionBar({
               <SheetItem
                 icon={<CloudDownload size={15} color={theme.colors.textSecondary} />}
                 label={`Download ${held.length > 0 ? 'the rest' : 'all'}`}
-                onPress={act(() => downloadQueue.enqueue(ids))}
+                // By hand, as a song's menu downloads: picked songs stay, and a
+                // song removed by hand before is no longer kept off this device.
+                onPress={act(() => downloadByHand(ids))}
               />
             ) : null}
             {held.length > 0 ? (
@@ -643,10 +656,14 @@ export function SelectionBar({
                 }`}
                 onPress={act(() => {
                   const removing = held.length
-                  void downloadQueue
-                    .remove(held.map(song => song.id))
+                  // By hand, so the removal is remembered: the queue's own remove
+                  // left the next automatic pass to fetch them straight back.
+                  removeByHand(held.map(song => song.id))
                     .then(() =>
                       showToast(`Removed ${plural(removing, 'download', 'downloads')}`, 'good'),
+                    )
+                    .catch((caught: unknown) =>
+                      showToast(failureText('Couldn’t remove the downloads', caught), 'error'),
                     )
                 })}
               />
@@ -690,7 +707,7 @@ export function SelectionBar({
 
 /** "Aurora Lane · Klara Feld and 2 more" — enough to recognise the selection. */
 function summarise(songs: readonly Song[]): string {
-  const artists = [...new Set(songs.map(song => song.artist || 'Unknown artist'))]
+  const artists = [...new Set(songs.map(song => artistOr(song.artist)))]
   if (artists.length <= 2) return artists.join(' · ')
   return `${artists.slice(0, 2).join(' · ')} and ${artists.length - 2} more`
 }

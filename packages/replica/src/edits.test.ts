@@ -164,6 +164,15 @@ describe('editing songs', () => {
     expect(view.library.songs.find(s => s.title === 'Song c')?.playCount).toBe(1)
   })
 
+  it('counts a skip under the outbox’s own id, so a resend counts once', () => {
+    const d = device()
+    const first = edits.skipSong(d.ctx(), d.idOf('songs', 'c'), 12, 'outbox-654321')
+    const again = edits.skipSong(d.ctx(), d.idOf('songs', 'c'), 12, 'outbox-654321')
+    expect(first[0]).toMatchObject({ skipId: 'outbox-654321' })
+    const view = d.apply([...first, ...again])
+    expect(view.library.songs.find(s => s.title === 'Song c')?.skipCount).toBe(1)
+  })
+
   it('refuses a song this device does not have', () => {
     const d = device()
     expect(() => edits.editSong(d.ctx(), 424242, { loved: true })).toThrow(CloudRouteError)

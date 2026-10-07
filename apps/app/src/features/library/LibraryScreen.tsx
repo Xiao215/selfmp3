@@ -1,5 +1,4 @@
-import { router } from 'expo-router'
-import { setPaletteOpen } from '../../shell/palette'
+import { useOpenSearch } from '../../shell/palette'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
@@ -11,7 +10,7 @@ import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { isDownloaded, HIT_TARGET, radius, space, type } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
@@ -19,7 +18,7 @@ import { Downloaded, Play, Plus, Search, Shuffle, SortLines } from '../../ui/com
 import { IconButton } from '../../ui/components/IconButton'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
 import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
-import { SongMenu } from '../../ui/components/SongMenu'
+import { useSongMenu } from '../../ui/components/useSongMenu'
 import { Select } from '../../ui/components/Select'
 import { SongList } from '../../ui/components/SongList'
 import { SongRow, useSongRowHeight } from '../../ui/components/SongRow'
@@ -37,21 +36,21 @@ import { useDragScroll } from '../../ports/dragScroll'
 import { useContentWidth } from '../../shell/contentWidth'
 import { noMatchesTitle, stripTags, useLibraryModel } from './library.model'
 import { noteTagUsed, useRecentTagIds } from './recentTags.store'
-import { closeTagSearch, openTagSearch, useTagSearchOpen } from './tagSearch.store'
 import { librarySource } from '../lists/lists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { usePullToRefresh } from './usePullToRefresh'
+import { useSongTagLookup } from '../../ui/songTags'
 import { label, pageTitle } from '../../ui/surfaces'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
 
 /**
  * The library, at every width.
  *
- * The header holds the title and a count, the search on a line of its own,
- * then order and play sharing the next. Under it the tag strip, which is the
- * sidebar's tag list folded into a row. All of the filtering runs over the
- * full in-memory list — the whole library arrives in one response, so a
- * keystroke costs one pass over an array and no round trip.
+ * The header holds the title and a count, a door to Search on a line of its
+ * own, then order and play sharing the next. Under it the tag strip. All of
+ * the filtering runs over the full in-memory list — the whole library arrives
+ * in one response, so turning a tag on costs one pass over an array and no
+ * round trip.
  */
 export function LibraryScreen(): ReactNode {
   const { fromCloud } = useConnection()
@@ -65,32 +64,32 @@ export function LibraryScreen(): ReactNode {
   const contentWidth = useContentWidth()
   const headWide = wide && (contentWidth === null || contentWidth >= HEAD_ROW_WIDTH)
   const shuffleIconOnly = contentWidth !== null && contentWidth < SHUFFLE_LABEL_WIDTH
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const { state: downloads, installed } = useDownloads()
+  const openSearch = useOpenSearch('songs')
 
   // Everything this screen knows is in the model, which draws nothing and is
   // tested without a simulator. What is left here is drawing.
   const model = useLibraryModel(downloads.index)
   const pull = usePullToRefresh()
-  const { filter, songs, visible, songIds, songTags } = model
+  const { filter, songs, visible, songIds } = model
+  // A song's tags, the same array for the same song, so a row's memo holds.
+  const songTags = useSongTagLookup()
   // The scrollbar's bubble names the part of the sort the list is at.
   const scrollLabel = useMemo(() => sortLabel(filter.sort), [filter.sort])
 
-  const [menuSong, setMenuSong] = useState<Song | null>(null)
+  const songMenu = useSongMenu()
   // The phone's order, chosen from a sheet.
   const [sorting, setSorting] = useState(false)
   // A mouse drags the tag strip along; a finger already flicks it.
   const stripDrag = useDragScroll()
-  // The ⋯ the menu was opened from, so at desktop width it opens beside it.
-  const menuAnchorRef = useRef<View | null>(null)
   // The + the tag window was opened from, for the same reason.
   const tagAnchorRef = useRef<View | null>(null)
   // Which tags to listen to — a different job from the picker above, which
-  // puts tags on a song. Open/closed lives in a store, because the sidebar's
-  // "All 13 tags…" opens this same panel.
-  const choosingTags = useTagSearchOpen()
+  // puts tags on a song.
+  const [choosingTags, setChoosingTags] = useState(false)
+  const closeTagSearch = useCallback(() => setChoosingTags(false), [])
   const recentTagIds = useRecentTagIds()
-  useEffect(() => closeTagSearch, [])
   // The dashed + in a row's tag column opens the same picker the menu does.
   const [taggingSong, setTaggingSong] = useState<Song | null>(null)
 
@@ -130,6 +129,13 @@ export function LibraryScreen(): ReactNode {
     () => librarySource(model.filter.tagIds, model.tags),
     [model.filter.tagIds, model.tags],
   )
+  // Playing what the tags ticked hold, from either head's transport: its first
+  // covers fly to Up next from the button, and Up next wears the tags' name.
+  const playTags = (shuffled: boolean): void => {
+    fly(transportRef.current, songIds)
+    if (shuffled) player.playShuffled(songIds, source)
+    else player.playFrom(songIds, 0, { source })
+  }
   // What the list is answering: a new answer plays its first rows in
   // (`SongList`'s `arrivalKey`); scrolling, selecting and playing do not.
   const arrivalKey = [
@@ -155,11 +161,12 @@ export function LibraryScreen(): ReactNode {
     latest.current = { selection, songIds, playFrom, model }
   })
   /*
-   * Turning a tag on or off, from anywhere: a chip in the head, a chip on a
-   * row, the chooser, the sidebar. One function, because every one of them
-   * also has to leave the tag in the rail's recent list — a tag chosen from a
-   * song row is as much a sign of interest as one chosen from the sidebar.
-   * Only turning one *on* counts: dismissing a tag should not promote it.
+   * Turning a tag on or off, from anywhere on this page: a chip in the strip, a
+   * chip on a row, the chooser. One function, because every one of them also
+   * has to leave the tag in the recent list the strip and the sidebar lead
+   * with — a tag chosen from a song row is as much a sign of interest as one
+   * chosen from the strip. Only turning one *on* counts: dismissing a tag
+   * should not promote it.
    *
    * Every row is handed this, so it reads the model through `latest` like the
    * handlers below: made over the model, it was remade whenever the library
@@ -183,11 +190,7 @@ export function LibraryScreen(): ReactNode {
     // tags ticked are not what is playing (docs/features/lists.md).
     now.playFrom([song.id], 0)
   }, [])
-  const onRowMore = useCallback((anchor: View | null, song: Song) => {
-    menuAnchorRef.current = anchor
-    // The ⋯ again closes its own menu.
-    setMenuSong(current => (current?.id === song.id ? null : song))
-  }, [])
+  const onRowMore = songMenu.onMore
   // Holding a row selects it; the ⋯ opens the menu.
   const onRowLongPress = useCallback((song: Song) => latest.current.selection.enter(song.id), [])
   const onRowToggleSelect = useCallback(
@@ -200,7 +203,7 @@ export function LibraryScreen(): ReactNode {
   }, [])
 
   const unreachable = model.unreachable
-  const menuSongId = menuSong?.id ?? null
+  const menuSongId = songMenu.openId
   const renderSong = useCallback(
     ({ item, index }: { item: Song; index: number }) => {
       const here = downloaded(item.id)
@@ -364,20 +367,14 @@ export function LibraryScreen(): ReactNode {
               label="Play these tags"
               icon={<Play size={20} color={theme.colors.onPrimary} />}
               disabled={visible.length === 0}
-              onPress={() => {
-                fly(transportRef.current, songIds)
-                player.playFrom(songIds, 0, { source })
-              }}
+              onPress={() => playTags(false)}
               testID="library-play-tags"
             />
             <Button
               accessibilityLabel="Shuffle these tags"
               icon={<Shuffle size={15} color={theme.colors.textPrimary} />}
               disabled={visible.length === 0}
-              onPress={() => {
-                fly(transportRef.current, songIds)
-                player.playShuffled(songIds, source)
-              }}
+              onPress={() => playTags(true)}
             />
           </View>
         ) : null}
@@ -390,11 +387,7 @@ export function LibraryScreen(): ReactNode {
             filter, not a search.
           */}
           <Pressable
-            onPress={() =>
-              wide
-                ? setPaletteOpen(true)
-                : router.navigate({ pathname: '/search', params: { scope: 'songs' } })
-            }
+            onPress={openSearch}
             accessibilityRole="search"
             accessibilityLabel="Search songs"
             testID="library-search"
@@ -463,10 +456,9 @@ export function LibraryScreen(): ReactNode {
                   icon={<Shuffle size={15} color={theme.colors.textPrimary} />}
                   disabled={visible.length === 0}
                   testID="library-shuffle"
-                  onPress={() => {
-                    if (model.tagFiltered) fly(transportRef.current, songIds)
-                    player.playShuffled(songIds, source)
-                  }}
+                  onPress={() =>
+                    model.tagFiltered ? playTags(true) : player.playShuffled(songIds, source)
+                  }
                 />
                 {model.tagFiltered ? (
                   <PlayButton
@@ -475,10 +467,7 @@ export function LibraryScreen(): ReactNode {
                     size={dense ? 36 : HIT_TARGET}
                     icon={<Play size={16} color={theme.colors.onPrimary} />}
                     disabled={visible.length === 0}
-                    onPress={() => {
-                      fly(transportRef.current, songIds)
-                      player.playFrom(songIds, 0, { source })
-                    }}
+                    onPress={() => playTags(false)}
                     testID="library-play-tags"
                   />
                 ) : null}
@@ -548,7 +537,7 @@ export function LibraryScreen(): ReactNode {
             icon={<Plus size={13} color={theme.colors.textSecondary} />}
             selected={false}
             dashed
-            onPress={choosingTags ? closeTagSearch : openTagSearch}
+            onPress={() => setChoosingTags(open => !open)}
           />
         </ScrollView>
       ) : null}
@@ -649,7 +638,7 @@ export function LibraryScreen(): ReactNode {
 
       <TagPicker song={taggingSong} onClose={() => setTaggingSong(null)} anchorRef={tagAnchorRef} />
 
-      <SongMenu song={menuSong} anchorRef={menuAnchorRef} onClose={() => setMenuSong(null)} />
+      {songMenu.menu}
     </SafeAreaView>
   )
 }

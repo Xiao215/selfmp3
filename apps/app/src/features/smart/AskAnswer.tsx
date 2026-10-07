@@ -4,17 +4,18 @@ import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
-import { plural, type AskAnswer as Answer } from '@selfmp3/shared'
-import { failureText, radius, space, useLibrary } from '@selfmp3/client'
+import { artistOr, plural, type AskAnswer as Answer } from '@selfmp3/shared'
+import { STALE, failureText, radius, space } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { Play, Sparkle } from '../../ui/components/Icons'
+import { useSongsById } from '../../ui/songsById'
 import { ChangeField, TrailStep } from './ChangeIt'
-import { placePath, rangeWords } from './smart.model'
+import { rangeWords } from './smart.model'
 import { GetMusicAnswer } from './GetMusicAnswer'
 import { LibraryAnswer } from './LibraryAnswer'
 import { PlaylistSongsAnswer } from './PlaylistSongsAnswer'
@@ -27,6 +28,25 @@ import type { AnswerKeys } from './answerKeys'
 import { Working } from './Working'
 import { newTicket, useAskProgress } from './useAskProgress'
 import { useSmartServer } from './useSmartServer'
+import { reachedConnection, viaKey } from '../../connection/via'
+
+/**
+ * An ask's query key: the server it went to, the words first asked, the song
+ * playing then and the follow-ups said since. `askedFirst` reads the words
+ * back out of one, so where they sit is written down in one place.
+ */
+function askKey(
+  via: string | null,
+  text: string,
+  playing: number | null,
+  asked: readonly string[],
+): readonly unknown[] {
+  return viaKey(via, 'ai', 'ask', text, playing, asked)
+}
+
+function askedFirst(key: readonly unknown[]): unknown {
+  return key[4]
+}
 
 /**
  * The answer to an Ask in the Search box (S1, docs/features/ai.md), drawn in
@@ -71,7 +91,7 @@ export function AskAnswer({
   // What "this" meant when it was asked (A8): the song playing then, not whichever comes next.
   const [playingHere] = useState(() => player.current?.id ?? null)
   const playing = playingHere === null ? null : (server.onServer(playingHere) ?? null)
-  const via = server.reach.state === 'reachable' ? server.reach.connection.baseUrl : null
+  const via = reachedConnection(server.reach)?.baseUrl ?? null
   // The follow-ups said after `text`, and how many of them the answer showing takes in.
   const [thread, setThread] = useState({ text, said: [] as string[], at: 0 })
   const { said, at } = thread.text === text ? thread : { said: [], at: 0 }
@@ -85,15 +105,16 @@ export function AskAnswer({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const ticket = useMemo(() => newTicket(), [text, saidSoFar])
   const answer = useQuery({
-    queryKey: ['via-server', via, 'ai', 'ask', text, playing, asked],
+    queryKey: askKey(via, text, playing, asked),
     // Read, so React Query drops the request when nobody watches it any more:
     // Stop, Escape, the box closed. The server stops asking the model with it.
     queryFn: ({ signal }) => server.api!.ask(latest, playing, ticket, before, signal),
     enabled: server.api !== null,
     retry: false,
-    staleTime: 10 * 60_000,
+    staleTime: STALE.tenMinutes,
     // A follow-up keeps the answer it changes on screen until the new one lands.
-    placeholderData: (previous, query) => (query?.queryKey[4] === text ? previous : undefined),
+    placeholderData: (previous, query) =>
+      query && askedFirst(query.queryKey) === text ? previous : undefined,
   })
   const following = answer.isPlaceholderData
   const live = useAskProgress(ticket, answer.isPending || following)
@@ -284,7 +305,7 @@ function Drawn({
               label={`Open ${answer.place[0]!.toUpperCase()}${answer.place.slice(1)}`}
               onPress={() => {
                 onDone()
-                router.navigate(placePath(answer.place))
+                router.navigate(`/${answer.place}`)
               }}
             />
           </View>
@@ -328,10 +349,10 @@ function Found({
   onDone: () => void
 }): ReactNode {
   const server = useSmartServer()
-  const { data: library } = useLibrary()
+  const songsById = useSongsById()
   const here = answer.picks.filter(pick => {
     const id = server.onDevice(pick.songId)
-    return id !== undefined && library?.songs.some(song => song.id === id)
+    return id !== undefined && songsById.has(id)
   })
   if (here.length === 0) {
     return <Text style={styles.line}>No song of yours fits that. Try other words for it.</Text>
@@ -354,10 +375,9 @@ function SongPicks({
 }): ReactNode {
   const { theme } = useUnistyles()
   const server = useSmartServer()
-  const player = usePlayer()
-  const { data: library } = useLibrary()
+  const player = usePlayerCommands()
+  const songsById = useSongsById()
   const artFor = useArt(ROW_COVER_SIZE)
-  const songsById = new Map((library?.songs ?? []).map(song => [song.id, song]))
   const found = picks.flatMap(pick => {
     const id = server.onDevice(pick.songId)
     const song = id === undefined ? undefined : songsById.get(id)
@@ -384,7 +404,7 @@ function SongPicks({
           <View style={styles.text}>
             <Text style={styles.title} numberOfLines={1}>
               {song.title}
-              <Text style={styles.muted}> · {song.artist || 'Unknown artist'}</Text>
+              <Text style={styles.muted}> · {artistOr(song.artist)}</Text>
             </Text>
             <Text style={styles.why} numberOfLines={1}>
               {why ?? ''}

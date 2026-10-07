@@ -228,8 +228,9 @@ const GUARD_MAX_LOSS = 0.5
  * bucket whose audio has gone from under its own snapshot, chiefly — and the
  * belt to adoption's braces.
  *
- * Today the audio survives, because nothing deletes from the bucket. Once
- * anything does, this becomes permanent, so the refusal wants to exist first.
+ * What it guards is permanent: once a snapshot without them is up, the cloud
+ * pass deletes the removed songs' files from the bucket (`#emptyTrash` in
+ * cloudSync.ts), so the refusal has to come first.
  *
  * This is deliberately not clever. It does not try to work out *why* the count
  * fell; it declines to be the one that throws the songs away, says so, and

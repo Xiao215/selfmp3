@@ -1,6 +1,5 @@
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
-import type { Config } from '../config.js'
 import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
 import { SongRepository } from '../repositories/songs.js'
@@ -47,7 +46,6 @@ function build(files: string[]) {
   }
 
   const scanner = new ScannerService({
-    config: {} as Config,
     storage,
     songs,
     metadata: metadata as never,

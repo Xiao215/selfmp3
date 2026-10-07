@@ -1,5 +1,7 @@
 import { useMemo } from 'react'
 import {
+  WEEKDAYS,
+  calendarDaysAgo,
   type CreatePlaylist,
   EMPTY_SMART_RULES,
   formatLongDuration,
@@ -9,7 +11,7 @@ import {
   plural,
   type SmartRules,
 } from '@selfmp3/shared'
-import { useLibrary } from '@selfmp3/client'
+import { uniqueName, useLibrary } from '@selfmp3/client'
 
 /**
  * The playlists screen's state, with nothing it draws.
@@ -93,26 +95,20 @@ export function playlistsSubline(count: number, sort: PlaylistSort): string {
   return `${plural(count, 'playlist', 'playlists')} · ${order}`
 }
 
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-const DAY_MS = 24 * 60 * 60 * 1000
-
 /**
  * A stamp as a day a person would say: "today", "yesterday", "Tuesday", "last
  * week", "3 weeks ago", "last month", "5 months ago", "last year". Null when
  * the stamp cannot be read.
  *
- * Counted in calendar days where the reader is, not in 24-hour spans: a song
- * played at 23:00 was "yesterday" at 08:00 the next morning, nine hours later.
- * The server writes UTC without a zone (`2026-09-13 06:17:55`), which is read
- * as UTC; a bucket's ISO carries its own. A stamp from the future is today.
+ * Counted in calendar days where the reader is, not in 24-hour spans
+ * (`calendarDaysAgo`): a song played at 23:00 was "yesterday" at 08:00 the
+ * next morning. A stamp from the future is today.
  */
 export function relativeDay(value: string, now: Date): string | null {
-  const then = new Date(fromSqliteTime(value))
-  if (Number.isNaN(then.getTime())) return null
-  const midnight = (date: Date): number =>
-    new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
-  // Rounded, because a day that crosses a clock change is 23 or 25 hours long.
-  const days = Math.max(0, Math.round((midnight(now) - midnight(then)) / DAY_MS))
+  const ago = calendarDaysAgo(value, now)
+  if (ago === null) return null
+  const { then } = ago
+  const days = Math.max(0, ago.days)
   if (days === 0) return 'today'
   if (days === 1) return 'yesterday'
   if (days < 7) return WEEKDAYS[then.getDay()] ?? null
@@ -155,11 +151,13 @@ export function usePlaylistsModel(sort: PlaylistSort = 'recent'): PlaylistsModel
 }
 
 /**
- * The server writes `2026-09-13 06:17:55` and a bucket writes ISO; compared as
- * text, the space sorts before the `T`. One shape makes the comparison honest.
+ * A stamp as a time to compare. The server writes `2026-09-13 06:17:55` and a
+ * bucket writes ISO, which `fromSqliteTime` reads alike; none (or one that
+ * cannot be read) is 0, the oldest of all.
  */
-function stamp(value: string | null | undefined): string {
-  return value ? value.replace(' ', 'T') : ''
+function when(value: string | null | undefined): number {
+  const time = value ? fromSqliteTime(value) : 0
+  return Number.isNaN(time) ? 0 : time
 }
 
 const byName = (a: Playlist, b: Playlist): number => a.name.localeCompare(b.name)
@@ -178,8 +176,7 @@ export function sortPlaylists(
   sort: PlaylistSort,
 ): readonly Playlist[] {
   const list = [...playlists]
-  const newestMade = (a: Playlist, b: Playlist): number =>
-    stamp(b.createdAt).localeCompare(stamp(a.createdAt))
+  const newestMade = (a: Playlist, b: Playlist): number => when(b.createdAt) - when(a.createdAt)
   switch (sort) {
     case 'name':
       return list.sort(byName)
@@ -187,8 +184,8 @@ export function sortPlaylists(
       return list.sort((a, b) => newestMade(a, b) || byName(a, b))
     case 'recent':
       return list.sort((a, b) => {
-        const played = stamp(b.lastPlayedAt).localeCompare(stamp(a.lastPlayedAt))
-        // An empty stamp sorts before any real one, so "never" is already last.
+        const played = when(b.lastPlayedAt) - when(a.lastPlayedAt)
+        // Never played is 0, before any real time, so "never" is already last.
         return played || newestMade(a, b) || byName(a, b)
       })
   }
@@ -248,10 +245,5 @@ export function newPlaylist(
  * one that is already taken.
  */
 export function copyName(name: string, taken: readonly string[]): string {
-  const names = new Set(taken)
-  const base = `${name} copy`
-  if (!names.has(base)) return base
-  let n = 2
-  while (names.has(`${base} ${n}`)) n++
-  return `${base} ${n}`
+  return uniqueName(`${name} copy`, taken)
 }

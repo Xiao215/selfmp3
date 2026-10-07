@@ -2,11 +2,11 @@
  * The tab bar, without the bar: which tab a page belongs to (docs/ui-mock
  * `P04`; docs/UI-MIGRATION.md, "Routes after").
  *
- * A phone has three tabs — Home, Library, Playlists — and a search circle
- * beside them. Everything that is not a tab of its own is reached from Home:
- * the tags from its tiles (and a tag's or an artist's own page), Profile from its avatar and, through it, Stats and
- * Settings; Import from its +. So those pages light Home: the bar says where
- * you are in the app, not only which page answered the address.
+ * A phone has three tabs — Home, Library, Playlists. Everything that is not a
+ * tab of its own is reached from Home: the tags from its tiles (and a tag's
+ * or an artist's own page), Profile from its avatar and, through it, Stats
+ * and Settings; Import from its +. So those pages light Home: the bar says
+ * where you are in the app, not only which page answered the address.
  */
 
 export type TabHref = '/' | '/library' | '/playlists'

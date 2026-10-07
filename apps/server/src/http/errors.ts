@@ -1,6 +1,8 @@
+import { formatZodError } from '@selfmp3/shared'
 import type { NextFunction, Request, Response } from 'express'
 import { ZodError } from 'zod'
 import type { Logger } from '../logger.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * One error type for the whole server.
@@ -51,16 +53,6 @@ export class HttpError extends Error {
   }
 }
 
-/** Turn a zod failure into something a human can act on. */
-export function formatZodError(error: ZodError): string {
-  return error.issues
-    .map(issue => {
-      const where = issue.path.join('.')
-      return where ? `${where}: ${issue.message}` : issue.message
-    })
-    .join('; ')
-}
-
 export function notFoundHandler(_req: Request, res: Response): void {
   res.status(404).json({ error: 'no such endpoint', code: 'not_found' })
 }
@@ -96,7 +88,7 @@ export function errorHandler(logger: Logger) {
       return
     }
 
-    const message = error instanceof Error ? error.message : String(error)
+    const message = messageOf(error)
 
     /*
      * A body the JSON parser could not read is the sender's mistake, not ours:

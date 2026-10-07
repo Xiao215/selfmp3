@@ -70,6 +70,11 @@ jobs:
       - name: Unused exports
         run: npm run check:exports
 
+      # Every file, `#member` and mock board a comment names is still there.
+      # The one step of `npm run check` this job used to leave out.
+      - name: Comment references
+        run: npm run check:comments
+
       - name: Test
         run: npm run test
 

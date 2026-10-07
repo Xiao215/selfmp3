@@ -1,7 +1,14 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 import { appApi } from '../env.js'
-import { escaped, libraryReady, openLibrary, skipIfNoLibrary } from './helpers.js'
+import {
+  escaped,
+  libraryData,
+  libraryReady,
+  openLibrary,
+  skipIfNoLibrary,
+  type LibraryTag,
+} from './helpers.js'
 
 /**
  * A playlist that fills from tags: saving one, editing it, and stopping.
@@ -23,15 +30,6 @@ interface Playlist {
   rules: { rules: { field: string; tagId?: number }[] } | null
 }
 
-interface LibraryTag {
-  id: number
-  name: string
-}
-interface LibrarySong {
-  tagIds: number[]
-  missing: boolean
-}
-
 async function playlist(request: APIRequestContext, id: number): Promise<Playlist | undefined> {
   const response = await request.get(`${appApi}/api/playlists`)
   return ((await response.json()) as Playlist[]).find(entry => entry.id === id)
@@ -40,11 +38,6 @@ async function playlist(request: APIRequestContext, id: number): Promise<Playlis
 async function songIdsOf(request: APIRequestContext, id: number): Promise<number[]> {
   const response = await request.get(`${appApi}/api/playlists/${id}/songs`)
   return ((await response.json()) as { songIds: number[] }).songIds
-}
-
-async function libraryData(page: Page): Promise<{ songs: LibrarySong[]; tags: LibraryTag[] }> {
-  const response = await page.request.get(`${appApi}/api/library`)
-  return (await response.json()) as { songs: LibrarySong[]; tags: LibraryTag[] }
 }
 
 /** A tag with songs, and a second one that would add more. */

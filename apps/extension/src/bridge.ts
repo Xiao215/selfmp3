@@ -5,10 +5,12 @@ import {
   ImportEnqueueSchema,
   ImportPreviewSchema,
   ImportQueueSchema,
+  OkSchema,
   TagNameSchema,
   TagSchema,
 } from '@selfmp3/shared'
 import { z } from 'zod'
+import { siteOf } from './content/anchors.js'
 
 /**
  * The only door between the extension's pages and its background worker.
@@ -105,8 +107,6 @@ export const SongHitSchema = z.object({
 })
 export type SongHit = z.infer<typeof SongHitSchema>
 
-const OkSchema = z.object({ ok: z.literal(true) })
-
 export const REPLIES = {
   status: StatusSchema,
   connect: StatusSchema,
@@ -172,7 +172,11 @@ export const EnvelopeSchema = z.discriminatedUnion('ok', [
 ])
 export type Envelope = z.infer<typeof EnvelopeSchema>
 
-/** A request the worker could not answer: the words to show, and a status (0: no server answered). */
+/**
+ * A failure in words a page shows as they are, and a status (0: no server
+ * answered). The worker's handlers throw it with what went wrong and what to do
+ * about it, and `ask` throws it again on the page's side of the envelope.
+ */
 export class BridgeError extends Error {
   readonly status: number
 
@@ -251,9 +255,10 @@ export function servePage(
       sender: chrome.runtime.MessageSender,
       sendResponse: (reply: Envelope) => void,
     ) => {
-      // From a tab, which is what a content script is. The extension's own
-      // pages go to `serve` above.
-      if (sender.id !== chrome.runtime.id || !sender.tab) return false
+      // From a tab, which is what a content script is, on one of the three
+      // sites the manifest puts it on. The extension's own pages go to `serve`
+      // above — the options page opens in a tab too, and is not the pill.
+      if (sender.id !== chrome.runtime.id || !sender.tab || !onYouTube(sender)) return false
       const parsed = PageRequestSchema.safeParse(message)
       if (!parsed.success) return false
       handle(parsed.data).then(
@@ -263,4 +268,13 @@ export function servePage(
       return true
     },
   )
+}
+
+/** Whether a message came from a frame on YouTube, YouTube Music or m.youtube.com. */
+function onYouTube(sender: chrome.runtime.MessageSender): boolean {
+  try {
+    return siteOf(new URL(sender.url ?? sender.tab?.url ?? '').hostname) !== null
+  } catch {
+    return false
+  }
 }

@@ -1,10 +1,10 @@
-import { useId } from 'react'
 import type { ReactNode } from 'react'
 import { View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { withAlpha } from '@selfmp3/client'
+import { useSvgId } from '../useSvgId'
 
 /**
  * How far the song has got, as a wash behind everything on a bar.
@@ -42,7 +42,7 @@ export function ProgressWash({
   line?: 'top' | 'foot'
 }): ReactNode {
   // Gradient ids are document ids on the web: two bars must not share one.
-  const id = `wash${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  const id = useSvgId('wash')
   /*
    * Rounded, because on the web every distinct percentage becomes its own
    * atomic CSS rule (`nowPlaying/stageMove.model.ts` explains the mechanism at

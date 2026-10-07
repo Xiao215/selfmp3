@@ -4,7 +4,12 @@ import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Redirect } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
-import { formatDuration, type ImportPreviewItem, type ImportSource } from '@selfmp3/shared'
+import {
+  artistOr,
+  formatDuration,
+  type ImportPreviewItem,
+  type ImportSource,
+} from '@selfmp3/shared'
 import {
   ApiError,
   HIT_TARGET,
@@ -19,12 +24,14 @@ import { canListenHere } from '../../ports/listen'
 import { label as groupLabel, pageTitle, serif } from '../../ui/surfaces'
 import { BackButton } from '../../ui/components/BackButton'
 import { Button } from '../../ui/components/Button'
-import { useBackTo } from '../../ui/components/BackRow'
+import { useBackTo } from '../../ui/useBackTo'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import { X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
+import type { ValueStore } from '../../state/valueStore.model'
+import { useValueStore } from '../../state/useValueStore'
 import { useToneColors } from '../../ui/useSongColor'
 import { ListenBar, ListenCover, useListen } from './ImportListen'
 import { TagThem } from './ImportTags'
@@ -79,7 +86,9 @@ import {
  *
  * The rows are memoised and every handler they are given keeps its identity,
  * because the preview reports where it is four times a second and a hundred
- * rows redrawn at that rate made a phone stutter; only the playing row moves.
+ * rows redrawn at that rate made a phone stutter. Where it is is not even the
+ * page's: only the playing row's bar and times read it (`AtPosition`), so the
+ * page and its rows are drawn again when the preview starts, pauses or ends.
  *
  * A page of its own rather than a state of Import, because the review lives in
  * the draft (importDraft.store.ts), which outlives either page and the page's
@@ -258,6 +267,7 @@ export function ImportReview({
       canPlay: canListenHere && canListen(item),
       words: words?.words ?? null,
       wordsWarn: words?.tone === 'warn',
+      position: listen.position,
       onToggleChosen: toggleChosen,
       onRename: rename,
       onSeek: seek,
@@ -392,9 +402,7 @@ export function ImportReview({
         ) : null}
         {finder.error ? (
           <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>
-              Could not look for the rest on YouTube: {finder.error}
-            </Text>
+            <Text style={styles.errorText}>{finder.error}</Text>
             <Button label="Try again" variant="text" onPress={finder.retry} />
           </View>
         ) : null}
@@ -518,6 +526,8 @@ interface RowProps {
   /** Where the song comes from, or how its search went (`sourceWords`); null for nothing to say. */
   readonly words: string | null
   readonly wordsWarn: boolean
+  /** Where the preview is in its song: read only by the playing row's bar and times. */
+  readonly position: ValueStore<number>
   readonly onToggleChosen: (index: number) => void
   readonly onRename: (index: number, change: Rename) => void
   readonly onSeek: (seconds: number) => void
@@ -739,12 +749,27 @@ function NameField({
 }
 
 /** "1:24" and "4:08" either side of the bar, or why it will not play. */
-function barTimes(item: ImportPreviewItem, listening: Listening | null) {
+function barTimes(item: ImportPreviewItem, listening: Listening | null, at: number) {
   return {
-    at: formatDuration(listening?.currentTime ?? 0),
+    at: formatDuration(at),
     length: formatDuration(listening?.duration || item.duration),
     trouble: listening?.status === 'error' ? listenDetail(listening) : null,
   }
+}
+
+/**
+ * The open row's bar and the times beside it: the one part of the review that
+ * moves with the song, so the one part that reads where it is. `children`
+ * draws them, given that place, where the row's layout puts them.
+ */
+function AtPosition({
+  position,
+  children,
+}: {
+  position: ValueStore<number>
+  children: (at: number) => ReactNode
+}): ReactNode {
+  return children(useValueStore(position))
 }
 
 /**
@@ -765,6 +790,7 @@ const PhoneRow = memo(function PhoneRow({
   canPlay,
   words,
   wordsWarn,
+  position,
   onToggleChosen,
   onRename,
   onSeek,
@@ -776,7 +802,26 @@ const PhoneRow = memo(function PhoneRow({
   const { theme } = useUnistyles()
   const colors = useToneColors(listening?.tone ?? null)
   if (open) {
-    const times = barTimes(item, listening)
+    const bar = (at: number): ReactNode => {
+      const times = barTimes(item, listening, at)
+      return (
+        <View style={styles.barBlock}>
+          <ListenBar
+            position={at}
+            duration={listening?.duration || item.duration}
+            onSeek={onSeek}
+            color={colors.tint}
+          />
+          <View style={styles.times}>
+            <Text style={styles.time}>{times.at}</Text>
+            <Text style={[styles.time, times.trouble ? styles.trouble : null]} numberOfLines={1}>
+              {times.trouble ?? 'Drag to move · tap away to close'}
+            </Text>
+            <Text style={styles.time}>{times.length}</Text>
+          </View>
+        </View>
+      )
+    }
     return (
       <Pressable
         onPress={() => undefined}
@@ -817,23 +862,8 @@ const PhoneRow = memo(function PhoneRow({
           </View>
         </View>
         <SourceChoice item={item} index={index} onSource={onSource} onLookAgain={onLookAgain} />
-        {canPlay ? (
-          <View style={styles.barBlock}>
-            <ListenBar
-              position={listening?.currentTime ?? 0}
-              duration={listening?.duration || item.duration}
-              onSeek={onSeek}
-              color={colors.tint}
-            />
-            <View style={styles.times}>
-              <Text style={styles.time}>{times.at}</Text>
-              <Text style={[styles.time, times.trouble ? styles.trouble : null]} numberOfLines={1}>
-                {times.trouble ?? 'Drag to move · tap away to close'}
-              </Text>
-              <Text style={styles.time}>{times.length}</Text>
-            </View>
-          </View>
-        ) : null}
+        {/* Ticking only while this row's song is the one playing; before, at the start. */}
+        {!canPlay ? null : listening ? <AtPosition position={position}>{bar}</AtPosition> : bar(0)}
       </Pressable>
     )
   }
@@ -850,7 +880,7 @@ const PhoneRow = memo(function PhoneRow({
         onPress={state === 'yours' ? undefined : () => onOpen(index)}
         disabled={state === 'yours'}
         accessibilityRole="button"
-        accessibilityLabel={`${item.title}, ${item.artist || 'Unknown artist'}`}
+        accessibilityLabel={`${item.title}, ${artistOr(item.artist)}`}
         accessibilityHint={state === 'yours' ? undefined : 'Opens it to hear it and fix its name'}
         accessibilityState={{ disabled: state === 'yours', busy: opening }}
         style={({ pressed }) => [
@@ -872,7 +902,7 @@ const PhoneRow = memo(function PhoneRow({
             {item.title || 'Untitled'}
           </Text>
           <Text style={styles.artist} numberOfLines={1}>
-            {item.artist || 'Unknown artist'}
+            {artistOr(item.artist)}
           </Text>
         </View>
         <EndWords item={item} state={state} words={words} wordsWarn={wordsWarn} />
@@ -899,6 +929,7 @@ const GridRow = memo(function GridRow({
   showFrom,
   words,
   wordsWarn,
+  position,
   onToggleChosen,
   onRename,
   onSeek,
@@ -913,7 +944,6 @@ const GridRow = memo(function GridRow({
   const reveal = hovered || !finePointer
   const out = state === 'out'
   const lit = open || (hovered && state !== 'yours')
-  const times = barTimes(item, listening)
   const showBar = open && canPlay && listening !== null
 
   return (
@@ -988,7 +1018,7 @@ const GridRow = memo(function GridRow({
                 {item.title || 'Untitled'}
               </Text>
               <Text style={[styles.artist, styles.colArtist]} numberOfLines={1}>
-                {item.artist || 'Unknown artist'}
+                {artistOr(item.artist)}
               </Text>
               <Text style={[styles.album, styles.colAlbum]} numberOfLines={1}>
                 {item.album}
@@ -1002,30 +1032,37 @@ const GridRow = memo(function GridRow({
         </View>
       </View>
       {showBar ? (
-        <View style={[styles.grid, styles.barRow]}>
-          <View style={styles.selectWide} />
-          <View style={styles.cells}>
-            <View style={styles.colCover} />
-            <View style={styles.colSpan}>
-              <ListenBar
-                position={listening.currentTime}
-                duration={listening.duration || item.duration}
-                onSeek={onSeek}
-                color={colors.tint}
-                height={30}
-              />
-            </View>
-            {showFrom ? <View style={styles.colFrom} /> : null}
-            <View style={styles.colEnd}>
-              <Text
-                style={[styles.endTime, times.trouble ? styles.trouble : null]}
-                numberOfLines={2}
-              >
-                {times.trouble ?? `${times.at} / ${times.length}`}
-              </Text>
-            </View>
-          </View>
-        </View>
+        <AtPosition position={position}>
+          {at => {
+            const times = barTimes(item, listening, at)
+            return (
+              <View style={[styles.grid, styles.barRow]}>
+                <View style={styles.selectWide} />
+                <View style={styles.cells}>
+                  <View style={styles.colCover} />
+                  <View style={styles.colSpan}>
+                    <ListenBar
+                      position={at}
+                      duration={listening.duration || item.duration}
+                      onSeek={onSeek}
+                      color={colors.tint}
+                      height={30}
+                    />
+                  </View>
+                  {showFrom ? <View style={styles.colFrom} /> : null}
+                  <View style={styles.colEnd}>
+                    <Text
+                      style={[styles.endTime, times.trouble ? styles.trouble : null]}
+                      numberOfLines={2}
+                    >
+                      {times.trouble ?? `${times.at} / ${times.length}`}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )
+          }}
+        </AtPosition>
       ) : null}
       {open && (item.netease || item.youtube) ? (
         <View style={[styles.grid, styles.barRow]}>

@@ -8,9 +8,9 @@ import {
   type ServerConnection,
 } from '@selfmp3/client'
 
-import { answeringFromCloud, mediaUrlFor } from '../api/client'
-import { serverRoutes, streamAddress } from '../api/mediaAddress.model'
-import { bucketMedia } from './bucketMedia'
+import { answeringFromCloud } from '../api/client'
+import { streamAddress } from '../api/mediaAddress.model'
+import { mediaSourcesFor } from '../api/mediaSources'
 import { desktop } from './desktop/bridge'
 import { downloadStorage as desktopStorage } from './desktop/downloadStorage.desktop'
 import {
@@ -82,7 +82,6 @@ const cacheStorage: DownloadStorage = {
   resumable: false,
 
   configure(connection: ServerConnection | null, songs: readonly Song[]) {
-    const server = connection ? serverRoutes(mediaUrlFor(connection)) : null
     const revs = new Map(songs.map(song => [song.id, song.rev]))
     /*
      * The same address the player asks for, which is what lets the service
@@ -101,12 +100,10 @@ const cacheStorage: DownloadStorage = {
       streamUrl: songId =>
         streamAddress(songId, revs.get(songId), {
           local: null,
-          bucket: bucketMedia,
-          server,
-          // Read when a song is fetched rather than captured here: whether this
-          // device answers from the bucket can change without the connection
-          // this was configured with changing at all.
-          fromCloud: answeringFromCloud(),
+          // Whether this device answers from the bucket is read when a song is
+          // fetched rather than captured here: it can change without the
+          // connection this was configured with changing at all.
+          ...mediaSourcesFor(connection, answeringFromCloud()),
         }),
     })
   },

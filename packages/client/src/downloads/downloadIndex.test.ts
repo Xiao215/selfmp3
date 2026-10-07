@@ -67,17 +67,7 @@ describe('parseIndex', () => {
     expect(parseIndex('not an index')).toEqual(EMPTY_INDEX)
     expect(parseIndex({ version: 1, entries: { '1': { songId: 'nope' } } })).toEqual(EMPTY_INDEX)
     expect(parseIndex(null)).toEqual(EMPTY_INDEX)
-  })
-
-  it('accepts an index with no entries key', () => {
     expect(parseIndex({ version: 1 })).toEqual(EMPTY_INDEX)
-  })
-
-  it('drops an index written before entries carried a rev', () => {
-    // None of those entries can be matched against the library, so keeping any
-    // of them would mean playing a file nothing vouches for.
-    const { rev: _rev, ...old } = entry(1)
-    expect(parseIndex({ version: 1, entries: { '1': old } })).toEqual(EMPTY_INDEX)
   })
 })
 

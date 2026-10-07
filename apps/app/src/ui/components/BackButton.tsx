@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useUnistyles } from 'react-native-unistyles'
 import { useLayout } from '../../shell/useLayout'
-import { useBackTo } from './BackRow'
+import { useBackTo } from '../useBackTo'
 import { IconButton } from './IconButton'
 import { ChevronLeft } from './Icons'
 
@@ -15,7 +15,7 @@ import { ChevronLeft } from './Icons'
  * 2026-09-20).
  *
  * Back when the page behind is the one it names, and in its place otherwise
- * (`backRow.model.ts`), so it never stacks pages up. A computer reaches all
+ * (`backTo.model.ts`), so it never stacks pages up. A computer reaches all
  * of them from the sidebar, which is always there, and draws nothing.
  */
 export function BackButton({

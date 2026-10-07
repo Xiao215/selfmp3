@@ -5,7 +5,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { useLayout } from '../../shell/useLayout'
 import { usePointerHold } from '../../ports/pointerHold'
 import { setReorderHold } from '../../ports/songDrag'
-import { tap } from '../haptics'
+import { lightTap } from '../../ports/haptics'
 import { ease, spring, timing } from '../motion'
 import { MOVE_MS } from '../motion.model'
 
@@ -280,7 +280,7 @@ export function useLiftScale(): LiftScale {
 
   const drop = useCallback((): void => {
     spring(lift, 1)
-    tap()
+    lightTap()
   }, [lift])
 
   return useMemo(

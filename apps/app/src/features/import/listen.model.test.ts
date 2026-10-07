@@ -32,7 +32,6 @@ describe('listening before importing', () => {
     expect(startListening(track)).toEqual({
       track,
       status: 'loading',
-      currentTime: 0,
       duration: 248,
       tone: null,
     })
@@ -44,10 +43,20 @@ describe('listening before importing', () => {
     expect(followAudio(listening, { status: 'playing', currentTime: 3, duration: 480 })).toEqual({
       track,
       status: 'playing',
-      currentTime: 3,
       duration: 248,
       tone: null,
     })
+  })
+
+  it('is the same preview while only the position moves, so the review is not drawn again', () => {
+    const playing = followAudio(startListening(track), {
+      status: 'playing',
+      currentTime: 3,
+      duration: 480,
+    })
+    expect(followAudio(playing, { status: 'playing', currentTime: 3.25, duration: 480 })).toBe(
+      playing,
+    )
   })
 
   it('takes the audio’s length for a song whose length the review does not know', () => {

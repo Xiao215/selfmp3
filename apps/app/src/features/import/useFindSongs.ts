@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { lookingFor, type Api, type Review } from '@selfmp3/client'
+import { failureText, lookingFor, type Api, type Review } from '@selfmp3/client'
 import { draftFor, foundIn } from './importDraft'
 import type { DraftSource } from './importDraft.model'
 
@@ -65,7 +65,7 @@ export function useFindSongs(
       })
       .catch((reason: unknown) => {
         if (stale) return
-        setError(reason instanceof Error ? reason.message : String(reason))
+        setError(failureText('Could not look for the rest on YouTube', reason))
       })
     return () => {
       stale = true

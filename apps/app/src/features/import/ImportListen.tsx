@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import {
   ActivityIndicator,
@@ -12,6 +12,7 @@ import type { CoverTone, ImportCoverTone, ImportPreviewItem } from '@selfmp3/sha
 import { radius, withAlpha, type ServerConnection } from '@selfmp3/client'
 import { mediaUrlFor } from '../../api/client'
 import { usePlayer } from '../../player/PlayerProvider'
+import { createValueStore, type ValueStore } from '../../player/progress.model'
 import { createListenAudio } from '../../ports/listen'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Cover } from '../../ui/components/Cover'
@@ -45,7 +46,9 @@ const tonesByCover = new Map<string, CoverTone | null>()
  *
  * `toggle`, `seek` and `close` keep their identity from render to render: the
  * review's rows are memoised, and a new function each tick would redraw every
- * row of a long playlist four times a second.
+ * row of a long playlist four times a second. For the same reason where the
+ * song is, which moves at each of those ticks, is not part of `listening`: it
+ * is `position`, which only the bar and its times read (`useListenPosition`).
  */
 export function useListen(
   via: ServerConnection | undefined,
@@ -58,6 +61,7 @@ export function useListen(
   const connection = via ?? own
   const [audio] = useState(() => createListenAudio())
   const [listening, setListening] = useState<Listening | null>(null)
+  const [position] = useState(() => createValueStore(0))
   /** Something was playing when previewing began; it carries on when the preview closes. */
   const resume = useRef(false)
 
@@ -79,14 +83,15 @@ export function useListen(
 
   useEffect(() => {
     if (!audio) return
-    const unsubscribe = audio.subscribe(state =>
-      setListening(current => (current ? followAudio(current, state) : current)),
-    )
+    const unsubscribe = audio.subscribe(state => {
+      position.set(state.currentTime)
+      setListening(current => (current ? followAudio(current, state) : current))
+    })
     return () => {
       unsubscribe()
       audio.dispose()
     }
-  }, [audio])
+  }, [audio, position])
 
   // Pressing play on the song itself ends the interlude.
   const wasPlaying = useRef(player.isPlaying)
@@ -117,6 +122,7 @@ export function useListen(
       return
     }
     makeRoom()
+    position.set(0)
     setListening(startListening(track, tonesByCover.get(track.thumbnail ?? '') ?? null))
     audio.play(mediaUrlFor(connection).importListen(track.url))
     colourIn(track)
@@ -125,7 +131,7 @@ export function useListen(
   const seek = (seconds: number): void => {
     if (!audio || !listening) return
     audio.seek(seconds)
-    setListening({ ...listening, currentTime: seconds })
+    position.set(seconds)
   }
 
   /**
@@ -136,6 +142,7 @@ export function useListen(
   const close = (options: { resume?: boolean } = {}): void => {
     audio?.stop()
     setListening(null)
+    position.set(0)
     const carryOn = resume.current && (options.resume ?? true)
     resume.current = false
     if (carryOn && !player.isPlaying) player.toggle()
@@ -154,7 +161,12 @@ export function useListen(
     [],
   )
 
-  return { listening, ...steady }
+  return { listening, position, ...steady }
+}
+
+/** Where the preview is in its song, in seconds, ticking with the audio. */
+export function useListenPosition(position: ValueStore<number>): number {
+  return useSyncExternalStore(position.subscribe, position.get, position.get)
 }
 
 /**

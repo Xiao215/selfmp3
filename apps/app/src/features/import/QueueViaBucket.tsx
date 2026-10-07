@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { radius, useLibrary, useRequestCloudImport } from '@selfmp3/client'
+import { failureText, radius, useLibrary, useRequestCloudImport } from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
 import { card, sectionTitle } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
@@ -35,7 +35,7 @@ export function QueueViaBucket(): ReactNode {
 
   const [url, setUrl] = useState('')
   const [tagIds, setTagIds] = useState<ReadonlySet<number>>(new Set())
-  const [added, setAdded] = useState<string | null>(null)
+  const [added, setAdded] = useState(false)
 
   const tags = library?.tags ?? []
   const ready = url.trim().length > 0 && !queue.isPending
@@ -50,7 +50,7 @@ export function QueueViaBucket(): ReactNode {
       },
       {
         onSuccess: () => {
-          setAdded(url.trim())
+          setAdded(true)
           setUrl('')
           setTagIds(new Set())
         },
@@ -73,7 +73,7 @@ export function QueueViaBucket(): ReactNode {
         value={url}
         onChangeText={text => {
           setUrl(text)
-          setAdded(null)
+          setAdded(false)
         }}
         placeholder="Paste a link"
         placeholderTextColor={theme.colors.textMuted}
@@ -92,9 +92,7 @@ export function QueueViaBucket(): ReactNode {
       ) : null}
 
       {queue.isError ? (
-        <Text style={styles.error}>
-          {queue.error instanceof Error ? queue.error.message : 'That could not be added.'}
-        </Text>
+        <Text style={styles.error}>{failureText('That could not be added', queue.error)}</Text>
       ) : null}
       {added ? (
         <Text style={styles.good} accessibilityLiveRegion="polite" testID="queue-added">

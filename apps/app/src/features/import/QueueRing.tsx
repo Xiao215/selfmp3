@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, View } from 'react-native'
-import { useUnistyles } from 'react-native-unistyles'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import Svg, { Circle, Path, Rect } from 'react-native-svg'
+import { HIT_TARGET } from '@selfmp3/client'
 import { IconButton } from '../../ui/components/IconButton'
 import { ease, timing } from '../../ui/motion'
 import { MOVE_MS } from '../../ui/motion.model'
@@ -124,7 +125,7 @@ export function QueueRing({
   if (!onPress || glyph === null) {
     return (
       <View
-        style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
+        style={styles.still}
         accessibilityRole="progressbar"
         accessibilityLabel={label}
         accessibilityValue={{ min: 0, max: 100, now: Math.round(fill * 100) }}
@@ -140,3 +141,8 @@ export function QueueRing({
     </IconButton>
   )
 }
+
+const styles = StyleSheet.create({
+  // A finger's room, as a ring that can be pressed has.
+  still: { width: HIT_TARGET, height: HIT_TARGET, alignItems: 'center', justifyContent: 'center' },
+})

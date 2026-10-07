@@ -154,7 +154,7 @@ export const TagSleeve = memo(function TagSleeve({
 })
 
 const styles = StyleSheet.create(theme => ({
-  disc: { position: 'absolute', borderRadius: 999, ...artShadow(theme.colors, 'lean') },
+  disc: { position: 'absolute', borderRadius: radius.pill, ...artShadow(theme.colors, 'lean') },
   glyph: {
     position: 'absolute',
     top: 0,

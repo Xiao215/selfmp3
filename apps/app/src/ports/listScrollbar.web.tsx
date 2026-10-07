@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, ReactNode, RefObject } from 'react'
 import type { FlatList, LayoutChangeEvent } from 'react-native'
 import { useUnistyles } from 'react-native-unistyles'
-import { withAlpha } from '@selfmp3/client'
+import { radius, withAlpha } from '@selfmp3/client'
 import type { Song } from '@selfmp3/shared'
 import { useArt } from '../offline/useArt'
 import { usePlayingSongId } from '../player/PlayerProvider'
@@ -348,7 +348,7 @@ function Scrollbar({
           width: 16,
           height: Math.max(0, box.height - INSET * 2),
           zIndex: 11,
-          borderRadius: 999,
+          borderRadius: radius.pill,
           touchAction: 'none',
           backgroundColor: wide ? withAlpha(theme.colors.textPrimary, 0.06) : 'transparent',
           opacity: out ? 1 : 0,
@@ -363,7 +363,7 @@ function Scrollbar({
             top: 0,
             right: wide ? 3 : 5,
             width: wide ? 10 : 6,
-            borderRadius: 999,
+            borderRadius: radius.pill,
             backgroundColor: withAlpha(theme.colors.textPrimary, wide ? 0.5 : 0.3),
             transition: reduced
               ? 'none'

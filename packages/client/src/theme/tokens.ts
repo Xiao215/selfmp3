@@ -258,6 +258,8 @@ export const radius = {
   cardLg: 22,
   card: 18,
   mini: 16,
+  /** A row in a list: a song row, a listing or a change in the metadata dialog. */
+  row: 14,
   cover: 10,
   coverSm: 8,
 } as const

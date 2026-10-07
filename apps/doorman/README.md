@@ -152,7 +152,7 @@ also claimed is half of a pair and no use on its own.
 npx wrangler deploy
 ```
 
-It builds `packages/shared` first (`wrangler.toml` says to), then uploads the
+It builds `packages/client` and `packages/shared` first (`wrangler.toml` says to), then uploads the
 Worker and prints its address. Open `/v1/health` on it: you should see
 `{"ok":true,"version":"1.0.0"}`.
 

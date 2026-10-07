@@ -14,7 +14,7 @@ import type { ListSource } from '../lists/lists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { keepAnswer, useKeptAnswer } from './answers.store'
 import { ChangeIt } from './ChangeIt'
-import { picksHere } from './smart.model'
+import { answerSongs } from './smart.model'
 import { useSmartServer } from './useSmartServer'
 
 /**
@@ -48,12 +48,9 @@ export function SongsAnswerCard({
   const id = keepAnswer(text, answer.describe)
   const kept = useKeptAnswer(id)
   const result = kept?.result ?? answer.describe
-  const picked = picksHere(result, server.onDevice)
-    .map(pick => pick.songId)
-    .filter(each => known.has(each))
-  const order = kept?.order
-  const ids = order ? order.filter(each => picked.includes(each)) : picked
-  const seconds = ids.reduce((sum, id) => sum + (known.get(id)?.duration ?? 0), 0)
+  const songs = answerSongs(result, kept?.order ?? null, server.onDevice, known)
+  const ids = songs.map(song => song.id)
+  const seconds = songs.reduce((sum, song) => sum + song.duration, 0)
   const next = answer.lead === 'next'
 
   if (ids.length === 0) {

@@ -10,6 +10,7 @@ import type {
   Understanding,
 } from '@selfmp3/shared'
 import {
+  answerSongs,
   askable,
   describeNotes,
   exactTag,
@@ -122,6 +123,27 @@ describe('picksHere', () => {
       { songId: 47, why: 'calm' },
       { songId: 48, why: null },
     ])
+  })
+})
+
+describe('answerSongs', () => {
+  const byId = new Map([47, 48, 49].map(id => [id, { id }]))
+  const onDevice = (id: number) => ({ 812: 47, 813: 48, 814: 49 })[id]
+  const result = {
+    picks: [
+      { songId: 812, why: null },
+      { songId: 813, why: null },
+      { songId: 814, why: null },
+      { songId: 999, why: null },
+    ],
+  }
+
+  it('keeps the answer’s order until one is put in', () => {
+    expect(answerSongs(result, null, onDevice, byId).map(song => song.id)).toEqual([47, 48, 49])
+  })
+
+  it('follows the order put in, a song it did not cover after the rest', () => {
+    expect(answerSongs(result, [48, 47], onDevice, byId).map(song => song.id)).toEqual([48, 47, 49])
   })
 })
 

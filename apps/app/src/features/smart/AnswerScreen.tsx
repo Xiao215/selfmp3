@@ -31,7 +31,7 @@ import { newPlaylist } from '../playlists/playlists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { changeAnswer, reorderAnswer, useKeptAnswer } from './answers.store'
 import { ChangeIt } from './ChangeIt'
-import { describeNotes, parts, picksHere } from './smart.model'
+import { answerSongs, describeNotes, parts } from './smart.model'
 import { useSmartServer } from './useSmartServer'
 
 /**
@@ -71,17 +71,11 @@ export function AnswerScreen(): ReactNode {
   const fly = useFlyToUpNext()
 
   const result = kept?.result
-  const songs = useMemo(() => {
-    if (!result) return []
-    const picked = picksHere(result, server.onDevice).flatMap(pick => byId.get(pick.songId) ?? [])
-    const order = kept?.order
-    if (!order) return picked
-    // The order you put it in, with anything it did not cover after.
-    const place = new Map(order.map((songId, index) => [songId, index]))
-    return [...picked].sort(
-      (a, b) => (place.get(a.id) ?? order.length) - (place.get(b.id) ?? order.length),
-    )
-  }, [result, kept?.order, byId, server.onDevice])
+  const order = kept?.order ?? null
+  const songs = useMemo(
+    () => (result ? answerSongs(result, order, server.onDevice, byId) : []),
+    [result, order, byId, server.onDevice],
+  )
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   const selection = useSelection(ids)
   const selectedSongs = useMemo(

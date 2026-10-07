@@ -187,6 +187,27 @@ export function picksHere(
   })
 }
 
+/**
+ * An answer's songs as this device has them, in the order you put them in on
+ * its page (`order`, this device's ids), with any it did not cover — a song
+ * that reached this device after the reorder — after them in the answer's
+ * order. The card in Search and the answer's page both draw this, so the two
+ * never disagree about how many songs or minutes it is.
+ */
+export function answerSongs<S extends { readonly id: number }>(
+  result: Pick<DescribeResult, 'picks'>,
+  order: readonly number[] | null,
+  onDevice: (serverId: number) => number | undefined,
+  byId: ReadonlyMap<number, S>,
+): S[] {
+  const picked = picksHere(result, onDevice).flatMap(pick => byId.get(pick.songId) ?? [])
+  if (!order) return picked
+  const place = new Map(order.map((songId, index) => [songId, index]))
+  return [...picked].sort(
+    (a, b) => (place.get(a.id) ?? order.length) - (place.get(b.id) ?? order.length),
+  )
+}
+
 /** What a describe answer says beside its songs: what fit, and what it set aside. */
 export function describeNotes(result: DescribeResult, picked: number): string[] {
   const notes: string[] = []

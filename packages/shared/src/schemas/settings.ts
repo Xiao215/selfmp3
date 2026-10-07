@@ -7,6 +7,9 @@ import { z } from 'zod'
  * phone) deliberately lives in browser storage instead — syncing it would be
  * actively wrong.
  */
+
+/** How many things Ask remembers (`smartNotes`): the schema refuses more, and the app says so first. */
+export const SMART_NOTES_MAX = 30
 export const SettingsSchema = z.object({
   /** Seconds of overlap between tracks. Zero disables crossfade entirely. */
   crossfadeSeconds: z.number().min(0).max(12).default(0),
@@ -51,7 +54,7 @@ export const SettingsSchema = z.object({
    * without the English after them"): saved from an Ask answer, removed in
    * Settings › Smart features, and sent with each request.
    */
-  smartNotes: z.array(z.string().trim().min(1).max(200)).max(30).default([]),
+  smartNotes: z.array(z.string().trim().min(1).max(200)).max(SMART_NOTES_MAX).default([]),
 })
 export type Settings = z.infer<typeof SettingsSchema>
 

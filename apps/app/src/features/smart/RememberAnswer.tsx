@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
+import { SMART_NOTES_MAX } from '@selfmp3/shared'
 import { space, useSettings, useUpdateSettings } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { showToast } from '../../ui/toast'
@@ -16,7 +17,7 @@ export function RememberAnswer({ note, onDone }: { note: string; onDone: () => v
   const update = useUpdateSettings()
   const notes = settings?.smartNotes ?? []
   const saved = notes.some(each => each.toLowerCase() === note.toLowerCase())
-  const full = notes.length >= 30
+  const full = notes.length >= SMART_NOTES_MAX
 
   const save = (): void => {
     update.mutate(
@@ -38,7 +39,7 @@ export function RememberAnswer({ note, onDone }: { note: string; onDone: () => v
         {saved
           ? 'Ask remembers this already.'
           : full
-            ? 'Ask remembers 30 things already: take one away in Settings › Smart features first.'
+            ? `Ask remembers ${SMART_NOTES_MAX} things already: take one away in Settings › Smart features first.`
             : 'Sent with each request from now on. Settings › Smart features lists what Ask remembers, to take any of it away.'}
       </Text>
       <View style={styles.actions}>

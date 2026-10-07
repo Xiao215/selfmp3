@@ -17,7 +17,6 @@ import {
   paperLook,
   receiptLook,
   repeatDetail,
-  statsRangeOf,
   timeOfDay,
   timesWord,
   wallLook,
@@ -117,11 +116,6 @@ describe('which looks', () => {
     expect(lookToDraw('words', false)).toBe('words')
     // The front page on a window narrowed to a phone's width becomes Paper.
     expect(lookToDraw('front', false)).toBe('paper')
-  })
-
-  it('asks Stats for the same window', () => {
-    expect(statsRangeOf('week')).toBe('7d')
-    expect(statsRangeOf('all')).toBe('all')
   })
 })
 

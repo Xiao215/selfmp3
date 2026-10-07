@@ -7,6 +7,7 @@ import {
   daysLabel,
   durationWords,
   formatHour,
+  isStatsPeriod,
   listenedCard,
   peakCard,
   peakHour,
@@ -55,6 +56,12 @@ describe('stats windows and words', () => {
       'All time',
     ])
     expect(STATS_PERIODS.map(statsRangeFor)).toEqual(['7d', '30d', '90d', '365d', 'all'])
+  })
+
+  it('reads a window from an address, and nothing else', () => {
+    expect(isStatsPeriod('week')).toBe(true)
+    expect(isStatsPeriod('fortnight')).toBe(false)
+    expect(isStatsPeriod(undefined)).toBe(false)
   })
 
   it('names hours the way a clock face does', () => {

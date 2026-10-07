@@ -1,4 +1,11 @@
-import type { HourlyPlays, Stats, StatsRange, TopEntry, TopSong } from '@selfmp3/shared'
+import type {
+  HourlyPlays,
+  Stats,
+  StatsRange,
+  TopEntry,
+  TopSong,
+  WrappedRange,
+} from '@selfmp3/shared'
 import { artistKey, splitArtists } from '@selfmp3/shared'
 
 /**
@@ -10,8 +17,12 @@ import { artistKey, splitArtists } from '@selfmp3/shared'
  * `C15`), then one ranked module of what was played most.
  */
 
-/** The window the page shows. */
-export type StatsPeriod = 'week' | 'month' | 'quarter' | 'year' | 'all'
+/**
+ * The window the page shows. The same five windows as the Report's, by the
+ * same names, so Stats and the Report share this list, its labels and the
+ * endpoint's name for each (`statsRangeFor`).
+ */
+export type StatsPeriod = WrappedRange
 
 export const STATS_PERIODS: readonly StatsPeriod[] = ['week', 'month', 'quarter', 'year', 'all']
 
@@ -25,6 +36,11 @@ const PERIOD_LABELS: Record<StatsPeriod, string> = {
 
 export function periodLabel(period: StatsPeriod): string {
   return PERIOD_LABELS[period]
+}
+
+/** Whether an address's `range` names one of the windows. */
+export function isStatsPeriod(value: string | undefined): value is StatsPeriod {
+  return (STATS_PERIODS as readonly string[]).includes(value ?? '')
 }
 
 const STATS_RANGE_OF: Record<StatsPeriod, StatsRange> = {

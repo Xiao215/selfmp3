@@ -1,7 +1,6 @@
 import {
   WRAPPED_RANGE_DAYS,
   type DailyPlays,
-  type StatsRange,
   type Wrapped,
   type WrappedRange,
 } from '@selfmp3/shared'
@@ -65,19 +64,6 @@ export interface LookInput {
   readonly wrapped: Wrapped
   /** Stats' day by day for the same window; empty until it arrives. */
   readonly daily: readonly DailyPlays[]
-}
-
-/** Stats names the same windows differently; `daily` is asked for by its name. */
-const STATS_RANGE: Record<WrappedRange, StatsRange> = {
-  week: '7d',
-  month: '30d',
-  quarter: '90d',
-  year: '365d',
-  all: 'all',
-}
-
-export function statsRangeOf(range: WrappedRange): StatsRange {
-  return STATS_RANGE[range]
 }
 
 // --- words every look shares ---------------------------------------------------

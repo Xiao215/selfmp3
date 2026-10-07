@@ -12,6 +12,21 @@ const YOASOBI = 'UCvpredjG93ifbCP1Y77JyFA'
 const SONGS_PLAYLIST = 'OLAK5uy_m9tuwAgM8iEzi0d2BqpMmc2Sr67omN0pc'
 
 const text = (value: string) => ({ runs: [{ text: value }] })
+const linkedText = (value: string, pageType: string) => ({
+  runs: [
+    {
+      text: value,
+      navigationEndpoint: {
+        browseEndpoint: {
+          browseId: 'x',
+          browseEndpointContextSupportedConfigs: {
+            browseEndpointContextMusicConfig: { pageType },
+          },
+        },
+      },
+    },
+  ],
+})
 
 function songRow(videoId: string, title: string) {
   return {
@@ -26,9 +41,13 @@ function songRow(videoId: string, title: string) {
           },
         },
       },
-      flexColumns: [title, 'YOASOBI', '1.1B plays', title].map(column => ({
-        musicResponsiveListItemFlexColumnRenderer: { text: text(column) },
-      })),
+      // Title, artist, plays, album: the artist and the album lead to their pages.
+      flexColumns: [
+        text(title),
+        linkedText('YOASOBI', 'MUSIC_PAGE_TYPE_ARTIST'),
+        text('1.1B plays'),
+        linkedText(title, 'MUSIC_PAGE_TYPE_ALBUM'),
+      ].map(column => ({ musicResponsiveListItemFlexColumnRenderer: { text: column } })),
       playlistItemData: { videoId },
     },
   }
@@ -155,7 +174,8 @@ describe('YouTubeMusicArtists.topSongs', () => {
         url: 'https://music.youtube.com/watch?v=m9SMT5ipbxk',
         title: 'アイドル',
         artist: 'YOASOBI',
-        album: '',
+        // Read as any list's rows are, the row's album comes with it.
+        album: 'アイドル',
         duration: 0,
         thumbnail: 'https://i.ytimg.test/m9SMT5ipbxk/120',
       },

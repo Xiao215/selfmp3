@@ -4,17 +4,18 @@ import {
   ANDROID_CLIENT,
   findAll,
   findKey,
+  parseLength,
   runs,
-  WEB_CLIENT,
   YouTubeMusicApi,
   type FetchLike,
 } from './youtubeMusicApi.js'
 import {
+  askNext,
   AUDIO_TRACK,
   fits,
   isSameSong,
   lengthGap,
-  parseLength,
+  nextEntry,
   searchSongs,
   type SongLookup,
   type Track,
@@ -112,18 +113,16 @@ export class YouTubeMusicLyrics {
 
   /** The entry YouTube Music plays for a video, and the id of its lyrics. */
   async #watch(videoId: string): Promise<WatchInfo | null> {
-    const response = await this.#api.post('next', { videoId, isAudioOnly: true }, WEB_CLIENT)
+    const response = await askNext(this.#api, videoId)
     if (!response) return null
 
-    const renderer = findAll(response, 'playlistPanelVideoRenderer').find(
-      item => (item as { videoId?: unknown }).videoId === videoId,
-    )
+    const renderer = nextEntry(response, videoId)
     const lyricsId = findAll(response, 'browseEndpoint')
       .map(endpoint => (endpoint as { browseId?: unknown }).browseId)
       .find((id): id is string => typeof id === 'string' && id.startsWith('MPLY'))
 
     if (!renderer) return { track: null, lyricsId: lyricsId ?? null }
-    const texts = (key: string) => runs((renderer as Record<string, unknown>)[key])
+    const texts = (key: string) => runs(renderer[key])
     return {
       track: {
         videoId,

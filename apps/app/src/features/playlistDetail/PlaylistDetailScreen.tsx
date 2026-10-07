@@ -3,13 +3,10 @@ import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
-import { useQueryClient } from '@tanstack/react-query'
 import { plural, formatBytes, type Song } from '@selfmp3/shared'
 import {
   bytesToDownload,
-  clientApi,
   failureText,
-  queryKeys,
   space,
   useDeletePlaylist,
   useLibrary,
@@ -17,6 +14,7 @@ import {
   usePlaylistSongs,
   useReorderPlaylist,
   useUpdatePlaylist,
+  useCreatePlaylist,
 } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
@@ -99,7 +97,7 @@ export function PlaylistDetailScreen(): ReactNode {
   const playlistId = Number(params.id)
   const router = useRouter()
   const navigation = useNavigation()
-  const queryClient = useQueryClient()
+  const { mutateAsync: createPlaylist } = useCreatePlaylist()
 
   const library = useLibrary()
   const manifest = useManifest()
@@ -193,11 +191,7 @@ export function PlaylistDetailScreen(): ReactNode {
     )
     if (!input) return
     try {
-      const created = await clientApi().createPlaylist(input)
-      if (kind === 'manual' && songIds.length > 0) {
-        await clientApi().addToPlaylist(created.id, { songIds })
-      }
-      void queryClient.invalidateQueries({ queryKey: queryKeys.library })
+      const created = await createPlaylist({ input, songIds: kind === 'manual' ? songIds : [] })
       showToast(`Made “${created.name}”`, 'good')
       router.push({ pathname: '/playlists/[id]', params: { id: String(created.id) } })
     } catch (caught) {

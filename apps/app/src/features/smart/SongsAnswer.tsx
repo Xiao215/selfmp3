@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useMutation } from '@tanstack/react-query'
 import type { DescribeResult, Understanding } from '@selfmp3/shared'
-import { clientApi, failureText, radius, space, useLibrary } from '@selfmp3/client'
+import { failureText, radius, space, useCreatePlaylist, useLibrary } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { Button } from '../../ui/components/Button'
@@ -46,6 +46,7 @@ export function SongsAnswer({
   const { theme } = useUnistyles()
   const server = useSmartServer()
   const { data: library } = useLibrary()
+  const { mutateAsync: createPlaylist } = useCreatePlaylist()
   const artFor = useArt(ROW_COVER_SIZE)
 
   const [result, setResult] = useState(first)
@@ -93,13 +94,12 @@ export function SongsAnswer({
           }),
         })
         if (!input) return
-        onSaved((await clientApi().createPlaylist(input)).id)
+        onSaved((await createPlaylist({ input })).id)
         return
       }
       const input = newPlaylist('manual', title)
       if (!input) return
-      const created = await clientApi().createPlaylist(input)
-      await clientApi().addToPlaylist(created.id, { songIds: picks.map(each => each.songId) })
+      const created = await createPlaylist({ input, songIds: picks.map(each => each.songId) })
       onSaved(created.id)
     } catch (caught) {
       setError(failureText(`Couldn’t make “${title}”`, caught))

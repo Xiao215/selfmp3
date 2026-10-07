@@ -9,7 +9,7 @@ import {
   plural,
   type SmartRules,
 } from '@selfmp3/shared'
-import { useLibrary } from '@selfmp3/client'
+import { uniqueName, useLibrary } from '@selfmp3/client'
 
 /**
  * The playlists screen's state, with nothing it draws.
@@ -249,10 +249,5 @@ export function newPlaylist(
  * one that is already taken.
  */
 export function copyName(name: string, taken: readonly string[]): string {
-  const names = new Set(taken)
-  const base = `${name} copy`
-  if (!names.has(base)) return base
-  let n = 2
-  while (names.has(`${base} ${n}`)) n++
-  return `${base} ${n}`
+  return uniqueName(`${name} copy`, taken)
 }

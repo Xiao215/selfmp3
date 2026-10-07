@@ -6,19 +6,18 @@ import { plural } from '@selfmp3/shared'
 import type { Song } from '@selfmp3/shared'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useQueryClient } from '@tanstack/react-query'
 import {
-  clientApi,
   failureText,
   isDownloaded,
   motion,
-  queryKeys,
   radius,
   space,
   useAddToPlaylist,
   useBulkLoved,
   useLibrary,
   useRemoveManyFromPlaylist,
+  uniqueName,
+  useCreatePlaylist,
 } from '@selfmp3/client'
 import { playlistsToAddTo } from '../../features/playlists/playlists.model'
 import { useDownloads } from '../../offline/DownloadsProvider'
@@ -286,22 +285,19 @@ export function SelectionBar({
     list => list.id !== playlist?.id,
   )
   const router = useRouter()
-  const queryClient = useQueryClient()
+  const { mutateAsync: createPlaylist } = useCreatePlaylist()
 
   /** A playlist of exactly these songs, opened with its name ready to type. */
   const newPlaylistWithSelection = async (): Promise<void> => {
-    const taken = new Set((library?.playlists ?? []).map(list => list.name))
-    let name = 'New playlist'
-    for (let n = 2; taken.has(name); n++) name = `New playlist ${n}`
+    const name = uniqueName(
+      'New playlist',
+      (library?.playlists ?? []).map(list => list.name),
+    )
     try {
-      const created = await clientApi().createPlaylist({
-        name,
-        description: '',
-        kind: 'manual',
-        rules: null,
+      const created = await createPlaylist({
+        input: { name, description: '', kind: 'manual', rules: null },
+        songIds: ids,
       })
-      await clientApi().addToPlaylist(created.id, { songIds: ids })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.library })
       onDone()
       router.push({ pathname: '/playlists/[id]', params: { id: String(created.id), rename: '1' } })
     } catch (caught) {

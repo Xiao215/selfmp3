@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { clientApi, failureText, queryKeys, useLibrary } from '@selfmp3/client'
+import { clientApi, failureText, queryKeys, useCreatePlaylist, useLibrary } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { showToast } from '../../ui/toast'
 import { followRules } from '../library/saveTags'
@@ -36,6 +36,7 @@ export function useSaveUpNext(): {
   const player = usePlayer()
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { mutateAsync: createPlaylist } = useCreatePlaylist()
   const { data: library } = useLibrary()
   const [saving, setSaving] = useState(false)
 
@@ -64,7 +65,6 @@ export function useSaveUpNext(): {
     setSaving(true)
     void (async () => {
       try {
-        const api = clientApi()
         const input =
           plan.kind === 'follow'
             ? newPlaylist('live', plan.name, {
@@ -72,10 +72,11 @@ export function useSaveUpNext(): {
               })
             : newPlaylist('manual', plan.name)
         if (!input) return
-        const created = await api.createPlaylist(input)
-        if (plan.kind === 'songs')
-          await api.addToPlaylist(created.id, { songIds: [...plan.songIds] })
-        await queryClient.invalidateQueries({ queryKey: queryKeys.library })
+        const created = await createPlaylist({
+          input,
+          songIds: plan.kind === 'songs' ? plan.songIds : [],
+          refresh: 'wait',
+        })
         const kept: ListSource = {
           kind: 'playlist',
           playlistId: created.id,
@@ -99,7 +100,7 @@ export function useSaveUpNext(): {
               label: 'Undo',
               onPress: () => {
                 setSource(before)
-                void api
+                void clientApi()
                   .deletePlaylist(created.id)
                   .then(() => queryClient.invalidateQueries({ queryKey: queryKeys.library }))
                   .catch((caught: unknown) =>
@@ -115,7 +116,7 @@ export function useSaveUpNext(): {
         setSaving(false)
       }
     })()
-  }, [plan, saving, source, setSource, queryClient, router])
+  }, [plan, saving, source, setSource, createPlaylist, queryClient, router])
 
   return { line, plan, saving, save }
 }

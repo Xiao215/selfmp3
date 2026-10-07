@@ -606,6 +606,43 @@ export function useUpdatePlaylist() {
   })
 }
 
+/**
+ * Make a playlist, with its first songs when it has any, and have the library
+ * name it.
+ *
+ * The one way a playlist is made: Save in Up next, an answer, a selection, a
+ * copy, the new-playlist sheet. Each made it in two calls and refreshed the
+ * library by hand, and one forgot. What to say when it fails is the caller's
+ * — each says it in its own words, where it was asked — so this carries none.
+ *
+ * `refresh` is how the library is asked again: in the background, as most
+ * callers want so their next page opens at once; awaited, for one that needs
+ * the new playlist in the library before it goes on; or not at all, for one
+ * that makes several and refreshes once after.
+ */
+export function useCreatePlaylist() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      input,
+      songIds = [],
+    }: {
+      input: Parameters<Api['createPlaylist']>[0]
+      songIds?: readonly number[]
+      refresh?: 'background' | 'wait' | 'none'
+    }) => {
+      const created = await clientApi().createPlaylist(input)
+      if (songIds.length > 0) await clientApi().addToPlaylist(created.id, { songIds: [...songIds] })
+      return created
+    },
+    onSuccess: (_created, { refresh = 'background' }) => {
+      if (refresh === 'none') return undefined
+      const asked = client.invalidateQueries({ queryKey: queryKeys.library })
+      return refresh === 'wait' ? asked : undefined
+    },
+  })
+}
+
 export const useDeletePlaylist = () =>
   useLibraryMutation((id: number) => clientApi().deletePlaylist(id), {
     failure: 'Couldn’t delete the playlist',

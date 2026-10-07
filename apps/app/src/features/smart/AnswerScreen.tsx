@@ -3,9 +3,9 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { formatLongDuration, plural, type Understanding } from '@selfmp3/shared'
-import { clientApi, failureText, queryKeys, useLibrary } from '@selfmp3/client'
+import { failureText, useCreatePlaylist, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useSelection } from '../../selection/useSelection'
@@ -57,7 +57,7 @@ export function AnswerScreen(): ReactNode {
   const kept = useKeptAnswer(id)
   const server = useSmartServer()
   const player = usePlayerCommands()
-  const queryClient = useQueryClient()
+  const { mutateAsync: createPlaylist } = useCreatePlaylist()
   const { data: library } = useLibrary()
   const byId = useSongsById()
   const artFor = useArt()
@@ -141,9 +141,7 @@ export function AnswerScreen(): ReactNode {
     if (!input || ids.length === 0 || saving) return
     setSaving(true)
     try {
-      const created = await clientApi().createPlaylist(input)
-      await clientApi().addToPlaylist(created.id, { songIds: ids })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.library })
+      const created = await createPlaylist({ input, songIds: ids })
       showToast(`Saved “${created.name}”`, 'good', {
         actions: [
           {

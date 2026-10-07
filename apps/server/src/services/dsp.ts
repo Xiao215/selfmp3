@@ -144,19 +144,31 @@ function forEachSpectrum(
 
 // --- onsets and tempo --------------------------------------------------------
 
+/**
+ * One frame's spectral flux: how much each bin's log-compressed magnitude
+ * grew over the previous frame's, summed over bins 1..maxBin and leaving
+ * `previous` holding this frame's. Only increases count (half-wave
+ * rectified) — a note starting is an onset, a note decaying is not — and the
+ * log keeps a quiet hi-hat from being drowned out by a loud bass note.
+ */
+function spectralFlux(magnitude: Float64Array, previous: Float64Array, maxBin: number): number {
+  let sum = 0
+  for (let k = 1; k < maxBin; k++) {
+    const value = Math.log1p(20 * (magnitude[k] ?? 0))
+    const delta = value - (previous[k] ?? 0)
+    if (delta > 0) sum += delta
+    previous[k] = value
+  }
+  return sum
+}
+
 interface OnsetEnvelope {
   readonly values: Float64Array
   /** Frames per second. */
   readonly frameRate: number
 }
 
-/**
- * Spectral flux: how much each frame's spectrum grew over the previous one.
- *
- * Only increases count (half-wave rectified) — a note starting is an onset,
- * a note decaying is not. Log compression keeps a quiet hi-hat from being
- * drowned out by a loud bass note in the same frame.
- */
+/** The onset envelope: each frame's spectral flux (`spectralFlux`), the first frame's 0. */
 export function onsetEnvelope(pcm: Float32Array, sampleRate: number): OnsetEnvelope {
   const frameRate = sampleRate / ONSET_HOP
   const bins = ONSET_FRAME / 2
@@ -168,13 +180,7 @@ export function onsetEnvelope(pcm: Float32Array, sampleRate: number): OnsetEnvel
   let first = true
 
   forEachSpectrum(pcm, ONSET_FRAME, ONSET_HOP, magnitude => {
-    let sum = 0
-    for (let k = 1; k < maxBin; k++) {
-      const value = Math.log1p(20 * (magnitude[k] ?? 0))
-      const delta = value - (previous[k] ?? 0)
-      if (delta > 0) sum += delta
-      previous[k] = value
-    }
+    const sum = spectralFlux(magnitude, previous, maxBin)
     flux.push(first ? 0 : sum)
     first = false
   })
@@ -552,6 +558,7 @@ export class MotionBuilder {
   readonly #window: Float64Array
   readonly #re: Float64Array
   readonly #im: Float64Array
+  readonly #magnitude: Float64Array
   readonly #previous: Float64Array
   /** The last `frameSize` samples, filled up to `#fill`. */
   readonly #buffer: Float32Array
@@ -578,6 +585,7 @@ export class MotionBuilder {
     this.#window = hann(this.#frameSize)
     this.#re = new Float64Array(this.#frameSize)
     this.#im = new Float64Array(this.#frameSize)
+    this.#magnitude = new Float64Array(bins)
     this.#previous = new Float64Array(bins)
     this.#buffer = new Float32Array(this.#frameSize)
     this.#nextBoundary = this.#boundary(1)
@@ -636,15 +644,13 @@ export class MotionBuilder {
     }
     fft(re, im)
 
-    let flux = 0
+    const magnitude = this.#magnitude
     for (let k = 1; k < this.#maxBin; k++) {
       const r = re[k] ?? 0
       const j = im[k] ?? 0
-      const value = Math.log1p(20 * Math.sqrt(r * r + j * j))
-      const delta = value - (this.#previous[k] ?? 0)
-      if (delta > 0) flux += delta
-      this.#previous[k] = value
+      magnitude[k] = Math.sqrt(r * r + j * j)
     }
+    let flux = spectralFlux(magnitude, this.#previous, this.#maxBin)
     if (this.#spectra === 0) flux = 0
 
     const centre = this.#spectra * this.#hop + size / 2

@@ -1,21 +1,17 @@
 import type { RangeSource } from '../http/range.js'
 
 /**
- * The storage abstraction.
+ * The library folder on this disk, as the server reaches it.
  *
- * Everything that touches an audio file goes through this interface, so the
- * question "where does my music actually live?" has exactly one answer to
- * change. Today it is the local disk; swapping in S3-compatible object storage
- * (Cloudflare R2, Backblaze B2) is a config change plus one driver file, not a
- * refactor of the whole server.
+ * Everything that touches an audio file in the folder goes through this
+ * interface. The folder is an inbox, not the library (docs/SYNC.md): an import
+ * lands here until it is in the bucket. The bucket itself is reached through
+ * `bucket/store.ts`, not this.
  *
- * Paths are always relative to the storage root and always use forward
- * slashes, so a database written on a Mac stays valid if the library is later
- * moved into a bucket.
+ * Paths are always relative to the folder and always use forward slashes, so
+ * a key reads the same on every machine.
  */
 export interface StorageDriver {
-  readonly name: string
-
   /** True when the object exists. */
   exists(key: string): Promise<boolean>
 
@@ -37,11 +33,10 @@ export interface StorageDriver {
   rangeSource(key: string, mime: string): Promise<RangeSource | null>
 
   /**
-   * An absolute local path, when one exists. Only used by tools that must
-   * touch the real filesystem — ffprobe, and reading embedded tags. Object
-   * storage returns null and those code paths fall back to downloading first.
+   * The absolute path of a key, for tools that must touch the real
+   * filesystem — ffmpeg, and reading embedded tags.
    */
-  localPath(key: string): string | null
+  localPath(key: string): string
 }
 
 export interface StorageStat {

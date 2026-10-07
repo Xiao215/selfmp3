@@ -183,7 +183,7 @@ export function healthLine(
   if (health) {
     const songs =
       health.songCount === undefined ? '' : ` · ${plural(health.songCount, 'song', 'songs')}`
-    return `self.mp3 ${health.version}${songs} · ${health.storageDriver} storage`
+    return `self.mp3 ${health.version}${songs}`
   }
   if (asking.loading) return 'Checking your library…'
   if (asking.error) return asking.fromCloud ? 'Can’t reach the cloud' : 'Can’t reach your server'

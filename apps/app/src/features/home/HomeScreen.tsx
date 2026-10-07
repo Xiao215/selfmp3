@@ -572,6 +572,13 @@ function Tile({
 }
 
 /**
+ * A song tile plays the row's songs from that one, and Up next is named
+ * "Recently played" for them. It offers no Save and is not remembered as a
+ * list of its own (`savePlan`, `sourceKey`): the row already is that list.
+ */
+const FROM_RECENTS = { kind: 'songs', origin: 'recent', name: 'Recently played' } as const
+
+/**
  * Recently played (docs/features/lists.md, A1): what you listened to, newest
  * first, in a row that scrolls sideways — a list as its covers and its kind,
  * a song played on its own as that song. A tap plays it again; a list that
@@ -607,7 +614,9 @@ function Recents({ recents, wide }: { recents: readonly HomeRecent[]; wide: bool
             <Pressable
               key={`song-${song.id}`}
               testID={`home-recent-${index}`}
-              onPress={() => player.playFrom(songIds, songIds.indexOf(song.id))}
+              onPress={() =>
+                player.playFrom(songIds, songIds.indexOf(song.id), { source: FROM_RECENTS })
+              }
               accessibilityRole="button"
               accessibilityLabel={`Play ${song.title}`}
               style={{ width: size }}

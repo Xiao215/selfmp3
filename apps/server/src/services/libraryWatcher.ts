@@ -21,10 +21,8 @@ import { messageOf } from '../util/errors.js'
  * idempotent, so a file still being copied is simply picked up again by the
  * next debounced scan once it stops changing.
  *
- * Only the local storage driver has a folder to watch; with S3 this is a no-op.
- *
  * Besides watching, a sweep every `autoScanMinutes`, for wherever watching
- * misses a change (a network share, object storage). Both follow the settings
+ * misses a change (a network share). Both follow the settings
  * as they are each time `apply` is called, so changing either takes effect
  * without a restart.
  */
@@ -85,9 +83,8 @@ export class LibraryWatcherService {
   apply(): void {
     if (this.#stopped) return
     const settings = this.#settings.get()
-    const wanted = settings.watchLibrary && this.#config.storageDriver === 'local'
-    if (wanted && !this.#watcher) this.#start()
-    else if (!wanted && this.#watcher) this.#close()
+    if (settings.watchLibrary && !this.#watcher) this.#start()
+    else if (!settings.watchLibrary && this.#watcher) this.#close()
     this.#applyAutoScan(settings.autoScanMinutes)
   }
 

@@ -29,6 +29,7 @@ const route = (overrides: Record<string, unknown>) => ({
   action: 'none',
   filters: null,
   songs: null,
+  playback: null,
   find: null,
   stats: null,
   playlists: null,
@@ -562,6 +563,47 @@ describe('ask about a playlist’s songs', () => {
       kind: 'none',
       say: 'Say which songs to add to running: an artist, a tag, or a kind of song.',
     })
+  })
+})
+
+describe('ask, about the music playing', () => {
+  const control = (playback: { op: string; place: number | null }) =>
+    deps({ 'ask-route': [route({ action: 'playback', playback })] })
+
+  it('hands skipping, going back, restarting and pausing to the device, with no place', async () => {
+    for (const op of ['next', 'previous', 'restart', 'pause', 'resume']) {
+      // A place the router filled in anyway means nothing for these.
+      expect(await ask(control({ op, place: 2 }), 'skip this song', 7)).toEqual({
+        kind: 'playback',
+        op,
+        place: null,
+      })
+    }
+  })
+
+  it('counts a song in Up next from the front or from the back, as the words did', async () => {
+    expect(
+      await ask(control({ op: 'upNext', place: 3 }), 'play the third song in the queue'),
+    ).toEqual({ kind: 'playback', op: 'upNext', place: 3 })
+    expect(
+      await ask(control({ op: 'upNext', place: -1 }), 'play the last song in Up next'),
+    ).toEqual({ kind: 'playback', op: 'upNext', place: -1 })
+  })
+
+  it('asks which song when the place says none', async () => {
+    for (const place of [null, 0]) {
+      expect(await ask(control({ op: 'upNext', place }), 'play the song in Up next')).toEqual({
+        kind: 'none',
+        say: 'Say which song in Up next to play.',
+        try: [],
+      })
+    }
+  })
+
+  it('refuses a place past any Up next, or an op it does not know', async () => {
+    const d = control({ op: 'upNext', place: 5000 })
+    await expect(ask(d, 'play the 5000th song in the queue')).rejects.toThrow()
+    await expect(ask(control({ op: 'shuffle', place: null }), 'shuffle')).rejects.toThrow()
   })
 })
 

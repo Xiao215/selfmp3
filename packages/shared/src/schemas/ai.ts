@@ -256,6 +256,21 @@ export const TidyResultSchema = z.object({
 })
 export type TidyResult = z.infer<typeof TidyResultSchema>
 
+/**
+ * What can be done to the music playing on the asking device: the next song
+ * or the one before, this one from its start, pause or carry on, or one song
+ * already in Up next, by its place there.
+ */
+export const AskPlaybackOpSchema = z.enum([
+  'next',
+  'previous',
+  'restart',
+  'pause',
+  'resume',
+  'upNext',
+])
+export type AskPlaybackOp = z.infer<typeof AskPlaybackOpSchema>
+
 export const AskAnswerSchema = z.discriminatedUnion('kind', [
   /** Songs to play now or keep: Describe's answer, and which of the two the words led with. */
   z.object({
@@ -367,6 +382,19 @@ export const AskAnswerSchema = z.discriminatedUnion('kind', [
     tags: z.array(z.object({ label: z.string(), count: z.number().int() })),
   }),
   z.object({ kind: z.literal('open'), place: AskPlaceSchema, say: z.string() }),
+  /**
+   * The music playing, controlled ("skip this song", "play the last song in
+   * Up next"). The one answer the device carries out as it arrives, rather
+   * than proposing: it is what the buttons beside the music already do, and
+   * the device says what it did. `place` is which song in Up next for
+   * `upNext`, 1 the first and -1 the last, and null for the rest; the device
+   * counts it in its own Up next, which the server never sees.
+   */
+  z.object({
+    kind: z.literal('playback'),
+    op: AskPlaybackOpSchema,
+    place: z.number().int().nullable(),
+  }),
   /**
    * Not something the box can do, and what to do instead: `try` is requests
    * it can do that come closest, each one press away.

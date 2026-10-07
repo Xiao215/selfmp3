@@ -11,7 +11,7 @@ import {
 } from './helpers.js'
 
 /**
- * The command palette: find a song by its title and play it, then run a command.
+ * The command palette: find a song by its title and play it alone, then run a command.
  *
  * Desktop only: the palette opens from the sidebar's Search row. A browser tab
  * has no ⌘K (the installed app's menu has it), so the flow clicks the row.
@@ -42,6 +42,16 @@ test.describe('command palette', () => {
     await hit.click()
     await expect(box).toBeHidden()
     await expect(page.getByRole('button', { name: 'Pause' }).last()).toBeVisible()
+
+    // The song plays alone, as a Library row's does: nothing after it in Up next.
+    const toggle = page.getByTestId('player-bar-queue')
+    const rail = page.getByTestId('queue-rail')
+    await toggle.click()
+    const rows = rail.locator('[data-testid^="queue-row-"]')
+    await expect(rows.first()).toHaveAttribute('aria-label', /^Playing /)
+    await expect(rows).toHaveCount(1)
+    await toggle.click()
+    await expect(rail).toBeHidden()
 
     // With nothing typed, what is playing leads the list.
     await search.click()

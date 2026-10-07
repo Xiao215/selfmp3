@@ -25,7 +25,7 @@ apps/server
   app.ts                 express wiring, middleware order
   http/                  route helper, error handling, range requests
   db/                    connection, migrations, row types
-  storage/               StorageDriver interface + local and s3 implementations
+  storage/               StorageDriver interface + the local inbox folder
   repositories/          all SQL lives here, nowhere else
   services/              behaviour: scanning, metadata, lyrics, imports
   routes/                thin — validate, call a service, return
@@ -98,12 +98,12 @@ a one-line change.
 
 ### Storage is an interface
 
-`StorageDriver` — `stat`, `read`, `write`, `list`, `rangeSource`, `signedUrl`, `localPath` —
-is the inbox folder; `CloudStore` — `head`, `get`, `put`, `list`, `delete`, `range` — is the
+`StorageDriver` — `exists`, `stat`, `read`, `write`, `delete`, `list`, `rangeSource`,
+`localPath` — is the inbox folder; `CloudStore` — `head`, `get`, `put`, `list`, `delete`, `range` — is the
 bucket. Local disk implements the first; `S3CloudStore`, the doorman's store and a folder
 (`bucket/local.ts`, for the dev profile and the verify lanes) implement the second, and the
-sync cannot tell them apart. `localPath` returning `null` is the honest escape hatch: tools
-like `ffprobe` need a real filesystem path, so those code paths know to buffer instead.
+sync cannot tell them apart. `localPath` always has an answer, so tools that need a real
+filesystem path (ffmpeg, the tag reader) take the file where it is.
 
 ### Range requests get their own module and the most tests
 
@@ -433,9 +433,6 @@ errors. They will take you to every place that needs updating.
 **A new smart-playlist rule:** add the variant to `SmartRuleSchema`, then fix
 `compileRule` (server) and `matcher` (shared) — each switch ends in `assertNever`, so
 neither compiles until you do. Add a test that runs it against the in-memory database.
-
-**A new storage backend:** implement `StorageDriver`, register it in `storage/index.ts`,
-add the config branch. Nothing else changes.
 
 **A schema change:** append a migration to the array in `db/migrate.ts`. Never edit an
 existing entry, never renumber — the array index *is* the version.

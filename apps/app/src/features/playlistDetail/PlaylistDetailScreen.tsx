@@ -364,7 +364,7 @@ export function PlaylistDetailScreen(): ReactNode {
         }
         wideOverrides={WIDE}
       />
-      {live ? (
+      {playlist.kind === 'live' ? (
         <View style={styles.gutter}>
           <FollowsRow playlist={playlist} tags={tags} />
         </View>

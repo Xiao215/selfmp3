@@ -37,7 +37,6 @@ const TEXT_COLUMNS = {
 
 const NUMBER_COLUMNS = {
   playCount: 's.play_count',
-  skipCount: 's.skip_count',
   duration: 's.duration',
   year: 's.year',
 } as const satisfies Record<string, string>
@@ -115,7 +114,6 @@ function compileRule(rule: SmartRule): CompiledQuery {
     }
 
     case 'playCount':
-    case 'skipCount':
     case 'duration':
     case 'year': {
       const column = NUMBER_COLUMNS[rule.field]

@@ -30,7 +30,7 @@ import {
  * - Making something is a change of its own, and removing it is for good. A
  *   change to something that is not there is ignored, so a late edit never
  *   brings a deleted playlist back.
- * - Plays and skips only add up, and the same one twice counts once.
+ * - Plays only add up, and the same one twice counts once.
  *
  * Since the latest stamp wins whenever a change is applied, the same changes
  * give every device the same library. The server applies these rules to its
@@ -47,7 +47,7 @@ export interface SyncLibrary {
   readonly aliases: Map<string, string>
   /** Links asked to be imported, and how each went. */
   readonly imports: Map<string, CloudImport>
-  /** Plays and skips counted during this replay, by id. */
+  /** Plays counted during this replay, by id. */
   readonly counted: Set<string>
 }
 
@@ -168,14 +168,6 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
         playCount: song.playCount + 1,
         lastPlayedAt: song.lastPlayedAt === null || song.lastPlayedAt < at ? at : song.lastPlayedAt,
       })
-      return true
-    }
-
-    case 'songSkipped': {
-      const song = library.songs.get(change.uid)
-      if (!song || library.counted.has(change.skipId)) return false
-      library.counted.add(change.skipId)
-      library.songs.set(song.uid, { ...song, skipCount: song.skipCount + 1 })
       return true
     }
 

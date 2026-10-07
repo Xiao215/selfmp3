@@ -49,7 +49,6 @@ function fakeServer(token: string | null) {
           ok: true,
           version: 'test',
           uptimeSeconds: 1,
-          storageDriver: 'local',
           songCount: 2,
         }),
       )

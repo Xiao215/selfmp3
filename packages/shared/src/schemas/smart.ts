@@ -27,7 +27,7 @@ export const TagRuleSchema = z.object({
 export type TagRule = z.infer<typeof TagRuleSchema>
 
 export const NumberRuleSchema = z.object({
-  field: z.enum(['playCount', 'skipCount', 'duration', 'year']),
+  field: z.enum(['playCount', 'duration', 'year']),
   op: z.enum(['gt', 'lt', 'eq', 'gte', 'lte']),
   value: z.number().finite(),
 })

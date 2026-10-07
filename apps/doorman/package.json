@@ -11,6 +11,7 @@
     "clean": "rm -rf dist-types tsconfig.tsbuildinfo"
   },
   "dependencies": {
+    "@selfmp3/client": "*",
     "@selfmp3/shared": "*",
     "aws4fetch": "^1.0.20",
     "zod": "^3.24.1"

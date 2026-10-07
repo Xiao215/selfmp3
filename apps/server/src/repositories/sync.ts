@@ -12,8 +12,8 @@ export interface StampRow {
 /**
  * What this server keeps to combine its edits with every other device's
  * (docs/SYNC.md): when each edited field was last set, which tag a second
- * uid for the same name means, how far into each device's log it has read,
- * and which skips from elsewhere it has already counted.
+ * uid for the same name means, and how far into each device's log it has
+ * read.
  */
 export class SyncRepository {
   readonly #db: Db
@@ -32,7 +32,6 @@ export class SyncRepository {
   readonly #playlist
   readonly #cursors
   readonly #setCursor
-  readonly #countSkip
 
   constructor(db: Db) {
     this.#db = db
@@ -79,7 +78,6 @@ export class SyncRepository {
       INSERT INTO cloud_log_cursors (device, seq) VALUES (?, ?)
       ON CONFLICT (device) DO UPDATE SET seq = MAX(seq, excluded.seq)
     `)
-    this.#countSkip = db.prepare('INSERT OR IGNORE INTO counted_skips (id) VALUES (?)')
   }
 
   // --- Stamps --------------------------------------------------------------
@@ -182,10 +180,5 @@ export class SyncRepository {
   /** Only ever moves forward. */
   setCursor(device: string, seq: number): void {
     this.#setCursor.run(device, seq)
-  }
-
-  /** True the first time a skip is seen, false every time after. */
-  countSkip(id: string): boolean {
-    return this.#countSkip.run(id).changes > 0
   }
 }

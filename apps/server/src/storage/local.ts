@@ -10,12 +10,8 @@ import { fileEtag, normalizeKey, type StorageDriver, type StorageStat } from './
 
 const AUDIO_EXTENSION_SET = new Set<string>(AUDIO_EXTENSIONS)
 
-/**
- * Local filesystem storage — the default, and what you want when the library
- * lives on the same machine as the server.
- */
+/** The library folder on the local filesystem. */
 export class LocalStorageDriver implements StorageDriver {
-  readonly name = 'local'
   readonly #root: string
 
   constructor(root: string) {
@@ -135,7 +131,7 @@ export class LocalStorageDriver implements StorageDriver {
     }
   }
 
-  localPath(key: string): string | null {
+  localPath(key: string): string {
     return this.#resolve(key)
   }
 }

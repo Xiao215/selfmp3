@@ -176,19 +176,6 @@ const ConfigSchema = z.object({
         .filter(Boolean),
     ),
 
-  storageDriver: z.enum(['local', 's3']).default('local'),
-
-  /** Only read when storageDriver is 's3'. */
-  s3: z
-    .object({
-      bucket: z.string().default(''),
-      region: z.string().default('auto'),
-      endpoint: z.string().default(''),
-      accessKeyId: z.string().default(''),
-      secretAccessKey: z.string().default(''),
-    })
-    .default({}),
-
   /**
    * The language model behind the smart features (docs/features/ai.md): any
    * endpoint that speaks OpenAI's chat completions with JSON-schema replies.
@@ -296,14 +283,6 @@ function readEnv(): unknown {
     ...resolveDirs(env),
     authToken: env['SELFMP3_AUTH_TOKEN'] ?? undefined,
     corsOrigins: env['SELFMP3_CORS_ORIGINS'] ?? undefined,
-    storageDriver: env['SELFMP3_STORAGE_DRIVER'] ?? undefined,
-    s3: {
-      bucket: env['SELFMP3_S3_BUCKET'] ?? undefined,
-      region: env['SELFMP3_S3_REGION'] ?? undefined,
-      endpoint: env['SELFMP3_S3_ENDPOINT'] ?? undefined,
-      accessKeyId: env['SELFMP3_S3_ACCESS_KEY_ID'] ?? undefined,
-      secretAccessKey: env['SELFMP3_S3_SECRET_ACCESS_KEY'] ?? undefined,
-    },
     ai: {
       baseUrl: env['SELFMP3_AI_BASE_URL'] || undefined,
       apiKey: env['SELFMP3_AI_API_KEY'] ?? undefined,
@@ -342,10 +321,6 @@ export function loadConfig(): Config {
       parsed.data.cloudDir === null || path.isAbsolute(parsed.data.cloudDir)
         ? parsed.data.cloudDir
         : path.join(parsed.data.dataDir, parsed.data.cloudDir),
-  }
-
-  if (config.storageDriver === 's3' && !config.s3.bucket) {
-    throw new Error('SELFMP3_STORAGE_DRIVER=s3 requires SELFMP3_S3_BUCKET to be set')
   }
 
   for (const dir of [config.libraryDir, config.dataDir, path.join(config.dataDir, 'covers')]) {

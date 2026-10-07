@@ -11,8 +11,7 @@ import { Plus } from '../../ui/components/Icons'
 import { ListenTags } from '../../ui/components/ListenTags'
 import { card } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
-import { followRules } from '../lists/followRules'
-import { followedTagIds, hasRulesBeyondTags } from './follows.model'
+import { followedTagIds, withFollowedTags } from './follows.model'
 
 /**
  * One line above the songs: the tags this playlist follows.
@@ -22,7 +21,9 @@ import { followedTagIds, hasRulesBeyondTags } from './follows.model'
  * library you browse by feel. In a tag-first app almost nobody opens a playlist
  * to ask about its loudness; they open it for the tags. So the tags are all
  * this takes, and they are shown in the same chips the library head uses, so
- * there is one thing to learn rather than two.
+ * there is one thing to learn rather than two. A rule the chips cannot draw —
+ * a length, a play count — is still followed: a chip edit changes only the
+ * tag rules (`withFollowedTags`) and keeps the rest as it was.
  *
  * **Stop filling** keeps every song. That is the whole reason this can be a
  * switch rather than a kind of playlist chosen up front: it is reversible in
@@ -32,7 +33,7 @@ export function FollowsRow({
   playlist,
   tags,
 }: {
-  playlist: Playlist
+  playlist: Extract<Playlist, { kind: 'live' }>
   tags: readonly Tag[]
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -43,27 +44,12 @@ export function FollowsRow({
 
   const tagIds = followedTagIds(playlist.rules)
   const chosen = tagIds.flatMap(id => tags.filter(tag => tag.id === id))
-  // A rule set from before this row existed can hold conditions it cannot
-  // draw — a play count, a length, a musical key. Editing the chips rewrites
-  // the whole set, so those would go without anyone being told. Saying so is
-  // the least this can do; it is a handful of playlists at most, and a silent
-  // loss is worse than an awkward sentence.
-  const alsoRules = hasRulesBeyondTags(playlist.rules)
 
   const setTags = (next: readonly number[]): void => {
     // The last tag cannot go: a playlist following nothing is empty, which
     // looks exactly like something having gone wrong. Stop following instead.
     if (next.length === 0) return
-    update.mutate({
-      id: playlist.id,
-      patch: {
-        rules: followRules({
-          tagIds: next,
-          sort: playlist.rules?.orderBy ?? 'addedAt',
-          descending: (playlist.rules?.order ?? 'desc') === 'desc',
-        }),
-      },
-    })
+    update.mutate({ id: playlist.id, patch: { rules: withFollowedTags(playlist.rules, next) } })
   }
 
   const toggle = (tagId: number): void =>
@@ -133,11 +119,6 @@ export function FollowsRow({
           />
         </View>
       ) : null}
-      {alsoRules ? (
-        <Text style={styles.warn} testID="follows-extra-rules">
-          It also follows conditions this page can’t show. Changing a tag here drops them.
-        </Text>
-      ) : null}
       {update.isError ? (
         <Text style={[styles.stopLabel, { color: accent.accent }]}>Couldn’t save that</Text>
       ) : null}
@@ -171,6 +152,5 @@ const styles = StyleSheet.create(theme => ({
   addLabel: { color: theme.colors.textMuted, fontSize: 11 },
   stop: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill },
   stopLabel: { color: theme.colors.textSecondary, fontSize: 11.5 },
-  warn: { width: '100%', color: theme.colors.warning, fontSize: 11.5 },
   panel: { width: '100%' },
 }))

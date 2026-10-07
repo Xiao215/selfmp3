@@ -107,8 +107,15 @@ export interface ApiContext {
 }
 
 /**
- * Where the last `/api/library` response is kept, so the app opens with a full
- * library on a plane rather than a spinner and an error.
+ * Run something once, after `ms`; the answer cancels it. The app's own
+ * `setTimeout`, handed in because this package compiles without timers.
+ */
+export type RunLater = (ms: number, run: () => void) => () => void
+
+/**
+ * Where a recent `/api/library` response is kept, so the app opens with a full
+ * library on a plane rather than a spinner and an error. How often it is
+ * written is `librarySnapshotWrites.ts`'s business.
  *
  * The browser puts it in IndexedDB and the phone puts it in a file. Both are
  * allowed to fail quietly: a snapshot that cannot be written is a worse

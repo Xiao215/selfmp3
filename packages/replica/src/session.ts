@@ -268,15 +268,6 @@ export function createCloudSession(
         method: 'POST',
         json: input,
       })
-      // A doorman from before this route answers 404, which `doormanFetch`
-      // hands back as an answer. It is not one here: say what to do instead.
-      if (response.status === 404) {
-        throw new DoormanError(
-          404,
-          'The sign-in service needs updating before it can ask Backblaze. Enter the address yourself for now.',
-          'no-route',
-        )
-      }
       return keepAnswer(session, response)
     },
 

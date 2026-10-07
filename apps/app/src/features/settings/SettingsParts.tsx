@@ -2,7 +2,7 @@ import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { oklchToHexAlpha, radius } from '@selfmp3/client'
+import { radius, withAlpha } from '@selfmp3/client'
 import { ChevronDown, ChevronRight } from '../../ui/components/Icons'
 import { Slider } from '../../ui/components/Slider'
 import { card, label as labelText, serif } from '../../ui/surfaces'
@@ -159,9 +159,17 @@ export function Notice({
   tone: 'warn' | 'error' | 'good'
   children: ReactNode
 }): ReactNode {
-  const hue = tone === 'warn' ? 78 : tone === 'error' ? 22 : 155
   return (
-    <View style={[styles.notice, { backgroundColor: oklchToHexAlpha(0.3, 0.06, hue, 0.3) }]}>
+    <View
+      style={[
+        styles.notice,
+        tone === 'warn'
+          ? styles.noticeWarnWash
+          : tone === 'error'
+            ? styles.noticeErrorWash
+            : styles.noticeGoodWash,
+      ]}
+    >
       <Text
         style={[
           styles.noticeText,
@@ -288,13 +296,17 @@ const styles = StyleSheet.create(theme => ({
     borderBottomRightRadius: 3,
     backgroundColor: theme.colors.accent,
   },
-  // Its tone is a wash of the notice's hue; no edge.
+  // Its tone is a wash of the palette's own warning, danger or good, as a
+  // review's removed and added names are (`smart/Review.tsx`); no edge.
   notice: {
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: radius.card,
     marginVertical: 8,
   },
+  noticeWarnWash: { backgroundColor: withAlpha(theme.colors.warning, 0.14) },
+  noticeErrorWash: { backgroundColor: withAlpha(theme.colors.danger, 0.14) },
+  noticeGoodWash: { backgroundColor: withAlpha(theme.colors.good, 0.14) },
   noticeText: { color: theme.colors.textPrimary, fontSize: 13, lineHeight: 19 },
   noticeError: { color: theme.colors.danger },
   noticeGood: { color: theme.colors.good },

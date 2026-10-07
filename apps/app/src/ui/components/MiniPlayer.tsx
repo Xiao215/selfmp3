@@ -10,14 +10,7 @@ import { usePlayer, usePlayerProgress, usePlayerStalled } from '../../player/Pla
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useSongColor } from '../useSongColor'
-import {
-  currentColorScheme,
-  MINI_PLAYER_HEIGHT,
-  motion,
-  NAV_HEIGHT,
-  radius,
-  space,
-} from '@selfmp3/client'
+import { MINI_PLAYER_HEIGHT, motion, NAV_HEIGHT, radius, space } from '@selfmp3/client'
 import { MINI_PLAYER_GAP, navBottom } from '../../shell/bottomInset'
 import { openQueueSheet } from '../../features/queue/queueSheet.store'
 import { Cover } from './Cover'
@@ -164,7 +157,7 @@ function MiniPlayerInner(): ReactNode {
       pointerEvents={sinking ? 'none' : 'auto'}
     >
       <View style={styles.clip} pointerEvents="none">
-        <MiniProgress color={songColor.color} />
+        <MiniProgress color={songColor.color} alpha={theme.colors.washAlpha} />
       </View>
 
       <Pressable
@@ -257,13 +250,13 @@ function Words({ song }: { song: Song }): ReactNode {
  * The wash, on its own: the one part of the strip that moves with the song.
  * Every tick redraws this and not the cover, the words and the buttons.
  */
-function MiniProgress({ color }: { color: string }): ReactNode {
+function MiniProgress({ color, alpha }: { color: string; alpha: number }): ReactNode {
   const { position, duration } = usePlayerProgress()
   return (
     <ProgressWash
       fraction={duration > 0 ? Math.min(1, position / duration) : 0}
       color={color}
-      alpha={currentColorScheme() === 'light' ? 0.18 : 0.26}
+      alpha={alpha}
       fade={24}
       line="foot"
     />

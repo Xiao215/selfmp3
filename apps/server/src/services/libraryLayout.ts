@@ -43,15 +43,12 @@ export async function isFreeOnDisk(
 /**
  * After a song's files are deleted, remove the folder it was in, if that
  * leaves it empty. Finder's `.DS_Store` does not count as something left.
- * Object storage has no folders, so there is nothing to do there.
  */
 export async function removeFolderIfEmpty(storage: StorageDriver, key: string): Promise<void> {
   const folder = path.posix.dirname(key)
   if (folder === '.') return
-  const local = storage.localPath(folder)
-  if (!local) return
-
   try {
+    const local = storage.localPath(folder)
     const left = await fsp.readdir(local)
     if (left.some(name => name !== '.DS_Store')) return
     await fsp.rm(path.join(local, '.DS_Store'), { force: true })

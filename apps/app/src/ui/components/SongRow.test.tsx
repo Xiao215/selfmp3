@@ -21,6 +21,34 @@ jest.mock('../useSongColor', () => {
   }
 })
 
+/*
+ * The row's press spring, heard where it is handed out: each press in and out
+ * of whatever wears `usePressScale`'s handlers, on top of the real spring.
+ */
+const mockPresses: string[] = []
+jest.mock('../motion', () => {
+  const actual = jest.requireActual<typeof import('../motion')>('../motion')
+  return {
+    ...actual,
+    usePressScale: (...args: Parameters<typeof actual.usePressScale>) => {
+      const press = actual.usePressScale(...args)
+      return {
+        style: press.style,
+        handlers: {
+          onPressIn: () => {
+            mockPresses.push('in')
+            press.handlers.onPressIn()
+          },
+          onPressOut: () => {
+            mockPresses.push('out')
+            press.handlers.onPressOut()
+          },
+        },
+      }
+    },
+  }
+})
+
 /**
  * One song row, everywhere.
  *
@@ -53,7 +81,6 @@ const song: Song = {
   lyricsKind: 'none',
   instrumental: false,
   playCount: 0,
-  skipCount: 0,
   loved: false,
   sourceUrl: null,
   lastPlayedAt: null,
@@ -181,5 +208,31 @@ describe('a row that is not playing', () => {
     // Across the breakpoint it is a different row, and it says so.
     await act(async () => setRootWidth(1200))
     expect(mockRowRenders).toBeGreaterThan(drawn)
+  })
+})
+
+describe('a row on a computer', () => {
+  /*
+   * The wide row's main press target springs as the phone's does, so a mouse
+   * press gives under the pointer as a finger's gives under the finger. The
+   * spring itself runs on the native driver, which a test cannot watch, so
+   * this checks the press reaches it (`mockPresses`) — and that it is an
+   * animated value, not a render: the list's rows stay as they are.
+   */
+  it('springs under a press on its main target, without drawing the row again', async () => {
+    await act(async () => setRootWidth(1200))
+    await render(<SongRow {...playlistRow()} />)
+    const drawn = mockRowRenders
+    mockPresses.length = 0
+    const main = screen.getByLabelText(`${song.title}, ${song.artist}`)
+
+    await fireEvent(main, 'pressIn')
+    await fireEvent(main, 'pressOut')
+    expect(mockPresses).toEqual(['in', 'out'])
+    expect(mockRowRenders).toBe(drawn)
+
+    // The ⋯ presses as itself: the row does not give under it.
+    await fireEvent(screen.getByLabelText(`More actions for ${song.title}`), 'pressIn')
+    expect(mockPresses).toEqual(['in', 'out'])
   })
 })

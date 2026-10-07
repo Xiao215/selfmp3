@@ -38,7 +38,6 @@ export function song(fields: Partial<Song> & Pick<Song, 'id' | 'title' | 'artist
     lyricsKind: 'none',
     instrumental: false,
     playCount: 0,
-    skipCount: 0,
     loved: false,
     sourceUrl: null,
     lastPlayedAt: null,

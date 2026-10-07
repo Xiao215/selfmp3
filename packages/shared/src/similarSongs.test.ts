@@ -30,7 +30,6 @@ const song = (id: number, patch: Partial<Song> = {}): Song => ({
   lyricsKind: 'none',
   instrumental: false,
   playCount: 0,
-  skipCount: 0,
   loved: false,
   sourceUrl: null,
   lastPlayedAt: null,

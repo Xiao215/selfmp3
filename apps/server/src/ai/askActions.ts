@@ -2,6 +2,7 @@ import { z } from 'zod/v4'
 import {
   AskOrderSchema,
   AskPlaceSchema,
+  AskPlaybackOpSchema,
   AskSortSchema,
   AskStatsRangeSchema,
   editDistance,
@@ -181,6 +182,31 @@ const songs = action({
     // The song playing is what they are steering from, never one of the picks.
     const describe = { ...found, picks: found.picks.filter(pick => pick.songId !== playing?.id) }
     return { kind: 'songs', lead: steering ? 'next' : play ? 'play' : 'save', describe }
+  },
+})
+
+/** The furthest into Up next a place may count, either way: past any queue anyone keeps. */
+const MAX_PLACE = 1000
+
+/**
+ * The music playing, controlled: the device carries it out (AskAnswer's
+ * `playback`), since only it knows what is playing and what is in its Up next.
+ * Nothing about the queue is sent here; a place in Up next is counted the way
+ * the words say it, from the front or from the back, and the device finds it.
+ */
+const playback = action({
+  name: 'playback',
+  when: 'they want the music already playing controlled, not new music chosen: skip this song or go to the next one, go back to the song before, start this song again, pause or stop, carry on playing, or play one song already in Up next (the queue) by its place in it ("play the last song in Up next", "play the third song in the queue"). Fill "playback": op is next, previous, restart, pause, resume or upNext; for upNext, place counts from the front of Up next, 1 for the first and 3 for the third, or from the back as -1 for the last and -2 for the one before it; for every other op place is null. Asking for music to play or to queue is "songs", not this.',
+  fields: z.object({
+    op: z.enum(AskPlaybackOpSchema.options),
+    place: z.number().int().min(-MAX_PLACE).max(MAX_PLACE).nullable(),
+  }),
+  filters: 'unused',
+  run: (_context, { op, place }) => {
+    if (op !== 'upNext') return { kind: 'playback', op, place: null }
+    // "The song in Up next" with no place is not one the device can find.
+    if (place === null || place === 0) return none('Say which song in Up next to play.')
+    return { kind: 'playback', op, place }
   },
 })
 
@@ -402,6 +428,7 @@ const open = action({
 /** Every action, in the order the router is told them. */
 export const ASK_ACTIONS: readonly AskAction<unknown>[] = [
   songs,
+  playback,
   find,
   tags,
   stats,

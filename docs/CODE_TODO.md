@@ -157,10 +157,10 @@ Found on the way, also fixed: `apps/server/src/services/lookup.ts` held a raw NU
 - [x] **T-120 `HARDCODE` M** — `SIDEBAR_WIDTH = 244` re-declared in `ui/components/SongRow.tsx:45` while `shell/Sidebar.tsx:98` exports it.
 - [x] **T-121 `HARDCODE` M** — `BAR = 84` in `NowPlayingStage.tsx:70` duplicates `PLAYER_BAR_HEIGHT` (`shell/PlayerBar.tsx:63`); `stageMove.model.ts:25` `COVER_TOP = 84` is the same coincidence.
 - [x] **T-122 `HARDCODE` M** — Three different modal backdrops, none from the palette: `Sheet.tsx:248`, `QueueSheet.tsx:540` (`rgba(0,0,0,0.55)`); `ConfirmDialog.tsx:85`, `ConfirmRemoveSongs.tsx:76` (`oklch(… 0.62)`); `CommandPalette.tsx:257`, `MetadataDialog.tsx:276`, `FixMetadata.tsx:101` (`… 0.6`). Add `theme.colors.backdrop`.
-- [ ] **T-123 `HARDCODE` M** — Danger/warning/good "wash" colours re-derived in `ConfirmRemoveSongs.tsx:263`, `settings/SettingsParts.tsx:157-159`, `metadata/MetadataDialog.tsx:36-39`, `SongRow.tsx:771` (`Sheet.tsx:338` does it right with `withAlpha`). Palette tokens `dangerWash`/`warningWash`/`goodWash`.
+- [x] **T-123 `HARDCODE` M** — Danger/warning/good "wash" colours re-derived in `ConfirmRemoveSongs.tsx:263`, `settings/SettingsParts.tsx:157-159`, `metadata/MetadataDialog.tsx:36-39`, `SongRow.tsx:771` (`Sheet.tsx:338` does it right with `withAlpha`). Palette tokens `dangerWash`/`warningWash`/`goodWash`.
 - [x] **T-124 `HARDCODE` M** — Cover shadows hard-code black: `NowPlayingStage.tsx:889-892`, `NowPlayingScreen.tsx:893-897`, `QueueRail.tsx:550`; `surfaces.ts:151` (`artShadow`) exists for exactly this.
-- [ ] **T-125 `HARDCODE` M** — Placeholder tile colour is an `hsl()` literal (`Cover.tsx:60`), the same grey in both themes; every other tile goes through `tileTone`/`tagColors`.
-- [ ] **T-126 `HARDCODE` L** — Tag-editor swatches hand-compute OKLCH (`TagEditor.tsx:151-157`) instead of `tagColors(hue)`; `Checkbox.tsx:8` `DANGER_TICK` instead of `onAccent`.
+- [x] **T-125 `HARDCODE` M** — Placeholder tile colour is an `hsl()` literal (`Cover.tsx:60`), the same grey in both themes; every other tile goes through `tileTone`/`tagColors`.
+- [x] **T-126 `HARDCODE` L** — Tag-editor swatches hand-compute OKLCH (`TagEditor.tsx:151-157`) instead of `tagColors(hue)`; `Checkbox.tsx:8` `DANGER_TICK` instead of `onAccent`.
 - [x] **T-127 `HARDCODE` L** — Raw `Easing.bezier(...)` re-typed in `Popover.tsx:145`, `ToastHost.tsx:82`, `NowPlayingStage.tsx:286,293` while `ui/motion.ts:90-91` exports `ease.out`/`ease.in`.
 - [x] **T-128 `HARDCODE` L** — Hold durations scattered: `Chip.tsx:81`, `SongRow.tsx:255,390` (450), `TagsScreen.tsx:339` (450), `HoldToReorder.tsx:48` (350). Side margins: `MiniPlayer.tsx:177-178` (12) vs `BottomNav.tsx:108` (16).
 - [x] **T-129 `HARDCODE` L** — `borderRadius: 999` ×6 instead of `radius.pill`; ad-hoc row radii 12/14 in ~15 files; page top padding differs per phone screen (4/6/10/12/16/18). Add `radius.row`, `space.pageTop`.
@@ -593,7 +593,6 @@ About 300 findings went in. The ones fixed are not listed one by one here; the c
 - **T-039** — caching `all()` on `libraryVersion()` would serve stale play counts (plays do not move the version); leave it.
 - **T-197, T-198** — whole-view rebuild per edit and whole-library walks in sync: only worth it when measured.
 - **T-212** (`wrangler.toml` origin list), **T-215** (aws4fetch cache key), **T-232** (extension and desktop e2e suites not in CI — needs browsers/Electron on the runner), **T-242** (Docker builder dev deps — the daemon was not running, so the image could not be rebuilt and checked).
-- **T-125, T-126** and the settings `Notice` wash (T-123's last site) — colour changes, left for the owner.
 - **Queue rail virtualisation** (3,000 rows on a shuffled library): the memo fix shipped; a FlatList under hold-to-reorder was not, because nothing in `npm run check` drives a rail drag.
 - **`decodeGzipOrText`** is still written twice (extension, app web port): the packages that could hold it are deliberately compiled without DOM.
 - **`electron-builder.yml` / `apps/desktop/package.json`** still spell the GitHub owner/repo (rest of T-204); the extension's `build.mjs` still copies `apps/app/public/icons` (rest of T-240).
@@ -601,18 +600,19 @@ About 300 findings went in. The ones fixed are not listed one by one here; the c
 
 ## For the owner
 
-- The doorman bundle changed (sign-in code fragment, bucket-format judge, hash-named folders, `formatZodError`, identity schema). It needs a manual `wrangler deploy`. The one visible change: a refused Backblaze connect now lists every field issue, not only the first.
-- The modal backdrop is one token now: the sheets go from black at 0.55 to the accent-tinted near-black at 0.6 the dialogs used; the confirm dialogs from 0.62 to 0.6.
-- Open questions, each a product call, not done:
-  1. **Skips are never recorded.** `recordSkipListen` had no caller, so the outbox `skip` kind, `api.recordSkip`, the replica's `/skipped` and the server's skip route are unreachable. Wire skips up, or delete the pipeline? (Skips also carry no time: a skip flushed late is stamped with the flush time.)
-  2. **S3 as the library store** (`SELFMP3_STORAGE_DRIVER=s3`) predates the bucket being the source of truth. Delete the driver and its config (and `Health.storageDriver`), or keep it?
-  3. **`songs_fts`** and its three triggers are now read by nothing (`GET /search` is gone) but cost every song write. Drop them with an appended migration?
-  4. **Report vs Stats night hours:** Stats' peak-hour words use personality's bands (22–04); the Report's sentence uses 21–04 and morning before 12. Unify?
-  5. **Follows row warning** for rules "from before this row existed" (`hasRulesBeyondTags`) looks like a compat shim; deleting it would drop non-tag rules from any old playlist on the next chip edit. Check the Pi library first.
-  6. **Palette song rows** play the whole library from that song; Library and Search's lyric hits now play one song alone. Match them?
-  7. **Home's recently-played tiles** play without a source; naming one ("Recently played"?) adds an Up next label.
-  8. **SongRow on a computer** wraps the row in a press-scale view that nothing drives: wire the press spring on wide rows, or drop the wrapper?
-  9. **Web visual**: caching the ground, washes and disc shadow off-screen would save full-canvas fills each frame in Focus, but the flash would render slightly differently.
-  10. **`useLibrary` snapshot writes** on every answer could be skipped when the version is unchanged, but plays do not move the version, so the offline copy would lag play counts.
-  11. The replica's `connectBackblaze` 404 shim for a doorman "from before this route" — delete once the deployed doorman is known to have the route.
-  12. Small colour items left as they are: CoverFlight's ghost shadow (`#000`), MiniPlayer's wash alpha by scheme, the dmg background and doorman page palettes copied by hand, `useFade` + `usePresence` run side by side (merging changes the exit curve).
+All answered the same day (2026-10-07) and done:
+
+- The doorman was redeployed after the first wave; it changes again with the palette work below and is redeployed with it.
+- The modal backdrop is one token: the sheets went from black at 0.55 to the accent-tinted near-black at 0.6 the dialogs used; the confirm dialogs from 0.62 to 0.6.
+- [x] **Skips** — the pipeline is deleted end to end (outbox kind, `api.recordSkip`, the replica's and the server's routes, `skipCount` on songs and in smart rules); migration 30 drops `songs.skip_count` and `counted_skips`. Ask can still skip for a person: a `playback` answer moves on, goes back, restarts, pauses, resumes, or plays the Nth or last song in Up next, worked out on the device.
+- [x] **S3 as the library store** — deleted with its config, `Health.storageDriver` and the SETUP section; the bucket's own S3 client moved to `bucket/s3.ts`.
+- [x] **`songs_fts`** — migration 31 drops it and its triggers.
+- [x] **Night hours** — `hourBand()` in shared; Stats and the Report read the same bands (10–17 now reads "during the day").
+- [x] **Follows row** — a chip edit changes only the tag rules and keeps every other rule; the warning is gone (the live library has a playlist with a duration rule).
+- [x] **Palette song rows** play the one song, as a Library row does (`playAlone`).
+- [x] **Home's recently played tiles** play as "Recently played" (no Save; not remembered as a list).
+- [x] **Wide song rows** give under a mouse press, as on a phone.
+- [x] **Web visual** — the ground, washes and disc shadow are painted once off-screen and copied in; the flash is a wash over them (82 → 34 ms a frame under software rendering).
+- [x] **Snapshot writes** — written at once when the library version moves, else at most every five minutes.
+- [x] **The replica's doorman-404 shim** — deleted; the deployed doorman has the route.
+- [x] **Colour leftovers** — CoverFlight, MiniPlayer's wash alpha, `useFade`+`usePresence`, the settings notices (T-123), the no-cover tile (T-125), the hue swatches (T-126), and the dmg and doorman pages all come from the palettes now.

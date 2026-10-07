@@ -52,6 +52,13 @@ describe('oklchToHex', () => {
     expect(built.accentSelected).toMatch(/^#[0-9a-f]{6}47$/)
   })
 
+  it('washes a song or the accent at one strength per theme', () => {
+    expect(buildAccent(268, 'dark').washAlpha).toBe(0.26)
+    expect(buildAccent(268, 'light').washAlpha).toBe(0.18)
+    // The light accent's wash is drawn at it too: 18% is the byte 0x2e.
+    expect(buildAccent(268, 'light').accentWash).toBe(`${buildAccent(268, 'light').accent}2e`)
+  })
+
   it('leaves the palette exactly where it was written by hand', () => {
     // These four were hand-derived at hue 268 before any of this existed;
     // computing them has to land on the same values or the app changes colour.
@@ -148,6 +155,11 @@ describe('a tag, from its hue', () => {
       tileInk: oklchToHex(0.85, 0.1, hue),
       dot: oklchToHex(0.8, 0.12, hue),
     })
+  })
+
+  it('ticks a swatch in the darker of the tile’s two colours', () => {
+    expect(tagColors(150, 'dark').onDot).toBe(tagColors(150, 'dark').tile)
+    expect(tagColors(150, 'light').onDot).toBe(tagColors(150, 'light').tileInk)
   })
 
   it('gives two hues two different tiles', () => {

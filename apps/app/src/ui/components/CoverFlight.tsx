@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, StyleSheet, View } from 'react-native'
+import { Animated, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import { MOVE_MS } from '../motion.model'
 import { ease, spring, timing, useMotionReduced } from '../motion'
 import {
@@ -12,6 +13,7 @@ import {
   type Flight,
 } from '../coverFlight'
 import { Cover } from './Cover'
+import { artShadow } from '../surfaces'
 
 /**
  * Where flying covers are drawn (`ui/coverFlight.ts`): over everything, under
@@ -56,6 +58,8 @@ function OneFlight({ flight }: { flight: Flight }): ReactNode {
   // sends a cover-sized one, not a head-sized one.
   const size = Math.min(from.width, from.height, 72)
   const landing = Math.min(to.width, to.height) * 0.6
+  // The ghost wears the cover's corners, so the shadow it casts is round too.
+  const corners = Math.round(size / 6)
   const startX = from.x + from.width / 2 - size / 2
   const startY = from.y + from.height / 2 - size / 2
   const dx = to.x + to.width / 2 - (startX + size / 2)
@@ -77,6 +81,7 @@ function OneFlight({ flight }: { flight: Flight }): ReactNode {
                 top: startY + index * 6,
                 width: size,
                 height: size,
+                borderRadius: corners,
                 opacity: value.interpolate({ inputRange: [0, 0.75, 1], outputRange: [1, 1, 0] }),
                 transform: [
                   {
@@ -101,7 +106,7 @@ function OneFlight({ flight }: { flight: Flight }): ReactNode {
               },
             ]}
           >
-            <Cover uri={uri} title="" size={size} radius={Math.round(size / 6)} />
+            <Cover uri={uri} title="" size={size} radius={corners} />
           </Animated.View>
         )
       })}
@@ -138,12 +143,8 @@ export function UpNextTarget({ children }: { children: ReactNode }): ReactNode {
   )
 }
 
-const styles = StyleSheet.create({
-  ghost: {
-    position: 'absolute',
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-  },
-})
+const styles = StyleSheet.create(theme => ({
+  // A flying cover is artwork, so it casts what artwork casts, from the
+  // palette: the leaning cover's shadow, a soft one on Paper.
+  ghost: { position: 'absolute', ...artShadow(theme.colors, 'lean') },
+}))

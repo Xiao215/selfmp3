@@ -15,6 +15,10 @@ export default defineConfig({
     // entry comes before the bare package name, so it is matched first.
     alias: [
       { find: '@selfmp3/client/core', replacement: here('./packages/client/src/core.ts') },
+      {
+        find: '@selfmp3/client/tokens',
+        replacement: here('./packages/client/src/theme/tokens.ts'),
+      },
       { find: '@selfmp3/client', replacement: here('./packages/client/src/index.ts') },
       { find: '@selfmp3/shared', replacement: here('./packages/shared/src/index.ts') },
       { find: '@selfmp3/replica', replacement: here('./packages/replica/src/index.ts') },

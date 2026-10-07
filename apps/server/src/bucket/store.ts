@@ -2,14 +2,7 @@ import { createHash } from 'node:crypto'
 import { Readable } from 'node:stream'
 import type { S3Client } from '@aws-sdk/client-s3'
 import type { CloudConnection } from '../repositories/cloud.js'
-import {
-  errorName,
-  errorStatus,
-  isNotFound,
-  loadS3,
-  streamToBuffer,
-  type S3Module,
-} from '../storage/s3.js'
+import { errorName, errorStatus, isNotFound, loadS3, streamToBuffer, type S3Module } from './s3.js'
 import { messageOf } from '../util/errors.js'
 
 /**

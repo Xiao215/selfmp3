@@ -200,6 +200,7 @@ list as it is: what would change is the loop, not the actions.
 | Action | The words | What runs | Second call |
 |---|---|---|---|
 | `songs` | "play something calm for reading", "make a playlist of…" | Describe's steps 2–3 (the route *is* the plan) | the pick |
+| `playback` | "skip this song", "go back", "pause", "play the last song in Up next", "play the third song in the queue" | the device carries it out on its own player (Controlling what plays, below) | none |
 | `find` | "the song about grandma's tea" | its terms, in every language the library uses, matched against titles, artists, albums and the lyrics index | a pick of at most 5 |
 | `tags` | "tag the songs that should be 中文流行", "merge j-anime into jpop", "tidy my tags" | the tag review, with the request itself (Tags, below) | the plan, then the groups |
 | `stats` | "what did I play most last month" | the stats the Stats page shows; the model only chose the window and what about | none |
@@ -211,7 +212,8 @@ list as it is: what would change is the loop, not the actions.
 
 Every answer is a proposal with its own button (`AskAnswer.tsx`): a song answer is a card
 with ▶ that opens as its own page (docs/features/lists.md, "Ask's song answer"), the tag
-review's Apply, Open Stats, a found song to play, Play these.
+review's Apply, Open Stats, a found song to play, Play these. The one exception is
+`playback`, which is done as it arrives.
 
 A dead end is not one: `none` carries `try`, at most two requests in the asker's language
 that the box can do and that come closest ("tag the good ones" → "tag the songs that should
@@ -542,6 +544,26 @@ playing stops. Without a song playing, `next` falls back to the usual playlist a
 
 Measured on the real library: about 10 s, "calmer" read as an energy range under the
 playing song's.
+
+## Controlling what plays
+
+"Skip this song", "go back", "start this again", "pause", "carry on", "play the last song in
+Up next", "play the third song in the queue": the router chooses `playback` and fills an `op`
+(`next`, `previous`, `restart`, `pause`, `resume` or `upNext`) and, for `upNext`, a `place`
+in Up next counted the way the words did, 1 for the first and -1 for the last. The server
+never sees the queue: the answer is only what was asked for, and the device that asked finds
+the song in its own Up next (`playbackAnswer.model.ts`). An `upNext` with no place is a
+`none` ("Say which song in Up next to play").
+
+It is the one answer carried out without a button (`PlaybackAnswer.tsx`, through
+`usePlayerCommands()`), since it is what the buttons beside the music already do, and a line
+says what was done: "Skipped to the next song.", "Back to “晴天”.", "Playing “群青”, the last
+in Up next.", or why nothing was ("Up next has only 3 songs.", "Already paused.", "Nothing is
+playing."). It runs once per answer, however often the answer is drawn again. Next and
+starting again are the player's own commands, so they keep the music playing or paused as it
+was. Going back is the song before in the queue, never this song from its start — by the time
+an answer comes back the song is past the three seconds after which the Previous button
+restarts it — and going back, like a song in Up next, plays the song it lands on.
 
 ## A5 · The Report in words
 

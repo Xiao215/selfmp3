@@ -301,7 +301,6 @@ the top of the checkout (copy `.env.example`; git ignores `.env`).
 | `SELFMP3_DOORMAN_URL` | the one in `packages/shared/src/cloud.ts` | The doorman this server signs in to the cloud through. Empty for none |
 | `SELFMP3_AI_BASE_URL` | unset | An OpenAI-compatible endpoint for the smart features ([docs/features/ai.md](docs/features/ai.md)); also `SELFMP3_AI_API_KEY`, `SELFMP3_AI_MODEL_FAST`, `SELFMP3_AI_MODEL_SMART` (both `sonnet`) and `SELFMP3_AI_TIMEOUT_SECONDS` (240). Unset, they are off |
 | `SELFMP3_CORS_ORIGINS` | none | Comma-separated origins allowed to call the API; none means same-origin only |
-| `SELFMP3_STORAGE_DRIVER` | `local` | `local` or `s3` |
 | `SELFMP3_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error`, `silent` |
 | `SELFMP3_SCAN_ON_BOOT` | `true` | Sweep the inbox folder at startup, so a file dropped in while the server was off is imported |
 | `SELFMP3_CLOUD_DIR` | unset | A folder to use as the bucket instead of an account — the dev profile and the verify lanes run with one. Relative to the data directory unless absolute |
@@ -309,10 +308,7 @@ the top of the checkout (copy `.env.example`; git ignores `.env`).
 | `SELFMP3_SOUND_MODELS` | the `sound-models-v1` release | Where the model's files come from: an address, or a folder that already holds them ([scripts/sound-models](scripts/sound-models/README.md)) |
 | `SELFMP3_SOUND_THREADS` | `2` | CPU threads the model may use while it listens |
 
-For the `s3` driver, also set `SELFMP3_S3_BUCKET`, `SELFMP3_S3_REGION`,
-`SELFMP3_S3_ENDPOINT`, `SELFMP3_S3_ACCESS_KEY_ID` and `SELFMP3_S3_SECRET_ACCESS_KEY`.
-That is the server's own storage;
-the bucket every device syncs with is set up separately, in [SYNC.md](docs/SYNC.md).
+The bucket every device syncs with is set up separately, in [SYNC.md](docs/SYNC.md).
 
 Day-to-day behaviour — crossfade, the watched folder, romanization — lives in the app's
 Settings rather than in the environment, so every device agrees on it.

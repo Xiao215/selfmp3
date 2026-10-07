@@ -33,10 +33,10 @@ describe('the automatic rescan', () => {
       const scan = vi.fn(() => Promise.resolve({ added: 1, updated: 0, total: 1, durationMs: 0 }))
       const onChanged = vi.fn()
       const watcher = new LibraryWatcherService({
-        // Object storage: no folder to watch, so only the timer is in play.
-        config: { storageDriver: 's3' } as Config,
+        // The folder is not watched, so only the timer is in play.
+        config: {} as Config,
         settings: {
-          get: () => ({ watchLibrary: true, autoScanMinutes: minutes }) as Settings,
+          get: () => ({ watchLibrary: false, autoScanMinutes: minutes }) as Settings,
         } as SettingsRepository,
         scanner: { isRunning: false, scan } as unknown as ScannerService,
         onChanged,

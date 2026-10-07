@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { ActivityIndicator, Animated, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLayoutValue } from '../../shell/useLayout'
-import { useFade, useMinimumBusy, usePresence } from '../motion'
+import { useMinimumBusy, usePresence } from '../motion'
 import { tip } from '../tip'
 import { Press } from './Press'
 import { HIT_TARGET, motion, radius } from '@selfmp3/client'
@@ -64,10 +64,13 @@ export function Button({
   const spin = useMinimumBusy(busy)
   // Kept mounted for as long as its fade out takes, so the swap is a crossfade
   // rather than a cut. Both halves are the same length: a crossfade with a
-  // shorter exit leaves a frame with neither thing on it.
+  // shorter exit leaves a frame with neither thing on it. The icon is the
+  // spinner's fade turned round, one value for the two of them.
   const spinner = usePresence(spin, motion.fast, motion.fast)
-  const iconShown = useFade(!spin, motion.fast, motion.fast)
-  const iconFade = useMemo(() => ({ opacity: iconShown }), [iconShown])
+  const iconFade = useMemo(
+    () => ({ opacity: spinner.progress.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }),
+    [spinner.progress],
+  )
   const spinnerFade = useMemo(() => ({ opacity: spinner.progress }), [spinner.progress])
   const ink = active
     ? styles.inkOnPrimary

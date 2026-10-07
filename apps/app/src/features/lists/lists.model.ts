@@ -23,8 +23,21 @@ import {
  * name, and Save turns it into a playlist once you know you want it again.
  */
 
-/** Songs played as a list that is neither a tag, an artist nor a playlist. */
-const SONGS_ORIGINS = ['search', 'similar', 'selection', 'gems', 'untagged', 'found'] as const
+/**
+ * Songs played as a list that is neither a tag, an artist nor a playlist.
+ * `recent` is Home's Recently played row of songs played on their own: Up next
+ * names it, but it is neither saved nor remembered as a list of its own, since
+ * Recently played already is that list.
+ */
+const SONGS_ORIGINS = [
+  'search',
+  'similar',
+  'selection',
+  'gems',
+  'untagged',
+  'found',
+  'recent',
+] as const
 type SongsOrigin = (typeof SONGS_ORIGINS)[number]
 
 export type ListSource =
@@ -56,6 +69,23 @@ export type ListSource =
       readonly answerId?: string
     }
   | { readonly kind: 'songs'; readonly origin: SongsOrigin; readonly name: string }
+
+/**
+ * A song picked out of a general list — a Library row, a song or a lyric hit
+ * in the palette — played alone: Up next becomes just it, and whatever it held
+ * is gone (Xiao, 2026-10-03). A song chosen from the whole library is the one
+ * wanted, not the rows around it. One song is not a list, so it goes with no
+ * source: Up next wears no name for it and offers no Save. A list that is a
+ * place — a tag's, an artist's or a playlist's page, an answer — still plays
+ * the list from the row, and so does Search, whose rows are what was searched
+ * for (docs/features/lists.md).
+ */
+export function playAlone(
+  player: { readonly playFrom: (songIds: readonly number[], startIndex: number) => void },
+  songId: number,
+): void {
+  player.playFrom([songId], 0)
+}
 
 /** What a source's line links to, as plain data the screen hands the router. */
 interface SourceLink {
@@ -306,7 +336,9 @@ export function savePlan(
     case 'answer':
       return songs(source.name)
     case 'songs':
-      return source.origin === 'untagged' ? null : songs(source.name)
+      // Songs that need a tag are a chore, not a list; Recently played is
+      // already kept, on Home, and a playlist of it would be stale tomorrow.
+      return source.origin === 'untagged' || source.origin === 'recent' ? null : songs(source.name)
   }
 }
 
@@ -389,7 +421,9 @@ export interface RecentList {
 
 /**
  * Which list this is, for remembering it once; null for what Recently played
- * does not keep as a list (the whole library, songs that need a tag).
+ * does not keep as a list (the whole library, songs that need a tag, and its
+ * own songs played again, which stay tiles of their own rather than folding
+ * into a "Recently played" tile inside Recently played).
  */
 export function sourceKey(source: ListSource, songIds: readonly number[]): string | null {
   switch (source.kind) {
@@ -407,7 +441,9 @@ export function sourceKey(source: ListSource, songIds: readonly number[]): strin
       return `answer:${source.text.trim().toLowerCase()}`
     case 'songs':
       // One song is shown as that song; Recently played already has it.
-      if (source.origin === 'untagged' || songIds.length < 2) return null
+      if (source.origin === 'untagged' || source.origin === 'recent' || songIds.length < 2) {
+        return null
+      }
       return `songs:${source.origin}:${songIds.join(',')}`
   }
 }
@@ -577,6 +613,8 @@ export function recentKind(source: ListSource): string {
           return 'From Search'
         case 'untagged':
           return 'Need a tag'
+        case 'recent':
+          return 'Recently played'
       }
   }
 }

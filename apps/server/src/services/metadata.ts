@@ -1,6 +1,6 @@
 import path from 'node:path'
-import { parseFile, parseBuffer, type IAudioMetadata } from 'music-metadata'
-import { cleanArtist, mimeForExtension } from '@selfmp3/shared'
+import { parseFile, type IAudioMetadata } from 'music-metadata'
+import { cleanArtist } from '@selfmp3/shared'
 import type { StorageDriver } from '../storage/index.js'
 import type { Logger } from '../logger.js'
 import { messageOf } from '../util/errors.js'
@@ -123,19 +123,12 @@ export class MetadataService {
   /**
    * Read metadata for one library item.
    *
-   * Prefers streaming from a real path (cheap: music-metadata only reads the
-   * header) and falls back to buffering the whole object when storage has no
-   * local path, as with S3.
+   * Read from the file's real path, which is cheap: music-metadata only reads
+   * the header.
    */
   async read(key: string): Promise<ExtractedMetadata> {
-    const extension = path.extname(key).toLowerCase()
-    const mime = mimeForExtension(extension)
-
     try {
-      const local = this.#storage.localPath(key)
-      const parsed = local
-        ? await parseFile(local, { duration: true })
-        : await parseBuffer(await this.#storage.read(key), { mimeType: mime }, { duration: true })
+      const parsed = await parseFile(this.#storage.localPath(key), { duration: true })
       return fromParsed(parsed, key)
     } catch (error) {
       this.#logger.debug('could not read tags, falling back to filename', {

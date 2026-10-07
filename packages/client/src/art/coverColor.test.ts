@@ -46,12 +46,14 @@ describe('neutralWash', () => {
 })
 
 describe('tileTone', () => {
-  it('follows the letter tile’s hue', () => {
-    // hsl(0, 28%, 26%) is a muted brick red.
-    const red = tileTone(0)
-    expect(red.hue).toBeGreaterThan(0)
-    expect(red.hue).toBeLessThan(40)
-    expect(tileTone(220).hue).toBeGreaterThan(230)
+  it('is the tone of the letter tile, a tag tile in that hue', () => {
+    for (const scheme of ['dark', 'light'] as const) {
+      // Read back from the tile's hex, so a few degrees off the hue it was made at.
+      expect(Math.abs(tileTone(220, scheme).hue - 220), scheme).toBeLessThan(8)
+    }
+    // Deep in the dark, pale on Paper: the light tile carries less colour.
+    expect(tileTone(0, 'dark').chroma).toBeCloseTo(0.07, 2)
+    expect(tileTone(0, 'light').chroma).toBeCloseTo(0.045, 2)
   })
 })
 

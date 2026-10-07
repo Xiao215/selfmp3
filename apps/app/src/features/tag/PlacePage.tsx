@@ -19,7 +19,7 @@ import { ListHead, listHeadText } from '../../ui/components/ListHead'
 import { ChevronLeft, More, Play, Plus, Shuffle, User } from '../../ui/components/Icons'
 import { SongList } from '../../ui/components/SongList'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
-import { SongMenu } from '../../ui/components/SongMenu'
+import { useSongMenu } from '../../ui/components/useSongMenu'
 import { SongRow } from '../../ui/components/SongRow'
 import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
 import { useSongColor } from '../../ui/useSongColor'
@@ -437,8 +437,7 @@ function PlaceSongs({
   const artFor = useArt()
   const { wide } = useLayout()
   const { state: downloads } = useDownloads()
-  const [menuSong, setMenuSong] = useState<Song | null>(null)
-  const anchor = useRef<View | null>(null)
+  const { openId: menuSongId, onMore, menu } = useSongMenu()
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   const selection = useSelection(ids)
   // Newest first, or an artist's albums one after another: the scrollbar's bubble says which.
@@ -457,10 +456,6 @@ function PlaceSongs({
     const index = now.indexOf(song.id)
     if (index >= 0) playFrom(now, index, { source: named })
   }, [])
-  const onMore = useCallback((node: View | null, song: Song) => {
-    anchor.current = node
-    setMenuSong(current => (current?.id === song.id ? null : song))
-  }, [])
   // Holding a row selects it; the ⋯ opens the menu.
   const onLongPress = useCallback((song: Song) => latest.current.selection.enter(song.id), [])
   const onToggleSelect = useCallback((song: Song) => latest.current.selection.toggle(song.id), [])
@@ -475,7 +470,7 @@ function PlaceSongs({
           downloaded={isDownloaded(downloads.index, item.id)}
           onPress={onPress}
           onMore={onMore}
-          menuOpen={menuSong?.id === item.id}
+          menuOpen={menuSongId === item.id}
           onLongPress={onLongPress}
           selecting={selection.active}
           selected={selection.has(item.id)}
@@ -500,7 +495,7 @@ function PlaceSongs({
       onLongPress,
       onToggleSelect,
       selection,
-      menuSong,
+      menuSongId,
       byAlbum,
       songs,
     ],
@@ -518,7 +513,7 @@ function PlaceSongs({
         scrollLabel={scrollLabel}
         contentContainerStyle={bar.listPadding}
       />
-      <SongMenu song={menuSong} anchorRef={anchor} onClose={() => setMenuSong(null)} />
+      {menu}
     </View>
   )
 }

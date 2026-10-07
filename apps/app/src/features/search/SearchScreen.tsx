@@ -20,7 +20,7 @@ import { Cover } from '../../ui/components/Cover'
 import { ChevronRight, Search, Sparkle, User, X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SongList } from '../../ui/components/SongList'
-import { SongMenu } from '../../ui/components/SongMenu'
+import { useSongMenu } from '../../ui/components/useSongMenu'
 import { SongRow } from '../../ui/components/SongRow'
 import { useSongTagLookup } from '../../ui/songTags'
 import { useDebounced } from '../../ui/useDebounced'
@@ -477,7 +477,7 @@ function useSongRows(
   const router = useRouter()
   const { data: library } = useLibrary()
   const { state: downloads } = useDownloads()
-  const [menuSong, setMenuSong] = useState<Song | null>(null)
+  const { openId: menuSongId, onMore, menu } = useSongMenu()
   // Search is one of the lists that shows tags on its rows (`S3`); a chip opens the tag.
   const tagsOf = useSongTagLookup()
   const tags = library?.tags
@@ -488,7 +488,6 @@ function useSongRows(
     },
     [tags, router],
   )
-  const anchor = useRef<View | null>(null)
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   // What a row plays from, read when it is pressed, so the handler handed to
   // every row stays the same one and the rows are not redrawn for a new list.
@@ -502,10 +501,6 @@ function useSongRows(
     const index = now.indexOf(song.id)
     if (index >= 0) playFrom(now, index)
   }, [])
-  const onMore = useCallback((node: View | null, song: Song) => {
-    anchor.current = node
-    setMenuSong(current => (current?.id === song.id ? null : song))
-  }, [])
 
   const renderSong = useCallback(
     ({ item, index }: { item: Song; index: number }) => (
@@ -517,18 +512,18 @@ function useSongRows(
         downloaded={isDownloaded(downloads.index, item.id)}
         onPress={onPress}
         onMore={onMore}
-        menuOpen={menuSong?.id === item.id}
+        menuOpen={menuSongId === item.id}
         index={index}
         tags={tagsOf(item)}
         onToggleTag={onTag}
       />
     ),
-    [artFor, downloads.index, onPress, onMore, menuSong, testPrefix, tagsOf, onTag],
+    [artFor, downloads.index, onPress, onMore, menuSongId, testPrefix, tagsOf, onTag],
   )
 
   return {
     renderSong,
-    menu: <SongMenu song={menuSong} anchorRef={anchor} onClose={() => setMenuSong(null)} />,
+    menu,
   }
 }
 

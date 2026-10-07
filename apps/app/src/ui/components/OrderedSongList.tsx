@@ -21,7 +21,7 @@ import { modifiersOf, type Selection } from '../../selection/useSelection'
 import { roomShift } from '../motion.model'
 import { HoldToReorder, useLiftScale, useMakeRoom } from './HoldToReorder'
 import { SongList } from './SongList'
-import { SongMenu } from './SongMenu'
+import { useSongMenu } from './useSongMenu'
 import { SongRow } from './SongRow'
 
 /**
@@ -77,8 +77,8 @@ export function OrderedSongList({
   const artFor = useArt(ROW_COVER_SIZE)
   const library = useLibrary()
   const { state: downloads, installed } = useDownloads()
-  const [menuSong, setMenuSong] = useState<Song | null>(null)
-  const menuAnchorRef = useRef<View | null>(null)
+  const songMenu = useSongMenu(menuPlaylist)
+  const onMore = songMenu.onMore
   // The row being moved and the row it would land on. Not how far it has
   // travelled: that is `dragY`, which moves the row without a render.
   const [drag, setDrag] = useState<{ from: number; over: number } | null>(null)
@@ -172,18 +172,14 @@ export function OrderedSongList({
         if (now.selection.click(songId, modifiersOf(event))) return
         now.onPlay(index)
       },
-      more: (anchor, song) => {
-        menuAnchorRef.current = anchor
-        // The ⋯ again closes its own menu.
-        setMenuSong(current => (current?.id === song.id ? null : song))
-      },
+      more: onMore,
       toggleSelect: song => latest.current.selection.toggle(song.id),
       // Holding a row is how it is moved, so holding to select is the menu's
       // job here (`SongMenu`); while selecting, holding selects.
       longPress: song => latest.current.selection.enter(song.id),
       measure: setRowHeight,
     }),
-    [dragStart, dragMove, dragEnd, holdRow],
+    [dragStart, dragMove, dragEnd, holdRow, onMore],
   )
 
   /*
@@ -209,7 +205,7 @@ export function OrderedSongList({
 
   // Not on this phone and no server to stream it from: faded.
   const unreachableHere = library.isError && installed
-  const menuSongId = menuSong?.id ?? null
+  const menuSongId = songMenu.openId
   // Selection mode is not what reordering is for, so a held row selects
   // rather than lifts while it is on.
   const reorderable = !selection.active
@@ -267,12 +263,7 @@ export function OrderedSongList({
           refreshing={refreshing}
         />
       </LiftContext.Provider>
-      <SongMenu
-        song={menuSong}
-        anchorRef={menuAnchorRef}
-        onClose={() => setMenuSong(null)}
-        playlist={menuPlaylist}
-      />
+      {songMenu.menu}
     </>
   )
 }

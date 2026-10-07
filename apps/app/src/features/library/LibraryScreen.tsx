@@ -19,7 +19,7 @@ import { Downloaded, Play, Plus, Search, Shuffle, SortLines } from '../../ui/com
 import { IconButton } from '../../ui/components/IconButton'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
 import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
-import { SongMenu } from '../../ui/components/SongMenu'
+import { useSongMenu } from '../../ui/components/useSongMenu'
 import { Select } from '../../ui/components/Select'
 import { SongList } from '../../ui/components/SongList'
 import { SongRow, useSongRowHeight } from '../../ui/components/SongRow'
@@ -78,13 +78,11 @@ export function LibraryScreen(): ReactNode {
   // The scrollbar's bubble names the part of the sort the list is at.
   const scrollLabel = useMemo(() => sortLabel(filter.sort), [filter.sort])
 
-  const [menuSong, setMenuSong] = useState<Song | null>(null)
+  const songMenu = useSongMenu()
   // The phone's order, chosen from a sheet.
   const [sorting, setSorting] = useState(false)
   // A mouse drags the tag strip along; a finger already flicks it.
   const stripDrag = useDragScroll()
-  // The ⋯ the menu was opened from, so at desktop width it opens beside it.
-  const menuAnchorRef = useRef<View | null>(null)
   // The + the tag window was opened from, for the same reason.
   const tagAnchorRef = useRef<View | null>(null)
   // Which tags to listen to — a different job from the picker above, which
@@ -192,11 +190,7 @@ export function LibraryScreen(): ReactNode {
     // tags ticked are not what is playing (docs/features/lists.md).
     now.playFrom([song.id], 0)
   }, [])
-  const onRowMore = useCallback((anchor: View | null, song: Song) => {
-    menuAnchorRef.current = anchor
-    // The ⋯ again closes its own menu.
-    setMenuSong(current => (current?.id === song.id ? null : song))
-  }, [])
+  const onRowMore = songMenu.onMore
   // Holding a row selects it; the ⋯ opens the menu.
   const onRowLongPress = useCallback((song: Song) => latest.current.selection.enter(song.id), [])
   const onRowToggleSelect = useCallback(
@@ -209,7 +203,7 @@ export function LibraryScreen(): ReactNode {
   }, [])
 
   const unreachable = model.unreachable
-  const menuSongId = menuSong?.id ?? null
+  const menuSongId = songMenu.openId
   const renderSong = useCallback(
     ({ item, index }: { item: Song; index: number }) => {
       const here = downloaded(item.id)
@@ -648,7 +642,7 @@ export function LibraryScreen(): ReactNode {
 
       <TagPicker song={taggingSong} onClose={() => setTaggingSong(null)} anchorRef={tagAnchorRef} />
 
-      <SongMenu song={menuSong} anchorRef={menuAnchorRef} onClose={() => setMenuSong(null)} />
+      {songMenu.menu}
     </SafeAreaView>
   )
 }

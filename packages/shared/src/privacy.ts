@@ -3,12 +3,11 @@ import { DEFAULT_APP_URL } from './cloud.js'
  * The privacy policy, once: what the doorman keeps about a person who signs
  * in with Google, and what passes through it untouched.
  *
- * It is data here rather than a page anywhere, because two places show it.
- * The web app publishes it beside itself on GitHub Pages (`privacy.html`,
- * written from this by `apps/app/scripts/privacy.mjs` at export), which is
- * the address Google's consent screen names — a policy has to sit on a
- * domain of one's own, and workers.dev is not one. The doorman sends
- * `/privacy` there. Edit the words here and both follow.
+ * It is data here rather than a page anywhere. The web app publishes it
+ * beside itself on GitHub Pages (`privacy.html`, written from this by
+ * `apps/app/scripts/privacy.mjs` at export), which is the address Google's
+ * consent screen names — a policy has to sit on a domain of one's own, and
+ * workers.dev is not one. Edit the words here and the page follows.
  */
 interface PrivacySection {
   readonly heading: string

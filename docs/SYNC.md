@@ -299,8 +299,7 @@ The app's web export builds for GitHub Pages (under `/selfmp3/`, which the Pages
 passes as `EXPO_PUBLIC_BASE`), with no server behind
 it. Whatever is in `apps/app/public/` is published beside it as it is. `privacy.html` is the
 privacy policy Google's OAuth consent screen points at, written at export from
-`packages/shared/src/privacy.ts` (the one place its words live; the doorman's `/privacy`
-redirects here); `index.html` is the page's template (Expo's own, plus a link to that policy
+`packages/shared/src/privacy.ts` (the one place its words live); `index.html` is the page's template (Expo's own, plus a link to that policy
 for the crawler that checks the home page for one); and a Search Console verification file
 dropped there is served at the site's root too. It signs in with Google, connects the account's bucket if no device has yet, and shows the
 library from the newest snapshot. The service worker (`apps/app/sw/sw.ts`) stands between the

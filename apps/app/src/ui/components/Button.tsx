@@ -211,7 +211,7 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     backgroundColor: theme.colors.surface2,
   },
-  /* 8 by 14 around 13-point type, as `.button` is with a mouse. */
+  /* With a mouse: 36 high rather than a finger's 44. */
   buttonDense: {
     minHeight: 36,
   },

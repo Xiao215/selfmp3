@@ -18,7 +18,8 @@ import { Cover } from './Cover'
  * nothing a finger needs. Each cover lifts from what was pressed and lands on
  * the Up next button, a stagger behind the one before; the button swells once
  * as they arrive. Only position, size and opacity move, on the native driver.
- * With less motion asked for nothing flies: the button's swell alone says it.
+ * With less motion asked for, the covers land at once and the button does
+ * not swell.
  */
 export function CoverFlight(): ReactNode {
   const flights = useSyncExternalStore(subscribeFlights, currentFlights, currentFlights)

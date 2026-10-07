@@ -6,7 +6,7 @@ import { oklchToHexAlpha } from '@selfmp3/client'
 import { Check } from './Icons'
 
 /**
- * Twelve hues around the wheel, skipping the muddy stretch between yellow and
+ * Thirteen hues around the wheel, skipping the muddy stretch between yellow and
  * green where chips stop looking like different colours from each other.
  */
 const HUES = [0, 22, 40, 58, 95, 140, 168, 192, 212, 235, 262, 290, 318] as const

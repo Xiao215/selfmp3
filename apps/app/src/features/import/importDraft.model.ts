@@ -50,7 +50,7 @@ const StoredDraftSchema = z.object({
       items: z.array(ImportPreviewItemSchema),
       chosen: z.array(z.number().int().nonnegative()),
       playlistTitle: z.string().nullable(),
-      from: ImportFromSchema.default('youtube'),
+      from: ImportFromSchema,
     })
     .nullable(),
   tagIds: z.array(z.number().int()),
@@ -60,8 +60,8 @@ const StoredDraftSchema = z.object({
  * A draft out of what was stored, or null for anything that is not one.
  *
  * Defensive because it is read from a store a person can edit (`localStorage`
- * in a browser), and because what an older build wrote may not be the shape
- * this one expects: a draft that cannot be read is no draft, not a crash.
+ * in a browser): a draft that does not parse, whatever wrote it, reads as no
+ * draft rather than a crash, and the review is simply looked up again.
  */
 export function parseImportDraft(raw: string | null): ImportDraft | null {
   if (!raw) return null

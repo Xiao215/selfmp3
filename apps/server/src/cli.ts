@@ -82,7 +82,6 @@ async function run(command: Command, baseUrl: string, token: string | null): Pro
           )
         }
       }
-      if (failures === 0) out(`watch progress at ${baseUrl}/import`)
       return failures === 0 ? 0 : 1
     }
 

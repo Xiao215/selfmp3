@@ -214,7 +214,7 @@ function startLibrary(container: Container): void {
   const warmLyrics = (): void => {
     void container.lyricsIndex
       .backfill()
-      .then(() => romanizeLibrary({ ...container, logger }))
+      .then(() => romanizeLibrary(container))
       .catch((error: unknown) => {
         logger.warn('romanizing the library stopped early', {
           message: error instanceof Error ? error.message : String(error),
@@ -224,8 +224,8 @@ function startLibrary(container: Container): void {
 
   // Covers kept from before every cover was made square (squareCover.ts).
   const squareCovers = (): void => {
-    const withArt = container.songs
-      .all()
+    const withArt = container.cloudRepo
+      .songFiles()
       .filter(song => song.hasArt)
       .map(song => song.id)
     void container.covers
@@ -233,16 +233,18 @@ function startLibrary(container: Container): void {
       .then(squared => {
         if (squared > 0) container.bumpLibraryVersion()
       })
-      .catch(() => undefined)
+      .catch((error: unknown) => {
+        logger.warn('squaring kept covers stopped early', {
+          message: error instanceof Error ? error.message : String(error),
+        })
+      })
   }
 
   if (!config.scanOnBoot) {
     warmLyrics()
     startCloud()
     squareCovers()
-  }
-
-  if (config.scanOnBoot) {
+  } else {
     // Deliberately not awaited: the API is already serving, and a first scan of
     // a large library should not delay that.
     void container.scanner

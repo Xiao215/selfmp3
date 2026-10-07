@@ -4,6 +4,7 @@ import type {
   LyricsSnapshotStore,
   MotionSnapshotStore,
   PlaylistSnapshotStore,
+  RunLater,
 } from './platform.js'
 
 /**
@@ -29,6 +30,8 @@ export interface ClientRuntime {
   readonly lyricsSnapshot?: LyricsSnapshotStore
   /** Each song's last known motion curve, so a kept song's visuals still follow it offline. */
   readonly motionSnapshot?: MotionSnapshotStore
+  /** The app's timer, for the work here that has to happen later (librarySnapshotWrites.ts). */
+  readonly later?: RunLater
 }
 
 let configured: ClientRuntime | null = null
@@ -70,4 +73,9 @@ export function lyricsSnapshot(): LyricsSnapshotStore | null {
 /** The offline copies of songs' motion curves, or null where the app keeps none. */
 export function motionSnapshot(): MotionSnapshotStore | null {
   return configured?.motionSnapshot ?? null
+}
+
+/** The app's timer, or null where it brought none. */
+export function runLater(): RunLater | null {
+  return configured?.later ?? null
 }

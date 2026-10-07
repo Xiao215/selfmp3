@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import {
+  hashKey,
   keepPreviousData,
   useMutation,
   useQuery,
@@ -43,9 +44,11 @@ import {
   lyricsSnapshot,
   motionSnapshot,
   playlistSnapshot,
+  runLater,
 } from '../runtime.js'
 import { decodeMotion, type MotionCurve } from '../motion/motion.js'
 import { useClientState } from './context.js'
+import { createLibrarySnapshotWrites, type LibrarySnapshotWrites } from './librarySnapshotWrites.js'
 import { hasLivePlaylists, withPlaylist, withSong, withTag } from './patchLibrary.js'
 import { STALE } from './stale.js'
 import {
@@ -167,12 +170,44 @@ function useCloudLibraryChanges(client: QueryClient): void {
   }, [client])
 }
 
+const snapshotWrites = new WeakMap<QueryClient, LibrarySnapshotWrites>()
+
+/**
+ * The offline library's writer for one query client (librarySnapshotWrites.ts).
+ *
+ * One per client, because what it holds back belongs to the library that
+ * client holds: when the client lets the library go — `clear()` on a switch of
+ * server, a sign-in or a sign-out — the answer waiting for its turn is the
+ * wrong library to save, so it is dropped and the next answer is saved at once.
+ */
+function snapshotWritesFor(client: QueryClient): LibrarySnapshotWrites {
+  let writes = snapshotWrites.get(client)
+  if (!writes) {
+    const created = createLibrarySnapshotWrites(
+      library => {
+        // Fire-and-forget: a failed mirror write must not fail anything.
+        void librarySnapshot()?.write(library)
+      },
+      { later: runLater() },
+    )
+    const libraryHash = hashKey(queryKeys.library)
+    client.getQueryCache().subscribe(event => {
+      if (event.type === 'removed' && event.query.queryHash === libraryHash) created.forget()
+    })
+    snapshotWrites.set(client, created)
+    writes = created
+  }
+  return writes
+}
+
 /**
  * The library, with an offline fallback.
  *
- * When the request fails because the server is asleep, the last snapshot written
- * to IndexedDB is returned instead — so the app opens and plays cached music
- * rather than showing an error screen.
+ * When the request fails because the server is asleep, the last snapshot saved
+ * on this device is returned instead — so the app opens and plays cached music
+ * rather than showing an error screen. Answers are saved as that snapshot at
+ * once when the library's version moved, and otherwise at most every few
+ * minutes (`snapshotWritesFor`).
  */
 export function useLibrary(): UseQueryResult<Library, Error> {
   const { ready } = useClientState()
@@ -208,8 +243,7 @@ export function useLibrary(): UseQueryResult<Library, Error> {
       try {
         const library = await api.library()
         answered = true
-        // Fire-and-forget: a failed mirror write must not fail the query.
-        if (!fromCloud) void librarySnapshot()?.write(library)
+        if (!fromCloud) snapshotWritesFor(client).offer(library)
         return library
       } catch (error) {
         answered = true

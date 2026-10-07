@@ -11,7 +11,6 @@ import {
   ImportEnqueueSchema,
   ImportPreviewRequestSchema,
   ImportShareRequestSchema,
-  YT_LIKED_MUSIC_URL,
   type AlreadyHaveResponse,
   type ImportCoverTone,
   type ImportEnqueueItem,
@@ -20,11 +19,11 @@ import {
   type ImportPreview,
   type ImportQueue,
   type ImportShareResult,
-  type YtCookieTest,
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
+import { abortOnClose } from '../http/abortOnClose.js'
 import {
   buildImportPreview,
   have,
@@ -65,7 +64,8 @@ export function importRoutes(container: Container): Router {
   )
 
   /**
-   * Queue what is not already queued *and* not already downloaded.
+   * What is not already queued *and* not already downloaded, or a 409 when
+   * that is nothing.
    *
    * The queue check alone only stopped a double tap. A link imported last
    * month was long gone from `import_jobs`, so pasting it again downloaded the
@@ -73,30 +73,46 @@ export function importRoutes(container: Container): Router {
    * with a `(2)` after it — which is how a dev library came to hold 111 files
    * of 45 songs.
    *
-   * By the video's id, not the link: the same song arrives as
+   * By the video's id, not the link, for both: the same song arrives as
    * `youtube.com/watch?v=…` one day and `youtu.be/…` the next, and both have
    * to be recognised. The preview already greys these out; this is the floor
    * under it, for the share endpoint and for anyone who ticks one anyway.
+   *
+   * Asked before any playlist is made for the import, so a request refused
+   * here leaves no empty playlist behind.
    */
-  const enqueueFresh = (
-    items: readonly ImportEnqueueItem[],
-    tagIds: readonly number[],
-    playlistId: number | null,
-  ): ImportEnqueueResult => {
+  const freshOf = (items: readonly ImportEnqueueItem[]): ImportEnqueueItem[] => {
     const downloaded = new Set(
       container.songs
         .withSourceUrls()
         .map(song => normaliseUrl(song.sourceUrl))
         .filter((url): url is string => url !== null),
     )
+    const queued = inQueue(container)
     const fresh = items.filter(item => {
-      if (container.imports.isPending(item.url)) return false
+      if (queued(item.url)) return false
       const url = normaliseUrl(item.url)
       return !(url && downloaded.has(url))
     })
     if (fresh.length === 0) {
       throw HttpError.conflict('those tracks are already in your library or in the queue')
     }
+    return fresh
+  }
+
+  /**
+   * Queue the fresh items into the playlist the import asked for — made now,
+   * when it names one to make, which is why clients are told to refetch.
+   */
+  const enqueue = (
+    items: readonly ImportEnqueueItem[],
+    fresh: readonly ImportEnqueueItem[],
+    tagIds: readonly number[],
+    target: { playlistId: number | null; createPlaylistName: string | null },
+  ): ImportEnqueueResult => {
+    const playlist = resolveImportPlaylist(container.playlists, target)
+    if (playlist && target.playlistId === null) container.bumpLibraryVersion()
+    const playlistId = playlist?.id ?? null
     const jobs = container.imports.enqueue(fresh, tagIds, playlistId)
     container.importQueue.kick()
     return { jobs, skipped: items.length - fresh.length, playlistId }
@@ -179,10 +195,7 @@ export function importRoutes(container: Container): Router {
         throw HttpError.badRequest('only YouTube and 网易云 links can be played')
       }
 
-      const controller = new AbortController()
-      res.on('close', () => {
-        if (!res.writableFinished) controller.abort()
-      })
+      const controller = abortOnClose(res)
 
       // YouTube paces a request that asks for the whole file to about the
       // speed the song plays at, and serves a range — any range, even one
@@ -204,6 +217,9 @@ export function importRoutes(container: Container): Router {
       try {
         upstream = await open()
         if (upstream.status === 403 || upstream.status === 410) {
+          // Let go of the refused answer's connection rather than leave it to
+          // the garbage collector.
+          await upstream.body?.cancel()
           container.listen.forget(query.url)
           upstream = await open()
         }
@@ -213,6 +229,7 @@ export function importRoutes(container: Container): Router {
         throw error
       }
       if (!upstream.ok) {
+        await upstream.body?.cancel()
         throw HttpError.unprocessable(`That would not play (${upstream.status})`)
       }
 
@@ -241,12 +258,8 @@ export function importRoutes(container: Container): Router {
   router.post(
     '/import/enqueue',
     route({ body: ImportEnqueueSchema }, ({ body }): ImportEnqueueResult => {
-      const tagIds = container.tags.exists(body.tagIds)
-      const playlist = resolveImportPlaylist(container.playlists, body)
-      const result = enqueueFresh(body.items, tagIds, playlist?.id ?? null)
-      // A playlist may have just been created; let clients refetch the list.
-      if (playlist && body.playlistId === null) container.bumpLibraryVersion()
-      return result
+      const fresh = freshOf(body.items)
+      return enqueue(body.items, fresh, container.tags.exists(body.tagIds), body)
     }),
   )
 
@@ -257,60 +270,28 @@ export function importRoutes(container: Container): Router {
    * gets the created jobs back. The default import tags from settings are
    * applied so the result matches what the interactive flow would have done.
    */
-  const share = route(
-    { body: ImportShareRequestSchema },
-    async ({ body }): Promise<ImportShareResult> => {
+  router.post(
+    '/import/share',
+    route({ body: ImportShareRequestSchema }, async ({ body }): Promise<ImportShareResult> => {
       const preview = await previewFound(container, body.url)
       const items = preview.items.filter(item => !item.alreadyHave)
       if (items.length === 0) {
         throw HttpError.conflict('everything in that link is already in your library')
       }
 
+      const fresh = freshOf(items)
       const settings = container.settings.get()
       const tagIds = container.tags.exists([
         ...new Set([...body.tagIds, ...settings.defaultImportTagIds]),
       ])
-      const playlist = resolveImportPlaylist(container.playlists, {
-        playlistId: null,
-        createPlaylistName:
-          body.createPlaylist && preview.kind === 'playlist' ? preview.playlistTitle : null,
-      })
-      if (playlist) container.bumpLibraryVersion()
-
       return {
-        ...enqueueFresh(items, tagIds, playlist?.id ?? null),
+        ...enqueue(items, fresh, tagIds, {
+          playlistId: null,
+          createPlaylistName:
+            body.createPlaylist && preview.kind === 'playlist' ? preview.playlistTitle : null,
+        }),
         kind: preview.kind,
         playlistTitle: preview.playlistTitle,
-      }
-    },
-  )
-  router.post('/import/share', share)
-
-  /**
-   * Does yt-dlp see a signed-in YouTube Music session? Liked Music is private,
-   * so resolving it proves the cookies work end to end.
-   */
-  router.post(
-    '/import/youtube/test',
-    route({}, async (): Promise<YtCookieTest> => {
-      const source = container.settings.get().ytCookieSource
-      try {
-        const probed = await container.ytdlp.probe(YT_LIKED_MUSIC_URL)
-        return {
-          ok: true,
-          source,
-          count: probed.tracks.length,
-          playlistTitle: probed.playlistTitle,
-          error: null,
-        }
-      } catch (error) {
-        return {
-          ok: false,
-          source,
-          count: null,
-          playlistTitle: null,
-          error: error instanceof Error ? error.message : String(error),
-        }
       }
     }),
   )
@@ -337,15 +318,6 @@ export function importRoutes(container: Container): Router {
         }
       },
     ),
-  )
-
-  router.get(
-    '/import/jobs/:id',
-    route({ params: ParamsWithJobId }, ({ params }) => {
-      const job = container.imports.byId(params.id)
-      if (!job) throw HttpError.notFound('no such import job')
-      return job
-    }),
   )
 
   router.post(

@@ -1,19 +1,12 @@
 import { Router } from 'express'
-import { z } from 'zod'
-import { BulkTagSchema, CreateTagSchema, IdSchema, RenameTagSchema } from '@selfmp3/shared'
+import { BulkTagSchema, CreateTagSchema, RenameTagSchema } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
-
-const ParamsWithId = z.object({ id: IdSchema })
+import { ParamsWithId } from '../http/params.js'
 
 export function tagRoutes(container: Container): Router {
   const router = Router()
-
-  router.get(
-    '/tags',
-    route({}, () => container.tags.all()),
-  )
 
   /**
    * Creating a tag that already exists returns the existing one rather than

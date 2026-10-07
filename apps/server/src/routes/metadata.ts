@@ -1,8 +1,6 @@
 import { Router } from 'express'
-import { z } from 'zod'
 import {
   ApplyMetadataSchema,
-  IdSchema,
   SONG_FIELDS,
   type ApplyMetadataResult,
   type FixCoversStatus,
@@ -11,9 +9,7 @@ import {
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
-import { HttpError } from '../http/errors.js'
-
-const ParamsWithId = z.object({ id: IdSchema })
+import { ParamsWithId, requireSong } from '../http/params.js'
 
 /**
  * Metadata polish: look a song up on public databases, apply what the user
@@ -26,16 +22,10 @@ const ParamsWithId = z.object({ id: IdSchema })
 export function metadataRoutes(container: Container): Router {
   const router = Router()
 
-  const requireSong = (id: number) => {
-    const song = container.songs.byId(id)
-    if (!song) throw HttpError.notFound(`no song with id ${id}`)
-    return song
-  }
-
   router.get(
     '/songs/:id/lookup',
     route({ params: ParamsWithId }, async ({ params }): Promise<MetadataLookupResponse> => {
-      const song = requireSong(params.id)
+      const song = requireSong(container.songs, params.id)
       const candidates = await container.lookup.lookup({
         title: song.title,
         artist: song.artist,
@@ -51,7 +41,7 @@ export function metadataRoutes(container: Container): Router {
     route(
       { params: ParamsWithId, body: ApplyMetadataSchema },
       async ({ params, body }): Promise<ApplyMetadataResult> => {
-        const song = requireSong(params.id)
+        const song = requireSong(container.songs, params.id)
         const { artworkUrl, ...fields } = body
 
         const patch: SongPatch = fields

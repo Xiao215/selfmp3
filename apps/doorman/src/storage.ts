@@ -4,6 +4,7 @@ import {
   CloudFormatSchema,
   DoormanBackblazeConnectSchema,
   FORMAT_KEY,
+  formatZodError,
   parseEndpoint,
   type CloudConnect,
   type CloudFormat,
@@ -68,7 +69,7 @@ export async function connectBackblaze(ctx: Context): Promise<Response> {
     applicationKey: input.applicationKey,
     ...(input.prefix === undefined ? {} : { prefix: input.prefix }),
   })
-  if (!parsed.success) throw badRequest(parsed.error.issues[0]?.message ?? 'not a bucket')
+  if (!parsed.success) throw badRequest(formatZodError(parsed.error))
   await tryThenKeep(ctx, session, targetFrom(parsed.data, ctx.env.DEV === 'true'))
   return json(await ctx.accounts.me(session))
 }

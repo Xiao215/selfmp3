@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z, type ZodError } from 'zod'
 
 /**
  * Primitives reused across the whole contract.
@@ -47,6 +47,21 @@ export const ErrorBodySchema = z.object({
   details: z.unknown().optional(),
 })
 export type ErrorBody = z.infer<typeof ErrorBodySchema>
+
+/**
+ * A request that failed its schema, in words a person can act on: each
+ * problem with the field it is about, `title: Required; hue: Expected number`.
+ * The server and the doorman both answer a bad body with this, so the two say
+ * it the same way.
+ */
+export function formatZodError(error: ZodError): string {
+  return error.issues
+    .map(issue => {
+      const where = issue.path.join('.')
+      return where ? `${where}: ${issue.message}` : issue.message
+    })
+    .join('; ')
+}
 
 /** A tag's colour, as a hue 0–359: derived once at creation so it never shifts. */
 export const HueSchema = z.number().int().min(0).max(359)

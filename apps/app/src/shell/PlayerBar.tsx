@@ -7,13 +7,22 @@ import type { LayoutChangeEvent } from 'react-native'
 import { usePathname, useRouter } from 'expo-router'
 import { clamp01 } from '@selfmp3/shared'
 import { warmCoverPalette } from '../features/nowPlaying/useCoverPalette'
-import { loopRegionPercent, radius, space, type, withAlpha, useToggleLoved } from '@selfmp3/client'
+import {
+  loopRegionPercent,
+  radius,
+  space,
+  type,
+  withAlpha,
+  useToggleLoved,
+  type SongColors,
+} from '@selfmp3/client'
 import { DevicesSheet } from '../features/devices/DevicesSheet'
 import { UpNextTarget } from '../ui/components/CoverFlight'
 import { toggleQueueSheet, useQueueSheetOpen } from '../features/queue/queueSheet.store'
 import { useArt } from '../offline/useArt'
 import {
   usePlayer,
+  usePlayerCommands,
   usePlayerProgress,
   usePlayerStalled,
   usePlayerVolume,
@@ -100,12 +109,15 @@ export function PlayerBar(): ReactNode {
   // drawn for: the song and the transport give up width before the tools go.
   const tight = width < TIGHT_WIDTH
   const song = player.current
-  const songColor = useSongColor(song, song ? artFor(song) : null)
+  // Asked once here and handed to every control that draws in it, rather than
+  // each asking the player and the covers again for the same colour.
+  const art = song ? artFor(song) : null
+  const songColor = useSongColor(song, art)
   // Now Playing glows with the cover's colours; read them as the song starts,
   // so the page opens in its own light rather than in a stand-in for a frame.
   useEffect(() => {
-    if (song) void warmCoverPalette(song, artFor(song))
-  }, [song, artFor])
+    if (song) void warmCoverPalette(song, art)
+  }, [song, art])
   const tagsRef = useRef<View>(null)
   const [tagsOpen, setTagsOpen] = useState(false)
   const [devicesOpen, setDevicesOpen] = useState(false)
@@ -162,7 +174,7 @@ export function PlayerBar(): ReactNode {
             >
               {/* The caption sits over the cover, not between it and the title. */}
               <View {...tipTarget()} ref={coverRef} collapsable={false}>
-                <Cover uri={artFor(song)} title={song.album || song.title} size={54} />
+                <Cover uri={art} title={song.album || song.title} size={54} />
                 {onPage ? (
                   <View style={styles.openChevron} pointerEvents="none">
                     <ChevronDown size={22} color="#fff" />
@@ -258,6 +270,7 @@ export function PlayerBar(): ReactNode {
         <View style={styles.group} role="group" aria-label="Playback">
           {practice.rate !== 1 ? (
             <ValuePill
+              tone={songColor}
               Icon={Metronome}
               value={`${practice.rate}×`}
               label={`Practice tools, speed ${practice.rate}×`}
@@ -280,10 +293,10 @@ export function PlayerBar(): ReactNode {
               />
             </IconButton>
           )}
-          <SleepButton />
+          <SleepButton tone={songColor} />
         </View>
         <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Volume">
-          <VolumeControl compact={width < COMPACT_WIDTH} />
+          <VolumeControl compact={width < COMPACT_WIDTH} tone={songColor} />
         </View>
         <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Panels">
           <UpNextTarget>
@@ -395,18 +408,6 @@ function PlayButton({
   )
 }
 
-/** What a lit control is drawn in: the playing song's colour, as the seek bar is. */
-function usePlayingColor(): string {
-  return usePlayingTone().color
-}
-
-/** The playing song's colour, and the lighter tint of it that text is drawn in. */
-function usePlayingTone(): { color: string; tint: string } {
-  const player = usePlayer()
-  const artFor = useArt()
-  return useSongColor(player.current, player.current ? artFor(player.current) : null)
-}
-
 /**
  * A lit control that says its value — "1.25×", "24 min", "End of song" — so a
  * changed speed or a running timer can be read off the bar without opening
@@ -414,19 +415,21 @@ function usePlayingTone(): { color: string; tint: string } {
  * plain icon is.
  */
 function ValuePill({
+  tone,
   Icon,
   value,
   label,
   caption,
   onPress,
 }: {
+  /** The playing song's colour, and the lighter tint of it that text is drawn in. */
+  tone: SongColors
   Icon: typeof Moon
   value: string
   label: string
   caption: string
   onPress: () => void
 }): ReactNode {
-  const tone = usePlayingTone()
   return (
     <Press
       onPress={onPress}
@@ -441,7 +444,7 @@ function ValuePill({
   )
 }
 
-function SleepButton(): ReactNode {
+function SleepButton({ tone }: { tone: SongColors }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
   const [open, setOpen] = useState(false)
@@ -453,6 +456,7 @@ function SleepButton(): ReactNode {
     <View ref={anchorRef} collapsable={false}>
       {left ? (
         <ValuePill
+          tone={tone}
           Icon={Moon}
           value={left}
           label={
@@ -473,11 +477,11 @@ function SleepButton(): ReactNode {
   )
 }
 
-function VolumeControl({ compact }: { compact: boolean }): ReactNode {
+function VolumeControl({ compact, tone }: { compact: boolean; tone: SongColors }): ReactNode {
   const { theme } = useUnistyles()
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const level = usePlayerVolume()
-  const lit = usePlayingColor()
+  const lit = tone.color
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<View>(null)
   const muted = level.muted || level.volume === 0
@@ -493,7 +497,7 @@ function VolumeControl({ compact }: { compact: boolean }): ReactNode {
       <Icon size={17} color={theme.colors.textSecondary} />
     </IconButton>
   )
-  const slider = <VolumeSlider value={level.volume} onChange={player.setVolume} />
+  const slider = <VolumeSlider value={level.volume} onChange={player.setVolume} color={lit} />
 
   if (!compact) {
     return (
@@ -526,7 +530,7 @@ function VolumeControl({ compact }: { compact: boolean }): ReactNode {
         {/* A fader rising out of its button: the level on top, mute at its foot. */}
         <View style={styles.volumePopover}>
           <Text style={styles.readout}>{percent}%</Text>
-          <VolumeSlider value={level.volume} onChange={player.setVolume} vertical />
+          <VolumeSlider value={level.volume} onChange={player.setVolume} color={lit} vertical />
           {mute}
         </View>
       </Popover>
@@ -545,33 +549,35 @@ const VOLUME_ACTIONS = [{ name: 'increment' }, { name: 'decrement' }] as const
 function VolumeSlider({
   value,
   onChange,
+  color,
   vertical = false,
 }: {
   value: number
   onChange: (value: number) => void
+  /** What the track fills with: the playing song's colour. */
+  color: string
   vertical?: boolean
 }): ReactNode {
-  const player = usePlayer()
-  const artFor = useArt()
-  const songColor = useSongColor(player.current, player.current ? artFor(player.current) : null)
   // The track's length along the way it slides: its width, or its height upright.
   const [length, setLength] = useState(0)
+  // Not built from the level: a drag moves it every frame, and the responder
+  // would be built again every frame. A track not measured yet has no
+  // position to give, and a press on it changes nothing.
   const responder = useMemo(() => {
     // The track and its fill take no touches, so the position is always the
     // slider's own (see SeekBar).
-    const valueAt = (x: number, y: number): number => {
-      if (length <= 0) return value
-      return Math.max(0, Math.min(1, vertical ? 1 - y / length : x / length))
+    const moveTo = (x: number, y: number): void => {
+      if (length <= 0) return
+      onChange(Math.max(0, Math.min(1, vertical ? 1 - y / length : x / length)))
     }
     return PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: event =>
-        onChange(valueAt(event.nativeEvent.locationX, event.nativeEvent.locationY)),
-      onPanResponderMove: event =>
-        onChange(valueAt(event.nativeEvent.locationX, event.nativeEvent.locationY)),
+        moveTo(event.nativeEvent.locationX, event.nativeEvent.locationY),
+      onPanResponderMove: event => moveTo(event.nativeEvent.locationX, event.nativeEvent.locationY),
     })
-  }, [length, value, onChange, vertical])
+  }, [length, onChange, vertical])
 
   return (
     <View
@@ -598,7 +604,7 @@ function VolumeSlider({
           <View
             style={[
               styles.sliderFillUpright,
-              { height: `${value * 100}%`, backgroundColor: songColor.color },
+              { height: `${value * 100}%`, backgroundColor: color },
             ]}
           />
           <View
@@ -610,12 +616,7 @@ function VolumeSlider({
         </View>
       ) : (
         <View pointerEvents="none" style={styles.sliderTrack}>
-          <View
-            style={[
-              styles.sliderFill,
-              { width: `${value * 100}%`, backgroundColor: songColor.color },
-            ]}
-          />
+          <View style={[styles.sliderFill, { width: `${value * 100}%`, backgroundColor: color }]} />
         </View>
       )}
     </View>

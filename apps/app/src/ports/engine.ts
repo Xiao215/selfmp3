@@ -17,7 +17,8 @@ import { ensurePlayer } from '../player/setup'
  * This is the base file and `engine.web.ts` overrides it in a browser, which
  * is the same shape the other ports here take (`secrets`, `prefs`,
  * `keyboard`). Metro picks the web one for a web bundle, so track-player never
- * reaches it — which is what will let the stub in `metro.config.js` go.
+ * reaches it; nor does anything else in a browser's bundle
+ * (`player/registerPlayback.web.ts`, `ports/car/CarProvider.tsx`).
  *
  * **The question this file answers.** The port hands an engine one song at a
  * time and a hint about what follows; track-player owns a queue and advances
@@ -459,13 +460,6 @@ class NativeEngine implements PlaybackEngine {
     for (const listener of this.#listeners) listener(this.#state)
   }
 }
-
-/**
- * The same conformance proof the web half carries, as a type rather than an
- * instance: constructing one here would set a real player up at import time.
- */
-const _conforms: PlaybackEngine = null as unknown as NativeEngine
-void _conforms
 
 /**
  * The engine this platform uses. Call sites import this and never a class, so

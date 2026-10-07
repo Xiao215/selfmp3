@@ -34,7 +34,7 @@ import { motion } from '@selfmp3/client'
 import { pageKey, stepSide } from './pageStep'
 import { stackMoves } from '../ports/stackMoves'
 import { onDeepLinkRoute } from '../ports/deepLinks'
-import { usePlayer } from '../player/PlayerProvider'
+import { usePlayerCommands, useSongLoaded } from '../player/PlayerProvider'
 import { SEEK_STEP_SECONDS, VOLUME_STEP } from '../player/progress.model'
 import { PRACTICE_PANEL_WIDTH, PracticePanel } from '../features/practice/PracticePanel'
 import { QueueRail, useQueueRailRoom } from '../features/queue/QueueRail'
@@ -78,7 +78,9 @@ export function Shell({
 
   return (
     <OverlayProvider>
-      {frame(wide, chrome, sidebar, barHidden, children)}
+      <Frame wide={wide && chrome} chrome={chrome} sidebar={sidebar} barHidden={barHidden}>
+        {children}
+      </Frame>
       <PlaybackNotices />
       <PaletteHost />
       <MenuCommands />
@@ -124,20 +126,6 @@ export function Shell({
  * side until the slide ended (Xiao's recording, 2026-09-21). Now the column
  * is one width always, and Now Playing is simply the page with no padding.
  */
-function frame(
-  wide: boolean,
-  chrome: boolean,
-  sidebar: boolean,
-  barHidden: boolean,
-  children: ReactNode,
-): ReactNode {
-  return (
-    <Frame wide={wide && chrome} chrome={chrome} sidebar={sidebar} barHidden={barHidden}>
-      {children}
-    </Frame>
-  )
-}
-
 function Frame({
   wide,
   chrome,
@@ -263,9 +251,8 @@ function SidebarSlot({ shown }: { shown: boolean }): ReactNode {
  * tree than the page, so drawn over it.
  */
 function BarSlot({ hidden }: { hidden: boolean }): ReactNode {
-  const player = usePlayer()
   const insets = useSafeAreaInsets()
-  const loaded = player.current !== null
+  const loaded = useSongLoaded()
   // The bar itself slides, on the native driver; the room the page gives it
   // is simply given, in the same frame, because the room is at the foot of a
   // list whose end is off the screen. It used to be the slot's height that
@@ -393,7 +380,7 @@ function DeepLinkRoutes(): ReactNode {
  * with a menu bar, and a no-op everywhere else.
  */
 function MenuCommands(): ReactNode {
-  const player = usePlayer()
+  const player = usePlayerCommands()
   useCommands({
     library: () => router.navigate('/library'),
     playlists: () => router.navigate('/playlists'),

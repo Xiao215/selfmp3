@@ -15,7 +15,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { failureText } from '@selfmp3/client'
-import TrackPlayer from 'react-native-track-player'
 import { DevicesProvider } from '../src/features/devices/DevicesProvider'
 import { LibraryFilterProvider } from '../src/features/library/libraryFilter'
 import { CarProvider } from '../src/ports/car/CarProvider'
@@ -24,9 +23,9 @@ import { useKeepAlongside } from '../src/offline/useKeepAlongside'
 import { PlayerProvider } from '../src/player/PlayerProvider'
 import { useRecordRecentLists } from '../src/features/lists/recentLists.store'
 import { usePlaybackMemory } from '../src/player/usePlaybackMemory'
-import { playbackService } from '../src/player/service'
+import { registerPlayback } from '../src/player/registerPlayback'
 import { ConnectionProvider, useConnection } from '../src/connection/ConnectionProvider'
-import { Shell as Frame } from '../src/shell/Shell'
+import { Shell } from '../src/shell/Shell'
 import { addressOf, swipeBackAllowed } from '../src/shell/backGesture'
 import { fromTile } from '../src/features/tag/placeLinks'
 import { nowPlayingAnimation, stackAnimation } from '../src/shell/pageStep'
@@ -55,9 +54,9 @@ import { showToast } from '../src/ui/toast'
  *
  * The playback service is registered at module scope, before any component
  * mounts: on Android it is a headless task that the OS may start with no UI at
- * all, so registration cannot wait for React.
+ * all, so registration cannot wait for React (`registerPlayback.ts`).
  */
-TrackPlayer.registerPlaybackService(() => playbackService)
+registerPlayback()
 
 void SplashScreen.preventAutoHideAsync()
 
@@ -182,7 +181,9 @@ export default function RootLayout(): ReactNode {
                     <CarProvider>
                       {/* Around the shell: the sidebar and the library share it. */}
                       <LibraryFilterProvider>
-                        <Shell />
+                        <RootRoutes />
+                        {/* What is kept in step behind the pages: drawn as nothing. */}
+                        <Keeping />
                         {/* The home-screen widget's snapshot, where there is one. */}
                         <WidgetSync />
                       </LibraryFilterProvider>
@@ -198,18 +199,33 @@ export default function RootLayout(): ReactNode {
   )
 }
 
-function Shell(): ReactNode {
+/**
+ * The work that follows the player and the downloads and draws nothing, in a
+ * component of its own.
+ *
+ * These read the player and the download queue, and a hook reading them
+ * renders whoever calls it on every play, pause, skip and finished download.
+ * Called from the routes below, that was the root of the app: the frame, the
+ * overlay host and the navigator with every screen's options, again for a
+ * press of pause. Here only this does.
+ */
+function Keeping(): ReactNode {
+  // What was playing comes back when the app opens again, paused where it was.
+  usePlaybackMemory()
+  useRecordRecentLists()
+  // Every downloaded song's cover and words, kept beside it while the server answers.
+  useKeepAlongside()
+  return null
+}
+
+/** Which page is showing, and the frame around it: where sign-in sends you, and the stack. */
+function RootRoutes(): ReactNode {
   const { theme } = useUnistyles()
   const { status, fromCloud, needsStorage } = useConnection()
   const router = useRouter()
   const pathname = usePathname()
   const { wide } = useLayout()
   const reduced = useMotionReduced()
-  // What was playing comes back when the app opens again, paused where it was.
-  usePlaybackMemory()
-  useRecordRecentLists()
-  // Every downloaded song's cover and words, kept beside it while the server answers.
-  useKeepAlongside()
   // A face that failed to load is not a reason to keep the app shut: the system
   // font stands in, and nothing else depends on it.
   const [fontsLoaded, fontError] = useFonts(FONTS)
@@ -304,10 +320,12 @@ function Shell(): ReactNode {
     [surface, wide, ready, reduced],
   )
 
+  const nowPlaying = useMemo(() => nowPlayingOptions(wide, reduced), [wide, reduced])
+
   return (
-    <Frame chrome={chrome} sidebar={!(stage && arriving)}>
+    <Shell chrome={chrome} sidebar={!(stage && arriving)}>
       <Stack screenOptions={screenOptions} screenLayout={keepNearTop}>
-        <Stack.Screen name="now-playing" options={nowPlayingOptions(wide, reduced)} />
+        <Stack.Screen name="now-playing" options={nowPlaying} />
         {PLACES.map(name => (
           <Stack.Screen key={name} name={name} dangerouslySingular={singularPlaces} />
         ))}
@@ -325,7 +343,7 @@ function Shell(): ReactNode {
           style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.surface0 }]}
         />
       ) : null}
-    </Frame>
+    </Shell>
   )
 }
 

@@ -1,8 +1,7 @@
-import { DEFAULT_DOORMAN_URL } from '@selfmp3/shared'
 import type { CloudPlatform, DeviceStore, TextCache } from '@selfmp3/replica'
-import Constants from 'expo-constants'
 import { appPath } from './appPath'
 import { desktop } from './desktop/bridge'
+import { doormanUrl } from './doormanUrl'
 import {
   deleteStored,
   deleteStoredPrefix,
@@ -81,11 +80,6 @@ const textCache: TextCache =
   typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol)
     ? cacheApiTextCache
     : indexedDbTextCache
-
-/** The doorman this build signs in through: the phone's rule, from `extra`, which Expo inlines on web too. */
-const configured = (Constants.expoConfig?.extra as { doormanUrl?: unknown } | undefined)?.doormanUrl
-const doormanUrl =
-  typeof configured === 'string' && configured.length > 0 ? configured : DEFAULT_DOORMAN_URL
 
 export const cloudPlatform: CloudPlatform = {
   doormanUrl,

@@ -1,4 +1,6 @@
-import { useSyncExternalStore } from 'react'
+import { createValueStore } from '../state/valueStore.model'
+import { FULL_SCREEN_ROUTES } from './fullScreen.model'
+import { useValueStore } from '../state/useValueStore'
 
 /**
  * Whether the floating chrome — the mini player and the tab bar — is on the
@@ -13,9 +15,6 @@ import { useSyncExternalStore } from 'react'
  * every list, and a context around the whole app would redraw all of them
  * from the top whenever it changed.
  */
-
-/** Screens that own the whole display at every width: no tab bar, no mini player. */
-const FULL_SCREEN_ROUTES = ['/welcome', '/storage', '/first-sync', '/now-playing']
 
 /**
  * And, on a phone only, the pages it opens over its tabs rather than as one:
@@ -33,23 +32,11 @@ export function pageOwnsScreen(pathname: string, wide: boolean): boolean {
   return PHONE_FULL_SCREEN.some(route => pathname === route || pathname.startsWith(`${route}/`))
 }
 
-let shown = true
-const listeners = new Set<() => void>()
+const shown = createValueStore(true)
 
-export function setPageChrome(next: boolean): void {
-  if (next === shown) return
-  shown = next
-  for (const listener of listeners) listener()
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
-}
-
-const read = (): boolean => shown
+export const setPageChrome = shown.set
 
 /** True while the mini player and the tab bar are on the page. */
 export function usePageChrome(): boolean {
-  return useSyncExternalStore(subscribe, read, read)
+  return useValueStore(shown)
 }

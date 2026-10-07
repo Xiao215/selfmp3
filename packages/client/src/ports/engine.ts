@@ -184,4 +184,19 @@ export interface PlaybackEngine {
    * are unchanged; passing null for one clears it.
    */
   connect(wiring: Partial<EngineWiring>): () => void
+
+  /**
+   * Tell an engine that draws the operating system's now-playing card itself
+   * that what the card shows of this song may have changed: a cover kept
+   * since, a title edited. Only the phone's has one; a browser's card is the
+   * media session's, and that engine leaves this out.
+   */
+  refreshNowPlaying?(songId: number): void
+
+  /**
+   * Tell an engine that keeps a lookahead that the order behind the current
+   * song changed. Only the phone's keeps one; the web engine asks
+   * `nextTrackId` when it is ready to preload, and leaves this out.
+   */
+  refreshLookahead?(): void
 }

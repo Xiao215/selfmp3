@@ -12,6 +12,8 @@
  * Pure, so vitest runs it: no React, no engine.
  */
 
+import { createValueStore } from '../state/valueStore.model'
+
 /**
  * What one seek moves the song by, in seconds. Ten is the podcast convention,
  * and it is the same step wherever the ask comes from — a menu item, a media
@@ -25,40 +27,6 @@ export const VOLUME_STEP = 0.05
 export interface PlayerProgress {
   readonly position: number
   readonly duration: number
-}
-
-export interface ValueStore<T> {
-  get: () => T
-  /** Replaces the value, and tells subscribers only when it actually changed. */
-  set: (next: T) => void
-  subscribe: (listener: () => void) => () => void
-}
-
-/**
- * The smallest external store: a value, and who to tell when it changes.
- * `equal` decides "changed", so an object rebuilt with the same fields is not
- * a change and wakes nobody.
- */
-export function createValueStore<T>(
-  initial: T,
-  equal: (a: T, b: T) => boolean = Object.is,
-): ValueStore<T> {
-  let value = initial
-  const listeners = new Set<() => void>()
-  return {
-    get: () => value,
-    set: next => {
-      if (equal(value, next)) return
-      value = next
-      for (const listener of listeners) listener()
-    },
-    subscribe: listener => {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-  }
 }
 
 export interface ProgressStore {

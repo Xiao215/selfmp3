@@ -570,8 +570,11 @@ function Foot(): ReactNode {
    * The index holds an entry for every song ever downloaded, a replaced
    * library's included, so counting entries can say more are saved than exist.
    */
-  const songIds = library.data?.songs.map(song => song.id) ?? []
-  const { songs, here: saved } = downloadTally(state.index, songIds)
+  const librarySongs = library.data?.songs
+  const { songs, here: saved } = useMemo(
+    () => downloadTally(state.index, librarySongs?.map(song => song.id) ?? []),
+    [state.index, librarySongs],
+  )
 
   // A failed refetch keeps the cached library, so an error wins over the data.
   const [dot, label] = library.isError

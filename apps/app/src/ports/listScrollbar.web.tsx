@@ -5,7 +5,7 @@ import { useUnistyles } from 'react-native-unistyles'
 import { withAlpha } from '@selfmp3/client'
 import type { Song } from '@selfmp3/shared'
 import { useArt } from '../offline/useArt'
-import { usePlayer } from '../player/PlayerProvider'
+import { usePlayingSongId } from '../player/PlayerProvider'
 import {
   rowAt,
   rowMark,
@@ -122,13 +122,15 @@ function Scrollbar({
 }): ReactNode {
   const { theme } = useUnistyles()
   const reduced = useMotionReduced()
-  const { current } = usePlayer()
+  // Which song is loaded, and nothing else of the player: a pause or a song
+  // added to Up next is not a reason to draw the bar again.
+  const playingId = usePlayingSongId()
   const artFor = useArt()
   const playing = useMemo(
-    () => (current ? songs.findIndex(song => song.id === current.id) : -1),
-    [current, songs],
+    () => (playingId === null ? -1 : songs.findIndex(song => song.id === playingId)),
+    [playingId, songs],
   )
-  const playingSong = playing >= 0 ? current : null
+  const playingSong = playing >= 0 ? (songs[playing] ?? null) : null
   const { tint } = useSongColor(playingSong, playingSong ? artFor(playingSong) : null)
 
   // Out because the list moved or the pointer came near; under the pointer; held.
@@ -158,8 +160,17 @@ function Scrollbar({
    * header, up to the footer (the room a player bar takes) and the bottom
    * padding. Counted as rows, those put the playing song's dot a player bar
    * out.
+   *
+   * Measured once and kept until the list's size or its songs change: it is a
+   * computed style and three element heights, and read on every scroll event
+   * — after the thumb had been moved — it laid the page out again each time.
    */
+  const span = useRef<RowSpan | null>(null)
   const spanOf = (node: HTMLElement): RowSpan => {
+    span.current ??= measureSpan(node)
+    return span.current
+  }
+  const measureSpan = (node: HTMLElement): RowSpan => {
     const content = node.firstElementChild as HTMLElement | null
     const count = live.current.songs.length
     if (!content) return { header: 0, content: node.scrollHeight, count }
@@ -180,19 +191,22 @@ function Scrollbar({
     const node = scrollNode(list.current)
     const thumb = thumbRef.current
     if (!node || !thumb) return
+    // Every read before any write, so moving the thumb never makes the next
+    // read lay the page out again.
     const metrics = metricsOf(node)
+    const scrollTop = node.scrollTop
+    const rowSpan = spanOf(node)
     const canScroll = metrics.content > metrics.viewport + 1
     setScrolls(canScroll)
     const length = thumbLength(metrics)
-    const offset = thumbOffset(node.scrollTop, metrics)
+    const offset = thumbOffset(scrollTop, metrics)
     thumb.style.height = `${length}px`
     thumb.style.transform = `translateY(${offset}px)`
 
     const { songs: rows, label: name, playing: at, out: isOut } = live.current
-    const span = spanOf(node)
     const bubble = bubbleRef.current
     if (bubble && drag.current && rows.length > 0) {
-      const index = rowAt(node.scrollTop, span)
+      const index = rowAt(scrollTop, rowSpan)
       const song = rows[index]
       if (song) bubble.textContent = name(song, index, rows.length)
       const top = Math.max(
@@ -204,9 +218,9 @@ function Scrollbar({
 
     const mark = markRef.current
     if (mark) {
-      const away = at >= 0 && !rowOnScreen(at, node.scrollTop, metrics.viewport, span)
+      const away = at >= 0 && !rowOnScreen(at, scrollTop, metrics.viewport, rowSpan)
       const showMark = canScroll && at >= 0 && (isOut || away)
-      mark.style.transform = `translateY(${rowMark(at, metrics, span) - MARK_SIZE / 2}px)`
+      mark.style.transform = `translateY(${rowMark(at, metrics, rowSpan) - MARK_SIZE / 2}px)`
       mark.style.opacity = showMark ? '1' : '0'
       mark.style.pointerEvents = showMark ? 'auto' : 'none'
     }
@@ -223,20 +237,30 @@ function Scrollbar({
   useEffect(() => {
     const node = scrollNode(list.current)
     if (!node) return undefined
+    // One draw a frame, however many scroll events the frame carried.
+    let frame = 0
     const onScroll = (): void => {
-      draw()
-      reveal()
+      if (frame !== 0) return
+      frame = window.requestAnimationFrame(() => {
+        frame = 0
+        draw()
+        reveal()
+      })
     }
     const onPointerMove = (event: PointerEvent): void => {
       if (event.clientX > node.getBoundingClientRect().right - EDGE) reveal()
     }
     node.addEventListener('scroll', onScroll, { passive: true })
     node.addEventListener('pointermove', onPointerMove, { passive: true })
-    const resize = new ResizeObserver(() => draw())
+    const resize = new ResizeObserver(() => {
+      span.current = null
+      draw()
+    })
     resize.observe(node)
     if (node.firstElementChild) resize.observe(node.firstElementChild)
     draw()
     return () => {
+      window.cancelAnimationFrame(frame)
       node.removeEventListener('scroll', onScroll)
       node.removeEventListener('pointermove', onPointerMove)
       resize.disconnect()
@@ -247,6 +271,11 @@ function Scrollbar({
   // The hide still to come is left alone when the list only moves (a player
   // bar arriving), or the bar would stay out; it goes with the bar.
   useEffect(() => () => window.clearTimeout(hideTimer.current), [])
+
+  // Other songs, or a header come or gone, run the rows somewhere else.
+  useEffect(() => {
+    span.current = null
+  }, [songs, hasHeader])
 
   // A song starting, the list changing or the bar coming out moves the dot.
   useEffect(() => {

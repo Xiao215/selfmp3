@@ -1,11 +1,21 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useRef } from 'react'
 import { useGlobalSearchParams } from 'expo-router'
 import { useLibrary } from '@selfmp3/client'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { prefs } from '../ports/prefs'
 import { useConnection } from '../connection/ConnectionProvider'
 import { usePlayer, type PlayerApi } from './PlayerProvider'
-import { launchPlayback, parseSession, SESSION_KEY, sessionFromQueue } from './session.model'
+import { createValueStore } from '../state/valueStore.model'
+import { useValueStore } from '../state/useValueStore'
+import {
+  launchPlayback,
+  parseSession,
+  POSITION_KEY,
+  positionNote,
+  SESSION_KEY,
+  sessionFromQueue,
+  withLatestPosition,
+} from './session.model'
 
 /** While playing, how often the position is written down. */
 const SAVE_EVERY_MS = 5_000
@@ -21,28 +31,15 @@ const SAVE_EVERY_MS = 5_000
 export type PlaybackMemory =
   { readonly settled: false } | { readonly settled: true; readonly restoredSongId: number | null }
 
-let memory: PlaybackMemory = { settled: false }
-const memoryListeners = new Set<() => void>()
+const memory = createValueStore<PlaybackMemory>({ settled: false })
 
 function settle(restoredSongId: number | null): void {
-  memory = { settled: true, restoredSongId }
-  for (const listener of memoryListeners) listener()
-}
-
-function subscribeMemory(listener: () => void): () => void {
-  memoryListeners.add(listener)
-  return () => {
-    memoryListeners.delete(listener)
-  }
+  memory.set({ settled: true, restoredSongId })
 }
 
 /** Whether this launch has finished coming back, and to which song. */
 export function usePlaybackMemoryState(): PlaybackMemory {
-  return useSyncExternalStore(
-    subscribeMemory,
-    () => memory,
-    () => memory,
-  )
+  return useValueStore(memory)
 }
 
 /**
@@ -53,6 +50,12 @@ export function usePlaybackMemoryState(): PlaybackMemory {
 function writeSession(player: PlayerApi): void {
   const session = sessionFromQueue(player.queue, player.getPosition(), player.source)
   prefs.set(SESSION_KEY, session ? JSON.stringify(session) : '')
+  writePosition(player)
+}
+
+/** Only how far in: what the clock moves, written every few seconds on its own. */
+function writePosition(player: PlayerApi): void {
+  prefs.set(POSITION_KEY, positionNote(player.queue, player.getPosition()) ?? '')
 }
 
 /**
@@ -87,7 +90,8 @@ export function usePlaybackMemory(): void {
       return
     }
     const known = new Set(library.data.songs.map(song => song.id))
-    const launch = launchPlayback(parseSession(prefs.get(SESSION_KEY)), addressSong, known)
+    const saved = withLatestPosition(parseSession(prefs.get(SESSION_KEY)), prefs.get(POSITION_KEY))
+    const launch = launchPlayback(saved, addressSong, known)
     const songId = launch ? launch.queueIds[launch.index] : undefined
     if (!launch || songId === undefined || !mayPlay(songId)) {
       settle(null)
@@ -114,7 +118,7 @@ export function usePlaybackMemory(): void {
     if (!restored.current) return undefined
     writeSession(latest.current)
     if (!playing) return undefined
-    const timer = setInterval(() => writeSession(latest.current), SAVE_EVERY_MS)
+    const timer = setInterval(() => writePosition(latest.current), SAVE_EVERY_MS)
     return () => clearInterval(timer)
   }, [queue, songId, playing, source])
 

@@ -18,6 +18,8 @@ import {
   playBlock,
   shouldAutoDownload,
   type DownloadAsk,
+  type DownloadQueue,
+  type DownloadQueueState,
   type NetworkKind,
   type PlayBlock,
   type SyncSituation,
@@ -37,7 +39,7 @@ import {
 import { prefs as prefStore } from '../ports/prefs'
 import { useConnection } from '../connection/ConnectionProvider'
 import { useConnectionKind } from './connectionKind'
-import { downloadQueue, type DownloadQueue, type DownloadState } from './downloads'
+import { downloadQueue } from './downloads'
 
 /**
  * React's view of the download queue, and the rules around it.
@@ -45,7 +47,7 @@ import { downloadQueue, type DownloadQueue, type DownloadState } from './downloa
  * The queue itself is a module-level singleton (downloads outlive screens);
  * this mirrors its state into React, keeps it pointed at the current server
  * and library, and applies the downloading and streaming design: download on
- * Wi-Fi by itself, ask once on mobile data, wait for a tap over 500 MB, and
+ * Wi-Fi by itself, ask once on mobile data, wait for a tap over a large total (`LARGE_SYNC_BYTES`), and
  * say why a song that is not here cannot play (`syncPolicy.ts` in
  * packages/client decides; this carries it out).
  */
@@ -81,7 +83,7 @@ interface DownloadsContextValue {
    * chunk by chunk: every screen reads this, so following each chunk here
    * renders all of them. A bar that moves reads `useDownloadProgress()`.
    */
-  readonly state: DownloadState
+  readonly state: DownloadQueueState
   readonly queue: DownloadQueue
   readonly installed: boolean
   readonly network: NetworkKind
@@ -247,10 +249,8 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
   const songIds = useSameArray(
     useMemo(() => (library.data?.songs ?? []).map(song => song.id), [library.data]),
   )
-  const missingIds = useMemo(
-    () => pendingIds(state.index, songIds).filter(id => !excluded.has(id)),
-    [state.index, songIds, excluded],
-  )
+  const absentIds = useMemo(() => pendingIds(state.index, songIds), [state.index, songIds])
+  const missingIds = useMemo(() => absentIds.filter(id => !excluded.has(id)), [absentIds, excluded])
   /*
    * Each song's size, from the manifest when there is one and the library when
    * not. Built once per change rather than walked again per question — a
@@ -269,7 +269,6 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     [sizeById, state.index],
   )
   const missingBytes = useMemo(() => bytesFor(missingIds), [bytesFor, missingIds])
-  const absentIds = useMemo(() => pendingIds(state.index, songIds), [state.index, songIds])
   const absentBytes = useMemo(() => bytesFor(absentIds), [bytesFor, absentIds])
 
   const situation = useMemo<SyncSituation>(
@@ -562,7 +561,7 @@ export function useDownloads(): DownloadsContextValue {
 }
 
 /** Everything about the queue but how far the song in flight has got. */
-function sameShape(a: DownloadState, b: DownloadState): boolean {
+function sameShape(a: DownloadQueueState, b: DownloadQueueState): boolean {
   return (
     a.index === b.index &&
     a.queue === b.queue &&

@@ -1,4 +1,5 @@
-import { useSyncExternalStore } from 'react'
+import { createValueStore } from '../state/valueStore.model'
+import { useValueStore } from '../state/useValueStore'
 
 /**
  * Whether Now Playing has started up over the window, on a computer.
@@ -16,24 +17,10 @@ import { useSyncExternalStore } from 'react'
  * knows and the shell that draws are not each other's parent.
  */
 
-let arriving = false
-const listeners = new Set<() => void>()
+const arriving = createValueStore(false)
 
-export function setStageArriving(next: boolean): void {
-  if (next === arriving) return
-  arriving = next
-  for (const listener of listeners) listener()
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
-}
-
-const read = (): boolean => arriving
+export const setStageArriving = arriving.set
 
 export function useStageArriving(): boolean {
-  return useSyncExternalStore(subscribe, read, read)
+  return useValueStore(arriving)
 }

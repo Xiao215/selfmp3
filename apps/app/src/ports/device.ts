@@ -2,15 +2,13 @@ import * as Crypto from 'expo-crypto'
 import { Platform } from 'react-native'
 import type { DeviceKind } from '@selfmp3/shared'
 
-import { prefs } from './prefs'
+import { keepDeviceName, storedDeviceId, storedDeviceName, type DeviceWord } from './deviceIdentity'
 
 /**
  * Who this device says it is.
  *
- * Uses the `prefs` port instead of `localStorage`, and knows what it is
- * running on directly instead of sniffing the user agent. The id must survive
- * a restart — it is what other devices address commands to — but not a
- * reinstall, where a fresh id simply looks like a new device.
+ * Knows what it is running on directly instead of sniffing the user agent.
+ * The id and the name are kept as every device keeps them (`deviceIdentity.ts`).
  *
  * A port, and `Platform.OS` is read here because this is the one question that
  * genuinely is about the platform: what kind of thing am I, and what should I
@@ -18,25 +16,18 @@ import { prefs } from './prefs'
  * rather than the operating system.
  */
 
-const ID_KEY = 'device.id'
-const NAME_KEY = 'device.name'
-
 export function getDeviceId(): string {
-  const stored = prefs.get(ID_KEY)
-  if (stored && /^[A-Za-z0-9_-]{8,64}$/.test(stored)) return stored
-  const fresh = generateId()
-  prefs.set(ID_KEY, fresh)
-  return fresh
+  // Hermes has no `crypto.getRandomValues`; expo-crypto asks the platform, as
+  // `cloudPlatform.randomBytes` does for the sign-in attempt id.
+  return storedDeviceId(length => Crypto.getRandomBytes(length))
 }
 
 export function getDeviceName(): string {
-  return prefs.get(NAME_KEY) ?? defaultName()
+  return storedDeviceName() ?? defaultName()
 }
 
 export function setDeviceName(name: string): string {
-  const trimmed = name.trim().slice(0, 60)
-  if (trimmed) prefs.set(NAME_KEY, trimmed)
-  return trimmed || defaultName()
+  return keepDeviceName(name) ?? defaultName()
 }
 
 export function deviceKind(): DeviceKind {
@@ -51,13 +42,6 @@ function defaultName(): string {
   return 'self.mp3'
 }
 
-function generateId(): string {
-  // Hermes has no `crypto.getRandomValues`; expo-crypto asks the platform, as
-  // `cloudPlatform.randomBytes` does for the sign-in attempt id.
-  const bytes = Crypto.getRandomBytes(16)
-  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
-}
-
 /**
  * What to call this device in a sentence: "on this iPad", "tells this phone".
  * The layout does not decide it: an iPad is wide enough for a computer's
@@ -66,5 +50,3 @@ function generateId(): string {
 export function deviceWord(_layout: { wide: boolean; finePointer: boolean }): DeviceWord {
   return Platform.OS === 'ios' && Platform.isPad ? 'iPad' : 'phone'
 }
-
-type DeviceWord = 'phone' | 'iPad' | 'tablet' | 'computer'

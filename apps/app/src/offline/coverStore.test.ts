@@ -12,9 +12,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  */
 
 const replica = {
-  library: { cloudCoverKey: vi.fn(async (songId: number) => `covers/hash-${songId}.jpg`) },
+  library: {
+    cloudCoverKey: vi.fn(async (songId: number) => `covers/hash-${songId}.jpg`),
+    cloudCoverKeyNow: (songId: number) => `covers/hash-${songId}.jpg`,
+  },
   cloudPlatform: { doormanUrl: 'https://doorman.example' },
   session: { loadSession: vi.fn(async () => ({ token: 't' })) },
+  doormanFileUrl: (key: string) => `https://doorman.example/v1/files/${key}`,
+  doormanAuth: (token: string) => ({ Authorization: `Bearer ${token}` }),
 }
 vi.mock('../replica', () => replica)
 
@@ -52,6 +57,19 @@ describe('the cover store', () => {
   })
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('looks on the disk for a cloud cover once, not on every read, until it is fetched', async () => {
+    // Each look is a file check on the JS thread, and every render of a row reads.
+    const peekCloud = vi.fn((_name: string): string | null => null)
+    const store = createCoverStore(fakePlatform({ peekCloud }))
+
+    expect(store.coverFor(5)).toBeUndefined()
+    expect(store.coverFor(5)).toBeUndefined()
+    expect(peekCloud).toHaveBeenCalledTimes(1)
+
+    await store.ensureCover(5)
+    expect(store.coverFor(5)).toBe('file:///hash-5.jpg')
   })
 
   it('has a synchronous prime in the very first read, and tells nobody', async () => {

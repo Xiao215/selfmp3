@@ -1,5 +1,5 @@
 import { Directory, File, Paths } from 'expo-file-system'
-import { createCoverStore, type CoverPlatform } from './coverStore'
+import { createCoverStore, isPicture, parseServedName, type CoverPlatform } from './coverStore'
 
 /**
  * Cover art from the bucket, as files this phone can hand to the OS.
@@ -39,10 +39,8 @@ const platform: CoverPlatform = {
     try {
       if (!STORE.exists) return
       for (const entry of STORE.list()) {
-        const match = /^(\d+)-(.*)\.jpg$/.exec(entry.name)
-        if (match && entry instanceof File) {
-          found(Number(match[1]), match[2] ?? '', entry.uri)
-        }
+        const served = parseServedName(entry.name)
+        if (served && entry instanceof File) found(served.songId, served.rev, entry.uri)
       }
     } catch {
       // Nothing kept, or nothing readable: the server is asked as before.
@@ -50,7 +48,6 @@ const platform: CoverPlatform = {
   },
 
   haveCloud: name => {
-    if (!CACHE.exists) CACHE.create({ intermediates: true })
     const file = new File(CACHE, name)
     return Promise.resolve(file.exists ? file.uri : null)
   },
@@ -71,6 +68,7 @@ const platform: CoverPlatform = {
   // `idempotent` because the name is the hash of the contents: the same file
   // twice is the same file, and racing to write it is not an error.
   keepCloud: async (name, url, headers) => {
+    CACHE.create({ intermediates: true, idempotent: true })
     const written = await File.downloadFileAsync(url, new File(CACHE, name), {
       headers,
       idempotent: true,
@@ -95,13 +93,8 @@ const platform: CoverPlatform = {
   },
 }
 
-const store = createCoverStore(platform)
-
 /** Whether this device keeps covers at all. A phone always does. */
 export const keepsCovers = true
-
-/** A cover's file, whatever the bucket's picture was: a cloud cover keeps its own extension. */
-const PICTURE = /\.(jpe?g|png|webp|gif)$/i
 
 /**
  * The covers this phone still holds, newest first, for Welcome to show a
@@ -118,7 +111,7 @@ export function keptCovers(limit: number): Promise<readonly string[]> {
     for (const dir of [CACHE, STORE]) {
       if (!dir.exists) continue
       for (const entry of dir.list()) {
-        if (entry instanceof File && PICTURE.test(entry.name)) files.push(entry)
+        if (entry instanceof File && isPicture(entry.name)) files.push(entry)
       }
     }
     files.sort((a, b) => (b.modificationTime ?? 0) - (a.modificationTime ?? 0))
@@ -129,11 +122,13 @@ export function keptCovers(limit: number): Promise<readonly string[]> {
   }
 }
 
-export const subscribeCovers = store.subscribeCovers
-export const coversVersion = store.coversVersion
-export const coverFor = store.coverFor
-export const coverFailed = store.coverFailed
-export const ensureServerCover = store.ensureServerCover
-export const ensureCover = store.ensureCover
-export const forgetCovers = store.forgetCovers
+export const {
+  subscribeCovers,
+  coversVersion,
+  coverFor,
+  coverFailed,
+  ensureServerCover,
+  ensureCover,
+  forgetCovers,
+} = createCoverStore(platform)
 export { KEPT_COVER_SIZE } from './coverStore'

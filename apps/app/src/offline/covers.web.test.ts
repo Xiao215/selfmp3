@@ -27,6 +27,8 @@ const replica = {
   library: { cloudCoverKey: vi.fn(async (songId: number) => `covers/hash-${songId}.jpg`) },
   cloudPlatform: { doormanUrl: 'https://doorman.example' },
   session: { loadSession: vi.fn(async () => ({ token: 't' })) },
+  doormanFileUrl: (key: string) => `https://doorman.example/v1/files/${key}`,
+  doormanAuth: (token: string) => ({ Authorization: `Bearer ${token}` }),
 }
 
 vi.mock('../ports/coverFiles', () => ({

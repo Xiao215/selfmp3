@@ -2,7 +2,7 @@ import { describeUserAgent } from '@selfmp3/client'
 import type { DeviceKind } from '@selfmp3/shared'
 
 import { desktop } from './desktop/bridge'
-import { prefs } from './prefs'
+import { keepDeviceName, storedDeviceId, storedDeviceName, type DeviceWord } from './deviceIdentity'
 
 /**
  * Who this browser says it is.
@@ -20,9 +20,6 @@ import { prefs } from './prefs'
  * separate stored id under.
  */
 
-const ID_KEY = 'device.id'
-const NAME_KEY = 'device.name'
-
 function described(): { name: string; kind: DeviceKind } {
   if (desktop) return { name: desktop.info.hostname, kind: 'desktop' }
   if (typeof navigator === 'undefined') return { name: 'Device · Browser', kind: 'other' }
@@ -30,32 +27,19 @@ function described(): { name: string; kind: DeviceKind } {
 }
 
 export function getDeviceId(): string {
-  const stored = prefs.get(ID_KEY)
-  if (stored && /^[A-Za-z0-9_-]{8,64}$/.test(stored)) return stored
-  const fresh = generateId()
-  prefs.set(ID_KEY, fresh)
-  return fresh
+  return storedDeviceId(length => crypto.getRandomValues(new Uint8Array(length)))
 }
 
 export function getDeviceName(): string {
-  const stored = prefs.get(NAME_KEY)?.trim()
-  return stored ? stored.slice(0, 60) : described().name
+  return storedDeviceName() ?? described().name
 }
 
 export function setDeviceName(name: string): string {
-  const trimmed = name.trim().slice(0, 60)
-  if (trimmed) prefs.set(NAME_KEY, trimmed)
-  return trimmed || described().name
+  return keepDeviceName(name) ?? described().name
 }
 
 export function deviceKind(): DeviceKind {
   return described().kind
-}
-
-function generateId(): string {
-  const bytes = new Uint8Array(16)
-  crypto.getRandomValues(bytes)
-  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
 /**
@@ -68,5 +52,3 @@ export function deviceWord(layout: { wide: boolean; finePointer: boolean }): Dev
   if (!layout.wide) return 'phone'
   return layout.finePointer ? 'computer' : 'tablet'
 }
-
-type DeviceWord = 'phone' | 'iPad' | 'tablet' | 'computer'

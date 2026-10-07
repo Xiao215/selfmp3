@@ -1,7 +1,9 @@
-import { readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { app, safeStorage } from 'electron'
+
+import { writeFileAtomicSync } from './writeAtomic.js'
 
 /**
  * The keychain, as the page sees it.
@@ -27,7 +29,7 @@ import { app, safeStorage } from 'electron'
 type SealedSecrets = Record<string, string>
 
 const SEALED = 'k:'
-export const PLAIN = 'p:'
+const PLAIN = 'p:'
 
 export function parseSecrets(text: string): SealedSecrets {
   let parsed: unknown
@@ -85,17 +87,11 @@ function read(): SealedSecrets {
 }
 
 /**
- * Write through a temporary file and rename.
- *
- * A rename is atomic on the same filesystem, so a crash halfway leaves either
- * the old document or the new one — never a truncated one, which would read
- * back as "signed out" and is the worst way to lose a session.
+ * Write the whole document atomically: a truncated one would read back as
+ * "signed out", which is the worst way to lose a session.
  */
 function write(secrets: SealedSecrets): void {
-  const target = file()
-  const temporary = `${target}.tmp`
-  writeFileSync(temporary, serialiseSecrets(secrets), { mode: 0o600 })
-  renameSync(temporary, target)
+  writeFileAtomicSync(file(), serialiseSecrets(secrets))
   // Only once the file says so: a write that threw leaves the cache on what is on disk.
   cached = { ...secrets }
   opened.clear()

@@ -87,7 +87,7 @@ export const FILTERS_GUIDE = `The filters:
 - playedWithinDays / notPlayedWithinDays / addedWithinDays: when the description is about recency ("nothing I played this week" is notPlayedWithinDays 7; "new stuff" is addedWithinDays 30).
 - size: a number of songs, only if they say one.
 - minutes: how long it should play, only if they say a length ("2 hours" is 120, "half an hour" is 30). Never turn a length into a number of songs: songs differ in length, and the app counts them. Set size or minutes, never both.
-- sound: how the music should sound, in English, for a model that listens to every song: instruments, mood, genre and style in a short phrase, such as "calm orchestral music with strings and flute", "intense epic battle music", "solo classical piano", "upbeat Japanese pop with female vocals". Write it in English whatever language the description is in, and only in positive words: the listening model does not understand "no" or "without" (no vocals is words "without"). It orders the songs the other filters let in, best sounding first, and never removes one. Null when the description says nothing about how the music sounds.
+- sound: how the music should sound, in English, for a model that listens to every song: instruments, mood, genre and style in a short phrase, such as "calm orchestral music with strings and flute", "intense epic battle music", "solo classical piano", "upbeat Japanese pop with female vocals". Write it in English whatever language the description is in, and only in positive words: the listening model does not understand "no" or "without" (no vocals is words "without"). Of the songs the other filters let in, it keeps the ones that sound like it, best first. Null when the description says nothing about how the music sounds; never set it just to order songs the other filters already choose.
 - brief: what the description wants that the filters and sound cannot express, in a few words, such as "named for rain" or "songs about leaving home". Null if they say it all.
 - name: a short, plain playlist name in the description's language, no emoji.
 
@@ -262,22 +262,35 @@ export function songsFitting(
 }
 
 /**
+ * How far below the best match a song may score and still sound like the
+ * words. The scores are relative (a sentence against songs, about 0.1–0.3), so
+ * the line is drawn from the top, not at a fixed value: a sound few songs have
+ * keeps few, a broad one keeps many. Measured on 585 of the library's songs
+ * (2026-10-07): "solo classical piano" kept 20 against the 18 piano pieces,
+ * three in four of them right; "Japanese pop" kept 86, nineteen in twenty right;
+ * "intense epic battle music" kept 26 of 337 Genshin tracks.
+ */
+const SOUND_MARGIN = 0.06
+
+/**
  * Each song's place, 0–100, in how it sounds: the description's sound, how
  * close it is to a song they are steering from, or both, averaged. Songs the
- * model has not heard have no place. Null when there is nothing to order by.
+ * model has not heard have no place. With a description, `kept` is the songs
+ * that sound like it, within `SOUND_MARGIN` of the best; steering from a song
+ * keeps every one. Null when there is nothing to order by.
  */
 async function soundOrder(
   sound: SoundRanker | undefined,
   songs: readonly Song[],
   understanding: Understanding,
   like: number | null,
-): Promise<Map<number, number> | null> {
+): Promise<{ places: Map<number, number>; kept: Set<number> | null } | null> {
   if (!sound || songs.length === 0) return null
   const ids = songs.map(song => song.id)
-  const sources = [
-    understanding.sound ? await sound.match(understanding.sound, ids) : null,
-    like !== null ? sound.closeTo(like, ids) : null,
-  ].filter((scores): scores is Map<number, number> => scores !== null && scores.size > 0)
+  const matched = understanding.sound ? await sound.match(understanding.sound, ids) : null
+  const sources = [matched, like !== null ? sound.closeTo(like, ids) : null].filter(
+    (scores): scores is Map<number, number> => scores !== null && scores.size > 0,
+  )
   if (sources.length === 0) return null
   // Places rather than raw scores: a sentence and a song sit at different
   // distances from the same music, and only their orders can be averaged.
@@ -295,7 +308,15 @@ async function soundOrder(
     const each = places.map(place => place.get(id)).filter((p): p is number => p !== undefined)
     if (each.length === places.length) out.set(id, each.reduce((a, b) => a + b, 0) / each.length)
   }
-  return out.size > 0 ? out : null
+  if (out.size === 0) return null
+  let kept: Set<number> | null = null
+  if (matched && matched.size > 0) {
+    const best = Math.max(...matched.values())
+    kept = new Set(
+      [...matched].filter(([, score]) => score >= best - SOUND_MARGIN).map(([id]) => id),
+    )
+  }
+  return { places: out, kept }
 }
 
 /** A stable order that is not the library's: the same words give the same sample. */
@@ -434,7 +455,9 @@ export async function narrowAndPick(
   )
 
   // How they sound, when the words or the song steered from say: the songs in
-  // that order, best first, and the ones not heard yet after them.
+  // that order, best first. A described sound also keeps only the songs that
+  // sound like it, so a sound few songs have is not padded out with ones that
+  // do not; songs not heard yet cannot be vouched for and stay out with them.
   let places: Map<number, number> | null = null
   if (fitting.length > 1 && (understanding.sound !== null || like !== null)) {
     steps.begin(
@@ -442,8 +465,19 @@ export async function narrowAndPick(
         ? `Listening for “${understanding.sound}”`
         : 'Listening for songs like it',
     )
-    places = await soundOrder(deps.sound, fitting, understanding, like)
-    steps.done(places ? `Heard ${places.size} of them` : 'No song has been heard yet')
+    const heard = await soundOrder(deps.sound, fitting, understanding, like)
+    if (heard) {
+      places = heard.places
+      const kept = heard.kept
+      if (kept) fitting = fitting.filter(song => kept.has(song.id))
+      steps.done(
+        kept
+          ? `${kept.size} of the ${heard.places.size} heard ${kept.size === 1 ? 'sounds' : 'sound'} like it`
+          : `Heard ${heard.places.size} of them`,
+      )
+    } else {
+      steps.done('No song has been heard yet')
+    }
   }
   const ordered = places
     ? [...fitting].sort((a, b) => (places.get(b.id) ?? -1) - (places.get(a.id) ?? -1))

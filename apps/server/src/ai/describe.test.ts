@@ -207,8 +207,8 @@ group('describe', () => {
     // The listening model hears song 5 as the most "calm", then 1, then 2.
     const heard = new Map([
       [5, 0.3],
-      [1, 0.2],
-      [2, 0.1],
+      [1, 0.28],
+      [2, 0.25],
     ])
     const sound = {
       match: (_text: string, ids: readonly number[]) =>
@@ -221,11 +221,33 @@ group('describe', () => {
     expect(llm.asked).toHaveLength(0)
   })
 
+  it('keeps only the songs that sound like it, rather than padding the answer out', async () => {
+    const llm = scriptedLlm({})
+    // Two songs have the violin; the rest are well below them.
+    const scores = new Map([
+      [1, 0.29],
+      [2, 0.25],
+      [3, 0.12],
+      [4, 0.1],
+      [5, 0.08],
+    ])
+    const sound = {
+      match: (_text: string, ids: readonly number[]) =>
+        Promise.resolve(new Map(ids.filter(id => scores.has(id)).map(id => [id, scores.get(id)!]))),
+      closeTo: () => null,
+    }
+    const violin = { ...nothing, sound: 'solo violin' }
+    const result = await narrowAndPick({ ...deps(llm), sound }, 'violin songs', violin, [])
+    expect(result.picks.map(pick => pick.songId)).toEqual([1, 2])
+    expect(result.fit).toBe(2)
+    expect(llm.asked).toHaveLength(0)
+  })
+
   it('gives the model the best-sounding songs, in that order, with a sound column', async () => {
     const llm = scriptedLlm({ 'describe-pick': [{ picks: [{ n: 1, why: 'calm' }] }] })
     const sound = {
       match: (_text: string, ids: readonly number[]) =>
-        Promise.resolve(new Map(ids.map(id => [id, id === 6 ? 0.9 : id === 4 ? 0.5 : 0]))),
+        Promise.resolve(new Map(ids.map(id => [id, id === 6 ? 0.3 : id === 4 ? 0.27 : 0.25]))),
       closeTo: () => null,
     }
     const parts = { ...nothing, anyTags: ['原神纯音乐'], sound: 'calm', brief: 'for sleeping' }

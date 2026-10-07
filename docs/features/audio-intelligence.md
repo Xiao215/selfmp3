@@ -142,13 +142,21 @@ load when first wanted and are let go after ten idle minutes.
 - **Ask** ([ai.md](ai.md)): the plan has a `sound` part, the description's sound in English
   ("intense epic battle music"), written by the model in English whatever the request's
   language, in positive words only (the model does not understand "no vocals"; that is the
-  words filter). It never removes a song: the songs the other parts let in are put in the
-  order they sound, best first, and the ones not heard yet after them. When nothing else is
-  wanted, the best-sounding are the answer, with no second model call; otherwise the model
-  picks from the best-sounding 300, with a `sound` column (0–100). The app shows the part as a
-  chip, "Sounds like calm orchestral…", that can be taken away.
-- **"More like this"** in Ask, with a song playing: the songs that fit are ordered by how close
-  they sound to it.
+  words filter). Of the songs the other parts let in, it keeps the ones that sound like it,
+  best first: within 0.06 of the best match, a line drawn from the top because the scores
+  only mean something against each other. A sound few songs have keeps few and a broad one
+  many: on 585 songs, "solo classical piano" kept 20 against the 18 piano pieces (three in
+  four right), "Japanese pop" 86 (nineteen in twenty right), "intense epic battle music" 26 of
+  337 Genshin tracks. Songs not heard yet stay out. When nothing else is wanted, the kept
+  songs are the answer, with no second model call; otherwise the model picks from the
+  best-sounding 300 of them, with a `sound` column (0–100). The app shows the part as a chip,
+  "Sounds like calm orchestral…", that can be taken away.
+- **"More like this"** in Ask, with a song playing: when the router says they want music like
+  it (`like`), the songs that fit are ordered by how close they sound to it, with no cutoff.
+
+The listening model is used only for those. A request with no sound in it, and no `like`,
+never loads the text half of the model; the songs' vectors are made in the background either
+way.
 
 **Settings › Library** shows it under "How songs sound": waiting (while songs still need their
 tempo and key), downloading, how many songs are heard and how many are to go, or why the model

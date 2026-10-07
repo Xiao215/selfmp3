@@ -446,7 +446,7 @@ function LeadCard({
  * shows them, or the cover of theirs they are played for, round so it still
  * reads as a person beside the square covers of songs.
  */
-function ArtistFace({
+function RankedArtistFace({
   name,
   known,
   cover,
@@ -482,7 +482,7 @@ function RankedLine({
 }: {
   row: RankedRow
   song: Song | undefined
-  /** An artist's stand-in cover (`ArtistFace`). */
+  /** An artist's stand-in cover (`RankedArtistFace`). */
   cover: Song | undefined
   hue: number | undefined
   via: ServerConnection | undefined
@@ -507,7 +507,7 @@ function RankedLine({
     row.kind === 'song' ? (
       <Cover uri={song ? artFor(song) : null} title={row.name} size={36} />
     ) : row.kind === 'artist' ? (
-      <ArtistFace name={row.name} known={row.known} cover={cover} via={via} />
+      <RankedArtistFace name={row.name} known={row.known} cover={cover} via={via} />
     ) : (
       <View style={styles.tagSquare}>
         <View

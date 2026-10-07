@@ -9,6 +9,9 @@
  *
  * @type {import('@bacons/apple-targets/app.plugin').Config}
  */
+// The colours from @selfmp3/shared, as app.config.js takes the window's.
+const { NATIVE_ACCENT, NATIVE_CARD } = require('@selfmp3/shared')
+
 module.exports = {
   type: 'widget',
   name: 'SelfMp3Widget',
@@ -21,7 +24,7 @@ module.exports = {
   },
   colors: {
     // `S2`: the accent at its default hue, and a card's tone.
-    $accent: '#7a9eff',
-    $widgetBackground: '#151821',
+    $accent: NATIVE_ACCENT,
+    $widgetBackground: NATIVE_CARD,
   },
 }

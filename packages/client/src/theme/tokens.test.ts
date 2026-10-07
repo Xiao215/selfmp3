@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
+import { NATIVE_ACCENT } from '@selfmp3/shared'
 import { oklchToHex, oklchToHexAlpha } from './oklch.js'
 import {
   buildAccent,
@@ -159,5 +160,12 @@ describe('the dim behind a dialog', () => {
   it('is the accent-tinted near-black at 0.6, in both themes', () => {
     expect(darkPalette(150).backdrop).toBe(oklchToHexAlpha(0.1, 0.02, 150, 0.6))
     expect(lightPalette(150).backdrop).toBe(darkPalette(150).backdrop)
+  })
+})
+
+describe('the widget', () => {
+  // Its Xcode target is coloured at prebuild time from @selfmp3/shared.
+  it('is tinted with the accent the app starts on', () => {
+    expect(buildAccent(DEFAULT_ACCENT_HUE, 'dark').accent).toBe(NATIVE_ACCENT)
   })
 })

@@ -1,4 +1,4 @@
-import { NATIVE_BACKGROUND } from '@selfmp3/shared'
+import { NATIVE_BACKGROUND, NATIVE_CARD } from '@selfmp3/shared'
 import { oklchToHex, oklchToHexAlpha } from './oklch.js'
 
 /**
@@ -131,7 +131,7 @@ const DARK = {
   // The one colour a window, a splash and a launcher icon are filled with
   // before any of this is running, so it is written down where they can read it.
   surface0: NATIVE_BACKGROUND,
-  surface1: '#151821',
+  surface1: NATIVE_CARD,
   surface2: '#1a1d25',
   surface3: '#1f2330',
   surfaceSelected: '#2c3140',

@@ -283,15 +283,6 @@ interface YtDlpJson {
   playlist_title?: string
 }
 
-/** One result of a YouTube search, as much of it as a flat listing gives. */
-export interface SearchHit {
-  url: string
-  title: string
-  channel: string
-  duration: number
-  thumbnail: string | null
-}
-
 /** One entry of yt-dlp's JSON as a track to review and import. */
 export function toProbedTrack(json: YtDlpJson, fallbackUrl: string): ProbedTrack {
   // Flat playlist entries carry only an id, so rebuild a watch URL from it.
@@ -552,67 +543,6 @@ export class YtDlpService {
     }
 
     return { kind: 'single', playlistTitle: null, tracks: [toProbedTrack(parsed, url)] }
-  }
-
-  /**
-   * The first `limit` results YouTube gives for `query`, without downloading.
-   *
-   * Paced like everything else here, because it is nothing else to YouTube: a
-   * migration searches once per track, and fifty searches from this address
-   * are fifty requests against the same unpublished limit as fifty probes. An
-   * earlier version ran yt-dlp directly — no `-4`, no cookies, no budget — so
-   * a long playlist could walk the address into a bot wall that the download
-   * queue then met, and never learned about.
-   *
-   * The wait is patient rather than interactive: a migration is a job that is
-   * polled, not a request someone is sitting in front of, so once the burst is
-   * spent it would rather take its turn than fail the rest of the list.
-   * Cancelling the job aborts the wait along with the search.
-   */
-  async search(query: string, limit: number, signal?: AbortSignal): Promise<SearchHit[]> {
-    await this.#pace(signal ? { signal } : {})
-    const result = await run(
-      'yt-dlp',
-      [
-        ...BASE_ARGS,
-        '--dump-single-json',
-        '--flat-playlist',
-        '--no-warnings',
-        ...(await this.#cookieArgs()),
-        '--',
-        `ytsearch${limit}:${query}`,
-      ],
-      { timeoutMs: 60_000, ...(signal ? { signal } : {}) },
-    )
-    if (result.code !== 0) {
-      throw this.#failure(summarizeError(result.stderr, 'search failed'))
-    }
-
-    let parsed: YtDlpJson
-    try {
-      parsed = JSON.parse(result.stdout) as YtDlpJson
-    } catch {
-      throw new Error('yt-dlp returned something unreadable')
-    }
-
-    return (parsed.entries ?? [])
-      .filter(
-        (entry): entry is YtDlpJson & { id: string } =>
-          entry != null && typeof entry.id === 'string',
-      )
-      .map(entry => ({
-        url:
-          entry.url && /^https?:/.test(entry.url)
-            ? entry.url
-            : `https://www.youtube.com/watch?v=${entry.id}`,
-        title: entry.title ?? '',
-        channel: entry.channel ?? entry.uploader ?? '',
-        duration: typeof entry.duration === 'number' ? entry.duration : 0,
-        // The smallest thumbnail is plenty for a 40px preview and loads fastest.
-        thumbnail:
-          entry.thumbnails?.find(thumb => thumb.url)?.url ??
-          `https://i.ytimg.com/vi/${entry.id}/default.jpg`,
-      }))
   }
 
   /**

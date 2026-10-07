@@ -5,19 +5,18 @@ import {
   foldForMatch,
   normalizeForMatch,
   scoreHit,
+  type MatchHit,
   searchQuery,
   similarAtLeast,
   similarity,
   YouTubeMatcher,
 } from './youtubeMatch.js'
 import { createLogger } from '../logger.js'
-import type { ProbedTrack, SearchHit } from './ytdlp.js'
+import type { ProbedTrack } from './ytdlp.js'
 
-const hit = (partial: Partial<SearchHit> & { title: string }): SearchHit => ({
-  url: `https://www.youtube.com/watch?v=${partial.title.replace(/\W/g, '').slice(0, 11)}`,
+const hit = (partial: Partial<MatchHit> & { title: string }): MatchHit => ({
   channel: '',
   duration: 0,
-  thumbnail: null,
   ...partial,
 })
 

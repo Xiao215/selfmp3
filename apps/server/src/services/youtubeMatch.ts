@@ -2,7 +2,7 @@ import { pinyin } from 'pinyin-pro'
 import { cleanTitle, editDistance, type ImportFound } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { ListedTrack } from './trackLists.js'
-import type { ProbedTrack, SearchHit } from './ytdlp.js'
+import type { ProbedTrack } from './ytdlp.js'
 import type { YouTubeMusicLists } from './youtubeMusicLists.js'
 
 /**
@@ -171,12 +171,21 @@ export function durationScore(source: number, candidate: number): number | null 
   return 1 - (diff - 3) / 42
 }
 
+/** What a result offers the scoring: its title, who it is by, and its length. */
+export interface MatchHit {
+  readonly title: string
+  /** The channel or credited artist. */
+  readonly channel: string
+  /** Seconds; 0 when unknown. */
+  readonly duration: number
+}
+
 /**
  * Score one result. The video title is split on its dashes so "Daft Punk -
  * Get Lucky" is compared part by part against the artist and the title, and
  * the artist is also looked for in the channel name.
  */
-export function scoreHit(source: ListedTrack, hit: SearchHit): number {
+export function scoreHit(source: ListedTrack, hit: MatchHit): number {
   const sourceTitle = cleanTitle(source.title)
   const sourceArtist = source.artist
   const videoTitle = cleanTitle(hit.title)
@@ -232,11 +241,9 @@ export function bestMatch(
   let best: { track: ProbedTrack; confidence: number } | null = null
   for (const [rank, track] of results.entries()) {
     const score = scoreHit(source, {
-      url: track.url,
       title: track.title,
       channel: track.artist,
       duration: track.duration,
-      thumbnail: track.thumbnail,
     })
     /*
      * YouTube Music's own first answer gets a little more trust: it knows an

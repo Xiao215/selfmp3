@@ -39,8 +39,9 @@ test, and expect it to find things this file could not.
 | **Background audio** | react-native-track-player: lock screen, notification, headphone buttons, audio focus. |
 | **Android Auto** | See [Android Auto](#android-auto). The honest answer is "less than was hoped, and never tested in a car". |
 
-The tabs along the bottom are **Library · Playlists · Import · You**; You holds
-Stats & report, Untagged, Tags and Settings. Settings holds the Google account,
+The tabs along the bottom are **Home · Library · Playlists**. Home leads to the
+rest: the tags from its tiles, Import from its +, and Profile from its avatar,
+which holds Stats, the report and Settings. Settings holds the Google account,
 the download controls and the storage numbers.
 
 ---

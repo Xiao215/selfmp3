@@ -97,9 +97,9 @@ export function spring(
 }
 
 /**
- * The curves a timed move can take. `out` is the app's ease-out, the one the
- * web's CSS has always used (`cubic-bezier(.2, .8, .2, 1)` on the boards);
- * `in` is for leaving; `overshoot` runs a little past the end and settles
+ * The curves a timed move can take, from the control points in
+ * `motion.model.ts`. `out` is the app's ease-out (`cubic-bezier(.2, .8, .2, 1)`
+ * on the boards); `in` is for leaving; `overshoot` runs a little past the end and settles
  * back, for the mini player's rise and a sheet's (`motion.model.ts`).
  */
 export const ease = {

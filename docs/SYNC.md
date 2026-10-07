@@ -30,7 +30,7 @@ storage — no code runs there — so every rule about how changes combine lives
 | The web app | GitHub Pages, at `xiao215.github.io/selfmp3` | Free |
 | Fetching YouTube links (yt-dlp) | The server; later the Android app | — |
 
-**Why B2.** It speaks the S3 API, which the server already uses for its S3 storage driver. It
+**Why B2.** It speaks the S3 API, so the server reaches it with the AWS SDK like any other bucket. It
 needs no card for the free tier. Uploads are free API calls; downloads, reads of a file's
 headers and listings are counted, with 2,500 of each free per day. Downloads are free up to
 three times what you store each month — 30 GB for a full 10 GB library, which is a great deal

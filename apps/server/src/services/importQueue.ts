@@ -433,9 +433,8 @@ export class ImportQueueService {
     const name = sanitizeFilename(artist.trim() ? `${artist} - ${title}` : title) || 'untitled'
     const baseName = uniqueBaseName(name, job.id)
 
-    // yt-dlp writes to the real filesystem, so downloads always land in a local
-    // staging directory first and are then handed to the storage driver. That
-    // is what keeps object storage a drop-in swap.
+    // Downloads land in a staging directory first and are handed to the
+    // library folder only once yt-dlp has finished with them.
     const staging = stagingDir(this.#config)
     await fsp.mkdir(staging, { recursive: true })
 

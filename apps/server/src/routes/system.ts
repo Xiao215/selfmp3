@@ -28,7 +28,6 @@ export function systemRoutes(container: Container): Router {
         ok: true,
         version: APP_VERSION,
         uptimeSeconds: Math.round(process.uptime()),
-        storageDriver: container.storage.name,
         appUrl: container.config.appUrl,
         ...(known
           ? { libraryPath: container.config.libraryDir, songCount: container.songs.count() }

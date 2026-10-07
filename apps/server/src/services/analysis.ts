@@ -284,19 +284,17 @@ export class AnalysisService {
   /**
    * ffmpeg needs a real path. A song still in the inbox has one; a song whose
    * copy here has gone is fetched from the bucket into the staging directory
-   * and removed afterwards, as is one in object storage.
+   * and removed afterwards.
    */
   async #localFile(
     songId: number,
     key: string,
   ): Promise<{ file: string; cleanup: () => Promise<void> }> {
-    const here = await this.#storage.exists(key)
-    if (here) {
-      const local = this.#storage.localPath(key)
-      if (local) return { file: local, cleanup: () => Promise.resolve() }
+    if (await this.#storage.exists(key)) {
+      return { file: this.#storage.localPath(key), cleanup: () => Promise.resolve() }
     }
 
-    const data = here ? await this.#storage.read(key) : await this.#fetchAudio(songId)
+    const data = await this.#fetchAudio(songId)
     if (!data) throw new Error('no copy of the audio here, and none in the bucket')
 
     const staging = stagingDir(this.#config)

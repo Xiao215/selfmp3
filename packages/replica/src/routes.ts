@@ -578,7 +578,6 @@ export function createCloudRoutes(
       version: 'web',
       uptimeSeconds: 0,
       libraryPath: 'the cloud',
-      storageDriver: 'cloud',
       songCount: 0,
     }
   }

@@ -22,7 +22,6 @@ describe('the server serves its own page', () => {
   const variables = [
     'SELFMP3_DATA_DIR',
     'SELFMP3_LIBRARY_DIR',
-    'SELFMP3_STORAGE_DRIVER',
     'SELFMP3_LOG_LEVEL',
     'SELFMP3_CLOUD_DIR',
   ] as const
@@ -39,7 +38,6 @@ describe('the server serves its own page', () => {
     // Set in the shell, so they win over whatever a `.env` on this machine says.
     process.env['SELFMP3_DATA_DIR'] = path.join(root, 'data')
     process.env['SELFMP3_LIBRARY_DIR'] = path.join(root, 'library')
-    process.env['SELFMP3_STORAGE_DRIVER'] = 'local'
     process.env['SELFMP3_LOG_LEVEL'] = 'silent'
     // The API answers nothing without a bucket; a folder stands in for one.
     process.env['SELFMP3_CLOUD_DIR'] = 'bucket'

@@ -99,7 +99,6 @@ export const HealthSchema = z.object({
   ok: z.literal(true),
   version: z.string(),
   uptimeSeconds: z.number().nonnegative(),
-  storageDriver: z.string(),
   libraryPath: z.string().optional(),
   songCount: z.number().int().nonnegative().optional(),
   /** Where this server's owner listens in a browser: its page links there. Not a secret. */

@@ -76,7 +76,7 @@ export const SongSchema = z.object({
   addedAt: z.string(),
   tagIds: z.array(IdSchema),
   /** Null until the background analyser has looked at the file. */
-  audioFeatures: AudioFeaturesSchema.nullable().default(null),
+  audioFeatures: AudioFeaturesSchema.nullable(),
 })
 export type Song = z.infer<typeof SongSchema>
 

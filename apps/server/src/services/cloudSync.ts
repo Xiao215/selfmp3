@@ -53,6 +53,7 @@ import type { ImportRequestRepository } from '../repositories/importRequests.js'
 import type { CloudIngest, IngestResult } from './cloudIngest.js'
 import type { CoverService } from './covers.js'
 import { removeFolderIfEmpty } from './libraryLayout.js'
+import { audioSignature, NO_FILE_SIGNATURE, tagsLyricsSignature } from './cloudSignatures.js'
 import type { LyricsService } from './lyrics.js'
 import type { MetadataService } from './metadata.js'
 import type { MotionStore } from './motionStore.js'
@@ -1175,24 +1176,24 @@ export class CloudSyncService {
    * were cleared by hand), which is `none`, and sends the song up without them.
    */
   async #signatures(file: SongFileInfo, state: CloudSongState | null = null): Promise<Signatures> {
-    const audio = `${file.sizeBytes}-${file.mtimeMs}`
-    const cover = file.hasArt ? `art-${file.artRev}` : 'none'
+    const audio = audioSignature(file.sizeBytes, file.mtimeMs)
+    const cover = file.hasArt ? `art-${file.artRev}` : NO_FILE_SIGNATURE
     const curve = (await this.#deps.motion?.stat(file.id)) ?? null
-    const motion = curve ? `motion-${curve.size}-${Math.round(curve.mtimeMs)}` : 'none'
+    const motion = curve ? `motion-${curve.size}-${Math.round(curve.mtimeMs)}` : NO_FILE_SIGNATURE
     const audioHere = await this.#deps.storage.exists(file.path)
     const sidecar = await this.#deps.lyrics.findSidecar(file.path)
     if (!sidecar) {
       const lyrics = audioHere
-        ? `tags-${audio}`
+        ? tagsLyricsSignature(audio)
         : file.lyricsKind === 'none'
-          ? 'none'
-          : (state?.lyricsSig ?? 'none')
+          ? NO_FILE_SIGNATURE
+          : (state?.lyricsSig ?? NO_FILE_SIGNATURE)
       return { audio, cover, lyrics, motion, audioHere, sidecarHere: false }
     }
     const stat = await this.#deps.storage.stat(sidecar.key)
     const lyrics = stat
       ? `sidecar${sidecar.extension}-${stat.sizeBytes}-${stat.modifiedAt.getTime()}`
-      : `tags-${audio}`
+      : tagsLyricsSignature(audio)
     return { audio, cover, lyrics, motion, audioHere, sidecarHere: true }
   }
 

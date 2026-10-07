@@ -554,6 +554,10 @@ export function useSetSongTags() {
       putInLibrary(client, library => withSong(library, song), hasLivePlaylists)
       refetchLivePlaylists(client)
     },
+    // A request that timed out may still have landed: the chips ask what is true.
+    onError: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.library })
+    },
   })
 }
 

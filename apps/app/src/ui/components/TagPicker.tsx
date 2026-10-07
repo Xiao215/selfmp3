@@ -168,18 +168,26 @@ function Picker({ song, onLeave }: { song: Song; onLeave: () => void }): ReactNo
   // The last set the library took, for a tick that did not: the box goes back
   // to what is true rather than showing a tag the song does not have.
   const saved = useRef<ReadonlySet<number>>(selected)
+  // The newest tick. A failed one puts the boxes back only if nothing was
+  // ticked after it: a later tick sends the whole set again, and its own
+  // answer decides.
+  const newest = useRef(0)
   return (
     <TagSearchList
       selected={selected}
       onChange={next => {
         setSelected(next)
-        setSongTags.mutate(
-          { songId: song.id, tagIds: [...next] },
-          {
-            onSuccess: answer => {
-              saved.current = new Set(answer.tagIds)
-            },
-            onError: () => setSelected(saved.current),
+        const tick = ++newest.current
+        // Each tick's own promise, not `mutate`'s callbacks: those are kept
+        // for the newest call only, so quick ticks lost every answer but the
+        // last, and a failure went back to the set the picker opened with —
+        // an empty box over a tag the song had (Xiao, 2026-10-07).
+        setSongTags.mutateAsync({ songId: song.id, tagIds: [...next] }).then(
+          answer => {
+            saved.current = new Set(answer.tagIds)
+          },
+          () => {
+            if (newest.current === tick) setSelected(saved.current)
           },
         )
       }}

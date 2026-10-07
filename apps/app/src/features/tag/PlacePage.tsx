@@ -28,7 +28,13 @@ import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { spring } from '../../ui/motion'
 import { takePlaceHandoff } from '../../ui/coverHandoff'
 import { artShadow, label as labelText } from '../../ui/surfaces'
-import { combinedLink, combinedName, placesSource, recentKind } from '../lists/lists.model'
+import {
+  combinedLink,
+  combinedName,
+  placesSource,
+  recentKind,
+  type ListSource,
+} from '../lists/lists.model'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { AddSheet } from './AddSheet'
@@ -358,6 +364,7 @@ export function PlacePage({
     <View style={styles.screen}>
       <PlaceSongs
         songs={songs}
+        source={source}
         byAlbum={artistAlone}
         head={head}
         label={`${title} songs`}
@@ -417,12 +424,15 @@ function Chips({
  */
 function PlaceSongs({
   songs,
+  source,
   byAlbum,
   head,
   label,
   scope,
 }: {
   songs: readonly Song[]
+  /** What Up next is called when a row plays the list, as the head's Play names it. */
+  source: ListSource | null
   byAlbum: boolean
   head: ReactElement
   label: string
@@ -443,17 +453,17 @@ function PlaceSongs({
     () => songs.filter(song => selection.has(song.id)),
     [songs, selection],
   )
-  const latest = useRef({ ids, playFrom: player.playFrom, selection })
+  const latest = useRef({ ids, playFrom: player.playFrom, selection, source })
   useEffect(() => {
-    latest.current = { ids, playFrom: player.playFrom, selection }
-  }, [ids, player.playFrom, selection])
+    latest.current = { ids, playFrom: player.playFrom, selection, source }
+  }, [ids, player.playFrom, selection, source])
 
   const onPress = useCallback((event: GestureResponderEvent, song: Song) => {
-    const { ids: now, playFrom, selection: selecting } = latest.current
+    const { ids: now, playFrom, selection: selecting, source: named } = latest.current
     // Shift and Cmd, and a tap in selection mode, select; a plain tap plays.
     if (selecting.click(song.id, modifiersOf(event))) return
     const index = now.indexOf(song.id)
-    if (index >= 0) playFrom(now, index)
+    if (index >= 0) playFrom(now, index, { source: named })
   }, [])
   const onMore = useCallback((node: View | null, song: Song) => {
     anchor.current = node

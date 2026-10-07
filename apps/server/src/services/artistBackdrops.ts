@@ -2,7 +2,13 @@ import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import { artistKey, splitArtists, type ArtistPictureShape, type Song } from '@selfmp3/shared'
+import {
+  DAY_MS,
+  artistKey,
+  splitArtists,
+  type ArtistPictureShape,
+  type Song,
+} from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
@@ -10,6 +16,7 @@ import { readCapped, type FetchLike } from './fetching.js'
 import { YouTubeMusicApi } from './youtubeMusicApi.js'
 import { pictureAt, type YouTubeMusicArtists } from './youtubeMusicArtist.js'
 import { fits, isSameSong, searchSongs } from './youtubeMusicSongs.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * An artist's picture, from their page on YouTube Music: the banner over the
@@ -45,7 +52,7 @@ import { fits, isSameSong, searchSongs } from './youtubeMusicSongs.js'
 const SONGS_ASKED = 3
 
 /** How long "no picture for this artist" is believed before it is asked again. */
-const NONE_TTL_MS = 7 * 24 * 60 * 60 * 1000
+const NONE_TTL_MS = 7 * DAY_MS
 
 /**
  * The sizes kept. The banner is offered at up to 2880×1200; drawn at a page's
@@ -105,11 +112,11 @@ export class ArtistBackdropService {
    * Both shapes or neither: one rev names the pair, so a copy kept before
    * portraits were is found again, the pair with it.
    */
-  kept(name: string, shape: ArtistPictureShape = 'banner'): KeptPicture | null {
+  async kept(name: string, shape: ArtistPictureShape = 'banner'): Promise<KeptPicture | null> {
     const key = artistKey(name)
     try {
-      const banner = fs.statSync(this.#file(key, EXTENSIONS.banner))
-      if (!fs.existsSync(this.#file(key, EXTENSIONS.portrait))) return null
+      const banner = await fsp.stat(this.#file(key, EXTENSIONS.banner))
+      await fsp.access(this.#file(key, EXTENSIONS.portrait))
       return {
         path: this.#file(key, EXTENSIONS[shape]),
         contentType: 'image/jpeg',
@@ -122,7 +129,7 @@ export class ArtistBackdropService {
 
   /** The kept picture, or one found now; null when there is none to be had. */
   async find(name: string): Promise<KeptPicture | null> {
-    const kept = this.kept(name)
+    const kept = await this.kept(name)
     if (kept) return kept
     const key = artistKey(name)
     if (!key || (await this.#saidNoneLately(key))) return null
@@ -229,7 +236,7 @@ export class ArtistBackdropService {
       return await readCapped(response, MAX_PICTURE_BYTES)
     } catch (error) {
       this.#logger.debug('could not fetch the picture', {
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
       return null
     }
@@ -263,7 +270,7 @@ export class ArtistBackdropService {
       )
       // Missing is cosmetic: the page is lit by a song's cover instead.
       this.#logger.warn('could not keep the picture', {
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
       return null
     }

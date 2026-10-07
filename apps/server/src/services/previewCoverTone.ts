@@ -5,6 +5,7 @@ import type { CoverTone } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import { readCoverTone } from './coverTones.js'
 import { readCapped } from './fetching.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * The colour of a cover the library does not hold yet: a song on the import
@@ -88,7 +89,7 @@ export class PreviewCoverTones {
     } catch (error) {
       this.#logger.debug('could not read a cover’s colour', {
         url,
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
       return null
     }

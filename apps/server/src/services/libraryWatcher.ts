@@ -6,6 +6,7 @@ import type { Logger } from '../logger.js'
 import type { SettingsRepository } from '../repositories/settings.js'
 import type { ScannerService } from './scanner.js'
 import { debounce, type Debounced } from './debounce.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * Watch the library folder and rescan when something changes.
@@ -129,7 +130,7 @@ export class LibraryWatcherService {
     } catch (error) {
       this.#watcher = null
       this.#logger.warn('could not watch library folder', {
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
     }
   }
@@ -160,7 +161,7 @@ export class LibraryWatcherService {
       })
       .catch((error: unknown) => {
         this.#logger.error('rescan failed', {
-          message: error instanceof Error ? error.message : String(error),
+          message: messageOf(error),
         })
       })
   }

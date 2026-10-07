@@ -4,6 +4,7 @@ import { speakHttp1 } from './http/outgoing.js'
 import { beyondThisComputer, listenAddresses, publishedAddresses } from './services/addresses.js'
 import { romanizeLibrary } from './services/romanizedLines.js'
 import { createApp } from './app.js'
+import { messageOf } from './util/errors.js'
 
 /**
  * Entry point.
@@ -144,7 +145,7 @@ function main(): void {
 
   process.on('unhandledRejection', reason => {
     logger.error('unhandled promise rejection', {
-      message: reason instanceof Error ? reason.message : String(reason),
+      message: messageOf(reason),
       stack: reason instanceof Error ? reason.stack : undefined,
     })
   })
@@ -200,7 +201,7 @@ function startLibrary(container: Container): void {
       .then(() => romanizeLibrary(container))
       .catch((error: unknown) => {
         logger.warn('romanizing the library stopped early', {
-          message: error instanceof Error ? error.message : String(error),
+          message: messageOf(error),
         })
       })
   }
@@ -218,7 +219,7 @@ function startLibrary(container: Container): void {
       })
       .catch((error: unknown) => {
         logger.warn('squaring kept covers stopped early', {
-          message: error instanceof Error ? error.message : String(error),
+          message: messageOf(error),
         })
       })
   }
@@ -240,7 +241,7 @@ function startLibrary(container: Container): void {
       })
       .catch((error: unknown) => {
         logger.error('initial scan failed', {
-          message: error instanceof Error ? error.message : String(error),
+          message: messageOf(error),
         })
       })
       // Publishing reads what the scan found, so it waits for it — however it went.
@@ -253,6 +254,6 @@ function startLibrary(container: Container): void {
 try {
   main()
 } catch (error) {
-  console.error(error instanceof Error ? error.message : String(error))
+  console.error(messageOf(error))
   process.exit(1)
 }

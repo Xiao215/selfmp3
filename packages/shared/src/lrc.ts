@@ -18,6 +18,11 @@ export type ParsedLyrics =
   | { readonly synced: true; readonly lines: readonly SyncedLine[] }
   | { readonly synced: false; readonly lines: readonly string[] }
 
+/** The words of each line, timed or not: what reading, searching or language detection wants. */
+export function lyricTextLines(parsed: ParsedLyrics): readonly string[] {
+  return parsed.synced ? parsed.lines.map(line => line.text) : parsed.lines
+}
+
 /** `[ar:Artist]`, `[length:03:21]` and friends — informational, not timing. */
 const METADATA_TAG = /^\[(?:ar|ti|al|au|by|offset|length|re|ve|tool):/i
 const TIMESTAMP = /\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g

@@ -8,6 +8,7 @@ import { CliUsageError, USAGE, parseCli, type Command } from './cli/args.js'
 import { backupTree } from './cli/backup.js'
 import { runDoctor } from './cli/doctor.js'
 import { loadDotEnv } from './dotenv.js'
+import { messageOf } from './util/errors.js'
 
 /**
  * `selfmp3` — the command-line front door.
@@ -77,9 +78,7 @@ async function run(command: Command, baseUrl: string, token: string | null): Pro
           out(`queued ${result.jobs.length} from ${what}${skipped}: ${url}`)
         } catch (error) {
           failures += 1
-          console.error(
-            `failed: ${url}\n    ${error instanceof Error ? error.message : String(error)}`,
-          )
+          console.error(`failed: ${url}\n    ${messageOf(error)}`)
         }
       }
       return failures === 0 ? 0 : 1
@@ -144,7 +143,7 @@ async function main(): Promise<void> {
     parsed = parseCli(process.argv.slice(2))
   } catch (error) {
     // parseArgs throws a plain Error for an unknown flag; treat it the same way.
-    console.error(error instanceof Error ? error.message : String(error))
+    console.error(messageOf(error))
     console.error()
     console.error(USAGE)
     process.exitCode = 2
@@ -156,7 +155,7 @@ async function main(): Promise<void> {
   } catch (error) {
     if (error instanceof ApiError) console.error(`server said ${error.status}: ${error.message}`)
     else if (error instanceof CliUsageError) console.error(error.message)
-    else console.error(error instanceof Error ? error.message : String(error))
+    else console.error(messageOf(error))
     process.exitCode = 1
   }
 }

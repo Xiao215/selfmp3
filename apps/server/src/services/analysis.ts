@@ -18,6 +18,7 @@ import {
 import { analyzePcmInWorker } from './analysisWorker.js'
 import { ffmpegFailure, runFfmpeg } from './ffmpeg.js'
 import type { MotionStore } from './motionStore.js'
+import { messageOf } from '../util/errors.js'
 
 /**
  * Background audio analysis.
@@ -189,7 +190,7 @@ export class AnalysisService {
           this.#failed++
           this.#logger.warn('analysis failed', {
             song: song.title,
-            message: error instanceof Error ? error.message : String(error),
+            message: messageOf(error),
           })
           // Write an empty row so the loop does not retry the same broken
           // file forever; a forced re-run clears it. A curve from before the
@@ -239,7 +240,7 @@ export class AnalysisService {
         timed(measureMotion(file)).catch((error: unknown) => {
           this.#logger.warn('could not make a motion curve', {
             song: key,
-            message: error instanceof Error ? error.message : String(error),
+            message: messageOf(error),
           })
           return null
         }),

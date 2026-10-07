@@ -19,6 +19,13 @@ import {
   type ImportPreview,
   type ImportQueue,
   type ImportShareResult,
+  type Ok,
+  type ToolStatus,
+  type ImportsPausedSchema,
+  type ImportsResumedSchema,
+  type ImportsRetriedSchema,
+  type ImportsRemovedSchema,
+  type ImportsClearedSchema,
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
@@ -35,6 +42,7 @@ import {
 import { alreadyHave, libraryIndex, normaliseUrl } from '../services/alreadyHave.js'
 import { importRun } from '../services/importRun.js'
 import { isCoverUrl } from '../services/previewCoverTone.js'
+import { messageOf } from '../util/errors.js'
 
 const ParamsWithJobId = z.object({ id: z.string().uuid() })
 const ListenQuery = z.object({ url: z.string().url().max(2_000) })
@@ -58,8 +66,9 @@ export function importRoutes(container: Container): Router {
 
   router.get(
     '/import/tools',
-    route({ query: z.object({ refresh: BooleanQuerySchema }) }, async ({ query }) =>
-      container.ytdlp.status(query.refresh),
+    route(
+      { query: z.object({ refresh: BooleanQuerySchema }) },
+      async ({ query }): Promise<ToolStatus> => container.ytdlp.status(query.refresh),
     ),
   )
 
@@ -205,7 +214,7 @@ export function importRoutes(container: Container): Router {
       const asked = req.headers.range
       const open = async (): Promise<Response> => {
         const source = await container.listen.source(query.url).catch((error: unknown) => {
-          throw HttpError.unprocessable(error instanceof Error ? error.message : String(error))
+          throw HttpError.unprocessable(messageOf(error))
         })
         return fetch(source, {
           headers: { Range: asked ?? 'bytes=0-' },
@@ -322,43 +331,43 @@ export function importRoutes(container: Container): Router {
 
   router.post(
     '/import/jobs/:id/cancel',
-    route({ params: ParamsWithJobId }, ({ params }) => {
+    route({ params: ParamsWithJobId }, ({ params }): Ok => {
       if (!container.importQueue.cancel(params.id)) {
         throw HttpError.conflict('that job is already adding its song, or has finished')
       }
-      return { ok: true as const }
+      return { ok: true }
     }),
   )
 
   /** Remove: off the queue for good, stopped first if it was downloading. */
   router.delete(
     '/import/jobs/:id',
-    route({ params: ParamsWithJobId }, ({ params }) => {
+    route({ params: ParamsWithJobId }, ({ params }): Ok => {
       if (!container.importQueue.remove(params.id)) {
         throw HttpError.conflict('that job is already adding its song, or is gone')
       }
-      return { ok: true as const }
+      return { ok: true }
     }),
   )
 
   router.post(
     '/import/jobs/:id/retry',
-    route({ params: ParamsWithJobId }, ({ params }) => {
+    route({ params: ParamsWithJobId }, ({ params }): Ok => {
       if (!container.importQueue.retry(params.id)) {
         throw HttpError.conflict('only a failed or cancelled job can be retried')
       }
-      return { ok: true as const }
+      return { ok: true }
     }),
   )
 
   /** Import next: ahead of every other waiting song, behind the ones downloading now. */
   router.post(
     '/import/jobs/:id/next',
-    route({ params: ParamsWithJobId }, ({ params }) => {
+    route({ params: ParamsWithJobId }, ({ params }): Ok => {
       if (!container.importQueue.importNext(params.id)) {
         throw HttpError.conflict('only a waiting or paused song can be imported next')
       }
-      return { ok: true as const }
+      return { ok: true }
     }),
   )
 
@@ -370,28 +379,38 @@ export function importRoutes(container: Container): Router {
    */
   router.post(
     '/import/pause',
-    route({}, () => ({ paused: container.importQueue.pause() })),
+    route({}, (): z.infer<typeof ImportsPausedSchema> => ({
+      paused: container.importQueue.pause(),
+    })),
   )
 
   router.post(
     '/import/resume',
-    route({}, () => ({ resumed: container.importQueue.resume() })),
+    route({}, (): z.infer<typeof ImportsResumedSchema> => ({
+      resumed: container.importQueue.resume(),
+    })),
   )
 
   router.post(
     '/import/retry-failed',
-    route({}, () => ({ retried: container.importQueue.retryFailed() })),
+    route({}, (): z.infer<typeof ImportsRetriedSchema> => ({
+      retried: container.importQueue.retryFailed(),
+    })),
   )
 
   router.post(
     '/import/remove-failed',
-    route({}, () => ({ removed: container.importQueue.removeFailed() })),
+    route({}, (): z.infer<typeof ImportsRemovedSchema> => ({
+      removed: container.importQueue.removeFailed(),
+    })),
   )
 
   /** Clear: the finished jobs, and only those — what failed or was paused keeps its row. */
   router.post(
     '/import/clear',
-    route({}, () => ({ cleared: container.imports.clearFinished() })),
+    route({}, (): z.infer<typeof ImportsClearedSchema> => ({
+      cleared: container.imports.clearFinished(),
+    })),
   )
 
   return router

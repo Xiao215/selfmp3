@@ -1,4 +1,4 @@
-import type { DeviceCommand, DeviceHeartbeat, DeviceList } from '@selfmp3/shared'
+import { DAY_MS, type DeviceCommand, type DeviceHeartbeat, type DeviceList } from '@selfmp3/shared'
 import type { DeviceRepository } from '../repositories/devices.js'
 import type { Logger } from '../logger.js'
 import type { EventHub, EventSink } from './events.js'
@@ -24,7 +24,7 @@ const VERSION_MS = 1_500
  * same laptop under old ids. Nothing is lost: a device that comes back simply
  * heartbeats in again, and a state that old is past offering to resume.
  */
-const FORGET_AFTER_MS = 7 * 24 * 60 * 60 * 1000
+const FORGET_AFTER_MS = 7 * DAY_MS
 /** How often to look for devices to forget, besides at boot. */
 const FORGET_EVERY_MS = 60 * 60 * 1000
 

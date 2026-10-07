@@ -1,6 +1,12 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { StatsRangeSchema, UpdateSettingsSchema, type Health, type Stats } from '@selfmp3/shared'
+import {
+  StatsRangeSchema,
+  UpdateSettingsSchema,
+  type Health,
+  type PlayHistory,
+  type Stats,
+} from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { isAuthenticated } from '../http/middleware.js'
@@ -60,7 +66,7 @@ export function systemRoutes(container: Container): Router {
     '/stats/history',
     route(
       { query: z.object({ limit: z.coerce.number().int().min(1).max(500).default(100) }) },
-      ({ query }) => {
+      ({ query }): PlayHistory => {
         const events = container.stats.recent(query.limit)
         const songs = new Map(
           container.songs.byIds(events.map(event => event.songId)).map(song => [song.id, song]),

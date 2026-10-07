@@ -125,7 +125,7 @@ export class ArtistBackdropService {
     const kept = this.kept(name)
     if (kept) return kept
     const key = artistKey(name)
-    if (!key || this.#saidNoneLately(key)) return null
+    if (!key || (await this.#saidNoneLately(key))) return null
 
     let finding = this.#finding.get(key)
     if (!finding) {
@@ -269,9 +269,9 @@ export class ArtistBackdropService {
     }
   }
 
-  #saidNoneLately(key: string): boolean {
+  async #saidNoneLately(key: string): Promise<boolean> {
     try {
-      return Date.now() - fs.statSync(this.#file(key, '.none')).mtimeMs < NONE_TTL_MS
+      return Date.now() - (await fsp.stat(this.#file(key, '.none'))).mtimeMs < NONE_TTL_MS
     } catch {
       return false
     }

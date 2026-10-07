@@ -96,7 +96,7 @@ export class CoverService {
     const stat = await fsp.stat(cover.path)
     const dir = path.join(this.#dir, 'thumbs')
     const file = path.join(dir, `${songId}-${size}-${Math.floor(stat.mtimeMs).toString(16)}.jpg`)
-    if (fs.existsSync(file)) return { path: file, contentType: 'image/jpeg' }
+    if (await isFile(file)) return { path: file, contentType: 'image/jpeg' }
     let making = this.#making.get(file)
     if (!making) {
       making = this.#makeThumbnail(songId, size, cover, file).finally(() =>
@@ -171,9 +171,18 @@ export class CoverService {
     return squared
   }
 
-  /** Locate a cached cover, whatever format it was stored in. */
+  /**
+   * Locate a kept cover, whatever format it was stored in. The format `save`
+   * recorded on the row is looked for first, so the usual case is one look;
+   * the others are for a cover kept before the row said.
+   */
   find(songId: number): { path: string; contentType: string } | null {
-    for (const extension of EXTENSIONS) {
+    const recorded = this.#songs.artExt(songId)
+    const order: readonly string[] =
+      recorded !== null && (EXTENSIONS as readonly string[]).includes(recorded)
+        ? [recorded, ...EXTENSIONS.filter(other => other !== recorded)]
+        : EXTENSIONS
+    for (const extension of order) {
       const file = this.#pathFor(songId, extension)
       if (fs.existsSync(file)) {
         return { path: file, contentType: CONTENT_TYPES[extension] ?? 'image/jpeg' }
@@ -234,6 +243,13 @@ export class CoverService {
       return false
     }
   }
+}
+
+async function isFile(file: string): Promise<boolean> {
+  return fsp.access(file).then(
+    () => true,
+    () => false,
+  )
 }
 
 /** Cover art is tens of kilobytes; past this it is not cover art. */

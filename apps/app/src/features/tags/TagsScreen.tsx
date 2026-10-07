@@ -71,6 +71,7 @@ import {
   type TagEntry,
   type WaitingArtist,
 } from './tags.model'
+import { useGoBack } from '../../ui/useBackTo'
 
 /** Tiles at least this wide on a computer, as many as fit; two across on a phone. */
 const TILE_MIN_WIDTH = 220
@@ -170,10 +171,7 @@ export function TagsScreen(): ReactNode {
     : PHONE_COLUMNS
   const tileWidth = measured > 0 ? Math.floor((measured - GAP * (columns - 1)) / columns) : 0
 
-  const back = (): void => {
-    if (router.canGoBack()) router.back()
-    else router.replace('/')
-  }
+  const back = useGoBack('/')
   // The one Search, on its Tags scope: the page on a phone, the palette over
   // this page on a computer (docs/ui-mock `P18`, `C05`).
   const openSearch = (): void => {

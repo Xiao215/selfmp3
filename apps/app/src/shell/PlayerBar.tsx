@@ -61,6 +61,7 @@ import { useLayout } from './useLayout'
 import { setPracticeOpen, usePracticeOpen } from './practicePanel'
 import { floating } from '../ui/surfaces'
 import { PlayPauseIcon } from '../ui/components/PlayPauseIcon'
+import { goBack } from '../ui/useBackTo'
 
 /**
  * The transport across the foot of the desktop layout.
@@ -125,11 +126,7 @@ export function PlayerBar(): ReactNode {
 
   const pathname = usePathname()
   const onPage = pathname === '/now-playing'
-  const closePage = (): void =>
-    leaveStage(() => {
-      if (router.canGoBack()) router.back()
-      else router.replace('/')
-    })
+  const closePage = (): void => leaveStage(() => goBack(router, '/'))
   const coverRef = useRef<View>(null)
   const openPage = (): void => {
     // Where the cover is, for the stage's cover to grow from (`M3`, 2).

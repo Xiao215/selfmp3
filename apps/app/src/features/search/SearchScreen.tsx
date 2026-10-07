@@ -42,6 +42,7 @@ import {
   SEARCH_SCOPES,
   type SearchScope,
 } from './search.model'
+import { useGoBack } from '../../ui/useBackTo'
 
 /**
  * Search (docs/ui-mock `P18`, `P19`): one page, whichever door it was opened
@@ -99,10 +100,7 @@ export function SearchScreen(): ReactNode {
     [router],
   )
 
-  const close = (): void => {
-    if (router.canGoBack()) router.back()
-    else router.replace('/')
-  }
+  const close = useGoBack('/')
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>

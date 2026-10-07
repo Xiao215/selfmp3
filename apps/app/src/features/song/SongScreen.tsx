@@ -48,6 +48,7 @@ import {
   soundWords,
   type PlayStrip,
 } from './song.model'
+import { goBack, useGoBack } from '../../ui/useBackTo'
 
 /**
  * A song's own page, `/song/<id>` (docs/ui-mock `P15`).
@@ -77,9 +78,7 @@ export function SongScreen(): ReactNode {
   if (song && shown !== id) setShown(id)
   const removedHere = !song && library !== undefined && shown === id
   useEffect(() => {
-    if (!removedHere) return
-    if (router.canGoBack()) router.back()
-    else router.replace('/library')
+    if (removedHere) goBack(router, '/library')
   }, [removedHere, router])
   if (!library || removedHere) return null
   if (!song) return <SongMissing />
@@ -110,10 +109,7 @@ function SongPage({ song }: { song: Song }): ReactNode {
   const tags = (library?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
   const isCurrent = player.current?.id === song.id
   const rest = bylineRest(song)
-  const back = (): void => {
-    if (router.canGoBack()) router.back()
-    else router.replace('/')
-  }
+  const back = useGoBack('/')
 
   return (
     <View style={styles.screen}>

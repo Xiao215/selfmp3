@@ -13,10 +13,9 @@
  *  3. **The server**, for a library the server is serving.
  *
  * 2 and 3 are exclusive, and that is the part worth writing down. A library
- * read from the bucket is not the server's library: the address of the last
- * server talked to is still stored after signing in to the cloud, and song 12
- * there is a different song. So a cloud library never asks a server, even one
- * that answers — the alternative is quietly playing the wrong track.
+ * read from the bucket is not a server's library: song 12 on a server is a
+ * different song. So a cloud library never asks a server, even one that
+ * answers — the alternative is quietly playing the wrong track.
  *
  * Pure, so the rule can be tested on its own; each caller passes in the
  * addresses its platform actually has.

@@ -10,8 +10,8 @@ import type { Song } from '@selfmp3/shared'
  * is the server's for a server library and — in a browser, where the service
  * worker can attach the doorman's header — the app's own for a cloud one
  * (src/api/mediaAddress.model.ts). A phone has no such address for the bucket
- * and gets null, which is the honest answer: handing the OS the last server's
- * address, still stored after signing in, drew nothing or the last song's cover.
+ * and gets null, which is the honest answer: a server's address for a cloud
+ * library's song draws nothing, or another song's cover.
  *
  * Pure, so the rule is tested; the provider supplies the sources.
  */

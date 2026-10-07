@@ -138,6 +138,14 @@ export function freshUserData(): string {
  */
 export const appApi = process.env['SELFMP3_APP_API'] ?? null
 
+/**
+ * The app's web dev server (`npm run dev:web`, http://localhost:4601), for the
+ * flow that connects by address. Only a development build reads a typed
+ * address — every other build signs in — so that flow loads the window from
+ * here, as `npm run dev:desktop` does, rather than from the export.
+ */
+export const appWebUrl = process.env['SELFMP3_WEB_URL'] ?? null
+
 /** A server that answers and has at least one song, which `/api/health` counts. */
 export async function serverHasSongs(baseUrl: string): Promise<boolean> {
   try {

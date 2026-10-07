@@ -61,10 +61,7 @@ export function useArt(drawnAt: number = KEPT_COVER_SIZE): (song: Song) => Art {
     (song: Song): Art => {
       if (!song.hasArt) return null
       watch.ask(song.id)
-      // Whichever address this library has, if it has one. `fromCloud` decides,
-      // not `connection`: an address left over from talking to a server is
-      // still stored, and asking whether one exists sends the loader to a
-      // server that is not running — or to another library's song 12.
+      // Whichever address this library has, if it has one.
       const address = artAddress(song.id, song.rev, kept)
       // A copy on this device, kept the moment the picture answers. It is what
       // is drawn once it exists: it is there when the network is not, and it is

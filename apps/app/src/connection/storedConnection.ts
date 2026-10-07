@@ -10,12 +10,18 @@ import { secrets } from '../ports/secrets'
  * the token is a real credential, and the hostname is a private Tailscale name
  * that is nobody else's business either. In a browser it is `localStorage`,
  * because a browser has no keychain. This file only knows there are two keys.
+ *
+ * Only a development build reads them: typing an address is how the simulator
+ * and browser flows get a library without a Google account, and nowhere else
+ * offers it. Every other build signs in, so whatever an older build stored
+ * there is never read.
  */
 
 const BASE_URL_KEY = 'selfmp3.baseUrl'
 const TOKEN_KEY = 'selfmp3.token'
 
 export async function loadConnection(): Promise<ServerConnection | null> {
+  if (!__DEV__) return null
   const baseUrl = await secrets.get(BASE_URL_KEY)
   if (!baseUrl) return null
   const token = await secrets.get(TOKEN_KEY)

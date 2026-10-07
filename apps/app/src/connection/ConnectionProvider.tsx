@@ -19,12 +19,7 @@ import { clearConnection, loadConnection, saveConnection } from './storedConnect
 
 interface ConnectionContextValue {
   readonly connection: ServerConnection | null
-  /**
-   * Whether this device answers from the bucket. Not the same as having no
-   * `connection`: an address left over from talking to a server is still stored,
-   * and asking "is there a connection?" made covers reach for a server that is
-   * not running rather than the copy on this phone.
-   */
+  /** Whether this device answers from the bucket. `connection` is null whenever it does. */
   readonly fromCloud: boolean
   readonly status: 'loading' | 'ready' | 'missing'
   /**
@@ -71,11 +66,14 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
       // bucket's, and no server has to be awake or even exist. A stored address
       // is a development build whose address was typed on Welcome instead, which is
       // how the simulator flows get a library without a Google account.
-      const [signedIn, server] = await Promise.all([
+      const [signedIn, stored] = await Promise.all([
         cloudSession.loadSession().catch(() => null),
         loadConnection().catch(() => null),
       ])
       if (cancelled) return
+      // Never both: an address typed before signing in is let go.
+      if (signedIn && stored) void clearConnection().catch(() => undefined)
+      const server = signedIn ? null : stored
       answerFromCloud(signedIn !== null)
       // The API client keeps the address in module state, not in this context:
       // the playback service and the download queue both make requests from
@@ -107,6 +105,10 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
   const signedInToCloud = useCallback(
     (session?: CloudSession) => {
       answerFromCloud(true)
+      // A typed address is let go, so `connection` and `fromCloud` are never both set.
+      void clearConnection().catch(() => undefined)
+      setServer(null)
+      setConnection(null)
       forgetCachedServer()
       setFromCloud(true)
       setNeedsStorage(storageDue(session ?? null))
@@ -149,8 +151,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
     forgetImportDraft('cloud')
     setFromCloud(false)
     setNeedsStorage(false)
-    setStatus(connection ? 'ready' : 'missing')
-  }, [connection, forgetCachedServer])
+    setStatus('missing')
+  }, [forgetCachedServer])
 
   const disconnect = useCallback(async () => {
     await clearConnection()

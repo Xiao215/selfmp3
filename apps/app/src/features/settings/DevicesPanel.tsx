@@ -4,12 +4,21 @@ import { Text, TextInput, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { formatRelative, type Device } from '@selfmp3/shared'
-import { clientApi, deviceListView, queryKeys, radius, useDevices } from '@selfmp3/client'
+import {
+  clientApi,
+  deviceListView,
+  failureText,
+  queryKeys,
+  radius,
+  useDevices,
+  type Api,
+} from '@selfmp3/client'
 import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { Trash } from '../../ui/components/Icons'
+import { showToast } from '../../ui/toast'
 import { useDeviceContext } from '../devices/DevicesProvider'
 import {
   knownAsDevices,
@@ -47,13 +56,9 @@ function ServerDevices({ anchor }: { anchor: (node: View | null) => void }): Rea
   const reach: DevicesReach = query.isError ? 'away' : query.data ? 'reachable' : 'looking'
 
   const forget = (ids: readonly string[]): void => {
-    void Promise.all(
-      ids.map(id =>
-        clientApi()
-          .forgetDevice(id)
-          .catch(() => undefined),
-      ),
-    ).then(() => client.invalidateQueries({ queryKey: queryKeys.devices }))
+    void forgetEach(clientApi(), ids).then(() =>
+      client.invalidateQueries({ queryKey: queryKeys.devices }),
+    )
   }
 
   return (
@@ -96,13 +101,7 @@ function CloudDevices({ anchor }: { anchor: (node: View | null) => void }): Reac
 
   const forget = (ids: readonly string[]): void => {
     if (!connection) return
-    void Promise.all(
-      ids.map(id =>
-        apiFor(connection)
-          .forgetDevice(id)
-          .catch(() => undefined),
-      ),
-    ).then(() => client.invalidateQueries({ queryKey: key }))
+    void forgetEach(apiFor(connection), ids).then(() => client.invalidateQueries({ queryKey: key }))
   }
 
   return (
@@ -114,6 +113,19 @@ function CloudDevices({ anchor }: { anchor: (node: View | null) => void }): Reac
       onForget={forget}
     />
   )
+}
+
+/**
+ * Forgets each device, all of them tried even when one is refused, and says
+ * so when any was: Forget is pressed, and a row that stays put is no answer.
+ */
+async function forgetEach(api: Pick<Api, 'forgetDevice'>, ids: readonly string[]): Promise<void> {
+  const results = await Promise.allSettled(ids.map(id => api.forgetDevice(id)))
+  const refused = results.find(result => result.status === 'rejected')
+  if (refused) {
+    const what = ids.length > 1 ? 'Couldn’t forget them all' : 'Couldn’t forget that device'
+    showToast(failureText(what, refused.reason), 'error')
+  }
 }
 
 /** The panel itself, whichever way its list arrived. */

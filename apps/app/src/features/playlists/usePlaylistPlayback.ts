@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Library } from '@selfmp3/shared'
-import { clientApi, queryKeys } from '@selfmp3/client'
+import { clientApi, failureText, queryKeys } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
+import { showToast } from '../../ui/toast'
 import type { ListSource } from '../lists/lists.model'
 
 interface PlaylistPlayback {
@@ -109,7 +110,10 @@ export function usePlaylistPlayback(): PlaylistPlayback {
       void clientApi()
         .playlistSongs(playlistId)
         .then(({ songIds }) => run(songIds))
-        .catch(() => undefined)
+        .catch((caught: unknown) => {
+          // Pressed on a tile or in the sidebar: nothing playing is no answer.
+          showToast(failureText('Couldn’t play the playlist', caught), 'error')
+        })
     },
     [client, play, shuffle],
   )

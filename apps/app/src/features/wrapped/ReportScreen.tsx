@@ -4,7 +4,13 @@ import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'rea
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import type { WrappedRange } from '@selfmp3/shared'
-import { lightPalette, useLibrary, withAlpha, type ServerConnection } from '@selfmp3/client'
+import {
+  failureText,
+  lightPalette,
+  useLibrary,
+  withAlpha,
+  type ServerConnection,
+} from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
@@ -141,7 +147,7 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
     try {
       await saveLook(page.current, shareFileName(wrapped), LOOK_VIEWS[frame.look].size.width * 2)
     } catch (error) {
-      setShareError(error instanceof Error ? error.message : 'could not make the image')
+      setShareError(failureText('Couldn’t save the image', error))
     } finally {
       setSharing(false)
     }

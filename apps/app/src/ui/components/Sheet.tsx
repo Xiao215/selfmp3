@@ -13,6 +13,7 @@ import { Press } from './Press'
 import { floating } from '../surfaces'
 import { ease, spring, timing } from '../motion'
 import { MOVE_MS, overshootRange, PULL } from '../motion.model'
+import { useKeyboardLift } from '../../ports/keyboardLift'
 
 /**
  * How far a computer's dialog rises as it fades in: this sheet's wide shape,
@@ -159,9 +160,16 @@ export function Sheet({
   )
   // The rise, plus whatever a finger has added to it. Rebuilt only when the
   // panel's own height — the distance — changes.
+  // Above the keyboard while one is up: a field in a sheet is near its top,
+  // and the rows it searches are what the keyboard would cover.
+  const keyboard = useKeyboardLift(mounted && !wide)
   const rise = useMemo(
-    () => Animated.add(progress.interpolate(overshootRange(panelHeight, 4)), pull),
-    [progress, pull, panelHeight],
+    () =>
+      Animated.add(
+        Animated.add(progress.interpolate(overshootRange(panelHeight, 4)), pull),
+        keyboard.lift,
+      ),
+    [progress, pull, panelHeight, keyboard.lift],
   )
   const settle = useMemo(
     () => ({
@@ -223,7 +231,14 @@ export function Sheet({
           style={[
             styles.panel,
             {
-              paddingBottom: Math.max(insets.bottom, space.sm) + space.xs,
+              // The keyboard covers the home indicator's room; above it the
+              // panel needs none, and no taller than the window it leaves.
+              paddingBottom:
+                keyboard.height > 0 ? space.sm : Math.max(insets.bottom, space.sm) + space.xs,
+              maxHeight:
+                keyboard.height > 0
+                  ? window.height - keyboard.height - insets.top - space.sm
+                  : undefined,
               // Invisible and still until it has been measured, then up from
               // below the foot, four points past its place, and back.
               opacity: measured ? 1 : 0,
@@ -362,6 +377,9 @@ const styles = StyleSheet.create(theme => ({
   },
   content: {
     alignSelf: 'stretch',
+    // Gives way when the panel is held under the keyboard's line, so a list in
+    // it scrolls in the room left rather than running off the top.
+    flexShrink: 1,
   },
   // The room above the grabber belongs to the handle rather than the panel, so
   // that a finger landing on it is landing on the thing that pulls.

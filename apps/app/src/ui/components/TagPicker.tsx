@@ -132,6 +132,7 @@ function SelectionPicker({
   const [shown, setShown] = useState(() => tagsAcross(songs))
   const latest = useRef(shown)
   const bulkTag = useBulkTag()
+  const { wide } = useLayout()
   return (
     <TagSearchList
       selected={shown.all}
@@ -145,7 +146,7 @@ function SelectionPicker({
         for (const tagId of remove) bulkTag.mutate({ songIds, tagId, action: 'remove' })
       }}
       onLeave={onLeave}
-      autoFocus
+      autoFocus={wide}
     />
   )
 }
@@ -153,15 +154,27 @@ function SelectionPicker({
 function Picker({ song, onLeave }: { song: Song; onLeave: () => void }): ReactNode {
   const [selected, setSelected] = useState<ReadonlySet<number>>(() => new Set(song.tagIds))
   const setSongTags = useSetSongTags()
+  const { wide } = useLayout()
+  // The last set the library took, for a tick that did not: the box goes back
+  // to what is true rather than showing a tag the song does not have.
+  const saved = useRef<ReadonlySet<number>>(selected)
   return (
     <TagSearchList
       selected={selected}
       onChange={next => {
         setSelected(next)
-        setSongTags.mutate({ songId: song.id, tagIds: [...next] })
+        setSongTags.mutate(
+          { songId: song.id, tagIds: [...next] },
+          {
+            onSuccess: answer => {
+              saved.current = new Set(answer.tagIds)
+            },
+            onError: () => setSelected(saved.current),
+          },
+        )
       }}
       onLeave={onLeave}
-      autoFocus
+      autoFocus={wide}
     />
   )
 }
@@ -243,7 +256,20 @@ export function TagSearchList({
     latest.current = selected
   }, [selected])
 
-  const ranked = useMemo(() => fuzzyRank(query, tags, each => each.tag.name), [query, tags])
+  /*
+   * With nothing typed, the song's own tags come first, so the one to take off
+   * is at the top rather than wherever the alphabet put it. Ordered by what was
+   * ticked when the picker opened, so a row does not jump away from the finger
+   * that has just ticked it.
+   */
+  const [openedWith] = useState(selected)
+  const ranked = useMemo(() => {
+    const matches = fuzzyRank(query, tags, each => each.tag.name)
+    if (query.trim()) return matches
+    const first = (match: (typeof matches)[number]): number =>
+      match.item.there && openedWith.has(match.item.tag.id) ? 0 : 1
+    return [...matches].sort((a, b) => first(a) - first(b))
+  }, [query, tags, openedWith])
   const hasExact = ranked.some(match => match.exact)
   const trimmed = query.trim()
 
@@ -297,7 +323,7 @@ export function TagSearchList({
   }
 
   return (
-    <View>
+    <View style={styles.root}>
       <TextInput
         style={[
           styles.input,
@@ -320,7 +346,13 @@ export function TagSearchList({
         accessibilityLabel="Search or create a tag"
       />
 
-      <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={styles.list}
+        keyboardShouldPersistTaps="handled"
+        // A scroll through the list puts the keyboard away, so the rows it
+        // covered are there to tap.
+        keyboardDismissMode="on-drag"
+      >
         {ranked.map(({ item: offered }) => {
           const { tag: item, there } = offered
           const on = there && selected.has(item.id)
@@ -414,7 +446,9 @@ const styles = StyleSheet.create(theme => ({
     minHeight: 34,
     paddingHorizontal: space.sm + 2,
   },
-  list: { maxHeight: 320 },
+  // Gives way, with the list, when a sheet is held above the keyboard.
+  root: { flexShrink: 1 },
+  list: { maxHeight: 320, flexShrink: 1 },
   item: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -455,8 +455,41 @@ function refetchLivePlaylists(client: QueryClient): void {
 export const useCreateTag = () =>
   useLibraryMutation((tag: CreateTag) => clientApi().createTag(tag), undefined, { members: false })
 
-export const useDeleteTag = () =>
-  useLibraryMutation((id: number) => clientApi().deleteTag(id), 'Couldn’t delete the tag')
+/**
+ * Delete a tag, gone from the library held at once: the editor closes as it
+ * asks, and the tile it was opened from stayed on the page until the refetch
+ * came back, which read as a delete that had not worked. Put back if it fails.
+ */
+export function useDeleteTag() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => clientApi().deleteTag(id),
+    meta: { failure: 'Couldn’t delete the tag' },
+    onMutate: async id => {
+      await client.cancelQueries({ queryKey: queryKeys.library })
+      const previous = client.getQueryData<Library>(queryKeys.library)
+      if (previous) {
+        client.setQueryData<Library>(queryKeys.library, {
+          ...previous,
+          tags: previous.tags.filter(tag => tag.id !== id),
+          songs: previous.songs.map(song =>
+            song.tagIds.includes(id)
+              ? { ...song, tagIds: song.tagIds.filter(tagId => tagId !== id) }
+              : song,
+          ),
+        })
+      }
+      return { previous }
+    },
+    onError: (_error, _id, context) => {
+      if (context?.previous) client.setQueryData(queryKeys.library, context.previous)
+    },
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.library })
+      void client.invalidateQueries({ queryKey: queryKeys.playlists })
+    },
+  })
+}
 
 export const useRenameTag = () =>
   useLibraryMutation(
@@ -501,11 +534,18 @@ export function useSetTagHue() {
   })
 }
 
+/**
+ * Replace a song's tags. Each tick sends the whole set, so the requests for
+ * one song run one at a time, in the order they were made: two quick ticks
+ * answered out of order put the first set back over the second, and a tag
+ * just taken off came back on the chips.
+ */
 export function useSetSongTags() {
   const client = useQueryClient()
   return useMutation({
     mutationFn: ({ songId, tagIds }: { songId: number; tagIds: number[] }) =>
       clientApi().setSongTags(songId, tagIds),
+    scope: { id: 'song-tags' },
     meta: { failure: 'Couldn’t change the song’s tags' },
     onSuccess: song => {
       putInLibrary(client, library => withSong(library, song), hasLivePlaylists)

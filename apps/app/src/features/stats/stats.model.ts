@@ -6,7 +6,14 @@ import type {
   TopSong,
   WrappedRange,
 } from '@selfmp3/shared'
-import { artistKey, DAY_HOURS, EARLY_HOURS, NIGHT_HOURS, splitArtists } from '@selfmp3/shared'
+import {
+  artistKey,
+  DAY_HOURS,
+  EARLY_HOURS,
+  NIGHT_HOURS,
+  splitArtists,
+  UNKNOWN_ARTIST,
+} from '@selfmp3/shared'
 
 /**
  * Listening stats, without the screen.
@@ -278,9 +285,6 @@ export type RankedRow =
   | (RankedBase & { readonly kind: 'song'; readonly songId: number; readonly artist: string })
   | (RankedBase & { readonly kind: 'artist'; readonly known: boolean })
   | (RankedBase & { readonly kind: 'tag' })
-
-/** What the server calls a song with no artist; it is not a place to open. */
-const UNKNOWN_ARTIST = 'Unknown artist'
 
 /** Songs by plays, as the server ranks them. */
 export function rankedSongs(top: readonly TopSong[], limit = RANKED_ROWS): RankedRow[] {

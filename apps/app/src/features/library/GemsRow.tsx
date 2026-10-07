@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { formatRelative } from '@selfmp3/shared'
+import { artistOr, formatRelative } from '@selfmp3/shared'
 import { space, useGems } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
@@ -55,8 +55,8 @@ export function GemsRow(): ReactNode {
       key={song.id}
       onPress={() => player.playFrom(ids, index, { source: GEMS })}
       accessibilityRole="button"
-      accessibilityLabel={`${song.title} — ${song.artist || 'Unknown artist'}`}
-      {...tip(`${song.title} — ${song.artist || 'Unknown artist'}`)}
+      accessibilityLabel={`${song.title} — ${artistOr(song.artist)}`}
+      {...tip(`${song.title} — ${artistOr(song.artist)}`)}
       style={({ pressed }) => [
         few ? styles.cardFew : styles.card,
         pressed && (few ? styles.cardFewPressed : styles.cardPressed),
@@ -68,7 +68,7 @@ export function GemsRow(): ReactNode {
           {song.title}
         </Text>
         <Text style={styles.cardArtist} numberOfLines={1}>
-          {song.artist || 'Unknown artist'}
+          {artistOr(song.artist)}
         </Text>
         <Text style={styles.cardWhen} numberOfLines={1}>
           {song.lastPlayedAt ? formatRelative(song.lastPlayedAt) : 'never played'}

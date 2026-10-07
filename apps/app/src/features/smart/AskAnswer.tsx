@@ -4,7 +4,7 @@ import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
-import { plural, type AskAnswer as Answer } from '@selfmp3/shared'
+import { artistOr, plural, type AskAnswer as Answer } from '@selfmp3/shared'
 import { failureText, radius, space } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
@@ -403,7 +403,7 @@ function SongPicks({
           <View style={styles.text}>
             <Text style={styles.title} numberOfLines={1}>
               {song.title}
-              <Text style={styles.muted}> · {song.artist || 'Unknown artist'}</Text>
+              <Text style={styles.muted}> · {artistOr(song.artist)}</Text>
             </Text>
             <Text style={styles.why} numberOfLines={1}>
               {why ?? ''}

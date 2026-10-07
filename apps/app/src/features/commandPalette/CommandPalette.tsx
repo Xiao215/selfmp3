@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } fro
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
-import { formatDuration, plural } from '@selfmp3/shared'
+import { artistOr, formatDuration, plural } from '@selfmp3/shared'
 import {
   clientApi,
   oklchToHexAlpha,
@@ -253,7 +253,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         recent.kind === 'song'
           ? {
               key: recentKey(recent),
-              label: `${recent.song.title}, ${recent.song.artist || 'Unknown artist'}`,
+              label: `${recent.song.title}, ${artistOr(recent.song.artist)}`,
               run: () => runRecent(recent),
               node: (
                 <>
@@ -267,7 +267,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
                       {recent.song.title}
                     </Text>
                     <Text style={styles.sub} numberOfLines={1}>
-                      {recent.song.artist || 'Unknown artist'}
+                      {artistOr(recent.song.artist)}
                     </Text>
                   </View>
                   <Text style={styles.hint}>
@@ -338,7 +338,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
       title: 'Songs',
       rows: found.songs.map(song => ({
         key: `song-${song.id}`,
-        label: `${song.title}, ${song.artist || 'Unknown artist'}`,
+        label: `${song.title}, ${artistOr(song.artist)}`,
         run: () => playSong(song.id),
         node: (
           <>
@@ -348,7 +348,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
                 {song.title}
               </Text>
               <Text style={styles.sub} numberOfLines={1}>
-                {song.artist || 'Unknown artist'}
+                {artistOr(song.artist)}
               </Text>
             </View>
             <Text style={styles.hint}>{formatDuration(song.duration)}</Text>

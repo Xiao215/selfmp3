@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
+import { artistOr } from '@selfmp3/shared'
 import { onMac, radius, space, withAlpha } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -381,7 +382,7 @@ export function Review<T extends Reviewed>({
                   }}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: kept }}
-                  accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
+                  accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
                   style={({ pressed }) => [
                     styles.song,
                     at === songStop && styles.at,

@@ -1,4 +1,10 @@
-import { isNeteaseUrl, isYouTubeUrl, type CoverTone, type ImportPreviewItem } from '@selfmp3/shared'
+import {
+  artistOr,
+  isNeteaseUrl,
+  isYouTubeUrl,
+  type CoverTone,
+  type ImportPreviewItem,
+} from '@selfmp3/shared'
 
 /** What a preview is doing, as the audio reports it (the `listen` port's state). */
 export type ListenStatus = 'loading' | 'playing' | 'paused' | 'error'
@@ -79,7 +85,7 @@ export function listenLabel(title: string, status: ListenStatus | null): string 
 export function listenDetail(listening: Pick<Listening, 'track' | 'status'>): string {
   return listening.status === 'error'
     ? 'Couldn’t play this one from YouTube'
-    : listening.track.artist || 'Unknown artist'
+    : artistOr(listening.track.artist)
 }
 
 /** How far along the bar is filled, 0 to 1. Nothing while the length is unknown. */

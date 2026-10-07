@@ -4,6 +4,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useMutation } from '@tanstack/react-query'
 import type { DescribeResult, Understanding } from '@selfmp3/shared'
+import { artistOr } from '@selfmp3/shared'
 import { clientApi, failureText, radius, space, useLibrary } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -152,7 +153,7 @@ export function SongsAnswer({
                     {song.title}
                   </Text>
                   <Text style={styles.why} numberOfLines={1}>
-                    {each.why ?? (song.artist || 'Unknown artist')}
+                    {each.why ?? artistOr(song.artist)}
                   </Text>
                 </View>
                 <Pressable

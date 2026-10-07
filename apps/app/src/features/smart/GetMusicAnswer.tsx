@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { plural, type AskAnswer } from '@selfmp3/shared'
+import { artistOr, plural, type AskAnswer } from '@selfmp3/shared'
 import { radius, space } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
@@ -38,7 +38,7 @@ export function GetMusicAnswer({
           <View style={styles.text}>
             <Text style={styles.title} numberOfLines={2}>
               {item.title}
-              <Text style={styles.muted}> · {item.artist || 'Unknown artist'}</Text>
+              <Text style={styles.muted}> · {artistOr(item.artist)}</Text>
             </Text>
             <Text style={styles.meta} numberOfLines={1}>
               {haveText(item)}

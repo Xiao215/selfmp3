@@ -1,4 +1,5 @@
 import {
+  artistOr,
   WRAPPED_RANGE_DAYS,
   type DailyPlays,
   type Wrapped,
@@ -371,7 +372,7 @@ function numberOne(wrapped: Wrapped): NumberOne | null {
   return {
     songId: top.songId,
     title: top.title,
-    line: `${top.artist || 'Unknown artist'} · ${repeatDetail(wrapped) ?? ''}`,
+    line: `${artistOr(top.artist)} · ${repeatDetail(wrapped) ?? ''}`,
   }
 }
 

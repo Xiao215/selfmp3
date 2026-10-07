@@ -4,7 +4,7 @@ import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { View as RNView } from 'react-native'
 import { useRouter } from 'expo-router'
-import { formatDuration, type Song } from '@selfmp3/shared'
+import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
 import {
   clientApi,
   isDownloaded,
@@ -170,10 +170,7 @@ function Items({
   const manualPlaylists = playlistsToAddTo(library?.playlists ?? []).filter(
     list => list.id !== playlist?.id,
   )
-  const byline = [
-    song.artist || 'Unknown artist',
-    song.duration > 0 ? formatDuration(song.duration) : '',
-  ]
+  const byline = [artistOr(song.artist), song.duration > 0 ? formatDuration(song.duration) : '']
     .filter(Boolean)
     .join(' · ')
 

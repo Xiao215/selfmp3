@@ -5,7 +5,7 @@ import type { ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { useRouter } from 'expo-router'
-import { plural } from '@selfmp3/shared'
+import { artistOr, plural } from '@selfmp3/shared'
 import type { Song, Stats } from '@selfmp3/shared'
 import { fonts, radius, tagColors, type, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
@@ -630,7 +630,7 @@ function Recents({ recents, wide }: { recents: readonly HomeRecent[]; wide: bool
                 {song.title}
               </Text>
               <Text style={styles.recentArtist} numberOfLines={1}>
-                {song.artist || 'Unknown artist'}
+                {artistOr(song.artist)}
               </Text>
             </Pressable>
           )

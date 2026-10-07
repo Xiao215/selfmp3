@@ -4,7 +4,7 @@ import { Animated, Pressable, Text, View, useWindowDimensions } from 'react-nati
 import { StyleSheet } from 'react-native-unistyles'
 import type { GestureResponderEvent, StyleProp, ViewStyle } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
-import { formatDuration, type Song, type Tag } from '@selfmp3/shared'
+import { artistOr, formatDuration, type Song, type Tag } from '@selfmp3/shared'
 import { HIT_TARGET, motion, radius, space, tagColors, type } from '@selfmp3/client'
 import {
   chipBudget,
@@ -236,7 +236,7 @@ export const SongRow = memo(function SongRow({
             {...press.handlers}
             delayLongPress={MOVE_MS.longPress}
             accessibilityRole="button"
-            accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
+            accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
             accessibilityState={{ selected: active }}
             // No pressed background: the row already gives under the finger, and a
             // filled box over the cover and title flashed white in the light theme.
@@ -258,7 +258,7 @@ export const SongRow = memo(function SongRow({
               <View style={styles.subtitleRow}>
                 <HereMark downloaded={downloaded} notDownloadedMark={notDownloadedMark} />
                 <Text style={styles.subtitle} numberOfLines={1}>
-                  {song.artist || 'Unknown artist'} · {formatDuration(song.duration)}
+                  {artistOr(song.artist)} · {formatDuration(song.duration)}
                 </Text>
               </View>
             </View>
@@ -350,7 +350,7 @@ export const SongRow = memo(function SongRow({
           }
           delayLongPress={MOVE_MS.longPress}
           accessibilityRole="button"
-          accessibilityLabel={`${song.title}, ${song.artist || 'Unknown artist'}`}
+          accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
           accessibilityState={{ selected: active }}
           style={styles.mainWide}
         >
@@ -362,7 +362,7 @@ export const SongRow = memo(function SongRow({
             <View style={styles.subtitleRow}>
               <HereMark downloaded={downloaded} notDownloadedMark={notDownloadedMark} />
               <Text style={styles.artist} numberOfLines={1}>
-                {song.artist || 'Unknown artist'}
+                {artistOr(song.artist)}
               </Text>
               {/* With a finger the second line is the artist alone (`T03`). */}
               {song.album && !albumColumn && dense ? (

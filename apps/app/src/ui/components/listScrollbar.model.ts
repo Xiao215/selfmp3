@@ -1,4 +1,4 @@
-import { formatDuration, fromSqliteTime, plural } from '@selfmp3/shared'
+import { artistOr, formatDuration, fromSqliteTime, plural } from '@selfmp3/shared'
 import type { Song, SongSortField } from '@selfmp3/shared'
 
 /**
@@ -46,7 +46,7 @@ export function sortLabel(field: SongSortField, now: Date = new Date()): ScrollL
     case 'title':
       return song => initialOf(song.title)
     case 'artist':
-      return song => song.artist || 'Unknown artist'
+      return song => artistOr(song.artist)
     case 'album':
       return song => song.album || 'No album'
     case 'addedAt':

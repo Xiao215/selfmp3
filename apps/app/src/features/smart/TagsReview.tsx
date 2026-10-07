@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
-import { plural, type TagReview } from '@selfmp3/shared'
+import { artistOr, plural, type TagReview } from '@selfmp3/shared'
 import { useLibrary } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { useSongsById } from '../../ui/songsById'
@@ -190,7 +190,7 @@ export function TagsReview({
             return `Delete ${c.tag}`
         }
       }}
-      songLine={song => song.artist || 'Unknown artist'}
+      songLine={song => artistOr(song.artist)}
       applyLabel={approved =>
         approved.length === 0 ? 'Apply' : `Apply ${plural(approved.length, 'change', 'changes')}`
       }

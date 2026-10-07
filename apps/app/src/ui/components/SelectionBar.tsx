@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { plural } from '@selfmp3/shared'
+import { artistOr, plural } from '@selfmp3/shared'
 import type { Song } from '@selfmp3/shared'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -711,7 +711,7 @@ export function SelectionBar({
 
 /** "Aurora Lane · Klara Feld and 2 more" — enough to recognise the selection. */
 function summarise(songs: readonly Song[]): string {
-  const artists = [...new Set(songs.map(song => song.artist || 'Unknown artist'))]
+  const artists = [...new Set(songs.map(song => artistOr(song.artist)))]
   if (artists.length <= 2) return artists.join(' · ')
   return `${artists.slice(0, 2).join(' · ')} and ${artists.length - 2} more`
 }

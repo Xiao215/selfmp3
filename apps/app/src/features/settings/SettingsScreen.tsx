@@ -1,5 +1,5 @@
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import {
   Pressable,
@@ -27,6 +27,7 @@ import { BackButton } from '../../ui/components/BackButton'
 import { Toggle } from '../../ui/components/Toggle'
 import { label, pageTitle } from '../../ui/surfaces'
 import { usePlayer } from '../../player/PlayerProvider'
+import { createValueStore, type ValueStore } from '../../player/progress.model'
 import { menuCommands } from '../../ports/menuKeys'
 import { finePointer } from '../../ports/pointer'
 import { Panel, partStyles, Row, SliderSetting, StackedRows } from './SettingsParts'
@@ -129,29 +130,33 @@ export function SettingsScreen(): ReactNode {
   )
   const { section: linked } = useLocalSearchParams<{ section?: string }>()
   const linkedSection = sections.find(section => section.id === linked)?.id
-  const [active, setActive] = useState<SectionId>(() => linkedSection ?? 'account')
+  /*
+   * The section being read, kept out of this component's state: the scroll-spy
+   * moves it on every section crossed, and as state it redrew every panel on
+   * the page — the offline tally, the library's counts, the devices — each
+   * time. Only the index reads it (`SectionIndex`).
+   */
+  const [active] = useState(() => createValueStore<SectionId>(linkedSection ?? 'account'))
   const chipsRef = useRef<ScrollView>(null)
-  const chipAt = useRef(new Map<SectionId, { x: number; width: number }>())
   const chipsWidth = useRef(0)
-
-  // At narrow widths the chip for the section being read is often scrolled out
-  // of its row. Bring it back — sideways only.
-  useEffect(() => {
-    const chip = chipAt.current.get(active)
-    if (!chip || chipsWidth.current === 0) return
-    chipsRef.current?.scrollTo({
-      x: Math.max(0, chip.x - (chipsWidth.current - chip.width) / 2),
-      animated: true,
-    })
-  }, [active])
   const [confirming, setConfirming] = useState<Confirming>(null)
 
   const set = <K extends keyof Settings>(key: K, value: Settings[K]): void => {
     updateSettings.mutate({ [key]: value } as Partial<Settings>)
   }
-  const anchorAt = (id: SectionId, node: View | null): void => {
-    if (node) anchors.current.set(id, node)
-    else anchors.current.delete(id)
+  // One callback per section for the page's life, so a redraw does not detach
+  // and reattach every panel's view.
+  const anchorCallbacks = useRef(new Map<SectionId, (node: View | null) => void>())
+  const anchorAt = (id: SectionId): ((node: View | null) => void) => {
+    let callback = anchorCallbacks.current.get(id)
+    if (!callback) {
+      callback = node => {
+        if (node) anchors.current.set(id, node)
+        else anchors.current.delete(id)
+      }
+      anchorCallbacks.current.set(id, callback)
+    }
+    return callback
   }
 
   /**
@@ -248,11 +253,11 @@ export function SettingsScreen(): ReactNode {
       metrics.current.view,
       metrics.current.content,
     )
-    if (next !== null && next !== active) setActive(next)
+    if (next !== null) active.set(next)
   }
 
   const go = (id: SectionId, ms = CHOSEN_HOLD_MS, animated = true): void => {
-    setActive(id)
+    active.set(id)
     hold(id, ms)
     land(id, animated)
   }
@@ -268,32 +273,16 @@ export function SettingsScreen(): ReactNode {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linkedSection])
 
-  const index = sections.map(section => {
-    const on = active === section.id
-    return (
-      <Pressable
-        key={section.id}
-        onPress={() => go(section.id)}
-        onLayout={
-          column
-            ? undefined
-            : event => {
-                const { x, width: chipWidth } = event.nativeEvent.layout
-                chipAt.current.set(section.id, { x, width: chipWidth })
-              }
-        }
-        accessibilityRole="link"
-        accessibilityState={{ selected: on }}
-        style={({ pressed }) => [
-          column ? styles.indexItem : styles.chip,
-          on && (column ? styles.indexItemOn : styles.chipOn),
-          pressed && styles.indexPressed,
-        ]}
-      >
-        <Text style={[styles.indexText, on && styles.indexTextOn]}>{section.label}</Text>
-      </Pressable>
-    )
-  })
+  const index = (
+    <SectionIndex
+      sections={sections}
+      active={active}
+      column={column}
+      chipsRef={chipsRef}
+      chipsWidth={chipsWidth}
+      onGo={go}
+    />
+  )
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -348,26 +337,26 @@ export function SettingsScreen(): ReactNode {
 
         <StackedRows value={!wide}>
           <View style={styles.panels}>
-            <ConnectionPanel anchor={node => anchorAt('account', node)} onConfirm={setConfirming} />
+            <ConnectionPanel anchor={anchorAt('account')} onConfirm={setConfirming} />
 
-            <AppearancePanel anchor={node => anchorAt('appearance', node)} />
+            <AppearancePanel anchor={anchorAt('appearance')} />
 
             {/* A browser streams and keeps nothing: only an installed app has songs on it. */}
             {installedApp ? (
               <OfflinePanel
                 title={onThisDevice(place)}
-                anchor={node => anchorAt('offline', node)}
+                anchor={anchorAt('offline')}
                 onConfirm={setConfirming}
               />
             ) : null}
 
-            <DevicesPanel anchor={node => anchorAt('devices', node)} />
+            <DevicesPanel anchor={anchorAt('devices')} />
 
             {settings.data ? (
               <Panel
                 title="Playback"
                 hint="shared across your devices"
-                anchor={node => anchorAt('playback', node)}
+                anchor={anchorAt('playback')}
               >
                 <CrossfadeRow
                   seconds={settings.data.crossfadeSeconds}
@@ -390,28 +379,20 @@ export function SettingsScreen(): ReactNode {
             {fromCloud ? null : (
               <LibraryPanel
                 libraryPath={health.data?.libraryPath}
-                anchor={node => anchorAt('library', node)}
+                anchor={anchorAt('library')}
                 onConfirm={setConfirming}
               />
             )}
 
             {settings.data && !fromCloud ? (
-              <ImportingPanel
-                settings={settings.data}
-                set={set}
-                anchor={node => anchorAt('importing', node)}
-              />
+              <ImportingPanel settings={settings.data} set={set} anchor={anchorAt('importing')} />
             ) : null}
 
-            {fromCloud ? null : <CloudPanel anchor={node => anchorAt('cloud', node)} />}
+            {fromCloud ? null : <CloudPanel anchor={anchorAt('cloud')} />}
 
-            <SmartPanel
-              anchor={node => anchorAt('smart', node)}
-              settings={settings.data}
-              set={set}
-            />
+            <SmartPanel anchor={anchorAt('smart')} settings={settings.data} set={set} />
 
-            <Panel title="Lyrics" hint="on this device" anchor={node => anchorAt('lyrics', node)}>
+            <Panel title="Lyrics" hint="on this device" anchor={anchorAt('lyrics')}>
               <Row
                 label="Show pinyin"
                 hint="A romanized line under each Chinese lyric. It is made on the server and kept with the words, in the cloud too, so this only chooses whether to draw it."
@@ -435,17 +416,13 @@ export function SettingsScreen(): ReactNode {
               </Row>
             </Panel>
 
-            {loginItem.available ? (
-              <DesktopPanel anchor={node => anchorAt('desktop', node)} />
-            ) : null}
+            {loginItem.available ? <DesktopPanel anchor={anchorAt('desktop')} /> : null}
 
-            {macApp.offered ? <GetAppPanel anchor={node => anchorAt('getApp', node)} /> : null}
+            {macApp.offered ? <GetAppPanel anchor={anchorAt('getApp')} /> : null}
 
-            {shortcuts ? (
-              <ShortcutsPanel items={shortcuts} anchor={node => anchorAt('shortcuts', node)} />
-            ) : null}
+            {shortcuts ? <ShortcutsPanel items={shortcuts} anchor={anchorAt('shortcuts')} /> : null}
 
-            <Panel title="About" anchor={node => anchorAt('about', node)}>
+            <Panel title="About" anchor={anchorAt('about')}>
               <Row label="Version" last>
                 <Text style={partStyles.valueText}>
                   {String(Constants.expoConfig?.version ?? '1.0.0')}
@@ -467,6 +444,68 @@ export function SettingsScreen(): ReactNode {
       <Confirmations confirming={confirming} onDone={() => setConfirming(null)} />
     </SafeAreaView>
   )
+}
+
+/**
+ * The page's index: a column beside the panels, or the sticky row of chips.
+ * It alone reads which section is being read, so the scroll-spy moving on
+ * redraws these links and nothing else.
+ */
+function SectionIndex({
+  sections,
+  active,
+  column,
+  chipsRef,
+  chipsWidth,
+  onGo,
+}: {
+  sections: readonly { id: SectionId; label: string }[]
+  active: ValueStore<SectionId>
+  column: boolean
+  chipsRef: RefObject<ScrollView | null>
+  chipsWidth: RefObject<number>
+  onGo: (id: SectionId) => void
+}): ReactNode {
+  const on = useSyncExternalStore(active.subscribe, active.get, active.get)
+  const chipAt = useRef(new Map<SectionId, { x: number; width: number }>())
+
+  // At narrow widths the chip for the section being read is often scrolled out
+  // of its row. Bring it back — sideways only.
+  useEffect(() => {
+    const chip = chipAt.current.get(on)
+    if (!chip || chipsWidth.current === 0) return
+    chipsRef.current?.scrollTo({
+      x: Math.max(0, chip.x - (chipsWidth.current - chip.width) / 2),
+      animated: true,
+    })
+  }, [on, chipsRef, chipsWidth])
+
+  return sections.map(section => {
+    const current = on === section.id
+    return (
+      <Pressable
+        key={section.id}
+        onPress={() => onGo(section.id)}
+        onLayout={
+          column
+            ? undefined
+            : event => {
+                const { x, width: chipWidth } = event.nativeEvent.layout
+                chipAt.current.set(section.id, { x, width: chipWidth })
+              }
+        }
+        accessibilityRole="link"
+        accessibilityState={{ selected: current }}
+        style={({ pressed }) => [
+          column ? styles.indexItem : styles.chip,
+          current && (column ? styles.indexItemOn : styles.chipOn),
+          pressed && styles.indexPressed,
+        ]}
+      >
+        <Text style={[styles.indexText, current && styles.indexTextOn]}>{section.label}</Text>
+      </Pressable>
+    )
+  })
 }
 
 /**

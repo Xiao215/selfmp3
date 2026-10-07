@@ -42,7 +42,9 @@ export function Confirmations({
     },
     'sign-out': {
       title: 'Sign out?',
-      body: signOutWarning(cloudLibrary.pendingCloudChanges()),
+      // Counted only while this dialog is the one asking: Settings redraws
+      // for many reasons, and the count walks the changes not yet sent.
+      body: confirming === 'sign-out' ? signOutWarning(cloudLibrary.pendingCloudChanges()) : '',
       label: 'Sign out',
       run: () => void signOut(),
     },

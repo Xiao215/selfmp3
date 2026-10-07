@@ -9,6 +9,7 @@ import {
   isCloudFileKey,
   isCloudListPrefix,
   isDeletableCloudKey,
+  isHashNamedCloudKey,
   logKey,
   lyricsKey,
   newCloudDeviceId,
@@ -185,6 +186,15 @@ describe('what may pass through the doorman', () => {
       'log/iphone-0b7d44a1/000123.jsonl',
     ]) {
       expect(isCloudFileKey(key)).toBe(true)
+    }
+  })
+
+  it('knows which files are named by their own hash', () => {
+    for (const key of [`audio/${SHA}.m4a`, `covers/${SHA}.jpg`, `lyrics/${SHA}.lrc`]) {
+      expect(isHashNamedCloudKey(key)).toBe(true)
+    }
+    for (const key of ['format.json', snapshot, 'log/iphone-0b7d44a1/000123.jsonl']) {
+      expect(isHashNamedCloudKey(key)).toBe(false)
     }
   })
 

@@ -166,6 +166,19 @@ export function unfoldedLogKeys(
 }
 
 /**
+ * The folders whose files are named by the hash of their bytes (`audioKey`,
+ * `coverKey`, `lyricsKey` and the rest above): the same key is the same bytes,
+ * forever, so such a file is never replaced and may be cached for good.
+ */
+const HASH_NAMED_FOLDERS = ['audio', 'covers', 'lyrics'] as const
+const HASH_NAMED = new RegExp(`^(?:${HASH_NAMED_FOLDERS.join('|')})/`)
+
+/** Whether a key is a file named by its own hash, in one of `HASH_NAMED_FOLDERS`. */
+export function isHashNamedCloudKey(key: string): boolean {
+  return HASH_NAMED.test(key)
+}
+
+/**
  * Every key a device may read or write through the doorman, and nothing else:
  * the format marker, snapshots, a device's change log, and files named by
  * their hash. A key that does not match is refused before it reaches the
@@ -180,7 +193,7 @@ const FILE_KEY = new RegExp(
       'format\\.json',
       'snapshots/\\d{8}T\\d{9}Z-[a-z0-9][a-z0-9-]{2,62}\\.json',
       'log/[a-z0-9][a-z0-9-]{2,62}/[A-Za-z0-9][A-Za-z0-9._-]{0,99}',
-      '(?:audio|covers|lyrics)/[0-9a-f]{64}\\.[a-z0-9]{1,5}',
+      `(?:${HASH_NAMED_FOLDERS.join('|')})/[0-9a-f]{64}\\.[a-z0-9]{1,5}`,
     ].join('|') +
     ')$',
 )

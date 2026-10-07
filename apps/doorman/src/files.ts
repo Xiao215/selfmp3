@@ -4,6 +4,7 @@ import {
   isCloudFileKey,
   isCloudListPrefix,
   isDeletableCloudKey,
+  isHashNamedCloudKey,
   type DoormanList,
 } from '@selfmp3/shared'
 import { requireBucket, requireSession, type Context } from './context.js'
@@ -40,9 +41,6 @@ import type { Session } from './sessions.js'
  * keeps each request inside the free plan's 10 ms of CPU however big the
  * song: the Worker only hands bytes on, and the runtime does the moving.
  */
-
-/** Named by the hash of their bytes: the same key is the same bytes, forever. */
-const HASH_NAMED = /^(?:audio|covers|lyrics)\//
 
 /** What a device may say about the copy it has, passed to the bucket as it is. */
 const CONDITIONS = [
@@ -152,7 +150,7 @@ async function read(
   }
   headers.set(
     'cache-control',
-    HASH_NAMED.test(key) ? 'private, max-age=31536000, immutable' : 'private, no-cache',
+    isHashNamedCloudKey(key) ? 'private, max-age=31536000, immutable' : 'private, no-cache',
   )
   // A file is the library's data, never a page: even one a device stored as
   // text/html cannot run anything from the doorman's address.
@@ -193,7 +191,7 @@ async function write(ctx: Context, session: Session, key: string): Promise<Respo
   }
 
   const bucket = await requireBucket(ctx, session)
-  if (HASH_NAMED.test(key) && (await bucket.exists(key))) {
+  if (isHashNamedCloudKey(key) && (await bucket.exists(key))) {
     // Named by its hash, so what is there already is these very bytes.
     throw new DoormanError(412, 'exists', 'that file is already in the bucket')
   }

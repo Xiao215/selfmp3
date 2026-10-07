@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router'
 import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
 import {
   clientApi,
+  failureText,
   isDownloaded,
   space,
   type,
@@ -22,6 +23,7 @@ import { useArt } from '../../offline/useArt'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
 import { usePlayerCommands } from '../../player/PlayerProvider'
+import { showToast } from '../toast'
 import { Button } from './Button'
 import { Chip } from './Chip'
 import { RemoveSongs } from './ConfirmRemoveSongs'
@@ -188,7 +190,9 @@ function Items({
           source: { kind: 'songs', origin: 'similar', name: `Similar to ${song.title}` },
         }),
       )
-      .catch(() => undefined)
+      .catch((caught: unknown) =>
+        showToast(failureText('Couldn’t find similar songs', caught), 'error'),
+      )
   }
 
   const icon = (Glyph: typeof Queue) => <Glyph size={16} color={theme.colors.textSecondary} />

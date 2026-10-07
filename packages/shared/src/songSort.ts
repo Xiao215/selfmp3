@@ -50,7 +50,8 @@ export function sortSongs(
  * it builds its comparison afresh on every call, which on a phone's engine is
  * most of what sorting a library costs.
  */
-const text = new Intl.Collator().compare
+const collator = new Intl.Collator()
+const text = (a: string, b: string): number => collator.compare(a, b)
 
 /** Songs by one field, before the direction is applied. */
 function compare(a: Song, b: Song, field: SongSortField): number {

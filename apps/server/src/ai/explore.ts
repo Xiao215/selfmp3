@@ -2,6 +2,7 @@ import { z } from 'zod/v4'
 import type { AskAnswer, Song, Tag } from '@selfmp3/shared'
 import { creditNames, libraryShape } from './library.js'
 import { Remembered, tool, type Llm } from './llm.js'
+import type { CatalogueSearch } from './names.js'
 import { NO_STEPS, type Steps } from './progress.js'
 
 /**
@@ -41,15 +42,11 @@ interface ExploreDeps {
   readonly tags: () => Tag[]
   readonly lyrics: (query: string) => { songId: number; line: string }[]
   /** 网易云's search, as `NeteaseMusic.search` gives it. */
-  readonly catalogue?: (
-    words: string,
-  ) => Promise<readonly { title: string; artist: string; album: string; duration: number }[]>
+  readonly catalogue?: CatalogueSearch
   /** Settings' web switch. */
   readonly web?: () => boolean
   readonly remembered?: Remembered
 }
-
-const lower = (value: string): string => value.toLowerCase()
 
 /** The tools, over this library as it is now. */
 function toolsFor(deps: ExploreDeps, steps: Steps) {
@@ -68,16 +65,16 @@ function toolsFor(deps: ExploreDeps, steps: Steps) {
   })
   const tagged = (name: string | null): ((song: Song) => boolean) => {
     if (!name) return () => true
-    const tag = tags.find(each => lower(each.name) === lower(name.trim()))
+    const tag = tags.find(each => each.name.toLowerCase() === name.trim().toLowerCase())
     return song => tag !== undefined && song.tagIds.includes(tag.id)
   }
   const by = (name: string | null): ((song: Song) => boolean) => {
     if (!name) return () => true
-    const wanted = lower(name.trim())
+    const wanted = name.trim().toLowerCase()
     return song =>
-      lower(song.artist).includes(wanted) ||
-      lower(song.albumArtist).includes(wanted) ||
-      creditNames(song.artist).some(each => lower(each) === wanted)
+      song.artist.toLowerCase().includes(wanted) ||
+      song.albumArtist.toLowerCase().includes(wanted) ||
+      creditNames(song.artist).some(each => each.toLowerCase() === wanted)
   }
 
   const search = tool({
@@ -96,17 +93,19 @@ function toolsFor(deps: ExploreDeps, steps: Steps) {
       steps.begin(
         words ? `Looking through your songs for “${words}”` : 'Looking through your songs',
       )
-      const term = words ? lower(words.trim()) : ''
+      const term = words ? words.trim().toLowerCase() : ''
       const inLyrics = new Set(term ? deps.lyrics(term).map(hit => hit.songId) : [])
-      const wantedAlbum = album ? lower(album.trim()) : ''
+      const wantedAlbum = album ? album.trim().toLowerCase() : ''
+      const inTag = tagged(tag)
+      const byArtist = by(artist)
       const matches = songs.filter(
         song =>
           (!term ||
-            lower(`${song.title} ${song.artist} ${song.album}`).includes(term) ||
+            `${song.title} ${song.artist} ${song.album}`.toLowerCase().includes(term) ||
             inLyrics.has(song.id)) &&
-          tagged(tag)(song) &&
-          by(artist)(song) &&
-          (!wantedAlbum || lower(song.album).includes(wantedAlbum)),
+          inTag(song) &&
+          byArtist(song) &&
+          (!wantedAlbum || song.album.toLowerCase().includes(wantedAlbum)),
       )
       const start = offset ?? 0
       return {
@@ -128,7 +127,9 @@ function toolsFor(deps: ExploreDeps, steps: Steps) {
     run: ({ by: key, tag, artist }) => {
       steps.begin(`Counting your songs by ${key}`)
       const tally = new Map<string, number>()
-      for (const song of songs.filter(each => tagged(tag)(each) && by(artist)(each))) {
+      const inTag = tagged(tag)
+      const byArtist = by(artist)
+      for (const song of songs.filter(each => inTag(each) && byArtist(each))) {
         const names =
           key === 'artist'
             ? creditNames(song.artist).slice(0, 1)

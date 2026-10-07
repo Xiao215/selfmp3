@@ -1,6 +1,7 @@
 import { z } from 'zod/v4'
 import {
   CJK,
+  editDistance,
   SongFieldsSchema,
   TidyFieldSchema,
   creditList as listed,
@@ -14,9 +15,10 @@ import {
   type TidyResult,
 } from '@selfmp3/shared'
 import { LlmError, llmFailureWords, Remembered, type Llm } from './llm.js'
-import { foundFor, within, type FindNames, type FoundName } from './names.js'
-
+import { nameField, within, type FindNames, type FoundName } from './names.js'
 import { NO_STEPS, type Steps } from './progress.js'
+import { chunks, foldedBare as bare } from './text.js'
+
 /**
  * A4 · Tidy up (docs/features/ai.md): the song names in the library that look
  * wrong, each as a change to approve. Nothing here writes; an approved change
@@ -74,30 +76,6 @@ export function withoutArtistPrefix(title: string, credit: string): string {
   return title
 }
 
-/** Letters only, lower case, accents off: "Frédéric" and "frederic" are one. */
-const bare = (name: string): string =>
-  name
-    .normalize('NFKD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]/gu, '')
-
-function distance(a: string, b: string): number {
-  let previous = Array.from({ length: b.length + 1 }, (_, index) => index)
-  for (let i = 1; i <= a.length; i++) {
-    const row = [i]
-    for (let j = 1; j <= b.length; j++) {
-      row[j] = Math.min(
-        previous[j]! + 1,
-        row[j - 1]! + 1,
-        previous[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1),
-      )
-    }
-    previous = row
-  }
-  return previous[b.length]!
-}
-
 /**
  * Whether two names could be one artist written two ways, and not two people
  * the model mixed up ("Jura Margulis" is not "Vitaly Margulis"): one holds the
@@ -113,7 +91,8 @@ export function couldBeOneName(a: string, b: string): boolean {
   const cjkB = CJK.test(b)
   if (cjkA !== cjkB) return true
   if (cjkA) return [...x].length === [...y].length
-  return distance(x, y) <= Math.max(1, Math.floor(Math.min(x.length, y.length) / 6))
+  const slips = Math.max(1, Math.floor(Math.min(x.length, y.length) / 6))
+  return editDistance(x, y, slips) <= slips
 }
 
 /** What the model may say: names only, each one it was shown. */
@@ -464,10 +443,35 @@ const foundLine = (found: readonly FoundName[]): string =>
     .map(each => `${each.source} “${each.title}” by ${each.artist} on “${each.album || '-'}”`)
     .join('; ')
 
-function chunks<T>(items: readonly T[], size: number): T[][] {
-  const out: T[][] = []
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
-  return out
+/** The songs a call is about, as the model reads them: `n | title | artist | album | album artist`. */
+function nameTable(batch: readonly Song[], extra?: (song: Song) => string): string {
+  return batch
+    .map(
+      (song, index) =>
+        `${index + 1} | ${song.title} | ${song.artist || '-'} | ${song.album || '-'} | ${song.albumArtist || '-'}${extra ? extra(song) : ''}`,
+    )
+    .join('\n')
+}
+
+/**
+ * The model's edits for one batch, kept to what can be applied: a song in the
+ * batch, each field once, a value the field accepts — and whatever `accept`
+ * asks on top. Each one that passes is handed on with the song it is for.
+ */
+function eachChecked(
+  answer: z.infer<typeof EditsOut>,
+  batch: readonly Song[],
+  accept: (song: Song, edit: { field: TidyField; to: string; why: string }) => boolean,
+): void {
+  const seen = new Set<string>()
+  for (const edit of answer.edits) {
+    const song = batch[edit.n - 1]
+    const to = edit.to.trim().replace(/\s+/g, ' ')
+    const at = `${edit.n}:${edit.field}`
+    if (!song || seen.has(at)) continue
+    if (!SongFieldsSchema.shape[edit.field].safeParse(to).success) continue
+    if (accept(song, { field: edit.field, to, why: edit.why })) seen.add(at)
+  }
 }
 
 /**
@@ -486,13 +490,7 @@ async function needingIt(
   steps.begin(`Finding which of ${all} songs need it`)
   const keep = new Set<number>()
   await pool(chunks(songs, SORT_PER_CALL), CALLS_AT_ONCE, async batch => {
-    const table = batch
-      .map(
-        (song, index) =>
-          `${index + 1} | ${song.title} | ${song.artist || '-'} | ${song.album || '-'} | ${song.albumArtist || '-'}`,
-      )
-      .join('\n')
-    const prompt = `The request:\n${text}\n\nThe songs (n | title | artist | album | album artist):\n${table}`
+    const prompt = `The request:\n${text}\n\nThe songs (n | title | artist | album | album artist):\n${nameTable(batch)}`
     try {
       const answer = await remembered.get(
         Remembered.key('tidy-sort', VERSION, prompt),
@@ -600,12 +598,10 @@ async function askedTidy(
   if (asking.length > 0) steps.begin(reading)
 
   const run = async (batch: Song[]): Promise<void> => {
-    const table = batch
-      .map(
-        (song, index) =>
-          `${index + 1} | ${song.title} | ${song.artist || '-'} | ${song.album || '-'} | ${song.albumArtist || '-'}${lookingUp ? ` | found: ${foundLine(found.get(song.id) ?? [])}` : ''}`,
-      )
-      .join('\n')
+    const table = nameTable(
+      batch,
+      lookingUp ? song => ` | found: ${foundLine(found.get(song.id) ?? [])}` : undefined,
+    )
     const prompt = `The request:\n${asked.text}\n\nThe songs (n | title | artist | album | album artist${lookingUp ? ' | found' : ''}):\n${table}`
     let answer: z.infer<typeof EditsOut>
     try {
@@ -629,28 +625,21 @@ async function askedTidy(
       return
     }
     // The check: a song in this batch, a field once each, a name a song may have.
-    const seen = new Set<string>()
-    for (const edit of answer.edits) {
-      const song = batch[edit.n - 1]
-      const to = edit.to.trim().replace(/\s+/g, ' ')
-      const at = `${edit.n}:${edit.field}`
-      if (!song || seen.has(at)) continue
-      if (!SongFieldsSchema.shape[edit.field].safeParse(to).success) continue
+    eachChecked(answer, batch, (song, edit) => {
       if (lookingUp) {
         // Only words a catalogue has for this recording: the one it came from says why, and it starts ticked.
         const source = (found.get(song.id) ?? []).find(each =>
-          within(to, foundFor(edit.field, each)),
+          within(edit.to, nameField(edit.field, each)),
         )
-        if (!source) continue
-        seen.add(at)
+        if (!source) return false
         const why = `The name on ${source.source}`
-        propose(song, edit.field, song[edit.field], { value: to, whys: [why] }, 'rule')
-        continue
+        propose(song, edit.field, song[edit.field], { value: edit.to, whys: [why] }, 'rule')
+        return true
       }
-      seen.add(at)
       const why = edit.why.trim() || 'As you asked'
-      propose(song, edit.field, song[edit.field], { value: to, whys: [why] }, 'model')
-    }
+      propose(song, edit.field, song[edit.field], { value: edit.to, whys: [why] }, 'model')
+      return true
+    })
     done += batch.length
     steps.update(
       done < asking.length
@@ -675,13 +664,7 @@ async function askedTidy(
     let webMissed = 0
     steps.begin(`Searching the web for ${plural(unfound.length, 'song', 'songs')}`)
     await pool(chunks(unfound, WEB_PER_CALL), 2, async batch => {
-      const table = batch
-        .map(
-          (song, index) =>
-            `${index + 1} | ${song.title} | ${song.artist || '-'} | ${song.album || '-'} | ${song.albumArtist || '-'}`,
-        )
-        .join('\n')
-      const prompt = `The request:\n${asked.text}\n\nThe songs (n | title | artist | album | album artist):\n${table}`
+      const prompt = `The request:\n${asked.text}\n\nThe songs (n | title | artist | album | album artist):\n${nameTable(batch)}`
       let answer: z.infer<typeof EditsOut>
       try {
         answer = await remembered.get(
@@ -703,22 +686,16 @@ async function askedTidy(
         webMissed += batch.length
         return
       }
-      const seen = new Set<string>()
-      for (const edit of answer.edits) {
-        const song = batch[edit.n - 1]
-        const to = edit.to.trim().replace(/\s+/g, ' ')
-        const at = `${edit.n}:${edit.field}`
-        if (!song || seen.has(at)) continue
-        if (!SongFieldsSchema.shape[edit.field].safeParse(to).success) continue
-        seen.add(at)
+      eachChecked(answer, batch, (song, edit) => {
         propose(
           song,
           edit.field,
           song[edit.field],
-          { value: to, whys: ['Found on the web'] },
+          { value: edit.to, whys: ['Found on the web'] },
           'model',
         )
-      }
+        return true
+      })
     })
     if (webMissed > 0) notes.push(`The web search left out ${plural(webMissed, 'song', 'songs')}.`)
   }

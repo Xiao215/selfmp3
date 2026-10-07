@@ -8,7 +8,7 @@ import {
 } from '@selfmp3/shared'
 import { withNotes } from './ask.js'
 import { Remembered, type Llm } from './llm.js'
-import { within, type FindNames, type FoundName } from './names.js'
+import { within, type FindNames, type FoundName, type MetadataLookup } from './names.js'
 
 /**
  * Fix metadata's Suggested card (docs/features/ai.md): one song's names as
@@ -34,12 +34,7 @@ export interface FixSongDeps {
   readonly llm: Llm
   readonly remembered: Remembered
   /** The catalogues' listings the dialog shows (`MetadataLookupService.lookup`). */
-  readonly lookup?: (query: {
-    title: string
-    artist: string
-    album: string
-    duration: number
-  }) => Promise<readonly MetadataCandidate[]>
+  readonly lookup?: MetadataLookup
   /** The same recording on 网易云, or MusicBrainz and iTunes (`catalogueFinder`). */
   readonly findNames?: FindNames
   readonly notes?: () => readonly string[]
@@ -79,7 +74,6 @@ export async function fixSong(
   deps: FixSongDeps,
   song: Song,
   again = false,
-  signal?: AbortSignal,
 ): Promise<MetadataSuggestion> {
   const query = {
     title: song.title,
@@ -91,8 +85,7 @@ export async function fixSong(
     deps.lookup ? deps.lookup(query).catch(() => []) : Promise.resolve([]),
     deps.findNames ? deps.findNames(song).catch(() => []) : Promise.resolve([]),
   ])
-  const listings = [...candidates]
-  const prompt = withNotes(promptFor(song, listings, found), deps.notes?.() ?? [])
+  const prompt = withNotes(promptFor(song, candidates, found), deps.notes?.() ?? [])
 
   const make = async (): Promise<MetadataSuggestion> => {
     const { value } = await deps.llm.generate({
@@ -101,9 +94,8 @@ export async function fixSong(
       system: SYSTEM,
       prompt,
       schema: ReplySchema,
-      ...(signal ? { signal } : {}),
     })
-    return checked(song, listings, found, value)
+    return checked(song, candidates, found, value)
   }
   const key = Remembered.key('fix-song', VERSION, prompt)
   return again ? deps.remembered.put(key, make) : deps.remembered.get(key, make)

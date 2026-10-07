@@ -10,6 +10,7 @@ import {
 import { mainArtist, tagCatalog } from './library.js'
 import { LlmError, llmFailureWords, Remembered, type Llm } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
+import { bare, chunks, tally } from './text.js'
 
 /**
  * Tags (docs/features/ai.md): your tags put right, as changes to approve —
@@ -117,17 +118,6 @@ interface Group {
 
 type Script = 'Chinese' | 'Japanese' | 'Korean' | 'Latin' | 'other'
 
-const lower = (value: string): string => value.toLowerCase()
-
-/** Letters and digits only, lower case: "Chinese Pop" and "chinese-pop" are one. */
-const bare = (value: string): string => value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
-
-function tally(values: Iterable<string>): [string, number][] {
-  const counts = new Map<string, number>()
-  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1)
-  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-}
-
 /** "周杰倫 76, 薛之谦 12, +8 more". */
 export function whoOf(songs: readonly Song[]): string {
   const counts = tally(songs.map(song => mainArtist(song.artist)))
@@ -150,13 +140,22 @@ export function scriptOf(title: string): Script {
  * song on its album shares, or else the one at least four in five of its
  * artist's tagged songs share (with two at the least, so one stray song
  * decides nothing).
+ *
+ * Made once over the tagged songs and asked once per untagged one: the songs
+ * are grouped by album and by artist up front, so a library with thousands of
+ * each is not walked again for every song in question.
  */
-export function fromLibrary(
-  song: Song,
+export function placeFromLibrary(
   tagged: readonly Song[],
   tags: readonly Tag[],
-): { tag: Tag; why: string } | null {
+): (song: Song) => { tag: Tag; why: string } | null {
   const byId = new Map(tags.map(tag => [tag.id, tag]))
+  const byAlbum = new Map<string, Song[]>()
+  const byArtist = new Map<string, Song[]>()
+  for (const other of tagged) {
+    if (other.album) push(byAlbum, other.album.toLowerCase(), other)
+    push(byArtist, mainArtist(other.artist).toLowerCase(), other)
+  }
   const shared = (others: readonly Song[], share: number, least: number): Tag | null => {
     if (others.length < least) return null
     const counts = tally(others.flatMap(other => other.tagIds.map(String)))
@@ -165,16 +164,22 @@ export function fromLibrary(
     return byId.get(Number(id)) ?? null
   }
 
-  if (song.album) {
-    const onAlbum = tagged.filter(other => lower(other.album) === lower(song.album))
-    const tag = shared(onAlbum, 1, 1)
-    if (tag) return { tag, why: `The rest of ${song.album} is in ${tag.name}` }
+  return song => {
+    if (song.album) {
+      const tag = shared(byAlbum.get(song.album.toLowerCase()) ?? [], 1, 1)
+      if (tag) return { tag, why: `The rest of ${song.album} is in ${tag.name}` }
+    }
+    const artist = mainArtist(song.artist)
+    const tag = shared(byArtist.get(artist.toLowerCase()) ?? [], 0.8, 2)
+    if (tag) return { tag, why: `${artist}’s other songs are in ${tag.name}` }
+    return null
   }
-  const artist = lower(mainArtist(song.artist))
-  const byArtist = tagged.filter(other => lower(mainArtist(other.artist)) === artist)
-  const tag = shared(byArtist, 0.8, 2)
-  if (tag) return { tag, why: `${mainArtist(song.artist)}’s other songs are in ${tag.name}` }
-  return null
+}
+
+function push<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+  const list = map.get(key)
+  if (list) list.push(value)
+  else map.set(key, [value])
 }
 
 /**
@@ -185,7 +190,7 @@ export function fromLibrary(
 export function missingFromAlbum(song: Song, onAlbum: readonly Song[]): number[] {
   if (!song.album) return []
   const others = onAlbum.filter(
-    other => other.id !== song.id && lower(other.album) === lower(song.album),
+    other => other.id !== song.id && other.album.toLowerCase() === song.album.toLowerCase(),
   )
   if (others.length < 2) return []
   const shared = others[0]!.tagIds.filter(id => others.every(other => other.tagIds.includes(id)))
@@ -197,7 +202,7 @@ export function sameNames(tags: readonly Tag[]): { tag: Tag; into: Tag }[] {
   const byBare = new Map<string, Tag[]>()
   for (const tag of tags) {
     const key = bare(tag.name)
-    if (key) byBare.set(key, [...(byBare.get(key) ?? []), tag])
+    if (key) push(byBare, key, tag)
   }
   return [...byBare.values()].flatMap(same => {
     if (same.length < 2) return []
@@ -211,8 +216,8 @@ export function groupSongs(songs: readonly Song[]): Group[] {
   const groups = new Map<string, Song[]>()
   for (const song of songs) {
     const tagIds = [...song.tagIds].sort((a, b) => a - b)
-    const key = `${lower(mainArtist(song.artist))}|${tagIds.join(',')}|${scriptOf(song.title)}`
-    groups.set(key, [...(groups.get(key) ?? []), song])
+    const key = `${mainArtist(song.artist).toLowerCase()}|${tagIds.join(',')}|${scriptOf(song.title)}`
+    push(groups, key, song)
   }
   return [...groups.values()]
     .sort((a, b) => b.length - a.length)
@@ -246,12 +251,6 @@ function groupLine(group: Group, names: ReadonlyMap<number, string>): string {
   ].join(' | ')
 }
 
-function chunks<T>(items: readonly T[], size: number): T[][] {
-  const out: T[][] = []
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
-  return out
-}
-
 /** The changes as they gather: one per (what, tag, who found it), however many groups lead to it. */
 class Gathered {
   readonly #entries = new Map<
@@ -276,7 +275,7 @@ class Gathered {
     songs: readonly Song[],
     why: string,
   ): void {
-    const key = `${op}|${lower(tag)}|${by}`
+    const key = `${op}|${tag.toLowerCase()}|${by}`
     const entry = this.#entries.get(key) ?? {
       op,
       tag,
@@ -302,7 +301,7 @@ class Gathered {
     who: string,
   ): void {
     if (this.touched(tag)) return
-    this.#entries.set(`${op}|${lower(tag)}`, {
+    this.#entries.set(`${op}|${tag.toLowerCase()}`, {
       op,
       tag,
       isNew: false,
@@ -320,21 +319,22 @@ class Gathered {
       entry =>
         entry.op !== 'add' &&
         entry.op !== 'remove' &&
-        (lower(entry.tag) === lower(tag) || lower(entry.to ?? '') === lower(tag)),
+        (entry.tag.toLowerCase() === tag.toLowerCase() ||
+          (entry.to ?? '').toLowerCase() === tag.toLowerCase()),
     )
   }
 
   /** Where a merged tag's songs go, so an add to it lands in the tag it goes into. */
   mergedInto(tag: string): string | null {
     for (const entry of this.#entries.values()) {
-      if (entry.op === 'merge' && lower(entry.tag) === lower(tag)) return entry.to
+      if (entry.op === 'merge' && entry.tag.toLowerCase() === tag.toLowerCase()) return entry.to
     }
     return null
   }
 
   deleted(tag: string): boolean {
     return [...this.#entries.values()].some(
-      entry => entry.op === 'delete' && lower(entry.tag) === lower(tag),
+      entry => entry.op === 'delete' && entry.tag.toLowerCase() === tag.toLowerCase(),
     )
   }
 
@@ -378,7 +378,7 @@ export async function tagReview(
   const songs = deps.songs()
   const tags = deps.tags()
   const named = (name: string): Tag | undefined =>
-    tags.find(tag => lower(tag.name) === lower(name.trim()))
+    tags.find(tag => tag.name.toLowerCase() === name.trim().toLowerCase())
   const names = new Map(tags.map(tag => [tag.id, tag.name]))
   const catalog = tagCatalog(songs, tags)
   const gathered = new Gathered()
@@ -452,7 +452,7 @@ export async function tagReview(
 
   const focus = plan.focus.map(name => named(name)).filter((tag): tag is Tag => tag !== undefined)
   const unknownFocus = plan.focus.filter(
-    name => !named(name) && lower(name.trim()) !== lower(newTag ?? ''),
+    name => !named(name) && name.trim().toLowerCase() !== (newTag ?? '').toLowerCase(),
   )
   if (unknownFocus.length > 0) notes.push(`You have no tag called ${unknownFocus.join(' or ')}.`)
   // Every tag is in question for a checkup and for the untagged pass.
@@ -461,11 +461,12 @@ export async function tagReview(
   const focusIds = focus.map(tag => tag.id)
 
   // Which songs are in question.
-  const wantArtists = plan.artists.map(name => lower(name.trim())).filter(Boolean)
+  const wantArtists = plan.artists.map(name => name.trim().toLowerCase()).filter(Boolean)
   const byArtist = (song: Song): boolean =>
     wantArtists.length === 0 ||
     wantArtists.some(
-      name => lower(mainArtist(song.artist)) === name || lower(song.artist).includes(name),
+      name =>
+        mainArtist(song.artist).toLowerCase() === name || song.artist.toLowerCase().includes(name),
     )
   const carries = (song: Song): boolean => focusIds.some(id => song.tagIds.includes(id))
   const lacks = (song: Song): boolean =>
@@ -486,23 +487,25 @@ export async function tagReview(
     }
   })
 
-  const tagged = songs.filter(song => song.tagIds.length > 0)
+  const fromLibrary = placeFromLibrary(
+    songs.filter(song => song.tagIds.length > 0),
+    tags,
+  )
+  const tagById = new Map(tags.map(tag => [tag.id, tag]))
   const albums = new Map<string, Song[]>()
-  for (const song of songs) {
-    if (song.album) albums.set(lower(song.album), [...(albums.get(lower(song.album)) ?? []), song])
-  }
+  for (const song of songs) if (song.album) push(albums, song.album.toLowerCase(), song)
   const placed = new Set<number>()
   if (songsMode !== 'with' && songsMode !== 'none') {
     for (const song of inQuestion) {
       if (song.tagIds.length === 0) {
-        const found = fromLibrary(song, tagged, tags)
+        const found = fromLibrary(song)
         if (found && inFocus(found.tag)) {
           gathered.songs('add', found.tag.name, false, 'rule', [song], found.why)
           placed.add(song.id)
         }
       } else if (songsMode !== 'untagged') {
-        for (const id of missingFromAlbum(song, albums.get(lower(song.album)) ?? [])) {
-          const tag = tags.find(each => each.id === id)
+        for (const id of missingFromAlbum(song, albums.get(song.album.toLowerCase()) ?? [])) {
+          const tag = tagById.get(id)
           if (!tag || !inFocus(tag)) continue
           gathered.songs(
             'add',
@@ -525,13 +528,15 @@ export async function tagReview(
     // artists whose songs are tagged more than one way.
     const ways = new Map<string, Set<string>>()
     for (const song of songs) {
-      const key = lower(mainArtist(song.artist))
+      const key = mainArtist(song.artist).toLowerCase()
       const set = ways.get(key) ?? new Set<string>()
       set.add([...song.tagIds].sort((a, b) => a - b).join(','))
       ways.set(key, set)
     }
     left = left.filter(
-      song => song.tagIds.length === 0 || (ways.get(lower(mainArtist(song.artist)))?.size ?? 0) > 1,
+      song =>
+        song.tagIds.length === 0 ||
+        (ways.get(mainArtist(song.artist).toLowerCase())?.size ?? 0) > 1,
     )
   }
   let groups = groupSongs(left)
@@ -547,7 +552,7 @@ export async function tagReview(
   const unsure: TagReview['unsure'] = []
   if (groups.length > 0) {
     steps.begin(
-      `Looking at ${left.length.toLocaleString('en')} ${left.length === 1 ? 'song' : 'songs'} by ${new Set(groups.map(group => lower(group.artist))).size} artists`,
+      `Looking at ${left.length.toLocaleString('en')} ${left.length === 1 ? 'song' : 'songs'} by ${new Set(groups.map(group => group.artist.toLowerCase())).size} artists`,
     )
     const inQuestionTags = anyTag
       ? 'any of their tags'
@@ -603,7 +608,7 @@ export async function tagReview(
         const tag = named(name)
         if (tag && inFocus(tag) && !group.tagIds.includes(tag.id)) {
           adds.push({ name: tag.name, isNew: false })
-        } else if (!tag && newTag && lower(name.trim()) === lower(newTag)) {
+        } else if (!tag && newTag && name.trim().toLowerCase() === newTag.toLowerCase()) {
           adds.push({ name: newTag, isNew: true })
         }
       }
@@ -659,7 +664,11 @@ export async function tagReview(
 
   // One line per reason, however many groups share it.
   const byWhy = new Map<string, number[]>()
-  for (const each of unsure) byWhy.set(each.why, [...(byWhy.get(each.why) ?? []), ...each.songIds])
+  for (const each of unsure) {
+    const ids = byWhy.get(each.why)
+    if (ids) ids.push(...each.songIds)
+    else byWhy.set(each.why, [...each.songIds])
+  }
   const byId = new Map(songs.map(song => [song.id, song]))
 
   return {

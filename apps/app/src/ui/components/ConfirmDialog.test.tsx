@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react-native'
+import { act, render, screen } from '@testing-library/react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 
 import { OverlayProvider } from '../../shell/Overlay'
@@ -36,6 +36,9 @@ const tree = (open: boolean) => (
 
 const draw = (open: boolean) => render(tree(open))
 
+/** Longer than any exit the dialog plays (`motion.base`). */
+const EXIT_PLAYED_MS = 1_000
+
 describe('ConfirmDialog', () => {
   it('is not on the page until it is asked for', async () => {
     await draw(false)
@@ -43,13 +46,24 @@ describe('ConfirmDialog', () => {
   })
 
   it('stays drawn while its exit plays, and then goes', async () => {
-    const view = await draw(true)
-    expect(screen.getByTestId('confirm-dialog')).toBeTruthy()
+    // The fade's clock is the test's, so a loaded machine cannot run it out
+    // before the first look or past the second's patience.
+    jest.useFakeTimers()
+    try {
+      const view = await draw(true)
+      expect(screen.getByTestId('confirm-dialog')).toBeTruthy()
 
-    await view.rerender(tree(false))
-    // Still there: closing it starts the fade rather than taking it away.
-    expect(screen.queryByTestId('confirm-dialog')).toBeTruthy()
-    // And gone once the fade has landed.
-    await waitFor(() => expect(screen.queryByTestId('confirm-dialog')).toBeNull())
+      await view.rerender(tree(false))
+      // Still there: closing it starts the fade rather than taking it away.
+      expect(screen.queryByTestId('confirm-dialog')).toBeTruthy()
+
+      // And gone once the fade has landed: well past `motion.base`.
+      await act(async () => {
+        jest.advanceTimersByTime(EXIT_PLAYED_MS)
+      })
+      expect(screen.queryByTestId('confirm-dialog')).toBeNull()
+    } finally {
+      jest.useRealTimers()
+    }
   })
 })

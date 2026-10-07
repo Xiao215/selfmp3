@@ -26,7 +26,7 @@ import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { tabbing } from '../../shell/FocusStyle'
-import { setPaletteOpen } from '../../shell/palette'
+import { useOpenSearch } from '../../shell/palette'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
@@ -174,10 +174,7 @@ export function TagsScreen(): ReactNode {
   const back = useGoBack('/')
   // The one Search, on its Tags scope: the page on a phone, the palette over
   // this page on a computer (docs/ui-mock `P18`, `C05`).
-  const openSearch = (): void => {
-    if (wide) setPaletteOpen(true)
-    else router.navigate({ pathname: '/search', params: { scope: 'tags' } })
-  }
+  const openSearch = useOpenSearch('tags')
   // Stable, because a tile is memoised and this is the prop every one of them holds.
   const edit = useCallback<EditTag>(tag => {
     editorAnchor.current = rowRefs.current.get(tag.id) ?? null

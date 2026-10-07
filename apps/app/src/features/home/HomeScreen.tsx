@@ -15,7 +15,7 @@ import { useDragScroll } from '../../ports/dragScroll'
 import { Avatar } from '../../ui/components/Avatar'
 import { useAccount } from '../profile/useAccount'
 import { usePlayer } from '../../player/PlayerProvider'
-import { setPaletteOpen } from '../../shell/palette'
+import { useOpenSearch } from '../../shell/palette'
 import { useBottomInset } from '../../shell/bottomInset'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
@@ -135,10 +135,7 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
 
   // The one Search, starting on All: the page on a phone, the palette over
   // this page on a computer (docs/ui-mock `P18`, `C05`).
-  const openSearch = (): void => {
-    if (wide) setPaletteOpen(true)
-    else router.navigate({ pathname: '/search', params: { scope: 'all' } })
-  }
+  const openSearch = useOpenSearch('all')
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>

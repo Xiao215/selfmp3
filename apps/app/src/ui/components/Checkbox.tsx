@@ -1,9 +1,17 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, View } from 'react-native'
+import { View } from 'react-native'
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeOut,
+  LayoutAnimationConfig,
+  ZoomIn,
+} from 'react-native-reanimated'
 import { StyleSheet } from 'react-native-unistyles'
 import { motion } from '@selfmp3/client'
-import { spring, usePresence } from '../motion'
+import { EASE_IN_POINTS, EASE_OUT_POINTS } from '../motion.model'
+import { useMotionReduced } from '../motion'
 import { Check, Minus } from './Icons'
 
 /** How small the mark starts before the spring brings it up to size. */
@@ -17,12 +25,15 @@ const MARK_FROM = 0.6
  * caller — a row's checkbox, the selection bar's select-all and a tag
  * picker's row are different controls that happen to draw the same circle.
  *
- * One view tree, not one per state: the ring is always there, the fill is a
- * layer over it whose opacity fades in over `motion.fast`, and the tick grows
- * from `MARK_FROM` on the spring. It used to be three unrelated trees, so every
- * tick in a list of songs was a hard cut in both directions. The fill's colour
- * is crossfaded as an opacity rather than animated as a colour, so it can ride
- * the native driver.
+ * What it shows is React's: the fill and the mark are there when it is on and
+ * gone when it is off, and only their coming and going moves — the fill
+ * fading in over `motion.fast`, the tick growing from `MARK_FROM` on the
+ * spring — as Reanimated's entering and exiting animations, on the UI thread.
+ * It used to fade a layer that was always there with `Animated` on the native
+ * driver, and a React commit landing while the JavaScript thread was busy put
+ * that layer's opacity back where the fade began: quick taps in the tag
+ * picker, with a library's worth of work after each, left a ticked tag drawn
+ * empty and an unticked one drawn half full (Xiao, 2026-10-07).
  */
 export function Checkbox({
   checked,
@@ -32,44 +43,67 @@ export function Checkbox({
   mixed?: boolean
 }): ReactNode {
   const on = checked || mixed
-  // One value for the fill and the mark: both fade with it, and the mark is
-  // kept for as long as its fade out takes, so unticking animates rather than
-  // cutting the tick away.
-  const { mounted, progress } = usePresence(on, motion.fast, motion.fast)
-  const [pop] = useState(() => new Animated.Value(on ? 1 : 0))
-  useEffect(() => {
-    if (on) {
-      spring(pop, 1)
-      return
-    }
-    // Only once the mark has gone: reset it while it was still fading and the
-    // tick would shrink in one frame in the middle of its own exit.
-    if (!mounted) pop.setValue(0)
-  }, [on, mounted, pop])
-
-  const mark = useMemo(
-    () => ({
-      opacity: progress,
-      transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [MARK_FROM, 1] }) }],
-    }),
-    [progress, pop],
-  )
-  const lit = useMemo(() => ({ opacity: progress }), [progress])
+  const moves = useCheckMoves()
 
   return (
-    <View style={styles.box}>
-      <View style={styles.ring} pointerEvents="none" />
-      <Animated.View
-        pointerEvents="none"
-        style={[checked ? styles.fillAccent : styles.fillMixed, lit]}
-      />
-      {mounted ? (
-        <Animated.View style={mark} pointerEvents="none">
-          {checked ? <Check size={12} tone="onAccent" /> : <Minus size={12} tone="textPrimary" />}
-        </Animated.View>
-      ) : null}
-    </View>
+    // What is already ticked when the box is first drawn is simply there, and
+    // a box that leaves with its row takes its tick with it.
+    <LayoutAnimationConfig skipEntering skipExiting>
+      <View style={styles.box}>
+        <View style={styles.ring} pointerEvents="none" />
+        {on ? (
+          <Animated.View
+            entering={moves.fillIn}
+            exiting={moves.fillOut}
+            pointerEvents="none"
+            style={checked ? styles.fillAccent : styles.fillMixed}
+          />
+        ) : null}
+        {on ? (
+          <Animated.View entering={moves.markIn} exiting={moves.markOut} pointerEvents="none">
+            <Animated.View entering={moves.markGrow}>
+              {checked ? (
+                <Check size={12} tone="onAccent" />
+              ) : (
+                <Minus size={12} tone="textPrimary" />
+              )}
+            </Animated.View>
+          </Animated.View>
+        ) : null}
+      </View>
+    </LayoutAnimationConfig>
   )
+}
+
+/**
+ * The fill and the mark arriving and leaving, built once for every box, or
+ * none at all under Reduce Motion. The mark's fade and its grow are two
+ * views, so both are Reanimated's own animations, which a browser runs too.
+ */
+function useCheckMoves(): {
+  fillIn?: FadeIn
+  fillOut?: FadeOut
+  markIn?: FadeIn
+  markOut?: FadeOut
+  markGrow?: ZoomIn
+} {
+  const reduced = useMotionReduced()
+  return useMemo(() => {
+    if (reduced) return {}
+    const out = Easing.bezier(...EASE_OUT_POINTS)
+    const inward = Easing.bezier(...EASE_IN_POINTS)
+    return {
+      fillIn: FadeIn.duration(motion.fast).easing(out),
+      fillOut: FadeOut.duration(motion.fast).easing(out),
+      markIn: FadeIn.duration(motion.fast).easing(out),
+      markOut: FadeOut.duration(motion.fast).easing(inward),
+      markGrow: ZoomIn.springify()
+        .stiffness(motion.spring.stiffness)
+        .damping(motion.spring.damping)
+        .mass(1)
+        .withInitialValues({ transform: [{ scale: MARK_FROM }] }),
+    }
+  }, [reduced])
 }
 
 /** The box, and the layers that fill it, all the same 18-point circle. */
@@ -95,9 +129,8 @@ const styles = StyleSheet.create(theme => ({
   ring: { ...SHAPE, borderWidth: RING, borderColor: theme.colors.borderStrong },
   // Ticked, in the accent, and the half-ticked box: both from the palette, so
   // a list of checkboxes is recoloured by the accent picker without any of
-  // them being re-rendered. Each is one whole
-  // Unistyles style, because an `Animated.View` flattens its style array and
-  // Unistyles can no longer tell two of its own styles apart once merged.
+  // them being re-rendered. Each is one whole Unistyles style, never merged
+  // with another in an array, so Unistyles can still tell them apart.
   fillAccent: {
     ...SHAPE,
     borderWidth: RING,

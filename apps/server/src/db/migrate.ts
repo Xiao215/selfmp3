@@ -534,6 +534,19 @@ const MIGRATIONS: readonly Migration[] = [
       DROP TABLE counted_skips;
     `,
   },
+  {
+    // The full-text index over song titles, artists and albums lost its only
+    // reader when GET /search went, yet its three triggers still rewrote it on
+    // every song insert, rename and delete. The lyrics index is separate and
+    // stays.
+    name: 'drop the song title index nothing searches',
+    sql: `
+      DROP TRIGGER songs_fts_insert;
+      DROP TRIGGER songs_fts_delete;
+      DROP TRIGGER songs_fts_update;
+      DROP TABLE songs_fts;
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

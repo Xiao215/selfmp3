@@ -9,18 +9,17 @@ import { TagRepository } from './tags.js'
 import { PlaylistRepository } from './playlists.js'
 
 /**
- * Stable ids, and the search index they must not disturb.
+ * Stable ids.
  *
  * Every song, tag and playlist gets a uid however it was inserted. The uid is
- * filled in by a trigger that updates the row straight after the insert —
- * which is exactly the moment the old search-index trigger would have tried
- * to delete an entry that did not exist yet, corrupting the index. So the
- * index is checked for integrity, not just for results.
+ * filled in by a trigger that updates the row straight after the insert, so
+ * the database is checked for integrity through inserts, renames and plays,
+ * not just for the uids it hands out.
  */
 
 const UID = /^[0-9a-f]{32}$/
 
-describe('uids and the search index', () => {
+describe('uids', () => {
   let db: Database.Database
   let songs: SongRepository
 
@@ -52,22 +51,6 @@ describe('uids and the search index', () => {
 
   const uid = (table: string, id: number): unknown =>
     (db.prepare(`SELECT uid FROM ${table} WHERE id = ?`).get(id) as { uid: unknown }).uid
-
-  const indexIsSound = (): void => {
-    expect(() =>
-      db.prepare("INSERT INTO songs_fts(songs_fts) VALUES ('integrity-check')").run(),
-    ).not.toThrow()
-    expect(db.pragma('integrity_check', { simple: true })).toBe('ok')
-  }
-
-  /** The songs the title index finds for one word, asked of the index itself. */
-  const indexed = (word: string): { id: number; title: string }[] =>
-    db
-      .prepare<[string], { id: number; title: string }>(
-        `SELECT s.id, s.title FROM songs s JOIN songs_fts ON songs_fts.rowid = s.id
-          WHERE songs_fts MATCH ? ORDER BY s.id`,
-      )
-      .all(`"${word}"*`)
 
   it('gives every new song, tag and playlist a uid of its own', () => {
     const one = insert('Sunrise')
@@ -102,24 +85,20 @@ describe('uids and the search index', () => {
     ).toThrow(/UNIQUE/)
   })
 
-  it('still finds songs by title, and keeps the index sound through inserts', () => {
-    insert('Sunrise')
-    insert('Nocturne Study in E', 'Kaito Mori')
-    indexIsSound()
-    expect(indexed('nocturne').map(song => song.title)).toEqual(['Nocturne Study in E'])
-  })
-
-  it('follows a rename, and a play no longer rewrites the index', () => {
+  it('stays sound through inserts, renames and plays', () => {
     const id = insert('Sunrise')
+    insert('Nocturne Study in E', 'Kaito Mori')
     songs.patch(id, { title: 'Daybreak' })
-    indexIsSound()
-    expect(indexed('daybreak').map(song => song.id)).toEqual([id])
-    expect(indexed('sunrise')).toEqual([])
-
     new StatsRepository(db).record(id, 120_000, true, null, null)
     songs.recordPlay(id)
-    indexIsSound()
-    expect(indexed('daybreak').map(song => song.id)).toEqual([id])
+    expect(db.pragma('integrity_check', { simple: true })).toBe('ok')
+  })
+
+  it('keeps no title index: nothing searches songs by title on the server', () => {
+    const named = db
+      .prepare<[], { name: string }>("SELECT name FROM sqlite_master WHERE name LIKE 'songs_fts%'")
+      .all()
+    expect(named).toEqual([])
   })
 
   it('reads song files with their uids for the sync', () => {

@@ -48,7 +48,12 @@ import { decodeMotion, type MotionCurve } from '../motion/motion.js'
 import { useClientState } from './context.js'
 import { hasLivePlaylists, withPlaylist, withSong, withTag } from './patchLibrary.js'
 import { STALE } from './stale.js'
-import type { CloudImportRequest, ImportRequestList, ImportRequestView } from '@selfmp3/replica'
+import {
+  isPendingRequest,
+  type CloudImportRequest,
+  type ImportRequestList,
+  type ImportRequestView,
+} from '@selfmp3/replica'
 
 /**
  * Server state, handled by TanStack Query.
@@ -998,10 +1003,7 @@ export function useCloudImports(): UseQueryResult<ImportRequestList, Error> {
   return useQuery({
     queryKey: queryKeys.cloudImports,
     queryFn: () => clientApi().cloudImports(),
-    refetchInterval: query =>
-      query.state.data?.imports.some(item => item.state === 'waiting' || item.state === 'working')
-        ? 30_000
-        : false,
+    refetchInterval: query => (query.state.data?.imports.some(isPendingRequest) ? 30_000 : false),
   })
 }
 

@@ -1,4 +1,4 @@
-import { CloudServerSchema, IdSchema } from '@selfmp3/shared'
+import { CloudServerSchema, IdSchema, youtubeVideoId } from '@selfmp3/shared'
 import { z } from 'zod'
 
 /**
@@ -26,6 +26,21 @@ export const ImportRequestViewSchema = z.object({
   requestedBy: z.string(),
 })
 export type ImportRequestView = z.infer<typeof ImportRequestViewSchema>
+
+/** A request the server has not finished with: still waiting in the bucket, or being fetched now. */
+export function isPendingRequest(request: Pick<ImportRequestView, 'state'>): boolean {
+  return request.state === 'waiting' || request.state === 'working'
+}
+
+/**
+ * Whether two links are the same thing to import: the same YouTube video,
+ * whichever form each link takes (a youtu.be link, music.youtube.com, a watch
+ * page playing through a list), and otherwise the same address.
+ */
+export function sameLink(a: string, b: string): boolean {
+  const video = youtubeVideoId(a)
+  return video ? youtubeVideoId(b) === video : a === b
+}
 
 export const ImportRequestListSchema = z.object({ imports: z.array(ImportRequestViewSchema) })
 export type ImportRequestList = z.infer<typeof ImportRequestListSchema>

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { DoormanError } from '@selfmp3/replica'
 
 import {
   afterCheck,
@@ -78,9 +79,9 @@ describe('signInFailure', () => {
   })
 
   it('knows the doorman client’s wrapping of the same failure', () => {
-    const wrapped = Object.assign(new Error('Failed to fetch'), { status: 0, code: 'error' })
+    const wrapped = new DoormanError(0, 'Failed to fetch')
     expect(signInFailure(wrapped, 'http://localhost:4621')).toMatch(/own address/)
-    const none = Object.assign(new Error('No doorman.'), { status: 0, code: 'no-doorman' })
+    const none = new DoormanError(0, 'No doorman.', 'no-doorman')
     expect(signInFailure(none, 'http://localhost:4621')).toBe('No doorman.')
   })
 

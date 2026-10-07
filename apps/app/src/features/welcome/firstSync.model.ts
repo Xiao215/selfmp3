@@ -1,4 +1,5 @@
 import { formatBytes } from '@selfmp3/shared'
+import { firstName } from '../profile/profile.model'
 import { STORAGE_ROUTE } from './storage.model'
 
 /**
@@ -73,7 +74,7 @@ export function keepEverySongCopy(
 
 /** "Hello, Xiao", by the first word of the name Google gave, or plain "Hello". */
 export function helloLine(name: string | null | undefined): string {
-  const first = name?.trim().split(/\s+/)[0]
+  const first = firstName(name)
   return first ? `Hello, ${first}` : 'Hello'
 }
 

@@ -49,21 +49,20 @@ export function profileRows({ place }: { place: DevicePlace }): readonly Profile
 }
 
 /**
- * The name at the top. Not every kind of library knows one: a server signed in
- * to Google does, a device reading the bucket does not, and a server with no
- * cloud has nobody to ask. Without one the page is just "Profile", and the mark
- * shows the figure rather than a letter.
+ * The first word of the name Google gave — "Xiao" from "Xiao Zhang", the whole
+ * name when it is one word — or null when there is no name to go by.
  */
-export function profileName(accountName: string | null | undefined): {
-  name: string
-  initial: string | null
-} {
-  const name = accountName?.trim()
-  // The page's own name when nobody is signed in: it is Profile, not "You".
-  if (!name) return { name: 'Profile', initial: null }
-  // The first name, as the board has it; the whole name when it is one word.
-  const first = name.split(/\s+/)[0] ?? name
-  return { name: first, initial: Array.from(first)[0]?.toUpperCase() ?? null }
+export function firstName(name: string | null | undefined): string | null {
+  return name?.trim().split(/\s+/)[0] || null
+}
+
+/**
+ * The name at the top: the account's first name, as the board has it. A server
+ * with no cloud has nobody to ask, and then the page is just "Profile" — its
+ * own name, not "You".
+ */
+export function profileName(accountName: string | null | undefined): string {
+  return firstName(accountName) ?? 'Profile'
 }
 
 /**
@@ -96,7 +95,7 @@ export function profileLine({
   if (tags !== undefined) parts.push(`${tags.toLocaleString()} ${tags === 1 ? 'tag' : 'tags'}`)
   if (error) parts.push(fromCloud ? 'can’t reach the cloud' : 'can’t reach your server')
   else if (pending || !syncedAt) parts.push('connecting…')
-  else parts.push(`synced ${formatRelative(new Date(syncedAt).toISOString(), now)}`)
+  else parts.push(`synced ${formatRelative(syncedAt, now)}`)
   return parts.join(' · ')
 }
 

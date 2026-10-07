@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import {
+  clamp,
   formatDuration,
   formatSemitones,
   rateToSemitones,
@@ -18,11 +19,16 @@ import { ChevronDown, ChevronRight, Metronome, X } from '../../ui/components/Ico
 import { Toggle } from '../../ui/components/Toggle'
 import { sectionTitle } from '../../ui/surfaces'
 
-type PracticeGroup = 'loop' | 'speed' | 'key'
-type Group = PracticeGroup
+type Group = 'loop' | 'speed' | 'key'
 
 /** Which groups start open. The loop is the reason people open this panel. */
 const INITIAL_OPEN: Record<Group, boolean> = { loop: true, speed: true, key: false }
+
+/** How far Transpose reads the key either way, in semitones: an octave. */
+const MAX_TRANSPOSE = 12
+
+/** The panel's width beside the page on a computer, which the frame takes off the page's. */
+export const PRACTICE_PANEL_WIDTH = 340
 
 /**
  * The practice panel: loop, speed and key, in one place.
@@ -34,9 +40,6 @@ const INITIAL_OPEN: Record<Group, boolean> = { loop: true, speed: true, key: fal
  * Where the engine cannot place a loop closely (a phone's), the loop and the
  * pitch-lock switch are not offered, and the panel says why.
  */
-/** The panel's width beside the page on a computer, which the frame takes off the page's. */
-export const PRACTICE_PANEL_WIDTH = 340
-
 export function PracticePanel({
   onClose,
   side = false,
@@ -94,7 +97,7 @@ export function PracticePanel({
   const shift = (delta: number): void =>
     setTranspose({
       songId: song?.id ?? null,
-      semitones: Math.max(-12, Math.min(12, semitones + delta)),
+      semitones: clamp(semitones + delta, -MAX_TRANSPOSE, MAX_TRANSPOSE),
     })
 
   const toggle = (group: Group): void =>

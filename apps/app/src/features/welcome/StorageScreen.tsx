@@ -80,6 +80,9 @@ export function StorageScreen(): ReactNode {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [leaving, setLeaving] = useState(false)
+  // Read when Sign out is pressed rather than on every keystroke, and kept
+  // while the dialog closes.
+  const [leaveWarning, setLeaveWarning] = useState('')
   const email = useCloudSession().data?.email ?? null
 
   const ready = mode === 'backblaze' ? backblazeReady(keyId, applicationKey) : addressReady(address)
@@ -258,7 +261,14 @@ export function StorageScreen(): ReactNode {
         <Text style={styles.accountText} numberOfLines={1}>
           {email ? `Signed in as ${email}` : 'Signed in'}
         </Text>
-        <Button label="Sign out" variant="text" onPress={() => setLeaving(true)} />
+        <Button
+          label="Sign out"
+          variant="text"
+          onPress={() => {
+            setLeaveWarning(signOutWarning(cloudLibrary.pendingCloudChanges()))
+            setLeaving(true)
+          }}
+        />
       </View>
 
       {mode === 'backblaze' ? backblazeFields : addressFields}
@@ -304,7 +314,7 @@ export function StorageScreen(): ReactNode {
       <ConfirmDialog
         open={leaving}
         title="Sign out?"
-        body={signOutWarning(cloudLibrary.pendingCloudChanges())}
+        body={leaveWarning}
         confirmLabel="Sign out"
         danger
         onConfirm={() => {

@@ -57,12 +57,18 @@ export function ResumeToast(): ReactNode {
     if (decided.current || devices.length === 0 || !library.data || !memory.settled) {
       return undefined
     }
-    decided.current = true
     // This device came back to its own last song. Offering another device's
     // on top of it asks the person to choose between two things they did not ask for.
-    if (memory.restoredSongId !== null) return undefined
+    if (memory.restoredSongId !== null) {
+      decided.current = true
+      return undefined
+    }
     const songs = library.data.songs
+    // Decided inside the timer, not before it: a new device list or library
+    // arriving in between clears this timer, and the next run must still be
+    // allowed to make the decision.
     const timer = setTimeout(() => {
+      decided.current = true
       const now = playerRef.current
       if (now.isPlaying) return
       const picked = pickResumeState(devices, { thisDeviceId: deviceId, now: Date.now() })

@@ -4,7 +4,7 @@ import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
 import type { ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
-import { useRouter, type Href } from 'expo-router'
+import { useRouter } from 'expo-router'
 import { plural } from '@selfmp3/shared'
 import type { Song, Stats } from '@selfmp3/shared'
 import { fonts, radius, tagColors, type, useLibrary, type ServerConnection } from '@selfmp3/client'
@@ -85,11 +85,20 @@ function WithStats({ via }: { via: ServerConnection | undefined }): ReactNode {
   return <HomePage stats={stats} />
 }
 
-/** The clock, to the minute, for the greeting. */
+/**
+ * The clock, for the greeting and the Sunday card: both read only the hour
+ * and the day, so a tick inside the same hour keeps the same Date and the page
+ * is not drawn again for it.
+ */
 function useNow(): Date {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 30_000)
+    const timer = setInterval(() => {
+      const next = new Date()
+      setNow(shown =>
+        shown.getHours() === next.getHours() && shown.getDay() === next.getDay() ? shown : next,
+      )
+    }, 30_000)
     return () => clearInterval(timer)
   }, [])
   return now
@@ -635,7 +644,7 @@ function Recents({ recents, wide }: { recents: readonly HomeRecent[]; wide: bool
             onPress={() => {
               // A list opens, as any list's tile does; playing it is its page's Play.
               if (line.link) {
-                router.push(line.link as unknown as Href)
+                router.push(line.link)
                 return
               }
               if (entry.source.kind === 'answer' && entry.answer) {
@@ -714,6 +723,8 @@ function ThisWeek({
   onOpenWeek: () => void
 }): ReactNode {
   const router = useRouter()
+  // Worked out once for the head and the foot, which are both in the song's colour.
+  const tone = useSundayTone(sunday ? sundaySong : null)
   const column = beside ? styles.sideColumn : styles.stack
   if (!stats) return <View style={column} />
   const time = listened(stats.totals.minutes)
@@ -725,7 +736,7 @@ function ThisWeek({
       <SectionHead title="This week" action={null} />
       <View style={cards}>
         <View style={[styles.weekCard, half]} testID="home-this-week">
-          {sunday ? <WeekReadyHead card={sunday} song={sundaySong} /> : null}
+          {sunday ? <WeekReadyHead card={sunday} song={sundaySong} tone={tone} /> : null}
           <View style={styles.weekNumbers}>
             <Figure value={time.big} unit={time.small} caption="listened" />
             <Figure value={String(stats.totals.plays)} unit="" caption="plays" />
@@ -737,7 +748,7 @@ function ThisWeek({
             />
           </View>
           {sunday ? (
-            <OpenWeek card={sunday} song={sundaySong} onOpen={onOpenWeek} />
+            <OpenWeek card={sunday} tone={tone} onOpen={onOpenWeek} />
           ) : (
             <Pressable onPress={() => router.navigate('/stats')} accessibilityRole="link">
               <Text style={styles.linkSmall}>Stats and report</Text>
@@ -751,11 +762,13 @@ function ThisWeek({
 }
 
 /** The colours of the week's number one: its cover's, or the accent without one. */
-function useSundayTone(song: Song | null): {
-  uri: string | null | undefined
-  tint: string
-  color: string
-} {
+interface SundayTone {
+  readonly uri: string | null | undefined
+  readonly tint: string
+  readonly color: string
+}
+
+function useSundayTone(song: Song | null): SundayTone {
   const art = useArt()
   const uri = song ? art(song) : null
   return { uri, ...useSongColor(song, uri) }
@@ -765,8 +778,15 @@ function useSundayTone(song: Song | null): {
  * This week's head on a Sunday: the number one, over a wash of its cover's
  * colour that goes under the whole card, so it is drawn first.
  */
-function WeekReadyHead({ card, song }: { card: SundayCard; song: Song | null }): ReactNode {
-  const tone = useSundayTone(song)
+function WeekReadyHead({
+  card,
+  song,
+  tone,
+}: {
+  card: SundayCard
+  song: Song | null
+  tone: SundayTone
+}): ReactNode {
   const lead = card.song
   return (
     <>
@@ -793,14 +813,13 @@ function WeekReadyHead({ card, song }: { card: SundayCard; song: Song | null }):
 /** And its foot: the button that opens the week, in the song's colour. */
 function OpenWeek({
   card,
-  song,
+  tone,
   onOpen,
 }: {
   card: SundayCard
-  song: Song | null
+  tone: SundayTone
   onOpen: () => void
 }): ReactNode {
-  const tone = useSundayTone(song)
   const lead = card.song
   return (
     <Pressable

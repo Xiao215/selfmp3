@@ -1,4 +1,4 @@
-import { plural } from '@selfmp3/shared'
+import { formatDuration, plural } from '@selfmp3/shared'
 import type { ApplyMetadata, FixCoversStatus, MetadataCandidate, Song } from '@selfmp3/shared'
 
 /**
@@ -182,10 +182,7 @@ export function diffLabel(diff: Diff, hasArt: boolean): string {
 }
 
 /** "YOASOBI · Idol - Single · 2023 · 3:33", from what the suggestion has. */
-export function candidateLine(
-  candidate: MetadataCandidate,
-  formatDuration: (seconds: number) => string,
-): string {
+export function candidateLine(candidate: MetadataCandidate): string {
   return [
     candidate.artist || 'Unknown artist',
     candidate.album || null,

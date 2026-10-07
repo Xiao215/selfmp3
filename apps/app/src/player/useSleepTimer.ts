@@ -25,6 +25,13 @@ interface SleepTimer {
   readonly songEnded: () => void
 }
 
+/** How long the music takes to fade out when the timer runs out. */
+const FADE_MS = 4_000
+/** How many steps down it fades in. */
+const FADE_STEPS = 40
+/** The longest one wait for the timer runs before it looks at the clock again. */
+const LONGEST_WAIT_MS = 60_000
+
 export function useSleepTimer(engine: PlaybackEngine): SleepTimer {
   const [endsAt, setEndsAt] = useState<number | null>(null)
   const [atSongEnd, setAtSongEnd] = useState(false)
@@ -44,27 +51,35 @@ export function useSleepTimer(engine: PlaybackEngine): SleepTimer {
 
   useEffect(() => {
     if (endsAt === null) return undefined
+    let wait: ReturnType<typeof setTimeout> | undefined
     let fade: ReturnType<typeof setInterval> | undefined
-    const timer = setInterval(() => {
-      if (Date.now() < endsAt) return
-      clearInterval(timer)
-      // Fade out over four seconds rather than cutting off, which is much
-      // gentler if you are actually falling asleep to it.
+    // Woken when the time is up rather than every second to ask whether it is:
+    // a minute at most at a time, so a long wait never rests on one timer the
+    // platform may have let drift, and the stop lands within a beat of when it
+    // was set for.
+    const sleepWhenDue = (): void => {
+      const left = endsAt - Date.now()
+      if (left > 0) {
+        wait = setTimeout(sleepWhenDue, Math.min(left, LONGEST_WAIT_MS))
+        return
+      }
+      // Fade out rather than cutting off, which is much gentler if you are
+      // actually falling asleep to it.
       const startVolume = engine.state.volume
-      const steps = 40
       let step = 0
       fade = setInterval(() => {
         step++
-        engine.setVolume(startVolume * (1 - step / steps))
-        if (step >= steps) {
+        engine.setVolume(startVolume * (1 - step / FADE_STEPS))
+        if (step >= FADE_STEPS) {
           clearInterval(fade)
           engine.pause()
           engine.setVolume(startVolume)
         }
-      }, 100)
-    }, 1_000)
+      }, FADE_MS / FADE_STEPS)
+    }
+    sleepWhenDue()
     return () => {
-      clearInterval(timer)
+      if (wait !== undefined) clearTimeout(wait)
       if (fade !== undefined) clearInterval(fade)
     }
   }, [endsAt, engine])

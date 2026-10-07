@@ -1,5 +1,6 @@
 import { z } from 'zod/v4'
 import {
+  DAY_MS,
   fromSqliteTime,
   UnderstandingSchema,
   type DescribePick,
@@ -218,7 +219,7 @@ export function songsFitting(
   const artists = understanding.artists.map(name => name.toLowerCase())
   const hasPlaces = understanding.anyTags.length > 0 || understanding.artists.length > 0
   const within = (iso: string | null, n: number | null): boolean =>
-    n === null || (iso !== null && now - fromSqliteTime(iso) <= n * 86_400_000)
+    n === null || (iso !== null && now - fromSqliteTime(iso) <= n * DAY_MS)
 
   return songs.filter(song => {
     if (hasPlaces) {

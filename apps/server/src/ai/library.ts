@@ -1,4 +1,4 @@
-import { fromSqliteTime, type Song, type Tag } from '@selfmp3/shared'
+import { DAY_MS, fromSqliteTime, type Song, type Tag } from '@selfmp3/shared'
 import { tally } from './text.js'
 
 /**
@@ -111,7 +111,7 @@ function minutes(seconds: number): string {
 
 function daysAgo(iso: string | null, now: number): string {
   if (!iso) return 'never played'
-  const days = Math.floor((now - fromSqliteTime(iso)) / 86_400_000)
+  const days = Math.floor((now - fromSqliteTime(iso)) / DAY_MS)
   return days <= 0 ? 'played today' : `played ${days}d ago`
 }
 

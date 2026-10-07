@@ -2,7 +2,13 @@ import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import { artistKey, splitArtists, type ArtistPictureShape, type Song } from '@selfmp3/shared'
+import {
+  DAY_MS,
+  artistKey,
+  splitArtists,
+  type ArtistPictureShape,
+  type Song,
+} from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
@@ -46,7 +52,7 @@ import { messageOf } from '../util/errors.js'
 const SONGS_ASKED = 3
 
 /** How long "no picture for this artist" is believed before it is asked again. */
-const NONE_TTL_MS = 7 * 24 * 60 * 60 * 1000
+const NONE_TTL_MS = 7 * DAY_MS
 
 /**
  * The sizes kept. The banner is offered at up to 2880×1200; drawn at a page's

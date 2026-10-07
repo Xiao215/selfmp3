@@ -1,3 +1,5 @@
+import { DAY_MS } from '@selfmp3/shared'
+
 /**
  * The arithmetic the listening pages share: Stats (`stats.ts`) and Wrapped
  * (`wrapped.ts`) count the same plays the same way, so a streak or a number of
@@ -14,7 +16,7 @@ export function dayGap(from: string, to: string): number {
   const a = Date.parse(`${from}T00:00:00Z`)
   const b = Date.parse(`${to}T00:00:00Z`)
   if (!Number.isFinite(a) || !Number.isFinite(b)) return Number.POSITIVE_INFINITY
-  return Math.round((b - a) / 86_400_000)
+  return Math.round((b - a) / DAY_MS)
 }
 
 /**

@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import fsp from 'node:fs/promises'
 import { constants as fsConstants } from 'node:fs'
 import {
+  DAY_MS,
   cleanArtist,
   isNeteaseUrl,
   tidyVideoTitle,
@@ -244,7 +245,7 @@ export function ytdlpAgeDays(version: string | null, now = new Date()): number |
   const [, year, month, day] = match
   const released = Date.UTC(Number(year), Number(month) - 1, Number(day))
   if (!Number.isFinite(released)) return null
-  return Math.floor((now.getTime() - released) / 86_400_000)
+  return Math.floor((now.getTime() - released) / DAY_MS)
 }
 
 /** Past this many days, yt-dlp is old enough to be the reason things fail. */

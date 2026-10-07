@@ -1,4 +1,4 @@
-import type { MetadataCandidate } from '@selfmp3/shared'
+import { DAY_MS, type MetadataCandidate } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import { USER_AGENT } from '../config.js'
 import type { FetchLike } from './fetching.js'
@@ -20,7 +20,7 @@ import { messageOf } from '../util/errors.js'
  */
 
 const REQUEST_TIMEOUT_MS = 8_000
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000
+const CACHE_TTL_MS = DAY_MS
 /** A failed lookup is retried sooner than a successful one is refreshed. */
 const FAILURE_TTL_MS = 10 * 60 * 1000
 const CACHE_MAX_ENTRIES = 500

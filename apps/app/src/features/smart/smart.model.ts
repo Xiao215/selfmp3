@@ -4,7 +4,6 @@ import type {
   AiCheck,
   AskAnswer,
   AskOrder,
-  AskPlace,
   AskSort,
   BulkEditSongs,
   Playlist,
@@ -233,11 +232,6 @@ export function describeNotes(result: DescribeResult, picked: number): string[] 
 export function askable(text: string, matches: number): boolean {
   const trimmed = text.trim()
   return trimmed.length >= 3 && (/\S\s+\S/.test(trimmed) || matches === 0)
-}
-
-/** Where an "open" answer goes. */
-export function placePath(place: AskPlace): string {
-  return `/${place}`
 }
 
 export function rangeWords(range: AskStatsRange): string {

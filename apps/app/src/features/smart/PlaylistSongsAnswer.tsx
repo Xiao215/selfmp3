@@ -21,11 +21,6 @@ import { useSmartServer } from './useSmartServer'
 
 type Answer = Extract<AskAnswer, { kind: 'playlistSongs' }>
 
-/** The one change an add or a remove is, in a review's terms. */
-interface Edit extends Reviewed {
-  readonly change: { readonly key: string; readonly by: 'rule' | 'model' }
-}
-
 /**
  * Ask's answer to "add … to", "take … out of" and "sort" one playlist
  * (docs/features/ai.md, "Playlists from the box"). An add or a remove is a
@@ -157,9 +152,10 @@ export function PlaylistSongsAnswer({
     )
   }
 
-  const edit: Edit = { change: { key: 'edit', by: answer.by }, songIds: here.songIds }
+  // The one change an add or a remove is, in a review's terms.
+  const edit: Reviewed = { change: { key: 'edit', by: answer.by }, songIds: here.songIds }
   const apply = async (
-    approved: readonly Edit[],
+    approved: readonly Reviewed[],
     leftOut: ReadonlySet<string>,
   ): Promise<boolean> => {
     const songIds = approved.flatMap(each => keptSongs(each, leftOut))

@@ -25,13 +25,13 @@ const CHANGE_TEXT = BAND_TEXT + 18 + 12
 
 /** How many changes a heading shows before "N more". */
 const SECTION_SHOWS = 3
-/** How many songs an opened change lists first. */
-const SONGS_SHOW = 8
+/** How many songs an opened change lists first; Ask's library answer lists as many. */
+export const SONGS_SHOW = 8
 /**
  * How many more each "Show more" adds. A change can be on a thousand songs,
  * and every one drawn at once is a long wait for a list nobody reads to the end.
  */
-const SONGS_MORE = 50
+export const SONGS_MORE = 50
 
 const COMMAND =
   typeof navigator !== 'undefined' && onMac(navigator.userAgent, navigator.maxTouchPoints ?? 0)

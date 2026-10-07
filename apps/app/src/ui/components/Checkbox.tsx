@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Animated, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { motion } from '@selfmp3/client'
-import { spring, useFade, usePresence } from '../motion'
+import { spring, usePresence } from '../motion'
 import { Check, Minus } from './Icons'
 
 /** How small the mark starts before the spring brings it up to size. */
@@ -32,9 +32,9 @@ export function Checkbox({
   mixed?: boolean
 }): ReactNode {
   const on = checked || mixed
-  const fill = useFade(on, motion.fast, motion.fast)
-  // The mark is kept for as long as its fade out takes, so unticking animates
-  // rather than cutting the tick away.
+  // One value for the fill and the mark: both fade with it, and the mark is
+  // kept for as long as its fade out takes, so unticking animates rather than
+  // cutting the tick away.
   const { mounted, progress } = usePresence(on, motion.fast, motion.fast)
   const [pop] = useState(() => new Animated.Value(on ? 1 : 0))
   useEffect(() => {
@@ -54,7 +54,7 @@ export function Checkbox({
     }),
     [progress, pop],
   )
-  const lit = useMemo(() => ({ opacity: fill }), [fill])
+  const lit = useMemo(() => ({ opacity: progress }), [progress])
 
   return (
     <View style={styles.box}>

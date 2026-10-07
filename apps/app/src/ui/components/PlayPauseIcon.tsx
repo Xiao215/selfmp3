@@ -4,7 +4,7 @@ import { ActivityIndicator, Animated, View } from 'react-native'
 import type { ViewStyle } from 'react-native'
 import { motion } from '@selfmp3/client'
 import { Pause, Play } from './Icons'
-import { ease, timing, useFade, useMinimumBusy, usePresence } from '../motion'
+import { ease, timing, useMinimumBusy, usePresence } from '../motion'
 import { MOVE_MS } from '../motion.model'
 import { lightTap } from '../../ports/haptics'
 
@@ -49,9 +49,9 @@ export function PlayPauseIcon({
   const spin = useMinimumBusy(busy)
   // Kept mounted for as long as its fade out takes, so glyph and spinner
   // crossfade rather than cut. Both halves are the same length: a crossfade with
-  // a shorter exit leaves a frame with neither of them on it.
+  // a shorter exit leaves a frame with neither of them on it. The glyph fades
+  // with the spinner's own value, turned round.
   const spinner = usePresence(spin, motion.fast, motion.fast)
-  const glyphShown = useFade(!spin, motion.fast, motion.fast)
 
   useEffect(() => {
     if (playing === shown || busy) return
@@ -90,9 +90,12 @@ export function PlayPauseIcon({
   const glyph = useMemo(
     () => ({
       transform: [{ scale: turn.interpolate({ inputRange: [0, 1], outputRange: [0.72, 1] }) }],
-      opacity: Animated.multiply(turn, glyphShown),
+      opacity: Animated.multiply(
+        turn,
+        spinner.progress.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+      ),
     }),
-    [turn, glyphShown],
+    [turn, spinner.progress],
   )
   const wait = useMemo(
     () => ({

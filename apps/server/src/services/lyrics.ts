@@ -119,14 +119,19 @@ export class LyricsService {
       : null
   }
 
-  /** Path of an existing sidecar for this audio key, or null. */
+  /**
+   * Path of an existing sidecar for this audio key, or null. Every extension
+   * is asked at once; the first in `LYRIC_EXTENSIONS` order that is there wins.
+   */
   async findSidecar(audioKey: string): Promise<{ key: string; extension: string } | null> {
-    const stem = audioKey.replace(/\.[^.]+$/, '')
-    for (const extension of LYRIC_EXTENSIONS) {
-      const key = stem + extension
-      if (await this.#storage.exists(key)) return { key, extension }
-    }
-    return null
+    const stem = stemOf(audioKey)
+    const found = await Promise.all(
+      LYRIC_EXTENSIONS.map(async extension => {
+        const key = stem + extension
+        return (await this.#storage.exists(key)) ? { key, extension } : null
+      }),
+    )
+    return found.find(sidecar => sidecar !== null) ?? null
   }
 
   async readSidecar(audioKey: string): Promise<LyricsResult | null> {
@@ -370,4 +375,9 @@ function closestFirst(records: readonly LrclibRecord[], duration: number): Lrcli
   const gap = (record: LrclibRecord): number =>
     record.duration ? Math.abs(record.duration - duration) : Number.POSITIVE_INFINITY
   return [...records].sort((a, b) => gap(a) - gap(b))
+}
+
+/** An audio key without its extension: what a sidecar beside it is named after. */
+function stemOf(audioKey: string): string {
+  return audioKey.replace(/\.[^.]+$/, '')
 }

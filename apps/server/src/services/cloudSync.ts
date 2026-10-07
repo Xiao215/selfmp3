@@ -81,7 +81,7 @@ import type { AdoptionResult, CloudAdopt } from './cloudAdopt.js'
  * What was uploaded, and from which state of each song, is kept in
  * `cloud_songs`. A song whose file, cover and lyric sidecar are unchanged is
  * not read at all, so a pass over a library that is already up there costs a
- * database query and a stat per song.
+ * database query and a few stats per song, a batch of songs at a time.
  *
  * The bucket is the library and this server keeps no copy of it. So a pass
  * ends by letting go: the audio of every song that is wholly in the bucket,
@@ -111,6 +111,9 @@ const LOG_POLL_MS = 10 * 60_000
 
 const LOG_READS_AT_ONCE = 6
 
+/** Songs whose files are looked at together while a pass works out what changed. */
+const SIGNATURES_AT_ONCE = 16
+
 /**
  * How long a snapshot waits while imports are still coming, and the most it
  * waits. One snapshot per imported song was a listing and a write on the
@@ -138,6 +141,15 @@ interface Signatures {
   readonly motion: string
   /** Whether the audio is on this disk: what a changed audio signature needs to be sent from. */
   readonly audioHere: boolean
+  /** Whether a lyric sidecar is on this disk beside it. */
+  readonly sidecarHere: boolean
+}
+
+/** A song wholly in the bucket as it is here, and what of it this disk still holds. */
+interface Settled {
+  readonly file: SongFileInfo
+  readonly audioHere: boolean
+  readonly sidecarHere: boolean
 }
 
 /** A song's words in the bucket, and their romanized lines beside them. */
@@ -719,7 +731,7 @@ export class CloudSyncService {
     if (!file) throw new Error('the song is no longer in the library')
 
     await this.#prepareBucket(store)
-    await this.#uploadSongFiles(store, file, this.#deps.cloud.states().get(songId) ?? null)
+    await this.#uploadSongFiles(store, file, this.#deps.cloud.state(songId))
     if (more) {
       this.#publishLater.trigger()
       return
@@ -768,13 +780,18 @@ export class CloudSyncService {
 
       // Work out what changed first, so progress counts real work.
       const states = cloud.states()
+      const files = cloud.songFiles()
+      const signed = await inBatches(files, SIGNATURES_AT_ONCE, file =>
+        this.#signatures(file, states.get(file.id) ?? null),
+      )
       const changed: Array<{ file: SongFileInfo; signatures: Signatures }> = []
       /** Songs wholly in the bucket as they are here: what may be let go of below. */
-      const settled: SongFileInfo[] = []
+      const settled: Settled[] = []
       let withoutCopy = 0
-      for (const file of cloud.songFiles()) {
+      for (const [index, file] of files.entries()) {
         const state = states.get(file.id)
-        const signatures = await this.#signatures(file, state)
+        const signatures = signed[index] as Signatures
+        const { audioHere, sidecarHere } = signatures
         if (
           state &&
           state.audioSig === signatures.audio &&
@@ -782,7 +799,7 @@ export class CloudSyncService {
           state.lyricsSig === signatures.lyrics &&
           state.motionSig === signatures.motion
         ) {
-          settled.push(file)
+          settled.push({ file, audioHere, sidecarHere })
           continue
         }
         // New audio has to be read from a copy here. A cover, a curve or the
@@ -809,7 +826,11 @@ export class CloudSyncService {
         this.#progress = { done, total, current: file.title }
         try {
           await this.#uploadSongFiles(store, file, states.get(file.id) ?? null, signatures)
-          settled.push(file)
+          settled.push({
+            file,
+            audioHere: signatures.audioHere,
+            sidecarHere: signatures.sidecarHere,
+          })
         } catch (error) {
           // Offline, a refused key, no bucket, a used-up cap: nothing else
           // will work either, and every try against a cap is one more call.
@@ -1166,13 +1187,13 @@ export class CloudSyncService {
         : file.lyricsKind === 'none'
           ? 'none'
           : (state?.lyricsSig ?? 'none')
-      return { audio, cover, lyrics, motion, audioHere }
+      return { audio, cover, lyrics, motion, audioHere, sidecarHere: false }
     }
     const stat = await this.#deps.storage.stat(sidecar.key)
     const lyrics = stat
       ? `sidecar${sidecar.extension}-${stat.sizeBytes}-${stat.modifiedAt.getTime()}`
       : `tags-${audio}`
-    return { audio, cover, lyrics, motion, audioHere }
+    return { audio, cover, lyrics, motion, audioHere, sidecarHere: true }
   }
 
   /** Upload whatever of one song's files the bucket does not have yet. */
@@ -1326,17 +1347,20 @@ export class CloudSyncService {
    * has not reached yet keeps it a while longer. From here on the words are
    * read from the bucket (`fetchLyrics`), and the pass knows they are current
    * because nothing here can have changed them (`#signatures`).
+   *
+   * What is here is what `#signatures` saw at the start of the pass, so a
+   * library already let go costs no second look. A sidecar written since then
+   * has not been sent yet, and stays for the next pass to send.
    */
-  async #letGo(settled: readonly SongFileInfo[]): Promise<void> {
+  async #letGo(settled: readonly Settled[]): Promise<void> {
     const analysed = this.#deps.analysed
     if (!analysed) return
     const { storage, lyrics } = this.#deps
     let released = 0
-    for (const file of settled) {
+    for (const { file, audioHere, sidecarHere } of settled) {
       if (this.#stopped) return
+      if (!audioHere && !sidecarHere) continue
       if (!analysed(file.id)) continue
-      const audioHere = await storage.exists(file.path)
-      if (!audioHere && !(await lyrics.findSidecar(file.path))) continue
       try {
         if (audioHere) await storage.delete(file.path)
         await lyrics.deleteSidecar(file.path)

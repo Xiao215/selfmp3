@@ -3,7 +3,12 @@ import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import { z } from 'zod'
-import { DEFAULT_APP_URL, DEFAULT_DOORMAN_URL, DEFAULT_SERVER_PORT } from '@selfmp3/shared'
+import {
+  DEFAULT_APP_URL,
+  DEFAULT_DOORMAN_URL,
+  DEFAULT_SERVER_PORT,
+  REPOSITORY_URL,
+} from '@selfmp3/shared'
 import { loadDotEnv } from './dotenv.js'
 
 /**
@@ -335,4 +340,4 @@ export const APP_NAME = 'self.mp3'
  * lrclib and MusicBrainz both ask for a contact URL in the User-Agent so they
  * can reach whoever is hammering them, so it is the repository, named once.
  */
-export const USER_AGENT = `${APP_NAME}/${APP_VERSION} (personal music library; https://github.com/Xiao215/selfmp3)`
+export const USER_AGENT = `${APP_NAME}/${APP_VERSION} (personal music library; ${REPOSITORY_URL})`

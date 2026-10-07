@@ -17,7 +17,9 @@ import { z } from 'zod'
 const REPO_OWNER = 'Xiao215'
 const REPO_NAME = 'selfmp3'
 
-export const RELEASES_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases`
+/** The repository itself: the desktop app's Help menu, and the server's User-Agent. */
+export const REPOSITORY_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}`
+export const RELEASES_URL = `${REPOSITORY_URL}/releases`
 export const LATEST_RELEASE_API = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`
 
 /** `desktop-v1.2.3` or `v1.2.3` or `1.2.3` — whatever the tag was called. */

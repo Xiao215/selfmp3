@@ -26,8 +26,9 @@ import { IconButton } from '../../ui/components/IconButton'
 import { X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import type { ValueStore } from '../../state/valueStore.model'
+import { useValueStore } from '../../state/useValueStore'
 import { useToneColors } from '../../ui/useSongColor'
-import { ListenBar, ListenCover, useListen, useListenPosition } from './ImportListen'
+import { ListenBar, ListenCover, useListen } from './ImportListen'
 import { TagThem } from './ImportTags'
 import {
   chooseAllIn,
@@ -763,7 +764,7 @@ function AtPosition({
   position: ValueStore<number>
   children: (at: number) => ReactNode
 }): ReactNode {
-  return children(useListenPosition(position))
+  return children(useValueStore(position))
 }
 
 /**

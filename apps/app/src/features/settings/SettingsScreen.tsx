@@ -1,5 +1,5 @@
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import {
   Pressable,
@@ -28,6 +28,7 @@ import { Toggle } from '../../ui/components/Toggle'
 import { label, pageTitle } from '../../ui/surfaces'
 import { usePlayer } from '../../player/PlayerProvider'
 import { createValueStore, type ValueStore } from '../../state/valueStore.model'
+import { useValueStore } from '../../state/useValueStore'
 import { menuCommands } from '../../ports/menuKeys'
 import { finePointer } from '../../ports/pointer'
 import { Panel, partStyles, Row, SliderSetting, StackedRows } from './SettingsParts'
@@ -469,7 +470,7 @@ function SectionIndex({
   chipsWidth: RefObject<number>
   onGo: (id: SectionId) => void
 }): ReactNode {
-  const on = useSyncExternalStore(active.subscribe, active.get, active.get)
+  const on = useValueStore(active)
   const chipAt = useRef(new Map<SectionId, { x: number; width: number }>())
 
   // At narrow widths the chip for the section being read is often scrolled out

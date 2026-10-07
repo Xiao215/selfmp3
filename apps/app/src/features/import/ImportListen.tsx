@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   ActivityIndicator,
@@ -12,7 +12,7 @@ import type { CoverTone, ImportCoverTone, ImportPreviewItem } from '@selfmp3/sha
 import { radius, withAlpha, type ServerConnection } from '@selfmp3/client'
 import { mediaUrlFor } from '../../api/client'
 import { usePlayerCommands, usePlayerPlaying } from '../../player/PlayerProvider'
-import { createValueStore, type ValueStore } from '../../state/valueStore.model'
+import { createValueStore } from '../../state/valueStore.model'
 import { createListenAudio } from '../../ports/listen'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Cover } from '../../ui/components/Cover'
@@ -48,7 +48,7 @@ const tonesByCover = new Map<string, CoverTone | null>()
  * review's rows are memoised, and a new function each tick would redraw every
  * row of a long playlist four times a second. For the same reason where the
  * song is, which moves at each of those ticks, is not part of `listening`: it
- * is `position`, which only the bar and its times read (`useListenPosition`).
+ * is `position`, which only the bar and its times read (`useValueStore`).
  */
 export function useListen(
   via: ServerConnection | undefined,
@@ -163,11 +163,6 @@ export function useListen(
   )
 
   return { listening, position, ...steady }
-}
-
-/** Where the preview is in its song, in seconds, ticking with the audio. */
-export function useListenPosition(position: ValueStore<number>): number {
-  return useSyncExternalStore(position.subscribe, position.get, position.get)
 }
 
 /**

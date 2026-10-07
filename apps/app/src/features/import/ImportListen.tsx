@@ -12,7 +12,7 @@ import type { CoverTone, ImportCoverTone, ImportPreviewItem } from '@selfmp3/sha
 import { radius, withAlpha, type ServerConnection } from '@selfmp3/client'
 import { mediaUrlFor } from '../../api/client'
 import { usePlayer } from '../../player/PlayerProvider'
-import { createValueStore, type ValueStore } from '../../player/progress.model'
+import { createValueStore, type ValueStore } from '../../state/valueStore.model'
 import { createListenAudio } from '../../ports/listen'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Cover } from '../../ui/components/Cover'

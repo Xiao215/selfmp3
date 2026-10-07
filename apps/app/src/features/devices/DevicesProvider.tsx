@@ -376,6 +376,11 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
 
   // --- handoff -------------------------------------------------------------
 
+  /*
+   * Take over from that device: adopt its queue and position, then stop it
+   * there, so the same song is not coming out of two rooms at once. Both the
+   * sheet's "Play here" and a `transfer` command asked of this device.
+   */
   const playHere = useCallback(
     (device: Device): void => {
       // `device.state` is already in this device's numbers: the list it came
@@ -463,14 +468,9 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
           return
         }
         case 'transfer': {
-          // "Take over from that one": adopt its state, then stop it, so the
-          // same song is not coming out of two rooms at once.
+          // "Take over from that one".
           const from = devicesRef.current.find(device => device.id === command.fromDeviceId)
-          if (!from) return
-          const target = handoffTarget(from.state, Date.now())
-          if (!target) return
-          local.playFrom([...target.queueIds], target.index, { position: target.position })
-          send(from.id, { type: 'pause' })
+          if (from) playHere(from)
           return
         }
         case 'setVolume':
@@ -478,7 +478,7 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
           return
       }
     },
-    [send],
+    [playHere],
   )
 
   useEffect(() => {

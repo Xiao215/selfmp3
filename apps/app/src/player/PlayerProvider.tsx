@@ -222,7 +222,7 @@ export interface PlayerApi {
  * reads it through `usePlayerCommands()` and is not rendered again for a
  * play, a pause or a song added to Up next.
  */
-export type PlayerCommands = Pick<
+type PlayerCommands = Pick<
   PlayerApi,
   | 'playFrom'
   | 'playShuffled'

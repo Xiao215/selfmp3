@@ -17,9 +17,10 @@ export function useFlyToUpNext(): (from: View | null, songIds: readonly number[]
   const { data: library } = useLibrary()
   return useCallback(
     (from, songIds) => {
-      const byId = new Map((library?.songs ?? []).map(song => [song.id, song]))
+      // Three covers at most: three looks through the library, not a map of all of it.
+      const songs = library?.songs ?? []
       const uris = songIds.slice(0, 3).flatMap(id => {
-        const song = byId.get(id)
+        const song = songs.find(each => each.id === id)
         return song ? [artFor(song)] : []
       })
       flyToUpNext(from, uris, open)

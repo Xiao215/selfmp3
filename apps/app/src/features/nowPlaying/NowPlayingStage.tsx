@@ -18,6 +18,7 @@ import Svg, { Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from '
 import type { Song } from '@selfmp3/shared'
 import type { Rgb } from '@selfmp3/client'
 import { fonts, motion, radius, rgba, tempoMark, useLibrary, withAlpha } from '@selfmp3/client'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { setStageExit } from '../../shell/stageExit'
@@ -932,7 +933,7 @@ function StageUpNext({
 }): ReactNode {
   const { theme } = useUnistyles()
   const player = usePlayer()
-  const artFor = useArt()
+  const artFor = useArt(ROW_COVER_SIZE)
   const progress = usePlayerProgress()
   const [lowered] = useState(() => ({
     transform: [

@@ -1,10 +1,10 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
-import { formatDuration } from '@selfmp3/shared'
+import { formatDuration, plural } from '@selfmp3/shared'
 import {
   clientApi,
   oklchToHexAlpha,
@@ -14,6 +14,7 @@ import {
   useLibrary,
   useScanLibrary,
 } from '@selfmp3/client'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useConnection } from '../../connection/ConnectionProvider'
@@ -91,7 +92,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const player = usePlayer()
   const library = useLibrary()
   const scan = useScanLibrary()
-  const artFor = useArt()
+  const artFor = useArt(ROW_COVER_SIZE)
   const { fromCloud } = useConnection()
   // The app's own width for the box; the window's height, which no split lies about.
   const { finePointer, width } = useLayout()
@@ -123,12 +124,12 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   // faster than they can be drawn.
   const shownQuery = useDeferredValue(query)
   const currentSongId = player.current?.id ?? null
-  const resultsFor = (text: string) =>
-    paletteResults(text, library.data, fromCloud, { pathname, currentSongId })
-  const results = useMemo(
-    () => paletteResults(shownQuery, library.data, fromCloud, { pathname, currentSongId }),
-    [shownQuery, library.data, fromCloud, pathname, currentSongId],
+  const resultsFor = useCallback(
+    (text: string): PaletteResults =>
+      paletteResults(text, library.data, fromCloud, { pathname, currentSongId }),
+    [library.data, fromCloud, pathname, currentSongId],
   )
+  const results = useMemo(() => resultsFor(shownQuery), [resultsFor, shownQuery])
 
   const lyricsQuery = lyricsQueryFor(useDebounced(query, 180))
   const lyrics = useQuery({
@@ -305,7 +306,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
                 {artist.name}
               </Text>
               <Text style={styles.hint}>
-                {artist.songIds.length} {artist.songIds.length === 1 ? 'song' : 'songs'} · artist
+                {plural(artist.songIds.length, 'song', 'songs')} · artist
               </Text>
             </>
           ),
@@ -327,9 +328,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
               <Text style={styles.label} numberOfLines={1}>
                 {tag.name}
               </Text>
-              <Text style={styles.hint}>
-                {tag.songCount} {tag.songCount === 1 ? 'song' : 'songs'} · tag
-              </Text>
+              <Text style={styles.hint}>{plural(tag.songCount, 'song', 'songs')} · tag</Text>
             </>
           ),
         })),
@@ -395,7 +394,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
             <Text style={styles.label} numberOfLines={1}>
               {playlist.name}
             </Text>
-            <Text style={styles.hint}>{playlist.songCount} songs</Text>
+            <Text style={styles.hint}>{plural(playlist.songCount, 'song', 'songs')}</Text>
           </>
         ),
       })),

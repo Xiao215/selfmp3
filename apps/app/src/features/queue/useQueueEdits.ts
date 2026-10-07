@@ -1,25 +1,35 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'expo-router'
-import type { Song, Tag } from '@selfmp3/shared'
+import type { Tag } from '@selfmp3/shared'
 import { useLibrary } from '@selfmp3/client'
 import { usePlayer, type PlayerApi } from '../../player/PlayerProvider'
+import { useSongTagLookup } from '../../ui/songTags'
 import { showToast } from '../../ui/toast'
 import { noteTagUsed } from '../library/recentTags.store'
 import { tagLink } from '../tag/placeLinks'
 import { closeQueueSheet } from './queueSheet.store'
 import { queueRows, removalOf, restoreMoves, UNDO_MS } from './queue.model'
 
+/** No rows: what a shut Up next is handed, so it does not resolve the whole queue for nothing. */
+const NO_ROWS: ReturnType<typeof queueRows> = { playing: null, next: [], played: [] }
+
 /**
  * What Up next does to the queue, shared by the phone's sheet and the
  * computer's rail so a swipe, a drag out, Delete and the menu all remove the
  * same way, with the same Undo.
+ *
+ * `shown` is whether the sheet or the rail is up. Both stay mounted while shut,
+ * for the Undo, and every play, pause and song change reaches them; only an
+ * open one resolves the queue into rows, which for a library shuffled is
+ * thousands of songs.
  */
-export function useQueueEdits(): {
+export function useQueueEdits(shown: boolean): {
   player: PlayerApi
   rows: ReturnType<typeof queueRows>
   /** Take one song out, with an Undo for five seconds. */
   remove: (index: number) => void
-  tagsOf: (song: Song) => Tag[]
+  /** A song's tags, the same array for the same song (`songTagLookup`), so a row's memo holds. */
+  tagsOf: (song: { readonly tagIds: readonly number[] }) => readonly Tag[]
   openTag: (tagId: number) => void
 } {
   const player = usePlayer()
@@ -37,8 +47,11 @@ export function useQueueEdits(): {
     latest.current = player
   })
 
-  const byId = useMemo(() => new Map(player.songs.map(song => [song.id, song])), [player.songs])
-  const rows = useMemo(() => queueRows(player.queue, byId), [player.queue, byId])
+  const rows = useMemo(
+    () =>
+      shown ? queueRows(player.queue, new Map(player.songs.map(song => [song.id, song]))) : NO_ROWS,
+    [shown, player.queue, player.songs],
+  )
 
   const remove = useCallback((index: number) => {
     const now = latest.current
@@ -66,27 +79,17 @@ export function useQueueEdits(): {
   }, [])
 
   // Up next is one of the lists that shows a song's tags (`S3`); a chip opens the tag.
-  const tagsById = useMemo(
-    () => new Map((library?.tags ?? []).map(tag => [tag.id, tag])),
-    [library],
-  )
-  const tagsOf = useCallback(
-    (song: Song) =>
-      song.tagIds.flatMap(id => {
-        const tag = tagsById.get(id)
-        return tag ? [tag] : []
-      }),
-    [tagsById],
-  )
+  const tagsOf = useSongTagLookup()
+  const tags = library?.tags
   const openTag = useCallback(
     (tagId: number) => {
-      const tag = tagsById.get(tagId)
+      const tag = tags?.find(each => each.id === tagId)
       if (!tag) return
       noteTagUsed(tag.id)
       closeQueueSheet()
       router.navigate(tagLink(tag.name))
     },
-    [tagsById, router],
+    [tags, router],
   )
 
   return { player, rows, remove, tagsOf, openTag }

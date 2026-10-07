@@ -105,9 +105,7 @@ describe('metadata changes', () => {
   })
 
   it('describes a suggestion on one line', () => {
-    expect(
-      candidateLine(CANDIDATE, s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`),
-    ).toBe('YOASOBI · アイドル · 2023 · 3:32')
+    expect(candidateLine(CANDIDATE)).toBe('YOASOBI · アイドル · 2023 · 3:32')
     expect(scorePercent(0.451)).toBe('45%')
   })
 })

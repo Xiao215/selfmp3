@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -41,12 +41,28 @@ import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import { Check, Sparkle, X } from '../../ui/components/Icons'
 
-/** The sources' badges, as an OKLCH pair: ground, ink. */
+/** A source's badge at one hue, as an OKLCH pair: ground, ink. */
+const badgeTone = (hue: number): [string, string] => [
+  oklchToHexAlpha(0.36, 0.09, hue, 0.5),
+  oklchToHexAlpha(0.85, 0.1, hue, 1),
+]
+
+/** The sources' badges: each a hue, drawn the same way. */
 const SOURCE_TONE: Record<MetadataCandidate['source'], [string, string]> = {
-  itunes: [oklchToHexAlpha(0.36, 0.09, 340, 0.5), oklchToHexAlpha(0.85, 0.1, 340, 1)],
-  musicbrainz: [oklchToHexAlpha(0.36, 0.09, 40, 0.5), oklchToHexAlpha(0.85, 0.1, 40, 1)],
-  ai: [oklchToHexAlpha(0.36, 0.09, 280, 0.5), oklchToHexAlpha(0.85, 0.1, 280, 1)],
+  itunes: badgeTone(340),
+  musicbrainz: badgeTone(40),
+  ai: badgeTone(280),
 }
+
+/** The song's own fields, in the order the panel lists them, and the keyboard each wants. */
+const TEXT_FIELDS: readonly (readonly [TextField, 'default' | 'number-pad'])[] = [
+  ['title', 'default'],
+  ['artist', 'default'],
+  ['album', 'default'],
+  ['albumArtist', 'default'],
+  ['year', 'number-pad'],
+  ['trackNo', 'number-pad'],
+]
 
 /**
  * "Fix metadata…". The song as the library has it on one side, every field
@@ -89,12 +105,16 @@ export function MetadataDialog({
   const [selectedKey, setSelectedKey] = useState<number | 'ai'>(0)
   const selected = selectedKey === 'ai' ? (suggested ?? undefined) : candidates[selectedKey]
   const diffs = useMemo(() => (selected ? diffFields(song, selected) : []), [song, selected])
-  const askSuggestion = (again: boolean): void =>
-    suggest.ask.mutate(again, {
-      onSuccess: answer => {
-        if (answer.suggestion) setSelectedKey('ai')
-      },
-    })
+  const { mutate: askMutate } = suggest.ask
+  const askSuggestion = useCallback(
+    (again: boolean): void =>
+      askMutate(again, {
+        onSuccess: answer => {
+          if (answer.suggestion) setSelectedKey('ai')
+        },
+      }),
+    [askMutate],
+  )
   // Nothing matched: the catalogues' other listings and the song's own file
   // are all there is to go on, which is the model's reading to do — asked
   // once, without a press.
@@ -102,9 +122,7 @@ export function MetadataDialog({
   const idle = suggest.ask.isIdle
   useEffect(() => {
     if (suggest.on && nothingMatched && idle) askSuggestion(false)
-    // `askSuggestion` is made anew each render; the three facts are what decide.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [suggest.on, nothingMatched, idle])
+  }, [suggest.on, nothingMatched, idle, askSuggestion])
 
   // What a suggestion corrects starts ticked, afresh for each suggestion picked.
   const [picked, setPicked] = useState<{
@@ -130,23 +148,14 @@ export function MetadataDialog({
     if (input) apply.mutate(input, { onSuccess: onClose })
   }
 
-  const fields: readonly (readonly [TextField, string, 'default' | 'number-pad'])[] = [
-    ['title', 'Title', 'default'],
-    ['artist', 'Artist', 'default'],
-    ['album', 'Album', 'default'],
-    ['albumArtist', 'Album artist', 'default'],
-    ['year', 'Year', 'number-pad'],
-    ['trackNo', 'Track №', 'number-pad'],
-  ]
-
   const current = (
-    <View style={[styles.current, wide ? styles.currentWide : styles.currentNarrow]}>
+    <View style={[styles.current, !wide && styles.currentNarrow]}>
       <Text style={[styles.groupTitle, !wide && styles.fullRow]}>IN YOUR LIBRARY</Text>
       <Cover uri={artFor(song)} title={song.album || song.title} size={wide ? 120 : 96} />
       <View style={[styles.fields, wide && styles.fieldsWide]}>
-        {fields.map(([field, label, keyboard]) => (
+        {TEXT_FIELDS.map(([field, keyboard]) => (
           <View key={field} style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>{label}</Text>
+            <Text style={styles.fieldLabel}>{FIELD_LABELS[field]}</Text>
             <TextInput
               value={edits[field] ?? editable(song[field])}
               onChangeText={text => setEdits(previous => ({ ...previous, [field]: text }))}
@@ -156,7 +165,7 @@ export function MetadataDialog({
               autoCapitalize="none"
               autoCorrect={false}
               spellCheck={false}
-              accessibilityLabel={label}
+              accessibilityLabel={FIELD_LABELS[field]}
               testID={`metadata-field-${field}`}
               style={[
                 styles.fieldValue,
@@ -177,7 +186,7 @@ export function MetadataDialog({
   )
 
   const suggestions = (
-    <View style={[styles.candidates, wide && styles.candidatesWide]}>
+    <View style={styles.candidates}>
       <View style={styles.sectionHead}>
         <Text style={styles.groupTitle}>SUGGESTIONS</Text>
         {candidates.length > 0 ? <Pill text={String(candidates.length)} /> : null}
@@ -220,7 +229,7 @@ export function MetadataDialog({
               onPress={() => setSelectedKey(index)}
               accessibilityRole="radio"
               accessibilityState={{ checked: active }}
-              accessibilityLabel={`${candidate.title}, ${candidateLine(candidate, formatDuration)}, ${SOURCE_LABELS[candidate.source]}, ${scorePercent(candidate.score)}`}
+              accessibilityLabel={`${candidate.title}, ${candidateLine(candidate)}, ${SOURCE_LABELS[candidate.source]}, ${scorePercent(candidate.score)}`}
               style={({ pressed }) => [
                 styles.candidate,
                 pressed && styles.candidatePressed,
@@ -237,7 +246,7 @@ export function MetadataDialog({
                   {candidate.title}
                 </Text>
                 <Text style={styles.candidateSub} numberOfLines={1}>
-                  {candidateLine(candidate, formatDuration)}
+                  {candidateLine(candidate)}
                 </Text>
               </View>
               <View style={styles.candidateMeta}>
@@ -382,13 +391,13 @@ export function MetadataDialog({
           style={[styles.foot, !wide && [styles.footNarrow, { paddingBottom: 12 + insets.bottom }]]}
         >
           {apply.isError ? (
-            <Text style={[styles.hint, styles.footError, { color: theme.colors.warning }]}>
+            <Text style={[styles.hint, styles.footLead, { color: theme.colors.warning }]}>
               {apply.error?.message ?? 'Couldn’t apply the changes.'}
             </Text>
           ) : coverLater ? (
             // Downloaded by the server into the bucket, which this device sees
             // with the next sync rather than the moment the dialog closes.
-            <Text style={[styles.hint, styles.footError]}>
+            <Text style={[styles.hint, styles.footLead]}>
               The new cover shows after your server’s next sync.
             </Text>
           ) : null}
@@ -488,9 +497,7 @@ function SuggestedCard({
         disabled={!pick}
         accessibilityRole={pick ? 'radio' : undefined}
         accessibilityState={pick ? { checked: active } : undefined}
-        accessibilityLabel={
-          pick ? `Suggested: ${pick.title}, ${candidateLine(pick, formatDuration)}` : answer.why
-        }
+        accessibilityLabel={pick ? `Suggested: ${pick.title}, ${candidateLine(pick)}` : answer.why}
         testID="metadata-suggested"
         style={({ pressed }) => [
           styles.suggested,
@@ -505,7 +512,7 @@ function SuggestedCard({
           </Text>
           {pick ? (
             <Text style={styles.candidateSub} numberOfLines={1}>
-              {candidateLine(pick, formatDuration)}
+              {candidateLine(pick)}
             </Text>
           ) : null}
           <Text style={styles.suggestedWhy}>{answer.why}</Text>
@@ -534,7 +541,6 @@ function Pill({ text }: { text: string }): ReactNode {
   )
 }
 
-/** A remote thumbnail that quietly becomes an empty box when it will not load. */
 const styles = StyleSheet.create(theme => ({
   backdrop: {
     position: 'absolute',
@@ -580,7 +586,6 @@ const styles = StyleSheet.create(theme => ({
   },
   candidatesScroll: { flex: 1 },
   current: { paddingVertical: 18, paddingHorizontal: 20, gap: 14 },
-  currentWide: {},
   currentNarrow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -605,7 +610,6 @@ const styles = StyleSheet.create(theme => ({
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   groupTitle: groupLabel(theme.colors),
   candidates: { paddingVertical: 18, paddingHorizontal: 20, gap: 12 },
-  candidatesWide: {},
   hint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
   strong: { color: theme.colors.textPrimary },
   link: { fontSize: 12, textDecorationLine: 'underline' },
@@ -697,5 +701,6 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: 20,
   },
   footNarrow: { flexWrap: 'wrap' },
-  footError: { marginRight: 'auto' },
+  // The foot's one line of text, pushed to the left of the buttons.
+  footLead: { marginRight: 'auto' },
 }))

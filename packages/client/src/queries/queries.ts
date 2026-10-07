@@ -996,36 +996,34 @@ export function useCloudStatus(enabled = true): UseQueryResult<CloudStatus, Erro
 }
 
 /**
- * Connect, sign in, publish now, or disconnect — each answers with the new
- * status, so the panel moves on without waiting for the next poll.
+ * One thing done to the cloud — connect, sign in, publish now, disconnect.
+ * Each answers with the new status, so the panel moves on without waiting
+ * for the next poll.
+ *
+ * One hook per action rather than one hook making all seven: a component that
+ * only signs out made seven mutations on every render to use one.
  */
-export function useCloudActions() {
+function useCloudMutation<TInput = void>(run: (input: TInput) => Promise<CloudStatus>) {
   const client = useQueryClient()
-  const onSuccess = (status: CloudStatus): void => {
-    client.setQueryData(queryKeys.cloud, status)
-  }
-  return {
-    connect: useMutation({
-      mutationFn: (input: CloudConnect) => clientApi().cloudConnect(input),
-      onSuccess,
-    }),
-    sync: useMutation({ mutationFn: () => clientApi().cloudSync(), onSuccess }),
-    disconnect: useMutation({ mutationFn: () => clientApi().cloudDisconnect(), onSuccess }),
-    signIn: useMutation({
-      mutationFn: (attempt: string) => clientApi().cloudSignIn(attempt),
-      onSuccess,
-    }),
-    cancelSignIn: useMutation({ mutationFn: () => clientApi().cloudCancelSignIn(), onSuccess }),
-    enterCode: useMutation({
-      mutationFn: (code: string) => clientApi().cloudSignInCode(code),
-      onSuccess,
-    }),
-    connectStorage: useMutation({
-      mutationFn: (input: CloudConnect) => clientApi().cloudConnectStorage(input),
-      onSuccess,
-    }),
-  }
+  return useMutation<CloudStatus, Error, TInput>({
+    mutationFn: run,
+    onSuccess: status => {
+      client.setQueryData(queryKeys.cloud, status)
+    },
+  })
 }
+
+export const useCloudConnect = () =>
+  useCloudMutation((input: CloudConnect) => clientApi().cloudConnect(input))
+export const useCloudConnectStorage = () =>
+  useCloudMutation((input: CloudConnect) => clientApi().cloudConnectStorage(input))
+export const useCloudSync = () => useCloudMutation(() => clientApi().cloudSync())
+export const useCloudDisconnect = () => useCloudMutation(() => clientApi().cloudDisconnect())
+export const useCloudSignIn = () =>
+  useCloudMutation((attempt: string) => clientApi().cloudSignIn(attempt))
+export const useCloudCancelSignIn = () => useCloudMutation(() => clientApi().cloudCancelSignIn())
+export const useCloudEnterCode = () =>
+  useCloudMutation((code: string) => clientApi().cloudSignInCode(code))
 
 /**
  * A cloud library's imports: links asked of the server through the bucket. Looked at

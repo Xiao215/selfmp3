@@ -1,40 +1,17 @@
-import type {
-  EngineCapabilities,
-  EngineWiring,
-  EngineState as PortEngineState,
-  PlaybackEngine,
-} from '@selfmp3/client'
+import type { EngineCapabilities, EngineState, EngineWiring, PlaybackEngine } from '@selfmp3/client'
 import { streamFailureMessage } from './streamFailure.model'
 
 /**
  * The web half of the `PlaybackEngine` port.
  *
- * The stream URL comes from the wiring, which whoever owns the queue always
- * sets; an unset `streamUrl` reaches `#urlFor` and an error nobody should ever
- * see.
+ * The stream URL comes from the wiring. A song this device has nowhere to
+ * play from — no copy, and neither the bucket nor a server answering here —
+ * has an empty address, and is said to be unplayable as the phone's engine
+ * says it, rather than thrown out of a promise nobody awaits.
  *
  * `capabilities` declares what this engine can do, so the practice panel and
  * the visualiser need not guess.
  */
-
-export interface EngineState {
-  readonly playing: boolean
-  readonly currentTime: number
-  readonly duration: number
-  readonly volume: number
-  readonly muted: boolean
-  readonly rate: number
-  /** True while the browser is waiting for data. */
-  readonly stalled: boolean
-  readonly error: string | null
-  /** Practice: keep pitch when the rate changes (`audio.preservesPitch`). */
-  readonly preservesPitch: boolean
-  /** Practice: A–B loop bounds in seconds; null when unset. */
-  readonly loopA: number | null
-  readonly loopB: number | null
-  /** True during the short pause before a loop restarts. */
-  readonly countingIn: boolean
-}
 
 const INITIAL_STATE: EngineState = {
   playing: false,
@@ -95,16 +72,9 @@ class AudioEngine implements PlaybackEngine {
     loop: true,
   }
 
-  /** Where to fetch a song. Unset is a wiring mistake, not a fallback. */
-  #urlFor(songId: number): string {
-    const url = this.#wiring.streamUrl?.(songId)
-    if (!url) {
-      throw new Error(
-        `no streamUrl configured; cannot play song ${songId}. ` +
-          'Whoever owns the queue connects `streamUrl`.',
-      )
-    }
-    return url
+  /** Where to fetch a song, or null when this device has nowhere to play it from. */
+  #urlFor(songId: number): string | null {
+    return this.#wiring.streamUrl?.(songId) || null
   }
 
   #primary: HTMLAudioElement
@@ -243,7 +213,20 @@ class AudioEngine implements PlaybackEngine {
     } else if (this.#preloadedId === songId && startAt === 0) {
       this.#swap()
     } else {
-      this.#primary.src = this.#urlFor(songId)
+      const url = this.#urlFor(songId)
+      if (url === null) {
+        // Not the song that was playing either: the queue has moved on from it.
+        this.#primary.pause()
+        this.#currentId = songId
+        // The words the phone's engine uses for the same case.
+        this.#update({
+          error: `Song ${songId} cannot be played from this device yet.`,
+          playing: false,
+          stalled: false,
+        })
+        return
+      }
+      this.#primary.src = url
       this.#primary.load()
       if (startAt > 0) {
         // Seeking before metadata is ready is ignored, so wait for it.
@@ -359,8 +342,12 @@ class AudioEngine implements PlaybackEngine {
 
   setVolume(volume: number): void {
     const clamped = Math.max(0, Math.min(1, volume))
-    this.#primary.volume = this.#state.muted ? 0 : clamped
-    this.#update({ volume: clamped, muted: clamped === 0 ? this.#state.muted : false })
+    // Moving the level unmutes, unless it is moved to nothing. Decided before
+    // the element is told: told from the old flag, a level set while muted
+    // was drawn as unmuted and played as silence.
+    const muted = clamped === 0 ? this.#state.muted : false
+    this.#primary.volume = muted ? 0 : clamped
+    this.#update({ volume: clamped, muted })
   }
 
   setMuted(muted: boolean): void {
@@ -615,9 +602,12 @@ class AudioEngine implements PlaybackEngine {
   #preload(): void {
     const nextId = this.#wiring.nextTrackId?.() ?? null
     if (nextId === null || nextId === this.#currentId) return
+    // Nowhere to fetch it from: its own load says so when it comes up.
+    const url = this.#urlFor(nextId)
+    if (url === null) return
 
     this.#preloadedId = nextId
-    this.#secondary.src = this.#urlFor(nextId)
+    this.#secondary.src = url
     this.#secondary.volume = 0
     this.#secondary.playbackRate = this.#state.rate
     // `preload="auto"` plus an explicit load() is what actually warms the
@@ -741,21 +731,6 @@ function once(target: EventTarget, event: string, timeoutMs: number): Promise<vo
     target.addEventListener(event, done, { once: true })
   })
 }
-
-/**
- * Does this engine satisfy the interface written for it? A type error here
- * means the port is wrong, not the engine.
- *
- * Asserted as a type rather than an instance: constructing one builds two
- * `<audio>` elements and attaches their listeners, and at module scope that
- * happens in every bundle that so much as mentions this file.
- */
-const _conforms: PlaybackEngine = null as unknown as AudioEngine
-void _conforms
-
-/** The port's `EngineState` is this engine's, which is the other half of it. */
-const _stateConforms: PortEngineState = null as unknown as AudioEngine['state']
-void _stateConforms
 
 /**
  * The engine this platform uses. Call sites import this and never a class, so

@@ -461,13 +461,6 @@ class NativeEngine implements PlaybackEngine {
 }
 
 /**
- * The same conformance proof the web half carries, as a type rather than an
- * instance: constructing one here would set a real player up at import time.
- */
-const _conforms: PlaybackEngine = null as unknown as NativeEngine
-void _conforms
-
-/**
  * The engine this platform uses. Call sites import this and never a class, so
  * that swapping one for the other is a resolution detail rather than a change
  * anybody has to make.

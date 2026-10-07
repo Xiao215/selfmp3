@@ -1,6 +1,5 @@
 import path from 'node:path'
 import fsp from 'node:fs/promises'
-import { spawn } from 'node:child_process'
 import { ANALYSIS_VERSION, type AnalysisStatus } from '@selfmp3/shared'
 import { stagingDir, type Config } from '../config.js'
 import type { Logger } from '../logger.js'
@@ -16,6 +15,7 @@ import {
   type MotionCurveData,
 } from './dsp.js'
 import { analyzePcmInWorker } from './analysisWorker.js'
+import { ffmpegFailure, runFfmpeg } from './ffmpeg.js'
 import type { MotionStore } from './motionStore.js'
 
 /**
@@ -340,7 +340,7 @@ export class AnalysisService {
  * Streamed from ffmpeg's stdout rather than via a temp file, capped at the
  * clip length so a two-hour DJ set costs the same as a three-minute song.
  */
-export function decode(file: string, duration: number): Promise<Float32Array> {
+export async function decode(file: string, duration: number): Promise<Float32Array> {
   const offset = duration >= MIN_SECONDS_FOR_OFFSET ? CLIP_OFFSET_SECONDS : 0
   const maxBytes = CLIP_SECONDS * ANALYSIS_SAMPLE_RATE * 4
 
@@ -363,50 +363,24 @@ export function decode(file: string, duration: number): Promise<Float32Array> {
     '-',
   ]
 
-  return new Promise<Float32Array>((resolve, reject) => {
-    const child = spawn('ffmpeg', args, { shell: false, windowsHide: true })
-    const chunks: Buffer[] = []
-    let total = 0
-    let stderr = ''
-    let settled = false
-
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL')
-      finish(new Error('ffmpeg timed out decoding the file'))
-    }, DECODE_TIMEOUT_MS)
-
-    const finish = (error: Error | null): void => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      if (error) {
-        reject(error)
-        return
-      }
-      const buffer = Buffer.concat(chunks, total)
-      // Float32Array needs 4-byte alignment; a fresh copy guarantees it.
-      const aligned = new Float32Array(Math.floor(buffer.length / 4))
-      for (let i = 0; i < aligned.length; i++) aligned[i] = buffer.readFloatLE(i * 4)
-      resolve(aligned)
-    }
-
-    child.stdout.on('data', (chunk: Buffer) => {
+  const chunks: Buffer[] = []
+  let total = 0
+  const result = await runFfmpeg(args, {
+    timeoutMs: DECODE_TIMEOUT_MS,
+    timeoutMessage: 'ffmpeg timed out decoding the file',
+    onStdout: chunk => {
       if (total >= maxBytes) return
       chunks.push(chunk)
       total += chunk.length
-    })
-    child.stderr.on('data', (chunk: Buffer) => {
-      if (stderr.length < 4096) stderr += chunk.toString('utf8')
-    })
-    child.on('error', error => finish(new Error(`could not run ffmpeg: ${error.message}`)))
-    child.on('close', code => {
-      if (code !== 0 && total === 0) {
-        finish(new Error(stderr.trim().split('\n').pop() || `ffmpeg exited with ${code}`))
-      } else {
-        finish(null)
-      }
-    })
+    },
   })
+  if (result.code !== 0 && total === 0) throw ffmpegFailure(result)
+
+  const buffer = Buffer.concat(chunks, total)
+  // Float32Array needs 4-byte alignment; a fresh copy guarantees it.
+  const aligned = new Float32Array(Math.floor(buffer.length / 4))
+  for (let i = 0; i < aligned.length; i++) aligned[i] = buffer.readFloatLE(i * 4)
+  return aligned
 }
 
 /**
@@ -414,7 +388,7 @@ export function decode(file: string, duration: number): Promise<Float32Array> {
  * into frames as ffmpeg streams it: memory holds one onset window and the
  * per-frame numbers, not the song. Capped at `MOTION_MAX_SECONDS`.
  */
-function measureMotion(file: string): Promise<MotionCurveData> {
+async function measureMotion(file: string): Promise<MotionCurveData> {
   const args = [
     '-v',
     'error',
@@ -434,30 +408,15 @@ function measureMotion(file: string): Promise<MotionCurveData> {
   ]
   const maxSamples = MOTION_MAX_SECONDS * MOTION_SAMPLE_RATE
 
-  return new Promise<MotionCurveData>((resolve, reject) => {
-    const child = spawn('ffmpeg', args, { shell: false, windowsHide: true })
-    const builder = new MotionBuilder(MOTION_SAMPLE_RATE)
-    // A chunk can end mid-sample; the odd bytes wait for the next one.
-    let carry = Buffer.alloc(0)
-    let samples = 0
-    let stderr = ''
-    let settled = false
-
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL')
-      finish(new Error('ffmpeg timed out decoding the whole file'))
-    }, MOTION_TIMEOUT_MS)
-
-    const finish = (error: Error | null): void => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      if (error) reject(error)
-      else resolve(builder.finish())
-    }
-
-    child.stdout.on('data', (chunk: Buffer) => {
-      if (settled || samples >= maxSamples) return
+  const builder = new MotionBuilder(MOTION_SAMPLE_RATE)
+  // A chunk can end mid-sample; the odd bytes wait for the next one.
+  let carry = Buffer.alloc(0)
+  let samples = 0
+  const result = await runFfmpeg(args, {
+    timeoutMs: MOTION_TIMEOUT_MS,
+    timeoutMessage: 'ffmpeg timed out decoding the whole file',
+    onStdout: chunk => {
+      if (samples >= maxSamples) return
       const bytes = carry.length > 0 ? Buffer.concat([carry, chunk]) : chunk
       const whole = Math.floor(bytes.length / 4)
       const count = Math.min(whole, maxSamples - samples)
@@ -466,19 +425,10 @@ function measureMotion(file: string): Promise<MotionCurveData> {
       carry = Buffer.from(bytes.subarray(whole * 4))
       samples += count
       builder.push(pcm)
-    })
-    child.stderr.on('data', (chunk: Buffer) => {
-      if (stderr.length < 4096) stderr += chunk.toString('utf8')
-    })
-    child.on('error', error => finish(new Error(`could not run ffmpeg: ${error.message}`)))
-    child.on('close', code => {
-      if (code !== 0 && samples === 0) {
-        finish(new Error(stderr.trim().split('\n').pop() || `ffmpeg exited with ${code}`))
-      } else {
-        finish(null)
-      }
-    })
+    },
   })
+  if (result.code !== 0 && samples === 0) throw ffmpegFailure(result)
+  return builder.finish()
 }
 
 /**
@@ -504,23 +454,16 @@ function measureLoudness(file: string): Promise<number | null> {
     '-',
   ]
 
-  return new Promise<number | null>(resolve => {
-    const child = spawn('ffmpeg', args, { shell: false, windowsHide: true })
-    let stderr = ''
-    const timer = setTimeout(() => child.kill('SIGKILL'), DECODE_TIMEOUT_MS)
-
-    child.stderr.on('data', (chunk: Buffer) => {
-      if (stderr.length < 64 * 1024) stderr += chunk.toString('utf8')
-    })
-    child.on('error', () => {
-      clearTimeout(timer)
-      resolve(null)
-    })
-    child.on('close', () => {
-      clearTimeout(timer)
-      resolve(parseIntegratedLoudness(stderr))
-    })
-  })
+  // The summary is the last thing ffmpeg says, so it is the end of stderr
+  // that is kept. A file that cannot be read, or hangs, has no loudness.
+  return runFfmpeg(args, {
+    timeoutMs: DECODE_TIMEOUT_MS,
+    timeoutMessage: 'ffmpeg timed out measuring loudness',
+    stderrTail: 64 * 1024,
+  }).then(
+    result => parseIntegratedLoudness(result.stderr),
+    () => null,
+  )
 }
 
 /** Pull the integrated loudness out of ffmpeg's ebur128 summary. */

@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react'
 import { useRouter } from 'expo-router'
-import { useStartAnalysis } from '@selfmp3/client'
+import { failureText, useStartAnalysis } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { library as cloudLibrary, session as cloudSession } from '../../replica'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { STORAGE_ROUTE } from '../welcome/storage.model'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
+import { showToast } from '../../ui/toast'
 import { signOutWarning } from './signOut'
 import { useSignOut } from './useSignOut'
 import { type Confirming } from './settings.model'
@@ -41,7 +42,9 @@ export function Confirmations({
     },
     'sign-out': {
       title: 'Sign out?',
-      body: signOutWarning(cloudLibrary.pendingCloudChanges()),
+      // Counted only while this dialog is the one asking: Settings redraws
+      // for many reasons, and the count walks the changes not yet sent.
+      body: confirming === 'sign-out' ? signOutWarning(cloudLibrary.pendingCloudChanges()) : '',
       label: 'Sign out',
       run: () => void signOut(),
     },
@@ -51,11 +54,16 @@ export function Confirmations({
       label: 'Forget the bucket',
       run: () =>
         void (async () => {
-          const session = await cloudSession.loadSession()
-          if (!session) return
-          await cloudSession.disconnectStorage(session)
-          storageForgotten()
-          router.replace(STORAGE_ROUTE)
+          try {
+            const session = await cloudSession.loadSession()
+            if (!session) return
+            await cloudSession.disconnectStorage(session)
+            storageForgotten()
+            router.replace(STORAGE_ROUTE)
+          } catch (caught) {
+            // The dialog has closed already: the toast is the only place to say so.
+            showToast(failureText('Couldn’t forget the bucket', caught), 'error')
+          }
         })(),
     },
   }

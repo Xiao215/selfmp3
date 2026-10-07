@@ -12,6 +12,7 @@ import {
   useReorderPlaylist,
 } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
+import { useSongsById } from '../../ui/songsById'
 import { showToast } from '../../ui/toast'
 import type { AnswerKeys } from './answerKeys'
 import { Review, reviewText } from './Review'
@@ -19,11 +20,6 @@ import { keptSongs, parts, playlistEditHere, sortWords, type Reviewed } from './
 import { useSmartServer } from './useSmartServer'
 
 type Answer = Extract<AskAnswer, { kind: 'playlistSongs' }>
-
-/** The one change an add or a remove is, in a review's terms. */
-interface Edit extends Reviewed {
-  readonly change: { readonly key: string; readonly by: 'rule' | 'model' }
-}
 
 /**
  * Ask's answer to "add … to", "take … out of" and "sort" one playlist
@@ -59,7 +55,7 @@ export function PlaylistSongsAnswer({
     () => playlistEditHere(answer, server.onDevice, current),
     [answer, server.onDevice, current],
   )
-  const songsById = new Map((library?.songs ?? []).map(song => [song.id, song]))
+  const songsById = useSongsById()
 
   if (!playlist) return <Text style={reviewText.line}>That playlist is gone.</Text>
   if (!members) return <Text style={reviewText.note}>Reading {playlist.name}…</Text>
@@ -156,9 +152,10 @@ export function PlaylistSongsAnswer({
     )
   }
 
-  const edit: Edit = { change: { key: 'edit', by: answer.by }, songIds: here.songIds }
+  // The one change an add or a remove is, in a review's terms.
+  const edit: Reviewed = { change: { key: 'edit', by: answer.by }, songIds: here.songIds }
   const apply = async (
-    approved: readonly Edit[],
+    approved: readonly Reviewed[],
     leftOut: ReadonlySet<string>,
   ): Promise<boolean> => {
     const songIds = approved.flatMap(each => keptSongs(each, leftOut))

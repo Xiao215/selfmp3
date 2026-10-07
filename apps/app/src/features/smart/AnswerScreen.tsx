@@ -3,26 +3,26 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { formatLongDuration, plural, type Understanding } from '@selfmp3/shared'
-import { clientApi, failureText, fonts, queryKeys, radius, useLibrary } from '@selfmp3/client'
+import { clientApi, failureText, queryKeys, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
-import { CoverLight } from '../../ui/components/CoverLight'
 import { IconButton } from '../../ui/components/IconButton'
+import { ListHead, listHeadText } from '../../ui/components/ListHead'
 import { ChevronLeft, More, Play, Shuffle, Sparkle } from '../../ui/components/Icons'
 import { OrderedSongList } from '../../ui/components/OrderedSongList'
 import { Popover } from '../../ui/components/Popover'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
 import { SheetItem } from '../../ui/components/Sheet'
+import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
 import { showToast } from '../../ui/toast'
-import { artShadow, label as labelText, serif } from '../../ui/surfaces'
+import { serif } from '../../ui/surfaces'
+import { useSongsById } from '../../ui/songsById'
 import { useSongColor } from '../../ui/useSongColor'
 import type { ListSource } from '../lists/lists.model'
 import { PlaylistCover } from '../playlists/PlaylistCover'
@@ -30,7 +30,7 @@ import { newPlaylist } from '../playlists/playlists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { changeAnswer, reorderAnswer, useKeptAnswer } from './answers.store'
 import { ChangeIt } from './ChangeIt'
-import { describeNotes, parts, picksHere } from './smart.model'
+import { answerSongs, describeNotes, parts } from './smart.model'
 import { useSmartServer } from './useSmartServer'
 
 /**
@@ -53,13 +53,13 @@ export function AnswerScreen(): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
   const { wide } = useLayout()
-  const { top } = useSafeAreaInsets()
   const { id } = useLocalSearchParams<{ id?: string }>()
   const kept = useKeptAnswer(id)
   const server = useSmartServer()
   const player = usePlayer()
   const queryClient = useQueryClient()
   const { data: library } = useLibrary()
+  const byId = useSongsById()
   const artFor = useArt()
   const [edited, setEdited] = useState<Understanding | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -69,24 +69,15 @@ export function AnswerScreen(): ReactNode {
   const fly = useFlyToUpNext()
 
   const result = kept?.result
-  const songs = useMemo(() => {
-    if (!result) return []
-    const byId = new Map((library?.songs ?? []).map(song => [song.id, song]))
-    const picked = picksHere(result, server.onDevice).flatMap(pick => byId.get(pick.songId) ?? [])
-    const order = kept?.order
-    if (!order) return picked
-    // The order you put it in, with anything it did not cover after.
-    const place = new Map(order.map((songId, index) => [songId, index]))
-    return [...picked].sort(
-      (a, b) => (place.get(a.id) ?? order.length) - (place.get(b.id) ?? order.length),
-    )
-  }, [result, kept?.order, library, server.onDevice])
+  const order = kept?.order ?? null
+  const songs = useMemo(
+    () => (result ? answerSongs(result, order, server.onDevice, byId) : []),
+    [result, order, byId, server.onDevice],
+  )
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   const selection = useSelection(ids)
-  const selectedSongs = useMemo(
-    () => songs.filter(song => selection.has(song.id)),
-    [songs, selection],
-  )
+  // Always mounted, told when to show (as on a tag's page).
+  const bar = useListSelectionBar({ songs, selection, scope: 'in this answer', wide })
   const lead = useMemo(() => songs.find(song => song.hasArt) ?? songs[0] ?? null, [songs])
   const light = useSongColor(lead, lead ? artFor(lead) : null)
 
@@ -170,42 +161,44 @@ export function AnswerScreen(): ReactNode {
   }
 
   const head = (
-    <View style={[styles.head, wide && styles.headWide, { paddingTop: top + 8 }]}>
-      <CoverLight color={light.color} art={null} />
-      <View style={styles.topBar}>
-        <IconButton label="Back" onPress={back} filled>
-          <ChevronLeft size={20} tone="textPrimary" />
-        </IconButton>
-        <View ref={moreRef} collapsable={false}>
-          <IconButton
-            label="More for this answer"
-            onPress={() => setMenuOpen(true)}
-            filled
-            testID="answer-more"
-          >
-            <More size={18} tone="textPrimary" />
+    <ListHead
+      wide={wide}
+      light={light.color}
+      art={null}
+      topBar={
+        <>
+          <IconButton label="Back" onPress={back} filled>
+            <ChevronLeft size={20} tone="textPrimary" />
           </IconButton>
-        </View>
-      </View>
-
-      <View ref={heroRef} collapsable={false} style={[styles.hero, wide && styles.heroWide]}>
-        <View style={styles.mosaic}>
-          <PlaylistCover songIds={ids} size={wide ? 176 : 196} />
-        </View>
-        <View style={[styles.titles, wide && styles.titlesWide]}>
-          <View style={styles.kind}>
+          <View ref={moreRef} collapsable={false}>
+            <IconButton
+              label="More for this answer"
+              onPress={() => setMenuOpen(true)}
+              filled
+              testID="answer-more"
+            >
+              <More size={18} tone="textPrimary" />
+            </IconButton>
+          </View>
+        </>
+      }
+      heroRef={heroRef}
+      cover={<PlaylistCover songIds={ids} size={wide ? 176 : 196} />}
+      titles={
+        <>
+          <View style={listHeadText.kind}>
             <Sparkle size={11} />
-            <Text style={styles.kindText}>Picked for you</Text>
+            <Text style={listHeadText.kindText}>Picked for you</Text>
           </View>
           <Text
-            style={[styles.name, result.understanding.name.length > 24 && styles.nameLong]}
+            style={[listHeadText.name, result.understanding.name.length > 24 && styles.nameLong]}
             numberOfLines={2}
             accessibilityRole="header"
             testID="answer-name"
           >
             {result.understanding.name}
           </Text>
-          <Text style={styles.summary}>
+          <Text style={listHeadText.summary}>
             {plural(ids.length, 'song', 'songs')}
             {ids.length > 0 ? ` · ${formatLongDuration(seconds)}` : ''}
             {result.fit > ids.length ? ` · picked from ${result.fit} that fit` : ''}
@@ -234,8 +227,10 @@ export function AnswerScreen(): ReactNode {
           {again.error ? (
             <Text style={styles.error}>{failureText('Couldn’t pick again', again.error)}</Text>
           ) : null}
-        </View>
-        <View style={[styles.actions, wide && styles.actionsWide]}>
+        </>
+      }
+      actions={
+        <>
           <PlayButton
             label={`Play the songs picked for “${kept.text}”`}
             icon={<Play size={24} color={theme.colors.onPrimary} />}
@@ -259,32 +254,17 @@ export function AnswerScreen(): ReactNode {
             onPress={() => again.mutate(understanding)}
             testID="answer-again"
           />
-        </View>
-      </View>
-      {/* The page is the version showing: no trail of the ones before it. */}
-      <ChangeIt answerId={kept.id} trail={false} large />
-    </View>
-  )
-
-  // Always mounted, told when to show (as on a tag's page): in the list at the
-  // head's foot on a computer, floating at the foot on a phone.
-  const bar = (
-    <SelectionBar
-      shown={selection.active}
-      songs={selectedSongs}
-      total={songs.length}
-      scope="in this answer"
-      allSelected={selection.allSelected}
-      onSelectAll={selection.selectAll}
-      onDeselectAll={selection.clear}
-      onDone={selection.clear}
-      inline={wide}
+        </>
+      }
+      // The page is the version showing: no trail of the ones before it.
+      after={<ChangeIt answerId={kept.id} trail={false} large />}
+      wideOverrides={WIDE}
     />
   )
 
   return (
     <View style={styles.screen} testID="answer-page">
-      {wide ? null : bar}
+      {bar.floating}
       <View style={[styles.listArea, edited && styles.stale]}>
         <OrderedSongList
           songs={songs}
@@ -293,10 +273,8 @@ export function AnswerScreen(): ReactNode {
           onPlay={play}
           onReorder={order => reorderAnswer(kept.id, order)}
           header={head}
-          pinned={wide ? bar : null}
-          contentContainerStyle={
-            selection.active && !wide ? { paddingBottom: SELECTION_BAR_SPACE } : undefined
-          }
+          pinned={bar.pinned}
+          contentContainerStyle={bar.listPadding}
         />
       </View>
 
@@ -326,45 +304,18 @@ export function AnswerScreen(): ReactNode {
   )
 }
 
+/** Words asked run longer than a tag's name, so the words take a little more of the row. */
+const WIDE = { titles: { flexBasis: 260 } } as const
+
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   listArea: { flex: 1, minHeight: 0 },
   stale: { opacity: 0.55 },
-  // The tag page's head (`PlacePage`), so an answer reads as the same kind of page.
-  head: { paddingHorizontal: 20, paddingBottom: 16, gap: 18, overflow: 'hidden' },
-  headWide: { paddingHorizontal: 40, paddingTop: 16 },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 8,
-  },
-  hero: { gap: 16 },
-  heroWide: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 28 },
-  mosaic: {
-    alignSelf: 'flex-start',
-    ...artShadow(theme.colors),
-    borderRadius: radius.card,
-  },
-  titles: { gap: 6, flexShrink: 1, minWidth: 0 },
-  titlesWide: { flexGrow: 1, flexBasis: 260 },
-  kind: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  kindText: labelText(theme.colors),
-  name: {
-    color: theme.colors.textPrimary,
-    fontFamily: fonts.display,
-    fontSize: 40,
-    lineHeight: 46,
-    letterSpacing: -0.8,
-  },
   // Words asked run longer than a tag's name: smaller, so three lines still hold them.
   nameLong: { fontSize: 28, lineHeight: 34, letterSpacing: -0.4 },
-  summary: { color: theme.colors.textSecondary, fontSize: 14 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 6 },
   note: { color: theme.colors.textMuted, fontSize: 12.5 },
   error: { color: theme.colors.danger, fontSize: 12.5 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  actionsWide: { marginLeft: 'auto', paddingBottom: 6 },
   gone: { padding: 24, gap: 12, alignItems: 'flex-start' },
   goneTitle: { ...serif(theme.colors, 30) },
   goneText: { color: theme.colors.textSecondary, fontSize: 15, lineHeight: 22 },

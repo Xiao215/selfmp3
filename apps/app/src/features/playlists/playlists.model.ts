@@ -155,11 +155,13 @@ export function usePlaylistsModel(sort: PlaylistSort = 'recent'): PlaylistsModel
 }
 
 /**
- * The server writes `2026-09-13 06:17:55` and a bucket writes ISO; compared as
- * text, the space sorts before the `T`. One shape makes the comparison honest.
+ * A stamp as a time to compare. The server writes `2026-09-13 06:17:55` and a
+ * bucket writes ISO, which `fromSqliteTime` reads alike; none (or one that
+ * cannot be read) is 0, the oldest of all.
  */
-function stamp(value: string | null | undefined): string {
-  return value ? value.replace(' ', 'T') : ''
+function when(value: string | null | undefined): number {
+  const time = value ? fromSqliteTime(value) : 0
+  return Number.isNaN(time) ? 0 : time
 }
 
 const byName = (a: Playlist, b: Playlist): number => a.name.localeCompare(b.name)
@@ -178,8 +180,7 @@ export function sortPlaylists(
   sort: PlaylistSort,
 ): readonly Playlist[] {
   const list = [...playlists]
-  const newestMade = (a: Playlist, b: Playlist): number =>
-    stamp(b.createdAt).localeCompare(stamp(a.createdAt))
+  const newestMade = (a: Playlist, b: Playlist): number => when(b.createdAt) - when(a.createdAt)
   switch (sort) {
     case 'name':
       return list.sort(byName)
@@ -187,8 +188,8 @@ export function sortPlaylists(
       return list.sort((a, b) => newestMade(a, b) || byName(a, b))
     case 'recent':
       return list.sort((a, b) => {
-        const played = stamp(b.lastPlayedAt).localeCompare(stamp(a.lastPlayedAt))
-        // An empty stamp sorts before any real one, so "never" is already last.
+        const played = when(b.lastPlayedAt) - when(a.lastPlayedAt)
+        // Never played is 0, before any real time, so "never" is already last.
         return played || newestMade(a, b) || byName(a, b)
       })
   }

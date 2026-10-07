@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Linking, View } from 'react-native'
+import { failureText } from '@selfmp3/client'
 import { loginItem } from '../../ports/loginItem'
 import { updates, type UpdateState } from '../../ports/updates'
 import { Button } from '../../ui/components/Button'
 import { Toggle } from '../../ui/components/Toggle'
+import { showToast } from '../../ui/toast'
 import { Panel, Row } from './SettingsParts'
 
 /**
@@ -39,6 +41,9 @@ export function DesktopPanel({ anchor }: { anchor: (node: View | null) => void }
     void updates
       .check()
       .then(setUpdate)
+      .catch((caught: unknown) => {
+        showToast(failureText('Couldn’t check for updates', caught), 'error')
+      })
       .finally(() => setLooking(false))
   }
 

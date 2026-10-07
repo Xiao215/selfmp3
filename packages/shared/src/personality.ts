@@ -30,6 +30,15 @@ export interface PersonalityInput {
   readonly activeDays: number
 }
 
+/**
+ * The hours of each time of day, local: 22:00–04:59 is night, 05:00–09:59 is
+ * early, 10:00–17:59 is the day, and what is left is the evening. Exported so
+ * Stats' Peak hour names an hour by the same bands these traits count in.
+ */
+export const NIGHT_HOURS: readonly number[] = [22, 23, 0, 1, 2, 3, 4]
+export const EARLY_HOURS: readonly number[] = [5, 6, 7, 8, 9]
+export const DAY_HOURS: readonly number[] = [10, 11, 12, 13, 14, 15, 16, 17]
+
 /** Fewer plays than this and no pattern is worth claiming. */
 const PERSONALITY_MIN_PLAYS = 10
 
@@ -52,11 +61,11 @@ export function listeningPersonality(input: PersonalityInput): PersonalityTrait[
   const traits: PersonalityTrait[] = []
   const share = (count: number): number => (input.plays > 0 ? count / input.plays : 0)
 
-  // Time of day. 22:00–04:59 is night; 05:00–09:59 is early; the middle of
-  // the day only earns a trait when it is clearly dominant.
-  const night = sumHours(input.hourly, [22, 23, 0, 1, 2, 3, 4])
-  const early = sumHours(input.hourly, [5, 6, 7, 8, 9])
-  const day = sumHours(input.hourly, [10, 11, 12, 13, 14, 15, 16, 17])
+  // Time of day, by the bands above; the middle of the day only earns a trait
+  // when it is clearly dominant.
+  const night = sumHours(input.hourly, NIGHT_HOURS)
+  const early = sumHours(input.hourly, EARLY_HOURS)
+  const day = sumHours(input.hourly, DAY_HOURS)
   if (share(night) >= TIME_SHARE) traits.push('Night owl')
   else if (share(early) >= TIME_SHARE) traits.push('Early bird')
   else if (share(day) >= 0.6) traits.push('Daytime listener')

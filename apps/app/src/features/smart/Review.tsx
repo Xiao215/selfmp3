@@ -1,15 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
-import { onMac, radius, space, useLibrary, withAlpha } from '@selfmp3/client'
+import { onMac, radius, space, withAlpha } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
 import { ChevronDown, ChevronRight, Sparkle } from '../../ui/components/Icons'
+import { useSongsById } from '../../ui/songsById'
 import { label as labelText } from '../../ui/surfaces'
 import type { AnswerKeys } from './answerKeys'
 import { keptSongs, leftOutKey, reviewBands, tickedAtFirst, type Reviewed } from './smart.model'
@@ -24,13 +25,13 @@ const CHANGE_TEXT = BAND_TEXT + 18 + 12
 
 /** How many changes a heading shows before "N more". */
 const SECTION_SHOWS = 3
-/** How many songs an opened change lists first. */
-const SONGS_SHOW = 8
+/** How many songs an opened change lists first; Ask's library answer lists as many. */
+export const SONGS_SHOW = 8
 /**
  * How many more each "Show more" adds. A change can be on a thousand songs,
  * and every one drawn at once is a long wait for a list nobody reads to the end.
  */
-const SONGS_MORE = 50
+export const SONGS_MORE = 50
 
 const COMMAND =
   typeof navigator !== 'undefined' && onMac(navigator.userAgent, navigator.maxTouchPoints ?? 0)
@@ -111,12 +112,8 @@ export function Review<T extends Reviewed>({
   /** Changes drawn open to their songs from the start, by key. */
   openAtFirst?: readonly string[]
 }): ReactNode {
-  const { data: library } = useLibrary()
+  const songsById = useSongsById()
   const artFor = useArt(ROW_COVER_SIZE)
-  const songsById = useMemo(
-    () => new Map((library?.songs ?? []).map(song => [song.id, song])),
-    [library],
-  )
   const [ticked, setTicked] = useState<ReadonlySet<string> | null>(null)
   const [leftOut, setLeftOut] = useState<ReadonlySet<string>>(new Set())
   /** Headings showing every change, changes open to their songs, and how many songs opened ones show. */

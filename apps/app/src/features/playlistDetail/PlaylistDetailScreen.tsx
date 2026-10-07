@@ -9,9 +9,7 @@ import {
   bytesToDownload,
   clientApi,
   failureText,
-  fonts,
   queryKeys,
-  radius,
   space,
   useDeletePlaylist,
   useLibrary,
@@ -28,13 +26,13 @@ import { useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { showToast } from '../../ui/toast'
-import { artShadow, label as labelText } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
+import { useSongsById } from '../../ui/songsById'
 import { useSongColor } from '../../ui/useSongColor'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
-import { CoverLight } from '../../ui/components/CoverLight'
 import { IconButton } from '../../ui/components/IconButton'
+import { ListHead, listHeadText } from '../../ui/components/ListHead'
 import {
   ChevronLeft,
   CloudDownload,
@@ -51,10 +49,9 @@ import {
   Trash,
 } from '../../ui/components/Icons'
 import { Popover } from '../../ui/components/Popover'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
 import { SheetItem } from '../../ui/components/Sheet'
+import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
 import { OrderedSongList } from '../../ui/components/OrderedSongList'
 import { usePullToRefresh } from '../library/usePullToRefresh'
 import { PlaylistCover } from '../playlists/PlaylistCover'
@@ -95,9 +92,6 @@ import { cameFrom } from './playlistDetail.model'
  */
 export function PlaylistDetailScreen(): ReactNode {
   const { theme } = useUnistyles()
-  // The head's light runs up behind the status bar rather than stopping at
-  // it, so the page is lit to its own top edge; only what is read sits under.
-  const { top } = useSafeAreaInsets()
   const artFor = useArt(ROW_COVER_SIZE)
   const accent = useAccent()
   const { wide, finePointer } = useLayout()
@@ -131,12 +125,14 @@ export function PlaylistDetailScreen(): ReactNode {
   const manual = playlist?.kind === 'manual'
   const tags = useMemo(() => library.data?.tags ?? [], [library.data])
 
-  const songs = useMemo(() => {
-    const byId = new Map((library.data?.songs ?? []).map(song => [song.id, song]))
-    return (contents.data?.songIds ?? [])
-      .map(id => byId.get(id))
-      .filter((song): song is Song => song !== undefined)
-  }, [library.data, contents.data])
+  const byId = useSongsById()
+  const songs = useMemo(
+    () =>
+      (contents.data?.songIds ?? [])
+        .map(id => byId.get(id))
+        .filter((song): song is Song => song !== undefined),
+    [byId, contents.data],
+  )
   const songIds = useMemo(() => songs.map(song => song.id), [songs])
   const inPlaylist = useMemo(() => new Set(songIds), [songIds])
   // The page is lit by the first cover it has, as a tag's page is.
@@ -145,10 +141,20 @@ export function PlaylistDetailScreen(): ReactNode {
   const light = useSongColor(lead, leadArt)
 
   const selection = useSelection(songIds)
-  const selectedSongs = useMemo(
-    () => songs.filter(song => selection.has(song.id)),
-    [songs, selection],
-  )
+  /*
+   * The selection bar takes a lane above the songs, so it covers none of them.
+   * Left mounted while there is a playlist at all and told whether it belongs
+   * on screen, rather than drawn and cut: a bar cut away the moment Done is
+   * pressed has no chance to sink back, and it takes itself down once it has.
+   */
+  const bar = useListSelectionBar({
+    songs,
+    selection,
+    scope: 'in this playlist',
+    wide,
+    // A live playlist has no membership to edit, so removing from it would be a lie.
+    playlist: playlist && manual ? { id: playlist.id, name: playlist.name } : undefined,
+  })
 
   const pendingBytes = manifest.data ? bytesToDownload(downloads.index, manifest.data, songIds) : 0
   // A string of its own rather than a read off `playlist`: the rows' memo
@@ -235,14 +241,16 @@ export function PlaylistDetailScreen(): ReactNode {
   }
 
   const titles = (
-    <View style={styles.titles}>
-      <View style={styles.kind}>
+    <>
+      <View style={listHeadText.kind}>
         {live ? <Live size={12} tone="textSecondary" /> : null}
-        <Text style={styles.kindText}>{live ? `Playlist · ${FOLLOWS_LABEL}` : 'Playlist'}</Text>
+        <Text style={listHeadText.kindText}>
+          {live ? `Playlist · ${FOLLOWS_LABEL}` : 'Playlist'}
+        </Text>
       </View>
       {renaming ? (
         <TextInput
-          style={[styles.name, wide && styles.nameWide, styles.nameInput]}
+          style={[listHeadText.name, wide && styles.nameWide, styles.nameInput]}
           value={draftName ?? playlist?.name ?? ''}
           onChangeText={setDraftName}
           onSubmitEditing={saveName}
@@ -258,7 +266,7 @@ export function PlaylistDetailScreen(): ReactNode {
           accessibilityRole="header"
           {...(finePointer ? tip('Rename') : {})}
         >
-          <Text style={[styles.name, wide && styles.nameWide]} numberOfLines={2}>
+          <Text style={[listHeadText.name, wide && styles.nameWide]} numberOfLines={2}>
             {name}
           </Text>
         </Pressable>
@@ -280,10 +288,10 @@ export function PlaylistDetailScreen(): ReactNode {
           {playlist.description}
         </Text>
       ) : null}
-      <Text style={styles.summary}>
+      <Text style={listHeadText.summary}>
         {playlistHeadLine(count, seconds, playlist?.lastPlayedAt ?? null, new Date())}
       </Text>
-    </View>
+    </>
   )
 
   const moreButton = (
@@ -306,26 +314,30 @@ export function PlaylistDetailScreen(): ReactNode {
   // header rather than the top of a ScrollView drawing every row at once.
   const header = playlist ? (
     <View>
-      <View style={[styles.head, wide && styles.headWide, { paddingTop: top + 8 }]}>
-        <CoverLight color={light.color} art={leadArt} />
-        {wide ? null : (
-          <View style={styles.topBar}>
-            <IconButton label="Back to playlists" onPress={back} filled>
-              <ChevronLeft size={20} tone="textPrimary" />
-            </IconButton>
-            {moreButton}
-          </View>
-        )}
-        <View style={[styles.hero, wide && styles.heroWide]}>
-          <View style={styles.mosaic}>
-            <PlaylistCover
-              playlist={playlist}
-              songIds={contents.data?.songIds}
-              size={wide ? 176 : 168}
-            />
-          </View>
-          {titles}
-          <View style={[styles.actions, wide && styles.actionsWide]}>
+      <ListHead
+        wide={wide}
+        light={light.color}
+        art={leadArt}
+        topBar={
+          wide ? null : (
+            <>
+              <IconButton label="Back to playlists" onPress={back} filled>
+                <ChevronLeft size={20} tone="textPrimary" />
+              </IconButton>
+              {moreButton}
+            </>
+          )
+        }
+        cover={
+          <PlaylistCover
+            playlist={playlist}
+            songIds={contents.data?.songIds}
+            size={wide ? 176 : 168}
+          />
+        }
+        titles={titles}
+        actions={
+          <>
             {emptyPlaylist ? null : (
               // The page's one white Play (`S2`).
               <PlayButton
@@ -354,9 +366,10 @@ export function PlaylistDetailScreen(): ReactNode {
               />
             ) : null}
             {wide ? moreButton : null}
-          </View>
-        </View>
-      </View>
+          </>
+        }
+        wideOverrides={WIDE}
+      />
       {live ? (
         <View style={styles.gutter}>
           <FollowsRow playlist={playlist} tags={tags} />
@@ -407,36 +420,11 @@ export function PlaylistDetailScreen(): ReactNode {
     </View>
   )
 
-  /*
-   * The selection bar takes a lane above the songs, so it covers none of them:
-   * on a computer in the list, at the head's foot, staying at the top once the
-   * head has scrolled away, and on a phone floating at the foot. Left mounted
-   * while there is a playlist at all and told whether it belongs on screen,
-   * rather than drawn and cut: a bar cut away the moment Done is pressed has no
-   * chance to sink back, and it takes itself down once it has.
-   */
-  const bar = playlist ? (
-    <SelectionBar
-      shown={selection.active}
-      songs={selectedSongs}
-      total={songs.length}
-      scope="in this playlist"
-      allSelected={selection.allSelected}
-      onSelectAll={selection.selectAll}
-      onDeselectAll={selection.clear}
-      onDone={selection.clear}
-      // A live playlist has no membership to edit, so removing from it
-      // would be a lie.
-      playlist={manual ? { id: playlist.id, name: playlist.name } : undefined}
-      inline={wide}
-    />
-  ) : null
-
   return (
     <View style={styles.screen}>
       <View style={styles.split}>
         <View style={styles.listArea}>
-          {wide ? null : bar}
+          {playlist ? bar.floating : null}
 
           <OrderedSongList
             songs={songs}
@@ -445,13 +433,10 @@ export function PlaylistDetailScreen(): ReactNode {
             onPlay={index => playback.playFrom(playlistId, songIds, index)}
             onReorder={moved => reorderPlaylist.mutate({ playlistId, songIds: [...moved] })}
             header={header}
-            pinned={wide ? bar : null}
+            pinned={playlist ? bar.pinned : null}
             empty={empty}
             style={styles.scroll}
-            contentContainerStyle={[
-              styles.content,
-              selection.active && !wide && { paddingBottom: SELECTION_BAR_SPACE },
-            ]}
+            contentContainerStyle={[styles.content, bar.listPadding]}
             keyboardShouldPersistTaps="handled"
             // A name or a description being typed in the head stays open through a scroll.
             keyboardDismissMode="none"
@@ -543,7 +528,7 @@ export function PlaylistDetailScreen(): ReactNode {
         <AddSongsSheet
           open={adding}
           onClose={() => setAdding(false)}
-          playlistName={playlist.name}
+          targetName={playlist.name}
           target={{ kind: 'existing', playlistId: playlist.id, inPlaylist }}
         />
       ) : null}
@@ -566,6 +551,16 @@ export function PlaylistDetailScreen(): ReactNode {
   )
 }
 
+/**
+ * A playlist's head on a computer keeps the hero on one row, its buttons
+ * straight after the words rather than pushed to the far end.
+ */
+const WIDE = {
+  hero: { flexWrap: 'nowrap', gap: 24 },
+  titles: { flexBasis: 'auto' },
+  actions: { marginLeft: 0 },
+} as const
+
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   split: { flex: 1, flexDirection: 'row' },
@@ -576,32 +571,6 @@ const styles = StyleSheet.create(theme => ({
   // place on this page. The head and the empty state take it themselves.
   content: { paddingBottom: space.xl },
   gutter: { paddingHorizontal: space.lg },
-  // The light stays inside the head, so it never runs on under the rows.
-  head: { paddingHorizontal: 20, paddingBottom: 16, gap: 18, overflow: 'hidden' },
-  headWide: { paddingHorizontal: 40, paddingTop: 44 },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 8,
-  },
-  hero: { gap: 16 },
-  heroWide: { flexDirection: 'row', alignItems: 'flex-end', gap: 24 },
-  mosaic: {
-    alignSelf: 'flex-start',
-    ...artShadow(theme.colors),
-    borderRadius: radius.card,
-  },
-  titles: { gap: 6, flexShrink: 1, flexGrow: 1, minWidth: 0 },
-  kind: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  kindText: labelText(theme.colors),
-  name: {
-    color: theme.colors.textPrimary,
-    fontFamily: fonts.display,
-    fontSize: 40,
-    lineHeight: 46,
-    letterSpacing: -0.8,
-  },
   nameWide: { fontSize: 56, lineHeight: 60, letterSpacing: -1.5 },
   // A field in place of the name: the control surface, and no edge.
   nameInput: {
@@ -617,9 +586,6 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: 12,
     backgroundColor: theme.colors.surface2,
   },
-  summary: { color: theme.colors.textSecondary, fontSize: 14 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  actionsWide: { paddingBottom: 6 },
   // Room between the menu's groups, where a line used to be.
   divider: { height: space.sm },
   spinner: { marginTop: space.xl },

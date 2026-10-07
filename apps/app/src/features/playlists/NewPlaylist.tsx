@@ -156,7 +156,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
       <AddSongsSheet
         open={open}
         onClose={cancel}
-        playlistName={picking}
+        targetName={picking}
         target={{ kind: 'new', create: createWith }}
       />
     )

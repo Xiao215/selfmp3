@@ -5,7 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { plural, type AskAnswer as Answer } from '@selfmp3/shared'
-import { failureText, radius, space, useLibrary } from '@selfmp3/client'
+import { failureText, radius, space } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -13,8 +13,9 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { Play, Sparkle } from '../../ui/components/Icons'
+import { useSongsById } from '../../ui/songsById'
 import { ChangeField, TrailStep } from './ChangeIt'
-import { placePath, rangeWords } from './smart.model'
+import { rangeWords } from './smart.model'
 import { GetMusicAnswer } from './GetMusicAnswer'
 import { LibraryAnswer } from './LibraryAnswer'
 import { PlaylistSongsAnswer } from './PlaylistSongsAnswer'
@@ -27,6 +28,24 @@ import type { AnswerKeys } from './answerKeys'
 import { Working } from './Working'
 import { newTicket, useAskProgress } from './useAskProgress'
 import { useSmartServer } from './useSmartServer'
+
+/**
+ * An ask's query key: the server it went to, the words first asked, the song
+ * playing then and the follow-ups said since. `askedFirst` reads the words
+ * back out of one, so where they sit is written down in one place.
+ */
+function askKey(
+  via: string | null,
+  text: string,
+  playing: number | null,
+  asked: readonly string[],
+): readonly unknown[] {
+  return ['via-server', via, 'ai', 'ask', text, playing, asked]
+}
+
+function askedFirst(key: readonly unknown[]): unknown {
+  return key[4]
+}
 
 /**
  * The answer to an Ask in the Search box (S1, docs/features/ai.md), drawn in
@@ -85,7 +104,7 @@ export function AskAnswer({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const ticket = useMemo(() => newTicket(), [text, saidSoFar])
   const answer = useQuery({
-    queryKey: ['via-server', via, 'ai', 'ask', text, playing, asked],
+    queryKey: askKey(via, text, playing, asked),
     // Read, so React Query drops the request when nobody watches it any more:
     // Stop, Escape, the box closed. The server stops asking the model with it.
     queryFn: ({ signal }) => server.api!.ask(latest, playing, ticket, before, signal),
@@ -93,7 +112,8 @@ export function AskAnswer({
     retry: false,
     staleTime: 10 * 60_000,
     // A follow-up keeps the answer it changes on screen until the new one lands.
-    placeholderData: (previous, query) => (query?.queryKey[4] === text ? previous : undefined),
+    placeholderData: (previous, query) =>
+      query && askedFirst(query.queryKey) === text ? previous : undefined,
   })
   const following = answer.isPlaceholderData
   const live = useAskProgress(ticket, answer.isPending || following)
@@ -284,7 +304,7 @@ function Drawn({
               label={`Open ${answer.place[0]!.toUpperCase()}${answer.place.slice(1)}`}
               onPress={() => {
                 onDone()
-                router.navigate(placePath(answer.place))
+                router.navigate(`/${answer.place}`)
               }}
             />
           </View>
@@ -328,10 +348,10 @@ function Found({
   onDone: () => void
 }): ReactNode {
   const server = useSmartServer()
-  const { data: library } = useLibrary()
+  const songsById = useSongsById()
   const here = answer.picks.filter(pick => {
     const id = server.onDevice(pick.songId)
-    return id !== undefined && library?.songs.some(song => song.id === id)
+    return id !== undefined && songsById.has(id)
   })
   if (here.length === 0) {
     return <Text style={styles.line}>No song of yours fits that. Try other words for it.</Text>
@@ -355,9 +375,8 @@ function SongPicks({
   const { theme } = useUnistyles()
   const server = useSmartServer()
   const player = usePlayer()
-  const { data: library } = useLibrary()
+  const songsById = useSongsById()
   const artFor = useArt(ROW_COVER_SIZE)
-  const songsById = new Map((library?.songs ?? []).map(song => [song.id, song]))
   const found = picks.flatMap(pick => {
     const id = server.onDevice(pick.songId)
     const song = id === undefined ? undefined : songsById.get(id)

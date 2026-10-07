@@ -13,6 +13,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { libraryArtists } from '@selfmp3/shared'
 import { radius, tagColors, useLibrary } from '@selfmp3/client'
 import { useRecentTagIds } from '../library/recentTags.store'
+import { songsById } from '../../ui/songsById'
 import { ArtistFace } from './ArtistFace'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
@@ -85,7 +86,7 @@ function AddSheetBody({
   const artists = useMemo(() => libraryArtists(songs), [songs])
   // Each artist's first song with a cover: their face until the picture comes.
   const leads = useMemo(() => {
-    const byId = new Map(songs.map(song => [song.id, song]))
+    const byId = songsById(songs)
     return new Map(
       artists.map(artist => {
         const own = artist.songIds.flatMap(id => byId.get(id) ?? [])

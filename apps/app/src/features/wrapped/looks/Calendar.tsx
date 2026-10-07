@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { fonts, lightPalette, radius } from '@selfmp3/client'
+import { fonts, radius } from '@selfmp3/client'
 import { Cover } from '../../../ui/components/Cover'
 import { calendarLook, lookInk } from '../looks.model'
 import { DayDot, mono, type LookProps } from './parts'
@@ -21,7 +21,6 @@ const GAP = 4
 export function CalendarLook({ input, hue, art }: LookProps): ReactNode {
   const look = calendarLook(input)
   const ink = lookInk('calendar', hue)
-  const quiet = lightPalette(hue).surface3
   const { grid } = look
   const cell = (CALENDAR_SIZE.width - PAD_X * 2 - GAP * (grid.columns - 1)) / grid.columns
   const record = input.wrapped.mostInOneDay
@@ -53,7 +52,7 @@ export function CalendarLook({ input, hue, art }: LookProps): ReactNode {
                     share={day.share}
                     cell={cell}
                     dot={ink.accent}
-                    empty={quiet}
+                    empty={ink.well}
                     smallest={8}
                     largest={Math.min(30, cell * 0.55)}
                     fade

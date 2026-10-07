@@ -12,6 +12,7 @@ import { Checkbox } from '../../ui/components/Checkbox'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
 import { X } from '../../ui/components/Icons'
+import { useSongsById } from '../../ui/songsById'
 import { followRules } from '../library/saveTags'
 import { newPlaylist } from '../playlists/playlists.model'
 import { describeNotes, onlyTags, parts, picksHere, tagIdsFor } from './smart.model'
@@ -69,7 +70,7 @@ export function SongsAnswer({
   })
 
   const tags = library?.tags ?? []
-  const songsById = new Map((library?.songs ?? []).map(song => [song.id, song]))
+  const songsById = useSongsById()
   const understanding = edited ?? result.understanding
   const picks = picksHere(result, server.onDevice).filter(
     pick => !left.has(pick.songId) && songsById.has(pick.songId),

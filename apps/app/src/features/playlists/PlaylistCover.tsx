@@ -3,9 +3,10 @@ import type { ReactNode } from 'react'
 import { View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { Playlist, Song } from '@selfmp3/shared'
-import { radius, useLibrary, usePlaylistSongIds } from '@selfmp3/client'
+import { radius, usePlaylistSongIds } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
+import { useSongsById } from '../../ui/songsById'
 import { Cover } from '../../ui/components/Cover'
 import { ListMusic, Live } from '../../ui/components/Icons'
 import { isLive } from './playlists.model'
@@ -34,14 +35,13 @@ export function PlaylistCover({
 }): ReactNode {
   const { theme } = useUnistyles()
   const artFor = useArt(ROW_COVER_SIZE)
-  const { data: library } = useLibrary()
+  const byId = useSongsById()
   const { data } = usePlaylistSongIds(
     given || !playlist || playlist.songCount === 0 ? null : playlist.id,
   )
 
   const songIds = given ?? data?.songIds
   const covers = useMemo(() => {
-    const byId = songsById(library?.songs ?? NO_SONGS)
     const songs = (songIds ?? []).slice(0, 24).flatMap(id => {
       const song = byId.get(id)
       return song ? [song] : []
@@ -49,7 +49,7 @@ export function PlaylistCover({
     const withArt = songs.filter(song => artFor(song) !== null)
     if (withArt.length >= 4) return withArt.slice(0, 4)
     return withArt.slice(0, 1).length > 0 ? withArt.slice(0, 1) : songs.slice(0, 1)
-  }, [library?.songs, songIds, artFor])
+  }, [byId, songIds, artFor])
 
   // Held, not rebuilt: a tag list or a playlist grid draws one of these per
   // row, and these numbers only depend on the size asked for.
@@ -84,8 +84,6 @@ export function PlaylistCover({
   )
 }
 
-const NO_SONGS: readonly Song[] = []
-
 /**
  * The corner for a cover this size (`S2`): a tile in the grid and the big
  * cover at the top of a playlist are cards, 18 round; a cover in a row is
@@ -94,22 +92,6 @@ const NO_SONGS: readonly Song[] = []
 function coverRadius(size: number | undefined): number {
   if (size === undefined || size >= 96) return radius.card
   return size >= 40 ? radius.cover : radius.coverSm
-}
-
-/**
- * The library by song id, built once per library and shared by every tile.
- * Per-tile, a grid of forty playlists would build forty copies of the whole
- * library every time any cover arrived.
- */
-const byIdCache = new WeakMap<readonly Song[], ReadonlyMap<number, Song>>()
-
-function songsById(songs: readonly Song[]): ReadonlyMap<number, Song> {
-  let byId = byIdCache.get(songs)
-  if (!byId) {
-    byId = new Map(songs.map(song => [song.id, song]))
-    byIdCache.set(songs, byId)
-  }
-  return byId
 }
 
 /**

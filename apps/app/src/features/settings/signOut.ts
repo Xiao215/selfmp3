@@ -1,8 +1,9 @@
 /**
  * Signing this device out of the cloud.
  *
- * The order matters, and each step is the caller's to supply so the order can
- * be tested without a doorman, a bucket or a device:
+ * Steps 1 to 3 run in order; 4 and 5 then run together, since none waits on
+ * another and one failing must not stop the rest. Each step is the caller's to
+ * supply, so the order can be tested without a doorman, a bucket or a device:
  *
  * 1. Stop the music, and empty the queue. First, before anything is taken
  *    away: the songs it is playing are about to be deleted and the library
@@ -19,7 +20,8 @@
  * 5. Forget the saved library, for the same reason — and which songs were
  *    removed by hand, which is the same ids again: kept, they would keep
  *    another account's songs from downloading by themselves, with nothing to
- *    show why.
+ *    show why. That list goes first, before 4 and 5 start, since forgetting
+ *    it is immediate.
  * 6. Hand back to the app, which returns to Welcome (`SIGNED_OUT_ROUTE`).
  */
 export interface SignOutSteps {

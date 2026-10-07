@@ -1,15 +1,10 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { Song, Stats, StatsRange, Wrapped, WrappedRange } from '@selfmp3/shared'
-import {
-  useHistory,
-  useLibrary,
-  useStats,
-  useWrapped,
-  type ServerConnection,
-} from '@selfmp3/client'
+import { useHistory, useStats, useWrapped, type Api, type ServerConnection } from '@selfmp3/client'
 import { apiFor } from '../../api/client'
 import { useServerSongIds } from '../../connection/useServerSongIds'
+import { useSongsById } from '../../ui/songsById'
 
 /**
  * Where the numbers on Stats, the Report and Profile's month come from: whatever
@@ -31,48 +26,49 @@ const noServer = (): Promise<never> => Promise.reject(new Error('no server to as
 const key = (via: ServerConnection | undefined, ...rest: readonly unknown[]) =>
   ['via-server', via?.baseUrl, ...rest] as const
 
-export function useStatsFor(
+/** What each of these hooks hands the screen, whichever library answered. */
+interface Answer<T> {
+  readonly data: T | undefined
+  readonly isLoading: boolean
+}
+
+/**
+ * This device's own answer (`own`, asked only without a server), or the same
+ * question put to the server directly: what every hook below is.
+ */
+function useOwnOrVia<T>(
   via: ServerConnection | undefined,
-  range: StatsRange,
-): { data: Stats | undefined; isLoading: boolean } {
-  const own = useStats(range, via === undefined)
+  own: Answer<T>,
+  rest: readonly unknown[],
+  ask: (api: Api) => Promise<T>,
+): Answer<T> {
   const server = useQuery({
-    queryKey: key(via, 'stats', range),
-    queryFn: () => (via ? apiFor(via).stats(range) : noServer()),
+    queryKey: key(via, ...rest),
+    queryFn: () => (via ? ask(apiFor(via)) : noServer()),
     enabled: via !== undefined,
     retry: false,
     staleTime: 60_000,
   })
   const chosen = via ? server : own
   return { data: chosen.data, isLoading: chosen.isLoading }
+}
+
+export function useStatsFor(via: ServerConnection | undefined, range: StatsRange): Answer<Stats> {
+  const own = useStats(range, via === undefined)
+  return useOwnOrVia(via, own, ['stats', range], api => api.stats(range))
 }
 
 export function useWrappedFor(
   via: ServerConnection | undefined,
   range: WrappedRange,
-): { data: Wrapped | undefined; isLoading: boolean } {
+): Answer<Wrapped> {
   const own = useWrapped(range, via === undefined)
-  const server = useQuery({
-    queryKey: key(via, 'wrapped', range),
-    queryFn: () => (via ? apiFor(via).wrapped(range) : noServer()),
-    enabled: via !== undefined,
-    retry: false,
-    staleTime: 60_000,
-  })
-  const chosen = via ? server : own
-  return { data: chosen.data, isLoading: chosen.isLoading }
+  return useOwnOrVia(via, own, ['wrapped', range], api => api.wrapped(range))
 }
 
 export function useHistoryFor(via: ServerConnection | undefined) {
   const own = useHistory(via === undefined)
-  const server = useQuery({
-    queryKey: key(via, 'history'),
-    queryFn: () => (via ? apiFor(via).history(200) : noServer()),
-    enabled: via !== undefined,
-    retry: false,
-    staleTime: 60_000,
-  })
-  return { data: via ? server.data : own.data }
+  return useOwnOrVia(via, own, ['history'], api => api.history(200))
 }
 
 /**
@@ -88,12 +84,8 @@ export function useHistoryFor(via: ServerConnection | undefined) {
 export function useStatsSongs(
   via: ServerConnection | undefined,
 ): (songId: number) => Song | undefined {
-  const { data: library } = useLibrary()
+  const byId = useSongsById()
   const ids = useServerSongIds(via)
-  const byId = useMemo(
-    () => new Map((library?.songs ?? []).map(song => [song.id, song])),
-    [library],
-  )
   return useMemo(
     () => (songId: number) => {
       const here = via ? ids.onDevice(songId) : songId

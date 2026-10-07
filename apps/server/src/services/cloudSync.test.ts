@@ -139,7 +139,6 @@ describe('CloudSyncService', () => {
       Promise.reject(new Error('offline')),
     )
     scanner = new ScannerService({
-      config: { dataDir } as Config,
       storage,
       songs,
       metadata: new MetadataService(storage, logger),

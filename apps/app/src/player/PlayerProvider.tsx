@@ -33,6 +33,7 @@ import {
   countInMs,
   type EngineState,
   type FrequencyAnalyser,
+  type ServerConnection,
   listenedDelta,
   peekPlayable,
   recoverPlayback,
@@ -40,16 +41,15 @@ import {
   useSameArray,
   useSettings,
 } from '@selfmp3/client'
-import { mediaUrlFor } from '../api/client'
 import type { ListSource } from '../features/lists/lists.model'
 import {
   artAddress,
-  serverRoutes,
   streamAddress,
   streamHeaders,
   type MediaSources,
 } from '../api/mediaAddress.model'
-import { bucketMedia, configureBucketMedia } from '../ports/bucketMedia'
+import { mediaSourcesFor } from '../api/mediaSources'
+import { configureBucketMedia } from '../ports/bucketMedia'
 import { prefs } from '../ports/prefs'
 import { recentUri } from '../ports/recentCopies'
 import { session as cloudSession } from '../replica'
@@ -214,10 +214,55 @@ export interface PlayerApi {
   setCountIn: (on: boolean) => void
 }
 
+/**
+ * What `PlayerApi` can be asked to do, without anything it says.
+ *
+ * Every one of these is made once and kept, so this is a value that never
+ * changes: a screen that only starts songs — a list's Play, a row's tap —
+ * reads it through `usePlayerCommands()` and is not rendered again for a
+ * play, a pause or a song added to Up next.
+ */
+type PlayerCommands = Pick<
+  PlayerApi,
+  | 'playFrom'
+  | 'playShuffled'
+  | 'setSource'
+  | 'jumpTo'
+  | 'toggle'
+  | 'next'
+  | 'previous'
+  | 'seekTo'
+  | 'seekBy'
+  | 'getPosition'
+  | 'subscribeProgress'
+  | 'getPlayhead'
+  | 'analyser'
+  | 'toggleShuffle'
+  | 'cycleRepeatMode'
+  | 'playNext'
+  | 'addToQueue'
+  | 'removeFromQueue'
+  | 'reorderQueue'
+  | 'insertIntoQueue'
+  | 'clearQueue'
+  | 'forgetSongs'
+  | 'setVolume'
+  | 'stepVolume'
+  | 'toggleMute'
+  | 'setRate'
+  | 'setSleepTimer'
+  | 'setAutoMix'
+  | 'tapLoopPoint'
+  | 'clearLoop'
+  | 'setPreservesPitch'
+  | 'setCountIn'
+>
+
 /** Auto-mix, kept on this device. */
 const AUTO_MIX_KEY = 'automix'
 
 const PlayerContext = createContext<PlayerApi | null>(null)
+const PlayerCommandsContext = createContext<PlayerCommands | null>(null)
 
 /**
  * The facts that move too often, or matter to too few, to ride in `PlayerApi`.
@@ -421,6 +466,11 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
 
   // --- engine wiring -------------------------------------------------------
 
+  // The two parts of the sleep timer the wiring reads, both made once: the
+  // timer object itself is new whenever it is set, and the engine would be
+  // wired again for it.
+  const { atSongEndRef: sleepAtSongEndRef, songEnded: sleepSongEnded } = sleep
+
   const loadIndex = useCallback(
     (state: QueueState, autoplay: boolean, startAt?: number) => {
       const songId = state.items[state.index]
@@ -447,7 +497,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       // With the song's own rev, so a file kept under a reused id is not
       // played as the song that id now names (`entryIsCurrent`).
       local: downloadQueue.localUri(songId, songsRef.current.get(songId)?.rev) ?? recentUri(songId),
-      ...mediaSources(connectionRef.current, fromCloudRef.current),
+      ...mediaSourcesFor(connectionRef.current, fromCloudRef.current, KEPT_COVER_SIZE),
     }),
     [downloadQueue],
   )
@@ -498,8 +548,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         // "End of this song": used up by the first song to end after it was
         // chosen, whichever that is — skipping ahead meanwhile moves the stop
         // with you rather than cancelling it.
-        const sleeping = sleep.atSongEndRef.current
-        if (sleeping) sleep.songEnded()
+        const sleeping = sleepAtSongEndRef.current
+        if (sleeping) sleepSongEnded()
 
         // Past songs that cannot play here: one not on this device, offline,
         // would otherwise load and sit paused with no word.
@@ -546,11 +596,11 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     engine,
     loadIndex,
     flushPlay,
-    downloadQueue,
     mayPlay,
     sourcesFor,
     stores,
-    sleep,
+    sleepAtSongEndRef,
+    sleepSongEnded,
     trackingRef,
     commitQueue,
   ])
@@ -746,7 +796,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const mutateQueue = useCallback(
     (change: (state: QueueState) => QueueState) => {
       commitQueue(change(queueRef.current))
-      refreshLookahead(engine)
+      engine.refreshLookahead?.()
     },
     [engine, commitQueue],
   )
@@ -781,7 +831,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       const next = removeAt(queueRef.current, index)
       commitQueue(next)
       if (wasCurrent && next.items.length > 0) loadIndex(next, engine.state.playing)
-      else refreshLookahead(engine)
+      else engine.refreshLookahead?.()
     },
     [engine, loadIndex, commitQueue],
   )
@@ -801,7 +851,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     engine.pause()
     commitQueue(EMPTY_QUEUE)
     setSource(null)
-    refreshLookahead(engine)
+    engine.refreshLookahead?.()
   }, [engine, commitQueue])
 
   const forgetSongs = useCallback(
@@ -813,13 +863,13 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       commitQueue(next)
       // Only what follows changed: the engine hears it at the next lookahead.
       if (playing === undefined || !songIds.includes(playing)) {
-        refreshLookahead(engine)
+        engine.refreshLookahead?.()
         return
       }
       // The song playing has gone. Whatever takes its place waits to be asked for.
       engine.pause()
       if (next.index >= 0) loadIndex(next, false)
-      else refreshLookahead(engine)
+      else engine.refreshLookahead?.()
     },
     [engine, loadIndex, commitQueue],
   )
@@ -878,13 +928,25 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     engine.setCountIn(countIn ? countInMs(currentBpm) : 0)
   }, [engine, countIn, currentBpm])
 
-  const value = useMemo<PlayerApi>(
+  const getPlayhead = useCallback(() => engine.playhead, [engine])
+  const analyser = useCallback(
+    () => (engine.capabilities.analyser ? engine.analyser() : null),
+    [engine],
+  )
+  const {
+    setVolume,
+    stepVolume,
+    toggleMute,
+    setRate,
+    tapLoopPoint,
+    clearLoop,
+    setPreservesPitch,
+    setCountIn,
+  } = practice
+  const setSleepTimer = sleep.set
+
+  const commands = useMemo<PlayerCommands>(
     () => ({
-      queue,
-      songs: resolved.queueSongs,
-      current: resolved.currentSong,
-      isPlaying: engineState.playing,
-      source,
       playFrom: play,
       playShuffled,
       setSource,
@@ -896,8 +958,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       seekBy,
       getPosition: stores.progress.getPosition,
       subscribeProgress: stores.progress.subscribe,
-      getPlayhead: () => engine.playhead,
-      analyser: () => (engine.capabilities.analyser ? engine.analyser() : null),
+      getPlayhead,
+      analyser,
       toggleShuffle,
       cycleRepeatMode,
       playNext,
@@ -907,28 +969,18 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       reorderQueue,
       clearQueue,
       forgetSongs,
-      sleepTimerEndsAt: sleep.endsAt,
-      sleepAtSongEnd: sleep.atSongEnd,
-      setSleepTimer: sleep.set,
-      autoMix,
-      canCrossfade: engine.capabilities.crossfade,
-      nextCrossfadeSeconds,
+      setVolume,
+      stepVolume,
+      toggleMute,
+      setRate,
+      setSleepTimer,
       setAutoMix,
-      canLoop: engine.capabilities.loop,
-      ...practice,
+      tapLoopPoint,
+      clearLoop,
+      setPreservesPitch,
+      setCountIn,
     }),
     [
-      stores,
-      sleep,
-      engine,
-      autoMix,
-      nextCrossfadeSeconds,
-      setAutoMix,
-      practice,
-      queue,
-      resolved,
-      engineState.playing,
-      source,
       play,
       playShuffled,
       jumpTo,
@@ -937,6 +989,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       previous,
       seekTo,
       seekBy,
+      stores,
+      getPlayhead,
+      analyser,
       toggleShuffle,
       cycleRepeatMode,
       playNext,
@@ -946,6 +1001,47 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       reorderQueue,
       clearQueue,
       forgetSongs,
+      setVolume,
+      stepVolume,
+      toggleMute,
+      setRate,
+      setSleepTimer,
+      setAutoMix,
+      tapLoopPoint,
+      clearLoop,
+      setPreservesPitch,
+      setCountIn,
+    ],
+  )
+
+  const value = useMemo<PlayerApi>(
+    () => ({
+      ...commands,
+      queue,
+      songs: resolved.queueSongs,
+      current: resolved.currentSong,
+      isPlaying: engineState.playing,
+      source,
+      sleepTimerEndsAt: sleep.endsAt,
+      sleepAtSongEnd: sleep.atSongEnd,
+      autoMix,
+      canCrossfade: engine.capabilities.crossfade,
+      nextCrossfadeSeconds,
+      canLoop: engine.capabilities.loop,
+      countIn,
+    }),
+    [
+      commands,
+      queue,
+      resolved,
+      engineState.playing,
+      source,
+      sleep.endsAt,
+      sleep.atSongEnd,
+      autoMix,
+      engine,
+      nextCrossfadeSeconds,
+      countIn,
     ],
   )
 
@@ -991,30 +1087,16 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const currentArtist = currentSong?.artist
   const currentAlbum = currentSong?.album
   useEffect(() => {
-    if (currentId !== null) refreshNowPlaying(engine, currentId)
+    if (currentId !== null) engine.refreshNowPlaying?.(currentId)
   }, [engine, currentId, currentTitle, currentArtist, currentAlbum, nowPlayingArt])
 
   return (
-    <PlayerContext.Provider value={value}>
-      <PlayerStoresContext.Provider value={stores}>{children}</PlayerStoresContext.Provider>
-    </PlayerContext.Provider>
+    <PlayerCommandsContext.Provider value={commands}>
+      <PlayerContext.Provider value={value}>
+        <PlayerStoresContext.Provider value={stores}>{children}</PlayerStoresContext.Provider>
+      </PlayerContext.Provider>
+    </PlayerCommandsContext.Provider>
   )
-}
-
-/**
- * The addresses this device has for a library's media: the bucket's, through
- * whatever this platform has that can attach the doorman's header, and the
- * connected server's. Which of the two answers is the address model's rule.
- */
-function mediaSources(
-  connection: Parameters<typeof mediaUrlFor>[0] | null,
-  fromCloud: boolean,
-): Omit<MediaSources, 'local'> {
-  return {
-    bucket: bucketMedia,
-    server: connection ? serverRoutes(mediaUrlFor(connection), KEPT_COVER_SIZE) : null,
-    fromCloud,
-  }
 }
 
 /** The engine's level, as the volume control draws it. */
@@ -1036,30 +1118,11 @@ function practiceOf(state: EngineState): PracticeState {
 /** Where the Now Playing card may take a cover from: a copy here, or this library's address. */
 function artSources(
   kept: string | undefined,
-  connection: Parameters<typeof mediaUrlFor>[0] | null,
+  connection: ServerConnection | null,
   fromCloud: boolean,
 ): ArtSources {
-  const sources = mediaSources(connection, fromCloud)
+  const sources = mediaSourcesFor(connection, fromCloud, KEPT_COVER_SIZE)
   return { kept, remoteArt: (songId, rev) => artAddress(songId, rev, sources) }
-}
-
-/** The phone's engine re-tells the lock screen; the browser's has a media session for that. */
-function refreshNowPlaying(engine: unknown, songId: number): void {
-  const candidate = engine as { refreshNowPlaying?: (songId: number) => void }
-  candidate.refreshNowPlaying?.(songId)
-}
-
-/**
- * Tell an engine that keeps a lookahead that the order behind it changed.
- *
- * Only the native engine keeps one; the web engine asks `nextTrackId` when it
- * is ready to preload and needs no prompting. Rather than have the provider
- * know which is which — which is exactly what foundation 2 forbids — this asks
- * for the method and does nothing when it is not there.
- */
-function refreshLookahead(engine: unknown): void {
-  const candidate = engine as { refreshLookahead?: () => void }
-  candidate.refreshLookahead?.()
 }
 
 function useStores(): PlayerStores {
@@ -1135,7 +1198,34 @@ export function useSongPlayback(songId: number): 'playing' | 'paused' | null {
  * error, so a screen rendered alone in a test draws.
  */
 export function useSongLoaded(): boolean {
-  return (useContext(PlayerContext)?.current ?? null) !== null
+  // The playback store rather than the player: the player is a new value for
+  // every play, pause and queue edit, and every scrolling page asks this for
+  // the room at its foot.
+  const store = useContext(PlayerStoresContext)?.playback ?? NO_PLAYBACK
+  const read = useCallback(() => store.get().songId !== null, [store])
+  return useSyncExternalStore(store.subscribe, read, read)
+}
+
+/**
+ * The song this device has loaded, by id, or null. For something that draws
+ * where the playing song is in a list and nothing else of the player: a new
+ * song renders it, a pause does not.
+ */
+export function usePlayingSongId(): number | null {
+  const store = useContext(PlayerStoresContext)?.playback ?? NO_PLAYBACK
+  const read = useCallback(() => store.get().songId, [store])
+  return useSyncExternalStore(store.subscribe, read, read)
+}
+
+/**
+ * What the player can be asked to do, and nothing it says: a value made once.
+ * For anything that only starts, skips or queues songs — it is not rendered
+ * again when the player's state moves, as a `usePlayer()` caller is.
+ */
+export function usePlayerCommands(): PlayerCommands {
+  const value = useContext(PlayerCommandsContext)
+  if (!value) throw new Error('usePlayerCommands must be used inside a PlayerProvider')
+  return value
 }
 
 export function usePlayer(): PlayerApi {

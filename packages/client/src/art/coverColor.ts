@@ -28,7 +28,10 @@ export interface SongColors {
  * tag's tile in that hue (`tagColors(hue).tile`), so the tint matches what is
  * on screen in either theme.
  */
-export function tileTone(hue: number, scheme: ColorScheme = currentColorScheme()): CoverTone {
+export function tileTone(
+  hue: number,
+  scheme: ColorScheme = currentColorScheme(),
+): Pick<CoverTone, 'hue' | 'chroma'> {
   const [r, g, b] = hexToRgb(tagColors(hue, scheme).tile)
   const { c, h } = rgbToOklch(r, g, b)
   return { hue: h, chroma: c }
@@ -48,10 +51,9 @@ export function neutralWash(
   { palette }: CoverTone,
   scheme: ColorScheme = currentColorScheme(),
 ): string {
-  const lightness = palette?.length
-    ? palette.reduce((sum, swatch) => sum + swatch.l * swatch.share, 0) /
-      palette.reduce((sum, swatch) => sum + swatch.share, 0)
-    : 0.5
+  const lightness =
+    palette.reduce((sum, swatch) => sum + swatch.l * swatch.share, 0) /
+    palette.reduce((sum, swatch) => sum + swatch.share, 0)
   return scheme === 'light'
     ? oklchToHex(0.35 + 0.35 * lightness, 0, 0)
     : oklchToHex(0.55 + 0.35 * lightness, 0, 0)
@@ -59,7 +61,7 @@ export function neutralWash(
 
 /** The two colours to draw with, from a cover's tone. */
 export function songColors(
-  { hue, chroma }: CoverTone,
+  { hue, chroma }: Pick<CoverTone, 'hue' | 'chroma'>,
   scheme: ColorScheme = currentColorScheme(),
 ): SongColors {
   // Chroma is pushed up for the wash: a pastel cover (the pale sky of オリオン

@@ -50,10 +50,9 @@ let current: {
 /**
  * Say whether this device answers from the bucket.
  *
- * Not the same as having no connection: an address left over from talking to a
- * server is still stored, and when it is on, `connection` is ignored entirely and
- * every call is answered by `@selfmp3/replica`'s route table from this device's
- * own copy of the library — which is why none of the screens had to change.
+ * When it is on, every call is answered by `@selfmp3/replica`'s route table
+ * from this device's own copy of the library — which is why none of the
+ * screens had to change.
  */
 export function answerFromCloud(on: boolean): void {
   current = { ...current, fromCloud: on }

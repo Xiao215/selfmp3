@@ -19,6 +19,7 @@ function song(n: number, overrides: Partial<CloudSong> = {}): CloudSong {
     duration: 200,
     audio: { key: `audio/${'ab'.repeat(32)}.m4a`, size: 1000, mime: 'audio/mp4' },
     cover: null,
+    coverTone: null,
     lyrics: null,
     instrumental: false,
     loved: false,

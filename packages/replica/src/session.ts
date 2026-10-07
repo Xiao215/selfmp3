@@ -128,7 +128,7 @@ export function createCloudSession(
     throw new DoormanError(
       response.status,
       parsed.success ? parsed.data.error : `the doorman answered ${response.status}`,
-      parsed.success ? (parsed.data.code ?? 'error') : 'error',
+      parsed.success ? parsed.data.code : 'error',
     )
   }
 

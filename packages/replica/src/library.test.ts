@@ -84,7 +84,7 @@ function fakeBucket() {
         if (failNextPut !== null) {
           const status = failNextPut
           failNextPut = null
-          return reply(status, { error: 'no' })
+          return reply(status, { error: 'no', code: 'forbidden' })
         }
         const body: unknown = JSON.parse(String(init.body))
         puts.push({ key, body })
@@ -516,6 +516,7 @@ const SNAPSHOT: CloudSnapshot = {
       duration: 200,
       audio: { key: `audio/${'a'.repeat(64)}.m4a`, size: 4_000_000, mime: 'audio/mp4' },
       cover: null,
+      coverTone: null,
       lyrics: null,
       instrumental: false,
       loved: false,

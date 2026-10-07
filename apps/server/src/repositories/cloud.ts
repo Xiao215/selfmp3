@@ -237,7 +237,7 @@ export class CloudRepository {
     `)
     this.#forgetFile = db.prepare('DELETE FROM cloud_files WHERE key = ?')
     this.#rememberRemoved = db.prepare(
-      'INSERT OR IGNORE INTO removed_songs (uid) SELECT uid FROM songs WHERE id = ? AND uid IS NOT NULL',
+      'INSERT OR IGNORE INTO removed_songs (uid) SELECT uid FROM songs WHERE id = ?',
     )
     this.#wasRemoved = db.prepare<[string], { n: number }>(
       'SELECT COUNT(*) AS n FROM removed_songs WHERE uid = ?',

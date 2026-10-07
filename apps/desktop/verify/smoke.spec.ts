@@ -5,7 +5,15 @@ import { join } from 'node:path'
 
 import { expect, test } from '@playwright/test'
 
-import { appApi, desktopRoot, executable, freshUserData, launchApp, serverHasSongs } from './launch'
+import {
+  appApi,
+  appWebUrl,
+  desktopRoot,
+  executable,
+  freshUserData,
+  launchApp,
+  serverHasSongs,
+} from './launch'
 
 /**
  * The desktop smoke.
@@ -954,10 +962,15 @@ test.describe('connects and plays', () => {
       appApi === null,
       'needs a server with the dev library: set SELFMP3_APP_API, e.g. http://localhost:4600',
     )
+    test.skip(
+      appWebUrl === null,
+      'a typed address is read by a development build only: set SELFMP3_WEB_URL to the ' +
+        'web dev server, e.g. http://localhost:4601',
+    )
     const reachable = appApi !== null && (await serverHasSongs(appApi))
     test.skip(!reachable, `no server answering with songs at ${String(appApi)}`)
 
-    const app = await launchApp()
+    const app = await launchApp({ env: { SELFMP3_DESKTOP_DEV_URL: String(appWebUrl) } })
     try {
       const page = await app.firstWindow()
       await page.waitForLoadState('domcontentloaded')
@@ -967,7 +980,8 @@ test.describe('connects and plays', () => {
        * `selfmp3.baseUrl` secret (connection/storedConnection.ts), the one the
        * sign-in screen writes. Handed over in the environment, the window stayed
        * on sign-in and this waited out its thirty seconds. So write the secret
-       * the way the app would, and load again to pick it up.
+       * the way the app would, and load again to pick it up. Only a development
+       * build reads it, hence the window loading from the web dev server.
        */
       await page.evaluate(async baseUrl => {
         const desktop = (

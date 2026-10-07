@@ -144,7 +144,7 @@ async function explain(response: Response): Promise<{ message: string; code: str
   const text = await response.text().catch(() => '')
   try {
     const parsed = ErrorBodySchema.safeParse(JSON.parse(text))
-    if (parsed.success) return { message: parsed.data.error, code: parsed.data.code ?? null }
+    if (parsed.success) return { message: parsed.data.error, code: parsed.data.code }
   } catch {
     // Not JSON: not the doorman's answer.
   }

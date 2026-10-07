@@ -182,8 +182,6 @@ function startLibrary(container: Container): void {
   const { config, logger } = container
 
   container.importQueue.start()
-  // Once per library: the years songs came out, for the ones downloaded with their upload's.
-  void container.releaseYears.start()
   // Rescan on folder changes (drag-and-drop into Finder) when the setting is
   // on, and every `autoScanMinutes` when that is set.
   container.libraryWatcher.apply()
@@ -206,28 +204,9 @@ function startLibrary(container: Container): void {
       })
   }
 
-  // Covers kept from before every cover was made square (squareCover.ts).
-  const squareCovers = (): void => {
-    const withArt = container.cloudRepo
-      .songFiles()
-      .filter(song => song.hasArt)
-      .map(song => song.id)
-    void container.covers
-      .squareKept(withArt)
-      .then(squared => {
-        if (squared > 0) container.bumpLibraryVersion()
-      })
-      .catch((error: unknown) => {
-        logger.warn('squaring kept covers stopped early', {
-          message: messageOf(error),
-        })
-      })
-  }
-
   if (!config.scanOnBoot) {
     warmLyrics()
     startCloud()
-    squareCovers()
   } else {
     // Deliberately not awaited: the API is already serving, and a first scan of
     // a large library should not delay that.
@@ -237,7 +216,6 @@ function startLibrary(container: Container): void {
         if (result.added || result.updated) container.bumpLibraryVersion()
         // Lyrics+: index lyrics for search once the scan knows which songs have them.
         warmLyrics()
-        squareCovers()
       })
       .catch((error: unknown) => {
         logger.error('initial scan failed', {

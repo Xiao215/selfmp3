@@ -91,14 +91,14 @@ export const ImportPreviewItemSchema = z.object({
    */
   inQueue: z.boolean(),
   /** Where `url` downloads from: YouTube, or 网易云音乐 (docs/features/import-sources.md). */
-  source: ImportSourceSchema.default('youtube'),
+  source: ImportSourceSchema,
   /**
    * The song on 网易云 when the list came from there. `free` is whether 网易云
    * gives the whole song to this server: a VIP song, or one it may not play
    * here, comes out as a preview of thirty to forty-five seconds, so such a
    * song comes from YouTube instead.
    */
-  netease: z.object({ url: z.string(), free: z.boolean() }).nullable().default(null),
+  netease: z.object({ url: z.string(), free: z.boolean() }).nullable(),
   /**
    * The song on YouTube, found there by its name: a Spotify list, a list of
    * song names, a 网易云 song it will not give out — or one switched to
@@ -112,8 +112,7 @@ export const ImportPreviewItemSchema = z.object({
       /** How the name matched: still `looking`, `sure`, `unsure` (worth a listen), or `none` found. */
       match: z.enum(['looking', 'sure', 'unsure', 'none']),
     })
-    .nullable()
-    .default(null),
+    .nullable(),
 })
 export type ImportPreviewItem = z.infer<typeof ImportPreviewItemSchema>
 
@@ -125,7 +124,7 @@ export const ImportPreviewSchema = z.object({
   kind: z.enum(['single', 'playlist']),
   playlistTitle: z.string().nullable(),
   items: z.array(ImportPreviewItemSchema),
-  from: ImportFromSchema.default('youtube'),
+  from: ImportFromSchema,
 })
 
 /**

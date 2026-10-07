@@ -47,7 +47,7 @@ const PlaylistBaseSchema = z.object({
    * which is what the playlists page sorts by. Null when never, and for a
    * library that does not keep it (a cloud copy), which sorts those last.
    */
-  lastPlayedAt: z.string().nullable().default(null),
+  lastPlayedAt: z.string().nullable(),
 })
 
 export const PlaylistSchema = z.discriminatedUnion('kind', [

@@ -9,9 +9,9 @@ import { LibrarySchema, type Library } from '@selfmp3/shared'
  * written when an answer's version moves, otherwise at most every few minutes
  * (`librarySnapshotWrites.ts` in packages/client), and read once at launch.
  *
- * Parsed back through the same zod schema on read: a cache written by an older
- * build of the app is exactly the kind of thing that would otherwise crash on
- * a field that has since changed shape.
+ * Parsed back through the same zod schema on read, and dropped when it does not
+ * parse: a file on disk is not to be trusted, and a library that fails the
+ * schema is fetched afresh rather than crashing the app on the field it lacks.
  */
 
 const CACHE_FILE_NAME = 'library.json'

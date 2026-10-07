@@ -132,10 +132,6 @@ export const cloudPlatform: CloudPlatform = {
    * worst another app claiming this scheme can do is hold half of a pair.
    * That is the whole reason the code exists, and why this is safe on a phone
    * where iOS lets any app register any scheme.
-   *
-   * A doorman that does not know this scheme drops it and shows the code on
-   * its own page instead, which still works — so an app newer than its
-   * doorman degrades to typing rather than breaking.
    */
   returnUrl: 'selfmp3://welcome',
   // The promise is returned, not dropped. `openSignIn` may fail — no browser,

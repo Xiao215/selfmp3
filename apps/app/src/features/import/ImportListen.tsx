@@ -58,8 +58,7 @@ export function useListen(
   const player = usePlayerCommands()
   const playerPlaying = usePlayerPlaying()
   const { connection: own } = useConnection()
-  // A cloud library previews through the server it reached (ImportViaServer), not
-  // through whatever address this device happens to have stored.
+  // A cloud library previews through the server it reached (ImportViaServer).
   const connection = via ?? own
   const [audio] = useState(() => createListenAudio())
   const [listening, setListening] = useState<Listening | null>(null)

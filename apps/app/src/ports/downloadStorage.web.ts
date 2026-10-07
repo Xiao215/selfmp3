@@ -14,7 +14,6 @@ import { mediaSourcesFor } from '../api/mediaSources'
 import { desktop } from './desktop/bridge'
 import { downloadStorage as desktopStorage } from './desktop/downloadStorage.desktop'
 import {
-  cachedBytes,
   cachedSongIds,
   cacheSong,
   clearAudioCache,
@@ -121,26 +120,11 @@ const cacheStorage: DownloadStorage = {
         index = addEntry(index, known)
         continue
       }
-      // In the cache but not in the note: kept by an earlier build, or the note
-      // was cleared. Present, with what can be learned about it now — which
-      // does not include which revision it is, so `rev` is empty and nothing
-      // vouches for it. Harmless here: a browser's copy is reached through the
-      // song's own address, which already carries the rev, and `localUri`
-      // answers null whatever the index says.
-      let sizeBytes = 0
-      try {
-        sizeBytes = (await cachedBytes([songId])).get(songId) ?? 0
-      } catch {
-        // Not configured yet; the size fills in when it is next fetched.
-      }
-      index = addEntry(index, {
-        songId,
-        fileName: String(songId),
-        sizeBytes,
-        etag: '',
-        rev: '',
-        downloadedAt: new Date(0).toISOString(),
-      })
+      // In the cache but not in the note, and not a recent copy: nothing says
+      // which revision it is, so nothing can vouch for it, and it is let go.
+      // Best effort: before the stream address is configured there is no key
+      // to delete it by, and it is simply not listed.
+      await uncacheSong(songId).catch(() => undefined)
     }
     return index
   },

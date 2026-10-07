@@ -19,8 +19,7 @@ interface WorkingStep {
  *
  * Where the server says how it is going (`live`, an Ask's stages with what
  * each found — "349 songs fit", "Choosing 25 that suit it"), those are shown.
- * Until the first of them arrives, or from a server that does not say,
- * `steps` stand in: a step's start is when it usually begins, so they are kept
+ * Until the first of them arrives, `steps` stand in: a step's start is when it usually begins, so they are kept
  * to ones that are always true.
  */
 export function Working({

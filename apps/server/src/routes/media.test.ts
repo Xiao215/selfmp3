@@ -47,6 +47,25 @@ describe('GET /api/art/:id', () => {
     })
       .png()
       .toBuffer()
+    // A cover is found by the format its song's row recorded, so the song is there first.
+    const id = container.songs.insert({
+      path: 'a.m4a',
+      title: 'A',
+      artist: '',
+      album: '',
+      albumArtist: '',
+      trackNo: null,
+      year: null,
+      duration: 1,
+      sizeBytes: 1,
+      mime: 'audio/mp4',
+      mtimeMs: 0,
+      hasArt: false,
+      artExt: null,
+      lyricsKind: 'none',
+      sourceUrl: null,
+    })
+    expect(id).toBe(1)
     await container.covers.save(1, cover, '.png')
 
     server = http.createServer(createApp(container))

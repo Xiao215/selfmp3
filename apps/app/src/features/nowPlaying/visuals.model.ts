@@ -50,7 +50,7 @@ export function visualColors(
   camelot: string | null | undefined,
   palette?: readonly CoverSwatch[] | null,
 ): VisualColors {
-  if (palette && palette.length > 0) return paletteColors(palette, hue)
+  if (palette) return paletteColors(palette, hue)
   const h = keyedHue(hue, camelot)
   const at = (lightness: number, chroma: number, turn: number): Rgb =>
     hexToRgb(oklchToHex(lightness, chroma, (h + turn + 360) % 360))

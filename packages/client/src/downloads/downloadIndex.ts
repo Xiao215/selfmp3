@@ -41,8 +41,8 @@ export type DownloadEntry = z.infer<typeof DownloadEntrySchema>
 
 const DownloadIndexSchema = z.object({
   /** Bumped if the on-disk shape ever changes. */
-  version: z.literal(1).default(1),
-  entries: z.record(z.string(), DownloadEntrySchema).default({}),
+  version: z.literal(1),
+  entries: z.record(z.string(), DownloadEntrySchema),
 })
 export type DownloadIndex = z.infer<typeof DownloadIndexSchema>
 
@@ -52,9 +52,7 @@ export const EMPTY_INDEX: DownloadIndex = { version: 1, entries: {} }
  * Read an index back, falling back to an empty one.
  *
  * A corrupt index must never stop the app opening: the audio files are still
- * on disk and the worst case is re-downloading them. An index written before
- * entries carried a `rev` takes the same path — none of its entries can be
- * vouched for, so the whole file is dropped and those songs are fetched again.
+ * on disk and the worst case is re-downloading them.
  */
 export function parseIndex(raw: unknown): DownloadIndex {
   const parsed = DownloadIndexSchema.safeParse(raw)

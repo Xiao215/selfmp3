@@ -22,13 +22,12 @@ export type CoverSwatch = z.infer<typeof CoverSwatchSchema>
  * is a cover with no colour in it, drawn in a grey as light as the cover.
  *
  * `palette` is the handful of colours the cover is made of, most of the cover
- * first, which the no-lyrics visuals draw in. Optional: a cover read by an older
- * server has none until it is read again.
+ * first, which the no-lyrics visuals draw in. Every read cover has one.
  */
 export const CoverToneSchema = z.object({
   hue: z.number().min(0).max(360),
   chroma: z.number().nonnegative(),
-  palette: z.array(CoverSwatchSchema).max(8).optional(),
+  palette: z.array(CoverSwatchSchema).min(1).max(8),
 })
 export type CoverTone = z.infer<typeof CoverToneSchema>
 
@@ -77,7 +76,7 @@ export const SongSchema = z.object({
   addedAt: z.string(),
   tagIds: z.array(IdSchema),
   /** Null until the background analyser has looked at the file. */
-  audioFeatures: AudioFeaturesSchema.nullable().default(null),
+  audioFeatures: AudioFeaturesSchema.nullable(),
 })
 export type Song = z.infer<typeof SongSchema>
 

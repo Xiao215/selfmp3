@@ -26,6 +26,8 @@
  * is the whole point of this file and is not something a generic recipe does.
  */
 
+import { AUDIO_CACHE, CLOUD_FILES_CACHE, REFRESH_HEADER } from './names'
+
 declare const self: ServiceWorkerGlobalScope
 
 /**
@@ -43,8 +45,8 @@ const SHELL_BUILD = typeof __SHELL_BUILD__ === 'string' ? __SHELL_BUILD__ : 'dev
 
 const SHELL_CACHE = `selfmp3-shell-${SHELL_BUILD}`
 /*
- * These two are deliberately *not* named after the build: what they hold is
- * the person's, not this build's. Yesterday's library is what a sleeping Mac
+ * The API and audio caches are deliberately *not* named after the build: what
+ * they hold is the person's, not this build's. Yesterday's library is what a sleeping Mac
  * degrades to, and re-downloading every song on a deploy is unthinkable.
  */
 /*
@@ -55,22 +57,15 @@ const SHELL_CACHE = `selfmp3-shell-${SHELL_BUILD}`
  * it held is thirty-odd small pictures the bucket hands back on the next look.
  */
 const API_CACHE = 'selfmp3-api-v2'
-const AUDIO_CACHE = 'selfmp3-audio-v1'
 
-/** Caches this worker owns. Anything else from an old build gets deleted. */
-const OWNED_CACHES = new Set([SHELL_CACHE, API_CACHE, AUDIO_CACHE])
+/**
+ * Caches this worker keeps, its own and the tab's. Anything else from an old
+ * build gets deleted.
+ */
+const OWNED_CACHES = new Set([SHELL_CACHE, API_CACHE, AUDIO_CACHE, CLOUD_FILES_CACHE])
 
 /** `/` served by the Mac, `/selfmp3/` on GitHub Pages: this worker's scope. */
 const BASE = new URL(self.registration.scope).pathname
-
-/**
- * How a download says it wants the file itself, not the copy already kept.
- *
- * Spelled out here rather than imported: this worker has no imports on
- * purpose, so that what esbuild bundles is exactly this file. The other half
- * is `REFRESH_HEADER` in src/ports/offline.web.ts, and the two have to agree.
- */
-const REFRESH_HEADER = 'x-selfmp3-refresh'
 
 /** Registered as `sw.js?cloud=1` when signed in to the cloud (src/ports/serviceWorker.web.ts): only then is there a bucket to ask. */
 const CLOUD = new URL(self.location.href).searchParams.get('cloud') === '1'

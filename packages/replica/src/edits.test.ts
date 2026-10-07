@@ -36,6 +36,7 @@ const song = (u: string, overrides: Partial<CloudSong> = {}): CloudSong => ({
   duration: 200,
   audio: { key: `audio/${hash(u)}.m4a`, size: 4_000_000, mime: 'audio/mp4' },
   cover: null,
+  coverTone: null,
   lyrics: null,
   instrumental: false,
   loved: false,

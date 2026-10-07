@@ -35,7 +35,8 @@ describe('listening before importing', () => {
       duration: 248,
       tone: null,
     })
-    expect(startListening(track, { hue: 200, chroma: 0.1 }).tone).toEqual({ hue: 200, chroma: 0.1 })
+    const tone = { hue: 200, chroma: 0.1, palette: [{ l: 0.6, c: 0.1, h: 200, share: 1 }] }
+    expect(startListening(track, tone).tone).toEqual(tone)
   })
 
   it('keeps the song’s length over what the audio makes of its own', () => {

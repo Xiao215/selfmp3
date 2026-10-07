@@ -244,7 +244,7 @@ export function createApi({ context, fetch }: ApiOptions) {
       throw new ApiError(
         response.status,
         parsed.success ? parsed.data.error : `${method} ${path} failed (${response.status})`,
-        parsed.success ? (parsed.data.code ?? 'error') : 'error',
+        parsed.success ? parsed.data.code : 'error',
       )
     }
 

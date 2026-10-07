@@ -107,22 +107,6 @@ function main(): void {
 
   startLibrary(container)
 
-  const autoScanMinutes = container.settings.get().autoScanMinutes
-  let scanTimer: NodeJS.Timeout | null = null
-  if (autoScanMinutes > 0) {
-    scanTimer = setInterval(() => {
-      void container.scanner
-        .scan()
-        .then(result => {
-          if (result.added || result.updated) container.bumpLibraryVersion()
-        })
-        .catch(() => undefined)
-    }, autoScanMinutes * 60_000)
-    // Do not hold the process open just for the timer.
-    scanTimer.unref()
-    logger.info('automatic rescan enabled', { everyMinutes: autoScanMinutes })
-  }
-
   /*
    * `code` is what the process exits with once everything has closed: 0 for a
    * signal, 1 for a crash. launchd and every other supervisor read that number
@@ -132,8 +116,6 @@ function main(): void {
     if (shuttingDown) return
     shuttingDown = true
     logger.info(`received ${signal}, shutting down`)
-
-    if (scanTimer) clearInterval(scanTimer)
 
     // Everything in the background, including the event streams: one is
     // answered and then held open for the life of the tab, so `server.close`
@@ -201,7 +183,8 @@ function startLibrary(container: Container): void {
   container.importQueue.start()
   // Once per library: the years songs came out, for the ones downloaded with their upload's.
   void container.releaseYears.start()
-  // Rescan on folder changes (drag-and-drop into Finder) when the setting is on.
+  // Rescan on folder changes (drag-and-drop into Finder) when the setting is
+  // on, and every `autoScanMinutes` when that is set.
   container.libraryWatcher.apply()
   // Publishing, and any links other devices asked for while this server was off.
   const startCloud = (): void => {

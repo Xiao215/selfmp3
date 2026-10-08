@@ -42,9 +42,9 @@ describe('Stats from a cloud library with no server in reach', () => {
     expect(screen.getByTestId('stats-screen')).toBeTruthy()
     expect(screen.getByText('Stats')).toBeTruthy()
     expect(screen.getByTestId('stats-server-away')).toBeTruthy()
-    expect(screen.getByText('Your server isn’t answering')).toBeTruthy()
+    expect(screen.getByText('Your library’s computer isn’t answering')).toBeTruthy()
     // The Report is a page of its own, and still one step away.
     expect(screen.getByTestId('stats-report')).toBeTruthy()
-    expect(screen.getByText(/Stats come from your server/)).toBeTruthy()
+    expect(screen.getByText(/Stats come from your library’s computer/)).toBeTruthy()
   })
 })

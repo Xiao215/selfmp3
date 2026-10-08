@@ -332,7 +332,7 @@ describe('the words', () => {
       fraction: null,
     })
     expect(progressLine(job({ status: 'queued', step: 'waiting', progress: null }))).toEqual({
-      text: 'Waiting in queue',
+      text: 'Waiting',
       fraction: null,
     })
   })

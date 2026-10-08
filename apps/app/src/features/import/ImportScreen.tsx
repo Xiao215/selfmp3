@@ -120,7 +120,7 @@ export function ImportScreen({
    */
   const failed = (err: Error): void => {
     if (viaServer && err instanceof ApiError && err.isOffline) {
-      setError('Your server stopped answering. Looking for it again…')
+      setError('Your library’s computer stopped answering. Looking for it again…')
       onUnreachable?.()
       return
     }
@@ -190,7 +190,7 @@ export function ImportScreen({
         Paste a link from YouTube, 网易云音乐 or Spotify, or a list of song names, one per line. A
         playlist brings every song in it, and an artist’s page their top songs.
         {viaServer
-          ? ' This goes through your server, which downloads the songs and syncs them to every device.'
+          ? ' Your library’s computer downloads the songs, and they turn up on every device.'
           : ''}
       </Text>
       {/*

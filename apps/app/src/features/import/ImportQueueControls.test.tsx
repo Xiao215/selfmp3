@@ -254,7 +254,7 @@ describe('Import, the whole queue at once', () => {
       draw(job('one', { status: 'running', step: 'uploading' }), job('two', {}), job('three', {})),
     )
     expect(screen.getByText('Starts in 0:38 · pacing YouTube')).toBeTruthy()
-    expect(screen.getAllByText('Waiting in queue')).toHaveLength(1)
+    expect(screen.getAllByText('Waiting')).toHaveLength(1)
 
     await screen.unmount()
     mockPacing = { waitMs: 600_000, pausedUntil: Date.now() + 600_000, ratchet: 0.5 }

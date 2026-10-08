@@ -373,7 +373,7 @@ export function SettingsScreen(): ReactNode {
                 />
                 <Row
                   label="Look up lyrics automatically"
-                  hint="Fetches synced lyrics when a song is imported."
+                  hint="Fetches timed lyrics when a song is imported."
                   last
                 >
                   <Toggle

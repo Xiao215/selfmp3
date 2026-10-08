@@ -87,7 +87,10 @@ const queryClient = new QueryClient({
   mutationCache: new MutationCache({
     onError: (error, _variables, _context, mutation) => {
       const failure = mutation.meta?.['failure']
-      if (typeof failure === 'string') showToast(failureText(failure, error), 'error')
+      if (typeof failure !== 'string') return
+      // The toast says it plainly; the detail is for whoever is debugging.
+      console.warn(`${failure}:`, error)
+      showToast(failureText(failure, error), 'error')
     },
   }),
   defaultOptions: {

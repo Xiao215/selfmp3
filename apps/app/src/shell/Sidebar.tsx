@@ -17,7 +17,11 @@ import {
   useCreateTag,
   useLibrary,
 } from '@selfmp3/client'
-import { bucketCapped, capShort, unreachableLabel } from '../features/library/library.model'
+import { footNotice, footSummary } from '../features/library/library.model'
+import { profileName } from '../features/profile/profile.model'
+import { devicePlace } from '../features/settings/settings.model'
+import { deviceKind } from '../ports/device'
+import { library as cloudLibrary } from '../replica'
 import { useBucketHold } from '../features/profile/useBucketHold'
 import { noteTagUsed, useRecentTagIds } from '../features/library/recentTags.store'
 import { NewPlaylist } from '../features/playlists/NewPlaylist'
@@ -79,8 +83,8 @@ import { label as labelText } from '../ui/surfaces'
  * playlist is not listed.
  *
  * Below them, the tags reached for last: a click opens the tag's page, the ⋯
- * edits it, and the TAGS header opens all of them. At the foot, a status
- * line: reachable or not, and what is offline.
+ * edits it, and the TAGS header opens all of them. At the foot, you, and a
+ * card only when something needs you.
  */
 const DESTINATIONS: {
   href: '/' | '/library' | '/import' | '/stats'
@@ -570,10 +574,15 @@ function TagRow({
 }
 
 /**
- * The foot: you (`C03`), with one line under that answers the glance down —
- * can this app reach its library, and how much of it is kept offline. It
- * opens Profile. Rescanning the folder lives in Settings and in ⌘K; a task needed
- * once in a while does not want a permanent place under the tags.
+ * The foot: you (`C03`) — your first name, or "Profile" when Google gave none —
+ * with a dot on the avatar. It opens Profile.
+ *
+ * On a normal day that is all it says: where the library is kept only matters
+ * when something stops working, and a status line read on every page said
+ * "Connected to your server" to nobody. Hovering says "All saved" and how
+ * much is on this computer. When something needs you — offline, the library
+ * out of reach, the storage's allowance used up — a card above the name says
+ * what still works and what to do (G1).
  */
 function Foot(): ReactNode {
   const { theme } = useUnistyles()
@@ -581,40 +590,48 @@ function Foot(): ReactNode {
   const pathname = usePathname()
   const account = useAccount()
   const library = useLibrary()
-  const { state } = useDownloads()
+  const { state, installed } = useDownloads()
   const { fromCloud } = useConnection()
+  const held = useBucketHold() !== null
   /*
    * Of this library, what is here — not how many files the device is keeping.
    * The index holds an entry for every song ever downloaded, a replaced
    * library's included, so counting entries can say more are saved than exist.
    */
   const librarySongs = library.data?.songs
-  const { songs, here: saved } = useMemo(
+  const { songs, here } = useMemo(
     () => downloadTally(state.index, librarySongs?.map(song => song.id) ?? []),
     [state.index, librarySongs],
   )
 
-  // The bucket refusing for the day is not "can't reach": everything answered.
-  // The first line still names the library, and the second says the limit —
-  // as one line, "Bucket limit reached for today" ran out of room.
-  const capped = useBucketHold() !== null || bucketCapped(library.error)
-  const where = fromCloud ? 'Cloud library' : 'Connected to your server'
+  const name = profileName(account?.name)
+  const place = devicePlace(deviceKind())
   // A failed refetch keeps the cached library, so an error wins over the data.
-  const [dot, label] = capped
-    ? [theme.colors.danger, where]
-    : library.isError
-      ? [theme.colors.danger, unreachableLabel(fromCloud, library.error)]
-      : library.isPending
-        ? [theme.colors.warning, 'Connecting…']
-        : [theme.colors.good, where]
-  const detail = capped
-    ? capShort(new Date())
-    : `${plural(songs, 'song', 'songs')} · ${
-        saved > 0 ? `${saved} saved offline` : 'none saved offline'
-      }`
+  // Edits a cloud library is still holding are read as the foot draws, which
+  // it does again whenever the library's answer changes.
+  const notice = footNotice({
+    error: library.isError ? library.error : null,
+    held,
+    fromCloud,
+    keepsSongs: installed,
+    place,
+    unsent: fromCloud && library.isError ? cloudLibrary.pendingCloudChanges() : 0,
+  })
+  const dot = notice
+    ? theme.colors.warning
+    : library.isPending
+      ? theme.colors.textMuted
+      : theme.colors.good
+  const summary = library.data ? footSummary({ songs, here, place }) : null
 
   return (
     <View style={styles.foot}>
+      {notice ? (
+        <View style={styles.notice} accessibilityLiveRegion="polite" testID="sidebar-notice">
+          <Text style={styles.noticeTitle}>{notice.title}</Text>
+          <Text style={styles.noticeBody}>{notice.body}</Text>
+        </View>
+      ) : null}
       <Pressable
         style={({ pressed }) => [
           styles.status,
@@ -626,29 +643,16 @@ function Foot(): ReactNode {
           router.navigate('/profile')
         }}
         accessibilityRole="button"
-        accessibilityLabel={
-          library.data || capped ? `Profile. ${label}, ${detail}` : `Profile. ${label}`
-        }
+        accessibilityLabel={!notice && summary ? `${name}. ${summary}` : name}
         testID="sidebar-status"
-        {...tip('Profile, your connection and offline songs')}
+        {...tip(notice ? null : summary)}
       >
         <Avatar account={account} size={AVATAR}>
           <View style={[styles.statusDot, { backgroundColor: dot }]} />
         </Avatar>
-        <View style={styles.statusText}>
-          <Text style={styles.footLabel} numberOfLines={1}>
-            {label}
-          </Text>
-          {library.data || capped ? (
-            <Text
-              style={[styles.statusDetail, capped && styles.statusDetailCapped]}
-              numberOfLines={1}
-              testID="sidebar-status-detail"
-            >
-              {detail}
-            </Text>
-          ) : null}
-        </View>
+        <Text style={styles.footLabel} numberOfLines={1}>
+          {name}
+        </Text>
       </Pressable>
     </View>
   )
@@ -880,10 +884,20 @@ const styles = StyleSheet.create(theme => ({
     borderWidth: 2,
     borderColor: theme.colors.surface0,
   },
-  statusText: { flex: 1, minWidth: 0, gap: 1 },
-  statusDetail: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
-  statusDetailCapped: { color: theme.colors.danger },
-  footLabel: { color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
+  // Something needs you: what still works, and what to do. The warning's own
+  // tone on a quiet ground, the way a toast says "warn".
+  notice: {
+    gap: 2,
+    marginHorizontal: 2,
+    marginBottom: space.sm,
+    paddingHorizontal: 10,
+    paddingVertical: space.sm,
+    borderRadius: radius.card,
+    backgroundColor: theme.colors.surface2,
+  },
+  noticeTitle: { color: theme.colors.warning, fontSize: 12, fontWeight: '600' },
+  noticeBody: { color: theme.colors.textSecondary, fontSize: 11, lineHeight: 15 },
+  footLabel: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
 }))
 
 /**

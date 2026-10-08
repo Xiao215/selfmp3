@@ -5,7 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { formatLongDuration, plural, type Understanding } from '@selfmp3/shared'
-import { failureText, useCreatePlaylist, useLibrary } from '@selfmp3/client'
+import { ApiError, failureText, useCreatePlaylist, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useSelection } from '../../selection/useSelection'
@@ -84,7 +84,7 @@ export function AnswerScreen(): ReactNode {
 
   const again = useMutation({
     mutationFn: (understanding: Understanding) => {
-      if (!server.api || !kept) throw new Error('your server isn’t reachable')
+      if (!server.api || !kept) throw new ApiError(0, 'no server to ask', 'offline')
       // The songs shown, as the server knows them, stay out while others fit.
       const shown = ids.flatMap(each => {
         const serverId = server.onServer(each)

@@ -755,6 +755,10 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       const failed = state.error !== null && state.error !== recovery.lastError
       recovery.lastError = state.error
       if (!failed || songId === undefined) return
+      // The engine's words ("Song 1234 cannot be played from this device
+      // yet", a media error's code) are for whoever is debugging; the toast
+      // says which song, and what happened to it.
+      console.warn(`Playback failed for song ${songId}:`, state.error)
 
       const title = songsRef.current.get(songId)?.title ?? 'this song'
       const recovering = recoverPlayback({
@@ -773,7 +777,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       }
       if (recovering === 'skip') {
         recovery.skippedInARow += 1
-        showToast(`Skipped “${title}”: ${state.error}`, 'warn')
+        showToast(`Skipped “${title}”, it wouldn’t play`, 'warn')
         const { state: after, stop } = advancePlayable(queueRef.current, false, mayPlay)
         if (stop) {
           engine.pause()
@@ -785,7 +789,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       }
       recovery.skippedInARow = 0
       engine.pause()
-      showToast(`Couldn’t play “${title}”: ${state.error}`, 'error')
+      showToast(`Couldn’t play “${title}”`, 'error')
     }
   }, [engine, loadIndex, mayPlay, commitQueue])
 

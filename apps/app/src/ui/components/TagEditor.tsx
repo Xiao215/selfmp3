@@ -5,6 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { View as RNView } from 'react-native'
 import { plural, TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
 import {
+  failureText,
   HIT_TARGET,
   radius,
   space,
@@ -119,7 +120,9 @@ function Editor({
             }
           />
         </View>
-        {rename.error ? <Text style={styles.error}>{rename.error.message}</Text> : null}
+        {rename.error ? (
+          <Text style={styles.error}>{failureText('Couldn’t rename it', rename.error)}</Text>
+        ) : null}
       </View>
 
       <View style={styles.section}>

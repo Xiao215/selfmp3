@@ -19,7 +19,7 @@ describe('ServerAway', () => {
       <ServerAway reach={{ state: 'looking', lookAgain }} need="stats" testID="stats-server" />,
     )
     expect(screen.getByTestId('stats-server-looking')).toBeTruthy()
-    expect(screen.getByText('Looking for your server…')).toBeTruthy()
+    expect(screen.getByText('Looking for your library’s computer…')).toBeTruthy()
     expect(screen.queryByTestId('stats-server-look-again')).toBeNull()
   })
 
@@ -31,7 +31,7 @@ describe('ServerAway', () => {
         testID="stats-server"
       />,
     )
-    expect(screen.getByText('Your server isn’t answering')).toBeTruthy()
+    expect(screen.getByText('Your library’s computer isn’t answering')).toBeTruthy()
 
     await rerender(
       <ServerAway
@@ -40,7 +40,7 @@ describe('ServerAway', () => {
         testID="stats-server"
       />,
     )
-    expect(screen.getByText('Your server hasn’t said where it is')).toBeTruthy()
+    expect(screen.getByText('Your library’s computer hasn’t said where it is')).toBeTruthy()
   })
 
   it('names what this screen came for, and looks again when asked', async () => {
@@ -51,7 +51,7 @@ describe('ServerAway', () => {
         testID="metadata-server"
       />,
     )
-    expect(screen.getByText(/Looking a song up goes through your server/)).toBeTruthy()
+    expect(screen.getByText(/Looking a song up goes through your library’s computer/)).toBeTruthy()
 
     await fireEvent.press(screen.getByTestId('metadata-server-look-again'))
     expect(lookAgain).toHaveBeenCalledTimes(1)

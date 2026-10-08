@@ -62,17 +62,21 @@ describe('reachServer', () => {
 
 describe('awayCopy', () => {
   it('tells a server that is off apart from one that never said where it is', () => {
-    expect(awayCopy(true, 'import').title).toBe('Your server isn’t answering')
-    expect(awayCopy(false, 'import').title).toBe('Your server hasn’t said where it is')
+    expect(awayCopy(true, 'import').title).toBe('Your library’s computer isn’t answering')
+    expect(awayCopy(false, 'import').title).toBe('Your library’s computer hasn’t said where it is')
     // Import is the exception: there is something to do here, so it says that
     // rather than telling anyone to go and start their server.
     expect(awayCopy(false, 'import').body).toContain('add a link below')
-    expect(awayCopy(false, 'stats').body).toContain('sync once')
+    expect(awayCopy(false, 'stats').body).toContain('let it run for a minute')
   })
 
   it('leads with what this screen came for, so the card is not the same card everywhere', () => {
-    expect(awayCopy(true, 'import').body).toContain('Importing goes through your server')
-    expect(awayCopy(true, 'stats').body).toContain('Stats come from your server')
-    expect(awayCopy(true, 'metadata').body).toContain('Looking a song up goes through your server')
+    expect(awayCopy(true, 'import').body).toContain(
+      'Importing goes through your library’s computer',
+    )
+    expect(awayCopy(true, 'stats').body).toContain('Stats come from your library’s computer')
+    expect(awayCopy(true, 'metadata').body).toContain(
+      'Looking a song up goes through your library’s computer',
+    )
   })
 })

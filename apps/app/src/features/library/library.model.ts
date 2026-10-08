@@ -199,28 +199,28 @@ export function untilCapResets(now: Date, short = false): string {
   return short ? `${hours} h` : plural(hours, 'hour', 'hours')
 }
 
-/** A used-up bucket in the sidebar's second line: "Bucket limit · 20 h left". */
-export function capShort(now: Date): string {
-  return `Bucket limit · ${untilCapResets(now, true)} left`
-}
-
-/** The few words for a library that did not come: the sidebar's status, the profile's line. */
-export function unreachableLabel(fromCloud: boolean, error: unknown): string {
-  if (bucketCapped(error)) return 'Bucket limit reached for today'
-  return fromCloud ? 'Can’t reach the cloud' : 'Can’t reach your server'
+/**
+ * The few words for a library that did not come: the profile's line, the
+ * settings' status. Where the library lives — a server, a bucket — is for
+ * the screens that set it up; everywhere else it is just your library.
+ */
+export function unreachableLabel(error: unknown): string {
+  if (bucketCapped(error)) return 'Storage allowance used up for today'
+  return 'Can’t reach your library'
 }
 
 /**
- * What the "can't reach" card says: which thing did not answer, and what to
- * check.
+ * What the "can't reach" card says: that the library did not answer, and
+ * what to check.
  *
  * The address is the one this device actually asked, without its scheme, so a
- * reader can see a typo or a stale address at a glance. A cloud library names
- * the cloud and no address. On a phone there is room for one short line, and
- * the address is in Settings, one press away.
+ * reader can see a typo or a stale address at a glance. A cloud library has
+ * no address to show. On a phone there is room for one short line, and the
+ * address is in Settings, one press away.
  *
- * A used-up bucket allowance is not "can't reach" at all: it says so, when it
- * comes back, and where to raise it.
+ * A used-up storage allowance is not "can't reach" at all: it says so, when
+ * it comes back, and where to raise it — the one place outside its setup
+ * where Backblaze is named, because that is where the reader has to go.
  */
 export function unreachableCopy({
   fromCloud,
@@ -238,30 +238,93 @@ export function unreachableCopy({
   if (bucketCapped(error)) {
     const until = untilCapResets(now)
     return {
-      title: 'Your bucket’s daily limit is used up',
+      title: 'Your storage’s allowance for today is used up',
       body: compact
-        ? `Backblaze’s cap resets in about ${until}, or raise it at backblaze.com.`
-        : `Backblaze stopped downloads from your bucket until its daily cap resets, in about ${until}. Nothing is wrong with your connection. To get your library back now, raise the cap under Caps & Alerts at backblaze.com.`,
+        ? `It resets in about ${until}, or raise it at backblaze.com.`
+        : `Your storage stopped downloads until its daily allowance resets, in about ${until}. Nothing is wrong with your connection. To get your library back now, raise the cap under Caps & Alerts at backblaze.com.`,
     }
   }
-  const where = fromCloud ? 'the cloud' : 'your server'
-  const title = `Can’t reach ${where}`
-  if (compact) {
-    return {
-      title,
-      body: fromCloud
-        ? 'Check that you’re online, then try again.'
-        : 'Check that it’s on, then try again.',
-    }
-  }
-  if (fromCloud) {
-    return { title, body: 'self.mp3 tried the cloud. Check that this device is online.' }
-  }
+  const title = 'Can’t reach your library'
+  if (compact) return { title, body: 'Check that you’re online, then try again.' }
+  if (fromCloud) return { title, body: 'Check that this device is online.' }
   const host = address ? address.replace(/^[a-z]+:\/\//i, '').replace(/\/+$/, '') : null
   return {
     title,
-    body: `${host ? `self.mp3 tried ${host}. ` : ''}Check that the server is on and this device is on the same network.`,
+    body: `${host ? `self.mp3 tried ${host}. ` : ''}Check that this device is online and that the computer your library lives on is switched on.`,
   }
+}
+
+/**
+ * The card at the foot of a computer's sidebar, when something needs the
+ * person: what still works, and what to do. Null on a normal day, when the
+ * foot is only the person and a green dot.
+ *
+ * `held` is the storage refusing for the day, known before any read fails
+ * (`useBucketHold`). `unsent` counts the edits a cloud library is still
+ * holding, which go out on their own once it can reach its storage; a
+ * server library keeps no such outbox, so its edits cannot be made at all.
+ * `keepsSongs` is false in a browser tab, which streams and keeps nothing,
+ * so it has no songs of its own that would still play.
+ */
+export function footNotice({
+  error,
+  held,
+  fromCloud,
+  keepsSongs,
+  place,
+  unsent,
+  now = new Date(),
+}: {
+  /** Why the library did not come; null while it has. */
+  error: unknown
+  held: boolean
+  fromCloud: boolean
+  keepsSongs: boolean
+  place: 'phone' | 'computer'
+  unsent: number
+  now?: Date
+}): { title: string; body: string } | null {
+  const stillPlay = keepsSongs ? `Songs on this ${place} still play. ` : ''
+  if (held || bucketCapped(error)) {
+    return {
+      title: 'Storage allowance used up',
+      body: `${stillPlay}The rest come back in about ${untilCapResets(now)}.`,
+    }
+  }
+  if (!error) return null
+  if (!fromCloud) {
+    return {
+      title: 'Can’t reach your library',
+      body: `${stillPlay}Changes can’t be saved until it’s back. Check that you’re online.`,
+    }
+  }
+  const changes =
+    unsent === 0
+      ? 'Changes send when you’re back.'
+      : unsent === 1
+        ? 'Your change sends when you’re back.'
+        : `Your ${unsent} changes send when you’re back.`
+  return { title: 'Offline', body: `${stillPlay}${changes}` }
+}
+
+/**
+ * What hovering the foot says on a normal day: that everything is saved,
+ * how big the library is, and how much of it is on this device — "All saved
+ * · 109 songs · 12 on this computer". A device keeping none leaves the last
+ * part off; a browser tab never keeps any.
+ */
+export function footSummary({
+  songs,
+  here,
+  place,
+}: {
+  songs: number
+  here: number
+  place: 'phone' | 'computer'
+}): string {
+  const parts = ['All saved', plural(songs, 'song', 'songs')]
+  if (here > 0) parts.push(`${here} on this ${place}`)
+  return parts.join(' · ')
 }
 
 /**

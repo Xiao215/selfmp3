@@ -3,7 +3,7 @@ import type { ReactNode, RefObject } from 'react'
 import { ActivityIndicator, Animated, Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useMutation } from '@tanstack/react-query'
-import { failureText, motion, radius, space } from '@selfmp3/client'
+import { ApiError, failureText, motion, radius, space } from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
 import { ChevronRight, Sparkle } from '../../ui/components/Icons'
 import { useArrival, useFade } from '../../ui/motion'
@@ -46,7 +46,7 @@ export function ChangeIt({
 
   const change = useMutation({
     mutationFn: async (words: string) => {
-      if (!server.api || !answer) throw new Error('your server isn’t reachable')
+      if (!server.api || !answer) throw new ApiError(0, 'no server to ask', 'offline')
       const shown = (answer.order ?? answer.result.picks.map(pick => pick.songId)).flatMap(id => {
         // The order you set is in this device's ids; the picks are the server's.
         const serverId = answer.order ? server.onServer(id) : id

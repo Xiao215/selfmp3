@@ -70,7 +70,9 @@ export function paletteCommands(
       : []),
     { id: 'shuffle-all', label: 'Shuffle everything', hint: plural(songCount, 'song', 'songs') },
     // Not offered on a bucket library: there is no folder to scan.
-    ...(fromCloud ? [] : [{ id: 'rescan-library' as const, label: 'Rescan library folder' }]),
+    ...(fromCloud
+      ? []
+      : [{ id: 'rescan-library' as const, label: 'Look for new songs in the library folder' }]),
   ]
   if (pathname === null) return commands
   return commands.filter(command => !COMMAND_PAGE[command.id]?.(pathname))

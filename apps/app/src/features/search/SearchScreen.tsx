@@ -671,7 +671,7 @@ function LyricResults({
   if (cloud) {
     return (
       <Text style={styles.nothing}>
-        Lyrics are searched on your server, which a cloud library does not reach from here.
+        Searching lyrics needs your library’s computer, which this device can’t reach right now.
       </Text>
     )
   }

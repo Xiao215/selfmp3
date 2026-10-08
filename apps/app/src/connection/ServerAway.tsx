@@ -36,7 +36,7 @@ export function ServerAway({
     return (
       <View style={styles.looking} accessibilityLiveRegion="polite" testID={`${testID}-looking`}>
         <ActivityIndicator size="small" color={accent.accent} />
-        <Text style={styles.lookingText}>Looking for your server…</Text>
+        <Text style={styles.lookingText}>Looking for your library’s computer…</Text>
       </View>
     )
   }

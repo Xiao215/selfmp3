@@ -378,13 +378,13 @@ export function MetadataDialog({
       >
         {apply.isError ? (
           <Text style={[styles.hint, styles.footLead, { color: theme.colors.warning }]}>
-            {apply.error?.message ?? 'Couldn’t apply the changes.'}
+            {failureText('Couldn’t save the changes', apply.error)}
           </Text>
         ) : coverLater ? (
           // Downloaded by the server into the bucket, which this device sees
           // with the next sync rather than the moment the dialog closes.
           <Text style={[styles.hint, styles.footLead]}>
-            The new cover shows after your server’s next sync.
+            The new cover shows on your devices in a minute or two.
           </Text>
         ) : null}
         <Button label="Cancel" onPress={onClose} />

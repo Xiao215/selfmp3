@@ -229,8 +229,8 @@ export function healthLine(
   if (asking.capped || bucketCapped(asking.error)) {
     const now = asking.now ?? new Date()
     return asking.compact
-      ? `Bucket limit reached · ${untilCapResets(now, true)} left`
-      : `Bucket limit reached · resets in about ${untilCapResets(now)}`
+      ? `Storage allowance used up · ${untilCapResets(now, true)} left`
+      : `Storage allowance used up · resets in about ${untilCapResets(now)}`
   }
   if (health) {
     const songs =
@@ -238,7 +238,7 @@ export function healthLine(
     return `self.mp3 ${health.version}${songs}`
   }
   if (asking.loading) return 'Checking your library…'
-  if (asking.error) return unreachableLabel(asking.fromCloud ?? false, asking.error)
+  if (asking.error) return unreachableLabel(asking.error)
   return 'Not connected to your library right now'
 }
 
@@ -276,7 +276,7 @@ export function splitDevices<
 
 export function scanHint(result: ScanResult | undefined): string {
   if (!result) return 'Picks up files added to the folder by hand.'
-  return `Last sweep: ${result.added} new, ${result.updated} updated.`
+  return `Last scan: ${result.added} new, ${result.updated} updated.`
 }
 
 /**

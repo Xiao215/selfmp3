@@ -90,7 +90,7 @@ export function DevicesSheet({
                 detail={
                   !named
                     ? device.state.playing
-                      ? 'Playing something not in your bucket'
+                      ? 'Playing something not in your storage'
                       : `Nothing loaded · ${formatRelative(device.lastSeenAt)}`
                     : device.state.playing
                       ? 'Playing now'
@@ -117,7 +117,7 @@ export function DevicesSheet({
 
       {unshareable && devices.others.length > 0 ? (
         <Text style={styles.empty}>
-          This song isn’t in your bucket yet, so no other device can find it.
+          This song isn’t in your storage yet, so no other device can find it.
         </Text>
       ) : null}
     </>

@@ -70,7 +70,7 @@ export function ConnectionPanel({
               storage === undefined
                 ? 'Loading…'
                 : where === null
-                  ? 'No bucket yet.'
+                  ? 'Not connected yet.'
                   : hold
                     ? [
                         `${where}\n`,
@@ -100,7 +100,7 @@ export function ConnectionPanel({
               />
               {storage ? (
                 <Button
-                  label="Forget"
+                  label="Disconnect"
                   variant="danger"
                   onPress={() => onConfirm('forget-storage')}
                   testID="cloud-storage-forget"

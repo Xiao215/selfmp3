@@ -99,8 +99,8 @@ export function OfflinePanel({
         label="Play songs that aren’t downloaded"
         hint={
           fromCloud
-            ? 'A cloud library plays downloaded songs only.'
-            : 'Streams them from your server when it answers.'
+            ? 'Your library is in your storage, so only downloaded songs play.'
+            : 'Streams them while your library is reachable.'
         }
         last
       >

@@ -5,7 +5,14 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useMutation } from '@tanstack/react-query'
 import type { DescribeResult, Understanding } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
-import { failureText, radius, space, useCreatePlaylist, useLibrary } from '@selfmp3/client'
+import {
+  ApiError,
+  failureText,
+  radius,
+  space,
+  useCreatePlaylist,
+  useLibrary,
+} from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { Button } from '../../ui/components/Button'
@@ -60,7 +67,7 @@ export function SongsAnswer({
 
   const again = useMutation({
     mutationFn: (understanding: Understanding) => {
-      if (!server.api) throw new Error('your server isn’t reachable')
+      if (!server.api) throw new ApiError(0, 'no server to ask', 'offline')
       return server.api.describePlaylist({ text, understanding })
     },
     onSuccess: answer => {

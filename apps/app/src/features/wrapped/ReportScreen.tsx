@@ -187,7 +187,7 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
       <View style={styles.empty}>
         <Text style={styles.emptyTitle}>The report needs your library</Text>
         <Text style={[styles.hint, styles.center]}>
-          It’ll be here when your server is reachable again.
+          It’ll be here when your library is reachable again.
         </Text>
       </View>,
     )

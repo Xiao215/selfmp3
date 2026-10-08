@@ -97,7 +97,7 @@ names a song it kept, the download queue deletes the copy (`configure` in
 
 The first is asked of the library in front of you. A song stops counting the moment it leaves
 it — removed here, or removed on another device and arrived by sync — without waiting for
-anything to agree. It is the sidebar's "45 songs · 41 saved offline" and the Settings panel's
+anything to agree. It is the sidebar foot's hover, "All saved · 45 songs · 41 on this computer", and the Settings panel's
 "41 of 43 songs downloaded", and both fall together.
 
 The second is asked of the index, which outlives the library it was filled from. A file left

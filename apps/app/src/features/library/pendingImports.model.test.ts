@@ -42,11 +42,11 @@ describe('pending imports in a cloud library', () => {
     expect(rows.map(row => row.uid)).toEqual(['new', 'old', 'bad'])
     expect(rows[0]).toMatchObject({
       title: 'https://www.youtube.com/watch?v=dGZqpVCJP3k',
-      status: 'Waiting for your server',
+      status: 'Waiting for your library’s computer',
     })
     expect(rows[1]).toMatchObject({
       title: '群青',
-      status: 'Downloading on your server…',
+      status: 'Downloading…',
       failed: false,
     })
     expect(rows[2]).toMatchObject({ status: 'Couldn’t import it: Private video', failed: true })

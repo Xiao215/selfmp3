@@ -41,7 +41,7 @@ describe('PendingImports', () => {
   it('draws a row for a request still on its way, with where it is', async () => {
     await render(<PendingImports />)
     expect(screen.getByText('群青')).toBeTruthy()
-    expect(screen.getByText('Downloading on your server…')).toBeTruthy()
+    expect(screen.getByText('Downloading…')).toBeTruthy()
   })
 
   it('leaves out a request whose songs are already in the library', async () => {

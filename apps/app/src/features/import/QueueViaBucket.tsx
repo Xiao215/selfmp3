@@ -64,8 +64,8 @@ export function QueueViaBucket(): ReactNode {
         Add it anyway
       </Text>
       <Text style={styles.body}>
-        Leave the link here and your server downloads it the next time it is awake. It shows up in
-        your library after the sync that follows.
+        Leave the link here and your library’s computer downloads it the next time it’s on. It shows
+        up in your library soon after.
       </Text>
 
       <TextInput
@@ -96,13 +96,13 @@ export function QueueViaBucket(): ReactNode {
       ) : null}
       {added ? (
         <Text style={styles.good} accessibilityLiveRegion="polite" testID="queue-added">
-          Waiting for your server. It is in your library’s pending imports until then.
+          Added. It waits in your library’s pending imports until that computer is on.
         </Text>
       ) : null}
 
       <View style={styles.actions}>
         <Button
-          label={queue.isPending ? 'Adding…' : 'Add when the server wakes'}
+          label={queue.isPending ? 'Adding…' : 'Add for later'}
           icon={<CloudUpload size={13} color={accent.onAccent} />}
           variant="primary"
           disabled={!ready}

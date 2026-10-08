@@ -89,8 +89,10 @@ export function reachServer(
 /**
  * What a screen needs the server for, and what can be done while it is away.
  *
- * `needs` is the end of "… goes through your server", and what is lost while it
- * is off. `meanwhile` is what the screen can still offer — importing has one,
+ * Said without the word: on everyday screens the server is "your library's
+ * computer" — the one machine that imports, keeps every play and asks the
+ * model — and the bucket is "your storage" (G1). `needs` is what goes through
+ * that computer, and what is lost while it is off. `meanwhile` is what the screen can still offer — importing has one,
  * because a link can be left in the bucket for the server to take when it wakes
  * (SYNC.md, rule 6), and a screen with a way forward should not be telling
  * anyone to come back later. Stats and metadata have none: the history and the
@@ -99,28 +101,28 @@ export function reachServer(
 export const SERVER_NEEDS = {
   import: {
     needs:
-      'Importing goes through your server: it reads the link, plays a song before it is added, and downloads it.',
+      'Importing goes through your library’s computer: it reads the link, plays a song before it is added, and downloads it.',
     meanwhile:
-      'You can still add a link below — your server downloads it the next time it is awake, and it arrives here with the sync after that.',
+      'You can still add a link below — it’s downloaded the next time that computer is on, and turns up here soon after.',
   },
   stats: {
     needs:
-      'Stats come from your server: it keeps every play any of your devices has ever recorded, and the bucket carries only the library as it stands.',
+      'Stats come from your library’s computer: it keeps every play any of your devices has ever recorded, and your storage holds only the songs.',
     meanwhile: null,
   },
   metadata: {
     needs:
-      'Looking a song up goes through your server: it asks iTunes and MusicBrainz, and writes the corrections you pick.',
+      'Looking a song up goes through your library’s computer: it asks iTunes and MusicBrainz, and writes the corrections you pick.',
     meanwhile: null,
   },
   ai: {
     needs:
-      'Smart features go through your server: it holds the whole library together and asks the model on its behalf.',
+      'Smart features go through your library’s computer: it holds the whole library together and does the asking.',
     meanwhile: null,
   },
   devices: {
     needs:
-      'Your devices find each other through your server: it is the switchboard that carries a handoff from one to the other, and a storage bucket cannot hold a connection open between them.',
+      'Your devices find each other through your library’s computer: it carries a handoff from one to the other, which your storage can’t do.',
     meanwhile: null,
   },
 } as const
@@ -132,9 +134,11 @@ export function awayCopy(said: boolean, need: ServerNeed): { title: string; body
   const { needs, meanwhile } = SERVER_NEEDS[need]
   const waiting = said
     ? 'It answers on the same Wi‑Fi, or over Tailscale. Turn it on, or come back within reach — this screen keeps looking.'
-    : 'A device finds it by the addresses in its last sync. Start the current self.mp3 server and let it sync once — this screen keeps looking.'
+    : 'Devices find it by the address it last left in your storage. Start the current self.mp3 on it and let it run for a minute — this screen keeps looking.'
   return {
-    title: said ? 'Your server isn’t answering' : 'Your server hasn’t said where it is',
+    title: said
+      ? 'Your library’s computer isn’t answering'
+      : 'Your library’s computer hasn’t said where it is',
     body: `${needs} ${meanwhile ?? waiting}`,
   }
 }

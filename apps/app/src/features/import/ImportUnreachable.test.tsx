@@ -87,7 +87,7 @@ describe('Import, when the server it found stops answering', () => {
     await lookUp()
 
     await waitFor(() => expect(lookAgain).toHaveBeenCalledTimes(1))
-    expect(screen.getByText(/Your server stopped answering/)).toBeTruthy()
+    expect(screen.getByText(/Your library’s computer stopped answering/)).toBeTruthy()
     expect(screen.queryByText('Failed to fetch')).toBeNull()
   })
 

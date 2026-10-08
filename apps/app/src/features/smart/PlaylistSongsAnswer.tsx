@@ -198,7 +198,7 @@ export function PlaylistSongsAnswer({
         },
         model: {
           title: 'Worth a look',
-          note: 'The model’s picks. Nothing here changes unless you tick it.',
+          note: 'Suggested picks. Nothing here changes unless you tick it.',
         },
       }}
       drawChange={(each, state) => {

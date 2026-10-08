@@ -76,7 +76,7 @@ export function SmartPanel({
     <Panel
       title="Smart features"
       mark={<Sparkle size={12} />}
-      hint="on your server"
+      hint="through your library’s computer"
       anchor={anchor}
     >
       {server.reach.state !== 'reachable' ? (
@@ -229,7 +229,7 @@ export function SmartModelPanel({ anchor }: { anchor: (node: View | null) => voi
   )
 }
 
-/** Your server not answering, or not found yet: said the same in both panels. */
+/** The server not answering, or not found yet: said the same in both panels. */
 function ServerAwayRow({
   reach,
 }: {
@@ -237,10 +237,10 @@ function ServerAwayRow({
 }): ReactNode {
   return (
     <Row
-      label="Your server"
+      label="Your library’s computer"
       hint={
         reach.state === 'looking'
-          ? 'Looking for your server…'
+          ? 'Looking for it…'
           : 'Isn’t answering. Try the same Wi‑Fi or Tailscale.'
       }
       last

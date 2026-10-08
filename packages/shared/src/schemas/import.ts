@@ -32,13 +32,13 @@ export const ImportStepSchema = z.enum([
 export type ImportStep = z.infer<typeof ImportStepSchema>
 
 export const IMPORT_STEP_LABELS: Record<ImportStep, string> = {
-  waiting: 'Waiting in queue',
+  waiting: 'Waiting',
   resolving: 'Reading track info',
   downloading: 'Downloading audio',
   converting: 'Processing audio',
   lyrics: 'Looking for lyrics',
   saving: 'Adding to library',
-  uploading: 'Uploading to the cloud',
+  uploading: 'Saving to your storage',
   finished: 'Done',
 }
 

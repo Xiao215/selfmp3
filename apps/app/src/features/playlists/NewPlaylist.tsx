@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { plural, formatLongDuration, type Tag } from '@selfmp3/shared'
 import {
+  ApiError,
   failureText,
   radius,
   space,
@@ -70,7 +71,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
 
   const describe = useMutation({
     mutationFn: (text: string) => {
-      if (!server.api) throw new Error('your server isn’t reachable')
+      if (!server.api) throw new ApiError(0, 'no server to ask', 'offline')
       return server.api.describePlaylist({ text, understanding: null })
     },
   })

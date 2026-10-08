@@ -11,7 +11,6 @@ import { Cover } from '../../ui/components/Cover'
 import { ChevronRight, Download, Settings, Sparkles } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useArt } from '../../offline/useArt'
-import { useConnection } from '../../connection/ConnectionProvider'
 import { Avatar } from '../../ui/components/Avatar'
 import { useAccount } from './useAccount'
 import { deviceKind } from '../../ports/device'
@@ -38,7 +37,7 @@ const ICONS: Record<ProfileRowId, typeof Settings> = {
 }
 
 /**
- * Profile (`P31`): the person and whether this device is in step, this month as one
+ * Profile (`P31`): the person and how big the library is, this month as one
  * card that opens Stats, then Import, Report and Settings (profile.model.ts).
  *
  * Behind the avatar on a phone's Home; a computer reaches it from the name row
@@ -91,21 +90,17 @@ function ProfilePage({
 /** How big the round mark is on the page's head. */
 const AVATAR = 64
 
-/** The avatar, the name, and one line of what this device has. */
+/** The avatar, the name, and one line of how big the library is. */
 function Person(): ReactNode {
   // Whoever is signed in, from the session on a cloud device or from the
   // server's own sign-in: the same source the avatar beside the name draws.
   const account = useAccount()
-  const { fromCloud } = useConnection()
   const library = useLibrary()
   const name = profileName(account?.name)
   const line = profileLine({
     songs: library.data?.songs.length,
     tags: library.data?.tags.length,
-    syncedAt: library.dataUpdatedAt,
-    pending: library.isPending,
     error: library.isError ? library.error : null,
-    fromCloud,
   })
 
   return (
@@ -115,7 +110,7 @@ function Person(): ReactNode {
         <Text style={styles.name} accessibilityRole="header" numberOfLines={1}>
           {name}
         </Text>
-        <Text style={styles.line} testID="profile-sync">
+        <Text style={styles.line} testID="profile-line">
           {line}
         </Text>
       </View>
@@ -161,7 +156,9 @@ function Month({
         </>
       ) : (
         <Text style={styles.line}>
-          {loading ? 'Working it out…' : 'Your listening numbers come from your server.'}
+          {loading
+            ? 'Working it out…'
+            : 'Your listening numbers come from your library’s computer.'}
         </Text>
       )}
     </Pressable>

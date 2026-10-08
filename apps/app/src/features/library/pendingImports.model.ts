@@ -59,9 +59,9 @@ export function pendingImports(
 function pendingStatus(item: Request): string {
   switch (item.state) {
     case 'waiting':
-      return 'Waiting for your server'
+      return 'Waiting for your library’s computer'
     case 'working':
-      return 'Downloading on your server…'
+      return 'Downloading…'
     case 'done':
       return 'Almost ready: uploading to your library'
     case 'failed':

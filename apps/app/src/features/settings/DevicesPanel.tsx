@@ -109,7 +109,7 @@ function CloudDevices({ anchor }: { anchor: (node: View | null) => void }): Reac
   return (
     <DevicesList
       anchor={anchor}
-      hint={reach === 'reachable' ? 'through your server' : undefined}
+      hint={reach === 'reachable' ? 'through your library’s computer' : undefined}
       reach={reach}
       devices={list.data?.devices ?? []}
       onForget={forget}
@@ -226,10 +226,10 @@ function DevicesList({
         {!live ? (
           <Text style={[partStyles.hint, rows.length > 0 && styles.devicesNote]}>
             {listed.length === 0
-              ? 'Devices show up when this device can reach your server.'
+              ? 'Devices show up when this device can reach your library’s computer.'
               : reach === 'looking'
-                ? 'Looking for your server — showing the last list.'
-                : 'Can’t reach your server — showing the last list.'}
+                ? 'Looking for your library’s computer — showing the last list.'
+                : 'Can’t reach your library’s computer — showing the last list.'}
           </Text>
         ) : null}
         {view.older.length > 0 ? (

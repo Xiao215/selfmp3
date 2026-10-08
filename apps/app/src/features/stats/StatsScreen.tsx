@@ -60,7 +60,7 @@ export function StatsScreen({ via }: { via?: ServerConnection } = {}): ReactNode
       ) : !stats ? (
         <Empty
           title="Stats need your library"
-          hint="They’ll be here when your server is reachable again."
+          hint="They’ll be here when your library is reachable again."
         />
       ) : stats.totals.plays === 0 ? (
         <Empty

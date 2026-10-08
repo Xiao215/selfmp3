@@ -49,9 +49,9 @@ export function Confirmations({
       run: () => void signOut(),
     },
     'forget-storage': {
-      title: 'Forget the bucket?',
-      body: 'Your music stays in it, untouched. This device, and every other one signed in to your account, asks for a bucket again.',
-      label: 'Forget the bucket',
+      title: 'Disconnect your storage?',
+      body: 'Your music stays in it, untouched. This device, and every other one signed in to your account, asks for storage again.',
+      label: 'Disconnect',
       run: () =>
         void (async () => {
           try {
@@ -62,7 +62,7 @@ export function Confirmations({
             router.replace(STORAGE_ROUTE)
           } catch (caught) {
             // The dialog has closed already: the toast is the only place to say so.
-            showToast(failureText('Couldn’t forget the bucket', caught), 'error')
+            showToast(failureText('Couldn’t disconnect your storage', caught), 'error')
           }
         })(),
     },

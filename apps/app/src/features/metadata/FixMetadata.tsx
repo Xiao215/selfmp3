@@ -55,11 +55,11 @@ function NotOnServer({ onClose }: { onClose: () => void }): ReactNode {
   return (
     <Shell onClose={onClose} testID="metadata-not-on-server">
       <Text style={styles.cardTitle} accessibilityRole="header">
-        Your server doesn’t have this song
+        Not ready to look up yet
       </Text>
       <Text style={styles.cardBody}>
-        The lookup runs there, on the file itself. This one reached your library from another device
-        and your server hasn’t taken it down from the bucket yet — it will, and then this works.
+        The lookup reads the song’s file on your library’s computer. This one came from another
+        device and that computer hasn’t fetched it yet — it will, and then this works.
       </Text>
     </Shell>
   )

@@ -127,7 +127,7 @@ export function TidyReview({
             : { title: 'Sure fixes', note: 'Found by plain rules, so they start ticked.' },
         model: {
           title: 'Worth a look',
-          note: 'The model’s guesses. Nothing here changes unless you tick it.',
+          note: 'Suggestions. Nothing here changes unless you tick it.',
         },
       }}
       drawChange={(each, state) => {

@@ -1,11 +1,11 @@
-import { plural, formatRelative, type Stats } from '@selfmp3/shared'
+import { plural, type Stats } from '@selfmp3/shared'
 import { unreachableLabel } from '../library/library.model'
 import type { DevicePlace } from '../settings/settings.model'
 import { durationWords, formatHour, peakHour, peakHourWords } from '../stats/stats.model'
 
 /**
- * The Profile page, without the screen (`P31`): who you are and whether this device
- * is in step, this month as one card that opens Stats, then three rows.
+ * The Profile page, without the screen (`P31`): who you are and how big your
+ * library is, this month as one card that opens Stats, then three rows.
  *
  * On a phone Profile is behind the avatar on Home, and Stats lives under it (Open
  * question 7). A computer reaches it from the name row at the foot of its
@@ -67,39 +67,29 @@ export function profileName(accountName: string | null | undefined): string {
 }
 
 /**
- * The line under the name: the library, then whether this device has it —
- * "45 songs · 8 tags · synced 4m ago".
+ * The line under the name: how big the library is — "45 songs · 8 tags".
  *
- * While the library is first asked for it says so; when it cannot be reached
- * it says that, which is what the line is for.
+ * When it cannot be reached it says that too, which a phone has nowhere else
+ * to say. Being in step is the normal case and is not announced: "synced
+ * just now" was a word about plumbing on every visit.
  */
 export function profileLine({
   songs,
   tags,
-  syncedAt,
-  pending,
   error,
-  fromCloud,
-  now = new Date(),
 }: {
   songs: number | undefined
   tags: number | undefined
-  /** When the library last arrived, in ms; 0 or undefined before it has. */
-  syncedAt: number | undefined
-  pending: boolean
   /** Why the library did not come; null (or false) while it has. */
   error: unknown
-  fromCloud: boolean
-  now?: Date
 }): string {
   const parts: string[] = []
   if (songs !== undefined) parts.push(plural(songs, 'song', 'songs'))
   if (tags !== undefined) parts.push(plural(tags, 'tag', 'tags'))
   if (error) {
-    const label = unreachableLabel(fromCloud, error)
-    parts.push(label.charAt(0).toLowerCase() + label.slice(1))
-  } else if (pending || !syncedAt) parts.push('connecting…')
-  else parts.push(`synced ${formatRelative(syncedAt, now)}`)
+    const label = unreachableLabel(error)
+    parts.push(parts.length > 0 ? label.charAt(0).toLowerCase() + label.slice(1) : label)
+  }
   return parts.join(' · ')
 }
 

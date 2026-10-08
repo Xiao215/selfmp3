@@ -659,8 +659,7 @@ export function LibraryScreen(): ReactNode {
 }
 
 /** A library with no songs in it: an invitation, not an error. */
-const NO_LIBRARY_TEXT =
-  'Nothing here yet. Import a song and it turns up here once your server has it.'
+const NO_LIBRARY_TEXT = 'Nothing here yet. Import a song and it turns up here once it’s downloaded.'
 
 /**
  * The narrowest page column that takes the header on one row. Up next's rail

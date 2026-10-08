@@ -388,7 +388,7 @@ export function PlaylistDetailScreen(): ReactNode {
       <Text style={styles.emptyTitle}>Can’t reach your library</Text>
       <Text style={styles.emptyHint}>
         {playlist ? `${plural(playlist.songCount, 'song is', 'songs are')} in here, ` : ''}
-        but the list lives on your server and it isn’t answering right now.
+        but the list itself can’t be loaded right now.
       </Text>
       <Button label="Try again" onPress={() => void contents.refetch()} />
     </View>

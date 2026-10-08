@@ -87,7 +87,7 @@ function wordsFor(
     case 'cloud':
       return {
         title: quoted,
-        body: 'A library in the cloud plays songs from this device, so it needs downloading first.',
+        body: 'Songs from your storage play once they’re on this device, so it needs downloading first.',
         confirm: 'Download',
         cancel: 'Not now',
       }

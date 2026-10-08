@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { ApiError } from '@selfmp3/client'
 
 import {
-  capShort,
   emptyReason,
+  footNotice,
+  footSummary,
   matchNote,
   noMatchesTitle,
   stripTags,
@@ -17,20 +18,20 @@ describe('saying the library cannot be reached', () => {
     expect(
       unreachableCopy({ fromCloud: false, address: 'http://192.168.1.20:4600/', compact: false }),
     ).toEqual({
-      title: 'Can’t reach your server',
-      body: 'self.mp3 tried 192.168.1.20:4600. Check that the server is on and this device is on the same network.',
+      title: 'Can’t reach your library',
+      body: 'self.mp3 tried 192.168.1.20:4600. Check that this device is online and that the computer your library lives on is switched on.',
     })
   })
 
-  it('names the cloud for a cloud library, with no address', () => {
+  it('shows no address for a cloud library', () => {
     const copy = unreachableCopy({ fromCloud: true, address: 'http://old:4600', compact: false })
-    expect(copy.title).toBe('Can’t reach the cloud')
+    expect(copy.title).toBe('Can’t reach your library')
     expect(copy.body).not.toContain('old:4600')
   })
 
   it('says one short line on a phone', () => {
     expect(unreachableCopy({ fromCloud: false, address: 'http://a:1', compact: true }).body).toBe(
-      'Check that it’s on, then try again.',
+      'Check that you’re online, then try again.',
     )
   })
   // The doorman's answer when Backblaze's daily allowance is used up: it was
@@ -38,7 +39,7 @@ describe('saying the library cannot be reached', () => {
   const capped = new ApiError(502, 'Backblaze says “… cap exceeded …”', 'bucket_cap_exceeded')
   const evening = new Date('2026-10-08T02:49:00Z')
 
-  it('says the bucket’s daily limit is used up, not that the cloud is out of reach', () => {
+  it('says the storage’s allowance is used up, not that the library is out of reach', () => {
     const copy = unreachableCopy({
       fromCloud: true,
       address: null,
@@ -46,20 +47,20 @@ describe('saying the library cannot be reached', () => {
       error: capped,
       now: evening,
     })
-    expect(copy.title).toBe('Your bucket’s daily limit is used up')
+    expect(copy.title).toBe('Your storage’s allowance for today is used up')
     expect(copy.body).toContain('in about 21 hours')
     expect(copy.body).toContain('Caps & Alerts')
     expect(copy.body).not.toMatch(/online|reach/i)
-    expect(unreachableLabel(true, capped)).toBe('Bucket limit reached for today')
+    expect(unreachableLabel(capped)).toBe('Storage allowance used up for today')
   })
 
   it('still says can’t reach for anything else', () => {
     const offline = new ApiError(0, 'Failed to fetch', 'offline')
-    expect(unreachableLabel(true, offline)).toBe('Can’t reach the cloud')
-    expect(unreachableLabel(false, new Error('boom'))).toBe('Can’t reach your server')
+    expect(unreachableLabel(offline)).toBe('Can’t reach your library')
+    expect(unreachableLabel(new Error('boom'))).toBe('Can’t reach your library')
     expect(
       unreachableCopy({ fromCloud: true, address: null, compact: false, error: offline }).title,
-    ).toBe('Can’t reach the cloud')
+    ).toBe('Can’t reach your library')
   })
 
   it('counts down to midnight GMT, in minutes for the last hour', () => {
@@ -72,7 +73,61 @@ describe('saying the library cannot be reached', () => {
   it('says it shorter where a line has little room', () => {
     expect(untilCapResets(new Date('2026-10-08T04:00:00Z'), true)).toBe('20 h')
     expect(untilCapResets(new Date('2026-10-08T23:20:00Z'), true)).toBe('40 min')
-    expect(capShort(new Date('2026-10-08T04:00:00Z'))).toBe('Bucket limit · 20 h left')
+  })
+})
+
+describe('the sidebar foot', () => {
+  const offline = new ApiError(0, 'Failed to fetch', 'offline')
+  const base = {
+    error: null,
+    held: false,
+    fromCloud: true,
+    keepsSongs: true,
+    place: 'computer' as const,
+    unsent: 0,
+    now: new Date('2026-10-08T04:00:00Z'),
+  }
+
+  it('says nothing on a normal day', () => {
+    expect(footNotice(base)).toBeNull()
+  })
+
+  it('says what still works while offline, and that changes wait', () => {
+    expect(footNotice({ ...base, error: offline })).toEqual({
+      title: 'Offline',
+      body: 'Songs on this computer still play. Changes send when you’re back.',
+    })
+    expect(footNotice({ ...base, error: offline, unsent: 3 })?.body).toBe(
+      'Songs on this computer still play. Your 3 changes send when you’re back.',
+    )
+    expect(footNotice({ ...base, error: offline, unsent: 1 })?.body).toContain('Your change sends')
+  })
+
+  it('promises no songs from a browser tab, which keeps none', () => {
+    expect(footNotice({ ...base, error: offline, keepsSongs: false })?.body).toBe(
+      'Changes send when you’re back.',
+    )
+  })
+
+  it('says a server library’s edits wait for it to come back', () => {
+    expect(footNotice({ ...base, error: offline, fromCloud: false })).toEqual({
+      title: 'Can’t reach your library',
+      body: 'Songs on this computer still play. Changes can’t be saved until it’s back. Check that you’re online.',
+    })
+  })
+
+  it('says a used-up allowance, and when it comes back, even before a read fails', () => {
+    expect(footNotice({ ...base, held: true })).toEqual({
+      title: 'Storage allowance used up',
+      body: 'Songs on this computer still play. The rest come back in about 20 hours.',
+    })
+  })
+
+  it('reassures on hover, naming only what this device keeps', () => {
+    expect(footSummary({ songs: 109, here: 12, place: 'computer' })).toBe(
+      'All saved · 109 songs · 12 on this computer',
+    )
+    expect(footSummary({ songs: 1, here: 0, place: 'computer' })).toBe('All saved · 1 song')
   })
 })
 

@@ -125,7 +125,7 @@ export function ImportReview({
 
   const failed = (err: Error): void => {
     if (via && err instanceof ApiError && err.isOffline) {
-      setError('Your server stopped answering. Looking for it again…')
+      setError('Your library’s computer stopped answering. Looking for it again…')
       onUnreachable?.()
       return
     }
@@ -558,11 +558,7 @@ function EndWords({
   if (state === 'yours') {
     return (
       <Text style={styles.endQuiet}>
-        {item.alreadyHave
-          ? item.waitingToUpload
-            ? 'On your server'
-            : 'In library'
-          : 'In the queue'}
+        {item.alreadyHave ? (item.waitingToUpload ? 'Almost ready' : 'In library') : 'Importing'}
       </Text>
     )
   }

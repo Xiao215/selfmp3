@@ -175,12 +175,12 @@ describe('settings', () => {
 
   it('says it is checking while it checks, and which side it could not reach', () => {
     expect(healthLine(undefined, { loading: true })).toBe('Checking your library…')
-    expect(healthLine(undefined, { error: true })).toBe('Can’t reach your server')
-    expect(healthLine(undefined, { error: true, fromCloud: true })).toBe('Can’t reach the cloud')
+    expect(healthLine(undefined, { error: true })).toBe('Can’t reach your library')
+    expect(healthLine(undefined, { error: true, fromCloud: true })).toBe('Can’t reach your library')
     const capped = new ApiError(502, 'cap exceeded', 'bucket_cap_exceeded')
     const now = new Date('2026-10-08T04:00:00Z')
     expect(healthLine(undefined, { error: capped, fromCloud: true, now })).toBe(
-      'Bucket limit reached · resets in about 20 hours',
+      'Storage allowance used up · resets in about 20 hours',
     )
   })
 
@@ -189,10 +189,10 @@ describe('settings', () => {
     const now = new Date('2026-10-08T04:00:00Z')
     expect(healthLine(doorman, { fromCloud: true })).toBe('self.mp3 web')
     expect(healthLine(doorman, { fromCloud: true, capped: true, now })).toBe(
-      'Bucket limit reached · resets in about 20 hours',
+      'Storage allowance used up · resets in about 20 hours',
     )
     expect(healthLine(doorman, { fromCloud: true, capped: true, compact: true, now })).toBe(
-      'Bucket limit reached · 20 h left',
+      'Storage allowance used up · 20 h left',
     )
   })
 
@@ -224,7 +224,7 @@ describe('settings', () => {
       }),
     ).toBe('self.mp3 1.0.0 · 13 songs')
     expect(scanHint({ added: 1, updated: 2, total: 13, durationMs: 40 })).toBe(
-      'Last sweep: 1 new, 2 updated.',
+      'Last scan: 1 new, 2 updated.',
     )
   })
 })

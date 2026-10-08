@@ -107,8 +107,10 @@ describe('DevicesSheet from a cloud library', () => {
     await draw()
 
     expect(screen.getByTestId('devices-server-away')).toBeTruthy()
-    expect(screen.getByText('Your server isn’t answering')).toBeTruthy()
-    expect(screen.getByText(/Your devices find each other through your server/)).toBeTruthy()
+    expect(screen.getByText('Your library’s computer isn’t answering')).toBeTruthy()
+    expect(
+      screen.getByText(/Your devices find each other through your library’s computer/),
+    ).toBeTruthy()
   })
 
   it('keeps looking, and says that, before it has an answer', async () => {
@@ -140,7 +142,7 @@ describe('DevicesSheet from a cloud library', () => {
     mockContext = base({ others: [device({ state: state({ songId: null, queueIds: [] }) })] })
     await draw()
 
-    expect(screen.getByText('Playing something not in your bucket')).toBeTruthy()
+    expect(screen.getByText('Playing something not in your storage')).toBeTruthy()
     const row = screen.getByRole('menuitem', { name: /iPhone/ })
     expect(row).toBeDisabled()
     await fireEvent.press(row)
@@ -152,7 +154,7 @@ describe('DevicesSheet from a cloud library', () => {
     await draw()
 
     expect(
-      screen.getByText('This song isn’t in your bucket yet, so no other device can find it.'),
+      screen.getByText('This song isn’t in your storage yet, so no other device can find it.'),
     ).toBeTruthy()
     const push = screen.getByRole('menuitem', { name: 'Play there instead' })
     expect(push).toBeDisabled()

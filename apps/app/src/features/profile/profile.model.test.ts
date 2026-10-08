@@ -48,25 +48,21 @@ describe('the Profile page', () => {
     expect(profileName(null)).toBe('Profile')
   })
 
-  it('says what the library holds, then whether this device is in step with it', () => {
-    const now = new Date('2026-09-14T12:00:00Z')
-    const base = { songs: 45, tags: 8, pending: false, error: false, fromCloud: false, now }
-    expect(profileLine({ ...base, syncedAt: now.getTime() - 4 * 60_000 })).toBe(
-      '45 songs · 8 tags · synced 4m ago',
-    )
-    expect(profileLine({ ...base, songs: 1, tags: 1, syncedAt: now.getTime() })).toBe(
-      '1 song · 1 tag · synced just now',
-    )
-    expect(
-      profileLine({ ...base, songs: undefined, tags: undefined, pending: true, syncedAt: 0 }),
-    ).toBe('connecting…')
-    // A failed refetch keeps the cached library, so the error wins over the time.
-    expect(profileLine({ ...base, error: true, fromCloud: true, syncedAt: now.getTime() })).toBe(
-      '45 songs · 8 tags · can’t reach the cloud',
+  it('says what the library holds, and nothing about being in step', () => {
+    const base = { songs: 45, tags: 8, error: false }
+    expect(profileLine(base)).toBe('45 songs · 8 tags')
+    expect(profileLine({ ...base, songs: 1, tags: 1 })).toBe('1 song · 1 tag')
+    expect(profileLine({ ...base, songs: undefined, tags: undefined })).toBe('')
+    // A failed refetch keeps the cached library, and the line still says it failed.
+    expect(profileLine({ ...base, error: true })).toBe(
+      '45 songs · 8 tags · can’t reach your library',
     )
     const capped = new ApiError(502, 'cap exceeded', 'bucket_cap_exceeded')
-    expect(profileLine({ ...base, error: capped, fromCloud: true, syncedAt: 0 })).toBe(
-      '45 songs · 8 tags · bucket limit reached for today',
+    expect(profileLine({ ...base, error: capped })).toBe(
+      '45 songs · 8 tags · storage allowance used up for today',
+    )
+    expect(profileLine({ songs: undefined, tags: undefined, error: true })).toBe(
+      'Can’t reach your library',
     )
   })
 

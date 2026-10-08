@@ -76,7 +76,7 @@ function keyOf(song: Song, by: AskSort): number | string | null {
 }
 
 /** Songs in order of one thing; a song without it (not analysed, never played) goes last either way. */
-export function sortSongs(songs: readonly Song[], by: AskSort, order: AskOrder): Song[] {
+function sortSongs(songs: readonly Song[], by: AskSort, order: AskOrder): Song[] {
   const sign = order === 'asc' ? 1 : -1
   return [...songs].sort((a, b) => {
     const x = keyOf(a, by)

@@ -65,6 +65,51 @@ test.describe('up next on a computer', () => {
     await expect(rail).toBeHidden()
   })
 
+  test('a row held and moved lands where it was let go, far down a long queue', async ({
+    page,
+  }, info) => {
+    test.skip(info.project.name === 'phone', RAIL)
+    await startPlaying(page)
+    await skipIfNoLibrary(page, 12)
+    await page.getByTestId('player-bar-queue').click()
+    const rail = page.getByTestId('queue-rail')
+    await expect(rail.getByTestId('queue-row-1')).toBeVisible()
+
+    // The rail draws only the rows in view, so scroll to its end first: the
+    // rows there are drawn as they arrive, and a move among them has to land.
+    const rows = rail.locator('[data-testid^="queue-row-"]')
+    const count = await page.evaluate(() => {
+      const el = document.querySelector('[data-testid="queue-rail"]')
+      const list = [...(el?.querySelectorAll('div') ?? [])].find(
+        div => div.scrollHeight > div.clientHeight && getComputedStyle(div).overflowY !== 'visible',
+      )
+      if (list) list.scrollTop = list.scrollHeight
+      return list ? Math.round(list.scrollHeight / 44) : 0
+    })
+    expect(count).toBeGreaterThan(10)
+    const last = Math.max(
+      ...(await rows.evaluateAll(all =>
+        all.map(row => Number(row.getAttribute('data-testid')?.replace('queue-row-', ''))),
+      )),
+    )
+    const from = last - 2
+    const row = rail.getByTestId(`queue-row-${from}`)
+    await expect(row).toBeVisible()
+    const name = await nameOf(row)
+
+    const box = (await row.boundingBox())!
+    const x = box.x + box.width / 2
+    const y = box.y + box.height / 2
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    // Past the hold (`MOVE_MS.hold`), then two rows up in small steps.
+    await page.waitForTimeout(700)
+    for (let step = 1; step <= 10; step++) await page.mouse.move(x, y - (2 * 44 * step) / 10)
+    await page.mouse.up()
+
+    await expect(rail.getByTestId(`queue-row-${from - 2}`)).toHaveAttribute('aria-label', name)
+  })
+
   test('a song comes out by its menu or by Delete, and Undo puts it back', async ({
     page,
   }, info) => {

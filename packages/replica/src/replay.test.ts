@@ -10,6 +10,8 @@ const base: CloudSnapshot = {
   songs: [],
   tags: [],
   playlists: [],
+  artists: [],
+  sound: null,
   server: { addresses: ['http://localhost:4600', 'http://192.0.0.2:4600'], token: null },
 }
 

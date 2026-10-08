@@ -17,6 +17,7 @@ import {
   useCreateTag,
   useLibrary,
 } from '@selfmp3/client'
+import { unreachableLabel } from '../features/library/library.model'
 import { noteTagUsed, useRecentTagIds } from '../features/library/recentTags.store'
 import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'
@@ -578,7 +579,7 @@ function Foot(): ReactNode {
 
   // A failed refetch keeps the cached library, so an error wins over the data.
   const [dot, label] = library.isError
-    ? [theme.colors.danger, fromCloud ? 'Can’t reach the cloud' : 'Can’t reach your server']
+    ? [theme.colors.danger, unreachableLabel(fromCloud, library.error)]
     : library.isPending
       ? [theme.colors.warning, 'Connecting…']
       : [theme.colors.good, fromCloud ? 'Cloud library' : 'Connected to your server']

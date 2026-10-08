@@ -64,7 +64,7 @@ import {
 } from './nowPlaying.model'
 import { useLayout } from '../../shell/useLayout'
 import { PLAYER_BAR_HEIGHT } from '../../shell/PlayerBar'
-import { ease, motionMs, timing, useFade, usePresence } from '../../ui/motion'
+import { ease, motionMs, nativeDriver, timing, useFade, usePresence } from '../../ui/motion'
 import { MOVE_MS } from '../../ui/motion.model'
 import { takeCoverHandoff, type CoverFrame } from '../../ui/coverHandoff'
 import { StageLyrics } from './StageLyrics'
@@ -377,14 +377,14 @@ function Stage({
       toValue: 1,
       duration: motionMs(MOVE_MS.stageEnter),
       easing: ease.out,
-      useNativeDriver: true,
+      useNativeDriver: nativeDriver,
     }).start(() => setEntered(true))
     setStageExit(done => {
       Animated.timing(shown, {
         toValue: 0,
         duration: motionMs(MOVE_MS.stageLeave),
         easing: ease.in,
-        useNativeDriver: true,
+        useNativeDriver: nativeDriver,
       }).start(({ finished }) => done(finished))
     })
     return () => {

@@ -1,0 +1,119 @@
+# The two end-to-end suites that need nothing but this checkout, on every push
+# to main and every pull request.
+#
+# The browser extension (`verify:extension`) runs in Playwright's Chromium
+# against a fake server each spec starts in-process. The desktop smoke
+# (`verify:desktop`) drives the built shell through Playwright's Electron; on
+# Linux there is no keychain, and the shell keeps its secrets in plain storage
+# there, as it would on any Linux machine without a secret service. The one
+# flow that needs a real server with songs (`SELFMP3_APP_API`) and the packaged
+# app's test (a build in apps/desktop/release) skip and say why.
+#
+# Separate from check.yml because Pages and the release workflows call that one
+# before they build, and none of them should wait on a browser or an export.
+name: End to end
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  extension:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # No install scripts, as in extension.yml: esbuild and Playwright need
+      # none, and the server's native modules are not used here.
+      - run: npm ci --ignore-scripts
+
+      - name: Build the packages and the extension
+        run: npm run build:extension
+
+      # Chromium and the system libraries it needs. Not Google Chrome: Chrome
+      # stopped honouring `--load-extension` (apps/extension/verify/launch.ts).
+      - name: Install Playwright's Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: The extension, end to end
+        run: npm run verify:extension
+
+      - if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: extension-test-results
+          path: apps/extension/test-results
+          retention-days: 7
+
+  desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # No install scripts, as for the Pages export, except Electron's own:
+      # its install script is what downloads the binary the smoke launches.
+      - run: npm ci --ignore-scripts
+      - run: node node_modules/electron/install.js
+
+      - name: Build the packages, the web export and the shell
+        run: |
+          npm run build:packages
+          npm run export:web --workspace @selfmp3/app
+          npm run build --workspace @selfmp3/desktop
+
+      # Ubuntu's AppArmor keeps unprivileged user namespaces from anything it
+      # has no profile for, and Chromium's sandbox inside Electron needs them.
+      # A fact about this runner, not something the app asks for.
+      - name: Let Electron's sandbox start
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      # The runner has no desktop. With no file manager to ask, Electron's
+      # "show in folder" on Linux runs xdg-open on the folder and waits for it,
+      # and the runner's xdg-open never returned: the smoke's reveal hung the
+      # main process. One that only says what it was asked stands in, and the
+      # test still checks that the call crosses the bridge.
+      - name: Stand in for a file manager
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          printf '#!/bin/sh\necho "xdg-open $*"\n' > "$RUNNER_TEMP/bin/xdg-open"
+          chmod +x "$RUNNER_TEMP/bin/xdg-open"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      # A window needs a display; xvfb-run gives the run one of its own.
+      - name: The desktop smoke
+        run: xvfb-run -a npm run verify:desktop
+
+      - if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: desktop-test-results
+          path: apps/desktop/test-results
+          retention-days: 7

@@ -11,10 +11,10 @@ import {
   fft,
   MOTION_SAMPLE_RATE,
   MotionBuilder,
-  motionFromPcm,
   onsetEnvelope,
   rms,
 } from './dsp.js'
+import { motionFromPcm } from './fixtures/motion.js'
 
 /**
  * Every signal here is synthesised in the test, so nothing depends on ffmpeg

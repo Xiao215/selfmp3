@@ -30,6 +30,15 @@ export class ApiError extends Error {
   get isUnanswered(): boolean {
     return this.status === 0 || this.status >= 500
   }
+
+  /**
+   * True when the bucket refused because its daily allowance is used up
+   * (Backblaze's cap). Everything is reachable; downloads come back when the
+   * cap resets at midnight GMT, or once it is raised.
+   */
+  get isBucketCapped(): boolean {
+    return this.code === 'bucket_cap_exceeded'
+  }
 }
 
 /**

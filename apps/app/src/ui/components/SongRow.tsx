@@ -188,17 +188,18 @@ export const SongRow = memo(function SongRow({
   const tagAddRef = useRef<View>(null)
   // With a mouse a row drags onto a playlist in the sidebar. Nothing on a phone.
   const rowRef = useRef<View>(null)
-  useSongDragSource(rowRef, () => [song.id], wide && dense)
   // The held row gives a little under the finger or the mouse, on the one
   // spring (`M1`, 1): a row's depth, since a row is wide enough that a
   // control's would walk its ends. Both widths spring from the row's main
   // press target only, so the ⋯, a tag or the select circle press as
   // themselves. On a computer it sits outside hover, which is the row's
   // background, and outside selection, which is the same press read with its
-  // modifier keys; a drag to the sidebar starts by ending the press
-  // (react-native-web ends the gesture on `dragstart`), so the row springs back
-  // as the drag image leaves it.
+  // modifier keys. A drag to the sidebar puts the row back to full size the
+  // instant it starts (`press.rest`): the browser draws the drag image from
+  // the row as it stands then, and a row held a moment before the pointer
+  // moved would otherwise leave as a pressed-in copy of itself.
   const press = usePressScale(PRESS.row)
+  useSongDragSource(rowRef, () => [song.id], wide && dense, press.rest)
   // What holding the row does, the same at both widths: nothing where
   // something outside the row has the hold (`null`), what the list asked
   // for, or the ⋯ menu.

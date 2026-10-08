@@ -13,6 +13,7 @@
   "devDependencies": {
     "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
     "@expo-google-fonts/instrument-serif": "^0.4.1",
+    "@selfmp3/app": "*",
     "@selfmp3/client": "*",
     "@selfmp3/replica": "*",
     "@selfmp3/shared": "*",

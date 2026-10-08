@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { AccessibilityInfo, Animated, Easing } from 'react-native'
+import { nativeDriver } from '../ports/nativeDriver'
 import { motion } from '@selfmp3/client'
 import {
   backOut,
@@ -63,11 +64,8 @@ export function motionMs(ms: number): number {
   return reduced ? 0 : ms
 }
 
-/**
- * The native driver, as the rest of the app asks for it: a browser has none
- * and react-native-web runs the same animation on the JS side instead.
- */
-const nativeDriver = true
+/** The native driver where there is one (`ports/nativeDriver`), for every `Animated` move. */
+export { nativeDriver }
 
 /**
  * The one spring (`motion.spring`), or a jump to the end under Reduce Motion.
@@ -262,6 +260,12 @@ export function useFade(shown: boolean, inMs: number, outMs: number): Animated.V
 export function usePressScale(to: number = PRESS.control): {
   style: { transform: { scale: Animated.Value }[] }
   handlers: { onPressIn: () => void; onPressOut: () => void }
+  /**
+   * Back to full size at once, with no spring: for the moment something is
+   * about to be taken of the pressed thing as it stands — a browser's drag
+   * image of a row, drawn the instant its drag starts.
+   */
+  rest: () => void
 } {
   // Made once per component, in state rather than a ref, so render reads nothing mutable.
   const [press] = useState(() => {
@@ -271,6 +275,10 @@ export function usePressScale(to: number = PRESS.control): {
       handlers: {
         onPressIn: () => void spring(scale, to),
         onPressOut: () => void spring(scale, 1),
+      },
+      rest: () => {
+        scale.stopAnimation()
+        scale.setValue(1)
       },
     }
   })

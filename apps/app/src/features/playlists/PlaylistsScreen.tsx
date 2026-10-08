@@ -153,7 +153,7 @@ export function PlaylistsScreen(): ReactNode {
           <ActivityIndicator style={styles.spinner} color={accent.accent} />
         ) : model.unreachable ? (
           // Not "nothing of your own yet": nothing is known about them at all.
-          <CantReach onRetry={model.retry} />
+          <CantReach error={model.failure} onRetry={model.retry} />
         ) : (
           <View
             style={styles.grid}

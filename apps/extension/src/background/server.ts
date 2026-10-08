@@ -7,7 +7,7 @@ import {
 } from '@selfmp3/client/core'
 
 /** How long an ordinary request waits before the server is called asleep. */
-export const REQUEST_TIMEOUT_MS = 15_000
+const REQUEST_TIMEOUT_MS = 15_000
 
 /**
  * A fetch that gives up. An address nothing answers at — a Wi-Fi address from

@@ -49,7 +49,13 @@ import {
 import { decodeMotion, type MotionCurve } from '../motion/motion.js'
 import { useClientState } from './context.js'
 import { createLibrarySnapshotWrites, type LibrarySnapshotWrites } from './librarySnapshotWrites.js'
-import { hasLivePlaylists, withPlaylist, withSong, withTag } from './patchLibrary.js'
+import {
+  hasLivePlaylists,
+  tagsMoveLivePlaylists,
+  withPlaylist,
+  withSong,
+  withTag,
+} from './patchLibrary.js'
 import { STALE } from './stale.js'
 import {
   isPendingRequest,
@@ -301,8 +307,12 @@ export function useLibrary(): UseQueryResult<Library, Error> {
     // Keep showing the old library while a refetch runs, so the list does not
     // flash empty every time the app regains focus.
     placeholderData: previous => previous,
+    // Offline, or the bucket's daily allowance used up: asking again at once
+    // gets the same answer, and the screen should say why without the wait.
     retry: (failureCount, error) =>
-      error instanceof ApiError && error.isOffline ? false : failureCount < 2,
+      error instanceof ApiError && (error.isOffline || error.isBucketCapped)
+        ? false
+        : failureCount < 2,
   })
 }
 
@@ -614,8 +624,17 @@ export function useSetSongTags() {
     scope: { id: 'song-tags' },
     meta: { failure: 'Couldn’t change the song’s tags' },
     onSuccess: song => {
-      putInLibrary(client, library => withSong(library, song), hasLivePlaylists)
-      refetchLivePlaylists(client)
+      // Only a live playlist following a tag the song gained or lost can hold
+      // other songs now. Asking for the library again whenever any live
+      // playlist existed re-read and redrew all of it after every tick.
+      const held = client.getQueryData<Library>(queryKeys.library)
+      const playlistsMoved = !held || tagsMoveLivePlaylists(held, song)
+      putInLibrary(
+        client,
+        library => withSong(library, song),
+        () => playlistsMoved,
+      )
+      if (playlistsMoved) void client.invalidateQueries({ queryKey: queryKeys.playlists })
     },
     // A request that timed out may still have landed: the chips ask what is true.
     onError: () => {

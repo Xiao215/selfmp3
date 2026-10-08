@@ -28,7 +28,7 @@ const SAVE_EVERY_MS = 5_000
  * one is still restoring its own raced the restore, and main showed "Continue
  * オリオン" beside a bar that had just come back to アイドル.
  */
-export type PlaybackMemory =
+type PlaybackMemory =
   { readonly settled: false } | { readonly settled: true; readonly restoredSongId: number | null }
 
 const memory = createValueStore<PlaybackMemory>({ settled: false })

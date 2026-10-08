@@ -24,7 +24,7 @@ import type {
  */
 
 /** One part of an understanding, drawn as a chip that can be taken away. */
-export interface Part {
+interface Part {
   readonly key: string
   readonly label: string
   /** A tag's hue, for a tag's dot. */

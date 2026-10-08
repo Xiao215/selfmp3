@@ -12,7 +12,6 @@ import { cloudPlatform } from '../ports/cloudPlatform'
 export const session = createCloudSession(cloudPlatform)
 export const library = createCloudLibrary(cloudPlatform, session)
 export const { cloudRequest } = createCloudRoutes(cloudPlatform, session, library)
-export { cloudPlatform }
 
 /** A file in the bucket, as the doorman serves it: `key` is where the bucket keeps it. */
 export function doormanFileUrl(key: string): string {

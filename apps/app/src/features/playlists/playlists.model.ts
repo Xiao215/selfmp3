@@ -131,6 +131,8 @@ interface PlaylistsModel {
    * your own yet" would be a guess: there may be twenty.
    */
   unreachable: boolean
+  /** Why the library did not answer, for the card that says so. */
+  failure: unknown
   /** Ask for the library again. */
   retry: () => void
 }
@@ -146,6 +148,7 @@ export function usePlaylistsModel(sort: PlaylistSort = 'recent'): PlaylistsModel
     loading: library.isPending,
     empty: !library.isPending && !unreachable && playlists.length === 0,
     unreachable,
+    failure: library.error,
     retry: () => void library.refetch(),
   }
 }

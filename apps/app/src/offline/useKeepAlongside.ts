@@ -20,17 +20,18 @@ import { writeCachedPlaylist } from './playlistCache'
  * What the library snapshot does not carry, kept on this device anyway.
  *
  * The library answer names every song and playlist but holds no pictures, no
- * words and no playlist members: each is a request of its own. This pass runs
- * once per change to the library's contents, while the server is answering,
- * and asks for them in the background, a few at a time, so a phone that has
- * seen its server once looks and works the same when the server is away:
+ * words and no playlist members: each is a request of its own. Two passes ask
+ * for them in the background while the server is answering, each once per
+ * change to what it keeps, so a phone that has seen its server once looks and
+ * works the same when the server is away:
  *
  *  - every song's cover, downloaded or not — a row wants its picture either way —
  *    and, from the bucket, every artist's picture. One that could not be had
  *    (the bucket's daily cap, say) is asked for again a while later, not left
  *    until the library next changes; once every one is here, the pictures the
  *    library no longer names are deleted (`sweepPictures`);
- *  - every playlist's members, so a playlist opens offline;
+ *  - every playlist's members, so a playlist opens offline — a pass of its
+ *    own, since a playlist's songs change without any song changing;
  *  - the words of every downloaded song. A download fetches its own words as
  *    it goes (ports/downloadStorage.ts); this catches songs downloaded before
  *    the app kept words, and words edited on the server since;
@@ -53,40 +54,81 @@ const AT_ONCE = 4
 const RETRY_MISSING_MS = 10 * 60_000
 
 /**
- * What a pass depends on, as a short string: which songs, at which revision,
- * and which playlists, as they last changed.
+ * How long the songs pass works before it lets the phone draw and take taps.
  *
- * Not `generatedAt`, which named the pass before. A server stamps each answer
- * with the time it was made, so every refetch looked like a new library and
- * started the whole pass again; a cloud library stamps its snapshot, which can
- * stay put while a revision underneath it moves. This changes exactly when
- * there is something new to keep.
+ * A song whose cover and words are already here is answered without waiting on
+ * anything — a file check is synchronous — so a pass over a library kept
+ * whole never left the JavaScript thread on its own: 1,500 songs held it for
+ * seven seconds on the simulator.
  */
-function contentsKey(library: Library, artists: readonly { banner: string }[]): string {
-  // FNV-1a, 32-bit: a few thousand songs hash in well under a frame, and the
-  // key stays a few bytes instead of the whole library as a string.
+const SLICE_MS = 8
+
+/**
+ * FNV-1a, 32-bit, of the parts given: a few thousand songs hash in well under
+ * a frame, and the key stays a few bytes instead of the whole library as a
+ * string.
+ */
+function hashOf(count: number, parts: Iterable<string>): string {
   let hash = 0x811c9dc5
-  const mix = (text: string): void => {
+  for (const text of parts) {
     for (let at = 0; at < text.length; at += 1) {
       hash ^= text.charCodeAt(at)
       hash = Math.imul(hash, 0x01000193)
     }
   }
-  for (const song of library.songs) mix(`${song.id}:${song.rev ?? ''}:${song.hasArt ? 1 : 0};`)
-  for (const playlist of library.playlists) {
-    mix(`p${playlist.id}:${playlist.updatedAt}:${playlist.songCount};`)
+  return `${count}.${(hash >>> 0).toString(36)}`
+}
+
+/**
+ * What the songs pass depends on, as a short string: which songs, at which
+ * revision, and which artists' pictures.
+ *
+ * Not `generatedAt`, which named the pass before. A server stamps each answer
+ * with the time it was made, so every refetch looked like a new library and
+ * started the whole pass again; a cloud library stamps its snapshot, which can
+ * stay put while a revision underneath it moves. Not the playlists either:
+ * ticking a tag that a live playlist follows changes how many songs it has,
+ * and that started the pass over every song again, after every tick.
+ */
+function songsKey(library: Library, artists: readonly { banner: string }[]): string {
+  return hashOf(library.songs.length, [
+    ...library.songs.map(song => `${song.id}:${song.rev ?? ''}:${song.hasArt ? 1 : 0};`),
+    // An artist's picture arriving changes no song: it is a pass's worth too.
+    ...artists.map(artist => `a${artist.banner};`),
+  ])
+}
+
+/** What the playlists pass depends on: which playlists, as they last changed. */
+function playlistsKey(library: Library): string {
+  return hashOf(
+    library.playlists.length,
+    library.playlists.map(
+      playlist => `p${playlist.id}:${playlist.updatedAt}:${playlist.songCount};`,
+    ),
+  )
+}
+
+/**
+ * Wait for the next turn of the event loop once this much work has run since
+ * the last. Awaiting a promise that is already settled does not do that: it
+ * carries straight on, ahead of every tap and redraw waiting.
+ */
+function slices(ms: number): () => Promise<void> {
+  let since = Date.now()
+  return async () => {
+    if (Date.now() - since < ms) return
+    await new Promise(resolve => setTimeout(resolve, 0))
+    since = Date.now()
   }
-  // An artist's picture arriving changes no song: it is a pass's worth too.
-  for (const artist of artists) mix(`a${artist.banner};`)
-  return `${library.songs.length}.${library.playlists.length}.${(hash >>> 0).toString(36)}`
 }
 
 export function useKeepAlongside(): void {
   const library = useLibrary()
   const { state, installed } = useDownloads()
   const { connection, fromCloud } = useConnection()
-  // The key of the last pass that ran to the end.
+  // The keys of the last passes that ran to the end.
   const done = useRef<string | null>(null)
+  const playlistsDone = useRef<string | null>(null)
   // Bumped to run a pass again that could not fetch every picture.
   const [retry, setRetry] = useState(0)
 
@@ -98,9 +140,10 @@ export function useKeepAlongside(): void {
     () =>
       data === undefined
         ? null
-        : contentsKey(data, fromCloud ? (cloudLibrary.cloudPicturesNow()?.artists ?? []) : []),
+        : songsKey(data, fromCloud ? (cloudLibrary.cloudPicturesNow()?.artists ?? []) : []),
     [data, fromCloud],
   )
+  const listsKey = useMemo(() => (data === undefined ? null : playlistsKey(data)), [data])
 
   /*
    * Read when a pass reaches them, not dependencies of it. A download finishing
@@ -126,10 +169,13 @@ export function useKeepAlongside(): void {
     let missing = 0
 
     void (async () => {
+      const breathe = slices(SLICE_MS)
       const songsDone = await runLimited(
         library.songs,
         AT_ONCE,
         async song => {
+          await breathe()
+          if (cancelled) return
           if (song.hasArt) {
             if (fromCloud) {
               if (!(await ensureCover(song.id))) missing++
@@ -175,14 +221,6 @@ export function useKeepAlongside(): void {
         )
         if (!artistsDone) return
       }
-      for (const playlist of library.playlists) {
-        if (cancelled) return
-        try {
-          writeCachedPlaylist(await api.playlistSongs(playlist.id))
-        } catch {
-          // Likewise.
-        }
-      }
       if (cancelled) return
       if (missing > 0) {
         again = setTimeout(() => setRetry(count => count + 1), RETRY_MISSING_MS)
@@ -209,4 +247,28 @@ export function useKeepAlongside(): void {
       if (again) clearTimeout(again)
     }
   }, [installed, reachable, key, connection, fromCloud, retry])
+
+  useEffect(() => {
+    if (!reachable || listsKey === null) return undefined
+    if (playlistsDone.current === listsKey) return undefined
+    const library = latest.current.data
+    if (library === undefined) return undefined
+    let cancelled = false
+
+    void (async () => {
+      for (const playlist of library.playlists) {
+        if (cancelled) return
+        try {
+          writeCachedPlaylist(await api.playlistSongs(playlist.id))
+        } catch {
+          // No answer, or the server went away mid-pass: the next pass asks again.
+        }
+      }
+      if (!cancelled) playlistsDone.current = listsKey
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [reachable, listsKey, connection, fromCloud])
 }

@@ -57,10 +57,19 @@ const library = (playlists: Playlist[]): Library =>
     generatedAt: '2026-09-14T10:00:00.000Z',
   }) as Library
 
-const live = playlist(20, {
-  kind: 'live',
-  rules: { match: 'all', rules: [], orderBy: 'addedAt', order: 'desc', limit: null },
-})
+/** A live playlist of the songs with this tag. */
+const following = (id: number, tagId: number): Playlist =>
+  playlist(id, {
+    kind: 'live',
+    rules: {
+      match: 'all',
+      rules: [{ field: 'tag', op: 'has', tagId }],
+      orderBy: 'addedAt',
+      order: 'desc',
+      limit: null,
+    },
+  })
+const live = following(20, 11)
 const manual = playlist(21)
 
 /** What the stub server answers `GET /api/library` with, and every offline copy saved. */
@@ -125,7 +134,7 @@ const invalidated = (client: QueryClient, key: readonly unknown[]): boolean =>
   client.getQueryState(key)?.isInvalidated === true
 
 describe('useSetSongTags', () => {
-  it('asks for the members again when a live playlist may have changed', async () => {
+  it('asks for the members again when a live playlist follows a tag that moved', async () => {
     const client = seeded([live, manual])
     const mutation = mount(client, useSetSongTags)
 
@@ -136,6 +145,18 @@ describe('useSetSongTags', () => {
     // The library itself is still patched in place first, and asked for after.
     expect(client.getQueryData<Library>(queryKeys.library)?.songs[0]?.tagIds).toEqual([11])
     expect(invalidated(client, queryKeys.library)).toBe(true)
+  })
+
+  it('leaves the members alone when no live playlist follows a tag that moved', async () => {
+    const other = following(22, 12)
+    const client = seeded([other, manual])
+    const mutation = mount(client, useSetSongTags)
+
+    await act(() => mutation().mutateAsync({ songId: 1, tagIds: [11] }))
+
+    expect(invalidated(client, queryKeys.playlistSongs(other.id))).toBe(false)
+    expect(client.getQueryData<Library>(queryKeys.library)?.songs[0]?.tagIds).toEqual([11])
+    expect(invalidated(client, queryKeys.library)).toBe(false)
   })
 
   it('leaves the members alone when no playlist is live', async () => {

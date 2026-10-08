@@ -40,6 +40,25 @@
           system-ui,
           sans-serif;
       }
+      /*
+       * Once the app is drawn the footer is still there for a crawler or a
+       * screen reader, but takes no room: under the app it was the only thing
+       * past the bottom of the window, so a focus deep in a list (tabbing down
+       * Up next) scrolled the whole page up by its height and showed it under
+       * the player bar. `overflow: hidden` on the body stops a person
+       * scrolling, not the browser bringing a focused row into view.
+       */
+      #root:not(:empty) ~ #foot {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
     </style>
   </head>
 

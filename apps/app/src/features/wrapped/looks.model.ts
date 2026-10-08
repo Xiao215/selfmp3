@@ -100,7 +100,7 @@ const MASTHEADS: Record<WrappedRange, string> = {
   all: 'The Almanac',
 }
 
-export function masthead(range: WrappedRange): string {
+function masthead(range: WrappedRange): string {
   return MASTHEADS[range]
 }
 
@@ -360,7 +360,7 @@ function calendarCaption(grid: CalendarGrid): string {
 
 // --- the looks -------------------------------------------------------------------
 
-export interface Figure {
+interface Figure {
   readonly value: string
   readonly label: string
 }
@@ -383,7 +383,7 @@ function numberOne(wrapped: Wrapped): NumberOne | null {
 }
 
 /** Paper (`P33`): the minutes, the song on repeat, three figures, the tags, the traits. */
-export interface PaperLook {
+interface PaperLook {
   readonly head: string
   readonly figure: string
   /** "minutes, mostly at night". */
@@ -418,7 +418,7 @@ export interface ReceiptLine {
 }
 
 /** Receipt (`P34`): the top songs as items, the facts as lines, the minutes as the total. */
-export interface ReceiptLook {
+interface ReceiptLook {
   readonly head: string
   readonly sub: string
   readonly items: readonly ReceiptLine[]
@@ -462,7 +462,7 @@ export function receiptLook(input: LookInput): ReceiptLook {
 }
 
 /** Wall (`P35`): the period's covers edge to edge, the minutes over them. */
-export interface WallLook {
+interface WallLook {
   /** Twelve tiles, three across and four down; the songs repeat when there are fewer. */
   readonly tiles: readonly { readonly songId: number; readonly title: string }[]
   readonly title: string
@@ -507,7 +507,7 @@ export function wallLook(input: LookInput): WallLook {
 }
 
 /** Calendar (`P36`): the window as a month on a wall, a dot a day. */
-export interface CalendarLook {
+interface CalendarLook {
   readonly title: string
   readonly grid: CalendarGrid
   readonly caption: string
@@ -539,7 +539,7 @@ interface WordsSegment {
 }
 
 /** Words (`P37`): the period as one sentence, sized to fill the page. */
-export interface WordsLook {
+interface WordsLook {
   readonly head: string
   readonly segments: readonly WordsSegment[]
   /** The sentence's size on the 480-wide page: the shorter it is, the larger. */
@@ -598,7 +598,7 @@ export function wordsLook(input: LookInput): WordsLook {
 }
 
 /** Front page (`C16`): the period as a newspaper, for a computer. */
-export interface FrontPageLook {
+interface FrontPageLook {
   readonly masthead: string
   readonly strap: readonly string[]
   readonly headline: string

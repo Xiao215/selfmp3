@@ -140,7 +140,7 @@ type OriginConfig = Pick<Config, 'corsOrigins' | 'publicUrl' | 'appUrl'>
  * loopback host, and a tunnel forwards the real one), so it still needs the
  * token like any other.
  */
-export function allowedOrigins(config: OriginConfig): Set<string> {
+function allowedOrigins(config: OriginConfig): Set<string> {
   const origins = new Set([...config.corsOrigins, DESKTOP_APP_ORIGIN, EXTENSION_ORIGIN])
   if (config.publicUrl) origins.add(new URL(config.appUrl).origin)
   return origins

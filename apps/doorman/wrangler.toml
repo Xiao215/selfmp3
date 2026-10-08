@@ -26,12 +26,12 @@ watch_dir = ["src", "../../packages/shared/src", "../../packages/client/src/them
 # The client ID of your OAuth client in the Google Cloud console. It is public:
 # it appears in every Google sign-in link. See README.md.
 GOOGLE_CLIENT_ID = "230606192127-sihrkjctjgcoittmcb15afkp4k2f72s0.apps.googleusercontent.com"
-# The web app's address, the installed desktop app's own origin — its page
-# is served from app://selfmp3 — and the browser extension's: its origin, and
-# the chromiumapp.org address Chrome brings its sign-in back to. Browsers may
-# call the doorman only from these, and a sign-in may send you back here (or to
-# this computer, for the server's settings).
-APP_ORIGINS = "https://xiao215.github.io,app://selfmp3,chrome-extension://ojgfoohmmkangonahnbdpelfgmkjkfpi,https://ojgfoohmmkangonahnbdpelfgmkjkfpi.chromiumapp.org"
+# The addresses the web app is served from. Browsers may call the doorman only
+# from these, and a sign-in may send you back here (or to this computer, for the
+# server's settings). The desktop app's and the browser extension's own origins
+# are always allowed: they are the same on every install, and the doorman takes
+# them from packages/shared/src/origins.ts.
+APP_ORIGINS = "https://xiao215.github.io"
 
 # Sign-ins waiting for their code, sessions, and each Google account's sealed
 # bucket. Create the namespace with
@@ -62,9 +62,11 @@ new_sqlite_classes = ["Changes"]
 # `npx wrangler dev --env dev`, on your own computer only: never deployed. The
 # web app's local addresses may call it, and DEV lets it use a bucket on this
 # computer over plain http (MinIO, say). Its KV is Wrangler's local stand-in.
+# Wrangler hands an environment none of the top-level vars, so the client ID is
+# named again here.
 [env.dev.vars]
 GOOGLE_CLIENT_ID = "230606192127-sihrkjctjgcoittmcb15afkp4k2f72s0.apps.googleusercontent.com"
-APP_ORIGINS = "https://xiao215.github.io,http://localhost:4600,http://localhost:4601,app://selfmp3,chrome-extension://ojgfoohmmkangonahnbdpelfgmkjkfpi,https://ojgfoohmmkangonahnbdpelfgmkjkfpi.chromiumapp.org"
+APP_ORIGINS = "http://localhost:4600,http://localhost:4601"
 DEV = "true"
 
 [[env.dev.kv_namespaces]]

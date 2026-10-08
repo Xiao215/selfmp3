@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react'
 import { plural } from '@selfmp3/shared'
 import type { Song, SongSortField, Tag } from '@selfmp3/shared'
 import {
+  ApiError,
   bothTagsCount,
   clearTagFilter,
   filterHeading,
@@ -36,8 +37,6 @@ import { useLibraryFilter } from './libraryFilter'
  * screen has one; handing it over costs a line and keeps this file runnable.
  */
 
-export type { LibraryFilter }
-
 /** What the screen shows when the list is empty, which is three different things. */
 type LibraryEmptyReason = 'unreachable' | 'no-library' | 'no-matches' | null
 
@@ -69,6 +68,8 @@ interface LibraryModel {
   loading: boolean
   /** The server did not answer; what is shown is the kept copy. */
   unreachable: boolean
+  /** Why the library did not answer, for the card that says so; null while it has. */
+  failure: unknown
   emptyReason: LibraryEmptyReason
   setSort: (field: SongSortField) => void
   toggleDirection: () => void
@@ -125,7 +126,7 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
     [setFilter],
   )
 
-  const { isPending, isError, refetch } = library
+  const { isPending, isError, error, refetch } = library
   const retry = useCallback(() => void refetch(), [refetch])
   return useMemo(
     () => ({
@@ -143,6 +144,7 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       sortOptions: SORT_OPTIONS,
       loading: isPending,
       unreachable: isError,
+      failure: error,
       emptyReason: emptyReason({ isError, total: songs.length, shown: visible.length }),
       setSort,
       toggleDirection,
@@ -163,6 +165,7 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       allMatched,
       isPending,
       isError,
+      error,
       setSort,
       toggleDirection,
       toggleTagId,
@@ -170,6 +173,33 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       toggleDownloadedOnly,
     ],
   )
+}
+
+/** Backblaze's Caps & Alerts page, where the daily allowance is raised. */
+export const BACKBLAZE_CAPS_URL = 'https://secure.backblaze.com/b2_caps_alerts.htm'
+
+/**
+ * Whether the library failed because the bucket's daily allowance is used up.
+ * Everything answered then — the doorman, the server — so nothing should say
+ * it cannot be reached.
+ */
+export function bucketCapped(error: unknown): boolean {
+  return error instanceof ApiError && error.isBucketCapped
+}
+
+/** "21 hours", "40 minutes": how long until Backblaze's caps reset, at midnight GMT. */
+export function untilCapResets(now: Date): string {
+  const reset = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
+  const minutes = Math.max(1, Math.ceil((reset - now.getTime()) / 60_000))
+  return minutes < 60
+    ? plural(minutes, 'minute', 'minutes')
+    : plural(Math.round(minutes / 60), 'hour', 'hours')
+}
+
+/** The few words for a library that did not come: the sidebar's status, the profile's line. */
+export function unreachableLabel(fromCloud: boolean, error: unknown): string {
+  if (bucketCapped(error)) return 'Bucket limit reached for today'
+  return fromCloud ? 'Can’t reach the cloud' : 'Can’t reach your server'
 }
 
 /**
@@ -180,16 +210,32 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
  * reader can see a typo or a stale address at a glance. A cloud library names
  * the cloud and no address. On a phone there is room for one short line, and
  * the address is in Settings, one press away.
+ *
+ * A used-up bucket allowance is not "can't reach" at all: it says so, when it
+ * comes back, and where to raise it.
  */
 export function unreachableCopy({
   fromCloud,
   address,
   compact,
+  error = null,
+  now = new Date(),
 }: {
   fromCloud: boolean
   address: string | null
   compact: boolean
+  error?: unknown
+  now?: Date
 }): { title: string; body: string } {
+  if (bucketCapped(error)) {
+    const until = untilCapResets(now)
+    return {
+      title: 'Your bucket’s daily limit is used up',
+      body: compact
+        ? `Backblaze’s cap resets in about ${until}, or raise it at backblaze.com.`
+        : `Backblaze stopped downloads from your bucket until its daily cap resets, in about ${until}. Nothing is wrong with your connection. To get your library back now, raise the cap under Caps & Alerts at backblaze.com.`,
+    }
+  }
   const where = fromCloud ? 'the cloud' : 'your server'
   const title = `Can’t reach ${where}`
   if (compact) {

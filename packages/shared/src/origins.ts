@@ -28,6 +28,13 @@ export const EXTENSION_ID = 'ojgfoohmmkangonahnbdpelfgmkjkfpi'
 export const EXTENSION_ORIGIN = `chrome-extension://${EXTENSION_ID}`
 
 /**
+ * Where Chrome brings the extension's sign-in back to: the origin of
+ * `chrome.identity.getRedirectURL()`, an address Chrome intercepts rather than
+ * loads. The doorman sends a finished sign-in there.
+ */
+export const EXTENSION_SIGNIN_ORIGIN = `https://${EXTENSION_ID}.chromiumapp.org`
+
+/**
  * The port the server listens on unless told otherwise. Clients that guess at a
  * local server — the CLI, the extension's "on this computer" hint — have to
  * guess the same number the server picks, so it is written once here.

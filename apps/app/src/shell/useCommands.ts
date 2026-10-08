@@ -1,7 +1,5 @@
 import type { Command } from '@selfmp3/desktop-bridge'
 
-export type { Command }
-
 /** What each command should do, by name. Anything not given is not offered. */
 export type CommandHandlers = Partial<Record<Command, () => void>>
 

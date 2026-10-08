@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
+import { ApiError } from '@selfmp3/client'
 
-import { emptyReason, matchNote, noMatchesTitle, stripTags, unreachableCopy } from './library.model'
+import {
+  emptyReason,
+  matchNote,
+  noMatchesTitle,
+  stripTags,
+  unreachableCopy,
+  unreachableLabel,
+  untilCapResets,
+} from './library.model'
 
 describe('saying the library cannot be reached', () => {
   it('names the address it tried, without the scheme', () => {
@@ -22,6 +31,41 @@ describe('saying the library cannot be reached', () => {
     expect(unreachableCopy({ fromCloud: false, address: 'http://a:1', compact: true }).body).toBe(
       'Check that it’s on, then try again.',
     )
+  })
+  // The doorman's answer when Backblaze's daily allowance is used up: it was
+  // reached, so saying it was not sent Xiao looking at a working server.
+  const capped = new ApiError(502, 'Backblaze says “… cap exceeded …”', 'bucket_cap_exceeded')
+  const evening = new Date('2026-10-08T02:49:00Z')
+
+  it('says the bucket’s daily limit is used up, not that the cloud is out of reach', () => {
+    const copy = unreachableCopy({
+      fromCloud: true,
+      address: null,
+      compact: false,
+      error: capped,
+      now: evening,
+    })
+    expect(copy.title).toBe('Your bucket’s daily limit is used up')
+    expect(copy.body).toContain('in about 21 hours')
+    expect(copy.body).toContain('Caps & Alerts')
+    expect(copy.body).not.toMatch(/online|reach/i)
+    expect(unreachableLabel(true, capped)).toBe('Bucket limit reached for today')
+  })
+
+  it('still says can’t reach for anything else', () => {
+    const offline = new ApiError(0, 'Failed to fetch', 'offline')
+    expect(unreachableLabel(true, offline)).toBe('Can’t reach the cloud')
+    expect(unreachableLabel(false, new Error('boom'))).toBe('Can’t reach your server')
+    expect(
+      unreachableCopy({ fromCloud: true, address: null, compact: false, error: offline }).title,
+    ).toBe('Can’t reach the cloud')
+  })
+
+  it('counts down to midnight GMT, in minutes for the last hour', () => {
+    expect(untilCapResets(new Date('2026-10-08T00:00:00Z'))).toBe('24 hours')
+    expect(untilCapResets(new Date('2026-10-08T22:31:00Z'))).toBe('1 hour')
+    expect(untilCapResets(new Date('2026-10-08T23:20:00Z'))).toBe('40 minutes')
+    expect(untilCapResets(new Date('2026-10-08T23:59:59Z'))).toBe('1 minute')
   })
 })
 

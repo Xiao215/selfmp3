@@ -80,7 +80,7 @@ function rangeTo(state: SelectionState, id: number, visibleIds: readonly number[
   return visibleIds.slice(low, high + 1)
 }
 
-export interface ClickResult {
+interface ClickResult {
   readonly state: SelectionState
   /**
    * True when the click was a selection gesture, and the row should not also

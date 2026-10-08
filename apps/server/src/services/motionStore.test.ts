@@ -4,7 +4,8 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { MOTION_VERSION, MotionSchema } from '@selfmp3/shared'
 import { createLogger } from '../logger.js'
-import { MOTION_SAMPLE_RATE, motionFromPcm } from './dsp.js'
+import { MOTION_SAMPLE_RATE } from './dsp.js'
+import { motionFromPcm } from './fixtures/motion.js'
 import { MotionStore, motionJson } from './motionStore.js'
 
 /**

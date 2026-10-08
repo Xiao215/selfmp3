@@ -6,21 +6,22 @@ import { z } from 'zod'
  * The releases page of this repository: `.github/workflows/desktop.yml`
  * attaches the dmgs, the zips and `latest-mac.yml` to a release on a
  * `desktop-v*` tag, and the installed app's updater reads the same place. A
- * fork publishes its own releases and changes these two lines, as with the
+ * fork publishes its own releases and changes `REPOSITORY`, as with the
  * doorman and the app's address in `cloud.ts`.
  *
- * Here rather than in the shell, because two things read the releases: the
- * installed app, asking whether there is a newer one of itself, and a browser
- * tab on a Mac, offering the app to install (Settings › Mac app). Both must
- * agree on where to look and on what a tag means.
+ * Here rather than in the shell, because three things read the releases: the
+ * installed app, asking whether there is a newer one of itself; the packaging
+ * script, which writes this repository into the app as electron-updater's
+ * feed (apps/desktop/scripts/dist.mjs); and a browser tab on a Mac, offering
+ * the app to install (Settings › Mac app). All must agree on where to look and
+ * on what a tag means.
  */
-const REPO_OWNER = 'Xiao215'
-const REPO_NAME = 'selfmp3'
+export const REPOSITORY = { owner: 'Xiao215', name: 'selfmp3' } as const
 
 /** The repository itself: the desktop app's Help menu, and the server's User-Agent. */
-export const REPOSITORY_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}`
+export const REPOSITORY_URL = `https://github.com/${REPOSITORY.owner}/${REPOSITORY.name}`
 export const RELEASES_URL = `${REPOSITORY_URL}/releases`
-export const LATEST_RELEASE_API = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`
+export const LATEST_RELEASE_API = `https://api.github.com/repos/${REPOSITORY.owner}/${REPOSITORY.name}/releases/latest`
 
 /** `desktop-v1.2.3` or `v1.2.3` or `1.2.3` — whatever the tag was called. */
 export function versionFromTag(tag: string): string | null {

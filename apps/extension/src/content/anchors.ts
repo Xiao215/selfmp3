@@ -13,7 +13,7 @@
 
 type Site = 'www' | 'mobile' | 'music'
 
-export interface Anchor {
+interface Anchor {
   readonly selector: string
   readonly where: 'prepend' | 'append'
   /** What it is, for the test that reads these back. */

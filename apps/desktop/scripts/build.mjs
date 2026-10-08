@@ -13,12 +13,14 @@
  */
 import { build } from 'esbuild'
 import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '..')
-const repoRoot = join(root, '..', '..')
+// The app this shell wraps, through `@selfmp3/app`, which this package declares.
+const appRoot = dirname(createRequire(import.meta.url).resolve('@selfmp3/app/package.json'))
 const out = join(root, 'dist')
 
 rmSync(out, { recursive: true, force: true })
@@ -68,7 +70,7 @@ await build({
  * `apps/app`'s own export, byte for byte the build the server serves and Pages
  * serves — the plan's first ground rule.
  */
-const webExport = join(repoRoot, 'apps', 'app', 'dist')
+const webExport = join(appRoot, 'dist')
 if (!existsSync(join(webExport, 'index.html'))) {
   console.error(
     '\nNo web export at apps/app/dist.\n' + 'Run: npm run export:web --workspace @selfmp3/app\n',

@@ -45,6 +45,7 @@ export class StatsRepository {
   readonly #db: Db
   readonly #record
   readonly #playDates
+  readonly #latestPlay
 
   constructor(db: Db) {
     this.#db = db
@@ -55,6 +56,21 @@ export class StatsRepository {
     this.#playDates = db.prepare<[], { date: string }>(
       "SELECT DISTINCT date(played_at, 'localtime') AS date FROM play_events ORDER BY date",
     )
+    this.#latestPlay = db.prepare<[], { id: number | null }>(
+      'SELECT MAX(id) AS id FROM play_events',
+    )
+  }
+
+  /**
+   * The id of the newest play recorded here, or 0 before any. Every play moves
+   * it — one from this server's own route and one replayed from another device
+   * alike, since both go through `record` — while the library version does not
+   * move for a play at all. So the two together say whether anything a song
+   * answer carries, its play count and last play included, can have changed.
+   * It is the table's rowid, so the answer is one step down its index.
+   */
+  latestPlayId(): number {
+    return this.#latestPlay.get()?.id ?? 0
   }
 
   /**

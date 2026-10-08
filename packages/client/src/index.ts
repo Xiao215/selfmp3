@@ -5,20 +5,10 @@
  * compiled without the DOM so the same code runs in a browser, on a phone and
  * in a test. Everything platform-shaped is an interface in `platform.ts`.
  */
-export type {
-  ApiContext,
-  ApiTransport,
-  ClientFetch,
-  ClientRequestInit,
-  ClientResponse,
-  CloudRequest,
-  LibrarySnapshotStore,
-  MotionSnapshotStore,
-  OutboxStore,
-} from './platform.js'
+export type { ApiTransport, ClientRequestInit } from './platform.js'
 
 export { ApiError, failureText } from './api/error.js'
-export { createApi, type Api, type ApiOptions } from './api/api.js'
+export { createApi, type Api } from './api/api.js'
 export { createMediaUrl, type MediaUrl } from './api/media.js'
 
 export {
@@ -33,9 +23,9 @@ export * from './connection/serverIds.js'
 // Importing without a screen: review, choices, the queue's words.
 export * from './import/model.js'
 
-export { configureClient, clientApi, librarySnapshot, type ClientRuntime } from './runtime.js'
+export { configureClient, clientApi } from './runtime.js'
 
-export { ClientStateProvider, useClientState, type ClientState } from './queries/context.js'
+export { ClientStateProvider } from './queries/context.js'
 export * from './queries/queries.js'
 export { STALE } from './queries/stale.js'
 // A recomputed list kept as the same array while its items are the same.
@@ -67,7 +57,7 @@ export * from './devices/deviceList.js'
 // Song ids across the devices wire, for a device that numbers songs its own way.
 export * from './devices/translate.js'
 
-export { createListenOutbox, type ListenOutbox } from './listens/outbox.js'
+export { createListenOutbox } from './listens/outbox.js'
 
 /** The colours a cover lends Now Playing. */
 export * from './art/palette.js'
@@ -104,7 +94,6 @@ export {
   selectAllVisible,
   selectionActive,
   toggleSelected,
-  type ClickResult,
   type SelectionModifiers,
   type SelectionState,
 } from './selection/selection.js'

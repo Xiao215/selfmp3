@@ -18,7 +18,7 @@ import { createThrottle, type Throttle } from './throttle.js'
  * How often byte progress alone reaches listeners: four times a second. See
  * `throttle.ts`; anything else about the queue is told at once.
  */
-export const PROGRESS_INTERVAL_MS = 250
+const PROGRESS_INTERVAL_MS = 250
 
 /** Waits before trying a failed song again: twice, and then it has failed. */
 const RETRY_DELAYS_MS = [2_000, 10_000]

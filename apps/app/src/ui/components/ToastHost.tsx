@@ -10,7 +10,7 @@ import { IconButton } from './IconButton'
 import { X } from './Icons'
 import { Press } from './Press'
 import { floating } from '../surfaces'
-import { ease, motionMs } from '../motion'
+import { ease, motionMs, nativeDriver } from '../motion'
 
 /**
  * Mounted once, in the shell's toast row: every message raised with `showToast`.
@@ -81,7 +81,7 @@ function ToastItem({
       toValue: leaving ? 0 : 1,
       duration: motionMs(leaving ? motion.base : motion.fast),
       easing: ease.out,
-      useNativeDriver: true,
+      useNativeDriver: nativeDriver,
     })
     animation.start(({ finished }) => {
       if (finished && leaving) onGone(toast.id)

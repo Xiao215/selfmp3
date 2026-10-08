@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ApiError } from '@selfmp3/client'
 import type { Stats } from '@selfmp3/shared'
 
 import { monthCard, monthCardSpoken, profileLine, profileName, profileRows } from './profile.model'
@@ -62,6 +63,10 @@ describe('the Profile page', () => {
     // A failed refetch keeps the cached library, so the error wins over the time.
     expect(profileLine({ ...base, error: true, fromCloud: true, syncedAt: now.getTime() })).toBe(
       '45 songs · 8 tags · can’t reach the cloud',
+    )
+    const capped = new ApiError(502, 'cap exceeded', 'bucket_cap_exceeded')
+    expect(profileLine({ ...base, error: capped, fromCloud: true, syncedAt: 0 })).toBe(
+      '45 songs · 8 tags · bucket limit reached for today',
     )
   })
 

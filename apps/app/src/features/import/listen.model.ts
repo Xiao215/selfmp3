@@ -8,9 +8,9 @@ import {
 } from '@selfmp3/shared'
 
 /** What a preview is doing, as the audio reports it (the `listen` port's state). */
-export type ListenStatus = 'loading' | 'playing' | 'paused' | 'error'
+type ListenStatus = 'loading' | 'playing' | 'paused' | 'error'
 
-export interface ListenState {
+interface ListenState {
   readonly status: ListenStatus
   readonly currentTime: number
   /** NaN until the audio knows. */

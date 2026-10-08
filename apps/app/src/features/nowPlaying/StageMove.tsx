@@ -4,14 +4,14 @@ import { Animated, Easing } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { MOVE_EASING, type PoseAt } from './stageMove.model'
 import { MOVE_MS } from '../../ui/motion.model'
-import { motionMs } from '../../ui/motion'
+import { motionMs, nativeDriver } from '../../ui/motion'
 
 /**
  * The move between the stage and Focus, on an iPad: Animated on the native
  * driver, so the frames never come back to JavaScript. The browser's is
  * `StageMove.web.tsx`, and `stageMove.model.ts` says why neither moves layout.
  */
-export interface StageMove {
+interface StageMove {
   readonly value: Animated.Value
   /** Where the move is headed: 0 the stage, 1 Focus. */
   readonly target: number
@@ -25,7 +25,7 @@ export function useStageMove(focus: boolean): StageMove {
       toValue: target,
       duration: motionMs(MOVE_MS.stageMove),
       easing: Easing.bezier(...MOVE_EASING),
-      useNativeDriver: true,
+      useNativeDriver: nativeDriver,
     }).start()
   }, [target, value])
   return useMemo(() => ({ value, target }), [value, target])

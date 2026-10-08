@@ -47,7 +47,7 @@ export function registerServiceWorker({ cloud }: { cloud: boolean }): void {
     const data: unknown = event.data
     if (typeof data !== 'object' || data === null) return
     const { type, message } = data as { type?: unknown; message?: unknown }
-    if (type === 'BUCKET_CAPPED' && typeof message === 'string') holdBucket(message)
+    if (type === 'BUCKET_CAPPED' && typeof message === 'string') holdBucket(message, 'read')
   })
   const script = appPath(cloud ? 'sw.js?cloud=1' : 'sw.js')
   navigator.serviceWorker

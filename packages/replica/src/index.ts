@@ -21,6 +21,7 @@ export {
   holdBucket,
   onBucketHold,
   releaseBucket,
+  type BucketCall,
   type BucketHold,
 } from './hold.js'
 export {

@@ -298,19 +298,43 @@ describe('the bucket refusing for the day', () => {
   beforeEach(() => releaseBucket())
 
   it('holds after one refusal, and refuses later reads itself', async () => {
-    const p = platform(() => reply(502, CAP))
+    const p = platform(call => (call.url.includes('/v1/files/') ? reply(502, CAP) : reply(200, {})))
     const session = createCloudSession(p)
     await expect(session.doormanFetch(signedIn, '/v1/files/audio/a.m4a')).rejects.toMatchObject({
       status: 502,
       code: 'bucket_cap_exceeded',
     })
-    await expect(session.doormanFetch(signedIn, '/v1/list?prefix=log/')).rejects.toMatchObject({
+    await expect(session.doormanFetch(signedIn, '/v1/files/audio/b.m4a')).rejects.toMatchObject({
       status: 502,
       code: 'bucket_cap_exceeded',
       message: CAP.error,
     })
     expect(p.calls).toHaveLength(1)
-    expect(bucketHold()).toMatchObject({ message: CAP.error })
+    expect(bucketHold('read')).toMatchObject({ message: CAP.error })
+  })
+
+  /*
+   * 2026-10-08: every read refused, every listing still answered. A look
+   * lists before it reads, and the listing that answered let go of the hold
+   * the read had set, so every look asked for the snapshot again.
+   */
+  it('holds reads and listings apart, as Backblaze caps them', async () => {
+    const p = platform(call => (call.url.includes('/v1/files/') ? reply(502, CAP) : reply(200, {})))
+    const session = createCloudSession(p)
+    await session.doormanFetch(signedIn, '/v1/files/snapshots/s.json').catch(() => undefined)
+
+    // A listing is asked, and answers...
+    await expect(session.doormanFetch(signedIn, '/v1/list?prefix=log/')).resolves.toMatchObject({
+      status: 200,
+    })
+    // ...and the read stays held, refused here without a request.
+    await session.doormanFetch(signedIn, '/v1/files/snapshots/s.json').catch(() => undefined)
+    expect(p.calls.map(call => call.url.replace(DOORMAN, ''))).toEqual([
+      '/v1/files/snapshots/s.json',
+      '/v1/list?prefix=log/',
+    ])
+    expect(bucketHold('read')).not.toBeNull()
+    expect(bucketHold('list')).toBeNull()
   })
 
   it('lets writes and the doorman’s own answers through the hold', async () => {
@@ -330,7 +354,7 @@ describe('the bucket refusing for the day', () => {
     const session = createCloudSession(p)
     await session.doormanFetch(signedIn, '/v1/files/x').catch(() => undefined)
     // Time passing, without waiting for it.
-    holdBucket(CAP.error, Date.now() - BUCKET_HOLD_MS - 1)
+    holdBucket(CAP.error, 'read', Date.now() - BUCKET_HOLD_MS - 1)
     refuse = false
     await expect(session.doormanFetch(signedIn, '/v1/files/x')).resolves.toMatchObject({
       status: 200,

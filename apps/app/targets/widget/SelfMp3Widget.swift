@@ -169,11 +169,16 @@ struct TileView: View {
   var body: some View {
     // The name sits low, under the cover in the top corner. A cover this
     // small is a grey smudge without its colour, so in the accented mode the
-    // tile is its name alone, centred down the tile.
-    ZStack(alignment: accented ? .leading : .bottomLeading) {
+    // corner holds the Tags page's record instead, in the tint.
+    ZStack(alignment: .bottomLeading) {
       RoundedRectangle(cornerRadius: 14, style: .continuous)
         .fill(accented ? accentedPane : Color(hex: tile.fill))
-      if !accented, let image = coverImage(tile.cover) {
+      if accented {
+        RecordMark()
+          .frame(width: 50, height: 50)
+          .offset(x: 14, y: -14)
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+      } else if let image = coverImage(tile.cover) {
         coverPicture(image)
           .scaledToFill()
           .frame(width: 30, height: 30)
@@ -190,6 +195,43 @@ struct TileView: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+  }
+}
+
+/// The record a tag is on the Tags page (TagSleeve.tsx), in one colour: a
+/// faint disc, its grooves, and a solid label with the spindle hole through
+/// it. All of it is accentable, so on a Tinted home screen it takes the tint.
+struct RecordMark: View {
+  var body: some View {
+    ZStack {
+      Circle().fill(Color.white.opacity(0.28))
+      RecordGrooves().stroke(Color.white.opacity(0.5), lineWidth: 1)
+      RecordLabel().fill(Color.white, style: FillStyle(eoFill: true))
+    }
+    .widgetAccentable()
+  }
+}
+
+/// Three grooves, as fractions of the record's radius.
+private struct RecordGrooves: Shape {
+  func path(in rect: CGRect) -> Path {
+    var path = Path()
+    for fraction in [0.86, 0.72, 0.58] {
+      path.addEllipse(in: rect.insetBy(dx: rect.width / 2 * (1 - fraction), dy: rect.height / 2 * (1 - fraction)))
+    }
+    return path
+  }
+}
+
+/// The label, a third of the record across as on the Tags page, with the hole
+/// cut out of it by the even-odd fill.
+private struct RecordLabel: Shape {
+  func path(in rect: CGRect) -> Path {
+    var path = Path()
+    for fraction in [0.33, 0.06] {
+      path.addEllipse(in: rect.insetBy(dx: rect.width / 2 * (1 - fraction), dy: rect.height / 2 * (1 - fraction)))
+    }
+    return path
   }
 }
 

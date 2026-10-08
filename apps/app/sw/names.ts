@@ -11,6 +11,12 @@
 /** Songs kept on this device (src/ports/offline.web.ts), answered by the worker. */
 export const AUDIO_CACHE = 'selfmp3-audio-v1'
 
+/**
+ * The last few cloud songs the worker downloaded whole to play them (sw.ts,
+ * `playFromBucket`): the worker's own, and let go of at sign-out.
+ */
+export const PLAYED_CACHE = 'selfmp3-played-v1'
+
 /** A cloud library's lyrics, romaji and motion, kept by the tab (src/ports/cloudPlatform.web.ts). */
 export const CLOUD_FILES_CACHE = 'selfmp3-cloud-files-v1'
 

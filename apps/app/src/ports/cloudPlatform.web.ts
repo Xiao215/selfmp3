@@ -1,5 +1,5 @@
 import type { CloudPlatform, DeviceStore, TextCache } from '@selfmp3/replica'
-import { CLOUD_FILES_CACHE } from '../../sw/names'
+import { CLOUD_FILES_CACHE, PLAYED_CACHE } from '../../sw/names'
 import { appPath } from './appPath'
 import { desktop } from './desktop/bridge'
 import { doormanUrl } from './doormanUrl'
@@ -50,9 +50,11 @@ const cacheApiTextCache: TextCache = {
       new Response(text, { headers: { 'Content-Type': 'text/plain' } }),
     )
   },
+  // Signing out: the words go, and so do the songs the service worker kept
+  // for having played them — another account's library is not this one's.
   clear: async () => {
     if (typeof caches === 'undefined') return
-    await caches.delete(CLOUD_FILES_CACHE)
+    await Promise.all([caches.delete(CLOUD_FILES_CACHE), caches.delete(PLAYED_CACHE)])
   },
 }
 

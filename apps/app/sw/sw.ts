@@ -26,7 +26,7 @@
  * is the whole point of this file and is not something a generic recipe does.
  */
 
-import { AUDIO_CACHE, CLOUD_FILES_CACHE, REFRESH_HEADER } from './names'
+import { AUDIO_CACHE, CLOUD_FILES_CACHE, PLAYED_CACHE, REFRESH_HEADER } from './names'
 
 declare const self: ServiceWorkerGlobalScope
 
@@ -62,7 +62,7 @@ const API_CACHE = 'selfmp3-api-v2'
  * Caches this worker keeps, its own and the tab's. Anything else from an old
  * build gets deleted.
  */
-const OWNED_CACHES = new Set([SHELL_CACHE, API_CACHE, AUDIO_CACHE, CLOUD_FILES_CACHE])
+const OWNED_CACHES = new Set([SHELL_CACHE, API_CACHE, AUDIO_CACHE, CLOUD_FILES_CACHE, PLAYED_CACHE])
 
 /** `/` served by the Mac, `/selfmp3/` on GitHub Pages: this worker's scope. */
 const BASE = new URL(self.registration.scope).pathname
@@ -134,7 +134,7 @@ self.addEventListener('fetch', event => {
   if (url.pathname === `${BASE}api/import/listen`) return
 
   if (url.pathname.startsWith(`${BASE}api/stream/`)) {
-    event.respondWith(handleAudio(request, url))
+    event.respondWith(handleAudio(request, url, event))
     return
   }
 
@@ -161,11 +161,12 @@ self.addEventListener('fetch', event => {
  *
  * A downloaded song is a complete 200 in the cache, and a player asking for
  * bytes 500-999 gets a correctly-formed 206 slice built here, because the
- * Cache API will not do it. A song that was never downloaded is streamed from
- * the bucket a range at a time and kept nowhere — a library of a thousand
- * songs is not something a browser tab should quietly copy.
+ * Cache API will not do it. A song that was never downloaded comes from the
+ * bucket, once per play, and only the last few played are kept
+ * (`playFromBucket`) — a library of a thousand songs is not something a
+ * browser tab should quietly copy.
  */
-async function handleAudio(request: Request, url: URL): Promise<Response> {
+async function handleAudio(request: Request, url: URL, event: FetchEvent): Promise<Response> {
   const cache = await caches.open(AUDIO_CACHE)
   const cacheKey = url.pathname
 
@@ -189,11 +190,8 @@ async function handleAudio(request: Request, url: URL): Promise<Response> {
     return sliceResponse(cached, range)
   }
 
-  // A download asks for the whole file and the page keeps what comes back;
-  // the player asks for a range and nothing is kept. Either way the bucket
-  // answers the request that was made, through the doorman.
   const fromBucket = await bucketFileFor(url, 'audio')
-  if (fromBucket) return fetchFromBucket(fromBucket, request.headers.get('range'))
+  if (fromBucket) return playFromBucket(fromBucket, request, event)
 
   // Served by the Mac, and not on this device: go to the network and store
   // nothing. What this cache holds is the page's decision, never a side
@@ -207,6 +205,243 @@ async function handleAudio(request: Request, url: URL): Promise<Response> {
       headers: { 'Content-Type': 'text/plain' },
     })
   }
+}
+
+/** How many songs the worker keeps whole for having played them. */
+const PLAYED_KEPT = 10
+
+/**
+ * How far past what has arrived a range may start and still wait for the
+ * download under way, rather than ask the bucket for itself: a second or two
+ * of a song arriving, against a request of its own.
+ */
+const WAIT_AHEAD_BYTES = 2 * 1024 * 1024
+
+/** Whole downloads under way, by bucket key. */
+const arriving = new Map<string, Arriving>()
+
+/**
+ * A cloud song, from the bucket: one download per play, kept for the next.
+ *
+ * Every range the player asked for was a request to the bucket, and the
+ * bucket counts each against a daily allowance (docs/SYNC.md, "Caps"):
+ * Safari's first two-byte look and the range after it, every seek past what
+ * the player had buffered, and the whole song again on every replay once the
+ * page had been reloaded. So the first request for a song starts one download
+ * of the whole file, and every range — this one, the next, a seek — is read
+ * from that download as it arrives. Once it is all here it is kept, under
+ * the file's key, which is the hash of its bytes and so right for as long as
+ * it is kept: the last `PLAYED_KEPT` songs, oldest first out. A replay, the
+ * next song preloaded ahead of time, and a download the page makes of the
+ * song are answered from the copy.
+ *
+ * A range that starts well past what has arrived — a song resumed half-way
+ * through on a slow connection — is asked for as it is: one request more.
+ */
+async function playFromBucket(
+  file: BucketFile,
+  request: Request,
+  event: FetchEvent,
+): Promise<Response> {
+  const range = request.headers.get('range')
+  const cache = await caches.open(PLAYED_CACHE)
+  const name = playedName(file.key)
+  const kept = await cache.match(name)
+  if (kept) return range ? sliceResponse(kept, range) : kept
+  if (request.method === 'HEAD') return fetchFromBucket(file, range)
+
+  let download = arriving.get(file.key)
+  if (!download) {
+    download = new Arriving(file, cache, name)
+    arriving.set(file.key, download)
+    // The worker stays up until the song is kept, whatever the player does meanwhile.
+    event.waitUntil(download.kept)
+  }
+  const head = await download.head
+  if (head.kind === 'refused') return download.refusal()
+
+  if (!range) return download.whole()
+  const wanted = byteRange(range, head.size)
+  if (!wanted) return rangeNotSatisfiable(head.size)
+  if (wanted.start > download.received + WAIT_AHEAD_BYTES) return fetchFromBucket(file, range)
+  return download.slice(wanted.start, wanted.end)
+}
+
+/**
+ * One song arriving from the bucket, whole, and readable from anywhere in it
+ * while it does. Held in memory until it is all here — a song, a few
+ * megabytes — then put in the cache and forgotten here.
+ */
+class Arriving {
+  readonly head: Promise<{ kind: 'refused' } | { kind: 'ok'; size: number }>
+  readonly kept: Promise<void>
+  received = 0
+  #chunks: Uint8Array[] = []
+  #done = false
+  #failed = false
+  #response: Response | null = null
+  #wake: (() => void)[] = []
+
+  constructor(file: BucketFile, cache: Cache, name: string) {
+    const answered = fetchFromBucket(file)
+    this.head = answered.then(response => {
+      this.#response = response
+      const size = Number(response.headers.get('content-length') ?? Number.NaN)
+      return response.status === 200 && response.body && Number.isFinite(size) && size > 0
+        ? { kind: 'ok' as const, size }
+        : { kind: 'refused' as const }
+    })
+    this.kept = this.#read(cache, name)
+      .catch(() => {
+        // Stopped half-way, or a storage quota: the song played, and the next
+        // play fetches it again.
+        this.#failed = true
+        this.#notify()
+      })
+      .finally(() => arriving.delete(file.key))
+  }
+
+  async #read(cache: Cache, name: string): Promise<void> {
+    const head = await this.head
+    const response = this.#response
+    if (head.kind !== 'ok' || !response?.body) {
+      this.#failed = true
+      this.#notify()
+      return
+    }
+    const reader = response.body.getReader()
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      this.#chunks.push(value)
+      this.received += value.byteLength
+      this.#notify()
+    }
+    if (this.received !== head.size) throw new Error('the song stopped short')
+    this.#done = true
+    this.#notify()
+    const headers = new Headers(response.headers)
+    headers.set('Cache-Control', 'private, max-age=31536000, immutable')
+    await cache.put(
+      name,
+      new Response(new Blob(this.#chunks as BlobPart[]), { status: 200, headers }),
+    )
+    this.#chunks = []
+    const names = await cache.keys()
+    for (const old of names.slice(0, Math.max(0, names.length - PLAYED_KEPT))) {
+      await cache.delete(old)
+    }
+  }
+
+  /** The bucket's own answer when it would not give the song: a cap's 502, say. */
+  refusal(): Response {
+    const response = this.#response
+    return response && response.status !== 200
+      ? new Response(response.body, { status: response.status, headers: response.headers })
+      : new Response('The song could not be fetched.', { status: 502 })
+  }
+
+  /** The whole song as it arrives, for the page keeping a copy. */
+  async whole(): Promise<Response> {
+    const head = await this.head
+    if (head.kind !== 'ok') return this.refusal()
+    const headers = new Headers({
+      'Content-Type': this.#response?.headers.get('content-type') ?? 'audio/mp4',
+      'Content-Length': String(head.size),
+      'Accept-Ranges': 'bytes',
+    })
+    return new Response(this.#stream(0, head.size - 1), { status: 200, headers })
+  }
+
+  /** Bytes `start` to `end`, inclusive, as a 206 that streams as they arrive. */
+  async slice(start: number, end: number): Promise<Response> {
+    const head = await this.head
+    if (head.kind !== 'ok') return this.refusal()
+    const headers = new Headers({
+      'Content-Type': this.#response?.headers.get('content-type') ?? 'audio/mp4',
+      'Content-Length': String(end - start + 1),
+      'Content-Range': `bytes ${start}-${end}/${head.size}`,
+      'Accept-Ranges': 'bytes',
+      'Cache-Control': 'no-store',
+    })
+    return new Response(this.#stream(start, end), {
+      status: 206,
+      statusText: 'Partial Content',
+      headers,
+    })
+  }
+
+  #stream(start: number, end: number): ReadableStream<Uint8Array> {
+    let at = start
+    return new ReadableStream<Uint8Array>({
+      pull: async controller => {
+        while (at > end || this.received <= at) {
+          if (at > end) {
+            controller.close()
+            return
+          }
+          if (this.#failed || this.#done) {
+            controller.error(new Error('the song stopped arriving'))
+            return
+          }
+          await new Promise<void>(resolve => this.#wake.push(resolve))
+        }
+        const bytes = this.#bytes(at, Math.min(end, this.received - 1))
+        at += bytes.byteLength
+        controller.enqueue(bytes)
+        if (at > end) controller.close()
+      },
+    })
+  }
+
+  /** The bytes from `from` to `to`, inclusive, out of the chunks that hold them. */
+  #bytes(from: number, to: number): Uint8Array {
+    const out = new Uint8Array(to - from + 1)
+    let offset = 0
+    let filled = 0
+    for (const chunk of this.#chunks) {
+      const chunkEnd = offset + chunk.byteLength
+      if (chunkEnd > from && offset <= to) {
+        const begin = Math.max(from, offset) - offset
+        const stop = Math.min(to + 1, chunkEnd) - offset
+        out.set(chunk.subarray(begin, stop), filled)
+        filled += stop - begin
+      }
+      offset = chunkEnd
+      if (offset > to) break
+    }
+    return out
+  }
+
+  #notify(): void {
+    const waiting = this.#wake
+    this.#wake = []
+    for (const resolve of waiting) resolve()
+  }
+}
+
+/** Where a played song is kept: under the worker's own scope, by its bucket key. */
+function playedName(key: string): string {
+  return new URL(`played/${key}`, self.registration.scope).href
+}
+
+/** A byte range of a file this big, inclusive at both ends; null for none that fits. */
+function byteRange(range: string, size: number): { start: number; end: number } | null {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(range.trim())
+  if (!match) return { start: 0, end: size - 1 }
+  const [, rawStart = '', rawEnd = ''] = match
+  let start: number
+  let end: number
+  if (rawStart === '') {
+    const suffix = Number(rawEnd)
+    if (!Number.isFinite(suffix) || suffix <= 0) return null
+    start = Math.max(0, size - suffix)
+    end = size - 1
+  } else {
+    start = Number(rawStart)
+    end = rawEnd === '' ? size - 1 : Math.min(Number(rawEnd), size - 1)
+  }
+  return start <= end && start < size ? { start, end } : null
 }
 
 /**
@@ -392,6 +627,8 @@ const DB_STORE = 'kv'
 const DB_VERSION = 1
 
 interface BucketFile {
+  /** `audio/<sha256>.m4a`: the bytes, for good. */
+  readonly key: string
   readonly url: string
   readonly token: string
 }
@@ -438,7 +675,7 @@ async function bucketFileFor(url: URL, kind: 'audio' | 'cover'): Promise<BucketF
       key = read.files?.[songId]?.[kind]
     }
     if (!read.session || typeof key !== 'string') return null
-    return { url: `${read.session.doormanUrl}/v1/files/${key}`, token: read.session.token }
+    return { key, url: `${read.session.doormanUrl}/v1/files/${key}`, token: read.session.token }
   } catch {
     return null
   }
@@ -463,6 +700,7 @@ async function bucketPicture(request: Request, url: URL): Promise<Response> {
     if (!read.session && !read.fresh) read = await bucketRead(true)
     if (!read.session) return new Response(null, { status: 404 })
     const response = await fetchFromBucket({
+      key,
       url: `${read.session.doormanUrl}/v1/files/${key}`,
       token: read.session.token,
     })

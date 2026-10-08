@@ -170,7 +170,9 @@ struct TileView: View {
     ZStack(alignment: .bottomLeading) {
       RoundedRectangle(cornerRadius: 14, style: .continuous)
         .fill(accented ? accentedPane : Color(hex: tile.fill))
-      if let image = coverImage(tile.cover) {
+      // A cover this small is a grey smudge without its colour, so in the
+      // accented mode the tile is its name alone.
+      if !accented, let image = coverImage(tile.cover) {
         coverPicture(image)
           .scaledToFill()
           .frame(width: 30, height: 30)

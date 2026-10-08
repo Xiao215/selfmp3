@@ -167,11 +167,12 @@ struct TileView: View {
   let accented: Bool
 
   var body: some View {
-    ZStack(alignment: .bottomLeading) {
+    // The name sits low, under the cover in the top corner. A cover this
+    // small is a grey smudge without its colour, so in the accented mode the
+    // tile is its name alone, centred down the tile.
+    ZStack(alignment: accented ? .leading : .bottomLeading) {
       RoundedRectangle(cornerRadius: 14, style: .continuous)
         .fill(accented ? accentedPane : Color(hex: tile.fill))
-      // A cover this small is a grey smudge without its colour, so in the
-      // accented mode the tile is its name alone.
       if !accented, let image = coverImage(tile.cover) {
         coverPicture(image)
           .scaledToFill()

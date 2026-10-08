@@ -62,6 +62,9 @@ function fakeBucket({ counting = false }: { counting?: boolean } = {}) {
   /** Every prefix listed, in order: the calls the bucket counts. */
   const lists: string[] = []
   let failNextPut: number | null = null
+  /** Every file read asked of the doorman, in order. */
+  const reads: string[] = []
+  let refuseReads = false
   let count = 0
   let asked = 0
   const counter = (n: number): string => `00000000000000aa.${n}`
@@ -120,6 +123,10 @@ function fakeBucket({ counting = false }: { counting?: boolean } = {}) {
         files.delete(key)
         return reply(204, null, moved(key))
       }
+      reads.push(key)
+      if (refuseReads) {
+        return reply(502, { error: 'Transaction cap exceeded', code: 'bucket_cap_exceeded' })
+      }
       return files.has(key) ? reply(200, files.get(key)) : reply(404, {})
     }
     return reply(404, {})
@@ -130,6 +137,11 @@ function fakeBucket({ counting = false }: { counting?: boolean } = {}) {
     puts,
     files,
     lists,
+    reads,
+    /** The day's reads used up; listings still answer, as on 2026-10-08. */
+    refuseReads: (refuse: boolean) => {
+      refuseReads = refuse
+    },
     /** How many times the counter was read. */
     asked: () => asked,
     /** A server with the bucket's own key wrote something: the counter never saw it. */
@@ -804,6 +816,47 @@ describe('what looking costs the bucket', () => {
     await new Promise(resolve => setTimeout(resolve, 10))
     expect(bucket.lists.length).toBe(listed)
     expect(bucket.asked()).toBe(asked)
+  })
+
+  it('lists once, and reads nothing it is held from, while the bucket refuses reads', async () => {
+    const { releaseBucket } = await import('./hold.js')
+    const made = build(memoryStore(), fakeBucket({ counting: true }))
+    await signedIn(made)
+    await made.library.loadCloudLibrary(SESSION)
+
+    // A new snapshot goes up — and the day's reads are spent.
+    await tagFromElsewhere(made.bucket, 'never mind')
+    made.bucket.files.set(SNAPSHOT_KEY, SNAPSHOT)
+    made.bucket.refuseReads(true)
+    const listed = made.bucket.lists.length
+    const read = made.bucket.reads.length
+    try {
+      for (let look = 0; look < 3; look++) {
+        const asked = made.bucket.asked()
+        later(61_000)
+        await made.library.loadCloudLibrary(SESSION)
+        await counterAsked(made.bucket, asked + 1)
+        await new Promise(resolve => setTimeout(resolve, 10))
+      }
+      // One look listed and was refused its first read; the others listed
+      // nothing, and asked nothing the hold refuses.
+      expect(made.bucket.lists.length).toBe(listed + 2)
+      expect(made.bucket.reads.length).toBe(read + 1)
+
+      // The reads come back: the same listing is read, not made again.
+      made.bucket.refuseReads(false)
+      releaseBucket()
+      const heard = new Promise<void>(resolve => {
+        made.library.onCloudLibraryChanged(resolve)
+      })
+      later(61_000)
+      await made.library.loadCloudLibrary(SESSION)
+      await heard
+      expect(made.bucket.lists.length).toBe(listed + 2)
+      expect((await made.library.loadCloudLibrary(SESSION)).library.songs).toHaveLength(1)
+    } finally {
+      releaseBucket()
+    }
   })
 
   it('answers where the server is from the copy, however long since the last look', async () => {

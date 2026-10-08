@@ -26,34 +26,60 @@ export interface BucketHold {
   readonly until: number
 }
 
-let hold: BucketHold | null = null
+/**
+ * What Backblaze counts against a day's allowance, each under a cap of its
+ * own: reading a file (Class B) and listing a folder (Class C). One can be
+ * spent while the other is not — on 2026-10-08 every read was refused while
+ * every listing still answered — so each is held, and let go, by itself: a
+ * listing that answers says nothing about whether a read would.
+ */
+export type BucketCall = 'read' | 'list'
+
+const holds: Record<BucketCall, BucketHold | null> = { read: null, list: null }
 const listeners = new Set<(hold: BucketHold | null) => void>()
 
-/** The hold in force, or null when the bucket may be asked. */
-export function bucketHold(now = Date.now()): BucketHold | null {
-  if (hold !== null && hold.until <= now) release()
-  return hold
+/**
+ * The hold in force for that kind of call, or null when the bucket may be
+ * asked. With no kind, either: what a screen says while anything is held.
+ */
+export function bucketHold(call?: BucketCall, now = Date.now()): BucketHold | null {
+  for (const kind of KINDS) {
+    const held = holds[kind]
+    if (held !== null && held.until <= now) release(kind)
+  }
+  return call ? holds[call] : (holds.read ?? holds.list)
 }
 
-/** Refused for the day: leave the bucket alone for a while, and say so. */
-export function holdBucket(message: string, now = Date.now()): BucketHold {
-  hold = { message, until: now + BUCKET_HOLD_MS }
-  for (const listener of listeners) listener(hold)
-  return hold
+/** Refused for the day: leave that kind of call alone for a while, and say so. */
+export function holdBucket(
+  message: string,
+  call: BucketCall = 'read',
+  now = Date.now(),
+): BucketHold {
+  holds[call] = { message, until: now + BUCKET_HOLD_MS }
+  notify()
+  return holds[call]
 }
 
-/** The bucket answered, or the app signed out: nothing is held any more. */
-export function releaseBucket(): void {
-  release()
+/** That kind of call was answered, or (with none) the app signed out: nothing of it is held. */
+export function releaseBucket(call?: BucketCall): void {
+  for (const kind of call ? [call] : KINDS) release(kind)
 }
 
-function release(): void {
-  if (hold === null) return
-  hold = null
-  for (const listener of listeners) listener(null)
+const KINDS: readonly BucketCall[] = ['read', 'list']
+
+function release(call: BucketCall): void {
+  if (holds[call] === null) return
+  holds[call] = null
+  notify()
 }
 
-/** Hear the hold start and end. */
+function notify(): void {
+  const held = holds.read ?? holds.list
+  for (const listener of listeners) listener(held)
+}
+
+/** Hear a hold start and end. */
 export function onBucketHold(listener: (hold: BucketHold | null) => void): () => void {
   listeners.add(listener)
   return () => {

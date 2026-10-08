@@ -568,6 +568,9 @@ export function createCloudLibrary(
     return read.file
   }
 
+  /** The last listing a look made and could not finish reading, and the counter it was made at. */
+  let unread: { changes: string; logKeys: string[]; newest: string | null } | null = null
+
   /**
    * Where the doorman's change counter stands, or null when there is none to
    * ask — a doorman deployed before it answers 404 — or it cannot be asked.
@@ -628,8 +631,17 @@ export function createCloudLibrary(
     }
 
     for (let attempt = 0; attempt < 2; attempt++) {
-      const logKeys = await listKeys(session, LOG_FOLDER)
-      const newest = newestSnapshotKey(await listKeys(session, SNAPSHOTS_FOLDER))
+      // Listed already for this very counter, by a look that could not read
+      // what it found — the bucket refusing reads for the day while it still
+      // answers listings. Listing again would find the same; only the reads
+      // are tried again (and are held, while the refusal lasts).
+      const reuse =
+        attempt === 0 && !list && counter !== null && unread?.changes === counter ? unread : null
+      const logKeys = reuse?.logKeys ?? (await listKeys(session, LOG_FOLDER))
+      const newest = reuse
+        ? reuse.newest
+        : newestSnapshotKey(await listKeys(session, SNAPSHOTS_FOLDER))
+      unread = counter === null ? null : { changes: counter, logKeys, newest }
 
       let base = r.base
       if (newest !== base.key) {
@@ -672,6 +684,7 @@ export function createCloudLibrary(
         listedAt: startedAt,
         changes: counter,
       }))
+      unread = null
       void tidyOwnLogs(r, session, logKeys)
       return changed
     }
@@ -1133,6 +1146,7 @@ export function createCloudLibrary(
   async function forgetCloudLibrary(): Promise<void> {
     replica = null
     opening = null
+    unread = null
     generation++
     written = null
     retries = 0

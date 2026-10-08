@@ -7,7 +7,7 @@ import {
   type DoormanBackblazeConnect,
   type DoormanMe,
 } from '@selfmp3/shared'
-import { BUCKET_CAP_CODE, bucketHold, holdBucket, releaseBucket } from './hold.js'
+import { BUCKET_CAP_CODE, bucketHold, holdBucket, releaseBucket, type BucketCall } from './hold.js'
 import type { CloudPlatform, CloudResponse } from './platform.js'
 
 /**
@@ -114,9 +114,16 @@ export function createCloudSession(
     // here (packages/replica/src/hold.ts). Writes go — an upload is free of
     // the cap, and the outbox should empty — and so does anything the doorman
     // answers by itself.
-    const bucketRead =
-      method === 'GET' && (path.startsWith('/v1/files/') || path.startsWith('/v1/list'))
-    const held = bucketRead ? bucketHold() : null
+    // A listing and a read are held apart: Backblaze caps each by itself.
+    const call: BucketCall | null =
+      method !== 'GET'
+        ? null
+        : path.startsWith('/v1/list')
+          ? 'list'
+          : path.startsWith('/v1/files/')
+            ? 'read'
+            : null
+    const held = call ? bucketHold(call) : null
     if (held) throw new DoormanError(502, held.message, BUCKET_CAP_CODE)
 
     const headers: Record<string, string> = { ...options.headers }
@@ -135,11 +142,13 @@ export function createCloudSession(
     }
 
     if (response.ok || response.status === 404) {
-      if (bucketRead) releaseBucket()
+      if (call) releaseBucket(call)
       return response
     }
     const parsed = ErrorBodySchema.safeParse(await response.json().catch(() => null))
-    if (parsed.success && parsed.data.code === BUCKET_CAP_CODE) holdBucket(parsed.data.error)
+    if (call && parsed.success && parsed.data.code === BUCKET_CAP_CODE) {
+      holdBucket(parsed.data.error, call)
+    }
     throw new DoormanError(
       response.status,
       parsed.success ? parsed.data.error : `the doorman answered ${response.status}`,

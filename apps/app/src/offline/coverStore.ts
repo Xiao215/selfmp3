@@ -242,7 +242,7 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
       if (!signedIn) return null
       // The bucket refusing for the day: not asked again until the hold is
       // up, however many rows want their cover meanwhile.
-      const held = bucketHold()
+      const held = bucketHold('read')
       if (held) throw new Error(held.message)
       return platform.keepCloud(name, doormanFileUrl(key), doormanAuth(signedIn.token))
     })().finally(() => fetchingFile.delete(name))

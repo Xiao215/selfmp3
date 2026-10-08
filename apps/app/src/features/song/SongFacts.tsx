@@ -12,6 +12,7 @@ import {
   tempoWords,
 } from '@selfmp3/client'
 import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvider'
+import { useDownloadRemoval } from '../../offline/useDownloadRemoval'
 import { useArt } from '../../offline/useArt'
 import { useSongColor } from '../../ui/useSongColor'
 import { Button } from '../../ui/components/Button'
@@ -40,6 +41,8 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
   // accent, which read as a stray blue against the wash of the cover.
   const songColor = useSongColor(song, artFor(song))
   const { state: downloads, queue, installed } = useDownloads()
+  // The same removal as the song's menu: by hand, with an Undo.
+  const removeDownloads = useDownloadRemoval()
   const progress = useDownloadProgress()
   const features = song.audioFeatures
   const held = isDownloaded(downloads.index, song.id)
@@ -116,7 +119,7 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
                   <Button
                     label="Remove download"
                     icon={<CloudRemove size={15} tone="textPrimary" />}
-                    onPress={() => void queue.remove([song.id])}
+                    onPress={() => removeDownloads([song.id])}
                   />
                 </View>
               </>

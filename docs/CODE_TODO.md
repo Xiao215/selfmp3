@@ -244,7 +244,7 @@ Found on the way, also fixed: `apps/server/src/services/lookup.ts` held a raw NU
 - [x] **T-201 `DEAD` L** — `resumeFrom` never sent by any caller (`main/files.ts:93`, `desktop-bridge/src/schemas.ts:189-190`); if it were and disagreed with the `.part` size it would corrupt the file. Delete; derive from `sizeOf(part)`.
 - [x] **T-202 `SECURITY` L** — Media handler echoes any `Origin` with credentials (`main/protocol.ts:137-141`). Echo only `APP_ORIGIN` or the dev URL.
 - [x] **T-203 `HARDCODE` L** — `app://selfmp3/_media/` and the `selfmp3` scheme spelled out in `preload.ts:119`, `protocol.ts:26,50`, `main.ts:87,89`, `deepLinks.ts:15`, `desktop-bridge/src/schemas.ts:79`. Constants in `desktop-bridge/src/channels.ts`.
-- [ ] **T-204 `HARDCODE` L** — GitHub owner/repo in `updates.ts:25-28`, `menu.ts:96`, `electron-builder.yml:87-88`, `package.json:10`; a fork ships an updater pointed at upstream. Derive from `GITHUB_REPOSITORY` in `desktop.yml`.
+- [x] **T-204 `HARDCODE` L** — GitHub owner/repo in `updates.ts:25-28`, `menu.ts:96`, `electron-builder.yml:87-88`, `package.json:10`; a fork ships an updater pointed at upstream. Derive from `GITHUB_REPOSITORY` in `desktop.yml`. *Done 2026-10-07: `REPOSITORY` in shared/releases.ts is the one name; `dist.mjs` passes it to electron-builder and stops when `GITHUB_REPOSITORY` disagrees.*
 - [x] **T-205 `ROBUST` L** — Bounds save debounced 400 ms past the window's death (`main/bounds.ts:87-104`); on `close`, flush synchronously.
 - [x] **T-206 `PROPER` L** — Window creation + `closed` handler duplicated (`main.ts:44-47,95-98`); `http(s)` allow-check duplicated in both navigation guards (`window.ts:77-86`); orphaned "Phase 4" comment (`ipc.ts:131-136`).
 
@@ -254,10 +254,10 @@ Found on the way, also fixed: `apps/server/src/services/lookup.ts` held a raw NU
 
 - [x] **T-210 `PROPER` M** — `checkFormat` (`storage.ts:120-152`) is a verbatim copy of the server's `#checkFormat` (`cloudSync.ts:1330-1360`), messages and `app: 'self.mp3'` literal included. A pure `judgeFormatDocument` + `CLOUD_APP_NAME` in `packages/shared/src/cloud.ts`.
 - [x] **T-211 `HARDCODE` M** — `HASH_NAMED = /^(?:audio|covers|lyrics)\//` (`files.ts:42`) re-spells the folder list `FILE_KEY` in `shared/src/cloud.ts:180` owns. Export `isHashNamedCloudKey()` from shared.
-- [ ] **T-212 `HARDCODE` M** — `wrangler.toml:25,31,50-51` re-lists the full origin set in `[env.dev.vars]` and inlines the extension id that `shared/src/origins.ts:18` exports. Keep only the extra dev origins in the dev block.
+- [x] **T-212 `HARDCODE` M** — `wrangler.toml:25,31,50-51` re-lists the full origin set in `[env.dev.vars]` and inlines the extension id that `shared/src/origins.ts:18` exports. Keep only the extra dev origins in the dev block. *Done 2026-10-07: the doorman always allows the apps' own origins from shared (`cors.ts`); `APP_ORIGINS` names only where the web app is served.*
 - [x] **T-213 `HARDCODE` L** — `DOORMAN_VERSION` kept in step with `package.json` by hand (`doorman.ts:29-30`); upload limit and its "100 MB" message drift independently (`files.ts:71,180`); "ten minutes" in copy while `SIGN_IN_TTL_MS` is the source (`auth.ts:208`, `signin.ts:21`).
 - [x] **T-214 `PROPER` L** — 405 built twice (`files.ts:96-101`, `doorman.ts:141-146`); cache constants and clear-when-full rule duplicated (`sessions.ts:27-28,90-91`, `accounts.ts:42-43,181-184`); `Sessions.end` hashes the token twice (`sessions.ts:96-101`).
-- [ ] **T-215 `ROBUST` L** — Signing-key cache depends on aws4fetch's private cache-key format (`bucket.ts:297-308`). Pin the version or add a cache-hit test.
+- [x] **T-215 `ROBUST` L** — Signing-key cache depends on aws4fetch's private cache-key format (`bucket.ts:297-308`). Pin the version or add a cache-hit test. *Done 2026-10-07: `bucket.test.ts` counts HMAC derivations across two signs (5, then 1) and fails if the cache stops hitting.*
 
 ---
 
@@ -276,7 +276,7 @@ Found on the way, also fixed: `apps/server/src/services/lookup.ts` held a raw NU
 
 - [x] **T-230 `HYGIENE` M** — `sharp` pinned `^0.34.5` in `apps/server` and `apps/desktop` below the hoisted `0.35.4`, so npm installs it three times and the Dockerfile (`:45-65,112-113`) carries `apps/server/node_modules` into the runtime image to cope. Bump to `^0.35.4`, delete the workaround.
 - [x] **T-231 `DEAD` M** — `@playwright/test` in `apps/app/package.json:63` (`^1.56.0`, root is `^1.63.0`) is unused; `apps/app/eslint.config.js:26-28` ignores `test-results/` and `playwright-report/` for a suite that no longer exists.
-- [ ] **T-232 `HYGIENE` M** — The hermetic extension e2e suite (`verify:extension`, fake server in-process) and the desktop smoke (`verify:desktop`, mock keychain) never run in CI (`check.yml`, `extension.yml`, `desktop.yml`).
+- [x] **T-232 `HYGIENE` M** — The hermetic extension e2e suite (`verify:extension`, fake server in-process) and the desktop smoke (`verify:desktop`, mock keychain) never run in CI (`check.yml`, `extension.yml`, `desktop.yml`). *Done 2026-10-07: `.github/workflows/e2e.yml` runs the extension specs (Chromium) and the desktop smoke (xvfb, a returning xdg-open stub).*
 - [x] **T-233 `HARDCODE` M** — `apps/server/public/admin.html:48` links to `xiao215.github.io/selfmp3/`; every self-hoster's "In a browser → Open" goes to the upstream deployment. Inject from a `SELFMP3_APP_URL` config value.
 - [x] **T-234 `HARDCODE` M** — `scripts/install-service.sh:75,113,121` and `scripts/setup-mac.sh:147` hard-code 4600 while `doctor.sh` and `_dirs.sh` read `SELFMP3_PORT`; a changed port gets a service on the default. Add `PORT` to `_dirs.sh`.
 - [x] **T-235 `DEAD` M** — Three byte-identical `verify/tsconfig.json` files (`verify/`, `apps/desktop/verify/`, `apps/extension/verify/`) that nothing runs and that drift from `tsconfig.base.json`. Share one base and add a `typecheck:verify` step, or delete them.
@@ -284,9 +284,9 @@ Found on the way, also fixed: `apps/server/src/services/lookup.ts` held a raw NU
 - [x] **T-237 `DEAD` L** — Root `clean` misses `apps/*/dist-types`, `apps/app/dist`, `apps/app/public/sw.js`, `.expo`, `apps/desktop/release`, `apps/desktop/resources`, `apps/extension/src/ui/{theme,fonts}.css`, and the untracked leftover folders `apps/mobile`, `apps/web`, `packages/cloud` (node_modules/dist only; zero tracked files, zero references). `npm run clean --workspaces --if-present` plus `rm -rf` of the three.
 - [x] **T-238 `DEAD` L** — Ignore patterns for things that no longer exist: `eslint.config.js:10` and `apps/app/.gitignore:14` (`dist-pages`), `eslint.config.js:16-17` and `.prettierignore:3-4` (`library/**`, `data/**`).
 - [x] **T-239 `HYGIENE` L** — Node version says three things (`engines >=22`, workflows 24, Dockerfile 22, desktop `target: node24`); GitHub Actions pinned at `v4` in `docker.yml` and `v5–v7` elsewhere; `@types/react` pinned `~19.2.18` in app and `^19.2.18` in extension (two installed copies).
-- [ ] **T-240 `PROPER` L** — Cross-workspace deps not declared: desktop imports `@selfmp3/shared` (`main/protocol.ts:7`, tsconfig references it) without listing it; `extension/scripts/theme.mjs` resolves `@expo-google-fonts/*` and `@selfmp3/client/core` unlisted; `build.mjs` copies `apps/app/public/icons/icon-192.png`.
+- [x] **T-240 `PROPER` L** — Cross-workspace deps not declared: desktop imports `@selfmp3/shared` (`main/protocol.ts:7`, tsconfig references it) without listing it; `extension/scripts/theme.mjs` resolves `@expo-google-fonts/*` and `@selfmp3/client/core` unlisted; `build.mjs` copies `apps/app/public/icons/icon-192.png`. *Done 2026-10-07: desktop declares `@selfmp3/shared`; the extension and desktop reach the app's icons through `@selfmp3/app`.*
 - [x] **T-241 `PROPER` L** — `packages/client/tsconfig.json:6-7` says "No DOM, the same rule shared and replica follow" but `packages/shared/tsconfig.json:6` loads `DOM`; shared is imported by the Workers doorman. Drop `DOM` from shared if it compiles.
-- [ ] **T-242 `PERF` L** — Docker builder installs the whole root devDependency set for one `tsc` (`Dockerfile:37-38`); `docker.yml` rebuilds on app-only pushes (`paths-ignore` instead of `paths`); `docker-compose.yml:23-33` duplicates `.env.example` instead of `env_file: .env`.
+- [x] **T-242 `PERF` L** — Docker builder installs the whole root devDependency set for one `tsc` (`Dockerfile:37-38`); `docker.yml` rebuilds on app-only pushes (`paths-ignore` instead of `paths`); `docker-compose.yml:23-33` duplicates `.env.example` instead of `env_file: .env`. *Done 2026-10-07: the builder installs only shared + server (199 packages, was 439); `docker.yml` rebuilds only for paths the image holds.*
 - [x] **T-243 `PERF` L** — `verify/playwright.config.ts:64-98` has no `webServer` / `reuseExistingServer`; `verify/flows/helpers.ts:34,64` export `songTable`/`unreachable` used only in-file; `verify/README.md:8-14` still describes phase-1 migration state.
 - [x] **T-244 `HYGIENE` L** — `verify:extension` duplicated between root and `apps/extension/package.json:10`; README scripts table (`README.md:307-330`) omits `build:extension`, `zip:extension`, `check:exports`, `verify:extension`.
 - [x] **T-245 `HARDCODE` L** — `staleTime: 60_000` spelled ~15 times across `packages/client/src/queries/queries.ts` and `apps/app/src/features/*` with no shared constant.
@@ -590,10 +590,8 @@ About 300 findings went in. The ones fixed are not listed one by one here; the c
 
 ## Still open, and why
 
-- **T-212** (`wrangler.toml` origin list), **T-215** (aws4fetch cache key), **T-232** (extension and desktop e2e suites not in CI — needs browsers/Electron on the runner), **T-242** (Docker builder dev deps — the daemon was not running, so the image could not be rebuilt and checked).
 - **`decodeGzipOrText`** is still written twice (extension, app web port): the packages that could hold it are deliberately compiled without DOM.
-- **`electron-builder.yml` / `apps/desktop/package.json`** still spell the GitHub owner/repo (rest of T-204); the extension's `build.mjs` still copies `apps/app/public/icons` (rest of T-240).
-- **`unused-exports.mjs` is textual**: an export whose name is also an ordinary word (`BackRow`, `Folder`, `Speed`, `PLAIN`) or that a barrel re-exports counts as read. An import-graph check would have caught several of this pass's dead exports.
+- `unused-exports.mjs` now reads the import graph (TypeScript's parser): a common-word name, a barrel-only re-export or a test-only read no longer counts. Its first run found 64 dead or over-exported names, all gone.
 
 ## For the owner
 

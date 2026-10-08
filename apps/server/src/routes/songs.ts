@@ -31,9 +31,35 @@ import { romanizedLines } from '../services/romanizedLines.js'
 const fieldsOf = (patch: Partial<SongFields>): (keyof SongFields)[] =>
   SONG_FIELDS.filter(field => patch[field] !== undefined)
 
+/**
+ * Every song, read from the database once for each state of the library rather
+ * than once per request. `state` names that state: whatever it returns, the
+ * songs read under it are handed out again until it returns something else.
+ * Callers share the one array, so they read it and never change it.
+ */
+function songsByState(state: () => string, load: () => Song[]): () => readonly Song[] {
+  let kept: { state: string; songs: readonly Song[] } | null = null
+  return () => {
+    const now = state()
+    if (kept?.state !== now) kept = { state: now, songs: load() }
+    return kept.songs
+  }
+}
+
 export function songRoutes(container: Container): Router {
   const router = Router()
   const songOrThrow = (id: number): Song => requireSong(container.songs, id)
+
+  /*
+   * The whole library, for the similar-songs answer, which a player asks for
+   * whenever the song changes. The library version moves on every edit but not
+   * on a play, and the songs in the answer carry their play counts, so the
+   * newest play's id is part of the state too: a play reads the library again.
+   */
+  const similarLibrary = songsByState(
+    () => `${container.libraryVersion()}:${container.stats.latestPlayId()}`,
+    () => container.songs.all(),
+  )
 
   /**
    * The 404 for a song with no words, remembering that about it first. It has
@@ -195,7 +221,7 @@ export function songRoutes(container: Container): Router {
       },
       ({ params, query }): SimilarSongs => {
         const seed = songOrThrow(params.id)
-        const library = container.songs.all()
+        const library = similarLibrary()
         const byFeatures = similarSongs(seed, library, query.limit)
         return {
           songId: seed.id,

@@ -37,6 +37,20 @@ export function useSongDropTarget(
   return false
 }
 
+/**
+ * Reorder a list by the same drag that carries a row to a playlist: a plain
+ * drag with a mouse. A phone holds a row to move it instead (`HoldToReorder`).
+ */
+export function useDragToReorder(
+  _ref: RefObject<View | null>,
+  _move: {
+    enabled: boolean
+    onStart: (songId: number) => void
+    onMove: (songId: number, dy: number) => void
+    onEnd: (songId: number, dy: number) => void
+  },
+): void {}
+
 /** True while songs are being dragged anywhere, so drop targets can say so. */
 export function useSongDragActive(): boolean {
   return false

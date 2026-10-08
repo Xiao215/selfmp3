@@ -104,6 +104,20 @@ showed as `avoid` (`DescribeRequest`), and the server picks around them while an
 fits. Answers are kept in memory (`smart/answers.store.ts`); an address to one from before a
 reload says so.
 
+## Putting a list in order
+
+A playlist you made and an Ask answer are in the order you set (`OrderedSongList`). On a
+phone a row is held until it lifts, then moved. With a mouse a plain drag moves it, no hold
+first (small fix 5, 2026-10-08): it is the same browser drag that carries a song to a
+playlist in the sidebar, read by the list while it is over the list — the row follows the
+pointer and the rows around it make room, and a drop there is the new order. Carried out of
+the list, the row goes back to its place and a drop on a sidebar playlist adds the song
+(`useDragToReorder` in `apps/app/src/ports/songDrag.web.ts`). Several ticked songs dragged
+together only go to a playlist.
+
+A playlist that fills from tags is in its rule's order (small fix 4): nothing lifts and no
+order is sent, and holding a row selects it as it does in Library.
+
 ## Recently played
 
 Home's row shows what you listened to (A1): a list when you played a list, a song when you

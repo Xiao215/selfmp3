@@ -21,6 +21,13 @@ let dragging = false
 const listeners = new Set<() => void>()
 
 /**
+ * The songs the drag under way carries, for a list that reorders by it
+ * (`useDragToReorder`). A drop target cannot read the drag's data until the
+ * drop, and a list has to know which of its rows is travelling as it goes.
+ */
+let carrying: readonly number[] | null = null
+
+/**
  * While a row is being held to be moved, no row is draggable.
  *
  * The row is the handle for reordering now, and the row is also what drags
@@ -129,11 +136,16 @@ export function useSongDragSource(
       const many = plural(carried.length, 'song', 'songs')
       event.dataTransfer.setData(TYPE, JSON.stringify(carried))
       event.dataTransfer.setData('text/plain', many)
-      event.dataTransfer.effectAllowed = 'copy'
+      // Copied onto a playlist; moved, within a list you order.
+      event.dataTransfer.effectAllowed = 'copyMove'
       showDragImage(event, carried.length === 1 ? named.current : many)
+      carrying = carried
       setDragging(true)
     }
-    const end = (): void => setDragging(false)
+    const end = (): void => {
+      carrying = null
+      setDragging(false)
+    }
     node.draggable = !held
     draggables.add(setDraggable)
     node.addEventListener('dragstart', start)
@@ -217,6 +229,125 @@ export function useSongDropTarget(
   }, [ref, enabled])
 
   return over
+}
+
+/**
+ * The scrolling box a row sits in, between the row and the list's frame: how
+ * far it scrolls during a drag is travel the pointer did not make.
+ */
+function scrollerOf(from: EventTarget | null, frame: HTMLElement): HTMLElement | null {
+  for (let at = from instanceof HTMLElement ? from : null; at; at = at.parentElement) {
+    const { overflowY } = getComputedStyle(at)
+    if ((overflowY === 'auto' || overflowY === 'scroll') && at.scrollHeight > at.clientHeight)
+      return at
+    if (at === frame) return null
+  }
+  return null
+}
+
+/**
+ * A list whose order is yours, reordered by the browser's own drag: a plain
+ * click-drag on a row moves it, with no hold first (small fix 5, 2026-10-08).
+ *
+ * The row is already draggable — it drags onto a playlist in the sidebar —
+ * and one gesture cannot be two, since a drag the browser has begun cannot be
+ * turned into a pointer capture or back. So reordering rides the same drag:
+ * while it is over the list, the row it started from follows the pointer up
+ * and down and the rows around it make room, and a drop in the list is the
+ * new order. Carried out of the list, towards the sidebar, the row goes back
+ * to its place and the drag is the add-to-playlist drag it always was; a drop
+ * on a playlist adds the song there, and the order is left alone.
+ *
+ * Only a drag of one song from this list reorders: several ticked songs
+ * travel to a playlist together, and have no one place to land.
+ *
+ * Travel is measured from where the drag began, plus however far the list has
+ * scrolled since — the browser scrolls it when the pointer nears its edge.
+ */
+export function useDragToReorder(
+  ref: RefObject<View | null>,
+  move: {
+    enabled: boolean
+    onStart: (songId: number) => void
+    onMove: (songId: number, dy: number) => void
+    /** Let go: the travel it ended at, and 0 when it ended anywhere but the list. */
+    onEnd: (songId: number, dy: number) => void
+  },
+): void {
+  const latest = useRef(move)
+  useEffect(() => {
+    latest.current = move
+  })
+
+  const { enabled } = move
+  useEffect(() => {
+    const node = element(ref)
+    if (!node || !enabled) return undefined
+    let moving: {
+      songId: number
+      fromY: number
+      scroller: HTMLElement | null
+      fromScroll: number
+    } | null = null
+    const travel = (event: DragEvent): number =>
+      moving
+        ? event.clientY -
+          moving.fromY +
+          (moving.scroller ? moving.scroller.scrollTop - moving.fromScroll : 0)
+        : 0
+
+    // After the row's own `dragstart`, which says what it carries: the row is
+    // where the event starts, and this frame is above it.
+    const start = (event: DragEvent): void => {
+      const [songId, ...more] = carrying ?? []
+      if (songId === undefined || more.length > 0) return
+      const scroller = scrollerOf(event.target, node)
+      moving = { songId, fromY: event.clientY, scroller, fromScroll: scroller?.scrollTop ?? 0 }
+      latest.current.onStart(songId)
+    }
+    const over = (event: DragEvent): void => {
+      if (!moving) return
+      event.preventDefault()
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+      latest.current.onMove(moving.songId, travel(event))
+    }
+    const leave = (event: DragEvent): void => {
+      if (!moving) return
+      if (event.relatedTarget instanceof Node && node.contains(event.relatedTarget)) return
+      // Out of the list: the row goes home while the drag goes on elsewhere.
+      latest.current.onMove(moving.songId, 0)
+    }
+    const drop = (event: DragEvent): void => {
+      if (!moving) return
+      event.preventDefault()
+      const { songId } = moving
+      const dy = travel(event)
+      moving = null
+      latest.current.onEnd(songId, dy)
+    }
+    // Ended anywhere but the list — on a playlist, outside the window, or
+    // called off with Escape. A drop in the list has already been told.
+    const end = (): void => {
+      if (!moving) return
+      const { songId } = moving
+      moving = null
+      latest.current.onEnd(songId, 0)
+    }
+    node.addEventListener('dragstart', start)
+    node.addEventListener('dragenter', over)
+    node.addEventListener('dragover', over)
+    node.addEventListener('dragleave', leave)
+    node.addEventListener('drop', drop)
+    node.addEventListener('dragend', end)
+    return () => {
+      node.removeEventListener('dragstart', start)
+      node.removeEventListener('dragenter', over)
+      node.removeEventListener('dragover', over)
+      node.removeEventListener('dragleave', leave)
+      node.removeEventListener('drop', drop)
+      node.removeEventListener('dragend', end)
+    }
+  }, [ref, enabled])
 }
 
 export function useSongDragActive(): boolean {

@@ -21,9 +21,11 @@ import {
  * drawn without tag chips as every row inside a place is, and this is what
  * says so from outside the code.
  *
- * The second is reordering, one gesture at every width: the row itself, held
- * until it lifts. It is checked by the order the page shows afterwards. The rows are put back where they were, so a run leaves
- * the library as it found it and the next run starts from the same place.
+ * The second is reordering by the row itself: held until it lifts on a phone,
+ * and with a mouse a plain drag, no hold first. It is checked by the order the
+ * page shows afterwards. The rows are put back where they were, so a run
+ * leaves the library as it found it and the next run starts from the same
+ * place.
  */
 
 /**
@@ -105,7 +107,7 @@ test.describe('a playlist’s songs', () => {
     await expect(row.getByRole('button', { name: gripName(title) })).toHaveCount(0)
   })
 
-  test('go in the order you put them in', async ({ page }) => {
+  test('go in the order you put them in', async ({ page }, info) => {
     const name = await openOneYouMade(page)
     test.skip(name === null, 'needs a playlist you made with at least 3 songs')
 
@@ -115,8 +117,10 @@ test.describe('a playlist’s songs', () => {
     const second = (await rows.nth(1).boundingBox())!
     const rowHeight = second.y - first.y
 
-    // The row is the handle at every width now: held still it lifts, and then
-    // it follows. The grip a mouse used to drag by is gone (Xiao, 2026-09-21).
+    // The row is the handle at every width now. A finger holds it still until
+    // it lifts, and then it follows; a mouse just drags it (small fix 5), the
+    // same drag that carries it to a playlist in the sidebar. The grip a mouse
+    // used to drag by is gone (Xiao, 2026-09-21).
     const move = async (from: number, rowsDown: number): Promise<void> => {
       const row = songRows(page).nth(from)
       const box = (await row.boundingBox())!
@@ -125,7 +129,7 @@ test.describe('a playlist’s songs', () => {
 
       await page.mouse.move(x, y)
       await page.mouse.down()
-      await page.waitForTimeout(600)
+      if (info.project.name === 'phone') await page.waitForTimeout(600)
       for (let step = 1; step <= 10; step += 1) {
         await page.mouse.move(x, y + (rowHeight * rowsDown * step) / 10)
         await page.waitForTimeout(20)

@@ -3,7 +3,8 @@ import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { SoundVectorsRepository } from '../repositories/soundVectors.js'
 import { ffmpegFailure, runFfmpeg } from '../services/ffmpeg.js'
-import { Clamp3, type SoundModel } from './clamp3.js'
+import type { SoundModel } from './clamp3.js'
+import { Clamp3Worker } from './clamp3Worker.js'
 import { SOUND_MODEL, SoundModelFiles } from './models.js'
 import { dot, SOUND_SAMPLE_RATE, WINDOW_SECONDS, windowStarts } from './vectors.js'
 
@@ -49,7 +50,7 @@ export class SoundService {
     this.#vectors = deps.vectors
     this.#logger = deps.logger.child('sound')
     this.#files = deps.files ?? new SoundModelFiles({ config: deps.config, logger: deps.logger })
-    this.#makeModel = deps.makeModel ?? ((dir, threads) => new Clamp3(dir, threads))
+    this.#makeModel = deps.makeModel ?? ((dir, threads) => new Clamp3Worker(dir, threads))
   }
 
   get enabled(): boolean {

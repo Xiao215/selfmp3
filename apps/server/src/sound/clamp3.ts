@@ -9,8 +9,9 @@ import { chunks, encoderFrames, normaliseClip, SOUND_DIMENSIONS, unit } from './
  *
  * Three graphs, as `scripts/sound-models/export.py` makes them: MERT, run once
  * per 5 s chunk of the clip; the audio encoder, over those chunks; and the
- * text encoder. The runtime does its work on threads of its own, so a song
- * being heard does not hold up a request.
+ * text encoder. A pass blocks the thread it runs on (the runtime's "async"
+ * run is a synchronous call), so the server runs this in a worker thread
+ * (clamp3Worker.ts) rather than on its event loop.
  *
  * The listening half (about 210 MB) and the text half (about 535 MB) load
  * separately, when first wanted, and are let go after a quiet spell: a Pi

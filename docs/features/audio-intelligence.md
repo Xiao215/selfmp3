@@ -116,6 +116,9 @@ every song and description matched exactly; the 8-bit set the server downloads k
 above to the decimal. The files (about 750 MB) are a release of this repository,
 `sound-models-v1`, downloaded into `data/models/` the first time they are wanted and checked
 against hashes written in `sound/models.ts`. A failed download is tried again an hour later.
+The model runs in a worker thread (`sound/clamp3Worker.ts`): a pass on onnxruntime-node
+blocks the thread it runs on, and on the event loop each one froze the server for seconds
+on a Pi.
 
 | Setting | |
 |---|---|

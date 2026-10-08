@@ -3,7 +3,7 @@ import { Animated, View } from 'react-native'
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { fonts, radius } from '@selfmp3/client'
+import { fonts, radius, space } from '@selfmp3/client'
 import { artShadow, label as labelText } from '../surfaces'
 import { CoverLight } from './CoverLight'
 
@@ -98,9 +98,9 @@ export const listHeadText = StyleSheet.create(theme => ({
 }))
 
 const styles = StyleSheet.create(theme => ({
-  head: { paddingHorizontal: 20, paddingBottom: 16, gap: 18, overflow: 'hidden' },
+  head: { paddingHorizontal: space.gutter, paddingBottom: 16, gap: 18, overflow: 'hidden' },
   // No paddingTop here: the head's own, under the status bar, is set inline.
-  headWide: { paddingHorizontal: 40 },
+  headWide: { paddingHorizontal: space.gutterWide },
   // No glass here. The bar scrolls with the head rather than floating over
   // the page, and it carries no fill, so `backdrop-filter` only blurred the
   // head's own light inside the bar's rectangle — a band across the top with

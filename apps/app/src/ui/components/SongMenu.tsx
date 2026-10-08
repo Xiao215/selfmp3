@@ -364,7 +364,7 @@ const styles = StyleSheet.create(theme => ({
   },
   titles: { flex: 1, minWidth: 0, gap: 3 },
   title: { color: theme.colors.textPrimary, fontSize: type.title, fontWeight: '600' },
-  byline: { color: theme.colors.textSecondary, fontSize: type.rowSub },
+  byline: { color: theme.colors.textSecondary, fontSize: type.sub },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginTop: space.xs },
   gap: { height: space.sm },
   /* A group's name, quiet, as a sheet's label title is. */

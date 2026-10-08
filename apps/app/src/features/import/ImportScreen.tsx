@@ -28,6 +28,7 @@ import {
   timeLeft,
   type QueueChange,
   type ServerConnection,
+  space,
 } from '@selfmp3/client'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
@@ -973,7 +974,7 @@ const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40 },
   contentWide: { paddingTop: 40, paddingHorizontal: 48 },
-  contentPhone: { paddingTop: 6, paddingHorizontal: 20 },
+  contentPhone: { paddingTop: 6, paddingHorizontal: space.gutter },
   pressed: { opacity: 0.6 },
   head: { alignItems: 'flex-start', gap: 12, marginBottom: 20 },
   heading: pageTitle(theme.colors),

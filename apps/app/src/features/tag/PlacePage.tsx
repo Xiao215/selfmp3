@@ -6,7 +6,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useNavigation, useRouter } from 'expo-router'
 import type { NativeStackNavigationProp } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
-import { fonts, isDownloaded, tagColors, type, useLibrary } from '@selfmp3/client'
+import { fonts, isDownloaded, space, tagColors, type, useLibrary } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -559,7 +559,7 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingHorizontal: 20,
+    paddingHorizontal: space.gutter,
     paddingTop: 14,
     paddingBottom: 6,
   },

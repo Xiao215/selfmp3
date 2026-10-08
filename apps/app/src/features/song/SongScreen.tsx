@@ -364,8 +364,8 @@ function SongMissing(): ReactNode {
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  content: { paddingHorizontal: 20, gap: 18 },
-  contentWide: { paddingHorizontal: 40 },
+  content: { paddingHorizontal: space.gutter, gap: 18 },
+  contentWide: { paddingHorizontal: space.gutterWide },
   // The light reaches down behind the head and fades into the ground before the card.
   light: { position: 'absolute', top: 0, left: 0, right: 0, height: 560 },
   // No glass here. The bar scrolls with the head rather than floating over

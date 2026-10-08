@@ -285,35 +285,73 @@ export const radius = {
   mini: 16,
   /** A row in a list: a song row, a listing or a change in the metadata dialog. */
   row: 14,
+  /** A text field that is not a search: a name, a tag's name, a song's details. */
+  field: 12,
   cover: 10,
   coverSm: 8,
 } as const
 
-export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const
+/**
+ * Room, on a four-point grid. `gutter` is a phone page's side margin and
+ * `gutterWide` a computer's: every page lines its content up on one of the
+ * two, so they are named rather than written as 20 and 40 at each site.
+ */
+export const space = { xs: 4, sm: 8, md: 12, lg: 16, gutter: 20, xl: 24, gutterWide: 40 } as const
 
 /**
- * A 14px base with a compact 1.5 line height, and `S2`'s larger sizes:
- * `display` for a greeting or a name in the serif, `page` for a page title and
- * `section` for a section's in the display face, `tile` for a tag tile's name,
- * `row` over `rowSub` for a song row. `label` is the small uppercase heading
- * (11, tracked 0.9: `labelTracking`).
+ * The type scale: nine sizes and no others (proposal P1, 2026-10-08). There
+ * were about thirty, half-point ones among them, and two sizes a point apart
+ * read as a mistake rather than as a step.
+ *
+ * - `tiny` 11: counts, times, the small uppercase heading (`label()`, tracked
+ *   `labelTracking`).
+ * - `small` 12: captions and hints.
+ * - `sub` 13: the line under a title, a chip, secondary words.
+ * - `body` 15: body text, a song row's title, a button, a field.
+ * - `title` 17: a sheet's or a dialog's title.
+ * - `section` 18: a section's heading, in the display face.
+ * - `large` 22: a tag tile's name, a big title.
+ * - `page` 30: a page's title, in the display face.
+ * - `display` 46: a greeting, a name at the top of a page, a big number.
  */
 export const type = {
-  body: 14,
-  small: 12,
   tiny: 11,
-  label: 11,
+  small: 12,
+  sub: 13,
+  body: 15,
   title: 17,
-  large: 22,
-  display: 46,
-  page: 30,
   section: 18,
-  tile: 22,
-  row: 15,
-  rowSub: 13,
+  large: 22,
+  page: 30,
+  display: 46,
 } as const
 
-/** The letter-spacing of `type.label`, which is always uppercase. */
+/**
+ * Each size's line height, for words that may wrap. A line that never wraps
+ * (a row's title, a label) leaves it off and takes the font's own, so a row
+ * is as tall as its words and no taller. The display face's sizes (`section`
+ * and up) are set tighter than the system font's: a heading that wraps reads as
+ * one heading, not two lines of text.
+ */
+export const leading: { readonly [step in keyof typeof type]: number } = {
+  tiny: 15,
+  small: 17,
+  sub: 19,
+  body: 21,
+  title: 23,
+  section: 22,
+  large: 26,
+  page: 34,
+  display: 50,
+}
+
+/**
+ * Icon sizes, for the shared parts: a small one beside a hint or in a chip, the
+ * one in a field or a row's action, and a large one at the head of an empty state.
+ */
+export const iconSize = { small: 14, medium: 18, large: 22 } as const
+
+/** The letter-spacing of the small uppercase heading (`type.tiny`), which is always uppercase. */
 export const labelTracking = 0.9
 
 /**

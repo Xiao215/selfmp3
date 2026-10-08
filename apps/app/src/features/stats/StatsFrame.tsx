@@ -4,7 +4,7 @@ import type { StyleProp, ViewStyle } from 'react-native'
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { HIT_TARGET, radius } from '@selfmp3/client'
+import { HIT_TARGET, radius, space } from '@selfmp3/client'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
@@ -173,7 +173,7 @@ const styles = StyleSheet.create(theme => ({
   content: { paddingBottom: 40, gap: 12 },
   // `S2`'s gutters: 40 to 48 on a computer's page, 20 on a phone's.
   contentWide: { paddingTop: 40, paddingHorizontal: 44, gap: 14 },
-  contentNarrow: { paddingTop: 18, paddingHorizontal: 20 },
+  contentNarrow: { paddingTop: 18, paddingHorizontal: space.gutter },
   // The blocks of the page are this view's children, not the scroll content's,
   // so the page's gap has to be repeated here or the cards and the ranking sit
   // flush against each other (Xiao, 2026-09-21).

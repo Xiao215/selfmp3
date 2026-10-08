@@ -4,7 +4,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'rea
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import type { WrappedRange } from '@selfmp3/shared'
-import { failureText, useLibrary, withAlpha, type ServerConnection } from '@selfmp3/client'
+import { failureText, space, useLibrary, withAlpha, type ServerConnection } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
@@ -471,8 +471,8 @@ const styles = StyleSheet.create(theme => ({
     bottom: -60,
     opacity: 0.8,
   },
-  contentWide: { paddingTop: 28, paddingHorizontal: 40, paddingBottom: 48, gap: 20 },
-  contentNarrow: { paddingTop: 8, paddingHorizontal: 20, paddingBottom: 28, gap: 16 },
+  contentWide: { paddingTop: 28, paddingHorizontal: space.gutterWide, paddingBottom: 48, gap: 20 },
+  contentNarrow: { paddingTop: 8, paddingHorizontal: space.gutter, paddingBottom: 28, gap: 16 },
   bar: {
     flexDirection: 'row',
     flexWrap: 'wrap',

@@ -809,10 +809,10 @@ const styles = StyleSheet.create(theme => ({
   },
   cardText: { flex: 1, minWidth: 0, gap: 2 },
   cardLabel: label(theme.colors),
-  cardTitle: { color: theme.colors.textPrimary, fontSize: type.row, fontWeight: '600' },
+  cardTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   cardSub: {
     color: theme.colors.textSecondary,
-    fontSize: type.rowSub,
+    fontSize: type.sub,
     fontVariant: ['tabular-nums'],
   },
   cardPlay: {

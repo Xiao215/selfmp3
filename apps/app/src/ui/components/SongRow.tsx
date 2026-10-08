@@ -870,7 +870,7 @@ const styles = StyleSheet.create(theme => ({
   },
   title: {
     color: theme.colors.textPrimary,
-    fontSize: type.row,
+    fontSize: type.body,
     fontWeight: '600',
   },
   titleWide: {
@@ -881,7 +881,7 @@ const styles = StyleSheet.create(theme => ({
   },
   subtitle: {
     color: theme.colors.textSecondary,
-    fontSize: type.rowSub,
+    fontSize: type.sub,
     flexShrink: 1,
   },
   subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },

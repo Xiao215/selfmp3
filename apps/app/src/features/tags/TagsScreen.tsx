@@ -885,8 +885,8 @@ const styles = StyleSheet.create(theme => ({
   stackOverlap: { marginLeft: -16 },
   untaggedText: { flex: 1, minWidth: 0, gap: 2 },
   untaggedSuggest: { flexDirection: 'row', justifyContent: 'flex-end' },
-  untaggedTitle: { color: theme.colors.textPrimary, fontSize: type.row, fontWeight: '600' },
-  untaggedSub: { color: theme.colors.textSecondary, fontSize: type.rowSub },
+  untaggedTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  untaggedSub: { color: theme.colors.textSecondary, fontSize: type.sub },
   artistLink: {
     color: theme.colors.textPrimary,
     fontWeight: '500',

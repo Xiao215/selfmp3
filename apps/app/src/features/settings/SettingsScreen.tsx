@@ -14,7 +14,7 @@ import { useLocalSearchParams } from 'expo-router'
 import Constants from 'expo-constants'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { type Settings } from '@selfmp3/shared'
-import { radius, useHealth, useSettings, useUpdateSettings } from '@selfmp3/client'
+import { radius, space, useHealth, useSettings, useUpdateSettings } from '@selfmp3/client'
 import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanizationPref'
 import { loginItem } from '../../ports/loginItem'
 import { macApp } from '../../ports/macApp'
@@ -598,7 +598,7 @@ const styles = StyleSheet.create(theme => ({
     paddingRight: INDEX_GUTTER,
   },
   // `S2`'s phone gutter.
-  contentNarrow: { paddingTop: NARROW_TOP, paddingHorizontal: 20 },
+  contentNarrow: { paddingTop: NARROW_TOP, paddingHorizontal: space.gutter },
   head: { marginBottom: 20, gap: 12, alignItems: 'flex-start' },
   title: pageTitle(theme.colors),
   sub: { color: theme.colors.textMuted, fontSize: 13, marginTop: 4 },
@@ -637,7 +637,7 @@ const styles = StyleSheet.create(theme => ({
     marginBottom: CHIPS_GAP,
     backgroundColor: theme.colors.surface0,
   },
-  chips: { gap: 6, paddingHorizontal: 20 },
+  chips: { gap: 6, paddingHorizontal: space.gutter },
   chip: {
     paddingVertical: 7,
     paddingHorizontal: 12,

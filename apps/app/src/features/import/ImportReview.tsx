@@ -17,6 +17,7 @@ import {
   withAlpha,
   type Review,
   type ServerConnection,
+  space,
 } from '@selfmp3/client'
 import { useFootInset } from '../../shell/bottomInset'
 import { useLayout } from '../../shell/useLayout'
@@ -1109,7 +1110,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 12,
     paddingTop: 8,
     paddingBottom: 14,
-    paddingHorizontal: 20,
+    paddingHorizontal: space.gutter,
   },
   namesPhone: { alignSelf: 'stretch', gap: 2 },
   namePhone: pageTitle(theme.colors),
@@ -1119,7 +1120,7 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: 16,
     paddingTop: 36,
-    paddingHorizontal: 40,
+    paddingHorizontal: space.gutterWide,
     paddingBottom: 14,
   },
   mosaic: {
@@ -1142,7 +1143,7 @@ const styles = StyleSheet.create(theme => ({
     paddingTop: 12,
     paddingBottom: 4,
   },
-  listPhone: { paddingHorizontal: 20, flexGrow: 1 },
+  listPhone: { paddingHorizontal: space.gutter, flexGrow: 1 },
   listWide: { paddingHorizontal: 28 },
   // The box, then the cells: the cells dim together when the song is not coming in.
   grid: { flexDirection: 'row', alignItems: 'center', gap: GAP, paddingHorizontal: 12 },
@@ -1260,8 +1261,8 @@ const styles = StyleSheet.create(theme => ({
   barBlock: { gap: 4 },
   times: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   time: { color: theme.colors.textSecondary, fontSize: 11, fontVariant: ['tabular-nums'] },
-  footPhone: { gap: 10, paddingTop: 8, paddingHorizontal: 20 },
-  footWide: { gap: 10, paddingTop: 12, paddingHorizontal: 40 },
+  footPhone: { gap: 10, paddingTop: 8, paddingHorizontal: space.gutter },
+  footWide: { gap: 10, paddingTop: 12, paddingHorizontal: space.gutterWide },
   footColumn: { gap: 10 },
   footRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   tagsWide: { flex: 1, minWidth: 0 },

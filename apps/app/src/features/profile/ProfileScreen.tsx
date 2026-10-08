@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Stats } from '@selfmp3/shared'
-import { radius, useLibrary, type ServerConnection } from '@selfmp3/client'
+import { radius, space, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
 import { Cover } from '../../ui/components/Cover'
@@ -248,7 +248,7 @@ const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40, gap: 24 },
   contentWide: { paddingTop: 40, paddingHorizontal: 44, maxWidth: 640 + 88 },
-  contentNarrow: { paddingTop: 16, paddingHorizontal: 20 },
+  contentNarrow: { paddingTop: 16, paddingHorizontal: space.gutter },
   person: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   personWords: { flex: 1, minWidth: 0, gap: 3 },
   name: { ...serif(theme.colors, 30), lineHeight: 34 },

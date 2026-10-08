@@ -7,7 +7,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { useRouter } from 'expo-router'
 import { artistOr, plural } from '@selfmp3/shared'
 import type { Song, Stats } from '@selfmp3/shared'
-import { fonts, radius, tagColors, type, useLibrary } from '@selfmp3/client'
+import { fonts, leading, radius, tagColors, type, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { useDragScroll } from '../../ports/dragScroll'
 import { Avatar } from '../../ui/components/Avatar'
@@ -1016,12 +1016,12 @@ const styles = StyleSheet.create(theme => ({
   tileWide: { height: 118, padding: 16 },
   tileName: {
     fontFamily: fonts.display,
-    fontSize: type.tile,
-    lineHeight: type.tile + 3,
+    fontSize: type.large,
+    lineHeight: leading.large,
     letterSpacing: -0.3,
     paddingRight: 36,
   },
-  tileNameSmall: { fontSize: type.tile - 3, lineHeight: type.tile },
+  tileNameSmall: { fontSize: type.section, lineHeight: leading.section },
   tileCount: { fontSize: 12, fontWeight: '500' },
   tileCover: {
     position: 'absolute',

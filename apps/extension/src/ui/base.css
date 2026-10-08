@@ -74,7 +74,7 @@ code {
 /* `S2`'s label: 11, tracked, uppercase, quiet. */
 .label {
   margin: 0;
-  font-size: var(--type-label);
+  font-size: var(--type-tiny);
   font-weight: 600;
   letter-spacing: var(--label-tracking);
   text-transform: uppercase;

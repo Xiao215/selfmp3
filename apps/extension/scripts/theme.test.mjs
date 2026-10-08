@@ -9,6 +9,7 @@ import {
   darkPalette,
   fonts,
   labelTracking,
+  leading,
   lightPalette,
   motion,
   radius,
@@ -28,6 +29,7 @@ const tokens = {
   radius,
   space,
   type,
+  leading,
   labelTracking,
   fonts,
   motion,
@@ -71,7 +73,9 @@ describe('the generated theme', () => {
     const dark = declared(darkPart)
     expect(dark.get('radius-pill')).toBe('999px')
     expect(dark.get('radius-cover-sm')).toBe('8px')
-    expect(dark.get('type-label')).toBe('11px')
+    expect(dark.get('type-tiny')).toBe('11px')
+    expect(dark.get('leading-body')).toBe('21px')
+    expect(dark.get('space-gutter-wide')).toBe('40px')
     expect(dark.get('label-tracking')).toBe('0.9px')
     expect(dark.get('font-serif')).toMatch(/^'InstrumentSerif_400Regular', /)
     expect(dark.get('font-display')).toMatch(/^'BricolageGrotesque_600SemiBold', /)

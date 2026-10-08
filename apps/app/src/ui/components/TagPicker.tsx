@@ -8,9 +8,10 @@ import {
   HIT_TARGET,
   space,
   tagColors,
+  type,
+  useBulkTag,
   useCreateTag,
   useLibrary,
-  useBulkTag,
   useSetSongTags,
 } from '@selfmp3/client'
 import { useArtistNudge } from '../../features/tag/useArtistNudge'
@@ -453,17 +454,17 @@ const styles = StyleSheet.create(theme => ({
   },
   itemPressed: { backgroundColor: theme.colors.surface3 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  itemLabel: { flex: 1, color: theme.colors.textPrimary, fontSize: 14 },
-  count: { color: theme.colors.textMuted, fontSize: 11 },
+  itemLabel: { flex: 1, color: theme.colors.textPrimary, fontSize: type.body },
+  count: { color: theme.colors.textMuted, fontSize: type.tiny },
   // Set apart from the list by room, not a rule.
   create: {
     marginTop: space.xs,
   },
   createName: { fontWeight: '700' },
-  hint: { color: theme.colors.textMuted, fontSize: 12, padding: space.md },
+  hint: { color: theme.colors.textMuted, fontSize: type.small, padding: space.md },
   error: {
     color: theme.colors.danger,
-    fontSize: 12,
+    fontSize: type.small,
     paddingHorizontal: space.md,
     paddingTop: space.xs,
   },

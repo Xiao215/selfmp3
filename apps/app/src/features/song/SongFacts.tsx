@@ -6,10 +6,12 @@ import {
   formatAddedDate,
   formatName,
   isDownloaded,
+  leading,
   sourceName,
   space,
   tempoMark,
   tempoWords,
+  type,
 } from '@selfmp3/client'
 import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvider'
 import { useDownloadRemoval } from '../../offline/useDownloadRemoval'
@@ -218,16 +220,16 @@ const styles = StyleSheet.create(theme => ({
   // The groups are told apart by their labels and the room between them.
   groupTitle: labelText(theme.colors),
   fact: { flexDirection: 'row', gap: space.md },
-  factLabel: { width: 76, color: theme.colors.textMuted, fontSize: 13.5 },
+  factLabel: { width: 76, color: theme.colors.textMuted, fontSize: type.sub },
   factValue: { flex: 1, minWidth: 0, gap: 2, alignItems: 'flex-start' },
   strong: {
     color: theme.colors.textPrimary,
-    fontSize: 13.5,
+    fontSize: type.sub,
     fontWeight: '500',
     fontVariant: ['tabular-nums'],
   },
-  note: { color: theme.colors.textMuted, fontSize: 12 },
+  note: { color: theme.colors.textMuted, fontSize: type.small },
   inline: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   action: { marginTop: 6 },
-  empty: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 19 },
+  empty: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
 }))

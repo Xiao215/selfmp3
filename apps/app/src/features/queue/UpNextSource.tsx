@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter, type Href } from 'expo-router'
-import { motion, radius, space } from '@selfmp3/client'
+import { motion, radius, space, type } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { Check, ChevronRight, Sparkle } from '../../ui/components/Icons'
 import { useFade } from '../../ui/motion'
@@ -90,7 +90,7 @@ const styles = StyleSheet.create(theme => ({
   },
   label: {
     color: theme.colors.textSecondary,
-    fontSize: 13,
+    fontSize: type.sub,
     fontWeight: '500',
     flexShrink: 1,
   },
@@ -103,5 +103,5 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.sm,
   },
   end: { marginLeft: 'auto' },
-  savedText: { color: theme.colors.good, fontSize: 13, fontWeight: '600' },
+  savedText: { color: theme.colors.good, fontSize: type.sub, fontWeight: '600' },
 }))

@@ -5,7 +5,14 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { formatLongDuration, plural, type Understanding } from '@selfmp3/shared'
-import { ApiError, failureText, useCreatePlaylist, useLibrary } from '@selfmp3/client'
+import {
+  ApiError,
+  failureText,
+  leading,
+  type,
+  useCreatePlaylist,
+  useLibrary,
+} from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useSelection } from '../../selection/useSelection'
@@ -317,11 +324,11 @@ const styles = StyleSheet.create(theme => ({
   listArea: { flex: 1, minHeight: 0 },
   stale: { opacity: 0.55 },
   // Words asked run longer than a tag's name: smaller, so three lines still hold them.
-  nameLong: { fontSize: 28, lineHeight: 34, letterSpacing: -0.4 },
+  nameLong: { fontSize: type.page, lineHeight: leading.page, letterSpacing: -0.4 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 6 },
-  note: { color: theme.colors.textMuted, fontSize: 12.5 },
-  error: { color: theme.colors.danger, fontSize: 12.5 },
+  note: { color: theme.colors.textMuted, fontSize: type.small },
+  error: { color: theme.colors.danger, fontSize: type.sub },
   gone: { padding: 24, gap: 12, alignItems: 'flex-start' },
-  goneTitle: { ...serif(theme.colors, 30) },
-  goneText: { color: theme.colors.textSecondary, fontSize: 15, lineHeight: 22 },
+  goneTitle: { ...serif(theme.colors, type.page) },
+  goneText: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
 }))

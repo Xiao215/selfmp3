@@ -181,14 +181,14 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface3,
   },
   valueDense: {
-    fontSize: 13,
+    fontSize: type.sub,
   },
   valueSmall: {
-    fontSize: 12,
+    fontSize: type.small,
     fontWeight: '600',
   },
   valueInline: {
-    fontSize: 13,
+    fontSize: type.sub,
     fontWeight: '600',
   },
   controlPressed: {

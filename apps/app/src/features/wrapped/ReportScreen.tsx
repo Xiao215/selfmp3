@@ -4,7 +4,15 @@ import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'rea
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import type { WrappedRange } from '@selfmp3/shared'
-import { failureText, space, useLibrary, withAlpha, type ServerConnection } from '@selfmp3/client'
+import {
+  failureText,
+  leading,
+  space,
+  type,
+  useLibrary,
+  withAlpha,
+  type ServerConnection,
+} from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
@@ -509,9 +517,9 @@ const styles = StyleSheet.create(theme => ({
     boxShadow: `0 0 0 2px ${theme.colors.surface0}, 0 0 0 3.5px ${theme.colors.textPrimary}`,
   },
   swatchArt: { width: '100%', height: '100%' },
-  pickLabel: { fontSize: 11, fontWeight: '600', color: theme.colors.textSecondary },
+  pickLabel: { fontSize: type.tiny, fontWeight: '600', color: theme.colors.textSecondary },
   pickLabelActive: { color: theme.colors.textPrimary },
-  hint: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 18 },
+  hint: { color: theme.colors.textMuted, fontSize: type.sub, lineHeight: leading.sub },
   center: { textAlign: 'center', maxWidth: 420 },
   empty: { alignItems: 'center', paddingVertical: 60, gap: 8 },
   emptyTitle: sectionTitle(theme.colors),
@@ -524,5 +532,5 @@ const styles = StyleSheet.create(theme => ({
   },
   // A card, with the danger in its ink rather than an edge.
   notice: { ...card(theme.colors), paddingVertical: 10, paddingHorizontal: 14 },
-  noticeText: { color: theme.colors.danger, fontSize: 13 },
+  noticeText: { color: theme.colors.danger, fontSize: type.sub },
 }))

@@ -11,6 +11,7 @@ import { modelHop, serverHop, type Hop } from '../smart/smart.model'
 import { useSmartServer } from '../smart/useSmartServer'
 import { Panel, Row } from './SettingsParts'
 import { reachedConnection, viaKey } from '../../connection/via'
+import { leading, type } from '@selfmp3/client'
 
 /**
  * Smart features (docs/features/ai.md), in Settings.
@@ -272,7 +273,7 @@ function addressHint(
 const styles = StyleSheet.create(theme => ({
   address: {
     color: theme.colors.textSecondary,
-    fontSize: 13,
+    fontSize: type.sub,
     fontVariant: ['tabular-nums'],
     flexShrink: 1,
   },
@@ -289,14 +290,14 @@ const styles = StyleSheet.create(theme => ({
     flex: 1,
     minWidth: 0,
     color: theme.colors.textPrimary,
-    fontSize: 13.5,
-    lineHeight: 19,
+    fontSize: type.sub,
+    lineHeight: leading.sub,
   },
   hops: { gap: 8, paddingTop: 4 },
   hop: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   hopMark: { paddingTop: 2 },
   hopText: { flex: 1, minWidth: 0, gap: 2 },
-  hopLine: { color: theme.colors.textPrimary, fontSize: 13, lineHeight: 19 },
+  hopLine: { color: theme.colors.textPrimary, fontSize: type.sub, lineHeight: leading.sub },
   hopFailed: { color: theme.colors.danger },
-  hopDetail: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
+  hopDetail: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
 }))

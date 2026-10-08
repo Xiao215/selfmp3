@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { artistOr, formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
-import { space, useLibrary } from '@selfmp3/client'
+import { leading, space, type, useLibrary } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -143,14 +143,14 @@ export function LibraryAnswer({
 }
 
 const styles = StyleSheet.create(theme => ({
-  head: { color: theme.colors.textPrimary, fontSize: 15.5, fontWeight: '600' },
-  line: { color: theme.colors.textSecondary, fontSize: 13.5, lineHeight: 19 },
-  muted: { color: theme.colors.textMuted, fontSize: 12.5, fontWeight: '400' },
+  head: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  muted: { color: theme.colors.textMuted, fontSize: type.small, fontWeight: '400' },
   counts: { gap: 4, paddingTop: space.xs },
   countRow: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
-  title: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: 13, fontWeight: '500' },
+  title: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '500' },
   more: { alignSelf: 'flex-start', paddingVertical: 5, paddingHorizontal: space.xs },
-  moreText: { color: theme.colors.accent, fontSize: 12.5, fontWeight: '500' },
+  moreText: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '500' },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
   pressed: { opacity: 0.6 },
 }))

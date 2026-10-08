@@ -16,14 +16,15 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { plural, type LyricsSearchHit, type Song, type Tag, type Artist } from '@selfmp3/shared'
 import {
-  STALE,
   clientApi,
   isDownloaded,
   queryKeys,
   radius,
-  tagColors,
-  useLibrary,
   space,
+  STALE,
+  tagColors,
+  type,
+  useLibrary,
 } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useDownloads } from '../../offline/DownloadsProvider'
@@ -734,8 +735,8 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
   },
   askText: { flex: 1, minWidth: 0, gap: 2 },
-  askTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  askSub: { color: theme.colors.textMuted, fontSize: 12.5 },
+  askTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  askSub: { color: theme.colors.textMuted, fontSize: type.small },
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   page: { flex: 1 },
   pageWide: { maxWidth: 760, width: '100%', alignSelf: 'center', paddingTop: 24 },
@@ -747,7 +748,7 @@ const styles = StyleSheet.create(theme => ({
     paddingTop: 12,
   },
   field: { flex: 1 },
-  cancel: { color: theme.colors.accent, fontSize: 15, fontWeight: '600' },
+  cancel: { color: theme.colors.accent, fontSize: type.body, fontWeight: '600' },
   scopesRow: { flexGrow: 0 },
   scopes: { gap: 8, paddingHorizontal: 16, paddingVertical: 14 },
   results: { paddingHorizontal: 8, gap: 18 },
@@ -773,8 +774,8 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
   },
   dot: { width: 10, height: 10, borderRadius: 5 },
-  placeName: { flex: 1, color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  placeHint: { color: theme.colors.textSecondary, fontSize: 13 },
+  placeName: { flex: 1, color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  placeHint: { color: theme.colors.textSecondary, fontSize: type.sub },
   lyric: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -784,5 +785,5 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: 12,
   },
   lyricText: { flex: 1, minWidth: 0, gap: 2 },
-  lyricLine: { color: theme.colors.textPrimary, fontSize: 15 },
+  lyricLine: { color: theme.colors.textPrimary, fontSize: type.body },
 }))

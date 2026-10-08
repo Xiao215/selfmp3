@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { radius, space } from '@selfmp3/client'
+import { leading, radius, space, type } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { Button } from './Button'
 import { Dialog } from './Dialog'
@@ -121,8 +121,13 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.sheet,
     ...floating(theme.colors),
   },
-  title: { color: theme.colors.textPrimary, fontSize: 16, fontWeight: '700', lineHeight: 22 },
-  body: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 20 },
+  title: {
+    color: theme.colors.textPrimary,
+    fontSize: type.title,
+    fontWeight: '700',
+    lineHeight: leading.title,
+  },
+  body: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
   actionsCompact: { flexDirection: 'column-reverse' },
 }))

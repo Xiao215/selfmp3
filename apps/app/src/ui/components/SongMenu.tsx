@@ -378,7 +378,7 @@ const styles = StyleSheet.create(theme => ({
   nested: { paddingLeft: space.lg },
   hint: {
     color: theme.colors.textMuted,
-    fontSize: 12,
+    fontSize: type.small,
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
   },

@@ -4,7 +4,7 @@ import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { NAV_HEIGHT, radius } from '@selfmp3/client'
+import { NAV_HEIGHT, radius, type } from '@selfmp3/client'
 import { glassBlur, glassFill } from '../../ports/glassBlur'
 import { navBottom } from '../../shell/bottomInset'
 import { useFade } from '../motion'
@@ -194,7 +194,7 @@ const styles = StyleSheet.create(theme => ({
   pill: { borderRadius: radius.pill, backgroundColor: theme.colors.textPrimary },
   label: {
     color: theme.colors.textSecondary,
-    fontSize: 10,
+    fontSize: type.tiny,
     fontWeight: '600',
   },
   labelOn: { color: theme.colors.onPrimary },

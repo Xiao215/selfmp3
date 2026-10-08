@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router'
 import { Button } from '../../ui/components/Button'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { pageTitle } from '../../ui/surfaces'
+import { leading, type } from '@selfmp3/client'
 
 /**
  * A tag or an artist the address names and the library does not hold: a tag
@@ -44,5 +45,5 @@ const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   body: { padding: 24, gap: 12, alignItems: 'flex-start' },
   title: pageTitle(theme.colors),
-  text: { color: theme.colors.textSecondary, fontSize: 15, lineHeight: 22 },
+  text: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
 }))

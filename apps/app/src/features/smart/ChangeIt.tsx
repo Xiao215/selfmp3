@@ -3,7 +3,7 @@ import type { ReactNode, RefObject } from 'react'
 import { ActivityIndicator, Animated, Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useMutation } from '@tanstack/react-query'
-import { ApiError, failureText, motion, radius, space } from '@selfmp3/client'
+import { ApiError, failureText, motion, radius, space, type } from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
 import { ChevronRight, Sparkle } from '../../ui/components/Icons'
 import { useArrival, useFade } from '../../ui/motion'
@@ -316,8 +316,8 @@ const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm },
   trail: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 4 },
   step: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '100%' },
-  arrow: { color: theme.colors.textMuted, fontSize: 12 },
-  stepText: { color: theme.colors.textMuted, fontSize: 12.5, maxWidth: 220 },
+  arrow: { color: theme.colors.textMuted, fontSize: type.small },
+  stepText: { color: theme.colors.textMuted, fontSize: type.small, maxWidth: 220 },
   stepCurrent: { color: theme.colors.textPrimary, fontWeight: '600' },
   stepLater: { opacity: 0.55 },
   field: {
@@ -332,7 +332,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface1,
     borderColor: theme.colors.surface3,
   },
-  inputLarge: { fontSize: 15.5 },
+  inputLarge: { fontSize: type.body },
   sendLarge: { width: 36, height: 36 },
   fieldWorking: { backgroundColor: theme.colors.surface2, borderColor: theme.colors.surface2 },
   layer: {
@@ -354,7 +354,7 @@ const styles = StyleSheet.create(theme => ({
     flex: 1,
     minWidth: 0,
     color: theme.colors.textPrimary,
-    fontSize: 14,
+    fontSize: type.body,
     paddingVertical: 8,
   },
   send: {
@@ -364,8 +364,8 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  doing: { color: theme.colors.textPrimary, fontSize: 13.5, fontWeight: '500', flexShrink: 0 },
-  words: { color: theme.colors.textMuted, fontSize: 13, flexShrink: 1 },
+  doing: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '500', flexShrink: 0 },
+  words: { color: theme.colors.textMuted, fontSize: type.sub, flexShrink: 1 },
   pressed: { opacity: 0.6 },
-  error: { color: theme.colors.danger, fontSize: 12.5 },
+  error: { color: theme.colors.danger, fontSize: type.sub },
 }))

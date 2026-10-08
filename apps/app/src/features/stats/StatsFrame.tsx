@@ -4,7 +4,7 @@ import type { StyleProp, ViewStyle } from 'react-native'
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { HIT_TARGET, radius, space } from '@selfmp3/client'
+import { HIT_TARGET, radius, space, type } from '@selfmp3/client'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
@@ -206,6 +206,6 @@ const styles = StyleSheet.create(theme => ({
     minHeight: HIT_TARGET,
   },
   linePressed: { opacity: 0.6 },
-  pillText: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
-  linkText: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  pillText: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
+  linkText: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
 }))

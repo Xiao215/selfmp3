@@ -7,6 +7,7 @@ import {
   failureText,
   radius,
   space,
+  type,
   useAddToPlaylist,
   useBulkTag,
   useLibrary,
@@ -249,7 +250,7 @@ const styles = StyleSheet.create(theme => ({
   list: { maxHeight: 380 },
   row: { paddingHorizontal: space.xs },
   already: { opacity: 0.55 },
-  state: { color: theme.colors.textMuted, fontSize: 12, fontWeight: '600' },
+  state: { color: theme.colors.textMuted, fontSize: type.small, fontWeight: '600' },
   addedMark: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -275,6 +276,6 @@ const styles = StyleSheet.create(theme => ({
     gap: space.sm,
   },
   footActions: { flexDirection: 'row', gap: space.sm },
-  error: { color: theme.colors.danger, fontSize: 12, paddingHorizontal: space.xs },
-  hint: { color: theme.colors.textMuted, fontSize: 12, padding: space.xs, flexShrink: 1 },
+  error: { color: theme.colors.danger, fontSize: type.small, paddingHorizontal: space.xs },
+  hint: { color: theme.colors.textMuted, fontSize: type.small, padding: space.xs, flexShrink: 1 },
 }))

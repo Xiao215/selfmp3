@@ -6,14 +6,15 @@ import { usePathname, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { artistOr, formatDuration, plural } from '@selfmp3/shared'
 import {
-  STALE,
   clientApi,
   queryKeys,
   radius,
+  space,
+  STALE,
   tagColors,
+  type,
   useLibrary,
   useScanLibrary,
-  space,
 } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -650,7 +651,7 @@ const styles = StyleSheet.create(theme => ({
     ...floating(theme.colors),
   },
   inputRow: { padding: space.md, paddingBottom: space.sm },
-  count: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
+  count: { color: theme.colors.textMuted, fontSize: type.tiny, fontVariant: ['tabular-nums'] },
   results: { padding: 6 },
   group: { marginBottom: 6 },
   groupTitle: {
@@ -687,10 +688,10 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  label: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: 13 },
+  label: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: type.sub },
   mark: { fontWeight: '700' },
-  sub: { color: theme.colors.textMuted, fontSize: 11 },
-  hint: { color: theme.colors.textMuted, fontSize: 11 },
+  sub: { color: theme.colors.textMuted, fontSize: type.tiny },
+  hint: { color: theme.colors.textMuted, fontSize: type.tiny },
   foot: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -700,9 +701,9 @@ const styles = StyleSheet.create(theme => ({
     // Set down a step from the panel: tone, not a rule.
     backgroundColor: theme.colors.surface0,
   },
-  footText: { color: theme.colors.textMuted, fontSize: 11 },
+  footText: { color: theme.colors.textMuted, fontSize: type.tiny },
   kbd: {
-    fontSize: 10,
+    fontSize: type.tiny,
     color: theme.colors.textPrimary,
     backgroundColor: theme.colors.surface2,
     borderRadius: 5,

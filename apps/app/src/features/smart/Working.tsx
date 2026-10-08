@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { space, withAlpha } from '@selfmp3/client'
+import { space, type, withAlpha } from '@selfmp3/client'
 import { Check } from '../../ui/components/Icons'
 
 /** One step of a wait: what it says while it runs, once it is done, and from when. */
@@ -115,12 +115,12 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  label: { flexShrink: 1, color: theme.colors.textSecondary, fontSize: 13.5 },
+  label: { flexShrink: 1, color: theme.colors.textSecondary, fontSize: type.sub },
   now: { color: theme.colors.textPrimary },
   seconds: {
     marginLeft: 'auto',
     color: theme.colors.textMuted,
-    fontSize: 12.5,
+    fontSize: type.small,
     fontVariant: ['tabular-nums'],
   },
   outline: { gap: 4, marginTop: space.xs },

@@ -5,7 +5,7 @@ import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
-import { motion, radius, space, type, withAlpha } from '@selfmp3/client'
+import { leading, motion, radius, space, type, withAlpha } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useOverlay } from '../../shell/Overlay'
@@ -876,7 +876,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface3,
     boxShadow: `0 10px 28px ${theme.colors.floatShadow}`,
   },
-  hintText: { color: theme.colors.textPrimary, fontSize: type.small, lineHeight: 18 },
+  hintText: { color: theme.colors.textPrimary, fontSize: type.small, lineHeight: leading.small },
   listContent: { paddingBottom: space.md },
   label: { ...label(theme.colors), paddingTop: space.md, paddingBottom: space.xs, paddingLeft: 6 },
   slot: { height: ROW_HEIGHT, borderRadius: radius.cover },
@@ -956,7 +956,7 @@ const styles = StyleSheet.create(theme => ({
   },
   letGoText: { color: theme.colors.textPrimary, fontSize: type.tiny, fontWeight: '600' },
   autoMix: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  autoMixLabel: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '500' },
+  autoMixLabel: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '500' },
   autoMixHint: {
     flex: 1,
     minWidth: 0,

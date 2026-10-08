@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { Tag } from '@selfmp3/shared'
-import { radius } from '@selfmp3/client'
+import { radius, type } from '@selfmp3/client'
 import { Chip } from './Chip'
 import { TagPlus } from './Icons'
 import { Sheet } from './Sheet'
@@ -82,5 +82,5 @@ const styles = StyleSheet.create(theme => ({
     borderStyle: 'dashed',
   },
   addPressed: { backgroundColor: theme.colors.surface2 },
-  addLabel: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '500' },
+  addLabel: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '500' },
 }))

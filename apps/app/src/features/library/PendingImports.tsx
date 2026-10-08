@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { space, useCloudImports, useLibrary } from '@selfmp3/client'
+import { space, type, useCloudImports, useLibrary } from '@selfmp3/client'
 import { Cover } from '../../ui/components/Cover'
 import { pendingImports } from './pendingImports.model'
 
@@ -55,6 +55,6 @@ const styles = StyleSheet.create(theme => ({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
   faded: { opacity: 0.55 },
   text: { flex: 1, minWidth: 0, gap: 2 },
-  title: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '500' },
-  status: { color: theme.colors.textMuted, fontSize: 12 },
+  title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '500' },
+  status: { color: theme.colors.textMuted, fontSize: type.small },
 }))

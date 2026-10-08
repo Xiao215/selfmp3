@@ -775,7 +775,7 @@ const styles = StyleSheet.create(theme => ({
   title: {
     color: theme.colors.textPrimary,
     fontFamily: fonts.display,
-    fontSize: 24,
+    fontSize: type.large,
     letterSpacing: -0.2,
   },
   pills: { flexDirection: 'row', gap: 6 },
@@ -795,7 +795,7 @@ const styles = StyleSheet.create(theme => ({
   },
   pillGhostPressed: { backgroundColor: theme.colors.surface3 },
   pillOff: { opacity: 0.4 },
-  pillText: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
+  pillText: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -839,7 +839,7 @@ const styles = StyleSheet.create(theme => ({
   listContent: { paddingBottom: space.lg },
   label: { ...label(theme.colors), paddingHorizontal: 18, paddingBottom: space.xs },
   playedLabel: { paddingTop: space.md },
-  more: { color: theme.colors.textMuted, fontSize: 13, paddingVertical: 10 },
+  more: { color: theme.colors.textMuted, fontSize: type.sub, paddingVertical: 10 },
   played: { opacity: 0.42 },
   liftedCell: { zIndex: 2 },
   swipe: { overflow: 'hidden' },
@@ -856,7 +856,7 @@ const styles = StyleSheet.create(theme => ({
     paddingRight: 22,
     backgroundColor: theme.colors.remove,
   },
-  groundText: { color: theme.colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  groundText: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   // Opaque, so the ground shows only where the row has been swiped off it.
   swipeRow: { backgroundColor: theme.colors.surface1 },
   autoMix: {
@@ -866,7 +866,7 @@ const styles = StyleSheet.create(theme => ({
     paddingTop: space.lg,
     paddingHorizontal: 18,
   },
-  autoMixLabel: { color: theme.colors.textSecondary, fontSize: 13, fontWeight: '500' },
+  autoMixLabel: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '500' },
   autoMixHint: {
     flex: 1,
     minWidth: 0,

@@ -10,6 +10,7 @@ import {
   failureText,
   radius,
   space,
+  type,
   useCreatePlaylist,
   useLibrary,
 } from '@selfmp3/client'
@@ -230,14 +231,14 @@ const styles = StyleSheet.create(theme => ({
   understood: { gap: 6 },
   label: {
     color: theme.colors.textMuted,
-    fontSize: 11,
+    fontSize: type.tiny,
     fontWeight: '600',
     letterSpacing: 0.9,
     textTransform: 'uppercase',
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
-  brief: { color: theme.colors.textSecondary, fontSize: 12.5, fontStyle: 'italic' },
-  hint: { color: theme.colors.textMuted, fontSize: 12, flexShrink: 1 },
+  brief: { color: theme.colors.textSecondary, fontSize: type.small, fontStyle: 'italic' },
+  hint: { color: theme.colors.textMuted, fontSize: type.small, flexShrink: 1 },
   // Short enough that the buttons under it stay on a laptop's screen.
   list: { maxHeight: 220 },
   row: { paddingHorizontal: 0 },
@@ -250,7 +251,7 @@ const styles = StyleSheet.create(theme => ({
   },
   pressed: { opacity: 0.6 },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: 4 },
-  checkLabel: { color: theme.colors.textPrimary, fontSize: 13.5, flexShrink: 1 },
-  error: { color: theme.colors.danger, fontSize: 12 },
+  checkLabel: { color: theme.colors.textPrimary, fontSize: type.sub, flexShrink: 1 },
+  error: { color: theme.colors.danger, fontSize: type.small },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
 }))

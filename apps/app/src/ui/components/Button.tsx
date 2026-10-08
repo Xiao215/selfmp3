@@ -6,7 +6,7 @@ import { useLayoutValue } from '../../shell/useLayout'
 import { useMinimumBusy, usePresence } from '../motion'
 import { tip } from '../tip'
 import { Press } from './Press'
-import { HIT_TARGET, motion, radius } from '@selfmp3/client'
+import { HIT_TARGET, motion, radius, type } from '@selfmp3/client'
 
 /**
  * A button, in one of the design's shapes and no others (docs/ui-mock `S2`,
@@ -254,7 +254,7 @@ const styles = StyleSheet.create(theme => ({
     opacity: 0.45,
   },
   label: {
-    fontSize: 14,
+    fontSize: type.body,
     fontWeight: '600',
   },
   play: {

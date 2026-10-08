@@ -4,7 +4,7 @@ import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { WrappedRange } from '@selfmp3/shared'
-import { ApiError, STALE, failureText, radius, space } from '@selfmp3/client'
+import { ApiError, failureText, leading, radius, space, STALE, type } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { Refresh, Sparkle } from '../../ui/components/Icons'
 import { card, label } from '../../ui/surfaces'
@@ -96,7 +96,7 @@ const styles = StyleSheet.create(theme => ({
   },
   head: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   label: label(theme.colors),
-  body: { color: theme.colors.textPrimary, fontSize: 15, lineHeight: 23 },
-  muted: { color: theme.colors.textMuted, fontSize: 13 },
+  body: { color: theme.colors.textPrimary, fontSize: type.body, lineHeight: leading.body },
+  muted: { color: theme.colors.textMuted, fontSize: type.sub },
   actions: { flexDirection: 'row', justifyContent: 'flex-end' },
 }))

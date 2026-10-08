@@ -7,14 +7,16 @@ import { plural, formatBytes, type Song } from '@selfmp3/shared'
 import {
   bytesToDownload,
   failureText,
+  leading,
   space,
+  type,
+  useCreatePlaylist,
   useDeletePlaylist,
   useLibrary,
   useManifest,
   usePlaylistSongs,
   useReorderPlaylist,
   useUpdatePlaylist,
-  useCreatePlaylist,
 } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useDownloadRemoval } from '../../offline/useDownloadRemoval'
@@ -589,7 +591,7 @@ const styles = StyleSheet.create(theme => ({
   // place on this page. The head and the empty state take it themselves.
   content: { paddingBottom: space.xl },
   gutter: { paddingHorizontal: space.lg },
-  nameWide: { fontSize: 56, lineHeight: 60, letterSpacing: -1.5 },
+  nameWide: { fontSize: type.display, lineHeight: leading.display, letterSpacing: -1.5 },
   // A field in place of the name: the control surface, and no edge.
   nameInput: {
     paddingVertical: 2,
@@ -597,7 +599,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: 12,
     backgroundColor: theme.colors.surface2,
   },
-  description: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18 },
+  description: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   descriptionInput: {
     paddingVertical: 5,
     paddingHorizontal: space.sm,

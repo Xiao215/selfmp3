@@ -9,7 +9,7 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { type Song } from '@selfmp3/shared'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
-import { isDownloaded, HIT_TARGET, radius, space, type } from '@selfmp3/client'
+import { HIT_TARGET, isDownloaded, leading, radius, space, type } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
@@ -691,7 +691,7 @@ const styles = StyleSheet.create(theme => ({
   },
   sub: {
     color: theme.colors.textMuted,
-    fontSize: 13,
+    fontSize: type.sub,
     marginTop: 3,
   },
   headWide: {
@@ -745,8 +745,8 @@ const styles = StyleSheet.create(theme => ({
   },
   directionArrow: {
     color: theme.colors.textPrimary,
-    fontSize: 17,
-    lineHeight: 20,
+    fontSize: type.title,
+    lineHeight: leading.title,
   },
   transport: {
     flexDirection: 'row',

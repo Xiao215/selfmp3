@@ -8,6 +8,7 @@ import { usePathname, useRouter } from 'expo-router'
 import { plural, fuzzyRank, type Playlist, type Tag } from '@selfmp3/shared'
 import {
   downloadTally,
+  leading,
   radius,
   railTags,
   space,
@@ -664,7 +665,7 @@ const AVATAR = 30
 /** The corners of a row in the rail: a destination, a playlist, a tag, the status. */
 const ITEM_RADIUS = 12
 /** The type of a row's name in the rail, and of its search and new-tag fields. */
-const ITEM_TEXT = 13
+const ITEM_TEXT = type.sub
 
 /** How dim a playlist that cannot take the song goes while one is carried. */
 const DIM_WHILE_DRAGGING = 0.35
@@ -740,7 +741,7 @@ const styles = StyleSheet.create(theme => ({
     minWidth: 18,
     paddingHorizontal: 4,
     textAlign: 'center',
-    fontSize: 11,
+    fontSize: type.tiny,
     fontWeight: '600',
     color: theme.colors.textSecondary,
     backgroundColor: theme.colors.surface1,
@@ -777,7 +778,7 @@ const styles = StyleSheet.create(theme => ({
   itemOn: { backgroundColor: theme.colors.surface3, borderRadius: ITEM_RADIUS },
   labelOn: { color: theme.colors.textPrimary, fontWeight: '600' },
   rowPressed: { backgroundColor: theme.colors.surface2 },
-  dropHint: { fontSize: 11, paddingHorizontal: 10, paddingBottom: 2 },
+  dropHint: { fontSize: type.tiny, paddingHorizontal: 10, paddingBottom: 2 },
   /* `.nav-group-grow`: the tag list takes what is left, and scrolls in it. */
   group: { flex: 1, minHeight: 0, gap: 1 },
   groupTitle: {
@@ -796,7 +797,7 @@ const styles = StyleSheet.create(theme => ({
   },
   groupTitleText: labelText(theme.colors),
   groupTitleOn: { color: theme.colors.textPrimary },
-  groupAll: { color: theme.colors.textMuted, fontSize: 11, fontWeight: '600' },
+  groupAll: { color: theme.colors.textMuted, fontSize: type.tiny, fontWeight: '600' },
   tinyButton: {
     width: 24,
     height: 24,
@@ -827,7 +828,7 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 2,
     paddingHorizontal: space.sm,
   },
-  suggestionText: { color: theme.colors.textSecondary, fontSize: 11 },
+  suggestionText: { color: theme.colors.textSecondary, fontSize: type.tiny },
   tagList: { flex: 1 },
   tagListContent: { gap: 1 },
   tagRow: { flexDirection: 'row', alignItems: 'center', borderRadius: ITEM_RADIUS },
@@ -844,7 +845,7 @@ const styles = StyleSheet.create(theme => ({
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
   tagName: { flex: 1, color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
-  count: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
+  count: { color: theme.colors.textMuted, fontSize: type.tiny, fontVariant: ['tabular-nums'] },
   tagAction: { paddingVertical: 6, paddingHorizontal: 5 },
   tagRowHovered: {
     backgroundColor: theme.colors.surface2,
@@ -862,8 +863,12 @@ const styles = StyleSheet.create(theme => ({
     borderColor: theme.colors.borderStrong,
     borderRadius: radius.card,
   },
-  hint: { color: theme.colors.textMuted, fontSize: 12 },
-  link: { color: theme.colors.textSecondary, fontSize: 12, textDecorationLine: 'underline' },
+  hint: { color: theme.colors.textMuted, fontSize: type.small },
+  link: {
+    color: theme.colors.textSecondary,
+    fontSize: type.small,
+    textDecorationLine: 'underline',
+  },
   foot: { paddingTop: 10, gap: 1 },
   status: {
     flexDirection: 'row',
@@ -895,8 +900,8 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.card,
     backgroundColor: theme.colors.surface2,
   },
-  noticeTitle: { color: theme.colors.warning, fontSize: 12, fontWeight: '600' },
-  noticeBody: { color: theme.colors.textSecondary, fontSize: 11, lineHeight: 15 },
+  noticeTitle: { color: theme.colors.warning, fontSize: type.small, fontWeight: '600' },
+  noticeBody: { color: theme.colors.textSecondary, fontSize: type.tiny, lineHeight: leading.tiny },
   footLabel: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
 }))
 

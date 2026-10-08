@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Tag } from '@selfmp3/shared'
-import { radius } from '@selfmp3/client'
+import { radius, type } from '@selfmp3/client'
 import { Chip } from '../../ui/components/Chip'
 import { Sheet } from '../../ui/components/Sheet'
 import { TagSearchList } from '../../ui/components/TagPicker'
@@ -158,7 +158,7 @@ export function TagThem({
 const styles = StyleSheet.create(theme => ({
   sentence: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  words: { color: theme.colors.textSecondary, fontSize: 13 },
+  words: { color: theme.colors.textSecondary, fontSize: type.sub },
   // A control on the ground: the control's fill, no edge.
   pill: {
     flexDirection: 'row',
@@ -171,6 +171,11 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
   },
   pressed: { backgroundColor: theme.colors.surface3 },
-  pillText: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
-  caret: { color: theme.colors.textMuted, fontSize: 12 },
+  pillText: {
+    flexShrink: 1,
+    color: theme.colors.textPrimary,
+    fontSize: type.sub,
+    fontWeight: '600',
+  },
+  caret: { color: theme.colors.textMuted, fontSize: type.small },
 }))

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQuery } from '@tanstack/react-query'
-import { STALE, failureText, space } from '@selfmp3/client'
+import { failureText, space, STALE, type } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { Button } from '../../ui/components/Button'
 import { Sheet } from '../../ui/components/Sheet'
@@ -75,5 +75,5 @@ export function SuggestTagsSheet({
 const styles = StyleSheet.create(theme => ({
   body: { padding: space.sm },
   failed: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  error: { color: theme.colors.danger, fontSize: 12, flexShrink: 1 },
+  error: { color: theme.colors.danger, fontSize: type.small, flexShrink: 1 },
 }))

@@ -5,7 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { artistOr, plural, type AskAnswer as Answer } from '@selfmp3/shared'
-import { STALE, failureText, radius, space } from '@selfmp3/client'
+import { failureText, leading, radius, space, STALE, type } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -414,11 +414,11 @@ function SongPicks({
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.sm },
-  head: { color: theme.colors.textPrimary, fontSize: 15.5, fontWeight: '600' },
-  line: { color: theme.colors.textSecondary, fontSize: 13.5, lineHeight: 19 },
-  answer: { color: theme.colors.textPrimary, fontSize: 14.5, lineHeight: 21 },
-  muted: { color: theme.colors.textMuted, fontSize: 12.5, fontWeight: '400' },
-  error: { color: theme.colors.danger, fontSize: 12.5 },
+  head: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  answer: { color: theme.colors.textPrimary, fontSize: type.body, lineHeight: leading.body },
+  muted: { color: theme.colors.textMuted, fontSize: type.small, fontWeight: '400' },
+  error: { color: theme.colors.danger, fontSize: type.sub },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
   tries: { gap: 6, marginTop: space.xs },
   followUp: { gap: space.sm, marginTop: space.xs },
@@ -434,6 +434,6 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,
   },
-  tryText: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: 13 },
+  tryText: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: type.sub },
   pressed: { opacity: 0.6 },
 }))

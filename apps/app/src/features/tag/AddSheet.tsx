@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from 'react'
 import { FlatList, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { plural, libraryArtists } from '@selfmp3/shared'
-import { tagColors, useLibrary } from '@selfmp3/client'
+import { tagColors, type, useLibrary } from '@selfmp3/client'
 import { useRecentTagIds } from '../library/recentTags.store'
 import { songsById } from '../../ui/songsById'
 import { ArtistFace } from './ArtistFace'
@@ -215,7 +215,7 @@ const styles = StyleSheet.create(theme => ({
   body: { gap: 10, paddingBottom: 8 },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 },
   search: { flex: 1 },
-  clear: { fontSize: 14, fontWeight: '600' },
+  clear: { fontSize: type.body, fontWeight: '600' },
   chosenRow: { flexGrow: 0 },
   chosen: { gap: 8, paddingHorizontal: 16 },
   segment: { paddingHorizontal: 16 },
@@ -237,7 +237,7 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  name: { flex: 1, color: theme.colors.textPrimary, fontSize: 15, fontWeight: '500' },
-  size: { color: theme.colors.textMuted, fontSize: 13, fontVariant: ['tabular-nums'] },
+  name: { flex: 1, color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '500' },
+  size: { color: theme.colors.textMuted, fontSize: type.sub, fontVariant: ['tabular-nums'] },
   foot: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 6 },
 }))

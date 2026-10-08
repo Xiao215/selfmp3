@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
 import { clamp, plural, artistOr } from '@selfmp3/shared'
-import { onMac, radius, space, withAlpha } from '@selfmp3/client'
+import { leading, onMac, radius, space, type, withAlpha } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { Button } from '../../ui/components/Button'
@@ -558,7 +558,7 @@ function More({
 
 /** The words of a change: a name line and a quiet line under it, as both reviews draw them. */
 export const reviewText = StyleSheet.create(theme => ({
-  name: { color: theme.colors.textPrimary, fontSize: 13.5, lineHeight: 19 },
+  name: { color: theme.colors.textPrimary, fontSize: type.sub, lineHeight: leading.sub },
   gone: {
     color: theme.colors.danger,
     textDecorationLine: 'line-through',
@@ -571,16 +571,16 @@ export const reviewText = StyleSheet.create(theme => ({
     backgroundColor: withAlpha(theme.colors.good, 0.14),
   },
   arrow: { color: theme.colors.textMuted },
-  meta: { color: theme.colors.textMuted, fontSize: 12 },
-  line: { color: theme.colors.textSecondary, fontSize: 13.5, lineHeight: 19 },
-  note: { color: theme.colors.textMuted, fontSize: 12.5, lineHeight: 18 },
+  meta: { color: theme.colors.textMuted, fontSize: type.small },
+  line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  note: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
 }))
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm },
   top: { gap: 2 },
-  head: { color: theme.colors.textPrimary, fontSize: 16, fontWeight: '600' },
-  note: { color: theme.colors.textMuted, fontSize: 12.5, lineHeight: 18 },
+  head: { color: theme.colors.textPrimary, fontSize: type.title, fontWeight: '600' },
+  note: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
   list: { gap: space.sm },
   // Tints rather than surfaces: the palette is surface1 and the sheet surface2.
   band: {
@@ -598,12 +598,12 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.xs,
     borderRadius: radius.coverSm,
   },
-  bandTitle: { flex: 1, color: theme.colors.textPrimary, fontSize: 14.5, fontWeight: '600' },
-  count: { color: theme.colors.textMuted, fontSize: 12, fontVariant: ['tabular-nums'] },
+  bandTitle: { flex: 1, color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  count: { color: theme.colors.textMuted, fontSize: type.small, fontVariant: ['tabular-nums'] },
   bandNote: {
     color: theme.colors.textMuted,
-    fontSize: 12.5,
-    lineHeight: 17,
+    fontSize: type.small,
+    lineHeight: leading.small,
     paddingLeft: BAND_TEXT,
     paddingBottom: space.xs,
   },
@@ -654,7 +654,7 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.sm,
     borderRadius: radius.coverSm,
   },
-  moreText: { color: theme.colors.accent, fontSize: 12.5, fontWeight: '500' },
+  moreText: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '500' },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
   pressed: { opacity: 0.7 },
 }))

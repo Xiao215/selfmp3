@@ -608,7 +608,7 @@ const styles = StyleSheet.create(theme => ({
   contentNarrow: { paddingTop: NARROW_TOP, paddingHorizontal: space.gutter },
   head: { marginBottom: 20, gap: 12, alignItems: 'flex-start' },
   title: pageTitle(theme.colors),
-  sub: { color: theme.colors.textMuted, fontSize: 13, marginTop: 4 },
+  sub: { color: theme.colors.textMuted, fontSize: type.sub, marginTop: 4 },
   subCapped: { color: theme.colors.danger },
   panels: { gap: 20, maxWidth: 780 },
   advanced: { gap: 20, paddingTop: 12 },

@@ -10,7 +10,7 @@ import { usePlayer, usePlayerProgress, usePlayerStalled } from '../../player/Pla
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useSongColor } from '../useSongColor'
-import { MINI_PLAYER_HEIGHT, motion, NAV_HEIGHT, radius, space } from '@selfmp3/client'
+import { MINI_PLAYER_HEIGHT, motion, NAV_HEIGHT, radius, space, type } from '@selfmp3/client'
 import { MINI_PLAYER_GAP, navBottom } from '../../shell/bottomInset'
 import { openQueueSheet } from '../../features/queue/queueSheet.store'
 import { Cover } from './Cover'
@@ -309,12 +309,12 @@ const styles = StyleSheet.create(theme => ({
   wordsGone: { position: 'absolute', top: 0, left: 0, right: 0, gap: 1 },
   title: {
     color: theme.colors.textPrimary,
-    fontSize: 14,
+    fontSize: type.body,
     fontWeight: '600',
   },
   artist: {
     color: theme.colors.textSecondary,
-    fontSize: 12,
+    fontSize: type.small,
   },
 }))
 

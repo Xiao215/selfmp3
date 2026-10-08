@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Stats } from '@selfmp3/shared'
-import { radius, space, useLibrary, type ServerConnection } from '@selfmp3/client'
+import { leading, radius, space, type, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
 import { ChevronRight, Download, Settings, Sparkles } from '../../ui/components/Icons'
@@ -245,19 +245,19 @@ const styles = StyleSheet.create(theme => ({
   contentNarrow: { paddingTop: 16, paddingHorizontal: space.gutter },
   person: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   personWords: { flex: 1, minWidth: 0, gap: 3 },
-  name: { ...serif(theme.colors, 30), lineHeight: 34 },
-  line: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 17 },
+  name: { ...serif(theme.colors, type.page), lineHeight: 34 },
+  line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   // A big card (`S2`: 22 round) on the ground, told apart by tone.
   month: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14 },
   monthPressed: { opacity: 0.85 },
   monthHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   monthTitle: label(theme.colors),
-  monthLink: { color: theme.colors.accent, fontSize: 13, fontWeight: '600' },
+  monthLink: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '600' },
   figures: { flexDirection: 'row', gap: 12 },
   figure: { flex: 1, minWidth: 0, gap: 2 },
-  figureValue: { ...serif(theme.colors, 34), lineHeight: 38 },
-  figureUnit: { fontSize: 20 },
-  figureLabel: { color: theme.colors.textSecondary, fontSize: 12 },
+  figureValue: { ...serif(theme.colors, type.page), lineHeight: 34 },
+  figureUnit: { fontSize: type.section },
+  figureLabel: { color: theme.colors.textSecondary, fontSize: type.small },
   repeat: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 60 },
   rowPressed: { opacity: 0.6 },
@@ -270,6 +270,6 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
   },
   rowWords: { flex: 1, minWidth: 0, gap: 2 },
-  rowLabel: { color: theme.colors.textPrimary, fontSize: 16, fontWeight: '600' },
-  rowHint: { color: theme.colors.textSecondary, fontSize: 12 },
+  rowLabel: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  rowHint: { color: theme.colors.textSecondary, fontSize: type.small },
 }))

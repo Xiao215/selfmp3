@@ -5,12 +5,13 @@ import { StyleSheet } from 'react-native-unistyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { formatRelative, type Device } from '@selfmp3/shared'
 import {
-  STALE,
   clientApi,
   deviceListView,
   failureText,
   queryKeys,
   radius,
+  STALE,
+  type,
   useDevices,
   type Api,
 } from '@selfmp3/client'
@@ -259,15 +260,15 @@ const styles = StyleSheet.create(theme => ({
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.borderStrong },
   dotOnline: { backgroundColor: theme.colors.good },
   deviceName: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7 },
-  deviceText: { color: theme.colors.textPrimary, fontSize: 13, flexShrink: 1 },
+  deviceText: { color: theme.colors.textPrimary, fontSize: type.sub, flexShrink: 1 },
   deviceTag: {
     color: theme.colors.textMuted,
-    fontSize: 10,
+    fontSize: type.tiny,
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: radius.pill,
     backgroundColor: theme.colors.surface3,
     overflow: 'hidden',
   },
-  deviceWhen: { color: theme.colors.textMuted, fontSize: 12 },
+  deviceWhen: { color: theme.colors.textMuted, fontSize: type.small },
 }))

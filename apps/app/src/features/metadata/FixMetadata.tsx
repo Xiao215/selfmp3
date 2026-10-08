@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
-import { radius } from '@selfmp3/client'
+import { leading, radius, type } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
@@ -113,6 +113,11 @@ const styles = StyleSheet.create(theme => ({
     paddingLeft: 22,
   },
   body: { paddingTop: 4, paddingHorizontal: 22, paddingBottom: 22, gap: 8 },
-  cardTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600', marginTop: 16 },
-  cardBody: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 19 },
+  cardTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: type.body,
+    fontWeight: '600',
+    marginTop: 16,
+  },
+  cardBody: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
 }))

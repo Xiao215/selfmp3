@@ -3,7 +3,7 @@ import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { artistOr, plural, type AskAnswer } from '@selfmp3/shared'
-import { space } from '@selfmp3/client'
+import { leading, space, type } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { SongLine } from '../../ui/components/SongLine'
 
@@ -65,7 +65,7 @@ function haveText(item: { kind: 'album' | 'song'; tracks: number; have: number }
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm },
-  head: { color: theme.colors.textPrimary, fontSize: 15.5, fontWeight: '600' },
+  head: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   row: { paddingHorizontal: 0 },
-  note: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
+  note: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
 }))

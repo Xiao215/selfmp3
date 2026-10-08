@@ -3,7 +3,7 @@ import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { formatDuration } from '@selfmp3/shared'
-import { space } from '@selfmp3/client'
+import { space, type } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { Popover } from './Popover'
 import { Sheet, SheetItem } from './Sheet'
@@ -137,7 +137,7 @@ function useClock(endsAt: number | null, everyMs: number, ticking: boolean): num
 const styles = StyleSheet.create(theme => ({
   menuTitle: {
     color: theme.colors.textMuted,
-    fontSize: 12,
+    fontSize: type.small,
     paddingHorizontal: 10,
     paddingTop: space.sm,
     paddingBottom: 6,

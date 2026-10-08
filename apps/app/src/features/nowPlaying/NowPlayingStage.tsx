@@ -18,7 +18,7 @@ import Svg, { Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from '
 import type { Song } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
 import type { Rgb } from '@selfmp3/client'
-import { fonts, motion, radius, rgba, useLibrary, withAlpha } from '@selfmp3/client'
+import { fonts, motion, radius, rgba, type, useLibrary, withAlpha } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerCommands, usePlayerProgress } from '../../player/PlayerProvider'
@@ -980,15 +980,15 @@ const styles = StyleSheet.create(theme => ({
   },
   // Beside the chevron, however far the row starts.
   headSong: { position: 'absolute', left: 96 + HEAD_LEFT, top: 12, maxWidth: '40%' },
-  headTitle: { color: theme.colors.textPrimary, fontSize: 14, fontWeight: '700' },
-  headArtist: { color: theme.colors.textSecondary, fontSize: 12 },
+  headTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '700' },
+  headArtist: { color: theme.colors.textSecondary, fontSize: type.small },
   context: {
     position: 'absolute',
     left: 0,
     right: 0,
     textAlign: 'center',
     color: theme.colors.textMuted,
-    fontSize: 12,
+    fontSize: type.small,
   },
   tabs: {
     marginLeft: 'auto',
@@ -1004,7 +1004,7 @@ const styles = StyleSheet.create(theme => ({
   // The chosen tab is white, as a chosen segment and a chosen chip are (P1).
   tabActive: { backgroundColor: theme.colors.textPrimary },
   tabPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.1) },
-  tabText: { color: theme.colors.textSecondary, fontSize: 12.5, fontWeight: '600' },
+  tabText: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '600' },
   tabTextActive: { color: theme.colors.onPrimary },
   // The box the cover is laid out in: where the stage puts it, and where its
   // travel from the player bar and the idle fade are applied.
@@ -1019,7 +1019,7 @@ const styles = StyleSheet.create(theme => ({
   meta: { position: 'absolute', zIndex: 2, gap: 10 },
   // The display face, which carries its own weight: never bold it.
   title: { color: theme.colors.textPrimary, fontFamily: fonts.display },
-  byline: { color: theme.colors.textSecondary, fontSize: 14, marginTop: -4 },
+  byline: { color: theme.colors.textSecondary, fontSize: type.sub, marginTop: -4 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
   tagButton: {
     flexDirection: 'row',
@@ -1034,7 +1034,7 @@ const styles = StyleSheet.create(theme => ({
     borderColor: theme.colors.borderStrong,
   },
   tagButtonPressed: { backgroundColor: theme.colors.surface2 },
-  tagButtonText: { color: theme.colors.textSecondary, fontSize: 12.5 },
+  tagButtonText: { color: theme.colors.textSecondary, fontSize: type.small },
   words: { position: 'absolute', zIndex: 1 },
   status: {
     flex: 1,
@@ -1044,7 +1044,7 @@ const styles = StyleSheet.create(theme => ({
     flexWrap: 'wrap',
     gap: 9,
   },
-  statusText: { color: theme.colors.textMuted, fontSize: 13 },
+  statusText: { color: theme.colors.textMuted, fontSize: type.sub },
   visual: { position: 'absolute', overflow: 'hidden', zIndex: 1 },
   visualFull: { left: 0, right: 0, top: 0, bottom: 0 },
   about: { paddingTop: 12, paddingHorizontal: 4, paddingBottom: 40 },
@@ -1062,7 +1062,7 @@ const styles = StyleSheet.create(theme => ({
   },
   toolOn: { backgroundColor: theme.colors.textPrimary },
   toolPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.14) },
-  toolText: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '600' },
+  toolText: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '600' },
   toolTextOn: { color: theme.colors.onPrimary },
   expandAt: { position: 'absolute', zIndex: 4 },
   expand: {
@@ -1093,6 +1093,6 @@ const styles = StyleSheet.create(theme => ({
     ...label(theme.colors),
     fontVariant: ['tabular-nums'],
   },
-  upNextTitle: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
-  upNextArtist: { color: theme.colors.textMuted, fontSize: 12 },
+  upNextTitle: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
+  upNextArtist: { color: theme.colors.textMuted, fontSize: type.small },
 }))

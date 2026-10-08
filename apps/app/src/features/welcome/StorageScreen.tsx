@@ -13,7 +13,7 @@ import {
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { CloudConnect } from '@selfmp3/shared'
-import { fonts, radius, space, type } from '@selfmp3/client'
+import { fonts, leading, radius, space, type } from '@selfmp3/client'
 import { library as cloudLibrary, session as cloud } from '../../replica'
 import { deviceKind, deviceWord } from '../../ports/device'
 import { devicePlace } from '../settings/settings.model'
@@ -352,16 +352,16 @@ const styles = StyleSheet.create(theme => ({
   columnWide: { flexGrow: 0, width: 560, maxWidth: '100%' },
   head: { gap: space.sm },
   // A page on the way in, so the serif: one weight, never bolded.
-  title: { ...serif(theme.colors, 40), lineHeight: 42, letterSpacing: -0.5 },
-  titleWide: { fontSize: 52, lineHeight: 54, letterSpacing: -0.8 },
+  title: { ...serif(theme.colors, type.display), lineHeight: 48, letterSpacing: -0.5 },
+  titleWide: { fontSize: type.display, lineHeight: leading.display, letterSpacing: -0.8 },
   titleMark: { fontFamily: fonts.serifItalic, color: theme.colors.accent },
-  lead: { color: theme.colors.textSecondary, fontSize: 15, lineHeight: 22 },
-  leadWide: { fontSize: 16, lineHeight: 24 },
+  lead: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
+  leadWide: { fontSize: type.body, lineHeight: leading.body },
   account: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  accountText: { flex: 1, minWidth: 0, color: theme.colors.textMuted, fontSize: 13 },
+  accountText: { flex: 1, minWidth: 0, color: theme.colors.textMuted, fontSize: type.sub },
   card: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14 },
   field: { gap: 6 },
-  fieldLabel: { color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600' },
+  fieldLabel: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '600' },
   // A control on the card: a control's fill, a pill, no edge (as Welcome's address form).
   input: {
     backgroundColor: theme.colors.surface2,
@@ -371,11 +371,11 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
   },
-  hint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
+  hint: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
   helperHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   helperWords: { flex: 1, minWidth: 0, gap: 1 },
-  helperTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  caret: { color: theme.colors.textSecondary, fontSize: 14 },
+  helperTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  caret: { color: theme.colors.textSecondary, fontSize: type.sub },
   step: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   stepNumber: {
     width: 24,
@@ -385,20 +385,30 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepNumberText: { color: theme.colors.textPrimary, fontSize: 12, fontWeight: '600' },
+  stepNumberText: { color: theme.colors.textPrimary, fontSize: type.small, fontWeight: '600' },
   stepWords: { flex: 1, minWidth: 0, gap: 2 },
-  stepTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600', lineHeight: 20 },
-  stepDetail: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18 },
+  stepTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: type.body,
+    fontWeight: '600',
+    lineHeight: leading.body,
+  },
+  stepDetail: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   open: { alignItems: 'flex-start' },
   trying: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  tryingText: { flex: 1, color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18 },
-  error: { color: theme.colors.danger, fontSize: type.body, lineHeight: 20 },
+  tryingText: {
+    flex: 1,
+    color: theme.colors.textSecondary,
+    fontSize: type.sub,
+    lineHeight: leading.sub,
+  },
+  error: { color: theme.colors.danger, fontSize: type.body, lineHeight: leading.body },
   actions: { marginTop: 'auto', gap: 4, alignItems: 'stretch' },
   actionsWide: { alignItems: 'flex-start' },
   footnote: {
     color: theme.colors.textMuted,
     fontSize: type.small,
-    lineHeight: 17,
+    lineHeight: leading.small,
     textAlign: 'center',
     paddingTop: space.sm,
   },

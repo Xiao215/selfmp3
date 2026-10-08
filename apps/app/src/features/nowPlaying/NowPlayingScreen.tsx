@@ -17,6 +17,7 @@ import { artistOr } from '@selfmp3/shared'
 import {
   fonts,
   HIT_TARGET,
+  leading,
   motion,
   radius,
   space,
@@ -1042,12 +1043,12 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textPrimary,
     fontFamily: fonts.display,
     fontSize: type.large,
-    lineHeight: 29,
+    lineHeight: leading.large,
     letterSpacing: -0.3,
   },
   artist: {
     color: theme.colors.textSecondary,
-    fontSize: 15,
+    fontSize: type.body,
   },
   tags: {
     flexDirection: 'row',
@@ -1095,12 +1096,12 @@ const styles = StyleSheet.create(theme => ({
   wordsTitles: { flex: 1, minWidth: 0, gap: 1 },
   wordsTitle: {
     color: theme.colors.textPrimary,
-    fontSize: 14,
+    fontSize: type.body,
     fontWeight: '600',
   },
   wordsArtist: {
     color: theme.colors.textSecondary,
-    fontSize: 12,
+    fontSize: type.small,
   },
   words: {
     flex: 1,
@@ -1117,7 +1118,12 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.cardLg,
     overflow: 'hidden',
   },
-  wordsStatus: { color: theme.colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: 40 },
+  wordsStatus: {
+    color: theme.colors.textMuted,
+    fontSize: type.sub,
+    textAlign: 'center',
+    marginTop: 40,
+  },
   wordsControls: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1135,6 +1141,6 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: withAlpha(theme.colors.textPrimary, 0.12),
   },
   toolOn: { backgroundColor: theme.colors.textPrimary },
-  toolText: { color: theme.colors.textPrimary, fontSize: 12, fontWeight: '600' },
+  toolText: { color: theme.colors.textPrimary, fontSize: type.small, fontWeight: '600' },
   toolTextOn: { color: theme.colors.onPrimary },
 }))

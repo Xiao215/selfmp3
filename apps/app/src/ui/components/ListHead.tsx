@@ -3,7 +3,7 @@ import { Animated, View } from 'react-native'
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { fonts, radius, space } from '@selfmp3/client'
+import { fonts, leading, radius, space, type } from '@selfmp3/client'
 import { artShadow, label as labelText } from '../surfaces'
 import { CoverLight } from './CoverLight'
 
@@ -90,11 +90,11 @@ export const listHeadText = StyleSheet.create(theme => ({
   name: {
     color: theme.colors.textPrimary,
     fontFamily: fonts.display,
-    fontSize: 40,
-    lineHeight: 46,
+    fontSize: type.display,
+    lineHeight: leading.display,
     letterSpacing: -0.8,
   },
-  summary: { color: theme.colors.textSecondary, fontSize: 14 },
+  summary: { color: theme.colors.textSecondary, fontSize: type.sub },
 }))
 
 const styles = StyleSheet.create(theme => ({

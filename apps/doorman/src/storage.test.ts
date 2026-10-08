@@ -90,6 +90,66 @@ describe('/v1/storage/backblaze', () => {
     expect(words).toContain('Read and Write')
   })
 
+  it('refuses a key that cannot read the bucket’s settings', async () => {
+    const { h, token } = await signedIn()
+    h.backblaze.capabilities = h.backblaze.capabilities.filter(name => name !== 'listBuckets')
+    const words = await refusal(await h.connectBackblaze(token))
+    expect(words).toContain('Read and Write')
+    expect((await me(h, token)).storage).toBeNull()
+  })
+
+  it('asks Backblaze how the bucket keeps old versions, with the token the key was given', async () => {
+    const { h, token } = await signedIn()
+    await h.connectBackblaze(token)
+    const asked = h.outside.find(seen => seen.url.pathname.endsWith('/b2_list_buckets'))
+    expect(asked?.headers.get('authorization')).toBe('b2-auth-token')
+    expect(JSON.parse(String(asked?.init?.body))).toEqual({
+      accountId: 'acct-1234',
+      bucketId: 'b2id-my-music',
+    })
+  })
+
+  it('refuses a bucket that keeps every version, before writing to it', async () => {
+    const { h, token } = await signedIn()
+    h.backblaze.lifecycleRules = []
+    const words = await refusal(await h.connectBackblaze(token))
+    expect(words).toContain('keeps every old version')
+    expect(words).toContain('Keep only the last version of the file')
+    expect(h.bucket.objects.has('selfmp3/format.json')).toBe(false)
+    expect((await me(h, token)).storage).toBeNull()
+  })
+
+  it('refuses a rule that deletes old versions only somewhere else in the bucket', async () => {
+    const { h, token } = await signedIn()
+    h.backblaze.lifecycleRules = [
+      { daysFromHidingToDeleting: 1, daysFromUploadingToHiding: null, fileNamePrefix: 'backups/' },
+    ]
+    expect(await refusal(await h.connectBackblaze(token))).toContain('keeps every old version')
+  })
+
+  it('takes a rule for the library’s folder, and one that keeps old versions for a while', async () => {
+    const { h, token } = await signedIn()
+    h.backblaze.lifecycleRules = [
+      { daysFromHidingToDeleting: 30, daysFromUploadingToHiding: null, fileNamePrefix: 'selfmp3/' },
+    ]
+    expect((await h.connectBackblaze(token)).status).toBe(200)
+  })
+
+  it('refuses a rule that would hide songs some days after they are uploaded', async () => {
+    const { h, token } = await signedIn()
+    h.backblaze.lifecycleRules = [
+      { daysFromHidingToDeleting: 1, daysFromUploadingToHiding: null, fileNamePrefix: '' },
+      {
+        daysFromHidingToDeleting: 1,
+        daysFromUploadingToHiding: 30,
+        fileNamePrefix: 'selfmp3/songs/',
+      },
+    ]
+    expect(await refusal(await h.connectBackblaze(token))).toContain(
+      'hide songs still in the library',
+    )
+  })
+
   it('still tries the key against the bucket, as PUT /v1/storage does', async () => {
     const { h, token } = await signedIn()
     // Backblaze knows the key, but the bucket itself refuses it.

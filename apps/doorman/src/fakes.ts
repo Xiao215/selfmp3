@@ -26,6 +26,8 @@ export const CLIENT_SECRET = 'test-google-client-secret'
 export const B2_HOST = 's3.us-west-004.backblazeb2.com'
 /** Where a key is asked what it opens (`b2_authorize_account`). */
 export const B2_API_HOST = 'api.backblazeb2.com'
+/** Where the account's own API lives once the key is known (`b2_list_buckets`). */
+export const B2_ACCOUNT_API_HOST = 'api004.backblazeb2.com'
 export const BUCKET = 'my-music'
 export const KEY_ID = '004abcdef0123456789'
 export const APPLICATION_KEY = 'K004-test-application-key'
@@ -393,8 +395,10 @@ function escapeXml(text: string): string {
 
 /**
  * `b2_authorize_account`, as B2's v4 answers it: Basic auth with the key,
- * and the bucket a restricted key opens under `apiInfo.storageApi.allowed`.
- * A test changes what the key may do by setting the fields.
+ * and the bucket a restricted key opens under `apiInfo.storageApi.allowed`;
+ * and `b2_list_buckets`, with the token that answer gave, for the one bucket
+ * the key opens. A test changes what the key may do, and how the bucket keeps
+ * old versions, by setting the fields.
  */
 export class FakeBackblaze {
   keyId = KEY_ID
@@ -411,10 +415,17 @@ export class FakeBackblaze {
   ]
   namePrefix: string | null = null
   s3ApiUrl = `https://${B2_HOST}`
+  /** The bucket's lifecycle rules. "Keep only the last version of the file", as SYNC.md says to set. */
+  lifecycleRules: unknown[] = [
+    { daysFromHidingToDeleting: 1, daysFromUploadingToHiding: null, fileNamePrefix: '' },
+  ]
 
-  handle(request: Request): Response {
+  async handle(request: Request): Promise<Response> {
     const url = new URL(request.url)
-    if (url.pathname !== '/b2api/v4/b2_authorize_account') {
+    if (url.host === B2_ACCOUNT_API_HOST && url.pathname === '/b2api/v4/b2_list_buckets') {
+      return this.#listBuckets(request)
+    }
+    if (url.host !== B2_API_HOST || url.pathname !== '/b2api/v4/b2_authorize_account') {
       return new Response('not found', { status: 404 })
     }
     const expected = `Basic ${toBase64(utf8(`${this.keyId}:${this.applicationKey}`))}`
@@ -433,7 +444,7 @@ export class FakeBackblaze {
       authorizationToken: 'b2-auth-token',
       apiInfo: {
         storageApi: {
-          apiUrl: 'https://api004.backblazeb2.com',
+          apiUrl: `https://${B2_ACCOUNT_API_HOST}`,
           downloadUrl: 'https://f004.backblazeb2.com',
           s3ApiUrl: this.s3ApiUrl,
           allowed: {
@@ -443,6 +454,47 @@ export class FakeBackblaze {
           },
         },
       },
+    })
+  }
+
+  /**
+   * One bucket, as B2 lists it: the token must be the one authorize gave and
+   * carry listBuckets, and a key for one bucket must name that bucket.
+   */
+  async #listBuckets(request: Request): Promise<Response> {
+    if (request.method !== 'POST' || request.headers.get('authorization') !== 'b2-auth-token') {
+      return b2Json(
+        { code: 'bad_auth_token', message: 'Invalid authorization token', status: 401 },
+        401,
+      )
+    }
+    const body = (await request.json().catch(() => null)) as {
+      accountId?: unknown
+      bucketId?: unknown
+    } | null
+    const bucket = this.buckets?.[0]
+    if (
+      !this.capabilities.includes('listBuckets') ||
+      body?.accountId !== 'acct-1234' ||
+      !bucket ||
+      body.bucketId !== bucket.id
+    ) {
+      return b2Json({ code: 'unauthorized', message: 'not entitled', status: 401 }, 401)
+    }
+    return b2Json({
+      buckets: [
+        {
+          accountId: 'acct-1234',
+          bucketId: bucket.id,
+          bucketName: bucket.name,
+          bucketType: 'allPrivate',
+          bucketInfo: {},
+          corsRules: [],
+          lifecycleRules: this.lifecycleRules,
+          options: [],
+          revision: 3,
+        },
+      ],
     })
   }
 }
@@ -597,7 +649,9 @@ export function harness(): Harness {
     outside.push({ method: request.method, url, headers: new Headers(request.headers), init })
     if (url.host === 'oauth2.googleapis.com') return google.handle(request)
     if (url.host === B2_HOST) return bucket.handle(request)
-    if (url.host === B2_API_HOST) return backblaze.handle(request)
+    if (url.host === B2_API_HOST || url.host === B2_ACCOUNT_API_HOST) {
+      return backblaze.handle(request)
+    }
     throw new TypeError('fetch failed')
   }
 

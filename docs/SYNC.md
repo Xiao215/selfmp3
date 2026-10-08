@@ -577,7 +577,11 @@ libraries that deliberately number different songs the same.
 2. **Create a bucket.** Private. Any name — bucket names are global across B2, so something
    like `selfmp3-<yourname>`. Default encryption on is fine; leave Object Lock off.
 3. **Lifecycle settings → "Keep only the last version of the file".** B2 keeps every version
-   of every file by default, so deleted snapshots would go on counting against your 10 GB.
+   of every file by default: deleting by name only hides a file, and the old version goes on
+   counting against your 10 GB — every removed song, replaced cover and pruned snapshot. A key
+   for one bucket cannot change this setting (Backblaze allows `writeBuckets` only on a key for
+   the whole account), so the doorman reads it when the key is pasted and refuses a bucket
+   without it, saying what to set. A rule that keeps old versions some days longer passes too.
 4. **Application Keys → Add a New Application Key.** Allow access to this bucket only, *Read
    and Write*. Copy the `keyID` and `applicationKey` — the second is shown only once.
 5. The bucket's page shows its **Endpoint**, like `s3.us-west-004.backblazeb2.com`. The
@@ -604,7 +608,8 @@ Every push to `main` builds it and publishes it to GitHub Pages
 
 Open self.mp3, sign in with Google, and — the first time, on any device — paste the bucket's key
 ID and application key on the page that follows, *Where it lives* (`POST /v1/storage/backblaze`).
-The doorman asks Backblaze which bucket the key opens and where; for another provider, *Not
+The doorman asks Backblaze which bucket the key opens, where, and whether it keeps old versions
+(step 3); for another provider, *Not
 Backblaze?* takes the endpoint, name and region instead (`PUT /v1/storage`). The key goes to the
 doorman, sealed; no device keeps it. A second device signed in to the same account skips the
 page: the bucket is already the account's. Afterwards it is *Settings → Account → Storage*, to

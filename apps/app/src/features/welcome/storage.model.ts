@@ -74,7 +74,8 @@ export function whereItIs(storage: DoormanStorage): string {
 export const HELPER_STEPS: readonly { readonly title: string; readonly detail: string }[] = [
   {
     title: 'Make a private bucket',
-    detail: 'On Backblaze: Buckets → Create a Bucket. Any name, private. Free up to 10 GB.',
+    detail:
+      'On Backblaze: Buckets → Create a Bucket. Any name, private. Then its Lifecycle Settings: Keep only the last version. Free up to 10 GB.',
   },
   {
     title: 'Then a key for it',

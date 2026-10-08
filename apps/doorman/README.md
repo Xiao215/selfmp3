@@ -203,6 +203,14 @@ below); the plain command deploys the real doorman.
   (docs/SYNC.md). It can never replace one of those once it is there, and
   never replace or delete `format.json` (the doorman writes that when a bucket
   is connected).
+- **Old versions in a Backblaze bucket**: B2 keeps a deleted or replaced
+  file's old version, billed as stored, unless the bucket's Lifecycle Settings
+  say "Keep only the last version of the file" (docs/SYNC.md, *Setting up*).
+  The doorman cannot set that with a key for one bucket, so connecting from
+  the key alone (`POST /v1/storage/backblaze`) reads the bucket's rules with
+  `b2_list_buckets` and refuses a bucket without one. It is checked only as a
+  bucket is connected: a bucket connected before 2026-10-07 is worth a look in
+  Backblaze's console.
 - **Logs**: `npx wrangler tail` shows what the doorman is doing, including why
   a sign-in was refused. It never logs a token, a key or a secret.
 - **Running it on your own computer**: put `GOOGLE_CLIENT_ID` and the three

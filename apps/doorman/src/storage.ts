@@ -56,8 +56,10 @@ export async function connect(ctx: Context): Promise<Response> {
  * The page after Google sign-in asks for two strings, the key ID and the
  * application key, and nothing else (docs/SYNC.md). Backblaze knows the rest:
  * a key made for one bucket names that bucket, and the account's S3 address
- * comes with the answer. From there it is `connect`: the key is tried against
- * the bucket, and only a key that passes is sealed and kept.
+ * comes with the answer. The bucket's lifecycle rules are read too, and a
+ * bucket that keeps old versions is refused (`checkLifecycle`). From there it
+ * is `connect`: the key is tried against the bucket, and only a key that
+ * passes is sealed and kept.
  */
 export async function connectBackblaze(ctx: Context): Promise<Response> {
   const session = await requireSession(ctx)
@@ -71,7 +73,9 @@ export async function connectBackblaze(ctx: Context): Promise<Response> {
     ...(input.prefix === undefined ? {} : { prefix: input.prefix }),
   })
   if (!parsed.success) throw badRequest(formatZodError(parsed.error))
-  await tryThenKeep(ctx, session, targetFrom(parsed.data, ctx.env.DEV === 'true'))
+  const target = targetFrom(parsed.data, ctx.env.DEV === 'true')
+  await checkLifecycle(ctx, found, target.prefix)
+  await tryThenKeep(ctx, session, target)
   return json(await ctx.accounts.me(session))
 }
 
@@ -94,8 +98,11 @@ const B2_AUTHORIZE_URL = 'https://api.backblazeb2.com/b2api/v4/b2_authorize_acco
 
 /** What `connect` needs of the answer. Everything else Backblaze says is left alone. */
 const B2AuthorizeSchema = z.object({
+  accountId: z.string(),
+  authorizationToken: z.string(),
   apiInfo: z.object({
     storageApi: z.object({
+      apiUrl: z.string(),
       s3ApiUrl: z.string(),
       allowed: z.object({
         capabilities: z.array(z.string()),
@@ -110,8 +117,23 @@ const B2AuthorizeSchema = z.object({
   }),
 })
 
-/** What the S3 side of a bucket has to be allowed for the doorman to list, read, write and clear it. */
-const NEEDED = ['listFiles', 'readFiles', 'writeFiles', 'deleteFiles'] as const
+/**
+ * What a key has to be allowed: reading the bucket's settings, for its
+ * lifecycle rules, and on the S3 side listing, reading, writing and clearing
+ * it. A key made in Backblaze's web console for one bucket, with Read and
+ * Write, has all five.
+ */
+const NEEDED = ['listBuckets', 'listFiles', 'readFiles', 'writeFiles', 'deleteFiles'] as const
+
+/** What Backblaze answered about a key: where its bucket is, and how to ask about the bucket. */
+interface BackblazeKey {
+  readonly endpoint: string
+  readonly bucket: string
+  readonly bucketId: string
+  readonly accountId: string
+  readonly apiUrl: string
+  readonly token: string
+}
 
 /**
  * Ask Backblaze which bucket a key opens, and where. A key that opens every
@@ -123,7 +145,7 @@ async function askBackblaze(
   ctx: Context,
   keyId: string,
   applicationKey: string,
-): Promise<{ endpoint: string; bucket: string }> {
+): Promise<BackblazeKey> {
   let response: Response
   try {
     response = await ctx.fetch(B2_AUTHORIZE_URL, {
@@ -148,7 +170,7 @@ async function askBackblaze(
   if (!parsed.success) {
     throw unprocessable('Backblaze answered in a way the doorman does not understand.')
   }
-  const { s3ApiUrl, allowed } = parsed.data.apiInfo.storageApi
+  const { apiUrl, s3ApiUrl, allowed } = parsed.data.apiInfo.storageApi
   const buckets = allowed.buckets ?? []
   if (buckets.length === 0) {
     throw unprocessable(
@@ -168,7 +190,86 @@ async function askBackblaze(
       'That key is limited to files whose names start a certain way. Make a key for the whole bucket.',
     )
   }
-  return { endpoint: s3ApiUrl, bucket: buckets[0]?.name ?? '' }
+  return {
+    endpoint: s3ApiUrl,
+    bucket: buckets[0]?.name ?? '',
+    bucketId: buckets[0]?.id ?? '',
+    accountId: parsed.data.accountId,
+    apiUrl,
+    token: parsed.data.authorizationToken,
+  }
+}
+
+/** One lifecycle rule as `b2_list_buckets` gives it. The fields the doorman judges by; the rest are left alone. */
+const B2LifecycleRuleSchema = z.object({
+  fileNamePrefix: z.string(),
+  daysFromHidingToDeleting: z.number().nullable().optional(),
+  daysFromUploadingToHiding: z.number().nullable().optional(),
+})
+
+const B2ListBucketsSchema = z.object({
+  buckets: z.array(
+    z.object({ bucketId: z.string(), lifecycleRules: z.array(B2LifecycleRuleSchema) }),
+  ),
+})
+
+const WHAT_TO_SET =
+  'In Backblaze, open the bucket’s Lifecycle Settings, choose “Keep only the last version of the file”, and connect again.'
+
+/**
+ * Refuse a bucket that would keep what the library deletes. B2 never deletes a
+ * file by name: it hides it, and the old version stays — counted as stored —
+ * until a lifecycle rule deletes it. A bucket made in the web console or the
+ * API keeps every version unless told otherwise, so without the rule every
+ * removed song, replaced cover and pruned snapshot would stay in the 10 GB for
+ * good. A key for one bucket may not change the rule (`writeBuckets` is not
+ * allowed on one), so the doorman can only check it and say how to set it.
+ *
+ * A rule whose prefix covers the library's folder and deletes hidden versions
+ * after any number of days passes. A rule that hides files some days after
+ * they are uploaded is refused as well, wherever in the folder it reaches: it
+ * would hide songs the library still has.
+ */
+async function checkLifecycle(ctx: Context, key: BackblazeKey, prefix: string): Promise<void> {
+  let response: Response
+  try {
+    response = await ctx.fetch(`${key.apiUrl}/b2api/v4/b2_list_buckets`, {
+      method: 'POST',
+      headers: { authorization: key.token, 'content-type': 'application/json' },
+      body: JSON.stringify({ accountId: key.accountId, bucketId: key.bucketId }),
+    })
+  } catch {
+    throw new DoormanError(
+      502,
+      'bucket_unreachable',
+      'Backblaze could not be reached. Try again in a moment.',
+    )
+  }
+  if (!response.ok) {
+    throw unprocessable(`Backblaze answered ${response.status}. Try again in a moment.`)
+  }
+  const parsed = B2ListBucketsSchema.safeParse(await response.json().catch(() => null))
+  const bucket = parsed.data?.buckets.find(found => found.bucketId === key.bucketId)
+  if (!bucket) {
+    throw unprocessable('Backblaze answered in a way the doorman does not understand.')
+  }
+
+  const root = prefix ? `${prefix}/` : ''
+  const covers = (rule: z.infer<typeof B2LifecycleRuleSchema>) =>
+    root.startsWith(rule.fileNamePrefix)
+  const reaches = (rule: z.infer<typeof B2LifecycleRuleSchema>) =>
+    covers(rule) || rule.fileNamePrefix.startsWith(root)
+  const rules = bucket.lifecycleRules
+  if (rules.some(rule => reaches(rule) && rule.daysFromUploadingToHiding != null)) {
+    throw unprocessable(
+      `This bucket’s lifecycle rules hide files some days after they are uploaded, which would hide songs still in the library. ${WHAT_TO_SET}`,
+    )
+  }
+  if (!rules.some(rule => covers(rule) && rule.daysFromHidingToDeleting != null)) {
+    throw unprocessable(
+      `This bucket keeps every old version of a file, so removed songs would go on filling it. ${WHAT_TO_SET}`,
+    )
+  }
 }
 
 /** `DELETE /v1/storage` — forget the bucket. The bucket and its files are left alone. */

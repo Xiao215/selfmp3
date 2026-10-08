@@ -460,7 +460,9 @@ function BucketForm({
           : 'Keep your library in a storage bucket you own, so your other devices can get new songs and edits while this server is off. Backblaze B2 is free up to 10 GB: create a private bucket, then an application key for it with read and write access.'}
       </Lead>
       <Text style={[partStyles.hint, styles.where]}>
-        The endpoint and the name are on the bucket’s own page, under Buckets. The key is a new one
+        The endpoint and the name are on the bucket’s own page, under Buckets. Set its Lifecycle
+        Settings to Keep only the last version of the file: B2 keeps a deleted file’s old version
+        otherwise, and removed songs would go on counting against the 10 GB. The key is a new one
         from Account → Application Keys: allow access to this bucket only, with Read and Write. Not
         the master key — a key made for one bucket can reach nothing else. B2 shows the application
         key once, as you make it.

@@ -497,8 +497,8 @@ function Stage({
           onPress={() => onTab(value)}
           style={({ pressed }) => [
             styles.tab,
+            pressed && styles.tabPressed,
             shownTab === value && styles.tabActive,
-            pressed && styles.tabActive,
           ]}
         >
           <Text style={[styles.tabText, shownTab === value && styles.tabTextActive]}>{label}</Text>
@@ -1001,10 +1001,11 @@ const styles = StyleSheet.create(theme => ({
   tab: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: radius.pill },
   // Stacked, the tabs have gone down under the cover and nothing pushes it right.
   moreAlone: { marginLeft: 'auto' },
-  // The chosen tab is the selected tone, as a chosen segment is (`S2`).
-  tabActive: { backgroundColor: theme.colors.surfaceSelected },
+  // The chosen tab is white, as a chosen segment and a chosen chip are (P1).
+  tabActive: { backgroundColor: theme.colors.textPrimary },
+  tabPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.1) },
   tabText: { color: theme.colors.textSecondary, fontSize: 12.5, fontWeight: '600' },
-  tabTextActive: { color: theme.colors.textPrimary },
+  tabTextActive: { color: theme.colors.onPrimary },
   // The box the cover is laid out in: where the stage puts it, and where its
   // travel from the player bar and the idle fade are applied.
   coverLift: { position: 'absolute', zIndex: 3 },

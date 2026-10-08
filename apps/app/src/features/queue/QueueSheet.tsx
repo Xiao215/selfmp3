@@ -7,7 +7,16 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { useRouter } from 'expo-router'
 import { artistOr, plural, formatDuration, type Song, type Tag } from '@selfmp3/shared'
-import { fonts, isDownloaded, motion, radius, space, type, withAlpha } from '@selfmp3/client'
+import {
+  fonts,
+  HIT_TARGET,
+  isDownloaded,
+  motion,
+  radius,
+  space,
+  type,
+  withAlpha,
+} from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -18,6 +27,7 @@ import { ease, motionMs, spring, timing } from '../../ui/motion'
 import { MOVE_MS, PULL, overshootRange, roomShift } from '../../ui/motion.model'
 import { label } from '../../ui/surfaces'
 import { useSongColor } from '../../ui/useSongColor'
+import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { Equalizer } from '../../ui/components/Equalizer'
 import { HoldToReorder, useLiftScale, useMakeRoom } from '../../ui/components/HoldToReorder'
@@ -331,19 +341,21 @@ function SheetPanel({
                 Up next
               </Text>
               <View style={styles.pills}>
-                <Pressable
+                {/* On is white, as a chosen chip is (proposal P1); the
+                    transport's own shuffle says it in colour instead. */}
+                <Button
+                  label="Shuffle"
+                  icon={
+                    <Shuffle
+                      size={16}
+                      color={
+                        player.queue.shuffle ? theme.colors.onPrimary : theme.colors.textPrimary
+                      }
+                    />
+                  }
+                  active={player.queue.shuffle}
                   onPress={player.toggleShuffle}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: player.queue.shuffle }}
-                  accessibilityLabel="Shuffle"
-                  style={({ pressed }) => [
-                    styles.pill,
-                    (player.queue.shuffle || pressed) && styles.pillOn,
-                  ]}
-                >
-                  <Shuffle size={16} color={theme.colors.textPrimary} />
-                  <Text style={styles.pillText}>Shuffle</Text>
-                </Pressable>
+                />
                 {/* Outlined, so it is not read as a second mode beside Shuffle,
                     and it says what it leaves: the song playing carries on. */}
                 <Pressable
@@ -757,7 +769,7 @@ const styles = StyleSheet.create(theme => ({
     width: 36,
     height: 5,
     borderRadius: radius.pill,
-    backgroundColor: theme.colors.surfaceSelected,
+    backgroundColor: theme.colors.surface3,
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: {
@@ -767,20 +779,19 @@ const styles = StyleSheet.create(theme => ({
     letterSpacing: -0.2,
   },
   pills: { flexDirection: 'row', gap: 6 },
+  // As tall as the Shuffle beside it.
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    height: 34,
-    paddingHorizontal: 12,
+    height: HIT_TARGET,
+    paddingHorizontal: 14,
     borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface3,
   },
-  pillOn: { backgroundColor: theme.colors.surfaceSelected },
   pillGhost: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: theme.colors.surfaceSelected,
+    borderColor: theme.colors.borderStrong,
   },
   pillGhostPressed: { backgroundColor: theme.colors.surface3 },
   pillOff: { opacity: 0.4 },

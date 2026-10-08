@@ -166,6 +166,47 @@ export function dragTarget(
   return clamp(from + rows, first, last)
 }
 
+// --- Drawing only what is in view -----------------------------------------------
+
+/**
+ * Rows drawn either side of what is in view, so a scroll that outruns a render
+ * still finds rows there rather than a blank stretch.
+ */
+export const RAIL_OVERSCAN = 10
+
+/**
+ * Which rows of one run of the rail to draw: those a viewport of `span` points
+ * starting at `scrollTop` can show, and `RAIL_OVERSCAN` either side. A run is
+ * the songs still to come or the songs played, `count` rows of `rowHeight`
+ * starting `runTop` points into the list. `end` is exclusive; an empty window
+ * is `start === end`.
+ *
+ * The rail is the whole queue — a shuffled library is thousands of rows — and
+ * drawing every one of them took seconds to open (3,000 rows, ~30,000 nodes).
+ * A drag never needs a row out of view: the list does not scroll while a row is
+ * carried, so the rows a move can land among are already drawn.
+ */
+export function railWindow({
+  count,
+  runTop,
+  scrollTop,
+  span,
+  rowHeight,
+}: {
+  count: number
+  runTop: number
+  scrollTop: number
+  span: number
+  rowHeight: number
+}): { start: number; end: number } {
+  if (count === 0 || rowHeight <= 0) return { start: 0, end: 0 }
+  const from = Math.floor((scrollTop - runTop) / rowHeight) - RAIL_OVERSCAN
+  const to = Math.ceil((scrollTop + span - runTop) / rowHeight) + RAIL_OVERSCAN
+  const start = clamp(from, 0, count)
+  const end = clamp(to, start, count)
+  return { start, end }
+}
+
 // --- Undo ---------------------------------------------------------------------
 
 /** How long a removal can be taken back (`C12`: "an Undo for five seconds"). */

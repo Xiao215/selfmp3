@@ -1,6 +1,7 @@
-import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
+import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
@@ -31,6 +32,7 @@ import {
   dragTarget,
   draggedOut,
   nextSummary,
+  railWindow,
   type QueueRow,
 } from './queue.model'
 import { useQueueEdits } from './useQueueEdits'
@@ -47,6 +49,16 @@ const BESIDE_MIN = 1060
 const ROW_HEIGHT = 44
 /** How far into the rail's slide the rows begin to fade up: its last third. */
 const ROWS_FADE_FROM = 2 / 3
+/**
+ * The scroll the rail redraws its window at, in rows: it notes where it is
+ * scrolled to only when that crosses a step this tall, and draws a step's
+ * worth of rows past the viewport to cover the rest, so a scroll costs a
+ * render every few rows rather than one per frame.
+ */
+const SCROLL_STEP_ROWS = 8
+const SCROLL_STEP = SCROLL_STEP_ROWS * ROW_HEIGHT
+/** What the rail assumes of its list's height before the list has been laid out. */
+const VIEWPORT_GUESS = 800
 
 /**
  * Up next on a computer (docs/ui-mock `C11`, `C12`): a rail beside the page,
@@ -299,25 +311,39 @@ function Rail({
   const playing = rows.playing
 
   /*
-   * The rows come in a transition after the rail's first paint, so the slide
-   * starts on the frame after the press rather than after every row of a long
-   * queue has been drawn: the first frames show the rail's edge coming in
-   * with its title, and the rows are there before much of it is. Only at the
-   * mount — after it the rows follow the queue at once, or a row let go
-   * after a drag would be drawn where it was for a frame.
-   *
-   * The transition is kept, because shuffling a library makes the queue the
-   * whole library and this is what stops the slide waiting on three thousand
-   * rows. What it cost was that the rows then appeared in one frame over a
-   * rail that had already arrived empty, which on a slow machine reads as a
-   * panel that broke and then fixed itself. So they fade up on the rail's own
-   * slide instead, over its last third (`slide.rows`): whenever they are
-   * ready, they arrive as part of the rail arriving.
+   * Only the rows in view are drawn, and a margin either side (`railWindow`):
+   * the rail is the whole queue, and a shuffled library made that thousands
+   * of rows that took seconds to draw before the rail could slide in. Each run
+   * — the songs to come, the songs played — keeps its full height, so the
+   * scroll bar and a drag's arithmetic are what they would be with every row
+   * there, and draws its window of rows at their places in it. Where the list
+   * is scrolled to is noted only when it crosses a step (`SCROLL_STEP`), so a
+   * scroll redraws the rail every few rows rather than every frame.
    */
-  const [rowsDrawn, setRowsDrawn] = useState(false)
-  useEffect(() => {
-    startTransition(() => setRowsDrawn(true))
+  const [scrollStep, setScrollStep] = useState(0)
+  const [viewport, setViewport] = useState(VIEWPORT_GUESS)
+  const [playedLabel, setPlayedLabel] = useState(0)
+  const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const step = Math.floor(event.nativeEvent.contentOffset.y / SCROLL_STEP)
+    setScrollStep(now => (now === step ? now : step))
   }, [])
+  const scrollTop = scrollStep * SCROLL_STEP
+  const span = viewport + SCROLL_STEP
+  const nextTop = playing ? ROW_HEIGHT : 0
+  const nextAt = railWindow({
+    count: rows.next.length,
+    runTop: nextTop,
+    scrollTop,
+    span,
+    rowHeight: ROW_HEIGHT,
+  })
+  const playedAt = railWindow({
+    count: rows.played.length,
+    runTop: nextTop + rows.next.length * ROW_HEIGHT + playedLabel,
+    scrollTop,
+    span,
+    rowHeight: ROW_HEIGHT,
+  })
 
   /*
    * Open and shut (docs/ui-mock `M3`, 6): 0 is away past the right edge, 1 is
@@ -430,6 +456,9 @@ function Rail({
           contentContainerStyle={styles.listContent}
           // A held row is being moved, not the list under it.
           scrollEnabled={drag === null}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          onLayout={event => setViewport(event.nativeEvent.layout.height)}
         >
           {playing ? (
             <PlayingRow
@@ -440,45 +469,60 @@ function Rail({
               onDropSongs={actions.dropSongs}
             />
           ) : null}
-          {rowsDrawn ? (
-            <Animated.View style={slide.rows}>
-              {rows.next.map(row => (
-                <RailRow
+          <Animated.View style={slide.rows}>
+            <View style={{ height: rows.next.length * ROW_HEIGHT }}>
+              {rows.next.slice(nextAt.start, nextAt.end).map((row, at) => (
+                <View
                   key={row.song.id}
-                  song={row.song}
-                  index={row.index}
-                  artUri={artFor(row.song)}
-                  kind="next"
-                  placeholder={drag?.from === row.index}
-                  // A row out past the rail's edge is being removed, not
-                  // moved, so the room it had opened closes again.
-                  shift={drag && !drag.out ? roomShift(row.index, drag.from, drag.over) : 0}
-                  carrying={drag !== null}
-                  settling={lift.wearing === row.song.id}
-                  actions={actions}
-                />
+                  style={[styles.placed, { top: (nextAt.start + at) * ROW_HEIGHT }]}
+                >
+                  <RailRow
+                    song={row.song}
+                    index={row.index}
+                    artUri={artFor(row.song)}
+                    kind="next"
+                    placeholder={drag?.from === row.index}
+                    // A row out past the rail's edge is being removed, not
+                    // moved, so the room it had opened closes again.
+                    shift={drag && !drag.out ? roomShift(row.index, drag.from, drag.over) : 0}
+                    carrying={drag !== null}
+                    settling={lift.wearing === row.song.id}
+                    actions={actions}
+                  />
+                </View>
               ))}
-              {rows.played.length > 0 ? (
-                <>
-                  <Text style={styles.label}>Played</Text>
-                  {rows.played.map(row => (
-                    <RailRow
+            </View>
+            {rows.played.length > 0 ? (
+              <>
+                <Text
+                  style={styles.label}
+                  onLayout={event => setPlayedLabel(event.nativeEvent.layout.height)}
+                >
+                  Played
+                </Text>
+                <View style={{ height: rows.played.length * ROW_HEIGHT }}>
+                  {rows.played.slice(playedAt.start, playedAt.end).map((row, at) => (
+                    <View
                       key={row.song.id}
-                      song={row.song}
-                      index={row.index}
-                      artUri={artFor(row.song)}
-                      kind="played"
-                      placeholder={false}
-                      shift={0}
-                      carrying={false}
-                      settling={lift.wearing === row.song.id}
-                      actions={actions}
-                    />
+                      style={[styles.placed, { top: (playedAt.start + at) * ROW_HEIGHT }]}
+                    >
+                      <RailRow
+                        song={row.song}
+                        index={row.index}
+                        artUri={artFor(row.song)}
+                        kind="played"
+                        placeholder={false}
+                        shift={0}
+                        carrying={false}
+                        settling={lift.wearing === row.song.id}
+                        actions={actions}
+                      />
+                    </View>
                   ))}
-                </>
-              ) : null}
-            </Animated.View>
-          ) : null}
+                </View>
+              </>
+            ) : null}
+          </Animated.View>
         </ScrollView>
 
         <View style={styles.autoMix}>
@@ -775,6 +819,8 @@ const styles = StyleSheet.create(theme => ({
   listContent: { paddingBottom: space.md },
   label: { ...label(theme.colors), paddingTop: space.md, paddingBottom: space.xs, paddingLeft: 6 },
   slot: { height: ROW_HEIGHT, borderRadius: radius.cover },
+  // A drawn row at its place in its run, which keeps the height of every row.
+  placed: { position: 'absolute', left: 0, right: 0, height: ROW_HEIGHT },
   /*
    * The dragged row's place: kept, and empty, until the row lands. No tone of
    * its own any more — the rows below it step up into it while the copy is

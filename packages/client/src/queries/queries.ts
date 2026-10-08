@@ -128,6 +128,8 @@ export const queryKeys = {
   cloud: ['cloud'] as const,
   /** The stored doorman session's account, read on the device itself. */
   cloudSession: ['cloud-session'] as const,
+  /** The cloud library's look at the bucket now and then (`useLibrary`). */
+  cloudLook: ['cloud-look'] as const,
   /** A library's uids: `which` is this device's copy or the server being asked. */
   cloudUids: (which: 'device' | 'via-server', baseUrl?: string) =>
     ['cloud-uids', which, baseUrl] as const,
@@ -168,6 +170,32 @@ function useCloudLibraryChanges(client: QueryClient): void {
       }
     }
   }, [client])
+}
+
+/**
+ * How often a cloud library asks whether the bucket has something new, while
+ * the app is in front. A server pushes its news down an event stream; the
+ * bucket has none, so another device's edit reaches this one on the next look.
+ * This is how often to ask, not how often to look: the replica decides whether
+ * a look is due, and how much it costs (`@selfmp3/replica`'s FRESH_MS).
+ */
+const CLOUD_LOOK_EVERY_MS = STALE.minute
+
+/**
+ * Ask the cloud library its version now and then, which looks at the bucket
+ * when a look is due; what the look finds reaches the screens through
+ * `useCloudLibraryChanges`. Stops while the app is in the background, as
+ * TanStack Query's intervals do, and asks nothing of a server.
+ */
+function useCloudLook(ready: boolean): void {
+  useQuery({
+    queryKey: queryKeys.cloudLook,
+    queryFn: () => clientApi().libraryVersion(),
+    enabled: ready && clientApi().answersFromCloud(),
+    refetchInterval: CLOUD_LOOK_EVERY_MS,
+    staleTime: CLOUD_LOOK_EVERY_MS,
+    retry: false,
+  })
 }
 
 const snapshotWrites = new WeakMap<QueryClient, LibrarySnapshotWrites>()
@@ -213,6 +241,7 @@ export function useLibrary(): UseQueryResult<Library, Error> {
   const { ready } = useClientState()
   const client = useQueryClient()
   useCloudLibraryChanges(client)
+  useCloudLook(ready)
 
   return useQuery({
     queryKey: queryKeys.library,

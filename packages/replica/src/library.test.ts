@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import type { CloudSnapshot } from '@selfmp3/shared'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { isLookedAtCloudKey, type CloudSnapshot } from '@selfmp3/shared'
 import * as edits from './edits.js'
 import { createCloudLibrary } from './library.js'
 import { createCloudSession, type CloudSession } from './session.js'
@@ -52,27 +52,52 @@ interface Put {
   readonly body: unknown
 }
 
-/** A bucket that answers listings and remembers what was written into it. */
-function fakeBucket() {
+/**
+ * A bucket that answers listings and remembers what was written into it —
+ * and, with `counting`, keeps a change counter the way the doorman does.
+ */
+function fakeBucket({ counting = false }: { counting?: boolean } = {}) {
   const puts: Put[] = []
   const files = new Map<string, unknown>()
+  /** Every prefix listed, in order: the calls the bucket counts. */
+  const lists: string[] = []
   let failNextPut: number | null = null
+  let count = 0
+  let asked = 0
+  const counter = (n: number): string => `00000000000000aa.${n}`
 
   const fetch = (url: string, init?: { method?: string; body?: string | Uint8Array }) => {
     const path = url.slice(DOORMAN.length)
-    const reply = (status: number, body: unknown): Promise<CloudResponse> =>
+    const reply = (
+      status: number,
+      body: unknown,
+      headers: Record<string, string> = {},
+    ): Promise<CloudResponse> =>
       Promise.resolve({
         ok: status >= 200 && status < 300,
         status,
-        headers: { get: () => null },
+        headers: { get: (name: string) => headers[name.toLowerCase()] ?? null },
         json: () => Promise.resolve(body),
         text: () => Promise.resolve(JSON.stringify(body)),
         arrayBuffer: () =>
           Promise.resolve(new TextEncoder().encode(JSON.stringify(body)).slice().buffer),
       })
 
+    /** The doorman's header for a write or delete of a looked-at key. */
+    const moved = (key: string): Record<string, string> => {
+      if (!counting || !isLookedAtCloudKey(key)) return {}
+      count++
+      return { 'selfmp3-changes': `${counter(count - 1)} ${counter(count)}` }
+    }
+
+    if (path === '/v1/changes') {
+      if (!counting) return reply(404, { error: 'not found', code: 'not_found' })
+      asked++
+      return reply(200, { changes: counter(count) })
+    }
     if (path.startsWith('/v1/list')) {
       const prefix = decodeURIComponent(/prefix=([^&]*)/.exec(path)?.[1] ?? '')
+      lists.push(prefix)
       const objects = [...files.keys()]
         .filter(key => key.startsWith(prefix))
         .map(key => ({ key, size: 1 }))
@@ -89,7 +114,11 @@ function fakeBucket() {
         const body: unknown = JSON.parse(String(init.body))
         puts.push({ key, body })
         files.set(key, body)
-        return reply(200, {})
+        return reply(200, {}, moved(key))
+      }
+      if (init?.method === 'DELETE') {
+        files.delete(key)
+        return reply(204, null, moved(key))
       }
       return files.has(key) ? reply(200, files.get(key)) : reply(404, {})
     }
@@ -100,6 +129,13 @@ function fakeBucket() {
     fetch,
     puts,
     files,
+    lists,
+    /** How many times the counter was read. */
+    asked: () => asked,
+    /** A server with the bucket's own key wrote something: the counter never saw it. */
+    writeUncounted: (key: string, body: unknown) => {
+      files.set(key, body)
+    },
     failNextPutWith: (status: number) => {
       failNextPut = status
     },
@@ -127,8 +163,7 @@ function platformFor(bucket: ReturnType<typeof fakeBucket>, store: DeviceStore):
   }
 }
 
-function build(store = memoryStore()) {
-  const bucket = fakeBucket()
+function build(store = memoryStore(), bucket = fakeBucket()) {
   const platform = platformFor(bucket, store)
   const session = createCloudSession(platform)
   const library = createCloudLibrary(platform, session)
@@ -549,7 +584,8 @@ describe('looking at the bucket', () => {
     made.library.markCloudLibraryStale()
     const again = await made.library.loadCloudLibrary(SESSION)
 
-    expect(writes).toEqual([])
+    // Only when it looked, so a new tab or a relaunch need not look again at once.
+    expect(writes).toEqual(['cloud-look'])
     // The very same view: nothing was built again.
     expect(again).toBe(first)
   })
@@ -579,6 +615,9 @@ describe('looking at the bucket', () => {
     await createCloudLibrary(warmPlatform, warmSession).loadCloudLibrary(SESSION)
 
     await tagFromElsewhere(bucket, 'new here')
+    // Opened again later: a look made moments ago would still be fresh.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.now() + 6 * 60_000)
 
     const gated = gatedPlatform(bucket, store)
     const library = createCloudLibrary(gated.platform, createCloudSession(gated.platform))
@@ -611,6 +650,152 @@ describe('looking at the bucket', () => {
     library.markCloudLibraryStale()
     const view = await library.loadCloudLibrary(SESSION)
     expect(view.library.tags.map(tag => tag.name)).toEqual(['checked for'])
+  })
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+/** Let the clock run on: a look this long ago is as fresh as it is. */
+function later(ms: number): void {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(Date.now() + ms)
+}
+
+/** Wait for a look behind an answer to have asked the counter `times` times in all. */
+async function counterAsked(bucket: ReturnType<typeof fakeBucket>, times: number): Promise<void> {
+  await vi.waitFor(() => expect(bucket.asked()).toBe(times))
+  // And for whatever it found to be taken in.
+  await new Promise(resolve => setTimeout(resolve, 0))
+}
+
+describe('what looking costs the bucket', () => {
+  it('asks only the counter while nothing has been written', async () => {
+    const made = build(memoryStore(), fakeBucket({ counting: true }))
+    await signedIn(made)
+    made.bucket.files.set(SNAPSHOT_KEY, SNAPSHOT)
+    await made.library.loadCloudLibrary(SESSION)
+    const listed = made.bucket.lists.length
+    const asked = made.bucket.asked()
+
+    later(61_000)
+    await made.library.loadCloudLibrary(SESSION)
+    await counterAsked(made.bucket, asked + 1)
+    expect(made.bucket.lists.length).toBe(listed)
+  })
+
+  it('lists once another device has written something, and finds it', async () => {
+    const made = build(memoryStore(), fakeBucket({ counting: true }))
+    await signedIn(made)
+    await made.library.loadCloudLibrary(SESSION)
+
+    await tagFromElsewhere(made.bucket, 'from elsewhere')
+    const listed = made.bucket.lists.length
+    const heard = new Promise<void>(resolve => {
+      made.library.onCloudLibraryChanged(resolve)
+    })
+    later(61_000)
+    await made.library.loadCloudLibrary(SESSION)
+    await heard
+    expect(made.bucket.lists.length).toBe(listed + 2)
+    const view = await made.library.loadCloudLibrary(SESSION)
+    expect(view.library.tags.map(tag => tag.name)).toEqual(['from elsewhere'])
+  })
+
+  it('does not list for its own uploads', async () => {
+    const made = build(memoryStore(), fakeBucket({ counting: true }))
+    await signedIn(made)
+    await made.library.loadCloudLibrary(SESSION)
+    const listed = made.bucket.lists.length
+    for (const name of ['a', 'b']) {
+      await made.library.recordChanges(SESSION, ctx => ({
+        changes: edits.createTag(ctx, name, undefined).changes,
+        answer: () => undefined,
+      }))
+      await made.library.flushCloudChanges()
+    }
+    expect(made.bucket.puts).toHaveLength(2)
+
+    const asked = made.bucket.asked()
+    later(61_000)
+    await made.library.loadCloudLibrary(SESSION)
+    await counterAsked(made.bucket, asked + 1)
+    expect(made.bucket.lists.length).toBe(listed)
+  })
+
+  it('lists anyway after half an hour, for what the counter never saw', async () => {
+    const made = build(memoryStore(), fakeBucket({ counting: true }))
+    await signedIn(made)
+    await made.library.loadCloudLibrary(SESSION)
+    made.bucket.writeUncounted(SNAPSHOT_KEY, SNAPSHOT)
+
+    later(61_000)
+    await made.library.loadCloudLibrary(SESSION)
+    await counterAsked(made.bucket, 2)
+    expect((await made.library.loadCloudLibrary(SESSION)).library.songs).toEqual([])
+
+    const heard = new Promise<void>(resolve => {
+      made.library.onCloudLibraryChanged(resolve)
+    })
+    later(31 * 60_000)
+    await made.library.loadCloudLibrary(SESSION)
+    await heard
+    expect((await made.library.loadCloudLibrary(SESSION)).library.songs).toHaveLength(1)
+  })
+
+  it('lists whatever the counter says when a look is asked for by name', async () => {
+    const made = build(memoryStore(), fakeBucket({ counting: true }))
+    await signedIn(made)
+    await made.library.loadCloudLibrary(SESSION)
+    made.bucket.writeUncounted(SNAPSHOT_KEY, SNAPSHOT)
+
+    made.library.markCloudLibraryStale()
+    const view = await made.library.loadCloudLibrary(SESSION)
+    expect(view.library.songs).toHaveLength(1)
+  })
+
+  it('looks a good deal less often with a doorman that keeps no counter', async () => {
+    const made = build()
+    await signedIn(made)
+    await made.library.loadCloudLibrary(SESSION)
+    const listed = made.bucket.lists.length
+
+    later(2 * 60_000)
+    await made.library.loadCloudLibrary(SESSION)
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(made.bucket.lists.length).toBe(listed)
+
+    later(4 * 60_000)
+    await made.library.loadCloudLibrary(SESSION)
+    await vi.waitFor(() => expect(made.bucket.lists.length).toBe(listed + 2))
+  })
+
+  it('does not look again from a new tab, or a relaunch, while the last look is fresh', async () => {
+    const store = memoryStore()
+    const bucket = fakeBucket({ counting: true })
+    const first = build(store, bucket)
+    await signedIn(first)
+    await first.library.loadCloudLibrary(SESSION)
+    const listed = bucket.lists.length
+    const asked = bucket.asked()
+
+    const second = build(store, bucket)
+    await second.library.loadCloudLibrary(SESSION)
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(bucket.lists.length).toBe(listed)
+    expect(bucket.asked()).toBe(asked)
+  })
+
+  it('answers where the server is from the copy, however long since the last look', async () => {
+    const made = build(memoryStore(), fakeBucket({ counting: true }))
+    await signedIn(made)
+    await made.library.loadCloudLibrary(SESSION)
+    const asked = made.bucket.asked()
+    later(60 * 60_000)
+    await made.library.peekCloudLibrary(SESSION)
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(made.bucket.asked()).toBe(asked)
   })
 })
 

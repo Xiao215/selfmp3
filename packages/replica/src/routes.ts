@@ -113,6 +113,7 @@ export function createCloudRoutes(
     cloudMotion,
     cloudPlaylistSongs,
     loadCloudLibrary,
+    peekCloudLibrary,
     recordChanges,
   } = library
 
@@ -459,10 +460,13 @@ export function createCloudRoutes(
         })),
     ],
     // Where the server is, for a device that would rather ask it directly.
+    // Asked every few seconds by every screen that might use the server, so
+    // from this device's copy alone: as a library read, it was a look at the
+    // bucket — two counted listings — every eighty seconds the app was open.
     [
       'GET',
       '/api/cloud/server',
-      async ({ session }) => ({ server: (await loadCloudLibrary(session)).server }),
+      async ({ session }) => ({ server: (await peekCloudLibrary(session)).server }),
     ],
     /*
      * The uid behind each of this device's song ids — the other half of the
@@ -473,7 +477,7 @@ export function createCloudRoutes(
       'GET',
       '/api/cloud/uids',
       async ({ session }) => {
-        const view = await loadCloudLibrary(session)
+        const view = await peekCloudLibrary(session)
         return { songs: [...view.uids.songs].map(([id, uid]) => ({ id, uid })) }
       },
     ],

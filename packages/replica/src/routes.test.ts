@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { CloudSnapshot } from '@selfmp3/shared'
 import { createCloudLibrary } from './library.js'
 import type { CloudPlatform, CloudResponse, DeviceStore } from './platform.js'
@@ -123,11 +123,13 @@ describe('/api/cloud/uids', () => {
           Promise.resolve(new TextEncoder().encode(JSON.stringify(body)).slice().buffer),
       })
 
+    const fetched: string[] = []
     const platform: CloudPlatform = {
       doormanUrl: DOORMAN,
       store,
       fetch: (url: string) => {
         const path = url.slice(DOORMAN.length)
+        fetched.push(path)
         if (path.startsWith('/v1/list')) {
           const prefix = decodeURIComponent(/prefix=([^&]*)/.exec(path)?.[1] ?? '')
           return reply(200, {
@@ -161,7 +163,7 @@ describe('/api/cloud/uids', () => {
 
     const session = createCloudSession(platform)
     const library = createCloudLibrary(platform, session)
-    return { session, ...createCloudRoutes(platform, session, library) }
+    return { session, fetched, ...createCloudRoutes(platform, session, library) }
   }
 
   it('names the uid behind each id this device handed out', async () => {
@@ -184,6 +186,29 @@ describe('/api/cloud/uids', () => {
     const titleOf = new Map(library.songs.map(row => [row.id, row.title]))
     expect(titleOf.get(byUid.get(uid('a')) ?? 0)).toBe('Song a')
     expect(titleOf.get(byUid.get(uid('b')) ?? 0)).toBe('Song b')
+  })
+
+  it('answers it, and where the server is, from the copy however long since a look', async () => {
+    // Every screen that might use the server asks for both every few seconds.
+    // As library reads they looked at the bucket, two counted listings, every
+    // eighty seconds the app was open.
+    const made = device()
+    await made.session.saveSession(SESSION)
+    await made.cloudRequest('GET', '/api/cloud/server', undefined)
+    const asked = made.fetched.length
+
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(Date.now() + 60 * 60_000)
+      for (let i = 0; i < 3; i++) {
+        await made.cloudRequest('GET', '/api/cloud/server', undefined)
+        await made.cloudRequest('GET', '/api/cloud/uids', undefined)
+      }
+      await new Promise(resolve => setTimeout(resolve, 10))
+      expect(made.fetched.slice(asked)).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('needs a session, like every other route that reads the bucket', async () => {

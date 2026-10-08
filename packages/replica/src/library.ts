@@ -1,9 +1,11 @@
 import { z } from 'zod'
 import {
+  CHANGES_HEADER,
   CLOUD_FORMAT,
   ChangeSchema,
   CloudDeviceIdSchema,
   CloudSnapshotSchema,
+  DoormanChangesSchema,
   DoormanListSchema,
   HlcClock,
   HlcSchema,
@@ -15,6 +17,7 @@ import {
   logKey,
   newCloudDeviceId,
   newestSnapshotKey,
+  parseChangesHeader,
   readLogFile,
   unfoldedLogKeys,
   type Change,
@@ -62,14 +65,28 @@ const STATE_KEY = 'cloud-state'
 const BASE_KEY = 'cloud-base'
 const LOGS_KEY = 'cloud-logs'
 const OUTBOX_KEY = 'cloud-outbox'
+const LOOK_KEY = 'cloud-look'
 
 /**
  * Within this long of the last look at the bucket, the library is answered
- * from here. A look is two listings, and the bucket counts listings against
- * a daily allowance (docs/SYNC.md, "Caps"): at twenty seconds, a device that
- * kept asking spent the whole allowance on its own in a day.
+ * from here.
+ *
+ * A look asks the doorman's change counter first (`/v1/changes`), which costs
+ * the bucket nothing, and lists `log/` and `snapshots/` only when it has moved.
+ * Without a counter — a doorman deployed before it — every look is those two
+ * listings, and the bucket counts listings against a daily allowance
+ * (docs/SYNC.md, "Caps"): a look every minute or so, from one open tab, was
+ * most of the allowance on its own. So a device that knows of no counter
+ * looks a good deal less often.
  */
 const FRESH_MS = 60_000
+const LISTED_FRESH_MS = 5 * 60_000
+/**
+ * A counter that has not moved stands in for a listing for at most this long:
+ * it only sees what goes through the doorman, and a server given the bucket's
+ * key directly writes snapshots past it.
+ */
+const COUNTER_TRUSTED_MS = 30 * 60_000
 /** Edits made within this long of each other go up as one file. */
 const FLUSH_DELAY_MS = 1_500
 const FLUSH_RETRY_MS = [5_000, 15_000, 60_000, 300_000]
@@ -91,6 +108,16 @@ const StoredBaseSchema = z.object({
   key: z.string().nullable(),
   snapshot: CloudSnapshotSchema.nullable(),
 })
+
+/** When this device last looked, kept so a new tab or a relaunch does not look again at once. */
+const StoredLookSchema = z.object({
+  checkedAt: z.number(),
+  listedAt: z.number(),
+  changes: z.string().nullable(),
+})
+type Look = z.infer<typeof StoredLookSchema>
+
+const NEVER_LOOKED: Look = { checkedAt: 0, listedAt: 0, changes: null }
 
 /** The outbox's envelope; each change in it is checked on its own (`knownChanges`). */
 const StoredOutboxSchema = z.object({
@@ -150,7 +177,13 @@ interface Replica {
    * rebuilds it, once for however many there were.
    */
   viewStale: boolean
-  checkedAt: number
+  /**
+   * When the bucket was last looked at (`checkedAt`) and last listed
+   * (`listedAt`), and the change counter as it stood before that listing —
+   * or as this device's own writes have moved it since. Null when the doorman
+   * keeps no counter.
+   */
+  look: Look
   /**
    * The next read waits for a look at the bucket rather than answering first:
    * "Check for new songs", or a look in the background that failed in a way
@@ -185,6 +218,13 @@ interface RecordOptions {
  */
 export interface CloudLibraryApi {
   loadCloudLibrary: (session: CloudSession) => Promise<CloudLibrary>
+  /**
+   * The library from this device's copy, without looking at the bucket
+   * however long it has been: for answers that hardly ever change — where the
+   * server is, which uid is which song — and are asked for every few seconds.
+   * A look that a library read starts brings them up to date.
+   */
+  peekCloudLibrary: (session: CloudSession) => Promise<CloudLibrary>
   markCloudLibraryStale: () => void
   /**
    * Hear about a look at the bucket, made in the background, that changed the
@@ -365,6 +405,15 @@ export function createCloudLibrary(
     return null
   }
 
+  /** The last look as kept, or one that never happened when it does not read as one. */
+  function storedLook(value: unknown): Look {
+    const parsed = StoredLookSchema.safeParse(value)
+    if (!parsed.success) return NEVER_LOOKED
+    // A clock put back makes a look in the future; it is not fresh, it is wrong.
+    const now = Date.now()
+    return parsed.data.checkedAt > now || parsed.data.listedAt > now ? NEVER_LOOKED : parsed.data
+  }
+
   /** The log files this device kept, each read the way one from the bucket is. */
   function storedLogs(value: unknown): Map<string, LogFile> {
     const logs = new Map<string, LogFile>()
@@ -395,7 +444,8 @@ export function createCloudLibrary(
         library: replay(null, [], []),
         view: snapshotToLibrary(emptySnapshot(), NO_IDS, 0),
         viewStale: false,
-        checkedAt: 0,
+        // Only with the copy it describes: a look without a base to go with it says nothing.
+        look: base ? storedLook(await store.read(LOOK_KEY)) : NEVER_LOOKED,
         mustCheck: false,
       }
       await rebuild(r)
@@ -403,7 +453,7 @@ export function createCloudLibrary(
       // so a failure here leaves nothing behind to be shown instead. A device
       // that has read it before answers from its copy at once, and looks in
       // the background (loadCloudLibrary).
-      if (!base) await refresh(r, session)
+      if (!base) await refresh(r, session, { list: true })
       if (began !== generation) throw new DoormanError(401, 'Signed out.', 'unauthorized')
       replica = r
       listenForConnection()
@@ -519,12 +569,64 @@ export function createCloudLibrary(
   }
 
   /**
+   * Where the doorman's change counter stands, or null when there is none to
+   * ask — a doorman deployed before it answers 404 — or it cannot be asked.
+   * Either way the look lists, as it always did; a doorman that cannot be
+   * reached will say so there.
+   */
+  async function readCounter(session: CloudSession): Promise<string | null> {
+    try {
+      const response = await sessionApi.doormanFetch(session, '/v1/changes')
+      if (response.status === 404) return null
+      return DoormanChangesSchema.parse(await response.json()).changes
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * This device's own write or delete moved the counter: from where this
+   * device held it, it is where the doorman says now, since nothing else came
+   * between. Anything else leaves it, and the next look lists.
+   */
+  async function followOwnChange(r: Replica, response: CloudResponse): Promise<void> {
+    const moved = parseChangesHeader(response.headers.get(CHANGES_HEADER))
+    if (!moved || r.look.changes !== moved.before) return
+    r.look = { ...r.look, changes: moved.after }
+    await store.write(LOOK_KEY, r.look)
+  }
+
+  /**
    * Look at the bucket: the newest snapshot, and every log file it has not
    * folded in. The logs are listed first: a file tidied away after the listing
    * means a newer snapshot has it, and one more look finds that snapshot.
+   *
+   * The change counter is asked before either listing. Where it stands as
+   * this device left it, and the last listing is recent enough to trust it,
+   * nothing has been written since and nothing is listed. `list` lists
+   * whatever it says: a look asked for by name ("Check for new songs", an
+   * import that has just finished) should see what the bucket holds, counted
+   * or not.
    */
-  async function refresh(r: Replica, session: CloudSession): Promise<boolean> {
+  async function refresh(
+    r: Replica,
+    session: CloudSession,
+    { list }: { list: boolean },
+  ): Promise<boolean> {
     const began = generation
+    const startedAt = Date.now()
+    const counter = await readCounter(session)
+    if (
+      !list &&
+      counter !== null &&
+      counter === r.look.changes &&
+      startedAt - r.look.listedAt < COUNTER_TRUSTED_MS
+    ) {
+      // Kept as it stands when the look settles: an upload of this device's
+      // own may have moved it on meanwhile.
+      return settleLook(r, began, r.base, r.logs, held => ({ ...held, checkedAt: Date.now() }))
+    }
+
     for (let attempt = 0; attempt < 2; attempt++) {
       const logKeys = await listKeys(session, LOG_FOLDER)
       const newest = newestSnapshotKey(await listKeys(session, SNAPSHOTS_FOLDER))
@@ -563,41 +665,63 @@ export function createCloudLibrary(
         }
       }
 
-      const changed = await exclusive(async () => {
-        // Signed out while the bucket was being asked: nothing of it is wanted now.
-        if (began !== generation) return false
-        const baseChanged = base !== r.base
-        // Every file kept here is the one already held under the same key
-        // (`r.logs.get` comes first above), so the same keys are the same logs.
-        const logsChanged =
-          logs.size !== r.logs.size || [...logs.keys()].some(key => !r.logs.has(key))
-        // Another tab may have added to the outbox since. Read, not updated:
-        // an update would write the outbox back on every look.
-        const outbox = asStoredOutbox(await store.read(OUTBOX_KEY), true) ?? r.outbox
-        const outboxChanged = outboxSignature(outbox) !== outboxSignature(r.outbox)
-
-        r.outbox = outbox
-        r.checkedAt = Date.now()
-        r.mustCheck = false
-        if (baseChanged || !r.baseStored) {
-          await store.write(BASE_KEY, base)
-          r.baseStored = true
-        }
-        // The usual answer: nothing new anywhere. Replaying and rewriting the
-        // whole library to arrive where it already is was most of what a look
-        // at the bucket cost.
-        if (!baseChanged && !logsChanged && !outboxChanged) return false
-
-        r.base = base
-        r.logs = logs
-        if (logsChanged) await store.write(LOGS_KEY, Object.fromEntries(logs))
-        await rebuild(r)
-        return true
-      })
+      // The counter as it stood before the listings: a write during them moved
+      // it past this, so the next look lists again rather than miss it.
+      const changed = await settleLook(r, began, base, logs, () => ({
+        checkedAt: Date.now(),
+        listedAt: startedAt,
+        changes: counter,
+      }))
       void tidyOwnLogs(r, session, logKeys)
       return changed
     }
     return false
+  }
+
+  /**
+   * Take in what a look found — a new base, other logs, or the same ones when
+   * the counter said nothing had changed — and whatever another tab added to
+   * the outbox meanwhile. Says whether the library is different now.
+   */
+  function settleLook(
+    r: Replica,
+    began: number,
+    base: Replica['base'],
+    logs: Map<string, LogFile>,
+    look: (held: Look) => Look,
+  ): Promise<boolean> {
+    return exclusive(async () => {
+      // Signed out while the bucket was being asked: nothing of it is wanted now.
+      if (began !== generation) return false
+      const baseChanged = base !== r.base
+      // Every file kept here is the one already held under the same key
+      // (`r.logs.get` comes first above), so the same keys are the same logs.
+      const logsChanged =
+        logs.size !== r.logs.size || [...logs.keys()].some(key => !r.logs.has(key))
+      // Another tab may have added to the outbox since. Read, not updated:
+      // an update would write the outbox back on every look.
+      const outbox = asStoredOutbox(await store.read(OUTBOX_KEY), true) ?? r.outbox
+      const outboxChanged = outboxSignature(outbox) !== outboxSignature(r.outbox)
+
+      r.outbox = outbox
+      r.mustCheck = false
+      if (baseChanged || !r.baseStored) {
+        await store.write(BASE_KEY, base)
+        r.baseStored = true
+      }
+      r.look = look(r.look)
+      await store.write(LOOK_KEY, r.look)
+      // The usual answer: nothing new anywhere. Replaying and rewriting the
+      // whole library to arrive where it already is was most of what a look
+      // at the bucket cost.
+      if (!baseChanged && !logsChanged && !outboxChanged) return false
+
+      r.base = base
+      r.logs = logs
+      if (logsChanged) await store.write(LOGS_KEY, Object.fromEntries(logs))
+      await rebuild(r)
+      return true
+    })
   }
 
   /** Which changes are waiting, by stamp: every change has its own. */
@@ -617,7 +741,10 @@ export function createCloudLibrary(
     if (!snapshot || Date.now() - Date.parse(snapshot.writtenAt) < PRUNE_AFTER_MS) return
     for (const key of foldedOwnLogs(keys, r.outbox.device, snapshot.upTo).slice(0, 50)) {
       try {
-        await sessionApi.doormanFetch(session, `/v1/files/${key}`, { method: 'DELETE' })
+        const response = await sessionApi.doormanFetch(session, `/v1/files/${key}`, {
+          method: 'DELETE',
+        })
+        if (replica === r) await followOwnChange(r, response)
       } catch {
         return
       }
@@ -647,14 +774,21 @@ export function createCloudLibrary(
       // this one is being asked to find: wait for it, then look again.
       await background?.catch(() => undefined)
       try {
-        await refresh(r, session)
+        await refresh(r, session, { list: true })
       } catch (error) {
         if (!passing(error)) throw error
       }
-    } else if (Date.now() - r.checkedAt > FRESH_MS) {
+    } else if (
+      Date.now() - r.look.checkedAt >
+      (r.look.changes === null ? LISTED_FRESH_MS : FRESH_MS)
+    ) {
       lookInBackground(r, session)
     }
     return currentView(r)
+  }
+
+  async function peekCloudLibrary(session: CloudSession): Promise<CloudLibrary> {
+    return currentView(await open(session))
   }
 
   /** The view with every deferred change in it (`RecordOptions.deferView`). */
@@ -672,12 +806,12 @@ export function createCloudLibrary(
   function lookInBackground(r: Replica, session: CloudSession): void {
     background ??= (async () => {
       try {
-        if (await refresh(r, session)) announce()
+        if (await refresh(r, session, { list: false })) announce()
       } catch (error) {
         if (passing(error)) {
           // Not asked again on every read while the bucket cannot answer:
           // after the usual wait, like a look that found nothing.
-          r.checkedAt = Date.now()
+          r.look = { ...r.look, checkedAt: Date.now() }
           return
         }
         // Signed out elsewhere, say. Nobody was waiting to hear it, so the
@@ -712,7 +846,7 @@ export function createCloudLibrary(
   /** Look at the bucket on the next read, and wait for it, whenever the last look was: "Check for new songs". */
   function markCloudLibraryStale(): void {
     if (replica) {
-      replica.checkedAt = 0
+      replica.look = { ...replica.look, checkedAt: 0 }
       replica.mustCheck = true
     }
   }
@@ -831,6 +965,8 @@ export function createCloudLibrary(
             // Now a log file like any other device's, until a snapshot folds it in.
             r.logs.set(key, file)
             await store.write(LOGS_KEY, Object.fromEntries(r.logs))
+            // A play is a log file, and the next look need not list for it.
+            await followOwnChange(r, response)
             await changeOutbox(current =>
               current.inflight?.seq === inflight.seq ? { ...current, inflight: null } : current,
             )
@@ -1003,8 +1139,8 @@ export function createCloudLibrary(
     if (flushTimer) clearTimeout(flushTimer)
     flushTimer = null
     await Promise.all(
-      [IDS_KEY, FILES_KEY, PLAYLISTS_KEY, STATE_KEY, BASE_KEY, LOGS_KEY, OUTBOX_KEY].map(key =>
-        store.remove(key).catch(() => undefined),
+      [IDS_KEY, FILES_KEY, PLAYLISTS_KEY, STATE_KEY, BASE_KEY, LOGS_KEY, OUTBOX_KEY, LOOK_KEY].map(
+        key => store.remove(key).catch(() => undefined),
       ),
     )
     await platform.textCache?.clear().catch(() => undefined)
@@ -1035,6 +1171,7 @@ export function createCloudLibrary(
 
   return {
     loadCloudLibrary,
+    peekCloudLibrary,
     markCloudLibraryStale,
     onCloudLibraryChanged,
     cloudLibraryVersion,

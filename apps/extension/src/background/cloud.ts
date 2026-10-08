@@ -102,7 +102,8 @@ export function createCloud(store: KeyValueStore, fetchImpl: typeof fetch): Clou
     async server() {
       const current = await session.loadSession()
       if (!current) return null
-      return (await library.loadCloudLibrary(current)).server
+      // Asked on every routing decision: the copy's answer, not a look at the bucket.
+      return (await library.peekCloudLibrary(current)).server
     },
 
     flush: () => library.flushCloudChanges(),

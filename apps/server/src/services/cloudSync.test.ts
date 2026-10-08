@@ -27,6 +27,7 @@ import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
 import { CloudError, type CloudStore } from '../bucket/store.js'
 import { MemoryCloudStore } from './fixtures/memoryStore.js'
+import { KeptCloudFiles } from '../bucket/kept.js'
 import { AudioFeaturesRepository } from '../repositories/audioFeatures.js'
 import { CloudRepository } from '../repositories/cloud.js'
 import { MotionStore } from './motionStore.js'
@@ -1535,7 +1536,9 @@ describe('CloudSyncService', () => {
     let analysed: Set<number>
 
     /** The same service, but one that lets go of what analysis is done with. */
-    const lettingGo = (): CloudSyncService => {
+    const lettingGo = (
+      changed: Partial<ConstructorParameters<typeof CloudSyncService>[0]> = {},
+    ): CloudSyncService => {
       const logger = createLogger('silent')
       const storage = new LocalStorageDriver(root)
       const service = new CloudSyncService({
@@ -1556,6 +1559,7 @@ describe('CloudSyncService', () => {
         openStore: () => bucket,
         debounceMs: 5,
         now: () => new Date((clock += 1000)),
+        ...changed,
       })
       extras.push(service)
       return service
@@ -1647,6 +1651,40 @@ describe('CloudSyncService', () => {
       await service.syncNow()
       expect(bucket.puts.slice(before).filter(key => key.startsWith('lyrics/'))).toEqual([])
       expect(latest().songs[0]?.lyrics?.key).toBe(key)
+    })
+
+    it('reads the words from this disk after the first time, and lets them go with the bucket’s', async () => {
+      const kept = (folder: string) =>
+        new KeptCloudFiles(path.join(dataDir, folder), createLogger('silent'))
+      const service = lettingGo({ kept: kept('cloud-files') })
+      const words = '[00:01.00] la\n[00:02.00] la'
+      const id = addSong('A - One', 'one', { lyrics: words })
+      analysed.add(id)
+      await service.connect(CONNECT)
+      await service.whenIdle()
+      expect(here('A - One/A - One.lrc')).toBe(false)
+      const key = latest().songs[0]?.lyrics?.key ?? ''
+      const reads = () => bucket.gets.filter(read => read === key).length
+
+      // Kept as they went up: every start's index and romaji pass read them from here.
+      for (let i = 0; i < 3; i++) {
+        expect(await service.fetchLyrics(id)).toEqual({ text: words, synced: true })
+      }
+      expect(reads()).toBe(0)
+
+      // A server with nothing kept yet reads them from the bucket once.
+      const fresh = lettingGo({ kept: kept('another') })
+      await fresh.connect(CONNECT)
+      await fresh.whenIdle()
+      for (let i = 0; i < 3; i++) await fresh.fetchLyrics(id)
+      expect(reads()).toBe(1)
+
+      // Cleared by hand, the bucket's words go, and so do the ones kept here.
+      songs.setLyricsKind(id, 'none')
+      await service.syncNow()
+      await service.syncNow()
+      expect(bucket.keys('lyrics/')).not.toContain(key)
+      expect(fs.existsSync(path.join(dataDir, 'cloud-files', key))).toBe(false)
     })
 
     it('takes the words out of the bucket’s song when they are cleared here', async () => {

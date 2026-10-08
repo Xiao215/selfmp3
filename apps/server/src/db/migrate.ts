@@ -763,6 +763,20 @@ const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    // 38. How many songs analysis and hearing have downloaded from the bucket
+    // today (UTC, as Backblaze counts), so a restart does not start the day's
+    // allowance over. One row: the day it counts, and how many.
+    name: 'count the day’s background downloads from the bucket',
+    sql: `
+      CREATE TABLE bucket_downloads (
+        id    INTEGER PRIMARY KEY CHECK (id = 1),
+        day   TEXT    NOT NULL DEFAULT '',
+        count INTEGER NOT NULL DEFAULT 0
+      );
+      INSERT INTO bucket_downloads (id) VALUES (1);
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

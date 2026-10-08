@@ -1,3 +1,4 @@
+import path from 'node:path'
 import { ANALYSIS_VERSION } from '@selfmp3/shared'
 import type { Config, ServingConfig } from './config.js'
 import { createLogger, type Logger } from './logger.js'
@@ -12,6 +13,7 @@ import { WrappedRepository } from './repositories/wrapped.js'
 import { ImportRepository } from './repositories/imports.js'
 import { AudioFeaturesRepository } from './repositories/audioFeatures.js'
 import { SoundVectorsRepository } from './repositories/soundVectors.js'
+import { BucketDownloadsRepository } from './repositories/bucketDownloads.js'
 import { MetadataService } from './services/metadata.js'
 import { LyricsService } from './services/lyrics.js'
 import { YouTubeMusicLyrics } from './services/youtubeMusic.js'
@@ -51,6 +53,7 @@ import { DeviceService } from './services/devices.js'
 import { CloudRepository } from './repositories/cloud.js'
 import { SyncRepository } from './repositories/sync.js'
 import { CloudSyncService } from './services/cloudSync.js'
+import { KeptCloudFiles } from './bucket/kept.js'
 import { CloudAdopt } from './services/cloudAdopt.js'
 import { CloudIngest } from './services/cloudIngest.js'
 import { CloudImportService } from './services/cloudImports.js'
@@ -260,6 +263,8 @@ export function createContainer(configured: Config): Container {
     sync: syncRepo,
     ingest,
     adopt,
+    // The bucket's words, read from this disk after the first time.
+    kept: new KeptCloudFiles(path.join(config.dataDir, 'cloud-files'), logger),
     // The last thing that needs a song's audio here; once it is done, the
     // copy on this disk may go. With the listening model ready, that includes
     // being heard, so hearing it later does not cost a download.
@@ -427,6 +432,7 @@ export function createContainer(configured: Config): Container {
     // A song whose copy here has gone is fetched from the bucket to analyse.
     fetchAudio: songId => cloudSync.fetchAudio(songId),
     sound,
+    downloads: new BucketDownloadsRepository(db),
     logger,
     // A version bump makes clients refetch; do it in batches, and once at the
     // end, so a long first run does not have every phone re-downloading the

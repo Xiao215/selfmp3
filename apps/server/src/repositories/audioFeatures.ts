@@ -74,8 +74,8 @@ export class AudioFeaturesRepository {
     this.#isAnalysed = db.prepare<[number, number], { n: number }>(
       'SELECT COUNT(*) AS n FROM song_audio_features WHERE song_id = ? AND version >= ?',
     )
-    this.#nextPending = db.prepare<[number], { id: number }>(
-      `SELECT s.id FROM songs s WHERE ${pendingWhere} ORDER BY s.added_at DESC, s.id DESC LIMIT 1`,
+    this.#nextPending = db.prepare<[number, number], { id: number }>(
+      `SELECT s.id FROM songs s WHERE ${pendingWhere} ORDER BY s.added_at DESC, s.id DESC LIMIT ?`,
     )
     this.#countPending = db.prepare<[number], { n: number }>(
       `SELECT COUNT(*) AS n FROM songs s WHERE ${pendingWhere}`,
@@ -120,8 +120,10 @@ export class AudioFeaturesRepository {
     return (this.#isAnalysed.get(songId, version)?.n ?? 0) > 0
   }
 
-  nextPending(version: number): number | null {
-    return this.#nextPending.get(version)?.id ?? null
+  /** The next song to analyse, passing over `skip`: songs the bucket would not give just now. */
+  nextPending(version: number, skip: ReadonlySet<number> = new Set()): number | null {
+    const rows = this.#nextPending.all(version, skip.size + 1)
+    return rows.find(row => !skip.has(row.id))?.id ?? null
   }
 
   countPending(version: number): number {

@@ -41,6 +41,7 @@ import type { StorageDriver } from '../storage/index.js'
 import { CloudError, S3CloudStore, type CloudStore } from '../bucket/store.js'
 import { LocalCloudStore } from '../bucket/local.js'
 import { DoormanClient } from '../bucket/doorman.js'
+import type { KeptCloudFiles } from '../bucket/kept.js'
 import { debounce, type Debounced } from './debounce.js'
 import type {
   CloudConnection,
@@ -247,6 +248,13 @@ interface CloudSyncDeps {
    * where vectors are not what is being tested, which then sends none.
    */
   readonly sound?: Pick<SoundService, 'model' | 'hearing' | 'packSignature' | 'pack' | 'restore'>
+  /**
+   * The bucket's words, kept on this disk once sent or read (bucket/kept.ts),
+   * so the server's own reads of them — the search index and romaji at every
+   * start, a device asking for a song's lyrics — cost the bucket nothing after
+   * the first. Absent where that is not what is being tested.
+   */
+  readonly kept?: KeptCloudFiles
   /** Other devices' changes: where this server keeps how far it has read, and what applies them. */
   readonly sync?: SyncRepository
   readonly ingest?: CloudIngest
@@ -562,7 +570,13 @@ export class CloudSyncService {
     const store = this.#store
     const state = this.#deps.cloud.state(songId)
     if (!store || !state?.lyricsKey) return null
-    const body = await store.get(state.lyricsKey)
+    const key = state.lyricsKey
+    const kept = this.#deps.kept
+    let body = (await kept?.read(key)) ?? null
+    if (!body) {
+      body = await store.get(key)
+      if (body) await kept?.keep(key, body)
+    }
     return body ? { text: body.toString('utf8'), synced: state.lyricsKind === 'synced' } : null
   }
 
@@ -1675,6 +1689,8 @@ export class CloudSyncService {
     const data = Buffer.from(text, 'utf8')
     const key = lyricsKey(sha256(data), kind === 'synced')
     await this.#putOnce(store, key, data, 'text/plain; charset=utf-8')
+    // Read from here once the sidecar is let go, rather than from the bucket.
+    await this.#deps.kept?.keep(key, data)
 
     const romanize = this.#deps.romanize
     const lines = romanize ? await romanize(file.id, text).catch(() => null) : null
@@ -1762,6 +1778,7 @@ export class CloudSyncService {
       try {
         await inflight
         cloud.forgetFile(key)
+        await this.#deps.kept?.forget(key)
         deleted++
       } catch (error) {
         if (error instanceof CloudError && error.kind !== 'other') throw error
@@ -1778,8 +1795,9 @@ export class CloudSyncService {
    * Put a file the bucket may already have. Files are named by their hash, so
    * one that is there is the right file: remembered once, never sent again.
    * Not asked about first: a put of the same bytes is free, where the asking
-   * was a counted call per file — and the bucket's own check (the doorman's)
-   * answers a file already there as put.
+   * was a counted call per file. What this server remembers sending is
+   * checked against the bucket's listing at every start (`#verify`), so the
+   * only file sent twice is one it could not have known was there.
    */
   async #putOnce(store: CloudStore, key: string, data: Buffer, contentType: string): Promise<void> {
     // Not while the trash is deleting the very same bytes: wait, then look.

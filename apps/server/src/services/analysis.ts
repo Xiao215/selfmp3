@@ -7,6 +7,7 @@ import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { AudioFeaturesRepository } from '../repositories/audioFeatures.js'
+import type { BucketDownloadsRepository } from '../repositories/bucketDownloads.js'
 import type { ScannerService } from './scanner.js'
 import type { ImportQueueService } from './importQueue.js'
 import {
@@ -40,8 +41,8 @@ import { messageOf } from '../util/errors.js'
  * The same loop has each song heard by the listening model (sound/): a new
  * song while its file is open for the features anyway, and every song
  * already analysed once nothing else is waiting. A song whose copy is only
- * in the bucket costs a download to hear, so that backlog is paced by
- * `HEAR_BUCKET_READS_PER_DAY`.
+ * in the bucket costs a download to analyse or hear, so that backlog is paced
+ * by `BUCKET_DOWNLOADS_PER_DAY`, counted across restarts.
  */
 
 /** Analyse this much of the middle of each track: enough for tempo and key. */
@@ -65,27 +66,41 @@ const BREATHER_MS = 250
 /** How long to wait before re-checking when a scan or import is busy. */
 const BUSY_RETRY_MS = 5_000
 /**
- * Songs fetched from the bucket only to be heard, per day (UTC, as Backblaze
- * counts). A library of a few thousand is heard over a few days rather than
- * spending a day's free downloads on it, which is what playing music needs.
+ * Songs fetched from the bucket to be analysed or heard, per day (UTC, as
+ * Backblaze counts), together. A library of a few thousand is worked through
+ * over a few days rather than spending a day's free downloads on it, which is
+ * what playing music needs. Only a song whose copy here has gone costs one.
  */
-const HEAR_BUCKET_READS_PER_DAY = 1_000
+const BUCKET_DOWNLOADS_PER_DAY = 1_000
 /**
- * A song the bucket would not give, for hearing, is passed over for now; this
- * many in a row and the bucket itself is not answering (its daily cap, or the
- * network), so hearing waits `HEAR_BUCKET_RETRY_MS` and tries them all again.
+ * A song the bucket would not give is passed over for now; this many in a
+ * row and the bucket itself is not answering (its daily cap, or the network),
+ * so the loop waits `BUCKET_RETRY_MS` and tries them all again.
  */
-const HEAR_FETCH_FAILURES_TO_WAIT = 3
-const HEAR_BUCKET_RETRY_MS = 30 * 60_000
+const FETCH_FAILURES_TO_WAIT = 3
+const BUCKET_RETRY_MS = 30 * 60_000
 
 /** A song with no audio here and none in the bucket: nothing to analyse or hear. */
 class NoAudioError extends Error {}
 
+/**
+ * The bucket would not give a song's audio this time — its daily cap, the
+ * network. Not the song's fault, so it is not recorded as broken: it is
+ * passed over and tried again later.
+ */
+class NotFetchedError extends Error {}
+
+/** Today's downloads for the loop are spent; it comes back tomorrow. */
+class DownloadsSpentError extends Error {}
+
+/** The day as Backblaze counts it: `2026-10-07`, in UTC. */
+function utcDay(ms = Date.now()): string {
+  return new Date(ms).toISOString().slice(0, 10)
+}
+
 /** A song's audio as a path ffmpeg can read, and how to be rid of it afterwards. */
 interface LocalFile {
   readonly file: string
-  /** Whether getting it cost a download from the bucket. */
-  readonly fetched: boolean
   readonly cleanup: () => Promise<void>
 }
 
@@ -99,6 +114,8 @@ export class AnalysisService {
   readonly #importQueue: ImportQueueService
   readonly #fetchAudio: (songId: number) => Promise<Buffer | null>
   readonly #sound: SoundService | null
+  readonly #downloads: Pick<BucketDownloadsRepository, 'spentOn' | 'spend'>
+  readonly #analyzePcm: typeof analyzePcmInWorker
   readonly #logger: Logger
   readonly #onProgress: (done: number, finished: boolean) => void
 
@@ -110,9 +127,6 @@ export class AnalysisService {
   #done = 0
   #failed = 0
   #current: AnalysisStatus['current'] = null
-  /** Bucket downloads made only to hear a song, on `#readsDay`. */
-  #hearReads = 0
-  #readsDay = ''
   /** Songs the bucket would not give this time round, and how many failed in a row. */
   readonly #notFetched = new Set<number>()
   #fetchFailures = 0
@@ -133,8 +147,21 @@ export class AnalysisService {
     fetchAudio?: (songId: number) => Promise<Buffer | null>
     /** The listening model's side; absent where it is not what is being tested. */
     sound?: SoundService
+    /** How many songs the loop has downloaded from the bucket today. */
+    downloads: Pick<BucketDownloadsRepository, 'spentOn' | 'spend'>
+    /**
+     * The DSP over a decoded clip: on a worker thread unless a test says
+     * otherwise — a worker started from TypeScript source cannot import the
+     * rest of it, which is all a test has.
+     */
+    analyzePcm?: typeof analyzePcmInWorker
     logger: Logger
-    /** Called after each song, and once more when the queue drains. */
+    /**
+     * Called after each song analysed, and once more when a run that analysed
+     * any ends. A run that found nothing to do says nothing: every scan and
+     * every wake of the listening model ends in one, and each call has every
+     * device fetch the library again (and the cloud sync make a pass).
+     */
     onProgress: (done: number, finished: boolean) => void
   }) {
     this.#config = deps.config
@@ -146,6 +173,8 @@ export class AnalysisService {
     this.#importQueue = deps.importQueue
     this.#fetchAudio = deps.fetchAudio ?? (() => Promise.resolve(null))
     this.#sound = deps.sound ?? null
+    this.#downloads = deps.downloads
+    this.#analyzePcm = deps.analyzePcm ?? analyzePcmInWorker
     this.#logger = deps.logger.child('analysis')
     this.#onProgress = deps.onProgress
   }
@@ -205,6 +234,7 @@ export class AnalysisService {
   async #drain(): Promise<void> {
     if (this.#running || this.#stopped) return
     this.#running = true
+    let analysed = 0
 
     try {
       await this.#sweepLeftovers()
@@ -213,13 +243,12 @@ export class AnalysisService {
           // Come back once the important work is done. One timer, not one per
           // kick: a scan kicks once per song ingested, and each of those used
           // to leave another timer behind to wake the process for nothing.
-          if (this.#retryTimer) clearTimeout(this.#retryTimer)
-          this.#retryTimer = setTimeout(() => this.kick(), BUSY_RETRY_MS)
+          this.#wakeAt(Date.now() + BUSY_RETRY_MS)
           return
         }
 
         this.#kickedWhileRunning = false
-        const songId = this.#audioFeatures.nextPending(ANALYSIS_VERSION)
+        const songId = this.#audioFeatures.nextPending(ANALYSIS_VERSION, this.#notFetched)
         if (songId === null) {
           // Every song has its tempo and key; what is left is how they sound.
           const heardOne = await this.#hearNext()
@@ -234,7 +263,15 @@ export class AnalysisService {
         try {
           await this.#analyze(song.id, song.path, song.duration)
           this.#done++
+          analysed++
+          this.#current = null
+          this.#onProgress(this.#done, false)
         } catch (error) {
+          this.#current = null
+          if (error instanceof DownloadsSpentError || error instanceof NotFetchedError) {
+            if (this.#passOver(song, error)) continue
+            break
+          }
           this.#failed++
           this.#logger.warn('analysis failed', {
             song: song.title,
@@ -253,9 +290,8 @@ export class AnalysisService {
             danceability: null,
             version: ANALYSIS_VERSION,
           })
+          this.#current = null
         }
-        this.#current = null
-        this.#onProgress(this.#done, false)
 
         await sleep(BREATHER_MS)
       }
@@ -264,16 +300,52 @@ export class AnalysisService {
       this.#current = null
     }
 
+    // Songs passed over and nothing set to come back for them: the listening
+    // model, which also comes back for its own, may be off.
+    if (this.#notFetched.size > 0 && this.#retryTimer === null) this.#comeBackForPassedOver()
+
     // Something was added between the last check and now; go again.
     if (this.#kickedWhileRunning) {
       this.kick()
       return
     }
 
-    if (this.#done > 0) {
-      this.#logger.info('analysis complete', { analysed: this.#done, failed: this.#failed })
-    }
+    if (analysed === 0) return
+    this.#logger.info('analysis complete', { analysed: this.#done, failed: this.#failed })
     this.#onProgress(this.#done, true)
+  }
+
+  /**
+   * A song whose audio could not be had from the bucket, passed over for now.
+   * Says whether to go on with the next. With the day's downloads spent, yes:
+   * a song whose copy is here costs nothing. A bucket that would not give it,
+   * a few times in a row, is not answering, and the loop waits instead.
+   */
+  #passOver(song: { id: number; title: string }, error: Error): boolean {
+    this.#notFetched.add(song.id)
+    if (error instanceof DownloadsSpentError) return true
+    this.#fetchFailures++
+    this.#logger.warn('could not fetch a song from the bucket; trying again later', {
+      song: song.title,
+      message: error.message,
+    })
+    if (this.#fetchFailures < FETCH_FAILURES_TO_WAIT) return true
+    this.#fetchFailures = 0
+    this.#comeBackForPassedOver()
+    return false
+  }
+
+  /**
+   * Come back for the songs passed over: a minute into tomorrow (UTC) when
+   * the day's downloads are spent, and after `BUCKET_RETRY_MS` otherwise.
+   */
+  #comeBackForPassedOver(): void {
+    const today = utcDay()
+    const at =
+      this.#downloads.spentOn(today) >= BUCKET_DOWNLOADS_PER_DAY
+        ? Date.parse(`${today}T00:00:00Z`) + 86_400_000 + 60_000
+        : Date.now() + BUCKET_RETRY_MS
+    this.#wakeAt(at, () => this.#notFetched.clear())
   }
 
   /** Analyse one song and store the result. */
@@ -295,7 +367,7 @@ export class AnalysisService {
       ])
       // Pure CPU for a few hundred milliseconds, off the thread that answers
       // the phone: a seek that landed during it used to wait for it.
-      const features = await analyzePcmInWorker(pcm, ANALYSIS_SAMPLE_RATE, ANALYSE_TIMEOUT_MS)
+      const features = await this.#analyzePcm(pcm, ANALYSIS_SAMPLE_RATE, ANALYSE_TIMEOUT_MS)
 
       // The curve before the row: a row at this version is what says the song
       // is done, so a crash between the two re-analyses it rather than
@@ -313,8 +385,10 @@ export class AnalysisService {
         version: ANALYSIS_VERSION,
       })
 
-      // Heard now, while the file is here: later it may be in the bucket only.
-      if (this.#sound?.isReady && !this.#sound.has(songId)) {
+      // Heard now, while the file is here: later it may be in the bucket only,
+      // and hearing it then would be a second download. So the model is made
+      // ready for it rather than only used if it already was.
+      if (this.#sound && !this.#sound.has(songId) && (await this.#sound.prepare())) {
         await this.#hearFile(songId, key, file, duration)
       }
 
@@ -344,23 +418,12 @@ export class AnalysisService {
     if (!sound) return false
     if (sound.nextPending(this.#notFetched) === null) {
       // Only songs the bucket would not give are left: they get another try later.
-      if (this.#notFetched.size > 0) {
-        this.#wakeAt(Date.now() + HEAR_BUCKET_RETRY_MS, () => this.#notFetched.clear())
-      }
+      if (this.#notFetched.size > 0) this.#comeBackForPassedOver()
       return false
     }
     if (!(await sound.prepare())) {
       const at = sound.retryAt
       if (at !== null) this.#wakeAt(at)
-      return false
-    }
-    const today = new Date().toISOString().slice(0, 10)
-    if (today !== this.#readsDay) {
-      this.#readsDay = today
-      this.#hearReads = 0
-    }
-    if (this.#hearReads >= HEAR_BUCKET_READS_PER_DAY) {
-      this.#wakeAt(Date.parse(`${today}T00:00:00Z`) + 86_400_000 + 60_000)
       return false
     }
 
@@ -382,27 +445,16 @@ export class AnalysisService {
         sound.markUnhearable(song.id)
         return true
       }
-      // The bucket did not give it (its daily cap, or the network). The song is
-      // not given up for that: it is passed over for now, and after a few in a
-      // row hearing waits, then tries them all again.
-      this.#notFetched.add(song.id)
-      this.#fetchFailures++
-      this.#logger.warn('could not fetch a song to hear; trying again later', {
-        song: song.title,
-        message: messageOf(error),
-      })
-      if (this.#fetchFailures < HEAR_FETCH_FAILURES_TO_WAIT) return true
-      this.#fetchFailures = 0
-      this.#wakeAt(Date.now() + HEAR_BUCKET_RETRY_MS, () => this.#notFetched.clear())
-      return false
+      // The bucket did not give it (its daily cap, or the network), or today's
+      // downloads are spent. The song is not given up for that: it is passed
+      // over for now.
+      return this.#passOver(song, error instanceof Error ? error : new Error(messageOf(error)))
     }
-    this.#fetchFailures = 0
 
     // No onProgress here: a vector changes nothing in the library the devices
     // hold, so hearing does not have them fetch it again.
     this.#current = { id: song.id, title: song.title }
     try {
-      if (local.fetched) this.#hearReads++
       await this.#hearFile(song.id, song.path, local.file, song.duration)
     } finally {
       await local.cleanup()
@@ -432,6 +484,7 @@ export class AnalysisService {
     if (this.#retryTimer) clearTimeout(this.#retryTimer)
     this.#retryTimer = setTimeout(
       () => {
+        this.#retryTimer = null
         first?.()
         this.kick()
       },
@@ -443,20 +496,29 @@ export class AnalysisService {
   /**
    * ffmpeg needs a real path. A song still in the inbox has one; a song whose
    * copy here has gone is fetched from the bucket into the staging directory
-   * and removed afterwards. `fetched` says whether that cost a download from
-   * the bucket.
+   * and removed afterwards — one of the day's `BUCKET_DOWNLOADS_PER_DAY`.
    */
   async #localFile(songId: number, key: string): Promise<LocalFile> {
     if (await this.#storage.exists(key)) {
       return {
         file: this.#storage.localPath(key),
-        fetched: false,
         cleanup: () => Promise.resolve(),
       }
     }
 
-    const data = await this.#fetchAudio(songId)
+    const today = utcDay()
+    if (this.#downloads.spentOn(today) >= BUCKET_DOWNLOADS_PER_DAY) {
+      throw new DownloadsSpentError('today’s downloads from the bucket are spent')
+    }
+    let data: Buffer | null
+    try {
+      data = await this.#fetchAudio(songId)
+    } catch (error) {
+      throw new NotFetchedError(messageOf(error))
+    }
     if (!data) throw new NoAudioError('no copy of the audio here, and none in the bucket')
+    this.#downloads.spend(today)
+    this.#fetchFailures = 0
 
     const staging = stagingDir(this.#config)
     await fsp.mkdir(staging, { recursive: true })
@@ -466,7 +528,6 @@ export class AnalysisService {
     await fsp.writeFile(file, data)
     return {
       file,
-      fetched: true,
       cleanup: () => fsp.rm(dir, { recursive: true, force: true }).catch(() => undefined),
     }
   }

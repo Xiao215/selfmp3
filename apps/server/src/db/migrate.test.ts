@@ -48,7 +48,7 @@ describe('migrate', () => {
 
     // Run the uid migration (35) again over the rows above, and the ones after
     // it, whose tables go first so they can be made again.
-    db.exec('DROP TABLE cloud_artists; DROP TABLE cloud_sound')
+    db.exec('DROP TABLE cloud_artists; DROP TABLE cloud_sound; DROP TABLE bucket_downloads')
     db.pragma('user_version = 34')
     migrate(db, createLogger('silent'))
 

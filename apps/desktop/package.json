@@ -5,10 +5,6 @@
   "private": true,
   "description": "The Electron shell around apps/app's web export: an installed self.mp3 on a computer.",
   "author": "Xiao",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Xiao215/selfmp3.git"
-  },
   "main": "dist/main.cjs",
   "scripts": {
     "build": "node scripts/build.mjs",

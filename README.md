@@ -208,9 +208,6 @@ energy and loudness, with ffmpeg and plain TypeScript. That feeds live playlist 
 "similar songs" pick, and an auto-mix mode that orders the queue into a smooth path and sets
 each crossfade to suit the transition. See [audio-intelligence.md](docs/features/audio-intelligence.md).
 
-**Practice.** An A–B loop for the bar you keep missing, speed changes that hold pitch, and a
-transpose readout. See [practice-tools.md](docs/features/practice-tools.md).
-
 ### Across your devices
 
 **Offline, on the devices that keep songs.** The phone app and the desktop app download on
@@ -393,7 +390,7 @@ A few habits keep this repository in order:
 packages/shared          zod schemas (the API contract) and pure helpers: queue rules,
                          LRC parsing, fuzzy search, sync rules, audio feature distances
 packages/client          what every client shares: API client, React Query hooks, the
-                         download queue, practice and auto-mix rules, theme tokens
+                         download queue, auto-mix rules, theme tokens
 packages/replica         a device's own copy of the bucket's library, and its outbox
 packages/desktop-bridge  the contract between the desktop shell and the page
 apps/server              Express 5 and better-sqlite3: routes → services → repositories,
@@ -451,7 +448,6 @@ Feature pages, each with what it does, how it works and where the code is:
 | [now-playing-colour.md](docs/features/now-playing-colour.md) | The playing song marked in its cover's colour |
 | [offline-sync.md](docs/features/offline-sync.md) | Automatic downloads and plays made offline |
 | [import-sources.md](docs/features/import-sources.md) | Importing from 网易云音乐, Spotify, or a list of song names |
-| [practice-tools.md](docs/features/practice-tools.md) | A–B loop, speed with pitch lock, transpose |
 | [share-to-import.md](docs/features/share-to-import.md) | Importing from the share sheet on Android and iOS |
 | [tagging.md](docs/features/tagging.md) | Hiding and editing tags, tagging what plays, Untagged |
 | [watched-library-folder.md](docs/features/watched-library-folder.md) | Rescanning when the library folder changes |

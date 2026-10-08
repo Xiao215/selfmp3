@@ -72,12 +72,24 @@ What a page adds, it adds as props rather than as a second row:
 | `index` | The position number at desktop width, which becomes a play button on hover |
 | `onLongPress` | What holding it on a phone does. Left out, the ⋯ menu opens; `null` when something outside the row owns the hold, as a playlist's move does |
 
-Anything a page wants to *do* to a song goes in the ⋯ menu (`SongMenu`, docs/ui-mock `P14`),
-which already takes a `playlist` and offers **Remove from this playlist** there — so a playlist
-needs no button of its own in the row. The menu is headed by the song (cover, tags, heart) with
-**Tags** and **Download** under it, then Add to playlist, Add to queue and Play similar songs,
-then **Song details**, which opens the song's own page (`/song/<id>`, `P15`), and Remove from
-library. Play next lives on that page, not in the menu.
+Anything a page wants to *do* to a song goes in the ⋯ menu (`SongMenu`, docs/ui-mock `P14`).
+It is one menu, the same items in the same order wherever a song is (proposal B1,
+2026-10-08): headed by the song (cover, title, artist, tags, heart), then **Tags**, Add to
+playlist ›, Add to Up next, Play similar songs, **Download** or **Remove download** where the
+app keeps songs, and **Song details**, which opens the song's own page (`/song/<id>`, `P15`).
+After those come what the song is to where the menu was opened — it takes a `playlist` and
+offers **Remove from this playlist** there, so a playlist needs no button of its own in the
+row — and the phone's Now Playing adds a "This player" group with Devices. Remove from library
+is last. Play next lives on the song's page, not in the menu, and so does selecting.
+
+On the web and in the Mac app a right-click on a song row, a Home song tile or a sidebar tag
+opens that row's menu at the pointer (`ui/rightClick.ts`: a point stands in for the ⋯ as the
+popover's anchor), and the browser's own menu stays away.
+
+Up next has three icons for its three actions (proposal H2): `UpNext`, a list with a play
+mark, on every control that opens it (the mini player, the player bar, Now Playing's foot);
+`QueueAdd`, a list with a plus, only for Add to Up next; and `Next`, the skip mark, for Play
+next.
 
 The row is memoised, and the list it is in is long, so nothing handed to it may be new on
 every render: hand it the page's own stable handlers (each takes the song, so one function

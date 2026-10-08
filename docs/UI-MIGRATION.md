@@ -638,7 +638,7 @@ Deliberate differences, kept in the commit messages too:
   buttons, Sort (a sheet) and Select, and names its order over the list (added later). The Playlists page keeps the New tile and Forgotten gems, which `P16` does not draw
   but earlier decisions kept. On a phone nothing starts selecting inside a playlist (holding a
   row moves it). A new playlist you fill yourself is made when its first songs are picked.
-- Phase 6: Now Playing's phone foot has a ⋯ as well (Devices, Practice, Download), which `P21`
+- Phase 6: Now Playing's phone foot has a ⋯ as well (the song menu, then Devices), which `P21`
   has no other place for; the player bar keeps Like, Tags and Sleep beside what this plan
   lists. The swipe in Up next is decided by distance, and removes on a timer, because a
   browser does not always report the end of a gesture-driven slide.

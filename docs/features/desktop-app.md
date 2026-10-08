@@ -104,10 +104,7 @@ sources are in the progress file's Desktop section once phase 0 writes it):
   and sharp 0.35 are Node-API with prebuilds, so that later phase needs no
   rebuild step either.
 - Tauri 2.11 would put the UI in WKWebView, which refuses service workers on
-  custom schemes (tauri #13031) and whose `preservesPitch` with a
-  `MediaElementSource` was still being fixed in Safari Technology Preview in
-  2026 — the exact combination the practice panel and the analyser use. Tauri 3's
-  Chromium runtime is an alpha as of 2026-09-13. Revisit only if it stabilises.
+  custom schemes (tauri #13031). Tauri 3's Chromium runtime is an alpha as of 2026-09-13. Revisit only if it stabilises.
 - react-native-macos is at 0.81 against the app's 0.86; Expo has no prebuild
   for it; Unistyles 3 and track-player do not build for it.
 - "Designed for iPad" is Mac App Store or TestFlight only; Catalyst needs the

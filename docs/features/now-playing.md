@@ -15,12 +15,13 @@ lyrics — or, for a song with no words, something to look at instead.
 
 The page covers the library, not the player bar, so play and pause never move under your
 hand. The view underneath stays mounted — its scroll position, search and filters are
-where you left them when you close the page. The practice panel opens beside it.
+where you left them when you close the page.
 
 ## Stage and Focus
 
-One page, two modes. **Stage** has the artwork, title, tempo, energy, key and tags on the
-left, and on the right two tabs: **Lyrics** (or **Visual**) and **About** (the same facts as
+One page, two modes. **Stage** has the artwork, the title, the artist and the tags on the
+left — tempo, key and energy are the song page's, in its Sound section, where they are
+explained — and on the right two tabs: **Lyrics** (or **Visual**) and **About** (the same facts as
 the end of the song's own page). Up next is not a tab: it is the rail beside the page on a
 computer and a sheet on a phone (`features/queue`, docs/ui-mock `C11`, `P25`), opened from the
 player bar, the mini player or the page's foot. **Focus** is the same page when only
@@ -37,7 +38,7 @@ widen and grow around the line being sung. In Focus:
 Switching moves every piece between its Stage position and its Focus position
 (`StageMove`, `stageMove.model.ts`), so nothing remounts and the line you are reading never
 leaves the screen. The page fits a wide window, a narrow one, and a page sharing the window
-with the practice panel. With Reduce Motion on, the switch is instant.
+with Up next's rail. With Reduce Motion on, the switch is instant.
 
 The page takes its glow from the cover's own colours: a 24-pixel thumbnail of the art is
 sampled in the browser (`paletteFromPixels` in `packages/client/src/art/palette.ts`, read by
@@ -48,8 +49,7 @@ the same hue as its placeholder cover.
 
 - The line being sung stays at the same height; the list moves under it. Scroll by hand to
   read ahead and the auto-centring holds off for four seconds.
-- Click a line to jump there. **Right-click a line to loop it** — the Practice A–B loop,
-  set from that line's timestamp to the next one's.
+- Click a line to jump there.
 - **Romaji** / **Pinyin** shows the romanization under each line (Chinese and Japanese
   only; see [lyrics-plus.md](lyrics-plus.md)).
 - While the page is closed, the current line of a song with timed lyrics rides under the
@@ -92,8 +92,11 @@ neither falls back to a stand-in drawn from its tempo and energy.
 No tabs at the top (docs/ui-mock `P21`): the ⌄, the words "Now playing", and ⓘ, which opens
 the song's own page. The cover breathes — a little smaller while paused, full size while
 playing — with the title, the artists (each a link), the tags, the scrubber and the round
-Play under it. The foot is **Lyrics** (or **Visual**), **Sleep**, **Up next** and a ⋯ with
-Devices, Practice and Download. Swiping up, the Lyrics pill or a tap on the cover opens the
+Play under it. The foot is **Lyrics** (or **Visual**), **Sleep**, **Up next** and a ⋯: the
+song menu every song has (Tags, Add to playlist, Add to Up next, Play similar songs,
+Download in the app, Song details), then a short "This player" group with Devices, then
+Remove from library. Sleep is not repeated there; it has its own button. There are no page
+dots: the gestures are up and down, not sideways. Swiping up, the Lyrics pill or a tap on the cover opens the
 lyrics on their own (`/now-playing?view=lyrics`, `P22`); swiping down comes back.
 
 ## Files

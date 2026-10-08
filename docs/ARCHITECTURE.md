@@ -15,8 +15,8 @@ packages/replica         a device's copy of the library in the bucket: session,
                          replica, outbox, the routes that answer from it
 
 packages/client          what the app shares across platforms: API client, React
-                         Query hooks, download queue, practice and auto-mix rules,
-                         theme tokens, and the ports each platform implements
+                         Query hooks, download queue, auto-mix rules, theme
+                         tokens, and the ports each platform implements
 
 apps/server
   main.ts                boot, shutdown, signals
@@ -312,8 +312,8 @@ phone, Playwright on the web. Nothing UI-shaped is left with zero coverage.
 | Styling | Unistyles 3 | Closest to what exists: tokens plus `StyleSheet`. On web it emits real CSS classes with media queries and `:hover` / `:focus` / `:active`, and themes switch without re-rendering. Needs the New Architecture, which is on. *Tamagui* rejected: it brings its own component kit and compiler, and the app has its own design system. *NativeWind / Uniwind* rejected: Tailwind's vocabulary would replace the OKLCH tokens rather than express them; if Tailwind is ever wanted, Uniwind (same authors) is the one to evaluate. |
 | Lists | FlashList v2 behind a `SongList` component | JS-only, built for the New Architecture, no size estimates. Web support is confirmed in the spike; if it falls short there, `SongList.web.tsx` uses `FlatList` and nothing else changes. |
 | Data | `@tanstack/react-query` | Already on both sides; the hooks merge. No other state library: player and offline state live in their providers, as now. |
-| Audio, web | the existing two-`<audio>` engine | Moved as-is behind the engine port. Gapless, crossfade, rate, pitch lock, analyser. |
-| Audio, native | react-native-track-player 5 | Already in place. Gapless, lock screen, Android Auto, rate; pitch lock on iOS via `pitchAlgorithm`. It is an alpha. **Fallback:** `expo-audio`, which in SDK 57 does background playback and lock-screen controls on both platforms; it lacks a native queue (so gapless) and Android Auto, and it is a second `engine.native.ts`, not a rewrite. |
+| Audio, web | the existing two-`<audio>` engine | Moved as-is behind the engine port. Gapless, crossfade, analyser. |
+| Audio, native | react-native-track-player 5 | Already in place. Gapless, lock screen, Android Auto. It is an alpha. **Fallback:** `expo-audio`, which in SDK 57 does background playback and lock-screen controls on both platforms; it lacks a native queue (so gapless) and Android Auto, and it is a second `engine.native.ts`, not a rewrite. |
 | Listening before importing, native | `expo-audio`, a player of its own | A preview on the review is not a song in track-player's one queue, and the web plays it in an audio element apart from the player (`ports/listen.web.ts`); the phone does the same through `expo-audio` (`ports/listen.ts`), told to leave the audio session, which is track-player's, alone, and given each stream through `preload` so opening it never holds the JavaScript thread. The playing row's colour comes from the server (`GET /api/import/cover-tone`, services/previewCoverTone.ts), which reads the cover as it reads the library's. Not a second engine: no queue, no lock screen. |
 | Offline, web | Cache API + service worker | Existing code behind the offline port. |
 | Service worker build | esbuild | The worker is one file with no imports, bundled to `public/sw.js` before `expo export`, which copies `public/` as it is. Metro cannot emit a separate worker entry. |
@@ -342,7 +342,7 @@ Each is an interface in `packages/client`, implemented twice in `apps/app/src/po
 
 | Port | What it hides | Web | Native |
 |---|---|---|---|
-| `PlaybackEngine` | load, play, pause, seek, rate, volume, queue-ahead, events | two `<audio>` elements, Web Audio analyser, `preservesPitch`, crossfade | track-player: native queue, lock screen, remote events; `pitchAlgorithm` on iOS. Fallback: expo-audio |
+| `PlaybackEngine` | load, play, pause, seek, volume, queue-ahead, events | two `<audio>` elements, Web Audio analyser, crossfade | track-player: native queue, lock screen, remote events. Fallback: expo-audio |
 | `OfflineStore` | is it here, fetch it, remove it, usage, progress | Cache API + service worker range slicing | `expo-file-system` + JSON index |
 | `DeviceStore` | small persistent values | IndexedDB (exists in `packages/replica`) | files (exists) |
 | `Keyboard` | global shortcuts, the command palette trigger | `document` keydown | no-op, or hardware keyboard on iPad later |
@@ -350,8 +350,8 @@ Each is an interface in `packages/client`, implemented twice in `apps/app/src/po
 | `Files` | reveal a song's file | unavailable (the desktop app reveals its downloads folder) | unavailable, declared |
 | `Media session` | lock-screen metadata | `navigator.mediaSession` | track-player metadata |
 
-The engine port declares capabilities — `crossfade`, `analyser`, `loop` — and
-the practice panel, the visualiser and the settings page read them. A control for something the platform cannot do is not
+The engine port declares capabilities — `crossfade`, `analyser` — and the
+visualiser and the settings page read them. A control for something the platform cannot do is not
 rendered, and the settings page says why, the way the phone's About section
 does for crossfade today.
 
@@ -368,8 +368,9 @@ each.
   nothing else on native.
 - **Popovers anchored to a button.** React Native has no `position: fixed`. A
   `Popover` primitive measures its anchor with `measureInWindow` and draws in
-  a portal (`Modal` on native, a root-level host on web). Below the breakpoint
-  it is a `Sheet`.
+  a portal (`Modal` on native, a root-level host on web). A right-click's point
+  stands in for the button (`ui/rightClick.ts`). Below the breakpoint it is a
+  `Sheet`.
 - **Range inputs.** The scrubber and volume become the phone's `SeekBar`
   everywhere; keyboard stepping is added on web.
 - **The service worker.** Stays a separate esbuild step to `public/sw.js`,
@@ -380,8 +381,6 @@ each.
 - **Crossfade and the analyser.** Web only, declared as engine capabilities.
   The native engine reports `crossfade: false` and the settings page says so,
   as the phone does today.
-- **Pitch lock.** Web and iOS. Android's player has no pitch-preserving rate
-  change; the practice panel shows speed without the lock there.
 - **Reveal in Finder.** On the server itself only. Declared unavailable elsewhere.
 - **Canvas drawings.** The song visual is drawn twice — a canvas in a browser,
   Reanimated views on a phone — from one shared model of the motion. Written as

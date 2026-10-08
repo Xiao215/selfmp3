@@ -14,7 +14,7 @@ import { createContext, createElement, useContext, type ReactElement, type React
  * `runtime.ts`, for the reasons written there. This is a context because it is
  * the part that genuinely changes and that React has to re-render for.
  */
-export interface ClientState {
+interface ClientState {
   /** False while the app is still working out where to talk to. */
   readonly ready: boolean
 }

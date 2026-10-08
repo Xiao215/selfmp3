@@ -37,7 +37,7 @@ interface Diff {
 }
 
 /** A value as the dialog prints it: a dash for nothing. */
-export function shown(value: string | number | null | undefined): string {
+function shown(value: string | number | null | undefined): string {
   return value === null || value === undefined || value === '' ? '—' : String(value)
 }
 

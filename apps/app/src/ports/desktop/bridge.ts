@@ -9,5 +9,3 @@ import type { DesktopBridge } from '@selfmp3/desktop-bridge'
  * phone bundle would carry the contract package to be told `null`.
  */
 export const desktop: DesktopBridge | null = null
-
-export type { DesktopBridge }

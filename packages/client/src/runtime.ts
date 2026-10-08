@@ -20,7 +20,7 @@ import type {
  * app ever needs two — a preview of another server beside the real one — this
  * becomes a context and the hooks each grow that line then, with a reason.
  */
-export interface ClientRuntime {
+interface ClientRuntime {
   readonly api: Api
   /** Absent where an app has no offline story; the library query then just fails. */
   readonly librarySnapshot?: LibrarySnapshotStore

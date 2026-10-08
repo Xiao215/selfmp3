@@ -694,10 +694,3 @@ export class MotionBuilder {
     return { rate: MOTION_RATE, duration, loudness, onset }
   }
 }
-
-/** A whole song's motion curve from PCM already in hand: `MotionBuilder` in one go. */
-export function motionFromPcm(pcm: Float32Array, sampleRate: number): MotionCurveData {
-  const builder = new MotionBuilder(sampleRate)
-  builder.push(pcm)
-  return builder.finish()
-}

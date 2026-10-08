@@ -30,7 +30,7 @@ export interface CloudRequestInit {
   body?: string | Uint8Array
 }
 
-export type CloudFetch = (url: string, init?: CloudRequestInit) => Promise<CloudResponse>
+type CloudFetch = (url: string, init?: CloudRequestInit) => Promise<CloudResponse>
 
 /**
  * Where a device keeps small things between runs — the session, the outbox,

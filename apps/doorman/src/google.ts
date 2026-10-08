@@ -40,7 +40,7 @@ export class GoogleError extends Error {
   }
 }
 
-export interface SignInLink {
+interface SignInLink {
   readonly clientId: string
   readonly redirectUri: string
   readonly state: string

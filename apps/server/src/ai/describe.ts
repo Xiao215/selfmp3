@@ -42,7 +42,7 @@ function lengthWords(seconds: number): string {
  * The most songs a pick is chosen from. A line of the table is about 40
  * tokens, so this keeps the pick's prompt near 12k whatever the library's size.
  */
-export const MAX_CANDIDATES = 300
+const MAX_CANDIDATES = 300
 
 const PLAN_VERSION = 4
 const PICK_VERSION = 3

@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react'
+import type { Command } from '@selfmp3/desktop-bridge'
 
-import type { Command, CommandHandlers } from './useCommands'
+import type { CommandHandlers } from './useCommands'
 import { playbackKeys } from './playbackKeys'
 import { useHotkeys } from './useHotkeys'
 import { desktop } from '../ports/desktop/bridge'
 
-export type { Command, CommandHandlers }
+export type { CommandHandlers }
 
 /**
  * The playback keys the page answers, and what each one means.

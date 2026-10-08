@@ -194,35 +194,6 @@ export function fuzzyRankPrepared<T>(
 }
 
 /**
- * The first `count` of `fuzzyRankPrepared`, in the same order, without sorting
- * every match to throw most away: the palette shows eight songs out of a
- * library that can match thousands on a single letter.
- */
-export function fuzzyTopPrepared<T>(
-  query: string,
-  items: readonly T[],
-  prepared: (item: T) => FuzzyText,
-  count: number,
-): FuzzyMatch<T>[] {
-  if (count <= 0) return []
-  if (query.trim().length === 0) {
-    return items.slice(0, count).map(item => ({ item, score: 0, exact: false }))
-  }
-  // Kept best-first. A newcomer comes later in the input than everything
-  // kept, so it goes after anything it ties with, as the stable sort puts it.
-  const kept: Scored<T>[] = []
-  scoreAll(query, items, prepared, one => {
-    const last = kept[kept.length - 1]
-    if (kept.length >= count && last && bestFirst(one, last) >= 0) return
-    let at = kept.length
-    while (at > 0 && bestFirst(one, kept[at - 1] as Scored<T>) < 0) at--
-    kept.splice(at, 0, one)
-    if (kept.length > count) kept.pop()
-  })
-  return kept.map(one => one.match)
-}
-
-/**
  * Prepared text for objects, remembered per object. Weakly, so a library that
  * is refetched lets its old songs, and their text, go.
  */

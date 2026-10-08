@@ -11,7 +11,6 @@ import {
   tagFiltered,
   tagMatchCount,
   toggleTag,
-  topSongs,
   type LibraryFilter,
 } from './filter.js'
 
@@ -117,7 +116,6 @@ describe('tag filtering', () => {
     for (const query of ['', 'drive', 'dri', 'night', 'md', 'drvie', 'nothing']) {
       const plain = fuzzyRank(query, library, text)
       expect(searchSongs(query, library), query).toEqual(plain)
-      expect(topSongs(query, library, 2), query).toEqual(plain.slice(0, 2).map(m => m.item))
     }
   })
 

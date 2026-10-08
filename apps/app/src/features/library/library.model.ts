@@ -187,13 +187,21 @@ export function bucketCapped(error: unknown): boolean {
   return error instanceof ApiError && error.isBucketCapped
 }
 
-/** "21 hours", "40 minutes": how long until Backblaze's caps reset, at midnight GMT. */
-export function untilCapResets(now: Date): string {
+/**
+ * "21 hours", "40 minutes" — or, where a line has little room, "21 h", "40 min":
+ * how long until Backblaze's caps reset, at midnight GMT.
+ */
+export function untilCapResets(now: Date, short = false): string {
   const reset = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
   const minutes = Math.max(1, Math.ceil((reset - now.getTime()) / 60_000))
-  return minutes < 60
-    ? plural(minutes, 'minute', 'minutes')
-    : plural(Math.round(minutes / 60), 'hour', 'hours')
+  if (minutes < 60) return short ? `${minutes} min` : plural(minutes, 'minute', 'minutes')
+  const hours = Math.round(minutes / 60)
+  return short ? `${hours} h` : plural(hours, 'hour', 'hours')
+}
+
+/** A used-up bucket in the sidebar's second line: "Bucket limit · 20 h left". */
+export function capShort(now: Date): string {
+  return `Bucket limit · ${untilCapResets(now, true)} left`
 }
 
 /** The few words for a library that did not come: the sidebar's status, the profile's line. */

@@ -17,7 +17,8 @@ import {
   useCreateTag,
   useLibrary,
 } from '@selfmp3/client'
-import { unreachableLabel } from '../features/library/library.model'
+import { bucketCapped, capShort, unreachableLabel } from '../features/library/library.model'
+import { useBucketHold } from '../features/profile/useBucketHold'
 import { noteTagUsed, useRecentTagIds } from '../features/library/recentTags.store'
 import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'
@@ -577,15 +578,24 @@ function Foot(): ReactNode {
     [state.index, librarySongs],
   )
 
+  // The bucket refusing for the day is not "can't reach": everything answered.
+  // The first line still names the library, and the second says the limit —
+  // as one line, "Bucket limit reached for today" ran out of room.
+  const capped = useBucketHold() !== null || bucketCapped(library.error)
+  const where = fromCloud ? 'Cloud library' : 'Connected to your server'
   // A failed refetch keeps the cached library, so an error wins over the data.
-  const [dot, label] = library.isError
-    ? [theme.colors.danger, unreachableLabel(fromCloud, library.error)]
-    : library.isPending
-      ? [theme.colors.warning, 'Connecting…']
-      : [theme.colors.good, fromCloud ? 'Cloud library' : 'Connected to your server']
-  const detail = `${plural(songs, 'song', 'songs')} · ${
-    saved > 0 ? `${saved} saved offline` : 'none saved offline'
-  }`
+  const [dot, label] = capped
+    ? [theme.colors.danger, where]
+    : library.isError
+      ? [theme.colors.danger, unreachableLabel(fromCloud, library.error)]
+      : library.isPending
+        ? [theme.colors.warning, 'Connecting…']
+        : [theme.colors.good, where]
+  const detail = capped
+    ? capShort(new Date())
+    : `${plural(songs, 'song', 'songs')} · ${
+        saved > 0 ? `${saved} saved offline` : 'none saved offline'
+      }`
 
   return (
     <View style={styles.foot}>
@@ -597,7 +607,9 @@ function Foot(): ReactNode {
         ]}
         onPress={() => router.navigate('/profile')}
         accessibilityRole="button"
-        accessibilityLabel={library.data ? `Profile. ${label}, ${detail}` : `Profile. ${label}`}
+        accessibilityLabel={
+          library.data || capped ? `Profile. ${label}, ${detail}` : `Profile. ${label}`
+        }
         testID="sidebar-status"
         {...tip('Profile, your connection and offline songs')}
       >
@@ -608,8 +620,12 @@ function Foot(): ReactNode {
           <Text style={styles.footLabel} numberOfLines={1}>
             {label}
           </Text>
-          {library.data ? (
-            <Text style={styles.statusDetail} numberOfLines={1}>
+          {library.data || capped ? (
+            <Text
+              style={[styles.statusDetail, capped && styles.statusDetailCapped]}
+              numberOfLines={1}
+              testID="sidebar-status-detail"
+            >
               {detail}
             </Text>
           ) : null}
@@ -847,6 +863,7 @@ const styles = StyleSheet.create(theme => ({
   },
   statusText: { flex: 1, minWidth: 0, gap: 1 },
   statusDetail: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
+  statusDetailCapped: { color: theme.colors.danger },
   footLabel: { color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
 }))
 

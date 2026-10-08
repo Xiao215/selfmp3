@@ -50,8 +50,8 @@ A device that hears that refusal **holds off for ten minutes** rather than askin
 row and every play (`packages/replica/src/hold.ts`; in a browser the service worker holds too
 and tells the page): reads inside the hold are refused on the device with the doorman's own
 words, writes still go, and one real request afterwards finds out whether the cap was raised.
-The app says so once, in a toast, and Settings → Account keeps the notice up while it lasts;
-the player names the song it could not play as before. Before this, a day past its cap looked
+The app says so once, in a toast, and while it lasts Settings says it under its title and on
+Account › Storage (with Open Backblaze), and the sidebar under the library's name; the player names the song it could not play as before. Before this, a day past its cap looked
 like a hundred other things — songs skipped one after another, letter tiles for covers, a song
 remembered for the session as having no words — and each of those asked the bucket again.
 

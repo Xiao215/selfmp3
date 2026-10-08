@@ -20,6 +20,8 @@ import { loginItem } from '../../ports/loginItem'
 import { macApp } from '../../ports/macApp'
 import { installedApp } from '../../ports/install'
 import { useConnection } from '../../connection/ConnectionProvider'
+import { bucketCapped } from '../library/library.model'
+import { useBucketHold } from '../profile/useBucketHold'
 import { deviceKind } from '../../ports/device'
 import { useLayout } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
@@ -97,6 +99,9 @@ export function SettingsScreen(): ReactNode {
   const settings = useSettings()
   const updateSettings = useUpdateSettings()
   const health = useHealth()
+  // The bucket refusing for the day, which the health cannot see: in the cloud
+  // it is the doorman's, and the doorman answers while the bucket will not.
+  const capped = useBucketHold() !== null || bucketCapped(health.error)
 
   // A mouse or trackpad stands in for a keyboard, and only the installed app —
   // the one with a login item — has a menu of keys to list. A tab on a Mac is
@@ -311,11 +316,17 @@ export function SettingsScreen(): ReactNode {
             >
               Settings
             </Text>
-            <Text style={[styles.sub, wide ? null : styles.titleRight]}>
+            <Text
+              style={[styles.sub, wide ? null : styles.titleRight, capped && styles.subCapped]}
+              testID="settings-health"
+            >
+              {capped ? '● ' : null}
               {healthLine(health.data, {
                 loading: health.isPending,
                 error: health.isError ? health.error : null,
                 fromCloud,
+                capped,
+                compact: !wide,
               })}
             </Text>
           </View>
@@ -596,6 +607,7 @@ const styles = StyleSheet.create(theme => ({
   titleRight: { textAlign: 'right' },
   title: pageTitle(theme.colors),
   sub: { color: theme.colors.textMuted, fontSize: 13, marginTop: 4 },
+  subCapped: { color: theme.colors.danger },
   panels: { gap: 20, maxWidth: 780 },
   indexColumn: {
     position: 'absolute',

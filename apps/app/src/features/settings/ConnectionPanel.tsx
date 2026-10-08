@@ -1,15 +1,17 @@
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { Linking, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useLibrary } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
 import { Refresh } from '../../ui/components/Icons'
+import { useLayout } from '../../shell/useLayout'
+import { BACKBLAZE_CAPS_URL, untilCapResets } from '../library/library.model'
 import { useBucketHold } from '../profile/useBucketHold'
 import { useCloudSession } from '../profile/useCloudSession'
 import { STORAGE_ROUTE, whereItIs } from '../welcome/storage.model'
-import { ButtonRow, Details, Notice, Panel, partStyles, Row } from './SettingsParts'
+import { ButtonRow, Details, Panel, partStyles, Row } from './SettingsParts'
 import { type Confirming } from './settings.model'
 import { plural } from '@selfmp3/shared'
 
@@ -30,7 +32,8 @@ import { plural } from '@selfmp3/shared'
  *
  * Storage is the account's bucket, as the doorman last said: a cloud device
  * has no Settings → Cloud, and this is where the bucket connected on Where it
- * lives can be changed or forgotten afterwards.
+ * lives can be changed or forgotten afterwards. A bucket refusing for the day
+ * says so there too, with the way to raise its cap.
  */
 export function ConnectionPanel({
   anchor,
@@ -45,13 +48,14 @@ export function ConnectionPanel({
   // The bucket as the stored session has it; undefined until it has been read.
   const me = useCloudSession()
   const storage = me.isPending ? undefined : (me.data?.storage ?? null)
-  // The bucket refusing for the day: up for as long as it is left alone.
+  // The bucket refusing for the day: said for as long as it is left alone.
   const hold = useBucketHold()
+  const { wide } = useLayout()
+  const where = storage ? whereItIs(storage) : null
   return (
     <Panel title="Account" hint="on this device" anchor={anchor}>
       {fromCloud ? (
         <>
-          {hold ? <Notice tone="warn">{hold.message}</Notice> : null}
           <Row label="Signed in" hint="With Google — the library is the bucket’s.">
             <Button
               label="Sign out"
@@ -65,12 +69,30 @@ export function ConnectionPanel({
             hint={
               storage === undefined
                 ? 'Loading…'
-                : storage === null
+                : where === null
                   ? 'No bucket yet.'
-                  : whereItIs(storage)
+                  : hold
+                    ? [
+                        `${where}\n`,
+                        <Text key="cap" style={styles.capped}>
+                          {`● Daily limit used up · ${
+                            wide
+                              ? `resets in about ${untilCapResets(new Date())}`
+                              : `${untilCapResets(new Date(), true)} left`
+                          }`}
+                        </Text>,
+                      ]
+                    : where
             }
           >
             <View style={styles.pair}>
+              {hold ? (
+                <Button
+                  label="Open Backblaze"
+                  onPress={() => void Linking.openURL(BACKBLAZE_CAPS_URL)}
+                  testID="cloud-storage-backblaze"
+                />
+              ) : null}
               <Button
                 label={storage ? 'Change' : 'Connect'}
                 onPress={() => router.push(STORAGE_ROUTE as never)}
@@ -130,6 +152,7 @@ export function ConnectionPanel({
   )
 }
 
-const styles = StyleSheet.create({
-  pair: { flexDirection: 'row', gap: 8 },
-})
+const styles = StyleSheet.create(theme => ({
+  pair: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  capped: { color: theme.colors.danger },
+}))

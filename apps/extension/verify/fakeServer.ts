@@ -6,6 +6,7 @@ import {
   toSqliteTime,
   type ImportEnqueue,
   type ImportJob,
+  type ImportQueue,
 } from '@selfmp3/shared'
 import { fixtureLibrary, previewFor } from './fixtures.js'
 
@@ -144,13 +145,20 @@ export async function startFakeServer(): Promise<FakeServer> {
       }
       case 'GET /api/import/queue': {
         jobs.forEach(advance)
-        return send(res, 200, {
+        const count = (status: ImportJob['status']): number =>
+          jobs.filter(job => job.status === status).length
+        const open = count('running') + count('queued')
+        // Typed, so a field the real queue grows fails the typecheck here
+        // rather than the extension's parse in the middle of a spec.
+        const queue: ImportQueue = {
           jobs,
-          active: jobs.filter(job => job.status === 'running').length,
-          queued: jobs.filter(job => job.status === 'queued').length,
-          done: 0,
+          active: count('running'),
+          queued: count('queued'),
+          done: count('done'),
           pacing: IDLE_PACING,
-        })
+          run: open > 0 ? { done: count('done'), total: count('done') + open, leftMs: null } : null,
+        }
+        return send(res, 200, queue)
       }
     }
 

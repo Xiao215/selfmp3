@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { Library, Playlist, Song, Tag } from '@selfmp3/shared'
-import { hasLivePlaylists, withPlaylist, withSong, withTag } from './patchLibrary.js'
+import {
+  hasLivePlaylists,
+  tagsMoveLivePlaylists,
+  withPlaylist,
+  withSong,
+  withTag,
+} from './patchLibrary.js'
 
 const song = (id: number, overrides: Partial<Song> = {}): Song => ({
   id,
@@ -108,5 +114,38 @@ describe('hasLivePlaylists', () => {
   it('says when a song edit could change a playlist too', () => {
     expect(hasLivePlaylists(library())).toBe(false)
     expect(hasLivePlaylists(library({ playlists: [playlist(1, { kind: 'live' })] }))).toBe(true)
+  })
+})
+
+describe('tagsMoveLivePlaylists', () => {
+  const following = (tagId: number): Playlist =>
+    playlist(30, {
+      kind: 'live',
+      rules: {
+        match: 'all',
+        rules: [{ field: 'tag', op: 'has', tagId }],
+        orderBy: 'addedAt',
+        order: 'desc',
+        limit: null,
+      },
+    })
+
+  it('says yes when a live playlist follows a tag the song gained or lost', () => {
+    const held = library({ playlists: [following(11)] })
+    expect(tagsMoveLivePlaylists(held, song(1, { tagIds: [10, 11] }))).toBe(true)
+    const losing = library({ playlists: [following(10)] })
+    expect(tagsMoveLivePlaylists(losing, song(1, { tagIds: [] }))).toBe(true)
+  })
+
+  it('says no when the live playlists follow other tags, or none moved', () => {
+    const held = library({ playlists: [following(12)] })
+    expect(tagsMoveLivePlaylists(held, song(1, { tagIds: [10, 11] }))).toBe(false)
+    expect(
+      tagsMoveLivePlaylists(library({ playlists: [following(10)] }), song(1, { tagIds: [10] })),
+    ).toBe(false)
+  })
+
+  it('cannot tell for a song the library does not hold', () => {
+    expect(tagsMoveLivePlaylists(library(), song(99, { tagIds: [10] }))).toBe(true)
   })
 })

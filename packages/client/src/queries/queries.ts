@@ -49,7 +49,13 @@ import {
 import { decodeMotion, type MotionCurve } from '../motion/motion.js'
 import { useClientState } from './context.js'
 import { createLibrarySnapshotWrites, type LibrarySnapshotWrites } from './librarySnapshotWrites.js'
-import { hasLivePlaylists, withPlaylist, withSong, withTag } from './patchLibrary.js'
+import {
+  hasLivePlaylists,
+  tagsMoveLivePlaylists,
+  withPlaylist,
+  withSong,
+  withTag,
+} from './patchLibrary.js'
 import { STALE } from './stale.js'
 import {
   isPendingRequest,
@@ -585,8 +591,17 @@ export function useSetSongTags() {
     scope: { id: 'song-tags' },
     meta: { failure: 'Couldn’t change the song’s tags' },
     onSuccess: song => {
-      putInLibrary(client, library => withSong(library, song), hasLivePlaylists)
-      refetchLivePlaylists(client)
+      // Only a live playlist following a tag the song gained or lost can hold
+      // other songs now. Asking for the library again whenever any live
+      // playlist existed re-read and redrew all of it after every tick.
+      const held = client.getQueryData<Library>(queryKeys.library)
+      const playlistsMoved = !held || tagsMoveLivePlaylists(held, song)
+      putInLibrary(
+        client,
+        library => withSong(library, song),
+        () => playlistsMoved,
+      )
+      if (playlistsMoved) void client.invalidateQueries({ queryKey: queryKeys.playlists })
     },
     // A request that timed out may still have landed: the chips ask what is true.
     onError: () => {

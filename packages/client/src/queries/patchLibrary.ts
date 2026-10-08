@@ -24,6 +24,27 @@ export function hasLivePlaylists(library: Library): boolean {
   return library.playlists.some(playlist => playlist.kind === 'live')
 }
 
+/**
+ * Whether a song's new tags could change what a live playlist holds: one
+ * follows a tag the song gained or lost. A live playlist's other rules read
+ * fields that tagging leaves alone, and none is ordered by tags. True when the
+ * song is not in the library held, which cannot be worked out here.
+ */
+export function tagsMoveLivePlaylists(library: Library, song: Song): boolean {
+  const before = library.songs.find(candidate => candidate.id === song.id)
+  if (!before) return true
+  const moved = new Set([
+    ...song.tagIds.filter(id => !before.tagIds.includes(id)),
+    ...before.tagIds.filter(id => !song.tagIds.includes(id)),
+  ])
+  if (moved.size === 0) return false
+  return library.playlists.some(
+    playlist =>
+      playlist.kind === 'live' &&
+      playlist.rules.rules.some(rule => rule.field === 'tag' && moved.has(rule.tagId)),
+  )
+}
+
 /** One song replaced, and the counts of the tags it gained or lost moved to match. */
 export function withSong(library: Library, song: Song): Library | null {
   const index = library.songs.findIndex(candidate => candidate.id === song.id)

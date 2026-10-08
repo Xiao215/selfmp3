@@ -8,6 +8,7 @@ import { forgetImportDraft } from '../features/import/importDraft'
 import { library as cloudLibrary, session as cloudSession } from '../replica'
 import { storageDue } from '../features/welcome/storage.model'
 import { clearConnection, loadConnection, saveConnection } from './storedConnection'
+import { useCloudLook } from './useCloudLook'
 
 /**
  * Which server this phone talks to.
@@ -47,6 +48,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
   const [fromCloud, setFromCloud] = useState(false)
   const [needsStorage, setNeedsStorage] = useState(false)
   const queryClient = useQueryClient()
+  useCloudLook(fromCloud)
 
   /*
    * Forget everything cached for the previous server.

@@ -32,6 +32,7 @@ import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { IconButton } from '../../ui/components/IconButton'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
 import {
+  CheckSquare,
   ChevronLeft,
   CloudDownload,
   Copy,
@@ -428,7 +429,12 @@ export function PlaylistDetailScreen(): ReactNode {
             label={`${name} songs`}
             selection={selection}
             onPlay={index => playback.playFrom(playlistId, songIds, index)}
-            onReorder={moved => reorderPlaylist.mutate({ playlistId, songIds: [...moved] })}
+            // One that fills from tags is in its rule's order, not yours.
+            onReorder={
+              manual
+                ? moved => reorderPlaylist.mutate({ playlistId, songIds: [...moved] })
+                : undefined
+            }
             header={header}
             pinned={playlist ? bar.pinned : null}
             empty={empty}
@@ -453,6 +459,16 @@ export function PlaylistDetailScreen(): ReactNode {
         align="start"
         testID="playlist-menu"
       >
+        {/*
+         * Holding a row here moves it (D1), so selecting starts here: on a
+         * phone this is the way to the bulk actions — remove, tag, download.
+         */}
+        <SheetItem
+          icon={menuIcon(CheckSquare)}
+          label="Select songs"
+          disabled={nothing}
+          onPress={menuAction(() => selection.enter())}
+        />
         <SheetItem
           icon={menuIcon(Next)}
           label="Play next"

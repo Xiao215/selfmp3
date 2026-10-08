@@ -1,4 +1,13 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import type { ReactElement, ReactNode } from 'react'
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import type { GestureResponderEvent } from 'react-native'
@@ -28,7 +37,10 @@ import { Cover } from '../../ui/components/Cover'
 import { ChevronRight, Search, Sparkle, User, X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SongList } from '../../ui/components/SongList'
+import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
+import { modifiersOf, useSelection, type Selection } from '../../selection/useSelection'
 import { useSongMenu } from '../../ui/components/useSongMenu'
+import { useRowTagPicker } from '../../ui/components/useRowTagPicker'
 import { SongRow } from '../../ui/components/SongRow'
 import { useSongTagLookup } from '../../ui/songTags'
 import { useDebounced } from '../../ui/useDebounced'
@@ -55,6 +67,15 @@ import { useGoBack } from '../../ui/useBackTo'
 
 /** What a song played from Search names Up next: the rows and the lyric hits alike. */
 const FROM_SEARCH = { kind: 'songs', origin: 'search', name: 'Search' } as const
+
+const NO_SONGS: readonly Song[] = []
+
+/**
+ * The page's one selection, for every song row on it: holding a row starts
+ * selecting here as it does in Library (D1, 2026-10-08). The rows are drawn
+ * a few components down, so they reach it by context.
+ */
+const SearchSelection = createContext<Selection | null>(null)
 
 /**
  * Search (docs/ui-mock `P18`, `P19`): one page, whichever door it was opened
@@ -122,7 +143,24 @@ export function SearchScreen(): ReactNode {
 
   const close = useGoBack('/')
 
-  return (
+  // The song rows on the page now, which are what selecting runs over: the
+  // recent few before typing, every match on Songs, All's best few.
+  const rowSongs = useMemo(
+    () =>
+      !typed
+        ? empty.recent
+        : scope === 'songs'
+          ? found.songs
+          : scope === 'all' && !answering
+            ? allResults(found).songs
+            : NO_SONGS,
+    [typed, scope, answering, found, empty.recent],
+  )
+  const rowIds = useMemo(() => rowSongs.map(song => song.id), [rowSongs])
+  const selection = useSelection(rowIds)
+  const selectedSongs = rowSongs.filter(song => selection.has(song.id))
+
+  const page = (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={[styles.page, wide && styles.pageWide]} testID="search-screen">
         <View style={styles.head}>
@@ -196,6 +234,18 @@ export function SearchScreen(): ReactNode {
           ))}
         </ScrollView>
 
+        {/* Always mounted and told when to show, as Library's is. */}
+        <SelectionBar
+          shown={selection.active}
+          songs={selectedSongs}
+          total={rowSongs.length}
+          scope="in these results"
+          allSelected={selection.allSelected}
+          onSelectAll={selection.selectAll}
+          onDeselectAll={selection.clear}
+          onDone={selection.clear}
+        />
+
         {!typed ? (
           <BeforeTyping tags={empty.tags} recent={empty.recent} />
         ) : scope === 'songs' ? (
@@ -243,12 +293,24 @@ export function SearchScreen(): ReactNode {
             {!answering && counts[scope] === 0 && !(scope === 'lyrics' && fromCloud) ? (
               <Text style={styles.nothing}>Nothing matches “{shown.trim()}”.</Text>
             ) : null}
+            <BarRoom />
             <ChromeSpacer />
           </ScrollView>
         )}
       </View>
     </SafeAreaView>
   )
+  return <SearchSelection.Provider value={selection}>{page}</SearchSelection.Provider>
+}
+
+/**
+ * Room under the last result for a phone's selection bar, which floats over
+ * the foot of the page, so the last row can scroll out from under it.
+ */
+function BarRoom(): ReactNode {
+  const selection = useContext(SearchSelection)
+  const { wide } = useLayout()
+  return selection?.active && !wide ? <View style={styles.barRoom} /> : null
 }
 
 /**
@@ -323,6 +385,7 @@ function BeforeTyping({
           <SongRows songs={recent} testPrefix="search-recent" />
         </View>
       ) : null}
+      <BarRoom />
       <ChromeSpacer />
     </ScrollView>
   )
@@ -456,6 +519,8 @@ function ArtistResult({
 /** The Songs scope: every match, in a list that only draws what is on screen. */
 function SongResults({ songs, query }: { songs: readonly Song[]; query: string }): ReactNode {
   const rows = useSongRows(songs, 'search-song')
+  const selection = useContext(SearchSelection)
+  const { wide } = useLayout()
   return (
     <>
       <SongList
@@ -464,7 +529,7 @@ function SongResults({ songs, query }: { songs: readonly Song[]; query: string }
         label="Search songs"
         renderSong={rows.renderSong}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.songList}
+        contentContainerStyle={[styles.songList, selection?.active && !wide && styles.barPadding]}
         empty={<Text style={styles.nothing}>Nothing matches “{query.trim()}”.</Text>}
       />
       {rows.menu}
@@ -489,7 +554,10 @@ function SongRows({
   )
 }
 
-/** Rows that play from this list, with the song's own ⋯ menu. */
+/**
+ * Rows that play from this list, with the song's own ⋯ menu. Holding one
+ * selects it, and while selecting a tap ticks.
+ */
 function useSongRows(
   songs: readonly Song[],
   testPrefix: string,
@@ -503,7 +571,9 @@ function useSongRows(
   const { data: library } = useLibrary()
   const { state: downloads } = useDownloads()
   const { openId: menuSongId, onMore, menu } = useSongMenu()
-  // Search is one of the lists that shows tags on its rows (`S3`); a chip opens the tag.
+  const { onEditTags, picker } = useRowTagPicker()
+  // Search is one of the lists that shows tags on its rows (`S3`): a chip opens
+  // the tag, and the count of the rest opens the song's tag window.
   const tagsOf = useSongTagLookup()
   const tags = library?.tags
   const onTag = useCallback(
@@ -513,19 +583,28 @@ function useSongRows(
     },
     [tags, router],
   )
+  const selection = useContext(SearchSelection)
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   // What a row plays from, read when it is pressed, so the handler handed to
   // every row stays the same one and the rows are not redrawn for a new list.
-  const latest = useRef({ ids, playFrom: player.playFrom })
+  const latest = useRef({ ids, playFrom: player.playFrom, selection })
   useEffect(() => {
-    latest.current = { ids, playFrom: player.playFrom }
-  }, [ids, player.playFrom])
+    latest.current = { ids, playFrom: player.playFrom, selection }
+  }, [ids, player.playFrom, selection])
 
-  const onPress = useCallback((_event: GestureResponderEvent, song: Song) => {
-    const { ids: now, playFrom } = latest.current
+  const onPress = useCallback((event: GestureResponderEvent, song: Song) => {
+    const { ids: now, playFrom, selection: selecting } = latest.current
+    // Shift and Cmd, and a tap while selecting, select; a plain tap plays.
+    if (selecting?.click(song.id, modifiersOf(event))) return
     const index = now.indexOf(song.id)
     if (index >= 0) playFrom(now, index, { source: FROM_SEARCH })
   }, [])
+  const onLongPress = useCallback((song: Song) => latest.current.selection?.enter(song.id), [])
+  const onToggleSelect = useCallback((song: Song) => latest.current.selection?.toggle(song.id), [])
+  const onDrag = useCallback(
+    (song: Song) => latest.current.selection?.carried(song.id) ?? [song.id],
+    [],
+  )
 
   const renderSong = useCallback(
     ({ item, index }: { item: Song; index: number }) => (
@@ -538,17 +617,42 @@ function useSongRows(
         onPress={onPress}
         onMore={onMore}
         menuOpen={menuSongId === item.id}
+        onLongPress={onLongPress}
+        selecting={selection?.active ?? false}
+        selected={selection?.has(item.id) ?? false}
+        onToggleSelect={onToggleSelect}
+        dragSongs={onDrag}
         index={index}
         tags={tagsOf(item)}
-        onToggleTag={onTag}
+        onOpenTag={onTag}
+        onEditTags={onEditTags}
       />
     ),
-    [artFor, downloads.index, onPress, onMore, menuSongId, testPrefix, tagsOf, onTag],
+    [
+      artFor,
+      downloads.index,
+      onPress,
+      onMore,
+      onLongPress,
+      onToggleSelect,
+      onDrag,
+      selection,
+      menuSongId,
+      testPrefix,
+      tagsOf,
+      onTag,
+      onEditTags,
+    ],
   )
 
   return {
     renderSong,
-    menu,
+    menu: (
+      <>
+        {menu}
+        {picker}
+      </>
+    ),
   }
 }
 
@@ -604,6 +708,8 @@ function LyricResults({
 }
 
 const styles = StyleSheet.create(theme => ({
+  barRoom: { height: SELECTION_BAR_SPACE },
+  barPadding: { paddingBottom: SELECTION_BAR_SPACE },
   ask: {
     flexDirection: 'row',
     alignItems: 'center',

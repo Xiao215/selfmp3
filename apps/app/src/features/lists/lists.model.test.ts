@@ -16,6 +16,7 @@ import {
   savePlan,
   songsToSave,
   sourceKey,
+  sourceTagIds,
   withListRenamed,
   withListStarted,
   withSongPlayed,
@@ -193,6 +194,13 @@ describe('sources from places and Library', () => {
       tagIds: [2, 1],
       artistKeys: ['yorushika'],
     })
+  })
+
+  it('names the tags a list plays from, for the chips its rows leave off', () => {
+    expect(sourceTagIds(librarySource([3], TAGS))).toEqual([3])
+    expect(sourceTagIds(librarySource([1, 2], TAGS))).toEqual([1, 2])
+    expect(sourceTagIds({ kind: 'library' })).toEqual([])
+    expect(sourceTagIds(null)).toEqual([])
   })
 })
 

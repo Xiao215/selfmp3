@@ -258,3 +258,37 @@ test.describe('the library’s tag strip, still a filter', () => {
     await expect(songRows(page).first()).toBeVisible()
   })
 })
+
+/**
+ * A row's tag chips (E1, docs/features/tagging.md): a chip opens its tag's
+ * page in Library as everywhere else — the strip is what filters — and a row
+ * never shows the chip of a tag the list is filtered by.
+ */
+test.describe('a song row’s tag chips', () => {
+  test('a chip opens its tag, and the tag filtered by is not drawn', async ({ page }) => {
+    await openLibrary(page)
+    await libraryReady(page)
+    await skipIfNoLibrary(page)
+
+    const rows = songRows(page)
+    // A tag some row on screen wears as a chip.
+    const { tags } = await libraryData(page)
+    let name: string | null = null
+    for (const tag of tags) {
+      if ((await rows.getByRole('button', { name: tag.name, exact: true }).count()) > 0) {
+        name = tag.name
+        break
+      }
+    }
+    test.skip(name === null, 'needs a song row with a tag')
+    if (name === null) return
+
+    await pickTag(page, name)
+    await expect(rows.first()).toBeVisible()
+    await expect(rows.getByRole('button', { name, exact: true })).toHaveCount(0)
+
+    await page.getByTestId('library-tag-all').click()
+    await rows.getByRole('button', { name, exact: true }).first().click()
+    await expect(page).toHaveURL(new RegExp(`/tag/${encodeURIComponent(name)}$`))
+  })
+})

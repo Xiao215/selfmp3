@@ -41,11 +41,11 @@ import { useGoBack } from '../../ui/useBackTo'
  * (`OrderedSongList`) — select them, hold one to move it, its ⋯ for the song.
  * Nothing here is a row of its own.
  *
- * The head is Play, Shuffle and Different songs; the ⋯ holds Add to Up next
- * and Save as playlist, for an answer you already trust. Otherwise nothing
- * asks you to keep it before you have heard it: played, it is Up next by the
- * name of your question, and Save is there. The order you put it in is the
- * order it plays and saves in, for as long as the app is open.
+ * The head is Play, Shuffle and Different songs; the ⋯ holds Select songs,
+ * and Add to Up next and Save as playlist for an answer you already trust.
+ * Otherwise nothing asks you to keep it before you have heard it: played, it
+ * is Up next by the name of your question, and Save is there. The order you
+ * put it in is the order it plays and saves in, for as long as the app is open.
  *
  * What it understood is shown as chips; taking one away and pressing
  * Different songs picks again from what is left.
@@ -281,6 +281,15 @@ export function AnswerScreen(): ReactNode {
         width={220}
         testID="answer-menu"
       >
+        {/* Holding a row moves it here (D1), so selecting starts from this menu. */}
+        <SheetItem
+          label="Select songs"
+          disabled={ids.length === 0}
+          onPress={() => {
+            setMenuOpen(false)
+            selection.enter()
+          }}
+        />
         <SheetItem
           label="Add to Up next"
           disabled={ids.length === 0}

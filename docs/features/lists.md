@@ -134,13 +134,28 @@ is named after them the same way.
 In Search the answer is one card (C1): **▶** plays it at once, and the card opens it as a
 page. The page is a list of songs like any other: the head a tag's page has (covers, "✦
 Picked for you" over the list's own name, what it understood as chips), **Play**, **Shuffle**,
-**Different songs** and **⋯** (Add to Up next, Save as playlist), and under it the same
-rows a playlist draws (`ui/components/OrderedSongList.tsx`, shared with the playlist
-page): select them, hold one to move it, the ⋯ for the song. The order you put it in is
-the order it plays and saves in while the app is open. Different songs sends the picks it
+**Different songs** and **⋯** (Select songs, Add to Up next, Save as playlist), and under
+it the same rows a playlist draws (`ui/components/OrderedSongList.tsx`, shared with the
+playlist page): hold one to move it, Select songs to tick several, a row's ⋯ for the song.
+The order you put it in is the order it plays and saves in while the app is open. Different
+songs sends the picks it
 showed as `avoid` (`DescribeRequest`), and the server picks around them while anything else
 fits. Answers are kept in memory (`smart/answers.store.ts`); an address to one from before a
 reload says so.
+
+## Putting a list in order
+
+A playlist you made and an Ask answer are in the order you set (`OrderedSongList`). On a
+phone a row is held until it lifts, then moved. With a mouse a plain drag moves it, no hold
+first (small fix 5, 2026-10-08): it is the same browser drag that carries a song to a
+playlist in the sidebar, read by the list while it is over the list — the row follows the
+pointer and the rows around it make room, and a drop there is the new order. Carried out of
+the list, the row goes back to its place and a drop on a sidebar playlist adds the song
+(`useDragToReorder` in `apps/app/src/ports/songDrag.web.ts`). Several ticked songs dragged
+together only go to a playlist.
+
+A playlist that fills from tags is in its rule's order (small fix 4): nothing lifts and no
+order is sent, and holding a row selects it as it does in Library.
 
 ## Recently played
 

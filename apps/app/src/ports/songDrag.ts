@@ -12,13 +12,17 @@ import type { View } from 'react-native'
 
 /**
  * Make this view draggable, carrying the songs `songIds` returns when the drag
- * starts. `onStart` runs first, before the browser draws the drag image.
+ * starts — named by `title` when it is one song, counted when it is several.
+ * `onStart` runs first, as the drag begins.
  */
 export function useSongDragSource(
   _ref: RefObject<View | null>,
-  _songIds: () => readonly number[],
-  _enabled = true,
-  _onStart?: () => void,
+  _drag: {
+    songIds: () => readonly number[]
+    title: string
+    enabled?: boolean
+    onStart?: () => void
+  },
 ): void {}
 
 /** Let songs be dropped here. True while a drag carrying songs is over it. */
@@ -32,6 +36,20 @@ export function useSongDropTarget(
 ): boolean {
   return false
 }
+
+/**
+ * Reorder a list by the same drag that carries a row to a playlist: a plain
+ * drag with a mouse. A phone holds a row to move it instead (`HoldToReorder`).
+ */
+export function useDragToReorder(
+  _ref: RefObject<View | null>,
+  _move: {
+    enabled: boolean
+    onStart: (songId: number) => void
+    onMove: (songId: number, dy: number) => void
+    onEnd: (songId: number, dy: number) => void
+  },
+): void {}
 
 /** True while songs are being dragged anywhere, so drop targets can say so. */
 export function useSongDragActive(): boolean {

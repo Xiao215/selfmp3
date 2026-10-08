@@ -24,6 +24,8 @@ import { HoldToReorder, useLiftScale, useMakeRoom } from '../../ui/components/Ho
 import { Shuffle, X } from '../../ui/components/Icons'
 import { PlayPauseIcon } from '../../ui/components/PlayPauseIcon'
 import { SongRow } from '../../ui/components/SongRow'
+import { useRowTagPicker } from '../../ui/components/useRowTagPicker'
+import { sourceTagIds } from '../lists/lists.model'
 import { Toggle } from '../../ui/components/Toggle'
 import { tip } from '../../ui/tip'
 import { closeQueueSheet, useQueueSheetOpen } from './queueSheet.store'
@@ -94,6 +96,8 @@ interface SheetRowActions {
   readonly play: (index: number) => void
   readonly remove: (index: number) => void
   readonly openTag: (tagId: number) => void
+  /** A row's count of the tags it had no room for: the song's tag window. */
+  readonly editTags: (anchor: View | null, song: Song) => void
   readonly holding: (songId: number, holding: boolean) => void
   readonly start: (index: number, songId: number) => void
   readonly move: (index: number, dy: number) => void
@@ -191,6 +195,10 @@ function SheetPanel({
    * (`useLiftScale`).
    */
   const lift = useLiftScale()
+  // A row's "+2" opens the song's tags (E1); a chip for the tag Up next
+  // is playing from would only repeat its name, so it is left off.
+  const { onEditTags: editTags, picker: tagPicker } = useRowTagPicker()
+  const fromTags = useMemo(() => sourceTagIds(player.source), [player.source])
   // Its made-once parts on their own, so the row actions below are made once too.
   const { lift: liftScale, holding: holdRow, start: liftRow, drop: dropRow } = lift
   // State rather than a ref: the rows making room read it while rendering.
@@ -224,6 +232,7 @@ function SheetPanel({
       play: index => latest.current.player.jumpTo(index),
       remove: index => latest.current.remove(index),
       openTag: tagId => latest.current.openTag(tagId),
+      editTags,
       holding: holdRow,
       start: (index, songId) => {
         dragY.setValue(0)
@@ -247,7 +256,7 @@ function SheetPanel({
       dragY,
       lift: liftScale,
     }
-  }, [dragY, liftScale, holdRow, liftRow, dropRow])
+  }, [dragY, liftScale, holdRow, liftRow, dropRow, editTags])
 
   const playing = rows.playing
   // Something besides the song playing, to come or played, for Clear the rest to take.
@@ -276,6 +285,7 @@ function SheetPanel({
         downloaded={here}
         notDownloadedMark={installed && !here}
         tags={tagsOf(entry.song)}
+        hideTagIds={fromTags}
         actions={actions}
       />
     )
@@ -411,6 +421,7 @@ function SheetPanel({
           <Text style={styles.hint}>Hold a song to move it · swipe left to remove it</Text>
         </ScrollView>
       </Animated.View>
+      {tagPicker}
     </View>
   )
 }
@@ -430,6 +441,7 @@ const SheetRow = memo(function SheetRow({
   downloaded,
   notDownloadedMark,
   tags,
+  hideTagIds,
   actions,
 }: {
   song: Song
@@ -449,6 +461,8 @@ const SheetRow = memo(function SheetRow({
   downloaded: boolean
   notDownloadedMark: boolean
   tags: readonly Tag[]
+  /** The tags Up next is playing from, whose chips are left off. */
+  hideTagIds: readonly number[]
   actions: SheetRowActions
 }): ReactNode {
   const onHolding = useCallback(
@@ -500,9 +514,9 @@ const SheetRow = memo(function SheetRow({
               notDownloadedMark={notDownloadedMark}
               onPress={onPress}
               tags={tags}
-              onToggleTag={actions.openTag}
-              // The hold is the move's, not a menu's.
-              onLongPress={null}
+              hideTagIds={hideTagIds}
+              onOpenTag={actions.openTag}
+              onEditTags={actions.editTags}
               lifted={lifted}
             />
           </View>

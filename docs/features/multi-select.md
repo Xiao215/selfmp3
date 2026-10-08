@@ -31,11 +31,12 @@ Three ways in, because a Mac and a phone are not the same machine:
   play overlay and the ⋯ already are, and then out and staying out for as long as anything is
   selected. Once one row is ticked every row has to show whether it is ticked too, or the list
   is lying about its own state.
-- **The Select button in the header**, next to Play. Always visible, on both sizes. It turns
-  into **Done**, which is how you leave.
-- **Select, in the song's ⋯ sheet.** This is the phone's way in: the sheet is already what a
-  held row opens, and it is where "do this to several of these" has to live when there are no
-  modifier keys.
+- **Holding a row.** This is the phone's way in, wherever holding does not move the row:
+  Library, a tag's, an artist's or a combination's page, Search, and a playlist that follows
+  tags. The bar's **Done** is how you leave.
+- **Select songs, in the list's own ⋯** — a playlist you made, an Ask answer. Holding a row
+  there moves it, so selecting has to start somewhere else, and without it a phone had no way
+  to remove several songs from a playlist at once.
 
 Cmd/Ctrl-click and Shift-click still work for people who know them. They are accelerators now
 rather than the only door.
@@ -52,14 +53,16 @@ rather than the only door.
 | Space on the focused row | Toggles | Toggles |
 | Enter on the focused row | Plays | Toggles |
 | Cmd/Ctrl+A inside the list | Selects every row in the list | Same |
-| Hold a row (phone) | Starts a selection with it | — |
+| Hold a row (finger) | Starts a selection with it | Toggles that row |
 | Escape | — | Clears the selection and leaves the mode |
 
-**One exception to the hold.** On a playlist you made, holding a row lifts it to be moved
-instead: the order is yours there, and reordering has nowhere else to live on a touch screen
-(`apps/app/src/ui/components/HoldToReorder.tsx`). The song menu no longer offers **Select**
-(docs/ui-mock `P14`), so selecting there does not start from a row's ⋯. On a playlist
-that follows tags there is no order to change, so holding does what it does everywhere else.
+**What a hold means: two things, one rule** (Xiao chose D1, 2026-10-08). In a list whose order
+you set — a playlist you made, an Ask answer, Up next — holding a row lifts it to be moved: the
+order is yours there, and reordering has nowhere else to live on a touch screen
+(`apps/app/src/ui/components/HoldToReorder.tsx`). Everywhere else holding selects, Search
+included (it used to open the song menu). A playlist that follows tags has no order to change,
+so holding selects there too. Holding never opens the song menu; the ⋯ does. The Tags page's
+tiles are not song rows and keep their hold to rename and recolour.
 
 "Selection mode" is the explicit state the Select button and the checkbox turn on. It exists
 because a phone has no modifiers: in it a tap selects instead of playing, and the checkboxes
@@ -123,6 +126,11 @@ as icons on one line, with select all and a playlist's Remove moved into More.
 
 Emptying the selection — the bar's own checkbox, or unticking the last row — leaves selection
 mode, so the bar goes with the ticks (Xiao, 2026-09-25).
+
+**Dragging carries the selection.** With a mouse, dragging one of the ticked rows onto a
+playlist in the sidebar (or onto Up next) carries every ticked song, in the list's order, and
+the pill under the pointer says how many; it used to carry only the row under the pointer.
+Dragging a row that is not ticked carries that song alone (`Selection.carried`).
 
 The count is also announced to assistive technology through a polite `aria-live` region, so a
 screen-reader user hears "3 songs selected" without hunting for it.
@@ -194,5 +202,5 @@ empty batches) and the rollback.
   from a playlist and removing downloads can be put back, so they have Undo and no question.
 - **No batch metadata edit.** "Fix metadata" is per-song by nature — it is a choice between
   candidates, not a value to stamp across a selection.
-- **No selection in the queue panel or on the Stats pages.** The library and a playlist are
-  where batch editing is actually wanted.
+- **No selection in the queue panel or on the Stats pages.** The library, the places, Search
+  and a playlist are where batch editing is actually wanted.

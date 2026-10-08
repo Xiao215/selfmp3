@@ -50,6 +50,23 @@ export function chipBudget({ hasAddButton }: { hasAddButton: boolean }): number 
 }
 
 /**
+ * On a phone the chips are not beside the title but on the line under it,
+ * after the artist and the length, so the title has the whole row (Xiao chose
+ * E1, 2026-10-08): titles here are long, often in two languages, and chips
+ * beside them cut "第七夜 - The Ninth Night" to "第七夜 - Th…". The lane is
+ * what that line has left once the words have kept enough to be read, and
+ * never more than two short chips and a count.
+ */
+const UNDER_LANE_MAX = 132
+/** What the artist and the length keep of the line, however many tags the song has. */
+const UNDER_WORDS_MIN = 110
+
+/** Room for the chips on a phone row's second line, in a text column `column` wide. */
+export function underBudget(column: number): number {
+  return Math.max(0, Math.min(UNDER_LANE_MAX, column - UNDER_WORDS_MIN))
+}
+
+/**
  * What a chip will be about this wide, before it has ever been drawn: its
  * padding, its dot and the gap after it, and its name.
  */

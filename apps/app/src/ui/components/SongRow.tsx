@@ -1,4 +1,4 @@
-import { memo, useRef, useState } from 'react'
+import { memo, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -17,6 +17,7 @@ import {
   TAG_GAP,
   TAG_SLOT_PADDING_LEFT,
   TAG_SLOT_WIDTH,
+  underBudget,
   useFittedTags,
 } from './rowTags'
 import { useSongPlayback } from '../../player/PlayerProvider'
@@ -58,8 +59,8 @@ const TAG_CHIPS_CONTENT_WIDTH = 520
  * energy are on the song's own page and in its menu, not on every row.
  *
  * Two shapes. At phone width, with a finger and no hover: a tap plays, the ⋯
- * is always there at a finger-sized target, and holding the row selects it
- * or opens the same menu. At desktop width it is a table row: the checkbox and
+ * is always there at a finger-sized target, and holding the row selects it —
+ * or, in a list whose order is yours, picks it up to move it. At desktop width it is a table row: the checkbox and
  * the position (or the equaliser, for the song that is loaded), the art, the
  * title over the artist, the album in a column of its own once there is room,
  * the tags, the length and ⋯.
@@ -94,9 +95,11 @@ export const SongRow = memo(function SongRow({
   selecting = false,
   selected = false,
   onToggleSelect,
+  dragSongs,
   index,
-  tags,
-  onToggleTag,
+  tags: allTags,
+  hideTagIds,
+  onOpenTag,
   onEditTags,
   onLongPress,
   menuOpen = false,
@@ -121,9 +124,9 @@ export const SongRow = memo(function SongRow({
    */
   onPress: (event: GestureResponderEvent, song: Song) => void
   /**
-   * The ⋯, and what a held finger or a right-click opens. Handed the ⋯ itself,
-   * so at desktop width the menu can open beside it — or the pointer, for a
-   * right-click, so it opens there.
+   * The ⋯, which opens the song's menu, and what a right-click opens. Handed
+   * the ⋯ itself, so at desktop width the menu can open beside it — or the
+   * pointer, for a right-click, so it opens there.
    */
   onMore?: (anchor: PopoverAnchor | null, song: Song) => void
   /**
@@ -134,6 +137,12 @@ export const SongRow = memo(function SongRow({
   selecting?: boolean
   selected?: boolean
   onToggleSelect?: (song: Song) => void
+  /**
+   * What dragging this row onto a playlist carries, with a mouse: every
+   * ticked song when it is one of them, in the list's order, so the songs you
+   * picked travel together. Left out, the row's own song.
+   */
+  dragSongs?: (song: Song) => readonly number[]
   /** Position in the list, shown at desktop width. */
   index?: number
   /**
@@ -142,16 +151,30 @@ export const SongRow = memo(function SongRow({
    * left off.
    */
   tags?: readonly Tag[]
-  /** A tag chip filters the library by that tag. */
-  onToggleTag?: (tagId: number) => void
-  /** The dashed + beside the chips. Handed the +, so the tag window can open over it. */
+  /**
+   * Tags the list is already about, whose chips would only repeat the page:
+   * the tags Library is filtered by, the tag Up next is playing from. Keep
+   * the array the same one while it means the same thing, so the memo holds.
+   */
+  hideTagIds?: readonly number[]
+  /**
+   * A tag chip opens that tag's page, in every list (E1). Filtering Library
+   * by a tag is the strip's job, at the top of the page.
+   */
+  onOpenTag?: (tagId: number) => void
+  /**
+   * The tag window, from the dashed + beside the chips on a computer and from
+   * the count of tags the row had no room for. Handed the control, so the
+   * window can open over it.
+   */
   onEditTags?: (anchor: View | null, song: Song) => void
   /**
-   * Holding the row on a phone. Without it, holding opens the ⋯ menu; `null`
-   * when something outside the row has the hold already — on a playlist you
-   * made, holding a row lifts it to be moved.
+   * Holding the row, at either width. One rule says what a hold means (Xiao
+   * chose D1, 2026-10-08): in a list whose order you set it moves the row, and
+   * the hold belongs to the list's mover, so this is left out; everywhere else
+   * it selects, and this is the list's way in to selecting.
    */
-  onLongPress?: ((song: Song) => void) | null
+  onLongPress?: (song: Song) => void
   /**
    * This row's menu is open. The menu covers the pointer, so the row stops
    * hearing it; without this the ⋯ faded out under its own menu and stayed
@@ -185,6 +208,19 @@ export const SongRow = memo(function SongRow({
   const wide = useLayoutValue(isWide)
   const dense = useLayoutValue(isDense)
   const room = usePageRoom()
+  // The phone's chip lane, as a number of points: the same answer for every
+  // phone at least 390 wide, so a window dragged at phone width redraws no row.
+  const underLane = useLayoutValue(layout =>
+    layout.wide ? 0 : underBudget(phoneTextColumn(layout.width, selecting, onMore !== undefined)),
+  )
+  // A chip that only repeats what the list is about is not drawn (E1).
+  const tags = useMemo(
+    () =>
+      allTags && hideTagIds && hideTagIds.length > 0
+        ? allTags.filter(tag => !hideTagIds.includes(tag.id))
+        : allTags,
+    [allTags, hideTagIds],
+  )
   const [hovered, setHovered] = useState(false)
   const moreRef = useRef<View>(null)
   const tagAddRef = useRef<View>(null)
@@ -197,22 +233,18 @@ export const SongRow = memo(function SongRow({
   // themselves. On a computer it sits outside hover, which is the row's
   // background, and outside selection, which is the same press read with its
   // modifier keys. A drag to the sidebar puts the row back to full size the
-  // instant it starts (`press.rest`): the browser draws the drag image from
-  // the row as it stands then, and a row held a moment before the pointer
-  // moved would otherwise leave as a pressed-in copy of itself.
+  // instant it starts (`press.rest`): a row held a moment before the pointer
+  // moved would otherwise stay pressed in under the drag.
   const press = usePressScale(PRESS.row)
-  useSongDragSource(rowRef, () => [song.id], wide && dense, press.rest)
-  // What holding the row does, the same at both widths: nothing where
-  // something outside the row has the hold (`null`), what the list asked
-  // for, or the ⋯ menu.
-  const onHold =
-    onLongPress === null
-      ? undefined
-      : onLongPress
-        ? () => onLongPress(song)
-        : onMore
-          ? () => onMore(moreRef.current, song)
-          : undefined
+  useSongDragSource(rowRef, {
+    songIds: () => (dragSongs ? dragSongs(song) : [song.id]),
+    title: song.title,
+    enabled: wide && dense,
+    onStart: press.rest,
+  })
+  // What holding the row does, the same at both widths: what the list asked
+  // for, or nothing. It no longer opens the ⋯ menu anywhere — the ⋯ does.
+  const onHold = onLongPress ? () => onLongPress(song) : undefined
   // A right-click anywhere on the row opens the same menu at the pointer.
   const onRightClick = rightClick(onMore ? at => onMore(at, song) : undefined)
 
@@ -245,51 +277,69 @@ export const SongRow = memo(function SongRow({
             />
           ) : null}
 
-          <Pressable
-            onPress={event => onPress(event, song)}
-            onLongPress={onHold}
-            {...press.handlers}
-            delayLongPress={MOVE_MS.longPress}
-            accessibilityRole="button"
-            accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
-            accessibilityState={{ selected: active }}
-            // No pressed background: the row already gives under the finger, and a
-            // filled box over the cover and title flashed white in the light theme.
-            style={styles.main}
-          >
-            <View style={styles.art}>
-              <Cover uri={artUri} title={song.album || song.title} size={48} />
-              {wash.mounted ? (
-                <Waking progress={wash.progress} style={styles.playingOverlay}>
-                  <Equalizer paused={!playing} size={12} color={songColor.tint} />
-                </Waking>
-              ) : null}
-            </View>
+          {/*
+            The press target lies under the cover and the words rather than
+            around them. The tag chips sit among the words, on the second line
+            (E1), and are buttons of their own — and a button inside the row's
+            button is a <button> in a <button>. So the words let a press fall
+            through to the target, and only the chips take one themselves. The
+            words are hidden from a screen reader, which hears the target's
+            label instead, as it did when the words were inside it.
+          */}
+          <View style={styles.body}>
+            <Pressable
+              onPress={event => onPress(event, song)}
+              onLongPress={onHold}
+              {...press.handlers}
+              delayLongPress={MOVE_MS.longPress}
+              accessibilityRole="button"
+              accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
+              accessibilityState={{ selected: active }}
+              // No pressed background: the row already gives under the finger, and a
+              // filled box over the cover and title flashed white in the light theme.
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={styles.main} pointerEvents="box-none">
+              <View style={styles.art} pointerEvents="none" {...UNREAD}>
+                <Cover uri={artUri} title={song.album || song.title} size={48} />
+                {wash.mounted ? (
+                  <Waking progress={wash.progress} style={styles.playingOverlay}>
+                    <Equalizer paused={!playing} size={12} color={songColor.tint} />
+                  </Waking>
+                ) : null}
+              </View>
 
-            <View style={styles.text}>
-              <Text style={[styles.title, active && { color: songColor.tint }]} numberOfLines={1}>
-                {song.title}
-              </Text>
-              <View style={styles.subtitleRow}>
-                <HereMark downloaded={downloaded} notDownloadedMark={notDownloadedMark} />
-                <Text style={styles.subtitle} numberOfLines={1}>
-                  {artistOr(song.artist)} · {formatDuration(song.duration)}
-                </Text>
+              <View style={styles.text} pointerEvents="box-none">
+                <View pointerEvents="none" {...UNREAD}>
+                  <Text
+                    style={[styles.title, active && { color: songColor.tint }]}
+                    numberOfLines={1}
+                  >
+                    {song.title}
+                  </Text>
+                </View>
+                <View style={styles.subtitleRow} pointerEvents="box-none">
+                  <View style={styles.subtitleWords} pointerEvents="none" {...UNREAD}>
+                    <HereMark downloaded={downloaded} notDownloadedMark={notDownloadedMark} />
+                    <Text style={styles.subtitle} numberOfLines={1}>
+                      {artistOr(song.artist)} · {formatDuration(song.duration)}
+                    </Text>
+                  </View>
+                  {/* Two and a count, where a list shows tags at all (`S3`): Library, Search, Up next. */}
+                  {tags && tags.length > 0 ? (
+                    <View style={styles.tagsUnder}>
+                      <RowTags
+                        tags={tags}
+                        budget={underLane}
+                        onOpenTag={onOpenTag}
+                        onShowAll={anchor => onEditTags?.(anchor, song)}
+                      />
+                    </View>
+                  ) : null}
+                </View>
               </View>
             </View>
-          </Pressable>
-
-          {/* Two and a count, where a list shows tags at all (`S3`): Library, Search, Up next. */}
-          {tags && tags.length > 0 ? (
-            <View style={styles.tagsPhone}>
-              <RowTags
-                tags={tags}
-                hasAddButton={false}
-                onToggleTag={onToggleTag}
-                onShowAll={anchor => onEditTags?.(anchor, song)}
-              />
-            </View>
-          ) : null}
+          </View>
 
           {onMore ? (
             <MoreButton moreRef={moreRef} song={song} onMore={onMore} style={styles.control} />
@@ -352,17 +402,12 @@ export const SongRow = memo(function SongRow({
 
         <Pressable
           onPress={event => onPress(event, song)}
-          // The phone's answers, with one more before the menu: a finger at this
-          // width holds a row to start choosing. This branch used to ignore
-          // `onLongPress` altogether, so a row whose hold belonged to something
-          // else — a playlist row being moved — still opened its ⋯ menu 450ms
-          // in, and the menu's own backdrop then swallowed every press after it
-          // (Xiao, 2026-09-21).
-          onLongPress={
-            onLongPress === undefined && !dense && onToggleSelect
-              ? () => onToggleSelect(song)
-              : onHold
-          }
+          // The phone's answer. This branch used to ignore `onLongPress`
+          // altogether, so a row whose hold belonged to something else — a
+          // playlist row being moved — still opened its ⋯ menu 450ms in, and
+          // the menu's own backdrop then swallowed every press after it (Xiao,
+          // 2026-09-21).
+          onLongPress={onHold}
           {...press.handlers}
           delayLongPress={MOVE_MS.longPress}
           accessibilityRole="button"
@@ -402,8 +447,8 @@ export const SongRow = memo(function SongRow({
           {tagChips && tags ? (
             <RowTags
               tags={tags}
-              hasAddButton={onEditTags !== undefined}
-              onToggleTag={onToggleTag}
+              budget={chipBudget({ hasAddButton: onEditTags !== undefined })}
+              onOpenTag={onOpenTag}
               onShowAll={anchor => onEditTags?.(anchor, song)}
             />
           ) : null}
@@ -471,6 +516,27 @@ export function useSongRowHeight(): number | null {
 
 const isWide = (layout: { wide: boolean }): boolean => layout.wide
 const isDense = (layout: { dense: boolean }): boolean => layout.dense
+
+/*
+ * What a phone row spends beside its words, as its styles draw it: the row's
+ * margins and padding, the cover and the gap after it; the ⋯ and the gap
+ * before it; the checkbox's column while selecting, and its gap.
+ */
+const PHONE_ROW_CHROME = space.xs * 2 + space.lg + space.sm + 48 + 12
+const PHONE_MORE = HIT_TARGET + 10
+const PHONE_SELECT = 34 - 6 + 10
+
+/** How wide a phone row's title and second line are, in a window `width` wide. */
+function phoneTextColumn(width: number, selecting: boolean, hasMore: boolean): number {
+  return width - PHONE_ROW_CHROME - (hasMore ? PHONE_MORE : 0) - (selecting ? PHONE_SELECT : 0)
+}
+
+/** Drawn, but not read out: the press target under it carries the words as its label. */
+const UNREAD = {
+  'aria-hidden': true,
+  accessibilityElementsHidden: true,
+  importantForAccessibility: 'no-hide-descendants',
+} as const
 
 /** The page has room for the album column. */
 const ROOM_FOR_ALBUM = 1
@@ -569,21 +635,23 @@ function SelectBox({
  * one long name — was that it was cut in half against the album column. Chips
  * are laid in until the next will not fit and the remainder becomes a "+2"
  * that opens the tag window, where all of them are. See `rowTags.ts` for how
- * the fitting is worked out.
+ * the fitting is worked out. The same rule on a phone's second line, in a
+ * lane of its own width (`underBudget`).
  */
 function RowTags({
   tags,
-  hasAddButton,
-  onToggleTag,
+  budget,
+  onOpenTag,
   onShowAll,
 }: {
   tags: readonly Tag[]
-  hasAddButton: boolean
-  onToggleTag?: (tagId: number) => void
+  /** How many points the chips and the count may take. */
+  budget: number
+  onOpenTag?: (tagId: number) => void
   onShowAll: (anchor: View | null) => void
 }): ReactNode {
   const moreRef = useRef<View>(null)
-  const { shown, hidden } = useFittedTags(tags, chipBudget({ hasAddButton }))
+  const { shown, hidden } = useFittedTags(tags, budget)
   // The dots are worked out here rather than read from a stylesheet, so they
   // follow the theme by asking for it: a row is memoised, and nothing else
   // re-renders it when light turns to dark.
@@ -596,7 +664,7 @@ function RowTags({
           key={tag.id}
           tag={tag}
           dot={tagColors(tag.hue, scheme).dot}
-          onPress={() => onToggleTag?.(tag.id)}
+          onPress={() => onOpenTag?.(tag.id)}
         />
       ))}
       {hidden > 0 ? (
@@ -758,9 +826,12 @@ const styles = StyleSheet.create(theme => ({
     _web: { transitionDuration: `${MOVE_MS.hoverIn}ms` },
   },
   /* The press target: everything from the cover to the end of the title. */
-  main: {
+  body: {
     flex: 1,
     minWidth: 0,
+  },
+  /* What is drawn over it: the cover, then the title over the second line. */
+  main: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -814,6 +885,13 @@ const styles = StyleSheet.create(theme => ({
     flexShrink: 1,
   },
   subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
+  subtitleWords: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 1,
+    minWidth: 0,
+  },
   /* The artist is what is scanned for, so it never shrinks; the album does. */
   artist: { flexShrink: 0, color: theme.colors.textSecondary, fontSize: type.small },
   albumInline: { flexShrink: 1, minWidth: 0, color: theme.colors.textMuted, fontSize: type.small },
@@ -864,12 +942,12 @@ const styles = StyleSheet.create(theme => ({
     fontSize: 12,
   },
   tags: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: TAG_GAP },
-  tagsPhone: {
+  /* A phone's chips, after the artist and the length; the words give way first. */
+  tagsUnder: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: TAG_GAP,
     flexShrink: 0,
-    maxWidth: 170,
   },
   tagsColumn: {
     width: TAG_SLOT_WIDTH,

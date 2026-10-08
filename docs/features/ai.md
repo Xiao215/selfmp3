@@ -574,7 +574,8 @@ restarts it — and going back, like a song in Up next, plays the song it lands 
 `Stats › Report`, under the page: "✦ In words", three to five sentences about the period,
 with **Write it again**. The server writes the Report's numbers as plain facts (hours
 beside minutes, the hour as "3 pm", the weekday by name, so the model never has to work
-anything out) and the model writes from those alone (`GET /api/ai/written`).
+anything out) and the model writes from those alone (`GET /api/ai/written`). With the server
+away, or with no model set up on it (`ai_off`), the card is not drawn at all.
 
 What it wrote is checked, sentence by sentence, and a sentence that fails is dropped, not
 mended: every number in it must be one of the facts' ("1,342" and "14th" read as numbers),

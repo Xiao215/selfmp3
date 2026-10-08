@@ -4,7 +4,7 @@ import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { WrappedRange } from '@selfmp3/shared'
-import { STALE, failureText, radius, space } from '@selfmp3/client'
+import { ApiError, STALE, failureText, radius, space } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { Refresh, Sparkle } from '../../ui/components/Icons'
 import { card, label } from '../../ui/surfaces'
@@ -16,8 +16,9 @@ import { reachedConnection, viaKey } from '../../connection/via'
 /**
  * A5 · the Report in a few sentences (docs/features/ai.md), under the page.
  * Every number in them is one of the report's: the server drops a sentence
- * that says one it was not given. Quiet when the server is away — the report
- * above is the page, and this is a note on it.
+ * that says one it was not given. Quiet when the server is away, and when it
+ * has no model set up (`ai_off`) — the report above is the page, and this is a
+ * note on it, not a place to be told what the server lacks.
  */
 export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
   const server = useSmartServer()
@@ -49,6 +50,7 @@ export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
 
   if (!written || server.reach.state !== 'reachable') return null
   if (answer.data && answer.data.sentences.length === 0) return null
+  if (answer.error instanceof ApiError && answer.error.code === 'ai_off') return null
 
   return (
     <View style={styles.card} testID="report-written">

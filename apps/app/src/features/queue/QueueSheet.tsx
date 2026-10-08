@@ -28,6 +28,7 @@ import { useRowTagPicker } from '../../ui/components/useRowTagPicker'
 import { sourceTagIds } from '../lists/lists.model'
 import { Toggle } from '../../ui/components/Toggle'
 import { tip } from '../../ui/tip'
+import { useSwallowSwipeClick } from '../../ports/swipeClick'
 import { closeQueueSheet, useQueueSheetOpen } from './queueSheet.store'
 import { UpNextSource } from './UpNextSource'
 import { OnlySongEnd, useOnlySongEndNotice } from './OnlySongEnd'
@@ -679,6 +680,11 @@ function SwipeToRemove({
     return () => clearTimeout(timer)
   }, [going, x])
 
+  // The click a mouse sends on letting go of a swipe is the swipe's, not a
+  // press on the song or a chip under it.
+  const node = useRef<View>(null)
+  const markSwiping = useSwallowSwipeClick(node)
+
   // Made again only when it is switched or the row's width changes: a new
   // gesture each render was a native handler reconfigured each render.
   const swipe = useMemo(
@@ -688,7 +694,10 @@ function SwipeToRemove({
         .activeOffsetX([-SWIPE_START, Number.MAX_SAFE_INTEGER])
         .failOffsetY([-SWIPE_VERTICAL_SLOP, SWIPE_VERTICAL_SLOP])
         .runOnJS(true)
-        .onUpdate(event => x.setValue(swipeOffset(event.translationX, width)))
+        .onUpdate(event => {
+          x.setValue(swipeOffset(event.translationX, width))
+          markSwiping()
+        })
         // The distance decides, not whether the recogniser calls its end a success:
         // in a browser a released pointer ends it as cancelled, and the row sprang
         // back from a full swipe.
@@ -702,12 +711,13 @@ function SwipeToRemove({
             spring(x, 0)
           }
         }),
-    [enabled, width, x],
+    [enabled, width, x, markSwiping],
   )
 
   return (
     <GestureDetector gesture={swipe}>
       <View
+        ref={node}
         collapsable={false}
         style={styles.swipe}
         onLayout={event => setWidth(event.nativeEvent.layout.width)}

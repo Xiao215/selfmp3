@@ -67,7 +67,7 @@ export class YouTubeMusicApi {
 }
 
 /** One piece of a text block, and the page it leads to, if any. */
-export interface Run {
+interface Run {
   readonly text?: unknown
   readonly navigationEndpoint?: {
     readonly browseEndpoint?: {

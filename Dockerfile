@@ -42,10 +42,11 @@ COPY apps/server/package.json apps/server/
 COPY apps/doorman/package.json apps/doorman/
 COPY apps/app/package.json apps/app/
 COPY apps/extension/package.json apps/extension/
-# Only the server's workspaces, plus the root's tooling (TypeScript) to build
-# them: Expo and React Native never enter this stage.
-RUN npm ci --workspace @selfmp3/shared --workspace @selfmp3/server --include-workspace-root \
-      --no-audit --no-fund
+# Only the server's workspaces, with their own development dependencies: the
+# server declares the TypeScript and the Node types its build needs, so the
+# root's tooling (ESLint, Prettier, Vitest, Playwright) stays out, and Expo and
+# React Native never enter this stage.
+RUN npm ci --workspace @selfmp3/shared --workspace @selfmp3/server --no-audit --no-fund
 
 # Both halves of the root config: `tsconfig.base.json` extends
 # `tsconfig.strict.json`, and tsc reads the chain from disk.

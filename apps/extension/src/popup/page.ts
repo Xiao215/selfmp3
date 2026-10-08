@@ -1,5 +1,5 @@
 /** The page the popup was opened on. */
-export interface Page {
+interface Page {
   readonly url: string | null
   readonly title: string | null
 }

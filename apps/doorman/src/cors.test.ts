@@ -1,3 +1,4 @@
+import { DESKTOP_APP_ORIGIN, EXTENSION_ORIGIN, EXTENSION_SIGNIN_ORIGIN } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import { allowedOrigins } from './cors.js'
 
@@ -11,8 +12,11 @@ import { allowedOrigins } from './cors.js'
 
 const silent = { warn: () => undefined, info: () => undefined, error: () => undefined }
 
+const OWN = [DESKTOP_APP_ORIGIN, EXTENSION_ORIGIN, EXTENSION_SIGNIN_ORIGIN]
+
+/** What the setting adds to the apps' own origins, which are always there. */
 const origins = (value: string | undefined): string[] =>
-  [...allowedOrigins(value, silent as never)].sort()
+  [...allowedOrigins(value, silent as never)].filter(origin => !OWN.includes(origin)).sort()
 
 describe('allowedOrigins', () => {
   it('takes the origin of each address, however it was written', () => {
@@ -54,11 +58,11 @@ describe('allowedOrigins', () => {
    * screen but "Failed to fetch".
    */
   it('takes an installed app’s own scheme, as the browser sends it', () => {
-    expect(origins('app://selfmp3')).toEqual(['app://selfmp3'])
-    expect(origins('app://selfmp3/')).toEqual(['app://selfmp3'])
-    expect(origins('APP://SelfMP3')).toEqual(['app://selfmp3'])
-    expect(origins('https://xiao215.github.io,app://selfmp3')).toEqual([
-      'app://selfmp3',
+    expect(origins('app://player')).toEqual(['app://player'])
+    expect(origins('app://player/')).toEqual(['app://player'])
+    expect(origins('APP://Player')).toEqual(['app://player'])
+    expect(origins('https://xiao215.github.io,app://player')).toEqual([
+      'app://player',
       'https://xiao215.github.io',
     ])
   })
@@ -76,15 +80,18 @@ describe('allowedOrigins', () => {
   })
 
   /*
-   * The browser extension sends its own origin on every write, and its sign-in
-   * comes back through Chrome's address for it. Both have to be on the list.
+   * The desktop app's page, and the browser extension, which sends its own
+   * origin on every write and has its sign-in come back through Chrome's
+   * address for it. All three are the same on every install, so they are on
+   * the list without being in the setting.
    */
-  it('takes the browser extension’s origin and the address its sign-in returns to', () => {
-    expect(
-      origins(
-        'chrome-extension://ojgfoohmmkangonahnbdpelfgmkjkfpi,https://ojgfoohmmkangonahnbdpelfgmkjkfpi.chromiumapp.org',
-      ),
-    ).toEqual([
+  it('always takes the desktop app’s and the extension’s own origins', () => {
+    for (const value of [undefined, '', 'https://xiao215.github.io', EXTENSION_ORIGIN]) {
+      const list = [...allowedOrigins(value, silent as never)]
+      expect(list, String(value)).toEqual(expect.arrayContaining(OWN))
+    }
+    expect(OWN).toEqual([
+      'app://selfmp3',
       'chrome-extension://ojgfoohmmkangonahnbdpelfgmkjkfpi',
       'https://ojgfoohmmkangonahnbdpelfgmkjkfpi.chromiumapp.org',
     ])

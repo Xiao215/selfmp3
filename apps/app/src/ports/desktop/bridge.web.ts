@@ -24,5 +24,3 @@ const found =
         DesktopBridge | undefined) ?? null)
 
 export const desktop: DesktopBridge | null = found
-
-export type { DesktopBridge }

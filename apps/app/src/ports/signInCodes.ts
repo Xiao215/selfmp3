@@ -18,7 +18,7 @@ import { signInCodeFromUrl } from '@selfmp3/shared'
 /** Where a sign-in can come back to: Welcome, or Settings → Cloud. */
 export type SignInTarget = 'welcome' | 'settings'
 
-export interface SignInLink {
+interface SignInLink {
   readonly target: SignInTarget
   readonly code: string
 }

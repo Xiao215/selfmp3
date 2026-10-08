@@ -1,6 +1,5 @@
 import {
   fuzzyRankPrepared,
-  fuzzyTopPrepared,
   preparedTextFor,
   sortSongs,
   type FuzzyMatch,
@@ -126,11 +125,6 @@ const preparedSearchText = preparedTextFor<Song>(searchText)
  */
 export function searchSongs<S extends Song>(query: string, songs: readonly S[]): FuzzyMatch<S>[] {
   return fuzzyRankPrepared(query, songs, preparedSearchText)
-}
-
-/** The best `count` of `searchSongs`, in its order, without ranking the rest. */
-export function topSongs<S extends Song>(query: string, songs: readonly S[], count: number): S[] {
-  return fuzzyTopPrepared(query, songs, preparedSearchText, count).map(match => match.item)
 }
 
 export function filterSongs(

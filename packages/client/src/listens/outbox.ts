@@ -35,7 +35,7 @@ import type { OutboxStore } from '../platform.js'
  * — which is how the app re-exports them — carries no `this`. None of them has
  * one to lose.
  */
-export interface ListenOutbox {
+interface ListenOutbox {
   /** A play that has just counted. Stored first, then sent. */
   readonly recordListen: (songId: number, msPlayed: number, completed: boolean) => void
   /** Send what is waiting. Resolves to how many events the server took. */

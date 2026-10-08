@@ -570,7 +570,7 @@ function sameShape(a: DownloadQueueState, b: DownloadQueueState): boolean {
 }
 
 /** How far the song in flight has got. */
-export interface DownloadProgress {
+interface DownloadProgress {
   readonly activeSongId: number | null
   readonly bytesWritten: number
   /** The expected size when the platform does not know it; 0 with nothing in flight. */

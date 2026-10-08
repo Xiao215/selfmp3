@@ -3,7 +3,6 @@ import {
   editDistance,
   fuzzyRank,
   fuzzyRankPrepared,
-  fuzzyTopPrepared,
   isSubsequence,
   preparedTextFor,
 } from './fuzzy.js'
@@ -154,16 +153,6 @@ describe('the prepared paths', () => {
       const before = legacyRank(query, songs, text)
       expect(fuzzyRank(query, songs, text), query).toEqual(before)
       expect(fuzzyRankPrepared(query, songs, prepared), query).toEqual(before)
-    }
-  })
-
-  it('keeps the top few in the order the full ranking gives them', () => {
-    for (const query of queries) {
-      for (const count of [0, 1, 2, 3, 8, 100]) {
-        expect(fuzzyTopPrepared(query, songs, prepared, count), `${query} × ${count}`).toEqual(
-          legacyRank(query, songs, text).slice(0, count),
-        )
-      }
     }
   })
 

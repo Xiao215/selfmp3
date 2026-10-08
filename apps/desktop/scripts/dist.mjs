@@ -21,6 +21,8 @@ import { rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { REPOSITORY } from '@selfmp3/shared'
+
 import { loadDotEnv } from '../../../scripts/dotenv.mjs'
 import { blankSigningVariables, signingTier } from './signingTier.mjs'
 
@@ -36,6 +38,23 @@ const env = process.env
 // electron-builder would take as a certificate path (signingTier.mjs).
 for (const name of blankSigningVariables(env)) delete env[name]
 const { tier, identity, notarising, canInstallUpdates } = signingTier(env)
+
+/*
+ * The repository whose releases the app updates from: `REPOSITORY` in shared,
+ * which the app's own release checks and the Help menu read too. A workflow run
+ * says which repository it belongs to, and a build there for any other one
+ * stops here: a fork that has not changed `REPOSITORY` would otherwise ship an
+ * app that looks for its updates upstream.
+ */
+const repository = `${REPOSITORY.owner}/${REPOSITORY.name}`
+const building = env['GITHUB_REPOSITORY']
+if (building && building.toLowerCase() !== repository.toLowerCase()) {
+  console.error(
+    `\nThis is ${building}, but the app would update from ${repository}.\n` +
+      'Set REPOSITORY in packages/shared/src/releases.ts to this repository.\n',
+  )
+  process.exit(1)
+}
 
 const run = (command, args) => {
   const result = spawnSync(command, args, { cwd: desktop, stdio: 'inherit', env, shell: false })
@@ -55,7 +74,14 @@ run(process.execPath, [join(here, 'build.mjs')])
 
 // Never electron-builder's own publishing: a git tag makes it try, and it
 // would want a token. The workflow attaches the files to the release itself.
-const args = ['--config', 'electron-builder.yml', '--publish', 'never']
+const args = [
+  '--config',
+  'electron-builder.yml',
+  '--publish',
+  'never',
+  `--config.publish.owner=${REPOSITORY.owner}`,
+  `--config.publish.repo=${REPOSITORY.name}`,
+]
 // Anything after `--` on this script's own command line, so
 // `npm run dist -- --dir --linux` still works for a smoke build.
 const extra = process.argv.slice(2)

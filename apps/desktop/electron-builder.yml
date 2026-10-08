@@ -81,11 +81,11 @@ dmg:
       path: /Applications
 
 # Where electron-updater looks, and where a tagged build publishes. `publish`
-# never runs by itself: the workflow attaches the files to the release.
+# never runs by itself: the workflow attaches the files to the release. The
+# owner and the repository are `REPOSITORY` in packages/shared/src/releases.ts,
+# which the app's own release checks read too; scripts/dist.mjs passes them in.
 publish:
   provider: github
-  owner: Xiao215
-  repo: selfmp3
   releaseType: release
 
 # Present and deliberately not in any default build: nothing here reads

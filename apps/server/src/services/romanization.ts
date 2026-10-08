@@ -24,7 +24,7 @@ interface Romanizers {
 }
 
 /** A romanization, and whether every engine it needed was there to make it. */
-export interface Romanization {
+interface Romanization {
   readonly lyrics: RomanizedLyrics
   /**
    * False when a line went without because its engine failed to load. Such a

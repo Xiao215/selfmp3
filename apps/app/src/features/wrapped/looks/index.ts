@@ -9,8 +9,6 @@ import { RECEIPT_SIZE, ReceiptLook } from './Receipt'
 import { WALL_SIZE, WallLook } from './Wall'
 import { WORDS_SIZE, WordsLook } from './Words'
 
-export type { LookProps } from './parts'
-
 /**
  * How each look is drawn: its component, the size it was designed at, and the
  * corners of the object it is (a sheet, a slip, a poster). The page scales the

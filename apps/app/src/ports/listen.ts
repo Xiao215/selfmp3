@@ -68,7 +68,7 @@ const SILENT_MS = 45_000
  * waiting on the network, so the wait is read as loading until it is not
  * waiting; a player told to pause is paused whatever its buffer is doing.
  */
-export function statusOf(status: AudioStatus, asked: 'play' | 'pause'): ListenStatus {
+function statusOf(status: AudioStatus, asked: 'play' | 'pause'): ListenStatus {
   if (status.playbackState === 'failed') return 'error'
   if (asked === 'pause') return 'paused'
   const waiting = status.isBuffering || status.timeControlStatus === 'waitingToPlayAtSpecifiedRate'

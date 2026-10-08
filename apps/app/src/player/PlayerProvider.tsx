@@ -80,8 +80,6 @@ import { createValueStore, type ValueStore } from '../state/valueStore.model'
 import { useValueStore } from '../state/useValueStore'
 import { useSongsById } from '../ui/songsById'
 
-export type { PlayerProgress }
-
 /**
  * The React glue between the queue rules and whatever makes a sound.
  *

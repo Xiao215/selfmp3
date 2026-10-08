@@ -293,6 +293,8 @@ export class Bucket {
    * The day's signing key, as aws4fetch wants it: a map in which it looks the
    * key up under the application key in plain text. So it gets a map of one,
    * made for this request; what outlives the request is kept under a hash.
+   * The lookup string is aws4fetch's own, undocumented; bucket.test.ts counts
+   * HMACs and fails when aws4fetch stops finding the key and derives it again.
    */
   async #signingKeyFor(date: string): Promise<Map<string, ArrayBuffer>> {
     const { applicationKey, region } = this.#target

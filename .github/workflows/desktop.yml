@@ -7,7 +7,9 @@
 # Signing is by secret, and its absence is a tier rather than a failure
 # (apps/desktop/scripts/dist.mjs): with no CSC_LINK the build is ad-hoc signed
 # and the release notes say how to open it once. That is what makes this
-# workflow runnable by anyone who forks the repository.
+# workflow runnable by anyone who forks the repository, once the fork names
+# itself in REPOSITORY (packages/shared/src/releases.ts): the app updates from
+# that repository's releases, and dist.mjs stops a build run anywhere else.
 name: Desktop
 
 on:

@@ -11,7 +11,7 @@ import { motionMs } from '../../ui/motion'
  * driver, so the frames never come back to JavaScript. The browser's is
  * `StageMove.web.tsx`, and `stageMove.model.ts` says why neither moves layout.
  */
-export interface StageMove {
+interface StageMove {
   readonly value: Animated.Value
   /** Where the move is headed: 0 the stage, 1 Focus. */
   readonly target: number

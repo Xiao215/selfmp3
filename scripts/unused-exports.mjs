@@ -1,25 +1,38 @@
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { dirname, join, normalize } from 'node:path'
+import ts from 'typescript'
 
 /**
- * Exported names that nothing reads, across platform twins.
+ * Exported names that nothing reads, by the import graph, across platform twins.
+ *
+ * An export is read when another module imports that name from the module that
+ * declares it: by a relative path, through `@/` in the app, or through a
+ * `@selfmp3/*` package's entry, following the barrels that re-export it
+ * (`export { x } from`, `export * from`) down to the declaration. A file that
+ * merely spells the name does not count. That is what the textual check before
+ * this one missed: an export whose name is also an ordinary word (`Folder`,
+ * `Speed`, `PLAIN`), one only a barrel re-exported, or one only its own test
+ * read, all looked read.
+ *
+ * Tests exist to name the thing they test; they cannot make it used. So a read
+ * from a test counts in two cases only: the module is test support (everything
+ * that imports it is a test, as a fixture is), or the module uses the name
+ * itself, and exports it only so a test can reach it.
  *
  * The app resolves `./covers` to covers.ts on a phone and covers.web.ts in a
- * browser, so the same name is declared in both. A search that reads each file
- * on its own therefore finds every such name "used" — by its own twin — and
- * says nothing. `forgetCovers` sat uncalled behind exactly that: signing out
- * left the previous account's covers on the device, and no tool noticed
- * because covers.web.ts spelled the name too.
+ * browser, so the same name is declared in both. `x.ts`, `x.web.ts` and
+ * `x.desktop.ts` are collapsed onto one identity, one module here, and a twin
+ * cannot vouch for its twin. `forgetCovers` sat uncalled behind exactly that.
  *
- * So a twin group is one unit here. `x.ts`, `x.web.ts` and `x.desktop.ts` are
- * collapsed onto one identity, and a name is unused when nothing *outside*
- * that group mentions it.
+ * A barrel's own named re-export (`export { x } from './y.js'`) is checked
+ * too: one that no import passes through is reported at the barrel, even when
+ * the package reads `x` directly from `./y.js`.
  *
- * Deliberately textual, not a type-aware pass. It has one job, it needs no
- * project graph — the app's and the server's cannot be loaded together, which
- * is why the root eslint config skips apps/app — and being crude makes it
- * over-report rather than miss, which is the safe direction. What it does
- * report is checked by hand; ALLOWED below is that judgement, written down.
+ * Files are parsed with TypeScript's own parser, one at a time and without a
+ * program: the app's project and the server's cannot be loaded together, which
+ * is why the root eslint config skips apps/app. What it reports is checked by
+ * hand; ALLOWED below is that judgement, written down.
  */
 
 /**
@@ -80,10 +93,10 @@ const ALLOWED = new Map([
   // Props shared by a component and its twin.
   ['SongVisualProps', 'SongVisual, both twins'],
   ['MovingProps', 'StageMove, both twins'],
+  // Module state a test empties between cases; nothing the app runs needs it.
+  ['forgetChipWidths', 'rowTags.ts, emptied between its tests'],
+  ['resetImportDraft', 'importDraft.ts, emptied between the review tests'],
 ])
-
-const DECLARATION =
-  /^export (?:async )?(?:function|const|class|interface|type|enum) ([A-Za-z_$][\w$]*)/gm
 
 /**
  * The second pass: members of a surface, not exports.
@@ -144,48 +157,359 @@ const ALLOWED_MEMBERS = new Map([])
 /** `x.web.ts` and `x.desktop.ts` are the same module as `x.ts`, to the bundler. */
 const identity = file => file.replace(/\.(web|desktop|native|ios|android)(?=\.tsx?$)/, '')
 
+/** A test, or a harness run by a test runner: its reads do not make a name used. */
+const isTest = file =>
+  /\.(test|spec)\.[cm]?[jt]sx?$/.test(file) ||
+  file.includes('/verify/') ||
+  file.startsWith('verify/') ||
+  file.includes('/__mocks__/') ||
+  /(^|\/)jest\.setup\.[jt]s$/.test(file)
+
 // Tracked and not-yet-tracked alike: a file just written can be the only reader.
-const files = execFileSync(
+const listed = execFileSync(
   'git',
-  ['ls-files', '--cached', '--others', '--exclude-standard', '*.ts', '*.tsx'],
+  [
+    'ls-files',
+    '--cached',
+    '--others',
+    '--exclude-standard',
+    '*.ts',
+    '*.tsx',
+    '*.mts',
+    '*.mjs',
+    '*.js',
+    '*.cjs',
+  ],
   { encoding: 'utf8' },
 )
   .split('\n')
-  .filter(file => file && (file.startsWith('apps/') || file.startsWith('packages/')))
+  .filter(file => file && !file.includes('node_modules/') && !/(^|\/)dist\//.test(file))
 
+/** TypeScript sources: the modules whose exports are checked, and readers. */
 const source = new Map()
-for (const file of files) {
+/** Every file that can import one: the sources, and the build scripts beside them. */
+const readers = new Map()
+for (const file of listed) {
+  let text
   try {
-    source.set(file, readFileSync(file, 'utf8'))
+    text = readFileSync(file, 'utf8')
   } catch {
-    // Listed by git and not on disk: a deletion that is not committed yet.
+    continue // Listed by git and not on disk: a deletion that is not committed yet.
   }
+  const typescript = /\.tsx?$/.test(file)
+  if (typescript && (file.startsWith('apps/') || file.startsWith('packages/'))) {
+    source.set(file, text)
+  }
+  if (typescript || /\bimport\b|\brequire\(/.test(text)) readers.set(file, text)
 }
 
-/** Every file that shares an identity, so a twin cannot vouch for its twin. */
+/** Identity → the files that share it. */
 const groups = new Map()
-for (const file of source.keys()) {
+for (const file of readers.keys()) {
+  if (!/\.tsx?$/.test(file)) continue
   const key = identity(file)
   groups.set(key, [...(groups.get(key) ?? []), file])
 }
 
-const found = []
-for (const [key, members] of groups) {
-  // Tests exist to name the thing they test; they cannot make it used.
-  if (members.every(file => file.includes('.test.'))) continue
-  const names = new Set()
-  for (const file of members) {
-    if (file.includes('.test.')) continue
-    const text = source.get(file)
-    for (const [, name] of text.matchAll(DECLARATION)) {
-      if (!skipDeclaration(file, text, name)) names.add(name)
+/** `@selfmp3/name` → its folder and package.json, for package entries. */
+const workspaces = new Map()
+for (const root of ['apps', 'packages']) {
+  for (const entry of readdirSync(root)) {
+    const manifest = join(root, entry, 'package.json')
+    if (!existsSync(manifest)) continue
+    const pkg = JSON.parse(readFileSync(manifest, 'utf8'))
+    workspaces.set(pkg.name, { dir: join(root, entry), pkg })
+  }
+}
+
+/** The identity a path without its extension stands for, or null. */
+function moduleAt(base) {
+  const stem = base.replace(/\.(js|jsx|ts|tsx|mjs)$/, '')
+  for (const candidate of [`${stem}.ts`, `${stem}.tsx`, `${stem}/index.ts`, `${stem}/index.tsx`]) {
+    // `./covers.web` names the same module as `./covers`.
+    if (groups.has(identity(candidate))) return identity(candidate)
+  }
+  return null
+}
+
+/** A package's export target in `dist/`, as the source file it is built from. */
+function sourceOf(dir, target) {
+  const path = typeof target === 'string' ? target : (target?.default ?? target?.types)
+  if (typeof path !== 'string') return null
+  return moduleAt(join(dir, path.replace(/^\.\/dist\//, 'src/').replace(/\.d\.ts$/, '.ts')))
+}
+
+/** Where `specifier`, imported from `from`, lands: an identity, or null outside the tree. */
+function resolve(from, specifier) {
+  if (specifier.startsWith('.')) return moduleAt(normalize(join(dirname(from), specifier)))
+  if (specifier.startsWith('@/') && from.startsWith('apps/app/')) {
+    return moduleAt(join('apps/app/src', specifier.slice(2)))
+  }
+  const match = /^(@selfmp3\/[^/]+)(?:\/(.+))?$/.exec(specifier)
+  const workspace = match && workspaces.get(match[1])
+  if (!workspace) return null
+  const { dir, pkg } = workspace
+  const sub = match[2] ? `./${match[2]}` : '.'
+  if (pkg.exports) return sourceOf(dir, pkg.exports[sub])
+  if (sub === '.' && pkg.main) return moduleAt(join(dir, pkg.main))
+  return match[2] ? moduleAt(join(dir, match[2])) : null
+}
+
+const kindOf = file =>
+  file.endsWith('.tsx')
+    ? ts.ScriptKind.TSX
+    : /\.[cm]?jsx?$/.test(file)
+      ? ts.ScriptKind.JS
+      : ts.ScriptKind.TS
+
+const exported = node =>
+  ts.canHaveModifiers(node) &&
+  (ts.getModifiers(node) ?? []).some(m => m.kind === ts.SyntaxKind.ExportKeyword) &&
+  !(ts.getModifiers(node) ?? []).some(m => m.kind === ts.SyntaxKind.DefaultKeyword)
+
+/**
+ * One file's side of the graph: what it declares and re-exports, and what it
+ * imports from where.
+ */
+function parse(file, text) {
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false, kindOf(file))
+  const declared = []
+  /** `export { imported as name } from 'specifier'`. */
+  const forwards = []
+  /** `export * from 'specifier'`. */
+  const stars = []
+  /** { specifier, names: string[] | 'all' }, every name this file takes from a module. */
+  const imports = []
+
+  for (const statement of sf.statements) {
+    if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
+      const specifier = statement.moduleSpecifier.text
+      const bindings = statement.importClause?.namedBindings
+      if (!bindings) imports.push({ specifier, names: [] })
+      else if (ts.isNamespaceImport(bindings)) {
+        imports.push({ specifier, names: namespaceReads(text, bindings.name.text) })
+      } else {
+        imports.push({
+          specifier,
+          names: bindings.elements.map(each => (each.propertyName ?? each.name).text),
+        })
+      }
+    } else if (ts.isExportDeclaration(statement)) {
+      const specifier =
+        statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)
+          ? statement.moduleSpecifier.text
+          : null
+      const clause = statement.exportClause
+      if (specifier === null) {
+        // `export { a as b }` of the file's own names.
+        if (clause && ts.isNamedExports(clause)) {
+          for (const each of clause.elements) declared.push(each.name.text)
+        }
+      } else if (!clause) stars.push(specifier)
+      else if (ts.isNamespaceExport(clause)) imports.push({ specifier, names: 'all' })
+      else {
+        for (const each of clause.elements) {
+          forwards.push({
+            name: each.name.text,
+            imported: (each.propertyName ?? each.name).text,
+            specifier,
+          })
+        }
+      }
+    } else if (exported(statement)) {
+      if (ts.isVariableStatement(statement)) {
+        for (const each of statement.declarationList.declarations) {
+          if (ts.isIdentifier(each.name)) declared.push(each.name.text)
+        }
+      } else if (statement.name && ts.isIdentifier(statement.name)) {
+        declared.push(statement.name.text)
+      }
     }
   }
-  for (const name of names) {
+
+  // `import('x')`, `require('x')` and `typeof import('x').Name`, wherever they are.
+  const visit = node => {
+    if (ts.isImportTypeNode(node)) {
+      const argument = node.argument
+      if (ts.isLiteralTypeNode(argument) && ts.isStringLiteral(argument.literal)) {
+        const qualifier = node.qualifier
+        const first = qualifier
+          ? ts.isIdentifier(qualifier)
+            ? qualifier.text
+            : qualifier.left.getText(sf).split('.')[0]
+          : null
+        imports.push({ specifier: argument.literal.text, names: first ? [first] : 'all' })
+      }
+    } else if (
+      ts.isCallExpression(node) &&
+      node.arguments.length > 0 &&
+      ts.isStringLiteralLike(node.arguments[0]) &&
+      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
+    ) {
+      imports.push({ specifier: node.arguments[0].text, names: destructured(node) })
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sf)
+  return { declared, forwards, stars, imports }
+}
+
+/** `const { a, b } = await import('x')` reads a and b; anything else, the whole module. */
+function destructured(call) {
+  let node = call.parent
+  if (node && ts.isAwaitExpression(node)) node = node.parent
+  while (node && (ts.isParenthesizedExpression(node) || ts.isAsExpression(node))) {
+    node = node.parent
+  }
+  if (node && ts.isVariableDeclaration(node) && ts.isObjectBindingPattern(node.name)) {
+    return node.name.elements.map(each =>
+      each.propertyName && ts.isIdentifier(each.propertyName)
+        ? each.propertyName.text
+        : each.name.getText(),
+    )
+  }
+  return 'all'
+}
+
+/** `import * as ns`: the names read as `ns.name`, or all of them when ns is used any other way. */
+function namespaceReads(text, ns) {
+  const names = []
+  const uses = [...text.matchAll(new RegExp(`(?<![\\w$.])${ns}\\b(\\??\\.(\\w+))?`, 'g'))]
+  // The first is the import itself.
+  for (const [, dot, name] of uses.slice(1)) {
+    if (!dot) return 'all'
+    names.push(name)
+  }
+  return names
+}
+
+const graph = new Map()
+for (const [file, text] of readers) graph.set(file, parse(file, text))
+
+/** Identity → its declared names, forwards and stars, over every twin but tests. */
+const modules = new Map()
+for (const [key, files] of groups) {
+  const module = { declared: new Set(), forwards: [], stars: [], files }
+  for (const file of files) {
+    const own = graph.get(file)
+    // A test's own exports are its own business; the twins' are the module's.
+    if (isTest(file)) continue
+    for (const name of own.declared) module.declared.add(name)
+    for (const forward of own.forwards) {
+      module.forwards.push({ ...forward, target: resolve(file, forward.specifier), file })
+    }
+    for (const star of own.stars) {
+      const target = resolve(file, star)
+      if (target) module.stars.push(target)
+    }
+  }
+  modules.set(key, module)
+}
+
+/** (identity, name) → the files that read it, and barrel forwards anyone passed through. */
+const reads = new Map()
+const passed = new Set()
+/** identity → every file that imports it at all. */
+const importers = new Map()
+
+const readKey = (key, name) => `${key}\u0000${name}`
+
+/** Follow `name` from `key` through its barrels to every declaration it can be. */
+function follow(key, name, reader, seen = new Set()) {
+  const here = readKey(key, name)
+  if (seen.has(here)) return
+  seen.add(here)
+  const module = modules.get(key)
+  if (!module) return
+  if (module.declared.has(name)) {
+    if (!reads.has(here)) reads.set(here, new Set())
+    reads.get(here).add(reader)
+  }
+  for (const forward of module.forwards) {
+    if (forward.name !== name) continue
+    passed.add(readKey(key, name))
+    if (forward.target) follow(forward.target, forward.imported, reader, seen)
+  }
+  for (const target of module.stars) follow(target, name, reader, seen)
+}
+
+/** Every name `key` offers, its own and what it forwards, for a read of the whole module. */
+function everything(key, seen = new Set()) {
+  if (seen.has(key)) return []
+  seen.add(key)
+  const module = modules.get(key)
+  if (!module) return []
+  return [
+    ...module.declared,
+    ...module.forwards.map(forward => forward.name),
+    ...module.stars.flatMap(target => everything(target, seen)),
+  ]
+}
+
+for (const [file, { imports, forwards, stars }] of graph) {
+  const touched = [
+    ...imports.map(({ specifier }) => specifier),
+    ...forwards.map(({ specifier }) => specifier),
+    ...stars,
+  ]
+  for (const specifier of touched) {
+    const key = resolve(file, specifier)
+    if (!key) continue
+    if (!importers.has(key)) importers.set(key, new Set())
+    importers.get(key).add(file)
+  }
+  for (const { specifier, names } of imports) {
+    const key = resolve(file, specifier)
+    if (!key || key === identity(file)) continue
+    for (const name of names === 'all' ? everything(key) : names) follow(key, name, file)
+  }
+}
+
+/*
+ * Expo Router's routes: it reads every file under apps/app/app by its path,
+ * and takes what each exports — the screen, and its layout's settings.
+ */
+for (const key of modules.keys()) {
+  if (!key.startsWith('apps/app/app/')) continue
+  for (const name of everything(key)) follow(key, name, 'expo-router')
+}
+
+/** Every file that imports the module is a test (or it is one), as a fixture is. */
+const testSupport = key => {
+  const by = [...(importers.get(key) ?? [])].filter(file => identity(file) !== key)
+  return by.length > 0 && by.every(isTest)
+}
+
+/** The module spells the name past its own declaration, so it is exported only for a test. */
+const usedInside = (module, name) => {
+  const word = new RegExp(`(?<![\\w$.])${name}\\b`, 'g')
+  const own = module.files.filter(file => !isTest(file))
+  const spelled = own.reduce((sum, file) => sum + (source.get(file)?.match(word)?.length ?? 0), 0)
+  const declaring = own.filter(file => graph.get(file).declared.includes(name)).length
+  return spelled > declaring
+}
+
+const found = []
+for (const [key, module] of modules) {
+  const checked = module.files.filter(file => source.has(file) && !isTest(file))
+  if (checked.length === 0) continue
+  const support = testSupport(key)
+  for (const name of module.declared) {
     if (ALLOWED.has(name)) continue
-    const word = new RegExp(`\\b${name}\\b`)
-    const outside = [...source].some(([file, text]) => identity(file) !== key && word.test(text))
-    if (!outside) found.push({ name, where: members.filter(f => !f.includes('.test.')) })
+    const file = checked.find(each => graph.get(each).declared.includes(name)) ?? checked[0]
+    if (skipDeclaration(file, source.get(file), name)) continue
+    const by = [...(reads.get(readKey(key, name)) ?? [])].filter(each => identity(each) !== key)
+    if (by.some(each => !isTest(each))) continue
+    if (by.length > 0 && (support || usedInside(module, name))) continue
+    found.push({ name, where: checked })
+  }
+  // A barrel's named re-export that no import passes through.
+  for (const forward of module.forwards) {
+    if (ALLOWED.has(forward.name) || !source.has(forward.file)) continue
+    if (EXCLUDED.some(skip => forward.file.includes(skip))) continue
+    if (passed.has(readKey(key, forward.name))) continue
+    found.push({ name: forward.name, where: [`${forward.file} (re-export)`] })
   }
 }
 

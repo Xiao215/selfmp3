@@ -16,9 +16,27 @@ name: Docker
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
+    # What the image is built from, and nothing else: the Dockerfile and what
+    # it copies. Every workspace's package.json is there because `npm ci` needs
+    # the whole workspace set to read the lockfile, not because the image holds
+    # them. A path missing here is a change that never reaches the Pi, so a new
+    # COPY in the Dockerfile adds its path here too. Tests and prose are copied
+    # into the build stage but never into the image.
+    paths:
+      - 'Dockerfile'
+      - '.dockerignore'
+      - '.github/workflows/docker.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.base.json'
+      - 'tsconfig.strict.json'
+      - 'packages/*/package.json'
+      - 'apps/*/package.json'
+      - 'packages/shared/**'
+      - 'apps/server/**'
+      - '!**/*.test.ts'
+      - '!apps/server/src/**/fixtures/**'
+      - '!**/*.md'
   # Monday morning, whether or not anything was committed. The image is only as
   # good as the yt-dlp inside it, and YouTube breaks that on a scale of weeks —
   # an image last built in March is a Pi that cannot download anything.

@@ -21,7 +21,7 @@ import {
  * its way — a cloud cover this device is fetching — which `Cover` draws as a
  * quiet tile rather than as the letter a song without a picture gets.
  */
-export type Art = string | null | undefined
+type Art = string | null | undefined
 
 /**
  * Where a song's artwork comes from, for whichever screen is asking.

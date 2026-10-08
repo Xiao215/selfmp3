@@ -22,7 +22,7 @@ import {
  * this file stop compiling until it is handled.
  */
 
-export interface CompiledQuery {
+interface CompiledQuery {
   readonly sql: string
   readonly params: unknown[]
 }

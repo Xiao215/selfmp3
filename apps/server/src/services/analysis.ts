@@ -502,7 +502,7 @@ export class AnalysisService {
  * Streamed from ffmpeg's stdout rather than via a temp file, capped at the
  * clip length so a two-hour DJ set costs the same as a three-minute song.
  */
-export async function decode(file: string, duration: number): Promise<Float32Array> {
+async function decode(file: string, duration: number): Promise<Float32Array> {
   const offset = duration >= MIN_SECONDS_FOR_OFFSET ? CLIP_OFFSET_SECONDS : 0
   const maxBytes = CLIP_SECONDS * ANALYSIS_SAMPLE_RATE * 4
 

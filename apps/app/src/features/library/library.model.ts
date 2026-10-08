@@ -36,8 +36,6 @@ import { useLibraryFilter } from './libraryFilter'
  * screen has one; handing it over costs a line and keeps this file runnable.
  */
 
-export type { LibraryFilter }
-
 /** What the screen shows when the list is empty, which is three different things. */
 type LibraryEmptyReason = 'unreachable' | 'no-library' | 'no-matches' | null
 

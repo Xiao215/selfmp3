@@ -27,7 +27,7 @@ const CSS_EASING = `cubic-bezier(${MOVE_EASING.join(', ')})`
 
 type Listener = (from: number, to: number, ms: number) => void
 
-export interface StageMove {
+interface StageMove {
   /** Where the move is headed: 0 the stage, 1 Focus. */
   readonly target: number
   readonly subscribe: (listener: Listener) => () => void

@@ -17,7 +17,8 @@ import { Button } from '../../ui/components/Button'
 import { CloudDownload, Trash, X } from '../../ui/components/Icons'
 import { Toggle } from '../../ui/components/Toggle'
 import { ButtonRow, Meter, Notice, Panel, partStyles, Row, Stats } from './SettingsParts'
-import { type Confirming } from './settings.model'
+import { devicePlace, type Confirming } from './settings.model'
+import { deviceKind } from '../../ports/device'
 
 /**
  * What this device keeps: whether songs download by themselves, whether one
@@ -36,6 +37,7 @@ export function OfflinePanel({
   const { fromCloud } = useConnection()
   const library = useLibrary()
   const manifest = useManifest()
+  const place = devicePlace(deviceKind())
   const {
     state: downloads,
     queue,
@@ -96,10 +98,10 @@ export function OfflinePanel({
         />
       </Row>
       <Row
-        label="Play songs that aren’t downloaded"
+        label={`Play songs that aren’t on this ${place}`}
         hint={
           fromCloud
-            ? 'Your library is in your storage, so only downloaded songs play.'
+            ? `Your library is in your storage, so only songs on this ${place} play.`
             : 'Streams them while your library is reachable.'
         }
         last
@@ -108,7 +110,7 @@ export function OfflinePanel({
           value={prefs.streamUndownloaded && !fromCloud}
           disabled={fromCloud}
           onChange={streamUndownloaded => setPrefs({ streamUndownloaded })}
-          label="Play songs that aren’t downloaded"
+          label={`Play songs that aren’t on this ${place}`}
           testID="setting-stream"
         />
       </Row>
@@ -117,7 +119,7 @@ export function OfflinePanel({
         items={[
           {
             value: String(tally.here),
-            label: `of ${plural(tally.songs, 'song', 'songs')} downloaded`,
+            label: `of ${plural(tally.songs, 'song', 'songs')} on this ${place}`,
           },
           // The disk, where there is one to ask. The index and the folder can
           // disagree — a `.part` left by an interrupted download, a cover kept
@@ -139,7 +141,7 @@ export function OfflinePanel({
         </Row>
       ) : null}
       {tally.songs > 0 ? (
-        <Meter fraction={tally.here / tally.songs} label="Songs downloaded" />
+        <Meter fraction={tally.here / tally.songs} label={`Songs on this ${place}`} />
       ) : null}
 
       {working ? (
@@ -174,7 +176,7 @@ export function OfflinePanel({
           <Button
             label={
               missingBytes === 0
-                ? 'Everything is downloaded'
+                ? `Everything is on this ${place}`
                 : `${tally.here === 0 ? 'Download everything' : 'Download what’s missing'} (${formatBytes(missingBytes)})`
             }
             icon={<CloudDownload size={15} tone={missingBytes === 0 ? 'textMuted' : 'onAccent'} />}
@@ -186,7 +188,7 @@ export function OfflinePanel({
         {/*
          * Deleting files takes as long as it takes, and the two buttons that
          * do it act on overlapping sets. While either is running both say so
-         * and neither fires: pressing "Remove all downloads" a second time
+         * and neither fires: pressing "Remove all from this phone" a second time
          * used to start a second pass over an index the first was still
          * rewriting. `removing` is the provider's, so the state survives this
          * panel and covers the removal the confirmation dialog starts.
@@ -206,7 +208,7 @@ export function OfflinePanel({
         ) : null}
         {tally.kept > 0 ? (
           <Button
-            label={removing ? 'Removing…' : 'Remove all downloads'}
+            label={removing ? 'Removing…' : `Remove all from this ${place}`}
             icon={<Trash size={15} tone="danger" />}
             variant="danger"
             busy={removing}

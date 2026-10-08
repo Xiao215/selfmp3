@@ -48,6 +48,8 @@ import { Popover } from './Popover'
 import { SelectionTagPicker } from './TagPicker'
 import { SheetItem } from './Sheet'
 import { floating } from '../surfaces'
+import { devicePlace } from '../../features/settings/settings.model'
+import { deviceKind } from '../../ports/device'
 import { useFloatingChrome } from '../../shell/bottomInset'
 
 /** What Up next is called when the ticked songs are played: they can be saved from there. */
@@ -309,6 +311,7 @@ export function SelectionBar({
 
   const lovedCount = songs.filter(song => song.loved).length
   const held = songs.filter(song => isDownloaded(downloads.index, song.id))
+  const place = devicePlace(deviceKind())
   const songWord = count === 1 ? 'song' : 'songs'
   const totalWord = total === 1 ? 'song' : 'songs'
 
@@ -323,7 +326,7 @@ export function SelectionBar({
   }
   /**
    * Said once the server has taken the edit, not as it is sent: a failure is
-   * said by the app's own error toast (`meta.failure`), and a "Loved 3 songs"
+   * said by the app's own error toast (`meta.failure`), and a "Liked 3 songs"
    * ahead of it would contradict it.
    */
   const saidOnSuccess = (message: string) => ({
@@ -436,14 +439,14 @@ export function SelectionBar({
               disabled={count === 0}
             />
             <Button
-              label="Queue"
+              label="Add to Up next"
               icon={<QueueAdd size={13} color={theme.colors.textPrimary} />}
               onPress={() => player.addToQueue(ids)}
               disabled={count === 0}
             />
             {playlist ? (
               <Button
-                label="Remove from playlist"
+                label="Remove from this playlist"
                 icon={<X size={13} color={theme.colors.textPrimary} />}
                 onPress={removeSelectedFromPlaylist}
                 disabled={count === 0}
@@ -498,7 +501,11 @@ export function SelectionBar({
         >
           <Play size={18} color={theme.colors.textPrimary} />
         </IconButton>
-        <IconButton onPress={() => player.addToQueue(ids)} label="Queue" disabled={count === 0}>
+        <IconButton
+          onPress={() => player.addToQueue(ids)}
+          label="Add to Up next"
+          disabled={count === 0}
+        >
           <QueueAdd size={18} color={theme.colors.textPrimary} />
         </IconButton>
         <View ref={moreRef} collapsable={false}>
@@ -561,7 +568,7 @@ export function SelectionBar({
             {playlist && count > 0 ? (
               <SheetItem
                 icon={<X size={15} color={theme.colors.textSecondary} />}
-                label="Remove from playlist"
+                label="Remove from this playlist"
                 onPress={act(removeSelectedFromPlaylist)}
               />
             ) : null}
@@ -574,11 +581,11 @@ export function SelectionBar({
             {lovedCount < count ? (
               <SheetItem
                 icon={<Heart size={15} color={theme.colors.textSecondary} />}
-                label={`Love ${count - lovedCount === count ? 'all' : 'the rest'}`}
+                label={`Like ${count - lovedCount === count ? 'all' : 'the rest'}`}
                 onPress={act(() =>
                   bulkLoved.mutate(
                     { songIds: ids, loved: true },
-                    saidOnSuccess(`Loved ${plural(count - lovedCount, 'song', 'songs')}`),
+                    saidOnSuccess(`Liked ${plural(count - lovedCount, 'song', 'songs')}`),
                   ),
                 )}
               />
@@ -586,11 +593,11 @@ export function SelectionBar({
             {lovedCount > 0 ? (
               <SheetItem
                 icon={<Heart size={15} filled color={theme.colors.danger} />}
-                label={`Remove ${lovedCount === count ? 'all' : lovedCount} from loved`}
+                label={`Unlike ${lovedCount === count ? 'all' : lovedCount}`}
                 onPress={act(() =>
                   bulkLoved.mutate(
                     { songIds: ids, loved: false },
-                    saidOnSuccess(`Removed ${lovedCount} from loved`),
+                    saidOnSuccess(`Unliked ${plural(lovedCount, 'song', 'songs')}`),
                   ),
                 )}
               />
@@ -649,9 +656,7 @@ export function SelectionBar({
             {held.length > 0 ? (
               <SheetItem
                 icon={<X size={15} color={theme.colors.textSecondary} />}
-                label={`Remove ${held.length === count ? '' : `${held.length} `}${
-                  held.length === 1 ? 'download' : 'downloads'
-                }`}
+                label={`Remove ${held.length === count ? '' : `${held.length} `}from this ${place}`}
                 onPress={act(() => removeDownloads(held.map(song => song.id)))}
               />
             ) : null}
@@ -660,7 +665,7 @@ export function SelectionBar({
 
             <SheetItem
               icon={<Trash size={15} color={theme.colors.danger} />}
-              label={`Remove ${count} ${songWord} from library…`}
+              label={`Delete ${count} ${songWord} from library…`}
               danger
               onPress={() => {
                 closeMenu()

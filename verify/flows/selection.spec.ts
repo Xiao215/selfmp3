@@ -96,11 +96,11 @@ test.describe('selecting songs', () => {
     // The destructive action asks first; cancelling leaves everything.
     await page.getByRole('button', { name: /^More$/ }).click()
     await page
-      .getByRole('menuitem', { name: new RegExp(`^Remove ${total} songs from library`) })
+      .getByRole('menuitem', { name: new RegExp(`^Delete ${total} songs from library`) })
       .click()
-    await expect(page.getByText(`Remove ${total} songs from your library?`)).toBeVisible()
+    await expect(page.getByText(`Delete ${total} songs from your library?`)).toBeVisible()
     await page.getByRole('button', { name: 'Cancel', exact: true }).last().click()
-    await expect(page.getByText(`Remove ${total} songs from your library?`)).toHaveCount(0)
+    await expect(page.getByText(`Delete ${total} songs from your library?`)).toHaveCount(0)
 
     await page.getByRole('button', { name: /^Done selecting/ }).click()
     await expect(page.getByText(/^\d+ selected$/)).toHaveCount(0)
@@ -230,9 +230,9 @@ test.describe('selecting songs', () => {
     // selection, so nothing is pressed that would change the playlist.
     if (info.project.name === 'phone') {
       await page.getByRole('button', { name: /^More$/ }).click()
-      await expect(page.getByRole('menuitem', { name: 'Remove from playlist' })).toBeVisible()
+      await expect(page.getByRole('menuitem', { name: 'Remove from this playlist' })).toBeVisible()
     } else {
-      await expect(page.getByRole('button', { name: 'Remove from playlist' })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Remove from this playlist' })).toBeVisible()
       await page.getByRole('button', { name: /^Done selecting/ }).click()
       await expect(page.getByText(/^\d+ selected$/)).toHaveCount(0)
     }

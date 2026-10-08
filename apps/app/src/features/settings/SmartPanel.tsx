@@ -46,7 +46,7 @@ const SWITCHES: readonly {
   },
   {
     key: 'smartMetadata',
-    label: 'Fix metadata',
+    label: 'Fix song info',
     sees: 'Sends the song’s names and catalogue matches.',
   },
   {
@@ -109,7 +109,7 @@ export function SmartPanel({
             <View key={note} style={styles.note} testID="smart-note">
               <Text style={styles.noteText}>{note}</Text>
               <Button
-                label="Forget"
+                label="Remove"
                 variant="text"
                 onPress={() =>
                   set(

@@ -88,7 +88,7 @@ describe('autoMixLine', () => {
   const on = { autoMix: true, canCrossfade: true, upcoming: 3, nextCrossfadeSeconds: 4 }
 
   it('says what the next handover will be', () => {
-    expect(autoMixLine({ ...on, autoMix: false })).toBe('plays in queue order')
+    expect(autoMixLine({ ...on, autoMix: false })).toBe('plays in order')
     expect(autoMixLine(on)).toBe('next crossfade 4s')
     expect(autoMixLine({ ...on, canCrossfade: false })).toBe('ordered by tempo, key and energy')
     expect(autoMixLine({ ...on, upcoming: 0 })).toBe('nothing to mix yet')

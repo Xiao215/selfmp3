@@ -1,4 +1,4 @@
-# Wrapped, anytime — and forgotten gems
+# The Report, anytime — and forgotten gems
 
 Two ways of looking back at your own listening, both built entirely from the `play_events`
 table that the app has been filling since day one. No new data is collected and no
@@ -14,7 +14,7 @@ See docs/SYNC.md, "Reaching the server for what only it can do".
 
 ---
 
-## Wrapped
+## The Report
 
 `/stats/report`: the Stats page, opened on its **Report** tab.
 

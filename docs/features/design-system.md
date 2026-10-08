@@ -75,12 +75,12 @@ What a page adds, it adds as props rather than as a second row:
 Anything a page wants to *do* to a song goes in the ⋯ menu (`SongMenu`, docs/ui-mock `P14`).
 It is one menu, the same items in the same order wherever a song is (proposal B1,
 2026-10-08): headed by the song (cover, title, artist, tags, heart), then **Tags**, Add to
-playlist ›, Add to Up next, Play similar songs, **Download** or **Remove download** where the
+playlist ›, Add to Up next, Play similar songs, **Download** or **Remove from this phone** (computer) where the
 app keeps songs, and **Song details**, which opens the song's own page (`/song/<id>`, `P15`).
 After those come what the song is to where the menu was opened — it takes a `playlist` and
 offers **Remove from this playlist** there, so a playlist needs no button of its own in the
-row — and the phone's Now Playing adds a "This player" group with Devices. Remove from library
-is last. Play next lives on the song's page, not in the menu, and so does selecting.
+row — and the phone's Now Playing adds a "This player" group with Devices. **Delete from
+library…** is last. Play next lives on the song's page, not in the menu, and so does selecting.
 
 On the web and in the Mac app a right-click on a song row, a Home song tile or a sidebar tag
 opens that row's menu at the pointer (`ui/rightClick.ts`: a point stands in for the ⋯ as the
@@ -141,7 +141,7 @@ nothing uses `title`; a control that wants a caption spreads `tip()` from `ui/ti
 React Native for web turns into a `data-tip` attribute (a phone ignores it):
 
 ```tsx
-<Pressable accessibilityLabel="Queue" {...tip('Up next')}>…</Pressable>
+<Pressable accessibilityLabel="Add to Up next" {...tip('Add to Up next')}>…</Pressable>
 ```
 
 `TooltipHost` (`shell/TooltipHost.web.tsx`), mounted once in the shell, listens on the document and draws the caption
@@ -161,6 +161,42 @@ above the control (below near the top of the window, clamped at the sides). A tr
   truncating title shows only once the title is actually cut off.
 - Captions are for controls. The one native `title` left is on synced lyric lines: a caption
   there would cover the next lines and hop between them as they scroll under the pointer.
+
+## Words
+
+One way to say each thing, everywhere: labels, menus, toasts, accessibility labels, empty
+states, and the flows that assert them (proposal G, 2026-10-08). Sentence case, plain words.
+
+| Thing | Say | Not |
+| --- | --- | --- |
+| Favourite | **Like** / **Unlike**; "Like all", "Unlike all", "Liked", "Not liked" | Love, Loved, hearts |
+| What plays next | **Up next**; "Add to Up next", "Remove from Up next" | Queue |
+| Taking a song out of a place | **Remove from …**, naming the place: "Remove from this playlist", "Remove from Up next", "Remove from imports" | Take off, Take out of |
+| Taking it out of the library | **Delete from library…** — it deletes the files on every device | Remove from library |
+| A whole playlist or tag | **Delete** | Remove |
+| A device in Settings | **Remove** | Forget |
+| Kept on this device | **On this phone** / **On this computer** (`onThisDevice`, `devicePlace`); the action stays **Download**, its undo is **Remove from this phone** | Downloaded, Offline, saved offline, kept |
+| A playlist that fills itself | **Fills from** [tags]; "Stop filling" | Follow tags, a tag to follow |
+| A song's page | **Song details** (Now Playing's tab on a computer: **Details**) | About this song, About |
+| The weekly page | **Report**; "Open the report" ("Your week" may head a card) | Wrapped, View Report |
+| Where songs are stored | **your storage** (Backblaze only in its setup steps) | bucket, cloud, cloud library |
+| The server, where a cloud library needs it | **your library's computer** | server |
+| Correcting a song's names | **Fix song info…** (Tidy up stays its own feature) | Fix metadata |
+| Lyrics with times | **Timed** | Synced |
+
+Everyday screens never say server, bucket, cloud, sync, cache, token, snapshot, publishing,
+doorman, replica, rescan, sweep, metadata or "the model". Those words stay where the reader
+is setting the thing up — Settings › Advanced, the storage (Backblaze) setup and the server's
+own admin page — and even there a plain word wins when it costs nothing ("Disconnect your
+storage", not "Forget the bucket").
+
+Status is said only when it needs you. A computer's sidebar foot is the person and a dot;
+hovering it says "All saved · 109 songs · 12 on this computer", and a card above it appears
+only when something stops working — offline, the library out of reach, the storage's
+allowance used up — saying what still works and what to do (`footNotice`). An error toast
+says what did not happen and, when it helps, why in plain words (`failureText`): "your
+library isn't reachable right now", or a refusal the server worded for people; never a
+request line or a status code, which go to the console.
 
 ## Tokens
 

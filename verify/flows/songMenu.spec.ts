@@ -50,7 +50,7 @@ test.describe('the song menu', () => {
       expect(box!.y, `${label} comes after the item before it`).toBeGreaterThan(previousTop)
       previousTop = box!.y
     }
-    await expect(page.getByRole('menuitem', { name: /^Remove from library…$/ })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: /^Delete from library…$/ })).toBeVisible()
     // Gone from the menu: Play next and Select (P14), the instrumental switch, and
     // Fix metadata, which lives on the song's page.
     await expect(
@@ -63,7 +63,7 @@ test.describe('the song menu', () => {
     await expect(song).toBeVisible()
     await expect(song.getByRole('heading', { name: title })).toBeVisible()
     await expect(page.getByTestId('song-play-next')).toBeVisible()
-    await expect(song.getByRole('button', { name: /Fix metadata/ })).toBeVisible()
+    await expect(song.getByRole('button', { name: /Fix song info/ })).toBeVisible()
     await page.goBack()
 
     await libraryReady(page)

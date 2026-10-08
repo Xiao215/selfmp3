@@ -52,6 +52,6 @@ describe('wrapped', () => {
   })
 
   it('names the shared image by its window and day', () => {
-    expect(shareFileName(WRAPPED)).toBe('selfmp3-wrapped-month-2026-09-13.png')
+    expect(shareFileName(WRAPPED)).toBe('selfmp3-report-month-2026-09-13.png')
   })
 })

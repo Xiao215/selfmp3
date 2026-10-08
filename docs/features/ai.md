@@ -345,7 +345,7 @@ s and said where its answer came from.
 press Remember (`smartNotes` in the settings, at most 30). Every Ask after carries them under
 the request (`withNotes` in `ask.ts`: "Their standing preferences (follow them unless these
 words say otherwise)"), so the router and the action read them. Settings › Smart features lists
-them, each with Forget.
+them, each with Remove.
 
 ## Follow-ups (every other answer)
 
@@ -585,9 +585,9 @@ sees. On the real library across a week, a month and a year, one sentence in fif
 dropped. The answer is kept per set of facts, so the page costs one call until the plays
 change or Write it again is pressed.
 
-## Fix metadata · Suggested
+## Fix song info · Suggested
 
-A song's Fix metadata shows iTunes' and MusicBrainz's listings, each a whole set of names
+A song's Fix song info shows iTunes' and MusicBrainz's listings, each a whole set of names
 to take or leave. The Suggested card at the head of them is the model reading them: the
 song's names, its file's name, the link it came from, those listings, and the names 网易云
 (then MusicBrainz and iTunes) give the same recording (`catalogueFinder`). It answers the
@@ -610,7 +610,7 @@ tier, remembered against its exact question; Ask again asks afresh. Standing pre
 Five switches, shared across devices with the other server settings (`smartAsk`,
 `smartTidy`, `smartTags`, `smartWritten`, `smartMetadata`, all on by default): Ask in
 Search (which also covers New playlist's Describe it and Up next), Tidy up, Tags (Suggest tags, and Ask's
-tag changes), the Report in words and Fix metadata's Suggested card. Each
+tag changes), the Report in words and Fix song info's Suggested card. Each
 says what of the library it shows the model, in a line, because "the model sees your
 library" is too vague to agree to and each sees less than that. Off, the way in is not
 drawn (`useSmartSwitches`) and the server refuses the route with 403 `ai_disabled` before any

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { plural, type Song } from '@selfmp3/shared'
-import { HIT_TARGET, radius, space, useBulkDeleteSongs } from '@selfmp3/client'
+import { HIT_TARGET, failureText, radius, space, useBulkDeleteSongs } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
@@ -12,9 +12,11 @@ import { Button } from './Button'
 import { Dialog, DialogHead } from './Dialog'
 import { floating } from '../surfaces'
 import { Trash } from './Icons'
+import { devicePlace } from '../../features/settings/settings.model'
+import { deviceKind } from '../../ports/device'
 
 /**
- * Removing songs from the library, from the question to the word afterwards:
+ * Deleting songs from the library, from the question to the word afterwards:
  * the selection bar's and a song's ⋯ menu's are the same act, so they are the
  * same dialog doing the same things in the same order.
  *
@@ -52,18 +54,20 @@ export function RemoveSongs({
           // The summary: what went, and what did not.
           const only = songs.length === 1 && result.removed === 1 ? songs[0] : undefined
           const parts = [
-            only ? `Removed “${only.title}”` : `Removed ${plural(result.removed, 'song', 'songs')}`,
+            only ? `Deleted “${only.title}”` : `Deleted ${plural(result.removed, 'song', 'songs')}`,
           ]
+          // Why one could not go is the server's to log, not the toast's to quote.
           const trouble = result.failed.length
-          if (trouble > 0) parts.push(`${trouble} needed attention`)
-          showToast(
-            trouble > 0
-              ? `${parts.join(', ')} — ${result.failed[0]?.reason ?? 'see the server log'}`
-              : parts.join(', '),
-            trouble > 0 ? 'warn' : 'good',
-          )
+          if (trouble > 0) {
+            parts.push(`${plural(trouble, 'song', 'songs')} couldn’t be deleted`)
+            console.warn('Songs not deleted:', result.failed)
+          }
+          showToast(parts.join(', '), trouble > 0 ? 'warn' : 'good')
         },
-        onError: caught => setError(caught.message),
+        onError: caught =>
+          setError(
+            failureText(songs.length === 1 ? 'Couldn’t delete it' : 'Couldn’t delete them', caught),
+          ),
       },
     )
   }
@@ -80,7 +84,7 @@ export function RemoveSongs({
 }
 
 /**
- * The confirmation for removing a selection from the library.
+ * The confirmation for deleting a selection from the library.
  *
  * One question, one answer. Removing a song is removing it everywhere: the
  * row leaves the library on every device, whatever this device downloaded of
@@ -108,6 +112,7 @@ export function ConfirmRemoveSongs({
 }): ReactNode {
   const { theme } = useUnistyles()
   const { wide } = useLayout()
+  const place = devicePlace(deviceKind())
 
   const count = songs.length
   const songWord = count === 1 ? 'song' : 'songs'
@@ -127,7 +132,7 @@ export function ConfirmRemoveSongs({
       style={styles.dialog}
     >
       <DialogHead
-        title={`${only ? `Remove “${only.title}”` : `Remove ${count} ${songWord}`} from your library?`}
+        title={`${only ? `Delete “${only.title}”` : `Delete ${count} ${songWord}`} from your library?`}
         onClose={cancel}
         closeLabel="Cancel"
         style={styles.head}
@@ -139,7 +144,7 @@ export function ConfirmRemoveSongs({
           The {count === 1 ? 'song' : `${count} songs`} and everything about{' '}
           {count === 1 ? 'it' : 'them'} — tags, play counts, playlist places — leave your library on
           every device, and{' '}
-          <Text style={styles.strong}>anything downloaded here is deleted from this device</Text>.{' '}
+          <Text style={styles.strong}>anything on this {place} is deleted from it</Text>.{' '}
           <Text style={[styles.strong, styles.strongDestructive]}>This cannot be undone.</Text>
         </Text>
 
@@ -164,7 +169,7 @@ export function ConfirmRemoveSongs({
       <View style={[styles.actions, !wide && styles.actionsCompact]}>
         <Button label="Cancel" onPress={cancel} disabled={pending} grow={!wide} />
         <Button
-          label={pending ? 'Working…' : only ? 'Remove song' : `Remove ${count} ${songWord}`}
+          label={pending ? 'Working…' : only ? 'Delete song' : `Delete ${count} ${songWord}`}
           icon={<Trash size={15} color={theme.colors.danger} />}
           variant="danger"
           onPress={onConfirm}

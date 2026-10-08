@@ -90,8 +90,8 @@ function Shell({
   children: ReactNode
 }): ReactNode {
   return (
-    <Dialog onDismiss={onClose} label="Fix metadata" testID={testID} style={styles.dialog}>
-      <DialogHead title="Fix metadata" onClose={onClose} style={styles.head} />
+    <Dialog onDismiss={onClose} label="Fix song info" testID={testID} style={styles.dialog}>
+      <DialogHead title="Fix song info" onClose={onClose} style={styles.head} />
       <View style={styles.body}>{children}</View>
     </Dialog>
   )

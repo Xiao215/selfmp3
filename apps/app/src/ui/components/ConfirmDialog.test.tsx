@@ -31,8 +31,8 @@ const tree = (open: boolean) => (
     <OverlayProvider>
       <ConfirmDialog
         open={open}
-        title="Forget this device?"
-        confirmLabel="Forget"
+        title="Remove this device?"
+        confirmLabel="Remove"
         onConfirm={() => undefined}
         onCancel={() => undefined}
       />

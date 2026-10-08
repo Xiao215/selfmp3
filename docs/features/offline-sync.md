@@ -64,12 +64,12 @@ song at a time.
 - **Storage.** Before each song the space available is checked, and downloading stops at 90%
   of it — filling it completely gets the whole origin's storage evicted on some browsers,
   downloads and all. The status then says how many songs did not fit.
-- **Songs removed by hand stay removed.** "Remove download" remembers the song, so the next
+- **Songs removed by hand stay removed.** "Remove from this phone" remembers the song, so the next
   pass does not put it straight back; downloading it again by hand forgets that.
 - **A song that leaves the library is forgotten rather than remembered.** Removing the row is
   not "don't download this": the id can be handed to a different song later, and a cloud
   library hands out its own, so remembering it would keep the wrong song off the device.
-- **Remove all downloads** also turns automatic downloads off, or the cache would simply fill
+- **Remove all from this phone** also turns automatic downloads off, or the cache would simply fill
   again. While it runs, it and "Remove leftover files" both read "Removing…" and neither can
   be pressed: two passes over one index would have the later one write back what the earlier
   one deleted.
@@ -98,10 +98,10 @@ names a song it kept, the download queue deletes the copy (`configure` in
 The first is asked of the library in front of you. A song stops counting the moment it leaves
 it — removed here, or removed on another device and arrived by sync — without waiting for
 anything to agree. It is the sidebar foot's hover, "All saved · 45 songs · 41 on this computer", and the Settings panel's
-"41 of 43 songs downloaded", and both fall together.
+"41 of 43 songs on this phone", and both fall together.
 
 The second is asked of the index, which outlives the library it was filled from. A file left
-behind by a departed song is still a file taking up room, so it is what "Remove all downloads"
+behind by a departed song is still a file taking up room, so it is what "Remove all from this phone"
 is offered for, and what the leftovers line above it counts. Settings used to answer the
 second question and print it as the first: two songs removed from a library of 45 left it
 reading "43 of 43 songs downloaded", with the bar full and the two departed rows still counted

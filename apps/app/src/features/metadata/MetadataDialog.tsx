@@ -349,14 +349,14 @@ export function MetadataDialog({
   return (
     <Dialog
       onDismiss={onClose}
-      label="Fix metadata"
+      label="Fix song info"
       testID="metadata-dialog"
       // Full screen on a phone: no room round it, and the panel takes the width.
       frameStyle={!wide && styles.frameNarrow}
       style={[styles.dialog, wide ? styles.dialogWide : styles.dialogNarrow]}
     >
       <DialogHead
-        title="Fix metadata"
+        title="Fix song info"
         onClose={onClose}
         style={[styles.head, !wide && { paddingTop: 14 + insets.top }]}
       />

@@ -33,7 +33,7 @@ test.describe('now playing', () => {
     await expect(page.getByRole('tab')).toHaveCount(2)
     await expect(page.getByRole('tab', { name: 'Queue' })).toHaveCount(0)
 
-    await page.getByRole('tab', { name: 'About' }).click()
+    await page.getByRole('tab', { name: 'Details' }).click()
     await expect(page.getByText(/^sound$/i).first()).toBeVisible()
 
     // Only the words, from the page's own button, and back to the full page.
@@ -41,7 +41,7 @@ test.describe('now playing', () => {
     await page.getByRole('button', { name: 'Show only the words' }).click()
     await expect(page.getByRole('button', { name: 'Back to the full page' }).first()).toBeVisible()
     await page.getByRole('button', { name: 'Back to the full page' }).first().click()
-    await expect(page.getByRole('tab', { name: 'About' })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Details' })).toBeVisible()
 
     await page.getByRole('button', { name: 'Close now playing' }).first().click()
     await expect(page.getByRole('button', { name: /^Open now playing: / })).toBeVisible()
@@ -119,7 +119,7 @@ test.describe('now playing', () => {
     await expect(menu.getByRole('menuitem', { name: /^Add to playlist/ })).toBeVisible()
     await expect(menu.getByRole('menuitem', { name: 'Song details' })).toBeVisible()
     await expect(menu.getByRole('menuitem', { name: 'Devices' })).toBeVisible()
-    await expect(menu.getByRole('menuitem', { name: 'Remove from library…' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: 'Delete from library…' })).toBeVisible()
     await expect(menu.getByRole('menuitem', { name: /Sleep/ })).toHaveCount(0)
     await page.keyboard.press('Escape')
 

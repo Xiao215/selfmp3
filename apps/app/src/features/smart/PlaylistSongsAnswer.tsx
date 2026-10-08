@@ -185,7 +185,7 @@ export function PlaylistSongsAnswer({
     <Review
       changes={[edit]}
       sectionOf={() => 'Songs'}
-      head={adding ? `Add to ${name}` : `Take out of ${name}`}
+      head={adding ? `Add to ${name}` : `Remove from ${name}`}
       tickedText={(approved, leftOut) => {
         const count = approved.flatMap(each => keptSongs(each, leftOut)).length
         return `${plural(count, 'song', 'songs')} ticked.`
@@ -218,7 +218,7 @@ export function PlaylistSongsAnswer({
         )
       }}
       labelOf={each =>
-        `${adding ? 'Add' : 'Take out'} ${plural(each.songIds.length, 'song', 'songs')}`
+        `${adding ? 'Add' : 'Remove'} ${plural(each.songIds.length, 'song', 'songs')}`
       }
       songLine={song => {
         const why = here.why.get(song.id)
@@ -226,10 +226,10 @@ export function PlaylistSongsAnswer({
       }}
       applyLabel={(approved, leftOut) => {
         const count = approved.flatMap(each => keptSongs(each, leftOut)).length
-        if (count === 0) return adding ? 'Add' : 'Take out'
-        return `${adding ? 'Add' : 'Take out'} ${plural(count, 'song', 'songs')}`
+        if (count === 0) return adding ? 'Add' : 'Remove'
+        return `${adding ? 'Add' : 'Remove'} ${plural(count, 'song', 'songs')}`
       }}
-      keyWord={adding ? 'add' : 'take out'}
+      keyWord={adding ? 'add' : 'remove'}
       onApply={apply}
       height={height}
       onClose={onDone}

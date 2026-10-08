@@ -112,7 +112,7 @@ export function TagsReview({
       case 'add':
         return `${each.tag ? 'Put on' : 'A new tag for'} ${songs} · ${c.who}`
       case 'remove':
-        return `Take off ${songs} · ${c.who}`
+        return `Remove from ${songs} · ${c.who}`
       case 'rename':
         return `Rename · ${c.who}`
       case 'merge':

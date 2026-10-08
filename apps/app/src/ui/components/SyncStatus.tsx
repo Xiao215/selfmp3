@@ -8,11 +8,14 @@ import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvid
 import { timing } from '../motion'
 import { card } from '../surfaces'
 import { Press } from './Press'
+import { devicePlace } from '../../features/settings/settings.model'
+import { deviceKind } from '../../ports/device'
 
 /**
  * One line saying whether this device has your music yet, in the words Xiao
- * chose: "Downloading 12 of 40", "40 not downloaded · on data · Download",
- * "40 not downloaded · offline".
+ * chose — "Downloading 12 of 40", "40 not on this phone · on data · Download",
+ * "40 not on this phone · offline" — with the device named as the word table
+ * names it (docs/features/design-system.md, Words).
  *
  * Only when there is something to say. On Wi-Fi with automatic downloads on,
  * a missing song is about to be fetched, and a browser streams, so neither
@@ -30,7 +33,7 @@ export function SyncStatus(): ReactNode {
   const header = syncHeader(downloads.situation)
   if (header.kind === 'none') return null
 
-  const { text, action } = syncHeaderText(header)
+  const { text, action } = syncHeaderText(header, devicePlace(deviceKind()))
   const { queue } = downloads
   const onAction = (): void => {
     if (header.kind === 'downloading') {

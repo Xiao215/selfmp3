@@ -865,7 +865,7 @@ function RowMore({
         ) : null}
         <View testID={removeTestID}>
           <SheetItem
-            label="Remove from queue"
+            label="Remove from imports"
             icon={<X size={15} color={theme.colors.danger} />}
             danger
             onPress={() => {
@@ -934,7 +934,7 @@ function SwipeActions({
               onRemove()
             }}
             accessibilityRole="button"
-            accessibilityLabel={`Remove ${name} from the queue`}
+            accessibilityLabel={`Remove ${name} from imports`}
             style={({ pressed }) => [
               styles.swipeAction,
               styles.swipeRemove,
@@ -950,7 +950,7 @@ function SwipeActions({
       <View
         accessibilityActions={[
           ...(onNext ? [{ name: 'next', label: 'Import next' }] : []),
-          { name: 'remove', label: 'Remove from queue' },
+          { name: 'remove', label: 'Remove from imports' },
         ]}
         onAccessibilityAction={event => {
           if (event.nativeEvent.actionName === 'next') onNext?.()

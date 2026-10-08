@@ -15,7 +15,8 @@ import { useRouter } from 'expo-router'
 import type { CloudConnect } from '@selfmp3/shared'
 import { fonts, radius, space, type } from '@selfmp3/client'
 import { library as cloudLibrary, session as cloud } from '../../replica'
-import { deviceWord } from '../../ports/device'
+import { deviceKind, deviceWord } from '../../ports/device'
+import { devicePlace } from '../settings/settings.model'
 import { installedApp } from '../../ports/install'
 import { keyboardAvoidBehavior } from '../../ports/keyboard'
 import { titleBarInset } from '../../ports/titleBarInset'
@@ -265,7 +266,9 @@ export function StorageScreen(): ReactNode {
           label="Sign out"
           variant="text"
           onPress={() => {
-            setLeaveWarning(signOutWarning(cloudLibrary.pendingCloudChanges()))
+            setLeaveWarning(
+              signOutWarning(cloudLibrary.pendingCloudChanges(), devicePlace(deviceKind())),
+            )
             setLeaving(true)
           }}
         />

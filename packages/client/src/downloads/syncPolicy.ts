@@ -114,7 +114,11 @@ export function syncHeader(situation: SyncSituation): SyncHeader {
 }
 
 /** The header in words: what it says, and the one thing it offers. */
-export function syncHeaderText(header: SyncHeader): { text: string; action: string | null } {
+export function syncHeaderText(
+  header: SyncHeader,
+  /** This device, by what it is: "40 not on this phone". */
+  place: 'phone' | 'computer',
+): { text: string; action: string | null } {
   switch (header.kind) {
     case 'none':
       return { text: '', action: null }
@@ -126,7 +130,7 @@ export function syncHeaderText(header: SyncHeader): { text: string; action: stri
     case 'error':
       return { text: header.message, action: 'Retry' }
     case 'waiting': {
-      const lead = `${header.missing} not downloaded`
+      const lead = `${header.missing} not on this ${place}`
       switch (header.reason) {
         case 'offline':
           return { text: `${lead} · offline`, action: null }

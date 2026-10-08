@@ -119,13 +119,13 @@ function CloudDevices({ anchor }: { anchor: (node: View | null) => void }): Reac
 
 /**
  * Forgets each device, all of them tried even when one is refused, and says
- * so when any was: Forget is pressed, and a row that stays put is no answer.
+ * so when any was: Remove is pressed, and a row that stays put is no answer.
  */
 async function forgetEach(api: Pick<Api, 'forgetDevice'>, ids: readonly string[]): Promise<void> {
   const results = await Promise.allSettled(ids.map(id => api.forgetDevice(id)))
   const refused = results.find(result => result.status === 'rejected')
   if (refused) {
-    const what = ids.length > 1 ? 'Couldn’t forget them all' : 'Couldn’t forget that device'
+    const what = ids.length > 1 ? 'Couldn’t remove them all' : 'Couldn’t remove that device'
     showToast(failureText(what, refused.reason), 'error')
   }
 }
@@ -211,7 +211,7 @@ function DevicesList({
               <IconButton
                 onPress={() => onForget(ids)}
                 label={
-                  ids.length > 1 ? `Forget ${device.name} (${ids.length})` : `Forget ${device.name}`
+                  ids.length > 1 ? `Remove ${device.name} (${ids.length})` : `Remove ${device.name}`
                 }
                 size={28}
               >
@@ -238,7 +238,7 @@ function DevicesList({
               label={showOlder ? 'Show fewer' : `Show ${view.older.length} older`}
               onPress={() => setShowOlder(open => !open)}
             />
-            {live ? <Button label="Forget all older" onPress={() => onForget(olderIds)} /> : null}
+            {live ? <Button label="Remove all older" onPress={() => onForget(olderIds)} /> : null}
           </View>
         ) : null}
       </View>

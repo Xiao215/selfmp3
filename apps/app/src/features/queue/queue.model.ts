@@ -80,7 +80,7 @@ export function autoMixLine({
   upcoming: number
   nextCrossfadeSeconds: number
 }): string {
-  if (!autoMix) return 'plays in queue order'
+  if (!autoMix) return 'plays in order'
   if (upcoming === 0) return 'nothing to mix yet'
   return canCrossfade
     ? `next crossfade ${nextCrossfadeSeconds}s`

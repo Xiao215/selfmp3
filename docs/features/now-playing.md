@@ -96,7 +96,7 @@ playing — with the title, the artists (each a link), the tags, the scrubber an
 Play under it. The foot is **Lyrics** (or **Visual**), **Sleep**, **Up next** and a ⋯: the
 song menu every song has (Tags, Add to playlist, Add to Up next, Play similar songs,
 Download in the app, Song details), then a short "This player" group with Devices, then
-Remove from library. Sleep is not repeated there; it has its own button. There are no page
+Delete from library…. Sleep is not repeated there; it has its own button. There are no page
 dots: the gestures are up and down, not sideways. Swiping up, the Lyrics pill or a tap on the cover opens the
 lyrics on their own (`/now-playing?view=lyrics`, `P22`); swiping down comes back.
 

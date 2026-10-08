@@ -610,7 +610,7 @@ function Rail({
             }}
           />
           <SheetItem
-            label="Remove from queue"
+            label="Remove from Up next"
             onPress={() => {
               if (menuRow) actions.remove(menuRow.index)
               setMenuRow(null)

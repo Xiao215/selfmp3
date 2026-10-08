@@ -84,11 +84,11 @@ test.describe('up next on a computer', () => {
     // Auto-mix, on its own line in the rail: it says what the next handover
     // will be, and goes back to queue order when it is switched off.
     const autoMix = rail.getByLabel('Auto-mix', { exact: true })
-    await expect(rail.getByText('plays in queue order')).toBeVisible()
+    await expect(rail.getByText('plays in order')).toBeVisible()
     await autoMix.click()
     await expect(rail.getByText(/^(next crossfade \d+s|nothing to mix yet)$/)).toBeVisible()
     await autoMix.click()
-    await expect(rail.getByText('plays in queue order')).toBeVisible()
+    await expect(rail.getByText('plays in order')).toBeVisible()
 
     // Across pages: the rail is the frame's, not the page's.
     await page.getByTestId('nav-home').click()
@@ -178,7 +178,7 @@ test.describe('up next on a computer', () => {
 
     // The right-click menu.
     await next.click({ button: 'right' })
-    await page.getByRole('menuitem', { name: 'Remove from queue' }).click()
+    await page.getByRole('menuitem', { name: 'Remove from Up next' }).click()
     await expect(song).toHaveCount(0)
     await undo.click()
     await expect(song).toHaveCount(1)

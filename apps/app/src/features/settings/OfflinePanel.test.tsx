@@ -117,7 +117,7 @@ describe('On this phone counts', () => {
     await draw()
 
     expect(screen.getByText('43')).toBeTruthy()
-    expect(screen.getByText('of 45 songs downloaded')).toBeTruthy()
+    expect(screen.getByText('of 45 songs on this phone')).toBeTruthy()
   })
 
   /*
@@ -132,7 +132,7 @@ describe('On this phone counts', () => {
     await draw()
 
     expect(screen.getByText('41')).toBeTruthy()
-    expect(screen.getByText('of 43 songs downloaded')).toBeTruthy()
+    expect(screen.getByText('of 43 songs on this phone')).toBeTruthy()
   })
 
   /*
@@ -148,7 +148,7 @@ describe('On this phone counts', () => {
     await draw()
 
     expect(screen.getByText('41')).toBeTruthy()
-    expect(screen.getByText('of 43 songs downloaded')).toBeTruthy()
+    expect(screen.getByText('of 43 songs on this phone')).toBeTruthy()
     expect(screen.queryByText('43')).toBeNull()
   })
 
@@ -159,7 +159,7 @@ describe('On this phone counts', () => {
     await draw()
 
     expect(screen.getByText('0')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Remove all downloads' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Remove all from this phone' })).toBeTruthy()
   })
 })
 

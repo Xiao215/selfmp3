@@ -67,6 +67,8 @@ import { usePlaylistPlayback } from '../playlists/usePlaylistPlayback'
 import { AddSongsSheet } from './AddSongsSheet'
 import { FollowsRow } from './FollowsRow'
 import { usePageBack } from '../../ui/useBackTo'
+import { deviceKind } from '../../ports/device'
+import { devicePlace } from '../settings/settings.model'
 
 /**
  * One playlist (docs/ui-mock `P17`, `C08`): the same kind of page as a tag's
@@ -509,8 +511,7 @@ export function PlaylistDetailScreen(): ReactNode {
           ) : (
             <SheetItem
               icon={<Downloaded size={16} color={accent.accent} knockout={theme.colors.surface2} />}
-              label="Remove download"
-              detail="On this phone"
+              label={`Remove from this ${devicePlace(deviceKind())}`}
               disabled={removing}
               onPress={menuAction(() => removeDownloads(songIds))}
             />

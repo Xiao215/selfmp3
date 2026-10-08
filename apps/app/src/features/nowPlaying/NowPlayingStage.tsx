@@ -449,7 +449,7 @@ function Stage({
   const [visualFade] = useState(() => Animated.multiply(visualPresence.progress, replaced))
   const tabs: readonly (readonly [StageTab, string])[] = [
     ['lyrics', noLyrics ? 'Visual' : 'Lyrics'],
-    ['about', 'About'],
+    ['about', 'Details'],
   ]
   const tags = (library.data?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
   /*
@@ -720,7 +720,7 @@ function Stage({
               <SongFacts song={song} />
               <View style={styles.fix}>
                 <Button
-                  label="Fix metadata…"
+                  label="Fix song info…"
                   icon={<Sparkles size={15} tone="textSecondary" />}
                   onPress={() => setFixing(true)}
                   testID="now-playing-fix-metadata"

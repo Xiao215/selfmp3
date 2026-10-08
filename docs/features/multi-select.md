@@ -197,10 +197,10 @@ empty batches) and the rollback.
 
 ## Things deliberately left out
 
-- **No undo for Remove from library.** It would need the server to hold removed rows, and
+- **No undo for Delete from library.** It would need the server to hold removed rows, and
   every device to put the song back; the confirmation carries the weight instead. Removing
   from a playlist and removing downloads can be put back, so they have Undo and no question.
-- **No batch metadata edit.** "Fix metadata" is per-song by nature — it is a choice between
+- **No batch metadata edit.** "Fix song info" is per-song by nature — it is a choice between
   candidates, not a value to stamp across a selection.
 - **No selection in the queue panel or on the Stats pages.** The library, the places, Search
   and a playlist are where batch editing is actually wanted.

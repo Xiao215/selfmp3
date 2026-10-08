@@ -847,7 +847,7 @@ function OpenWeek({
         pressed && styles.readyButtonPressed,
       ]}
     >
-      <Text style={styles.readyButtonLabel}>Open your week</Text>
+      <Text style={styles.readyButtonLabel}>Open the report</Text>
     </Pressable>
   )
 }

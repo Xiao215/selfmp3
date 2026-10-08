@@ -9,7 +9,8 @@ import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { showToast } from '../../ui/toast'
 import { signOutWarning } from './signOut'
 import { useSignOut } from './useSignOut'
-import { type Confirming } from './settings.model'
+import { devicePlace, type Confirming } from './settings.model'
+import { deviceKind } from '../../ports/device'
 
 export function Confirmations({
   confirming,
@@ -23,15 +24,16 @@ export function Confirmations({
   const { removeAll } = useDownloads()
   const startAnalysis = useStartAnalysis()
   const signOut = useSignOut()
+  const place = devicePlace(deviceKind())
 
   const dialogs: Record<
     Exclude<Confirming, null>,
     { title: string; body: string; label: string; run: () => void }
   > = {
     'remove-downloads': {
-      title: 'Remove all downloaded songs from this device?',
+      title: `Remove all songs from this ${place}?`,
       body: 'The library itself is not touched. Downloading automatically is turned off too, or they would just come back.',
-      label: 'Remove all downloads',
+      label: `Remove all from this ${place}`,
       run: () => void removeAll(),
     },
     'redo-analysis': {
@@ -44,7 +46,8 @@ export function Confirmations({
       title: 'Sign out?',
       // Counted only while this dialog is the one asking: Settings redraws
       // for many reasons, and the count walks the changes not yet sent.
-      body: confirming === 'sign-out' ? signOutWarning(cloudLibrary.pendingCloudChanges()) : '',
+      body:
+        confirming === 'sign-out' ? signOutWarning(cloudLibrary.pendingCloudChanges(), place) : '',
       label: 'Sign out',
       run: () => void signOut(),
     },

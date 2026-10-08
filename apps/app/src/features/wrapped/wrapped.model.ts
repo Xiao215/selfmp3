@@ -34,7 +34,7 @@ export function emptyTitle(range: WrappedRange): string {
 
 export function emptyHint(range: WrappedRange): string {
   return range === 'all'
-    ? 'Play something and Wrapped starts keeping score — the first minute counts.'
+    ? 'Play something and the report starts keeping score — the first minute counts.'
     : `You have no plays in the ${WRAPPED_RANGE_LABELS[range].toLowerCase()}. Try a longer window, or go and put something on.`
 }
 
@@ -44,5 +44,5 @@ export function tryLabel(range: WrappedRange): string {
 
 /** A filename that sorts sensibly and says what it is. */
 export function shareFileName(wrapped: Pick<Wrapped, 'range' | 'to'>): string {
-  return `selfmp3-wrapped-${wrapped.range}-${wrapped.to.slice(0, 10)}.png`
+  return `selfmp3-report-${wrapped.range}-${wrapped.to.slice(0, 10)}.png`
 }

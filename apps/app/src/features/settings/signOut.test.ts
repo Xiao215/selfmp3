@@ -71,13 +71,13 @@ describe('signing out of the cloud', () => {
 
 describe('the sign-out warning', () => {
   it('says the music stays, and counts what would be lost', () => {
-    expect(signOutWarning(0)).toBe(
-      'Songs downloaded to this device are removed; your music stays in your storage.',
+    expect(signOutWarning(0, 'phone')).toBe(
+      'Songs on this phone are removed; your music stays in your storage.',
     )
-    expect(signOutWarning(1)).toMatch(
+    expect(signOutWarning(1, 'phone')).toMatch(
       /1 change made here has not reached it yet and will be lost if it cannot be sent now\.$/,
     )
-    expect(signOutWarning(3)).toMatch(
+    expect(signOutWarning(3, 'computer')).toMatch(
       /3 changes made here have not reached it yet and will be lost if they cannot be sent now\.$/,
     )
   })

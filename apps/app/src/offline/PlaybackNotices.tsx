@@ -3,6 +3,8 @@ import { plural, formatBytes } from '@selfmp3/shared'
 import { LARGE_SYNC_BYTES, useLibrary } from '@selfmp3/client'
 import { ConfirmDialog } from '../ui/components/ConfirmDialog'
 import { useDownloads, type DownloadQuestion } from './DownloadsProvider'
+import { devicePlace } from '../features/settings/settings.model'
+import { deviceKind } from '../ports/device'
 
 /**
  * The questions downloading and streaming put to the person, in words.
@@ -68,7 +70,8 @@ function wordsFor(
     }
   }
 
-  const quoted = `“${title}” isn’t downloaded`
+  const place = devicePlace(deviceKind())
+  const quoted = `“${title}” isn’t on this ${place}`
   switch (question.block) {
     case 'data':
       return {
@@ -80,21 +83,21 @@ function wordsFor(
     case 'streaming-off':
       return {
         title: quoted,
-        body: 'Playing songs that aren’t downloaded is off in Settings, so it plays once it’s on this device.',
+        body: `Playing songs that aren’t on this ${place} is off in Settings, so it plays once it’s downloaded.`,
         confirm: 'Download',
         cancel: 'Not now',
       }
     case 'cloud':
       return {
         title: quoted,
-        body: 'Songs from your storage play once they’re on this device, so it needs downloading first.',
+        body: `Songs from your storage play once they’re on this ${place}, so it needs downloading first.`,
         confirm: 'Download',
         cancel: 'Not now',
       }
     case 'offline':
       return {
         title: quoted,
-        body: 'This device is offline, and only downloaded songs play without a connection.',
+        body: `This device is offline, and only songs on this ${place} play without a connection.`,
         confirm: 'OK',
         cancel: null,
       }

@@ -259,7 +259,7 @@ function SongPage({ song }: { song: Song }): ReactNode {
           <SongFacts song={song} plays={false} />
           <View style={styles.fix}>
             <Button
-              label="Fix metadata…"
+              label="Fix song info…"
               icon={<Sparkles size={15} tone="textSecondary" />}
               onPress={() => setFixing(true)}
             />

@@ -680,7 +680,7 @@ export const useBulkEditSongs = () =>
 export const useBulkLoved = () =>
   useLibraryMutation(
     (input: { songIds: number[]; loved: boolean }) => clientApi().bulkLoved(input),
-    { failure: 'Couldn’t change the hearts' },
+    { failure: 'Couldn’t change the likes' },
   )
 
 export const useScanLibrary = () =>
@@ -757,7 +757,7 @@ export function useStopFollowing() {
   const client = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => clientApi().stopFollowing(id),
-    meta: { failure: 'Couldn’t stop following those tags' },
+    meta: { failure: 'Couldn’t stop filling from those tags' },
     onSuccess: (playlist, id) => {
       putPlaylist(client, playlist)
       void client.invalidateQueries({ queryKey: queryKeys.playlistSongs(id) })
@@ -776,7 +776,7 @@ export function useToggleLoved() {
 
   return useMutation({
     mutationFn: ({ id, loved }: { id: number; loved: boolean }) => clientApi().setLoved(id, loved),
-    meta: { failure: 'Couldn’t change the heart' },
+    meta: { failure: 'Couldn’t change the like' },
 
     onMutate: async ({ id, loved }) => {
       const refetching = libraryFetching(client)
@@ -881,7 +881,7 @@ export function useRemoveManyFromPlaylist() {
   return useMutation({
     mutationFn: ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) =>
       clientApi().removeManyFromPlaylist(playlistId, songIds),
-    meta: { failure: 'Couldn’t take the songs off the playlist' },
+    meta: { failure: 'Couldn’t remove the songs from the playlist' },
     onSuccess: ({ playlist }, { playlistId }) => {
       if (playlist) putPlaylist(client, playlist)
       else void client.invalidateQueries({ queryKey: queryKeys.library })

@@ -49,11 +49,11 @@ describe('ConfirmRemoveSongs', () => {
     await draw({ onConfirm })
 
     expect(screen.queryByRole('checkbox')).toBeNull()
-    expect(screen.getByText('Remove 2 songs from your library?')).toBeTruthy()
-    expect(screen.getByText(/deleted from this device/)).toBeTruthy()
+    expect(screen.getByText('Delete 2 songs from your library?')).toBeTruthy()
+    expect(screen.getByText(/anything on this phone is deleted from it/)).toBeTruthy()
     expect(screen.getByText(/on every device/)).toBeTruthy()
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Remove 2 songs' }))
+    await fireEvent.press(screen.getByRole('button', { name: 'Delete 2 songs' }))
     expect(onConfirm).toHaveBeenCalledTimes(1)
   })
 
@@ -68,8 +68,8 @@ describe('ConfirmRemoveSongs', () => {
   it('names one song in the question rather than listing it under it', async () => {
     await draw({ songs: [song(7)] })
 
-    expect(screen.getByText('Remove “Song 7” from your library?')).toBeTruthy()
+    expect(screen.getByText('Delete “Song 7” from your library?')).toBeTruthy()
     expect(screen.queryByText('Song 7')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Remove song' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Delete song' })).toBeTruthy()
   })
 })

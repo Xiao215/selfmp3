@@ -245,7 +245,7 @@ function GemsTile({ width }: { width: number | undefined }): ReactNode {
         }
         accessibilityRole="button"
         accessibilityLabel="Play forgotten gems"
-        {...tip(`Loved or well played, quiet for ${data.minDays}+ days`)}
+        {...tip(`Liked or well played, quiet for ${data.minDays}+ days`)}
         style={({ pressed }) => pressed && styles.pressed}
       >
         <View>

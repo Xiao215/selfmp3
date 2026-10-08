@@ -128,7 +128,7 @@ export function parts(understanding: Understanding, tags: readonly Tag[]): Part[
   if (understanding.loved !== null) {
     out.push({
       key: 'loved',
-      label: understanding.loved ? 'Loved' : 'Not loved',
+      label: understanding.loved ? 'Liked' : 'Not liked',
       without: u => ({ ...u, loved: null }),
     })
   }
@@ -636,13 +636,13 @@ export function tagSteps(
   return [...make, ...members, ...renames, ...merges, ...deletes]
 }
 
-/** "Put on songs", "Take off songs", …: the heading a tag change is listed under. */
+/** "Put on songs", "Remove from songs", …: the heading a tag change is listed under. */
 export function tagSection(change: TagChange): string {
   switch (change.op) {
     case 'add':
       return 'Put on songs'
     case 'remove':
-      return 'Take off songs'
+      return 'Remove from songs'
     case 'rename':
       return 'Rename'
     case 'merge':

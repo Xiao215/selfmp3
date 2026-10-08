@@ -28,9 +28,9 @@ test.describe('fixing metadata', () => {
       .click()
     await page.getByRole('menuitem', { name: 'Song details', exact: true }).click()
     await expect(page).toHaveURL(/\/song\/\d+$/)
-    await page.getByRole('button', { name: /Fix metadata/ }).click()
+    await page.getByRole('button', { name: /Fix song info/ }).click()
 
-    const dialog = page.getByRole('dialog', { name: 'Fix metadata' })
+    const dialog = page.getByRole('dialog', { name: 'Fix song info' })
     await expect(dialog).toBeVisible()
     const firstSuggestion = dialog.getByRole('radio').first()
     const found = await firstSuggestion

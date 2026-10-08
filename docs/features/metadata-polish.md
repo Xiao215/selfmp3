@@ -6,7 +6,7 @@ from free public databases. No API keys, nothing to configure.
 The lookups are the server's own HTTP calls, rate limiter and cover cache, so a library
 read from the bucket asks the server directly for them (`features/metadata/FixMetadata.tsx`),
 and the names are saved on the device. The model's Suggested card on the same page is in
-[ai.md](ai.md), "Fix metadata · Suggested".
+[ai.md](ai.md), "Fix song info · Suggested".
 
 ## What it does
 
@@ -34,7 +34,7 @@ existing cover cache.
 ## Using it
 
 **One song.** Open a song's `⋯` menu, choose **Song details**, and on the song's own page
-press **Fix metadata…**. The left column shows
+press **Fix song info…**. The left column shows
 what the library has; the right lists candidates with artwork thumbnails, a source badge
 and a match percentage. Pick a candidate, and the diff below it lists only the fields that
 would change — untick anything you do not want, then **Apply**.

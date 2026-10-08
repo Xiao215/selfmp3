@@ -243,7 +243,7 @@ stalls on a slow network, its reported position corrects the drift on the next
 beat.
 
 **A device is forgotten after 30 days** without a heartbeat, swept at startup.
-Forgetting one by hand in Settings is immediate — but a device that is still
+Removing one by hand in Settings is immediate — but a device that is still
 open re-registers itself within ten seconds.
 
 **No new settings or environment variables.** The feature is always on and costs

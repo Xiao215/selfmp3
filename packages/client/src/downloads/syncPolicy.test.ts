@@ -53,11 +53,12 @@ describe('downloading automatically', () => {
 })
 
 describe('the header', () => {
-  const text = (situation: SyncSituation): string => syncHeaderText(syncHeader(situation)).text
+  const text = (situation: SyncSituation): string =>
+    syncHeaderText(syncHeader(situation), 'phone').text
 
   it('counts through a run', () => {
     expect(text({ ...phone, queued: 29, batchTotal: 40 })).toBe('Downloading 12 of 40')
-    expect(syncHeaderText(syncHeader({ ...phone, queued: 1, batchTotal: 0 }))).toEqual({
+    expect(syncHeaderText(syncHeader({ ...phone, queued: 1, batchTotal: 0 }), 'phone')).toEqual({
       text: 'Downloading 1 of 1',
       action: 'Pause',
     })
@@ -65,16 +66,16 @@ describe('the header', () => {
   })
 
   it('says why it is waiting, in Xiao’s words', () => {
-    expect(syncHeaderText(syncHeader({ ...phone, network: 'cellular' }))).toEqual({
-      text: '40 not downloaded · on data',
+    expect(syncHeaderText(syncHeader({ ...phone, network: 'cellular' }), 'phone')).toEqual({
+      text: '40 not on this phone · on data',
       action: 'Download',
     })
-    expect(syncHeaderText(syncHeader({ ...phone, network: 'none' }))).toEqual({
-      text: '40 not downloaded · offline',
+    expect(syncHeaderText(syncHeader({ ...phone, network: 'none' }), 'phone')).toEqual({
+      text: '40 not on this phone · offline',
       action: null,
     })
-    expect(text({ ...phone, missingBytes: 1.2 * 1024 * MB })).toBe('40 not downloaded · 1.2 GB')
-    expect(text({ ...phone, autoOnWifi: false })).toBe('40 not downloaded')
+    expect(text({ ...phone, missingBytes: 1.2 * 1024 * MB })).toBe('40 not on this phone · 1.2 GB')
+    expect(text({ ...phone, autoOnWifi: false })).toBe('40 not on this phone')
   })
 
   it('says nothing when there is nothing to say', () => {
@@ -87,7 +88,7 @@ describe('the header', () => {
   })
 
   it('shows a failure until the next try', () => {
-    expect(syncHeaderText(syncHeader({ ...phone, error: 'Idol: 404' }))).toEqual({
+    expect(syncHeaderText(syncHeader({ ...phone, error: 'Idol: 404' }), 'phone')).toEqual({
       text: 'Idol: 404',
       action: 'Retry',
     })

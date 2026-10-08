@@ -19,19 +19,21 @@ import { Button } from '../../ui/components/Button'
 import { CloudRemove } from '../../ui/components/Icons'
 import { EnergyWave } from '../../ui/components/EnergyWave'
 import { label as labelText } from '../../ui/surfaces'
+import { deviceKind } from '../../ports/device'
+import { devicePlace, onThisDevice } from '../settings/settings.model'
 
 /**
  * Everything the app knows about one song, in plain words: the quiet end of
- * the song's own page, and the About tab on a computer's Now Playing page.
+ * the song's own page, and the Details tab on a computer's Now Playing page.
  *
  * Grouped by what you would want the fact for: how it sounds, whether it is on
  * this device, your history with it, and the file itself.
  *
- * "On this device" is the download queue's answer. The file's path and "Show
+ * "On this phone" (or computer) is the download queue's answer. The file's path and "Show
  * in Finder" belong to the server, and are left out.
  *
  * The song's page says the play count in a sentence of its own above, so it
- * asks for the facts without it (`plays={false}`); the About tab has no such
+ * asks for the facts without it (`plays={false}`); the Details tab has no such
  * sentence and keeps it.
  */
 export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean }): ReactNode {
@@ -52,6 +54,7 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
       ? Math.min(1, progress.bytesWritten / progress.totalBytes)
       : null
   const queued = !downloading && downloads.queue.includes(song.id)
+  const place = devicePlace(deviceKind())
 
   return (
     <View>
@@ -101,8 +104,8 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
 
       {/* A browser streams; only an installed app keeps songs. */}
       {installed ? (
-        <Group title="On this device">
-          <Fact label="Offline">
+        <Group title={onThisDevice(place)}>
+          <Fact label="Status">
             {downloading ? (
               <Text style={styles.strong}>
                 {fraction === null
@@ -111,13 +114,15 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
               </Text>
             ) : held ? (
               <>
-                <Text style={styles.strong}>Downloaded · {formatBytes(song.sizeBytes)}</Text>
+                <Text style={styles.strong}>
+                  On this {place} · {formatBytes(song.sizeBytes)}
+                </Text>
                 <Text style={styles.note}>Plays with no connection.</Text>
                 <View style={styles.action}>
                   {/* The cloud, not a bare word: this undoes the download, and
                       the icon says which of the two it is at a glance. */}
                   <Button
-                    label="Remove download"
+                    label={`Remove from this ${place}`}
                     icon={<CloudRemove size={15} tone="textPrimary" />}
                     onPress={() => removeDownloads([song.id])}
                   />
@@ -126,10 +131,10 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
             ) : (
               <>
                 <Text style={styles.strong}>
-                  Only on your server · {formatBytes(song.sizeBytes)}
+                  Not on this {place} · {formatBytes(song.sizeBytes)}
                 </Text>
                 <Text style={styles.note}>
-                  {queued ? 'Waiting to download.' : 'Plays only while your server is reachable.'}
+                  {queued ? 'Waiting to download.' : 'Plays only while your library is reachable.'}
                 </Text>
                 {queued ? null : (
                   <View style={styles.action}>
@@ -180,7 +185,7 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
         {song.lyricsKind !== 'none' ? (
           <Fact label="Lyrics">
             <Text style={styles.strong}>
-              {song.lyricsKind === 'synced' ? 'Synced' : 'Plain text'}
+              {song.lyricsKind === 'synced' ? 'Timed' : 'Plain text'}
             </Text>
           </Fact>
         ) : null}

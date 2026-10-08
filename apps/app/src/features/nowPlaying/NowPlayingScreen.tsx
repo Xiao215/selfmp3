@@ -568,7 +568,7 @@ function CoverView({
             Now playing
           </Text>
         )}
-        <IconButton onPress={onOpenSong} label="About this song" filled testID="now-playing-info">
+        <IconButton onPress={onOpenSong} label="Song details" filled testID="now-playing-info">
           <Info size={20} color={theme.colors.textPrimary} />
         </IconButton>
       </View>

@@ -13,7 +13,7 @@ import { SongMenu } from './SongMenu'
  * The owner's words: "delete from library means delete from local too": one
  * action behind one confirmation, the same dialog the selection bar asks with.
  *
- * "Remove download", which keeps the song and frees the room, is a separate
+ * "Remove from this phone", which keeps the song and frees the room, is a separate
  * wish and has to survive both.
  */
 
@@ -134,7 +134,7 @@ describe('what the menu offers', () => {
       /^Play similar songs$/,
       /^Download$/,
       /^Song details$/,
-      /^Remove from library…$/,
+      /^Delete from library…$/,
     ]
     const names = itemNames()
     expect(names).toHaveLength(order.length)
@@ -148,7 +148,7 @@ describe('what the menu offers', () => {
     await draw(undefined, onDevices)
 
     expect(screen.getByText('This player')).toBeTruthy()
-    expect(itemNames().slice(-2)).toEqual(['Devices', 'Remove from library…'])
+    expect(itemNames().slice(-2)).toEqual(['Devices', 'Delete from library…'])
     expect(screen.queryByRole('menuitem', { name: /Sleep/ })).toBeNull()
     await fireEvent.press(screen.getByRole('menuitem', { name: 'Devices' }))
     expect(onDevices).toHaveBeenCalled()
@@ -172,14 +172,14 @@ describe('removing a song where the copy goes with it', () => {
     const onClose = jest.fn()
     await draw(onClose)
 
-    await fireEvent.press(screen.getByRole('menuitem', { name: 'Remove from library…' }))
+    await fireEvent.press(screen.getByRole('menuitem', { name: 'Delete from library…' }))
     // The menu goes, and the question is one press in a dialog, not a second
     // state of the menu. It draws through the overlay host a tick later.
     expect(onClose).toHaveBeenCalled()
-    expect(await screen.findByText('Remove “Nocturne” from your library?')).toBeTruthy()
+    expect(await screen.findByText('Delete “Nocturne” from your library?')).toBeTruthy()
     expect(screen.queryByRole('menuitem', { name: 'Remove from library' })).toBeNull()
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Remove song' }))
+    await fireEvent.press(screen.getByRole('button', { name: 'Delete song' }))
     expect(mockDropDownloads).toHaveBeenCalledWith([4])
     expect(mockForgetSongs).toHaveBeenCalledWith([4])
     expect(mockDeleteSong).toHaveBeenCalledWith({ songIds: [4] }, expect.anything())
@@ -188,7 +188,7 @@ describe('removing a song where the copy goes with it', () => {
   it('still offers dropping the download on its own', async () => {
     await draw()
 
-    await fireEvent.press(screen.getByRole('menuitem', { name: 'Remove download' }))
+    await fireEvent.press(screen.getByRole('menuitem', { name: 'Remove from this phone' }))
     expect(mockRemoveByHand).toHaveBeenCalledWith([4])
     expect(mockDeleteSong).not.toHaveBeenCalled()
   })

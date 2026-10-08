@@ -39,6 +39,8 @@ import {
   Trash,
   X,
 } from './Icons'
+import { devicePlace } from '../../features/settings/settings.model'
+import { deviceKind } from '../../ports/device'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 import { TagPicker } from './TagPicker'
@@ -70,7 +72,7 @@ import type { PopoverAnchor } from '../rightClick'
  * the menu, the same popup took two presses, and the second landed where the
  * first had been (Xiao, 2026-10-02).
  *
- * Dropping the download on its own is "Remove download", beside Download:
+ * Dropping the download on its own is "Remove from this phone", beside Download:
  * keeping the song and freeing the room is a different wish.
  */
 export function SongMenu({
@@ -304,7 +306,7 @@ function Items({
       {!installed ? null : held ? (
         <SheetItem
           icon={icon(CloudRemove)}
-          label="Remove download"
+          label={`Remove from this ${devicePlace(deviceKind())}`}
           onPress={then(() => removeDownloads([song.id]))}
         />
       ) : (
@@ -343,7 +345,7 @@ function Items({
       <View style={styles.gap} />
       <SheetItem
         icon={<Trash size={16} color={theme.colors.danger} />}
-        label="Remove from library…"
+        label="Delete from library…"
         danger
         onPress={onRemove}
       />

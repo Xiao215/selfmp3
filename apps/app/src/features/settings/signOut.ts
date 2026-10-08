@@ -56,8 +56,8 @@ export async function signOutOfCloud(steps: SignOutSteps): Promise<void> {
 }
 
 /** The confirmation's words, with what would be lost if it cannot be sent now. */
-export function signOutWarning(pendingChanges: number): string {
-  const base = 'Songs downloaded to this device are removed; your music stays in your storage.'
+export function signOutWarning(pendingChanges: number, place: 'phone' | 'computer'): string {
+  const base = `Songs on this ${place} are removed; your music stays in your storage.`
   if (pendingChanges <= 0) return base
   const one = pendingChanges === 1
   return `${base} ${plural(pendingChanges, 'change', 'changes')} made here ${one ? 'has' : 'have'} not reached it yet and will be lost if ${one ? 'it' : 'they'} cannot be sent now.`

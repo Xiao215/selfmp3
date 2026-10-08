@@ -30,6 +30,8 @@ import {
   type Motion,
 } from '@selfmp3/shared'
 import type { EditContext } from './edits.js'
+import { bucketHold, BUCKET_CAP_CODE } from './hold.js'
+import { upgradeKeptBase } from './keptBase.js'
 import { foldedOwnLogs, latestStamp, replay, replayedSnapshot } from './replay.js'
 import {
   NO_IDS,
@@ -396,11 +398,17 @@ export function createCloudLibrary(
     return [...(outbox.inflight?.changes ?? []), ...outbox.pending]
   }
 
-  /** The snapshot this device kept, or null when there is none or it does not read as one. */
-  function storedBase(value: unknown): Replica['base'] | null {
+  /**
+   * The snapshot this device kept, or null when there is none or it does not
+   * read as one. A copy kept before the snapshot's shape was settled is
+   * brought up to it (`upgradeKeptBase`) and says so, to be written back.
+   */
+  function storedBase(value: unknown): { base: Replica['base']; upgraded: boolean } | null {
     if (value === null || value === undefined) return null
     const parsed = StoredBaseSchema.safeParse(value)
-    if (parsed.success) return parsed.data
+    if (parsed.success) return { base: parsed.data, upgraded: false }
+    const upgraded = StoredBaseSchema.safeParse(upgradeKeptBase(value))
+    if (upgraded.success) return { base: upgraded.data, upgraded: true }
     warn('this device’s copy of the library could not be read; it is fetched again')
     return null
   }
@@ -434,7 +442,9 @@ export function createCloudLibrary(
     const began = generation
     const attempt: Promise<Replica> = (async () => {
       const outbox = await changeOutbox(current => current, { check: true })
-      const base = storedBase(await store.read(BASE_KEY))
+      const kept = storedBase(await store.read(BASE_KEY))
+      const base = kept?.base ?? null
+      if (kept?.upgraded) await store.write(BASE_KEY, kept.base)
       const r: Replica = {
         base: base ?? { key: null, snapshot: null },
         baseStored: base !== null,
@@ -453,7 +463,14 @@ export function createCloudLibrary(
       // so a failure here leaves nothing behind to be shown instead. A device
       // that has read it before answers from its copy at once, and looks in
       // the background (loadCloudLibrary).
-      if (!base) await refresh(r, session, { list: true })
+      if (!base) {
+        // Reads refused for the day: the snapshot would be refused too, and
+        // every screen asking again listed the bucket again first, spending
+        // the listings' allowance on an answer known before asking.
+        const held = bucketHold('read')
+        if (held) throw new DoormanError(502, held.message, BUCKET_CAP_CODE)
+        await refresh(r, session, { list: true })
+      }
       if (began !== generation) throw new DoormanError(401, 'Signed out.', 'unauthorized')
       replica = r
       listenForConnection()
@@ -790,6 +807,11 @@ export function createCloudLibrary(
         await refresh(r, session, { list: true })
       } catch (error) {
         if (!passing(error)) throw error
+        // Asked for and not answered: offline, or the bucket refusing. The
+        // copy answers, and the next read does not wait on the network again,
+        // as a look in the background that failed does not (lookInBackground).
+        r.mustCheck = false
+        r.look = { ...r.look, checkedAt: Date.now() }
       }
     } else if (
       Date.now() - r.look.checkedAt >

@@ -101,5 +101,12 @@ function wordsFor(
         confirm: 'OK',
         cancel: null,
       }
+    case 'held':
+      return {
+        title: quoted,
+        body: `Your storage’s allowance for today is used up, so only songs on this ${place} play until it resets.`,
+        confirm: 'OK',
+        cancel: null,
+      }
   }
 }

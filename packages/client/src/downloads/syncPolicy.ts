@@ -48,6 +48,12 @@ export interface SyncSituation {
   readonly batchTotal: number
   readonly paused: boolean
   readonly error: string | null
+  /**
+   * The bucket refusing reads for the day, for a library read from it: every
+   * download would be refused, so none is started until the hold lifts —
+   * each start would ask once more, and fail once more (2026-10-08).
+   */
+  readonly held: boolean
 }
 
 /**
@@ -64,6 +70,7 @@ export function shouldAutoDownload(situation: SyncSituation): boolean {
     situation.queued === 0 &&
     !situation.paused &&
     situation.error === null &&
+    !situation.held &&
     situation.missingBytes <= LARGE_SYNC_BYTES
   )
 }
@@ -82,7 +89,7 @@ type SyncHeader =
       readonly missing: number
       readonly bytes: number
       /** Why it is not downloading on its own. */
-      readonly reason: 'offline' | 'data' | 'large' | 'manual'
+      readonly reason: 'offline' | 'held' | 'data' | 'large' | 'manual'
     }
 
 /** The one line above the library. */
@@ -99,13 +106,14 @@ export function syncHeader(situation: SyncSituation): SyncHeader {
   if (situation.error !== null) return { kind: 'error', message: situation.error }
   // A browser streams: a song it has not kept is not a problem to report.
   if (!situation.installed || situation.missing === 0) return { kind: 'none' }
-  const waiting = (reason: 'offline' | 'data' | 'large' | 'manual'): SyncHeader => ({
+  const waiting = (reason: 'offline' | 'held' | 'data' | 'large' | 'manual'): SyncHeader => ({
     kind: 'waiting',
     missing: situation.missing,
     bytes: situation.missingBytes,
     reason,
   })
   if (situation.network === 'none') return waiting('offline')
+  if (situation.held) return waiting('held')
   if (situation.missingBytes > LARGE_SYNC_BYTES) return waiting('large')
   if (!onWifi(situation.network)) return waiting('data')
   if (!situation.autoOnWifi) return waiting('manual')
@@ -134,6 +142,8 @@ export function syncHeaderText(
       switch (header.reason) {
         case 'offline':
           return { text: `${lead} · offline`, action: null }
+        case 'held':
+          return { text: `${lead} · storage limit reached for today`, action: null }
         case 'data':
           return { text: `${lead} · on data`, action: 'Download' }
         case 'large':
@@ -162,7 +172,7 @@ export function downloadAsk(
 }
 
 /** Why a song cannot start here, or null when it can. */
-export type PlayBlock = 'cloud' | 'offline' | 'streaming-off' | 'data'
+export type PlayBlock = 'cloud' | 'offline' | 'held' | 'streaming-off' | 'data'
 
 export function playBlock({
   downloaded,
@@ -171,6 +181,7 @@ export function playBlock({
   streamUndownloaded,
   fromCloud,
   bucketStreams,
+  bucketHeld,
   dataAllowed,
 }: {
   /** A file here already: a download, or a copy kept because it was played. */
@@ -191,11 +202,20 @@ export function playBlock({
    * so there a cloud song still has to arrive before it plays.
    */
   bucketStreams: boolean
+  /**
+   * The bucket refusing reads for the day (replica's `bucketHold`). A song not
+   * on this device would be refused too: with Wi-Fi up it was still tried,
+   * failed, was retried and skipped, and three of those stopped the music
+   * however many downloaded songs came after (2026-10-08). An installed app
+   * only: a browser's service worker may still have a played song to hand.
+   */
+  bucketHeld: boolean
   dataAllowed: boolean
 }): PlayBlock | null {
   if (downloaded) return null
   if (fromCloud && installed && !bucketStreams) return 'cloud'
   if (network === 'none') return 'offline'
+  if (fromCloud && installed && bucketHeld) return 'held'
   if (!installed) return null
   if (!streamUndownloaded) return 'streaming-off'
   if (network === 'cellular' && !dataAllowed) return 'data'

@@ -10,6 +10,7 @@ import type {
 } from '@selfmp3/client'
 
 import { ensurePlayer } from '../player/setup'
+import { askWhyRefused } from './bucketRefusal'
 
 /**
  * The phone's engine: react-native-track-player behind `PlaybackEngine`.
@@ -330,9 +331,10 @@ class NativeEngine implements PlaybackEngine {
       TrackPlayer.addEventListener(Event.PlaybackError, ({ message }) => {
         // A failed item stays failed in the player: loading the same song again
         // has to build it afresh, not recognise it as the one already sounding.
+        const failed = this.#currentSongId
         this.#currentSongId = null
         this.#queuedNext = null
-        this.#patch({ error: message ?? 'playback failed' })
+        void this.#explainFailure(failed, message ?? 'playback failed')
       }),
     )
 
@@ -394,6 +396,25 @@ class NativeEngine implements PlaybackEngine {
   /** Ask the lookahead to be rebuilt — the provider calls this when order changes. */
   refreshLookahead(): void {
     void this.#topUpLookahead()
+  }
+
+  /**
+   * Why a song from the bucket would not play, asked before the failure is
+   * told: the player says only that it failed, the same for a bucket past its
+   * day's allowance, a doorman that is down, and a file that is not there.
+   * The doorman is asked (`askWhyRefused`), and a refusal for the day is held
+   * for the whole app, so the songs lined up next that are not on this phone
+   * are passed over for the ones that are (2026-10-08). The web engine asks
+   * the same way (`#explainSource`).
+   */
+  async #explainFailure(songId: number | null, said: string): Promise<void> {
+    const url = songId === null ? null : (this.#wiring.streamUrl?.(songId) ?? null)
+    const headers = songId === null ? null : (this.#wiring.streamHeaders?.(songId) ?? null)
+    // Only an address behind the doorman: a file here has nothing to ask.
+    const why = url && headers && /^https?:/.test(url) ? await askWhyRefused(url, headers) : null
+    // Another song was loaded while this was asked: its own state stands.
+    if (this.#destroyed || this.#currentSongId !== null) return
+    this.#patch({ error: why ?? said })
   }
 
   #trackFor(songId: number): SongTrack | null {

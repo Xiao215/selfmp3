@@ -10,6 +10,8 @@ import {
 } from 'react'
 import type { ReactNode } from 'react'
 import type { Song } from '@selfmp3/shared'
+import { bucketHold } from '@selfmp3/replica'
+import { useBucketHold } from '../features/profile/useBucketHold'
 import {
   dataAnswer,
   downloadAsk,
@@ -279,6 +281,24 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
   const missingBytes = useMemo(() => bytesFor(missingIds), [bytesFor, missingIds])
   const absentBytes = useMemo(() => bytesFor(absentIds), [bytesFor, absentIds])
 
+  // The bucket refusing reads for the day, for a library read from it: every
+  // download would be refused, so what is queued is let go and nothing new
+  // starts until the hold lifts. The first download after it asks again, so a
+  // bucket still refusing costs one request each time the hold runs out.
+  const held = useBucketHold('read') !== null && fromCloud
+  useEffect(() => {
+    if (!held) return undefined
+    const timer = setTimeout(() => {
+      if (downloadQueue.getState().queue.length > 0) downloadQueue.cancelAll()
+    }, 0)
+    return () => {
+      clearTimeout(timer)
+      // The hold lifted: a download it failed meanwhile is not a failure that
+      // should keep the automatic ones stopped.
+      downloadQueue.clearError()
+    }
+  }, [held])
+
   const situation = useMemo<SyncSituation>(
     () => ({
       installed: installedApp,
@@ -290,8 +310,9 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       batchTotal: view.batchTotal,
       paused: state.paused,
       error: state.error,
+      held,
     }),
-    [network, prefs.autoOnWifi, missingIds.length, missingBytes, state, view.batchTotal],
+    [network, prefs.autoOnWifi, missingIds.length, missingBytes, state, view.batchTotal, held],
   )
 
   // On Wi-Fi, keep this device in step without being asked.
@@ -481,6 +502,9 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       streamUndownloaded: now.prefs.streamUndownloaded,
       fromCloud: now.fromCloud,
       bucketStreams: bucketMedia !== null,
+      // Asked at the moment of playing, like the rest: a hold comes and goes
+      // by the minute, and the player asks this for every song it lines up.
+      bucketHeld: bucketHold('read') !== null,
       dataAllowed: now.dataAllowed,
     })
   }, [])
@@ -519,6 +543,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
           downloadByHand([asked.songId])
           return
         case 'offline':
+        case 'held':
           return
       }
     },

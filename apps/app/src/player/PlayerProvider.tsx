@@ -60,6 +60,8 @@ import { useSleepTimer } from './useSleepTimer'
 import { usePlayReporting } from './usePlayReporting'
 import { useConnection } from '../connection/ConnectionProvider'
 import { showToast } from '../ui/toast'
+import { devicePlace } from '../features/settings/settings.model'
+import { deviceKind } from '../ports/device'
 import { nowPlayingArtwork, type ArtSources } from './nowPlayingArt.model'
 import { handleRemoteCommands } from './remoteCommands'
 import { useNowPlaying } from './useNowPlaying'
@@ -761,6 +763,27 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       console.warn(`Playback failed for song ${songId}:`, state.error)
 
       const title = songsRef.current.get(songId)?.title ?? 'this song'
+      // Failed because it cannot play here now — the bucket refusing reads
+      // for the day, found out by this very failure (ports/engine.ts). Not a
+      // broken song: no retry, and not one of the three skips that stop the
+      // music, or a refusal would stop it before the songs on this device.
+      if (!mayPlay(songId)) {
+        recovery.retriedSongId = null
+        const { state: after, stop } = advancePlayable(queueRef.current, false, mayPlay)
+        showToast(
+          stop
+            ? `“${title}” isn’t on this ${devicePlace(deviceKind())}, and nothing after it is`
+            : `Skipped “${title}”, it isn’t on this ${devicePlace(deviceKind())}`,
+          'warn',
+        )
+        if (stop) {
+          engine.pause()
+          return
+        }
+        commitQueue(after)
+        loadIndex(after, true)
+        return
+      }
       const recovering = recoverPlayback({
         songId,
         retriedSongId: recovery.retriedSongId,

@@ -11,7 +11,9 @@ import {
   type TransferProgress,
 } from '@selfmp3/client'
 
+import { bucketHold } from '@selfmp3/replica'
 import { api, mediaUrlFor } from '../api/client'
+import { askWhyRefused } from './bucketRefusal'
 import { adoptRecent } from './recentCopies'
 import { sourceFor } from './songSource'
 import { ensureServerCover, KEPT_COVER_SIZE } from '../offline/covers'
@@ -101,6 +103,9 @@ function transferFor(
       const from = await sourceFor(song, connection)
       // Called off while the source was being worked out.
       if (cancelled) throw new Error('cancelled')
+      // The bucket refusing reads for the day: this one would be refused too.
+      const held = from.headers ? bucketHold('read') : null
+      if (held) throw new Error(held.message)
 
       task = File.createDownloadTask(from.url, destination, {
         ...(from.headers ? { headers: from.headers } : {}),
@@ -114,7 +119,16 @@ function transferFor(
         onProgress: ({ bytesWritten, totalBytes }: DownloadProgress) =>
           onProgress({ bytesWritten, totalBytes }),
       })
-      const finished = await task.downloadAsync()
+      let finished: Awaited<ReturnType<DownloadTask['downloadAsync']>>
+      try {
+        finished = await task.downloadAsync()
+      } catch (error) {
+        // From the bucket, the task says only that it failed: the doorman is
+        // asked why, and a refusal for the day holds the other downloads too.
+        const why = from.headers ? await askWhyRefused(from.url, from.headers) : null
+        if (why === null) throw error
+        throw new Error(why, { cause: error })
+      }
       // A song kept for later wants its picture kept with it. The bucket's
       // covers are fetched on their own path (offline/covers.ts); a server's are
       // fetched here, while the server is known to be answering.

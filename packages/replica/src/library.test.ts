@@ -65,11 +65,18 @@ function fakeBucket({ counting = false }: { counting?: boolean } = {}) {
   /** Every file read asked of the doorman, in order. */
   const reads: string[] = []
   let refuseReads = false
+  let offline = false
+  /** Every request made of the doorman while offline, which never arrives. */
+  let unreached = 0
   let count = 0
   let asked = 0
   const counter = (n: number): string => `00000000000000aa.${n}`
 
   const fetch = (url: string, init?: { method?: string; body?: string | Uint8Array }) => {
+    if (offline) {
+      unreached++
+      return Promise.reject(new Error('The Internet connection appears to be offline.'))
+    }
     const path = url.slice(DOORMAN.length)
     const reply = (
       status: number,
@@ -144,6 +151,12 @@ function fakeBucket({ counting = false }: { counting?: boolean } = {}) {
     },
     /** How many times the counter was read. */
     asked: () => asked,
+    /** No network at all: every request fails before it reaches the doorman. */
+    goOffline: (on: boolean) => {
+      offline = on
+    },
+    /** How many requests were tried while offline. */
+    unreached: () => unreached,
     /** A server with the bucket's own key wrote something: the counter never saw it. */
     writeUncounted: (key: string, body: unknown) => {
       files.set(key, body)
@@ -483,20 +496,47 @@ describe('opening', () => {
     expect(store.data.get('cloud-base')).toEqual({ key: null, snapshot: null })
   })
 
-  it('fetches the library again when the kept copy is missing a field snapshots now carry', async () => {
+  it('brings a copy kept before the snapshot’s shape settled up to it, without the bucket', async () => {
     // A copy kept before every song named its motion curve and every snapshot
-    // its artists and sound: it no longer reads, so the device reads the bucket's.
+    // its artists and sound. Thrown away, it had to be read again — and on a
+    // day the bucket refuses reads that left a phone with no library at all,
+    // its downloads on the disk (2026-10-08). It is upgraded and kept instead.
     const store = memoryStore()
-    const { artists: _artists, sound: _sound, ...older } = SNAPSHOT
-    const songs = older.songs.map(({ motion: _motion, ...song }) => song)
+    const { artists: _artists, sound: _sound, upTo: _upTo, ...older } = SNAPSHOT
+    const songs = older.songs.map(
+      ({ motion: _motion, audioFeatures: _features, coverTone: _tone, ...song }) => song,
+    )
     store.data.set('cloud-base', { key: SNAPSHOT_KEY, snapshot: { ...older, songs } })
     const made = build(store)
     await signedIn(made)
-    made.bucket.files.set(SNAPSHOT_KEY, SNAPSHOT)
+    made.bucket.refuseReads(true)
 
     const view = await made.library.loadCloudLibrary(SESSION)
     expect(view.library.songs.map(song => song.title)).toEqual(['Song a'])
-    expect(store.data.get('cloud-base')).toEqual({ key: SNAPSHOT_KEY, snapshot: SNAPSHOT })
+    expect(made.bucket.reads).toEqual([])
+    expect(store.data.get('cloud-base')).toEqual({
+      key: SNAPSHOT_KEY,
+      snapshot: { ...SNAPSHOT, upTo: {}, artists: [], sound: null },
+    })
+  })
+
+  it('does not list the bucket again for a first copy while its reads are refused', async () => {
+    const { releaseBucket } = await import('./hold.js')
+    const made = build(memoryStore())
+    await signedIn(made)
+    made.bucket.files.set(SNAPSHOT_KEY, SNAPSHOT)
+    made.bucket.refuseReads(true)
+    try {
+      await expect(made.library.loadCloudLibrary(SESSION)).rejects.toThrow()
+      const listed = made.bucket.lists.length
+      for (let tries = 0; tries < 3; tries++) {
+        await expect(made.library.loadCloudLibrary(SESSION)).rejects.toThrow()
+      }
+      expect(made.bucket.lists.length).toBe(listed)
+      expect(made.bucket.reads).toHaveLength(1)
+    } finally {
+      releaseBucket()
+    }
   })
 
   it('does not keep what it opened for an account signed out of meanwhile', async () => {
@@ -857,6 +897,22 @@ describe('what looking costs the bucket', () => {
     } finally {
       releaseBucket()
     }
+  })
+
+  it('answers from the copy, and does not wait again, after a look asked for could not reach the bucket', async () => {
+    const made = build(memoryStore(), fakeBucket({ counting: true }))
+    await signedIn(made)
+    made.bucket.files.set(SNAPSHOT_KEY, SNAPSHOT)
+    expect((await made.library.loadCloudLibrary(SESSION)).library.songs).toHaveLength(1)
+    // "Check for new songs", offline.
+    made.library.markCloudLibraryStale()
+    made.bucket.goOffline(true)
+    expect((await made.library.loadCloudLibrary(SESSION)).library.songs).toHaveLength(1)
+    const tried = made.bucket.unreached()
+    expect(tried).toBeGreaterThan(0)
+    // The next read is the copy's, at once: the look is not waited on again.
+    expect((await made.library.loadCloudLibrary(SESSION)).library.songs).toHaveLength(1)
+    expect(made.bucket.unreached()).toBe(tried)
   })
 
   it('answers where the server is from the copy, however long since the last look', async () => {

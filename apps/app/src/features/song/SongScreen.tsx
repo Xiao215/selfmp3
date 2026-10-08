@@ -24,7 +24,7 @@ import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
 import { CoverLight } from '../../ui/components/CoverLight'
 import { IconButton } from '../../ui/components/IconButton'
-import { ChevronLeft, Heart, Mic, More, Queue, Sparkles } from '../../ui/components/Icons'
+import { ChevronLeft, Heart, Mic, More, Next, Sparkles } from '../../ui/components/Icons'
 import { PlayPauseIcon } from '../../ui/components/PlayPauseIcon'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SongMenu } from '../../ui/components/SongMenu'
@@ -230,17 +230,19 @@ function SongPage({ song }: { song: Song }): ReactNode {
               router.navigate('/now-playing')
             }}
           />
-          <Button
-            testID="song-play-next"
-            label="Play next"
-            icon={<Queue size={16} tone="textPrimary" />}
-            // The song playing is already where "next" is counted from.
-            disabled={isCurrent}
-            onPress={() => {
-              player.playNext([song.id])
-              showToast('Plays next', 'good')
-            }}
-          />
+          {/* Not for the song playing: it is where "next" is counted from, and a
+              greyed button there only asked why. */}
+          {isCurrent ? null : (
+            <Button
+              testID="song-play-next"
+              label="Play next"
+              icon={<Next size={16} tone="textPrimary" />}
+              onPress={() => {
+                player.playNext([song.id])
+                showToast('Plays next', 'good')
+              }}
+            />
+          )}
         </View>
 
         <YouAndThisSong song={song} />

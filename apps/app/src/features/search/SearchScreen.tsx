@@ -179,7 +179,14 @@ export function SearchScreen(): ReactNode {
               // Enter asks only when nothing matches (I1); with matches it puts
               // the keyboard away and the results stay where they are.
               onSubmitEditing={() => {
-                if (switches.ask && asksOnEnter(query, counts.all)) setAsking(query.trim())
+                // Counted for the words as they are now: the results follow the
+                // field a beat behind, and a paste then Enter used to land in
+                // that beat, find "nothing" and ask about a song it had.
+                const matches =
+                  shown === query
+                    ? counts.all
+                    : scopeCounts(searchLibrary(query, library), lyricHits.length).all
+                if (switches.ask && asksOnEnter(query, matches)) setAsking(query.trim())
                 else field.current?.blur()
               }}
               onFocus={() => setFocused(true)}

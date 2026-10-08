@@ -17,6 +17,7 @@ import {
   useCreatePlaylist,
 } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
+import { useDownloadRemoval } from '../../offline/useDownloadRemoval'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -111,7 +112,9 @@ export function PlaylistDetailScreen(): ReactNode {
   const updatePlaylist = useUpdatePlaylist()
   const deletePlaylist = useDeletePlaylist()
   const reorderPlaylist = useReorderPlaylist()
-  const { state: downloads, installed, downloadByHand, removeByHand, removing } = useDownloads()
+  const { state: downloads, installed, downloadByHand, removing } = useDownloads()
+  // Taking the playlist's songs off this device can be undone, as one song's can.
+  const removeDownloads = useDownloadRemoval()
 
   const [headMenuOpen, setHeadMenuOpen] = useState(false)
   const headMenuRef = useRef<View>(null)
@@ -509,7 +512,7 @@ export function PlaylistDetailScreen(): ReactNode {
               label="Remove download"
               detail="On this phone"
               disabled={removing}
-              onPress={menuAction(() => void removeByHand(songIds))}
+              onPress={menuAction(() => removeDownloads(songIds))}
             />
           )
         ) : null}

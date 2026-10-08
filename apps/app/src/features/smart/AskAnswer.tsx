@@ -72,8 +72,8 @@ export function AskAnswer({
   text: string
   onDone: () => void
   /**
-   * While an answer is on its way: the box that asked holds its words still,
-   * since changing them would drop the question being answered.
+   * While an answer is on its way: the box that asked offers Stop. Changing
+   * its words drops the question, which the box does by letting go of this.
    */
   onWorking?: (working: boolean) => void
   /** Asks something else in the same box: a dead end's suggestions. */

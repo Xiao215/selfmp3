@@ -12,6 +12,7 @@ import type {
 import {
   answerSongs,
   askable,
+  asksOnEnter,
   describeNotes,
   exactTag,
   matchingTags,
@@ -179,11 +180,20 @@ describe('tagIdsFor', () => {
 })
 
 describe('askable', () => {
-  it('offers to ask for a sentence, or for letters nothing matches', () => {
-    expect(askable('calm piano', 3)).toBe(true)
-    expect(askable('yoru', 13)).toBe(false)
-    expect(askable('周杰倫的慢歌', 0)).toBe(true)
-    expect(askable('ab', 0)).toBe(false)
+  it('offers to ask for three letters or more, matched or not', () => {
+    expect(askable('calm piano')).toBe(true)
+    expect(askable('yoru')).toBe(true)
+    expect(askable('周杰倫的慢歌')).toBe(true)
+    expect(askable('ab')).toBe(false)
+  })
+})
+
+describe('asksOnEnter', () => {
+  it('asks only when nothing matches, however many words', () => {
+    expect(asksOnEnter('lakeside town', 1)).toBe(false)
+    expect(asksOnEnter('yoru', 13)).toBe(false)
+    expect(asksOnEnter('something calm for studying', 0)).toBe(true)
+    expect(asksOnEnter('ab', 0)).toBe(false)
   })
 })
 

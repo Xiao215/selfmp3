@@ -175,10 +175,14 @@ climbed when the one below cannot answer:
 
 The one box for most of it: Home's search bar and the sidebar's Search on a computer (the
 command palette), the Search page on a phone. Letters stay a search, matched on the device
-as you type; nothing is sent anywhere until you ask. A sentence, or letters that match
-nothing, add an **Ask** row (`askable`): first when nothing matched, so ↵ asks; after the
-matches otherwise, so ↵ still opens what was typed. Asking answers in place of the results,
-and Esc goes back to them. One request, one answer you act on: a command box, not a chat.
+as you type; nothing is sent anywhere until you ask. Three letters or more add an **Ask**
+row (`askable`): first when nothing matched, so ↵ asks (`asksOnEnter`); after the matches
+otherwise, so ↵ still opens what was typed in the palette, and on the Search page only puts
+the keyboard away. Narrowed 2026-10-08 (I1): before it, a sentence that matched a song (a
+two-word title) went to Ask on ↵. Asking answers in place of the results, and Esc goes back
+to them. The box is not held while Ask works: new words drop the question and bring the
+results back, and Stop does the same without them. One request, one answer you act on: a
+command box, not a chat.
 
 Asking is a **router** (`apps/server/src/ai/ask.ts`, `POST /api/ai/ask`): one call (fast
 tier) reads the request against rung 2 and chooses one action from a fixed list, filling in

@@ -36,7 +36,7 @@ import { label as labelText } from '../../ui/surfaces'
 import { artistLink, tagLink } from '../tag/placeLinks'
 import { noteTagUsed } from '../library/recentTags.store'
 import { AskAnswer } from '../smart/AskAnswer'
-import { askable } from '../smart/smart.model'
+import { ASK_SUB, askable, asksOnEnter } from '../smart/smart.model'
 import { StopButton } from '../smart/StopButton'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
 import {
@@ -78,8 +78,9 @@ export function SearchScreen(): ReactNode {
   const [focused, setFocused] = useState(false)
   /** What was asked (S1), answered in place of the results until the words change. */
   const [asking, setAsking] = useState<string | null>(null)
-  /** An answer is on its way: the question stays as asked until it lands. */
+  /** An answer is on its way, so the field offers Stop where it offers Clear. */
   const [thinking, setThinking] = useState(false)
+  const field = useRef<TextInput>(null)
   // The field keeps up with the fingers; the results, a search of the whole
   // library, follow when there is time.
   const shown = useDeferredValue(query)
@@ -103,9 +104,16 @@ export function SearchScreen(): ReactNode {
   const counts = scopeCounts(found, lyricHits.length)
   const words = shown.trim()
   const switches = useSmartSwitches()
-  const offerAsk = switches.ask && scope === 'all' && askable(words, counts.all)
+  const offerAsk = switches.ask && scope === 'all' && askable(words)
   const answering = asking !== null && asking === query.trim()
-  const locked = answering && thinking
+  const working = answering && thinking
+  // A scope with nothing in it is not offered once something is typed (I1),
+  // except All and the one already chosen, so the row never jumps away.
+  const scopes = typed
+    ? SEARCH_SCOPES.filter(
+        option => option.value === 'all' || option.value === scope || counts[option.value] > 0,
+      )
+    : SEARCH_SCOPES
 
   const openArtist = useCallback(
     (artist: Artist) => router.navigate(artistLink(artist.name)),
@@ -121,13 +129,20 @@ export function SearchScreen(): ReactNode {
           <View style={[styles.field, focused && { borderColor: accent.accent }]}>
             <Search size={18} color={focused ? accent.accent : theme.colors.textSecondary} />
             <TextInput
+              ref={field}
               autoFocus
               value={query}
-              editable={!locked}
-              onChangeText={setQuery}
+              // New words leave the question behind: the answer on its way is
+              // dropped with it, and the results for what is typed come back.
+              onChangeText={text => {
+                setQuery(text)
+                setAsking(null)
+              }}
+              // Enter asks only when nothing matches (I1); with matches it puts
+              // the keyboard away and the results stay where they are.
               onSubmitEditing={() => {
-                if (locked) return
-                if (switches.ask && askable(query, counts.all)) setAsking(query.trim())
+                if (switches.ask && asksOnEnter(query, counts.all)) setAsking(query.trim())
+                else field.current?.blur()
               }}
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}
@@ -141,7 +156,7 @@ export function SearchScreen(): ReactNode {
               testID="search-field"
               style={styles.input}
             />
-            {locked ? (
+            {working ? (
               <StopButton onPress={() => setAsking(null)} size={26} testID="ask-stop" />
             ) : query ? (
               <Pressable
@@ -166,7 +181,7 @@ export function SearchScreen(): ReactNode {
           style={styles.scopesRow}
           keyboardShouldPersistTaps="handled"
         >
-          {SEARCH_SCOPES.map(option => (
+          {scopes.map(option => (
             <Chip
               key={option.value}
               testID={`search-scope-${option.value}`}
@@ -237,9 +252,10 @@ export function SearchScreen(): ReactNode {
 }
 
 /**
- * The Ask (S1, docs/features/ai.md): what was typed, offered as a request.
+ * The Ask (S1, I1, docs/features/ai.md): what was typed, offered as a request.
  * At the top when nothing on the device matches, so it is the obvious next
- * step; under the matches otherwise, out of the way of a plain search.
+ * step and what Enter does; under the matches otherwise, out of the way of a
+ * plain search.
  */
 function AskCard({
   words,
@@ -263,10 +279,10 @@ function AskCard({
       </View>
       <View style={styles.askText}>
         <Text style={styles.askTitle} numberOfLines={1}>
-          Ask for this
+          Ask for “{words}”
         </Text>
-        <Text style={styles.askSub} numberOfLines={2}>
-          A playlist, something to play, a song you half remember, a tag for many songs
+        <Text style={styles.askSub} numberOfLines={1}>
+          {ASK_SUB}
         </Text>
       </View>
       <ChevronRight size={16} tone="textMuted" />

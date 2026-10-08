@@ -240,14 +240,25 @@ export function describeNotes(result: DescribeResult, picked: number): string[] 
   return notes
 }
 
+/** What the Ask offer says it does, in one line: Search's card and the palette's row alike. */
+export const ASK_SUB = 'Play, find, list or tag songs'
+
 /**
- * Whether the box offers to ask (S1): three letters at least, and either more
- * than one word or nothing on the device that matches. A single word that
- * finds a song is a search, and stays one.
+ * Whether the box offers to ask (S1, I1): three letters at least. The offer
+ * is always there for that much; where it sits and what Enter does depend on
+ * whether anything matched (`asksOnEnter`).
  */
-export function askable(text: string, matches: number): boolean {
-  const trimmed = text.trim()
-  return trimmed.length >= 3 && (/\S\s+\S/.test(trimmed) || matches === 0)
+export function askable(text: string): boolean {
+  return text.trim().length >= 3
+}
+
+/**
+ * Whether Enter in Search sends the words to Ask (I1): only when nothing on
+ * the device matches. People press Enter by reflex, so a song name that found
+ * its song never leaves the search.
+ */
+export function asksOnEnter(text: string, matches: number): boolean {
+  return askable(text) && matches === 0
 }
 
 export function rangeWords(range: AskStatsRange): string {

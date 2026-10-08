@@ -41,7 +41,7 @@ import { useDebounced } from '../../ui/useDebounced'
 import { floating, label as labelText } from '../../ui/surfaces'
 import { AskAnswer } from '../smart/AskAnswer'
 import type { AnswerKeys } from '../smart/answerKeys'
-import { askable } from '../smart/smart.model'
+import { ASK_SUB, askable } from '../smart/smart.model'
 import { StopButton } from '../smart/StopButton'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { noteTagUsed } from '../library/recentTags.store'
@@ -105,9 +105,12 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const [asking, setAsking] = useState<string | null>(null)
   /** The keys the answer takes, when it takes any: Tidy up's ticks. */
   const [answerKeys, setAnswerKeys] = useState<AnswerKeys | null>(null)
-  /** An answer is on its way: the question stays as asked until it lands (Escape still backs out). */
+  /**
+   * An answer is on its way: Stop sits where the count does. The box still
+   * takes letters; new words drop the question and bring the results back.
+   */
   const [thinking, setThinking] = useState(false)
-  const locked = asking !== null && thinking
+  const working = asking !== null && thinking
   const input = useRef<TextInput>(null)
   /** Stop (or Escape) while it thinks: back to the results, the question there to change. */
   const stop = (): void => {
@@ -216,7 +219,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     const groups = matchedGroups(found)
     const matches = groups.reduce((sum, group) => sum + group.rows.length, 0)
     const words = text.trim()
-    if (!switches.ask || !askable(words, matches)) return groups
+    if (!switches.ask || !askable(words)) return groups
     const ask: RowGroup = {
       title: 'Ask',
       rows: [
@@ -235,7 +238,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
                   {words}
                 </Text>
                 <Text style={styles.sub} numberOfLines={1}>
-                  Make a playlist, play something, find a song, tag songs
+                  {ASK_SUB}
                 </Text>
               </View>
               <Text style={styles.hint}>ask</Text>
@@ -520,7 +523,6 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           ref={input}
           autoFocus
           value={query}
-          editable={!locked}
           onChangeText={text => {
             setQuery(text)
             setHighlighted(0)
@@ -536,7 +538,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
             setHighlighted(stepIndex(active, key === 'ArrowDown' ? 1 : -1, rows.length))
           }}
           onSubmitEditing={() => {
-            if (locked) return
+            if (working) return
             // Enter straight after a letter can beat the deferred results to
             // the screen. It means what was typed, so it takes the first row
             // of that — the highlight is back at the top after any letter.
@@ -562,7 +564,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           aria-label="Search songs, playlists and tags, or type a command"
           style={styles.input}
         />
-        {locked ? (
+        {working ? (
           <StopButton onPress={stop} testID="ask-stop" />
         ) : trimmed && asking === null ? (
           <Text style={styles.count} accessibilityLiveRegion="polite">
@@ -629,7 +631,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           ) : null}
           <Text style={styles.footText}>
             <Text style={styles.kbd}> esc </Text>{' '}
-            {asking === null ? 'close' : locked ? 'stop' : 'back to results'}
+            {asking === null ? 'close' : working ? 'stop' : 'back to results'}
           </Text>
         </View>
       ) : null}

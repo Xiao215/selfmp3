@@ -220,14 +220,9 @@ class DoormanCloudStore implements CloudStore {
   }
 
   async put(key: string, body: Buffer, options: CloudPutOptions): Promise<void> {
-    // TODO(doorman redeploy): a doorman deployed before the change counter
-    // asks the bucket before every write of a file named by its hash, and
-    // answers 412 when it is there — these very bytes, so the put has
-    // happened. Drop the 412 once the deployed doorman is the new one.
     const response = await this.#doorman.request('PUT', filePath(key), {
       token: this.#token,
       body,
-      allowStatus: [412],
       headers: {
         'Content-Type': options.contentType,
         ...(options.contentEncoding ? { 'Content-Encoding': options.contentEncoding } : {}),

@@ -93,15 +93,34 @@ private func coverImage(_ base64: String) -> UIImage? {
 private let inkPrimary = Color(hex: "#f4f5f9")
 private let inkSecond = Color(hex: "#aeb1b9")
 
+// Clear and Tinted home screens draw a widget in the accented mode: every
+// colour becomes white at its own opacity, and only what is marked accentable
+// takes the tint. A solid fill is then a white block, and the ink on it white
+// on white. So in that mode a fill is a faint pane instead, and the ink stays
+// white over it.
+private let accentedPane = Color.white.opacity(0.16)
+
+/// A cover as a picture. In the accented mode an image is otherwise flattened
+/// to a white square; from iOS 18 it can stay a picture, in grey.
+@ViewBuilder
+private func coverPicture(_ image: UIImage) -> some View {
+  if #available(iOS 18.0, *) {
+    Image(uiImage: image).resizable().widgetAccentedRenderingMode(.desaturated)
+  } else {
+    Image(uiImage: image).resizable()
+  }
+}
+
 // MARK: - Tags
 
 struct TagsView: View {
   let entry: SnapshotEntry
+  @Environment(\.widgetRenderingMode) private var renderingMode
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack {
-        Image(systemName: "music.note").foregroundStyle(Color("$accent"))
+        Image(systemName: "music.note").foregroundStyle(Color("$accent")).widgetAccentable()
         Text("self.mp3").font(.system(size: 13, weight: .semibold)).foregroundStyle(inkPrimary)
         Spacer()
         Text("Tap a tag to play it").font(.system(size: 11)).foregroundStyle(inkSecond)
@@ -135,7 +154,7 @@ extension TagsView {
   @ViewBuilder
   fileprivate func slot(_ tile: Tile?) -> some View {
     if let tile, let url = URL(string: tile.link) {
-      Link(destination: url) { TileView(tile: tile) }
+      Link(destination: url) { TileView(tile: tile, accented: renderingMode == .accented) }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     } else {
       Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -145,13 +164,14 @@ extension TagsView {
 
 struct TileView: View {
   let tile: Tile
+  let accented: Bool
 
   var body: some View {
     ZStack(alignment: .bottomLeading) {
-      RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(hex: tile.fill))
+      RoundedRectangle(cornerRadius: 14, style: .continuous)
+        .fill(accented ? accentedPane : Color(hex: tile.fill))
       if let image = coverImage(tile.cover) {
-        Image(uiImage: image)
-          .resizable()
+        coverPicture(image)
           .scaledToFill()
           .frame(width: 30, height: 30)
           .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
@@ -161,7 +181,7 @@ struct TileView: View {
       }
       Text(tile.name)
         .font(.system(size: 15, weight: .semibold, design: .rounded))
-        .foregroundStyle(Color(hex: tile.ink))
+        .foregroundStyle(accented ? Color.white : Color(hex: tile.ink))
         .lineLimit(1)
         .padding(10)
     }
@@ -185,6 +205,8 @@ struct TagsWidget: Widget {
 
 struct NowPlayingView: View {
   let entry: SnapshotEntry
+  @Environment(\.widgetRenderingMode) private var renderingMode
+  private var accented: Bool { renderingMode == .accented }
 
   var body: some View {
     Group {
@@ -200,10 +222,10 @@ struct NowPlayingView: View {
           }
           Spacer(minLength: 0)
           ZStack {
-            Circle().fill(inkPrimary).frame(width: 40, height: 40)
+            Circle().fill(accented ? accentedPane : inkPrimary).frame(width: 40, height: 40)
             Image(systemName: now.playing ? "pause.fill" : "play.fill")
               .font(.system(size: 16, weight: .bold))
-              .foregroundStyle(Color(hex: "#0b0d13"))
+              .foregroundStyle(accented ? Color.white : Color(hex: "#0b0d13"))
           }
         }
         .widgetURL(URL(string: now.link))
@@ -219,14 +241,13 @@ struct NowPlayingView: View {
   @ViewBuilder
   private func cover(_ now: NowPlaying) -> some View {
     if let image = coverImage(now.cover) {
-      Image(uiImage: image)
-        .resizable()
+      coverPicture(image)
         .scaledToFill()
         .frame(width: 52, height: 52)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     } else {
       RoundedRectangle(cornerRadius: 10, style: .continuous)
-        .fill(Color(hex: "#1f2330"))
+        .fill(accented ? accentedPane : Color(hex: "#1f2330"))
         .frame(width: 52, height: 52)
         .overlay(Image(systemName: "music.note").foregroundStyle(inkSecond))
     }

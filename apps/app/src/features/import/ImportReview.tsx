@@ -539,7 +539,7 @@ interface RowProps {
 
 /**
  * What a row says at its end: "In library", or how long the song is. A song
- * the server has but the bucket does not yet is "On your server": the library
+ * the server has but the bucket does not yet is "Almost ready": the library
  * this device reads will not show it until the upload goes through, and a
  * second download would only make a copy.
  */

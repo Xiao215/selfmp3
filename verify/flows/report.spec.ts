@@ -62,7 +62,7 @@ test.describe('report', () => {
       page.waitForEvent('download', { timeout: 60_000 }),
       page.getByTestId('report-share').click(),
     ])
-    expect(download.suggestedFilename()).toMatch(/^selfmp3-wrapped-\w+-\d{4}-\d{2}-\d{2}\.png$/)
+    expect(download.suggestedFilename()).toMatch(/^selfmp3-report-\w+-\d{4}-\d{2}-\d{2}\.png$/)
     const bytes = await (await download.createReadStream()).toArray()
     const png = Buffer.concat(bytes as Buffer[])
     expect(png.subarray(1, 4).toString()).toBe('PNG')

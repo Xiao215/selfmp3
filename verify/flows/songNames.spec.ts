@@ -29,8 +29,8 @@ test.describe('a list of song names', () => {
     await page.getByRole('button', { name: 'Look it up' }).click()
 
     await page.waitForURL(/\/import\/review$/, { timeout: 60_000 })
-    // "On your server" where the bucket does not have them yet: still yours.
-    await expect(page.getByText(/^(In library|On your server)$/)).toHaveCount(2)
+    // "Almost ready" where the bucket does not have them yet: still yours.
+    await expect(page.getByText(/^(In library|Almost ready)$/)).toHaveCount(2)
     await expect(page.getByRole('button', { name: 'Import 0 songs' })).toBeDisabled()
 
     await dismissToasts(page)

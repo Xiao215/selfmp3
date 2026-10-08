@@ -39,16 +39,18 @@ function emit(): void {
   for (const listener of listeners) listener()
 }
 
+/** Raises a message, and hands back its id for one that may stop being true before it times out. */
 export function showToast(
   text: string,
   tone: ToastTone = 'info',
   options: { autoDismissMs?: number; actions?: readonly ToastAction[] } = {},
-): void {
+): number {
   const actions = options.actions ?? []
+  const id = nextId++
   toasts = [
     ...toasts,
     {
-      id: nextId++,
+      id,
       tone,
       text,
       // A message you can act on is given longer: five seconds is enough to
@@ -60,6 +62,7 @@ export function showToast(
     },
   ]
   emit()
+  return id
 }
 
 export function dismissToast(id: number): void {

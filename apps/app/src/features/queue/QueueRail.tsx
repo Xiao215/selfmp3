@@ -25,6 +25,7 @@ import { Popover } from '../../ui/components/Popover'
 import { SheetItem } from '../../ui/components/Sheet'
 import { Toggle } from '../../ui/components/Toggle'
 import { UpNextSource } from './UpNextSource'
+import { OnlySongEnd, useOnlySongEndNotice } from './OnlySongEnd'
 import { closeQueueSheet, useQueueSheetOpen } from './queueSheet.store'
 import {
   autoMixLine,
@@ -32,6 +33,7 @@ import {
   dragTarget,
   draggedOut,
   nextSummary,
+  onlySongEnded,
   railWindow,
   type QueueRow,
 } from './queue.model'
@@ -89,6 +91,7 @@ export function QueueRail(): ReactNode {
   if (shown && !mounted) setMounted(true)
   const gone = useCallback(() => setMounted(false), [])
   const edits = useQueueEdits(mounted)
+  useOnlySongEndNotice(edits.player)
 
   return mounted ? <Rail shown={shown} onGone={gone} edits={edits} /> : null
 }
@@ -309,6 +312,7 @@ function Rail({
   )
 
   const playing = rows.playing
+  const ended = onlySongEnded(player)
 
   /*
    * Only the rows in view are drawn, and a margin either side (`railWindow`):
@@ -469,6 +473,7 @@ function Rail({
               onDropSongs={actions.dropSongs}
             />
           ) : null}
+          {ended && playing ? <OnlySongEnd song={playing.song} player={player} /> : null}
           <Animated.View style={slide.rows}>
             <View style={{ height: rows.next.length * ROW_HEIGHT }}>
               {rows.next.slice(nextAt.start, nextAt.end).map((row, at) => (

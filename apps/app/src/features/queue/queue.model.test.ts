@@ -14,6 +14,7 @@ import {
   draggedOut,
   nextLabel,
   nextSummary,
+  onlySongEnded,
   queueRows,
   RAIL_OVERSCAN,
   railWindow,
@@ -231,5 +232,23 @@ describe('Undo', () => {
   it('does nothing for a song that is playing again already', () => {
     const now = state([1, 2], 1)
     expect(restoreMoves(now, { id: 2, index: 0, before: null, after: null })).toBeNull()
+  })
+})
+
+describe('the only song, ended', () => {
+  const player = (items: number[], ranOut: boolean, source: unknown = null) => ({
+    ranOut,
+    queue: state(items, 0),
+    source,
+  })
+
+  it('is a song played on its own that ran out', () => {
+    expect(onlySongEnded(player([4], true))).toBe(true)
+  })
+
+  it('is not while it plays, nor for a list or a named one-song list', () => {
+    expect(onlySongEnded(player([4], false))).toBe(false)
+    expect(onlySongEnded(player([4, 5], true))).toBe(false)
+    expect(onlySongEnded(player([4], true, { kind: 'tag', tagId: 1, name: 'night' }))).toBe(false)
   })
 })

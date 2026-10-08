@@ -22,6 +22,7 @@ The verbs: **Play** (replaces Up next, from anywhere), **Add to Up next**, **Sav
 |---|---|
 | Where a list came from, what Up next calls it, what Save makes, Recently played's rules | `apps/app/src/features/lists/lists.model.ts` |
 | Save | `apps/app/src/features/lists/useSaveUpNext.ts` |
+| After a song played on its own | `apps/app/src/features/queue/OnlySongEnd.tsx` |
 | Recently played, kept on this device | `apps/app/src/features/lists/recentLists.store.ts` |
 | The line over Up next's songs | `apps/app/src/features/queue/UpNextSource.tsx` |
 | A tag's page, and tags together on top of it | `apps/app/src/features/tag/PlacePage.tsx`, `CombinedScreen.tsx` (`/combined`) |
@@ -40,6 +41,15 @@ every row below it as next. The whole list plays from **Shuffle** — the head o
 next to Sort on a phone — or **Play these tags** with tags on. A tag's, an artist's or a
 playlist's page still plays its list from the row. One song is not a list: Up next wears no
 name for it and offers no Save, and Recently played shows it as that song.
+
+When that song ends, nothing else plays, but the silence is explained (A1, 2026-10-08). The
+song stays loaded, paused at its end, so the mini player or the player bar stays too; a toast
+says **That was the only song** with **Up next** to open it (unless Up next is open already),
+and Up next shows the same line under the song (marked *Played* in the phone's sheet), with
+two buttons: **Songs like this** (the song menu's Play similar songs) and **Shuffle library**
+(Library's Shuffle with no tags on). Playing, seeking or Previous on the song puts both away. A list that
+runs out — a tag, a playlist — keeps its plain end: it was asked for whole
+(`onlySongEnded` in `features/queue/queue.model.ts`, `OnlySongEnd.tsx`).
 
 ## Where a list came from
 

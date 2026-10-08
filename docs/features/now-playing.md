@@ -23,7 +23,8 @@ One page, two modes. **Stage** has the artwork, title, tempo, energy, key and ta
 left, and on the right two tabs: **Lyrics** (or **Visual**) and **About** (the same facts as
 the end of the song's own page). Up next is not a tab: it is the rail beside the page on a
 computer and a sheet on a phone (`features/queue`, docs/ui-mock `C11`, `P25`), opened from the
-player bar, the mini player or the page's foot. **Focus** is the same page when only
+player bar, the mini player or the page's foot. After a song played on its own ends, Up next
+says so and offers what could come next (docs/features/lists.md). **Focus** is the same page when only
 the words matter: the cover glides into the header, the title follows it, and the lyrics
 widen and grow around the line being sung. In Focus:
 

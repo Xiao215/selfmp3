@@ -28,10 +28,12 @@ import { Toggle } from '../../ui/components/Toggle'
 import { tip } from '../../ui/tip'
 import { closeQueueSheet, useQueueSheetOpen } from './queueSheet.store'
 import { UpNextSource } from './UpNextSource'
+import { OnlySongEnd, useOnlySongEndNotice } from './OnlySongEnd'
 import {
   autoMixLine,
   dragTarget,
   nextLabel,
+  onlySongEnded,
   swipeOffset,
   swipeRemoves,
   SWIPE_START,
@@ -77,6 +79,7 @@ export function QueueSheet(): ReactNode {
   const gone = useCallback(() => setMounted(false), [])
   // Here, above the panel, so an Undo raised before it shut still reaches the queue.
   const edits = useQueueEdits(mounted)
+  useOnlySongEndNotice(edits.player)
 
   return mounted ? <SheetPanel shown={shown} onGone={gone} edits={edits} /> : null
 }
@@ -247,6 +250,7 @@ function SheetPanel({
   }, [dragY, liftScale, holdRow, liftRow, dropRow])
 
   const playing = rows.playing
+  const ended = onlySongEnded(player)
   const openNowPlaying = (): void => {
     closeQueueSheet()
     router.navigate('/now-playing')
@@ -347,6 +351,7 @@ function SheetPanel({
             song={playing.song}
             artUri={artFor(playing.song)}
             playing={player.isPlaying}
+            ended={ended}
             onOpen={openNowPlaying}
             onToggle={player.toggle}
           />
@@ -357,7 +362,11 @@ function SheetPanel({
           contentContainerStyle={styles.listContent}
           scrollEnabled={drag === null}
         >
-          <Text style={styles.label}>{nextLabel(rows.next)}</Text>
+          {ended && playing ? (
+            <OnlySongEnd song={playing.song} player={player} />
+          ) : (
+            <Text style={styles.label}>{nextLabel(rows.next)}</Text>
+          )}
           {shownNext.map(entry => row(entry, true))}
           {rows.next.length > shownNext.length ? (
             <Text style={styles.more}>
@@ -527,12 +536,15 @@ function PlayingCard({
   song,
   artUri,
   playing,
+  ended,
   onOpen,
   onToggle,
 }: {
   song: Song
   artUri: string | null | undefined
   playing: boolean
+  /** It ran out, played on its own: it is the song that was played, not the one playing. */
+  ended: boolean
   onOpen: () => void
   onToggle: () => void
 }): ReactNode {
@@ -553,7 +565,9 @@ function PlayingCard({
           </View>
         </View>
         <View style={styles.cardText}>
-          <Text style={[styles.cardLabel, { color: tone.tint }]}>Playing</Text>
+          <Text style={[styles.cardLabel, { color: tone.tint }]}>
+            {ended ? 'Played' : 'Playing'}
+          </Text>
           <Text style={styles.cardTitle} numberOfLines={1}>
             {song.title}
           </Text>

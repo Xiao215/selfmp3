@@ -29,6 +29,11 @@ export function toggleQueueSheet(): void {
   set(!open)
 }
 
+/** Whether it is open now, read outside a render: a message deciding whether Up next already says it. */
+export function isQueueSheetOpen(): boolean {
+  return open
+}
+
 function subscribe(listener: () => void): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)

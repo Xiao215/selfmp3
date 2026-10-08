@@ -265,3 +265,19 @@ export function restoreMoves(
   const rest = after.items.filter(id => id !== removal.id)
   return { from, to: restoreIndex(rest, removal) }
 }
+
+// --- A song played on its own, ended ----------------------------------------------
+
+/**
+ * Whether Up next should say "That was the only song" and offer what could
+ * come next: one song picked out of Library or the palette played alone
+ * (`playAlone`, no source), and it has run out. A list that ran out keeps its
+ * plain end; it was asked for whole.
+ */
+export function onlySongEnded(player: {
+  readonly ranOut: boolean
+  readonly queue: QueueState
+  readonly source: unknown
+}): boolean {
+  return player.ranOut && player.queue.items.length === 1 && player.source === null
+}

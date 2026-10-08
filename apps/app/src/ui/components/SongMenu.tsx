@@ -6,8 +6,6 @@ import type { View as RNView } from 'react-native'
 import { useRouter } from 'expo-router'
 import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
 import {
-  clientApi,
-  failureText,
   isDownloaded,
   space,
   type,
@@ -17,13 +15,13 @@ import {
   useToggleLoved,
 } from '@selfmp3/client'
 import { playlistsToAddTo } from '../../features/playlists/playlists.model'
+import { playSimilar } from '../../features/song/playSimilar'
 import { songLink } from '../../features/song/song.model'
 import { tagLink } from '../../features/tag/placeLinks'
 import { useArt } from '../../offline/useArt'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
 import { usePlayerCommands } from '../../player/PlayerProvider'
-import { showToast } from '../toast'
 import { Button } from './Button'
 import { Chip } from './Chip'
 import { RemoveSongs } from './ConfirmRemoveSongs'
@@ -181,20 +179,6 @@ function Items({
     onClose()
   }
 
-  /** Nearest neighbours from the server; the seed song leads the list. */
-  const playSimilar = (): void => {
-    void clientApi()
-      .similar(song.id, 20)
-      .then(result =>
-        player.playFrom([song.id, ...result.songs.map(item => item.id)], 0, {
-          source: { kind: 'songs', origin: 'similar', name: `Similar to ${song.title}` },
-        }),
-      )
-      .catch((caught: unknown) =>
-        showToast(failureText('Couldn’t find similar songs', caught), 'error'),
-      )
-  }
-
   const icon = (Glyph: typeof Queue) => <Glyph size={16} color={theme.colors.textSecondary} />
 
   return (
@@ -299,7 +283,11 @@ function Items({
           onClose()
         }}
       />
-      <SheetItem icon={icon(Sparkles)} label="Play similar songs" onPress={then(playSimilar)} />
+      <SheetItem
+        icon={icon(Sparkles)}
+        label="Play similar songs"
+        onPress={then(() => playSimilar(player, song))}
+      />
 
       {/* The groups are told apart by the room between them, not a line. */}
       <View style={styles.gap} />

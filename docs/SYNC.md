@@ -56,11 +56,32 @@ like a hundred other things — songs skipped one after another, letter tiles fo
 remembered for the session as having no words — and each of those asked the bucket again.
 
 What a song costs on its way up is kept small on purpose: the server sends each of its files
-without asking the bucket about it first (the doorman's own one-byte check is the only read, and
-it answers a file already there as put), a run of imports publishes one snapshot every so often
-rather than one per song, and the server prunes its old snapshots from memory instead of
-listing the folder after each one. A device's look is two listings and, when there is a new
-snapshot, one read; the covers and songs it fetches are one read each.
+without asking the bucket about it first, and so does the doorman (Backblaze takes
+`If-None-Match` on an upload and ignores it, and the server knows from its listing what the
+bucket has); a run of imports publishes one snapshot every so often rather than one per song;
+and the server prunes its old snapshots from memory instead of listing the folder after each
+one.
+
+What sitting still costs is kept near nothing. **The doorman counts changes**: each account has
+a counter (`apps/doorman/src/changes.ts`, a Durable Object) that moves whenever a snapshot or a
+log file is written or deleted through it, and `GET /v1/changes` reads it without touching the
+bucket. A device's look asks the counter first and lists `log/` and `snapshots/` only when it
+has moved — or when its last listing is half an hour old, since a server holding the bucket's
+own key writes past the doorman — and each write is answered with the counter before and
+after it (`Selfmp3-Changes`), so a device's own uploads never make it list. A look is due a
+minute after the last when the counter answers, and five minutes after it when the doorman
+keeps none, and when it last looked is kept with the device's copy, so a new tab or a relaunch
+does not look again at once. The routes asked every few seconds — where the server is, which
+uid is which song — answer from the device's copy and never start a look. The server's own
+ten-minute poll asks the counter the same way. Measured before (2026-10-07): an open tab
+listed both folders every eighty seconds, about 2,160 of the day's 2,500 listings on its own.
+
+What starting costs is kept small too: a server whose library has not changed since its last
+snapshot publishes nothing when it starts again (every device used to download the new one),
+reads the newest snapshot once for adoption, the guard and the pruning together, and keeps the
+words it has read from the bucket on its own disk (`bucket/kept.ts`; a start used to read every
+song's). Analysis and the listening model together download at most a thousand songs a day,
+counted in the database so a restart does not start the day over.
 
 Google Drive was considered: more free space (15 GB, shared with Gmail and Photos), but a
 proprietary API, an OAuth app that must be moved to "production" or it signs you out every
@@ -94,9 +115,11 @@ song bytes stream through it without it holding them.
    devices can see it. Before that it is "on this device, uploading".
 5. **A device keeps what it will want, not everything there is.** An installed app — the
    phone app, the desktop app — downloads ahead, because the point of it is music with no
-   signal. A browser tab streams from the bucket a range at a time and keeps nothing, because
-   a library of a thousand songs is not something a tab should quietly copy and a tab's
-   storage is the browser's to evict. A song already on the device plays from the device: see
+   signal; a phone also keeps the song after the one playing before it plays, so a song played
+   in order is one download and no streaming. A browser tab fetches what it plays and keeps
+   only the last few songs it played, because a library of a thousand songs is not something a
+   tab should quietly copy and a tab's storage is the browser's to evict. A song already on the
+   device plays from the device: see
    `packages/client/src/downloads/recentCopies.ts` and
    `apps/app/src/ports/recentCopies.web.ts`, which hold the songs an installed app kept
    because they were played.
@@ -106,7 +129,11 @@ song bytes stream through it without it holding them.
    (`apps/app/src/ports/bucketMedia.web.ts`), and the service worker answers them
    (`apps/app/sw/sw.ts`) — looking the song's bucket key and the doorman session out of
    IndexedDB and fetching the file with the bearer header no `<audio>` element or `<img>`
-   could have sent. The player's range goes through to the bucket as it is. A phone has
+   could have sent. The first range of a song starts one download of the whole file, and every
+   range the player asks for — Safari's two-byte look first, a seek — is read from that
+   download as it arrives; once it is all here the worker keeps it, the last ten songs played,
+   under the file's key, so a replay, the next song preloaded and a reload cost nothing. A
+   range far past what has arrived is asked of the bucket by itself. A phone has
    nowhere to put that header, so its twin of that port is null and a cloud song is
    downloaded before it plays; the installed desktop app registers no worker and uses files
    for the same reason.
@@ -164,7 +191,10 @@ nobody has heard, and a file it could not read is never replaced by one without 
 **Log files** are one batch of one device's changes: `log/<device>/000000000042.json`. A
 device numbers its files 1, 2, 3, … and never writes the same number twice with different
 contents, so a file, once written, never changes and a resend is harmless. A device tidies
-its own files away once a snapshot has folded them in.
+its own files away once a snapshot has folded them in, and the server tidies away what a
+device that stopped coming back left behind: other devices' files its own snapshot has folded
+in, ten minutes after, while that snapshot is still the newest. Every file in the folder is in
+every listing of it.
 
 **Identity.** Songs, tags and playlists each get a `uid`: 32 random hex characters, made by
 whichever device creates the thing. Each device's own database keeps its integer ids as
@@ -345,9 +375,9 @@ for the crawler that checks the home page for one); and a Search Console verific
 dropped there is served at the site's root too. It signs in with Google, connects the account's bucket if no device has yet, and shows the
 library from the newest snapshot. The service worker (`apps/app/sw/sw.ts`) stands between the
 player and the bucket: a song already on the device is served from there, ranges and all, and
-one that is not is streamed from the bucket through the doorman, which passes `Range` straight
-to B2 and its `206` straight back. Nothing is kept on the way past, and a tab keeps nothing
-afterwards either. Every range a player asks for is one read against the day's count, so a
+one that is not is fetched from the bucket through the doorman once per play, its ranges cut
+from that one download as it arrives, and the last ten played kept by the worker. Every
+request to the bucket is one read against the day's count, so a
 song loaded to sit paused — the queue restored when the tab opens, Next pressed while paused —
 fetches nothing until it is played (`ports/engine.web.ts`, `#startWhenPlayed`). What a tab does
 keep is small and named by hash: covers, and the words and motion curve of every song played,

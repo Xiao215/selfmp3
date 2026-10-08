@@ -195,9 +195,12 @@ would be the first thing to revisit.
 
 ### Only an installed app keeps songs
 
-A browser tab streams and keeps nothing; the phone app and the desktop app download, and
-what they hold is always visible and countable in Settings (`ports/install.web.ts` decides
-which this is, from the presence of the desktop bridge).
+A browser tab streams and keeps nothing it shows as kept; the phone app and the desktop app
+download, and what they hold is always visible and countable in Settings
+(`ports/install.web.ts` decides which this is, from the presence of the desktop bridge). The
+one thing a tab's service worker does hold is the last ten songs it played, whole, so that a
+seek or a replay is not another request to the bucket (docs/SYNC.md, "Caps"): the worker's
+own, let go oldest first and at sign-out, and never counted as a download.
 
 A tab that quietly copied a library it was only streaming would fill a disk nobody asked it
 to fill, and its storage is the browser's to evict anyway, so nothing there is worth

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { ApiError } from '@selfmp3/client'
 
 import {
+  capShort,
   emptyReason,
   matchNote,
   noMatchesTitle,
@@ -66,6 +67,12 @@ describe('saying the library cannot be reached', () => {
     expect(untilCapResets(new Date('2026-10-08T22:31:00Z'))).toBe('1 hour')
     expect(untilCapResets(new Date('2026-10-08T23:20:00Z'))).toBe('40 minutes')
     expect(untilCapResets(new Date('2026-10-08T23:59:59Z'))).toBe('1 minute')
+  })
+
+  it('says it shorter where a line has little room', () => {
+    expect(untilCapResets(new Date('2026-10-08T04:00:00Z'), true)).toBe('20 h')
+    expect(untilCapResets(new Date('2026-10-08T23:20:00Z'), true)).toBe('40 min')
+    expect(capShort(new Date('2026-10-08T04:00:00Z'))).toBe('Bucket limit · 20 h left')
   })
 })
 

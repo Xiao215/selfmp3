@@ -1,6 +1,6 @@
 import type { AnalysisStatus, DeviceKind, Health, ScanResult } from '@selfmp3/shared'
 import { clamp01, plural } from '@selfmp3/shared'
-import { unreachableLabel } from '../library/library.model'
+import { bucketCapped, unreachableLabel, untilCapResets } from '../library/library.model'
 
 /**
  * Settings' rules, with nothing drawn: which sections a device shows, which one
@@ -180,8 +180,23 @@ export function healthLine(
     /** What the check failed with; any truthy value counts as failed. */
     readonly error?: unknown
     readonly fromCloud?: boolean
+    /**
+     * The bucket refusing for the day. Said over a health that answered: in the
+     * cloud the health is the doorman's, and the doorman answers while the
+     * bucket behind it will not.
+     */
+    readonly capped?: boolean
+    /** A phone's line, right-aligned under the title, with less room. */
+    readonly compact?: boolean
+    readonly now?: Date
   } = {},
 ): string {
+  if (asking.capped || bucketCapped(asking.error)) {
+    const now = asking.now ?? new Date()
+    return asking.compact
+      ? `Bucket limit reached · ${untilCapResets(now, true)} left`
+      : `Bucket limit reached · resets in about ${untilCapResets(now)}`
+  }
   if (health) {
     const songs =
       health.songCount === undefined ? '' : ` · ${plural(health.songCount, 'song', 'songs')}`

@@ -262,6 +262,12 @@ export function useFade(shown: boolean, inMs: number, outMs: number): Animated.V
 export function usePressScale(to: number = PRESS.control): {
   style: { transform: { scale: Animated.Value }[] }
   handlers: { onPressIn: () => void; onPressOut: () => void }
+  /**
+   * Back to full size at once, with no spring: for the moment something is
+   * about to be taken of the pressed thing as it stands — a browser's drag
+   * image of a row, drawn the instant its drag starts.
+   */
+  rest: () => void
 } {
   // Made once per component, in state rather than a ref, so render reads nothing mutable.
   const [press] = useState(() => {
@@ -271,6 +277,10 @@ export function usePressScale(to: number = PRESS.control): {
       handlers: {
         onPressIn: () => void spring(scale, to),
         onPressOut: () => void spring(scale, 1),
+      },
+      rest: () => {
+        scale.stopAnimation()
+        scale.setValue(1)
       },
     }
   })

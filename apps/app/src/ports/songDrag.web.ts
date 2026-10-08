@@ -52,12 +52,15 @@ export function useSongDragSource(
   ref: RefObject<View | null>,
   songIds: () => readonly number[],
   enabled = true,
+  onStart?: () => void,
 ): void {
-  // The latest songs, read when the drag starts rather than bound once.
+  // The latest songs and start, read when the drag starts rather than bound once.
   const ids = useRef(songIds)
+  const started = useRef(onStart)
   useEffect(() => {
     ids.current = songIds
-  }, [songIds])
+    started.current = onStart
+  }, [songIds, onStart])
 
   useEffect(() => {
     const node = element(ref)
@@ -74,6 +77,10 @@ export function useSongDragSource(
       node.draggable = next
     }
     const start = (event: DragEvent): void => {
+      // Before anything else: the browser draws the drag image from the row as
+      // it stands once this handler returns, and a row held a moment before
+      // the pointer moved is still pressed in.
+      started.current?.()
       const carried = ids.current()
       if (!event.dataTransfer || carried.length === 0) return
       event.dataTransfer.setData(TYPE, JSON.stringify(carried))

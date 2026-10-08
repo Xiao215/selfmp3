@@ -10,11 +10,15 @@ import type { View } from 'react-native'
  * drag and drop, is `songDrag.web.ts`.
  */
 
-/** Make this view draggable, carrying the songs `songIds` returns when the drag starts. */
+/**
+ * Make this view draggable, carrying the songs `songIds` returns when the drag
+ * starts. `onStart` runs first, before the browser draws the drag image.
+ */
 export function useSongDragSource(
   _ref: RefObject<View | null>,
   _songIds: () => readonly number[],
   _enabled = true,
+  _onStart?: () => void,
 ): void {}
 
 /** Let songs be dropped here. True while a drag carrying songs is over it. */

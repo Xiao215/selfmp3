@@ -257,8 +257,7 @@ export function TagsScreen(): ReactNode {
           <Text style={styles.hint}>Tags load with your library.</Text>
         ) : standings.length === 0 ? (
           <Text style={styles.hint}>
-            No tags yet. Tags are how this library is browsed — make one with the +, or put one on a
-            song from its ⋯ while it plays.
+            No tags yet. Make one with the +, or from any song’s ⋯ › Tags.
           </Text>
         ) : (
           <View

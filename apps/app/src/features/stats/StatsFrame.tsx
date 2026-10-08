@@ -72,7 +72,7 @@ function Arriving({
   return <Animated.View style={[style, slide]}>{children}</Animated.View>
 }
 
-/** Where "View Report" goes: the month as a page, a page of its own. */
+/** Where "Report" goes: the month as a page, a page of its own. */
 const REPORT_HREF = '/stats/report'
 
 /**
@@ -148,21 +148,21 @@ export function StatsFrame({
   )
 }
 
-/** "View Report": a pill in the computer's header, the page's last line on a phone. */
+/** "Report": a pill in the computer's header, the page's last line on a phone. */
 function ReportLink({ pill }: { pill: boolean }): ReactNode {
   const router = useRouter()
   return (
     <Pressable
       onPress={() => router.push(REPORT_HREF)}
       accessibilityRole="link"
-      accessibilityLabel="View Report"
+      accessibilityLabel="Report"
       testID="stats-report"
       style={({ pressed }) => [
         pill ? styles.pill : styles.line,
         pressed && (pill ? styles.pillPressed : styles.linePressed),
       ]}
     >
-      <Text style={pill ? styles.pillText : styles.linkText}>View Report</Text>
+      <Text style={pill ? styles.pillText : styles.linkText}>Report</Text>
       {pill ? null : <ChevronRight size={16} tone="textMuted" />}
     </Pressable>
   )

@@ -189,6 +189,18 @@ export function librarySource(
   }
 }
 
+const NO_TAG_IDS: readonly number[] = []
+
+/**
+ * The tags a list plays from: a tag's own, a combination's. A chip for one of
+ * them on the list's rows would only repeat the list's name (E1).
+ */
+export function sourceTagIds(source: ListSource | null): readonly number[] {
+  if (source?.kind === 'tag') return [source.tagId]
+  if (source?.kind === 'combined') return source.tagIds
+  return NO_TAG_IDS
+}
+
 /** Where a combination opens: its tags and artists in the address. */
 export function combinedLink(source: {
   readonly tagIds: readonly number[]

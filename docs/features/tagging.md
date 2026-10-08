@@ -13,6 +13,7 @@ Files:
 | What | Where |
 |---|---|
 | Picking tags to listen to | `apps/app/src/ui/components/ListenTags.tsx`, `apps/app/src/features/library/LibraryScreen.tsx` |
+| Tags on a song's row | `apps/app/src/ui/components/SongRow.tsx`, `rowTags.ts`, `useRowTagPicker.tsx` |
 | The chip, and its two states | `apps/app/src/ui/components/Chip.tsx`, `tagColors` in `packages/client/src/theme/tokens.ts` |
 | Rename, recolour, delete, make | `apps/app/src/ui/components/TagEditor.tsx`, `apps/app/src/features/tags/TagsScreen.tsx` |
 | Sidebar rows and ⋯ | `apps/app/src/shell/Sidebar.tsx` |
@@ -60,6 +61,23 @@ Everything here works on every kind of library, a cloud one included: which song
 tag is a pass over the library this device already holds, and putting a tag on one is an
 ordinary edit, recorded and uploaded like any other. It was hidden from a cloud library for
 a while alongside the pages that genuinely do need the server, which was simply a mistake.
+
+## Tags on a song's row
+
+Library, Search and Up next show each row's tags as small chips (`S3`): as many as fit, and a
+count for the rest — "fit what fits, count the rest" (settled 2026-09-17; the fitting is
+`apps/app/src/ui/components/rowTags.ts`). Rows inside a place — a tag, an artist, a playlist —
+leave them off. Since E1 (2026-10-08):
+
+- **On a phone the chips are on the second line**, after "artist · length", so the title has
+  the whole row; titles here are long and often in two languages. Same chips, same rule, in a
+  lane of their own (`underBudget`). A computer's rows keep their tag column.
+- **A chip opens its tag's page**, everywhere. In Library it used to filter the list instead;
+  filtering is the tag strip's job, at the top of the page.
+- **The count opens the song's tag window** (`useRowTagPicker`), in Search and Up next as well
+  as Library, where it used to do nothing.
+- **No chip repeats the list.** The tags Library is filtered by, and the tag or tags Up next is
+  playing from, are not drawn on its rows.
 
 ## Editing a tag
 

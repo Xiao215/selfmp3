@@ -40,6 +40,7 @@ import { SongList } from '../../ui/components/SongList'
 import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
 import { modifiersOf, useSelection, type Selection } from '../../selection/useSelection'
 import { useSongMenu } from '../../ui/components/useSongMenu'
+import { useRowTagPicker } from '../../ui/components/useRowTagPicker'
 import { SongRow } from '../../ui/components/SongRow'
 import { useSongTagLookup } from '../../ui/songTags'
 import { useDebounced } from '../../ui/useDebounced'
@@ -554,7 +555,9 @@ function useSongRows(
   const { data: library } = useLibrary()
   const { state: downloads } = useDownloads()
   const { openId: menuSongId, onMore, menu } = useSongMenu()
-  // Search is one of the lists that shows tags on its rows (`S3`); a chip opens the tag.
+  const { onEditTags, picker } = useRowTagPicker()
+  // Search is one of the lists that shows tags on its rows (`S3`): a chip opens
+  // the tag, and the count of the rest opens the song's tag window.
   const tagsOf = useSongTagLookup()
   const tags = library?.tags
   const onTag = useCallback(
@@ -600,7 +603,8 @@ function useSongRows(
         onToggleSelect={onToggleSelect}
         index={index}
         tags={tagsOf(item)}
-        onToggleTag={onTag}
+        onOpenTag={onTag}
+        onEditTags={onEditTags}
       />
     ),
     [
@@ -615,12 +619,18 @@ function useSongRows(
       testPrefix,
       tagsOf,
       onTag,
+      onEditTags,
     ],
   )
 
   return {
     renderSong,
-    menu,
+    menu: (
+      <>
+        {menu}
+        {picker}
+      </>
+    ),
   }
 }
 

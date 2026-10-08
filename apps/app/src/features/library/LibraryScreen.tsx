@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
 import type { GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { useRouter } from 'expo-router'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { type Song } from '@selfmp3/shared'
 import { useArt } from '../../offline/useArt'
@@ -28,7 +29,7 @@ import { GemsRow } from './GemsRow'
 import { PendingImports } from './PendingImports'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { ListenTags } from '../../ui/components/ListenTags'
-import { TagPicker } from '../../ui/components/TagPicker'
+import { useRowTagPicker } from '../../ui/components/useRowTagPicker'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { deviceWord } from '../../ports/device'
@@ -37,6 +38,7 @@ import { useContentWidth } from '../../shell/contentWidth'
 import { noMatchesTitle, stripTags, useLibraryModel } from './library.model'
 import { noteTagUsed, useRecentTagIds } from './recentTags.store'
 import { librarySource, playAlone } from '../lists/lists.model'
+import { tagLink } from '../tag/placeLinks'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { usePullToRefresh } from './usePullToRefresh'
 import { useSongTagLookup } from '../../ui/songTags'
@@ -83,15 +85,14 @@ export function LibraryScreen(): ReactNode {
   const [sorting, setSorting] = useState(false)
   // A mouse drags the tag strip along; a finger already flicks it.
   const stripDrag = useDragScroll()
-  // The + the tag window was opened from, for the same reason.
-  const tagAnchorRef = useRef<View | null>(null)
-  // Which tags to listen to — a different job from the picker above, which
-  // puts tags on a song.
+  // Which tags to listen to — a different job from the row's tag window,
+  // which puts tags on a song.
   const [choosingTags, setChoosingTags] = useState(false)
   const closeTagSearch = useCallback(() => setChoosingTags(false), [])
   const recentTagIds = useRecentTagIds()
-  // The dashed + in a row's tag column opens the same picker the menu does.
-  const [taggingSong, setTaggingSong] = useState<Song | null>(null)
+  // A row's dashed + and its "+2" open the same picker the menu does.
+  const rowTags = useRowTagPicker()
+  const router = useRouter()
 
   // Multi-select runs off the visible list, so "select all" means the songs on
   // screen and a song a search has hidden drops out of the selection rather
@@ -156,26 +157,38 @@ export function LibraryScreen(): ReactNode {
    * row asks the player itself (`useSongPlayback`).
    */
   const { playFrom } = player
-  const latest = useRef({ selection, songIds, playFrom, model })
+  const latest = useRef({ selection, songIds, playFrom, model, router })
   useEffect(() => {
-    latest.current = { selection, songIds, playFrom, model }
+    latest.current = { selection, songIds, playFrom, model, router }
   })
   /*
-   * Turning a tag on or off, from anywhere on this page: a chip in the strip, a
-   * chip on a row, the chooser. One function, because every one of them also
-   * has to leave the tag in the recent list the strip and the sidebar lead
-   * with — a tag chosen from a song row is as much a sign of interest as one
-   * chosen from the strip. Only turning one *on* counts: dismissing a tag
-   * should not promote it.
-   *
-   * Every row is handed this, so it reads the model through `latest` like the
-   * handlers below: made over the model, it was remade whenever the library
-   * changed, and a like redrew every row on screen to give each a new copy.
+   * Turning a tag on or off, from anywhere on this page that filters: a chip
+   * in the strip, the chooser. One function, because each of them also has to
+   * leave the tag in the recent list the strip and the sidebar lead with. Only
+   * turning one *on* counts: dismissing a tag should not promote it.
    */
   const chooseTag = useCallback((tagId: number) => {
     const { filter, toggleTag } = latest.current.model
     if (!filter.tagIds.includes(tagId)) noteTagUsed(tagId)
     toggleTag(tagId)
+  }, [])
+  /*
+   * A chip on a row opens its tag's page, as it does in every other list
+   * (E1, 2026-10-08); it used to filter here and open the page everywhere
+   * else. A tag chosen from a row is as much a sign of interest as one chosen
+   * from the strip, so it leads the recent list too.
+   *
+   * Every row is handed this, so it reads the model and the router through
+   * `latest` like the handlers below: made over the model, it was remade
+   * whenever the library changed, and a like redrew every row on screen to
+   * give each a new copy.
+   */
+  const openTag = useCallback((tagId: number) => {
+    const { model: now, router: to } = latest.current
+    const tag = now.tags.find(each => each.id === tagId)
+    if (!tag) return
+    noteTagUsed(tag.id)
+    to.navigate(tagLink(tag.name))
   }, [])
   const onRowPress = useCallback((event: GestureResponderEvent, song: Song) => {
     const now = latest.current
@@ -195,10 +208,7 @@ export function LibraryScreen(): ReactNode {
     (song: Song) => latest.current.selection.toggle(song.id),
     [],
   )
-  const onRowEditTags = useCallback((anchor: View | null, song: Song) => {
-    tagAnchorRef.current = anchor
-    setTaggingSong(current => (current?.id === song.id ? null : song))
-  }, [])
+  const onRowEditTags = rowTags.onEditTags
 
   const unreachable = model.unreachable
   const menuSongId = songMenu.openId
@@ -223,7 +233,9 @@ export function LibraryScreen(): ReactNode {
           onToggleSelect={onRowToggleSelect}
           index={index}
           tags={songTags(item)}
-          onToggleTag={chooseTag}
+          // The tags the list is filtered by are on every row: not drawn.
+          hideTagIds={filter.tagIds}
+          onOpenTag={openTag}
           onEditTags={onRowEditTags}
         />
       )
@@ -235,7 +247,8 @@ export function LibraryScreen(): ReactNode {
       unreachable,
       selection,
       songTags,
-      chooseTag,
+      filter.tagIds,
+      openTag,
       menuSongId,
       onRowPress,
       onRowMore,
@@ -634,7 +647,7 @@ export function LibraryScreen(): ReactNode {
         )}
       </View>
 
-      <TagPicker song={taggingSong} onClose={() => setTaggingSong(null)} anchorRef={tagAnchorRef} />
+      {rowTags.picker}
 
       {songMenu.menu}
     </SafeAreaView>

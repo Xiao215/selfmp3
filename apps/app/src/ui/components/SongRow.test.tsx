@@ -104,7 +104,7 @@ function playlistRow(
     onPress: jest.fn(),
     onMore: jest.fn(),
     onToggleSelect: jest.fn(),
-    onToggleTag: jest.fn(),
+    onOpenTag: jest.fn(),
     onEditTags: jest.fn(),
     ...extra,
   }
@@ -115,7 +115,9 @@ describe('a playlist row is a library row', () => {
     await render(<SongRow {...playlistRow()} />)
 
     expect(screen.getByLabelText(`More actions for ${song.title}`)).toBeTruthy()
-    expect(screen.getByText(/3:33/)).toBeTruthy()
+    // Drawn but not read out on a phone: the press target under the words
+    // carries them as its label.
+    expect(screen.getByText(/3:33/, { includeHiddenElements: true })).toBeTruthy()
     // Loving a song is in its menu and on its page (`S3`), not on every row.
     expect(screen.queryByLabelText(`Love ${song.title}`)).toBeNull()
   })
@@ -144,6 +146,22 @@ describe('a playlist row is a library row', () => {
 
     await fireEvent(screen.getByLabelText(`${song.title}, ${song.artist}`), 'longPress')
     expect(onLongPress).toHaveBeenCalledWith(song)
+  })
+})
+
+describe('a row’s tag chips', () => {
+  it('open the tag they name', async () => {
+    const onOpenTag = jest.fn()
+    await render(<SongRow {...playlistRow({ onOpenTag })} />)
+
+    await fireEvent.press(screen.getByRole('button', { name: 'chill' }))
+    expect(onOpenTag).toHaveBeenCalledWith(1)
+  })
+
+  it('leave off a tag the list is already about', async () => {
+    await render(<SongRow {...playlistRow({ hideTagIds: [1] })} />)
+
+    expect(screen.queryByRole('button', { name: 'chill' })).toBeNull()
   })
 })
 

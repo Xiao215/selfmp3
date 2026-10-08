@@ -20,10 +20,15 @@ import { devicePlace } from '../settings/settings.model'
  */
 export function BucketHoldNotice(): ReactNode {
   const hold = useBucketHold()
-  const said = useRef<number | null>(null)
+  // Once for the day, not each time the hold is renewed: it lapses and is
+  // asked about again every ten minutes, and each renewal said it again
+  // (2026-10-08). Library's line and the faded rows say it from then on.
+  const saidAt = useRef<number | null>(null)
   useEffect(() => {
-    if (hold === null || said.current === hold.until) return
-    said.current = hold.until
+    if (hold === null) return
+    const now = Date.now()
+    if (saidAt.current !== null && now - saidAt.current < SAY_AGAIN_AFTER_MS) return
+    saidAt.current = now
     const place = devicePlace(deviceKind())
     showToast(
       `Your storage’s allowance for today is used up. Songs not on this ${place} come back in about ${untilCapResets(new Date())}.`,
@@ -33,3 +38,6 @@ export function BucketHoldNotice(): ReactNode {
   }, [hold])
   return null
 }
+
+/** Long enough to cover the rest of a day the cap holds: a new day's cap is news again. */
+const SAY_AGAIN_AFTER_MS = 12 * 60 * 60_000

@@ -91,10 +91,15 @@ export function GemsRow(): ReactNode {
           ) : (
             <ChevronDown size={15} color={theme.colors.textMuted} />
           )}
-          <Text style={styles.titleLabel}>Forgotten gems</Text>
-          <Text style={styles.hint} numberOfLines={1}>
-            {plural(data.total, 'song', 'songs')} you liked, unplayed for {data.minDays}+ days
-          </Text>
+          {/* On a phone the line goes under the name: beside it, it ran off
+              the edge of the card (2026-10-08). */}
+          <View style={wide ? styles.titleWords : styles.titleWordsStacked}>
+            <Text style={styles.titleLabel}>Forgotten gems</Text>
+            <Text style={styles.hint} numberOfLines={wide ? 1 : 2}>
+              {plural(data.total, 'song', 'songs')} you liked but haven’t played in {data.minDays}+
+              days
+            </Text>
+          </View>
         </Pressable>
         {collapsed ? null : (
           <View style={styles.actions}>
@@ -140,6 +145,8 @@ const styles = StyleSheet.create(theme => ({
   },
   headStacked: { flexDirection: 'column', alignItems: 'stretch', gap: 8 },
   title: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0, flexShrink: 1 },
+  titleWords: { flexDirection: 'row', alignItems: 'baseline', gap: 8, minWidth: 0, flexShrink: 1 },
+  titleWordsStacked: { gap: 2, minWidth: 0, flexShrink: 1 },
   titleLabel: sectionTitle(theme.colors),
   hint: { color: theme.colors.textMuted, fontSize: type.small, flexShrink: 1 },
   actions: { flexDirection: 'row', gap: 8 },

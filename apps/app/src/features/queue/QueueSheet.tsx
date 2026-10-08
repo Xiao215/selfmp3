@@ -134,7 +134,7 @@ function SheetPanel({
   const { height } = useWindowDimensions()
   const router = useRouter()
   const artFor = useArt(ROW_COVER_SIZE)
-  const { state: downloads, installed } = useDownloads()
+  const { state: downloads, installed, streamBlocked } = useDownloads()
   const { player, rows, remove, clearRest, tagsOf, openTag } = edits
   const [progress] = useState(() => new Animated.Value(0))
   const [pull] = useState(() => new Animated.Value(0))
@@ -295,6 +295,7 @@ function SheetPanel({
         artUri={artFor(entry.song)}
         downloaded={here}
         notDownloadedMark={installed && !here}
+        unavailable={streamBlocked && !here}
         tags={tagsOf(entry.song)}
         hideTagIds={fromTags}
         actions={actions}
@@ -453,6 +454,7 @@ const SheetRow = memo(function SheetRow({
   artUri,
   downloaded,
   notDownloadedMark,
+  unavailable,
   tags,
   hideTagIds,
   actions,
@@ -473,6 +475,8 @@ const SheetRow = memo(function SheetRow({
   artUri: string | null | undefined
   downloaded: boolean
   notDownloadedMark: boolean
+  /** Not on this phone, with nothing to stream it from now: faded. */
+  unavailable: boolean
   tags: readonly Tag[]
   /** The tags Up next is playing from, whose chips are left off. */
   hideTagIds: readonly number[]
@@ -525,6 +529,7 @@ const SheetRow = memo(function SheetRow({
               active={false}
               downloaded={downloaded}
               notDownloadedMark={notDownloadedMark}
+              unavailable={unavailable}
               onPress={onPress}
               tags={tags}
               hideTagIds={hideTagIds}

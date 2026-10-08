@@ -69,7 +69,7 @@ export function LibraryScreen(): ReactNode {
   const headWide = wide && (contentWidth === null || contentWidth >= HEAD_ROW_WIDTH)
   const shuffleIconOnly = contentWidth !== null && contentWidth < SHUFFLE_LABEL_WIDTH
   const player = usePlayerCommands()
-  const { state: downloads, installed } = useDownloads()
+  const { state: downloads, installed, streamBlocked } = useDownloads()
   const openSearch = useOpenSearch('songs')
 
   // Everything this screen knows is in the model, which draws nothing and is
@@ -214,7 +214,8 @@ export function LibraryScreen(): ReactNode {
   const onRowDrag = useCallback((song: Song) => latest.current.selection.carried(song.id), [])
   const onRowEditTags = rowTags.onEditTags
 
-  const unreachable = model.unreachable
+  // No server to stream from, or (from the bucket) no connection or a cap.
+  const unreachable = model.unreachable || streamBlocked
   const menuSongId = songMenu.openId
   const renderSong = useCallback(
     ({ item, index }: { item: Song; index: number }) => {

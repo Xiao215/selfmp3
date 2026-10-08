@@ -146,6 +146,12 @@ interface DownloadsContextValue {
   keepAhead: (songId: number) => Promise<boolean>
   /** Whether a song can start here now, without asking. */
   mayPlay: (songId: number) => boolean
+  /**
+   * A song not on this device cannot start now, whatever is tapped: a library
+   * from the bucket with no connection, or with the bucket refusing reads for
+   * the day. Rows fade such songs, rather than a tap finding out (2026-10-08).
+   */
+  readonly streamBlocked: boolean
   /** True when the song can start; otherwise the reason is put to the person, with `retry`. */
   checkPlay: (songId: number, retry: () => void) => boolean
   readonly question: DownloadQuestion | null
@@ -286,6 +292,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
   // starts until the hold lifts. The first download after it asks again, so a
   // bucket still refusing costs one request each time the hold runs out.
   const held = useBucketHold('read') !== null && fromCloud
+  const streamBlocked = installedApp && fromCloud && (held || network === 'none')
   useEffect(() => {
     if (!held) return undefined
     const timer = setTimeout(() => {
@@ -496,7 +503,11 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       // A copy kept because it was played is a file here like any other, and
       // plays with no signal; it is only left out of what is *listed* as here.
       // Asked second: it goes to the disk, and a download is the common answer.
-      downloaded: isDownloaded(now.index, songId) || recentUri(songId) !== null,
+      // Asked the way the player asks (`localUri`, with the song's rev): a kept
+      // file the player would not use is not a reason to let it try.
+      downloaded:
+        downloadQueue.localUri(songId, now.songsById.get(songId)?.rev) !== null ||
+        recentUri(songId) !== null,
       installed: installedApp,
       network: now.network,
       streamUndownloaded: now.prefs.streamUndownloaded,
@@ -573,6 +584,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       keepPlayed,
       keepAhead,
       mayPlay,
+      streamBlocked,
       checkPlay,
       question,
       answer,
@@ -597,6 +609,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       keepPlayed,
       keepAhead,
       mayPlay,
+      streamBlocked,
       checkPlay,
       question,
       answer,

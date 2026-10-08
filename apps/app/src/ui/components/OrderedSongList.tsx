@@ -81,7 +81,7 @@ export function OrderedSongList({
 }): ReactNode {
   const artFor = useArt(ROW_COVER_SIZE)
   const library = useLibrary()
-  const { state: downloads, installed } = useDownloads()
+  const { state: downloads, installed, streamBlocked } = useDownloads()
   const songMenu = useSongMenu(menuPlaylist)
   const onMore = songMenu.onMore
   // The row being moved and the row it would land on. Not how far it has
@@ -210,8 +210,8 @@ export function OrderedSongList({
     [liftedFrom, liftedOver, rowHeight, dragY, lift.lift, settling],
   )
 
-  // Not on this phone and no server to stream it from: faded.
-  const unreachableHere = library.isError && installed
+  // Not on this phone and nowhere to stream it from: faded.
+  const unreachableHere = (library.isError && installed) || streamBlocked
   const menuSongId = songMenu.openId
   // Selection mode is not what reordering is for, so a held row selects
   // rather than lifts while it is on — and always, where the order is not

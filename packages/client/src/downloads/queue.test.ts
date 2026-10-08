@@ -654,6 +654,20 @@ describe('keeping songs on this device', () => {
     expect(queue.localUri(1, undefined)).toBeNull()
   })
 
+  it('still plays a kept song whose cover changed, and not one whose audio did', async () => {
+    // A rev ends with its cover's part. The cover rework of 2026-10-07 gave
+    // every song a new one, and a phone stopped playing its downloads: it
+    // streamed them, and with the bucket capped played nothing at all.
+    const cloud = { ...entry(1), rev: 'a1b2.c3d4' }
+    const server = { ...entry(2), rev: '1k.mg3.4' }
+    const { queue } = setup({ index: addEntry(addEntry(EMPTY_INDEX, cloud), server) })
+    await queue.load()
+    expect(queue.localUri(1, 'a1b2.ffff')).toBe('file:///songs/1.m4a')
+    expect(queue.localUri(1, 'eeee.c3d4')).toBeNull()
+    expect(queue.localUri(2, '1k.mg3.5')).toBe('file:///songs/2.m4a')
+    expect(queue.localUri(2, '1k.mg9.4')).toBeNull()
+  })
+
   it('tells the storage where downloads come from, and the songs they belong to', () => {
     const { storage, queue } = setup()
     const connection = { baseUrl: 'http://mac:4600', token: null }

@@ -93,12 +93,24 @@ export function isDownloaded(index: DownloadIndex, songId: number): boolean {
 /**
  * Whether the file kept for a song is still that song's.
  *
- * True only when the entry remembers the same `rev` the library reports now.
- * A song the library has not told us the rev of cannot be matched against, so
- * it is not played from disk either: it streams instead.
+ * True when the entry remembers the same audio the library reports now. A
+ * song's `rev` ends with its cover's part — `<audio>.<cover>` from the bucket,
+ * `<size>.<mtime>.<art>` from a server — and a new cover is not a new song:
+ * compared whole, the cover rework of 2026-10-07 made every kept file "not
+ * this song's" while the catch-up pass (which compares audio only, below)
+ * rightly fetched nothing, so a phone streamed songs it had on its disk, and
+ * with the bucket capped could play none of them (2026-10-08). A song the
+ * library has not told us the rev of cannot be matched against, so it is not
+ * played from disk either: it streams instead.
  */
 export function entryIsCurrent(entry: DownloadEntry | null, rev: string | undefined): boolean {
-  return entry !== null && rev !== undefined && entry.rev === rev
+  return entry !== null && rev !== undefined && audioOfRev(entry.rev) === audioOfRev(rev)
+}
+
+/** A song's `rev` without its cover's part, which is always the last. */
+function audioOfRev(rev: string): string {
+  const dot = rev.lastIndexOf('.')
+  return dot === -1 ? rev : rev.slice(0, dot)
 }
 
 export function addEntry(index: DownloadIndex, entry: DownloadEntry): DownloadIndex {

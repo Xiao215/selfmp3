@@ -59,7 +59,7 @@ import { useVolumeControls } from './useVolumeControls'
 import { useSleepTimer } from './useSleepTimer'
 import { usePlayReporting } from './usePlayReporting'
 import { useConnection } from '../connection/ConnectionProvider'
-import { showToast } from '../ui/toast'
+import { dismissToast, showToast } from '../ui/toast'
 import { devicePlace } from '../features/settings/settings.model'
 import { deviceKind } from '../ports/device'
 import { nowPlayingArtwork, type ArtSources } from './nowPlayingArt.model'
@@ -740,6 +740,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     retriedSongId: null as number | null,
     retriedFrom: 0,
     skippedInARow: 0,
+    /** The skip message on screen, replaced rather than stacked. */
+    toastId: null as number | null,
   })
   useEffect(() => {
     playbackErrorRef.current = state => {
@@ -763,6 +765,13 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       console.warn(`Playback failed for song ${songId}:`, state.error)
 
       const title = songsRef.current.get(songId)?.title ?? 'this song'
+      // One message about skipping at a time: each replaces the last. A run of
+      // songs that would not play stacked a toast apiece up the screen, which
+      // read as the app falling apart (Xiao, 2026-10-08).
+      const say = (text: string, tone: 'warn' | 'error'): void => {
+        if (recovery.toastId !== null) dismissToast(recovery.toastId)
+        recovery.toastId = showToast(text, tone)
+      }
       // Failed because it cannot play here now — the bucket refusing reads
       // for the day, found out by this very failure (ports/engine.ts). Not a
       // broken song: no retry, and not one of the three skips that stop the
@@ -770,13 +779,10 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       if (!mayPlay(songId)) {
         recovery.retriedSongId = null
         const { state: after, stop } = advancePlayable(queueRef.current, false, mayPlay)
-        showToast(
-          stop
-            ? `“${title}” isn’t on this ${devicePlace(deviceKind())}, and nothing after it is`
-            : `Skipped “${title}”, it isn’t on this ${devicePlace(deviceKind())}`,
-          'warn',
-        )
+        // Passed over quietly: its row is faded, which says the same thing
+        // without a word. Only running out of songs that can play is said.
         if (stop) {
+          say(`Nothing after this is on this ${devicePlace(deviceKind())}`, 'warn')
           engine.pause()
           return
         }
@@ -800,7 +806,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       }
       if (recovering === 'skip') {
         recovery.skippedInARow += 1
-        showToast(`Skipped “${title}”, it wouldn’t play`, 'warn')
+        say(`Skipped “${title}”, it wouldn’t play`, 'warn')
         const { state: after, stop } = advancePlayable(queueRef.current, false, mayPlay)
         if (stop) {
           engine.pause()
@@ -812,7 +818,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       }
       recovery.skippedInARow = 0
       engine.pause()
-      showToast(`Couldn’t play “${title}”`, 'error')
+      say(`Couldn’t play “${title}”`, 'error')
     }
   }, [engine, loadIndex, mayPlay, commitQueue])
 

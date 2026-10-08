@@ -95,6 +95,18 @@ jobs:
       - name: Let Electron's sandbox start
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
+      # The runner has no desktop. With no file manager to ask, Electron's
+      # "show in folder" on Linux runs xdg-open on the folder and waits for it,
+      # and the runner's xdg-open never returned: the smoke's reveal hung the
+      # main process. One that only says what it was asked stands in, and the
+      # test still checks that the call crosses the bridge.
+      - name: Stand in for a file manager
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          printf '#!/bin/sh\necho "xdg-open $*"\n' > "$RUNNER_TEMP/bin/xdg-open"
+          chmod +x "$RUNNER_TEMP/bin/xdg-open"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
       # A window needs a display; xvfb-run gives the run one of its own.
       - name: The desktop smoke
         run: xvfb-run -a npm run verify:desktop

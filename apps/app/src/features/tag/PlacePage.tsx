@@ -12,6 +12,7 @@ import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { Button, PlayButton } from '../../ui/components/Button'
+import { usePageBack } from '../../ui/useBackTo'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
@@ -242,6 +243,7 @@ export function PlacePage({
    * when its fade starts. The swipe back is left to the navigator: a hand
    * dragging the page can still change its mind.
    */
+  const backShown = usePageBack('/').shown
   const back = (): void => {
     if (!router.canGoBack()) {
       router.replace('/')
@@ -269,9 +271,14 @@ export function PlacePage({
       art={artistAlone ? (backdrop ?? leadArt) : null}
       topBar={
         <>
-          <IconButton label="Back" onPress={back} filled>
-            <ChevronLeft size={20} tone="textPrimary" />
-          </IconButton>
+          {/* None on a computer for a place the sidebar opened (J1). */}
+          {backShown ? (
+            <IconButton label="Back" onPress={back} filled>
+              <ChevronLeft size={20} tone="textPrimary" />
+            </IconButton>
+          ) : (
+            <View />
+          )}
           {menu ? (
             <View ref={moreRef} collapsable={false}>
               <IconButton

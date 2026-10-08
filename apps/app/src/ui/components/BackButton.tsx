@@ -1,43 +1,36 @@
 import type { ReactNode } from 'react'
 import { useUnistyles } from 'react-native-unistyles'
-import { useLayout } from '../../shell/useLayout'
-import { useBackTo } from '../useBackTo'
+import { usePageBack } from '../useBackTo'
 import { IconButton } from './IconButton'
 import { ChevronLeft } from './Icons'
 
 /**
  * The way back from a page that was opened from another: a round ‹ at the
- * head's left, as the month page has (docs/ui-mock `P33`).
+ * head's left, as the month page has (docs/ui-mock `P33`), with the page's
+ * title under it on a phone.
  *
  * One control for all of them. Profile's three pages each drew their own —
  * a text row on two, this button on the third — and three ways back that
  * look like three different things is three things to learn (Xiao,
  * 2026-09-20).
  *
- * Back when the page behind is the one it names, and in its place otherwise
- * (`backTo.model.ts`), so it never stacks pages up. A computer reaches all
- * of them from the sidebar, which is always there, and draws nothing.
+ * Back to the page you were just on; `to` only when there is none (J1,
+ * `usePageBack`). A computer draws it only for a page opened from inside
+ * another: what the sidebar opens has the sidebar.
  */
 export function BackButton({
   to,
-  label,
   testID,
-  always = false,
 }: {
-  /** Where it goes when this page was not opened from there. */
+  /** Where it goes when there is no page behind this one: a link, a reload. */
   to: string
-  /** That page, as it names itself: "Profile", "Stats". */
-  label: string
   testID?: string
-  /** Show it at every width, for a page a computer also opens over another. */
-  always?: boolean
 }): ReactNode {
   const { theme } = useUnistyles()
-  const { wide } = useLayout()
-  const backTo = useBackTo()
-  if (wide && !always) return null
+  const { shown, back } = usePageBack(to as never)
+  if (!shown) return null
   return (
-    <IconButton label={`Back to ${label}`} filled onPress={() => backTo(to)} testID={testID}>
+    <IconButton label="Back" filled onPress={back} testID={testID}>
       <ChevronLeft size={22} color={theme.colors.textPrimary} />
     </IconButton>
   )

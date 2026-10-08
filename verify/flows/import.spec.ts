@@ -96,7 +96,7 @@ test.describe('importing', () => {
         page.getByRole('button', { name: `${TITLE} (corrected), jawed karim` }),
       ).toBeVisible()
       // Back keeps the review, and Import offers it again.
-      await page.getByRole('button', { name: 'Back to Import' }).click()
+      await page.getByTestId('import-review-back').click()
       await page.waitForURL(/\/import$/)
       await page.getByRole('link', { name: `Go on reviewing ${TITLE} (corrected)` }).click()
       await page.waitForURL(/\/import\/review$/)

@@ -107,30 +107,26 @@ export function StatsFrame({
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
         testID={testID}
       >
-        {/* On a phone the way back, the window and the page's name share a
-            line, the name at the far end of it, as Import has it (`P32`). A
-            computer has no way back here, so the name leads and the windows
-            and the Report follow it. */}
-        <View style={[styles.head, wide ? null : styles.headPhone]}>
-          <BackButton to="/profile" label="Profile" testID="stats-back" />
-          {wide ? null : (
-            <Select
-              value={period}
-              onChange={onPeriod}
-              label="Time range"
-              options={options}
-              testID="stats-range"
-            />
-          )}
-          <View style={[styles.titles, wide ? null : styles.titlesRight]}>
+        {/* The way back, then the page's name on the left under it (J1); on a
+            phone the window's menu sits beside the name. A computer's windows
+            and the Report follow the name instead. */}
+        <BackButton to="/profile" testID="stats-back" />
+        <View style={styles.head}>
+          <View style={[styles.titles, wide ? null : styles.titlesPhone]}>
             {/* No caption under the name: the window's own control says which
                 window this is, and said it twice. */}
-            <Text
-              style={[styles.heading, wide ? null : styles.titleRight]}
-              accessibilityRole="header"
-            >
+            <Text style={styles.heading} accessibilityRole="header">
               Stats
             </Text>
+            {wide ? null : (
+              <Select
+                value={period}
+                onChange={onPeriod}
+                label="Time range"
+                options={options}
+                testID="stats-range"
+              />
+            )}
           </View>
           {wide ? (
             <View style={styles.controls}>
@@ -191,10 +187,8 @@ const styles = StyleSheet.create(theme => ({
     gap: 12,
     marginBottom: 8,
   },
-  headPhone: { justifyContent: 'flex-start', alignItems: 'flex-start' },
   titles: { gap: 2, flexShrink: 1 },
-  titlesRight: { marginLeft: 'auto', minWidth: 0, alignItems: 'flex-end' },
-  titleRight: { textAlign: 'right' },
+  titlesPhone: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   heading: pageTitle(theme.colors),
   controls: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   pill: {

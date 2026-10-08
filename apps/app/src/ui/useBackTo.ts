@@ -1,11 +1,13 @@
 import { useNavigation, useRouter, type Href } from 'expo-router'
+import { useLayout } from '../shell/useLayout'
+import { useOpenedFromSidebar } from '../shell/sidebarEntry'
 import { isBehind, type StackState } from './backTo.model'
 
 /**
- * Go to `href` the way a back button should: back, when that page is the one
- * behind this; otherwise in this one's place (`backTo.model.ts`). For a link
- * or a button that returns somewhere — "Go to the library", "Import page" —
- * and for the round ‹ every page opened from another wears (`BackButton`).
+ * Go to `href` the way a link that returns somewhere should — "Go to the
+ * library", "Import page": back, when that page is the one behind this;
+ * otherwise in this one's place (`backTo.model.ts`). A page's own ‹ is
+ * `usePageBack`, which goes back to wherever you came from.
  */
 export function useBackTo(): (href: string) => void {
   const router = useRouter()
@@ -34,4 +36,24 @@ export function goBack(router: Router, fallback: Href): void {
 export function useGoBack(fallback: Href): () => void {
   const router = useRouter()
   return () => goBack(router, fallback)
+}
+
+/**
+ * A page's ‹ (J1): back to the page you were just on whenever there is one,
+ * and `fallback` only when there is nothing behind — a link from outside, a
+ * reload. On a phone it is always there. On a computer the sidebar is always
+ * there instead, so a page the sidebar opened wears none, and neither does a
+ * page with nothing behind it; a page opened from inside another does.
+ */
+export function usePageBack(fallback: Href): {
+  readonly shown: boolean
+  readonly back: () => void
+} {
+  const router = useRouter()
+  const { wide } = useLayout()
+  const fromSidebar = useOpenedFromSidebar()
+  return {
+    shown: !wide || (!fromSidebar && router.canGoBack()),
+    back: () => goBack(router, fallback),
+  }
 }

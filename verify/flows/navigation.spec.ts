@@ -91,7 +91,8 @@ test.describe('navigation', () => {
     await expect(page.getByRole('heading', { name: 'Stats', exact: true })).toBeVisible({
       timeout: 30_000,
     })
-    await page.getByRole('button', { name: 'Back to Profile', exact: true }).click()
+    // Back is back (J1): to Profile, the page it was opened from.
+    await page.getByTestId('stats-back').click()
     await expect(page.getByTestId('profile-screen')).toBeVisible()
 
     await page.getByTestId('profile-settings').click()
@@ -102,7 +103,7 @@ test.describe('navigation', () => {
     // and its own way back is the way back.
     await expect(page.getByTestId('tab-library')).toHaveCount(0)
     await expect(page.getByTestId('mini-player')).toHaveCount(0)
-    await page.getByRole('button', { name: 'Back to Profile', exact: true }).click()
+    await page.getByTestId('settings-back').click()
     await expect(page.getByTestId('profile-screen')).toBeVisible()
   })
 

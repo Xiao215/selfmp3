@@ -71,7 +71,7 @@ import {
   type TagEntry,
   type WaitingArtist,
 } from './tags.model'
-import { useGoBack } from '../../ui/useBackTo'
+import { usePageBack } from '../../ui/useBackTo'
 
 /** Tiles at least this wide on a computer, as many as fit; two across on a phone. */
 const TILE_MIN_WIDTH = 220
@@ -170,7 +170,7 @@ export function TagsScreen(): ReactNode {
     : PHONE_COLUMNS
   const tileWidth = measured > 0 ? Math.floor((measured - GAP * (columns - 1)) / columns) : 0
 
-  const back = useGoBack('/')
+  const page = usePageBack('/')
   // The one Search, on its Tags scope: the page on a phone, the palette over
   // this page on a computer (docs/ui-mock `P18`, `C05`).
   const openSearch = useOpenSearch('tags')
@@ -198,34 +198,48 @@ export function TagsScreen(): ReactNode {
     </View>
   )
 
+  const actions = (
+    <>
+      <IconButton
+        label="New tag"
+        filled
+        active={adding}
+        onPress={() => setAdding(open => !open)}
+        testID="tags-new"
+      >
+        <Plus size={18} tone="textPrimary" />
+      </IconButton>
+      <IconButton label="Search tags" filled onPress={openSearch} testID="tags-search">
+        <Search size={18} tone="textPrimary" />
+      </IconButton>
+    </>
+  )
+
   return (
     <SafeAreaView style={styles.screen} edges={['top']} testID="tags-screen">
       <ScrollView
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
         keyboardShouldPersistTaps="handled"
       >
+        {/* The way back and the page's buttons on one line, the name under it
+            on the left (J1); with no way back the name leads that line. */}
+        {page.shown ? (
+          <View style={styles.header}>
+            <IconButton label="Back" filled onPress={page.back} testID="tags-back">
+              <ChevronLeft size={18} tone="textPrimary" />
+            </IconButton>
+            <View style={styles.headerFill} />
+            {actions}
+          </View>
+        ) : null}
         <View style={styles.header}>
-          <IconButton label="Back" filled onPress={back} testID="tags-back">
-            <ChevronLeft size={18} tone="textPrimary" />
-          </IconButton>
           <View style={styles.titles}>
             <Text style={styles.heading} accessibilityRole="header">
               Tags
             </Text>
             {library ? <Text style={styles.sub}>{tagsHeadline(tags.length)}</Text> : null}
           </View>
-          <IconButton
-            label="New tag"
-            filled
-            active={adding}
-            onPress={() => setAdding(open => !open)}
-            testID="tags-new"
-          >
-            <Plus size={18} tone="textPrimary" />
-          </IconButton>
-          <IconButton label="Search tags" filled onPress={openSearch} testID="tags-search">
-            <Search size={18} tone="textPrimary" />
-          </IconButton>
+          {page.shown ? null : actions}
         </View>
 
         {adding ? (
@@ -822,6 +836,7 @@ const styles = StyleSheet.create(theme => ({
   contentNarrow: { paddingTop: 10, paddingHorizontal: NARROW_GUTTER },
   contentWide: { paddingTop: 40, paddingHorizontal: WIDE_GUTTER, width: '100%' },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerFill: { flex: 1 },
   titles: { flex: 1, minWidth: 0, gap: 2 },
   heading: pageTitle(theme.colors),
   sub: { color: theme.colors.textSecondary, fontSize: 13 },

@@ -318,11 +318,11 @@ export function ImportReview({
         >
           {/*
            * The head every page opened from another has on a phone: the round
-           * ‹ at the left (`BackButton`, as Import's own head), the name as
-           * the page's title, and the count under it. The draft keeps the
+           * ‹ (`BackButton`, as Import's own head), the name under it on the
+           * left as the page's title (J1), and the count under that. The draft keeps the
            * review, and the preview stops with the page.
            */}
-          <BackButton to="/import" label="Import" testID="import-review-back" />
+          <BackButton to="/import" testID="import-review-back" />
           <View style={styles.namesPhone}>
             <Text style={styles.namePhone} numberOfLines={1} accessibilityRole="header">
               {reviewName(review)}
@@ -1107,18 +1107,16 @@ const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   scroll: { flex: 1 },
   pressed: { opacity: 0.6 },
-  // As Import's head: the button at the left, the words at the right, room above and below.
+  // As Import's head: the button, the words under it on the left, room above and below.
   headPhone: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
+    alignItems: 'flex-start',
+    gap: 12,
     paddingTop: 8,
     paddingBottom: 14,
     paddingHorizontal: 20,
   },
-  namesPhone: { flex: 1, alignItems: 'flex-end', gap: 2 },
-  namePhone: { ...pageTitle(theme.colors), textAlign: 'right' },
+  namesPhone: { alignSelf: 'stretch', gap: 2 },
+  namePhone: pageTitle(theme.colors),
   count: { color: theme.colors.textSecondary, fontSize: 13, fontVariant: ['tabular-nums'] },
   headWide: {
     flexDirection: 'row',

@@ -14,6 +14,7 @@ jest.mock('expo-router', () => ({
     canGoBack: () => false,
   }),
   useNavigation: () => ({ getState: () => undefined }),
+  usePathname: () => '/',
   useLocalSearchParams: () => ({}),
 }))
 

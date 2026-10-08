@@ -311,19 +311,15 @@ export function SettingsScreen(): ReactNode {
           column ? styles.contentColumn : styles.contentNarrow,
         ]}
       >
-        <View ref={headRef} style={[styles.head, wide ? null : styles.headPhone]}>
-          <BackButton to="/profile" label="Profile" testID="settings-back" />
-          <View style={wide ? null : styles.titles}>
-            <Text
-              style={[styles.title, wide ? null : styles.titleRight]}
-              accessibilityRole="header"
-            >
+        {/* The way back, then the page's name under it on the left, as on every
+            page (J1). */}
+        <View ref={headRef} style={styles.head}>
+          <BackButton to="/profile" testID="settings-back" />
+          <View>
+            <Text style={styles.title} accessibilityRole="header">
               Settings
             </Text>
-            <Text
-              style={[styles.sub, wide ? null : styles.titleRight, capped && styles.subCapped]}
-              testID="settings-health"
-            >
+            <Text style={[styles.sub, capped && styles.subCapped]} testID="settings-health">
               {capped ? '● ' : null}
               {healthLine(health.data, {
                 loading: health.isPending,
@@ -603,10 +599,7 @@ const styles = StyleSheet.create(theme => ({
   },
   // `S2`'s phone gutter.
   contentNarrow: { paddingTop: NARROW_TOP, paddingHorizontal: 20 },
-  head: { marginBottom: 20 },
-  headPhone: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  titles: { flex: 1, minWidth: 0, alignItems: 'flex-end' },
-  titleRight: { textAlign: 'right' },
+  head: { marginBottom: 20, gap: 12, alignItems: 'flex-start' },
   title: pageTitle(theme.colors),
   sub: { color: theme.colors.textMuted, fontSize: 13, marginTop: 4 },
   subCapped: { color: theme.colors.danger },

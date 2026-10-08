@@ -413,8 +413,8 @@ export function ImportScreen({
       >
         <View style={styles.head}>
           {/* On a phone Import is a page over Home or Profile, and the ‹ goes
-              back to it, drawn as every other way back is (`BackButton`). */}
-          <BackButton to="/profile" label="Profile" testID="import-back" />
+              back to it (`BackButton`); the name sits under it on the left (J1). */}
+          <BackButton to="/profile" testID="import-back" />
           <Text style={styles.heading} accessibilityRole="header">
             Import
           </Text>
@@ -975,12 +975,7 @@ const styles = StyleSheet.create(theme => ({
   contentWide: { paddingTop: 40, paddingHorizontal: 48 },
   contentPhone: { paddingTop: 6, paddingHorizontal: 20 },
   pressed: { opacity: 0.6 },
-  head: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
+  head: { alignItems: 'flex-start', gap: 12, marginBottom: 20 },
   heading: pageTitle(theme.colors),
   formColumn: { gap: 22 },
   stack: { gap: 24 },

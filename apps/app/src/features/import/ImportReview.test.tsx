@@ -17,6 +17,7 @@ jest.mock('expo-router', () => ({
     canGoBack: () => true,
   }),
   useNavigation: () => ({ getState: () => undefined }),
+  usePathname: () => '/',
 }))
 
 // The floating chrome's room reads the player; there is no player here.

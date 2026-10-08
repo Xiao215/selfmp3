@@ -19,6 +19,7 @@ import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { isComposing } from '../../shell/composing'
+import { enterFromSidebar } from '../../shell/sidebarEntry'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Cover } from '../../ui/components/Cover'
@@ -145,6 +146,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const lyricHits = lyricsQuery ? (lyrics.data?.hits ?? []) : []
 
   const runCommand = (id: PaletteCommandId): void => {
+    // Go to Library, Stats…: the sidebar's places, opened as the sidebar opens them (J1).
+    if (id.startsWith('nav-')) enterFromSidebar()
     switch (id) {
       case 'nav-library':
         router.navigate('/library')

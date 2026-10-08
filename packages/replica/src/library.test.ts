@@ -436,6 +436,22 @@ describe('opening', () => {
     expect(store.data.get('cloud-base')).toEqual({ key: null, snapshot: null })
   })
 
+  it('fetches the library again when the kept copy is missing a field snapshots now carry', async () => {
+    // A copy kept before every song named its motion curve and every snapshot
+    // its artists and sound: it no longer reads, so the device reads the bucket's.
+    const store = memoryStore()
+    const { artists: _artists, sound: _sound, ...older } = SNAPSHOT
+    const songs = older.songs.map(({ motion: _motion, ...song }) => song)
+    store.data.set('cloud-base', { key: SNAPSHOT_KEY, snapshot: { ...older, songs } })
+    const made = build(store)
+    await signedIn(made)
+    made.bucket.files.set(SNAPSHOT_KEY, SNAPSHOT)
+
+    const view = await made.library.loadCloudLibrary(SESSION)
+    expect(view.library.songs.map(song => song.title)).toEqual(['Song a'])
+    expect(store.data.get('cloud-base')).toEqual({ key: SNAPSHOT_KEY, snapshot: SNAPSHOT })
+  })
+
   it('does not keep what it opened for an account signed out of meanwhile', async () => {
     const store = memoryStore()
     const made = build(store)
@@ -518,6 +534,7 @@ const SNAPSHOT: CloudSnapshot = {
       cover: null,
       coverTone: null,
       lyrics: null,
+      motion: null,
       instrumental: false,
       loved: false,
       playCount: 0,
@@ -530,6 +547,8 @@ const SNAPSHOT: CloudSnapshot = {
   ],
   tags: [],
   playlists: [],
+  artists: [],
+  sound: null,
 }
 
 describe('looking at the bucket', () => {

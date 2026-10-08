@@ -341,7 +341,9 @@ describe('snapshot schema', () => {
     duration: 250,
     audio: { key: `audio/${SHA}.m4a`, size: 4_000_000, mime: 'audio/mp4' },
     cover: { key: `covers/${OTHER_SHA}.jpg`, size: 80_000 },
+    coverTone: null,
     lyrics: null,
+    motion: null,
     instrumental: false,
     loved: true,
     playCount: 3,
@@ -356,12 +358,24 @@ describe('snapshot schema', () => {
     expect(CloudSongSchema.safeParse(song).success).toBe(true)
   })
 
-  it('reads a cover colour without a palette as no colour', () => {
+  it('takes a cover colour only with its palette, and no colour only as null', () => {
     const palette = [{ l: 0.6, c: 0.1, h: 200, share: 1 }]
-    const tone = (coverTone: unknown) => CloudSongSchema.parse({ ...song, coverTone }).coverTone
-    expect(tone({ hue: 200, chroma: 0.1, palette })).toEqual({ hue: 200, chroma: 0.1, palette })
-    expect(tone({ hue: 200, chroma: 0.1 })).toBeNull()
-    expect(tone(undefined)).toBeNull()
+    const tone = (coverTone: unknown) => CloudSongSchema.safeParse({ ...song, coverTone })
+    expect(tone({ hue: 200, chroma: 0.1, palette }).data?.coverTone).toEqual({
+      hue: 200,
+      chroma: 0.1,
+      palette,
+    })
+    expect(tone(null).success).toBe(true)
+    expect(tone({ hue: 200, chroma: 0.1 }).success).toBe(false)
+    expect(tone(undefined).success).toBe(false)
+  })
+
+  it('refuses a song that leaves out a field the server always writes', () => {
+    for (const field of ['coverTone', 'motion', 'audioFeatures'] as const) {
+      const { [field]: _left, ...without } = song
+      expect(CloudSongSchema.safeParse(without).success).toBe(false)
+    }
   })
 
   it('refuses a song that points anywhere but a hash in its own folder', () => {
@@ -378,16 +392,23 @@ describe('snapshot schema', () => {
     }
   })
 
-  it('fills in what the change log will add later', () => {
-    const parsed = CloudSnapshotSchema.parse({
+  it('refuses a snapshot that leaves out a field the server always writes', () => {
+    const snapshot = {
       format: 1,
       writtenAt: '2026-09-11T14:22:05.123Z',
       writtenBy: 'mac-3f9a1c2e',
+      upTo: {},
       songs: [song],
       tags: [],
       playlists: [],
-    })
-    expect(parsed.upTo).toEqual({})
+      artists: [],
+      sound: null,
+    }
+    expect(CloudSnapshotSchema.safeParse(snapshot).success).toBe(true)
+    for (const field of ['upTo', 'artists', 'sound'] as const) {
+      const { [field]: _left, ...without } = snapshot
+      expect(CloudSnapshotSchema.safeParse(without).success).toBe(false)
+    }
   })
 })
 

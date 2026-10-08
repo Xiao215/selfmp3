@@ -326,6 +326,8 @@ describe('CloudSyncService', () => {
       songs: input.songs ?? [],
       tags: input.tags ?? [],
       playlists: input.playlists ?? [],
+      artists: [],
+      sound: null,
     })
 
   /**
@@ -692,7 +694,7 @@ describe('CloudSyncService', () => {
         const id = addSong('A - One', 'one')
         const { store, run, keyOf } = withMotion()
         await run()
-        expect(latest().songs[0]?.motion ?? null).toBeNull()
+        expect(latest().songs[0]?.motion).toBeNull()
 
         await store.write(id, CURVE)
         await run()

@@ -111,7 +111,7 @@ export function snapshotToLibrary(
       lyrics: song.lyrics?.key ?? null,
       lyricsKind: song.lyrics?.kind ?? null,
       romanized: song.lyrics?.romanized ?? null,
-      motion: song.motion ?? null,
+      motion: song.motion,
     }
 
     return {

@@ -90,6 +90,8 @@ function snapshot(overrides: Partial<CloudSnapshot> = {}): CloudSnapshot {
         rules: { match: 'all', rules: [], orderBy: 'addedAt', order: 'desc', limit: null },
       }),
     ],
+    artists: [],
+    sound: null,
     ...overrides,
   }
 }

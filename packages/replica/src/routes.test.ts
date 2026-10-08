@@ -67,6 +67,7 @@ describe('/api/cloud/uids', () => {
     cover: null,
     coverTone: null,
     lyrics: null,
+    motion: null,
     instrumental: false,
     loved: false,
     playCount: 0,
@@ -85,6 +86,8 @@ describe('/api/cloud/uids', () => {
     songs: [song('a', 'Song a'), song('b', 'Song b')],
     tags: [],
     playlists: [],
+    artists: [],
+    sound: null,
   }
 
   /** Enough of a store and a bucket to read one snapshot through. */

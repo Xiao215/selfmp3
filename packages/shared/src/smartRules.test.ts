@@ -21,6 +21,7 @@ function song(n: number, overrides: Partial<CloudSong> = {}): CloudSong {
     cover: null,
     coverTone: null,
     lyrics: null,
+    motion: null,
     instrumental: false,
     loved: false,
     playCount: 0,

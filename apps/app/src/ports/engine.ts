@@ -110,8 +110,8 @@ class NativeEngine implements PlaybackEngine {
   #listeners = new Set<(state: EngineState) => void>()
   #subscriptions: { remove: () => void }[] = []
   #currentSongId: number | null = null
-  /** What we last handed the player as the song after this one. */
-  #queuedNextId: number | null = null
+  /** What we last handed the player as the song after this one, and where it was to come from. */
+  #queuedNext: { readonly id: number; readonly url: string } | null = null
   /** Set while `load` is driving the player, so its own changes are not "ended". */
   #loading = false
   /** Counts loads, so one overtaken by a newer load stops at its next await. */
@@ -198,7 +198,7 @@ class NativeEngine implements PlaybackEngine {
 
       // The song we already queued behind this one: skip to it rather than
       // rebuild, which keeps whatever it has buffered.
-      if (this.#queuedNextId === songId) {
+      if (this.#queuedNext?.id === songId) {
         await TrackPlayer.skipToNext()
       } else {
         await TrackPlayer.reset()
@@ -208,7 +208,7 @@ class NativeEngine implements PlaybackEngine {
       if (overtaken()) return
 
       this.#currentSongId = songId
-      this.#queuedNextId = null
+      this.#queuedNext = null
       if (startAt !== undefined && startAt > 0) await TrackPlayer.seekTo(startAt)
       if (overtaken()) return
       if (autoplay) await TrackPlayer.play()
@@ -359,7 +359,7 @@ class NativeEngine implements PlaybackEngine {
         // A failed item stays failed in the player: loading the same song again
         // has to build it afresh, not recognise it as the one already sounding.
         this.#currentSongId = null
-        this.#queuedNextId = null
+        this.#queuedNext = null
         this.#patch({ error: message ?? 'playback failed' })
       }),
     )
@@ -374,7 +374,7 @@ class NativeEngine implements PlaybackEngine {
         // finished on its own. The provider decides what is actually next; it
         // usually agrees, and `load` then recognises this song and leaves it be.
         this.#currentSongId = songId
-        this.#queuedNextId = null
+        this.#queuedNext = null
         this.#wiring.onTrackEnd?.()
       }),
     )
@@ -398,20 +398,24 @@ class NativeEngine implements PlaybackEngine {
   async #topUpLookahead(): Promise<void> {
     if (this.#destroyed) return
     const nextId = this.#wiring.nextTrackId?.() ?? null
-    if (nextId === this.#queuedNextId) return
+    // The same song from the same place is left alone. From somewhere new —
+    // a copy kept on the disk since it was lent as a stream — it is lent
+    // again, so it plays from the file.
+    const url = nextId === null ? null : (this.#wiring.streamUrl?.(nextId) ?? null)
+    if (nextId === (this.#queuedNext?.id ?? null) && url === (this.#queuedNext?.url ?? null)) return
 
     try {
       await TrackPlayer.removeUpcomingTracks()
-      this.#queuedNextId = null
+      this.#queuedNext = null
       if (nextId === null) return
       const track = this.#trackFor(nextId)
       if (!track) return
       await TrackPlayer.add(track)
-      this.#queuedNextId = nextId
+      this.#queuedNext = { id: nextId, url: track.url }
     } catch {
       // A lookahead that cannot be built is not worth failing playback over;
       // the song that is sounding is unaffected and the next `load` rebuilds.
-      this.#queuedNextId = null
+      this.#queuedNext = null
     }
   }
 

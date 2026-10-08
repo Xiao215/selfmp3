@@ -286,7 +286,7 @@ const PlayerStoresContext = createContext<PlayerStores | null>(null)
 
 export function PlayerProvider({ children }: { children: ReactNode }): ReactNode {
   const { connection, fromCloud } = useConnection()
-  const { queue: downloadQueue, checkPlay, mayPlay, keepPlayed } = useDownloads()
+  const { queue: downloadQueue, checkPlay, mayPlay, keepPlayed, keepAhead } = useDownloads()
   const { data: serverSettings } = useSettings()
 
   // Built once and kept: an engine outlives every render, and rebuilding it
@@ -453,9 +453,27 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
    * The tracking ref stays here, because the engine's callbacks below write
    * to it as the song runs.
    */
+  /*
+   * A song that counts as played is kept, where songs stream from the bucket,
+   * and so is the one after it, ahead of time: it then plays from the disk
+   * rather than streaming a range at a time and being fetched again for its
+   * copy once it counts — two trips to the bucket for one song, and more for
+   * a player's probes and seeks. Lent to the player again once it is here.
+   */
+  const keepPlayedAndNext = useCallback(
+    (songId: number) => {
+      keepPlayed(songId)
+      const next = peekPlayable(queueRef.current, mayPlay)
+      if (next === null || next === songId) return
+      void keepAhead(next).then(kept => {
+        if (kept) engine.refreshLookahead?.()
+      })
+    },
+    [engine, keepAhead, keepPlayed, mayPlay],
+  )
   const { tracking: trackingRef, flushPlay } = usePlayReporting({
     songs: songsRef,
-    keepPlayed,
+    keepPlayed: keepPlayedAndNext,
     connection,
   })
 

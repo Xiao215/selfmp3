@@ -9,6 +9,7 @@ import {
   useSyncExternalStore,
 } from 'react'
 import type { ReactNode } from 'react'
+import type { Song } from '@selfmp3/shared'
 import {
   dataAnswer,
   downloadAsk,
@@ -135,6 +136,12 @@ interface DownloadsContextValue {
   readonly removing: boolean
   /** A song just counted as a play: keep a copy where songs are streamed from the bucket. */
   keepPlayed: (songId: number) => void
+  /**
+   * The song after the one playing, kept the same way before it plays, so it
+   * plays from the disk rather than streaming and being fetched again for
+   * its copy. Resolves true once there is a copy here to play.
+   */
+  keepAhead: (songId: number) => Promise<boolean>
   /** Whether a song can start here now, without asking. */
   mayPlay: (songId: number) => boolean
   /** True when the song can start; otherwise the reason is put to the person, with `retry`. */
@@ -425,22 +432,42 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     }
   }, [state.index, network, prefs, fromCloud, dataAllowed, excluded, songsById])
 
-  const keepPlayed = useCallback((songId: number) => {
+  /** The song, when a copy of it may be kept for having been (or being about to be) played. */
+  const keepable = useCallback((songId: number): Song | null => {
     const now = rules.current
     // Only where songs come from the bucket; reaching a server, this device either
     // holds the files already or streams them from home. Playing a song removed
     // by hand is not asking for it back, and one downloading everything anyway
     // has nothing to second-guess.
-    if (!now.fromCloud || now.excluded.has(songId)) return
+    if (!now.fromCloud || now.excluded.has(songId)) return null
     // A browser streams and keeps nothing, played or not.
-    if (!installedApp) return
-    if (now.prefs.autoOnWifi) return
-    // A copy is a second fetch of a song already streaming, so it answers to
-    // the rule every other download does: not over mobile data nobody agreed to.
-    if (now.network === 'cellular' && !now.dataAllowed) return
-    const song = now.songsById.get(songId)
-    if (song) void keepRecentlyPlayed(song)
+    if (!installedApp) return null
+    if (now.prefs.autoOnWifi) return null
+    // A copy is a fetch of its own, so it answers to the rule every other
+    // download does: not over mobile data nobody agreed to.
+    if (now.network === 'cellular' && !now.dataAllowed) return null
+    return now.songsById.get(songId) ?? null
   }, [])
+
+  const keepPlayed = useCallback(
+    (songId: number) => {
+      const song = keepable(songId)
+      if (song) void keepRecentlyPlayed(song)
+    },
+    [keepable],
+  )
+
+  const keepAhead = useCallback(
+    async (songId: number): Promise<boolean> => {
+      const now = rules.current
+      if (isDownloaded(now.index, songId) || recentUri(songId) !== null) return false
+      const song = keepable(songId)
+      if (!song) return false
+      await keepRecentlyPlayed(song)
+      return recentUri(songId) !== null
+    },
+    [keepable],
+  )
 
   const blockFor = useCallback((songId: number): PlayBlock | null => {
     const now = rules.current
@@ -519,6 +546,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       forgetExcluded,
       removing,
       keepPlayed,
+      keepAhead,
       mayPlay,
       checkPlay,
       question,
@@ -542,6 +570,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       forgetExcluded,
       removing,
       keepPlayed,
+      keepAhead,
       mayPlay,
       checkPlay,
       question,

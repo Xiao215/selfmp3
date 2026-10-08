@@ -35,6 +35,8 @@ const IDLE: EngineState = {
 }
 
 const mockWiring: Partial<EngineWiring> = {}
+const mockKeepPlayed = jest.fn()
+const mockKeepAhead = jest.fn((_songId: number) => Promise.resolve(false))
 const mockEngine = {
   capabilities: {
     crossfade: false,
@@ -58,6 +60,7 @@ const mockEngine = {
   setRate: jest.fn(),
   setPreservesPitch: jest.fn(),
   setLoop: jest.fn(),
+  refreshLookahead: jest.fn(),
   clearLoop: jest.fn(),
   setCountIn: jest.fn(),
   analyser: () => null,
@@ -83,7 +86,8 @@ jest.mock('../offline/DownloadsProvider', () => ({
     queue: { localUri: () => null },
     checkPlay: () => true,
     mayPlay: () => true,
-    keepPlayed: jest.fn(),
+    keepPlayed: mockKeepPlayed,
+    keepAhead: mockKeepAhead,
   }),
 }))
 // The cloud session and the kept covers are disk and network; nothing here reaches either.
@@ -216,6 +220,39 @@ describe('the queue as the commands see it', () => {
 
     expect(api.current?.id).toBe(2)
     expect(mockEngine.load).toHaveBeenLastCalledWith(2, { autoplay: true })
+  })
+})
+
+describe('keeping songs where they stream from the bucket', () => {
+  it('keeps the song that counted and the one after it, and lends that one again once kept', async () => {
+    mockKeepAhead.mockImplementation(() => Promise.resolve(true))
+    await draw()
+    await act(() => api.playFrom([1, 2, 3], 0))
+
+    // A song that ran out counts.
+    await act(() => mockWiring.onTrackEnd?.())
+
+    expect(mockKeepPlayed).toHaveBeenCalledWith(1)
+    expect(mockKeepAhead).toHaveBeenCalledWith(2)
+    // Kept on the disk: the player is told to take it from there.
+    await act(() => Promise.resolve())
+    expect(mockEngine.refreshLookahead).toHaveBeenCalled()
+  })
+
+  it('lends nothing again when the next song could not be kept', async () => {
+    mockKeepAhead.mockImplementation(() => Promise.resolve(false))
+    await draw()
+    await act(() => api.playFrom([1, 2], 0))
+    mockEngine.refreshLookahead.mockClear()
+
+    await act(() => mockWiring.onTrackEnd?.())
+    await act(() => Promise.resolve())
+
+    expect(mockKeepAhead).toHaveBeenCalledWith(2)
+    // Asked again by the move to song 2, as it always was, and not for a copy.
+    const calls = mockEngine.refreshLookahead.mock.calls.length
+    await act(() => Promise.resolve())
+    expect(mockEngine.refreshLookahead.mock.calls.length).toBe(calls)
   })
 })
 

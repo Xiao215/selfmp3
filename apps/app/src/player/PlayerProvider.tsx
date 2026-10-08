@@ -41,6 +41,7 @@ import {
   useSettings,
 } from '@selfmp3/client'
 import type { ListSource } from '../features/lists/lists.model'
+import { withOnlyPlaying, withRestRestored } from '../features/queue/queue.model'
 import {
   artAddress,
   streamAddress,
@@ -171,8 +172,15 @@ export interface PlayerApi {
   reorderQueue: (from: number, to: number) => void
   /** Put songs at one place in the queue: where a drag let go of them. */
   insertIntoQueue: (at: number, songIds: readonly number[]) => void
-  /** Empty the queue and stop, as the web's bin in Up next does. */
+  /** Empty the queue and stop: signing out. */
   clearQueue: () => void
+  /**
+   * Up next's "Clear the rest": every song but the one playing goes, and the
+   * music carries on. Hands back the queue as it was, for the Undo.
+   */
+  clearRest: () => QueueState
+  /** The Undo for `clearRest`: the songs it took, back in their places, while the same song plays. */
+  restoreRest: (before: QueueState) => void
   /**
    * Songs that have just left the library: out of the queue, and if one of them
    * is playing, the music stops — the next song waits, paused, or with none
@@ -249,6 +257,8 @@ type PlayerCommands = Pick<
   | 'reorderQueue'
   | 'insertIntoQueue'
   | 'clearQueue'
+  | 'clearRest'
+  | 'restoreRest'
   | 'forgetSongs'
   | 'setVolume'
   | 'stepVolume'
@@ -884,6 +894,20 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     engine.refreshLookahead?.()
   }, [engine, commitQueue])
 
+  const clearRest = useCallback(() => {
+    const before = queueRef.current
+    mutateQueue(withOnlyPlaying)
+    return before
+  }, [mutateQueue])
+
+  const restoreRest = useCallback(
+    (before: QueueState) => {
+      const back = withRestRestored(queueRef.current, before)
+      if (back) mutateQueue(() => back)
+    },
+    [mutateQueue],
+  )
+
   const forgetSongs = useCallback(
     (songIds: readonly number[]) => {
       const before = queueRef.current
@@ -998,6 +1022,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       removeFromQueue,
       reorderQueue,
       clearQueue,
+      clearRest,
+      restoreRest,
       forgetSongs,
       setVolume,
       stepVolume,
@@ -1030,6 +1056,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       removeFromQueue,
       reorderQueue,
       clearQueue,
+      clearRest,
+      restoreRest,
       forgetSongs,
       setVolume,
       stepVolume,

@@ -65,6 +65,22 @@ export function showToast(
   return id
 }
 
+/** How long a removal can be taken back: five seconds, wherever it was made (`C12`). */
+export const UNDO_MS = 5000
+
+/**
+ * A removal said, with an Undo for `UNDO_MS`: Up next's rows and its Clear the
+ * rest, a playlist's songs, downloads. Removals that would have to be put back
+ * on every device — a song from the library, a whole playlist or tag — ask
+ * first instead.
+ */
+export function showUndoToast(text: string, undo: () => void): void {
+  showToast(text, 'info', {
+    autoDismissMs: UNDO_MS,
+    actions: [{ label: 'Undo', onPress: undo }],
+  })
+}
+
 export function dismissToast(id: number): void {
   toasts = toasts.filter(toast => toast.id !== id)
   emit()

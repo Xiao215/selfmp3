@@ -11,15 +11,16 @@ import {
   type,
   useAddToPlaylist,
   useLibrary,
-  useRemoveFromPlaylist,
   useToggleLoved,
 } from '@selfmp3/client'
 import { playlistsToAddTo } from '../../features/playlists/playlists.model'
+import { usePlaylistRemoval } from '../../features/playlists/usePlaylistRemoval'
 import { playSimilar } from '../../features/song/playSimilar'
 import { songLink } from '../../features/song/song.model'
 import { tagLink } from '../../features/tag/placeLinks'
 import { useArt } from '../../offline/useArt'
 import { useDownloads } from '../../offline/DownloadsProvider'
+import { useDownloadRemoval } from '../../offline/useDownloadRemoval'
 import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button } from './Button'
@@ -157,9 +158,10 @@ function Items({
   const artFor = useArt()
   const { data: library } = useLibrary()
   const addToPlaylist = useAddToPlaylist()
-  const removeFromPlaylist = useRemoveFromPlaylist()
+  const removeFromPlaylist = usePlaylistRemoval()
+  const removeDownloads = useDownloadRemoval()
   const toggleLoved = useToggleLoved()
-  const { state: downloads, installed, downloadByHand, removeByHand } = useDownloads()
+  const { state: downloads, installed, downloadByHand } = useDownloads()
   const [playlistsOpen, setPlaylistsOpen] = useState(false)
 
   // The heart and the tags as they are now, not as they were when the menu opened.
@@ -229,7 +231,7 @@ function Items({
           <Button
             label="Remove download"
             icon={<CloudRemove size={16} tone="textPrimary" />}
-            onPress={then(() => void removeByHand([song.id]))}
+            onPress={then(() => removeDownloads([song.id]))}
           />
         ) : (
           <Button
@@ -244,9 +246,7 @@ function Items({
         <SheetItem
           icon={icon(X)}
           label="Remove from this playlist"
-          onPress={then(() =>
-            removeFromPlaylist.mutate({ playlistId: playlist.id, songId: song.id }),
-          )}
+          onPress={then(() => removeFromPlaylist(playlist, [song]))}
         />
       ) : null}
       {/* Opens in place rather than over the menu, so the song stays named above it. */}

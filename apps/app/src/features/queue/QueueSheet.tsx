@@ -120,7 +120,7 @@ function SheetPanel({
   const router = useRouter()
   const artFor = useArt(ROW_COVER_SIZE)
   const { state: downloads, installed } = useDownloads()
-  const { player, rows, remove, tagsOf, openTag } = edits
+  const { player, rows, remove, clearRest, tagsOf, openTag } = edits
   const [progress] = useState(() => new Animated.Value(0))
   const [pull] = useState(() => new Animated.Value(0))
   // The dim's opacity, a native node built once: the curve runs past 1 on the
@@ -250,6 +250,8 @@ function SheetPanel({
   }, [dragY, liftScale, holdRow, liftRow, dropRow])
 
   const playing = rows.playing
+  // Something besides the song playing, to come or played, for Clear the rest to take.
+  const clearable = player.queue.items.length > 1
   const ended = onlySongEnded(player)
   const openNowPlaying = (): void => {
     closeQueueSheet()
@@ -332,13 +334,22 @@ function SheetPanel({
                   <Shuffle size={16} color={theme.colors.textPrimary} />
                   <Text style={styles.pillText}>Shuffle</Text>
                 </Pressable>
+                {/* Outlined, so it is not read as a second mode beside Shuffle,
+                    and it says what it leaves: the song playing carries on. */}
                 <Pressable
-                  onPress={player.clearQueue}
+                  onPress={clearRest}
+                  disabled={!clearable}
                   accessibilityRole="button"
-                  accessibilityLabel="Clear Up next"
-                  style={({ pressed }) => [styles.pill, pressed && styles.pillOn]}
+                  accessibilityState={{ disabled: !clearable }}
+                  testID="queue-clear-rest"
+                  style={({ pressed }) => [
+                    styles.pill,
+                    styles.pillGhost,
+                    pressed && styles.pillGhostPressed,
+                    !clearable && styles.pillOff,
+                  ]}
                 >
-                  <Text style={styles.pillText}>Clear</Text>
+                  <Text style={styles.pillText}>Clear the rest</Text>
                 </Pressable>
               </View>
             </View>
@@ -752,6 +763,13 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface3,
   },
   pillOn: { backgroundColor: theme.colors.surfaceSelected },
+  pillGhost: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: theme.colors.surfaceSelected,
+  },
+  pillGhostPressed: { backgroundColor: theme.colors.surface3 },
+  pillOff: { opacity: 0.4 },
   pillText: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
   card: {
     flexDirection: 'row',

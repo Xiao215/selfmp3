@@ -22,7 +22,7 @@ The verbs: **Play** (replaces Up next, from anywhere), **Add to Up next**, **Sav
 |---|---|
 | Where a list came from, what Up next calls it, what Save makes, Recently played's rules | `apps/app/src/features/lists/lists.model.ts` |
 | Save | `apps/app/src/features/lists/useSaveUpNext.ts` |
-| After a song played on its own | `apps/app/src/features/queue/OnlySongEnd.tsx` |
+| After a song played alone, Clear the rest | `apps/app/src/features/queue/OnlySongEnd.tsx`, `useQueueEdits.ts` |
 | Recently played, kept on this device | `apps/app/src/features/lists/recentLists.store.ts` |
 | The line over Up next's songs | `apps/app/src/features/queue/UpNextSource.tsx` |
 | A tag's page, and tags together on top of it | `apps/app/src/features/tag/PlacePage.tsx`, `CombinedScreen.tsx` (`/combined`) |
@@ -50,6 +50,18 @@ two buttons: **Songs like this** (the song menu's Play similar songs) and **Shuf
 (Library's Shuffle with no tags on). Playing, seeking or Previous on the song puts both away. A list that
 runs out — a tag, a playlist — keeps its plain end: it was asked for whole
 (`onlySongEnded` in `features/queue/queue.model.ts`, `OnlySongEnd.tsx`).
+
+## Taking songs out of Up next
+
+A phone swipes a row left; a computer drags it out of the rail, or right-clicks it or presses
+Delete. Each comes with **Undo** for five seconds, which puts the song back beside the songs
+it was between.
+
+The phone sheet's **Clear the rest** takes out every song but the one playing — the ones to
+come and the ones played — and the music, the sheet and the mini player carry on (C1). It is
+an outlined pill, not a second Shuffle, and is greyed when there is nothing to clear. The
+toast says "Cleared 30 songs" with Undo, which puts them all back in their places while the
+same song is playing; songs added since stay after them.
 
 ## Where a list came from
 

@@ -23,6 +23,8 @@ import {
   restoreMoves,
   swipeOffset,
   swipeRemoves,
+  withOnlyPlaying,
+  withRestRestored,
 } from './queue.model'
 
 const song = (id: number, duration = 240): Song => ({ id, title: `Song ${id}`, duration }) as Song
@@ -232,6 +234,39 @@ describe('Undo', () => {
   it('does nothing for a song that is playing again already', () => {
     const now = state([1, 2], 1)
     expect(restoreMoves(now, { id: 2, index: 0, before: null, after: null })).toBeNull()
+  })
+})
+
+describe('Clear the rest', () => {
+  it('keeps only the song playing, played songs and next songs both gone', () => {
+    const after = withOnlyPlaying(state([1, 2, 3, 4, 5], 2))
+    expect(after.items).toEqual([3])
+    expect(after.index).toBe(0)
+    expect(after.original).toEqual([3])
+  })
+
+  it('changes nothing with nothing playing', () => {
+    expect(withOnlyPlaying(EMPTY_QUEUE)).toBe(EMPTY_QUEUE)
+  })
+
+  it('Undo puts every song back in its place around the same song', () => {
+    const before = { ...state([1, 2, 3, 4, 5], 2), shuffle: true, original: [5, 4, 3, 2, 1] }
+    const back = withRestRestored(withOnlyPlaying(before), before)
+    expect(back?.items).toEqual([1, 2, 3, 4, 5])
+    expect(back?.index).toBe(2)
+    expect(back?.original).toEqual([5, 4, 3, 2, 1])
+    expect(back?.shuffle).toBe(true)
+  })
+
+  it('keeps a song added since, after the ones put back', () => {
+    const before = state([1, 2, 3], 1)
+    const added = playNext(withOnlyPlaying(before), [9])
+    expect(withRestRestored(added, before)?.items).toEqual([1, 2, 3, 9])
+  })
+
+  it('does nothing once another song is playing', () => {
+    const before = state([1, 2, 3], 1)
+    expect(withRestRestored(state([7], 0), before)).toBeNull()
   })
 })
 

@@ -10,6 +10,7 @@ import {
   playlistsToAddTo,
   playlistTileLine,
   relativeDay,
+  restoredOrder,
   sortPlaylists,
 } from './playlists.model'
 
@@ -209,5 +210,16 @@ describe('making a playlist', () => {
     expect(copyName('Evening', ['Evening', 'Evening copy', 'Evening copy 2'])).toBe(
       'Evening copy 3',
     )
+  })
+})
+
+describe('restoredOrder', () => {
+  it('puts removed songs back in their places', () => {
+    expect(restoredOrder([1, 2, 3, 4, 5], [1, 3, 5, 2, 4])).toEqual([1, 2, 3, 4, 5])
+  })
+
+  it('keeps a song added since at the end, and one removed since out', () => {
+    expect(restoredOrder([1, 2, 3], [2, 3, 9, 1])).toEqual([1, 2, 3, 9])
+    expect(restoredOrder([1, 2, 3], [1, 2])).toEqual([1, 2])
   })
 })

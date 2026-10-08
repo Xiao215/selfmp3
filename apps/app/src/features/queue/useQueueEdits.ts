@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'expo-router'
-import type { Tag } from '@selfmp3/shared'
+import { plural, type Tag } from '@selfmp3/shared'
 import { useLibrary } from '@selfmp3/client'
 import { usePlayer, type PlayerApi } from '../../player/PlayerProvider'
 import { useSongTagLookup } from '../../ui/songTags'
-import { showToast } from '../../ui/toast'
+import { showToast, showUndoToast, UNDO_MS } from '../../ui/toast'
 import { noteTagUsed } from '../library/recentTags.store'
 import { tagLink } from '../tag/placeLinks'
 import { closeQueueSheet } from './queueSheet.store'
-import { queueRows, removalOf, restoreMoves, UNDO_MS } from './queue.model'
+import { queueRows, removalOf, restoreMoves } from './queue.model'
 import { songsById } from '../../ui/songsById'
 
 /** No rows: what a shut Up next is handed, so it does not resolve the whole queue for nothing. */
@@ -29,6 +29,8 @@ export function useQueueEdits(shown: boolean): {
   rows: ReturnType<typeof queueRows>
   /** Take one song out, with an Undo for five seconds. */
   remove: (index: number) => void
+  /** Every song but the one playing out, with an Undo for five seconds. */
+  clearRest: () => void
   /** A song's tags, the same array for the same song (`songTagLookup`), so a row's memo holds. */
   tagsOf: (song: { readonly tagIds: readonly number[] }) => readonly Tag[]
   openTag: (tagId: number) => void
@@ -78,6 +80,16 @@ export function useQueueEdits(shown: boolean): {
     })
   }, [])
 
+  const clearRest = useCallback(() => {
+    const before = latest.current.clearRest()
+    const cleared = before.items.length - 1
+    if (cleared <= 0) return
+    // Put back through the player as it is at the press, as a single removal is.
+    showUndoToast(`Cleared ${plural(cleared, 'song', 'songs')}`, () =>
+      latest.current.restoreRest(before),
+    )
+  }, [])
+
   // Up next is one of the lists that shows a song's tags (`S3`); a chip opens the tag.
   const tagsOf = useSongTagLookup()
   const tags = library?.tags
@@ -92,5 +104,5 @@ export function useQueueEdits(shown: boolean): {
     [tags, router],
   )
 
-  return { player, rows, remove, tagsOf, openTag }
+  return { player, rows, remove, clearRest, tagsOf, openTag }
 }

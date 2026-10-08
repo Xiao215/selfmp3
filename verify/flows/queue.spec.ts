@@ -20,7 +20,8 @@ import {
  * drags a pointer out of a scroll view tests the harness as much as the app.
  *
  * On a phone it is a sheet over the mini player and the tab bar, opened from
- * the mini player; swiping a row left removes it with the same Undo.
+ * the mini player; swiping a row left removes it with the same Undo, and
+ * Clear the rest takes everything but the song playing, with Undo too.
  *
  * A song played on its own from Library ends in silence, as it should, and Up
  * next says so and offers what could come next (docs/features/lists.md).
@@ -231,6 +232,31 @@ test.describe('up next on a phone', () => {
     await expect(song).toHaveCount(0)
     await page.getByRole('button', { name: 'Undo', exact: true }).click()
     await expect(song).toHaveCount(1)
+  })
+
+  test('Clear the rest keeps the song playing, and Undo puts the rest back', async ({
+    page,
+  }, info) => {
+    test.skip(info.project.name !== 'phone', SHEET)
+    await startPlaying(page)
+    await page.getByTestId('mini-player-queue').click()
+    const sheet = page.getByTestId('queue-sheet')
+    const next = sheet.getByTestId('queue-row-1')
+    await expect(next).toBeVisible()
+    const name = await nameOf(next.getByRole('button').first())
+
+    await sheet.getByTestId('queue-clear-rest').click()
+    await expect(page.getByText(/^Cleared \d+ songs?$/)).toBeVisible()
+    await expect(next).toHaveCount(0)
+    // The song playing stays, and so do the sheet and the mini player under it.
+    await expect(sheet.getByRole('button', { name: /^Playing / })).toBeVisible()
+    await expect(page.getByTestId('mini-player')).toBeAttached()
+
+    await page.getByRole('button', { name: 'Undo', exact: true }).click()
+    await expect(sheet.getByTestId('queue-row-1').getByRole('button').first()).toHaveAttribute(
+      'aria-label',
+      name,
+    )
   })
 })
 

@@ -23,10 +23,7 @@ export function AppearancePanel({ anchor }: { anchor: (node: View | null) => voi
   const accent = useAccent()
   return (
     <Panel title="Appearance" hint="on this device" anchor={anchor}>
-      <Row
-        label="Theme"
-        hint={`“System” follows this device’s own light and dark setting, and changes with it. Your accent colour holds either way.`}
-      >
+      <Row label="Theme" hint="System follows this device.">
         <Select<ThemeChoice>
           value={accent.theme}
           onChange={accent.setTheme}
@@ -40,7 +37,7 @@ export function AppearancePanel({ anchor }: { anchor: (node: View | null) => voi
       </Row>
       <Row
         label="Accent colour"
-        hint={`Drives every colour in the app — the surfaces are tinted from it too, so a change is felt rather than spotted. ${accentName(accent.hue, ACCENT_PRESETS)}.`}
+        hint={`Tints the whole app · ${accentName(accent.hue, ACCENT_PRESETS)}`}
         last
       >
         <View style={styles.swatches}>

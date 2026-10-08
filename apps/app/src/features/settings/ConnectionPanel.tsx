@@ -56,7 +56,7 @@ export function ConnectionPanel({
     <Panel title="Account" hint="on this device" anchor={anchor}>
       {fromCloud ? (
         <>
-          <Row label="Signed in" hint="With Google — the library is the bucket’s.">
+          <Row label="Signed in" hint="With Google.">
             <Button
               label="Sign out"
               variant="danger"

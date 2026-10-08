@@ -29,7 +29,7 @@ import {
 } from '../devices/lastKnownDevices.model'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { prefs } from '../../ports/prefs'
-import { Lead, Panel, partStyles, Row } from './SettingsParts'
+import { Panel, partStyles, Row } from './SettingsParts'
 import { splitDevices } from './settings.model'
 import { reachedConnection } from '../../connection/via'
 
@@ -175,11 +175,7 @@ function DevicesList({
 
   return (
     <Panel title="Devices" hint={hint} anchor={anchor}>
-      <Lead>
-        Every device you open self.mp3 on shows up here and can hand playback to any of the others.
-        Nothing is stored beyond a name and what was last playing.
-      </Lead>
-      <Row label="This device’s name" hint="Shown on your other devices when handing off.">
+      <Row label="This device’s name" hint="Shown on your other devices.">
         <TextInput
           style={partStyles.input}
           value={shown}

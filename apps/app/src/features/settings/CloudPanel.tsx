@@ -131,11 +131,7 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
 
   if (status.signingIn && lost) {
     return (
-      <Row
-        label="Didn’t come back?"
-        hint="Google finished, but the browser didn’t hand the sign-in back. Start again, and choose Open when it asks."
-        last
-      >
+      <Row label="Didn’t come back?" hint="Start again, and choose Open when it asks." last>
         <Button label="Try again" variant="primary" disabled={signIn.isPending} onPress={start} />
         {cancel}
       </Row>
@@ -144,11 +140,7 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
 
   if (status.signingIn) {
     return (
-      <Row
-        label="Waiting for Google"
-        hint="Finish signing in where Google opened. This comes back by itself."
-        last
-      >
+      <Row label="Waiting for Google" hint="Finish signing in where Google opened." last>
         <ActivityIndicator color={theme.colors.textMuted} />
         {cancel}
       </Row>
@@ -158,19 +150,10 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
   const failure = signIn.error ?? enterCode.error
   return (
     <>
-      {again ? null : (
-        <Lead>
-          Keep your library in a storage bucket that belongs to your Google account, so every device
-          you sign in on gets the same music and your changes — even while this server is off.
-        </Lead>
-      )}
+      {again ? null : <Lead>Keep your library in your Google account’s bucket.</Lead>}
       <Row
         label={again ? 'Sign in again' : 'Google account'}
-        hint={
-          again
-            ? 'Publishing stopped until you do. Nothing in the bucket is lost.'
-            : 'Sign in first. The bucket is connected to the account after that, just once.'
-        }
+        hint={again ? 'Publishing waits until you do.' : 'Then connect a bucket, just once.'}
         last
       >
         <Button
@@ -252,8 +235,7 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
     <>
       <Lead>
         Publishing to <Text style={partStyles.code}>{folder}</Text> at{' '}
-        <Text style={partStyles.code}>{host}</Text>. Every song goes up once with its cover and
-        lyrics, and a snapshot of the library follows each change.
+        <Text style={partStyles.code}>{host}</Text>.
       </Lead>
 
       <Row
@@ -456,8 +438,8 @@ function BucketForm({
     <>
       <Lead>
         {account
-          ? `Signed in as ${account.email}. Now the bucket that belongs to this account — Backblaze B2 is free up to 10 GB: a private bucket, and an application key for it with read and write access. The doorman tries the key, then keeps it; no device sees it again.`
-          : 'Keep your library in a storage bucket you own, so your other devices can get new songs and edits while this server is off. Backblaze B2 is free up to 10 GB: create a private bucket, then an application key for it with read and write access.'}
+          ? `Signed in as ${account.email}. Now a private B2 bucket and a read-write key.`
+          : 'A private B2 bucket and a read-write key for it.'}
       </Lead>
       <Text style={[partStyles.hint, styles.where]}>
         The endpoint and the name are on the bucket’s own page, under Buckets. Set its Lifecycle
@@ -476,11 +458,8 @@ function BucketForm({
         { placeholder: 's3.us-west-004.backblazeb2.com' },
       )}
       {needsRegion(address.endpoint)
-        ? field(
-            'Region',
-            'As your provider names it. For Cloudflare R2 it is auto.',
-            address.region,
-            region => setAddress({ ...address, region }),
+        ? field('Region', 'For Cloudflare R2, auto.', address.region, region =>
+            setAddress({ ...address, region }),
           )
         : null}
       {field(
@@ -490,13 +469,13 @@ function BucketForm({
         bucket => setAddress({ ...address, bucket }),
         { placeholder: 'selfmp3-yourname' },
       )}
-      {field('Folder', 'Everything goes under this folder in the bucket.', address.prefix, prefix =>
+      {field('Folder', 'Everything goes under it.', address.prefix, prefix =>
         setAddress({ ...address, prefix }),
       )}
       {field(
         'Key ID',
         initial
-          ? `Currently ${initial.keyIdHint} — enter it again, or a new one.`
+          ? `Currently ${initial.keyIdHint}.`
           : 'B2 calls it keyID, and shows it beside the key.',
         address.keyId,
         keyId => setAddress({ ...address, keyId }),
@@ -504,8 +483,8 @@ function BucketForm({
       {field(
         'Application key',
         account
-          ? 'B2 shows it once, when the key is made. It goes to the doorman, sealed.'
-          : 'B2 shows it once, when the key is made. It stays on this server.',
+          ? 'Shown once by B2. Sealed for the doorman.'
+          : 'Shown once by B2. Stays on this server.',
         address.applicationKey,
         applicationKey => setAddress({ ...address, applicationKey }),
         { secret: true },
@@ -513,11 +492,7 @@ function BucketForm({
 
       {action.error ? <Notice tone="error">{action.error.message}</Notice> : null}
 
-      <Row
-        label=""
-        hint="The key is tried before anything is saved: listed, written to and read back."
-        last
-      >
+      <Row label="" hint="The key is tried before it is saved." last>
         {account && !onCancel ? (
           <Button
             label="Sign out"

@@ -16,7 +16,7 @@ import { useConnection } from '../../connection/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
 import { CloudDownload, Trash, X } from '../../ui/components/Icons'
 import { Toggle } from '../../ui/components/Toggle'
-import { ButtonRow, Lead, Meter, Notice, Panel, partStyles, Row, Stats } from './SettingsParts'
+import { ButtonRow, Meter, Notice, Panel, partStyles, Row, Stats } from './SettingsParts'
 import { type Confirming } from './settings.model'
 
 /**
@@ -84,15 +84,9 @@ export function OfflinePanel({
 
   return (
     <Panel title={title} anchor={anchor}>
-      <Lead>
-        {fromCloud
-          ? 'A library in the cloud plays from this device, so its songs are downloaded here first. Plays you make offline are kept and sent when you are back online.'
-          : 'Downloaded songs play with no connection at all — which is the point, since your server won’t always be reachable. Plays you make offline are kept here and sent to your server when it’s back.'}
-      </Lead>
-
       <Row
         label="Download automatically on Wi-Fi"
-        hint={`Keeps this device in step with your library on Wi-Fi. On mobile data it asks first, anything over ${formatBytes(LARGE_SYNC_BYTES)} waits for you, and a song you remove by hand stays removed.`}
+        hint={`On Wi-Fi. Over ${formatBytes(LARGE_SYNC_BYTES)} asks first.`}
       >
         <Toggle
           value={prefs.autoOnWifi}
@@ -105,8 +99,8 @@ export function OfflinePanel({
         label="Play songs that aren’t downloaded"
         hint={
           fromCloud
-            ? 'A library in the cloud can’t stream yet, so only downloaded songs play.'
-            : 'Streams them from your server while it’s reachable. Off, only what is on this device plays.'
+            ? 'A cloud library plays downloaded songs only.'
+            : 'Streams them from your server when it answers.'
         }
         last
       >

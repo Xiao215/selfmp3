@@ -66,7 +66,7 @@ Measured on the real library (1,342 songs) through claude-api: Describe 8–15 s
 4–15 s, pick 4–8 s); "tag the songs that should be 中文流行" 12 s over 1,336 songs (route,
 plan, two group calls), proposing 99 songs, every one Mandarin or Cantonese pop.
 
-**Settings › Smart features** shows the address (`GET /api/ai`: scheme, host and path only,
+**Settings › Advanced › Model** shows the address (`GET /api/ai`: scheme, host and path only,
 never the key) and the two models, and its **Test** goes the whole way a leg at a time:
 this device to the server, timed, then `POST /api/ai/check`, one fast-tier call with a JSON
 schema like every feature makes, timed or failed with the endpoint's own words. So "couldn't

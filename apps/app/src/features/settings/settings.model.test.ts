@@ -9,12 +9,14 @@ import {
   devicePlace,
   downloadHint,
   healthLine,
+  indexIdFor,
   landingOffset,
   RECENT_DEVICE_WINDOW_MS,
   soundHint,
   analysisProgress,
   scanHint,
   sectionsFor,
+  settingsIndex,
   splitDevices,
 } from './settings.model'
 
@@ -38,7 +40,7 @@ describe('settings', () => {
     expect(ids).toContain('devices')
     // Smart features too: Ask reaches the server from a cloud library, and so does its Test.
     expect(ids).toContain('smart')
-    expect(sectionsFor({ fromCloud: false })).toHaveLength(11)
+    expect(sectionsFor({ fromCloud: false })).toHaveLength(12)
     expect(
       sectionsFor({ fromCloud: false, installed: false }).map(section => section.id),
     ).not.toContain('offline')
@@ -67,12 +69,13 @@ describe('settings', () => {
       'On this phone',
       'Devices',
       'Playback',
-      'Library',
-      'Importing',
-      'Cloud',
       'Smart features',
       'Lyrics',
       'About',
+      'Library',
+      'Importing',
+      'Cloud',
+      'Model',
     ])
     const computer = sectionsFor({
       fromCloud: false,
@@ -82,6 +85,27 @@ describe('settings', () => {
     expect(computer.find(section => section.id === 'offline')?.label).toBe('On this computer')
     expect(devicePlace('phone')).toBe('phone')
     expect(devicePlace('other')).toBe('computer')
+  })
+
+  it('puts what runs the server under one Advanced chip at the end (O1)', () => {
+    const sections = sectionsFor({ fromCloud: false, shell: true })
+    expect(settingsIndex(sections).map(section => section.label)).toEqual([
+      'Account',
+      'Appearance',
+      'On this phone',
+      'Devices',
+      'Playback',
+      'Smart features',
+      'Lyrics',
+      'Keyboard shortcuts',
+      'About',
+      'Advanced',
+    ])
+    expect(indexIdFor('cloud', sections)).toBe('advanced')
+    expect(indexIdFor('desktop', sections)).toBe('advanced')
+    expect(indexIdFor('lyrics', sections)).toBe('lyrics')
+    // A cloud library still has the model under it, so Advanced is never empty.
+    expect(settingsIndex(sectionsFor({ fromCloud: true })).at(-1)?.id).toBe('advanced')
   })
 
   it('shows the desktop section only where there is a shell to ask', () => {
@@ -101,7 +125,7 @@ describe('settings', () => {
     }).map(section => section.id)
     expect(tab).toContain('getApp')
     expect(tab).not.toContain('desktop')
-    expect(tab.indexOf('getApp')).toBe(tab.indexOf('lyrics') + 1)
+    expect(tab.at(-1)).toBe('getApp')
     expect(ALL_LABEL('getApp')).toBe('Mac app')
   })
 
@@ -110,9 +134,7 @@ describe('settings', () => {
     expect(downloadHint({ ...base, chip: 'arm64' })).toMatch(/^Version 1\.0\.0\. /)
     expect(downloadHint({ ...base, chip: 'arm64' })).not.toContain('About This Mac')
     expect(downloadHint({ ...base, chip: null })).toContain('About This Mac')
-    expect(downloadHint({ ...base, offers: 0, chip: null })).toBe(
-      'No release yet. The releases page will have the first one.',
-    )
+    expect(downloadHint({ ...base, offers: 0, chip: null })).toBe('No release yet.')
     expect(downloadHint({ ...base, loading: true, chip: null })).toBe('Finding the latest version…')
     expect(downloadHint({ ...base, error: true, chip: null })).toContain('releases page')
   })
@@ -202,7 +224,7 @@ describe('settings', () => {
       }),
     ).toBe('self.mp3 1.0.0 · 13 songs')
     expect(scanHint({ added: 1, updated: 2, total: 13, durationMs: 40 })).toBe(
-      'Last sweep found 1 new and 2 updated; 13 songs in the library.',
+      'Last sweep: 1 new, 2 updated.',
     )
   })
 })
@@ -211,23 +233,17 @@ describe('soundHint', () => {
   const sound = { state: 'ready' as const, heard: 40, pending: 2, message: null }
 
   it('counts the songs heard and the ones to go', () => {
-    expect(soundHint(sound, 42)).toMatch(/40 of 42 songs heard · 2 to go\.$/)
-    expect(soundHint({ ...sound, heard: 42, pending: 0 }, 42)).toMatch(/42 of 42 songs heard\.$/)
+    expect(soundHint(sound, 42)).toBe('40 of 42 songs heard · 2 to go')
+    expect(soundHint({ ...sound, heard: 42, pending: 0 }, 42)).toBe('42 of 42 songs heard')
   })
 
   it('says why the model is not there yet', () => {
-    expect(soundHint({ ...sound, state: 'fetching' }, 42)).toMatch(
-      /downloading it \(about 750 MB\)/,
-    )
-    expect(soundHint({ ...sound, state: 'waiting' }, 42)).toMatch(
-      /once every song has its tempo and key\.$/,
-    )
-    expect(soundHint({ ...sound, state: 'off' }, 42)).toMatch(/switched off on this server\.$/)
+    expect(soundHint({ ...sound, state: 'fetching' }, 42)).toMatch(/about 750 MB/)
+    expect(soundHint({ ...sound, state: 'waiting' }, 42)).toMatch(/once every song has tempo/)
+    expect(soundHint({ ...sound, state: 'off' }, 42)).toBe('Switched off on this server.')
     expect(
       soundHint({ ...sound, state: 'failed', message: 'downloading mert.onnx failed: 404' }, 42),
-    ).toMatch(
-      /could not get it: downloading mert.onnx failed: 404\. It tries again within the hour\.$/,
-    )
+    ).toMatch(/get the model: downloading mert.onnx failed: 404\. Tries again hourly\.$/)
   })
 })
 

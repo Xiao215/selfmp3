@@ -38,7 +38,7 @@ The queue is the database itself (`song_audio_features` rows), so a restart lose
 
 ## Using it
 
-**Settings → Library** has "Analyse songs without features" and "Re-analyse everything",
+**Settings → Advanced → Library** has "Analyse songs without features" and "Re-analyse everything",
 with live progress. The same thing over HTTP:
 
 ```
@@ -162,7 +162,7 @@ The listening model is used only for those. A request with no sound in it, and n
 never loads the text half of the model; the songs' vectors are made in the background either
 way.
 
-**Settings › Library** shows it under "How songs sound": waiting (while songs still need their
+**Settings › Advanced › Library** shows it under "How songs sound": waiting (while songs still need their
 tempo and key), downloading, how many songs are heard and how many are to go, or why the model
 could not be had.
 

@@ -39,7 +39,7 @@ what the library has; the right lists candidates with artwork thumbnails, a sour
 and a match percentage. Pick a candidate, and the diff below it lists only the fields that
 would change — untick anything you do not want, then **Apply**.
 
-**Whole library.** In *Settings → Library*, **Find missing cover art** starts a background
+**Whole library.** In *Settings → Advanced → Library*, **Find missing cover art** starts a background
 pass over every song without artwork. It stores art only from candidates scoring at least
 0.85 — a missing cover is a placeholder gradient, a wrong one is misleading. Progress is
 shown live and covers fill in as they land; **Stop looking** cancels. The pass is safe to

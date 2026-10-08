@@ -9,7 +9,7 @@ leaves the library only when someone removes it.
 
 ## Setting
 
-`watchLibrary` (boolean, default **true**), under *Settings → Importing → Watch the library
+`watchLibrary` (boolean, default **true**), under *Settings → Advanced → Importing → Watch the library
 folder*. Toggling it starts or stops the watcher immediately; no restart.
 
 The older `autoScanMinutes` timer still exists and still works; with the watcher on it is

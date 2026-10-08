@@ -26,7 +26,7 @@ import { deviceKind } from '../../ports/device'
 import { useLayout } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
 import { Toggle } from '../../ui/components/Toggle'
-import { label, pageTitle } from '../../ui/surfaces'
+import { label, pageTitle, sectionTitle } from '../../ui/surfaces'
 import { usePlayer } from '../../player/PlayerProvider'
 import { createValueStore, type ValueStore } from '../../state/valueStore.model'
 import { useValueStore } from '../../state/useValueStore'
@@ -44,16 +44,19 @@ import { ImportingPanel } from './ImportingPanel'
 import { LibraryPanel } from './LibraryPanel'
 import { OfflinePanel } from './OfflinePanel'
 import { ShortcutsPanel } from './ShortcutsPanel'
-import { SmartPanel } from './SmartPanel'
+import { SmartModelPanel, SmartPanel } from './SmartPanel'
 import {
   activeSection,
   crossfadeLabel,
   devicePlace,
   healthLine,
+  indexIdFor,
   landingOffset,
   onThisDevice,
   sectionsFor,
+  settingsIndex,
   type Confirming,
+  type Section,
   type SectionId,
 } from './settings.model'
 
@@ -83,13 +86,13 @@ const LINKED_HOLD_MS = 2500
  *
  * Grouped as the boards group it: the account and the look first, then what
  * this device keeps — "On this phone", "On this computer" — and its devices,
- * then what the server keeps for every device: playback, the library,
- * importing, the cloud. Downloads, the accent and the theme belong to this
- * device; the rest live on the server so it and every phone agree. Each group
- * is a label over a card, its rows told apart by space. The page carries its own index — a
- * column beside the panels on a wide screen, a sticky row of chips above them
- * on a narrow one — and every setting has the same anatomy. A link from
- * elsewhere names its section (`/settings?section=account`) and lands there.
+ * then playback, smart features and lyrics. What is about running the server
+ * or the Mac app — the library folder, importing, the cloud, the model — is
+ * under one Advanced at the end (O1). Each group is a label over a card, its
+ * rows told apart by space, and each row says at most one short line. The
+ * page carries its own index — a column beside the panels on a wide screen, a
+ * sticky row of chips above them on a narrow one. A link from elsewhere names
+ * its section (`/settings?section=account`) and lands there.
  */
 export function SettingsScreen(): ReactNode {
   const { fromCloud } = useConnection()
@@ -116,6 +119,8 @@ export function SettingsScreen(): ReactNode {
     offered: macApp.offered,
   })
   const shortcuts = sections.some(section => section.id === 'shortcuts') ? menuCommands : null
+  const indexed = settingsIndex(sections)
+  const shown = (id: SectionId): boolean => sections.some(section => section.id === id)
   const column = width >= INDEX_COLUMN
   const scrollRef = useRef<ScrollView>(null)
   // Each shown panel's view, kept by `anchorAt`, and where it was last measured
@@ -137,7 +142,9 @@ export function SettingsScreen(): ReactNode {
    * the page — the offline tally, the library's counts, the devices — each
    * time. Only the index reads it (`SectionIndex`).
    */
-  const [active] = useState(() => createValueStore<SectionId>(linkedSection ?? 'account'))
+  const [active] = useState(() =>
+    createValueStore<SectionId>(linkedSection ? indexIdFor(linkedSection, sections) : 'account'),
+  )
   const chipsRef = useRef<ScrollView>(null)
   const chipsWidth = useRef(0)
   const [confirming, setConfirming] = useState<Confirming>(null)
@@ -246,7 +253,7 @@ export function SettingsScreen(): ReactNode {
   const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
     // Chosen from the index: held until the jump has landed.
     if (held.current !== null) return
-    const list = sections.map(section => ({
+    const list = indexed.map(section => ({
       id: section.id,
       top: tops.current.get(section.id) ?? Number.POSITIVE_INFINITY,
     }))
@@ -278,7 +285,7 @@ export function SettingsScreen(): ReactNode {
 
   const index = (
     <SectionIndex
-      sections={sections}
+      sections={indexed}
       active={active}
       column={column}
       chipsRef={chipsRef}
@@ -304,9 +311,6 @@ export function SettingsScreen(): ReactNode {
           column ? styles.contentColumn : styles.contentNarrow,
         ]}
       >
-        {/* On a phone the way back and the page's name share a line, the name
-            at the far end of it, as Import has them (`P30`). A computer has no
-            way back here — the sidebar is always there — so the name leads. */}
         <View ref={headRef} style={[styles.head, wide ? null : styles.headPhone]}>
           <BackButton to="/profile" label="Profile" testID="settings-back" />
           <View style={wide ? null : styles.titles}>
@@ -373,7 +377,7 @@ export function SettingsScreen(): ReactNode {
                 />
                 <Row
                   label="Look up lyrics automatically"
-                  hint="Fetches synced lyrics from lrclib.net when a song is imported, and saves them next to the audio so they work offline."
+                  hint="Fetches synced lyrics when a song is imported."
                   last
                 >
                   <Toggle
@@ -385,38 +389,17 @@ export function SettingsScreen(): ReactNode {
               </Panel>
             ) : null}
 
-            {fromCloud ? null : (
-              <LibraryPanel
-                libraryPath={health.data?.libraryPath}
-                anchor={anchorAt('library')}
-                onConfirm={setConfirming}
-              />
-            )}
-
-            {settings.data && !fromCloud ? (
-              <ImportingPanel settings={settings.data} set={set} anchor={anchorAt('importing')} />
-            ) : null}
-
-            {fromCloud ? null : <CloudPanel anchor={anchorAt('cloud')} />}
-
             <SmartPanel anchor={anchorAt('smart')} settings={settings.data} set={set} />
 
             <Panel title="Lyrics" hint="on this device" anchor={anchorAt('lyrics')}>
-              <Row
-                label="Show pinyin"
-                hint="A romanized line under each Chinese lyric. It is made on the server and kept with the words, in the cloud too, so this only chooses whether to draw it."
-              >
+              <Row label="Show pinyin" hint="A romanized line under Chinese lyrics.">
                 <Toggle
                   value={pinyinOn}
                   onChange={on => setRomanizationOn('zh', on)}
                   label="Show pinyin"
                 />
               </Row>
-              <Row
-                label="Show romaji"
-                hint="The same for Japanese lyrics, switched on its own."
-                last
-              >
+              <Row label="Show romaji" hint="A romanized line under Japanese lyrics." last>
                 <Toggle
                   value={romajiOn}
                   onChange={on => setRomanizationOn('ja', on)}
@@ -424,10 +407,6 @@ export function SettingsScreen(): ReactNode {
                 />
               </Row>
             </Panel>
-
-            {loginItem.available ? <DesktopPanel anchor={anchorAt('desktop')} /> : null}
-
-            {macApp.offered ? <GetAppPanel anchor={anchorAt('getApp')} /> : null}
 
             {shortcuts ? <ShortcutsPanel items={shortcuts} anchor={anchorAt('shortcuts')} /> : null}
 
@@ -438,6 +417,32 @@ export function SettingsScreen(): ReactNode {
                 </Text>
               </Row>
             </Panel>
+
+            {indexed.some(section => section.id === 'advanced') ? (
+              <View ref={anchorAt('advanced')} style={styles.advanced}>
+                <Text style={styles.advancedTitle} accessibilityRole="header">
+                  Advanced
+                </Text>
+                {shown('library') ? (
+                  <LibraryPanel
+                    libraryPath={health.data?.libraryPath}
+                    anchor={anchorAt('library')}
+                    onConfirm={setConfirming}
+                  />
+                ) : null}
+                {settings.data && shown('importing') ? (
+                  <ImportingPanel
+                    settings={settings.data}
+                    set={set}
+                    anchor={anchorAt('importing')}
+                  />
+                ) : null}
+                {shown('cloud') ? <CloudPanel anchor={anchorAt('cloud')} /> : null}
+                <SmartModelPanel anchor={anchorAt('model')} />
+                {shown('desktop') ? <DesktopPanel anchor={anchorAt('desktop')} /> : null}
+                {shown('getApp') ? <GetAppPanel anchor={anchorAt('getApp')} /> : null}
+              </View>
+            ) : null}
           </View>
         </StackedRows>
         <ChromeSpacer />
@@ -468,7 +473,7 @@ function SectionIndex({
   chipsWidth,
   onGo,
 }: {
-  sections: readonly { id: SectionId; label: string }[]
+  sections: readonly Section[]
   active: ValueStore<SectionId>
   column: boolean
   chipsRef: RefObject<ScrollView | null>
@@ -535,10 +540,7 @@ function CrossfadeRow({
   const { canCrossfade } = usePlayer()
   if (!canCrossfade) return null
   return (
-    <Row
-      label="Crossfade"
-      hint="Overlap the end of one track with the start of the next. Zero turns it off."
-    >
+    <Row label="Crossfade" hint="Overlaps songs. Zero turns it off.">
       <SliderSetting
         value={seconds}
         min={0}
@@ -609,6 +611,8 @@ const styles = StyleSheet.create(theme => ({
   sub: { color: theme.colors.textMuted, fontSize: 13, marginTop: 4 },
   subCapped: { color: theme.colors.danger },
   panels: { gap: 20, maxWidth: 780 },
+  advanced: { gap: 20, paddingTop: 12 },
+  advancedTitle: sectionTitle(theme.colors),
   indexColumn: {
     position: 'absolute',
     top: COLUMN_TOP,

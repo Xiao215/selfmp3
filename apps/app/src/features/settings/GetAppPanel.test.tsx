@@ -96,6 +96,6 @@ describe('Settings › Mac app', () => {
     mockPort.latest = () => Promise.reject(new Error('GitHub answered 403'))
     await screen.unmount()
     await draw()
-    await waitFor(() => expect(screen.getByText(/^Could not reach GitHub\./)).toBeTruthy())
+    await waitFor(() => expect(screen.getByText(/^Couldn’t reach GitHub\./)).toBeTruthy())
   })
 })

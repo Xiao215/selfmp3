@@ -31,6 +31,11 @@ export interface Selection {
   enter: (id?: number) => void
   selectAll: () => void
   clear: () => void
+  /**
+   * What dragging the row of song `id` carries: every selected song, in the
+   * list's order, when it is one of them; otherwise that song alone.
+   */
+  carried: (id: number) => readonly number[]
 }
 
 /**
@@ -101,6 +106,11 @@ export function useSelection(visibleIds: readonly number[]): Selection {
   useEscape(active, clear)
 
   const has = useCallback((id: number) => state.ids.has(id), [state])
+  const carried = useCallback(
+    (id: number): readonly number[] =>
+      state.ids.has(id) ? visibleIds.filter(each => state.ids.has(each)) : [id],
+    [state, visibleIds],
+  )
 
   return useMemo(
     () => ({
@@ -115,8 +125,9 @@ export function useSelection(visibleIds: readonly number[]): Selection {
       enter,
       selectAll,
       clear,
+      carried,
     }),
-    [state, active, visibleIds, has, toggle, click, enter, selectAll, clear],
+    [state, active, visibleIds, has, toggle, click, enter, selectAll, clear, carried],
   )
 }
 

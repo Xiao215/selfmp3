@@ -124,6 +124,11 @@ as icons on one line, with select all and a playlist's Remove moved into More.
 Emptying the selection — the bar's own checkbox, or unticking the last row — leaves selection
 mode, so the bar goes with the ticks (Xiao, 2026-09-25).
 
+**Dragging carries the selection.** With a mouse, dragging one of the ticked rows onto a
+playlist in the sidebar (or onto Up next) carries every ticked song, in the list's order, and
+the pill under the pointer says how many; it used to carry only the row under the pointer.
+Dragging a row that is not ticked carries that song alone (`Selection.carried`).
+
 The count is also announced to assistive technology through a polite `aria-live` region, so a
 screen-reader user hears "3 songs selected" without hunting for it.
 

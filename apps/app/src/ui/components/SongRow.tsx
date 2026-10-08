@@ -94,6 +94,7 @@ export const SongRow = memo(function SongRow({
   selecting = false,
   selected = false,
   onToggleSelect,
+  dragSongs,
   index,
   tags: allTags,
   hideTagIds,
@@ -134,6 +135,12 @@ export const SongRow = memo(function SongRow({
   selecting?: boolean
   selected?: boolean
   onToggleSelect?: (song: Song) => void
+  /**
+   * What dragging this row onto a playlist carries, with a mouse: every
+   * ticked song when it is one of them, in the list's order, so the songs you
+   * picked travel together. Left out, the row's own song.
+   */
+  dragSongs?: (song: Song) => readonly number[]
   /** Position in the list, shown at desktop width. */
   index?: number
   /**
@@ -224,11 +231,15 @@ export const SongRow = memo(function SongRow({
   // themselves. On a computer it sits outside hover, which is the row's
   // background, and outside selection, which is the same press read with its
   // modifier keys. A drag to the sidebar puts the row back to full size the
-  // instant it starts (`press.rest`): the browser draws the drag image from
-  // the row as it stands then, and a row held a moment before the pointer
-  // moved would otherwise leave as a pressed-in copy of itself.
+  // instant it starts (`press.rest`): a row held a moment before the pointer
+  // moved would otherwise stay pressed in under the drag.
   const press = usePressScale(PRESS.row)
-  useSongDragSource(rowRef, () => [song.id], wide && dense, press.rest)
+  useSongDragSource(rowRef, {
+    songIds: () => (dragSongs ? dragSongs(song) : [song.id]),
+    title: song.title,
+    enabled: wide && dense,
+    onStart: press.rest,
+  })
   // What holding the row does, the same at both widths: what the list asked
   // for, or nothing. It no longer opens the ⋯ menu anywhere — the ⋯ does.
   const onHold = onLongPress ? () => onLongPress(song) : undefined

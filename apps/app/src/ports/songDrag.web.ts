@@ -7,7 +7,7 @@ import { plural } from '@selfmp3/shared'
  * The browser's drag and drop, for dragging songs onto a sidebar playlist.
  *
  * react-native-web hands a ref the DOM element itself, so the page's own
- * `draggable` and drag events do the work: the browser draws the drag image,
+ * `draggable` and drag events do the work: the browser carries the drag image,
  * scrolls the page near its edges and knows when a drag has left the window,
  * none of which a pan responder would.
  *
@@ -48,19 +48,63 @@ function element(ref: RefObject<View | null>): HTMLElement | null {
   return (ref.current as unknown as HTMLElement | null) ?? null
 }
 
+/**
+ * What follows the pointer: a pill naming what is carried — the song, or how
+ * many songs — rather than the browser's picture of the row. Several ticked
+ * songs travel together, and a picture of the one row under the pointer said
+ * otherwise; and a row is the width of the page, so its picture covered the
+ * sidebar it was being dragged to.
+ *
+ * In the page for the moment the browser takes its picture, which it does as
+ * the `dragstart` handler returns, and gone straight after.
+ */
+function showDragImage(event: DragEvent, label: string): void {
+  if (!event.dataTransfer) return
+  const pill = document.createElement('div')
+  pill.textContent = label
+  Object.assign(pill.style, {
+    position: 'fixed',
+    top: '-1000px',
+    left: '0',
+    maxWidth: '280px',
+    padding: '6px 12px',
+    borderRadius: '999px',
+    // Neutral in both themes, as the platform's own drag badges are.
+    background: 'rgba(28, 30, 38, 0.94)',
+    color: '#fff',
+    font: '600 13px system-ui, -apple-system, sans-serif',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  })
+  document.body.appendChild(pill)
+  event.dataTransfer.setDragImage(pill, 14, 16)
+  setTimeout(() => pill.remove(), 0)
+}
+
 export function useSongDragSource(
   ref: RefObject<View | null>,
-  songIds: () => readonly number[],
-  enabled = true,
-  onStart?: () => void,
+  {
+    songIds,
+    title,
+    enabled = true,
+    onStart,
+  }: {
+    songIds: () => readonly number[]
+    title: string
+    enabled?: boolean
+    onStart?: () => void
+  },
 ): void {
   // The latest songs and start, read when the drag starts rather than bound once.
   const ids = useRef(songIds)
+  const named = useRef(title)
   const started = useRef(onStart)
   useEffect(() => {
     ids.current = songIds
+    named.current = title
     started.current = onStart
-  }, [songIds, onStart])
+  }, [songIds, title, onStart])
 
   useEffect(() => {
     const node = element(ref)
@@ -77,15 +121,16 @@ export function useSongDragSource(
       node.draggable = next
     }
     const start = (event: DragEvent): void => {
-      // Before anything else: the browser draws the drag image from the row as
-      // it stands once this handler returns, and a row held a moment before
-      // the pointer moved is still pressed in.
+      // Before anything else: a row held a moment before the pointer moved is
+      // still pressed in, and goes back to its size as the drag begins.
       started.current?.()
       const carried = ids.current()
       if (!event.dataTransfer || carried.length === 0) return
+      const many = plural(carried.length, 'song', 'songs')
       event.dataTransfer.setData(TYPE, JSON.stringify(carried))
-      event.dataTransfer.setData('text/plain', plural(carried.length, 'song', 'songs'))
+      event.dataTransfer.setData('text/plain', many)
       event.dataTransfer.effectAllowed = 'copy'
+      showDragImage(event, carried.length === 1 ? named.current : many)
       setDragging(true)
     }
     const end = (): void => setDragging(false)

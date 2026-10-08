@@ -208,6 +208,8 @@ export function LibraryScreen(): ReactNode {
     (song: Song) => latest.current.selection.toggle(song.id),
     [],
   )
+  // A drag from a ticked row carries every ticked song.
+  const onRowDrag = useCallback((song: Song) => latest.current.selection.carried(song.id), [])
   const onRowEditTags = rowTags.onEditTags
 
   const unreachable = model.unreachable
@@ -231,6 +233,7 @@ export function LibraryScreen(): ReactNode {
           selecting={selection.active}
           selected={selection.has(item.id)}
           onToggleSelect={onRowToggleSelect}
+          dragSongs={onRowDrag}
           index={index}
           tags={songTags(item)}
           // The tags the list is filtered by are on every row: not drawn.
@@ -254,6 +257,7 @@ export function LibraryScreen(): ReactNode {
       onRowMore,
       onRowLongPress,
       onRowToggleSelect,
+      onRowDrag,
       onRowEditTags,
     ],
   )

@@ -237,4 +237,69 @@ test.describe('selecting songs', () => {
       await expect(page.getByText(/^\d+ selected$/)).toHaveCount(0)
     }
   })
+
+  /**
+   * With a mouse, a ticked row dragged onto a playlist in the sidebar carries
+   * every ticked song; it used to carry only the one under the pointer. The
+   * playlist is put back as it was afterwards.
+   */
+  test('dragging one of the ticked songs carries all of them', async ({ page }, info) => {
+    test.skip(info.project.name === 'phone', 'a phone has no sidebar to drag to')
+    await openLibrary(page)
+    await libraryReady(page)
+    await skipIfNoLibrary(page, 3)
+
+    const library = (await (await page.request.get(`${appApi}/api/library`)).json()) as {
+      playlists: { id: number; name: string; kind: string }[]
+    }
+    // A playlist you made that the sidebar lists: it shows the few you use.
+    const sidebar = page.getByTestId('sidebar-playlists')
+    let target: { id: number; name: string } | undefined
+    for (const entry of library.playlists) {
+      if (entry.kind !== 'manual') continue
+      if ((await sidebar.getByRole('link', { name: entry.name, exact: true }).count()) > 0) {
+        target = entry
+        break
+      }
+    }
+    test.skip(!target, 'needs a playlist you made in the sidebar')
+    if (!target) return
+    const link = sidebar.getByRole('link', { name: target.name, exact: true })
+    const songsOf = async (): Promise<number[]> =>
+      (
+        (await (await page.request.get(`${appApi}/api/playlists/${target.id}/songs`)).json()) as {
+          songIds: number[]
+        }
+      ).songIds
+    const before = await songsOf()
+
+    const rows = songRows(page)
+    for (const index of [0, 1]) {
+      await rows.nth(index).hover()
+      await page.getByRole('checkbox', { name: `Select ${await titleOf(rows.nth(index))}` }).click()
+    }
+    await expect(selectionCount(page, 2)).toBeVisible()
+
+    const from = (await rows.nth(1).boundingBox())!
+    const to = (await link.boundingBox())!
+    await page.mouse.move(from.x + from.width / 3, from.y + from.height / 2)
+    await page.mouse.down()
+    for (let step = 1; step <= 15; step += 1) {
+      await page.mouse.move(
+        from.x + from.width / 3 + ((to.x + 20 - from.x - from.width / 3) * step) / 15,
+        from.y + from.height / 2 + ((to.y + to.height / 2 - from.y - from.height / 2) * step) / 15,
+      )
+      await page.waitForTimeout(20)
+    }
+    await page.mouse.up()
+    await expect(page.getByText(`Added 2 songs to ${target.name}`)).toBeVisible()
+
+    // Back as it was: the songs this run added, and only those.
+    await expect.poll(async () => (await songsOf()).length).not.toBe(before.length)
+    const added = (await songsOf()).filter(id => !before.includes(id))
+    if (added.length > 0)
+      await page.request.post(`${appApi}/api/playlists/${target.id}/songs/remove`, {
+        data: { songIds: added },
+      })
+  })
 })

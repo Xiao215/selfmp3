@@ -175,6 +175,8 @@ export function OrderedSongList({
       },
       more: onMore,
       toggleSelect: song => latest.current.selection.toggle(song.id),
+      // A drag from a ticked row carries every ticked song.
+      carried: song => latest.current.selection.carried(song.id),
       // Holding a row is how it is moved, so selecting starts from the page's
       // ⋯ (Select songs); while selecting, holding selects.
       longPress: song => latest.current.selection.enter(song.id),
@@ -289,6 +291,7 @@ interface RowActions {
   readonly press: (event: GestureResponderEvent, songId: number, index: number) => void
   readonly more: (anchor: View | null, song: Song) => void
   readonly toggleSelect: (song: Song) => void
+  readonly carried: (song: Song) => readonly number[]
   readonly longPress: (song: Song) => void
   readonly measure: (height: number) => void
 }
@@ -380,6 +383,7 @@ const OrderedRow = memo(function OrderedRow({
         onPress={onPress}
         onMore={actions.more}
         onToggleSelect={actions.toggleSelect}
+        dragSongs={actions.carried}
         // Left out while the hold is the move's: see `SongRow`.
         onLongPress={reorderable ? undefined : actions.longPress}
       />

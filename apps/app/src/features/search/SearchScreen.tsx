@@ -585,6 +585,10 @@ function useSongRows(
   }, [])
   const onLongPress = useCallback((song: Song) => latest.current.selection?.enter(song.id), [])
   const onToggleSelect = useCallback((song: Song) => latest.current.selection?.toggle(song.id), [])
+  const onDrag = useCallback(
+    (song: Song) => latest.current.selection?.carried(song.id) ?? [song.id],
+    [],
+  )
 
   const renderSong = useCallback(
     ({ item, index }: { item: Song; index: number }) => (
@@ -601,6 +605,7 @@ function useSongRows(
         selecting={selection?.active ?? false}
         selected={selection?.has(item.id) ?? false}
         onToggleSelect={onToggleSelect}
+        dragSongs={onDrag}
         index={index}
         tags={tagsOf(item)}
         onOpenTag={onTag}
@@ -614,6 +619,7 @@ function useSongRows(
       onMore,
       onLongPress,
       onToggleSelect,
+      onDrag,
       selection,
       menuSongId,
       testPrefix,

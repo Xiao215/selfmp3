@@ -12,13 +12,17 @@ import type { View } from 'react-native'
 
 /**
  * Make this view draggable, carrying the songs `songIds` returns when the drag
- * starts. `onStart` runs first, before the browser draws the drag image.
+ * starts — named by `title` when it is one song, counted when it is several.
+ * `onStart` runs first, as the drag begins.
  */
 export function useSongDragSource(
   _ref: RefObject<View | null>,
-  _songIds: () => readonly number[],
-  _enabled = true,
-  _onStart?: () => void,
+  _drag: {
+    songIds: () => readonly number[]
+    title: string
+    enabled?: boolean
+    onStart?: () => void
+  },
 ): void {}
 
 /** Let songs be dropped here. True while a drag carrying songs is over it. */

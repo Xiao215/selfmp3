@@ -459,6 +459,7 @@ function PlaceSongs({
   // Holding a row selects it; the ⋯ opens the menu.
   const onLongPress = useCallback((song: Song) => latest.current.selection.enter(song.id), [])
   const onToggleSelect = useCallback((song: Song) => latest.current.selection.toggle(song.id), [])
+  const onDrag = useCallback((song: Song) => latest.current.selection.carried(song.id), [])
 
   const renderSong = useCallback(
     ({ item, index }: { item: Song; index: number }) => {
@@ -475,6 +476,7 @@ function PlaceSongs({
           selecting={selection.active}
           selected={selection.has(item.id)}
           onToggleSelect={onToggleSelect}
+          dragSongs={onDrag}
           index={index}
         />
       )
@@ -494,6 +496,7 @@ function PlaceSongs({
       onMore,
       onLongPress,
       onToggleSelect,
+      onDrag,
       selection,
       menuSongId,
       byAlbum,

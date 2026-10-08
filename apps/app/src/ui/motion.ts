@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { AccessibilityInfo, Animated, Easing } from 'react-native'
+import { nativeDriver } from '../ports/nativeDriver'
 import { motion } from '@selfmp3/client'
 import {
   backOut,
@@ -63,11 +64,8 @@ export function motionMs(ms: number): number {
   return reduced ? 0 : ms
 }
 
-/**
- * The native driver, as the rest of the app asks for it: a browser has none
- * and react-native-web runs the same animation on the JS side instead.
- */
-const nativeDriver = true
+/** The native driver where there is one (`ports/nativeDriver`), for every `Animated` move. */
+export { nativeDriver }
 
 /**
  * The one spring (`motion.spring`), or a jump to the end under Reduce Motion.

@@ -11,7 +11,7 @@ import { useEscape } from '../../shell/useEscape'
 import { PanelDenseContext } from './panel'
 import { Sheet } from './Sheet'
 import { floating } from '../surfaces'
-import { ease, motionMs } from '../motion'
+import { ease, motionMs, nativeDriver } from '../motion'
 import { clamp } from '@selfmp3/shared'
 
 /**
@@ -173,7 +173,7 @@ function AnchoredPopover({
       toValue: open ? 1 : 0,
       duration: motionMs(open ? motion.base : motion.fast),
       easing: open ? ease.out : ease.in,
-      useNativeDriver: true,
+      useNativeDriver: nativeDriver,
     }).start(({ finished }) => {
       if (finished && !open) setMounted(false)
     })

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Animated, Easing, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useAccentColor } from '../accent'
+import { nativeDriver } from '../motion'
 
 /**
  * The three bars that say a song is playing.
@@ -83,7 +84,7 @@ export function Equalizer({
           toValue,
           duration: ms,
           easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
+          useNativeDriver: nativeDriver,
         })
       const rising = phase < duration
       bar.setValue(barAt(phase, duration))

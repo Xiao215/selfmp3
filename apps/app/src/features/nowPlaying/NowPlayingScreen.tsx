@@ -36,7 +36,7 @@ import {
   usePracticeState,
 } from '../../player/PlayerProvider'
 import { useSongColor } from '../../ui/useSongColor'
-import { ease, motionMs, spring, timing, useEntrance } from '../../ui/motion'
+import { ease, motionMs, nativeDriver, spring, timing, useEntrance } from '../../ui/motion'
 import { MOVE_MS, PULL } from '../../ui/motion.model'
 import { takeCoverHandoff, type CoverFrame } from '../../ui/coverHandoff'
 import { setStageExit } from '../../shell/stageExit'
@@ -326,7 +326,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
         toValue: 0,
         duration: motionMs(MOVE_MS.sheetDown),
         easing: ease.in,
-        useNativeDriver: true,
+        useNativeDriver: nativeDriver,
       }).start(({ finished }) => done(finished))
     })
     return () => setStageExit(null)

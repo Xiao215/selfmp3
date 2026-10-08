@@ -22,7 +22,7 @@ import { useSmartServer } from './useSmartServer'
 /**
  * Songs picked from a description (docs/features/ai.md): what it understood,
  * as chips that can be taken away, and the picks, each with a reason. New
- * playlist's Let it pick (N1); Search's Ask shows its songs as a card and a
+ * playlist's Describe it (L2); Search's Ask shows its songs as a card and a
  * page instead (`SongsAnswerCard`, `AnswerScreen`), to be played before kept.
  *
  * Taking a chip away does not read the words again: Pick again chooses from

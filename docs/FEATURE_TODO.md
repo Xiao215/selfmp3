@@ -130,8 +130,8 @@ to Google or reach a Tailscale address.
 ## Smart features
 
 What exists is in [features/ai.md](features/ai.md): S1 (Ask in the Search box, which also
-covers finding a song by what you remember and questions about your listening), N1 (New
-playlist as one field), the Describe pipeline (A1c), Tags (A7's Suggest tags grown into
+covers finding a song by what you remember and questions about your listening), L2 (New
+playlist's Describe it), the Describe pipeline (A1c), Tags (A7's Suggest tags grown into
 changes to your tags from Ask), A4 Tidy up's
 names pass, A9's rules, A8 (steer Up next), A5 (the Report in words) and Settings › Smart
 features (address, Test, a switch per feature). The letters are the AI ideas canvas's

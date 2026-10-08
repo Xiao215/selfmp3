@@ -276,34 +276,6 @@ export function rangeWords(range: AskStatsRange): string {
   }
 }
 
-/**
- * Tags whose name holds what was typed (N1), the ones starting with it first,
- * leaving out those already chosen.
- */
-export function matchingTags(
-  text: string,
-  tags: readonly Tag[],
-  chosen: readonly number[],
-  limit = 8,
-): Tag[] {
-  const typed = text.trim().toLowerCase()
-  if (!typed) return []
-  return tags
-    .filter(tag => !chosen.includes(tag.id) && tag.name.toLowerCase().includes(typed))
-    .sort(
-      (a, b) =>
-        Number(!a.name.toLowerCase().startsWith(typed)) -
-          Number(!b.name.toLowerCase().startsWith(typed)) || b.songCount - a.songCount,
-    )
-    .slice(0, limit)
-}
-
-/** The tag typed in full, if one is called exactly that. */
-export function exactTag(text: string, tags: readonly Tag[]): Tag | null {
-  const typed = text.trim().toLowerCase()
-  return tags.find(tag => tag.name.toLowerCase() === typed) ?? null
-}
-
 /** One leg of Settings' Test: this device to the server, or the server to the model. */
 export interface Hop {
   readonly ok: boolean

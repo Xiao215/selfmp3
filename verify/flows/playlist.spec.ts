@@ -170,9 +170,10 @@ test.describe('a playlist', () => {
     const start = async (): Promise<void> => {
       await page.goto('/playlists')
       await page.getByTestId('playlists-new').click()
-      // One field (N1): the words become the name of a playlist filled by hand.
+      // The kind first (L2), then the name, then picking its songs.
+      await page.getByTestId('new-playlist-pick').click()
       await page.getByTestId('new-playlist-field').fill(name)
-      await page.getByTestId('new-playlist-empty').click()
+      await page.getByTestId('new-playlist-next').click()
       await expect(page.getByTestId('add-songs')).toBeVisible()
     }
 

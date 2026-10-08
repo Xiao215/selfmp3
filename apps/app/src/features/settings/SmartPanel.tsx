@@ -33,7 +33,7 @@ const SWITCHES: readonly {
   {
     key: 'smartAsk',
     label: 'Ask in Search',
-    sees: 'Also Let it pick and Up next. Sends your words, your tags, the artists you have and how many songs each; then titles, artists, tags, energy and plays of the songs that fit. With a song playing, that song.',
+    sees: 'Also New playlist’s Describe it and Up next. Sends your words, your tags, the artists you have and how many songs each; then titles, artists, tags, energy and plays of the songs that fit. With a song playing, that song.',
   },
   {
     key: 'smartTidy',

@@ -14,8 +14,6 @@ import {
   askable,
   asksOnEnter,
   describeNotes,
-  exactTag,
-  matchingTags,
   modelHop,
   onlyTags,
   parts,
@@ -194,25 +192,6 @@ describe('asksOnEnter', () => {
     expect(asksOnEnter('yoru', 13)).toBe(false)
     expect(asksOnEnter('something calm for studying', 0)).toBe(true)
     expect(asksOnEnter('ab', 0)).toBe(false)
-  })
-})
-
-describe('matchingTags', () => {
-  const more: Tag[] = [...TAGS, { id: 11, name: 'j-anime', hue: 321, songCount: 1 }]
-
-  it('puts names that start with the letters first, then the bigger tags', () => {
-    expect(matchingTags('j', more, []).map(tag => tag.name)).toEqual(['jpop', 'j-anime'])
-    expect(matchingTags('pop', more, []).map(tag => tag.name)).toEqual(['jpop'])
-  })
-
-  it('leaves out the tags already chosen, and offers nothing for nothing typed', () => {
-    expect(matchingTags('j', more, [9]).map(tag => tag.name)).toEqual(['j-anime'])
-    expect(matchingTags('  ', more, [])).toEqual([])
-  })
-
-  it('knows a tag typed in full', () => {
-    expect(exactTag(' JPOP ', more)?.id).toBe(9)
-    expect(exactTag('jp', more)).toBeNull()
   })
 })
 

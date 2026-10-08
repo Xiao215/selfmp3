@@ -573,13 +573,9 @@ export function createCloudRoutes(
     if (!DoormanHealthSchema.safeParse(await response.json().catch(() => null)).success) {
       throw new DoormanError(0, 'the doorman is not answering')
     }
-    return {
-      ok: true,
-      version: 'web',
-      uptimeSeconds: 0,
-      libraryPath: 'the cloud',
-      songCount: 0,
-    }
+    // No song count: the library's is on screen beside it, and a made-up 0 read
+    // "self.mp3 web · 0 songs" over a library of thirty.
+    return { ok: true, version: 'web', uptimeSeconds: 0, libraryPath: 'the cloud' }
   }
 
   async function loadSettings(): Promise<Settings> {

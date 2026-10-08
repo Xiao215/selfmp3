@@ -14,6 +14,7 @@ import type {
   ApplyMetadata,
   BulkEditSongs,
   FixCoversStatus,
+  Health,
   AnalysisStatus,
   CloudConnect,
   CloudStatus,
@@ -287,10 +288,29 @@ export function useLibrary(): UseQueryResult<Library, Error> {
   })
 }
 
+/**
+ * Whether whatever answers this device is there: the server, or the doorman in
+ * front of a cloud library. Asked once and not again, so it waits for `ready`
+ * like every query here — asked before the connection was read, it failed
+ * with "no server" and kept saying so for a cloud library that loaded fine.
+ */
+export function useHealth(): UseQueryResult<Health, Error> {
+  const { ready } = useClientState()
+  return useQuery({
+    queryKey: queryKeys.health,
+    enabled: ready,
+    queryFn: () => clientApi().health(),
+    retry: false,
+    staleTime: STALE.minute,
+  })
+}
+
 /** The server's settings: the ones every device of this library shares. */
 export function useSettings(): UseQueryResult<Settings, Error> {
+  const { ready } = useClientState()
   return useQuery({
     queryKey: queryKeys.settings,
+    enabled: ready,
     queryFn: () => clientApi().settings(),
     staleTime: STALE.fiveMinutes,
   })
@@ -302,19 +322,21 @@ export function useSettings(): UseQueryResult<Settings, Error> {
  * page's `statsSource.ts`), and this one would only fetch a 501 to throw away.
  */
 export function useStats(range: StatsRange, enabled = true): UseQueryResult<Stats, Error> {
+  const { ready } = useClientState()
   return useQuery({
     queryKey: queryKeys.stats(range),
     queryFn: () => clientApi().stats(range),
-    enabled,
+    enabled: ready && enabled,
     staleTime: STALE.minute,
   })
 }
 
 export function useWrapped(range: WrappedRange, enabled = true): UseQueryResult<Wrapped, Error> {
+  const { ready } = useClientState()
   return useQuery({
     queryKey: queryKeys.wrapped(range),
     queryFn: () => clientApi().wrapped(range),
-    enabled,
+    enabled: ready && enabled,
     staleTime: STALE.minute,
   })
 }
@@ -334,8 +356,10 @@ const SIMILAR_LIMIT = 12
  * time a different set is welcome.
  */
 export function useGems(limit = GEMS_LIMIT): UseQueryResult<ForgottenGems, Error> {
+  const { ready } = useClientState()
   return useQuery({
     queryKey: queryKeys.gems(limit),
+    enabled: ready,
     queryFn: () => clientApi().gems(limit),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
@@ -347,10 +371,11 @@ export function useGems(limit = GEMS_LIMIT): UseQueryResult<ForgottenGems, Error
 export const HISTORY_PLAYS = 200
 
 export function useHistory(enabled = true): UseQueryResult<PlayHistory, Error> {
+  const { ready } = useClientState()
   return useQuery({
     queryKey: queryKeys.history,
     queryFn: () => clientApi().history(HISTORY_PLAYS),
-    enabled,
+    enabled: ready && enabled,
     staleTime: STALE.minute,
   })
 }
@@ -362,10 +387,11 @@ export function useHistory(enabled = true): UseQueryResult<PlayHistory, Error> {
  * awake for nothing, so the interval switches off once the queue is idle.
  */
 export function useImportQueue(enabled: boolean): UseQueryResult<ImportQueue, Error> {
+  const { ready } = useClientState()
   return useQuery({
     queryKey: queryKeys.importQueue,
     queryFn: () => clientApi().importQueue(),
-    enabled,
+    enabled: ready && enabled,
     refetchInterval: query => {
       const data = query.state.data
       if (!data) return false
@@ -383,19 +409,21 @@ export const HISTORY_LIMIT = 500
  * a big day's history a second at a time was most of what the poll moved.
  */
 export function useImportHistory(enabled: boolean): UseQueryResult<ImportQueue, Error> {
+  const { ready } = useClientState()
   return useQuery({
     queryKey: queryKeys.importHistory,
     queryFn: () => clientApi().importQueue(HISTORY_LIMIT),
-    enabled,
+    enabled: ready && enabled,
     staleTime: STALE.halfMinute,
   })
 }
 
 export function useImportTools(enabled = true): UseQueryResult<ToolStatus, Error> {
+  const { ready } = useClientState()
   return useQuery({
     queryKey: queryKeys.importTools,
     queryFn: () => clientApi().importTools(),
-    enabled,
+    enabled: ready && enabled,
     staleTime: STALE.minute,
     retry: false,
   })
@@ -933,10 +961,11 @@ export const usePlaylistSongIds = (
  * its server asks that server directly instead (`metadataSource.ts`).
  */
 export function useMetadataLookup(songId: number, enabled = true) {
+  const { ready } = useClientState()
   return useQuery({
     queryKey: queryKeys.metadataLookup(songId),
     queryFn: () => clientApi().lookupMetadata(songId),
-    enabled,
+    enabled: ready && enabled,
     staleTime: STALE.tenMinutes,
     retry: false,
   })
@@ -949,8 +978,10 @@ export const useApplyMetadata = () =>
 
 /** The cover-art pass, polled only while it runs (same idea as the import queue). */
 export function useFixCoversStatus(): UseQueryResult<FixCoversStatus, Error> {
+  const { ready } = useClientState()
   return useQuery({
     queryKey: queryKeys.fixCovers,
+    enabled: ready,
     queryFn: () => clientApi().fixCoversStatus(),
     refetchInterval: query => (query.state.data?.status === 'running' ? 1_000 : false),
   })
@@ -985,10 +1016,11 @@ export function useSimilar(
   songId: number | null,
   limit = SIMILAR_LIMIT,
 ): UseQueryResult<SimilarSongs, Error> {
+  const { ready } = useClientState()
   return useQuery({
     queryKey: queryKeys.similar(songId, limit),
     queryFn: () => clientApi().similar(songId ?? 0, limit),
-    enabled: songId !== null,
+    enabled: ready && songId !== null,
     staleTime: STALE.minute,
     placeholderData: keepPreviousData,
   })
@@ -1000,6 +1032,7 @@ export function useSimilar(
  * with the members of any live playlist whose rules follow those.
  */
 export function useAnalysisStatus(enabled: boolean): UseQueryResult<AnalysisStatus, Error> {
+  const { ready } = useClientState()
   const client = useQueryClient()
   return useQuery({
     queryKey: queryKeys.analysis,
@@ -1012,7 +1045,7 @@ export function useAnalysisStatus(enabled: boolean): UseQueryResult<AnalysisStat
       }
       return status
     },
-    enabled,
+    enabled: ready && enabled,
     refetchInterval: query => (query.state.data?.running ? 1_500 : false),
   })
 }
@@ -1035,8 +1068,10 @@ export function useStartAnalysis() {
  * when the stream is down, and it stops entirely in a hidden tab.
  */
 export function useDevices(streamConnected: boolean): UseQueryResult<DeviceList, Error> {
+  const { ready } = useClientState()
   return useQuery({
     queryKey: queryKeys.devices,
+    enabled: ready,
     queryFn: () => clientApi().devices(),
     staleTime: STALE.tenSeconds,
     refetchInterval: streamConnected ? false : 15_000,
@@ -1051,10 +1086,11 @@ export function useDevices(streamConnected: boolean): UseQueryResult<DeviceList,
  * server starts by itself after an import still shows up.
  */
 export function useCloudStatus(enabled = true): UseQueryResult<CloudStatus, Error> {
+  const { ready } = useClientState()
   return useQuery({
     queryKey: queryKeys.cloud,
     queryFn: () => clientApi().cloudStatus(),
-    enabled,
+    enabled: ready && enabled,
     // Quickly while something is moving — an upload, or Google finishing a
     // sign-in in another tab — and slowly otherwise.
     refetchInterval: query =>
@@ -1098,8 +1134,10 @@ export const useCloudEnterCode = () =>
  * again every half minute while one is still waiting or downloading.
  */
 export function useCloudImports(): UseQueryResult<ImportRequestList, Error> {
+  const { ready } = useClientState()
   return useQuery({
     queryKey: queryKeys.cloudImports,
+    enabled: ready,
     queryFn: () => clientApi().cloudImports(),
     refetchInterval: query => (query.state.data?.imports.some(isPendingRequest) ? 30_000 : false),
   })

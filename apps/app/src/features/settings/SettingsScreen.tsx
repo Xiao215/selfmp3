@@ -13,16 +13,8 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import Constants from 'expo-constants'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { useQuery } from '@tanstack/react-query'
 import { type Settings } from '@selfmp3/shared'
-import {
-  STALE,
-  clientApi,
-  queryKeys,
-  radius,
-  useSettings,
-  useUpdateSettings,
-} from '@selfmp3/client'
+import { radius, useHealth, useSettings, useUpdateSettings } from '@selfmp3/client'
 import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanizationPref'
 import { loginItem } from '../../ports/loginItem'
 import { macApp } from '../../ports/macApp'
@@ -104,12 +96,7 @@ export function SettingsScreen(): ReactNode {
   const { width, wide } = useLayout()
   const settings = useSettings()
   const updateSettings = useUpdateSettings()
-  const health = useQuery({
-    queryKey: queryKeys.health,
-    queryFn: () => clientApi().health(),
-    retry: false,
-    staleTime: STALE.minute,
-  })
+  const health = useHealth()
 
   // A mouse or trackpad stands in for a keyboard, and only the installed app —
   // the one with a login item — has a menu of keys to list. A tab on a Mac is

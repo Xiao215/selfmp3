@@ -91,7 +91,8 @@ describe('/api/cloud/uids', () => {
   }
 
   /** Enough of a store and a bucket to read one snapshot through. */
-  function device() {
+  /** A captive portal by default: a 200 that is not the doorman's. */
+  function device(health: unknown = '<html>Sign in to the Wi-Fi</html>') {
     const data = new Map<string, unknown>()
     const clone = (value: unknown): unknown =>
       value === undefined ? null : JSON.parse(JSON.stringify(value))
@@ -140,8 +141,7 @@ describe('/api/cloud/uids', () => {
             cursor: null,
           })
         }
-        // A captive portal: a 200 that is not the doorman's.
-        if (path === '/v1/health') return reply(200, '<html>Sign in to the Wi-Fi</html>')
+        if (path === '/v1/health') return reply(200, health)
         if (path.startsWith('/v1/files/')) {
           const key = path.slice('/v1/files/'.length)
           return files.has(key) ? reply(200, files.get(key)) : reply(404, {})
@@ -200,5 +200,15 @@ describe('/api/cloud/uids', () => {
       status: 0,
       code: 'offline',
     })
+  })
+
+  it('answers for a doorman that is there, with no song count it does not know', async () => {
+    const health = await device({ ok: true, version: '1.0.0' }).cloudRequest(
+      'GET',
+      '/api/health',
+      undefined,
+    )
+    expect(health).toMatchObject({ ok: true, version: 'web' })
+    expect(health).not.toHaveProperty('songCount')
   })
 })

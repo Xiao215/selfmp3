@@ -56,9 +56,9 @@ import { useVia } from '../../connection/via'
  * Home: where the app opens (docs/ui-mock `P04`, `C03`).
  *
  * A greeting and one quiet line, one search field, the tags you play most as
- * tiles, and what you played last. On a phone the header carries the + that
- * opens Import and the avatar that opens Profile; a computer has those in its
- * sidebar, and adds this week's numbers beside the tiles. No date line: the
+ * tiles, and what you played last. On a phone the header carries Import's
+ * download arrow and the avatar that opens Profile; a computer has those in
+ * its sidebar, and adds this week's numbers beside the tiles. No date line: the
  * greeting under it already says what time of day it is (Xiao, 2026-09-20).
  *
  * Stats come from the server, as they do on the Stats page: a cloud library has
@@ -330,7 +330,11 @@ function FirstSong({ onPress }: { onPress: () => void }): ReactNode {
   )
 }
 
-/** The phone's header: the + that opens Import, and the avatar that opens Profile. */
+/**
+ * The phone's header: Import, as the download arrow the computer's sidebar
+ * gives it (M2) — a + everywhere else means a new playlist or tag — and the
+ * avatar that opens Profile.
+ */
 function PhoneHeader(): ReactNode {
   const router = useRouter()
   const account = useAccount()
@@ -339,11 +343,11 @@ function PhoneHeader(): ReactNode {
       <View style={styles.headerActions}>
         <IconButton
           testID="home-import"
-          label="Import a link"
+          label="Import"
           filled
           onPress={() => router.navigate('/import')}
         >
-          <Plus size={18} tone="textPrimary" />
+          <Download size={18} tone="textPrimary" />
         </IconButton>
         <Pressable
           testID="home-you"
@@ -403,7 +407,11 @@ function SectionHead({
   )
 }
 
-/** The tiles, two across on a phone and three on a computer. A tile opens its tag's page. */
+/**
+ * The tiles, two across on a phone; on a computer as many as fit a tile of
+ * `WIDE_TILE_MIN`, two to three, so a page narrowed by Up next drops a column
+ * rather than cutting the names (M1). A tile opens its tag's page.
+ */
 function Tiles({ tiles, loading }: { tiles: readonly HomeTile[]; loading: boolean }): ReactNode {
   // The width is the layout's to answer, not something to hand down three
   // components; `artFor` stays a prop on purpose, so the grid keeps one
@@ -414,9 +422,10 @@ function Tiles({ tiles, loading }: { tiles: readonly HomeTile[]; loading: boolea
   // A tile is a column of the grid however many there are: one tag is half a
   // row on a phone, not the whole of it. The columns share the row by flex,
   // so a tile is as wide as the layout makes it on every frame; the number is
-  // only for the name's size, which may follow a frame behind.
+  // only for how many columns and the name's size, which may follow a frame
+  // behind.
   const rowWidth = useTilesRowWidth(wide)
-  const columns = wide ? 3 : 2
+  const columns = wide ? wideColumns(rowWidth) : 2
   const small = rowWidth > 0 && (rowWidth - TILE_GAP * (columns - 1)) / columns < SMALL_TILE
   if (loading) return <View style={styles.tilesPlaceholder} />
   if (tiles.length === 0) {
@@ -546,9 +555,10 @@ function Tile({
           accessibilityLabel={`${tile.tag.name}, ${plural(tile.songs, 'song', 'songs')}`}
           style={[styles.tile, wide && styles.tileWide, { backgroundColor: colours.tile }]}
         >
+          {/* Two lines before it is cut: "night drive" whole rather than "night dri…". */}
           <Text
             style={[styles.tileName, small && styles.tileNameSmall, { color: colours.tileInk }]}
-            numberOfLines={1}
+            numberOfLines={2}
           >
             {tile.tag.name}
           </Text>
@@ -885,6 +895,14 @@ const READY_COVER = 52
 const TILE_GAP = 10
 /** A tile narrower than this (Slide Over's 320, `T08`) sets its name a size down. */
 const SMALL_TILE = 140
+/** The narrowest a computer's tile gets before the grid drops a column. */
+const WIDE_TILE_MIN = 190
+
+/** A computer's columns: as many tiles of `WIDE_TILE_MIN` as fit, two to three (`C03` draws three). */
+function wideColumns(rowWidth: number): number {
+  if (rowWidth <= 0) return 3
+  return Math.min(3, Math.max(2, Math.floor((rowWidth + TILE_GAP) / (WIDE_TILE_MIN + TILE_GAP))))
+}
 
 /** The page's side gutters, and the card column beside the tiles. */
 const GUTTER_NARROW = 20
@@ -908,7 +926,8 @@ function useCardsBeside(wide: boolean): boolean {
  * How wide the row of tiles is, worked out from the page rather than
  * measured: the window on a phone, the page column beside the sidebar on a
  * computer, less the gutters and, there, the card column. The tiles are laid
- * out by flex and never told this; it only decides how large a name is set.
+ * out by flex and never told this; it decides how many columns a computer has
+ * and how large a name is set.
  */
 function useTilesRowWidth(wide: boolean): number {
   // The app's own width, not the window's: an iPad in Split View is handed
@@ -980,7 +999,7 @@ const styles = StyleSheet.create(theme => ({
   tileRow: { flexDirection: 'row', gap: TILE_GAP },
   tileCell: { flex: 1, minWidth: 0 },
   tile: {
-    height: 98,
+    height: 104,
     borderRadius: radius.card,
     padding: 14,
     justifyContent: 'space-between',
@@ -990,10 +1009,11 @@ const styles = StyleSheet.create(theme => ({
   tileName: {
     fontFamily: fonts.display,
     fontSize: type.tile,
+    lineHeight: type.tile + 3,
     letterSpacing: -0.3,
     paddingRight: 36,
   },
-  tileNameSmall: { fontSize: type.tile - 3 },
+  tileNameSmall: { fontSize: type.tile - 3, lineHeight: type.tile },
   tileCount: { fontSize: 12, fontWeight: '500' },
   tileCover: {
     position: 'absolute',
@@ -1004,7 +1024,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: 12,
   },
   tileCoverWide: { right: -6, bottom: -8 },
-  tilesPlaceholder: { height: 206 },
+  tilesPlaceholder: { height: 218 },
   emptyTile: {
     ...card(theme.colors),
     padding: 18,

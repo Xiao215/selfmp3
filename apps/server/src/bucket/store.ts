@@ -36,6 +36,22 @@ export interface CloudStore {
   list(prefix: string): Promise<CloudObject[]>
   delete(key: string): Promise<void>
   /**
+   * Where the bucket's change counter stands — the doorman's `/v1/changes`,
+   * which moves whenever a snapshot or a log file is written or deleted — or
+   * null for a bucket that keeps none: one reached with its own key, or a
+   * folder. With a counter, a listing of `log/` that would find what the last
+   * one did need not be made (docs/SYNC.md, "Caps"); without, only listing
+   * tells.
+   */
+  changes(): Promise<string | null>
+  /**
+   * Where the counter would stand now had nothing moved it since `held` but
+   * this server's own writes and deletes through this store: a snapshot it
+   * published changes no listing it needs to make again. `held` itself when
+   * none of them moved it.
+   */
+  followOwn(held: string): string
+  /**
    * Bytes `start` to `end` of an object, inclusive as HTTP counts them, or
    * null when there is no such object. How a song this server no longer holds
    * a copy of is streamed to a player (routes/media.ts) — which is why it can
@@ -205,6 +221,15 @@ export class S3CloudStore implements CloudStore {
     }
 
     return objects
+  }
+
+  /** A bucket reached with its own key keeps no counter: the doorman's is only for what goes through it. */
+  changes(): Promise<string | null> {
+    return Promise.resolve(null)
+  }
+
+  followOwn(held: string): string {
+    return held
   }
 
   async delete(key: string): Promise<void> {

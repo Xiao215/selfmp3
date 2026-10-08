@@ -1,7 +1,10 @@
 import { Readable } from 'node:stream'
 import {
   DoormanClaimResultSchema,
+  CHANGES_HEADER,
+  DoormanChangesSchema,
   DoormanListSchema,
+  parseChangesHeader,
   DoormanMeSchema,
   ErrorBodySchema,
   type CloudConnect,
@@ -166,6 +169,12 @@ class DoormanCloudStore implements CloudStore {
   readonly description: string
   readonly #doorman: DoormanClient
   readonly #token: string
+  /**
+   * Each move of the change counter this server's own writes made, from
+   * where it stood to where it went: what `followOwn` walks. A few dozen
+   * kept; a chain that runs off the end only means one listing more.
+   */
+  readonly #ownMoves = new Map<string, string>()
 
   constructor(doorman: DoormanClient, token: string, description: string) {
     this.#doorman = doorman
@@ -211,10 +220,11 @@ class DoormanCloudStore implements CloudStore {
   }
 
   async put(key: string, body: Buffer, options: CloudPutOptions): Promise<void> {
-    // 412 is the doorman saying a file named by its hash is there already:
-    // these very bytes, so the put has happened. Asked first, with a call of
-    // its own, it was one more counted call per file on every upload.
-    await this.#doorman.request('PUT', filePath(key), {
+    // TODO(doorman redeploy): a doorman deployed before the change counter
+    // asks the bucket before every write of a file named by its hash, and
+    // answers 412 when it is there — these very bytes, so the put has
+    // happened. Drop the 412 once the deployed doorman is the new one.
+    const response = await this.#doorman.request('PUT', filePath(key), {
       token: this.#token,
       body,
       allowStatus: [412],
@@ -223,6 +233,7 @@ class DoormanCloudStore implements CloudStore {
         ...(options.contentEncoding ? { 'Content-Encoding': options.contentEncoding } : {}),
       },
     })
+    this.#noteOwnMove(response)
   }
 
   async list(prefix: string): Promise<CloudObject[]> {
@@ -242,9 +253,46 @@ class DoormanCloudStore implements CloudStore {
   }
 
   async delete(key: string): Promise<void> {
-    await this.#doorman.request('DELETE', filePath(key), { token: this.#token, allowStatus: [404] })
+    const response = await this.#doorman.request('DELETE', filePath(key), {
+      token: this.#token,
+      allowStatus: [404],
+    })
+    this.#noteOwnMove(response)
+  }
+
+  async changes(): Promise<string | null> {
+    // A 404 is a doorman deployed without a counter: list, then.
+    const response = await this.#doorman.request('GET', '/v1/changes', {
+      token: this.#token,
+      allowStatus: [404],
+    })
+    if (response.status === 404) {
+      await response.body?.cancel()
+      return null
+    }
+    return DoormanChangesSchema.parse(await response.json()).changes
+  }
+
+  followOwn(held: string): string {
+    let at = held
+    for (let steps = 0; steps < OWN_MOVES_KEPT; steps++) {
+      const next = this.#ownMoves.get(at)
+      if (next === undefined) break
+      at = next
+    }
+    return at
+  }
+
+  #noteOwnMove(response: Response): void {
+    const moved = parseChangesHeader(response.headers.get(CHANGES_HEADER))
+    if (!moved) return
+    if (this.#ownMoves.size >= OWN_MOVES_KEPT) this.#ownMoves.clear()
+    this.#ownMoves.set(moved.before, moved.after)
   }
 }
+
+/** How many of its own counter moves the doorman store remembers. */
+const OWN_MOVES_KEPT = 64
 
 /** Each part of the key encoded on its own, so the slashes stay slashes. */
 function filePath(key: string): string {

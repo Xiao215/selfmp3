@@ -15,6 +15,7 @@ import {
 import type { CloudArtistState, CloudSongState, CloudSoundState } from '../repositories/cloud.js'
 import type { ImportRequest } from '../repositories/importRequests.js'
 import type { StampRow } from '../repositories/sync.js'
+import { sha256 } from '../util/hash.js'
 
 /**
  * The library as a snapshot for the bucket (docs/SYNC.md): pure, so what goes
@@ -324,4 +325,24 @@ export function publishRefusedMessage(inBucket: number, onThisDevice: number): s
     `device. If this server is still scanning, wait; if it was reinstalled or restored, let it ` +
     `finish syncing before publishing. To publish anyway, set SELFMP3_PUBLISH_ANYWAY=1.`
   )
+}
+
+/**
+ * What a snapshot says, as a hash: everything but when it was written. Two
+ * snapshots with the same one say the same library, and publishing the second
+ * would only send every device a download of what it already has.
+ */
+export function snapshotContentHash(snapshot: { readonly writtenAt?: unknown }): string {
+  const { writtenAt: _when, ...content } = snapshot
+  return sha256(Buffer.from(JSON.stringify(content)))
+}
+
+/**
+ * The same, of a snapshot as the bucket holds it. Read from the JSON as it
+ * was written, not through the schema, which would put the fields in its own
+ * order and fill in defaults: the hash has to come out as `snapshotContentHash`
+ * of the snapshot that was published.
+ */
+export function storedSnapshotContentHash(body: Buffer): string {
+  return snapshotContentHash(JSON.parse(snapshotText(body)) as { writtenAt?: unknown })
 }

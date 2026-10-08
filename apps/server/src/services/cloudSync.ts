@@ -11,6 +11,7 @@ import {
   SNAPSHOTS_FOLDER,
   audioKey,
   coverKey,
+  foldedLogKeys,
   detectLyricsLanguage,
   isSynced,
   lyricsKey,
@@ -69,7 +70,9 @@ import {
   publishRefusedMessage,
   publishUncheckableMessage,
   publishWouldLoseLibrary,
+  snapshotContentHash,
   snapshotSongCount,
+  storedSnapshotContentHash,
 } from './cloudSnapshot.js'
 import type { AdoptionResult, CloudAdopt } from './cloudAdopt.js'
 import { messageOf } from '../util/errors.js'
@@ -118,6 +121,28 @@ const SNAPSHOTS_KEPT = 3
  * server's own library within ten minutes at the latest.
  */
 const LOG_POLL_MS = 10 * 60_000
+
+/**
+ * With a change counter (the doorman's `/v1/changes`), a listing of the log
+ * folder that the counter says would find what the last one did is not made
+ * — for at most this long, after which the folder is listed anyway. The
+ * counter only sees what goes through the doorman; a device given the
+ * bucket's key directly could write a log it never counts.
+ */
+const LOG_LISTING_TRUSTED_MS = 30 * 60_000
+
+/**
+ * Other devices' log files a snapshot of this server's has folded in are
+ * deleted once it has been up this long — the same wait a device gives its
+ * own (`PRUNE_AFTER_MS` in packages/replica) — and this many at a time.
+ * A device tidies its own files; these are what devices that stopped coming
+ * back left behind, and each one is in every listing of the folder.
+ */
+const LOGS_TIDIED_AFTER_MS = 10 * 60_000
+const LOGS_TIDIED_AT_ONCE = 50
+
+/** How long a listing the idle poll made is good for the pass it starts. */
+const POLLED_LISTING_KEPT_MS = 60_000
 
 const LOG_READS_AT_ONCE = 6
 
@@ -333,6 +358,33 @@ export class CloudSyncService {
    * the first: one counted call per snapshot, gone.
    */
   #snapshotKeys: string[] | null = null
+  /**
+   * The change counter as it stood before the last listing of the log folder
+   * whose every new file was read, and when that listing was made. A counter
+   * that has not moved since — but for this server's own writes — means the
+   * folder holds nothing more to read.
+   */
+  #logsListed: { changes: string; at: number } | null = null
+  /** A listing of the log folder the idle poll made, for the pass it starts, and when. */
+  #logListing: { keys: string[]; changes: string | null; at: number } | null = null
+  /**
+   * The bucket's newest snapshot as the pass `pass` read it: adoption reads
+   * it, and the guard before this run's first snapshot and the pruning after
+   * it use the same listing and bytes rather than asking again.
+   */
+  #newestRead: {
+    pass: number
+    keys: string[]
+    newest: { key: string; body: Buffer } | null
+  } | null = null
+  #passes = 0
+  /**
+   * The bucket's newest snapshot when it is this server's own — read at
+   * adoption, or just published — with what it folded in: what other
+   * devices' logs are tidied by.
+   */
+  #ownNewest: { key: string; writtenAt: number; upTo: Readonly<Record<string, number>> } | null =
+    null
   #retry: NodeJS.Timeout | null = null
   #retryIndex = 0
   #logPoll: NodeJS.Timeout | null = null
@@ -475,8 +527,7 @@ export class CloudSyncService {
       this.#adopted = false
       this.#coversSwept = false
       this.#bucketSound = undefined
-      this.#lastSnapshotHash = null
-      this.#snapshotKeys = null
+      this.#forgetBucketReads()
     }
     return this.#pass()
   }
@@ -830,6 +881,7 @@ export class CloudSyncService {
     if (this.#retry) clearTimeout(this.#retry)
     this.#retry = null
     this.#state = 'syncing'
+    this.#passes++
     let failed = 0
 
     try {
@@ -838,7 +890,8 @@ export class CloudSyncService {
 
       // Other devices' changes next: a song removed elsewhere is not worth
       // uploading, and the snapshot at the end should say they are folded in.
-      failed += await this.#readLogs(store, generation)
+      const logs = await this.#readLogs(store, generation)
+      failed += logs.unreadable
       if (generation !== this.#generation || this.#stopped) return
 
       // Work out what changed first, so progress counts real work.
@@ -928,6 +981,8 @@ export class CloudSyncService {
       await this.#letGo(settled)
       if (generation !== this.#generation || this.#stopped) return
       await this.#emptyTrash(store)
+      if (generation !== this.#generation || this.#stopped) return
+      await this.#tidyLogs(store, logs.keys)
 
       if (changed.length > 0) {
         this.#logger.info('cloud pass complete', { uploaded: changed.length - failed, failed })
@@ -990,23 +1045,32 @@ export class CloudSyncService {
 
   /**
    * Fold in the log files other devices have written since the last pass,
-   * all in one transaction with the cursors that say they have been. Returns
+   * all in one transaction with the cursors that say they have been. Says
    * how many devices' logs could not be read to the end — a file this build
    * does not understand stops that device's log there, rather than skipping
-   * a change for good, until this server is updated.
+   * a change for good, until this server is updated — and the folder's keys,
+   * when it was listed rather than known unchanged.
    */
-  async #readLogs(store: CloudStore, generation: number): Promise<number> {
+  async #readLogs(
+    store: CloudStore,
+    generation: number,
+  ): Promise<{ unreadable: number; keys: string[] | null }> {
     const { sync, ingest } = this.#deps
-    if (!sync || !ingest) return 0
+    if (!sync || !ingest) return { unreadable: 0, keys: null }
+    const listing = await this.#listLogs(store)
+    if (!listing) return { unreadable: 0, keys: null }
+    const { keys } = listing
     const own = this.#deviceId()
-    const keys = (await store.list(LOG_FOLDER)).map(object => object.key)
     const pending = unfoldedLogKeys(keys, sync.cursors()).filter(
       key => parseLogKey(key)?.deviceId !== own,
     )
-    if (pending.length === 0) return 0
+    if (pending.length === 0) {
+      this.#readAllLogs(listing)
+      return { unreadable: 0, keys }
+    }
 
     const read = await inBatches(pending, LOG_READS_AT_ONCE, key => this.#readLog(store, key))
-    if (generation !== this.#generation) return 0
+    if (generation !== this.#generation) return { unreadable: 0, keys: null }
 
     const changes: Change[] = []
     const reached = new Map<string, number>()
@@ -1036,7 +1100,75 @@ export class CloudSyncService {
       })
       await this.onIngested?.(result)
     }
-    return unreadable
+    // A file gone since the listing means a newer snapshot has it: list again next time.
+    if (stuck.size === 0) this.#readAllLogs(listing)
+    return { unreadable, keys }
+  }
+
+  /**
+   * The log folder's keys — or null when the change counter says it holds
+   * nothing that was not there at the last listing, every new file of which
+   * was read. A listing is a counted call on the bucket; asking the counter
+   * is not. A counter that cannot be asked is no answer, and the folder is
+   * listed as it always was.
+   */
+  async #listLogs(
+    store: CloudStore,
+  ): Promise<{ keys: string[]; changes: string | null; at: number } | null> {
+    const at = this.#now().getTime()
+    const polled = this.#logListing
+    this.#logListing = null
+    if (polled && at - polled.at < POLLED_LISTING_KEPT_MS) return polled
+
+    const changes = await store.changes().catch((error: unknown) => {
+      this.#logger.debug('could not ask the change counter', { message: messageOf(error) })
+      return null
+    })
+    const listed = this.#logsListed
+    if (
+      changes !== null &&
+      listed !== null &&
+      store.followOwn(listed.changes) === changes &&
+      at - listed.at < LOG_LISTING_TRUSTED_MS
+    ) {
+      return null
+    }
+    // Asked before the listing, so a log written while it runs moves the
+    // counter past the one kept here, and the next pass lists again.
+    const keys = (await store.list(LOG_FOLDER)).map(object => object.key)
+    return { keys, changes, at }
+  }
+
+  /** Every new file of this listing was read: until the counter moves, there is nothing more. */
+  #readAllLogs(listing: { changes: string | null; at: number }): void {
+    this.#logsListed =
+      listing.changes === null ? null : { changes: listing.changes, at: listing.at }
+  }
+
+  /**
+   * Delete other devices' log files that this server's snapshot has folded
+   * in, once it has been up long enough. Only while that snapshot is still
+   * the bucket's newest — another server's could fold in less — so the
+   * snapshots folder is listed first, and only when there is something to do.
+   * Best effort: a file left behind costs a line in a listing.
+   */
+  async #tidyLogs(store: CloudStore, keys: string[] | null): Promise<void> {
+    const own = this.#ownNewest
+    if (!keys || !own || this.#now().getTime() - own.writtenAt < LOGS_TIDIED_AFTER_MS) return
+    const folded = foldedLogKeys(keys, own.upTo).slice(0, LOGS_TIDIED_AT_ONCE)
+    if (folded.length === 0) return
+    try {
+      const newest = newestSnapshotKey(
+        (await store.list(SNAPSHOTS_FOLDER)).map(object => object.key),
+      )
+      if (newest !== own.key) return
+      for (const key of folded) await store.delete(key)
+      this.#logger.info('tidied away log files a snapshot has folded in', {
+        files: folded.length,
+      })
+    } catch (error) {
+      this.#logger.debug('could not tidy away old log files', { message: messageOf(error) })
+    }
   }
 
   /**
@@ -1089,15 +1221,22 @@ export class CloudSyncService {
     if (this.#retry) return
     try {
       const own = this.#deviceId()
-      const keys = (await store.list(LOG_FOLDER)).map(object => object.key)
-      const fresh = unfoldedLogKeys(keys, sync.cursors()).some(
-        key => parseLogKey(key)?.deviceId !== own,
-      )
-      if (fresh) void this.#pass()
+      const listing = await this.#listLogs(store)
+      const fresh =
+        listing !== null &&
+        unfoldedLogKeys(listing.keys, sync.cursors()).some(
+          key => parseLogKey(key)?.deviceId !== own,
+        )
+      if (listing && fresh) {
+        // The pass reads this listing rather than making its own.
+        this.#logListing = listing
+        void this.#pass()
+      } else if (listing) this.#readAllLogs(listing)
+      if (fresh) return
       // A new Wi-Fi network is a new address, with nothing else about the
       // library to say: the snapshot goes up again so a device can still find
       // this server.
-      else if (this.#serverKey(this.#deps.server?.()) !== this.#publishedServer) {
+      if (this.#serverKey(this.#deps.server?.()) !== this.#publishedServer) {
         void this.#publish(store)
       }
     } catch (error) {
@@ -1195,8 +1334,10 @@ export class CloudSyncService {
     }
 
     let snapshot: CloudSnapshot
+    let hash: string
     try {
       snapshot = parseSnapshot(newest.body)
+      hash = storedSnapshotContentHash(newest.body)
     } catch (error) {
       throw new CloudError(
         'other',
@@ -1204,6 +1345,18 @@ export class CloudSyncService {
       )
     }
     this.#bucketSound = snapshot.sound
+    if (snapshot.writtenBy === this.#deviceId()) {
+      // This server's own, from before it last stopped. Said again word for
+      // word, it would be one more download for every device and nothing new
+      // in it: the next snapshot goes up when the library has moved on.
+      this.#lastSnapshotHash = hash
+      this.#lastSnapshotAt = snapshot.writtenAt
+      this.#ownNewest = {
+        key: newest.key,
+        writtenAt: Date.parse(snapshot.writtenAt),
+        upTo: snapshot.upTo,
+      }
+    }
 
     const result: AdoptionResult = await adopt.adopt(snapshot)
     this.#adopted = true
@@ -1662,7 +1815,12 @@ export class CloudSyncService {
     // like protection while protecting nothing.
     let inBucket: number
     try {
-      const newest = await this.#newestSnapshot(store)
+      // Adoption read it moments ago in this same pass: those bytes, not a second download.
+      const read = this.#newestRead
+      const newest =
+        read && read.pass === this.#passes && this.#running
+          ? read.newest
+          : await this.#newestSnapshot(store)
       if (!newest) return null
       inBucket = snapshotSongCount(newest.body)
     } catch (error) {
@@ -1686,16 +1844,22 @@ export class CloudSyncService {
    * failure here throws the message that says publishing was refused.
    */
   async #newestSnapshot(store: CloudStore): Promise<{ key: string; body: Buffer } | null> {
+    const pass = this.#passes
+    let keys: string[]
     let key: string | null
     try {
-      key = newestSnapshotKey((await store.list(SNAPSHOTS_FOLDER)).map(object => object.key))
+      keys = (await store.list(SNAPSHOTS_FOLDER)).map(object => object.key)
+      key = newestSnapshotKey(keys)
     } catch (error) {
       throw new CloudError(
         'other',
         publishUncheckableMessage(`the bucket would not list: ${messageOf(error)}`),
       )
     }
-    if (!key) return null
+    if (!key) {
+      this.#newestRead = { pass, keys, newest: null }
+      return null
+    }
 
     let body: Buffer | null
     try {
@@ -1708,6 +1872,7 @@ export class CloudSyncService {
     }
     if (!body)
       throw new CloudError('other', publishUncheckableMessage('its newest snapshot has gone'))
+    this.#newestRead = { pass, keys, newest: { key, body } }
     return { key, body }
   }
 
@@ -1763,8 +1928,7 @@ export class CloudSyncService {
       writtenAt,
     })
 
-    const { writtenAt: _stamp, ...content } = snapshot
-    const hash = sha256(Buffer.from(JSON.stringify(content)))
+    const hash = snapshotContentHash(snapshot)
     if (hash === this.#lastSnapshotHash) return
 
     // Once per run, before this device's first snapshot replaces whatever is
@@ -1789,10 +1953,15 @@ export class CloudSyncService {
     this.#checkedAgainstBucket = true
     this.#lastSnapshotHash = hash
     this.#lastSnapshotAt = snapshot.writtenAt
+    this.#ownNewest = { key, writtenAt: writtenAt.getTime(), upTo: snapshot.upTo }
 
     try {
+      // The listing adoption made will do: what is pruned is this server's
+      // own, and nothing but this server adds to those.
       const keys =
-        this.#snapshotKeys ?? (await store.list(SNAPSHOTS_FOLDER)).map(object => object.key)
+        this.#snapshotKeys ??
+        this.#newestRead?.keys.slice() ??
+        (await store.list(SNAPSHOTS_FOLDER)).map(object => object.key)
       if (!keys.includes(key)) keys.push(key)
       this.#snapshotKeys = keys
       for (const old of snapshotsToPrune(keys, deviceId, SNAPSHOTS_KEPT)) {
@@ -1887,8 +2056,7 @@ export class CloudSyncService {
     this.#bucketSound = undefined
     this.#adopting = null
     this.#checkedAgainstBucket = false
-    this.#lastSnapshotHash = null
-    this.#snapshotKeys = null
+    this.#forgetBucketReads()
     this.#lastError = null
     this.#retryIndex = 0
     this.#state = 'idle'
@@ -1904,8 +2072,17 @@ export class CloudSyncService {
     this.#state = 'off'
     this.#progress = null
     this.#lastError = null
+    this.#forgetBucketReads()
+  }
+
+  /** Everything remembered of what the bucket held, for a bucket that is new or not trusted. */
+  #forgetBucketReads(): void {
     this.#lastSnapshotHash = null
     this.#snapshotKeys = null
+    this.#logsListed = null
+    this.#logListing = null
+    this.#newestRead = null
+    this.#ownNewest = null
   }
 
   #deviceId(): string {

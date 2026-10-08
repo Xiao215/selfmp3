@@ -2116,6 +2116,188 @@ describe('CloudSyncService', () => {
     })
   })
 
+  describe('what a quiet day costs the bucket', () => {
+    const PHONE = 'iphone-0b7d44a1'
+    const stamp = (seconds: number): string =>
+      formatHlc({
+        ms: Date.parse('2026-09-11T09:00:00Z') + seconds * 1000,
+        counter: 0,
+        device: PHONE,
+      })
+    /** The phone writes a log file, through the doorman: the counter moves. */
+    const phoneWrites = (seq: number, changes: Change[]): void => {
+      const file = { ...logFile(PHONE, seq, [], new Date('2026-09-11T09:00:00Z')), changes }
+      bucket.objects.set(logKey(PHONE, seq), {
+        body: Buffer.from(JSON.stringify(file)),
+        contentType: 'application/json',
+      })
+      bucket.countChange()
+    }
+    const logListings = (): number => bucket.lists.filter(prefix => prefix === 'log/').length
+
+    it('lists the log folder only when the change counter has moved', async () => {
+      bucket.keepCount()
+      const id = addSong('A - One', 'one')
+      await connect()
+      const before = logListings()
+
+      // Its own snapshots move the counter too, and it knows they were its own.
+      songs.patch(id, { title: 'Uno' })
+      await pass()
+      await pass()
+      expect(logListings()).toBe(before)
+      expect(bucket.changesAsked).toBeGreaterThanOrEqual(2)
+
+      phoneWrites(1, [
+        { type: 'songEdited', hlc: stamp(1), uid: uidOf(id), fields: { loved: true } },
+      ])
+      await pass()
+      expect(logListings()).toBe(before + 1)
+      expect(songs.byId(id)?.loved).toBe(true)
+    })
+
+    it('lists anyway once half an hour has gone by, for a write the counter never saw', async () => {
+      bucket.keepCount()
+      const id = addSong('A - One', 'one')
+      await connect()
+      const before = logListings()
+      // Written past the doorman — a server holding the bucket's key — so uncounted.
+      const file = {
+        ...logFile(PHONE, 1, [], new Date('2026-09-11T09:00:00Z')),
+        changes: [{ type: 'songEdited', hlc: stamp(1), uid: uidOf(id), fields: { loved: true } }],
+      }
+      bucket.objects.set(logKey(PHONE, 1), {
+        body: Buffer.from(JSON.stringify(file)),
+        contentType: 'application/json',
+      })
+      await pass()
+      expect(songs.byId(id)?.loved).toBe(false)
+
+      clock += 31 * 60_000
+      await pass()
+      expect(logListings()).toBe(before + 1)
+      expect(songs.byId(id)?.loved).toBe(true)
+    })
+
+    it('lists every pass with a bucket that keeps no counter', async () => {
+      addSong('A - One', 'one')
+      await connect()
+      const before = logListings()
+      await pass()
+      await pass()
+      expect(logListings()).toBe(before + 2)
+    })
+
+    it('lists again after a log it could not read to the end', async () => {
+      bucket.keepCount()
+      const id = addSong('A - One', 'one')
+      await connect()
+      phoneWrites(1, [{ type: 'songRated', hlc: stamp(1), uid: uidOf(id), stars: 5 } as never])
+      await pass()
+      const before = logListings()
+      await pass()
+      // Still stuck on it, so still listing: an update may have learnt to read it.
+      expect(logListings()).toBe(before + 1)
+    })
+
+    it('polls only the counter while nothing moves, and the pass it starts uses its listing', async () => {
+      bucket.keepCount()
+      const id = addSong('A - One', 'one')
+      sync = makeSync({ logPollMs: 15 })
+      await connect()
+      const before = logListings()
+      const asked = bucket.changesAsked
+      await new Promise(resolve => setTimeout(resolve, 120))
+      expect(bucket.changesAsked).toBeGreaterThan(asked + 2)
+      expect(logListings()).toBe(before)
+
+      phoneWrites(1, [
+        { type: 'songEdited', hlc: stamp(1), uid: uidOf(id), fields: { loved: true } },
+      ])
+      await vi.waitFor(() => expect(songs.byId(id)?.loved).toBe(true), { timeout: 2_000 })
+      await sync.whenIdle()
+      expect(logListings()).toBe(before + 1)
+    })
+
+    it('restarted with nothing new, reads the newest snapshot once and publishes nothing', async () => {
+      bucket.keepCount()
+      const id = addSong('A - One', 'one')
+      await connect()
+      sync.stop()
+      await sync.whenIdle()
+      const puts = bucket.puts.length
+      const gets = bucket.gets.length
+      const lists = bucket.lists.length
+
+      sync = makeSync({})
+      sync.start()
+      await sync.whenIdle()
+      expect(bucket.puts.slice(puts).filter(key => key.startsWith('snapshots/'))).toEqual([])
+      expect(bucket.gets.slice(gets).filter(key => key.startsWith('snapshots/'))).toHaveLength(1)
+      expect(bucket.lists.slice(lists).filter(prefix => prefix === 'snapshots/')).toHaveLength(1)
+
+      // The first change after it does go up.
+      songs.patch(id, { title: 'Uno' })
+      await pass()
+      expect(latest().songs[0]?.title).toBe('Uno')
+    })
+
+    it('restarted with something new, reads the newest snapshot once and publishes it', async () => {
+      const id = addSong('A - One', 'one')
+      await connect()
+      sync.stop()
+      await sync.whenIdle()
+      songs.patch(id, { title: 'Uno' })
+      const gets = bucket.gets.length
+      const lists = bucket.lists.length
+
+      sync = makeSync({})
+      sync.start()
+      await sync.whenIdle()
+      expect(latest().songs[0]?.title).toBe('Uno')
+      // Adoption, the guard before the first snapshot and the pruning after it, all from one read.
+      expect(bucket.gets.slice(gets).filter(key => key.startsWith('snapshots/'))).toHaveLength(1)
+      expect(bucket.lists.slice(lists).filter(prefix => prefix === 'snapshots/')).toHaveLength(1)
+    })
+
+    it('tidies away other devices’ logs its snapshot folded in, once that has been up a while', async () => {
+      const id = addSong('A - One', 'one')
+      await connect()
+      phoneWrites(1, [
+        { type: 'songEdited', hlc: stamp(1), uid: uidOf(id), fields: { loved: true } },
+      ])
+      await pass()
+      expect(latest().upTo).toEqual({ [PHONE]: 1 })
+      // A phone still reading the snapshot before may yet want it.
+      expect(bucket.keys('log/')).toEqual([logKey(PHONE, 1)])
+
+      clock += 11 * 60_000
+      await pass()
+      expect(bucket.keys('log/')).toEqual([])
+    })
+
+    it('leaves them while another server’s snapshot is the newest', async () => {
+      const id = addSong('A - One', 'one')
+      await connect()
+      phoneWrites(1, [
+        { type: 'songEdited', hlc: stamp(1), uid: uidOf(id), fields: { loved: true } },
+      ])
+      await pass()
+      clock += 60_000
+      seedBucket(
+        theirSnapshot({
+          songs: [theirSong('B - Two')],
+          at: new Date(clock).toISOString(),
+          device: 'mac-2b8e44d1',
+        }),
+      )
+
+      clock += 11 * 60_000
+      await pass()
+      expect(bucket.keys('log/')).toEqual([logKey(PHONE, 1)])
+    })
+  })
+
   describe('uploadSong, the last step of an import', () => {
     it('puts one song up and publishes a snapshot that has it', async () => {
       await connect()

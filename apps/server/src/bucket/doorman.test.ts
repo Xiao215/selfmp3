@@ -229,5 +229,44 @@ describe('DoormanClient', () => {
       const { client } = stand(() => new Response(null, { status: 404 }))
       await expect(client.store('t', 'test').delete('snapshots/old.json')).resolves.toBeUndefined()
     })
+
+    it('reads the change counter, and says null for a doorman that keeps none', async () => {
+      const counter = 'ab12cd34ef567890.41'
+      const { client, calls } = stand(() => json({ changes: counter }))
+      expect(await client.store('t', 'test').changes()).toBe(counter)
+      expect(calls[0]).toMatchObject({
+        method: 'GET',
+        url: 'https://doorman.test/v1/changes',
+        headers: { authorization: 'Bearer t' },
+      })
+
+      const old = stand(() => json({ error: 'not found', code: 'not_found' }, 404)).client
+      expect(await old.store('t', 'test').changes()).toBeNull()
+    })
+
+    it('follows the counter through its own writes and deletes, and no further', async () => {
+      const at = (count: number) => `ab12cd34ef567890.${count}`
+      let count = 4
+      const { client } = stand(call => {
+        if (call.method === 'GET') return json({ changes: at(count) })
+        count++
+        return new Response(null, {
+          status: 204,
+          headers: { 'selfmp3-changes': `${at(count - 1)} ${at(count)}` },
+        })
+      })
+      const store = client.store('t', 'test')
+      const held = at(4)
+      await store.put('snapshots/x.json', Buffer.from('{}'), { contentType: 'application/json' })
+      await store.delete('log/mac-3f9a1c2e/000000000001.json')
+      expect(store.followOwn(held)).toBe(at(6))
+      expect(await store.changes()).toBe(at(6))
+
+      // Another device's write moves it past anything this store knows of.
+      count++
+      expect(store.followOwn(held)).not.toBe(await store.changes())
+      // A counter it never held is left where it is.
+      expect(store.followOwn(at(1))).toBe(at(1))
+    })
   })
 })

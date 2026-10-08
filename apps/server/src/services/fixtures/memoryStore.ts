@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream'
+import { isLookedAtCloudKey } from '@selfmp3/shared'
 import {
   CloudError,
   type CloudObject,
@@ -28,6 +29,25 @@ export class MemoryCloudStore implements CloudStore {
   failure: CloudError | null = null
   /** Keys the bucket will not take, each with its reason: a full bucket refuses the next file, not the last. */
   readonly refused = new Map<string, CloudError>()
+  /**
+   * A change counter like the doorman's, once `keepCount` is called: it moves
+   * for this store's own writes and deletes of snapshots and logs, and for
+   * `countChange` — another device's write, which a test makes by setting
+   * `objects` directly. Null, as for a bucket reached with its own key, until then.
+   */
+  #count: number | null = null
+  readonly #ownMoves = new Map<string, string>()
+  /** How many times the counter was asked: free, unlike a listing. */
+  changesAsked = 0
+
+  keepCount(): void {
+    this.#count = 0
+  }
+
+  /** Another device wrote or deleted a snapshot or a log file. */
+  countChange(): void {
+    if (this.#count !== null) this.#count++
+  }
 
   goOffline(): void {
     this.failure = new CloudError('network', 'Could not reach the bucket.')
@@ -67,6 +87,7 @@ export class MemoryCloudStore implements CloudStore {
       const refusal = this.refused.get(key)
       if (refusal) throw refusal
       this.objects.set(key, { body: Buffer.from(body), ...options })
+      this.#ownChange(key)
     })
   }
 
@@ -83,7 +104,34 @@ export class MemoryCloudStore implements CloudStore {
   delete(key: string): Promise<void> {
     return this.#answer(() => {
       this.objects.delete(key)
+      this.#ownChange(key)
     })
+  }
+
+  changes(): Promise<string | null> {
+    return this.#answer(() => {
+      this.changesAsked++
+      return this.#count === null ? null : this.#counter(this.#count)
+    })
+  }
+
+  followOwn(held: string): string {
+    let at = held
+    for (let next = this.#ownMoves.get(at); next !== undefined; next = this.#ownMoves.get(at)) {
+      at = next
+    }
+    return at
+  }
+
+  #ownChange(key: string): void {
+    if (this.#count === null || !isLookedAtCloudKey(key)) return
+    const before = this.#counter(this.#count)
+    this.#count++
+    this.#ownMoves.set(before, this.#counter(this.#count))
+  }
+
+  #counter(count: number): string {
+    return `0123456789abcdef.${count}`
   }
 
   /** Keys under a folder, for assertions. */

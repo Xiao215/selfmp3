@@ -38,6 +38,15 @@ export class LocalCloudStore implements CloudStore {
     return path.join(this.#root, ...segments)
   }
 
+  /** A folder keeps no change counter: the server lists it, and listing a folder costs nothing. */
+  changes(): Promise<string | null> {
+    return Promise.resolve(null)
+  }
+
+  followOwn(held: string): string {
+    return held
+  }
+
   async head(key: string): Promise<CloudObject | null> {
     try {
       const stat = await fsp.stat(this.#file(key))

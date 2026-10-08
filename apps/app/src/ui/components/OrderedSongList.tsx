@@ -174,8 +174,8 @@ export function OrderedSongList({
       },
       more: onMore,
       toggleSelect: song => latest.current.selection.toggle(song.id),
-      // Holding a row is how it is moved, so holding to select is the menu's
-      // job here (`SongMenu`); while selecting, holding selects.
+      // Holding a row is how it is moved, so selecting starts from the page's
+      // ⋯ (Select songs); while selecting, holding selects.
       longPress: song => latest.current.selection.enter(song.id),
       measure: setRowHeight,
     }),
@@ -378,8 +378,8 @@ const OrderedRow = memo(function OrderedRow({
         onPress={onPress}
         onMore={actions.more}
         onToggleSelect={actions.toggleSelect}
-        // `null` while the hold is the move's: see `SongRow`.
-        onLongPress={reorderable ? null : actions.longPress}
+        // Left out while the hold is the move's: see `SongRow`.
+        onLongPress={reorderable ? undefined : actions.longPress}
       />
     </HoldToReorder>
   )

@@ -481,8 +481,6 @@ const SheetRow = memo(function SheetRow({
               onPress={onPress}
               tags={tags}
               onToggleTag={actions.openTag}
-              // The hold is the move's, not a menu's.
-              onLongPress={null}
               lifted={lifted}
             />
           </View>

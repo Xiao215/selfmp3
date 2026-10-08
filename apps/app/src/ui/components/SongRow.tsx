@@ -57,8 +57,8 @@ const TAG_CHIPS_CONTENT_WIDTH = 520
  * energy are on the song's own page and in its menu, not on every row.
  *
  * Two shapes. At phone width, with a finger and no hover: a tap plays, the ⋯
- * is always there at a finger-sized target, and holding the row selects it
- * or opens the same menu. At desktop width it is a table row: the checkbox and
+ * is always there at a finger-sized target, and holding the row selects it —
+ * or, in a list whose order is yours, picks it up to move it. At desktop width it is a table row: the checkbox and
  * the position (or the equaliser, for the song that is loaded), the art, the
  * title over the artist, the album in a column of its own once there is room,
  * the tags, the length and ⋯.
@@ -120,7 +120,7 @@ export const SongRow = memo(function SongRow({
    */
   onPress: (event: GestureResponderEvent, song: Song) => void
   /**
-   * The ⋯, and what a held finger opens. Handed the ⋯ itself, so at desktop
+   * The ⋯, which opens the song's menu. Handed the ⋯ itself, so at desktop
    * width the menu can open beside it.
    */
   onMore?: (anchor: View | null, song: Song) => void
@@ -145,11 +145,12 @@ export const SongRow = memo(function SongRow({
   /** The dashed + beside the chips. Handed the +, so the tag window can open over it. */
   onEditTags?: (anchor: View | null, song: Song) => void
   /**
-   * Holding the row on a phone. Without it, holding opens the ⋯ menu; `null`
-   * when something outside the row has the hold already — on a playlist you
-   * made, holding a row lifts it to be moved.
+   * Holding the row, at either width. One rule says what a hold means (Xiao
+   * chose D1, 2026-10-08): in a list whose order you set it moves the row, and
+   * the hold belongs to the list's mover, so this is left out; everywhere else
+   * it selects, and this is the list's way in to selecting.
    */
-  onLongPress?: ((song: Song) => void) | null
+  onLongPress?: (song: Song) => void
   /**
    * This row's menu is open. The menu covers the pointer, so the row stops
    * hearing it; without this the ⋯ faded out under its own menu and stayed
@@ -200,17 +201,9 @@ export const SongRow = memo(function SongRow({
   // moved would otherwise leave as a pressed-in copy of itself.
   const press = usePressScale(PRESS.row)
   useSongDragSource(rowRef, () => [song.id], wide && dense, press.rest)
-  // What holding the row does, the same at both widths: nothing where
-  // something outside the row has the hold (`null`), what the list asked
-  // for, or the ⋯ menu.
-  const onHold =
-    onLongPress === null
-      ? undefined
-      : onLongPress
-        ? () => onLongPress(song)
-        : onMore
-          ? () => onMore(moreRef.current, song)
-          : undefined
+  // What holding the row does, the same at both widths: what the list asked
+  // for, or nothing. It no longer opens the ⋯ menu anywhere — the ⋯ does.
+  const onHold = onLongPress ? () => onLongPress(song) : undefined
 
   // What the row is, as well as which song: picked, out of reach, being moved.
   const states = [
@@ -347,17 +340,12 @@ export const SongRow = memo(function SongRow({
 
         <Pressable
           onPress={event => onPress(event, song)}
-          // The phone's answers, with one more before the menu: a finger at this
-          // width holds a row to start choosing. This branch used to ignore
-          // `onLongPress` altogether, so a row whose hold belonged to something
-          // else — a playlist row being moved — still opened its ⋯ menu 450ms
-          // in, and the menu's own backdrop then swallowed every press after it
-          // (Xiao, 2026-09-21).
-          onLongPress={
-            onLongPress === undefined && !dense && onToggleSelect
-              ? () => onToggleSelect(song)
-              : onHold
-          }
+          // The phone's answer. This branch used to ignore `onLongPress`
+          // altogether, so a row whose hold belonged to something else — a
+          // playlist row being moved — still opened its ⋯ menu 450ms in, and
+          // the menu's own backdrop then swallowed every press after it (Xiao,
+          // 2026-09-21).
+          onLongPress={onHold}
           {...press.handlers}
           delayLongPress={MOVE_MS.longPress}
           accessibilityRole="button"

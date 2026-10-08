@@ -15,7 +15,8 @@ import {
  * the way out.
  *
  * There is no Select button. On a computer a row's checkbox is the way in; on
- * a phone, holding a row selects it.
+ * a phone, holding a row selects it — except where holding moves the row,
+ * and there the list's ⋯ has Select songs.
  *
  * Nothing here edits the library. The destructive end of the bar is behind a
  * confirmation that this flow opens far enough to see and then cancels, and
@@ -171,5 +172,69 @@ test.describe('selecting songs', () => {
 
     await page.getByRole('button', { name: /^Done selecting/ }).click()
     await expect(page.getByText(/^\d+ selected$/)).toHaveCount(0)
+  })
+
+  /**
+   * Holding means two things with one rule (D1): moving in a list whose order
+   * is yours, selecting everywhere else. Search's hold used to open the song's
+   * menu; now it selects, with Library's bar.
+   */
+  test('a hold in Search selects, as Library’s does', async ({ page }, info) => {
+    test.skip(info.project.name !== 'phone', 'a computer searches in the palette')
+    await openLibrary(page)
+    await libraryReady(page)
+    await skipIfNoLibrary(page, 2)
+    const title = await titleOf(songRows(page).first())
+
+    await page.getByTestId('library-search').click()
+    await page.getByTestId('search-field').fill(title)
+    const row = page.getByRole('button', { name: new RegExp(`^${escaped(title)}, `) }).first()
+    await expect(row).toBeVisible()
+    const box = (await row.boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.waitForTimeout(700)
+    await page.mouse.up()
+    await expect(selectionCount(page, 1)).toBeVisible()
+    await expect(page.getByTestId('song-menu')).toHaveCount(0)
+
+    await page.getByRole('button', { name: /^Done selecting/ }).click()
+    await expect(page.getByText(/^\d+ selected$/)).toHaveCount(0)
+  })
+
+  /**
+   * In a playlist you made, holding a row moves it, so selecting starts from
+   * the playlist's ⋯ — the phone's only way to remove several songs at once.
+   */
+  test('a playlist’s ⋯ starts selecting, and offers removing from it', async ({ page }, info) => {
+    const library = (await (await page.request.get(`${appApi}/api/library`)).json()) as {
+      playlists: { id: number; kind: string; songCount: number }[]
+    }
+    const playlist = library.playlists.find(
+      entry => entry.kind === 'manual' && entry.songCount >= 2,
+    )
+    test.skip(!playlist, 'needs a playlist you made with two songs')
+    if (!playlist) return
+
+    await page.goto(`/playlists/${playlist.id}`)
+    const rows = songRows(page)
+    await expect(rows.nth(1)).toBeVisible({ timeout: 30_000 })
+    await page.getByTestId('playlist-more').first().click()
+    await page.getByRole('menuitem', { name: 'Select songs' }).click()
+    const second = await titleOf(rows.nth(1))
+    await page.getByRole('checkbox', { name: `Select ${second}` }).click()
+    await expect(selectionCount(page, 1)).toBeVisible()
+
+    // Removing from the playlist says so, and is not the library's red
+    // remove. A phone's bar keeps it in More; leaving the page ends the
+    // selection, so nothing is pressed that would change the playlist.
+    if (info.project.name === 'phone') {
+      await page.getByRole('button', { name: /^More$/ }).click()
+      await expect(page.getByRole('menuitem', { name: 'Remove from playlist' })).toBeVisible()
+    } else {
+      await expect(page.getByRole('button', { name: 'Remove from playlist' })).toBeVisible()
+      await page.getByRole('button', { name: /^Done selecting/ }).click()
+      await expect(page.getByText(/^\d+ selected$/)).toHaveCount(0)
+    }
   })
 })

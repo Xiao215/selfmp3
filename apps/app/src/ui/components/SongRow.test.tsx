@@ -129,20 +129,13 @@ describe('a playlist row is a library row', () => {
     expect(screen.getByLabelText(`More actions for ${song.title}`)).toBeTruthy()
   })
 
-  it('leaves the hold to the move when the page says the move owns it', async () => {
+  it('leaves the hold to the move when the page gives the row none', async () => {
     const onMore = jest.fn()
-    await render(<SongRow {...playlistRow({ onMore, onLongPress: null })} />)
+    await render(<SongRow {...playlistRow({ onMore })} />)
 
+    // A hold means moving or selecting (D1), never the menu: the ⋯ is the menu.
     await fireEvent(screen.getByLabelText(`${song.title}, ${song.artist}`), 'longPress')
     expect(onMore).not.toHaveBeenCalled()
-  })
-
-  it('still opens the menu on a hold where nothing else claims it', async () => {
-    const onMore = jest.fn()
-    await render(<SongRow {...playlistRow({ onMore, onLongPress: undefined })} />)
-
-    await fireEvent(screen.getByLabelText(`${song.title}, ${song.artist}`), 'longPress')
-    expect(onMore).toHaveBeenCalled()
   })
 
   it('selects on a hold where a page asks for that, as the library does', async () => {

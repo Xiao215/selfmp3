@@ -426,7 +426,12 @@ export function PlaylistDetailScreen(): ReactNode {
             label={`${name} songs`}
             selection={selection}
             onPlay={index => playback.playFrom(playlistId, songIds, index)}
-            onReorder={moved => reorderPlaylist.mutate({ playlistId, songIds: [...moved] })}
+            // One that fills from tags is in its rule's order, not yours.
+            onReorder={
+              manual
+                ? moved => reorderPlaylist.mutate({ playlistId, songIds: [...moved] })
+                : undefined
+            }
             header={header}
             pinned={playlist ? bar.pinned : null}
             empty={empty}

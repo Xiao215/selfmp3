@@ -148,6 +148,48 @@ test.describe('a playlist’s songs', () => {
   })
 })
 
+test.describe('a playlist that fills from tags', () => {
+  /**
+   * Its order is its rule's, so a row is not lifted and no new order is sent:
+   * a hold there means what it means in Library, and selects.
+   */
+  test('keeps its order when a row is held and dragged', async ({ page }) => {
+    const response = await page.request.get(`${appApi}/api/library`)
+    const { playlists } = (await response.json()) as {
+      playlists: (StoredPlaylist & { kind: string })[]
+    }
+    const live = playlists.find(entry => entry.kind === 'live' && entry.songCount >= 3)
+    test.skip(!live, 'needs a playlist that fills from tags with at least 3 songs')
+    if (!live) return
+
+    await page.goto(`/playlists/${live.id}`)
+    const rows = songRows(page)
+    await expect(rows.nth(2)).toBeVisible({ timeout: 30_000 })
+    const before = (await order(page)).slice(0, 3)
+    const reorders: string[] = []
+    page.on('request', request => {
+      if (request.url().includes(`/api/playlists/${live.id}/`) && request.method() !== 'GET')
+        reorders.push(request.url())
+    })
+
+    const box = (await rows.nth(0).boundingBox())!
+    const x = box.x + box.width / 2
+    const y = box.y + box.height / 2
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    await page.waitForTimeout(600)
+    for (let step = 1; step <= 10; step += 1) {
+      await page.mouse.move(x, y + (box.height * 2 * step) / 10)
+      await page.waitForTimeout(20)
+    }
+    await page.mouse.up()
+    await page.waitForTimeout(500)
+
+    expect((await order(page)).slice(0, 3)).toEqual(before)
+    expect(reorders).toEqual([])
+  })
+})
+
 test.describe('a playlist', () => {
   test('has no pin or download button; its ⋯ holds the rest', async ({ page }) => {
     const name = await openOneYouMade(page)

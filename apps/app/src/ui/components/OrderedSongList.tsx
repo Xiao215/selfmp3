@@ -35,7 +35,8 @@ import { SongRow } from './SongRow'
  *
  * The page owns the order: `onReorder` hands it the new one, and the page
  * keeps it wherever it keeps it — the server for a playlist, memory for an
- * answer.
+ * answer. A playlist that fills from tags hands none, because its order is
+ * its rule's: nothing lifts, and a hold selects as it does in Library.
  */
 export function OrderedSongList({
   songs,
@@ -60,8 +61,8 @@ export function OrderedSongList({
   selection: Selection
   /** A row pressed outside selecting: play from it. */
   onPlay: (index: number) => void
-  /** A row moved: the songs' ids in their new order. */
-  onReorder: (songIds: readonly number[]) => void
+  /** A row moved: the songs' ids in their new order. Left out, the order is not yours to change. */
+  onReorder?: (songIds: readonly number[]) => void
   header?: ReactElement | null
   pinned?: ReactElement | null
   empty?: ReactElement | null
@@ -153,7 +154,7 @@ export function OrderedSongList({
       setDrag(null)
       moving.current = { carried: false, droppedAt: Date.now() }
       dropRow()
-      if (moved) now.onReorder(moved.songIds)
+      if (moved) now.onReorder?.(moved.songIds)
     },
     [dropRow],
   )
@@ -207,8 +208,9 @@ export function OrderedSongList({
   const unreachableHere = library.isError && installed
   const menuSongId = songMenu.openId
   // Selection mode is not what reordering is for, so a held row selects
-  // rather than lifts while it is on.
-  const reorderable = !selection.active
+  // rather than lifts while it is on — and always, where the order is not
+  // yours to change.
+  const reorderable = onReorder !== undefined && !selection.active
   const renderSong = useCallback(
     ({ item, index }: { item: Song; index: number }) => {
       const here = isDownloaded(downloads.index, item.id)

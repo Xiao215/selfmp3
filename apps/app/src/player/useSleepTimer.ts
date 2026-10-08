@@ -85,7 +85,7 @@ export function useSleepTimer(engine: PlaybackEngine): SleepTimer {
   }, [endsAt, engine])
 
   /*
-   * Held, for the reason `usePracticeControls` gives: `PlayerApi` is built
+   * Held, for the reason `useVolumeControls` gives: `PlayerApi` is built
    * from this, so a new object render would be a new api and every screen
    * reading the player would redraw with it.
    */

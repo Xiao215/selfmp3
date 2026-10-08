@@ -250,7 +250,7 @@ export function isSettled(m: MotionState): boolean {
  *
  * track-player reports the position every second, which is a whole bar of
  * music; the stored curve is 20 frames a second. So between ticks the clock
- * runs on from the last one at the playback rate, snaps to each tick as it
+ * runs on from the last one in real time, snaps to each tick as it
  * comes, stops where it is on a pause and carries on from there on play. It
  * never runs more than a little past a tick that has not come, so a stall
  * holds the drawing rather than letting it race ahead of the sound.
@@ -259,7 +259,6 @@ export class PlayheadClock {
   #position = 0
   #at = 0
   #playing = false
-  #rate = 1
 
   /** A progress tick (or a seek): the position the player reported, and when. */
   tick(position: number, now: number): void {
@@ -275,18 +274,11 @@ export class PlayheadClock {
     this.#playing = playing
   }
 
-  setRate(rate: number, now: number): void {
-    if (rate === this.#rate) return
-    this.#position = this.read(now)
-    this.#at = now
-    this.#rate = rate > 0 ? rate : 1
-  }
-
   /** Seconds into the song at `now` (milliseconds, on the same clock as the ticks). */
   read(now: number): number {
     if (!this.#playing) return this.#position
     const ahead = clamp((now - this.#at) / 1000, 0, PLAYHEAD_REACH)
-    return this.#position + ahead * this.#rate
+    return this.#position + ahead
   }
 }
 

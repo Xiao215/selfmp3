@@ -253,12 +253,11 @@ describe('the phone playhead between ticks', () => {
     expect(clock.read(5100)).toBeCloseTo(5.7)
   })
 
-  it('follows the playback rate, and never races far past a missing tick', () => {
+  it('never races far past a missing tick', () => {
     const clock = new PlayheadClock()
     clock.setPlaying(true, 0)
     clock.tick(0, 0)
-    clock.setRate(2, 0)
-    expect(clock.read(500)).toBeCloseTo(1)
-    expect(clock.read(60_000)).toBeCloseTo(PLAYHEAD_REACH * 2)
+    expect(clock.read(500)).toBeCloseTo(0.5)
+    expect(clock.read(60_000)).toBeCloseTo(PLAYHEAD_REACH)
   })
 })

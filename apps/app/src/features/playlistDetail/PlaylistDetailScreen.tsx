@@ -39,10 +39,11 @@ import {
   ListMusic,
   Live,
   More,
+  Next,
   Pencil,
   Play,
   Plus,
-  Queue,
+  QueueAdd,
   Shuffle,
   Trash,
 } from '../../ui/components/Icons'
@@ -223,7 +224,7 @@ export function PlaylistDetailScreen(): ReactNode {
     setHeadMenuOpen(false)
     run()
   }
-  const menuIcon = (Glyph: typeof Queue, color = theme.colors.textSecondary): ReactNode => (
+  const menuIcon = (Glyph: typeof QueueAdd, color = theme.colors.textSecondary): ReactNode => (
     <Glyph size={16} color={color} />
   )
 
@@ -451,13 +452,13 @@ export function PlaylistDetailScreen(): ReactNode {
         testID="playlist-menu"
       >
         <SheetItem
-          icon={menuIcon(Queue)}
+          icon={menuIcon(Next)}
           label="Play next"
           disabled={nothing}
           onPress={menuAction(() => player.playNext(songIds))}
         />
         <SheetItem
-          icon={menuIcon(ListMusic)}
+          icon={menuIcon(QueueAdd)}
           label="Add to Up next"
           disabled={nothing}
           onPress={menuAction(() => player.addToQueue(songIds))}

@@ -8,7 +8,7 @@ import Animated, {
 } from 'react-native-reanimated'
 import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from 'react-native-svg'
 import { radius, rgba } from '@selfmp3/client'
-import { usePlayerCommands, usePlayerPlaying, usePracticeState } from '../../player/PlayerProvider'
+import { usePlayerCommands, usePlayerPlaying } from '../../player/PlayerProvider'
 import { useMotionReduced } from '../../ui/motion'
 import { useVisualLook } from './useVisualLook'
 import {
@@ -94,15 +94,13 @@ export function SongVisual({
     live.current = { isPlaying, sampler, tuning }
   })
 
-  // The clock: each progress tick (and a seek, which arrives as one), play and pause, and the rate.
+  // The clock: each progress tick (and a seek, which arrives as one), and play and pause.
   const { subscribeProgress, getPosition } = player
-  const { rate } = usePracticeState()
   useEffect(() => {
     clock.tick(getPosition(), performance.now())
     return subscribeProgress(() => clock.tick(getPosition(), performance.now()))
   }, [clock, subscribeProgress, getPosition])
   useEffect(() => clock.setPlaying(isPlaying, performance.now()), [clock, isPlaying])
-  useEffect(() => clock.setRate(rate, performance.now()), [clock, rate])
 
   useEffect(() => {
     if (!size || !reduced) return

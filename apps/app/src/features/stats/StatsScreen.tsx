@@ -202,7 +202,7 @@ function Spark({ values }: { values: readonly number[] }): ReactNode {
  * What was played most: Songs, Artists and Tags. A phone shows one at a time
  * and switches between them; a computer with the width for all three puts them
  * side by side, as `C15` draws them. The page column is measured rather than
- * the window, since the sidebar and the practice panel take their share of it.
+ * the window, since the sidebar and Up next's rail take their share of it.
  */
 function Ranked({ stats, via }: { stats: Stats; via: ServerConnection | undefined }): ReactNode {
   const column = useContentWidth()

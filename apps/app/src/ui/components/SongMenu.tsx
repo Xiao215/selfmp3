@@ -2,8 +2,7 @@ import { useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import type { View as RNView } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, type Href } from 'expo-router'
 import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
 import {
   clientApi,
@@ -24,7 +23,6 @@ import { useDownloads } from '../../offline/DownloadsProvider'
 import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { showToast } from '../toast'
-import { Button } from './Button'
 import { Chip } from './Chip'
 import { RemoveSongs } from './ConfirmRemoveSongs'
 import { Cover } from './Cover'
@@ -32,10 +30,11 @@ import { IconButton } from './IconButton'
 import {
   CloudDownload,
   CloudRemove,
+  Devices,
   Heart,
   Info,
   ListMusic,
-  Queue,
+  QueueAdd,
   Sparkles,
   Tag as TagIcon,
   Trash,
@@ -44,15 +43,20 @@ import {
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 import { TagPicker } from './TagPicker'
+import type { PopoverAnchor } from '../rightClick'
 
 /**
- * The ⋯ menu for a song (docs/ui-mock `P14`).
+ * The ⋯ menu for a song (docs/ui-mock `P14`): the one song menu, the same
+ * items in the same order wherever a song is — a row's ⋯, a held row, a
+ * right-click, Now Playing's ⋯ on a phone or a computer (proposal B1,
+ * 2026-10-08). People learn one menu and find it everywhere.
  *
  * At phone width this is a row's only set of actions, so everything a row can
  * do has to be reachable from here, tagging included. The song heads it —
  * cover, title, its tags and its heart — so a menu opened by holding a row
- * still says which row it came from, and the two things done to a song most
- * often, tagging and keeping it, are the two buttons under that head.
+ * still says which row it came from. Then what is done to the song, what it
+ * is, what it is to the list it was opened from (a playlist you made), and
+ * last, removing it.
  *
  * Kept short on purpose. Play next lives on the song's own page, which "Song
  * details" opens; selecting starts from a held row on a phone and from the
@@ -67,14 +71,17 @@ import { TagPicker } from './TagPicker'
  * the menu, the same popup took two presses, and the second landed where the
  * first had been (Xiao, 2026-10-02).
  *
- * Dropping the download on its own stays up by the head, as "Remove
- * download": keeping the song and freeing the room is a different wish.
+ * Dropping the download on its own is "Remove download", beside Download:
+ * keeping the song and freeing the room is a different wish.
  */
 export function SongMenu({
   song,
   onClose,
   anchorRef,
   playlist,
+  onDevices,
+  onRemove,
+  onOpen,
 }: {
   song: Song | null
   onClose: () => void
@@ -83,8 +90,29 @@ export function SongMenu({
    * it, which on a phone is the only way to — its rows have no ✕.
    */
   playlist?: { readonly id: number; readonly name: string }
-  /** The ⋯ that opened it. At desktop width the menu hangs off it; without one it is a sheet. */
-  anchorRef?: RefObject<RNView | null>
+  /**
+   * The ⋯ that opened it, or the point a right-click landed on. At desktop
+   * width the menu hangs off it; without one it is a sheet.
+   */
+  anchorRef?: RefObject<PopoverAnchor | null>
+  /**
+   * Opened from the phone's Now Playing, which has no other door to the
+   * devices: the menu ends with a short "This player" group for them. Sleep
+   * is not in it, since the page has its own Sleep button.
+   */
+  onDevices?: () => void
+  /**
+   * Who asks about removing, when the question has to outlive the page the
+   * menu is on: removing the song playing takes the phone's Now Playing away
+   * with it. Left out, the menu asks itself.
+   */
+  onRemove?: (song: Song) => void
+  /**
+   * Going to a page from the menu — a tag's, the song's own. Left out, the
+   * router goes there; the phone's Now Playing is a modal over the app, and
+   * puts itself away first (`leaveTo`).
+   */
+  onOpen?: (href: Href) => void
 }): ReactNode {
   const { data: library } = useLibrary()
   const [tagging, setTagging] = useState<number | null>(null)
@@ -99,12 +127,15 @@ export function SongMenu({
       onClose={onClose}
       playlist={playlist}
       anchorRef={anchorRef}
+      onDevices={onDevices}
+      onOpen={onOpen}
       onTags={() => {
         setTagging(song.id)
         onClose()
       }}
       onRemove={() => {
-        setRemoving(song)
+        if (onRemove) onRemove(song)
+        else setRemoving(song)
         onClose()
       }}
     />
@@ -142,6 +173,8 @@ function Items({
   onRemove,
   playlist,
   anchorRef,
+  onDevices,
+  onOpen,
 }: {
   song: Song
   onClose: () => void
@@ -150,10 +183,13 @@ function Items({
   onRemove: () => void
   playlist?: { readonly id: number; readonly name: string }
   /** The ⋯ that opened the menu, where a song sent to Up next flies from. */
-  anchorRef?: RefObject<RNView | null>
+  anchorRef?: RefObject<PopoverAnchor | null>
+  onDevices?: () => void
+  onOpen?: (href: Href) => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
+  const open = onOpen ?? ((href: Href) => router.navigate(href))
   const player = usePlayerCommands()
   const fly = useFlyToUpNext()
   const artFor = useArt()
@@ -161,7 +197,7 @@ function Items({
   const addToPlaylist = useAddToPlaylist()
   const removeFromPlaylist = useRemoveFromPlaylist()
   const toggleLoved = useToggleLoved()
-  const { state: downloads, installed, downloadByHand, removeByHand } = useDownloads()
+  const { state: downloads, installed, requestDownload, removeByHand } = useDownloads()
   const [playlistsOpen, setPlaylistsOpen] = useState(false)
 
   // The heart and the tags as they are now, not as they were when the menu opened.
@@ -195,7 +231,7 @@ function Items({
       )
   }
 
-  const icon = (Glyph: typeof Queue) => <Glyph size={16} color={theme.colors.textSecondary} />
+  const icon = (Glyph: typeof QueueAdd) => <Glyph size={16} color={theme.colors.textSecondary} />
 
   return (
     <>
@@ -217,7 +253,7 @@ function Items({
                   hue={tag.hue}
                   selected={false}
                   compact
-                  onPress={then(() => router.navigate(tagLink(tag.name)))}
+                  onPress={then(() => open(tagLink(tag.name)))}
                 />
               ))}
             </View>
@@ -238,33 +274,7 @@ function Items({
         </IconButton>
       </View>
 
-      <View style={styles.buttons}>
-        <Button label="Tags" icon={<TagIcon size={16} tone="textPrimary" />} onPress={onTags} />
-        {/* A browser streams; only an installed app keeps songs. */}
-        {!installed ? null : held ? (
-          <Button
-            label="Remove download"
-            icon={<CloudRemove size={16} tone="textPrimary" />}
-            onPress={then(() => void removeByHand([song.id]))}
-          />
-        ) : (
-          <Button
-            label="Download"
-            icon={<CloudDownload size={16} tone="textPrimary" />}
-            onPress={then(() => downloadByHand([song.id]))}
-          />
-        )}
-      </View>
-
-      {playlist ? (
-        <SheetItem
-          icon={icon(X)}
-          label="Remove from this playlist"
-          onPress={then(() =>
-            removeFromPlaylist.mutate({ playlistId: playlist.id, songId: song.id }),
-          )}
-        />
-      ) : null}
+      <SheetItem icon={icon(TagIcon)} label="Tags" onPress={onTags} />
       {/* Opens in place rather than over the menu, so the song stays named above it. */}
       <SheetItem
         icon={icon(ListMusic)}
@@ -291,7 +301,7 @@ function Items({
         </View>
       ) : null}
       <SheetItem
-        icon={icon(Queue)}
+        icon={icon(QueueAdd)}
         label="Add to Up next"
         onPress={() => {
           fly(anchorRef?.current ?? null, [song.id])
@@ -300,15 +310,49 @@ function Items({
         }}
       />
       <SheetItem icon={icon(Sparkles)} label="Play similar songs" onPress={then(playSimilar)} />
-
-      {/* The groups are told apart by the room between them, not a line. */}
-      <View style={styles.gap} />
-
+      {/* A browser streams; only an installed app keeps songs. */}
+      {!installed ? null : held ? (
+        <SheetItem
+          icon={icon(CloudRemove)}
+          label="Remove download"
+          onPress={then(() => void removeByHand([song.id]))}
+        />
+      ) : (
+        <SheetItem
+          icon={icon(CloudDownload)}
+          label="Download"
+          // By hand, so a song removed by hand comes back, and mobile data is asked about.
+          onPress={then(() => requestDownload([song.id]))}
+        />
+      )}
       <SheetItem
         icon={icon(Info)}
         label="Song details"
-        onPress={then(() => router.navigate(songLink(song.id)))}
+        onPress={then(() => open(songLink(song.id)))}
       />
+
+      {/* What the song is to where the menu was opened. The groups are told
+          apart by the room between them, not a line. */}
+      {playlist ? (
+        <>
+          <View style={styles.gap} />
+          <SheetItem
+            icon={icon(X)}
+            label="Remove from this playlist"
+            onPress={then(() =>
+              removeFromPlaylist.mutate({ playlistId: playlist.id, songId: song.id }),
+            )}
+          />
+        </>
+      ) : null}
+      {onDevices ? (
+        <>
+          <Text style={styles.group}>This player</Text>
+          <SheetItem icon={icon(Devices)} label="Devices" onPress={then(onDevices)} />
+        </>
+      ) : null}
+
+      <View style={styles.gap} />
       <SheetItem
         icon={<Trash size={16} color={theme.colors.danger} />}
         label="Remove from library…"
@@ -332,18 +376,15 @@ const styles = StyleSheet.create(theme => ({
   title: { color: theme.colors.textPrimary, fontSize: type.title, fontWeight: '600' },
   byline: { color: theme.colors.textSecondary, fontSize: type.rowSub },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginTop: space.xs },
-  /*
-   * Two abreast while both labels fit, and one under the other when they do
-   * not: side by side, "Remove download" was clipped to "Remove dow…", which
-   * names nothing. Each takes the whole row once it wraps.
-   */
-  buttons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: space.sm,
-    paddingBottom: space.sm,
-  },
   gap: { height: space.sm },
+  /* A group's name, quiet, as a sheet's label title is. */
+  group: {
+    color: theme.colors.textMuted,
+    fontSize: type.small,
+    paddingHorizontal: space.md,
+    paddingTop: space.md,
+    paddingBottom: space.xs,
+  },
   nested: { paddingLeft: space.lg },
   hint: {
     color: theme.colors.textMuted,

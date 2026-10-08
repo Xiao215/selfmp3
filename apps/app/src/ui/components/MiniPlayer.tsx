@@ -17,7 +17,7 @@ import { Cover } from './Cover'
 import { UpNextTarget } from './CoverFlight'
 import { IconButton } from './IconButton'
 import { ProgressWash } from './ProgressWash'
-import { Next, Queue } from './Icons'
+import { Next, UpNext } from './Icons'
 import { floating } from '../surfaces'
 import { PlayPauseIcon } from './PlayPauseIcon'
 import { handOffCover } from '../coverHandoff'
@@ -190,7 +190,7 @@ function MiniPlayerInner(): ReactNode {
       {/* Up next: the sheet over this card and the tab bar (docs/ui-mock `P25`). */}
       <UpNextTarget>
         <IconButton testID="mini-player-queue" onPress={openQueueSheet} label="Up next">
-          <Queue size={20} color={theme.colors.textSecondary} />
+          <UpNext size={20} color={theme.colors.textSecondary} />
         </IconButton>
       </UpNextTarget>
       {/*

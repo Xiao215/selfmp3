@@ -21,8 +21,7 @@ describe('keyboard shortcuts', () => {
       '⌘ ↑ ↓ Volume',
       '⌥ ⌘ ↓ Mute',
       '⌘ K Search',
-      '⌘ 1–3 Library · Playlists · Now Playing',
-      '⌘ P Practice panel',
+      '⌘ 1–3 Library · Playlists · Now playing',
       '⌘ , Settings',
     ])
   })

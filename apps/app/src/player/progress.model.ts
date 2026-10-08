@@ -111,32 +111,6 @@ export function sameVolume(a: VolumeState, b: VolumeState): boolean {
 }
 
 /**
- * The practice tools' state: the loop, its count-in, and the speed with
- * whether the pitch follows it. Read by the practice panel and the two chips
- * that say a loop or a speed is on; the count-in flips on every restart of
- * the loop, which is why it does not ride in `PlayerApi`.
- */
-export interface PracticeState {
-  readonly loopA: number | null
-  readonly loopB: number | null
-  /** The pause before a loop starts again, while it is happening. */
-  readonly countingIn: boolean
-  /** Playback speed: 1 is normal. */
-  readonly rate: number
-  readonly preservesPitch: boolean
-}
-
-export function samePractice(a: PracticeState, b: PracticeState): boolean {
-  return (
-    a.loopA === b.loopA &&
-    a.loopB === b.loopB &&
-    a.countingIn === b.countingIn &&
-    a.rate === b.rate &&
-    a.preservesPitch === b.preservesPitch
-  )
-}
-
-/**
  * One row's view of the player: `playing` or `paused` for the loaded song, and
  * null for every other row. A primitive, so a song change wakes the two rows
  * whose answer changed and a pause wakes one — not the whole list.
@@ -152,7 +126,7 @@ export function songPlayback(
 /**
  * Whether two engine states differ in anything but the clock.
  *
- * The clock — the position and the duration — goes to the progress store. Everything else (playing, volume, loop points…) is rare, and
+ * The clock — the position and the duration — goes to the progress store. Everything else (playing, volume, a stall…) is rare, and
  * is what the provider still keeps in state.
  */
 export function differsBesidesClock<T extends { currentTime: number; duration: number }>(
@@ -172,7 +146,6 @@ export interface ReportedPosition {
   /** Milliseconds, as `Date.now()`. */
   readonly at: number
   readonly playing: boolean
-  readonly rate: number
 }
 
 /**
@@ -180,7 +153,8 @@ export interface ReportedPosition {
  *
  * The OS's Now Playing card runs its own clock from the last position it was
  * given, so it needs telling only when the position stops agreeing with that
- * clock: a jump further than the time that passed would explain. `threshold`
+ * clock: a jump further than the time that passed would explain. Playback is
+ * always at normal speed, so a second of clock is a second of song. `threshold`
  * absorbs the coarse ticks — a phone's are a second apart.
  */
 export function positionJumped(
@@ -189,8 +163,6 @@ export function positionJumped(
   now: number,
   threshold = 1.5,
 ): boolean {
-  const expected = last.playing
-    ? last.position + ((now - last.at) / 1000) * last.rate
-    : last.position
+  const expected = last.playing ? last.position + (now - last.at) / 1000 : last.position
   return Math.abs(position - expected) > threshold
 }

@@ -25,6 +25,7 @@ import { useContentWidthValue } from '../../shell/contentWidth'
 import { SIDEBAR_WIDTH } from '../../shell/Sidebar'
 import { useLayoutValue, useWindowValue } from '../../shell/useLayout'
 import { tip } from '../tip'
+import { rightClick, type PopoverAnchor } from '../rightClick'
 import { useSongColor } from '../useSongColor'
 import { Checkbox } from './Checkbox'
 import { Cover } from './Cover'
@@ -39,7 +40,7 @@ import { useSvgId } from '../useSvgId'
 /**
  * Past this width of page the album leaves the second line for a column of its
  * own. It was 1160 of window, of which the sidebar takes 244; measured against
- * the page itself, it stays right when the practice panel narrows the page.
+ * the page itself, it stays right when Up next's rail narrows the page.
  */
 const ALBUM_COLUMN_CONTENT_WIDTH = 916
 /**
@@ -120,10 +121,11 @@ export const SongRow = memo(function SongRow({
    */
   onPress: (event: GestureResponderEvent, song: Song) => void
   /**
-   * The ⋯, and what a held finger opens. Handed the ⋯ itself, so at desktop
-   * width the menu can open beside it.
+   * The ⋯, and what a held finger or a right-click opens. Handed the ⋯ itself,
+   * so at desktop width the menu can open beside it — or the pointer, for a
+   * right-click, so it opens there.
    */
-  onMore?: (anchor: View | null, song: Song) => void
+  onMore?: (anchor: PopoverAnchor | null, song: Song) => void
   /**
    * Selection mode is on, so the checkbox column is showing. On a phone the
    * column is not there until then, rather than spending 34 points of every
@@ -211,6 +213,8 @@ export const SongRow = memo(function SongRow({
         : onMore
           ? () => onMore(moreRef.current, song)
           : undefined
+  // A right-click anywhere on the row opens the same menu at the pointer.
+  const onRightClick = rightClick(onMore ? at => onMore(at, song) : undefined)
 
   // What the row is, as well as which song: picked, out of reach, being moved.
   const states = [
@@ -230,7 +234,7 @@ export const SongRow = memo(function SongRow({
           real <button>, and a row that was one would nest the ⋯ inside it, so
           the row is a role="row" with its buttons as siblings.
         */}
-        <View testID={testID} role="row" style={[styles.row, ...states]}>
+        <View testID={testID} role="row" style={[styles.row, ...states]} {...onRightClick}>
           {wash.mounted ? <RowWash color={songColor.color} progress={wash.progress} /> : null}
           {selecting && onToggleSelect ? (
             <SelectBox
@@ -312,6 +316,7 @@ export const SongRow = memo(function SongRow({
         style={[styles.rowWide, dense && (hovered || menuOpen) && styles.rowHovered, ...states]}
         onPointerEnter={dense ? () => setHovered(true) : undefined}
         onPointerLeave={dense ? () => setHovered(false) : undefined}
+        {...onRightClick}
       >
         {wash.mounted ? <RowWash color={songColor.color} progress={wash.progress} /> : null}
         {onToggleSelect && (dense || selecting || selected) ? (
@@ -515,7 +520,7 @@ function MoreButton({
 }: {
   moreRef: RefObject<View | null>
   song: Song
-  onMore: (anchor: View | null, song: Song) => void
+  onMore: (anchor: PopoverAnchor | null, song: Song) => void
   style: StyleProp<ViewStyle>
 }): ReactNode {
   return (

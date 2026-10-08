@@ -7,8 +7,8 @@
  * screen. This is the surface `PlayerProvider` is written against so there is
  * one of it rather than the two that exist today.
  *
- * Derived from years of real behaviour — gapless handover, crossfade,
- * count-in, an A/B loop — rather than designed fresh: inventing a tidier shape
+ * Derived from years of real behaviour — gapless handover, crossfade, a
+ * lock-screen card — rather than designed fresh: inventing a tidier shape
  * here would mean discovering at integration time which parts of that
  * behaviour the shape could not express. The state object was already free of
  * DOM types; only `analyser()` was not, and that is handled below.
@@ -21,14 +21,9 @@ export interface EngineState {
   readonly duration: number
   readonly volume: number
   readonly muted: boolean
-  readonly rate: number
   /** Waiting on the network mid-song, which the UI shows differently to paused. */
   readonly stalled: boolean
   readonly error: string | null
-  readonly preservesPitch: boolean
-  readonly loopA: number | null
-  readonly loopB: number | null
-  readonly countingIn: boolean
 }
 
 /**
@@ -48,7 +43,7 @@ export interface FrequencyAnalyser {
 /**
  * What this engine can actually do.
  *
- * Read by the practice panel, the visualiser and the settings page: a control
+ * Read by the visualiser and the settings page: a control
  * for something the platform cannot do is not rendered, and settings says why,
  * the way the phone's About section does for crossfade today. Declaring them
  * beats feature-detection at each call site, which is how one platform ends up
@@ -62,8 +57,6 @@ export interface EngineCapabilities {
   readonly crossfade: boolean
   /** Drive a live visualiser — `analyser()` returns null without this. */
   readonly analyser: boolean
-  /** Loop A to B to within a frame, with a count-in before each restart. */
-  readonly loop: boolean
 }
 
 /**
@@ -140,8 +133,9 @@ export interface PlaybackEngine {
    * The playhead, read directly rather than from `state`.
    *
    * `state.currentTime` updates on a timer, which is often enough to draw a
-   * progress bar and not nearly enough to place a practice loop point. This
-   * asks the engine where it is right now.
+   * progress bar and not nearly enough for a drawing that moves on the beat,
+   * or to tell whether Previous should restart the song. This asks the engine
+   * where it is right now.
    */
   readonly playhead: number
 
@@ -156,14 +150,6 @@ export interface PlaybackEngine {
 
   setVolume(volume: number): void
   setMuted(muted: boolean): void
-  setRate(rate: number): void
-  setPreservesPitch(on: boolean): void
-
-  /** The practice loop. Both null clears it, as does loading another song. */
-  setLoop(a: number | null, b: number | null): void
-  clearLoop(): void
-  /** Milliseconds of click before the loop restarts; 0 turns it off. */
-  setCountIn(ms: number): void
 
   /** Null where `capabilities.analyser` is false. */
   analyser(): FrequencyAnalyser | null

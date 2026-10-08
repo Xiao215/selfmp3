@@ -25,13 +25,8 @@ const IDLE: EngineState = {
   duration: 0,
   volume: 1,
   muted: false,
-  rate: 1,
   stalled: false,
   error: null,
-  preservesPitch: true,
-  loopA: null,
-  loopB: null,
-  countingIn: false,
 }
 
 const mockWiring: Partial<EngineWiring> = {}
@@ -41,7 +36,6 @@ const mockEngine = {
   capabilities: {
     crossfade: false,
     analyser: false,
-    loop: false,
   },
   state: IDLE,
   currentSongId: null as number | null,
@@ -57,12 +51,7 @@ const mockEngine = {
   seek: jest.fn(),
   setVolume: jest.fn(),
   setMuted: jest.fn(),
-  setRate: jest.fn(),
-  setPreservesPitch: jest.fn(),
-  setLoop: jest.fn(),
   refreshLookahead: jest.fn(),
-  clearLoop: jest.fn(),
-  setCountIn: jest.fn(),
   analyser: () => null,
   destroy: jest.fn(),
   connect: (wiring: Partial<EngineWiring>) => {

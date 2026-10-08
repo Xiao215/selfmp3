@@ -39,7 +39,7 @@ export interface MediaSessionPort {
   setActions(actions: MediaSessionActions | null): void
   setNowPlaying(now: NowPlaying | null): void
   setPlaying(playing: boolean): void
-  setPosition(position: number, duration: number, rate: number): void
+  setPosition(position: number, duration: number): void
 }
 
 export const mediaSession: MediaSessionPort = {

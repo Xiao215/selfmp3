@@ -17,8 +17,6 @@ import { artistOr } from '@selfmp3/shared'
 import {
   fonts,
   HIT_TARGET,
-  isDownloaded,
-  loopRegionPercent,
   motion,
   radius,
   space,
@@ -27,13 +25,11 @@ import {
   useToggleLoved,
   withAlpha,
 } from '@selfmp3/client'
-import { useDownloads } from '../../offline/DownloadsProvider'
 import {
   usePlayer,
   usePlayerCommands,
   usePlayerPlaying,
   usePlayerProgress,
-  usePracticeState,
 } from '../../player/PlayerProvider'
 import { useSongColor } from '../../ui/useSongColor'
 import { ease, motionMs, nativeDriver, spring, timing, useEntrance } from '../../ui/motion'
@@ -47,28 +43,23 @@ import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import {
   ChevronDown,
-  CloudDownload,
-  Devices,
-  Downloaded,
   Heart,
   Info,
-  Metronome,
   More,
   Next,
   Plus,
   Prev,
-  Queue,
   Refresh,
   Repeat,
   RepeatOne,
   Romanize,
   Shuffle,
-  Trash,
+  UpNext,
 } from '../../ui/components/Icons'
 import { PlayPauseIcon } from '../../ui/components/PlayPauseIcon'
 import { SeekBar } from '../../ui/components/SeekBar'
-import { Sheet, SheetItem } from '../../ui/components/Sheet'
 import { SleepMenu, useSleepMinutesLeft } from '../../ui/components/SleepMenu'
+import { SongMenu } from '../../ui/components/SongMenu'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { artShadow, label } from '../../ui/surfaces'
 import { useArt } from '../../offline/useArt'
@@ -76,7 +67,6 @@ import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { OverlayProvider } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
 import { DevicesSheet } from '../devices/DevicesSheet'
-import { PracticePanel } from '../practice/PracticePanel'
 import { openQueueSheet } from '../queue/queueSheet.store'
 import { songLink } from '../song/song.model'
 import { tagLink } from '../tag/placeLinks'
@@ -118,7 +108,7 @@ export function NowPlayingScreen(): ReactNode {
   // keeps its own screen.
   // A phone presents this page as a native modal, above the whole app, the
   // shell's overlay host included: a sheet drawn there sat under the page and
-  // never showed (Sleep, Devices, Practice). So the phone's page has a host of
+  // never showed (Sleep, Devices, the song menu). So the phone's page has a host of
   // its own, inside the modal.
   return wide ? (
     <NowPlayingStage />
@@ -228,7 +218,6 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
 
   const [sleepOpen, setSleepOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
-  const [practiceOpen, setPracticeOpen] = useState(false)
   const [devicesOpen, setDevicesOpen] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
   // Play-and-tag, from All tags' untagged card: the tag editor up for each song in turn.
@@ -452,19 +441,16 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
         </Animated.View>
       ) : null}
 
-      <MoreSheet
-        song={song}
-        open={moreOpen}
+      {/* The song menu every other screen has, with Devices after it: this page
+          has no other door to them (proposal B1). Removing asks above the page,
+          and a link puts the page away first. */}
+      <SongMenu
+        song={moreOpen ? song : null}
         onClose={() => setMoreOpen(false)}
-        onPractice={() => setPracticeOpen(true)}
         onDevices={() => setDevicesOpen(true)}
-        onRemove={() => onRemove(song)}
+        onRemove={onRemove}
+        onOpen={href => leaveTo(router, href)}
       />
-      <Sheet open={practiceOpen} onClose={() => setPracticeOpen(false)} testID="practice-sheet">
-        <View style={styles.practiceSheet}>
-          <PracticePanel onClose={() => setPracticeOpen(false)} />
-        </View>
-      </Sheet>
       <SleepMenu open={sleepOpen} onClose={() => setSleepOpen(false)} />
       <DevicesSheet open={devicesOpen} onClose={() => setDevicesOpen(false)} />
       {/*
@@ -682,20 +668,16 @@ function CoverView({
       </View>
 
       {/*
-        The foot: the two views' marks, then Lyrics · Sleep · Up next. Practice,
-        Download and Devices are one step further, under ⋯, since the page
-        keeps its foot to three.
+        The foot: Lyrics · Sleep · Up next, and the song menu under ⋯ with
+        Devices in it. No page dots: they said to swipe sideways, and the
+        gestures are up for the words and down to close (proposal H1).
       */}
       <View style={styles.foot}>
-        <View style={styles.dots} accessibilityElementsHidden importantForAccessibility="no">
-          <View style={[styles.dot, styles.dotOn]} />
-          <View style={styles.dot} />
-        </View>
         <View style={styles.footRow}>
           <Button label={noLyrics ? 'Visual' : 'Lyrics'} onPress={onLyrics} />
           <Button label={sleepLeft ?? 'Sleep'} active={sleepLeft !== null} onPress={onSleep} />
           <Button
-            icon={<Queue size={19} color={theme.colors.textPrimary} />}
+            icon={<UpNext size={19} color={theme.colors.textPrimary} />}
             accessibilityLabel="Up next"
             testID="now-playing-queue"
             onPress={openQueueSheet}
@@ -966,93 +948,15 @@ function WordsView({
 }
 
 /**
- * What the ⋯ at the foot holds: the tools that used to stand in it. Practice
- * (with the speed on it when it is not 1×), keeping the song on this phone in
- * the installed app, and the devices to play on.
- *
- * And, last and in red as in the song's ⋯ menu, removing the song: the one
- * thing that menu does that this page otherwise could not (Xiao, 2026-10-02).
- * The rest of the song menu stays off it — the sheet is for the page's tools.
- */
-function MoreSheet({
-  song,
-  open,
-  onClose,
-  onPractice,
-  onDevices,
-  onRemove,
-}: {
-  song: Song
-  open: boolean
-  onClose: () => void
-  onPractice: () => void
-  onDevices: () => void
-  /** Asks in the shared dialog, once the sheet has gone. */
-  onRemove: () => void
-}): ReactNode {
-  const { theme } = useUnistyles()
-  const practice = usePracticeState()
-  const { state: downloads, requestDownload, installed } = useDownloads()
-  const held = isDownloaded(downloads.index, song.id)
-  const then = (next: () => void) => (): void => {
-    onClose()
-    next()
-  }
-  return (
-    <Sheet open={open} onClose={onClose} title={song.title} testID="now-playing-more-sheet">
-      <SheetItem
-        icon={<Metronome size={18} color={theme.colors.textSecondary} />}
-        label="Practice"
-        detail={practice.rate !== 1 || practice.loopB !== null ? `${practice.rate}×` : undefined}
-        onPress={then(onPractice)}
-      />
-      {installed ? (
-        <SheetItem
-          icon={
-            held ? (
-              <Downloaded
-                size={18}
-                color={theme.colors.textSecondary}
-                knockout={theme.colors.surface1}
-              />
-            ) : (
-              <CloudDownload size={18} color={theme.colors.textSecondary} />
-            )
-          }
-          label={held ? 'Downloaded' : 'Download'}
-          disabled={held}
-          // By hand, so a song removed by hand comes back, and mobile data is asked about.
-          onPress={then(() => requestDownload([song.id]))}
-        />
-      ) : null}
-      <SheetItem
-        icon={<Devices size={18} color={theme.colors.textSecondary} />}
-        label="Devices"
-        onPress={then(onDevices)}
-      />
-      <View style={styles.moreGap} />
-      <SheetItem
-        icon={<Trash size={18} color={theme.colors.danger} />}
-        label="Remove from library…"
-        danger
-        onPress={then(onRemove)}
-      />
-    </Sheet>
-  )
-}
-
-/**
  * The scrubber, which is the only thing on the page that moves with the song.
  * It reads the position itself, so each tick redraws the scrubber and not the
  * blurred cover, the controls, the foot and the sheets around it.
  */
 function PhoneSeek({ color }: { color: string }): ReactNode {
   const player = usePlayerCommands()
-  const { loopA, loopB } = usePracticeState()
   const progress = usePlayerProgress()
   return (
     <SeekBar
-      loop={loopRegionPercent(loopA, loopB, progress.duration)}
       color={color}
       position={progress.position}
       duration={progress.duration}
@@ -1176,23 +1080,10 @@ const styles = StyleSheet.create(theme => ({
   },
   foot: {
     alignItems: 'center',
-    gap: space.md,
     paddingTop: space.lg,
     paddingBottom: space.sm,
   },
-  // Which of the page's two views this is: a quiet mark that the words are a pull away.
-  dots: { flexDirection: 'row', gap: 6 },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: withAlpha(theme.colors.textPrimary, 0.35),
-  },
-  dotOn: { width: 18, backgroundColor: theme.colors.textPrimary },
   footRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  practiceSheet: { height: 560 },
-  // The remove row stands apart from the tools, by room rather than a line.
-  moreGap: { height: space.sm },
   wordsView: { flex: 1, minHeight: 0 },
   wordsHead: {
     flexDirection: 'row',

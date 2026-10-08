@@ -7,8 +7,7 @@ import { createValueStore, type ValueStore } from '../state/valueStore.model'
  * beside the page, as the shell works it out (`Shell`).
  *
  * The window is the wrong measure for a screen's own layout: the sidebar takes
- * 244 of it, Up next 288 while it is open, and the practice panel another 340.
- * A row that chose its columns from the window drew an album column into a
+ * 244 of it and Up next 288 while it is open. A row that chose its columns from the window drew an album column into a
  * page too narrow for one. Worked out and not measured, so that a panel
  * sliding in changes it once, to where the slide ends, and not every frame.
  * Null on a phone.

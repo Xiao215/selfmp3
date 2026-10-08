@@ -97,7 +97,6 @@ export const commandSchema = z.enum([
   'now-playing',
   'library',
   'playlists',
-  'practice',
   'volume-up',
   'volume-down',
   'mute',

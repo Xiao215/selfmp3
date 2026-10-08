@@ -3,7 +3,6 @@ import type { ReactNode, RefObject } from 'react'
 import { Animated, Pressable, ScrollView } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context'
-import type { View as RNView } from 'react-native'
 import { motion, radius, space } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
 import { useLayoutValue, useWindowValue } from '../../shell/useLayout'
@@ -11,6 +10,7 @@ import { useEscape } from '../../shell/useEscape'
 import { PanelDenseContext } from './panel'
 import { Sheet } from './Sheet'
 import { floating } from '../surfaces'
+import { rightClick, type PopoverAnchor } from '../rightClick'
 import { ease, motionMs, nativeDriver } from '../motion'
 import { clamp } from '@selfmp3/shared'
 
@@ -45,8 +45,11 @@ export function Popover({
 }: {
   open: boolean
   onClose: () => void
-  /** The control this belongs to, measured when it opens. Without one it is a sheet. */
-  anchorRef?: RefObject<RNView | null>
+  /**
+   * The control this belongs to, measured when it opens — or the point a
+   * right-click landed on (`pointAnchor`). Without one it is a sheet.
+   */
+  anchorRef?: RefObject<PopoverAnchor | null>
   /** Shown when it falls back to a sheet, where a panel has room for a heading. */
   title?: string
   titleTone?: 'heading' | 'label'
@@ -123,7 +126,7 @@ function AnchoredPopover({
   align: 'start' | 'end'
   open: boolean
   onClose: () => void
-  anchorRef: RefObject<RNView | null>
+  anchorRef: RefObject<PopoverAnchor | null>
   children: ReactNode
   width: number
   testID?: string
@@ -183,9 +186,11 @@ function AnchoredPopover({
   // near the edge is the common case for these — a sort button sits at the end
   // of its row — so the panel ends where the control does. A control on the
   // left (the player bar's tags) would push it off that side: it starts where
-  // the control does instead.
+  // the control does instead. So does a menu opened at the pointer, which has
+  // no width to end with and opens rightwards from the click, as menus do.
   const rightAligned = anchor ? anchor.x + anchor.width - width : 0
-  const startsAtControl = align === 'start' || rightAligned < space.sm
+  const atPoint = anchor !== null && anchor.width === 0
+  const startsAtControl = align === 'start' || atPoint || rightAligned < space.sm
   const left = anchor
     ? startsAtControl
       ? clamp(anchor.x, space.sm, screenWidth - width - space.sm)
@@ -230,12 +235,14 @@ function AnchoredPopover({
         // Everywhere but the control itself. A backdrop over the control took
         // the pointer off its row, so a row's ⋯ faded out under the mouse; with
         // a hole there the row keeps its hover, and pressing the control again
-        // reaches the control, which closes what it opened.
+        // reaches the control, which closes what it opened. A right-click
+        // outside closes it too, rather than drawing the browser's menu on it.
         <>
           <Pressable
             style={[styles.catcher, { top: 0, left: 0, right: 0, height: Math.max(0, anchor.y) }]}
             onPress={onClose}
             accessibilityLabel="Close"
+            {...rightClick(onClose)}
           />
           <Pressable
             style={[
@@ -243,6 +250,7 @@ function AnchoredPopover({
               { top: anchor.y + anchor.height, left: 0, right: 0, bottom: 0 },
             ]}
             onPress={onClose}
+            {...rightClick(onClose)}
           />
           <Pressable
             style={[
@@ -250,6 +258,7 @@ function AnchoredPopover({
               { top: anchor.y, left: 0, width: Math.max(0, anchor.x), height: anchor.height },
             ]}
             onPress={onClose}
+            {...rightClick(onClose)}
           />
           <Pressable
             style={[
@@ -257,6 +266,7 @@ function AnchoredPopover({
               { top: anchor.y, left: anchor.x + anchor.width, right: 0, height: anchor.height },
             ]}
             onPress={onClose}
+            {...rightClick(onClose)}
           />
         </>
       ) : (

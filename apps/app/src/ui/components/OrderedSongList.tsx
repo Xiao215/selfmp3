@@ -10,7 +10,7 @@ import {
 } from 'react'
 import type { ComponentProps, ReactElement, ReactNode } from 'react'
 import { Animated } from 'react-native'
-import type { FlatListProps, GestureResponderEvent, StyleProp, View, ViewStyle } from 'react-native'
+import type { FlatListProps, GestureResponderEvent, StyleProp, ViewStyle } from 'react-native'
 import type { Song } from '@selfmp3/shared'
 import { isDownloaded, useLibrary } from '@selfmp3/client'
 import { dropIndex, movedTo } from './orderedSongList.model'
@@ -22,6 +22,7 @@ import { roomShift } from '../motion.model'
 import { HoldToReorder, useLiftScale, useMakeRoom } from './HoldToReorder'
 import { SongList } from './SongList'
 import { useSongMenu } from './useSongMenu'
+import type { PopoverAnchor } from '../rightClick'
 import { SongRow } from './SongRow'
 
 /**
@@ -285,7 +286,7 @@ interface RowActions {
   /** The hold has begun on a song, or it is over: the row's swell (`useLiftScale`). */
   readonly holding: (songId: number, holding: boolean) => void
   readonly press: (event: GestureResponderEvent, songId: number, index: number) => void
-  readonly more: (anchor: View | null, song: Song) => void
+  readonly more: (anchor: PopoverAnchor | null, song: Song) => void
   readonly toggleSelect: (song: Song) => void
   readonly longPress: (song: Song) => void
   readonly measure: (height: number) => void

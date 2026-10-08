@@ -58,9 +58,8 @@ export const MENU_SECTIONS: readonly MenuSection[] = [
     items: [
       { label: 'Library', command: 'library', accelerator: 'CmdOrCtrl+1' },
       { label: 'Playlists', command: 'playlists', accelerator: 'CmdOrCtrl+2' },
-      { label: 'Now Playing', command: 'now-playing', accelerator: 'CmdOrCtrl+3' },
+      { label: 'Now playing', command: 'now-playing', accelerator: 'CmdOrCtrl+3' },
       { label: 'Search', command: 'search', accelerator: 'CmdOrCtrl+K' },
-      { label: 'Practice panel', command: 'practice', accelerator: 'CmdOrCtrl+P' },
     ],
   },
   {

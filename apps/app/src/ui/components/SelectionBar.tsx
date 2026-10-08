@@ -38,7 +38,7 @@ import {
   More,
   Play,
   Plus,
-  Queue,
+  QueueAdd,
   Tag as TagIcon,
   Trash,
   X,
@@ -439,7 +439,7 @@ export function SelectionBar({
             />
             <Button
               label="Queue"
-              icon={<Queue size={13} color={theme.colors.textPrimary} />}
+              icon={<QueueAdd size={13} color={theme.colors.textPrimary} />}
               onPress={() => player.addToQueue(ids)}
               disabled={count === 0}
             />
@@ -501,7 +501,7 @@ export function SelectionBar({
           <Play size={18} color={theme.colors.textPrimary} />
         </IconButton>
         <IconButton onPress={() => player.addToQueue(ids)} label="Queue" disabled={count === 0}>
-          <Queue size={18} color={theme.colors.textPrimary} />
+          <QueueAdd size={18} color={theme.colors.textPrimary} />
         </IconButton>
         <View ref={moreRef} collapsable={false}>
           <IconButton

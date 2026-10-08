@@ -86,7 +86,7 @@ describe('what counts as the engine changing', () => {
     currentTime: 10,
     duration: 200,
     volume: 1,
-    loopA: null as number | null,
+    stalled: false,
   }
 
   it('ignores the clock', () => {
@@ -95,12 +95,12 @@ describe('what counts as the engine changing', () => {
 
   it('notices anything else', () => {
     expect(differsBesidesClock(base, { ...base, playing: false })).toBe(true)
-    expect(differsBesidesClock(base, { ...base, loopA: 3 })).toBe(true)
+    expect(differsBesidesClock(base, { ...base, stalled: true })).toBe(true)
   })
 })
 
 describe('telling a seek from playing on', () => {
-  const last = { position: 30, at: 1_000, playing: true, rate: 1 }
+  const last = { position: 30, at: 1_000, playing: true }
 
   it('is not a jump when the time passed explains it', () => {
     expect(positionJumped(last, 35, 6_000)).toBe(false)
@@ -113,8 +113,7 @@ describe('telling a seek from playing on', () => {
     expect(positionJumped(last, 5, 6_000)).toBe(true)
   })
 
-  it('counts the rate, and a paused position does not move', () => {
-    expect(positionJumped({ ...last, rate: 2 }, 40, 6_000)).toBe(false)
+  it('a paused position does not move', () => {
     expect(positionJumped({ ...last, playing: false }, 30, 60_000)).toBe(false)
     expect(positionJumped({ ...last, playing: false }, 45, 2_000)).toBe(true)
   })

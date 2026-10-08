@@ -16,13 +16,6 @@ jest.mock('../../player/PlayerProvider', () => ({
     subscribeProgress: () => () => undefined,
   }),
   usePlayerPlaying: () => mockPlaying,
-  usePracticeState: () => ({
-    loopA: null,
-    loopB: null,
-    countingIn: false,
-    rate: 1,
-    preservesPitch: true,
-  }),
 }))
 
 // Every write to a shared value's `.value`: what crosses to the UI thread.

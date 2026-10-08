@@ -18,7 +18,6 @@ class FakeAudio extends EventTarget {
   duration = NaN
   volume = 1
   muted = false
-  playbackRate = 1
   paused = true
   error: { code: number } | null = null
   loads: string[] = []

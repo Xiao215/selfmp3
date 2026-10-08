@@ -18,7 +18,7 @@ import Svg, { Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from '
 import type { Song } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
 import type { Rgb } from '@selfmp3/client'
-import { fonts, motion, radius, rgba, tempoMark, useLibrary, withAlpha } from '@selfmp3/client'
+import { fonts, motion, radius, rgba, useLibrary, withAlpha } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerCommands, usePlayerProgress } from '../../player/PlayerProvider'
@@ -31,7 +31,6 @@ import { setStageIdle } from '../../shell/stageIdle'
 import { useEscape } from '../../shell/useEscape'
 import { Cover } from '../../ui/components/Cover'
 import { useCrossfade } from '../../ui/components/CoverLight'
-import { EnergyWave } from '../../ui/components/EnergyWave'
 import { Chip } from '../../ui/components/Chip'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
@@ -51,7 +50,6 @@ import { SongMenu } from '../../ui/components/SongMenu'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { SongFacts } from '../song/SongFacts'
 import { songLink } from '../song/song.model'
-import { useSongColor } from '../../ui/useSongColor'
 import {
   contextLine,
   parseMode,
@@ -300,8 +298,6 @@ function Stage({
   const lyrics = useSongWords(song)
   const uri = artFor(song)
   const palette = useCoverPalette(song, uri)
-  // The key and the energy wave, like the player bar's lit controls.
-  const songColor = useSongColor(song, uri)
   const window = useWindowDimensions()
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
   const [tagsOpen, setTagsOpen] = useState(false)
@@ -456,7 +452,6 @@ function Stage({
     ['about', 'About'],
   ]
   const tags = (library.data?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
-  const features = song.audioFeatures
   /*
    * The chrome while nothing moves. One value for all of it — the head, the
    * cover, the tool rows, the expand button and the lift of the Up next card —
@@ -625,28 +620,6 @@ function Stage({
               .map(part => ` · ${part}`)
               .join('')}
           </Text>
-          {features && (features.bpm != null || features.energy != null || features.camelot) ? (
-            <View style={styles.facts}>
-              {features.bpm != null ? (
-                <Text style={styles.tempo}>{tempoMark(features.bpm)}</Text>
-              ) : null}
-              {features.camelot ? (
-                <View style={styles.key}>
-                  <Text style={[styles.keyText, { color: songColor.color }]}>
-                    {features.camelot}
-                  </Text>
-                </View>
-              ) : null}
-              {features.energy != null ? (
-                <EnergyWave
-                  energy={features.energy}
-                  width={34}
-                  height={16}
-                  color={songColor.color}
-                />
-              ) : null}
-            </View>
-          ) : null}
           <View style={styles.tags}>
             {/* Each tag is a place of its own: its chip opens its page. */}
             {tags.map(tag => (
@@ -1046,16 +1019,6 @@ const styles = StyleSheet.create(theme => ({
   // The display face, which carries its own weight: never bold it.
   title: { color: theme.colors.textPrimary, fontFamily: fonts.display },
   byline: { color: theme.colors.textSecondary, fontSize: 14, marginTop: -4 },
-  facts: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  tempo: { color: theme.colors.textSecondary, fontSize: 14, fontVariant: ['tabular-nums'] },
-  key: {
-    height: 20,
-    paddingHorizontal: 8,
-    borderRadius: radius.pill,
-    justifyContent: 'center',
-    backgroundColor: withAlpha(theme.colors.textPrimary, 0.08),
-  },
-  keyText: { fontSize: 12, fontWeight: '600' },
   tags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
   tagButton: {
     flexDirection: 'row',

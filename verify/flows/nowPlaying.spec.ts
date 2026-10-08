@@ -12,7 +12,8 @@ import { libraryReady, openLibrary, playSong, skipIfNoLibrary, songRows } from '
  * carries on through all of it.
  *
  * On a phone the page has no tabs: ⓘ opens the song, the foot is Lyrics,
- * Sleep and Up next, and the lyrics are a second view of the same address.
+ * Sleep and Up next, ⋯ is the song menu with Devices after it, and the lyrics
+ * are a second view of the same address.
  */
 test.describe('now playing', () => {
   test('the bar opens the page, switches its tabs and focus, and closes it', async ({
@@ -111,11 +112,15 @@ test.describe('now playing', () => {
     await expect(page.getByTestId('now-playing-lyrics-view')).toHaveCount(0)
     await expect(page).not.toHaveURL(/view=lyrics/)
 
-    // Devices are under ⋯, with Practice, and removing the song last.
+    // ⋯ is the song menu every row has, with Devices after it and removing the
+    // song last. Sleep has its own button, so it is not repeated there.
     await page.getByTestId('now-playing-more').click()
-    await expect(page.getByRole('menuitem', { name: /Devices/ })).toBeVisible()
-    await expect(page.getByRole('menuitem', { name: /Practice/ })).toBeVisible()
-    await expect(page.getByRole('menuitem', { name: 'Remove from library…' })).toBeVisible()
+    const menu = page.getByTestId('song-menu')
+    await expect(menu.getByRole('menuitem', { name: /^Add to playlist/ })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: 'Song details' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: 'Devices' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: 'Remove from library…' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: /Sleep/ })).toHaveCount(0)
     await page.keyboard.press('Escape')
 
     // ⓘ puts the page away and opens the song's own.

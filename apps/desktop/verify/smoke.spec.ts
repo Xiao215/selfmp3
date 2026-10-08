@@ -731,7 +731,7 @@ test.describe('an application, not a page', () => {
         },
         [
           ['Playback', 'Play / Pause'],
-          ['View', 'Now Playing'],
+          ['View', 'Now playing'],
         ] as [string, string][],
       )
 
@@ -768,7 +768,7 @@ test.describe('an application, not a page', () => {
             ?.items.find(one => one.label === section)
             ?.submenu?.items.find(one => one.label === label)
         const playPause = find('Playback', 'Play / Pause')
-        const nowPlaying = find('View', 'Now Playing')
+        const nowPlaying = find('View', 'Now playing')
         if (!playPause || !nowPlaying) return 'missing'
         // `MenuItem.click(event, focusedWindow, focusedWebContents)`.
         const click = (item: Electron.MenuItem, byKey: boolean): void =>

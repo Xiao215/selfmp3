@@ -49,6 +49,7 @@ import {
 import { HueSwatches, autoTagHue } from '../ui/components/HueSwatches'
 import { TagEditor } from '../ui/components/TagEditor'
 import { tip } from '../ui/tip'
+import { rightClick } from '../ui/rightClick'
 import { Avatar } from '../ui/components/Avatar'
 import { useAccount } from '../features/profile/useAccount'
 import { activeDestination } from '../ui/components/bottomNav.model'
@@ -491,7 +492,7 @@ function Tags(): ReactNode {
 
 /**
  * One tag in the sidebar: a click opens its page, which lights the row while
- * you are on it, and the ⋯ the pointer reveals edits it.
+ * you are on it, and the ⋯ the pointer reveals edits it, as a right-click does.
  */
 function TagRow({
   tag,
@@ -520,6 +521,8 @@ function TagRow({
       style={[styles.tagRow, hovered && styles.tagRowHovered, active && styles.itemOn]}
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
+      // A right-click opens the same editor, from the row's ⋯ (B1).
+      {...rightClick(() => setEditing(true))}
     >
       <Pressable
         style={styles.tagMain}

@@ -38,6 +38,8 @@ import {
 import { useRecentLists } from '../lists/recentLists.store'
 import { keepAnswer, reorderAnswer } from '../smart/answers.store'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
+import { useSongMenu } from '../../ui/components/useSongMenu'
+import { rightClick } from '../../ui/rightClick'
 import { useStatsFor } from '../stats/statsSource'
 import {
   greeting,
@@ -599,6 +601,8 @@ function Recents({ recents, wide }: { recents: readonly HomeRecent[]; wide: bool
   const fly = useFlyToUpNext()
   // Each list tile's covers, where a played list's covers fly from.
   const covers = useRef(new Map<string, View>())
+  // A song tile's menu, opened by a right-click as a song row's is (B1).
+  const songMenu = useSongMenu()
   return (
     <ScrollView
       horizontal
@@ -620,6 +624,7 @@ function Recents({ recents, wide }: { recents: readonly HomeRecent[]; wide: bool
               accessibilityRole="button"
               accessibilityLabel={`Play ${song.title}`}
               style={{ width: size }}
+              {...rightClick(at => songMenu.onMore(at, song))}
             >
               <Cover uri={art(song)} title={song.album || song.title} size={size} radius={14} />
               <Text style={styles.recentTitle} numberOfLines={1}>
@@ -686,6 +691,8 @@ function Recents({ recents, wide }: { recents: readonly HomeRecent[]; wide: bool
           </Pressable>
         )
       })}
+      {/* Drawn over everything by the overlay host, wherever it stands here. */}
+      {songMenu.menu}
     </ScrollView>
   )
 }

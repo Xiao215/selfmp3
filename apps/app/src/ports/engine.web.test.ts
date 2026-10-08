@@ -14,13 +14,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 class FakeAudio {
   src = ''
   volume = 1
-  playbackRate = 1
   paused = true
   currentTime = 0
   duration = Number.NaN
   preload = ''
   crossOrigin = ''
-  preservesPitch = true
   error = null
 
   constructor() {

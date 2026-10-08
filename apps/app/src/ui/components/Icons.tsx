@@ -418,10 +418,22 @@ export const Expand = icon(() => <Path d="M14 4h6v6M10 20H4v-6M20 4l-6 6M4 20l6-
 
 export const Collapse = icon(() => <Path d="M4 10h6V4M20 14h-6v6M10 10 4 4M14 14l6 6" />)
 
-export const Queue = icon(() => (
+/**
+ * Add to Up next: a list with a plus. Only for adding — opening Up next is
+ * `UpNext`, and Play next is `Next` (proposal H2, 2026-10-08).
+ */
+export const QueueAdd = icon(() => (
   <>
     <Path d="M3 6h13M3 12h13M3 18h8" />
     <Path d="M18 14v7M14.5 17.5h7" />
+  </>
+))
+
+/** Open Up next: the list itself, with a play mark at the song that is playing. */
+export const UpNext = icon(color => (
+  <>
+    <Path d="M4 5.6v6.8L9.4 9z" fill={color} />
+    <Path d="M13 7h8M13 11.5h8M4 17.5h17" />
   </>
 ))
 
@@ -455,14 +467,6 @@ export const Remote = icon(() => (
     <Path d="M7.6 17.6h.8" />
     <Path d="M16.5 8.5a5 5 0 0 1 0 7" />
     <Path d="M19.5 5.5a9 9 0 0 1 0 13" />
-  </>
-))
-
-export const Metronome = icon(() => (
-  <>
-    <Path d="M9.5 3h5l4 18h-13z" />
-    <Path d="M6.2 16h11.6" />
-    <Path d="M12 15 16.5 6.5" />
   </>
 ))
 

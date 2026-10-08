@@ -10,8 +10,8 @@ import { clamp, clamp01 } from '@selfmp3/shared'
  * has an empty address, and is said to be unplayable as the phone's engine
  * says it, rather than thrown out of a promise nobody awaits.
  *
- * `capabilities` declares what this engine can do, so the practice panel and
- * the visualiser need not guess.
+ * `capabilities` declares what this engine can do, so the visualiser and
+ * settings need not guess.
  */
 
 const INITIAL_STATE: EngineState = {
@@ -20,13 +20,8 @@ const INITIAL_STATE: EngineState = {
   duration: 0,
   volume: 1,
   muted: false,
-  rate: 1,
   stalled: false,
   error: null,
-  preservesPitch: true,
-  loopA: null,
-  loopB: null,
-  countingIn: false,
 }
 
 type Listener = (state: EngineState) => void
@@ -45,14 +40,6 @@ const UNWIRED: EngineWiring = {
 const PRELOAD_LEAD = 20
 /** How often the crossfade ramp updates. 50 ms is smooth and cheap. */
 const FADE_TICK_MS = 50
-/**
- * How often the A–B loop guard checks the playhead. `timeupdate` only fires
- * about four times a second, which would overshoot B by up to a quarter of a
- * second; a tighter interval keeps the jump back within ~30 ms.
- */
-const LOOP_TICK_MS = 30
-/** A loop shorter than this is a click, not a phrase. */
-const MIN_LOOP_SECONDS = 0.5
 
 /**
  * A single `<audio>` element cannot do gapless or crossfade — by the time the
@@ -70,7 +57,6 @@ class AudioEngine implements PlaybackEngine {
   readonly capabilities: EngineCapabilities = {
     crossfade: true,
     analyser: true,
-    loop: true,
   }
 
   /** Where to fetch a song, or null when this device has nowhere to play it from. */
@@ -112,11 +98,6 @@ class AudioEngine implements PlaybackEngine {
 
   #fadeTimer: ReturnType<typeof setInterval> | null = null
   #handoverArmed = false
-
-  #loopTimer: ReturnType<typeof setInterval> | null = null
-  #countInTimer: ReturnType<typeof setTimeout> | null = null
-  /** Milliseconds of silence before each loop restart; 0 disables it. */
-  #countInMs = 0
 
   /** Only exist once a visual has asked to hear the music; see `analyser()`. */
   #audioContext: AudioContext | null = null
@@ -217,8 +198,6 @@ class AudioEngine implements PlaybackEngine {
 
     this.#stopFade()
     this.#handoverArmed = false
-    // A loop is a region of one particular song; it never carries over.
-    this.clearLoop()
 
     if (alreadyPlaying) {
       // Nothing to load: reloading here is what restarts it from 0:00.
@@ -268,9 +247,6 @@ class AudioEngine implements PlaybackEngine {
   }
 
   async play(): Promise<void> {
-    // An explicit play during a count-in skips the rest of the beat.
-    this.#cancelCountIn()
-    if (this.#state.countingIn) this.#update({ countingIn: false })
     // Once the sound runs through Web Audio, a suspended context is silence.
     if (this.#audioContext?.state === 'suspended') void this.#audioContext.resume()
     // A song loaded to sit paused is fetched now, from where it was left.
@@ -291,9 +267,6 @@ class AudioEngine implements PlaybackEngine {
   }
 
   pause(): void {
-    // Pausing mid count-in means "stop", not "resume after the beat".
-    this.#cancelCountIn()
-    if (this.#state.countingIn) this.#update({ countingIn: false })
     this.#abortCrossfade()
     this.#primary.pause()
     // Said now rather than left to the element's `pause` event: that event is
@@ -377,108 +350,9 @@ class AudioEngine implements PlaybackEngine {
     this.#update({ muted })
   }
 
-  setRate(rate: number): void {
-    const clamped = clamp(rate, 0.5, 3)
-    this.#primary.playbackRate = clamped
-    this.#secondary.playbackRate = clamped
-    this.#update({ rate: clamped })
-  }
-
-  // --- practice ------------------------------------------------------------
-
-  /**
-   * Keep the pitch when slowing down or speeding up.
-   *
-   * Applied to both elements so a preloaded track already has the setting by
-   * the time it is promoted. Safari spelled this `webkitPreservesPitch` for
-   * years; setting both costs nothing.
-   */
-  setPreservesPitch(on: boolean): void {
-    for (const element of [this.#primary, this.#secondary]) applyPreservesPitch(element, on)
-    this.#update({ preservesPitch: on })
-  }
-
-  /**
-   * Set the A–B loop. Either bound may be null while the other is being
-   * chosen; the loop only runs once both are set. Bounds arriving in the
-   * wrong order are swapped, and a region too short to be useful is ignored.
-   */
-  setLoop(a: number | null, b: number | null): void {
-    let loopA = a
-    let loopB = b
-    if (loopA !== null && loopB !== null) {
-      if (loopB < loopA) [loopA, loopB] = [loopB, loopA]
-      if (loopB - loopA < MIN_LOOP_SECONDS) loopB = null
-    }
-    this.#update({ loopA, loopB })
-    this.#syncLoopGuard()
-  }
-
-  clearLoop(): void {
-    if (this.#state.loopA === null && this.#state.loopB === null && !this.#state.countingIn) return
-    this.#cancelCountIn()
-    this.#update({ loopA: null, loopB: null, countingIn: false })
-    this.#syncLoopGuard()
-  }
-
-  /** Silence before each restart of the loop, e.g. one beat at the song's tempo. */
-  setCountIn(ms: number): void {
-    this.#countInMs = clamp(ms, 0, 3000)
-  }
-
-  #syncLoopGuard(): void {
-    const active = this.#state.loopA !== null && this.#state.loopB !== null
-    if (active && this.#loopTimer === null) {
-      this.#loopTimer = setInterval(this.#loopTick, LOOP_TICK_MS)
-    } else if (!active && this.#loopTimer !== null) {
-      clearInterval(this.#loopTimer)
-      this.#loopTimer = null
-    }
-  }
-
-  /**
-   * The loop guard. Runs on its own interval rather than `timeupdate` so the
-   * jump back happens close to B; it survives pause (it simply has nothing
-   * to do) and seeking (a seek outside the region just plays on until B).
-   */
-  readonly #loopTick = (): void => {
-    const { loopA, loopB, countingIn } = this.#state
-    if (loopA === null || loopB === null || countingIn) return
-    if (this.#primary.paused) return
-
-    const duration = this.#primary.duration
-    const end = Number.isFinite(duration) && duration > 0 ? Math.min(loopB, duration - 0.05) : loopB
-    if (this.#primary.currentTime < end) return
-
-    if (this.#countInMs > 0) {
-      this.#primary.pause()
-      this.#primary.currentTime = loopA
-      this.#update({ countingIn: true, currentTime: loopA })
-      this.#countInTimer = setTimeout(() => {
-        this.#countInTimer = null
-        this.#update({ countingIn: false })
-        void this.play()
-      }, this.#countInMs)
-      return
-    }
-
-    this.#primary.currentTime = loopA
-    this.#update({ currentTime: loopA })
-  }
-
-  #cancelCountIn(): void {
-    if (this.#countInTimer !== null) {
-      clearTimeout(this.#countInTimer)
-      this.#countInTimer = null
-    }
-  }
-
   /** Free both elements. Called when the app unmounts. */
   destroy(): void {
     this.#stopFade()
-    this.#cancelCountIn()
-    if (this.#loopTimer !== null) clearInterval(this.#loopTimer)
-    this.#loopTimer = null
     for (const element of [this.#primary, this.#secondary]) {
       element.pause()
       element.removeAttribute('src')
@@ -612,10 +486,6 @@ class AudioEngine implements PlaybackEngine {
     const wantsPreload = this.#gapless || this.#crossfadeSeconds > 0
     if (wantsPreload && remaining <= PRELOAD_LEAD && this.#preloadedId === null) this.#preload()
 
-    // A loop never hands over to the next track, so no crossfade either.
-    const looping = this.#state.loopA !== null && this.#state.loopB !== null
-    if (looping) return
-
     // Begin the crossfade, or hand over cleanly for gapless. Armed only if one
     // actually began: there is nothing to fade into with repeat-one or at the
     // end of the queue, and claiming otherwise loses the end of the track.
@@ -625,13 +495,6 @@ class AudioEngine implements PlaybackEngine {
   }
 
   readonly #onEnded = (): void => {
-    // A loop reaching the end of the file (B at or past the duration) restarts
-    // rather than moving on — the guard normally catches it first.
-    if (this.#state.loopA !== null && this.#state.loopB !== null) {
-      this.#primary.currentTime = this.#state.loopA
-      void this.play()
-      return
-    }
     // With crossfade the handover has already happened, so ignore the ended
     // event from the element that faded out.
     if (this.#handoverArmed && this.#crossfadeSeconds > 0) return
@@ -650,7 +513,6 @@ class AudioEngine implements PlaybackEngine {
     this.#secondary.preload = 'auto'
     this.#secondary.src = url
     this.#secondary.volume = 0
-    this.#secondary.playbackRate = this.#state.rate
     // `preload="auto"` plus an explicit load() is what actually warms the
     // buffer; without it Safari waits until play() is called.
     this.#secondary.load()
@@ -735,19 +597,10 @@ class AudioEngine implements PlaybackEngine {
 
     this.#attach(this.#primary)
     this.#primary.volume = this.#state.muted ? 0 : this.#state.volume
-    this.#primary.playbackRate = this.#state.rate
-    applyPreservesPitch(this.#primary, this.#state.preservesPitch)
     // The element being promoted has been playing for a whole crossfade
     // already, so no `play` event is coming: take the truth from the element.
     this.#update({ playing: !this.#primary.paused })
   }
-}
-
-/** `preservesPitch` plus the prefixed spelling older Safari understands. */
-function applyPreservesPitch(element: HTMLAudioElement, on: boolean): void {
-  const target = element as HTMLAudioElement & { webkitPreservesPitch?: boolean }
-  if ('preservesPitch' in target) target.preservesPitch = on
-  if ('webkitPreservesPitch' in target) target.webkitPreservesPitch = on
 }
 
 function createElement(): HTMLAudioElement {
@@ -756,7 +609,6 @@ function createElement(): HTMLAudioElement {
   // Required for the Media Session API and for playback to survive the phone
   // screen locking.
   element.crossOrigin = 'use-credentials'
-  applyPreservesPitch(element, INITIAL_STATE.preservesPitch)
   return element
 }
 

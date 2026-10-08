@@ -7,15 +7,7 @@ import type { LayoutChangeEvent } from 'react-native'
 import { usePathname, useRouter } from 'expo-router'
 import { artistOr, clamp01 } from '@selfmp3/shared'
 import { warmCoverPalette } from '../features/nowPlaying/useCoverPalette'
-import {
-  loopRegionPercent,
-  radius,
-  space,
-  type,
-  withAlpha,
-  useToggleLoved,
-  type SongColors,
-} from '@selfmp3/client'
+import { radius, space, type, withAlpha, useToggleLoved, type SongColors } from '@selfmp3/client'
 import { DevicesSheet } from '../features/devices/DevicesSheet'
 import { UpNextTarget } from '../ui/components/CoverFlight'
 import { toggleQueueSheet, useQueueSheetOpen } from '../features/queue/queueSheet.store'
@@ -26,7 +18,6 @@ import {
   usePlayerProgress,
   usePlayerStalled,
   usePlayerVolume,
-  usePracticeState,
 } from '../player/PlayerProvider'
 import { VOLUME_STEP } from '../player/progress.model'
 import { useSongColor } from '../ui/useSongColor'
@@ -38,15 +29,14 @@ import {
   ChevronDown,
   Devices,
   Heart,
-  Metronome,
   Moon,
   Next,
   Prev,
-  Queue,
   Repeat,
   RepeatOne,
   Shuffle,
   TagPlus,
+  UpNext,
   Volume,
   VolumeMute,
 } from '../ui/components/Icons'
@@ -58,7 +48,6 @@ import { leaveStage } from './stageExit'
 import { handOffCover } from '../ui/coverHandoff'
 import { Press } from '../ui/components/Press'
 import { useLayout } from './useLayout'
-import { setPracticeOpen, usePracticeOpen } from './practicePanel'
 import { floating } from '../ui/surfaces'
 import { PlayPauseIcon } from '../ui/components/PlayPauseIcon'
 import { goBack } from '../ui/useBackTo'
@@ -68,15 +57,11 @@ import { goBack } from '../ui/useBackTo'
  *
  * Three columns. The song on the left, with love and tags. The transport in
  * the middle: shuffle, previous, play, next, repeat, and the scrubber. On the
- * right, in the order docs/UI-MIGRATION.md (Phase 6) gives — speed, volume,
- * Up next, devices — three groups with room between them, because a row of
- * controls reads as a wall of icons and they are three jobs: how it plays,
- * how loud, and what is beside the page and where it comes out. Up next
- * toggles the rail (`QueueRail`) and is lit while it is open.
- *
- * Speed has no button here: it lives in Practice with every other way of
- * changing how a song plays back. While it is not 1× the metronome says so
- * ("1.25×"), and opens Practice at Speed.
+ * right — sleep, volume, Up next, devices — three groups with room between
+ * them, because a row of controls reads as a wall of icons and they are three
+ * jobs: when it stops, how loud, and what is beside the page and where it
+ * comes out. Up next toggles the rail (`QueueRail`) and is lit while it is
+ * open.
  *
  * The bar fills with the cover's colour up to where the song has got, fading
  * out at its leading edge, with a bright line along its top edge.
@@ -95,12 +80,10 @@ const REPEAT_LABEL = {
 } as const
 
 export function PlayerBar(): ReactNode {
-  const practiceOpen = usePracticeOpen()
   const { theme } = useUnistyles()
   // Not the position: that is `PlayedWash` and `BarSeek`'s, so a tick redraws
   // those two and not the rest of the bar.
   const player = usePlayer()
-  const practice = usePracticeState()
   const artFor = useArt()
   const router = useRouter()
   const toggleLoved = useToggleLoved()
@@ -254,42 +237,12 @@ export function PlayerBar(): ReactNode {
           </IconButton>
         </View>
         <View style={styles.progress}>
-          <BarSeek
-            loopA={practice.loopA}
-            loopB={practice.loopB}
-            onSeek={player.seekTo}
-            color={songColor.color}
-          />
+          <BarSeek onSeek={player.seekTo} color={songColor.color} />
         </View>
       </View>
 
       <View style={styles.right}>
-        <View style={styles.group} role="group" aria-label="Playback">
-          {practice.rate !== 1 ? (
-            <ValuePill
-              tone={songColor}
-              Icon={Metronome}
-              value={`${practice.rate}×`}
-              label={`Practice tools, speed ${practice.rate}×`}
-              caption="Practice: speed"
-              onPress={() => setPracticeOpen(!practiceOpen, 'speed')}
-            />
-          ) : (
-            <IconButton
-              onPress={() => setPracticeOpen(!practiceOpen)}
-              label="Practice tools"
-              active={practiceOpen || practice.loopB !== null}
-            >
-              <Metronome
-                size={17}
-                color={
-                  practiceOpen || practice.loopB !== null
-                    ? songColor.color
-                    : theme.colors.textSecondary
-                }
-              />
-            </IconButton>
-          )}
+        <View style={styles.group} role="group" aria-label="Sleep">
           <SleepButton tone={songColor} />
         </View>
         <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Volume">
@@ -303,7 +256,7 @@ export function PlayerBar(): ReactNode {
               label="Up next"
               active={queueOpen}
             >
-              <Queue size={17} color={queueOpen ? songColor.color : theme.colors.textSecondary} />
+              <UpNext size={17} color={queueOpen ? songColor.color : theme.colors.textSecondary} />
             </IconButton>
           </UpNextTarget>
           <View ref={devicesRef} collapsable={false}>
@@ -340,27 +293,14 @@ function PlayedWash({ color }: { color: string }): ReactNode {
 
 /** The scrubber with its two times, the other part of the bar that moves each tick. */
 function BarSeek({
-  loopA,
-  loopB,
   onSeek,
   color,
 }: {
-  loopA: number | null
-  loopB: number | null
   onSeek: (seconds: number) => void
   color: string
 }): ReactNode {
   const { position, duration } = usePlayerProgress()
-  return (
-    <SeekBar
-      loop={loopRegionPercent(loopA, loopB, duration)}
-      inline
-      position={position}
-      duration={duration}
-      onSeek={onSeek}
-      color={color}
-    />
-  )
+  return <SeekBar inline position={position} duration={duration} onSeek={onSeek} color={color} />
 }
 
 /**
@@ -406,9 +346,8 @@ function PlayButton({
 }
 
 /**
- * A lit control that says its value — "1.25×", "24 min", "End of song" — so a
- * changed speed or a running timer can be read off the bar without opening
- * anything. Shown only while the setting differs from normal; otherwise the
+ * A lit control that says its value — "24 min", "End of song" — so a running
+ * timer can be read off the bar without opening anything. Shown only while the setting differs from normal; otherwise the
  * plain icon is.
  */
 function ValuePill({
@@ -670,7 +609,7 @@ const styles = StyleSheet.create(theme => ({
   meta: { flexShrink: 1, minWidth: 0 },
   title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   artist: { color: theme.colors.textMuted, fontSize: type.small },
-  /* A lit control with its value in it: 1.25×, 24 min. */
+  /* A lit control with its value in it: 24 min. */
   pill: {
     flexDirection: 'row',
     alignItems: 'center',

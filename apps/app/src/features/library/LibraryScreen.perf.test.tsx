@@ -67,18 +67,13 @@ jest.mock('../../ports/engine', () => {
     duration: 0,
     volume: 1,
     muted: false,
-    rate: 1,
     stalled: false,
     error: null,
-    loopA: null,
-    loopB: null,
-    countingIn: false,
-    preservesPitch: true,
   }
   const noop = (): undefined => undefined
   return {
     createEngine: () => ({
-      capabilities: { analyser: false, crossfade: false, loop: false },
+      capabilities: { analyser: false, crossfade: false },
       state,
       currentSongId: null,
       playhead: 0,
@@ -93,11 +88,6 @@ jest.mock('../../ports/engine', () => {
       seek: noop,
       setVolume: noop,
       setMuted: noop,
-      setRate: noop,
-      setPreservesPitch: noop,
-      setLoop: noop,
-      clearLoop: noop,
-      setCountIn: noop,
       analyser: () => null,
       destroy: noop,
       connect: () => noop,
@@ -282,13 +272,8 @@ describe('play and pause, at phone width', () => {
       duration: 0,
       volume: 1,
       muted: false,
-      rate: 1,
       stalled: false,
       error: null,
-      loopA: null,
-      loopB: null,
-      countingIn: false,
-      preservesPitch: true,
     }
     await act(async () => {
       mockEngine.listener?.({ ...stopped, playing: true })

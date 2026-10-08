@@ -36,7 +36,7 @@ import { card, label as groupLabel, pageTitle } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
-import { Check, ChevronRight, More, Queue, Refresh, X } from '../../ui/components/Icons'
+import { Check, ChevronRight, More, Next, Refresh, X } from '../../ui/components/Icons'
 import { Popover } from '../../ui/components/Popover'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SheetItem } from '../../ui/components/Sheet'
@@ -855,7 +855,7 @@ function RowMore({
           <View testID={nextTestID}>
             <SheetItem
               label="Import next"
-              icon={<Queue size={15} tone="textPrimary" />}
+              icon={<Next size={15} tone="textPrimary" />}
               onPress={() => {
                 onOpen(false)
                 onNext()

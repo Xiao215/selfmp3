@@ -6,8 +6,9 @@ import { OverlayProvider } from '../../shell/Overlay'
 import { SongMenu } from './SongMenu'
 
 /**
- * A song's ⋯ menu (docs/ui-mock `P14`): what is in it, where Song details goes,
- * and what "remove" means on the device it is open on.
+ * A song's ⋯ menu (docs/ui-mock `P14`): what is in it and in what order — the
+ * same everywhere a song is (B1) — where Song details goes, and what "remove"
+ * means on the device it is open on.
  *
  * The owner's words: "delete from library means delete from local too": one
  * action behind one confirmation, the same dialog the selection bar asks with.
@@ -39,7 +40,7 @@ jest.mock('../../offline/DownloadsProvider', () => ({
   useDownloads: () => ({
     state: { index: mockIndex },
     installed: true,
-    downloadByHand: jest.fn(),
+    requestDownload: jest.fn(),
     removeByHand: mockRemoveByHand,
     dropDownloads: mockDropDownloads,
   }),
@@ -79,14 +80,24 @@ const METRICS = {
   insets: { top: 47, left: 0, right: 0, bottom: 34 },
 }
 
-const draw = (onClose: () => void = () => undefined) =>
+const draw = (onClose: () => void = () => undefined, onDevices?: () => void) =>
   render(
     <SafeAreaProvider initialMetrics={METRICS}>
       <OverlayProvider>
-        <SongMenu song={SONG} onClose={onClose} />
+        <SongMenu song={SONG} onClose={onClose} onDevices={onDevices} />
       </OverlayProvider>
     </SafeAreaProvider>,
   )
+
+/** The words inside an element, as a reader would hear its name. */
+interface Node {
+  readonly children: readonly (string | Node)[]
+}
+const textOf = (node: Node): string =>
+  node.children.map(child => (typeof child === 'string' ? child : textOf(child))).join('')
+
+/** The menu's items, top to bottom, by name. */
+const itemNames = (): string[] => screen.getAllByRole('menuitem').map(textOf)
 
 const downloaded = {
   version: 1 as const,
@@ -107,20 +118,38 @@ describe('what the menu offers', () => {
     mockIndex = { version: 1, entries: {} }
   })
 
-  it('names the song and leaves Play next and Select to other places', async () => {
+  it('names the song, lists one order, and leaves Play next and Select to other places', async () => {
     await draw()
 
     expect(screen.getByText('Nocturne')).toBeTruthy()
     expect(screen.getByText('Klara Feld · 3:44')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Like' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Tags' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Download' })).toBeTruthy()
     // From the start of the name: the › after Add to playlist is part of it.
-    for (const kept of [/^Add to playlist/, /^Add to Up next$/, /^Play similar songs$/]) {
-      expect(screen.getByRole('menuitem', { name: kept })).toBeTruthy()
-    }
+    const order = [
+      /^Tags$/,
+      /^Add to playlist/,
+      /^Add to Up next$/,
+      /^Play similar songs$/,
+      /^Download$/,
+      /^Song details$/,
+      /^Remove from library…$/,
+    ]
+    const names = itemNames()
+    expect(names).toHaveLength(order.length)
+    order.forEach((name, at) => expect(names[at]).toMatch(name))
     expect(screen.queryByRole('menuitem', { name: 'Play next' })).toBeNull()
     expect(screen.queryByRole('menuitem', { name: 'Select' })).toBeNull()
+  })
+
+  it('ends with Devices, before removing, when Now Playing asks for them', async () => {
+    const onDevices = jest.fn()
+    await draw(undefined, onDevices)
+
+    expect(screen.getByText('This player')).toBeTruthy()
+    expect(itemNames().slice(-2)).toEqual(['Devices', 'Remove from library…'])
+    expect(screen.queryByRole('menuitem', { name: /Sleep/ })).toBeNull()
+    await fireEvent.press(screen.getByRole('menuitem', { name: 'Devices' }))
+    expect(onDevices).toHaveBeenCalled()
   })
 
   it('opens the song’s own page from Song details', async () => {
@@ -157,7 +186,7 @@ describe('removing a song where the copy goes with it', () => {
   it('still offers dropping the download on its own', async () => {
     await draw()
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Remove download' }))
+    await fireEvent.press(screen.getByRole('menuitem', { name: 'Remove download' }))
     expect(mockRemoveByHand).toHaveBeenCalledWith([4])
     expect(mockDeleteSong).not.toHaveBeenCalled()
   })

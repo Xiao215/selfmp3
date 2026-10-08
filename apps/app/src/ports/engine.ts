@@ -51,9 +51,6 @@ const capabilities: EngineCapabilities = {
   crossfade: false,
   // No Web Audio graph to tap; the visualiser stays a browser thing.
   analyser: false,
-  // Progress arrives once a second from track-player, so a loop would land up to
-  // a second past B. Not offered rather than offered badly.
-  loop: false,
 }
 
 const IDLE: EngineState = {
@@ -62,13 +59,8 @@ const IDLE: EngineState = {
   duration: 0,
   volume: 1,
   muted: false,
-  rate: 1,
   stalled: false,
   error: null,
-  preservesPitch: true,
-  loopA: null,
-  loopB: null,
-  countingIn: false,
 }
 
 /** No queue owner yet: every question the engine asks goes unanswered. */
@@ -139,8 +131,8 @@ class NativeEngine implements PlaybackEngine {
   get playhead(): number {
     // The port wants this synchronously and track-player only answers with a
     // promise, so the freshest tick stands in. Progress fires every second,
-    // which is coarse for placing a practice loop — and the practice panel is
-    // a desktop surface, where the engine is the web one.
+    // which is fine for telling whether Previous restarts the song; the
+    // visual runs its own clock between ticks (`PlayheadClock`).
     return this.#state.currentTime
   }
 
@@ -290,26 +282,6 @@ class NativeEngine implements PlaybackEngine {
     void TrackPlayer.setVolume(muted ? 0 : this.#volume)
     this.#patch({ muted })
   }
-
-  setRate(rate: number): void {
-    void TrackPlayer.setRate(rate)
-    this.#patch({ rate })
-  }
-
-  setPreservesPitch(): void {
-    // iOS decides this per track through `pitchAlgorithm`, and Android cannot
-    // do it at all. Nothing to toggle.
-  }
-
-  setLoop(): void {
-    // The A–B loop is the practice panel's, which is a desktop surface. Left
-    // unimplemented rather than half-implemented: a loop that drifts by a
-    // second is worse than one the screen does not offer.
-  }
-
-  clearLoop(): void {}
-
-  setCountIn(): void {}
 
   analyser(): FrequencyAnalyser | null {
     return null

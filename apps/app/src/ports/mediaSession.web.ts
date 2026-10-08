@@ -133,7 +133,7 @@ export const mediaSession: MediaSessionPort = {
     tellTheShell(next, current)
   },
 
-  setPosition: (position, duration, rate) => {
+  setPosition: (position, duration) => {
     const media = session()
     // A duration of zero, or a position past the end, throws: Chromium
     // validates this hard, and a thrown error here would take the tick with it.
@@ -142,7 +142,7 @@ export const mediaSession: MediaSessionPort = {
       media.setPositionState({
         duration,
         position: Math.min(Math.max(position, 0), duration),
-        playbackRate: rate > 0 ? rate : 1,
+        playbackRate: 1,
       })
     } catch {
       // Nothing worth telling anyone: the card keeps the position it had.

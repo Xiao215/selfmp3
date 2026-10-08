@@ -3,9 +3,8 @@ import type { ReactNode } from 'react'
 import { Animated, PanResponder, Text, View, type LayoutChangeEvent } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { clamp, clamp01, formatDuration } from '@selfmp3/shared'
-import type { LoopRegion } from '@selfmp3/client'
 import { useAccent } from '../accent'
-import { space, type, withAlpha } from '@selfmp3/client'
+import { space, type } from '@selfmp3/client'
 import { spring } from '../motion'
 import { SEEK_STEP_SECONDS } from '../../player/progress.model'
 import { ADJUST_ACTIONS } from './slider.model'
@@ -36,7 +35,6 @@ export function SeekBar({
   duration,
   onSeek,
   inline = false,
-  loop = null,
   color,
 }: {
   position: number
@@ -48,9 +46,7 @@ export function SeekBar({
    * beneath it.
    */
   inline?: boolean
-  /** The practice loop, as percentages of the bar, drawn behind the track. */
-  loop?: LoopRegion | null
-  /** The playing song's colour, for the played part and the loop. The accent when not given. */
+  /** The playing song's colour, for the played part. The accent when not given. */
   color?: string
 }): ReactNode {
   const accent = useAccent()
@@ -178,21 +174,6 @@ export function SeekBar({
       onAccessibilityAction={onAccessibilityAction}
       {...responder.panHandlers}
     >
-      {loop ? (
-        <View
-          pointerEvents="none"
-          style={[
-            styles.loop,
-            inline && styles.loopInline,
-            {
-              left: `${loop.left}%`,
-              width: `${loop.width}%`,
-              borderColor: fill,
-              backgroundColor: withAlpha(fill, 0.16),
-            },
-          ]}
-        />
-      ) : null}
       {/* Draws only: a touch on the thumb must reach the bar, see the responder. */}
       <View pointerEvents="none" style={[styles.track, inline && styles.trackInline]}>
         <View
@@ -257,19 +238,6 @@ const styles = StyleSheet.create(theme => ({
   trackInline: { height: 4, borderRadius: 2 },
   fillInline: { height: 4, borderRadius: 2 },
   thumbInline: { width: THUMB_INLINE, height: THUMB_INLINE, borderRadius: THUMB_INLINE / 2 },
-  /* The practice loop: low-contrast, a little taller than the track. Its two
-     edges are the loop's ends, the mark itself, so they stay. */
-  loop: {
-    position: 'absolute',
-    top: '50%',
-    height: 14,
-    marginTop: -7,
-    minWidth: 2,
-    borderRadius: 2,
-    borderLeftWidth: 2,
-    borderRightWidth: 2,
-  },
-  loopInline: { height: 10, marginTop: -5 },
   wrapper: {
     width: '100%',
   },

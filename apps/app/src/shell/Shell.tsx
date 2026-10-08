@@ -36,13 +36,11 @@ import { stackMoves } from '../ports/stackMoves'
 import { onDeepLinkRoute } from '../ports/deepLinks'
 import { usePlayerCommands, useSongLoaded } from '../player/PlayerProvider'
 import { SEEK_STEP_SECONDS, VOLUME_STEP } from '../player/progress.model'
-import { PRACTICE_PANEL_WIDTH, PracticePanel } from '../features/practice/PracticePanel'
 import { QueueRail, useQueueRailRoom } from '../features/queue/QueueRail'
 import { QueueSheet } from '../features/queue/QueueSheet'
 import { ContentWidthContext } from './contentWidth'
 import { createValueStore } from '../state/valueStore.model'
 import { setPaletteOpen, usePaletteOpen } from './palette'
-import { practiceOpen, setPracticeOpen, usePracticeOpen, usePracticeSection } from './practicePanel'
 
 /**
  * The frame around every screen, and the only thing that knows the width.
@@ -114,9 +112,9 @@ export function Shell({
  * those Up next when it is open (`P25`); Up next is there without the chrome
  * too, since Now Playing's foot opens it, and the toasts come after it so an
  * Undo is drawn over the sheet that asked for it. Computer: the page
- * (measured, for the screens that lay out by its width), Up next's rail and
- * the practice panel beside it, the sidebar lying over the page's left edge,
- * and the player bar across the foot.
+ * (measured, for the screens that lay out by its width), Up next's rail
+ * beside it, the sidebar lying over the page's left edge, and the player bar
+ * across the foot.
  *
  * The sidebar is over the page's column rather than beside it, and each page
  * keeps clear of it with its own padding (`app/_layout.tsx`). Beside it, the
@@ -156,10 +154,7 @@ function Frame({
    */
   const { width } = useLayout()
   const railRoom = useQueueRailRoom()
-  const practiceRoom = usePracticeOpen() ? PRACTICE_PANEL_WIDTH : 0
-  const contentWidth = useDeferredValue(
-    wide ? width - SIDEBAR_WIDTH - railRoom - practiceRoom : null,
-  )
+  const contentWidth = useDeferredValue(wide ? width - SIDEBAR_WIDTH - railRoom : null)
   // Told to the page's readers once it has settled: a store, so that a row
   // asking only whether its album column fits is not rendered for every pixel.
   const [contentStore] = useState(() => createValueStore<number | null>(contentWidth))
@@ -178,9 +173,8 @@ function Frame({
           </ContentWidthContext.Provider>
           {wide ? <Toasts left={sidebar ? SIDEBAR_WIDTH : 0} /> : null}
         </View>
-        {/* Up next, between the page and the practice panel, across every page. */}
+        {/* Up next, beside the page, across every page. */}
         {wide ? <QueueRail /> : null}
-        {wide ? <PracticeSide /> : null}
       </View>
       {wide ? <BarSlot hidden={barHidden} /> : null}
       {!wide && chrome ? <MiniPlayer /> : null}
@@ -352,15 +346,6 @@ function PageStep({ wide, children }: { wide: boolean; children: ReactNode }): R
   )
 }
 
-/** The practice panel beside the page, while the player bar's metronome has it open. */
-function PracticeSide(): ReactNode {
-  const open = usePracticeOpen()
-  const section = usePracticeSection()
-  return open ? (
-    <PracticePanel side section={section} onClose={() => setPracticeOpen(false)} />
-  ) : null
-}
-
 /**
  * `selfmp3://playlist/12` and `selfmp3://now-playing`, from the operating
  * system: a link in a note, or one the app sent itself. Nothing on a phone or
@@ -393,7 +378,6 @@ function MenuCommands(): ReactNode {
     playlists: () => router.navigate('/playlists'),
     'now-playing': () => router.navigate('/now-playing'),
     settings: () => router.navigate('/settings'),
-    practice: () => setPracticeOpen(!practiceOpen()),
     'play-pause': () => player.toggle(),
     next: () => player.next(),
     previous: () => player.previous(),

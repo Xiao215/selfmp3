@@ -646,9 +646,9 @@ const NO_LIBRARY_TEXT =
   'Nothing here yet. Import a song and it turns up here once your server has it.'
 
 /**
- * The narrowest page column that takes the header on one row. The practice
- * panel's 340 beside a 1280 window leaves about 700, and a head that stacked
- * into three rows there pushed the songs down each time practice opened.
+ * The narrowest page column that takes the header on one row. Up next's rail
+ * beside a small window leaves less than this, and a head that stacked into
+ * three rows there pushed the songs down each time the rail opened.
  */
 const HEAD_ROW_WIDTH = 600
 /** Below this the head's Shuffle is its icon alone, with the word as its caption. */

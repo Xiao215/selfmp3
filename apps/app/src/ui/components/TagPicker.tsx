@@ -21,6 +21,7 @@ import { Checkbox } from './Checkbox'
 import { Plus } from './Icons'
 import { usePanelDense } from './panel'
 import { Popover } from './Popover'
+import type { PopoverAnchor } from '../rightClick'
 import { Press } from './Press'
 import { tagChanges, tagsAcross } from './tagPicker.model'
 
@@ -40,7 +41,7 @@ export function TagPicker({
   song: Song | null
   onClose: () => void
   /** The control that opened it, for a window attached to it at desktop width. */
-  anchorRef?: RefObject<View | null>
+  anchorRef?: RefObject<PopoverAnchor | null>
 }): ReactNode {
   return (
     <PickerWindow
@@ -69,7 +70,7 @@ export function SelectionTagPicker({
   songs: readonly Song[]
   open: boolean
   onClose: () => void
-  anchorRef?: RefObject<View | null>
+  anchorRef?: RefObject<PopoverAnchor | null>
 }): ReactNode {
   return (
     <PickerWindow
@@ -98,7 +99,7 @@ function PickerWindow({
 }: {
   open: boolean
   onClose: () => void
-  anchorRef?: RefObject<View | null>
+  anchorRef?: RefObject<PopoverAnchor | null>
   title?: string
   children: ReactNode
 }): ReactNode {

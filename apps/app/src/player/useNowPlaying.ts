@@ -26,8 +26,6 @@ export function useNowPlaying(
   player: PlayerApi,
   progress: ProgressStore,
   artwork: string | null,
-  /** Playback speed, which the card's own clock runs at. */
-  rate: number,
 ): void {
   const latest = useRef(player)
   useEffect(() => {
@@ -74,13 +72,12 @@ export function useNowPlaying(
   /*
    * The position, only when the card's own clock would be wrong.
    *
-   * Chromium runs the card's clock from the last position and rate it was
-   * given, so a tick that agrees with that clock tells it nothing — and every
-   * tick is a validation and, in the installed app, a round trip through the
-   * OS. Told instead when play, pause, the rate or the song change (this
-   * effect running again), when the length becomes known, and when the
-   * position jumps further than the time that passed explains — a seek, a loop
-   * going back to A.
+   * Chromium runs the card's clock from the last position it was given, at
+   * normal speed, so a tick that agrees with that clock tells it nothing — and
+   * every tick is a validation and, in the installed app, a round trip through
+   * the OS. Told instead when play, pause or the song change (this effect
+   * running again), when the length becomes known, and when the position jumps
+   * further than the time that passed explains — a seek.
    */
   const songId = current?.id ?? null
   const songDuration = current?.duration ?? 0
@@ -91,8 +88,8 @@ export function useNowPlaying(
     const report = (): void => {
       const { position, duration } = progress.get()
       lastDuration = duration
-      mediaSession.setPosition(position, duration > 0 ? duration : songDuration, rate)
-      last = { position, at: Date.now(), playing: isPlaying, rate }
+      mediaSession.setPosition(position, duration > 0 ? duration : songDuration)
+      last = { position, at: Date.now(), playing: isPlaying }
     }
     report()
     return progress.subscribe(() => {
@@ -105,5 +102,5 @@ export function useNowPlaying(
         report()
       }
     })
-  }, [progress, isPlaying, rate, songId, songDuration])
+  }, [progress, isPlaying, songId, songDuration])
 }

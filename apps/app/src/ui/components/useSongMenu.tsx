@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { View } from 'react-native'
+import type { PopoverAnchor } from '../rightClick'
 import type { Song } from '@selfmp3/shared'
 
 import { SongMenu } from './SongMenu'
@@ -8,8 +8,11 @@ import { SongMenu } from './SongMenu'
 interface SongListMenu {
   /** The song whose menu is open, for its row's `menuOpen`; null with none open. */
   readonly openId: number | null
-  /** A row's ⋯: opens that song's menu beside it, or closes it if it is the one open. */
-  readonly onMore: (anchor: View | null, song: Song) => void
+  /**
+   * A row's ⋯: opens that song's menu beside it, or closes it if it is the one
+   * open. A right-click hands the pointer instead of the ⋯ (`rightClick`).
+   */
+  readonly onMore: (anchor: PopoverAnchor | null, song: Song) => void
   /** The menu itself, drawn once for the whole list. */
   readonly menu: ReactNode
 }
@@ -27,8 +30,8 @@ export function useSongMenu(
   playlist?: { readonly id: number; readonly name: string },
 ): SongListMenu {
   const [song, setSong] = useState<Song | null>(null)
-  const anchor = useRef<View | null>(null)
-  const onMore = useCallback((node: View | null, picked: Song) => {
+  const anchor = useRef<PopoverAnchor | null>(null)
+  const onMore = useCallback((node: PopoverAnchor | null, picked: Song) => {
     anchor.current = node
     setSong(current => (current?.id === picked.id ? null : picked))
   }, [])

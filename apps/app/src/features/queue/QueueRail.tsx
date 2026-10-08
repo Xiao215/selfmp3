@@ -783,8 +783,8 @@ const styles = StyleSheet.create(theme => ({
    * The rail's room beside the page, which is all that grows and shrinks: the
    * rail inside it keeps its width, so nothing in it is laid out again frame
    * by frame — a title that fits at the end fits all the way. Clipped, so the
-   * part of the rail still hanging off the window is not drawn over the
-   * practice panel or a scrollbar.
+   * part of the rail still hanging off the window is not drawn over a
+   * scrollbar.
    */
   room: { flexShrink: 0, overflow: 'hidden' },
   /*

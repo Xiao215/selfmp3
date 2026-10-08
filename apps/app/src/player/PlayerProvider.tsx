@@ -30,7 +30,6 @@ import {
   advancePlayable,
   autoMixCrossfade,
   autoMixOrder,
-  countInMs,
   type EngineState,
   type FrequencyAnalyser,
   type ServerConnection,
@@ -55,7 +54,7 @@ import { session as cloudSession } from '../replica'
 import { coverFor, coversVersion, KEPT_COVER_SIZE, subscribeCovers } from '../offline/covers'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { createEngine } from '../ports/engine'
-import { usePracticeControls } from './usePracticeControls'
+import { useVolumeControls } from './useVolumeControls'
 import { useSleepTimer } from './useSleepTimer'
 import { usePlayReporting } from './usePlayReporting'
 import { useConnection } from '../connection/ConnectionProvider'
@@ -67,11 +66,9 @@ import {
   createProgressStore,
   differsBesidesClock,
   samePlayback,
-  samePractice,
   sameVolume,
   songPlayback,
   type PlayerProgress,
-  type PracticeState,
   type ProgressStore,
   type SongPlaybackState,
   type VolumeState,
@@ -182,7 +179,6 @@ export interface PlayerApi {
   /** Up or down by one step from where the level is now. */
   stepVolume: (delta: number) => void
   toggleMute: () => void
-  setRate: (rate: number) => void
   /**
    * Minutes from now; `song-end` to stop when the song playing now ends (the
    * first track end after choosing, whichever song that turns out to be); or
@@ -198,18 +194,6 @@ export interface PlayerApi {
   /** The fade into the next song: auto-mix's pick, or the server's setting. */
   readonly nextCrossfadeSeconds: number
   setAutoMix: (on: boolean) => void
-
-  // --- practice ------------------------------------------------------------
-  // The loop, the speed and the count-in as they stand are `usePracticeState()`'s.
-  /** Whether this engine can loop A to B closely; a phone's cannot, yet. */
-  readonly canLoop: boolean
-  /** Whether a restart of the loop waits one beat first. */
-  readonly countIn: boolean
-  /** Set A or B of the loop from where the song is now. */
-  tapLoopPoint: (which: 'A' | 'B') => void
-  clearLoop: () => void
-  setPreservesPitch: (on: boolean) => void
-  setCountIn: (on: boolean) => void
 }
 
 /**
@@ -247,13 +231,8 @@ type PlayerCommands = Pick<
   | 'setVolume'
   | 'stepVolume'
   | 'toggleMute'
-  | 'setRate'
   | 'setSleepTimer'
   | 'setAutoMix'
-  | 'tapLoopPoint'
-  | 'clearLoop'
-  | 'setPreservesPitch'
-  | 'setCountIn'
 >
 
 /** Auto-mix, kept on this device. */
@@ -269,15 +248,14 @@ const PlayerCommandsContext = createContext<PlayerCommands | null>(null)
  * changes; each hook below subscribes to the one store it reads. `stalled`
  * lives here rather than in `PlayerApi` because every waiting/playing pair
  * from the network would otherwise re-render every screen and row that asks
- * for the player; the volume, because a drag of the slider sets it on every
- * frame; the practice state, because a count-in flips on each loop restart.
+ * for the player; and the volume, because a drag of the slider sets it on
+ * every frame.
  */
 interface PlayerStores {
   readonly progress: ProgressStore
   readonly playback: ValueStore<SongPlaybackState>
   readonly stalled: ValueStore<boolean>
   readonly volume: ValueStore<VolumeState>
-  readonly practice: ValueStore<PracticeState>
 }
 
 const PlayerStoresContext = createContext<PlayerStores | null>(null)
@@ -301,7 +279,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     playback: createValueStore<SongPlaybackState>({ songId: null, playing: false }, samePlayback),
     stalled: createValueStore(false),
     volume: createValueStore(volumeOf(engine.state), sameVolume),
-    practice: createValueStore(practiceOf(engine.state), samePractice),
   }))
 
   const songsById = useSongsById()
@@ -414,7 +391,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       // left still had in it is not drawn as the new song's position.
       stores.progress.set(engine.currentSongId, state.currentTime, state.duration)
       stores.volume.set(volumeOf(state))
-      stores.practice.set(practiceOf(state))
       if (!state.stalled) {
         forget()
         stores.stalled.set(false)
@@ -436,14 +412,13 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   useEffect(() => () => engine.destroy(), [engine])
 
   /*
-   * Practice, volume and speed: a line or two each over the engine, with the
-   * preference this device remembers them by. The seams below — reporting a
+   * The volume: a line or two over the engine, with the preference this
+   * device remembers it by. The seams below — reporting a
    * play, wiring the engine, the commands — stay here, because each holds a
    * dozen refs the others read; pulled apart they would take a dozen
    * arguments, which is a worse seam than a long function.
    */
-  const practice = usePracticeControls(engine)
-  const { countIn } = practice
+  const volume = useVolumeControls(engine)
   const sleep = useSleepTimer(engine)
 
   /*
@@ -934,26 +909,12 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     engine.configure({ crossfadeSeconds: sleep.atSongEnd ? 0 : nextCrossfadeSeconds, gapless })
   }, [engine, nextCrossfadeSeconds, gapless, sleep.atSongEnd])
 
-  const currentBpm = resolved.currentSong?.audioFeatures?.bpm ?? null
-  useEffect(() => {
-    engine.setCountIn(countIn ? countInMs(currentBpm) : 0)
-  }, [engine, countIn, currentBpm])
-
   const getPlayhead = useCallback(() => engine.playhead, [engine])
   const analyser = useCallback(
     () => (engine.capabilities.analyser ? engine.analyser() : null),
     [engine],
   )
-  const {
-    setVolume,
-    stepVolume,
-    toggleMute,
-    setRate,
-    tapLoopPoint,
-    clearLoop,
-    setPreservesPitch,
-    setCountIn,
-  } = practice
+  const { setVolume, stepVolume, toggleMute } = volume
   const setSleepTimer = sleep.set
 
   const commands = useMemo<PlayerCommands>(
@@ -983,13 +944,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       setVolume,
       stepVolume,
       toggleMute,
-      setRate,
       setSleepTimer,
       setAutoMix,
-      tapLoopPoint,
-      clearLoop,
-      setPreservesPitch,
-      setCountIn,
     }),
     [
       play,
@@ -1015,13 +971,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       setVolume,
       stepVolume,
       toggleMute,
-      setRate,
       setSleepTimer,
       setAutoMix,
-      tapLoopPoint,
-      clearLoop,
-      setPreservesPitch,
-      setCountIn,
     ],
   )
 
@@ -1038,8 +989,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       autoMix,
       canCrossfade: engine.capabilities.crossfade,
       nextCrossfadeSeconds,
-      canLoop: engine.capabilities.loop,
-      countIn,
     }),
     [
       commands,
@@ -1052,7 +1001,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       autoMix,
       engine,
       nextCrossfadeSeconds,
-      countIn,
     ],
   )
 
@@ -1091,7 +1039,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         : null,
     [currentSong, keptCover, connection, fromCloud],
   )
-  useNowPlaying(value, stores.progress, nowPlayingArt, engineState.rate)
+  useNowPlaying(value, stores.progress, nowPlayingArt)
   // The phone's card is the engine's: it hears here when the playing song's
   // cover arrives or its words change, and sends only what did.
   const currentTitle = currentSong?.title
@@ -1113,17 +1061,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
 /** The engine's level, as the volume control draws it. */
 function volumeOf(state: EngineState): VolumeState {
   return { volume: state.volume, muted: state.muted }
-}
-
-/** The engine's practice state, as the practice panel and its chips draw it. */
-function practiceOf(state: EngineState): PracticeState {
-  return {
-    loopA: state.loopA,
-    loopB: state.loopB,
-    countingIn: state.countingIn,
-    rate: state.rate,
-    preservesPitch: state.preservesPitch,
-  }
 }
 
 /** Where the Now Playing card may take a cover from: a copy here, or this library's address. */
@@ -1179,12 +1116,6 @@ export function usePlayerStalled(): boolean {
 export function usePlayerVolume(): VolumeState {
   const { volume } = useStores()
   return useValueStore(volume)
-}
-
-/** The loop, the count-in, the speed and the pitch lock, as they stand. */
-export function usePracticeState(): PracticeState {
-  const { practice } = useStores()
-  return useValueStore(practice)
 }
 
 /** For a row drawn outside any player, such as a test: nothing is ever loaded. */

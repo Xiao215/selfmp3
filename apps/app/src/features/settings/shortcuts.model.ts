@@ -28,8 +28,7 @@ const ROWS: readonly { commands: readonly string[]; label: string }[] = [
   { commands: ['volume-up', 'volume-down'], label: 'Volume' },
   { commands: ['mute'], label: 'Mute' },
   { commands: ['search'], label: 'Search' },
-  { commands: ['library', 'playlists', 'now-playing'], label: 'Library · Playlists · Now Playing' },
-  { commands: ['practice'], label: 'Practice panel' },
+  { commands: ['library', 'playlists', 'now-playing'], label: 'Library · Playlists · Now playing' },
   { commands: ['settings'], label: 'Settings' },
 ]
 

@@ -1,4 +1,5 @@
 import type { View } from 'react-native'
+import type { PopoverAnchor } from './rightClick'
 
 /**
  * Covers flying into the Up next button (docs/features/lists.md, motion):
@@ -56,7 +57,7 @@ export function registerUpNextTarget(node: View | null, previous: View | null): 
   if (node) targets.add(node)
 }
 
-function measure(node: View): Promise<FlightFrame | null> {
+function measure(node: PopoverAnchor): Promise<FlightFrame | null> {
   return new Promise(resolve => {
     node.measureInWindow((x, y, width, height) =>
       resolve(width > 0 && height > 0 ? { x, y, width, height } : null),
@@ -70,7 +71,7 @@ function measure(node: View): Promise<FlightFrame | null> {
  * arriving.
  */
 export function flyToUpNext(
-  from: View | null,
+  from: PopoverAnchor | null,
   uris: readonly (string | null | undefined)[],
   upNextShown: boolean,
 ): void {

@@ -81,7 +81,7 @@ Found on the way, also fixed: `apps/server/src/services/lookup.ts` held a raw NU
 - [x] **T-036 `PROPER` L** — `/playlists/preview` fabricates an 11-field fake `Playlist` to call `songIds` (`routes/playlists.ts:216-228`). Add `PlaylistRepository.resolveRules(rules)`.
 - [x] **T-037 `PROPER` M** — `/migrate/enqueue` re-implemented `enqueueFresh` and `resolveImportPlaylist` without the "already downloaded by video id" dedupe fix. Gone with Migrate itself (2026-10-02): a Spotify list or a list of names goes through Import's own review and `/import/enqueue`.
 - [x] **T-038 `PERF` L** — N+1 `songs.byId` loops at `routes/system.ts:66-67`, `routes/gems.ts:22-25`, `services/lyricsIndex.ts:54-55`, `routes/playlists.ts:135`; `byIds` already exists.
-- [ ] **T-039 `PERF` L** — `/songs/:id/similar` loads the whole library per request (`routes/songs.ts:272`). Acceptable today; cache `all()` on `libraryVersion()` if it shows.
+- [x] **T-039 `PERF` L** — `/songs/:id/similar` loads the whole library per request (`routes/songs.ts:272`). Acceptable today; cache `all()` on `libraryVersion()` if it shows. *Done 2026-10-07: the library is kept per `libraryVersion()` + newest play id, so a play still reads it again.*
 
 ### Services
 - [x] **T-040 `PERF` L** — Every cloud pass does ~5 sequential fs calls per song (`cloudSync.ts:682-695,1011-1023`, `lyrics.ts:90-97`). Run `#signatures` through `inBatches` and have `findSidecar` `readdir` once.
@@ -230,8 +230,8 @@ Found on the way, also fixed: `apps/server/src/services/lookup.ts` held a raw NU
 - [x] **T-194 `PERF` L** — Linear `find` per answer (`routes.ts:556-573`, `edits.ts:49-60`) while `view.ids`/`view.uids` are already Maps; session read from the store on every cloud request (`routes.ts:510`, `library.ts:676`). Keep `byId` maps; cache the session.
 - [x] **T-195 `ROBUST` L** — Stored replica state cast, not validated (`library.ts:228-246,263-264,885-897`); a corrupt IndexedDB row becomes an uploaded log file. `safeParse` on load.
 - [x] **T-196 `HARDCODE` L** — `emptySnapshot()` hardcodes `format: 1` (`library.ts:294-304`; use `CLOUD_FORMAT`); `health()` answers `version: 'web'` on every platform (`routes.ts:577-587`).
-- [ ] **T-197 `PERF` L** — Every non-deferred edit rebuilds the whole view (`library.ts:608-633`, `replay.ts:35-67`); `deferView` covers plays only. Only if it shows.
-- [ ] **T-198 `PERF` L** — `tagRemoved`/`songRemoved`/`tagNamed` walk the whole library per change in `shared/src/sync.ts:133-146,218-246,393-398`. Only if it shows.
+- [x] **T-197 `PERF` L** — Every non-deferred edit rebuilds the whole view (`library.ts:608-633`, `replay.ts:35-67`); `deferView` covers plays only. Only if it shows. *Measured 2026-10-07 on 1,500 songs: ~3 ms an edit (≈7 ms with the optimiser off), plays 0.3 ms — under the bar, no change.*
+- [x] **T-198 `PERF` L** — `tagRemoved`/`songRemoved`/`tagNamed` walk the whole library per change in `shared/src/sync.ts:133-146,218-246,393-398`. Only if it shows. *Measured 2026-10-07: `tagRemoved` 0.66 ms, `songRemoved` 0.03 ms, `tagNamed` 0.005 ms — no change.*
 
 ### Small
 - [x] **T-199 `PROPER` L** — HSL→RGB written twice (`client/src/art/coverColor.ts:32-41`, `palette.ts:151-156`) and a double cast in `hexToRgb` (`palette.ts:106-108`); two relative-time formatters with different phrasing (`client/src/devices/handoff.ts:46-54` vs `shared/src/format.ts:41-55`).
@@ -590,10 +590,7 @@ About 300 findings went in. The ones fixed are not listed one by one here; the c
 
 ## Still open, and why
 
-- **T-039** — caching `all()` on `libraryVersion()` would serve stale play counts (plays do not move the version); leave it.
-- **T-197, T-198** — whole-view rebuild per edit and whole-library walks in sync: only worth it when measured.
 - **T-212** (`wrangler.toml` origin list), **T-215** (aws4fetch cache key), **T-232** (extension and desktop e2e suites not in CI — needs browsers/Electron on the runner), **T-242** (Docker builder dev deps — the daemon was not running, so the image could not be rebuilt and checked).
-- **Queue rail virtualisation** (3,000 rows on a shuffled library): the memo fix shipped; a FlatList under hold-to-reorder was not, because nothing in `npm run check` drives a rail drag.
 - **`decodeGzipOrText`** is still written twice (extension, app web port): the packages that could hold it are deliberately compiled without DOM.
 - **`electron-builder.yml` / `apps/desktop/package.json`** still spell the GitHub owner/repo (rest of T-204); the extension's `build.mjs` still copies `apps/app/public/icons` (rest of T-240).
 - **`unused-exports.mjs` is textual**: an export whose name is also an ordinary word (`BackRow`, `Folder`, `Speed`, `PLAIN`) or that a barrel re-exports counts as read. An import-graph check would have caught several of this pass's dead exports.
@@ -629,4 +626,4 @@ The owner's rule from here on: migrate rather than accommodate an older shape. A
 
 Every migration was run against a copy of the live database (29 → 35: integrity ok, no foreign-key rows, every table identical apart from the intended columns).
 
-Still to do: the cloud snapshot schema stays lenient for `coverTone`, `motion`, `audioFeatures`, `upTo`, `sound` and a palette-less tone until the live server has published a snapshot written by this code (`TODO(after the Pi publishes)` in `schemas/cloud.ts`). The doorman's `/privacy` redirect is gone too (main 8ebb10df): the consent screen names the Pages address.
+The cloud snapshot schema is exact as well (main, 2026-10-07): the live bucket's newest snapshot was checked first and carried every field. The queue rail now draws only the rows in view (3,000 queued: 5.9 s → 0.15 s to open), with a flow that drags a row at the end of a scrolled rail.

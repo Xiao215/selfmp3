@@ -13,6 +13,7 @@
  * `sharp` is already the server's, for cover art. This is the same version.
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -20,7 +21,10 @@ import sharp from 'sharp'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const desktop = join(here, '..')
-const source = join(desktop, '..', 'app', 'public', 'icons', 'icon.svg')
+// Through `@selfmp3/app`, which this package declares, rather than a path out
+// of its own folder.
+const appRoot = dirname(createRequire(import.meta.url).resolve('@selfmp3/app/package.json'))
+const source = join(appRoot, 'public', 'icons', 'icon.svg')
 const target = join(desktop, 'resources', 'icon.png')
 
 /** macOS wants 1024 for a crisp icon in the Dock at 2×, and so does the ico. */

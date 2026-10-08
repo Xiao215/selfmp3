@@ -15,6 +15,7 @@
     "icon": "node scripts/icon.mjs"
   },
   "devDependencies": {
+    "@selfmp3/app": "*",
     "@selfmp3/client": "*",
     "@selfmp3/desktop-bridge": "*",
     "@selfmp3/shared": "*",

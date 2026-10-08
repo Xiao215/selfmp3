@@ -20,6 +20,7 @@
  */
 import { build } from 'esbuild'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { writeTheme } from './theme.mjs'
@@ -102,8 +103,11 @@ writeFileSync(join(out, 'manifest.json'), `${JSON.stringify({ ...manifest, versi
 copyFileSync(join(root, 'src', 'popup', 'popup.html'), join(out, 'popup.html'))
 copyFileSync(join(root, 'src', 'options', 'options.html'), join(out, 'options.html'))
 // The manifest names the icon; this only puts the app's copy of that file
-// where the manifest has already promised it will be.
+// where the manifest has already promised it will be. The app's `public/icons`
+// is the icons' one home, reached through `@selfmp3/app`, which this package
+// declares, rather than by a path out of its own folder.
+const appRoot = dirname(createRequire(import.meta.url).resolve('@selfmp3/app/package.json'))
 const icon = manifest.icons['192']
-copyFileSync(join(repoRoot, 'apps', 'app', 'public', icon), join(out, icon))
+copyFileSync(join(appRoot, 'public', icon), join(out, icon))
 
 console.log(`\nThe extension is in ${out}. Load it unpacked from chrome://extensions.\n`)

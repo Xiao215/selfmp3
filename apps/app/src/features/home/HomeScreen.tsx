@@ -144,7 +144,8 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
             {greeting(now.getHours())}
             <Text style={styles.greetingDot}>.</Text>
           </Text>
-          {line === null ? null : <Text style={styles.subline}>{line}</Text>}
+          {/* A computer's This week card says the streak already, beside the tiles. */}
+          {line === null || wide ? null : <Text style={styles.subline}>{line}</Text>}
         </View>
 
         {/* A computer says it in This week instead, beside the tiles, where the

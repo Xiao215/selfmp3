@@ -9,12 +9,12 @@ import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
-import { Cover } from '../../ui/components/Cover'
 import { ChevronDown, ChevronRight, Sparkle } from '../../ui/components/Icons'
 import { useSongsById } from '../../ui/songsById'
 import { label as labelText } from '../../ui/surfaces'
 import type { AnswerKeys } from './answerKeys'
 import { keptSongs, leftOutKey, reviewBands, tickedAtFirst, type Reviewed } from './smart.model'
+import { SongLine } from '../../ui/components/SongLine'
 
 /**
  * The steps the list is drawn in. A band's tick, then its title, note and
@@ -392,12 +392,14 @@ export function Review<T extends Reviewed>({
                   ]}
                   testID={`${testID}-song`}
                 >
-                  <Checkbox checked={kept} />
-                  <Cover uri={artFor(song)} title={song.album || song.title} size={26} />
-                  <Text style={styles.songTitle} numberOfLines={1}>
-                    {song.title}
-                    <Text style={styles.songSub}> · {songLine(song, each)}</Text>
-                  </Text>
+                  <SongLine
+                    style={styles.songLine}
+                    leading={<Checkbox checked={kept} />}
+                    artUri={artFor(song)}
+                    coverTitle={song.album || song.title}
+                    title={song.title}
+                    sub={songLine(song, each)}
+                  />
                 </Pressable>
               )
             })}
@@ -644,8 +646,8 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.xs,
     borderRadius: radius.coverSm,
   },
-  songTitle: { flex: 1, minWidth: 0, color: theme.colors.textPrimary, fontSize: 12.5 },
-  songSub: { color: theme.colors.textMuted },
+  // The row around it has the room and the press; the line is its face.
+  songLine: { flex: 1, minWidth: 0, paddingVertical: 0, paddingHorizontal: 0 },
   more: {
     alignSelf: 'flex-start',
     paddingVertical: 5,

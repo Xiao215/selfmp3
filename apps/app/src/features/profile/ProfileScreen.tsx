@@ -7,7 +7,6 @@ import type { Stats } from '@selfmp3/shared'
 import { radius, space, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
-import { Cover } from '../../ui/components/Cover'
 import { ChevronRight, Download, Settings, Sparkles } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useArt } from '../../offline/useArt'
@@ -29,6 +28,7 @@ import {
   type ProfileRowId,
 } from './profile.model'
 import { useVia } from '../../connection/via'
+import { SongLine } from '../../ui/components/SongLine'
 
 const ICONS: Record<ProfileRowId, typeof Settings> = {
   import: Download,
@@ -199,19 +199,13 @@ function OnRepeat({
   if (!top) return null
   const song = songFor(top.songId)
   return (
-    <View style={styles.repeat}>
-      <Cover uri={song ? artFor(song) : null} title={top.title} size={36} />
-      <View style={styles.repeatWords}>
-        <Text style={styles.line} numberOfLines={1}>
-          On repeat: <Text style={styles.repeatTitle}>{top.title}</Text>
-        </Text>
-        {month.when ? (
-          <Text style={styles.line} numberOfLines={1}>
-            {month.when}
-          </Text>
-        ) : null}
-      </View>
-    </View>
+    <SongLine
+      style={styles.repeat}
+      artUri={song ? artFor(song) : null}
+      coverTitle={top.title}
+      title={top.title}
+      sub={month.when ? `On repeat · ${month.when}` : 'On repeat'}
+    />
   )
 }
 
@@ -265,8 +259,6 @@ const styles = StyleSheet.create(theme => ({
   figureUnit: { fontSize: 20 },
   figureLabel: { color: theme.colors.textSecondary, fontSize: 12 },
   repeat: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  repeatWords: { flex: 1, minWidth: 0 },
-  repeatTitle: { color: theme.colors.textPrimary, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 60 },
   rowPressed: { opacity: 0.6 },
   rowIcon: {

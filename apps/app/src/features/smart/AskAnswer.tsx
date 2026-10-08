@@ -11,7 +11,6 @@ import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
 import { Button } from '../../ui/components/Button'
-import { Cover } from '../../ui/components/Cover'
 import { Play, Sparkle } from '../../ui/components/Icons'
 import { useSongsById } from '../../ui/songsById'
 import { ChangeField, TrailStep } from './ChangeIt'
@@ -30,6 +29,7 @@ import { Working } from './Working'
 import { newTicket, useAskProgress } from './useAskProgress'
 import { useSmartServer } from './useSmartServer'
 import { reachedConnection, viaKey } from '../../connection/via'
+import { SongLine } from '../../ui/components/SongLine'
 
 /**
  * An ask's query key: the server it went to, the words first asked, the song
@@ -392,7 +392,7 @@ function SongPicks({
   return (
     <>
       {found.map(({ song, why }, index) => (
-        <Pressable
+        <SongLine
           key={song.id}
           onPress={() => {
             player.playFrom(ids, index, {
@@ -400,22 +400,13 @@ function SongPicks({
             })
             onDone()
           }}
-          accessibilityRole="button"
           accessibilityLabel={`Play ${song.title}`}
-          style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-        >
-          <Cover uri={artFor(song)} title={song.album || song.title} size={36} />
-          <View style={styles.text}>
-            <Text style={styles.title} numberOfLines={1}>
-              {song.title}
-              <Text style={styles.muted}> · {artistOr(song.artist)}</Text>
-            </Text>
-            <Text style={styles.why} numberOfLines={1}>
-              {why ?? ''}
-            </Text>
-          </View>
-          <Play size={14} color={theme.colors.textSecondary} />
-        </Pressable>
+          artUri={artFor(song)}
+          coverTitle={song.album || song.title}
+          title={song.title}
+          sub={why ? `${artistOr(song.artist)} · ${why}` : artistOr(song.artist)}
+          trailing={<Play size={14} color={theme.colors.textSecondary} />}
+        />
       ))}
     </>
   )
@@ -429,17 +420,6 @@ const styles = StyleSheet.create(theme => ({
   muted: { color: theme.colors.textMuted, fontSize: 12.5, fontWeight: '400' },
   error: { color: theme.colors.danger, fontSize: 12.5 },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 5,
-    paddingHorizontal: space.xs,
-    borderRadius: radius.coverSm,
-  },
-  text: { flex: 1, minWidth: 0 },
-  title: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: 13, fontWeight: '500' },
-  why: { color: theme.colors.textMuted, fontSize: 11.5 },
   tries: { gap: 6, marginTop: space.xs },
   followUp: { gap: space.sm, marginTop: space.xs },
   trail: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 4 },

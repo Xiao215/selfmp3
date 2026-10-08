@@ -1,17 +1,9 @@
 import { useMemo, useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
-import {
-  FlatList,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
-} from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { FlatList, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import { plural, libraryArtists } from '@selfmp3/shared'
-import { radius, tagColors, useLibrary } from '@selfmp3/client'
+import { tagColors, useLibrary } from '@selfmp3/client'
 import { useRecentTagIds } from '../library/recentTags.store'
 import { songsById } from '../../ui/songsById'
 import { ArtistFace } from './ArtistFace'
@@ -19,7 +11,7 @@ import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { Chip } from '../../ui/components/Chip'
-import { Search, User } from '../../ui/components/Icons'
+import { User } from '../../ui/components/Icons'
 import { Segmented } from '../../ui/components/Segmented'
 import { Sheet } from '../../ui/components/Sheet'
 import { label as labelText } from '../../ui/surfaces'
@@ -33,6 +25,8 @@ import {
   type AddRow,
   type Place,
 } from './tag.model'
+import { EmptyState } from '../../ui/components/EmptyState'
+import { SearchField } from '../../ui/components/SearchField'
 
 /**
  * Combine with… (docs/ui-mock `P09`, docs/features/lists.md): the sheet that
@@ -72,7 +66,6 @@ function AddSheetBody({
   chosen: readonly Place[]
   onShow: (places: readonly Place[]) => void
 }): ReactNode {
-  const { theme } = useUnistyles()
   const accent = useAccent()
   const window = useWindowDimensions()
   const { data: library } = useLibrary()
@@ -137,20 +130,17 @@ function AddSheetBody({
   return (
     <View style={styles.body}>
       <View style={styles.searchRow}>
-        <View style={styles.search}>
-          <Search size={17} color={theme.colors.textMuted} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder={`Search ${plural(tags.length, 'tag', 'tags')} and ${plural(artists.length, 'artist', 'artists')}`}
-            placeholderTextColor={theme.colors.textMuted}
-            autoCapitalize="none"
-            autoCorrect={false}
-            accessibilityLabel="Search tags and artists"
-            testID="add-sheet-search"
-            style={styles.input}
-          />
-        </View>
+        <SearchField
+          raised
+          value={query}
+          onChangeText={setQuery}
+          placeholder={`Search ${plural(tags.length, 'tag', 'tags')} and ${plural(artists.length, 'artist', 'artists')}`}
+          autoCapitalize="none"
+          autoCorrect={false}
+          accessibilityLabel="Search tags and artists"
+          testID="add-sheet-search"
+          style={styles.search}
+        />
         {draft.length > 0 ? (
           <Pressable onPress={() => setDraft([])} accessibilityRole="button" hitSlop={8}>
             <Text style={[styles.clear, { color: accent.accent }]}>Clear all</Text>
@@ -201,7 +191,7 @@ function AddSheetBody({
         keyboardShouldPersistTaps="handled"
         initialNumToRender={20}
         style={{ height: Math.min(420, window.height * 0.45) }}
-        ListEmptyComponent={<Text style={styles.empty}>Nothing matches “{query.trim()}”.</Text>}
+        ListEmptyComponent={<EmptyState compact title={`Nothing matches “${query.trim()}”`} />}
       />
 
       <View style={styles.foot}>
@@ -224,17 +214,7 @@ const FACE = 32
 const styles = StyleSheet.create(theme => ({
   body: { gap: 10, paddingBottom: 8 },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 },
-  search: {
-    flex: 1,
-    height: 46,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 14,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface3,
-  },
-  input: { flex: 1, minWidth: 0, color: theme.colors.textPrimary, fontSize: 15 },
+  search: { flex: 1 },
   clear: { fontSize: 14, fontWeight: '600' },
   chosenRow: { flexGrow: 0 },
   chosen: { gap: 8, paddingHorizontal: 16 },
@@ -259,6 +239,5 @@ const styles = StyleSheet.create(theme => ({
   dot: { width: 8, height: 8, borderRadius: 4 },
   name: { flex: 1, color: theme.colors.textPrimary, fontSize: 15, fontWeight: '500' },
   size: { color: theme.colors.textMuted, fontSize: 13, fontVariant: ['tabular-nums'] },
-  empty: { color: theme.colors.textSecondary, fontSize: 14, padding: 16 },
   foot: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 6 },
 }))

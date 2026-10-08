@@ -30,6 +30,7 @@ import { useSongsById } from '../../ui/songsById'
 import { useSongColor } from '../../ui/useSongColor'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
+import { EmptyState } from '../../ui/components/EmptyState'
 import { IconButton } from '../../ui/components/IconButton'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
 import {
@@ -210,10 +211,9 @@ export function PlaylistDetailScreen(): ReactNode {
   if (!library.isPending && !playlist) {
     return (
       <SafeAreaView style={styles.screen} edges={['top']}>
-        <View style={styles.missing}>
-          <Text style={styles.emptyTitle}>Playlist not found</Text>
+        <EmptyState title="Playlist not found">
           <Button label="Back to playlists" onPress={() => router.replace('/playlists')} />
-        </View>
+        </EmptyState>
       </SafeAreaView>
     )
   }
@@ -389,29 +389,30 @@ export function PlaylistDetailScreen(): ReactNode {
     <ActivityIndicator style={styles.spinner} color={accent.accent} />
   ) : contents.isError ? (
     // The list is the server's; the library knows only how long it is.
-    <View style={styles.empty}>
-      <Text style={styles.emptyTitle}>Can’t reach your library</Text>
-      <Text style={styles.emptyHint}>
-        {playlist ? `${plural(playlist.songCount, 'song is', 'songs are')} in here, ` : ''}
-        but the list itself can’t be loaded right now.
-      </Text>
+    <EmptyState
+      title="Can’t reach your library"
+      line={`${
+        playlist ? `${plural(playlist.songCount, 'song is', 'songs are')} in here, ` : ''
+      }but the list itself can’t be loaded right now.`}
+    >
       <Button label="Try again" onPress={() => void contents.refetch()} />
-    </View>
+    </EmptyState>
   ) : (
-    <View style={styles.empty}>
-      {live ? (
-        <Live size={30} color={theme.colors.textMuted} />
-      ) : (
-        <ListMusic size={30} color={theme.colors.textMuted} />
-      )}
-      <Text style={styles.emptyTitle}>
-        {live ? 'No songs match these rules yet' : 'Nothing here yet'}
-      </Text>
-      <Text style={styles.emptyHint}>
-        {live
+    <EmptyState
+      icon={
+        live ? (
+          <Live size={30} color={theme.colors.textMuted} />
+        ) : (
+          <ListMusic size={30} color={theme.colors.textMuted} />
+        )
+      }
+      title={live ? 'No songs match these rules yet' : 'Nothing here yet'}
+      line={
+        live
           ? 'Loosen a rule and the songs that match appear here as you change it.'
-          : 'Search your library and add as many songs as you like.'}
-      </Text>
+          : 'Search your library and add as many songs as you like.'
+      }
+    >
       {/* A live playlist's Edit rules is in the sentence just above. */}
       {live ? null : (
         <Button
@@ -420,7 +421,7 @@ export function PlaylistDetailScreen(): ReactNode {
           onPress={() => setAdding(true)}
         />
       )}
-    </View>
+    </EmptyState>
   )
 
   return (
@@ -606,19 +607,4 @@ const styles = StyleSheet.create(theme => ({
   // Room between the menu's groups, where a line used to be.
   divider: { height: space.sm },
   spinner: { marginTop: space.xl },
-  empty: {
-    alignItems: 'center',
-    gap: space.sm,
-    paddingTop: 48,
-    paddingHorizontal: space.lg,
-  },
-  emptyTitle: { color: theme.colors.textPrimary, fontSize: 17, fontWeight: '700' },
-  emptyHint: {
-    color: theme.colors.textMuted,
-    fontSize: 13,
-    textAlign: 'center',
-    marginBottom: space.sm,
-    maxWidth: 320,
-  },
-  missing: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.md },
 }))

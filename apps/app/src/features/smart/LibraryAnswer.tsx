@@ -3,17 +3,17 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { artistOr, formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
-import { radius, space, useLibrary } from '@selfmp3/client'
+import { space, useLibrary } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button } from '../../ui/components/Button'
-import { Cover } from '../../ui/components/Cover'
 import { Play } from '../../ui/components/Icons'
 import { useSongsById } from '../../ui/songsById'
 import { songCount, SONGS_MORE, SONGS_SHOW } from './Review'
 import { parts, sortWords } from './smart.model'
 import { useSmartServer } from './useSmartServer'
+import { SongLine } from '../../ui/components/SongLine'
 
 /**
  * A question about what is in the library ("how many YOASOBI songs do I
@@ -104,21 +104,17 @@ export function LibraryAnswer({
       ) : (
         <ScrollView style={{ maxHeight: height }}>
           {shown.map((song, index) => (
-            <Pressable
+            <SongLine
               key={song.id}
               onPress={() => play(index)}
-              accessibilityRole="button"
               accessibilityLabel={`Play ${song.title}`}
-              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
               testID="ask-library-song"
-            >
-              <Cover uri={artFor(song)} title={song.album || song.title} size={36} />
-              <Text style={[styles.title, styles.grow]} numberOfLines={1}>
-                {song.title}
-                <Text style={styles.muted}> · {artistOr(song.artist)}</Text>
-              </Text>
-              <Play size={14} color={theme.colors.textSecondary} />
-            </Pressable>
+              artUri={artFor(song)}
+              coverTitle={song.album || song.title}
+              title={song.title}
+              sub={artistOr(song.artist)}
+              trailing={<Play size={14} color={theme.colors.textSecondary} />}
+            />
           ))}
           {shown.length < songs.length ? (
             <Pressable
@@ -152,15 +148,6 @@ const styles = StyleSheet.create(theme => ({
   muted: { color: theme.colors.textMuted, fontSize: 12.5, fontWeight: '400' },
   counts: { gap: 4, paddingTop: space.xs },
   countRow: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 5,
-    paddingHorizontal: space.xs,
-    borderRadius: radius.coverSm,
-  },
-  grow: { flex: 1, minWidth: 0 },
   title: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: 13, fontWeight: '500' },
   more: { alignSelf: 'flex-start', paddingVertical: 5, paddingHorizontal: space.xs },
   moreText: { color: theme.colors.accent, fontSize: 12.5, fontWeight: '500' },

@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { Pressable, ScrollView, Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import { plural, fuzzyRank, type Tag } from '@selfmp3/shared'
-import { chooserTagGroups, HIT_TARGET, radius, space, type, useLibrary } from '@selfmp3/client'
+import { chooserTagGroups, HIT_TARGET, space, type, useLibrary } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { Chip } from './Chip'
-import { Search, X } from './Icons'
 import { card, label as labelText } from '../surfaces'
+import { SearchField } from './SearchField'
 
 /**
  * Choosing tags to listen to.
@@ -71,10 +71,8 @@ function Panel({
   onDone: () => void
   summary?: string
 }): ReactNode {
-  const { theme } = useUnistyles()
   const { wide } = useLayout()
   const accent = useAccent()
-  const [focused, setFocused] = useState(false)
   const [query, setQuery] = useState('')
   const { data: library } = useLibrary()
   const tags = useMemo<readonly Tag[]>(() => library?.tags ?? [], [library?.tags])
@@ -117,43 +115,22 @@ function Panel({
   return (
     <View style={[styles.panel, wide ? styles.panelWide : styles.panelNarrow]} testID="listen-tags">
       <View style={styles.searchRow}>
-        <View
-          style={[
-            styles.searchBox,
-            !wide && styles.searchBoxNarrow,
-            focused && { borderColor: accent.accent },
-          ]}
-        >
-          <Search size={14} color={focused ? accent.accent : theme.colors.textMuted} />
-          <TextInput
-            style={styles.search}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            value={query}
-            onChangeText={setQuery}
-            placeholder={`Search ${plural(tags.length, 'tag', 'tags')}`}
-            placeholderTextColor={theme.colors.textMuted}
-            autoCapitalize="none"
-            autoCorrect={false}
-            // With a mouse the panel opens ready to type. On a phone it must
-            // not: the keyboard would come up over the chips the panel exists
-            // to show, for a search almost nobody wants at nine tags.
-            autoFocus={wide}
-            returnKeyType="search"
-            accessibilityLabel="Search tags"
-            testID="listen-tags-search"
-          />
-          {trimmed ? (
-            <Pressable
-              onPress={() => setQuery('')}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel="Clear tag search"
-            >
-              <X size={13} color={theme.colors.textMuted} />
-            </Pressable>
-          ) : null}
-        </View>
+        <SearchField
+          raised
+          value={query}
+          onChangeText={setQuery}
+          placeholder={`Search ${plural(tags.length, 'tag', 'tags')}`}
+          autoCapitalize="none"
+          autoCorrect={false}
+          // With a mouse the panel opens ready to type. On a phone it must
+          // not: the keyboard would come up over the chips the panel exists
+          // to show, for a search almost nobody wants at nine tags.
+          autoFocus={wide}
+          returnKeyType="search"
+          accessibilityLabel="Search tags"
+          testID="listen-tags-search"
+          style={styles.searchBox}
+        />
         {/* With a mouse the summary and Done ride along beside the search. */}
         {wide ? foot({ summary, onDone, accent: accent.accent }) : null}
       </View>
@@ -228,31 +205,7 @@ const styles = StyleSheet.create(theme => ({
   /* A phone has one panel on the screen and room to breathe in it. */
   panelNarrow: { gap: space.md, padding: space.md },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  searchBox: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    minHeight: 34,
-    paddingHorizontal: 10,
-    // A control on the card. Its edge is there only to carry the focus ring,
-    // and is clear until then.
-    backgroundColor: theme.colors.surface2,
-    borderWidth: 1,
-    borderColor: 'transparent',
-    borderRadius: radius.pill,
-  },
-  searchBoxNarrow: { minHeight: HIT_TARGET, paddingHorizontal: space.md },
-  search: {
-    flex: 1,
-    minWidth: 0,
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    // As in TagPicker: the accent ring is the focus, and the browser's own
-    // ring on top of it drew a second white outline.
-    _web: { outlineStyle: 'none' },
-  },
+  searchBox: { flex: 1, minWidth: 0 },
   summary: { color: theme.colors.textMuted, fontSize: type.small },
   done: { minHeight: HIT_TARGET - 10, justifyContent: 'center', paddingHorizontal: space.sm },
   doneLabel: { fontSize: type.small, fontWeight: '700' },

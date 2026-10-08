@@ -33,6 +33,7 @@ import {
   type StatsPeriod,
 } from './stats.model'
 import { useSvgId } from '../../ui/useSvgId'
+import { EmptyState } from '../../ui/components/EmptyState'
 
 /** The line beside Listened, in its own box's units. */
 const SPARK = { width: 120, height: 56 }
@@ -58,14 +59,14 @@ export function StatsScreen({ via }: { via?: ServerConnection } = {}): ReactNode
       {isLoading && !stats ? (
         <Text style={styles.hint}>Working it out…</Text>
       ) : !stats ? (
-        <Empty
+        <EmptyState
           title="Stats need your library"
-          hint="They’ll be here when your library is reachable again."
+          line="They’ll be here when your library is reachable again."
         />
       ) : stats.totals.plays === 0 ? (
-        <Empty
+        <EmptyState
           title="Nothing to show yet"
-          hint="Play some music and this fills in — how long, when, and what most."
+          line="Play some music and this fills in — how long, when, and what most."
         />
       ) : (
         <>
@@ -548,15 +549,6 @@ function RankedLine({
   )
 }
 
-function Empty({ title, hint }: { title: string; hint: string }): ReactNode {
-  return (
-    <View style={styles.empty}>
-      <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={[styles.hint, styles.emptyHint]}>{hint}</Text>
-    </View>
-  )
-}
-
 const styles = StyleSheet.create(theme => ({
   hint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
   // A big card on the ground (`S2`: 22 round), told apart by tone, not an edge.
@@ -663,7 +655,4 @@ const styles = StyleSheet.create(theme => ({
   },
   fill: { height: 4, borderRadius: 2, backgroundColor: theme.colors.textMuted },
   fillFirst: { backgroundColor: theme.colors.accent },
-  empty: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emptyTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  emptyHint: { textAlign: 'center', maxWidth: 360 },
 }))

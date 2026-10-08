@@ -13,6 +13,7 @@ import {
   tagColors,
   useLibrary,
   useScanLibrary,
+  space,
 } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -22,7 +23,6 @@ import { isComposing } from '../../shell/composing'
 import { enterFromSidebar } from '../../shell/sidebarEntry'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
-import { Cover } from '../../ui/components/Cover'
 import { Dialog } from '../../ui/components/Dialog'
 import {
   BarChart,
@@ -31,7 +31,6 @@ import {
   Mic,
   Music,
   Refresh,
-  Search,
   Settings,
   Shuffle,
   Sparkle,
@@ -57,6 +56,9 @@ import {
   type PaletteResults,
   type RecentItem,
 } from './commandPalette.model'
+import { EmptyState } from '../../ui/components/EmptyState'
+import { SearchField } from '../../ui/components/SearchField'
+import { SONG_LINE_COVER, SongLine } from '../../ui/components/SongLine'
 
 /** One selectable row: what it is drawn as, what it is read out as, and what Enter does. */
 interface Row {
@@ -265,24 +267,18 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
               label: `${recent.song.title}, ${artistOr(recent.song.artist)}`,
               run: () => runRecent(recent),
               node: (
-                <>
-                  <Cover
-                    uri={artFor(recent.song)}
-                    title={recent.song.album || recent.song.title}
-                    size={28}
-                  />
-                  <View style={styles.labelBox}>
-                    <Text style={styles.label} numberOfLines={1}>
-                      {recent.song.title}
+                <SongLine
+                  style={styles.songLine}
+                  artUri={artFor(recent.song)}
+                  coverTitle={recent.song.album || recent.song.title}
+                  title={recent.song.title}
+                  sub={artistOr(recent.song.artist)}
+                  trailing={
+                    <Text style={styles.hint}>
+                      {recent.song.id === currentSongId ? 'playing now' : 'song'}
                     </Text>
-                    <Text style={styles.sub} numberOfLines={1}>
-                      {artistOr(recent.song.artist)}
-                    </Text>
-                  </View>
-                  <Text style={styles.hint}>
-                    {recent.song.id === currentSongId ? 'playing now' : 'song'}
-                  </Text>
-                </>
+                  }
+                />
               ),
             }
           : {
@@ -350,18 +346,14 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         label: `${song.title}, ${artistOr(song.artist)}`,
         run: () => playSong(song.id),
         node: (
-          <>
-            <Cover uri={artFor(song)} title={song.album || song.title} size={28} />
-            <View style={styles.labelBox}>
-              <Text style={styles.label} numberOfLines={1}>
-                {song.title}
-              </Text>
-              <Text style={styles.sub} numberOfLines={1}>
-                {artistOr(song.artist)}
-              </Text>
-            </View>
-            <Text style={styles.hint}>{formatDuration(song.duration)}</Text>
-          </>
+          <SongLine
+            style={styles.songLine}
+            artUri={artFor(song)}
+            coverTitle={song.album || song.title}
+            title={song.title}
+            sub={artistOr(song.artist)}
+            trailing={<Text style={styles.hint}>{formatDuration(song.duration)}</Text>}
+          />
         ),
       })),
     },
@@ -521,9 +513,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
       ]}
     >
       <View style={styles.inputRow}>
-        <Search size={18} color={theme.colors.textMuted} />
-        <TextInput
-          ref={input}
+        <SearchField
+          raised
+          inputRef={input}
           autoFocus
           value={query}
           onChangeText={text => {
@@ -558,22 +550,22 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           submitBehavior="submit"
           blurOnSubmit={false}
           placeholder="Search songs, playlists, tags — or type a command"
-          placeholderTextColor={theme.colors.textMuted}
           autoCapitalize="none"
           autoCorrect={false}
           spellCheck={false}
           role="combobox"
           aria-expanded
-          aria-label="Search songs, playlists and tags, or type a command"
-          style={styles.input}
+          accessibilityLabel="Search songs, playlists and tags, or type a command"
+          trailing={
+            working ? (
+              <StopButton onPress={stop} testID="ask-stop" />
+            ) : trimmed && asking === null ? (
+              <Text style={styles.count} accessibilityLiveRegion="polite">
+                {plural(rows.length, 'result', 'results')}
+              </Text>
+            ) : null
+          }
         />
-        {working ? (
-          <StopButton onPress={stop} testID="ask-stop" />
-        ) : trimmed && asking === null ? (
-          <Text style={styles.count} accessibilityLiveRegion="polite">
-            {plural(rows.length, 'result', 'results')}
-          </Text>
-        ) : null}
       </View>
 
       <ScrollView
@@ -599,11 +591,12 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           drawnGroups
         )}
         {asking === null && trimmed && rows.length === 0 ? (
-          <Text style={styles.empty}>
-            Nothing matches “{trimmed}”.{'\n'}
-            {/* A cloud library has no lyric index to search. */}
-            {fromCloud ? 'Try fewer letters.' : 'Try fewer letters, or part of a lyric.'}
-          </Text>
+          <EmptyState
+            compact
+            title={`Nothing matches “${trimmed}”`}
+            // A cloud library has no lyric index to search.
+            line={fromCloud ? 'Try fewer letters.' : 'Try fewer letters, or part of a lyric.'}
+          />
         ) : null}
       </ScrollView>
 
@@ -656,14 +649,7 @@ const styles = StyleSheet.create(theme => ({
     overflow: 'hidden',
     ...floating(theme.colors),
   },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-    paddingVertical: 15,
-    paddingHorizontal: 18,
-  },
-  input: { flex: 1, minWidth: 0, fontSize: 16, color: theme.colors.textPrimary, padding: 0 },
+  inputRow: { padding: space.md, paddingBottom: space.sm },
   count: { color: theme.colors.textMuted, fontSize: 11, fontVariant: ['tabular-nums'] },
   results: { padding: 6 },
   group: { marginBottom: 6 },
@@ -689,10 +675,12 @@ const styles = StyleSheet.create(theme => ({
   // The highlighted row is a lighter surface; it no longer has an accent bar.
   itemOn: { backgroundColor: theme.colors.surface3 },
   labelBox: { flex: 1, minWidth: 0 },
+  // The row around it has the room; the line brings none of its own.
+  songLine: { flex: 1, minWidth: 0, paddingVertical: 0, paddingHorizontal: 0 },
   // An artist's figure or a tag's dot, in a round the size of a row's cover.
   figure: {
-    width: 28,
-    height: 28,
+    width: SONG_LINE_COVER,
+    height: SONG_LINE_COVER,
     borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,
     alignItems: 'center',
@@ -703,13 +691,6 @@ const styles = StyleSheet.create(theme => ({
   mark: { fontWeight: '700' },
   sub: { color: theme.colors.textMuted, fontSize: 11 },
   hint: { color: theme.colors.textMuted, fontSize: 11 },
-  empty: {
-    color: theme.colors.textMuted,
-    fontSize: 13,
-    textAlign: 'center',
-    padding: 20,
-    lineHeight: 20,
-  },
   foot: {
     flexDirection: 'row',
     alignItems: 'center',

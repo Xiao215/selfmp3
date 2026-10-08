@@ -15,11 +15,13 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useAccent } from '../../ui/accent'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
-import { Downloaded, Play, Plus, Search, Shuffle, SortLines } from '../../ui/components/Icons'
+import { Downloaded, Play, Plus, Shuffle, SortLines } from '../../ui/components/Icons'
 import { IconButton } from '../../ui/components/IconButton'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
 import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
 import { useSongMenu } from '../../ui/components/useSongMenu'
+import { EmptyState } from '../../ui/components/EmptyState'
+import { SearchField } from '../../ui/components/SearchField'
 import { Select } from '../../ui/components/Select'
 import { SongList } from '../../ui/components/SongList'
 import { SongRow, useSongRowHeight } from '../../ui/components/SongRow'
@@ -273,10 +275,12 @@ export function LibraryScreen(): ReactNode {
         <CantReach error={model.failure} onRetry={model.retry} />
       </View>
     ) : model.emptyReason === 'no-library' ? (
-      <Text style={styles.empty}>{NO_LIBRARY_TEXT}</Text>
+      <EmptyState
+        title="Nothing here yet"
+        line="Import a song and it turns up here once it’s downloaded."
+      />
     ) : (
-      <View style={styles.noMatches} testID="library-no-matches">
-        <Text style={styles.noMatchesTitle}>{noMatchesTitle(model.tagFiltered)}</Text>
+      <EmptyState testID="library-no-matches" title={noMatchesTitle(model.tagFiltered)}>
         {model.tagFiltered ? (
           <View style={styles.inside}>
             <Text style={styles.filteredBy}>You’re looking inside</Text>
@@ -292,10 +296,8 @@ export function LibraryScreen(): ReactNode {
             ))}
           </View>
         ) : null}
-        <View style={styles.noMatchesActions}>
-          {model.tagFiltered ? <Button label="Show all songs" onPress={model.clearTags} /> : null}
-        </View>
-      </View>
+        {model.tagFiltered ? <Button label="Show all songs" onPress={model.clearTags} /> : null}
+      </EmptyState>
     )
 
   return (
@@ -401,18 +403,12 @@ export function LibraryScreen(): ReactNode {
             over this page on a computer. The tag strip below stays: that is a
             filter, not a search.
           */}
-          <Pressable
+          <SearchField
             onPress={openSearch}
-            accessibilityRole="search"
-            accessibilityLabel="Search songs"
+            placeholder="Search songs"
             testID="library-search"
-            style={[styles.searchBox, headWide && styles.searchWide, dense && styles.searchDense]}
-          >
-            <Search size={15} color={theme.colors.textMuted} />
-            <Text style={styles.searchHint} numberOfLines={1}>
-              Search songs
-            </Text>
-          </Pressable>
+            style={headWide ? styles.searchWide : undefined}
+          />
 
           {/* A phone's library is the search and the list: order and play live on a computer. */}
           {wide ? (
@@ -659,8 +655,6 @@ export function LibraryScreen(): ReactNode {
 }
 
 /** A library with no songs in it: an invitation, not an error. */
-const NO_LIBRARY_TEXT = 'Nothing here yet. Import a song and it turns up here once it’s downloaded.'
-
 /**
  * The narrowest page column that takes the header on one row. Up next's rail
  * beside a small window leaves less than this, and a head that stacked into
@@ -718,8 +712,7 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'flex-end',
     gap: space.sm,
   },
-  /* With a mouse, the box 36, the arrow 34 wide. */
-  searchDense: { minHeight: 36 },
+  /* With a mouse, the arrow 34 wide. */
   directionDense: { width: 34, height: 36 },
   searchWide: { flexGrow: 0, flexShrink: 1, flexBasis: 300, minWidth: 130 },
   // Never narrower than sort, direction and Shuffle: the search is what gives
@@ -729,23 +722,6 @@ const styles = StyleSheet.create(theme => ({
   /* Enough for the longest option: "Recentl…" would tell you nothing. */
   sortSlotWide: { flex: 0, minWidth: 152 },
   transportWide: { marginLeft: 'auto' },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    // A control on the ground, drawn as a field; pressing it opens Search.
-    backgroundColor: theme.colors.surface2,
-    borderRadius: radius.pill,
-    paddingLeft: 10,
-    paddingRight: 10,
-    minHeight: HIT_TARGET,
-  },
-  searchHint: {
-    flex: 1,
-    color: theme.colors.textMuted,
-    fontSize: type.body,
-    paddingVertical: 8,
-  },
   actions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -810,40 +786,16 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: space.md,
   },
   emptyCard: { paddingHorizontal: space.lg },
-  noMatches: {
-    alignItems: 'center',
-    gap: space.md,
-    marginTop: space.xl,
-    paddingHorizontal: space.xl,
-  },
-  noMatchesTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
+  // A line of its own in the empty state, so the way out sits under it.
   inside: {
+    width: '100%',
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 7,
   },
-  noMatchesActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: space.sm,
-  },
   spinner: {
     marginTop: space.xl,
-  },
-  empty: {
-    color: theme.colors.textMuted,
-    fontSize: type.body,
-    textAlign: 'center',
-    marginTop: space.xl,
-    paddingHorizontal: space.xl,
-    lineHeight: 20,
   },
 }))

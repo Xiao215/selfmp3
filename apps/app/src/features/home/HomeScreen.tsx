@@ -18,8 +18,11 @@ import { useBottomInset } from '../../shell/bottomInset'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { Cover } from '../../ui/components/Cover'
+import { EmptyState } from '../../ui/components/EmptyState'
 import { IconButton } from '../../ui/components/IconButton'
-import { ChevronRight, Download, Plus, Search, Sparkle } from '../../ui/components/Icons'
+import { SearchField } from '../../ui/components/SearchField'
+import { SectionHead } from '../../ui/components/SectionHead'
+import { ChevronRight, Download, Plus, Sparkle } from '../../ui/components/Icons'
 import { useAccent } from '../../ui/accent'
 import { useSongColor } from '../../ui/useSongColor'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -154,7 +157,17 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
             same numbers already were (`F`, Xiao 2026-10-04). */}
         {sunday && !wide ? <SundayLead card={sunday} song={sundaySong} onOpen={openWeek} /> : null}
 
-        {empty ? null : <SearchField wide={wide} onPress={openSearch} />}
+        {/* A door to the one Search, not a second place to type. */}
+        {empty ? null : (
+          <SearchField
+            testID="home-search"
+            onPress={openSearch}
+            accessibilityLabel="Search"
+            placeholder={
+              wide ? 'One song, a tag, an artist, a lyric…' : 'One song, an artist, a lyric…'
+            }
+          />
+        )}
 
         <View style={beside ? styles.columns : styles.stack}>
           <View style={beside ? styles.mainColumn : styles.stack}>
@@ -365,51 +378,6 @@ function PhoneHeader(): ReactNode {
   )
 }
 
-/** One field that looks like a box to type in and opens search. */
-function SearchField({ wide, onPress }: { wide: boolean; onPress: () => void }): ReactNode {
-  const press = usePressScale(0.98)
-  return (
-    <Animated.View style={press.style}>
-      <Pressable
-        testID="home-search"
-        onPress={onPress}
-        {...press.handlers}
-        accessibilityRole="search"
-        accessibilityLabel="Search"
-        style={[styles.search, wide && styles.searchWide]}
-      >
-        <Search size={18} tone="textSecondary" />
-        <Text style={styles.searchHint} numberOfLines={1}>
-          {wide ? 'One song, a tag, an artist, a lyric…' : 'One song, an artist, a lyric…'}
-        </Text>
-      </Pressable>
-    </Animated.View>
-  )
-}
-
-function SectionHead({
-  title,
-  action,
-  testID,
-}: {
-  title: string
-  action: { label: string; onPress: () => void } | null
-  testID?: string
-}): ReactNode {
-  return (
-    <View style={styles.sectionHead}>
-      <Text style={styles.sectionTitle} accessibilityRole="header">
-        {title}
-      </Text>
-      {action ? (
-        <Pressable onPress={action.onPress} accessibilityRole="link" hitSlop={8} testID={testID}>
-          <Text style={styles.linkSmall}>{action.label}</Text>
-        </Pressable>
-      ) : null}
-    </View>
-  )
-}
-
 /**
  * The tiles, two across on a phone; on a computer as many as fit a tile of
  * `WIDE_TILE_MIN`, two to three, so a page narrowed by Up next drops a column
@@ -433,12 +401,13 @@ function Tiles({ tiles, loading }: { tiles: readonly HomeTile[]; loading: boolea
   if (loading) return <View style={styles.tilesPlaceholder} />
   if (tiles.length === 0) {
     return (
-      <View style={styles.emptyTile} testID="home-no-tags">
-        <Text style={styles.emptyTitle}>Your tags will live here</Text>
-        <Text style={styles.emptyBody}>
-          Hold a song in Library and choose Tags to give it its first one.
-        </Text>
-      </View>
+      <EmptyState
+        compact
+        style={styles.emptyTile}
+        testID="home-no-tags"
+        title="Your tags will live here"
+        line="Hold a song in Library and choose Tags to give it its first one."
+      />
     )
   }
   return (
@@ -985,23 +954,6 @@ const styles = StyleSheet.create(theme => ({
   kicker: { fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
   sundayTitle: { ...sectionTitle(theme.colors), fontSize: 17 },
   sundayLine: { color: theme.colors.textSecondary, fontSize: 13 },
-  search: {
-    height: 54,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 20,
-  },
-  searchWide: { height: 48 },
-  searchHint: { flex: 1, color: theme.colors.textMuted, fontSize: 16 },
-  sectionHead: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-  },
-  sectionTitle: sectionTitle(theme.colors),
   linkSmall: { color: theme.colors.accent, fontSize: 13, fontWeight: '600' },
   tiles: { gap: TILE_GAP },
   tileRow: { flexDirection: 'row', gap: TILE_GAP },
@@ -1033,17 +985,7 @@ const styles = StyleSheet.create(theme => ({
   },
   tileCoverWide: { right: -6, bottom: -8 },
   tilesPlaceholder: { height: 218 },
-  emptyTile: {
-    ...card(theme.colors),
-    padding: 18,
-    gap: 6,
-  },
-  emptyTitle: {
-    fontFamily: fonts.display,
-    fontSize: type.section,
-    color: theme.colors.textPrimary,
-  },
-  emptyBody: { color: theme.colors.textSecondary, fontSize: 14, lineHeight: 20 },
+  emptyTile: card(theme.colors),
   firstCard: {
     borderRadius: radius.cardLg,
     padding: 22,

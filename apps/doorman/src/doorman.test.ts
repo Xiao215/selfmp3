@@ -112,7 +112,7 @@ describe('CORS', () => {
       const response = await h.call(path, { token, origin: APP_ORIGIN })
       expect(response.headers.get('access-control-allow-origin'), path).toBe(APP_ORIGIN)
       expect(response.headers.get('access-control-expose-headers')).toBe(
-        'Content-Length, Content-Range, Content-Encoding, ETag, Accept-Ranges',
+        'Content-Length, Content-Range, Content-Encoding, ETag, Accept-Ranges, Selfmp3-Changes',
       )
       expect(response.headers.get('vary')).toMatch(/Origin/)
     }

@@ -1,13 +1,16 @@
 import {
+  CHANGES_HEADER,
   FORMAT_KEY,
   SNAPSHOTS_FOLDER,
   isCloudFileKey,
   isCloudListPrefix,
   isDeletableCloudKey,
   isHashNamedCloudKey,
+  isLookedAtCloudKey,
+  type DoormanChanges,
   type DoormanList,
 } from '@selfmp3/shared'
-import { requireBucket, requireSession, type Context } from './context.js'
+import { changesOf, requireBucket, requireSession, type Context } from './context.js'
 import {
   DoormanError,
   badRequest,
@@ -31,11 +34,14 @@ import type { Session } from './sessions.js'
  * A session can write, and delete what the library has let go of.
  * `format.json` is the doorman's own, written when a bucket is connected, and
  * no device may replace or delete it. A file named by the hash of its bytes
- * is never replaced once it is there; it is deleted once no song names it
- * (docs/SYNC.md), which the server asks for after the snapshot without the
- * song is up.
+ * is deleted once no song names it (docs/SYNC.md), which the server asks for
+ * after the snapshot without the song is up.
  * And what a file says about itself — its type and encoding — is held to
  * the few shapes the library uses.
+ *
+ * Every write and delete of a snapshot or a log file moves the account's
+ * change counter (changes.ts), and says so in its answer, so devices can tell
+ * when a look at the bucket would find nothing new without listing.
  *
  * Bodies stream through in both directions and are never held whole, which
  * keeps each request inside the free plan's 10 ms of CPU however big the
@@ -89,6 +95,18 @@ export async function list(ctx: Context): Promise<Response> {
     objects: page.objects.filter(object => isCloudFileKey(object.key)),
     cursor: page.cursor,
   }
+  return json(body)
+}
+
+/**
+ * `GET /v1/changes` — where the account's change counter stands. A 404 on a
+ * doorman deployed without one, which a device takes as "list, then".
+ */
+export async function changes(ctx: Context): Promise<Response> {
+  const session = await requireSession(ctx)
+  const counter = changesOf(ctx, session)
+  if (!counter) throw notFound('this doorman keeps no change counter')
+  const body: DoormanChanges = { changes: await counter.read() }
   return json(body)
 }
 
@@ -190,16 +208,19 @@ async function write(ctx: Context, session: Session, key: string): Promise<Respo
     throw badRequest('only a snapshot may have a Content-Encoding, and only gzip')
   }
 
+  // A file named by its hash is sent as it is, without asking the bucket
+  // first whether it is there. Asking was a GET, a counted call, on every
+  // upload, and it almost always answered no: the one writer of such files is
+  // a server that has the bucket's listing and sends only what it lacks.
+  // Sending one twice puts the same bytes under the same name. The bucket
+  // cannot refuse it for us — Backblaze takes If-None-Match on a PUT and
+  // ignores it — and nothing here needs it to.
   const bucket = await requireBucket(ctx, session)
-  if (isHashNamedCloudKey(key) && (await bucket.exists(key))) {
-    // Named by its hash, so what is there already is these very bytes.
-    throw new DoormanError(412, 'exists', 'that file is already in the bucket')
-  }
   await bucket.write(key, length > 0 && body ? { stream: body, length } : new Uint8Array(0), {
     contentType,
     contentEncoding: encoding,
   })
-  return noContent()
+  return counted(ctx, session, key, noContent())
 }
 
 async function remove(ctx: Context, session: Session, key: string): Promise<Response> {
@@ -208,7 +229,36 @@ async function remove(ctx: Context, session: Session, key: string): Promise<Resp
   }
   const bucket = await requireBucket(ctx, session)
   await bucket.remove(key)
-  return noContent()
+  return counted(ctx, session, key, noContent())
+}
+
+/**
+ * The answer to a write or delete that went through, with the change counter
+ * moved on when the key is one a look lists.
+ *
+ * The bucket has the change by now, and the counter moves after it: a device
+ * that reads the counter before listing can then never hold a new count with
+ * an old listing. A counter that cannot be reached costs the header and
+ * nothing else — the write stands, and devices find the change at their next
+ * full listing.
+ */
+async function counted(
+  ctx: Context,
+  session: Session,
+  key: string,
+  response: Response,
+): Promise<Response> {
+  const counter = isLookedAtCloudKey(key) ? changesOf(ctx, session) : null
+  if (!counter) return response
+  try {
+    const { before, after } = await counter.bump()
+    response.headers.set(CHANGES_HEADER, `${before} ${after}`)
+  } catch (error) {
+    ctx.log.warn('the change counter could not be moved', {
+      message: error instanceof Error ? error.message : String(error),
+    })
+  }
+  return response
 }
 
 /** The key from the path, percent-decoded, and only if it is one of the library's. */

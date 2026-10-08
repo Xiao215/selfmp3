@@ -21,6 +21,14 @@ allows about 100,000 reads and 1,000 writes a day. Nothing is written until
 Google has vouched for an address on your list; a whole sign-in costs three
 writes, and using the library afterwards costs none.
 
+Each account also has a change counter, in a Durable Object (`src/changes.ts`;
+the free plan allows 100,000 requests a day). It moves whenever a snapshot or
+a log file is written or deleted, and devices ask it before they list the
+bucket, so a device whose library is already up to date costs the bucket
+nothing: Backblaze counts every listing against a daily allowance
+([docs/SYNC.md](../../docs/SYNC.md), "Caps"). `npx wrangler deploy` creates
+it from `wrangler.toml`; there is nothing to set up by hand.
+
 ## How signing in works
 
 1. self.mp3 opens the doorman's sign-in link, and you choose your Google

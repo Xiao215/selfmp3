@@ -17,7 +17,8 @@ import { errorResponse, forbidden } from './http.js'
 
 const ALLOW_METHODS = 'GET, HEAD, PUT, POST, DELETE, OPTIONS'
 const ALLOW_HEADERS = 'Authorization, Content-Type, Content-Encoding, Range, If-None-Match'
-const EXPOSE_HEADERS = 'Content-Length, Content-Range, Content-Encoding, ETag, Accept-Ranges'
+const EXPOSE_HEADERS =
+  'Content-Length, Content-Range, Content-Encoding, ETag, Accept-Ranges, Selfmp3-Changes'
 const MAX_AGE_SECONDS = '86400'
 
 let parsed: { from: string; origins: ReadonlySet<string> } | null = null

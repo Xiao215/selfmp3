@@ -22,6 +22,7 @@ import { z } from 'zod'
  *                                                      → connect a Backblaze bucket from its key alone
  *   DELETE /v1/storage                                 → forget it
  *   GET    /v1/list?prefix=<p>&cursor=<c>
+ *   GET    /v1/changes                                 → the account's change counter
  *   GET | HEAD | PUT | DELETE  /v1/files/<key>
  *
  * Everything but health, start, callback and claim needs
@@ -163,6 +164,43 @@ export const DoormanListSchema = z.object({
   cursor: z.string().nullable(),
 })
 export type DoormanList = z.infer<typeof DoormanListSchema>
+
+/**
+ * The account's change counter: where it stands, as `<epoch>.<count>`. It
+ * moves each time a snapshot or a log file is written or deleted through the
+ * doorman (`isLookedAtCloudKey`), so a device that finds it where it was at its
+ * last look knows those two folders are as it listed them, and lists neither:
+ * a listing is a counted call on the bucket, and this is not.
+ *
+ * Only ever compared for equality. The epoch is new whenever the counter had
+ * to start again, so a counter that lost its place never matches an old one.
+ * Writes the doorman never sees — a server given the bucket's key directly —
+ * do not move it, which is why a device lists anyway once in a while.
+ */
+export const DoormanChangesSchema = z.object({
+  changes: z.string().regex(/^[0-9a-f]{16}\.\d{1,15}$/, 'not a change counter'),
+})
+export type DoormanChanges = z.infer<typeof DoormanChangesSchema>
+
+/**
+ * The header a write or delete of a looked-at key is answered with:
+ * `<before> <after>`, the counter on either side of this one change. A device
+ * that held `<before>` holds `<after>` now — the change was its own and the
+ * only one — and need not list for it. Absent when the counter did not move.
+ */
+export const CHANGES_HEADER = 'selfmp3-changes'
+
+/** `<before> <after>` from a `CHANGES_HEADER`, or null when there is none or it is not one. */
+export function parseChangesHeader(
+  value: string | null,
+): { readonly before: string; readonly after: string } | null {
+  const [before, after, ...rest] = value?.trim().split(/\s+/) ?? []
+  if (!before || !after || rest.length > 0) return null
+  const counter = DoormanChangesSchema.shape.changes
+  return counter.safeParse(before).success && counter.safeParse(after).success
+    ? { before, after }
+    : null
+}
 
 export const DoormanHealthSchema = z.object({ ok: z.literal(true), version: z.string() })
 export type DoormanHealth = z.infer<typeof DoormanHealthSchema>

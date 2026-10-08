@@ -1,6 +1,7 @@
 import { DoormanClaimResultSchema, EXTENSION_ID, EXTENSION_ORIGIN } from '@selfmp3/shared'
 import { AwsV4Signer } from 'aws4fetch'
 import type { Fetch, FetchInit } from './bucket.js'
+import { ChangesObject } from './changes.js'
 import type { Env } from './context.js'
 import { createDoorman, type Doorman } from './doorman.js'
 import { toBase64, toBase64Url, utf8 } from './encoding.js'
@@ -8,7 +9,8 @@ import type { KvStore } from './kv.js'
 
 /**
  * Stand-ins for everything the doorman talks to, for the tests: KV, Google's
- * token endpoint and an S3 bucket, each in memory, and a harness that wires
+ * token endpoint, an S3 bucket and the change counters' Durable Objects, each
+ * in memory, and a harness that wires
  * them to a doorman the way Cloudflare would.
  *
  * The bucket answers the way S3 and B2 do — path-style keys, XML listings,
@@ -454,6 +456,42 @@ function b2Json(body: unknown, status = 200): Response {
   })
 }
 
+// --- Durable Objects --------------------------------------------------------------
+
+/**
+ * A Durable Object namespace holding real `ChangesObject`s, each with storage
+ * in a map: the counter's own code runs, and only the runtime is stood in for.
+ * `failing` makes every request to one fail, as an unreachable object would.
+ */
+export class FakeChanges {
+  readonly objects = new Map<string, ChangesObject>()
+  failing = false
+
+  namespace(): DurableObjectNamespace {
+    const get = (id: { name: string }) => ({
+      fetch: async (url: string, init?: RequestInit): Promise<Response> => {
+        if (this.failing) throw new Error('Durable Object unreachable')
+        let object = this.objects.get(id.name)
+        if (!object) {
+          const values = new Map<string, unknown>()
+          object = new ChangesObject({
+            storage: {
+              get: <T>(key: string) => Promise.resolve(values.get(key) as T | undefined),
+              put: <T>(key: string, value: T) => {
+                values.set(key, value)
+                return Promise.resolve()
+              },
+            },
+          })
+          this.objects.set(id.name, object)
+        }
+        return object.fetch(new Request(url, init))
+      },
+    })
+    return { idFromName: (name: string) => ({ name }), get } as unknown as DurableObjectNamespace
+  }
+}
+
 // --- The harness -----------------------------------------------------------------
 
 export interface Harness {
@@ -463,6 +501,7 @@ export interface Harness {
   readonly google: FakeGoogle
   readonly bucket: FakeBucket
   readonly backblaze: FakeBackblaze
+  readonly changes: FakeChanges
   readonly clock: Clock
   /** Every request the doorman made to the outside, in order, with the options fetch was given. */
   readonly outside: Array<SeenRequest & { readonly init: FetchInit }>
@@ -551,6 +590,7 @@ export function harness(): Harness {
   const google = new FakeGoogle()
   const bucket = new FakeBucket()
   const backblaze = new FakeBackblaze()
+  const changes = new FakeChanges()
   const outside: Harness['outside'] = []
 
   const internet: Fetch = async (address, init) => {
@@ -565,6 +605,7 @@ export function harness(): Harness {
 
   const env: Harness['env'] = {
     KV: kv,
+    CHANGES: changes.namespace(),
     GOOGLE_CLIENT_ID: CLIENT_ID,
     GOOGLE_CLIENT_SECRET: CLIENT_SECRET,
     SEAL_KEY,
@@ -648,6 +689,7 @@ export function harness(): Harness {
     google,
     bucket,
     backblaze,
+    changes,
     clock,
     outside,
     logs,

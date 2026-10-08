@@ -165,23 +165,6 @@ export class Bucket {
     return { objects, cursor: page.truncated && page.nextToken ? page.nextToken : null }
   }
 
-  /**
-   * Whether an object is there. Asked as a GET of its first byte, dropped
-   * unread: a HEAD may reach the bucket as a GET (see the top of this file).
-   * An empty object answers the range with 416, which is still "there".
-   */
-  async exists(key: string): Promise<boolean> {
-    const headers = new Headers({ range: 'bytes=0-0' })
-    const response = await this.#send('GET', this.#path(key), { headers, quick: true })
-    if (response.status === 404) {
-      await this.#absent(response)
-      return false
-    }
-    if (![200, 206, 416].includes(response.status)) throw await this.#explain(response)
-    await discard(response)
-    return true
-  }
-
   /** At most `limit` bytes of a small object, or null when there is none. */
   async read(key: string, limit: number): Promise<Uint8Array | null> {
     const response = await this.#send('GET', this.#path(key), { quick: true })

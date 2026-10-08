@@ -219,6 +219,21 @@ export function unfoldedLogKeys(
 }
 
 /**
+ * The log files a snapshot has folded in — what may be tidied away once that
+ * snapshot has been up long enough for anyone reading the one before it to
+ * have finished. Keys that are not log files are ignored.
+ */
+export function foldedLogKeys(
+  keys: readonly string[],
+  upTo: Readonly<Record<string, number>>,
+): string[] {
+  return keys.filter(key => {
+    const parsed = parseLogKey(key)
+    return parsed !== null && parsed.seq <= (upTo[parsed.deviceId] ?? 0)
+  })
+}
+
+/**
  * The folders whose files are named by the hash of their bytes (`audioKey`,
  * `coverKey`, `lyricsKey` and the rest above): the same key is the same bytes,
  * forever, so such a file is never replaced and may be cached for good.
@@ -262,6 +277,16 @@ export function isCloudFileKey(key: string): boolean {
  */
 export function isDeletableCloudKey(key: string): boolean {
   return isCloudFileKey(key) && key !== FORMAT_KEY
+}
+
+/**
+ * Whether writing or deleting this key changes what a look at the bucket
+ * finds: a snapshot, or a log file — the two folders a look lists. The
+ * doorman's change counter (`/v1/changes`) moves for these and nothing else,
+ * so a device that finds the counter where it left it need not list either.
+ */
+export function isLookedAtCloudKey(key: string): boolean {
+  return key.startsWith(SNAPSHOTS_FOLDER) || key.startsWith(LOG_FOLDER)
 }
 
 /** The folders a device may list: one of the library's own, or one device's log. */

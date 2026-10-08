@@ -390,10 +390,8 @@ describe('writing a file', () => {
     expect(h.bucket.requests).toEqual([])
   })
 
-  it('never replaces a file named by its hash', async () => {
+  it('sends a file named by its hash without asking the bucket first', async () => {
     const { h, token } = await connected()
-    h.bucket.put(`selfmp3/${SONG}`, 'the real song', { contentType: 'audio/mp4' })
-    h.bucket.put(`selfmp3/lyrics/${SHA}.lrc`, '')
     const put = (key: string, text: string) =>
       h.call(`/v1/files/${key}`, {
         method: 'PUT',
@@ -402,27 +400,17 @@ describe('writing a file', () => {
         headers: { 'content-type': 'audio/mp4', 'content-length': String(utf8(text).length) },
       })
 
-    for (const key of [SONG, `lyrics/${SHA}.lrc`]) {
-      const response = await put(key, 'something else')
-      expect(response.status, key).toBe(412)
-      expect(await error(response)).toEqual({
-        error: 'that file is already in the bucket',
-        code: 'exists',
-      })
-    }
-    expect(h.bucket.text(`selfmp3/${SONG}`)).toBe('the real song')
-    // Asked with a one-byte GET, and nothing written.
-    expect(h.bucket.requests.map(r => [r.method, r.headers.get('range')])).toEqual([
-      ['GET', 'bytes=0-0'],
-      ['GET', 'bytes=0-0'],
-    ])
+    expect((await put(SONG, 'the song')).status).toBe(204)
+    expect(h.bucket.text(`selfmp3/${SONG}`)).toBe('the song')
+    // Sent again, it is the same bytes under the same name, and still no
+    // counted GET goes first: only the write reaches the bucket.
+    expect((await put(SONG, 'the song')).status).toBe(204)
+    expect(h.bucket.requests.map(r => r.method)).toEqual(['PUT', 'PUT'])
 
-    // One that is not there yet goes up.
-    expect((await put(`covers/${SHA}.jpg`, 'a cover')).status).toBe(204)
-    expect(h.bucket.text(`selfmp3/covers/${SHA}.jpg`)).toBe('a cover')
     // Snapshots and logs are not named by their hash, so writing one again is fine.
     h.bucket.put(`selfmp3/${LOG}`, 'old')
     expect((await put(LOG, 'new')).status).toBe(204)
+    expect(h.bucket.text(`selfmp3/${LOG}`)).toBe('new')
   })
 
   it('lets only a snapshot be encoded, and only with gzip', async () => {

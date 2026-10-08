@@ -65,6 +65,7 @@ const ROUTES: Readonly<Record<string, Readonly<Record<string, Route>>>> = {
   '/v1/storage': { PUT: storage.connect, DELETE: storage.disconnect },
   '/v1/storage/backblaze': { POST: storage.connectBackblaze },
   '/v1/list': { GET: files.list },
+  '/v1/changes': { GET: files.changes },
 }
 
 const FILES = '/v1/files/'

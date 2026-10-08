@@ -746,6 +746,23 @@ const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    // 37. Every song's sound vector goes to the bucket as one file, named in
+    // the snapshot, so the server holds no copy of them that only it has
+    // (docs/SYNC.md). One row: the file last put up or read, and the vectors
+    // it held (`sig`), so an unchanged library is not packed again.
+    name: 'sound vectors in the bucket',
+    sql: `
+      CREATE TABLE cloud_sound (
+        id          INTEGER PRIMARY KEY CHECK (id = 1),
+        model       TEXT    NOT NULL,
+        key         TEXT    NOT NULL,
+        size        INTEGER NOT NULL,
+        sig         TEXT    NOT NULL,
+        uploaded_at TEXT    NOT NULL
+      );
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

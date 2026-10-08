@@ -91,6 +91,20 @@ export const CloudArtistSchema = z.object({
 })
 export type CloudArtist = z.infer<typeof CloudArtistSchema>
 
+/**
+ * Every song's sound vector, in one file (the server's sound/pack.ts), keyed
+ * inside by each song's audio key. Made on the server, the one device with the
+ * listening model, and kept in the bucket so a server that starts again from
+ * the bucket takes the vectors back instead of hearing every song again.
+ */
+export const CloudSoundSchema = z.object({
+  /** The model that heard them: a vector from one means nothing to another. */
+  model: z.string().min(1),
+  key: fileKey('lyrics'),
+  size: z.number().int().nonnegative(),
+})
+export type CloudSound = z.infer<typeof CloudSoundSchema>
+
 export const CloudLyricsSchema = z.object({
   key: fileKey('lyrics'),
   size: z.number().int().nonnegative(),
@@ -295,6 +309,9 @@ export const CloudSnapshotSchema = z.object({
   /** Every artist of the library's songs the server has a picture for. */
   // TODO(after the Pi publishes): drop `.default([])` here; buildSnapshot writes it.
   artists: z.array(CloudArtistSchema).default([]),
+  /** How every song sounds, as the server heard it; null before it has heard any. */
+  // TODO(after the Pi publishes): drop `.default(null)` here; buildSnapshot writes it.
+  sound: CloudSoundSchema.nullable().default(null),
   /**
    * Tags made twice under one name, on two devices before either heard of
    * the other: the second uid, and the tag it was folded into. A late change

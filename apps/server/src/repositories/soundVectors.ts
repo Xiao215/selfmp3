@@ -1,4 +1,5 @@
 import type { Db } from '../db/index.js'
+import type { SoundPackEntry } from '../sound/pack.js'
 import { fromBlob, toBlob } from '../sound/vectors.js'
 
 /**
@@ -7,6 +8,7 @@ import { fromBlob, toBlob } from '../sound/vectors.js'
  * model, newest songs first.
  */
 export class SoundVectorsRepository {
+  readonly #db: Db
   readonly #upsert
   readonly #delete
   readonly #all
@@ -14,8 +16,12 @@ export class SoundVectorsRepository {
   readonly #pending
   readonly #countPending
   readonly #countHeard
+  readonly #inBucket
+  readonly #inBucketSignature
+  readonly #restore
 
   constructor(db: Db) {
+    this.#db = db
     this.#upsert = db.prepare<[number, string, Buffer | null]>(`
       INSERT INTO song_sound_vectors (song_id, model, vector, made_at)
       VALUES (?, ?, ?, datetime('now'))
@@ -43,6 +49,61 @@ export class SoundVectorsRepository {
     this.#countHeard = db.prepare<[string], { n: number }>(
       'SELECT COUNT(*) AS n FROM song_sound_vectors WHERE model = ? AND vector IS NOT NULL',
     )
+
+    // Only songs whose audio is in the bucket: the file names each by its key.
+    const inBucket = `
+      FROM song_sound_vectors v JOIN cloud_songs c ON c.song_id = v.song_id
+     WHERE v.model = ?`
+    this.#inBucket = db.prepare<[string], { audio_key: string; vector: Buffer | null }>(
+      `SELECT c.audio_key, v.vector ${inBucket}`,
+    )
+    this.#inBucketSignature = db.prepare<
+      [string],
+      { n: number; latest: string | null; ids: number | null }
+    >(`SELECT COUNT(*) AS n, MAX(v.made_at) AS latest, SUM(v.song_id) AS ids ${inBucket}`)
+    // Every song with that audio, unless this model has had its say on it already.
+    this.#restore = db.prepare<{ model: string; audioKey: string; vector: Buffer | null }>(`
+      INSERT INTO song_sound_vectors (song_id, model, vector, made_at)
+      SELECT c.song_id, @model, @vector, datetime('now')
+        FROM cloud_songs c
+       WHERE c.audio_key = @audioKey
+         AND NOT EXISTS (
+           SELECT 1 FROM song_sound_vectors v WHERE v.song_id = c.song_id AND v.model = @model
+         )
+      ON CONFLICT (song_id) DO UPDATE SET
+        model   = excluded.model,
+        vector  = excluded.vector,
+        made_at = excluded.made_at
+    `)
+  }
+
+  /** What the bucket's copy of the vectors holds (sound/pack.ts): each song with its audio up. */
+  inBucket(model: string): SoundPackEntry[] {
+    return this.#inBucket.all(model).map(row => ({ audioKey: row.audio_key, vector: row.vector }))
+  }
+
+  /**
+   * Changes whenever `inBucket` would: a song heard, heard again, given up
+   * on, removed, or its audio first put in the bucket. Cheap: no vector read.
+   */
+  inBucketSignature(model: string): string {
+    const row = this.#inBucketSignature.get(model)
+    return `${row?.n ?? 0}:${row?.latest ?? ''}:${row?.ids ?? 0}`
+  }
+
+  /**
+   * Vectors from the bucket, for every song here with that audio that this
+   * model has not had its say on. A song heard here keeps what it has.
+   * Returns how many songs were given one.
+   */
+  restore(model: string, entries: readonly SoundPackEntry[]): number {
+    return this.#db.transaction(() => {
+      let restored = 0
+      for (const { audioKey, vector } of entries) {
+        restored += this.#restore.run({ model, audioKey, vector }).changes
+      }
+      return restored
+    })()
   }
 
   /** A song's vector, or null for one that could not be heard. */

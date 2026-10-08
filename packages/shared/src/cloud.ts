@@ -88,6 +88,15 @@ export function motionKey(sha256: string): string {
   return `lyrics/${sha256}.json`
 }
 
+/**
+ * Every song's sound vector as the server's listening model heard it, in one
+ * file (the server's sound/pack.ts), also in `lyrics/` for the same reason as
+ * the motion curve. Named by the hash of its bytes: a song heard is a new file.
+ */
+export function soundVectorsKey(sha256: string): string {
+  return `lyrics/${sha256}.vec`
+}
+
 export const FORMAT_KEY = 'format.json'
 
 /**

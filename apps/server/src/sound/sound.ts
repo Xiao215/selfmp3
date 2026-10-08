@@ -6,6 +6,7 @@ import { ffmpegFailure, runFfmpeg } from '../services/ffmpeg.js'
 import type { SoundModel } from './clamp3.js'
 import { Clamp3Worker } from './clamp3Worker.js'
 import { SOUND_MODEL, SoundModelFiles } from './models.js'
+import { decodePack, encodePack } from './pack.js'
 import { dot, SOUND_SAMPLE_RATE, WINDOW_SECONDS, windowStarts } from './vectors.js'
 
 /**
@@ -33,6 +34,7 @@ export class SoundService {
   readonly #files: SoundModelFiles
   readonly #makeModel: (dir: string, threads: number) => SoundModel
   readonly #logger: Logger
+  readonly #changed: () => void
   #model: SoundModel | null = null
   #cache: Map<number, Float32Array> | null = null
 
@@ -44,6 +46,8 @@ export class SoundService {
     files?: SoundModelFiles
     /** The model on the files; a test's fake. */
     makeModel?: (dir: string, threads: number) => SoundModel
+    /** A song was heard, given up on or forgotten: the bucket's copy is behind. */
+    changed?: () => void
   }) {
     this.#enabled = deps.config.sound.enabled
     this.#threads = deps.config.sound.threads
@@ -51,6 +55,12 @@ export class SoundService {
     this.#logger = deps.logger.child('sound')
     this.#files = deps.files ?? new SoundModelFiles({ config: deps.config, logger: deps.logger })
     this.#makeModel = deps.makeModel ?? ((dir, threads) => new Clamp3Worker(dir, threads))
+    this.#changed = deps.changed ?? (() => undefined)
+  }
+
+  /** The model whose vectors these are. */
+  get model(): string {
+    return SOUND_MODEL.name
   }
 
   get enabled(): boolean {
@@ -124,17 +134,51 @@ export class SoundService {
     const vector = await model.hearClip(await decodeWindows(file, duration))
     this.#vectors.upsert(songId, SOUND_MODEL.name, vector)
     this.#cache?.set(songId, vector)
+    this.#changed()
   }
 
   markUnhearable(songId: number): void {
     this.#vectors.upsert(songId, SOUND_MODEL.name, null)
     this.#cache?.delete(songId)
+    this.#changed()
   }
 
   /** The file changed underneath a song: hear it again. */
   forget(songId: number): void {
     this.#vectors.delete(songId)
     this.#cache?.delete(songId)
+    this.#changed()
+  }
+
+  /** Whether songs are still waiting to be heard: the bucket's copy is sent less often then. */
+  get hearing(): boolean {
+    return this.#enabled && this.#vectors.countPending(SOUND_MODEL.name) > 0
+  }
+
+  /** Changes whenever `pack` would. */
+  packSignature(): string {
+    return this.#vectors.inBucketSignature(SOUND_MODEL.name)
+  }
+
+  /**
+   * Every song's vector, for the bucket (sound/pack.ts): the ones whose audio
+   * is there, which is how the file names them. Null when there are none.
+   */
+  pack(): Buffer | null {
+    const entries = this.#vectors.inBucket(SOUND_MODEL.name)
+    return entries.length > 0 ? encodePack(SOUND_MODEL.name, entries) : null
+  }
+
+  /**
+   * The bucket's vectors, for the songs here this model has not heard. Null
+   * when the file is not one this build reads, or another model's.
+   */
+  restore(data: Buffer): number | null {
+    const pack = decodePack(data)
+    if (!pack || pack.model !== SOUND_MODEL.name) return null
+    const restored = this.#vectors.restore(SOUND_MODEL.name, pack.entries)
+    if (restored > 0) this.#cache = null
+    return restored
   }
 
   #all(): Map<number, Float32Array> {

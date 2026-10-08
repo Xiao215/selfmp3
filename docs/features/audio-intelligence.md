@@ -133,7 +133,8 @@ existing library downloads each song once; those downloads are capped at 1,000 a
 keeps a day's free Backblaze downloads for playing music, and a 1,500-song library is heard
 over two days. About 3 s a song on two cores of an M1; an estimated 15–25 s on a Pi 4.
 A song that cannot be heard is recorded so and not tried again; a changed file is heard
-again. The listening half of the model (about 210 MB) and the text half (about 535 MB) each
+again. The vectors go to the bucket as one file (docs/SYNC.md, "Sound vectors"), so a server
+starting again from the bucket takes them back instead of hearing every song again. The listening half of the model (about 210 MB) and the text half (about 535 MB) each
 load when first wanted and are let go after ten idle minutes.
 
 **What uses it.**
@@ -175,6 +176,8 @@ folder of songs and prints what each description finds, for a person to judge.
 `danceability`, `analyzed_at`, `version`. The `song_sound_vectors` table: `song_id`, `model`
 (the model that heard it, `clamp3-saas-1`; a new one hears every song again), `vector` (768
 little-endian float32s of unit length, null for a song that could not be heard), `made_at`.
+It is this server's copy of the bucket's `lyrics/<sha256>.vec`; `cloud_sound` says which file
+that is and which vectors it holds.
 Bump `ANALYSIS_VERSION` in
 `packages/shared/src/audioFeatures.ts` when the algorithm changes and old rows are redone on
 the next run.
@@ -189,7 +192,9 @@ the next run.
 - `packages/shared/src/audioFeatures.ts` (`similarSongs`) — nearest neighbours by the measures
 - `apps/server/src/sound/` — the listening model: `vectors.ts` (windows, chunks, the
   arithmetic, tested), `models.ts` (downloading and checking the files), `clamp3.ts`
-  (onnxruntime), `sound.ts` (hearing, "sounds like", matching words), `eval.ts`
+  (onnxruntime), `clamp3Worker.ts` and `clamp3.worker.ts` (the model on a thread of its
+  own), `pack.ts` (the vectors as one file for the bucket), `sound.ts` (hearing, "sounds
+  like", matching words), `eval.ts`
 - `apps/server/src/ai/describe.ts` (`soundOrder`, not exported) — Ask's songs in the order they sound
 - `scripts/sound-models/` — the export, its requirements and the model's licences
 - `packages/client/src/queue/autoMix.ts` — queue ordering and per-transition crossfade (tested)

@@ -4,6 +4,7 @@ import { CLOUD_FORMAT } from './schemas/cloud.js'
 import type {
   CloudSmartRules,
   CloudArtist,
+  CloudSound,
   CloudImport,
   CloudPlaylist,
   CloudSnapshot,
@@ -50,6 +51,8 @@ export interface SyncLibrary {
   readonly imports: Map<string, CloudImport>
   /** Artists' pictures, as the snapshot had them: no change touches them. */
   readonly artists: readonly CloudArtist[]
+  /** The server's sound vectors, as the snapshot had them: no change touches them either. */
+  readonly sound: CloudSound | null
   /** Plays counted during this replay, by id. */
   readonly counted: Set<string>
 }
@@ -62,6 +65,7 @@ export function syncLibrary(snapshot?: CloudSnapshot | null): SyncLibrary {
     aliases: new Map(Object.entries(snapshot?.aliases ?? {})),
     imports: new Map(snapshot?.imports?.map(request => [request.uid, request])),
     artists: snapshot?.artists ?? [],
+    sound: snapshot?.sound ?? null,
     counted: new Set(),
   }
 }
@@ -79,6 +83,7 @@ export function snapshotOf(
     tags: [...library.tags.values()],
     playlists: [...library.playlists.values()],
     artists: [...library.artists],
+    sound: library.sound,
     ...(library.aliases.size > 0 ? { aliases: Object.fromEntries(library.aliases) } : {}),
     ...(library.imports.size > 0 ? { imports: [...library.imports.values()] } : {}),
   }

@@ -12,7 +12,7 @@ import {
   type Song,
   type Tag,
 } from '@selfmp3/shared'
-import type { CloudArtistState, CloudSongState } from '../repositories/cloud.js'
+import type { CloudArtistState, CloudSongState, CloudSoundState } from '../repositories/cloud.js'
 import type { ImportRequest } from '../repositories/importRequests.js'
 import type { StampRow } from '../repositories/sync.js'
 
@@ -30,6 +30,8 @@ interface SnapshotInput {
   readonly states: ReadonlyMap<number, CloudSongState>
   /** Each artist's picture in the bucket. */
   readonly artists: readonly CloudArtistState[]
+  /** Every song's sound vector, as one file in the bucket; null before there is one. */
+  readonly sound?: Pick<CloudSoundState, 'model' | 'key' | 'size'> | null
   readonly tags: readonly Tag[]
   readonly tagUids: ReadonlyMap<number, string>
   readonly playlists: readonly Playlist[]
@@ -181,6 +183,9 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
       banner: { key: artist.bannerKey, size: artist.bannerSize },
       portrait: { key: artist.portraitKey, size: artist.portraitSize },
     })),
+    sound: input.sound
+      ? { model: input.sound.model, key: input.sound.key, size: input.sound.size }
+      : null,
     ...(aliases.length > 0 ? { aliases: Object.fromEntries(aliases) } : {}),
     ...(input.imports && input.imports.length > 0
       ? {

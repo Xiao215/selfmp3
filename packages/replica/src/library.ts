@@ -427,6 +427,7 @@ export function createCloudLibrary(
       tags: [],
       playlists: [],
       artists: [],
+      sound: null,
     }
   }
 

@@ -177,7 +177,13 @@ export function createContainer(configured: Config): Container {
   const imports = new ImportRepository(db)
   const lyricsSearch = new LyricsSearchRepository(db)
   const audioFeatures = new AudioFeaturesRepository(db)
-  const sound = new SoundService({ config, vectors: new SoundVectorsRepository(db), logger })
+  const sound = new SoundService({
+    config,
+    vectors: new SoundVectorsRepository(db),
+    logger,
+    // Each song heard goes to the bucket's copy of the vectors; the sync is built below.
+    changed: () => cloudSync.soundChanged(),
+  })
   const deviceRepo = new DeviceRepository(db)
   const cloudRepo = new CloudRepository(db)
   const syncRepo = new SyncRepository(db)
@@ -267,6 +273,8 @@ export function createContainer(configured: Config): Container {
     // Each song's motion curve goes up beside its words, once analysis has made one.
     motion,
     artists: artistBackdrops,
+    // Every song's sound vector goes up as one file, and comes back to a new server.
+    sound,
     // The token is the bucket's owner's already: whoever reads the snapshot
     // is signed in to their own library. This is how every device gets the
     // key without anyone ever typing it — the server always has one now

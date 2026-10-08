@@ -120,6 +120,7 @@ selfmp3/
   lyrics/<sha256>.lrc | .txt         lyrics, timed (.lrc) or plain (.txt). Never changes.
   lyrics/<sha256>.json               the romanized lines (romaji, pinyin) of one lyric text. Never changes.
   lyrics/<sha256>.json               one song's motion curve: loudness and onsets, 20 a second. Never changes.
+  lyrics/<sha256>.vec                every song's sound vector, as the server heard it. Never changes.
   snapshots/<time>-<device>.json     the whole library at one moment
   log/<device>/<seq>.json            changes, one folder per device
 ```
@@ -140,6 +141,15 @@ been folded in (`upTo`), so a device replays only what comes after.
 every artist of the library (`services/artistBackdrops.ts`, `fill`, after each pass) and the
 next pass puts it up; the snapshot's `artists` names each pair by `artistKey` of the artist's
 name, and a device keeps them the way it keeps a cover.
+
+**Sound vectors** are how each song sounds to the server's listening model (docs/features/
+audio-intelligence.md), all of them in one file (`apps/server/src/sound/pack.ts`), keyed by each
+song's audio key. One file rather than one a song: a server starting again from the bucket
+reads them back in one download rather than fifteen hundred. The server sends a new one
+when they change — at most once an hour while songs are still being heard — and the
+snapshot's `sound` names it; the one it replaces goes in the trash. Before it sends any, a
+server reads back the file the bucket's snapshot names, so a new server hears only the songs
+nobody has heard, and a file it could not read is never replaced by one without its vectors.
 
 **Log files** are one batch of one device's changes: `log/<device>/000000000042.json`. A
 device numbers its files 1, 2, 3, … and never writes the same number twice with different

@@ -24,11 +24,13 @@ import {
   romanizedKey,
   snapshotKey,
   snapshotsToPrune,
+  soundVectorsKey,
   unfoldedLogKeys,
   type Change,
   type CloudConnect,
   type CloudLyrics,
   type CloudSnapshot,
+  type CloudSound,
   type CloudStatus,
   type DoormanMe,
   type CloudServer,
@@ -60,6 +62,7 @@ import { audioSignature, NO_FILE_SIGNATURE, tagsLyricsSignature } from './cloudS
 import type { LyricsService } from './lyrics.js'
 import type { MetadataService } from './metadata.js'
 import type { MotionStore } from './motionStore.js'
+import type { SoundService } from '../sound/sound.js'
 import {
   buildSnapshot,
   parseSnapshot,
@@ -129,6 +132,13 @@ const SIGNATURES_AT_ONCE = 16
  */
 const PUBLISH_DEFER_MS = 45_000
 const PUBLISH_DEFER_MAX_MS = 2 * 60_000
+
+/**
+ * While songs are still being heard, the sound vectors go up at most this
+ * often: each file is the whole library's, a few megabytes, and a song is
+ * heard about once a minute on a Pi.
+ */
+const SOUND_UPLOAD_EVERY_MS = 60 * 60_000
 
 /** How often to ask the doorman whether Google has finished, and for how long. */
 const SIGN_IN_POLL_MS = 2_000
@@ -206,6 +216,12 @@ interface CloudSyncDeps {
    * being tested, which then publishes none.
    */
   readonly artists?: Pick<ArtistBackdropService, 'artists' | 'keptPair' | 'fill'>
+  /**
+   * Every song's sound vector (sound/sound.ts), as one file in the bucket
+   * beside the words, so the vectors outlive this server's database. Absent
+   * where vectors are not what is being tested, which then sends none.
+   */
+  readonly sound?: Pick<SoundService, 'model' | 'hearing' | 'packSignature' | 'pack' | 'restore'>
   /** Other devices' changes: where this server keeps how far it has read, and what applies them. */
   readonly sync?: SyncRepository
   readonly ingest?: CloudIngest
@@ -295,6 +311,14 @@ export class CloudSyncService {
   #adopted = false
   /** Whether covers nothing names have been put in the trash, once per bucket listing. */
   #coversSwept = false
+  /**
+   * The sound vectors the bucket's newest snapshot named when its library was
+   * taken on, until they have been read back (`#readBucketSound`); undefined
+   * before that snapshot has been looked at.
+   */
+  #bucketSound: CloudSound | null | undefined = undefined
+  /** The pass that sends the vectors once the hour since the last is up. */
+  #soundTimer: NodeJS.Timeout | null = null
   #adopting: Promise<void> | null = null
   #preparing: Promise<void> | null = null
 
@@ -421,6 +445,22 @@ export class CloudSyncService {
   }
 
   /**
+   * A song was heard (or given up on, or forgotten). Its vector goes up with
+   * the next pass that may send the vectors: now, once every song has been
+   * heard, or else when the hour since the last time is up.
+   */
+  soundChanged(): void {
+    const sound = this.#deps.sound
+    if (!this.#store || this.#stopped || !sound) return
+    const state = this.#deps.cloud.soundState()
+    const wait = state
+      ? Date.parse(state.uploadedAt) + SOUND_UPLOAD_EVERY_MS - this.#now().getTime()
+      : 0
+    if (!sound.hearing || wait <= 0) this.kick()
+    else this.#soundLater(wait)
+  }
+
+  /**
    * Run a pass now. Resolves when it (or the one already running) is done.
    * With `verify`, it first checks what the bucket really holds, the way the
    * first pass after connecting or starting up does — for when you publish by
@@ -434,6 +474,7 @@ export class CloudSyncService {
       this.#verified = false
       this.#adopted = false
       this.#coversSwept = false
+      this.#bucketSound = undefined
       this.#lastSnapshotHash = null
       this.#snapshotKeys = null
     }
@@ -870,6 +911,8 @@ export class CloudSyncService {
 
       if (generation !== this.#generation || this.#stopped) return
       await this.#uploadArtists(store)
+      if (generation !== this.#generation || this.#stopped) return
+      await this.#uploadSound(store)
 
       if (generation !== this.#generation) return
       await this.#publish(store)
@@ -1146,6 +1189,7 @@ export class CloudSyncService {
 
     const newest = await this.#newestSnapshot(store)
     if (!newest) {
+      this.#bucketSound = null
       this.#adopted = true
       return
     }
@@ -1159,6 +1203,7 @@ export class CloudSyncService {
         publishUncheckableMessage(`its newest snapshot would not read: ${messageOf(error)}`),
       )
     }
+    this.#bucketSound = snapshot.sound
 
     const result: AdoptionResult = await adopt.adopt(snapshot)
     this.#adopted = true
@@ -1363,6 +1408,89 @@ export class CloudSyncService {
       }
     }
     for (const artist of states.keys()) if (!kept.has(artist)) cloud.dropArtist(artist)
+  }
+
+  /**
+   * Every song's sound vector, as one file in the bucket (sound/pack.ts), when
+   * they have changed since the last went up: at most once an hour while songs
+   * are still being heard, since each file is the whole library's. Never
+   * before the bucket's own file has been read back, so vectors this server
+   * does not have are never replaced by a file without them.
+   */
+  async #uploadSound(store: CloudStore): Promise<void> {
+    const sound = this.#deps.sound
+    if (!sound) return
+    const { cloud } = this.#deps
+    await this.#readBucketSound(store, sound)
+
+    const state = cloud.soundState()
+    const signature = sound.packSignature()
+    if (state?.model === sound.model && state.sig === signature) return
+    const now = this.#now()
+    if (state && sound.hearing) {
+      const wait = Date.parse(state.uploadedAt) + SOUND_UPLOAD_EVERY_MS - now.getTime()
+      if (wait > 0) {
+        this.#soundLater(wait)
+        return
+      }
+    }
+
+    const pack = sound.pack()
+    if (!pack) {
+      cloud.dropSound()
+      return
+    }
+    const key = soundVectorsKey(sha256(pack))
+    await this.#putOnce(store, key, pack, 'application/octet-stream')
+    cloud.saveSound({
+      model: sound.model,
+      key,
+      size: pack.length,
+      sig: signature,
+      uploadedAt: now.toISOString(),
+    })
+  }
+
+  /**
+   * The vectors the bucket's snapshot named when its library was taken on, for
+   * the songs here not heard yet: a server starting again from the bucket gets
+   * them back rather than hearing every song again. Read once; a bucket that
+   * cannot be read right now fails the pass, which tries again later.
+   */
+  async #readBucketSound(
+    store: CloudStore,
+    sound: NonNullable<CloudSyncDeps['sound']>,
+  ): Promise<void> {
+    const named = this.#bucketSound
+    if (!named) return
+    const { cloud } = this.#deps
+    if (cloud.soundState()?.key !== named.key) {
+      // Another model's vectors are no use here; the next file this server
+      // sends replaces them.
+      if (named.model === sound.model) {
+        const data = await store.get(named.key)
+        const restored = data ? sound.restore(data) : null
+        if (restored === null) {
+          this.#logger.warn('the sound vectors in the bucket could not be read', {
+            key: named.key,
+          })
+        } else if (restored > 0) {
+          this.#logger.info('took the sound vectors back from the bucket', { songs: restored })
+        }
+      }
+      // What is in it is not known here: the next look packs and compares.
+      cloud.saveSound({ ...named, sig: '', uploadedAt: this.#now().toISOString() })
+    }
+    this.#bucketSound = null
+  }
+
+  #soundLater(wait: number): void {
+    if (this.#soundTimer || this.#stopped) return
+    this.#soundTimer = setTimeout(() => {
+      this.#soundTimer = null
+      this.kick()
+    }, wait)
+    this.#soundTimer.unref()
   }
 
   /**
@@ -1623,6 +1751,9 @@ export class CloudSyncService {
       songUids: new Map(cloud.songFiles().map(file => [file.id, file.uid])),
       states: cloud.states(),
       artists: [...cloud.artistStates().values()],
+      // The bucket's own file until it has been read back: a snapshot without
+      // it would leave the vectors there named by nothing.
+      sound: this.#bucketSound ?? cloud.soundState(),
       tags: tags.all(),
       tagUids: cloud.tagUids(),
       playlists: playlists.all(),
@@ -1753,6 +1884,7 @@ export class CloudSyncService {
     this.#verified = false
     this.#adopted = false
     this.#coversSwept = false
+    this.#bucketSound = undefined
     this.#adopting = null
     this.#checkedAgainstBucket = false
     this.#lastSnapshotHash = null
@@ -1785,8 +1917,10 @@ export class CloudSyncService {
     this.#publishLater.cancel()
     if (this.#retry) clearTimeout(this.#retry)
     if (this.#logPoll) clearInterval(this.#logPoll)
+    if (this.#soundTimer) clearTimeout(this.#soundTimer)
     this.#retry = null
     this.#logPoll = null
+    this.#soundTimer = null
   }
 }
 

@@ -47,6 +47,11 @@ import { MetadataService } from './metadata.js'
 import { ScannerService } from './scanner.js'
 import { SongRemovalService } from './songRemoval.js'
 import { LyricsCache } from './lyricsCache.js'
+import { SoundVectorsRepository } from '../repositories/soundVectors.js'
+import { SOUND_MODEL, SoundModelFiles } from '../sound/models.js'
+import { decodePack, encodePack } from '../sound/pack.js'
+import { SoundService } from '../sound/sound.js'
+import { SOUND_DIMENSIONS, toBlob } from '../sound/vectors.js'
 
 /**
  * Publishing to the bucket, against a real library folder, a database built
@@ -871,6 +876,161 @@ describe('CloudSyncService', () => {
 
       expect(latest().artists).toEqual([])
       expect(bucket.keys('covers/')).toEqual([])
+    })
+  })
+
+  describe('sound vectors', () => {
+    const MODEL = SOUND_MODEL.name
+    let vectors: SoundVectorsRepository
+    let sound: SoundService
+
+    beforeEach(() => {
+      const logger = createLogger('silent')
+      const config = { dataDir, sound: { enabled: true, models: dataDir, threads: 1 } }
+      vectors = new SoundVectorsRepository(db)
+      sound = new SoundService({
+        config,
+        vectors,
+        logger,
+        files: new SoundModelFiles({ config, logger, files: [] }),
+        makeModel: () => {
+          throw new Error('nothing is heard here')
+        },
+      })
+    })
+
+    /** A vector along one axis. */
+    const along = (axis: number): Float32Array => {
+      const v = new Float32Array(SOUND_DIMENSIONS)
+      v[axis] = 1
+      return v
+    }
+    const packKeys = (): string[] => bucket.keys('lyrics/').filter(key => key.endsWith('.vec'))
+    const packPuts = (): string[] => bucket.puts.filter(key => key.endsWith('.vec'))
+    const packOf = (snapshot: CloudSnapshot) =>
+      decodePack(bucket.objects.get(snapshot.sound!.key)!.body)
+
+    it('puts every song’s vector in the bucket as one file, and names it in the snapshot', async () => {
+      const heard = addSong('YOASOBI - Gunjou', 'gunjou')
+      const broken = addSong('Nova - Dusk', 'dusk')
+      vectors.upsert(heard, MODEL, along(3))
+      vectors.upsert(broken, MODEL, null)
+      sync = makeSync({ sound })
+      await connect()
+
+      const snapshot = latest()
+      const [key] = packKeys()
+      expect(snapshot.sound).toEqual({
+        model: MODEL,
+        key,
+        size: bucket.objects.get(key!)!.body.length,
+      })
+      expect(packOf(snapshot)).toEqual({
+        model: MODEL,
+        entries: [
+          { audioKey: cloud.state(heard)!.audioKey, vector: toBlob(along(3)) },
+          { audioKey: cloud.state(broken)!.audioKey, vector: null },
+        ],
+      })
+
+      // Nothing new heard: nothing sent again.
+      await pass()
+      expect(packPuts()).toHaveLength(1)
+    })
+
+    it('sends them at most once an hour while songs are still being heard, and lets the old file go', async () => {
+      const first = addSong('YOASOBI - Gunjou', 'gunjou')
+      const second = addSong('Aurora Lane - Sunrise', 'sunrise')
+      const third = addSong('Nova - Dusk', 'dusk')
+      vectors.upsert(first, MODEL, along(1))
+      sync = makeSync({ sound })
+      await connect()
+      const before = latest().sound!.key
+
+      vectors.upsert(second, MODEL, along(2))
+      sync.soundChanged()
+      await pass()
+      expect(latest().sound!.key).toBe(before)
+
+      clock += 61 * 60_000
+      await pass()
+      const after = latest().sound!.key
+      expect(after).not.toBe(before)
+      expect(packOf(latest())!.entries).toHaveLength(2)
+      expect(packKeys()).toEqual([after])
+
+      // The last song heard: no more waiting.
+      vectors.upsert(third, MODEL, along(3))
+      await pass()
+      expect(packOf(latest())!.entries).toHaveLength(3)
+    })
+
+    /** Their library of three, two of them heard by their server (one could not be). */
+    const theirHeardLibrary = (): { snapshot: CloudSnapshot; key: string } => {
+      const songs = [
+        theirSong('YOASOBI - Gunjou'),
+        theirSong('Aurora Lane - Sunrise'),
+        theirSong('Nova - Dusk'),
+      ]
+      const pack = encodePack(MODEL, [
+        { audioKey: songs[0]!.audio.key, vector: toBlob(along(7)) },
+        { audioKey: songs[1]!.audio.key, vector: null },
+      ])
+      const key = `lyrics/${sha(pack)}.vec`
+      bucket.objects.set(key, { body: pack, contentType: 'application/octet-stream' })
+      const snapshot = CloudSnapshotSchema.parse({
+        ...theirSnapshot({ songs }),
+        sound: { model: MODEL, key, size: pack.length },
+      })
+      seedBucket(snapshot)
+      return { snapshot, key }
+    }
+
+    const songIdOf = (songUid: string): number =>
+      (db.prepare('SELECT id FROM songs WHERE uid = ?').get(songUid) as { id: number }).id
+
+    it('takes the vectors back from the bucket instead of hearing every song again', async () => {
+      const { snapshot, key } = theirHeardLibrary()
+      sync = makeSync({ sound })
+      await connect()
+
+      const [gunjou, sunrise, dusk] = snapshot.songs.map(song => songIdOf(song.uid))
+      expect([...vectors.all(MODEL).entries()]).toEqual([[gunjou, along(7)]])
+      expect(sound.has(sunrise!)).toBe(true)
+      expect(sound.nextPending()).toBe(dusk)
+      expect(latest().sound!.key).toBe(key)
+
+      // The same vectors make the same file: there is nothing to send, now or later.
+      clock += 61 * 60_000
+      await pass()
+      expect(packPuts()).toEqual([])
+      expect(latest().sound!.key).toBe(key)
+    })
+
+    it('never sends a file over vectors in the bucket it could not read', async () => {
+      const { snapshot, key } = theirHeardLibrary()
+      const get = bucket.get.bind(bucket)
+      let unreadable = true
+      bucket.get = name =>
+        unreadable && name === key
+          ? Promise.reject(new CloudError('network', 'Could not reach the bucket.'))
+          : get(name)
+      sync = makeSync({ sound })
+      await connect()
+
+      expect(sync.status().state).toBe('error')
+      expect(packPuts()).toEqual([])
+      expect(latest().writtenBy).toBe(snapshot.writtenBy)
+
+      // An import publishing meanwhile still names the bucket's file.
+      await sync.uploadSong(addSong('A - One', 'one'))
+      expect(latest().writtenBy).not.toBe(snapshot.writtenBy)
+      expect(latest().sound!.key).toBe(key)
+
+      unreadable = false
+      await pass()
+      expect(vectors.countHeard(MODEL)).toBe(1)
+      expect(latest().sound!.key).toBe(key)
     })
   })
 

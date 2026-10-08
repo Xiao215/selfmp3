@@ -68,9 +68,34 @@ interface CloudArtistRow {
   sig: string
 }
 
+/** The library's sound vectors in the bucket (sound/pack.ts), and which vectors went up. */
+export interface CloudSoundState {
+  /** The model that heard them. */
+  readonly model: string
+  readonly key: string
+  readonly size: number
+  /**
+   * The vectors the file holds, as `SoundService.packSignature` puts it; empty
+   * when that is not known (the file was read from the bucket, not made here),
+   * so the next look packs the vectors and compares.
+   */
+  readonly sig: string
+  /** When the file went up or was read, as an ISO time. */
+  readonly uploadedAt: string
+}
+
+interface CloudSoundRow {
+  model: string
+  key: string
+  size: number
+  sig: string
+  uploaded_at: string
+}
+
 /**
- * Every file the library names in the bucket: each song's, and each artist's
- * picture. A file not in this is one nothing points at any more.
+ * Every file the library names in the bucket: each song's, each artist's
+ * picture, and the sound vectors. A file not in this is one nothing points at
+ * any more.
  */
 const NAMED_KEYS = `
   SELECT audio_key AS key FROM cloud_songs
@@ -79,7 +104,8 @@ const NAMED_KEYS = `
   UNION SELECT romanized_key FROM cloud_songs WHERE romanized_key IS NOT NULL
   UNION SELECT motion_key FROM cloud_songs WHERE motion_key IS NOT NULL
   UNION SELECT banner_key FROM cloud_artists
-  UNION SELECT portrait_key FROM cloud_artists`
+  UNION SELECT portrait_key FROM cloud_artists
+  UNION SELECT key FROM cloud_sound`
 
 /** What the sync needs to know about a song's files, straight from its row. */
 export interface SongFileInfo {
@@ -197,6 +223,9 @@ export class CloudRepository {
   readonly #artist
   readonly #saveArtist
   readonly #dropArtist
+  readonly #sound
+  readonly #saveSound
+  readonly #dropSound
   readonly #trashedKeys
   readonly #forgetFile
   readonly #rememberRemoved
@@ -297,6 +326,15 @@ export class CloudRepository {
         sig = excluded.sig
     `)
     this.#dropArtist = db.prepare('DELETE FROM cloud_artists WHERE artist_key = ?')
+    this.#sound = db.prepare<[], CloudSoundRow>('SELECT * FROM cloud_sound WHERE id = 1')
+    this.#saveSound = db.prepare(`
+      INSERT INTO cloud_sound (id, model, key, size, sig, uploaded_at)
+      VALUES (1, @model, @key, @size, @sig, @uploadedAt)
+      ON CONFLICT (id) DO UPDATE SET
+        model = excluded.model, key = excluded.key, size = excluded.size,
+        sig = excluded.sig, uploaded_at = excluded.uploaded_at
+    `)
+    this.#dropSound = db.prepare('DELETE FROM cloud_sound')
     this.#forgetFile = db.prepare('DELETE FROM cloud_files WHERE key = ?')
     this.#rememberRemoved = db.prepare(
       'INSERT OR IGNORE INTO removed_songs (uid) SELECT uid FROM songs WHERE id = ?',
@@ -385,7 +423,7 @@ export class CloudRepository {
   /** Everything this server knows about one bucket: what it uploaded, and how far it read the logs. */
   #forgetUploads(): void {
     this.#db.exec(
-      'DELETE FROM cloud_songs; DELETE FROM cloud_artists; DELETE FROM cloud_files; DELETE FROM cloud_log_cursors; DELETE FROM cloud_trash; DELETE FROM removed_songs;',
+      'DELETE FROM cloud_songs; DELETE FROM cloud_artists; DELETE FROM cloud_sound; DELETE FROM cloud_files; DELETE FROM cloud_log_cursors; DELETE FROM cloud_trash; DELETE FROM removed_songs;',
     )
   }
 
@@ -485,6 +523,40 @@ export class CloudRepository {
       if (!before) return
       this.#dropArtist.run(artist)
       this.#trashReplaced([before.banner_key, before.portrait_key], [])
+    })()
+  }
+
+  // --- Sound vectors ---------------------------------------------------------
+
+  soundState(): CloudSoundState | null {
+    const row = this.#sound.get()
+    return row
+      ? {
+          model: row.model,
+          key: row.key,
+          size: row.size,
+          sig: row.sig,
+          uploadedAt: row.uploaded_at,
+        }
+      : null
+  }
+
+  /** Record the sound vectors' file in the bucket; the one it replaces goes in the trash. */
+  saveSound(state: CloudSoundState): void {
+    this.#db.transaction(() => {
+      const before = this.#sound.get()
+      this.#saveSound.run(state)
+      if (before) this.#trashReplaced([before.key], [state.key])
+    })()
+  }
+
+  /** No vectors left to keep: the file goes in the trash. */
+  dropSound(): void {
+    this.#db.transaction(() => {
+      const before = this.#sound.get()
+      if (!before) return
+      this.#dropSound.run()
+      this.#trashReplaced([before.key], [])
     })()
   }
 
@@ -604,11 +676,13 @@ export class CloudRepository {
                OR (motion_key IS NOT NULL AND motion_key NOT IN (SELECT key FROM cloud_files))`,
         )
         .run().changes
-      // An artist whose picture went is sent again too; they are not counted as songs.
+      // An artist whose picture went is sent again too, and so are the sound
+      // vectors; they are not counted as songs.
       this.#db.exec(
         `DELETE FROM cloud_artists
           WHERE banner_key NOT IN (SELECT key FROM cloud_files)
-             OR portrait_key NOT IN (SELECT key FROM cloud_files)`,
+             OR portrait_key NOT IN (SELECT key FROM cloud_files);
+         DELETE FROM cloud_sound WHERE key NOT IN (SELECT key FROM cloud_files)`,
       )
       return again
     })()

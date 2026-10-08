@@ -1,9 +1,16 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Library } from '@selfmp3/shared'
 import { isDownloaded, runLimited, useLibrary } from '@selfmp3/client'
 import { api, mediaUrlFor } from '../api/client'
 import { useConnection } from '../connection/ConnectionProvider'
-import { ensureCover, ensureServerCover, KEPT_COVER_SIZE } from './covers'
+import { library as cloudLibrary } from '../replica'
+import {
+  ensureCover,
+  ensurePicture,
+  ensureServerCover,
+  KEPT_COVER_SIZE,
+  sweepPictures,
+} from './covers'
 import { useDownloads } from './DownloadsProvider'
 import { hasCachedLyrics, writeCachedLyrics } from './lyricsCache'
 import { hasCachedMotion, writeCachedMotion } from './motionCache'
@@ -18,7 +25,11 @@ import { writeCachedPlaylist } from './playlistCache'
  * and asks for them in the background, a few at a time, so a phone that has
  * seen its server once looks and works the same when the server is away:
  *
- *  - every song's cover, downloaded or not — a row wants its picture either way;
+ *  - every song's cover, downloaded or not — a row wants its picture either way —
+ *    and, from the bucket, every artist's picture. One that could not be had
+ *    (the bucket's daily cap, say) is asked for again a while later, not left
+ *    until the library next changes; once every one is here, the pictures the
+ *    library no longer names are deleted (`sweepPictures`);
  *  - every playlist's members, so a playlist opens offline;
  *  - the words of every downloaded song. A download fetches its own words as
  *    it goes (ports/downloadStorage.ts); this catches songs downloaded before
@@ -38,6 +49,9 @@ import { writeCachedPlaylist } from './playlistCache'
  */
 const AT_ONCE = 4
 
+/** How long after a pass that could not fetch every picture the next one starts. */
+const RETRY_MISSING_MS = 10 * 60_000
+
 /**
  * What a pass depends on, as a short string: which songs, at which revision,
  * and which playlists, as they last changed.
@@ -48,7 +62,7 @@ const AT_ONCE = 4
  * stay put while a revision underneath it moves. This changes exactly when
  * there is something new to keep.
  */
-function contentsKey(library: Library): string {
+function contentsKey(library: Library, artists: readonly { banner: string }[]): string {
   // FNV-1a, 32-bit: a few thousand songs hash in well under a frame, and the
   // key stays a few bytes instead of the whole library as a string.
   let hash = 0x811c9dc5
@@ -62,6 +76,8 @@ function contentsKey(library: Library): string {
   for (const playlist of library.playlists) {
     mix(`p${playlist.id}:${playlist.updatedAt}:${playlist.songCount};`)
   }
+  // An artist's picture arriving changes no song: it is a pass's worth too.
+  for (const artist of artists) mix(`a${artist.banner};`)
   return `${library.songs.length}.${library.playlists.length}.${(hash >>> 0).toString(36)}`
 }
 
@@ -71,12 +87,20 @@ export function useKeepAlongside(): void {
   const { connection, fromCloud } = useConnection()
   // The key of the last pass that ran to the end.
   const done = useRef<string | null>(null)
+  // Bumped to run a pass again that could not fetch every picture.
+  const [retry, setRetry] = useState(0)
 
   const data = library.data
   // A copy saved on this device is shown dated 0 while the server is asked; it says
   // nothing about whether the server answers, so the pass waits for a real answer.
   const reachable = data !== undefined && !library.isError && library.dataUpdatedAt !== 0
-  const key = useMemo(() => (data === undefined ? null : contentsKey(data)), [data])
+  const key = useMemo(
+    () =>
+      data === undefined
+        ? null
+        : contentsKey(data, fromCloud ? (cloudLibrary.cloudPicturesNow()?.artists ?? []) : []),
+    [data, fromCloud],
+  )
 
   /*
    * Read when a pass reaches them, not dependencies of it. A download finishing
@@ -96,7 +120,10 @@ export function useKeepAlongside(): void {
     const library = latest.current.data
     if (library === undefined) return undefined
     let cancelled = false
+    let again: ReturnType<typeof setTimeout> | null = null
     const isCancelled = (): boolean => cancelled
+    // Pictures this pass could not fetch.
+    let missing = 0
 
     void (async () => {
       const songsDone = await runLimited(
@@ -104,8 +131,9 @@ export function useKeepAlongside(): void {
         AT_ONCE,
         async song => {
           if (song.hasArt) {
-            if (fromCloud) await ensureCover(song.id)
-            else if (connection) {
+            if (fromCloud) {
+              if (!(await ensureCover(song.id))) missing++
+            } else if (connection) {
               // Waited on, so the server is asked for AT_ONCE covers at a time.
               await ensureServerCover(
                 song.id,
@@ -135,6 +163,18 @@ export function useKeepAlongside(): void {
         isCancelled,
       )
       if (!songsDone) return
+      const pictures = fromCloud ? cloudLibrary.cloudPicturesNow() : null
+      if (pictures) {
+        const artistsDone = await runLimited(
+          pictures.artists.flatMap(artist => [artist.banner, artist.portrait]),
+          AT_ONCE,
+          async key => {
+            if (!(await ensurePicture(key))) missing++
+          },
+          isCancelled,
+        )
+        if (!artistsDone) return
+      }
       for (const playlist of library.playlists) {
         if (cancelled) return
         try {
@@ -143,6 +183,22 @@ export function useKeepAlongside(): void {
           // Likewise.
         }
       }
+      if (cancelled) return
+      if (missing > 0) {
+        again = setTimeout(() => setRetry(count => count + 1), RETRY_MISSING_MS)
+        return
+      }
+      // Every picture the library names is here: what it no longer names is
+      // not wanted, and is never looked at again. Asked of the library as it
+      // is now, so a cover it has named since is not swept.
+      const named = fromCloud ? cloudLibrary.cloudPicturesNow() : null
+      // A library naming no cover at all is one not loaded, more likely than
+      // one with none: nothing is swept on its word.
+      if (named && named.covers.size > 0) {
+        const keys = new Set(named.covers)
+        for (const artist of named.artists) keys.add(artist.banner).add(artist.portrait)
+        await sweepPictures(keys).catch(() => 0)
+      }
       // Only a pass that ran to the end counts. One called off — the server
       // changed, the app went offline — is run again when the effect next can.
       if (!cancelled) done.current = key
@@ -150,6 +206,7 @@ export function useKeepAlongside(): void {
 
     return () => {
       cancelled = true
+      if (again) clearTimeout(again)
     }
-  }, [installed, reachable, key, connection, fromCloud])
+  }, [installed, reachable, key, connection, fromCloud, retry])
 }

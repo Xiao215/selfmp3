@@ -18,6 +18,7 @@ function filesFor(bridge: NonNullable<typeof desktop>): CoverFiles {
     has: async name => (await bridge.files.stat('covers', name)) !== null,
     keep: (name, url, headers) => bridge.files.fetchTo('covers', name, url, headers),
     list: async () => (await bridge.files.list('covers')).map(one => one.name),
+    remove: name => bridge.files.delete('covers', name),
     forget: () => bridge.files.clear('covers'),
   }
 }

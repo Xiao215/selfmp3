@@ -10,6 +10,7 @@ import {
   LOG_FOLDER,
   SNAPSHOTS_FOLDER,
   applyChanges,
+  artistKey,
   logFile,
   logKey,
   newCloudDeviceId,
@@ -30,6 +31,7 @@ import { foldedOwnLogs, latestStamp, replay, replayedSnapshot } from './replay.j
 import {
   NO_IDS,
   snapshotToLibrary,
+  type ArtistPictureKeys,
   type CloudLibrary,
   type LocalIds,
   type SongFiles,
@@ -212,6 +214,21 @@ export interface CloudLibraryApi {
    * none is loaded yet, when only `cloudCoverKey` can say.
    */
   cloudCoverKeyNow: (songId: number) => string | null | undefined
+  /**
+   * An artist's picture in the bucket, by any spelling of their name, from the
+   * library held in memory: null for an artist with none, undefined while no
+   * library is loaded.
+   */
+  cloudArtistPictureNow: (name: string) => ArtistPictureKeys | null | undefined
+  /**
+   * Every picture the library names in the bucket — each song's cover, each
+   * artist's picture — or null while none is loaded: what a device keeping
+   * them may keep, and nothing else.
+   */
+  cloudPicturesNow: () => {
+    readonly covers: ReadonlySet<string>
+    readonly artists: readonly ArtistPictureKeys[]
+  } | null
   cloudManifest: (scope: 'library' | 'playlists') => SyncManifest
   forgetCloudLibrary: () => Promise<void>
 }
@@ -409,6 +426,7 @@ export function createCloudLibrary(
       songs: [],
       tags: [],
       playlists: [],
+      artists: [],
     }
   }
 
@@ -937,6 +955,23 @@ export function createCloudLibrary(
     return files[songId]?.cover ?? null
   }
 
+  function cloudArtistPictureNow(name: string): ArtistPictureKeys | null | undefined {
+    const artists = replica?.view.artists
+    if (!artists) return undefined
+    return artists.get(artistKey(name)) ?? null
+  }
+
+  function cloudPicturesNow(): {
+    covers: ReadonlySet<string>
+    artists: readonly ArtistPictureKeys[]
+  } | null {
+    const view = replica?.view
+    if (!view) return null
+    const covers = new Set<string>()
+    for (const files of Object.values(view.files)) if (files.cover) covers.add(files.cover)
+    return { covers, artists: [...view.artists.values()] }
+  }
+
   /** What this device should keep, for automatic downloads: every song, or those in playlists. */
   function cloudManifest(scope: 'library' | 'playlists'): SyncManifest {
     const view = replica?.view
@@ -1010,6 +1045,8 @@ export function createCloudLibrary(
     cloudMotion,
     cloudCoverKey,
     cloudCoverKeyNow,
+    cloudArtistPictureNow,
+    cloudPicturesNow,
     cloudManifest,
     forgetCloudLibrary,
   }

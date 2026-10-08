@@ -75,6 +75,22 @@ export const CloudCoverSchema = z.object({
 })
 export type CloudCover = z.infer<typeof CloudCoverSchema>
 
+/**
+ * An artist's picture (the server's services/artistBackdrops.ts), in both the
+ * shapes it is drawn in: the banner behind their page, and the portrait cut
+ * square from it for the round face beside their name. Both are pictures named
+ * by their hash, so they go in `covers/` beside the songs' — a folder of its
+ * own would need every doorman redeployed before a device could read it — and
+ * a device keeps them the way it keeps a cover.
+ */
+export const CloudArtistSchema = z.object({
+  /** The artist as `artistKey` writes them: what a device looks a name up by. */
+  artist: z.string().min(1),
+  banner: CloudCoverSchema,
+  portrait: CloudCoverSchema,
+})
+export type CloudArtist = z.infer<typeof CloudArtistSchema>
+
 export const CloudLyricsSchema = z.object({
   key: fileKey('lyrics'),
   size: z.number().int().nonnegative(),
@@ -276,6 +292,9 @@ export const CloudSnapshotSchema = z.object({
   songs: z.array(CloudSongSchema),
   tags: z.array(CloudTagSchema),
   playlists: z.array(CloudPlaylistSchema),
+  /** Every artist of the library's songs the server has a picture for. */
+  // TODO(after the Pi publishes): drop `.default([])` here; buildSnapshot writes it.
+  artists: z.array(CloudArtistSchema).default([]),
   /**
    * Tags made twice under one name, on two devices before either heard of
    * the other: the second uid, and the tag it was folded into. A late change

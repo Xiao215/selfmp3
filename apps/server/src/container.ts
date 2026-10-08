@@ -236,6 +236,10 @@ export function createContainer(configured: Config): Container {
   const motion = new MotionStore(config, logger)
   const romanization = new RomanizationService(logger)
 
+  // Before the sync, which puts every artist's picture in the bucket.
+  const youtubeMusicArtists = new YouTubeMusicArtists(logger)
+  const artistBackdrops = new ArtistBackdropService(config, songs, youtubeMusicArtists, logger)
+
   const cloudSync = new CloudSyncService({
     cloud: cloudRepo,
     songs,
@@ -262,6 +266,7 @@ export function createContainer(configured: Config): Container {
     romanize: (songId, text) => romanizedLines({ lyricsCache, romanization }, songId, text),
     // Each song's motion curve goes up beside its words, once analysis has made one.
     motion,
+    artists: artistBackdrops,
     // The token is the bucket's owner's already: whoever reads the snapshot
     // is signed in to their own library. This is how every device gets the
     // key without anyone ever typing it — the server always has one now
@@ -299,8 +304,6 @@ export function createContainer(configured: Config): Container {
   )
 
   const ytdlp = new YtDlpService(logger, () => settings.get(), throttle)
-  const youtubeMusicArtists = new YouTubeMusicArtists(logger)
-  const artistBackdrops = new ArtistBackdropService(config, songs, youtubeMusicArtists, logger)
   const youtubeMusicLists = new YouTubeMusicLists(logger)
   const spotify = new SpotifyLists(logger)
   const youtubeMatcher = new YouTubeMatcher({ lists: youtubeMusicLists, logger })

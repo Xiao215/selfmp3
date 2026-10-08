@@ -27,4 +27,5 @@ export {
 export type { CloudPlatform, DeviceStore, TextCache } from './platform.js'
 export { DoormanError, createCloudSession, type CloudSession } from './session.js'
 export { createCloudLibrary } from './library.js'
+export type { ArtistPictureKeys } from './snapshotLibrary.js'
 export { createCloudRoutes } from './routes.js'

@@ -276,7 +276,6 @@ function RankedList({
             key={row.key}
             row={row}
             cover={coverOf.get(row.key)}
-            via={via}
             testID={`stats-ranked-${kind}-${index}`}
           />
         ) : (
@@ -286,7 +285,6 @@ function RankedList({
             song={row.kind === 'song' ? songFor(row.songId) : undefined}
             cover={coverOf.get(row.key)}
             hue={row.kind === 'tag' ? hueOf.get(row.name) : undefined}
-            via={via}
             testID={`stats-ranked-${kind}-${index}`}
           />
         ),
@@ -304,19 +302,17 @@ function RankedList({
 function ArtistLead({
   row,
   cover,
-  via,
   testID,
 }: {
   row: Extract<RankedRow, { kind: 'artist' }>
   cover: Song | undefined
-  via: ServerConnection | undefined
   testID: string
 }): ReactNode {
   const router = useRouter()
   const artFor = useArt()
-  const picture = useArtistPicture(row.known ? row.name : null, via)
-  // Nothing while the server is asked, so a cover does not flash up before
-  // the banner that replaces it.
+  const picture = useArtistPicture(row.known ? row.name : null)
+  // Nothing while the picture is on its way, so a cover does not flash up
+  // before the banner that replaces it.
   const art = picture === undefined ? null : (picture?.banner ?? (cover ? artFor(cover) : null))
   return (
     <LeadCard
@@ -451,15 +447,13 @@ function RankedArtistFace({
   name,
   known,
   cover,
-  via,
 }: {
   name: string
   known: boolean
   cover: Song | undefined
-  via: ServerConnection | undefined
 }): ReactNode {
   const artFor = useArt()
-  const picture = useArtistPicture(known ? name : null, via)
+  const picture = useArtistPicture(known ? name : null)
   const uri = picture === undefined ? null : (picture?.portrait ?? (cover ? artFor(cover) : null))
   return <Cover uri={uri} title={name} size={36} radius={18} />
 }
@@ -478,7 +472,6 @@ function RankedLine({
   song,
   cover,
   hue,
-  via,
   testID,
 }: {
   row: RankedRow
@@ -486,7 +479,6 @@ function RankedLine({
   /** An artist's stand-in cover (`RankedArtistFace`). */
   cover: Song | undefined
   hue: number | undefined
-  via: ServerConnection | undefined
   testID: string
 }): ReactNode {
   const router = useRouter()
@@ -508,7 +500,7 @@ function RankedLine({
     row.kind === 'song' ? (
       <Cover uri={song ? artFor(song) : null} title={row.name} size={36} />
     ) : row.kind === 'artist' ? (
-      <RankedArtistFace name={row.name} known={row.known} cover={cover} via={via} />
+      <RankedArtistFace name={row.name} known={row.known} cover={cover} />
     ) : (
       <View style={styles.tagSquare}>
         <View

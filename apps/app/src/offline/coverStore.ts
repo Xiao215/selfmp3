@@ -66,6 +66,10 @@ export interface CoverPlatform {
    * a phone's file system can. Left out where it cannot.
    */
   readonly peekCloud?: (name: string) => string | null
+  /** Every cloud picture this device keeps, by name. May throw. */
+  readonly listCloud: () => Promise<readonly string[]>
+  /** Delete the cloud picture `name`. May throw. */
+  readonly removeCloud: (name: string) => Promise<void>
   /** Fetch the cloud cover `name` from `url`; where it now is, or null. May throw. */
   readonly keepCloud: (
     name: string,
@@ -92,6 +96,16 @@ interface CoverStore {
     url: string,
   ) => Promise<void>
   readonly ensureCover: (songId: number) => Promise<string | null>
+  /** Told when a picture fetched by key (`ensurePicture`) arrives. */
+  readonly subscribePictures: (listener: () => void) => () => void
+  /** Bumped once per picture arrived: what a reader compares. */
+  readonly picturesVersion: () => number
+  /** A bucket picture already on this device, by key — an artist's, which no song id names. */
+  readonly pictureFor: (key: string) => string | undefined
+  /** Make sure a bucket picture is on this device, by key, and say where. */
+  readonly ensurePicture: (key: string) => Promise<string | null>
+  /** Delete every bucket picture kept here that `named` does not name; how many went. */
+  readonly sweepPictures: (named: ReadonlySet<string>) => Promise<number>
   readonly forgetCovers: () => Promise<void>
 }
 
@@ -99,6 +113,9 @@ interface CoverStore {
 function nameFromKey(key: string): string {
   return key.slice(key.lastIndexOf('/') + 1)
 }
+
+/** A picture from the bucket, as it is kept: the hash its key is named by, and the extension. */
+const BUCKET_PICTURE = /^[0-9a-f]{64}\.[a-z0-9]{1,5}$/
 
 /** A server's cover, named so that priming can read the song and revision back. */
 function servedName(songId: number, rev: string): string {
@@ -133,6 +150,14 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
    * row; it waits here until `ensureCover` has fetched the file or given up.
    */
   const notOnDisk = new Set<number>()
+  /** Fetches of bucket pictures by name, covers and artists' alike: one request however many ask. */
+  const fetchingFile = new Map<string, Promise<string | null>>()
+  /** Bucket pictures asked for by key — artists', which no song id names — by name. */
+  const pictures = new Map<string, string>()
+  /** When a picture asked for by key last failed, by name. */
+  const failedPictures = new Map<string, number>()
+  const pictureListeners = new Set<() => void>()
+  let picturesSeen = 0
 
   /**
    * Whoever wants to know when a cover arrives — the list, mostly — told which
@@ -200,6 +225,110 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
   const coverFailed = (songId: number): boolean => failed.has(songId) && !fetching.has(songId)
 
   /**
+   * One bucket picture onto this device, by its key. The name is the hash of
+   * the contents, so a file already there is the right file and nothing goes
+   * stale — and it is worth asking before a session is loaded, let alone a
+   * request made. May throw.
+   */
+  const keepFile = (key: string): Promise<string | null> => {
+    const name = nameFromKey(key)
+    const already = fetchingFile.get(name)
+    if (already) return already
+    const work = (async (): Promise<string | null> => {
+      const have = await platform.haveCloud(name)
+      if (have) return have
+      const signedIn = await cloudSession.loadSession()
+      if (!signedIn) return null
+      return platform.keepCloud(name, doormanFileUrl(key), doormanAuth(signedIn.token))
+    })().finally(() => fetchingFile.delete(name))
+    fetchingFile.set(name, work)
+    return work
+  }
+
+  const pictureFor = (key: string): string | undefined => {
+    if (!platform.canKeep()) return undefined
+    const name = nameFromKey(key)
+    const kept = pictures.get(name)
+    if (kept) return kept
+    try {
+      const uri = platform.peekCloud?.(name) ?? null
+      if (uri) pictures.set(name, uri)
+      return uri ?? undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  const ensurePicture = async (key: string): Promise<string | null> => {
+    if (!platform.canKeep()) return null
+    const name = nameFromKey(key)
+    const kept = pictures.get(name)
+    if (kept) return kept
+    const failedAt = failedPictures.get(name)
+    if (failedAt !== undefined && Date.now() - failedAt < RETRY_FAILED_MS) return null
+    try {
+      const uri = await keepFile(key)
+      if (!uri) return null
+      pictures.set(name, uri)
+      failedPictures.delete(name)
+      picturesSeen++
+      for (const listener of pictureListeners) listener()
+      return uri
+    } catch (error) {
+      failedPictures.set(name, Date.now())
+      console.warn(
+        `self.mp3: could not fetch a picture (${name}): ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      )
+      return null
+    }
+  }
+
+  const subscribePictures = (listener: () => void): (() => void) => {
+    pictureListeners.add(listener)
+    return () => pictureListeners.delete(listener)
+  }
+
+  /**
+   * Every bucket picture on this device that the library no longer names: a
+   * cover since replaced (squared, edited, fixed), a removed song's, an
+   * artist's the library has lost. Named by their hash, they are never looked
+   * at again once their key is gone from the library, and without this they
+   * stayed for good. Only bucket pictures: a server's covers are named by song
+   * and revision, and are its business.
+   *
+   * `named` has to be the whole library's — every song's cover and every
+   * artist's picture — or what it leaves out is deleted.
+   */
+  const sweepPictures = async (named: ReadonlySet<string>): Promise<number> => {
+    if (!platform.canKeep()) return 0
+    const keep = new Set([...named].map(nameFromKey))
+    const gone = new Set<string>()
+    for (const name of await platform.listCloud()) {
+      if (!BUCKET_PICTURE.test(name) || keep.has(name) || fetchingFile.has(name)) continue
+      try {
+        await platform.removeCloud(name)
+        gone.add(name)
+      } catch {
+        // Left for the next sweep.
+      }
+    }
+    if (gone.size === 0) return 0
+    for (const name of gone) pictures.delete(name)
+    // A song whose cover changed while this was open still points at the old
+    // file: it is looked for afresh, under the key the library names now.
+    for (const [songId, uri] of known) {
+      if (uri && gone.has(uri.slice(uri.lastIndexOf('/') + 1))) {
+        known.delete(songId)
+        notOnDisk.delete(songId)
+        changes.changed(songId)
+      }
+    }
+    return gone.size
+  }
+
+  /**
    * Keep a server's cover on this device, from the address the server serves it
    * at. Safe to call for every visible row: a cover already kept, or an address
    * already tried, costs a map lookup. What is on disk is checked before the
@@ -258,17 +387,7 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
       try {
         const key = await library.cloudCoverKey(songId)
         if (!key) return null
-        const name = nameFromKey(key)
-        // The name is the hash of the contents, so a file already there is the
-        // right file and nothing goes stale — and it is worth asking before a
-        // session is loaded, let alone a request made.
-        const have = await platform.haveCloud(name)
-        if (have) return have
-
-        const signedIn = await cloudSession.loadSession()
-        if (!signedIn) return null
-
-        return await platform.keepCloud(name, doormanFileUrl(key), doormanAuth(signedIn.token))
+        return await keepFile(key)
       } catch (error) {
         // A missing cover is survivable — the letter tile is behind it — but it
         // should not be silent: swallowing this is what made an expo-file-system
@@ -308,6 +427,9 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
   const forgetCovers = async (): Promise<void> => {
     known.clear()
     fetching.clear()
+    fetchingFile.clear()
+    pictures.clear()
+    failedPictures.clear()
     failed.clear()
     served.clear()
     tried.clear()
@@ -326,6 +448,11 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
     coverFailed,
     ensureServerCover,
     ensureCover,
+    subscribePictures,
+    picturesVersion: () => picturesSeen,
+    pictureFor,
+    ensurePicture,
+    sweepPictures,
     forgetCovers,
   }
 }

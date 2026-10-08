@@ -95,6 +95,7 @@ describe('ArtistBackdropService', () => {
   function service(
     songs: Song[],
     fetchImpl: (url: string, init?: RequestInit) => Promise<Response>,
+    pause: (ms: number) => Promise<void> = () => Promise.resolve(),
   ) {
     dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-artists-'))
     const picture = vi.fn(async (channelId: string) =>
@@ -108,6 +109,7 @@ describe('ArtistBackdropService', () => {
         youtube,
         createLogger('silent'),
         fetchImpl,
+        pause,
       ),
       picture,
     }
@@ -140,6 +142,38 @@ describe('ArtistBackdropService', () => {
     await backdrops.find('Yorushika')
     expect(yt.searches).toHaveLength(2)
     expect(yt.pictures()).toBe(2)
+  })
+
+  it('looks for every artist of the library without a picture, one at a time, and only once', async () => {
+    const yt = fakeYouTubeMusic({
+      'Yorushika 靴の花火': [
+        hit({ title: '靴の花火', artist: 'ヨルシカ', channelId: YORUSHIKA, length: '5:06' }),
+      ],
+      'Yorushika 晴る': [
+        hit({ title: '晴る', artist: 'Yorushika', channelId: YORUSHIKA, length: '3:12' }),
+      ],
+    })
+    const pause = vi.fn(() => Promise.resolve())
+    const { backdrops } = service(
+      [
+        song(1, '靴の花火', 'Yorushika', 306),
+        song(2, '晴る', 'Yorushika', 192),
+        // No page agrees for this one: remembered as none, not asked again.
+        song(3, 'Nowhere', 'Stranger', 200),
+      ],
+      yt.fetchImpl,
+      pause,
+    )
+
+    expect(await backdrops.fill()).toBe(1)
+    expect(await backdrops.keptPair('Yorushika')).toMatchObject({ rev: expect.any(String) })
+    expect(await backdrops.keptPair('Stranger')).toBeNull()
+    // A pause between two artists, none before the first.
+    expect(pause).toHaveBeenCalledTimes(1)
+
+    const searches = yt.searches.length
+    expect(await backdrops.fill()).toBe(0)
+    expect(yt.searches).toHaveLength(searches)
   })
 
   it('looks again for a banner kept without its portrait', async () => {

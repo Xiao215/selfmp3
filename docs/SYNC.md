@@ -116,7 +116,7 @@ bucket could hold other things too.
 selfmp3/
   format.json                        which version of this layout the bucket uses
   audio/<sha256>.<ext>               the music. Never changes.
-  covers/<sha256>.<ext>              cover art. Never changes.
+  covers/<sha256>.<ext>              cover art, and each artist's picture (banner and portrait). Never changes.
   lyrics/<sha256>.lrc | .txt         lyrics, timed (.lrc) or plain (.txt). Never changes.
   lyrics/<sha256>.json               the romanized lines (romaji, pinyin) of one lyric text. Never changes.
   lyrics/<sha256>.json               one song's motion curve: loudness and onsets, 20 a second. Never changes.
@@ -134,6 +134,12 @@ replaying every change ever made. The key starts with a fixed-width UTC time, so
 snapshot is simply the last one in a listing. A writer keeps its three newest and deletes
 the rest. A snapshot also carries, for each device, how far into that device's log it has
 been folded in (`upTo`), so a device replays only what comes after.
+
+**Artists' pictures** are pictures named by their hash like a cover, so they sit in `covers/`
+— a folder of their own would need every doorman redeployed first. The server finds one for
+every artist of the library (`services/artistBackdrops.ts`, `fill`, after each pass) and the
+next pass puts it up; the snapshot's `artists` names each pair by `artistKey` of the artist's
+name, and a device keeps them the way it keeps a cover.
 
 **Log files** are one batch of one device's changes: `log/<device>/000000000042.json`. A
 device numbers its files 1, 2, 3, … and never writes the same number twice with different
@@ -239,6 +245,21 @@ song names (two songs can share a cover; a song imported twice shares everything
 no "keep the file" option any more, on any device: a copy left on a disk is exactly how
 forty-three removed songs came back as new ones on 2026-09-22, resurrected by the sweep that
 the next import's file set off.
+
+**A replaced file goes the same way.** A cover made again, words edited, an artist's new
+picture: the file the row named before is put in `cloud_trash` as the row is saved
+(`CloudRepository.saveState`, `saveArtist`), and deleted after the next snapshot like a removed
+song's. Before 2026-10-07 nothing did this, so every replaced file stayed in the bucket,
+nameless — the covers squared that day among them. Once per bucket listing the pass also
+trashes every cover nothing names (`trashUnnamedCovers`): covers only, since a cover the server
+can always send again, where audio or words no row names may be the only copy of a song whose
+row was reconciled away.
+
+**Devices keep only what the library names.** A phone and the desktop app keep every cover and
+artist's picture of the library as a file named by its hash (the phone in its document folder,
+which the OS does not reclaim). Once a pass has every picture the library names, the ones it
+no longer names are deleted (`sweepPictures`, `offline/useKeepAlongside.ts`); a pass that could
+not fetch every one — the bucket's daily cap — runs again ten minutes later.
 
 **No bucket, no library.** With none connected the API answers every route but the cloud
 ones and the health check with a 409 saying so (`http/middleware.ts`, `requireCloud`), rather
@@ -462,8 +483,8 @@ libraries that deliberately number different songs the same.
   app is built on. It comes after the native app has been built at all, and only once it is
   confirmed to handle YouTube's JavaScript challenge.
 - **Tidying up**: snapshots written from the log, so a new device replays only recent changes;
-  files that no song points at and that no removal trashed — an upload whose import failed
-  halfway — deleted after 30 days.
+  audio and words that no song points at and that nothing trashed — an upload whose import
+  failed halfway — deleted after 30 days. (Covers nothing names already go.)
 - **Play history in the bucket.** The server's `play_events` table is the only place the
   *when* of a play survives, so Stats is server-only and dies with the server's disk. One
   small file per device per month under a `plays/` folder would let any device answer, and

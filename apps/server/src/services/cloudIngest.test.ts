@@ -139,6 +139,7 @@ describe('CloudIngest', () => {
       songs: songs.all(),
       songUids: new Map(cloud.songFiles().map(file => [file.id, file.uid])),
       states: cloud.states(),
+      artists: [],
       tags: tags.all(),
       tagUids: cloud.tagUids(),
       playlists: playlists.all(),

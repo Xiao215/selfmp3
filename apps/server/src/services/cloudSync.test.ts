@@ -752,6 +752,128 @@ describe('CloudSyncService', () => {
     })
   })
 
+  describe('pictures nothing names', () => {
+    it('deletes a replaced cover from the bucket once the snapshot naming the new one is up', async () => {
+      const id = addSong('A - One', 'one')
+      await covers.save(id, Buffer.alloc(2048, 7), '.jpg')
+      await connect()
+      const before = `covers/${sha(Buffer.alloc(2048, 7))}.jpg`
+      expect(bucket.keys('covers/')).toEqual([before])
+
+      // Made again — squared, fixed by hand — under a new hash.
+      await covers.save(id, Buffer.alloc(2048, 9), '.jpg')
+      await pass()
+
+      const after = `covers/${sha(Buffer.alloc(2048, 9))}.jpg`
+      expect(latest().songs[0]?.cover?.key).toBe(after)
+      expect(bucket.keys('covers/')).toEqual([after])
+    })
+
+    it('deletes the covers already in the bucket that nothing names, and no audio or words', async () => {
+      const id = addSong('A - One', 'one')
+      await covers.save(id, Buffer.alloc(2048, 7), '.jpg')
+      const strays = [
+        `covers/${sha('an old letterboxed cover')}.jpg`,
+        `audio/${sha('a song whose row went')}.m4a`,
+        `lyrics/${sha('its words')}.txt`,
+      ]
+      for (const key of strays) await bucket.put(key, Buffer.from(key), { contentType: 'x' })
+
+      await connect()
+
+      expect(bucket.keys('covers/')).toEqual([`covers/${sha(Buffer.alloc(2048, 7))}.jpg`])
+      expect(bucket.keys('audio/')).toContain(strays[1])
+      expect(bucket.keys('lyrics/')).toEqual([strays[2]])
+    })
+  })
+
+  describe('artists’ pictures', () => {
+    /** A server that keeps one picture pair per artist named in `kept`, under `dataDir`. */
+    const pictures = (kept: Map<string, { banner: string; portrait: string; rev: string }>) => {
+      const write = (name: string, bytes: string): string => {
+        const file = path.join(dataDir, name)
+        fs.writeFileSync(file, bytes)
+        return file
+      }
+      return {
+        kept,
+        artists: () =>
+          songs.all().map(song => ({
+            key: song.artist.toLowerCase(),
+            name: song.artist,
+            songIds: [song.id],
+          })),
+        keptPair: async (name: string) => {
+          const pair = kept.get(name)
+          return pair
+            ? {
+                banner: write(`${name}.jpg`, pair.banner),
+                portrait: write(`${name}.portrait.jpg`, pair.portrait),
+                rev: pair.rev,
+              }
+            : null
+        },
+        fill: vi.fn(async () => 0),
+      }
+    }
+
+    it('puts each artist’s picture in the bucket beside the covers, and names it in the snapshot', async () => {
+      addSong('YOASOBI - Gunjou', 'gunjou')
+      const artists = pictures(
+        new Map([['yoasobi', { banner: 'wide', portrait: 'round', rev: 'r1' }]]),
+      )
+      sync = makeSync({ artists })
+      await connect()
+
+      expect(latest().artists).toEqual([
+        {
+          artist: 'yoasobi',
+          banner: { key: `covers/${sha('wide')}.jpg`, size: 4 },
+          portrait: { key: `covers/${sha('round')}.jpg`, size: 5 },
+        },
+      ])
+      expect(bucket.keys('covers/')).toEqual(
+        [`covers/${sha('wide')}.jpg`, `covers/${sha('round')}.jpg`].sort(),
+      )
+      // And the server looked for the pictures it does not have yet.
+      expect(artists.fill).toHaveBeenCalled()
+    })
+
+    it('sends a picture once, and replaces it in the bucket when it changes', async () => {
+      addSong('YOASOBI - Gunjou', 'gunjou')
+      const artists = pictures(
+        new Map([['yoasobi', { banner: 'wide', portrait: 'round', rev: 'r1' }]]),
+      )
+      sync = makeSync({ artists })
+      await connect()
+      await pass()
+      expect(bucket.puts.filter(key => key.startsWith('covers/'))).toHaveLength(2)
+
+      artists.kept.set('yoasobi', { banner: 'wider', portrait: 'round', rev: 'r2' })
+      await pass()
+
+      expect(latest().artists[0]?.banner.key).toBe(`covers/${sha('wider')}.jpg`)
+      expect(bucket.keys('covers/')).toEqual(
+        [`covers/${sha('wider')}.jpg`, `covers/${sha('round')}.jpg`].sort(),
+      )
+    })
+
+    it('deletes an artist’s picture once the library no longer has them', async () => {
+      const id = addSong('YOASOBI - Gunjou', 'gunjou')
+      const artists = pictures(
+        new Map([['yoasobi', { banner: 'wide', portrait: 'round', rev: 'r1' }]]),
+      )
+      sync = makeSync({ artists })
+      await connect()
+
+      songs.patch(id, { artist: 'Ayase' })
+      await pass()
+
+      expect(latest().artists).toEqual([])
+      expect(bucket.keys('covers/')).toEqual([])
+    })
+  })
+
   describe('what a snapshot says', () => {
     it('leaves out a song that is not up yet', async () => {
       addSong('A - One', 'one')

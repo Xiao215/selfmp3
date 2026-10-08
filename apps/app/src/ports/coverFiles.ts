@@ -17,6 +17,8 @@ export interface CoverFiles {
   keep(name: string, url: string, headers?: Record<string, string>): Promise<void>
   /** Everything kept, by name. */
   list(): Promise<readonly string[]>
+  /** Delete one. */
+  remove(name: string): Promise<void>
   /** After signing out: another account's ids mean other songs. */
   forget(): Promise<void>
 }

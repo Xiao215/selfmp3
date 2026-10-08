@@ -54,6 +54,7 @@ import type { SyncRepository } from '../repositories/sync.js'
 import type { ImportRequestRepository } from '../repositories/importRequests.js'
 import type { CloudIngest, IngestResult } from './cloudIngest.js'
 import type { CoverService } from './covers.js'
+import type { ArtistBackdropService } from './artistBackdrops.js'
 import { removeFolderIfEmpty } from './libraryLayout.js'
 import { audioSignature, NO_FILE_SIGNATURE, tagsLyricsSignature } from './cloudSignatures.js'
 import type { LyricsService } from './lyrics.js'
@@ -198,6 +199,13 @@ interface CloudSyncDeps {
    * Absent where curves are not what is being tested, which then uploads none.
    */
   readonly motion?: Pick<MotionStore, 'stat' | 'bytes'>
+  /**
+   * Artists' pictures (services/artistBackdrops.ts): looked for after each
+   * pass, and put in the bucket beside the covers by the next, so every device
+   * keeps them as it keeps a cover. Absent where pictures are not what is
+   * being tested, which then publishes none.
+   */
+  readonly artists?: Pick<ArtistBackdropService, 'artists' | 'keptPair' | 'fill'>
   /** Other devices' changes: where this server keeps how far it has read, and what applies them. */
   readonly sync?: SyncRepository
   readonly ingest?: CloudIngest
@@ -285,6 +293,8 @@ export class CloudSyncService {
    * flight and a publish arriving from an import share the one attempt.
    */
   #adopted = false
+  /** Whether covers nothing names have been put in the trash, once per bucket listing. */
+  #coversSwept = false
   #adopting: Promise<void> | null = null
   #preparing: Promise<void> | null = null
 
@@ -423,6 +433,7 @@ export class CloudSyncService {
       this.#formatChecked = false
       this.#verified = false
       this.#adopted = false
+      this.#coversSwept = false
       this.#lastSnapshotHash = null
       this.#snapshotKeys = null
     }
@@ -857,6 +868,9 @@ export class CloudSyncService {
         this.#progress = { done, total, current: null }
       }
 
+      if (generation !== this.#generation || this.#stopped) return
+      await this.#uploadArtists(store)
+
       if (generation !== this.#generation) return
       await this.#publish(store)
 
@@ -875,6 +889,16 @@ export class CloudSyncService {
       if (changed.length > 0) {
         this.#logger.info('cloud pass complete', { uploaded: changed.length - failed, failed })
       }
+      // Pictures for artists that have none yet, in the background: one found
+      // is put in the bucket by the pass this starts.
+      void this.#deps.artists
+        ?.fill()
+        .then(found => {
+          if (found > 0 && !this.#stopped) this.kick()
+        })
+        .catch((error: unknown) => {
+          this.#logger.warn('could not look for artists’ pictures', { message: messageOf(error) })
+        })
       this.#lastSyncAt = this.#now().toISOString()
       if (failed === 0) {
         this.#retryIndex = 0
@@ -1071,6 +1095,15 @@ export class CloudSyncService {
       this.#verified = true
     }
     await this.#adoptLibrary(store)
+    if (!this.#coversSwept) {
+      this.#coversSwept = true
+      const trashed = this.#deps.cloud.trashUnnamedCovers()
+      if (trashed > 0) {
+        this.#logger.info('covers in the bucket that nothing names go once the snapshot is up', {
+          covers: trashed,
+        })
+      }
+    }
   }
 
   /**
@@ -1283,6 +1316,53 @@ export class CloudSyncService {
     const key = coverKey(sha256(data), path.extname(found.path))
     await this.#putOnce(store, key, data, found.contentType)
     return { key, size: data.length }
+  }
+
+  /**
+   * Each artist's picture this server keeps, in the bucket beside the covers;
+   * an artist the library no longer has, or no longer has a picture of, has
+   * theirs put in the trash. A picture already up as it is kept costs a look
+   * at the kept file's time.
+   */
+  async #uploadArtists(store: CloudStore): Promise<void> {
+    const pictures = this.#deps.artists
+    if (!pictures) return
+    const { cloud } = this.#deps
+    const states = cloud.artistStates()
+    const kept = new Set<string>()
+    for (const artist of pictures.artists()) {
+      if (this.#stopped) return
+      const pair = await pictures.keptPair(artist.key)
+      if (!pair) continue
+      kept.add(artist.key)
+      if (states.get(artist.key)?.sig === pair.rev) continue
+      try {
+        const [banner, portrait] = await Promise.all([
+          fsp.readFile(pair.banner),
+          fsp.readFile(pair.portrait),
+        ])
+        const bannerKey = coverKey(sha256(banner), '.jpg')
+        const portraitKey = coverKey(sha256(portrait), '.jpg')
+        await this.#putOnce(store, bannerKey, banner, 'image/jpeg')
+        await this.#putOnce(store, portraitKey, portrait, 'image/jpeg')
+        cloud.saveArtist({
+          artist: artist.key,
+          bannerKey,
+          bannerSize: banner.length,
+          portraitKey,
+          portraitSize: portrait.length,
+          sig: pair.rev,
+        })
+      } catch (error) {
+        if (error instanceof CloudError && error.kind !== 'other') throw error
+        // Deleted between the look and the read, most likely: the next pass sends it.
+        this.#logger.warn('could not upload an artist’s picture', {
+          artist: artist.name,
+          message: messageOf(error),
+        })
+      }
+    }
+    for (const artist of states.keys()) if (!kept.has(artist)) cloud.dropArtist(artist)
   }
 
   /**
@@ -1542,6 +1622,7 @@ export class CloudSyncService {
       songs: songs.all(),
       songUids: new Map(cloud.songFiles().map(file => [file.id, file.uid])),
       states: cloud.states(),
+      artists: [...cloud.artistStates().values()],
       tags: tags.all(),
       tagUids: cloud.tagUids(),
       playlists: playlists.all(),
@@ -1671,6 +1752,7 @@ export class CloudSyncService {
     this.#formatChecked = false
     this.#verified = false
     this.#adopted = false
+    this.#coversSwept = false
     this.#adopting = null
     this.#checkedAgainstBucket = false
     this.#lastSnapshotHash = null

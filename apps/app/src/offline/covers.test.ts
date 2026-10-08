@@ -4,8 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * The cover policy on a phone, over a fake of the expo-file-system classes it
  * uses. What differs from the web twin, and is pinned here: priming reads the
  * kept covers synchronously, so the *first* `coverFor()` already knows them —
- * that is what stops the flicker on every launch — and forgetting removes both
- * folders, the cache and the document store, along with what memory held.
+ * that is what stops the flicker on every launch — every cover is kept in the
+ * document folder the OS does not reclaim, and forgetting removes it along
+ * with what memory held.
  */
 
 const disk = new Set<string>()
@@ -41,6 +42,14 @@ class FakeFile {
   }
   get exists(): boolean {
     return disk.has(this.uri)
+  }
+  delete(): void {
+    disk.delete(this.uri)
+  }
+  move(destination: FakeDirectory): Promise<void> {
+    disk.delete(this.uri)
+    disk.add(`${destination.uri}/${this.name}`)
+    return Promise.resolve()
   }
   static downloadFileAsync = vi.fn(async (_url: string, file: FakeFile) => {
     disk.add(file.uri)
@@ -82,14 +91,24 @@ describe('covers on a phone', () => {
   it('fetches a cloud cover once for however many rows ask at the same time', async () => {
     const { ensureCover } = await covers()
     const uris = await Promise.all([ensureCover(7), ensureCover(7)])
-    expect(uris).toEqual(Array(2).fill('file:///cache/covers/hash-7.jpg'))
+    expect(uris).toEqual(Array(2).fill('file:///document/covers/hash-7.jpg'))
     expect(FakeFile.downloadFileAsync).toHaveBeenCalledTimes(1)
     expect(FakeFile.downloadFileAsync.mock.calls[0]?.[0]).toBe(
       'https://doorman.example/v1/files/covers/hash-7.jpg',
     )
   })
 
-  it('forgets everything at sign-out: memory and both folders', async () => {
+  it('moves the covers once kept in the cache into the document folder, not fetching them again', async () => {
+    disk.add('file:///cache/covers')
+    disk.add('file:///cache/covers/hash-7.jpg')
+    const { ensureCover } = await covers()
+
+    expect(await ensureCover(7)).toBe('file:///document/covers/hash-7.jpg')
+    expect(FakeFile.downloadFileAsync).not.toHaveBeenCalled()
+    expect(disk.has('file:///cache/covers')).toBe(false)
+  })
+
+  it('forgets everything at sign-out: memory and the folder', async () => {
     disk.add('file:///document/covers')
     disk.add('file:///document/covers/12-r1.jpg')
     const { coverFor, ensureCover, forgetCovers } = await covers()

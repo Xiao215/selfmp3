@@ -16,18 +16,38 @@ import { createCoverStore, isPicture, parseServedName, type CoverPlatform } from
  */
 
 /**
- * Cloud covers, in the cache directory and named by the hash already in the
- * key, so two songs sharing an album share one file, nothing ever goes stale,
- * and the OS may reclaim the lot without anything being lost.
- */
-const CACHE = new Directory(Paths.cache, 'covers')
-
-/**
- * A server's covers, kept beside the songs in the document directory rather than
- * in the cache the OS may reclaim: a song downloaded for the plane wants its
- * picture on the plane too. Named by song and revision, so new art replaces old.
+ * Every cover this phone keeps, in the document directory rather than the
+ * cache the OS may reclaim: a cover is part of the library — a song not
+ * downloaded is still drawn with its picture — and one reclaimed could only
+ * come back as another read from the bucket. A bucket's covers and artists'
+ * pictures are named by the hash already in their key, so two songs sharing
+ * an album share one file and nothing ever goes stale; the library's own
+ * sweep (`sweepPictures`) deletes those it no longer names. A server's are
+ * named by song and revision, so new art replaces old.
  */
 const STORE = new Directory(Paths.document, 'covers')
+
+/**
+ * Where a bucket's covers were kept before they were kept for good: moved into
+ * `STORE` once, on the first launch that finds them, rather than fetched again.
+ */
+// TODO(after the phones have launched once): drop this and `moved`.
+const OLD_CACHE = new Directory(Paths.cache, 'covers')
+
+const moved: Promise<void> = (async () => {
+  try {
+    if (!OLD_CACHE.exists) return
+    STORE.create({ intermediates: true, idempotent: true })
+    for (const entry of OLD_CACHE.list()) {
+      if (!(entry instanceof File)) continue
+      if (new File(STORE, entry.name).exists) entry.delete()
+      else await entry.move(STORE)
+    }
+    OLD_CACHE.delete()
+  } catch {
+    // What could not be moved is fetched again when it is next drawn.
+  }
+})()
 
 const platform: CoverPlatform = {
   // A phone always has somewhere to put a cover.
@@ -47,15 +67,29 @@ const platform: CoverPlatform = {
     }
   },
 
-  haveCloud: name => {
-    const file = new File(CACHE, name)
-    return Promise.resolve(file.exists ? file.uri : null)
+  haveCloud: async name => {
+    await moved
+    const file = new File(STORE, name)
+    return file.exists ? file.uri : null
   },
 
-  // The same look, synchronous: expo-file-system's `exists` is.
+  // The same look, synchronous: expo-file-system's `exists` is. While the old
+  // cache is still being moved it may not find one, and `haveCloud` will.
   peekCloud: name => {
-    const file = new File(CACHE, name)
+    const file = new File(STORE, name)
     return file.exists ? file.uri : null
+  },
+
+  listCloud: async () => {
+    await moved
+    if (!STORE.exists) return []
+    return STORE.list().flatMap(entry => (entry instanceof File ? [entry.name] : []))
+  },
+
+  removeCloud: name => {
+    const file = new File(STORE, name)
+    if (file.exists) file.delete()
+    return Promise.resolve()
   },
 
   // `downloadFileAsync`, not a `DownloadTask`. A task is the right shape for a
@@ -68,8 +102,9 @@ const platform: CoverPlatform = {
   // `idempotent` because the name is the hash of the contents: the same file
   // twice is the same file, and racing to write it is not an error.
   keepCloud: async (name, url, headers) => {
-    CACHE.create({ intermediates: true, idempotent: true })
-    const written = await File.downloadFileAsync(url, new File(CACHE, name), {
+    await moved
+    STORE.create({ intermediates: true, idempotent: true })
+    const written = await File.downloadFileAsync(url, new File(STORE, name), {
       headers,
       idempotent: true,
     })
@@ -86,10 +121,9 @@ const platform: CoverPlatform = {
     return file.uri
   },
 
-  forgetFiles: () => {
-    if (CACHE.exists) CACHE.delete()
+  forgetFiles: async () => {
+    await moved
     if (STORE.exists) STORE.delete()
-    return Promise.resolve()
   },
 }
 
@@ -100,25 +134,25 @@ export const keepsCovers = true
  * The covers this phone still holds, newest first, for Welcome to show a
  * device that signed in before (docs/ui-mock `P02`).
  *
- * Both folders, read as files rather than through the store: the store only
+ * The folder, read as files rather than through the store: the store only
  * knows a cloud cover once a row has asked for it this launch, and Welcome is
  * drawn before any row. Newest first so the fan is what was played lately,
  * not whichever album sorts first.
  */
-export function keptCovers(limit: number): Promise<readonly string[]> {
+export async function keptCovers(limit: number): Promise<readonly string[]> {
+  await moved
   try {
     const files: File[] = []
-    for (const dir of [CACHE, STORE]) {
-      if (!dir.exists) continue
-      for (const entry of dir.list()) {
+    if (STORE.exists) {
+      for (const entry of STORE.list()) {
         if (entry instanceof File && isPicture(entry.name)) files.push(entry)
       }
     }
     files.sort((a, b) => (b.modificationTime ?? 0) - (a.modificationTime ?? 0))
-    return Promise.resolve(files.slice(0, limit).map(file => file.uri))
+    return files.slice(0, limit).map(file => file.uri)
   } catch {
     // Nothing kept, or nothing readable: Welcome draws its tiles.
-    return Promise.resolve([])
+    return []
   }
 }
 
@@ -129,6 +163,11 @@ export const {
   coverFailed,
   ensureServerCover,
   ensureCover,
+  subscribePictures,
+  picturesVersion,
+  pictureFor,
+  ensurePicture,
+  sweepPictures,
   forgetCovers,
 } = createCoverStore(platform)
 export { KEPT_COVER_SIZE } from './coverStore'

@@ -44,6 +44,7 @@ const snapshot = (overrides: Partial<CloudSnapshot> = {}): CloudSnapshot => ({
   songs: [],
   tags: [],
   playlists: [],
+  artists: [],
   ...overrides,
 })
 
@@ -185,5 +186,24 @@ describe('snapshotToLibrary', () => {
     const server = { addresses: ['http://localhost:4600', 'http://192.168.1.20:4600'], token: null }
     expect(snapshotToLibrary(snapshot({ server }), NO_IDS, 1).server).toEqual(server)
     expect(snapshotToLibrary(snapshot(), NO_IDS, 1).server).toBeNull()
+  })
+
+  it('knows each artist’s picture by the key of their name', () => {
+    const banner = `covers/${'1'.repeat(64)}.jpg`
+    const portrait = `covers/${'2'.repeat(64)}.jpg`
+    const view = snapshotToLibrary(
+      snapshot({
+        artists: [
+          {
+            artist: 'yorushika',
+            banner: { key: banner, size: 9 },
+            portrait: { key: portrait, size: 3 },
+          },
+        ],
+      }),
+      NO_IDS,
+      1,
+    )
+    expect(view.artists.get('yorushika')).toEqual({ banner, portrait })
   })
 })

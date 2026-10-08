@@ -729,6 +729,23 @@ const MIGRATIONS: readonly Migration[] = [
       END;
     `,
   },
+  {
+    // 36. Artists' pictures go to the bucket beside the covers, and the
+    // snapshot names them, so every device keeps them the way it keeps a cover
+    // (docs/SYNC.md). `cloud_songs`'s twin: what went up for each artist, and
+    // from which kept copy, so an unchanged picture is not read again.
+    name: 'artists’ pictures in the bucket',
+    sql: `
+      CREATE TABLE cloud_artists (
+        artist_key    TEXT    PRIMARY KEY,
+        banner_key    TEXT    NOT NULL,
+        banner_size   INTEGER NOT NULL,
+        portrait_key  TEXT    NOT NULL,
+        portrait_size INTEGER NOT NULL,
+        sig           TEXT    NOT NULL
+      );
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

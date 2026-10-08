@@ -1,6 +1,13 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { libraryReady, openLibrary, shuffleLibrary, skipIfNoLibrary } from './helpers.js'
+import {
+  libraryReady,
+  openLibrary,
+  playSong,
+  shuffleLibrary,
+  skipIfNoLibrary,
+  songRows,
+} from './helpers.js'
 
 /**
  * Up next (docs/ui-mock `P25`, `C11`, `C12`).
@@ -13,8 +20,35 @@ import { libraryReady, openLibrary, shuffleLibrary, skipIfNoLibrary } from './he
  * drags a pointer out of a scroll view tests the harness as much as the app.
  *
  * On a phone it is a sheet over the mini player and the tab bar, opened from
- * the mini player; swiping a row left removes it with the same Undo.
+ * the mini player; swiping a row left removes it with the same Undo, and
+ * Clear the rest takes everything but the song playing, with Undo too.
+ *
+ * A song played on its own from Library ends in silence, as it should, and Up
+ * next says so and offers what could come next (docs/features/lists.md).
  */
+
+/**
+ * A few seconds of silence, served for every song, so one ends while the flow
+ * waits: the dev library's songs are minutes long.
+ */
+function shortSilence(seconds: number): Buffer {
+  const rate = 8000
+  const samples = rate * seconds
+  const wav = Buffer.alloc(44 + samples * 2)
+  wav.write('RIFF', 0)
+  wav.writeUInt32LE(36 + samples * 2, 4)
+  wav.write('WAVEfmt ', 8)
+  wav.writeUInt32LE(16, 16)
+  wav.writeUInt16LE(1, 20)
+  wav.writeUInt16LE(1, 22)
+  wav.writeUInt32LE(rate, 24)
+  wav.writeUInt32LE(rate * 2, 28)
+  wav.writeUInt16LE(2, 32)
+  wav.writeUInt16LE(16, 34)
+  wav.write('data', 36)
+  wav.writeUInt32LE(samples * 2, 40)
+  return wav
+}
 
 const RAIL = 'the rail is the computer layout'
 const SHEET = 'the sheet is the phone layout'
@@ -63,6 +97,25 @@ test.describe('up next on a computer', () => {
 
     await toggle.click()
     await expect(rail).toBeHidden()
+  })
+
+  test('says once how a song comes out, and never again on this device', async ({ page }, info) => {
+    test.skip(info.project.name === 'phone', RAIL)
+    await startPlaying(page)
+    await page.getByTestId('player-bar-queue').click()
+    const rail = page.getByTestId('queue-rail')
+    const hint = page.getByTestId('queue-rail-hint')
+    await expect(hint).toHaveText(/Drag a song out to remove it/)
+
+    // Anything done in the rail puts it away.
+    await rail.getByTestId('queue-row-1').click()
+    await expect(hint).toBeHidden()
+
+    // Remembered on this device: a fresh start does not show it again.
+    await startPlaying(page)
+    await page.getByTestId('player-bar-queue').click()
+    await expect(rail.getByTestId('queue-row-1')).toBeVisible()
+    await expect(hint).toHaveCount(0)
   })
 
   test('a row held and moved lands where it was let go, far down a long queue', async ({
@@ -198,5 +251,55 @@ test.describe('up next on a phone', () => {
     await expect(song).toHaveCount(0)
     await page.getByRole('button', { name: 'Undo', exact: true }).click()
     await expect(song).toHaveCount(1)
+  })
+
+  test('Clear the rest keeps the song playing, and Undo puts the rest back', async ({
+    page,
+  }, info) => {
+    test.skip(info.project.name !== 'phone', SHEET)
+    await startPlaying(page)
+    await page.getByTestId('mini-player-queue').click()
+    const sheet = page.getByTestId('queue-sheet')
+    const next = sheet.getByTestId('queue-row-1')
+    await expect(next).toBeVisible()
+    const name = await nameOf(next.getByRole('button').first())
+
+    await sheet.getByTestId('queue-clear-rest').click()
+    await expect(page.getByText(/^Cleared \d+ songs?$/)).toBeVisible()
+    await expect(next).toHaveCount(0)
+    // The song playing stays, and so do the sheet and the mini player under it.
+    await expect(sheet.getByRole('button', { name: /^Playing / })).toBeVisible()
+    await expect(page.getByTestId('mini-player')).toBeAttached()
+
+    await page.getByRole('button', { name: 'Undo', exact: true }).click()
+    await expect(sheet.getByTestId('queue-row-1').getByRole('button').first()).toHaveAttribute(
+      'aria-label',
+      name,
+    )
+  })
+})
+
+test.describe('a song played on its own', () => {
+  test('ends with what could come next', async ({ page }, info) => {
+    const silence = shortSilence(3)
+    await page.route('**/api/stream/**', route =>
+      route.fulfill({ status: 200, contentType: 'audio/wav', body: silence }),
+    )
+    await openLibrary(page)
+    await libraryReady(page)
+    await skipIfNoLibrary(page, 2)
+    await playSong(page, songRows(page).first())
+
+    // It ends, nothing follows, and the app says so where Up next opens from.
+    await expect(page.getByText('That was the only song')).toBeVisible({ timeout: 15_000 })
+    const phone = info.project.name === 'phone'
+    await page.getByTestId(phone ? 'mini-player-queue' : 'player-bar-queue').click()
+    const surface = page.getByTestId(phone ? 'queue-sheet' : 'queue-rail')
+    const card = surface.getByTestId('only-song-end')
+    await expect(card).toBeVisible()
+
+    await card.getByTestId('only-song-shuffle').click()
+    await expect(card).toHaveCount(0)
+    await expect(surface.getByTestId('queue-row-1')).toBeVisible()
   })
 })

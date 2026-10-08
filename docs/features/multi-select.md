@@ -110,9 +110,12 @@ the scope, then the actions, then Done. On a phone the count, then Play, Queue, 
 as icons on one line, with select all and a playlist's Remove moved into More.
 
 - **Play** and **Add to queue** are in the bar: frequent and harmless.
-- **Remove from playlist** appears in the bar in a playlist you picked the songs for.
+- **Remove from playlist** appears in the bar in a playlist you picked the songs for. It
+  happens at once, with **Undo** for five seconds that puts the songs back in their places
+  (`usePlaylistRemoval`); a song's menu removes one song from its playlist the same way.
 - **⋯ More** holds everything that edits the library: love / unlove, add to playlist, **Tags…**,
-  download for offline / remove downloads, and last, separated and in red,
+  download for offline / remove downloads (with Undo, which downloads them again), and last,
+  separated and in red,
   **Remove … from library**. It is a popover at desktop width and a bottom sheet on a phone.
   Tags… opens the same picker a single song has, over the More button: search, tick, make a
   tag on the spot. A tag on every chosen song is ticked; one on some of them is a mixed tick,
@@ -186,8 +189,9 @@ empty batches) and the rollback.
 
 ## Things deliberately left out
 
-- **No undo.** A toast with an Undo button would need the server to hold removed rows for a
-  while, which is a bigger change than this one; the confirmation carries the weight instead.
+- **No undo for Remove from library.** It would need the server to hold removed rows, and
+  every device to put the song back; the confirmation carries the weight instead. Removing
+  from a playlist and removing downloads can be put back, so they have Undo and no question.
 - **No batch metadata edit.** "Fix metadata" is per-song by nature — it is a choice between
   candidates, not a value to stamp across a selection.
 - **No selection in the queue panel or on the Stats pages.** The library and a playlist are

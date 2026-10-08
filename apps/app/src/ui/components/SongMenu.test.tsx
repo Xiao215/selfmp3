@@ -31,7 +31,6 @@ jest.mock('@selfmp3/client', () => ({
   ...jest.requireActual('@selfmp3/client'),
   useLibrary: () => ({ data: { songs: [], playlists: [], tags: [] } }),
   useAddToPlaylist: () => ({ mutate: jest.fn() }),
-  useRemoveFromPlaylist: () => ({ mutate: jest.fn() }),
   useBulkDeleteSongs: () => ({ mutate: mockDeleteSong, isPending: false }),
   useToggleLoved: () => ({ mutate: jest.fn() }),
   clientApi: () => ({ similar: () => Promise.resolve({ songs: [] }) }),
@@ -45,6 +44,9 @@ jest.mock('../../offline/DownloadsProvider', () => ({
     dropDownloads: mockDropDownloads,
   }),
   useDownloadProgress: () => ({ activeSongId: null, bytesWritten: 0, totalBytes: 0 }),
+}))
+jest.mock('../../features/playlists/usePlaylistRemoval', () => ({
+  usePlaylistRemoval: () => jest.fn(),
 }))
 jest.mock('../../offline/useArt', () => ({ useArt: () => () => null }))
 jest.mock('../../player/PlayerProvider', () => ({

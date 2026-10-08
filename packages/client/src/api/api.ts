@@ -435,9 +435,6 @@ export function createApi({ context, fetch }: ApiOptions) {
     addToPlaylist: (id: number, input: AddToPlaylist) =>
       request('POST', `/api/playlists/${id}/songs`, PlaylistSchema, input),
 
-    removeFromPlaylist: (id: number, songId: number) =>
-      request('DELETE', `/api/playlists/${id}/songs/${songId}`, PlaylistSchema),
-
     removeManyFromPlaylist: (id: number, songIds: number[]) =>
       request('POST', `/api/playlists/${id}/songs/remove`, RemovedFromPlaylistSchema, { songIds }),
 

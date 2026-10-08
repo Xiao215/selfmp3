@@ -24,6 +24,7 @@ import {
  * The second is reordering, one gesture at every width: the row itself, held
  * until it lifts. It is checked by the order the page shows afterwards. The rows are put back where they were, so a run leaves
  * the library as it found it and the next run starts from the same place.
+ * Taking a song out is the same promise kept by Undo: it comes back where it was.
  */
 
 /**
@@ -142,6 +143,26 @@ test.describe('a playlist’s songs', () => {
 
     // Put it back, and prove the way back is the same way.
     await move(2, -2)
+    await expect
+      .poll(async () => (await order(page)).join('|'), { timeout: 15_000 })
+      .toBe(before.join('|'))
+  })
+})
+
+test.describe('a song taken out of a playlist', () => {
+  test('goes at once, and Undo puts it back in its place', async ({ page }) => {
+    const name = await openOneYouMade(page)
+    test.skip(name === null, 'needs a playlist you made with at least 3 songs')
+
+    const before = await order(page)
+    const title = before[1] ?? ''
+    await page.getByRole('button', { name: `More actions for ${title}` }).click()
+    await page.getByRole('menuitem', { name: 'Remove from this playlist' }).click()
+
+    await expect(page.getByText(`Removed “${title}” from ${name}`)).toBeVisible()
+    await expect.poll(async () => (await order(page)).includes(title)).toBe(false)
+
+    await page.getByRole('button', { name: 'Undo', exact: true }).click()
     await expect
       .poll(async () => (await order(page)).join('|'), { timeout: 15_000 })
       .toBe(before.join('|'))

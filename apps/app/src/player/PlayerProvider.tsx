@@ -40,6 +40,7 @@ import {
   useSettings,
 } from '@selfmp3/client'
 import type { ListSource } from '../features/lists/lists.model'
+import { withOnlyPlaying, withRestRestored } from '../features/queue/queue.model'
 import {
   artAddress,
   streamAddress,
@@ -117,6 +118,12 @@ export interface PlayerApi {
   readonly isPlaying: boolean
   /** Where what is in Up next came from, or null when nothing says. */
   readonly source: ListSource | null
+  /**
+   * The last song ran out with nothing after it, and has not been played or
+   * moved since: it stays loaded, paused at its end, and Up next says what
+   * could come next (docs/features/lists.md).
+   */
+  readonly ranOut: boolean
   /** Start these songs here. Up next becomes them, named by `options.source`. */
   playFrom: (songIds: readonly number[], startIndex: number, options?: PlayOptions) => void
   playShuffled: (songIds: readonly number[], source?: ListSource | null) => void
@@ -162,8 +169,15 @@ export interface PlayerApi {
   reorderQueue: (from: number, to: number) => void
   /** Put songs at one place in the queue: where a drag let go of them. */
   insertIntoQueue: (at: number, songIds: readonly number[]) => void
-  /** Empty the queue and stop, as the web's bin in Up next does. */
+  /** Empty the queue and stop: signing out. */
   clearQueue: () => void
+  /**
+   * Up next's "Clear the rest": every song but the one playing goes, and the
+   * music carries on. Hands back the queue as it was, for the Undo.
+   */
+  clearRest: () => QueueState
+  /** The Undo for `clearRest`: the songs it took, back in their places, while the same song plays. */
+  restoreRest: (before: QueueState) => void
   /**
    * Songs that have just left the library: out of the queue, and if one of them
    * is playing, the music stops — the next song waits, paused, or with none
@@ -227,6 +241,8 @@ type PlayerCommands = Pick<
   | 'reorderQueue'
   | 'insertIntoQueue'
   | 'clearQueue'
+  | 'clearRest'
+  | 'restoreRest'
   | 'forgetSongs'
   | 'setVolume'
   | 'stepVolume'
@@ -272,7 +288,16 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const [engine] = useState(createEngine)
   const [queue, setQueue] = useState<QueueState>(EMPTY_QUEUE)
   const [source, setSource] = useState<ListSource | null>(null)
+  /*
+   * The queue the last song ran out in (`ranOut`). Compared by identity, so
+   * any change to the queue — a new list, a song added — ends it without
+   * anyone having to clear it; playing, seeking and Previous clear it here.
+   */
+  const [ranOutIn, setRanOutIn] = useState<QueueState | null>(null)
   const [engineState, setEngineState] = useState<EngineState>(() => engine.state)
+  // Playing again, however it was asked for — the button, the lock screen, a
+  // headset — is no longer the end of anything. Adjusted during render.
+  if (engineState.playing && ranOutIn !== null) setRanOutIn(null)
   const [autoMix, setAutoMixState] = useState(() => prefs.get(AUTO_MIX_KEY) === '1')
   const [stores] = useState<PlayerStores>(() => ({
     progress: createProgressStore(),
@@ -543,6 +568,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         const { state, stop } = advancePlayable(ended, true, mayPlay)
         if (stop) {
           engine.pause()
+          setRanOutIn(ended)
           return
         }
 
@@ -680,6 +706,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   }, [engine, loadIndex, mayPlay, commitQueue])
 
   const previous = useCallback(() => {
+    setRanOutIn(null)
     // Within the first few seconds "previous" means the previous track, after
     // that it means "start this one again".
     if (engine.playhead > 3) {
@@ -764,6 +791,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
 
   const seekTo = useCallback(
     (seconds: number) => {
+      setRanOutIn(null)
       engine.seek(seconds)
     },
     [engine],
@@ -774,6 +802,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       // The engine clamps the far end itself — an `<audio>` will not seek past
       // its duration — and this keeps the near one off negative numbers, which
       // some engines answer by refusing to seek at all.
+      setRanOutIn(null)
       engine.seek(Math.max(0, lastPositionRef.current + delta))
     },
     [engine],
@@ -839,6 +868,20 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     setSource(null)
     engine.refreshLookahead?.()
   }, [engine, commitQueue])
+
+  const clearRest = useCallback(() => {
+    const before = queueRef.current
+    mutateQueue(withOnlyPlaying)
+    return before
+  }, [mutateQueue])
+
+  const restoreRest = useCallback(
+    (before: QueueState) => {
+      const back = withRestRestored(queueRef.current, before)
+      if (back) mutateQueue(() => back)
+    },
+    [mutateQueue],
+  )
 
   const forgetSongs = useCallback(
     (songIds: readonly number[]) => {
@@ -940,6 +983,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       removeFromQueue,
       reorderQueue,
       clearQueue,
+      clearRest,
+      restoreRest,
       forgetSongs,
       setVolume,
       stepVolume,
@@ -967,6 +1012,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       removeFromQueue,
       reorderQueue,
       clearQueue,
+      clearRest,
+      restoreRest,
       forgetSongs,
       setVolume,
       stepVolume,
@@ -984,6 +1031,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       current: resolved.currentSong,
       isPlaying: engineState.playing,
       source,
+      ranOut: ranOutIn === queue && !engineState.playing,
       sleepTimerEndsAt: sleep.endsAt,
       sleepAtSongEnd: sleep.atSongEnd,
       autoMix,
@@ -996,6 +1044,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       resolved,
       engineState.playing,
       source,
+      ranOutIn,
       sleep.endsAt,
       sleep.atSongEnd,
       autoMix,

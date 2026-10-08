@@ -15,12 +15,13 @@ import {
   useAddToPlaylist,
   useBulkLoved,
   useLibrary,
-  useRemoveManyFromPlaylist,
   uniqueName,
   useCreatePlaylist,
 } from '@selfmp3/client'
 import { playlistsToAddTo } from '../../features/playlists/playlists.model'
+import { usePlaylistRemoval } from '../../features/playlists/usePlaylistRemoval'
 import { useDownloads } from '../../offline/DownloadsProvider'
+import { useDownloadRemoval } from '../../offline/useDownloadRemoval'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { ease, timing, usePresence } from '../motion'
@@ -193,11 +194,12 @@ export function SelectionBar({
   const { top: statusBar } = useSafeAreaInsets()
   const { data: library } = useLibrary()
   const player = usePlayerCommands()
-  const { state: downloads, downloadByHand, removeByHand } = useDownloads()
+  const { state: downloads, downloadByHand } = useDownloads()
+  const removeDownloads = useDownloadRemoval()
 
   const bulkLoved = useBulkLoved()
   const addToPlaylist = useAddToPlaylist()
-  const removeFromPlaylist = useRemoveManyFromPlaylist()
+  const removeFromPlaylist = usePlaylistRemoval()
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [playlistsOpen, setPlaylistsOpen] = useState(false)
@@ -328,11 +330,7 @@ export function SelectionBar({
     onSuccess: () => showToast(message, 'good'),
   })
   const removeSelectedFromPlaylist = (): void => {
-    if (!playlist) return
-    removeFromPlaylist.mutate(
-      { playlistId: playlist.id, songIds: ids },
-      saidOnSuccess(`Removed ${count} ${songWord} from ${playlist.name}`),
-    )
+    if (playlist) removeFromPlaylist(playlist, songs)
   }
 
   const done = (
@@ -654,18 +652,7 @@ export function SelectionBar({
                 label={`Remove ${held.length === count ? '' : `${held.length} `}${
                   held.length === 1 ? 'download' : 'downloads'
                 }`}
-                onPress={act(() => {
-                  const removing = held.length
-                  // By hand, so the removal is remembered: the queue's own remove
-                  // left the next automatic pass to fetch them straight back.
-                  removeByHand(held.map(song => song.id))
-                    .then(() =>
-                      showToast(`Removed ${plural(removing, 'download', 'downloads')}`, 'good'),
-                    )
-                    .catch((caught: unknown) =>
-                      showToast(failureText('Couldn’t remove the downloads', caught), 'error'),
-                    )
-                })}
+                onPress={act(() => removeDownloads(held.map(song => song.id)))}
               />
             ) : null}
 

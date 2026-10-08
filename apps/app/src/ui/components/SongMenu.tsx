@@ -5,24 +5,23 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter, type Href } from 'expo-router'
 import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
 import {
-  clientApi,
-  failureText,
   isDownloaded,
   space,
   type,
   useAddToPlaylist,
   useLibrary,
-  useRemoveFromPlaylist,
   useToggleLoved,
 } from '@selfmp3/client'
 import { playlistsToAddTo } from '../../features/playlists/playlists.model'
+import { usePlaylistRemoval } from '../../features/playlists/usePlaylistRemoval'
+import { playSimilar } from '../../features/song/playSimilar'
 import { songLink } from '../../features/song/song.model'
 import { tagLink } from '../../features/tag/placeLinks'
 import { useArt } from '../../offline/useArt'
 import { useDownloads } from '../../offline/DownloadsProvider'
+import { useDownloadRemoval } from '../../offline/useDownloadRemoval'
 import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
 import { usePlayerCommands } from '../../player/PlayerProvider'
-import { showToast } from '../toast'
 import { Chip } from './Chip'
 import { RemoveSongs } from './ConfirmRemoveSongs'
 import { Cover } from './Cover'
@@ -195,9 +194,10 @@ function Items({
   const artFor = useArt()
   const { data: library } = useLibrary()
   const addToPlaylist = useAddToPlaylist()
-  const removeFromPlaylist = useRemoveFromPlaylist()
+  const removeFromPlaylist = usePlaylistRemoval()
+  const removeDownloads = useDownloadRemoval()
   const toggleLoved = useToggleLoved()
-  const { state: downloads, installed, requestDownload, removeByHand } = useDownloads()
+  const { state: downloads, installed, requestDownload } = useDownloads()
   const [playlistsOpen, setPlaylistsOpen] = useState(false)
 
   // The heart and the tags as they are now, not as they were when the menu opened.
@@ -215,20 +215,6 @@ function Items({
   const then = (run: () => void) => (): void => {
     run()
     onClose()
-  }
-
-  /** Nearest neighbours from the server; the seed song leads the list. */
-  const playSimilar = (): void => {
-    void clientApi()
-      .similar(song.id, 20)
-      .then(result =>
-        player.playFrom([song.id, ...result.songs.map(item => item.id)], 0, {
-          source: { kind: 'songs', origin: 'similar', name: `Similar to ${song.title}` },
-        }),
-      )
-      .catch((caught: unknown) =>
-        showToast(failureText('Couldn’t find similar songs', caught), 'error'),
-      )
   }
 
   const icon = (Glyph: typeof QueueAdd) => <Glyph size={16} color={theme.colors.textSecondary} />
@@ -309,13 +295,17 @@ function Items({
           onClose()
         }}
       />
-      <SheetItem icon={icon(Sparkles)} label="Play similar songs" onPress={then(playSimilar)} />
+      <SheetItem
+        icon={icon(Sparkles)}
+        label="Play similar songs"
+        onPress={then(() => playSimilar(player, song))}
+      />
       {/* A browser streams; only an installed app keeps songs. */}
       {!installed ? null : held ? (
         <SheetItem
           icon={icon(CloudRemove)}
           label="Remove download"
-          onPress={then(() => void removeByHand([song.id]))}
+          onPress={then(() => removeDownloads([song.id]))}
         />
       ) : (
         <SheetItem
@@ -339,9 +329,7 @@ function Items({
           <SheetItem
             icon={icon(X)}
             label="Remove from this playlist"
-            onPress={then(() =>
-              removeFromPlaylist.mutate({ playlistId: playlist.id, songId: song.id }),
-            )}
+            onPress={then(() => removeFromPlaylist(playlist, [song]))}
           />
         </>
       ) : null}

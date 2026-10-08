@@ -838,19 +838,6 @@ export function useAddToPlaylist() {
   })
 }
 
-export function useRemoveFromPlaylist() {
-  const client = useQueryClient()
-  return useMutation({
-    mutationFn: ({ playlistId, songId }: { playlistId: number; songId: number }) =>
-      clientApi().removeFromPlaylist(playlistId, songId),
-    meta: { failure: 'Couldn’t take the song off the playlist' },
-    onSuccess: (playlist, { playlistId }) => {
-      putPlaylist(client, playlist)
-      void client.invalidateQueries({ queryKey: queryKeys.playlistSongs(playlistId) })
-    },
-  })
-}
-
 /**
  * Put a playlist's songs in a new order, and show them in it at once.
  *

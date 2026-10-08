@@ -401,15 +401,6 @@ export function createCloudRoutes(
       },
     ],
     [
-      'DELETE',
-      '/api/playlists/:id/songs/:id',
-      ({ session, params }) =>
-        recordChanges(session, ctx => ({
-          changes: edits.removeFromPlaylist(ctx, id(params), [id(params, 1)]),
-          answer: view => playlistOf(view, view.uids.playlists.get(id(params))),
-        })),
-    ],
-    [
       'PUT',
       '/api/playlists/:id/order',
       ({ session, params, body }) => {

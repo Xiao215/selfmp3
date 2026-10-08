@@ -1,9 +1,7 @@
 import { Router } from 'express'
-import { z } from 'zod'
 import {
   AddToPlaylistSchema,
   CreatePlaylistSchema,
-  IdSchema,
   RemoveFromPlaylistSchema,
   ReorderPlaylistSchema,
   UpdatePlaylistSchema,
@@ -14,8 +12,6 @@ import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
 import { ParamsWithId } from '../http/params.js'
-
-const ParamsWithSong = z.object({ id: IdSchema, songId: IdSchema })
 
 const LIVE_BUILDS_ITSELF = 'a live playlist builds itself — edit its rules instead'
 
@@ -170,20 +166,6 @@ export function playlistRoutes(container: Container): Router {
         return { removed, playlist: container.playlists.byId(params.id) }
       },
     ),
-  )
-
-  router.delete(
-    '/playlists/:id/songs/:songId',
-    route({ params: ParamsWithSong }, ({ params }) => {
-      const playlist = requirePlaylist(params.id)
-      if (playlist.kind === 'live') {
-        throw HttpError.badRequest(LIVE_BUILDS_ITSELF)
-      }
-      container.playlists.remove(params.id, params.songId)
-      container.edits.playlistSongs(params.id, [params.songId])
-      container.bumpLibraryVersion()
-      return container.playlists.byId(params.id)
-    }),
   )
 
   router.put(

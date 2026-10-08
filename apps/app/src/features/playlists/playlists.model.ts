@@ -250,3 +250,16 @@ export function newPlaylist(
 export function copyName(name: string, taken: readonly string[]): string {
   return uniqueName(`${name} copy`, taken)
 }
+
+/**
+ * A playlist's order once songs taken out of it are added back (the Undo of a
+ * removal): the songs as they stood before, each in its old place, followed by
+ * any song added since. A song that left in the meantime by another hand stays
+ * gone; the Undo only puts back what it took.
+ */
+export function restoredOrder(before: readonly number[], now: readonly number[]): number[] {
+  const present = new Set(now)
+  const kept = before.filter(id => present.has(id))
+  const placed = new Set(kept)
+  return [...kept, ...now.filter(id => !placed.has(id))]
+}

@@ -4,6 +4,7 @@ import {
   formatLongDuration,
   playNext,
   queueSections,
+  withoutSongs,
   type QueueEntry,
   type QueueState,
   type Song,
@@ -209,9 +210,6 @@ export function railWindow({
 
 // --- Undo ---------------------------------------------------------------------
 
-/** How long a removal can be taken back (`C12`: "an Undo for five seconds"). */
-export const UNDO_MS = 5000
-
 /**
  * A removed song, remembered by its neighbours rather than by its index. The
  * queue moves on while the Undo waits — a song ends, another is removed — so
@@ -264,4 +262,55 @@ export function restoreMoves(
   if (from < 0) return null
   const rest = after.items.filter(id => id !== removal.id)
   return { from, to: restoreIndex(rest, removal) }
+}
+
+// --- Clear the rest -------------------------------------------------------------
+
+/**
+ * Up next with only the playing song left in it: the phone sheet's "Clear the
+ * rest". The songs played go too, and the song playing carries on; with
+ * nothing playing there is nothing to keep, and nothing changes.
+ */
+export function withOnlyPlaying(state: QueueState): QueueState {
+  const playing = state.items[state.index]
+  if (playing === undefined) return state
+  const rest = state.items.filter(id => id !== playing)
+  return withoutSongs(state, rest)
+}
+
+/**
+ * The Undo for "Clear the rest": Up next as it was before, while the song that
+ * was playing then still is. Songs added since stay, after the ones put back.
+ * Null once another song has started, since "back in their places" then has
+ * no place to mean.
+ */
+export function withRestRestored(now: QueueState, before: QueueState): QueueState | null {
+  const playing = before.items[before.index]
+  if (playing === undefined || now.items[now.index] !== playing) return null
+  const known = new Set(before.items)
+  const added = now.items.filter(id => !known.has(id))
+  const original = new Set(before.original)
+  return {
+    ...before,
+    // Repeat is a mode, not a part of the list: whatever it is now stays.
+    repeat: now.repeat,
+    items: [...before.items, ...added],
+    original: [...before.original, ...added.filter(id => !original.has(id))],
+  }
+}
+
+// --- A song played on its own, ended ----------------------------------------------
+
+/**
+ * Whether Up next should say "That was the only song" and offer what could
+ * come next: one song picked out of Library or the palette played alone
+ * (`playAlone`, no source), and it has run out. A list that ran out keeps its
+ * plain end; it was asked for whole.
+ */
+export function onlySongEnded(player: {
+  readonly ranOut: boolean
+  readonly queue: QueueState
+  readonly source: unknown
+}): boolean {
+  return player.ranOut && player.queue.items.length === 1 && player.source === null
 }

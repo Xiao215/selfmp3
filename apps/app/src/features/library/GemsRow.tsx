@@ -11,6 +11,7 @@ import { prefs } from '../../ports/prefs'
 import { useLayout } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
+import { Press } from '../../ui/components/Press'
 import { ChevronDown, ChevronRight, Play } from '../../ui/components/Icons'
 import { card, sectionTitle } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
@@ -51,19 +52,20 @@ export function GemsRow(): ReactNode {
   }
 
   const cards = data.songs.map((song, index) => (
-    <Pressable
+    // It sinks under the finger, as everything pressed does (`Press`). A grey
+    // box behind it was wider than the cover and sat off to its right
+    // (Xiao, 2026-10-08).
+    <Press
       key={song.id}
+      wrap={few ? styles.cardFewWrap : null}
       onPress={() => player.playFrom(ids, index, { source: GEMS })}
       accessibilityRole="button"
       accessibilityLabel={`${song.title} — ${artistOr(song.artist)}`}
       {...tip(`${song.title} — ${artistOr(song.artist)}`)}
-      style={({ pressed }) => [
-        few ? styles.cardFew : styles.card,
-        pressed && (few ? styles.cardFewPressed : styles.cardPressed),
-      ]}
+      style={few ? styles.cardFew : styles.card}
     >
-      <Cover uri={artFor(song)} title={song.album || song.title} size={few ? 44 : 64} />
-      <View style={styles.cardText}>
+      <Cover uri={artFor(song)} title={song.album || song.title} size={few ? 44 : 72} />
+      <View style={few ? styles.cardTextFew : styles.cardText}>
         <Text style={[styles.cardTitle, few && styles.cardTitleFew]} numberOfLines={1}>
           {song.title}
         </Text>
@@ -74,7 +76,7 @@ export function GemsRow(): ReactNode {
           {song.lastPlayedAt ? formatRelative(song.lastPlayedAt) : 'never played'}
         </Text>
       </View>
-    </Pressable>
+    </Press>
   ))
 
   return (
@@ -152,12 +154,11 @@ const styles = StyleSheet.create(theme => ({
   actions: { flexDirection: 'row', gap: 8 },
   list: { gap: 10, marginTop: 10, paddingBottom: 4 },
   listFew: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
-  card: { width: 92, padding: 4, gap: 3, borderRadius: 12 },
-  cardPressed: { backgroundColor: theme.colors.surface2 },
+  // As wide as its cover: the words under it end where the picture does.
+  card: { width: 72, gap: 3 },
+  // Grows in the row's wrap; the card fills what its wrap is given.
+  cardFewWrap: { flexGrow: 1, flexBasis: 200, maxWidth: 340 },
   cardFew: {
-    flexGrow: 1,
-    flexBasis: 200,
-    maxWidth: 340,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
@@ -165,8 +166,10 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: 12,
     backgroundColor: theme.colors.surface2,
   },
-  cardFewPressed: { backgroundColor: theme.colors.surface3 },
-  cardText: { flex: 1, minWidth: 0, gap: 1 },
+  // Not `flex: 1` under a poster: in a shelf that scrolls sideways there is
+  // no height left to grow into, and on a phone the words came out 0 high.
+  cardText: { minWidth: 0, gap: 1 },
+  cardTextFew: { flex: 1, minWidth: 0, gap: 1 },
   cardTitle: {
     color: theme.colors.textPrimary,
     fontSize: type.tiny,

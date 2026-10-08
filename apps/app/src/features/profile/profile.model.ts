@@ -1,4 +1,5 @@
 import { plural, formatRelative, type Stats } from '@selfmp3/shared'
+import { unreachableLabel } from '../library/library.model'
 import type { DevicePlace } from '../settings/settings.model'
 import { durationWords, formatHour, peakHour, peakHourWords } from '../stats/stats.model'
 
@@ -86,15 +87,18 @@ export function profileLine({
   /** When the library last arrived, in ms; 0 or undefined before it has. */
   syncedAt: number | undefined
   pending: boolean
-  error: boolean
+  /** Why the library did not come; null (or false) while it has. */
+  error: unknown
   fromCloud: boolean
   now?: Date
 }): string {
   const parts: string[] = []
   if (songs !== undefined) parts.push(plural(songs, 'song', 'songs'))
   if (tags !== undefined) parts.push(plural(tags, 'tag', 'tags'))
-  if (error) parts.push(fromCloud ? 'can’t reach the cloud' : 'can’t reach your server')
-  else if (pending || !syncedAt) parts.push('connecting…')
+  if (error) {
+    const label = unreachableLabel(fromCloud, error)
+    parts.push(label.charAt(0).toLowerCase() + label.slice(1))
+  } else if (pending || !syncedAt) parts.push('connecting…')
   else parts.push(`synced ${formatRelative(syncedAt, now)}`)
   return parts.join(' · ')
 }

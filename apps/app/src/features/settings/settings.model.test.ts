@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ApiError } from '@selfmp3/client'
 
 import {
   accentName,
@@ -154,6 +155,10 @@ describe('settings', () => {
     expect(healthLine(undefined, { loading: true })).toBe('Checking your library…')
     expect(healthLine(undefined, { error: true })).toBe('Can’t reach your server')
     expect(healthLine(undefined, { error: true, fromCloud: true })).toBe('Can’t reach the cloud')
+    const capped = new ApiError(502, 'cap exceeded', 'bucket_cap_exceeded')
+    expect(healthLine(undefined, { error: capped, fromCloud: true })).toBe(
+      'Bucket limit reached for today',
+    )
   })
 
   it('keeps this device, what is online and the last week, and folds the rest away', () => {

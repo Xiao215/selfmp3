@@ -1,5 +1,6 @@
 import type { AnalysisStatus, DeviceKind, Health, ScanResult } from '@selfmp3/shared'
 import { clamp01, plural } from '@selfmp3/shared'
+import { unreachableLabel } from '../library/library.model'
 
 /**
  * Settings' rules, with nothing drawn: which sections a device shows, which one
@@ -176,7 +177,8 @@ export function healthLine(
   health: Health | undefined,
   asking: {
     readonly loading?: boolean
-    readonly error?: boolean
+    /** What the check failed with; any truthy value counts as failed. */
+    readonly error?: unknown
     readonly fromCloud?: boolean
   } = {},
 ): string {
@@ -186,7 +188,7 @@ export function healthLine(
     return `self.mp3 ${health.version}${songs}`
   }
   if (asking.loading) return 'Checking your library…'
-  if (asking.error) return asking.fromCloud ? 'Can’t reach the cloud' : 'Can’t reach your server'
+  if (asking.error) return unreachableLabel(asking.fromCloud ?? false, asking.error)
   return 'Not connected to your library right now'
 }
 

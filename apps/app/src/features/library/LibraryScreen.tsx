@@ -253,7 +253,7 @@ export function LibraryScreen(): ReactNode {
   const emptyState =
     model.emptyReason === 'unreachable' ? (
       <View style={styles.emptyCard}>
-        <CantReach onRetry={model.retry} />
+        <CantReach error={model.failure} onRetry={model.retry} />
       </View>
     ) : model.emptyReason === 'no-library' ? (
       <Text style={styles.empty}>{NO_LIBRARY_TEXT}</Text>

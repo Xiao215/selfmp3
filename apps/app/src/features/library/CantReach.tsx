@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { Linking, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { space, type } from '@selfmp3/client'
@@ -7,7 +7,7 @@ import { useConnection } from '../../connection/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { card } from '../../ui/surfaces'
-import { unreachableCopy } from './library.model'
+import { BACKBLAZE_CAPS_URL, bucketCapped, unreachableCopy } from './library.model'
 
 /**
  * What stands where the library would, when it did not answer and nothing is
@@ -17,17 +17,28 @@ import { unreachableCopy } from './library.model'
  * yet" and "Nothing of your own yet" were what these pages said before, which
  * told someone with four hundred songs to import one. Try again asks at once
  * rather than waiting for the next refetch; Connection settings opens Settings
- * at the address, which is the other half of most of these.
+ * at the address, which is the other half of most of these. A bucket whose
+ * daily allowance is used up was reached fine: the second button is then
+ * Backblaze's page for raising it.
  */
-export function CantReach({ onRetry }: { onRetry: () => void }): ReactNode {
+export function CantReach({
+  error,
+  onRetry,
+}: {
+  /** What the library failed with: a used-up bucket allowance is said as that. */
+  error: unknown
+  onRetry: () => void
+}): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
   const { wide } = useLayout()
   const { fromCloud, connection } = useConnection()
+  const capped = bucketCapped(error)
   const copy = unreachableCopy({
     fromCloud,
     address: connection?.baseUrl ?? null,
     compact: !wide,
+    error,
   })
 
   return (
@@ -41,10 +52,14 @@ export function CantReach({ onRetry }: { onRetry: () => void }): ReactNode {
       <Text style={styles.body}>{copy.body}</Text>
       <View style={styles.actions}>
         <Button label="Try again" onPress={onRetry} />
-        <Button
-          label={wide ? 'Connection settings' : 'Settings'}
-          onPress={() => router.push({ pathname: '/settings', params: { section: 'account' } })}
-        />
+        {capped ? (
+          <Button label="Open Backblaze" onPress={() => void Linking.openURL(BACKBLAZE_CAPS_URL)} />
+        ) : (
+          <Button
+            label={wide ? 'Connection settings' : 'Settings'}
+            onPress={() => router.push({ pathname: '/settings', params: { section: 'account' } })}
+          />
+        )}
       </View>
     </View>
   )

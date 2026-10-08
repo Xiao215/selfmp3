@@ -327,7 +327,7 @@ export function SettingsScreen(): ReactNode {
             <Text style={[styles.sub, wide ? null : styles.titleRight]}>
               {healthLine(health.data, {
                 loading: health.isPending,
-                error: health.isError,
+                error: health.isError ? health.error : null,
                 fromCloud,
               })}
             </Text>

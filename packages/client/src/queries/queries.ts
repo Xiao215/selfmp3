@@ -278,8 +278,12 @@ export function useLibrary(): UseQueryResult<Library, Error> {
     // Keep showing the old library while a refetch runs, so the list does not
     // flash empty every time the app regains focus.
     placeholderData: previous => previous,
+    // Offline, or the bucket's daily allowance used up: asking again at once
+    // gets the same answer, and the screen should say why without the wait.
     retry: (failureCount, error) =>
-      error instanceof ApiError && error.isOffline ? false : failureCount < 2,
+      error instanceof ApiError && (error.isOffline || error.isBucketCapped)
+        ? false
+        : failureCount < 2,
   })
 }
 

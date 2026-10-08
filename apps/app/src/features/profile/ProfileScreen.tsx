@@ -104,7 +104,7 @@ function Person(): ReactNode {
     tags: library.data?.tags.length,
     syncedAt: library.dataUpdatedAt,
     pending: library.isPending,
-    error: library.isError,
+    error: library.isError ? library.error : null,
     fromCloud,
   })
 

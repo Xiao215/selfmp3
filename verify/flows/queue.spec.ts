@@ -99,6 +99,25 @@ test.describe('up next on a computer', () => {
     await expect(rail).toBeHidden()
   })
 
+  test('says once how a song comes out, and never again on this device', async ({ page }, info) => {
+    test.skip(info.project.name === 'phone', RAIL)
+    await startPlaying(page)
+    await page.getByTestId('player-bar-queue').click()
+    const rail = page.getByTestId('queue-rail')
+    const hint = page.getByTestId('queue-rail-hint')
+    await expect(hint).toHaveText(/Drag a song out to remove it/)
+
+    // Anything done in the rail puts it away.
+    await rail.getByTestId('queue-row-1').click()
+    await expect(hint).toBeHidden()
+
+    // Remembered on this device: a fresh start does not show it again.
+    await startPlaying(page)
+    await page.getByTestId('player-bar-queue').click()
+    await expect(rail.getByTestId('queue-row-1')).toBeVisible()
+    await expect(hint).toHaveCount(0)
+  })
+
   test('a row held and moved lands where it was let go, far down a long queue', async ({
     page,
   }, info) => {

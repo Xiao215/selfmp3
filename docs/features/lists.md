@@ -22,7 +22,7 @@ The verbs: **Play** (replaces Up next, from anywhere), **Add to Up next**, **Sav
 |---|---|
 | Where a list came from, what Up next calls it, what Save makes, Recently played's rules | `apps/app/src/features/lists/lists.model.ts` |
 | Save | `apps/app/src/features/lists/useSaveUpNext.ts` |
-| After a song played alone, Clear the rest | `apps/app/src/features/queue/OnlySongEnd.tsx`, `useQueueEdits.ts` |
+| After a song played alone, Clear the rest, the rail's hint | `apps/app/src/features/queue/OnlySongEnd.tsx`, `useQueueEdits.ts`, `useRailHint.ts` |
 | Recently played, kept on this device | `apps/app/src/features/lists/recentLists.store.ts` |
 | The line over Up next's songs | `apps/app/src/features/queue/UpNextSource.tsx` |
 | A tag's page, and tags together on top of it | `apps/app/src/features/tag/PlacePage.tsx`, `CombinedScreen.tsx` (`/combined`) |
@@ -55,7 +55,9 @@ runs out — a tag, a playlist — keeps its plain end: it was asked for whole
 
 A phone swipes a row left; a computer drags it out of the rail, or right-clicks it or presses
 Delete. Each comes with **Undo** for five seconds, which puts the song back beside the songs
-it was between.
+it was between. The first time the rail is open with a song after the playing one, a small
+hint under it says "Drag a song out to remove it, or right-click for more." — until anything
+is done in the rail or for six seconds, and never again on that device (N2; `useRailHint.ts`).
 
 The phone sheet's **Clear the rest** takes out every song but the one playing — the ones to
 come and the ones played — and the music, the sheet and the mini player carry on (C1). It is

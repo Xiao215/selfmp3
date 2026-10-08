@@ -53,10 +53,7 @@ export function DesktopPanel({ anchor }: { anchor: (node: View | null) => void }
       hint={updates.version === null ? 'on this computer' : `version ${updates.version}`}
       anchor={anchor}
     >
-      <Row
-        label="Open at login"
-        hint="Starts self.mp3 when you log in to this computer. macOS keeps this in System Settings › General › Login Items, and turning it off there turns it off here."
-      >
+      <Row label="Open at login" hint="Starts self.mp3 when you log in.">
         <Toggle
           value={open ?? false}
           label="Open at login"
@@ -103,11 +100,11 @@ function updateHint(update: UpdateState | null, looking: boolean): string {
     case 'available':
       return update.canInstall
         ? `Version ${update.version ?? ''} is available.`
-        : `Version ${update.version ?? ''} is available. This copy was not signed, so it cannot replace itself — download it from the release page.`
+        : `Version ${update.version ?? ''} is out. Download it from the release page.`
     case 'downloading':
       return `Downloading version ${update.version ?? ''}…`
     case 'ready':
-      return `Version ${update.version ?? ''} is ready. It will be in place the next time self.mp3 starts.`
+      return `Version ${update.version ?? ''} is ready for the next start.`
     case 'error':
       return `Could not check: ${update.message ?? 'no answer from GitHub'}.`
     default:

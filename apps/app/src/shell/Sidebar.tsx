@@ -21,6 +21,7 @@ import { bucketCapped, capShort, unreachableLabel } from '../features/library/li
 import { useBucketHold } from '../features/profile/useBucketHold'
 import { noteTagUsed, useRecentTagIds } from '../features/library/recentTags.store'
 import { NewPlaylist } from '../features/playlists/NewPlaylist'
+import { enterFromSidebar, useRecordSidebarEntry } from './sidebarEntry'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'
 import { isLive, listedPlaylists } from '../features/playlists/playlists.model'
 import { useSongDragActive, useSongDropTarget } from '../ports/songDrag'
@@ -115,6 +116,8 @@ function SidebarInner(): ReactNode {
     DESTINATIONS.map(destination => destination.href),
   )
   const slide = useSlidingHighlight(lit, styles.itemOn)
+  // What a press here opens is a place of its own, with no ‹ (J1).
+  useRecordSidebarEntry()
 
   return (
     <View
@@ -149,7 +152,9 @@ function SidebarInner(): ReactNode {
               onLayout={slide.measure(destination.href)}
               style={[styles.item, active && !slide.placed && styles.itemOn]}
               onPress={() => {
-                if (!active) router.navigate(destination.href)
+                if (active) return
+                enterFromSidebar()
+                router.navigate(destination.href)
               }}
               accessibilityRole="tab"
               accessibilityLabel={destination.label}
@@ -243,7 +248,9 @@ function Playlists(): ReactNode {
       <View style={styles.groupTitle}>
         <Pressable
           onPress={() => {
-            if (pathname !== '/playlists') router.navigate('/playlists')
+            if (pathname === '/playlists') return
+            enterFromSidebar()
+            router.navigate('/playlists')
           }}
           accessibilityRole="tab"
           accessibilityLabel="Playlists"
@@ -270,9 +277,10 @@ function Playlists(): ReactNode {
           key={playlist.id}
           playlist={playlist}
           active={pathname === `/playlists/${playlist.id}`}
-          onOpen={() =>
+          onOpen={() => {
+            enterFromSidebar()
             router.navigate({ pathname: '/playlists/[id]', params: { id: String(playlist.id) } })
-          }
+          }}
         />
       ))}
 
@@ -369,7 +377,9 @@ function Tags(): ReactNode {
   // A tag is a place (docs/UI-MIGRATION.md, Phase 4): choosing one opens its page.
   const open = (tag: Tag): void => {
     noteTagUsed(tag.id)
-    if (!onTagPage(pathname, tag.name)) router.navigate(tagLink(tag.name))
+    if (onTagPage(pathname, tag.name)) return
+    enterFromSidebar()
+    router.navigate(tagLink(tag.name))
   }
 
   const closeForm = (): void => {
@@ -396,7 +406,10 @@ function Tags(): ReactNode {
     <View style={styles.group}>
       <View style={styles.groupTitle}>
         <Pressable
-          onPress={() => router.navigate('/tags')}
+          onPress={() => {
+            enterFromSidebar()
+            router.navigate('/tags')
+          }}
           accessibilityRole="link"
           accessibilityLabel={`All ${plural(tags.length, 'tag', 'tags')}`}
           testID="sidebar-tags"
@@ -608,7 +621,10 @@ function Foot(): ReactNode {
           pathname === '/profile' && styles.itemOn,
           pressed && { backgroundColor: theme.colors.surface2 },
         ]}
-        onPress={() => router.navigate('/profile')}
+        onPress={() => {
+          enterFromSidebar()
+          router.navigate('/profile')
+        }}
         accessibilityRole="button"
         accessibilityLabel={
           library.data || capped ? `Profile. ${label}, ${detail}` : `Profile. ${label}`

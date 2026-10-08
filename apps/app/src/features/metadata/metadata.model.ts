@@ -204,7 +204,7 @@ export function missingArtCount(songs: readonly Pick<Song, 'hasArt'>[]): number 
 export function coverArtHint(missing: number): string {
   return missing === 0
     ? 'Every song has artwork.'
-    : `${plural(missing, 'song has', 'songs have')} none. Looks each one up on iTunes and MusicBrainz and keeps confident matches only.`
+    : `${plural(missing, 'song has', 'songs have')} none. Looks up confident matches.`
 }
 
 /** "Checking 3 of 12 — アイドル · 2 found", while the pass runs. */

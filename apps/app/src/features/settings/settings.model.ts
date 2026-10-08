@@ -19,22 +19,31 @@ export type SectionId =
   | 'account'
   | 'lyrics'
   | 'smart'
+  | 'model'
   | 'devices'
   | 'desktop'
   | 'getApp'
   | 'appearance'
   | 'shortcuts'
   | 'about'
+  | 'advanced'
 
 /**
  * The groups, in page order (`P38`, `C17`): who you are and the look first,
  * then what this device keeps, then the rest. `server`: the section acts on
- * the server, so a cloud library has none.
+ * the server, so a cloud library has none. `advanced`: it is about running
+ * the server or the Mac app rather than using self.mp3, so it sits under
+ * Advanced at the end, behind one chip (O1).
  *
  * Devices is not one of those any more: a cloud library finds its server the way
  * Import does, and with no server in reach it still shows the last list it had.
  */
-export const ALL_SECTIONS: readonly { id: SectionId; label: string; server?: boolean }[] = [
+export const ALL_SECTIONS: readonly {
+  id: SectionId
+  label: string
+  server?: boolean
+  advanced?: boolean
+}[] = [
   // Which library this is, and signing out of it.
   { id: 'account', label: 'Account' },
   { id: 'appearance', label: 'Appearance' },
@@ -42,19 +51,45 @@ export const ALL_SECTIONS: readonly { id: SectionId; label: string; server?: boo
   { id: 'offline', label: 'On this phone' },
   { id: 'devices', label: 'Devices' },
   { id: 'playback', label: 'Playback' },
-  { id: 'library', label: 'Library', server: true },
-  { id: 'importing', label: 'Importing', server: true },
-  { id: 'cloud', label: 'Cloud', server: true },
   // Not `server`: a cloud library reaches the server for it, the way Ask does.
   { id: 'smart', label: 'Smart features' },
   // Not the server's: romaji is kept with the words in the cloud too, and the switches are this device's.
   { id: 'lyrics', label: 'Lyrics' },
-  { id: 'desktop', label: 'Desktop app' },
-  // The same place in the page as Desktop app, for the tab that could become it.
-  { id: 'getApp', label: 'Mac app' },
   { id: 'shortcuts', label: 'Keyboard shortcuts' },
   { id: 'about', label: 'About' },
+  { id: 'library', label: 'Library', server: true, advanced: true },
+  { id: 'importing', label: 'Importing', server: true, advanced: true },
+  { id: 'cloud', label: 'Cloud', server: true, advanced: true },
+  // Where the server asks a model, and the Test: Smart features' switches stay above.
+  { id: 'model', label: 'Model', advanced: true },
+  { id: 'desktop', label: 'Desktop app', advanced: true },
+  // The same place in the page as Desktop app, for the tab that could become it.
+  { id: 'getApp', label: 'Mac app', advanced: true },
 ]
+
+/** One shown section: where the page can land, and whether it is under Advanced. */
+export interface Section {
+  readonly id: SectionId
+  readonly label: string
+  readonly advanced: boolean
+}
+
+/** The chip, or the index link, a section is read under: Advanced for its own. */
+export function indexIdFor(id: SectionId, sections: readonly Section[]): SectionId {
+  return sections.find(section => section.id === id)?.advanced ? 'advanced' : id
+}
+
+/**
+ * The page's index: every section that is not under Advanced, then Advanced
+ * itself when anything is under it. The sections under it are still places a
+ * link can land (`/settings?section=cloud`); they share its chip.
+ */
+export function settingsIndex(sections: readonly Section[]): readonly Section[] {
+  const index = sections.filter(section => !section.advanced)
+  return sections.some(section => section.advanced)
+    ? [...index, { id: 'advanced', label: 'Advanced', advanced: false }]
+    : index
+}
 
 /**
  * What this device is, as the words for it: a phone, or a computer. From the
@@ -99,7 +134,7 @@ export function sectionsFor({
   readonly shell?: boolean
   readonly place?: DevicePlace
   readonly offered?: boolean
-}): readonly { id: SectionId; label: string }[] {
+}): readonly Section[] {
   return ALL_SECTIONS.filter(
     section =>
       (!fromCloud || !section.server) &&
@@ -107,11 +142,11 @@ export function sectionsFor({
       ((keyboard && shell) || section.id !== 'shortcuts') &&
       (shell || section.id !== 'desktop') &&
       (offered || section.id !== 'getApp'),
-  ).map(section =>
-    section.id === 'offline'
-      ? { id: section.id, label: onThisDevice(place) }
-      : { id: section.id, label: section.label },
-  )
+  ).map(section => ({
+    id: section.id,
+    label: section.id === 'offline' ? onThisDevice(place) : section.label,
+    advanced: section.advanced ?? false,
+  }))
 }
 
 /** How far below the top of the page a section counts as the one being read. */
@@ -240,8 +275,8 @@ export function splitDevices<
 }
 
 export function scanHint(result: ScanResult | undefined): string {
-  if (!result) return 'Import any audio files dropped into the folder outside self.mp3.'
-  return `Last sweep found ${result.added} new and ${result.updated} updated; ${plural(result.total, 'song', 'songs')} in the library.`
+  if (!result) return 'Picks up files added to the folder by hand.'
+  return `Last sweep: ${result.added} new, ${result.updated} updated.`
 }
 
 /**
@@ -258,32 +293,27 @@ export function downloadHint(state: {
   readonly chip: 'arm64' | 'x64' | null
 }): string {
   if (state.loading) return 'Finding the latest version…'
-  if (state.error) return 'Could not reach GitHub. Every version is on the releases page.'
-  if (state.offers === 0) return 'No release yet. The releases page will have the first one.'
-  const what =
-    'Your music on the disk rather than in a browser\u2019s cache, the media keys, and a Dock icon.'
+  if (state.error) return 'Couldn’t reach GitHub. Try the releases page.'
+  if (state.offers === 0) return 'No release yet.'
   const version = state.version ? `Version ${state.version}. ` : ''
-  const which = state.chip
-    ? ''
-    : ' Apple menu \u203a About This Mac says whether this Mac has Apple silicon or an Intel chip.'
-  return `${version}${what}${which}`
+  // Which dmg is this Mac's, where the browser could not tell.
+  const which = state.chip ? 'Media keys and a Dock icon.' : 'About This Mac names your chip.'
+  return `${version}${which}`
 }
 
 /** What the listening model is doing, in the words Settings shows under its row. */
 export function soundHint(sound: AnalysisStatus['sound'], songs: number): string {
-  const what =
-    'A model on your server listens to each song once, for “Sounds like” and for Ask to find music by how it sounds.'
   switch (sound.state) {
     case 'off':
-      return `${what} It is switched off on this server.`
+      return 'Switched off on this server.'
     case 'waiting':
-      return `${what} It starts once every song has its tempo and key.`
+      return 'Starts once every song has tempo and key.'
     case 'fetching':
-      return `${what} The server is downloading it (about 750 MB) the first time it is wanted.`
+      return 'Downloading the listening model (about 750 MB).'
     case 'failed':
-      return `${what} The server could not get it${sound.message ? `: ${sound.message}` : ''}. It tries again within the hour.`
+      return `Couldn’t get the model${sound.message ? `: ${sound.message}` : ''}. Tries again hourly.`
     case 'ready':
-      return `${what} ${sound.heard} of ${plural(songs, 'song', 'songs')} heard${sound.pending > 0 ? ` · ${sound.pending} to go` : ''}.`
+      return `${sound.heard} of ${plural(songs, 'song', 'songs')} heard${sound.pending > 0 ? ` · ${sound.pending} to go` : ''}`
   }
 }
 

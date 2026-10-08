@@ -14,7 +14,7 @@ import {
 } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { Refresh, Sparkles, X } from '../../ui/components/Icons'
-import { Lead, Notice, Panel, partStyles, Row } from './SettingsParts'
+import { Notice, Panel, partStyles, Row } from './SettingsParts'
 import { analysisProgress, scanHint, soundHint, type Confirming } from './settings.model'
 import {
   coverArtHint,
@@ -42,12 +42,7 @@ export function LibraryPanel({
 
   return (
     <Panel title="Library" hint={plural(songs.length, 'song', 'songs')} anchor={anchor}>
-      {libraryPath !== undefined ? (
-        <Lead>
-          Your music lives at <Text style={partStyles.code}>{libraryPath}</Text>. It is just a
-          folder of files — copy it anywhere and you have a complete backup.
-        </Lead>
-      ) : null}
+      {libraryPath !== undefined ? <Row label="Folder" hint={libraryPath} /> : null}
       <Row label="Rescan the folder" hint={scanHint(scan.data)}>
         <Button
           label={scan.isPending ? 'Scanning…' : 'Rescan'}
@@ -58,7 +53,7 @@ export function LibraryPanel({
       </Row>
       <Row
         label="Audio analysis"
-        hint={`Works out each song’s tempo, key, energy and loudness from the file itself, on your server. It powers smart-playlist rules and auto-mix. ${analysed} of ${plural(songs.length, 'song', 'songs')} analysed.`}
+        hint={`Tempo, key and energy · ${analysed} of ${plural(songs.length, 'song', 'songs')}`}
       >
         <Button
           label={running ? 'Analysing…' : 'Analyse new songs'}

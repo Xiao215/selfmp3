@@ -13,17 +13,11 @@ import { Panel, Row } from './SettingsParts'
 import { reachedConnection, viaKey } from '../../connection/via'
 
 /**
- * Smart features (docs/features/ai.md): where your server asks a model, and a
- * Test that goes the whole way, a leg at a time — this device to your server,
- * then your server to the model — so "couldn't reach" says which of the two.
+ * Smart features (docs/features/ai.md), in Settings.
  *
- * The address is the server's (`SELFMP3_AI_BASE_URL` in its `.env`), shown
- * here and not edited: it sits beside the key, which never leaves the server.
- */
-/**
- * Each feature, and what of the library it shows the model: said here because
- * "the model sees your library" is too vague to agree to, and each one sees
- * less than that.
+ * Each feature, and what of the library it shows the model, in a line: said
+ * here because "the model sees your library" is too vague to agree to, and
+ * each one sees less than that.
  */
 const SWITCHES: readonly {
   key: 'smartAsk' | 'smartTidy' | 'smartTags' | 'smartWritten' | 'smartMetadata' | 'smartWeb'
@@ -33,35 +27,40 @@ const SWITCHES: readonly {
   {
     key: 'smartAsk',
     label: 'Ask in Search',
-    sees: 'Also Let it pick and Up next. Sends your words, your tags, the artists you have and how many songs each; then titles, artists, tags, energy and plays of the songs that fit. With a song playing, that song.',
+    sees: 'Sends your words and the songs that fit.',
   },
   {
     key: 'smartTidy',
     label: 'Tidy up',
-    sees: 'Sends artist and album names, with how many songs each. Never a title or a lyric.',
+    sees: 'Sends artist and album names, never titles.',
   },
   {
     key: 'smartTags',
     label: 'Tags',
-    sees: 'Suggest tags, and asking for tags to be put on, taken off, renamed or merged. Sends what each of your tags holds, and the artists, albums, tags and a few titles of the songs in question.',
+    sees: 'Sends your tags and the songs in question.',
   },
   {
     key: 'smartWritten',
     label: 'The Report in words',
-    sees: 'Sends the Report’s numbers and the songs, artists and tags it names.',
+    sees: 'Sends the Report’s numbers and names.',
   },
   {
     key: 'smartMetadata',
     label: 'Fix metadata',
-    sees: 'Suggest on a song’s Fix metadata. Sends that song’s names, length, file name and the link it came from, with the catalogue listings found for it.',
+    sees: 'Sends the song’s names and catalogue matches.',
   },
   {
     key: 'smartWeb',
     label: 'Search the web',
-    sees: 'Off until you turn it on. When your library and the music catalogues don’t have the answer, Ask may search the web: the names in question go to a search engine, and it takes longer.',
+    sees: 'Off by default. Sends names to a search engine.',
   },
 ]
 
+/**
+ * Smart features' switches, and what Ask remembers: using the features. Where
+ * the server asks a model, and the Test, are running it, and sit under
+ * Advanced (`SmartModelPanel`, O1).
+ */
 export function SmartPanel({
   anchor,
   settings,
@@ -72,6 +71,71 @@ export function SmartPanel({
   settings?: Settings
   set: <K extends keyof Settings>(key: K, value: Settings[K]) => void
 }): ReactNode {
+  const server = useSmartServer()
+  return (
+    <Panel
+      title="Smart features"
+      mark={<Sparkle size={12} />}
+      hint="on your server"
+      anchor={anchor}
+    >
+      {server.reach.state !== 'reachable' ? (
+        <ServerAwayRow reach={server.reach} />
+      ) : (
+        <>
+          {settings
+            ? SWITCHES.map(each => (
+                <Row key={each.key} label={each.label} hint={each.sees}>
+                  <Toggle
+                    value={settings[each.key]}
+                    onChange={value => set(each.key, value)}
+                    label={each.label}
+                  />
+                </Row>
+              ))
+            : null}
+          {settings ? (
+            <Row
+              label="What Ask remembers"
+              hint={
+                settings.smartNotes.length === 0
+                  ? 'Nothing yet. Ask offers to remember standing requests.'
+                  : 'Sent with every request.'
+              }
+              last={settings.smartNotes.length === 0}
+            />
+          ) : null}
+          {settings?.smartNotes.map((note, index) => (
+            <View key={note} style={styles.note} testID="smart-note">
+              <Text style={styles.noteText}>{note}</Text>
+              <Button
+                label="Forget"
+                variant="text"
+                onPress={() =>
+                  set(
+                    'smartNotes',
+                    settings.smartNotes.filter((_, at) => at !== index),
+                  )
+                }
+                testID="smart-note-forget"
+              />
+            </View>
+          ))}
+        </>
+      )}
+    </Panel>
+  )
+}
+
+/**
+ * Where your server asks a model, and a Test that goes the whole way, a leg
+ * at a time — this device to your server, then your server to the model — so
+ * "couldn't reach" says which of the two.
+ *
+ * The address is the server's (`SELFMP3_AI_BASE_URL` in its `.env`), shown
+ * here and not edited: it sits beside the key, which never leaves the server.
+ */
+export function SmartModelPanel({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
   const server = useSmartServer()
   const queryClient = useQueryClient()
   const via = reachedConnection(server.reach)?.baseUrl ?? null
@@ -105,31 +169,9 @@ export function SmartPanel({
   }
 
   return (
-    <Panel
-      title="Smart features"
-      mark={<Sparkle size={12} />}
-      hint="on your server"
-      anchor={anchor}
-    >
+    <Panel title="Model" mark={<Sparkle size={12} />} hint="for smart features" anchor={anchor}>
       {server.reach.state !== 'reachable' ? (
-        <Row
-          label="Your server"
-          hint={
-            server.reach.state === 'looking'
-              ? 'Looking for your server…'
-              : 'Isn’t answering, so smart features can’t be used from here. It answers on the same Wi‑Fi, or over Tailscale.'
-          }
-          last
-        >
-          {server.reach.state === 'away' ? (
-            <Button
-              label="Look again"
-              icon={<Refresh size={13} tone="textPrimary" />}
-              onPress={server.reach.lookAgain}
-              testID="smart-look-again"
-            />
-          ) : null}
-        </Row>
+        <ServerAwayRow reach={server.reach} />
       ) : (
         <>
           <Row label="Model address" hint={addressHint(setup.data, setup.error)}>
@@ -140,7 +182,7 @@ export function SmartPanel({
             ) : null}
           </Row>
           {setup.data?.address ? (
-            <Row label="Models" hint="Quick jobs like planning, then judging and picking">
+            <Row label="Models" hint="Fast, then smart">
               <Text style={styles.address}>
                 {setup.data.models.fast === setup.data.models.smart
                   ? setup.data.models.fast
@@ -148,46 +190,9 @@ export function SmartPanel({
               </Text>
             </Row>
           ) : null}
-          {settings
-            ? SWITCHES.map(each => (
-                <Row key={each.key} label={each.label} hint={each.sees}>
-                  <Toggle
-                    value={settings[each.key]}
-                    onChange={value => set(each.key, value)}
-                    label={each.label}
-                  />
-                </Row>
-              ))
-            : null}
-          {settings ? (
-            <Row
-              label="What Ask remembers"
-              hint={
-                settings.smartNotes.length === 0
-                  ? 'Nothing yet. Tell Ask how you want things done from now on (“from now on, Chinese names only”) and it offers to remember it.'
-                  : 'Sent with every request. Take one away to stop it.'
-              }
-            />
-          ) : null}
-          {settings?.smartNotes.map((note, index) => (
-            <View key={note} style={styles.note} testID="smart-note">
-              <Text style={styles.noteText}>{note}</Text>
-              <Button
-                label="Forget"
-                variant="text"
-                onPress={() =>
-                  set(
-                    'smartNotes',
-                    settings.smartNotes.filter((_, at) => at !== index),
-                  )
-                }
-                testID="smart-note-forget"
-              />
-            </View>
-          ))}
           <Row
             label="Test the connection"
-            hint="One small request: this device to your server, then your server to the model."
+            hint="This device to your server, then to the model."
             last={hops === null}
           >
             <Button
@@ -224,6 +229,34 @@ export function SmartPanel({
   )
 }
 
+/** Your server not answering, or not found yet: said the same in both panels. */
+function ServerAwayRow({
+  reach,
+}: {
+  reach: ReturnType<typeof useSmartServer>['reach']
+}): ReactNode {
+  return (
+    <Row
+      label="Your server"
+      hint={
+        reach.state === 'looking'
+          ? 'Looking for your server…'
+          : 'Isn’t answering. Try the same Wi‑Fi or Tailscale.'
+      }
+      last
+    >
+      {reach.state === 'away' ? (
+        <Button
+          label="Look again"
+          icon={<Refresh size={13} tone="textPrimary" />}
+          onPress={reach.lookAgain}
+          testID="smart-look-again"
+        />
+      ) : null}
+    </Row>
+  )
+}
+
 function addressHint(
   data: { address: string | null } | undefined,
   error: unknown,
@@ -231,9 +264,9 @@ function addressHint(
   if (error) return serverHop({ error }).line
   if (!data) return undefined
   if (data.address === null) {
-    return 'Not set up. Set SELFMP3_AI_BASE_URL in your server’s .env to an endpoint that speaks OpenAI’s chat completions, then restart it.'
+    return 'Not set up: SELFMP3_AI_BASE_URL in the server’s .env.'
   }
-  return 'Set by SELFMP3_AI_BASE_URL in your server’s .env.'
+  return 'From SELFMP3_AI_BASE_URL.'
 }
 
 const styles = StyleSheet.create(theme => ({

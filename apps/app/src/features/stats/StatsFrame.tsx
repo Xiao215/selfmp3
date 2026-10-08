@@ -72,7 +72,7 @@ function Arriving({
   return <Animated.View style={[style, slide]}>{children}</Animated.View>
 }
 
-/** Where "View Report" goes: the month as a page, a page of its own. */
+/** Where "Report" goes: the month as a page, a page of its own. */
 const REPORT_HREF = '/stats/report'
 
 /**
@@ -107,30 +107,26 @@ export function StatsFrame({
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
         testID={testID}
       >
-        {/* On a phone the way back, the window and the page's name share a
-            line, the name at the far end of it, as Import has it (`P32`). A
-            computer has no way back here, so the name leads and the windows
-            and the Report follow it. */}
-        <View style={[styles.head, wide ? null : styles.headPhone]}>
-          <BackButton to="/profile" label="Profile" testID="stats-back" />
-          {wide ? null : (
-            <Select
-              value={period}
-              onChange={onPeriod}
-              label="Time range"
-              options={options}
-              testID="stats-range"
-            />
-          )}
-          <View style={[styles.titles, wide ? null : styles.titlesRight]}>
+        {/* The way back, then the page's name on the left under it (J1); on a
+            phone the window's menu sits beside the name. A computer's windows
+            and the Report follow the name instead. */}
+        <BackButton to="/profile" testID="stats-back" />
+        <View style={styles.head}>
+          <View style={[styles.titles, wide ? null : styles.titlesPhone]}>
             {/* No caption under the name: the window's own control says which
                 window this is, and said it twice. */}
-            <Text
-              style={[styles.heading, wide ? null : styles.titleRight]}
-              accessibilityRole="header"
-            >
+            <Text style={styles.heading} accessibilityRole="header">
               Stats
             </Text>
+            {wide ? null : (
+              <Select
+                value={period}
+                onChange={onPeriod}
+                label="Time range"
+                options={options}
+                testID="stats-range"
+              />
+            )}
           </View>
           {wide ? (
             <View style={styles.controls}>
@@ -152,21 +148,21 @@ export function StatsFrame({
   )
 }
 
-/** "View Report": a pill in the computer's header, the page's last line on a phone. */
+/** "Report": a pill in the computer's header, the page's last line on a phone. */
 function ReportLink({ pill }: { pill: boolean }): ReactNode {
   const router = useRouter()
   return (
     <Pressable
       onPress={() => router.push(REPORT_HREF)}
       accessibilityRole="link"
-      accessibilityLabel="View Report"
+      accessibilityLabel="Report"
       testID="stats-report"
       style={({ pressed }) => [
         pill ? styles.pill : styles.line,
         pressed && (pill ? styles.pillPressed : styles.linePressed),
       ]}
     >
-      <Text style={pill ? styles.pillText : styles.linkText}>View Report</Text>
+      <Text style={pill ? styles.pillText : styles.linkText}>Report</Text>
       {pill ? null : <ChevronRight size={16} tone="textMuted" />}
     </Pressable>
   )
@@ -191,10 +187,8 @@ const styles = StyleSheet.create(theme => ({
     gap: 12,
     marginBottom: 8,
   },
-  headPhone: { justifyContent: 'flex-start', alignItems: 'flex-start' },
   titles: { gap: 2, flexShrink: 1 },
-  titlesRight: { marginLeft: 'auto', minWidth: 0, alignItems: 'flex-end' },
-  titleRight: { textAlign: 'right' },
+  titlesPhone: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   heading: pageTitle(theme.colors),
   controls: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   pill: {

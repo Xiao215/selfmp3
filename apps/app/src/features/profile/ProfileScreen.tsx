@@ -74,7 +74,7 @@ function ProfilePage({
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
         testID="profile-screen"
       >
-        <BackButton to="/" label="Home" testID="profile-back" />
+        <BackButton to="/" testID="profile-back" />
         <Person />
         <Month card={monthCard(stats)} loading={loading} via={via} />
         <View>

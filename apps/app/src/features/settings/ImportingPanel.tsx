@@ -16,10 +16,7 @@ export function ImportingPanel({
 }): ReactNode {
   return (
     <Panel title="Importing" hint="shared across your devices" anchor={anchor}>
-      <Row
-        label="Downloads at once"
-        hint="More is rarely faster and makes YouTube throttle. Two is a good default."
-      >
+      <Row label="Downloads at once" hint="Two is a good default.">
         <Select<number>
           value={settings.importConcurrency}
           onChange={value => set('importConcurrency', value)}
@@ -27,11 +24,7 @@ export function ImportingPanel({
           label="Downloads at once"
         />
       </Row>
-      <Row
-        label="Watch the library folder"
-        hint="Rescan the moment a file is added, removed or renamed — drag something into the folder in Finder and it shows up here. No timer needed."
-        last
-      >
+      <Row label="Watch the library folder" hint="Picks up files the moment they change." last>
         <Toggle
           value={settings.watchLibrary}
           onChange={value => set('watchLibrary', value)}

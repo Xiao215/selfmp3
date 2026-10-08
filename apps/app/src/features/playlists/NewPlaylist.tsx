@@ -1,44 +1,52 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, TextInput, View } from 'react-native'
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { plural, formatLongDuration, type Tag } from '@selfmp3/shared'
-import { failureText, radius, space, useCreatePlaylist, useLibrary } from '@selfmp3/client'
+import {
+  failureText,
+  radius,
+  space,
+  uniqueName,
+  useCreatePlaylist,
+  useLibrary,
+} from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
-import { isComposing } from '../../shell/composing'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
-import { ListMusic, Sparkle } from '../../ui/components/Icons'
+import { ListMusic, Sparkle, Tag as TagIcon } from '../../ui/components/Icons'
 import { Sheet } from '../../ui/components/Sheet'
 import { followRules } from '../lists/followRules'
 import { AddSongsSheet } from '../playlistDetail/AddSongsSheet'
-import { exactTag, matchingTags } from '../smart/smart.model'
 import { SongsAnswer } from '../smart/SongsAnswer'
 import { useSmartServer } from '../smart/useSmartServer'
 import { newPlaylist } from './playlists.model'
 
+/** Where the sheet is: the kind first, then what the kind needs, then the name. */
+type Step = 'kind' | 'tags' | 'describe' | 'name'
+/** What is being made: songs picked by hand, a playlist that fills from tags, or one Ask picks. */
+type Kind = 'pick' | 'follow' | 'describe'
+
 /**
  * Making a playlist, from wherever it is started: the sidebar's ＋, the
- * playlists page's New, the phone's ＋.
+ * playlists page's New and its New tile, the phone's ＋.
  *
- * One field, no kinds (N1, docs/features/ai.md). What is typed decides what
- * the playlist is, rather than a name first and then a choice of how to fill it:
+ * The kind first, then a name (L2, docs/features/lists.md), so nothing typed
+ * goes anywhere it was not sent:
  *
- * - letters that are a tag's name offer the tag, and a tag picked sits in the
- *   field as a chip. A playlist of tags follows them and keeps itself filled,
- *   and is named after them; **Stop filling** on the playlist keeps every song.
- * - anything typed can be a description: **Let it pick** reads it and picks
- *   from your own songs, each with a reason (SongsAnswer).
- * - or it is simply the name of a playlist you fill yourself, which goes
- *   straight into picking its songs and is only made when the first ones are
- *   confirmed, with them: a playlist exists once it has a song
+ * - **Pick songs**: a name, then picking its songs. It is only made when the
+ *   first ones are confirmed, with them: a playlist exists once it has a song
  *   (docs/UI-MIGRATION.md, Phase 5), so cancelling leaves nothing behind.
- *
- * The name comes last, on its own, and is the playlist page's to change.
+ * - **Fills from tags**: the tags, then a name (theirs, to start with). It
+ *   follows them and keeps itself filled; **Stop filling** on the playlist
+ *   keeps every song.
+ * - **Describe it**, when Ask is on: what you want to hear, then a name (the
+ *   words, to start with), then the songs it picked from your own, each with a
+ *   reason (SongsAnswer).
  */
 export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => void }): ReactNode {
   const { theme } = useUnistyles()
@@ -47,43 +55,46 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   const { mutateAsync: createPlaylist } = useCreatePlaylist()
   const server = useSmartServer()
   const { data: library } = useLibrary()
+  const switches = useSmartSwitches()
 
-  const [text, setText] = useState('')
-  const [focused, setFocused] = useState(false)
+  const [step, setStep] = useState<Step>('kind')
+  const [kind, setKind] = useState<Kind>('pick')
   const [tagIds, setTagIds] = useState<readonly number[]>([])
+  const [words, setWords] = useState('')
+  const [name, setName] = useState('')
+  const [focused, setFocused] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   /** Named, and picking its songs: the playlist does not exist yet. */
   const [picking, setPicking] = useState<string | null>(null)
-  /** The words sent to be picked from, while their answer is the one shown. */
-  const [asked, setAsked] = useState<string | null>(null)
 
   const describe = useMutation({
-    mutationFn: (words: string) => {
+    mutationFn: (text: string) => {
       if (!server.api) throw new Error('your server isn’t reachable')
-      return server.api.describePlaylist({ text: words, understanding: null })
+      return server.api.describePlaylist({ text, understanding: null })
     },
   })
 
   const tags: readonly Tag[] = library?.tags ?? []
   const chosen = tagIds.flatMap(id => tags.filter(tag => tag.id === id))
-  const typed = text.trim()
-  const switches = useSmartSwitches()
-  const offered = matchingTags(text, tags, tagIds)
+  const tagsName = chosen.map(tag => tag.name).join(' · ')
   const songs = library?.songs ?? []
   // What it would hold, worked out here rather than asked of the server: the
-  // whole library is already in memory, and a count that lags behind the chips
-  // is worse than no count.
+  // whole library is already in memory, and a count that lags behind the
+  // choice is worse than no count.
   const matching = songs.filter(song => tagIds.some(id => song.tagIds.includes(id)))
   const seconds = matching.reduce((total, song) => total + song.duration, 0)
-  const tagsName = chosen.map(tag => tag.name).join(' · ')
+  const offered = [...tags].sort(
+    (a, b) => b.songCount - a.songCount || a.name.localeCompare(b.name),
+  )
 
   const reset = (): void => {
-    setText('')
+    setStep('kind')
     setTagIds([])
+    setWords('')
+    setName('')
     setError(null)
     setPicking(null)
-    setAsked(null)
     describe.reset()
   }
 
@@ -98,6 +109,29 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
     onClose()
   }
 
+  const choose = (next: Kind): void => {
+    setKind(next)
+    setError(null)
+    if (next === 'follow') setStep('tags')
+    else if (next === 'describe') setStep('describe')
+    else toName(uniqueName('New playlist', library?.playlists.map(each => each.name) ?? []))
+  }
+
+  /** On to the name, which starts as what was just chosen or said. */
+  function toName(start: string): void {
+    setName(start)
+    setStep('name')
+  }
+
+  /** Back one step: from the name to what the kind asked for, and from there to the kinds. */
+  const back = (): void => {
+    setError(null)
+    describe.reset()
+    if (step === 'name' && kind === 'follow') setStep('tags')
+    else if (step === 'name' && kind === 'describe') setStep('describe')
+    else setStep('kind')
+  }
+
   /** Made with its first songs, in one go; a failure is the picker's to show. */
   const createWith = async (songIds: readonly number[]): Promise<void> => {
     const input = newPlaylist('manual', picking ?? '')
@@ -109,44 +143,33 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
     if (chosen.length === 0 || busy) return
     setBusy(true)
     setError(null)
+    const title = name.trim() || tagsName
     try {
-      const input = newPlaylist('live', tagsName, {
+      const input = newPlaylist('live', title, {
         rules: followRules({ tagIds, sort: 'addedAt', descending: true }),
       })
       if (!input) return
       finish((await createPlaylist({ input })).id)
     } catch (caught) {
-      setError(failureText(`Couldn’t make “${tagsName}”`, caught))
+      setError(failureText(`Couldn’t make “${title}”`, caught))
     } finally {
       setBusy(false)
     }
   }
 
-  /** The words, with any tags already chosen as the places to pick from. */
-  const letItPick = (): void => {
-    if (!typed || describe.isPending) return
-    const words = chosen.length > 0 ? `${chosen.map(tag => tag.name).join(', ')}: ${typed}` : typed
-    setAsked(words)
-    describe.mutate(words)
+  /** The name step's button: what the kind does once it is named. */
+  const make = (): void => {
+    const title = name.trim()
+    if (!title) return
+    if (kind === 'pick') setPicking(title)
+    else if (kind === 'follow') void follow()
+    else if (!describe.isPending) describe.mutate(words.trim())
   }
 
-  const addTag = (tag: Tag): void => {
-    setTagIds(current => [...current, tag.id])
-    setText('')
-    setAsked(null)
-  }
-  const removeTag = (tagId: number): void => {
-    setTagIds(current => current.filter(id => id !== tagId))
-    setAsked(null)
-  }
-
-  /** ↵: a tag typed in full is picked; other words are a description; chips alone are followed. */
-  const submit = (): void => {
-    const exact = exactTag(text, tags)
-    if (exact && !tagIds.includes(exact.id)) addTag(exact)
-    else if (typed) letItPick()
-    else void follow()
-  }
+  const toggleTag = (tag: Tag): void =>
+    setTagIds(current =>
+      current.includes(tag.id) ? current.filter(id => id !== tag.id) : [...current, tag.id],
+    )
 
   if (picking !== null) {
     return (
@@ -159,153 +182,176 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
     )
   }
 
-  const answer = asked !== null ? describe.data : undefined
+  const answer = step === 'name' && kind === 'describe' ? describe.data : undefined
+  const field = (props: {
+    value: string
+    onChangeText: (text: string) => void
+    onSubmit: () => void
+    placeholder: string
+    label: string
+    testID: string
+  }): ReactNode => (
+    <View style={[styles.field, focused && { borderColor: accent.accent }]}>
+      <TextInput
+        // One field per step: a new key starts the next one focused, with its own text.
+        key={props.testID}
+        style={styles.input}
+        value={props.value}
+        onChangeText={props.onChangeText}
+        onSubmitEditing={props.onSubmit}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        placeholder={props.placeholder}
+        placeholderTextColor={theme.colors.textMuted}
+        accessibilityLabel={props.label}
+        autoFocus
+        // A name that starts as a suggestion is replaced by the first letter typed.
+        selectTextOnFocus
+        autoCorrect={false}
+        returnKeyType="done"
+        submitBehavior="submit"
+        testID={props.testID}
+      />
+    </View>
+  )
 
   return (
     <Sheet open={open} onClose={cancel} title="New playlist" testID="new-playlist">
       <View style={styles.body}>
-        <View style={[styles.field, focused && { borderColor: accent.accent }]}>
-          {chosen.map(tag => (
-            <Chip
-              key={tag.id}
-              compact
-              label={tag.name}
-              hue={tag.hue}
-              selected
-              onPress={() => removeTag(tag.id)}
-              onRemove={() => removeTag(tag.id)}
-            />
-          ))}
-          <TextInput
-            style={styles.input}
-            value={text}
-            onChangeText={next => {
-              setText(next)
-              setAsked(null)
-            }}
-            onKeyPress={event => {
-              // Backspace in an empty field takes the last chip back out.
-              if (event.nativeEvent.key !== 'Backspace' || text !== '' || tagIds.length === 0)
-                return
-              if (isComposing(event.nativeEvent as { isComposing?: boolean })) return
-              removeTag(tagIds[tagIds.length - 1]!)
-            }}
-            onSubmitEditing={submit}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            placeholder={
-              chosen.length > 0
-                ? 'Another tag, or say what you want from them'
-                : 'A tag, a name, or what you want to hear'
-            }
-            placeholderTextColor={theme.colors.textMuted}
-            accessibilityLabel="Tags to follow, a name, or a description"
-            autoFocus
-            autoCorrect={false}
-            returnKeyType="done"
-            submitBehavior="submit"
-            testID="new-playlist-field"
-          />
-        </View>
-
-        {answer ? (
-          <SongsAnswer result={answer} text={asked ?? typed} onSaved={finish} onCancel={cancel} />
-        ) : (
+        {step === 'kind' ? (
           <>
-            {offered.length > 0 ? (
-              <View style={styles.chips} testID="new-playlist-tags">
-                {offered.map(tag => (
-                  <Chip
-                    key={tag.id}
-                    compact
-                    label={tag.name}
-                    hue={tag.hue}
-                    count={tag.songCount}
-                    selected={false}
-                    onPress={() => addTag(tag)}
-                  />
-                ))}
-              </View>
-            ) : null}
-
-            {chosen.length > 0 && !typed ? (
-              <Text style={styles.hint}>
-                {plural(matching.length, 'song', 'songs')} · {formatLongDuration(seconds)} · keeps
-                itself filled as you tag more
-              </Text>
-            ) : null}
-
-            {typed && switches.ask ? (
+            <Option
+              icon={<ListMusic size={16} color={theme.colors.textSecondary} />}
+              title="Pick songs"
+              sub="Start empty and add songs"
+              onPress={() => choose('pick')}
+              testID="new-playlist-pick"
+            />
+            <Option
+              icon={<TagIcon size={16} color={theme.colors.textSecondary} />}
+              title="Fills from tags"
+              sub="Grows as you tag songs"
+              onPress={() => choose('follow')}
+              testID="new-playlist-follow"
+            />
+            {switches.ask ? (
               <Option
                 icon={<Sparkle size={16} />}
-                title={
-                  chosen.length > 0
-                    ? `Let it pick from ${tagsName}: “${typed}”`
-                    : `Let it pick songs for “${typed}”`
-                }
-                sub="Picks from your own songs, with a reason for each"
-                onPress={letItPick}
+                title="Describe it"
+                sub="Ask picks songs from your library"
+                onPress={() => choose('describe')}
                 testID="new-playlist-describe"
               />
             ) : null}
-            {typed && chosen.length === 0 ? (
-              <Option
-                icon={<ListMusic size={16} color={theme.colors.textSecondary} />}
-                title={`An empty playlist called “${typed}”`}
-                sub="Add songs yourself"
-                onPress={() => setPicking(typed)}
-                testID="new-playlist-empty"
+          </>
+        ) : step === 'tags' ? (
+          <>
+            <ScrollView
+              style={styles.tagScroll}
+              contentContainerStyle={styles.chips}
+              testID="new-playlist-tags"
+            >
+              {offered.map(tag => (
+                <Chip
+                  key={tag.id}
+                  compact
+                  label={tag.name}
+                  hue={tag.hue}
+                  count={tag.songCount}
+                  selected={tagIds.includes(tag.id)}
+                  onPress={() => toggleTag(tag)}
+                />
+              ))}
+            </ScrollView>
+            <Text style={styles.hint}>
+              {chosen.length === 0
+                ? 'Choose one or more tags'
+                : `${plural(matching.length, 'song', 'songs')} · ${formatLongDuration(seconds)}`}
+            </Text>
+          </>
+        ) : step === 'describe' ? (
+          field({
+            value: words,
+            onChangeText: setWords,
+            onSubmit: () => {
+              if (words.trim()) toName(words.trim())
+            },
+            placeholder: 'rainy evening, no live songs',
+            label: 'What you want to hear',
+            testID: 'new-playlist-words',
+          })
+        ) : answer ? (
+          <SongsAnswer
+            result={answer}
+            text={words.trim()}
+            name={name}
+            onSaved={finish}
+            onCancel={cancel}
+          />
+        ) : (
+          field({
+            value: name,
+            onChangeText: setName,
+            onSubmit: make,
+            placeholder: 'Name',
+            label: 'Playlist name',
+            testID: 'new-playlist-field',
+          })
+        )}
+
+        {describe.isPending ? (
+          <Text style={styles.hint} accessibilityLiveRegion="polite">
+            Reading your library. This can take half a minute.
+          </Text>
+        ) : null}
+        {describe.error && server.reach.state !== 'reachable' ? (
+          <ServerAway reach={server.reach} need="ai" testID="new-playlist-server" />
+        ) : describe.error ? (
+          <Text style={styles.error}>{failureText('Couldn’t pick songs', describe.error)}</Text>
+        ) : null}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        {answer ? null : (
+          <View style={styles.actions}>
+            {step === 'kind' ? (
+              <Button label="Cancel" onPress={cancel} />
+            ) : (
+              <Button label="Back" onPress={back} testID="new-playlist-back" />
+            )}
+            {step === 'tags' ? (
+              <Button
+                label="Next"
+                variant="primary"
+                disabled={chosen.length === 0}
+                onPress={() => toName(tagsName)}
+                testID="new-playlist-next"
+              />
+            ) : step === 'describe' ? (
+              <Button
+                label="Next"
+                variant="primary"
+                disabled={!words.trim()}
+                onPress={() => toName(words.trim())}
+                testID="new-playlist-next"
+              />
+            ) : step === 'name' ? (
+              <Button
+                label={kind === 'follow' ? 'Create' : 'Pick songs'}
+                variant="primary"
+                disabled={!name.trim()}
+                busy={busy || describe.isPending}
+                onPress={make}
+                testID="new-playlist-next"
               />
             ) : null}
-
-            {!typed && chosen.length === 0 ? (
-              <Text style={styles.hint}>
-                Type a tag to follow, a name for a playlist you fill yourself, or what you want to
-                hear and let it pick.
-              </Text>
-            ) : null}
-
-            {describe.isPending ? (
-              <Text style={styles.hint} accessibilityLiveRegion="polite">
-                Reading your library. This can take half a minute.
-              </Text>
-            ) : null}
-            {describe.error && server.reach.state !== 'reachable' ? (
-              <ServerAway reach={server.reach} need="ai" testID="new-playlist-server" />
-            ) : describe.error ? (
-              <Text style={styles.error}>{failureText('Couldn’t pick songs', describe.error)}</Text>
-            ) : null}
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-
-            <View style={styles.actions}>
-              <Button label="Cancel" onPress={cancel} />
-              {typed ? (
-                <Button
-                  label="Pick songs"
-                  variant="primary"
-                  busy={describe.isPending}
-                  onPress={letItPick}
-                  testID="new-playlist-next"
-                />
-              ) : (
-                <Button
-                  label="Create"
-                  variant="primary"
-                  disabled={chosen.length === 0}
-                  busy={busy}
-                  onPress={() => void follow()}
-                  testID="new-playlist-next"
-                />
-              )}
-            </View>
-          </>
+          </View>
         )}
       </View>
     </Sheet>
   )
 }
 
-/** One way the typed words can go: a row with what it does and what it means. */
+/** One kind of playlist: a row with what it is and what it does. */
 function Option({
   icon,
   title,
@@ -372,7 +418,9 @@ const styles = StyleSheet.create(theme => ({
     fontSize: 14,
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
-  hint: { color: theme.colors.textMuted, fontSize: 12, flexShrink: 1 },
+  // A long tag list scrolls inside the sheet rather than pushing its buttons off.
+  tagScroll: { maxHeight: 260 },
+  hint: { color: theme.colors.textMuted, fontSize: 12, flexShrink: 1, paddingHorizontal: 4 },
   error: { color: theme.colors.danger, fontSize: 12 },
   option: {
     flexDirection: 'row',

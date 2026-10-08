@@ -72,7 +72,7 @@ from a Shortcut; the header is tidier.
    starts on the server within a second; open self.mp3 → Import to watch it.
 
 Tip: to route everything shared this way into one tag, set that tag under
-*Settings → Importing → default import tags* rather than hard-coding `tagIds` in the
+*Settings → Advanced → Importing → default import tags* rather than hard-coding `tagIds` in the
 Shortcut.
 
 ## Implementation notes

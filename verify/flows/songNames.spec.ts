@@ -36,9 +36,11 @@ test.describe('a list of song names', () => {
     await dismissToasts(page)
     // A phone backs out with its ‹; a computer cancels.
     const onPhone = (page.viewportSize()?.width ?? 1280) < 820
-    await page
-      .getByRole('button', { name: onPhone ? 'Back to Import' : 'Cancel', exact: true })
-      .click()
+    await (
+      onPhone
+        ? page.getByTestId('import-review-back')
+        : page.getByRole('button', { name: 'Cancel', exact: true })
+    ).click()
     await page.waitForURL(/\/import$/)
   })
 })

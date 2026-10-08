@@ -14,7 +14,7 @@ import { canSaveLook, saveLook } from '../../ports/saveLook'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
-import { useBackTo } from '../../ui/useBackTo'
+import { useBackTo, usePageBack } from '../../ui/useBackTo'
 import { BackButton } from '../../ui/components/BackButton'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
@@ -254,7 +254,7 @@ function ReportFrame({
   const { theme } = useUnistyles()
   const { wide } = useLayout()
   const accent = useAccent()
-  const backTo = useBackTo()
+  const page = usePageBack('/stats')
   const picker = (
     <LookPicker
       looks={looksFor(wide)}
@@ -282,12 +282,10 @@ function ReportFrame({
                 }))}
               />
               {share}
-              <Button
-                variant="text"
-                label="Back to Stats"
-                onPress={() => backTo('/stats')}
-                testID="report-back"
-              />
+              {/* Back to wherever the Report was opened from (J1): Stats, or Home's week. */}
+              {page.shown ? (
+                <Button variant="text" label="Back" onPress={page.back} testID="report-back" />
+              ) : null}
             </View>
           </View>
           {children}
@@ -315,7 +313,7 @@ function ReportFrame({
       <SafeAreaView style={styles.fill} edges={['top']}>
         <ScrollView contentContainerStyle={styles.contentNarrow} testID="report-screen">
           <View style={styles.header}>
-            <BackButton to="/stats" label="Stats" testID="report-back" always />
+            <BackButton to="/stats" testID="report-back" />
             <View style={styles.headerEnd}>
               <Select
                 value={range}

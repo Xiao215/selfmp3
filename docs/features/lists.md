@@ -98,8 +98,23 @@ where it stood, and the toast offers Open and Undo. Recently played's tile becom
 playlist (`noteListSaved`), so playing it again does not offer Save again.
 
 There is no Save on a tag's page, an artist's page or Library's head any more. An Ask answer
-you already trust has **Save as playlist** in its ⋯. New playlist (N1) still makes a
+you already trust has **Save as playlist** in its ⋯. New playlist still makes a
 playlist directly; it is the one place whose whole job is that.
+
+## New playlist
+
+One sheet (`NewPlaylist.tsx`), whichever door opened it: the sidebar's ＋, the Playlists
+page's New (＋ on a phone) and the grid's New tile, which says just "New playlist". It asks
+what kind first (L2, 2026-10-08), as three plain choices, then a name:
+
+- **Pick songs**: a name (New playlist, made unique), then picking songs (`AddSongsSheet`).
+  It is made with the first songs confirmed, so cancelling leaves nothing.
+- **Fills from tags**: the tags, with what they hold now, then a name that starts as theirs.
+  It follows them (`followRules`).
+- **Describe it**, only while Ask is on: what you want to hear, then a name that starts as
+  those words, then Ask's picks to keep (docs/features/ai.md, "L2").
+
+Back steps back inside the sheet; Cancel or a dismiss makes nothing.
 
 ## Tags together
 

@@ -6,7 +6,7 @@ signed-in session. yt-dlp can borrow the login from a browser on the server
 as settings and applies it to **every probe and download**, so once configured, private
 links just work everywhere — the import box, the share endpoint and the extension.
 
-## Settings (Settings → Importing)
+## Settings (Settings → Advanced → Importing)
 
 | Setting | Values | Meaning |
 |---|---|---|

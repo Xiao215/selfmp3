@@ -222,7 +222,7 @@ export type ThemePalette = ReturnType<typeof darkPalette>
  * The light theme, "Paper" in `S2`: a warm ground, white cards with a soft
  * shadow (white on cream has no tone to separate it), and warm ink. Unlike the
  * dark theme's accent-tinted greys it is not moved by the hue; only the accent
- * is. Danger, warning and good are the same in both.
+ * is. Danger is the same in both; warning and good get darker inks.
  */
 export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
   return {
@@ -232,11 +232,15 @@ export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
     surface3: '#e3dccd',
     surfaceSelected: '#ffffff',
     textPrimary: '#1b1a17',
-    textSecondary: '#6b675f',
-    textMuted: '#8a857b',
+    // Muted ink reads at 4.5 : 1 or better on every Paper surface a small
+    // label sits on; secondary stays a step darker so the two still differ.
+    textSecondary: '#55514a',
+    textMuted: '#67625a',
     ...buildAccent(hue, 'light'),
     danger: DARK.danger,
-    warning: DARK.warning,
+    // The dark theme's amber is 1.5–2 : 1 on cream, and warning is mostly
+    // words ("Waiting", "Connecting…"), so Paper gets a darker ink of it.
+    warning: '#7f5300',
     good: '#2f9a5e',
     remove: '#f3d6d3',
     border: '#e0d9cb',

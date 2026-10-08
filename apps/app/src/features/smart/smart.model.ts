@@ -240,14 +240,25 @@ export function describeNotes(result: DescribeResult, picked: number): string[] 
   return notes
 }
 
+/** What the Ask offer says it does, in one line: Search's card and the palette's row alike. */
+export const ASK_SUB = 'Play, find, list or tag songs'
+
 /**
- * Whether the box offers to ask (S1): three letters at least, and either more
- * than one word or nothing on the device that matches. A single word that
- * finds a song is a search, and stays one.
+ * Whether the box offers to ask (S1, I1): three letters at least. The offer
+ * is always there for that much; where it sits and what Enter does depend on
+ * whether anything matched (`asksOnEnter`).
  */
-export function askable(text: string, matches: number): boolean {
-  const trimmed = text.trim()
-  return trimmed.length >= 3 && (/\S\s+\S/.test(trimmed) || matches === 0)
+export function askable(text: string): boolean {
+  return text.trim().length >= 3
+}
+
+/**
+ * Whether Enter in Search sends the words to Ask (I1): only when nothing on
+ * the device matches. People press Enter by reflex, so a song name that found
+ * its song never leaves the search.
+ */
+export function asksOnEnter(text: string, matches: number): boolean {
+  return askable(text) && matches === 0
 }
 
 export function rangeWords(range: AskStatsRange): string {
@@ -263,34 +274,6 @@ export function rangeWords(range: AskStatsRange): string {
     case 'all':
       return 'all time'
   }
-}
-
-/**
- * Tags whose name holds what was typed (N1), the ones starting with it first,
- * leaving out those already chosen.
- */
-export function matchingTags(
-  text: string,
-  tags: readonly Tag[],
-  chosen: readonly number[],
-  limit = 8,
-): Tag[] {
-  const typed = text.trim().toLowerCase()
-  if (!typed) return []
-  return tags
-    .filter(tag => !chosen.includes(tag.id) && tag.name.toLowerCase().includes(typed))
-    .sort(
-      (a, b) =>
-        Number(!a.name.toLowerCase().startsWith(typed)) -
-          Number(!b.name.toLowerCase().startsWith(typed)) || b.songCount - a.songCount,
-    )
-    .slice(0, limit)
-}
-
-/** The tag typed in full, if one is called exactly that. */
-export function exactTag(text: string, tags: readonly Tag[]): Tag | null {
-  const typed = text.trim().toLowerCase()
-  return tags.find(tag => tag.name.toLowerCase() === typed) ?? null
 }
 
 /** One leg of Settings' Test: this device to the server, or the server to the model. */

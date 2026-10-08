@@ -36,7 +36,7 @@ export function ResumeToast(): ReactNode {
   const player = usePlayer()
   const library = useLibrary()
   const accent = useAccent()
-  const { finePointer, width } = useLayout()
+  const { finePointer, width, wide } = useLayout()
   const memory = usePlaybackMemoryState()
   const [candidate, setCandidate] = useState<Device | null>(null)
   const [hovered, setHovered] = useState(false)
@@ -109,15 +109,21 @@ export function ResumeToast(): ReactNode {
         onHoverIn={() => setHovered(true)}
         onHoverOut={() => setHovered(false)}
         accessibilityRole="button"
+        accessibilityLabel={`Continue ${song.title} by ${artistOr(song.artist)}, from ${shortDeviceName(candidate.name)}`}
         style={[styles.main, !finePointer && styles.mainTouch, hovered && styles.mainHovered]}
       >
+        {/* The song's title gets the room: on a phone it was cut to "第七夜 …"
+            behind the artist and the device. The device is said on a computer,
+            which has room for it, and read out everywhere. */}
         <Text style={[styles.label, { color: accent.accent }]}>Continue</Text>
         <Text style={styles.song} numberOfLines={1}>
-          {song.title} — {artistOr(song.artist)}
+          {song.title}
         </Text>
-        <Text style={styles.from} numberOfLines={1}>
-          from {shortDeviceName(candidate.name)}
-        </Text>
+        {wide ? (
+          <Text style={styles.from} numberOfLines={1}>
+            from {shortDeviceName(candidate.name)}
+          </Text>
+        ) : null}
       </Pressable>
       <View>
         <IconButton onPress={() => setCandidate(null)} label="Dismiss" size={finePointer ? 32 : 40}>

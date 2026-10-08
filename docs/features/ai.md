@@ -5,8 +5,8 @@ put together that way rather than as a chat window or a free-roaming agent. The 
 on the AI ideas canvas (<https://claude.ai/artifact/F9yEDvXnGRhgMrVQevHumS>); this page is
 the engineering under them.
 
-Built so far: **S1, Ask in the Search box**, which is where most of it is reached; **N1, New
-playlist as one field**; the **Describe** pipeline (A1c) they both use; and **Tags**, the
+Built so far: **S1, Ask in the Search box**, which is where most of it is reached; **L2, New
+playlist's Describe it**; the **Describe** pipeline (A1c) they both use; and **Tags**, the
 tag review that Ask and Suggest tags share (it grew out of A7, Suggest tags).
 
 ---
@@ -66,7 +66,7 @@ Measured on the real library (1,342 songs) through claude-api: Describe 8–15 s
 4–15 s, pick 4–8 s); "tag the songs that should be 中文流行" 12 s over 1,336 songs (route,
 plan, two group calls), proposing 99 songs, every one Mandarin or Cantonese pop.
 
-**Settings › Smart features** shows the address (`GET /api/ai`: scheme, host and path only,
+**Settings › Advanced › Model** shows the address (`GET /api/ai`: scheme, host and path only,
 never the key) and the two models, and its **Test** goes the whole way a leg at a time:
 this device to the server, timed, then `POST /api/ai/check`, one fast-tier call with a JSON
 schema like every feature makes, timed or failed with the endpoint's own words. So "couldn't
@@ -74,7 +74,7 @@ reach" always says which leg: the server away, the server older than the app (a 
 the model's endpoint down, refusing the key, or over a limit.
 
 **The sparkle.** Every way into a model carries the four-pointed sparkle (`Sparkle` in
-`Icons.tsx`, filled, in the accent): Ask in the Search box and the palette, Let it pick,
+`Icons.tsx`, filled, in the accent): Ask in the Search box and the palette, Describe it,
 Suggest tags, and the Smart features heading. A press with a sparkle asks a model; one
 without only searches, sorts or edits.
 
@@ -175,10 +175,14 @@ climbed when the one below cannot answer:
 
 The one box for most of it: Home's search bar and the sidebar's Search on a computer (the
 command palette), the Search page on a phone. Letters stay a search, matched on the device
-as you type; nothing is sent anywhere until you ask. A sentence, or letters that match
-nothing, add an **Ask** row (`askable`): first when nothing matched, so ↵ asks; after the
-matches otherwise, so ↵ still opens what was typed. Asking answers in place of the results,
-and Esc goes back to them. One request, one answer you act on: a command box, not a chat.
+as you type; nothing is sent anywhere until you ask. Three letters or more add an **Ask**
+row (`askable`): first when nothing matched, so ↵ asks (`asksOnEnter`); after the matches
+otherwise, so ↵ still opens what was typed in the palette, and on the Search page only puts
+the keyboard away. Narrowed 2026-10-08 (I1): before it, a sentence that matched a song (a
+two-word title) went to Ask on ↵. Asking answers in place of the results, and Esc goes back
+to them. The box is not held while Ask works: new words drop the question and bring the
+results back, and Stop does the same without them. One request, one answer you act on: a
+command box, not a chat.
 
 Asking is a **router** (`apps/server/src/ai/ask.ts`, `POST /api/ai/ask`): one call (fast
 tier) reads the request against rung 2 and chooses one action from a fixed list, filling in
@@ -355,22 +359,22 @@ trail above the field, and pressing an earlier step shows its answer again from 
 song answer keeps Change it, which keeps the songs it already chose. Added 2026-10-04: before
 it, a tags or tidy answer that missed could only be asked again from nothing.
 
-## N1 · New playlist as one field
+## L2 · New playlist, kind first
 
-What is typed decides what the playlist is (`NewPlaylist.tsx`), rather than a name first and
-a kind second: letters offer the tags whose names hold them (`matchingTags`), and a tag
-picked sits in the field as a chip (Backspace takes it back out); chips alone make a
-playlist that follows them, named after them. Any words offer **Let it pick**, which is
-Describe, with the chips as the places to pick from; or **An empty playlist** with the
-words as its name, which goes on to picking songs by hand. ↵ picks a tag typed in full,
-otherwise lets it pick.
+New playlist (`NewPlaylist.tsx`) offers three kinds before anything is typed: **Pick
+songs**, **Fills from tags**, and **Describe it** when Ask is on. Describe it takes what you
+want to hear, then a name that starts as those words, then runs Describe and shows its picks
+(`SongsAnswer`, with the name). The other two are ordinary playlists (docs/features/lists.md,
+"New playlist").
 
-Following an artist is not offered: a playlist follows tags only (`follows.model.ts`), and
-"calm songs by Yorushika" is a description.
+It replaced N1 (Oct 3), one field whose words were a tag, a name or a description by what
+they matched, on 2026-10-08: ↵ sent a plain name to Ask, and an empty playlist was the last
+and smallest choice. Following an artist is still not offered: a playlist follows tags only
+(`follows.model.ts`), and "calm songs by Yorushika" is a description.
 
 ## A1c · Describe a playlist
 
-The pipeline under **Let it pick** and under the box's `songs` answer. You write what you want; you get
+The pipeline under New playlist's **Describe it** and under the box's `songs` answer. You write what you want; you get
 back what it understood, as chips, and the songs it picked from inside them, each with a
 reason. What is made is an ordinary playlist of the picks; when what was understood is tags
 and nothing else, it can instead follow those tags and keep itself filled, which is the
@@ -570,7 +574,8 @@ restarts it — and going back, like a song in Up next, plays the song it lands 
 `Stats › Report`, under the page: "✦ In words", three to five sentences about the period,
 with **Write it again**. The server writes the Report's numbers as plain facts (hours
 beside minutes, the hour as "3 pm", the weekday by name, so the model never has to work
-anything out) and the model writes from those alone (`GET /api/ai/written`).
+anything out) and the model writes from those alone (`GET /api/ai/written`). With the server
+away, or with no model set up on it (`ai_off`), the card is not drawn at all.
 
 What it wrote is checked, sentence by sentence, and a sentence that fails is dropped, not
 mended: every number in it must be one of the facts' ("1,342" and "14th" read as numbers),
@@ -604,7 +609,7 @@ tier, remembered against its exact question; Ask again asks afresh. Standing pre
 
 Five switches, shared across devices with the other server settings (`smartAsk`,
 `smartTidy`, `smartTags`, `smartWritten`, `smartMetadata`, all on by default): Ask in
-Search (which also covers Let it pick and Up next), Tidy up, Tags (Suggest tags, and Ask's
+Search (which also covers New playlist's Describe it and Up next), Tidy up, Tags (Suggest tags, and Ask's
 tag changes), the Report in words and Fix metadata's Suggested card. Each
 says what of the library it shows the model, in a line, because "the model sees your
 library" is too vague to agree to and each sees less than that. Off, the way in is not

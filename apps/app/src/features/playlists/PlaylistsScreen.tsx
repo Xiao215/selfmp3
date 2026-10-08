@@ -207,21 +207,14 @@ function NewTile({
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel="New playlist"
-        {...tip('Pick the songs yourself, or fill it from tags')}
         testID="playlists-new-tile"
         style={({ pressed }) => pressed && styles.pressed}
       >
         <View style={[styles.newCover, { backgroundColor: accent.accentPill }]}>
           <Plus size={26} color={accent.accent} />
-          <Text style={styles.newKinds} numberOfLines={1}>
-            yours, or {FOLLOWS_LABEL}
-          </Text>
         </View>
         <Text style={styles.tileName} numberOfLines={1}>
           New playlist
-        </Text>
-        <Text style={styles.tileSub} numberOfLines={1}>
-          Follow tags, pick songs, or describe it
         </Text>
       </Pressable>
     </View>
@@ -371,10 +364,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.card,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: space.sm,
   },
-  newKinds: { color: theme.colors.textSecondary, fontSize: 10.5 },
   pressed: { opacity: 0.75 },
   tileName: {
     color: theme.colors.textPrimary,

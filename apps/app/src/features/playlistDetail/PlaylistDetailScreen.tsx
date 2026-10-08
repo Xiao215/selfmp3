@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { plural, formatBytes, type Song } from '@selfmp3/shared'
 import {
   bytesToDownload,
@@ -64,7 +64,7 @@ import {
 import { usePlaylistPlayback } from '../playlists/usePlaylistPlayback'
 import { AddSongsSheet } from './AddSongsSheet'
 import { FollowsRow } from './FollowsRow'
-import { cameFrom } from './playlistDetail.model'
+import { usePageBack } from '../../ui/useBackTo'
 
 /**
  * One playlist (docs/ui-mock `P17`, `C08`): the same kind of page as a tag's
@@ -97,7 +97,8 @@ export function PlaylistDetailScreen(): ReactNode {
   const params = useLocalSearchParams<{ id: string; rename?: string }>()
   const playlistId = Number(params.id)
   const router = useRouter()
-  const navigation = useNavigation()
+  // Back to wherever it was opened from; Playlists only after a link (J1).
+  const page = usePageBack('/playlists')
   const { mutateAsync: createPlaylist } = useCreatePlaylist()
 
   const library = useLibrary()
@@ -228,13 +229,6 @@ export function PlaylistDetailScreen(): ReactNode {
     <Glyph size={16} color={color} />
   )
 
-  const back = (): void => {
-    // Back when the Playlists page is behind; after a playlist made from a
-    // selection, or a link, Playlists takes this page's place instead.
-    if (cameFrom(navigation.getState(), 'playlists/index')) router.back()
-    else router.replace('/playlists')
-  }
-
   const titles = (
     <>
       <View style={listHeadText.kind}>
@@ -314,9 +308,17 @@ export function PlaylistDetailScreen(): ReactNode {
         light={light.color}
         art={leadArt}
         topBar={
-          wide ? null : (
+          wide ? (
+            // A computer's ⋯ is with the actions; its ‹ only for a playlist
+            // opened from inside a page, not from the sidebar.
+            page.shown ? (
+              <IconButton label="Back" onPress={page.back} filled>
+                <ChevronLeft size={20} tone="textPrimary" />
+              </IconButton>
+            ) : null
+          ) : (
             <>
-              <IconButton label="Back to playlists" onPress={back} filled>
+              <IconButton label="Back" onPress={page.back} filled>
                 <ChevronLeft size={20} tone="textPrimary" />
               </IconButton>
               {moreButton}

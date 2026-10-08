@@ -43,6 +43,12 @@ export interface SongFiles {
   readonly motion: string | null
 }
 
+/** An artist's picture in the bucket, in both its shapes (`covers/<sha256>.jpg` each). */
+export interface ArtistPictureKeys {
+  readonly banner: string
+  readonly portrait: string
+}
+
 export interface CloudLibrary {
   readonly library: Library
   readonly ids: LocalIds
@@ -53,6 +59,8 @@ export interface CloudLibrary {
   readonly imports: readonly ImportRequestView[]
   /** Where the server that wrote the snapshot listens, or null from one that never said. */
   readonly server: CloudServer | null
+  /** Each artist's picture, by `artistKey` of their name. */
+  readonly artists: ReadonlyMap<string, ArtistPictureKeys>
   /** Each song, tag and playlist by its id here: what a route answers with, found without a walk. */
   readonly byId: {
     readonly songs: ReadonlyMap<number, Song>
@@ -197,6 +205,12 @@ export function snapshotToLibrary(
       }))
       .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt)),
     server: snapshot.server ?? null,
+    artists: new Map(
+      snapshot.artists.map(artist => [
+        artist.artist,
+        { banner: artist.banner.key, portrait: artist.portrait.key },
+      ]),
+    ),
     byId: {
       songs: new Map(librarySongs.map(song => [song.id, song])),
       tags: new Map(libraryTags.map(tag => [tag.id, tag])),

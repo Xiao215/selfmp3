@@ -11,10 +11,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * difference is only when the platform calls `found`.
  */
 
+/** A song's cover key, where a test names one; `covers/hash-<id>.jpg` otherwise. */
+const coverKeys = new Map<number, string>()
+const keyOf = (songId: number): string => coverKeys.get(songId) ?? `covers/hash-${songId}.jpg`
+
 const replica = {
   library: {
-    cloudCoverKey: vi.fn(async (songId: number) => `covers/hash-${songId}.jpg`),
-    cloudCoverKeyNow: (songId: number) => `covers/hash-${songId}.jpg`,
+    cloudCoverKey: vi.fn(async (songId: number) => keyOf(songId)),
+    cloudCoverKeyNow: (songId: number) => keyOf(songId),
   },
   cloudPlatform: { doormanUrl: 'https://doorman.example' },
   session: { loadSession: vi.fn(async () => ({ token: 't' })) },
@@ -41,6 +45,10 @@ function fakePlatform(overrides: Partial<Platform> = {}): Platform {
       held.add(name)
       return `file:///${name}`
     },
+    listCloud: async () => [...held],
+    removeCloud: async name => {
+      held.delete(name)
+    },
     forgetFiles: async () => held.clear(),
     ...overrides,
   }
@@ -51,6 +59,7 @@ const aFrame = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 4
 
 describe('the cover store', () => {
   beforeEach(() => {
+    coverKeys.clear()
     replica.library.cloudCoverKey.mockClear()
     replica.session.loadSession.mockClear()
     replica.session.loadSession.mockResolvedValue({ token: 't' })
@@ -202,6 +211,71 @@ describe('the cover store', () => {
     // Another account's song 7 is fetched afresh, not answered from memory.
     await store.ensureCover(7)
     expect(replica.library.cloudCoverKey).toHaveBeenCalledTimes(2)
+  })
+
+  it('fetches a picture by its key once, and draws it from then on', async () => {
+    const platform = fakePlatform()
+    const keepCloud = vi.spyOn(platform, 'keepCloud')
+    const store = createCoverStore(platform)
+    const heard: number[] = []
+    store.subscribePictures(() => heard.push(store.picturesVersion()))
+    const key = `covers/${'b'.repeat(64)}.jpg`
+
+    expect(store.pictureFor(key)).toBeUndefined()
+    const uris = await Promise.all([store.ensurePicture(key), store.ensurePicture(key)])
+
+    expect(uris).toEqual(Array(2).fill(`file:///${'b'.repeat(64)}.jpg`))
+    expect(keepCloud).toHaveBeenCalledTimes(1)
+    expect(store.pictureFor(key)).toBe(`file:///${'b'.repeat(64)}.jpg`)
+    expect(heard.length).toBeGreaterThan(0)
+  })
+
+  it('asks again for a picture that failed, but only after a while', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const platform = fakePlatform()
+    const keepCloud = vi
+      .spyOn(platform, 'keepCloud')
+      .mockRejectedValueOnce(new Error('Transaction cap exceeded'))
+    const store = createCoverStore(platform)
+    const key = `covers/${'c'.repeat(64)}.jpg`
+
+    expect(await store.ensurePicture(key)).toBeNull()
+    expect(await store.ensurePicture(key)).toBeNull()
+    expect(keepCloud).toHaveBeenCalledTimes(1)
+
+    vi.advanceTimersByTime(30_001)
+    expect(await store.ensurePicture(key)).toBe(`file:///${'c'.repeat(64)}.jpg`)
+  })
+
+  it('sweeps the bucket pictures the library no longer names, and only those', async () => {
+    const old = 'a'.repeat(64)
+    const now = 'd'.repeat(64)
+    const artist = 'e'.repeat(64)
+    const platform = fakePlatform()
+    const removeCloud = vi.spyOn(platform, 'removeCloud')
+    const store = createCoverStore(platform)
+
+    // Song 9's cover as it was, then made again (squared) under a new hash.
+    coverKeys.set(9, `covers/${old}.jpg`)
+    await store.ensureCover(9)
+    await store.ensurePicture(`covers/${artist}.jpg`)
+    await store.ensureServerCover(4, 'r1', 'https://mac.example/art/4')
+    coverKeys.set(9, `covers/${now}.png`)
+    await aFrame()
+    const heard: number[] = []
+    store.subscribeCovers(changed => heard.push(...changed))
+
+    const swept = await store.sweepPictures(new Set([`covers/${now}.png`, `covers/${artist}.jpg`]))
+
+    expect(swept).toBe(1)
+    expect(removeCloud.mock.calls).toEqual([[`${old}.jpg`]])
+    // A server's cover is named by song and revision, and is not the bucket's to sweep.
+    expect(await platform.listCloud()).toContain('4-r1.jpg')
+    // The song drawn from the deleted file looks again, under its key now.
+    await aFrame()
+    expect(heard).toEqual([9])
+    expect(await store.ensureCover(9)).toBe(`file:///${now}.png`)
   })
 
   it('survives a platform that refuses to clear', async () => {

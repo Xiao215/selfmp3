@@ -3,6 +3,7 @@ import { hlcTime, hlcWins, parseHlc } from './hlc.js'
 import { CLOUD_FORMAT } from './schemas/cloud.js'
 import type {
   CloudSmartRules,
+  CloudArtist,
   CloudImport,
   CloudPlaylist,
   CloudSnapshot,
@@ -47,6 +48,8 @@ export interface SyncLibrary {
   readonly aliases: Map<string, string>
   /** Links asked to be imported, and how each went. */
   readonly imports: Map<string, CloudImport>
+  /** Artists' pictures, as the snapshot had them: no change touches them. */
+  readonly artists: readonly CloudArtist[]
   /** Plays counted during this replay, by id. */
   readonly counted: Set<string>
 }
@@ -58,6 +61,7 @@ export function syncLibrary(snapshot?: CloudSnapshot | null): SyncLibrary {
     playlists: new Map(snapshot?.playlists.map(playlist => [playlist.uid, playlist])),
     aliases: new Map(Object.entries(snapshot?.aliases ?? {})),
     imports: new Map(snapshot?.imports?.map(request => [request.uid, request])),
+    artists: snapshot?.artists ?? [],
     counted: new Set(),
   }
 }
@@ -74,6 +78,7 @@ export function snapshotOf(
     songs: [...library.songs.values()],
     tags: [...library.tags.values()],
     playlists: [...library.playlists.values()],
+    artists: [...library.artists],
     ...(library.aliases.size > 0 ? { aliases: Object.fromEntries(library.aliases) } : {}),
     ...(library.imports.size > 0 ? { imports: [...library.imports.values()] } : {}),
   }

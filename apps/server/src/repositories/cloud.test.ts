@@ -161,3 +161,104 @@ describe('the connection', () => {
     expect(cloud.deviceId()).toBe(first)
   })
 })
+
+describe('the trash', () => {
+  let db: Database.Database
+  let cloud: CloudRepository
+  let songId: number
+
+  const key = (folder: string, fill: string, ext = 'jpg'): string =>
+    `${folder}/${fill.repeat(64)}.${ext}`
+
+  const state = (cover: string | null, lyrics: string | null = null) => ({
+    songId,
+    audioKey: key('audio', 'a', 'm4a'),
+    audioSize: 100,
+    audioSig: 'audio',
+    coverKey: cover,
+    coverSize: cover ? 10 : null,
+    coverSig: cover ?? 'none',
+    lyricsKey: lyrics,
+    lyricsSize: lyrics ? 5 : null,
+    lyricsKind: lyrics ? ('plain' as const) : null,
+    romanizedKey: null,
+    lyricsSig: lyrics ?? 'none',
+    motionKey: null,
+    motionSig: 'none',
+  })
+
+  beforeEach(() => {
+    db = new Database(':memory:')
+    db.pragma('foreign_keys = ON')
+    migrate(db, createLogger('silent'))
+    cloud = new CloudRepository(db)
+    songId = Number(
+      db.prepare("INSERT INTO songs (path, title) VALUES ('a.m4a', 'A')").run().lastInsertRowid,
+    )
+  })
+
+  it('takes a cover or words a song no longer names, and nothing it still does', () => {
+    cloud.recordFile(key('covers', 'b'), 10)
+    cloud.saveState(state(key('covers', 'b'), key('lyrics', 'c', 'txt')))
+
+    // The cover made again (squared): a new hash, the old file nameless.
+    cloud.saveState(state(key('covers', 'd'), key('lyrics', 'c', 'txt')))
+
+    expect(cloud.trashedKeys()).toEqual([key('covers', 'b')])
+  })
+
+  it('never offers a file another song still names', () => {
+    const other = Number(
+      db.prepare("INSERT INTO songs (path, title) VALUES ('b.m4a', 'B')").run().lastInsertRowid,
+    )
+    cloud.saveState(state(key('covers', 'b')))
+    cloud.saveState({ ...state(key('covers', 'b')), songId: other })
+
+    cloud.saveState(state(key('covers', 'd')))
+
+    // Same album art on two songs: one moving on leaves the other's alone.
+    expect(cloud.trashedKeys()).toEqual([])
+  })
+
+  it('takes every cover nothing names, and only covers', () => {
+    cloud.saveState(state(key('covers', 'b')))
+    for (const listed of [
+      key('covers', 'b'),
+      key('covers', 'e'),
+      key('audio', 'f', 'm4a'),
+      key('lyrics', '9', 'txt'),
+    ]) {
+      cloud.recordFile(listed, 1)
+    }
+
+    expect(cloud.trashUnnamedCovers()).toBe(1)
+    // Audio and words no row names may be the only copy of a song whose row went.
+    expect(cloud.trashedKeys()).toEqual([key('covers', 'e')])
+  })
+
+  it('keeps an artist’s picture while it is named, and trashes it once replaced or gone', () => {
+    const picture = {
+      artist: 'yorushika',
+      bannerKey: key('covers', '1'),
+      bannerSize: 10,
+      portraitKey: key('covers', '2'),
+      portraitSize: 5,
+      sig: 'r1',
+    }
+    cloud.recordFile(picture.bannerKey, 10)
+    cloud.recordFile(picture.portraitKey, 5)
+    cloud.saveArtist(picture)
+    expect(cloud.trashUnnamedCovers()).toBe(0)
+
+    cloud.saveArtist({ ...picture, bannerKey: key('covers', '3'), sig: 'r2' })
+    expect(cloud.trashedKeys()).toEqual([key('covers', '1')])
+
+    cloud.dropArtist('yorushika')
+    expect(cloud.trashedKeys()).toEqual([
+      key('covers', '1'),
+      key('covers', '2'),
+      key('covers', '3'),
+    ])
+    expect(cloud.artistStates().size).toBe(0)
+  })
+})

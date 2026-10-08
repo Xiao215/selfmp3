@@ -138,6 +138,11 @@ self.addEventListener('fetch', event => {
     return
   }
 
+  if (url.pathname.startsWith(`${BASE}api/bucket/`)) {
+    event.respondWith(bucketPicture(request, url))
+    return
+  }
+
   if (url.pathname.startsWith(`${BASE}api/art/`)) {
     event.respondWith(cacheFirst(request, API_CACHE, { replaceOtherVersions: true }))
     return
@@ -436,6 +441,35 @@ async function bucketFileFor(url: URL, kind: 'audio' | 'cover'): Promise<BucketF
     return { url: `${read.session.doormanUrl}/v1/files/${key}`, token: read.session.token }
   } catch {
     return null
+  }
+}
+
+/** `api/bucket/covers/<sha256>.<ext>`: the only bucket files asked for by key. */
+const BUCKET_PICTURE_PATH = /\/api\/bucket\/(covers\/[0-9a-f]{64}\.[a-z0-9]{1,5})$/
+
+/**
+ * A bucket picture no song id names — an artist's — by its key
+ * (src/ports/bucketMedia.web.ts, `bucketPictureAddress`). The key is the hash
+ * of the bytes, so what is kept under it is right for good, and there is no
+ * map to look it up in, nor one to lag.
+ */
+async function bucketPicture(request: Request, url: URL): Promise<Response> {
+  const cached = await caches.match(request)
+  if (cached) return cached
+  const key = BUCKET_PICTURE_PATH.exec(url.pathname)?.[1]
+  if (!CLOUD || !key) return new Response(null, { status: 404 })
+  try {
+    let read = await bucketRead(false)
+    if (!read.session && !read.fresh) read = await bucketRead(true)
+    if (!read.session) return new Response(null, { status: 404 })
+    const response = await fetchFromBucket({
+      url: `${read.session.doormanUrl}/v1/files/${key}`,
+      token: read.session.token,
+    })
+    if (response.ok) await (await caches.open(API_CACHE)).put(request, response.clone())
+    return response
+  } catch {
+    return new Response(null, { status: 503 })
   }
 }
 

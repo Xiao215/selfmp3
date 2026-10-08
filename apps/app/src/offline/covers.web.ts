@@ -49,6 +49,12 @@ const platform: CoverPlatform = {
     return (await files.has(name)) ? files.uriFor(name) : null
   },
 
+  listCloud: async () => (await coverFiles?.list()) ?? [],
+
+  removeCloud: async name => {
+    await coverFiles?.remove(name)
+  },
+
   keepCloud: async (name, url, headers) => {
     const files = coverFiles
     if (!files) return null
@@ -100,6 +106,11 @@ export const {
   coverFailed,
   ensureServerCover,
   ensureCover,
+  subscribePictures,
+  picturesVersion,
+  pictureFor,
+  ensurePicture,
+  sweepPictures,
   forgetCovers,
 } = createCoverStore(platform)
 export { KEPT_COVER_SIZE } from './coverStore'

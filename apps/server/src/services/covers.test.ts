@@ -110,4 +110,35 @@ describe('CoverService.thumbnail', () => {
     const made = await sharp(first?.path ?? '').metadata()
     expect(made).toMatchObject({ format: 'jpeg', width: 96, height: 96 })
   })
+
+  it('drops a song’s thumbnails when its cover is replaced, and sweeps any left from before', async () => {
+    dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-covers-'))
+    const covers = new CoverService(
+      { dataDir } as Config,
+      {
+        setArt: vi.fn(),
+        artExt: (id: number) => (id === 3 ? '.jpg' : null),
+      } as unknown as SongRepository,
+      createLogger('silent'),
+    )
+    const original = await sharp({
+      create: { width: 400, height: 300, channels: 3, background: '#c04020' },
+    })
+      .jpeg()
+      .toBuffer()
+    await covers.save(3, original, '.jpg')
+    const made = await covers.thumbnail(3, 96)
+    await covers.save(3, original, '.jpg')
+    const thumbs = path.join(dataDir, 'covers', 'thumbs')
+    // Made from the picture just replaced: no request names it again.
+    expect(fs.existsSync(made?.path ?? '')).toBe(false)
+
+    // Left by covers replaced before replacing dropped them, and a song with no cover.
+    const current = await covers.thumbnail(3, 96)
+    fs.writeFileSync(path.join(thumbs, '3-96-1.jpg'), 'letterboxed')
+    fs.writeFileSync(path.join(thumbs, '9-96-1.jpg'), 'no cover now')
+
+    expect(await covers.sweepThumbnails()).toBe(2)
+    expect(fs.readdirSync(thumbs)).toEqual([path.basename(current?.path ?? '')])
+  })
 })

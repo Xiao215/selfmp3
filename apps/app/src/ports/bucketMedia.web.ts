@@ -50,6 +50,16 @@ export const bucketMedia: MediaRoutes | null = answered
   : null
 
 /**
+ * The address a bucket picture that no song id names — an artist's — is drawn
+ * from in a tab: `api/bucket/<key>`, which the service worker answers from the
+ * bucket with the session's bearer and keeps. The key names the bytes, so the
+ * address needs no revision. Null wherever nothing would answer, as above.
+ */
+export function bucketPictureAddress(key: string): string | null {
+  return answered ? appPath(`api/bucket/${key}`) : null
+}
+
+/**
  * Nothing to be told: the service worker looks a song's key and the session up
  * for itself, out of IndexedDB. Here so both twins answer to the same name.
  */

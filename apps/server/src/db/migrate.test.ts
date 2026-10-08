@@ -46,8 +46,10 @@ describe('migrate', () => {
     const uids = db.prepare('SELECT uid FROM songs ORDER BY id').all()
     const latest = db.pragma('user_version', { simple: true }) as number
 
-    // Run the last migration, the uid one, again over the rows above.
-    db.pragma(`user_version = ${latest - 1}`)
+    // Run the uid migration (35) again over the rows above, and the ones after
+    // it, whose tables go first so they can be made again.
+    db.exec('DROP TABLE cloud_artists')
+    db.pragma('user_version = 34')
     migrate(db, createLogger('silent'))
 
     expect(db.pragma('user_version', { simple: true })).toBe(latest)

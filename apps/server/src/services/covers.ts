@@ -68,6 +68,9 @@ export class CoverService {
         ),
       )
       this.#songs.setArt(songId, true, ext)
+      // Made from the picture just replaced, and named by its time, so no
+      // request would ever ask for them again.
+      await this.#dropThumbnails(songId)
       this.onSaved?.(songId)
     } catch (error) {
       // Missing art is cosmetic; a placeholder gradient is shown instead.
@@ -85,7 +88,7 @@ export class CoverService {
    * and a phone keeping every cover in a library of thousands wants a fraction
    * of that. Square, cropped to the centre, as every place that draws a cover
    * draws it. The name carries the original's mtime, so replaced art makes a
-   * new thumbnail and the old one is just a stale file to sweep.
+   * new thumbnail; `save` drops the old ones, and `sweepThumbnails` any left.
    */
   async thumbnail(
     songId: number,
@@ -153,6 +156,48 @@ export class CoverService {
   async delete(songId: number): Promise<void> {
     for (const extension of EXTENSIONS) {
       await fsp.rm(this.#pathFor(songId, extension), { force: true }).catch(() => undefined)
+    }
+    await this.#dropThumbnails(songId)
+  }
+
+  /**
+   * Delete every thumbnail no request would ask for: of a song with no cover
+   * kept, or made from a picture since replaced. Covers replaced before
+   * `save` dropped a song's thumbnails left theirs here — squared covers'
+   * letterboxed ones among them. Returns how many went.
+   */
+  async sweepThumbnails(): Promise<number> {
+    let swept = 0
+    for (const name of await this.#thumbnailNames()) {
+      // One being written right now.
+      if (name.endsWith('.partial')) continue
+      const match = /^(\d+)-\d+-([0-9a-f]+)\.jpg$/.exec(name)
+      const cover = match ? await this.find(Number(match[1])) : null
+      const current =
+        cover !== null &&
+        Math.floor((await fsp.stat(cover.path)).mtimeMs).toString(16) === match?.[2]
+      if (current) continue
+      await fsp.rm(path.join(this.#dir, 'thumbs', name), { force: true })
+      swept++
+    }
+    if (swept > 0) this.#logger.info('deleted thumbnails of covers since replaced', { swept })
+    return swept
+  }
+
+  /** A song's thumbnails, every size and revision. */
+  async #dropThumbnails(songId: number): Promise<void> {
+    for (const name of await this.#thumbnailNames()) {
+      if (!name.startsWith(`${songId}-`)) continue
+      await fsp.rm(path.join(this.#dir, 'thumbs', name), { force: true }).catch(() => undefined)
+    }
+  }
+
+  async #thumbnailNames(): Promise<string[]> {
+    try {
+      return await fsp.readdir(path.join(this.#dir, 'thumbs'))
+    } catch {
+      // None made yet.
+      return []
     }
   }
 

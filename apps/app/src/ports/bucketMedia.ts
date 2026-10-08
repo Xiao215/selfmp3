@@ -47,6 +47,14 @@ export function configureBucketMedia(next: BucketMediaSetup | null): void {
   setup = next ?? SIGNED_OUT
 }
 
+/**
+ * Where a bucket picture no song id names — an artist's — is drawn from.
+ * Nowhere, on a phone: it keeps them as files, as it keeps covers.
+ */
+export function bucketPictureAddress(_key: string): string | null {
+  return null
+}
+
 export const bucketMedia: MediaRoutes | null = {
   stream: songId => {
     const key = setup.bearer === null ? null : setup.pathOf(songId)

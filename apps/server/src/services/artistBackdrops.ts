@@ -5,7 +5,9 @@ import path from 'node:path'
 import {
   DAY_MS,
   artistKey,
+  libraryArtists,
   splitArtists,
+  type Artist,
   type ArtistPictureShape,
   type Song,
 } from '@selfmp3/shared'
@@ -46,6 +48,11 @@ import { messageOf } from '../util/errors.js'
  * together, disposable, rebuilt on the next ask if either is deleted. An artist found to have no picture is
  * remembered for a while too, so an artist page does not go out to YouTube
  * Music every time it is opened.
+ *
+ * Every artist of the library is looked for, not only those whose page was
+ * opened (`fill`), and the cloud pass puts what is kept in the bucket beside
+ * the covers, so a device keeps an artist's picture the way it keeps a cover
+ * and has it with no server in reach (services/cloudSync.ts).
  */
 
 /** Songs asked about per artist. Each is one request; agreement needs two. */
@@ -71,6 +78,20 @@ const EXTENSIONS: Record<ArtistPictureShape, string> = {
 
 const REQUEST_TIMEOUT_MS = 10_000
 
+/**
+ * Between two artists looked for by `fill`: each is up to four requests to
+ * YouTube Music, and a library's worth at once is the kind of burst that gets
+ * a server asked whether it is a robot.
+ */
+const FILL_PAUSE_MS = 3_000
+
+/**
+ * How long an artist YouTube Music could not be asked about is left before
+ * `fill` asks again. Not remembered on disk, as "none" is: it says nothing
+ * about the artist, only about that moment.
+ */
+const UNANSWERED_RETRY_MS = DAY_MS / 4
+
 /** A banner is about 125 KB; past this, what came back is not one. */
 const MAX_PICTURE_BYTES = 4 * 1024 * 1024
 
@@ -90,6 +111,10 @@ export class ArtistBackdropService {
   readonly #logger: Logger
   /** Artists being looked for, so two pages opening at once share the work. */
   readonly #finding = new Map<string, Promise<KeptPicture | null>>()
+  /** When `fill` last found YouTube Music unable to answer about an artist, by key. */
+  readonly #unanswered = new Map<string, number>()
+  #filling: Promise<number> | null = null
+  readonly #pause: (ms: number) => Promise<void>
 
   constructor(
     config: Config,
@@ -97,7 +122,9 @@ export class ArtistBackdropService {
     youtube: Pick<YouTubeMusicArtists, 'picture'>,
     logger: Logger,
     fetchImpl: FetchLike = fetch,
+    pause: (ms: number) => Promise<void> = ms => new Promise(resolve => setTimeout(resolve, ms)),
   ) {
+    this.#pause = pause
     this.#dir = path.join(config.dataDir, 'artists')
     this.#songs = songs
     this.#youtube = youtube
@@ -125,6 +152,58 @@ export class ArtistBackdropService {
     } catch {
       return null
     }
+  }
+
+  /** Every artist the library's songs name, most songs first. */
+  artists(): readonly Artist[] {
+    return libraryArtists(this.#songs.all())
+  }
+
+  /** Both shapes kept for an artist, and the revision naming the pair; null for none. */
+  async keptPair(name: string): Promise<{ banner: string; portrait: string; rev: string } | null> {
+    const banner = await this.kept(name, 'banner')
+    if (!banner) return null
+    return {
+      banner: banner.path,
+      portrait: this.#file(artistKey(name), EXTENSIONS.portrait),
+      rev: banner.rev,
+    }
+  }
+
+  /**
+   * Look for a picture of every artist of the library that has none kept, one
+   * artist at a time with a pause between, most songs first. One at a time
+   * however often it is asked: a second call while one runs joins it.
+   *
+   * Returns how many artists it found a picture for.
+   */
+  fill(): Promise<number> {
+    this.#filling ??= this.#fill().finally(() => {
+      this.#filling = null
+    })
+    return this.#filling
+  }
+
+  async #fill(): Promise<number> {
+    let found = 0
+    let asked = false
+    for (const artist of this.artists()) {
+      if (await this.kept(artist.key)) continue
+      if (await this.#saidNoneLately(artist.key)) continue
+      const unanswered = this.#unanswered.get(artist.key)
+      if (unanswered !== undefined && Date.now() - unanswered < UNANSWERED_RETRY_MS) continue
+      if (asked) await this.#pause(FILL_PAUSE_MS)
+      asked = true
+      if (await this.find(artist.name)) {
+        found++
+        this.#unanswered.delete(artist.key)
+      } else if (!(await this.#saidNoneLately(artist.key))) {
+        // Not "none", which `find` remembers: YouTube Music did not answer.
+        this.#unanswered.set(artist.key, Date.now())
+      }
+    }
+    if (found > 0) this.#logger.info('found artists’ pictures', { artists: found })
+    return found
   }
 
   /** The kept picture, or one found now; null when there is none to be had. */

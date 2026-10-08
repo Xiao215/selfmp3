@@ -47,6 +47,40 @@ export interface CloudSongState {
   readonly uploadedAt: string
 }
 
+/** An artist's picture in the bucket, and which kept copy of it went up. */
+export interface CloudArtistState {
+  /** `artistKey` of their name. */
+  readonly artist: string
+  readonly bannerKey: string
+  readonly bannerSize: number
+  readonly portraitKey: string
+  readonly portraitSize: number
+  /** The kept copy's revision (services/artistBackdrops.ts): a new picture is a new one. */
+  readonly sig: string
+}
+
+interface CloudArtistRow {
+  artist_key: string
+  banner_key: string
+  banner_size: number
+  portrait_key: string
+  portrait_size: number
+  sig: string
+}
+
+/**
+ * Every file the library names in the bucket: each song's, and each artist's
+ * picture. A file not in this is one nothing points at any more.
+ */
+const NAMED_KEYS = `
+  SELECT audio_key AS key FROM cloud_songs
+  UNION SELECT cover_key FROM cloud_songs WHERE cover_key IS NOT NULL
+  UNION SELECT lyrics_key FROM cloud_songs WHERE lyrics_key IS NOT NULL
+  UNION SELECT romanized_key FROM cloud_songs WHERE romanized_key IS NOT NULL
+  UNION SELECT motion_key FROM cloud_songs WHERE motion_key IS NOT NULL
+  UNION SELECT banner_key FROM cloud_artists
+  UNION SELECT portrait_key FROM cloud_artists`
+
 /** What the sync needs to know about a song's files, straight from its row. */
 export interface SongFileInfo {
   readonly id: number
@@ -157,6 +191,12 @@ export class CloudRepository {
   readonly #hasFile
   readonly #recordFile
   readonly #trashSong
+  readonly #trashKey
+  readonly #trashUnnamedCovers
+  readonly #artists
+  readonly #artist
+  readonly #saveArtist
+  readonly #dropArtist
   readonly #trashedKeys
   readonly #forgetFile
   readonly #rememberRemoved
@@ -226,15 +266,37 @@ export class CloudRepository {
        WHERE k.key IS NOT NULL
       ON CONFLICT (key) DO NOTHING
     `)
-    this.#trashedKeys = db.prepare<[], { key: string }>(`
-      SELECT key FROM cloud_trash t
-       WHERE NOT EXISTS (
-         SELECT 1 FROM cloud_songs c
-          WHERE c.audio_key = t.key OR c.cover_key = t.key OR c.lyrics_key = t.key
-             OR c.romanized_key = t.key OR c.motion_key = t.key
-       )
-       ORDER BY key
+    // One file, with the size the bucket listed for it.
+    this.#trashKey = db.prepare<[{ key: string }]>(`
+      INSERT INTO cloud_trash (key, size)
+      SELECT @key, COALESCE((SELECT size FROM cloud_files WHERE key = @key), 0)
+       WHERE true
+      ON CONFLICT (key) DO NOTHING
     `)
+    this.#trashUnnamedCovers = db.prepare(`
+      INSERT INTO cloud_trash (key, size)
+      SELECT key, size FROM cloud_files
+       WHERE key LIKE 'covers/%' AND key NOT IN (${NAMED_KEYS})
+      ON CONFLICT (key) DO NOTHING
+    `)
+    this.#trashedKeys = db.prepare<[], { key: string }>(`
+      SELECT key FROM cloud_trash WHERE key NOT IN (${NAMED_KEYS}) ORDER BY key
+    `)
+    this.#artists = db.prepare<[], CloudArtistRow>(
+      'SELECT * FROM cloud_artists ORDER BY artist_key',
+    )
+    this.#artist = db.prepare<[string], CloudArtistRow>(
+      'SELECT * FROM cloud_artists WHERE artist_key = ?',
+    )
+    this.#saveArtist = db.prepare(`
+      INSERT INTO cloud_artists (artist_key, banner_key, banner_size, portrait_key, portrait_size, sig)
+      VALUES (@artist, @bannerKey, @bannerSize, @portraitKey, @portraitSize, @sig)
+      ON CONFLICT (artist_key) DO UPDATE SET
+        banner_key = excluded.banner_key, banner_size = excluded.banner_size,
+        portrait_key = excluded.portrait_key, portrait_size = excluded.portrait_size,
+        sig = excluded.sig
+    `)
+    this.#dropArtist = db.prepare('DELETE FROM cloud_artists WHERE artist_key = ?')
     this.#forgetFile = db.prepare('DELETE FROM cloud_files WHERE key = ?')
     this.#rememberRemoved = db.prepare(
       'INSERT OR IGNORE INTO removed_songs (uid) SELECT uid FROM songs WHERE id = ?',
@@ -323,7 +385,7 @@ export class CloudRepository {
   /** Everything this server knows about one bucket: what it uploaded, and how far it read the logs. */
   #forgetUploads(): void {
     this.#db.exec(
-      'DELETE FROM cloud_songs; DELETE FROM cloud_files; DELETE FROM cloud_log_cursors; DELETE FROM cloud_trash; DELETE FROM removed_songs;',
+      'DELETE FROM cloud_songs; DELETE FROM cloud_artists; DELETE FROM cloud_files; DELETE FROM cloud_log_cursors; DELETE FROM cloud_trash; DELETE FROM removed_songs;',
     )
   }
 
@@ -365,8 +427,65 @@ export class CloudRepository {
     return row ? toState(row) : null
   }
 
+  /**
+   * Record what is in the bucket for one song. A file it named before and no
+   * longer does — a cover made again, words edited — goes in the trash, to be
+   * deleted once the snapshot that names the new one is up and nothing else
+   * names the old: left there, every replaced file stayed in the bucket for
+   * good, nameless.
+   */
   saveState(state: Omit<CloudSongState, 'uploadedAt'>): void {
-    this.#saveState.run(state)
+    this.#db.transaction(() => {
+      const before = this.#state.get(state.songId)
+      this.#saveState.run(state)
+      if (!before) return
+      this.#trashReplaced(
+        [
+          before.audio_key,
+          before.cover_key,
+          before.lyrics_key,
+          before.romanized_key,
+          before.motion_key,
+        ],
+        [state.audioKey, state.coverKey, state.lyricsKey, state.romanizedKey, state.motionKey],
+      )
+    })()
+  }
+
+  /** Each key in `before` that is not one of `after`, into the trash. */
+  #trashReplaced(before: readonly (string | null)[], after: readonly (string | null)[]): void {
+    for (const key of before) {
+      if (key !== null && !after.includes(key)) this.#trashKey.run({ key })
+    }
+  }
+
+  // --- Artists' pictures -----------------------------------------------------
+
+  artistStates(): Map<string, CloudArtistState> {
+    return new Map(this.#artists.all().map(row => [row.artist_key, toArtistState(row)]))
+  }
+
+  /** Record an artist's picture in the bucket; a picture it replaces goes in the trash. */
+  saveArtist(state: CloudArtistState): void {
+    this.#db.transaction(() => {
+      const before = this.#artist.get(state.artist)
+      this.#saveArtist.run(state)
+      if (!before) return
+      this.#trashReplaced(
+        [before.banner_key, before.portrait_key],
+        [state.bannerKey, state.portraitKey],
+      )
+    })()
+  }
+
+  /** An artist the library no longer has, or no longer has a picture of: theirs goes in the trash. */
+  dropArtist(artist: string): void {
+    this.#db.transaction(() => {
+      const before = this.#artist.get(artist)
+      if (!before) return
+      this.#dropArtist.run(artist)
+      this.#trashReplaced([before.banner_key, before.portrait_key], [])
+    })()
   }
 
   // --- The trash -------------------------------------------------------------
@@ -399,7 +518,21 @@ export class CloudRepository {
     this.#db.exec('DELETE FROM removed_songs')
   }
 
-  /** Trashed files no song names any more: what the pass may delete. */
+  /**
+   * Every cover in the bucket that nothing names, into the trash: replaced
+   * before replacing put the old one there, or left by anything else. Only
+   * `covers/`: a picture this server can always send again from its own copy
+   * (services/covers.ts, artistBackdrops.ts), where a song's audio or words
+   * that no row names may be the only copy there is of a song whose row was
+   * reconciled away. Asked of the listing, so only once that is fresh.
+   *
+   * Returns how many went in.
+   */
+  trashUnnamedCovers(): number {
+    return this.#trashUnnamedCovers.run().changes
+  }
+
+  /** Trashed files nothing names any more: what the pass may delete. */
   trashedKeys(): string[] {
     return this.#trashedKeys.all().map(row => row.key)
   }
@@ -461,7 +594,7 @@ export class CloudRepository {
       for (const { key } of known) if (!present.has(key)) drop.run(key)
       for (const [key, size] of present) this.#recordFile.run(key, size)
 
-      return this.#db
+      const again = this.#db
         .prepare(
           `DELETE FROM cloud_songs
             WHERE audio_key NOT IN (SELECT key FROM cloud_files)
@@ -471,6 +604,13 @@ export class CloudRepository {
                OR (motion_key IS NOT NULL AND motion_key NOT IN (SELECT key FROM cloud_files))`,
         )
         .run().changes
+      // An artist whose picture went is sent again too; they are not counted as songs.
+      this.#db.exec(
+        `DELETE FROM cloud_artists
+          WHERE banner_key NOT IN (SELECT key FROM cloud_files)
+             OR portrait_key NOT IN (SELECT key FROM cloud_files)`,
+      )
+      return again
     })()
   }
 
@@ -489,6 +629,17 @@ export class CloudRepository {
 
   playlistUids(): Map<number, string> {
     return new Map(this.#playlistUids.all().map(row => [row.id, row.uid]))
+  }
+}
+
+function toArtistState(row: CloudArtistRow): CloudArtistState {
+  return {
+    artist: row.artist_key,
+    bannerKey: row.banner_key,
+    bannerSize: row.banner_size,
+    portraitKey: row.portrait_key,
+    portraitSize: row.portrait_size,
+    sig: row.sig,
   }
 }
 

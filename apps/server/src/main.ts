@@ -182,6 +182,9 @@ function startLibrary(container: Container): void {
   const { config, logger } = container
 
   container.importQueue.start()
+  void container.covers.sweepThumbnails().catch((error: unknown) => {
+    logger.warn('could not sweep cover thumbnails', { message: messageOf(error) })
+  })
   // Rescan on folder changes (drag-and-drop into Finder) when the setting is
   // on, and every `autoScanMinutes` when that is set.
   container.libraryWatcher.apply()

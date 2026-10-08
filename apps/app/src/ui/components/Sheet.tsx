@@ -410,13 +410,13 @@ const styles = StyleSheet.create(theme => ({
     gap: 1,
   },
   titleLabel: {
-    fontSize: 12,
+    fontSize: type.small,
     fontWeight: '400',
     color: theme.colors.textMuted,
   },
   title: {
     color: theme.colors.textPrimary,
-    fontSize: 15,
+    fontSize: type.body,
     fontWeight: '600',
   },
   subtitle: {
@@ -450,7 +450,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: withAlpha(theme.colors.danger, 0.12),
   },
   itemLabelDense: {
-    fontSize: 13,
+    fontSize: type.sub,
   },
   itemPressed: {
     backgroundColor: theme.colors.surface2,
@@ -464,7 +464,7 @@ const styles = StyleSheet.create(theme => ({
   },
   itemLabel: {
     flex: 1,
-    fontSize: 15,
+    fontSize: type.body,
   },
   itemDetail: {
     color: theme.colors.textMuted,

@@ -7,7 +7,7 @@ import type { LayoutChangeEvent } from 'react-native'
 import { usePathname, useRouter } from 'expo-router'
 import { artistOr, clamp01 } from '@selfmp3/shared'
 import { warmCoverPalette } from '../features/nowPlaying/useCoverPalette'
-import { radius, space, type, withAlpha, useToggleLoved, type SongColors } from '@selfmp3/client'
+import { radius, space, type, useToggleLoved, withAlpha, type SongColors } from '@selfmp3/client'
 import { DevicesSheet } from '../features/devices/DevicesSheet'
 import { UpNextTarget } from '../ui/components/CoverFlight'
 import { toggleQueueSheet, useQueueSheetOpen } from '../features/queue/queueSheet.store'
@@ -619,7 +619,7 @@ const styles = StyleSheet.create(theme => ({
     marginHorizontal: 2,
     borderRadius: radius.pill,
   },
-  pillText: { fontSize: 12, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  pillText: { fontSize: type.small, fontWeight: '600', fontVariant: ['tabular-nums'] },
   centre: {
     flexGrow: 1.9,
     flexShrink: 1,
@@ -654,7 +654,7 @@ const styles = StyleSheet.create(theme => ({
   volumePopover: { alignItems: 'center', gap: 10, paddingTop: 10, paddingBottom: 2 },
   readout: {
     color: theme.colors.textSecondary,
-    fontSize: 11,
+    fontSize: type.tiny,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },

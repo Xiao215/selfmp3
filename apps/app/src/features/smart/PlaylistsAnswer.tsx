@@ -7,9 +7,11 @@ import { plural, type AskAnswer, type Playlist } from '@selfmp3/shared'
 import {
   clientApi,
   failureText,
+  leading,
   queryKeys,
   radius,
   space,
+  type,
   useCreatePlaylist,
   useLibrary,
 } from '@selfmp3/client'
@@ -236,8 +238,8 @@ export function PlaylistsAnswer({
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm },
-  head: { color: theme.colors.textPrimary, fontSize: 15.5, fontWeight: '600' },
-  line: { color: theme.colors.textSecondary, fontSize: 13.5, lineHeight: 19 },
+  head: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -248,11 +250,11 @@ const styles = StyleSheet.create(theme => ({
   },
   pressed: { opacity: 0.7 },
   text: { flex: 1, minWidth: 0, gap: 2 },
-  name: { color: theme.colors.textPrimary, fontSize: 14, fontWeight: '500' },
+  name: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '500' },
   old: { color: theme.colors.textMuted, fontWeight: '400' },
   arrow: { color: theme.colors.textMuted },
-  meta: { color: theme.colors.textMuted, fontSize: 12 },
-  note: { color: theme.colors.textMuted, fontSize: 12.5 },
-  error: { color: theme.colors.danger, fontSize: 12.5 },
+  meta: { color: theme.colors.textMuted, fontSize: type.small },
+  note: { color: theme.colors.textMuted, fontSize: type.small },
+  error: { color: theme.colors.danger, fontSize: type.sub },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
 }))

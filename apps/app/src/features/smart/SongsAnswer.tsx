@@ -10,6 +10,7 @@ import {
   failureText,
   radius,
   space,
+  type,
   useCreatePlaylist,
   useLibrary,
 } from '@selfmp3/client'
@@ -18,13 +19,13 @@ import { useArt } from '../../offline/useArt'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { Chip } from '../../ui/components/Chip'
-import { Cover } from '../../ui/components/Cover'
 import { X } from '../../ui/components/Icons'
 import { useSongsById } from '../../ui/songsById'
 import { followRules } from '../lists/followRules'
 import { newPlaylist } from '../playlists/playlists.model'
 import { describeNotes, onlyTags, parts, picksHere, tagIdsFor } from './smart.model'
 import { useSmartServer } from './useSmartServer'
+import { SongLine } from '../../ui/components/SongLine'
 
 /**
  * Songs picked from a description (docs/features/ai.md): what it understood,
@@ -153,25 +154,24 @@ export function SongsAnswer({
           {picks.map(each => {
             const song = songsById.get(each.songId)!
             return (
-              <View key={song.id} style={styles.row}>
-                <Cover uri={artFor(song)} title={song.album || song.title} size={36} />
-                <View style={styles.text}>
-                  <Text style={styles.title} numberOfLines={1}>
-                    {song.title}
-                  </Text>
-                  <Text style={styles.why} numberOfLines={1}>
-                    {each.why ?? artistOr(song.artist)}
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={() => setLeft(current => new Set([...current, song.id]))}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Leave out ${song.title}`}
-                  style={({ pressed }) => [styles.leave, pressed && styles.pressed]}
-                >
-                  <X size={14} color={theme.colors.textMuted} />
-                </Pressable>
-              </View>
+              <SongLine
+                key={song.id}
+                style={styles.row}
+                artUri={artFor(song)}
+                coverTitle={song.album || song.title}
+                title={song.title}
+                sub={each.why ?? artistOr(song.artist)}
+                trailing={
+                  <Pressable
+                    onPress={() => setLeft(current => new Set([...current, song.id]))}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Leave out ${song.title}`}
+                    style={({ pressed }) => [styles.leave, pressed && styles.pressed]}
+                  >
+                    <X size={14} color={theme.colors.textMuted} />
+                  </Pressable>
+                }
+              />
             )
           })}
         </ScrollView>
@@ -231,20 +231,17 @@ const styles = StyleSheet.create(theme => ({
   understood: { gap: 6 },
   label: {
     color: theme.colors.textMuted,
-    fontSize: 11,
+    fontSize: type.tiny,
     fontWeight: '600',
     letterSpacing: 0.9,
     textTransform: 'uppercase',
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
-  brief: { color: theme.colors.textSecondary, fontSize: 12.5, fontStyle: 'italic' },
-  hint: { color: theme.colors.textMuted, fontSize: 12, flexShrink: 1 },
+  brief: { color: theme.colors.textSecondary, fontSize: type.small, fontStyle: 'italic' },
+  hint: { color: theme.colors.textMuted, fontSize: type.small, flexShrink: 1 },
   // Short enough that the buttons under it stay on a laptop's screen.
   list: { maxHeight: 220 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5 },
-  text: { flex: 1, minWidth: 0 },
-  title: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '500' },
-  why: { color: theme.colors.textMuted, fontSize: 11.5 },
+  row: { paddingHorizontal: 0 },
   leave: {
     width: 30,
     height: 30,
@@ -254,7 +251,7 @@ const styles = StyleSheet.create(theme => ({
   },
   pressed: { opacity: 0.6 },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: 4 },
-  checkLabel: { color: theme.colors.textPrimary, fontSize: 13.5, flexShrink: 1 },
-  error: { color: theme.colors.danger, fontSize: 12 },
+  checkLabel: { color: theme.colors.textPrimary, fontSize: type.sub, flexShrink: 1 },
+  error: { color: theme.colors.danger, fontSize: type.small },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
 }))

@@ -6,7 +6,7 @@ import type { LayoutChangeEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { plural, formatLongDuration, type Playlist } from '@selfmp3/shared'
-import { radius, space, useGems } from '@selfmp3/client'
+import { radius, space, type, useGems } from '@selfmp3/client'
 import { prefs } from '../../ports/prefs'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
@@ -355,7 +355,7 @@ const styles = StyleSheet.create(theme => ({
   },
   titles: { flexShrink: 1, minWidth: 0 },
   heading: pageTitle(theme.colors),
-  sub: { color: theme.colors.textMuted, fontSize: 13, marginTop: 3 },
+  sub: { color: theme.colors.textMuted, fontSize: type.sub, marginTop: 3 },
   headActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   tile: { width: '100%' },
@@ -368,11 +368,11 @@ const styles = StyleSheet.create(theme => ({
   pressed: { opacity: 0.75 },
   tileName: {
     color: theme.colors.textPrimary,
-    fontSize: 15,
+    fontSize: type.body,
     fontWeight: '600',
     marginTop: space.sm,
   },
-  tileSub: { color: theme.colors.textMuted, fontSize: 12, marginTop: 1 },
+  tileSub: { color: theme.colors.textMuted, fontSize: type.small, marginTop: 1 },
   badge: {
     position: 'absolute',
     top: 7,
@@ -383,7 +383,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.glass,
   },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  badgeText: { color: theme.colors.textPrimary, fontSize: 10.5, fontWeight: '700' },
+  badgeText: { color: theme.colors.textPrimary, fontSize: type.tiny, fontWeight: '700' },
   fab: {
     position: 'absolute',
     right: 8,

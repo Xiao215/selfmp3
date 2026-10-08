@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter, type Href } from 'expo-router'
-import { radius, space } from '@selfmp3/client'
+import { leading, radius, space, type } from '@selfmp3/client'
 import { shownAddress } from '../../ports/pageAddress'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
@@ -150,8 +150,8 @@ const styles = StyleSheet.create(theme => ({
   title: { ...pageTitle(theme.colors), textAlign: 'center' },
   line: {
     color: theme.colors.textMuted,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: type.sub,
+    lineHeight: leading.sub,
     textAlign: 'center',
     maxWidth: 460,
   },
@@ -172,5 +172,5 @@ const styles = StyleSheet.create(theme => ({
   },
   place: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: radius.pill },
   placePressed: { backgroundColor: theme.colors.surface2 },
-  placeText: { color: theme.colors.textMuted, fontSize: 13 },
+  placeText: { color: theme.colors.textMuted, fontSize: type.sub },
 }))

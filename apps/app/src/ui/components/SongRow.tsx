@@ -870,7 +870,7 @@ const styles = StyleSheet.create(theme => ({
   },
   title: {
     color: theme.colors.textPrimary,
-    fontSize: type.row,
+    fontSize: type.body,
     fontWeight: '600',
   },
   titleWide: {
@@ -881,7 +881,7 @@ const styles = StyleSheet.create(theme => ({
   },
   subtitle: {
     color: theme.colors.textSecondary,
-    fontSize: type.rowSub,
+    fontSize: type.sub,
     flexShrink: 1,
   },
   subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
@@ -925,7 +925,11 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
   },
   index: { width: 28, alignItems: 'center', justifyContent: 'center' },
-  indexNumber: { color: theme.colors.textMuted, fontSize: 12, fontVariant: ['tabular-nums'] },
+  indexNumber: {
+    color: theme.colors.textMuted,
+    fontSize: type.small,
+    fontVariant: ['tabular-nums'],
+  },
   indexPlay: {
     width: 28,
     height: 28,
@@ -939,7 +943,7 @@ const styles = StyleSheet.create(theme => ({
     flexGrow: 0,
     flexShrink: 0,
     color: theme.colors.textMuted,
-    fontSize: 12,
+    fontSize: type.small,
   },
   tags: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: TAG_GAP },
   /* A phone's chips, after the artist and the length; the words give way first. */
@@ -997,7 +1001,7 @@ const styles = StyleSheet.create(theme => ({
   },
   durationWide: {
     color: theme.colors.textMuted,
-    fontSize: 12,
+    fontSize: type.small,
     fontVariant: ['tabular-nums'],
     minWidth: 40,
     textAlign: 'right',

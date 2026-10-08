@@ -51,8 +51,39 @@
   --radius-card-lg: 22px;
   --radius-card: 18px;
   --radius-mini: 16px;
+  --radius-row: 14px;
+  --radius-field: 12px;
   --radius-cover: 10px;
   --radius-cover-sm: 8px;
+
+  /* Room, on a four-point grid; a phone page's gutter and a computer's. */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-gutter: 20px;
+  --space-xl: 24px;
+  --space-gutter-wide: 40px;
+
+  /* Nine type sizes and no others, each with the line height for words that wrap. */
+  --type-tiny: 11px;
+  --type-small: 12px;
+  --type-sub: 13px;
+  --type-body: 15px;
+  --type-title: 17px;
+  --type-section: 18px;
+  --type-large: 22px;
+  --type-page: 30px;
+  --type-display: 46px;
+  --leading-tiny: 15px;
+  --leading-small: 17px;
+  --leading-sub: 19px;
+  --leading-body: 21px;
+  --leading-title: 23px;
+  --leading-section: 22px;
+  --leading-large: 26px;
+  --leading-page: 34px;
+  --leading-display: 50px;
 
   --shadow-1: 0 1px 2px oklch(0.08 0.02 var(--accent-hue) / 0.35);
   --shadow-2: 0 6px 18px oklch(0.08 0.02 var(--accent-hue) / 0.4);

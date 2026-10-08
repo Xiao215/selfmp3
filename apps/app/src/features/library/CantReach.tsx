@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Linking, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { space, type } from '@selfmp3/client'
+import { leading, space, type } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
@@ -78,7 +78,7 @@ const styles = StyleSheet.create(theme => ({
   cardCompact: { maxWidth: undefined },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  title: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  body: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: 19 },
+  title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  body: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.xs },
 }))

@@ -14,6 +14,7 @@ Files:
 |---|---|
 | Dropdown | `apps/app/src/ui/components/Select.tsx` |
 | The song row | `apps/app/src/ui/components/SongRow.tsx` |
+| The shared parts | `apps/app/src/ui/components/SearchField.tsx`, `EmptyState.tsx`, `SectionHead.tsx`, `SongLine.tsx` |
 | Floating-layer shell | `apps/app/src/ui/components/Popover.tsx`, `Sheet.tsx`, `apps/app/src/shell/Overlay.tsx` |
 | Hover captions | `apps/app/src/ui/tip.ts`, `apps/app/src/shell/TooltipHost.web.tsx` |
 | Tokens | `packages/client/src/theme/tokens.ts`, `tokens.reference.css`; themes in `apps/app/src/ui/theme/unistyles.ts` |
@@ -95,6 +96,44 @@ The row is memoised, and the list it is in is long, so nothing handed to it may 
 every render: hand it the page's own stable handlers (each takes the song, so one function
 serves every row), memoise `leading`, and look tags up through `songTagLookup`
 (`features/library/library.model.ts`), which keeps one array per song.
+
+## One look per part
+
+The same part looks the same wherever it is (proposal P1, 2026-10-08). There were six chip
+styles, four search fields, nine empty states laid out nine ways, two section headings and a
+dozen small song rows with nine cover sizes between them. A screen uses these; it does not
+draw its own.
+
+| Part | What it is | Where |
+|---|---|---|
+| `SearchField` | The one search field: a pill one step up from what it sits on, a magnifier, a × once there are words. Its edge and magnifier turn the accent with the focus. 48 high with a finger, 40 with a mouse. `raised` on a card, a sheet or a panel. Given `onPress` and no `value` it is a **door** to the real search (Home, Library); `trailing` takes the ×'s place (Ask's Stop, the palette's count) | Search, the palette, Add songs, a tag's Add, the tag picker, the listen-tags panel |
+| `EmptyState` | What stands where a list would be: an optional icon, a title, one short line, and the button that fixes it (children). `compact` in a sheet, a panel or the palette | Library, a playlist, Stats, Home's tags, Search, the palette, the add sheets, Now Playing |
+| `SectionHead` | A section's heading: its name in the display face at 18, and a link to the rest at the other end ("All 9", "See all") | Home, Search |
+| `SongLine` | The compact song line: a 36 cover (`SONG_LINE_COVER`), the title at 13, a line under it at 12, and what the place needs at the end. Pressable with `onPress`, or the face alone for a row whose press a screen owns | Up next's rail, the palette, Add songs, Profile, Ask's answers, Tidy up's review |
+
+`SongLine` is not `SongRow`. A list of songs — Library, a playlist, a tag, Search's Songs, the
+phone's Up next — draws `SongRow`; `SongLine` names a song somewhere else. The small uppercase
+label (`label()`) is not a section heading either: it names a group of settings or a card's
+figure.
+
+**Chips** come in two kinds: the filter pill (`Chip`: a tag strip, Search's scopes, Settings'
+sections on a phone) and the row label (`SongRow`'s tag chips, `rowTags`).
+
+**"On"** is said one of two ways. A pill, a chip, a segment or a section index that is chosen
+is **white** with dark ink (`textPrimary` behind `onPrimary`; on Paper that is ink behind
+cream) — `Chip`'s `selected`, `Button`'s `active`, `Segmented`, Settings' index, Up next's
+Shuffle. A **transport toggle** — shuffle and repeat in the player bar and Now Playing — says it
+in colour instead: its icon in the song's or the accent's colour. Nothing is "on" in a lighter
+grey: that read as hovered.
+
+Not on these yet, on purpose: Stats' ranked lines (a rank, a picture of three kinds and a share
+bar, not a song line), the import rows waiting above Library (they stand in for `SongRow`s in
+the list below them), Forgotten gems' cards (a shelf of posters), and the sidebar's search
+row (a 32-high row of the rail, which opens the palette). Up next on a phone keeps its own
+panel rather than `Sheet`: it is drawn by the shell under the overlay host so a song's menu
+and the Undo toast for a swiped-away row land above it, it stays mounted while shut so that
+Undo still reaches the queue, and it is the window's full height; its rise, pull and
+thresholds are `Sheet`'s own (`MOVE_MS.sheetUp`/`sheetDown`, `PULL`).
 
 ## `<Popover>` — the floating-layer shell
 
@@ -201,28 +240,54 @@ request line or a status code, which go to the console.
 ## Tokens
 
 The app reads its tokens from `packages/client/src/theme/tokens.ts` (`colors`, `radius`,
-`space`, `type`, `fonts`, `motion`, `HIT_TARGET`, `BREAKPOINT`), and Unistyles holds the light
-and dark themes built from them.
+`space`, `type`, `leading`, `iconSize`, `fonts`, `motion`, `HIT_TARGET`, `BREAKPOINT`), and
+Unistyles holds the light and dark themes built from them. The extension's stylesheet is
+written from the same tokens on every build (`apps/extension/scripts/theme.mjs`).
+
+**Nine type sizes and no others** (proposal P1), each with the line height to use when its
+words wrap. A line that never wraps leaves `lineHeight` off. The serif's big numbers keep the
+room their figures need above the line rather than `leading`.
+
+| Token | Size | `leading` | For |
+|---|---|---|---|
+| `type.tiny` | 11 | 15 | counts, times, the small uppercase label |
+| `type.small` | 12 | 17 | captions and hints |
+| `type.sub` | 13 | 19 | the line under a title, a chip, secondary words |
+| `type.body` | 15 | 21 | body text, a song row's title, a button, a field |
+| `type.title` | 17 | 23 | a sheet's or a dialog's title |
+| `type.section` | 18 | 22 | a section's heading (display face) |
+| `type.large` | 22 | 26 | a tile's name, a big title |
+| `type.page` | 30 | 34 | a page's title (display face) |
+| `type.display` | 46 | 50 | a greeting, a name at the top of a page, a big number |
+
+What is left outside the scale: the Report's shareable looks (`features/wrapped/looks`), which
+are posters with their own typography; Now Playing's stage title and lyrics, which grow with
+the window; and a letter tile's initial, which is a share of its cover.
+
+**Room** is `space`: `xs` 4, `sm` 8, `md` 12, `lg` 16, `xl` 24, and the two page gutters,
+`gutter` 20 on a phone and `gutterWide` 40 on a computer.
 
 The rules from `S2`, as the code keeps them:
 
 - **No hairlines.** Separation is tone on tone: the ground (`surface0`), a card one step up
-  (`surface1`), a control (`surface2`), a raised control (`surface3`), the chosen segment
-  (`surfaceSelected`). An edge is drawn only where the edge is the mark itself: a checkbox's
+  (`surface1`), a control (`surface2`), a raised control (`surface3`), and the empty part of a
+  track (`surfaceSelected`: a switch that is off, a bar not yet played). An edge is drawn only where the edge is the mark itself: a checkbox's
   ring, a dashed "add", a focus ring, a drop line.
 - **Paper**, the light theme, is warm and is not tinted by the accent hue. White cards on
   cream have no tone to separate them, so a card casts a soft shadow there (`card()` in
   `apps/app/src/ui/surfaces.ts`); in the dark it casts none. Only floating things (sheets,
   menus, the bars, a lifted row) cast a shadow in both (`floating()`).
-- **Shapes** are named: `radius.pill` for buttons, fields, chips and segments; `card` 18 and
-  `cardLg` 22; `sheet` 26; `mini` 16; covers `cover` 10 and `coverSm` 8.
+- **Shapes** are named: `radius.pill` for buttons, search fields, chips and segments; `field`
+  12 for a text field that is not a search; `card` 18 and `cardLg` 22; `sheet` 26; `mini` 16;
+  `row` 14; covers `cover` 10 and `coverSm` 8.
 - **Type**: the system font for rows and body; `fonts.display` (Bricolage Grotesque 600) for
   page titles at `type.page` and sections at `type.section`; `fonts.serif` (Instrument Serif)
   for greetings and big numbers. Neither face takes a `fontWeight`: the weight is in the file.
   `surfaces.ts` has `pageTitle()`, `sectionTitle()`, `label()` and `serif()`.
 - **Buttons** come in four shapes (`Button.tsx`): the round white `PlayButton`, at most one
   per page; the tonal pill; the text action; the accent pill, kept for the one button that
-  commits. **Chips** are neutral pills with a dot of the tag's hue; chosen is white.
+  commits. **Chips** are neutral pills with a dot of the tag's hue; chosen is white (see
+  "On", above).
 - **Tags' colours** come from `tagColors(hue)`: a tile fill and its ink, a dot, and the name in
   its hue.
 - **Motion**: everything goes through `apps/app/src/ui/motion.ts`, which answers Reduce Motion

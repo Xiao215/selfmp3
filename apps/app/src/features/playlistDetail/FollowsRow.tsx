@@ -4,7 +4,7 @@ import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { plural } from '@selfmp3/shared'
 import type { Playlist, Tag } from '@selfmp3/shared'
-import { radius, space, useStopFollowing, useUpdatePlaylist } from '@selfmp3/client'
+import { radius, space, type, useStopFollowing, useUpdatePlaylist } from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
 import { Chip } from '../../ui/components/Chip'
 import { Plus } from '../../ui/components/Icons'
@@ -136,7 +136,7 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: space.sm,
     ...card(theme.colors),
   },
-  word: { color: theme.colors.textSecondary, fontSize: 12 },
+  word: { color: theme.colors.textSecondary, fontSize: type.small },
   spacer: { flex: 1, minWidth: 0 },
   add: {
     flexDirection: 'row',
@@ -149,8 +149,8 @@ const styles = StyleSheet.create(theme => ({
     borderStyle: 'dashed',
     borderColor: theme.colors.borderStrong,
   },
-  addLabel: { color: theme.colors.textMuted, fontSize: 11 },
+  addLabel: { color: theme.colors.textMuted, fontSize: type.tiny },
   stop: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill },
-  stopLabel: { color: theme.colors.textSecondary, fontSize: 11.5 },
+  stopLabel: { color: theme.colors.textSecondary, fontSize: type.small },
   panel: { width: '100%' },
 }))

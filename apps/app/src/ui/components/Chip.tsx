@@ -149,9 +149,9 @@ const styles = StyleSheet.create(theme => ({
   },
   count: { fontSize: type.tiny, fontWeight: '500', opacity: 0.6, fontVariant: ['tabular-nums'] },
   label: {
-    fontSize: 13,
+    fontSize: type.sub,
     fontWeight: '500',
   },
   remove: { paddingLeft: 2, paddingRight: 10 },
-  removeGlyph: { fontSize: 14, opacity: 0.6 },
+  removeGlyph: { fontSize: type.body, opacity: 0.6 },
 }))

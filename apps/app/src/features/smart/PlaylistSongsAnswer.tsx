@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { artistOr, plural, type AskAnswer } from '@selfmp3/shared'
 import {
   space,
+  type,
   useAddToPlaylist,
   useLibrary,
   usePlaylistSongIds,
@@ -241,7 +242,7 @@ export function PlaylistSongsAnswer({
 }
 
 const styles = StyleSheet.create(theme => ({
-  head: { color: theme.colors.textPrimary, fontSize: 15.5, fontWeight: '600' },
+  head: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   preview: { gap: 3, paddingVertical: space.xs },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
 }))

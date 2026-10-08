@@ -2,7 +2,7 @@ import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { radius, withAlpha } from '@selfmp3/client'
+import { leading, radius, type, withAlpha } from '@selfmp3/client'
 import { ChevronDown, ChevronRight } from '../../ui/components/Icons'
 import { Slider } from '../../ui/components/Slider'
 import { card, label as labelText, serif } from '../../ui/surfaces'
@@ -213,19 +213,23 @@ export function Details({ children }: { children: ReactNode }): ReactNode {
 
 export const partStyles = StyleSheet.create(theme => ({
   progress: { marginVertical: 14, gap: 8 },
-  progressText: { color: theme.colors.textSecondary, fontSize: 13 },
-  valueText: { color: theme.colors.textPrimary, fontSize: 13 },
+  progressText: { color: theme.colors.textSecondary, fontSize: type.sub },
+  valueText: { color: theme.colors.textPrimary, fontSize: type.sub },
   input: {
     minWidth: 220,
     paddingVertical: 7,
     paddingHorizontal: 14,
-    fontSize: 13,
+    fontSize: type.sub,
     color: theme.colors.textPrimary,
     backgroundColor: theme.colors.surface2,
     borderRadius: radius.pill,
   },
-  hint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18 },
-  code: { fontSize: 12, color: theme.colors.textPrimary, backgroundColor: theme.colors.surface2 },
+  hint: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
+  code: {
+    fontSize: type.small,
+    color: theme.colors.textPrimary,
+    backgroundColor: theme.colors.surface2,
+  },
 }))
 
 const styles = StyleSheet.create(theme => ({
@@ -239,7 +243,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.pill,
   },
   detailsRowPressed: { opacity: 0.7 },
-  detailsRowText: { color: theme.colors.textMuted, fontSize: 13 },
+  detailsRowText: { color: theme.colors.textMuted, fontSize: type.sub },
   group: { gap: 8 },
   groupHead: {
     flexDirection: 'row',
@@ -256,11 +260,11 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: 16,
     paddingHorizontal: 16,
   },
-  hint: { color: theme.colors.textMuted, fontSize: 12 },
+  hint: { color: theme.colors.textMuted, fontSize: type.small },
   lead: {
     color: theme.colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 20,
+    fontSize: type.sub,
+    lineHeight: leading.sub,
     marginBottom: 12,
     maxWidth: 520,
   },
@@ -275,20 +279,25 @@ const styles = StyleSheet.create(theme => ({
   // The card's own padding is below the last row, so it needs none of its own.
   rowLast: { paddingBottom: 0 },
   label: { flex: 1, minWidth: 0, gap: 3 },
-  name: { color: theme.colors.textPrimary, fontSize: 15 },
-  rowHint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17, maxWidth: 400 },
+  name: { color: theme.colors.textPrimary, fontSize: type.body },
+  rowHint: {
+    color: theme.colors.textMuted,
+    fontSize: type.small,
+    lineHeight: leading.small,
+    maxWidth: 400,
+  },
   control: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10 },
   controlStacked: { justifyContent: 'flex-start', flexWrap: 'wrap' },
   value: {
     minWidth: 34,
     textAlign: 'right',
     color: theme.colors.textMuted,
-    fontSize: 12,
+    fontSize: type.small,
     fontVariant: ['tabular-nums'],
   },
   stats: { flexDirection: 'row', gap: 32, marginTop: 16, marginBottom: 12 },
-  statValue: serif(theme.colors, 28),
-  statLabel: { color: theme.colors.textMuted, fontSize: 12 },
+  statValue: serif(theme.colors, type.page),
+  statLabel: { color: theme.colors.textMuted, fontSize: type.small },
   meter: { height: 6, borderRadius: 3, backgroundColor: theme.colors.surface3, overflow: 'hidden' },
   meterFill: {
     height: '100%',
@@ -307,13 +316,13 @@ const styles = StyleSheet.create(theme => ({
   noticeWarnWash: { backgroundColor: withAlpha(theme.colors.warning, 0.14) },
   noticeErrorWash: { backgroundColor: withAlpha(theme.colors.danger, 0.14) },
   noticeGoodWash: { backgroundColor: withAlpha(theme.colors.good, 0.14) },
-  noticeText: { color: theme.colors.textPrimary, fontSize: 13, lineHeight: 19 },
+  noticeText: { color: theme.colors.textPrimary, fontSize: type.sub, lineHeight: leading.sub },
   noticeError: { color: theme.colors.danger },
   noticeGood: { color: theme.colors.good },
   buttons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
   kbd: {
     color: theme.colors.textPrimary,
-    fontSize: 11,
+    fontSize: type.tiny,
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: 5,

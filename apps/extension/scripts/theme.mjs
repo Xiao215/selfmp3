@@ -68,12 +68,13 @@ function fontStack(key, family) {
  * tokens themselves.
  */
 export function themeCss(tokens) {
-  const { hue, dark, light, radius, space, type, labelTracking, fonts, motion } = tokens
+  const { hue, dark, light, radius, space, type, leading, labelTracking, fonts, motion } = tokens
   const shared = [
     `--accent-hue: ${hue};`,
     ...Object.entries(radius).map(([key, value]) => `--radius-${kebab(key)}: ${value}px;`),
     ...Object.entries(space).map(([key, value]) => `--space-${kebab(key)}: ${value}px;`),
     ...Object.entries(type).map(([key, value]) => `--type-${kebab(key)}: ${value}px;`),
+    ...Object.entries(leading).map(([key, value]) => `--leading-${kebab(key)}: ${value}px;`),
     `--label-tracking: ${labelTracking}px;`,
     ...Object.entries(fonts).map(
       ([key, family]) => `--font-${kebab(key)}: ${fontStack(key, family)};`,
@@ -142,6 +143,7 @@ export async function writeTheme(fontsOut) {
     radius: client.radius,
     space: client.space,
     type: client.type,
+    leading: client.leading,
     labelTracking: client.labelTracking,
     fonts: client.fonts,
     motion: client.motion,

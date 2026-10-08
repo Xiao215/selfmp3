@@ -3,9 +3,9 @@ import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { artistOr, plural, type AskAnswer } from '@selfmp3/shared'
-import { radius, space } from '@selfmp3/client'
+import { leading, space, type } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
-import { Cover } from '../../ui/components/Cover'
+import { SongLine } from '../../ui/components/SongLine'
 
 /**
  * Music to import (docs/features/ai.md, "Getting music"): what 网易云 lists
@@ -33,24 +33,21 @@ export function GetMusicAnswer({
         {albums ? 'Albums on 网易云' : 'Songs on 网易云'} for “{answer.words}”
       </Text>
       {answer.items.map(item => (
-        <View key={item.url} style={styles.row}>
-          <Cover uri={item.cover} title={item.title} size={44} />
-          <View style={styles.text}>
-            <Text style={styles.title} numberOfLines={2}>
-              {item.title}
-              <Text style={styles.muted}> · {artistOr(item.artist)}</Text>
-            </Text>
-            <Text style={styles.meta} numberOfLines={1}>
-              {haveText(item)}
-            </Text>
-          </View>
-          <Button
-            label={item.have >= item.tracks && item.tracks > 0 ? 'Open' : 'Import'}
-            variant={item.have >= item.tracks && item.tracks > 0 ? 'secondary' : 'primary'}
-            onPress={() => open(item.url)}
-            testID="ask-get-music-open"
-          />
-        </View>
+        <SongLine
+          key={item.url}
+          style={styles.row}
+          artUri={item.cover}
+          title={item.title}
+          sub={`${artistOr(item.artist)} · ${haveText(item)}`}
+          trailing={
+            <Button
+              label={item.have >= item.tracks && item.tracks > 0 ? 'Open' : 'Import'}
+              variant={item.have >= item.tracks && item.tracks > 0 ? 'secondary' : 'primary'}
+              onPress={() => open(item.url)}
+              testID="ask-get-music-open"
+            />
+          }
+        />
       ))}
       <Text style={styles.note}>
         Import shows what each one holds before anything is downloaded.
@@ -68,18 +65,7 @@ function haveText(item: { kind: 'album' | 'song'; tracks: number; have: number }
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm },
-  head: { color: theme.colors.textPrimary, fontSize: 15.5, fontWeight: '600' },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 5,
-    paddingHorizontal: space.xs,
-    borderRadius: radius.coverSm,
-  },
-  text: { flex: 1, minWidth: 0, gap: 2 },
-  title: { color: theme.colors.textPrimary, fontSize: 13.5, fontWeight: '500' },
-  muted: { color: theme.colors.textMuted, fontWeight: '400' },
-  meta: { color: theme.colors.textMuted, fontSize: 12 },
-  note: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
+  head: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  row: { paddingHorizontal: 0 },
+  note: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
 }))

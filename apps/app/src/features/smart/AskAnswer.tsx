@@ -5,13 +5,12 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { artistOr, plural, type AskAnswer as Answer } from '@selfmp3/shared'
-import { STALE, failureText, radius, space } from '@selfmp3/client'
+import { failureText, leading, radius, space, STALE, type } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
 import { Button } from '../../ui/components/Button'
-import { Cover } from '../../ui/components/Cover'
 import { Play, Sparkle } from '../../ui/components/Icons'
 import { useSongsById } from '../../ui/songsById'
 import { ChangeField, TrailStep } from './ChangeIt'
@@ -30,6 +29,7 @@ import { Working } from './Working'
 import { newTicket, useAskProgress } from './useAskProgress'
 import { useSmartServer } from './useSmartServer'
 import { reachedConnection, viaKey } from '../../connection/via'
+import { SongLine } from '../../ui/components/SongLine'
 
 /**
  * An ask's query key: the server it went to, the words first asked, the song
@@ -392,7 +392,7 @@ function SongPicks({
   return (
     <>
       {found.map(({ song, why }, index) => (
-        <Pressable
+        <SongLine
           key={song.id}
           onPress={() => {
             player.playFrom(ids, index, {
@@ -400,22 +400,13 @@ function SongPicks({
             })
             onDone()
           }}
-          accessibilityRole="button"
           accessibilityLabel={`Play ${song.title}`}
-          style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-        >
-          <Cover uri={artFor(song)} title={song.album || song.title} size={36} />
-          <View style={styles.text}>
-            <Text style={styles.title} numberOfLines={1}>
-              {song.title}
-              <Text style={styles.muted}> · {artistOr(song.artist)}</Text>
-            </Text>
-            <Text style={styles.why} numberOfLines={1}>
-              {why ?? ''}
-            </Text>
-          </View>
-          <Play size={14} color={theme.colors.textSecondary} />
-        </Pressable>
+          artUri={artFor(song)}
+          coverTitle={song.album || song.title}
+          title={song.title}
+          sub={why ? `${artistOr(song.artist)} · ${why}` : artistOr(song.artist)}
+          trailing={<Play size={14} color={theme.colors.textSecondary} />}
+        />
       ))}
     </>
   )
@@ -423,23 +414,12 @@ function SongPicks({
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.sm },
-  head: { color: theme.colors.textPrimary, fontSize: 15.5, fontWeight: '600' },
-  line: { color: theme.colors.textSecondary, fontSize: 13.5, lineHeight: 19 },
-  answer: { color: theme.colors.textPrimary, fontSize: 14.5, lineHeight: 21 },
-  muted: { color: theme.colors.textMuted, fontSize: 12.5, fontWeight: '400' },
-  error: { color: theme.colors.danger, fontSize: 12.5 },
+  head: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  answer: { color: theme.colors.textPrimary, fontSize: type.body, lineHeight: leading.body },
+  muted: { color: theme.colors.textMuted, fontSize: type.small, fontWeight: '400' },
+  error: { color: theme.colors.danger, fontSize: type.sub },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 5,
-    paddingHorizontal: space.xs,
-    borderRadius: radius.coverSm,
-  },
-  text: { flex: 1, minWidth: 0 },
-  title: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: 13, fontWeight: '500' },
-  why: { color: theme.colors.textMuted, fontSize: 11.5 },
   tries: { gap: 6, marginTop: space.xs },
   followUp: { gap: space.sm, marginTop: space.xs },
   trail: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 4 },
@@ -454,6 +434,6 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,
   },
-  tryText: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: 13 },
+  tryText: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: type.sub },
   pressed: { opacity: 0.6 },
 }))

@@ -229,7 +229,7 @@ const styles = StyleSheet.create(theme => ({
   /* In the title's colour: muted, the times all but disappeared over a song-coloured page. */
   timeInline: {
     color: theme.colors.textPrimary,
-    fontSize: 11,
+    fontSize: type.tiny,
     fontVariant: ['tabular-nums'],
     minWidth: 36,
     textAlign: 'center',

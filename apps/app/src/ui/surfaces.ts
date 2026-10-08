@@ -67,7 +67,7 @@ export function sectionTitle(colors: ThemePalette) {
 export function label(colors: ThemePalette) {
   return {
     color: colors.textMuted,
-    fontSize: type.label,
+    fontSize: type.tiny,
     fontWeight: '600',
     letterSpacing: labelTracking,
     textTransform: 'uppercase',

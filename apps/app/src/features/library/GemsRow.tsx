@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { plural, artistOr, formatRelative } from '@selfmp3/shared'
-import { space, useGems } from '@selfmp3/client'
+import { space, type, useGems } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -141,7 +141,7 @@ const styles = StyleSheet.create(theme => ({
   headStacked: { flexDirection: 'column', alignItems: 'stretch', gap: 8 },
   title: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0, flexShrink: 1 },
   titleLabel: sectionTitle(theme.colors),
-  hint: { color: theme.colors.textMuted, fontSize: 12, flexShrink: 1 },
+  hint: { color: theme.colors.textMuted, fontSize: type.small, flexShrink: 1 },
   actions: { flexDirection: 'row', gap: 8 },
   list: { gap: 10, marginTop: 10, paddingBottom: 4 },
   listFew: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
@@ -160,8 +160,13 @@ const styles = StyleSheet.create(theme => ({
   },
   cardFewPressed: { backgroundColor: theme.colors.surface3 },
   cardText: { flex: 1, minWidth: 0, gap: 1 },
-  cardTitle: { color: theme.colors.textPrimary, fontSize: 11, fontWeight: '600', marginTop: 3 },
-  cardTitleFew: { fontSize: 12, marginTop: 0 },
-  cardArtist: { color: theme.colors.textSecondary, fontSize: 11 },
-  cardWhen: { color: theme.colors.textMuted, fontSize: 10 },
+  cardTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: type.tiny,
+    fontWeight: '600',
+    marginTop: 3,
+  },
+  cardTitleFew: { fontSize: type.small, marginTop: 0 },
+  cardArtist: { color: theme.colors.textSecondary, fontSize: type.tiny },
+  cardWhen: { color: theme.colors.textMuted, fontSize: type.tiny },
 }))

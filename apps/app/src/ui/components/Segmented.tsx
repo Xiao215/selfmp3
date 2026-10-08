@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import type { LayoutChangeEvent } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { radius } from '@selfmp3/client'
+import { radius, type } from '@selfmp3/client'
 import { useFade } from '../motion'
 import { MOVE_MS } from '../motion.model'
 import { useSlidingHighlight } from './SlidingHighlight'
@@ -116,14 +116,14 @@ function Segment({
 }
 
 /** The label's own type, so the quiet copy and the lit copy sit exactly on each other. */
-const LABEL = { fontSize: 13, fontWeight: '600' } as const
+const LABEL = { fontSize: type.sub, fontWeight: '600' } as const
 
 /** Every layer that fills its parent: the hover wash, the lit label. */
 const FILL = { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 } as const
 
 const styles = StyleSheet.create(theme => ({
-  // A pill on the control surface; the chosen segment is a lighter pill inside
-  // it (`S2`, "Selected segment"). Tone, not an edge.
+  // A pill on the control surface; the chosen segment is a white pill inside
+  // it, "on" as a chosen chip is (proposal P1). A lighter grey read as hovered.
   group: {
     flexDirection: 'row',
     alignSelf: 'flex-start',
@@ -141,9 +141,9 @@ const styles = StyleSheet.create(theme => ({
   item: { borderRadius: radius.pill },
   pad: { paddingVertical: 6, paddingHorizontal: 14 },
   itemHovered: { backgroundColor: theme.colors.surface3 },
-  itemActive: { backgroundColor: theme.colors.surfaceSelected, borderRadius: radius.pill },
+  itemActive: { backgroundColor: theme.colors.textPrimary, borderRadius: radius.pill },
   hover: { ...FILL, borderRadius: radius.pill, backgroundColor: theme.colors.surface3 },
   labelLayer: { ...FILL, alignItems: 'center', justifyContent: 'center' },
   label: { ...LABEL, color: theme.colors.textSecondary },
-  labelActive: { ...LABEL, color: theme.colors.textPrimary },
+  labelActive: { ...LABEL, color: theme.colors.onPrimary },
 }))

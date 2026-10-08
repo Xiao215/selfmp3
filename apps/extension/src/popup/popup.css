@@ -171,7 +171,7 @@ body {
 .name-field label {
   flex: none;
   width: 44px;
-  font-size: var(--type-label);
+  font-size: var(--type-tiny);
   font-weight: 600;
   letter-spacing: 0.6px;
   text-transform: uppercase;

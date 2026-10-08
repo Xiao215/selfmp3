@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useUnistyles } from 'react-native-unistyles'
-import { motion } from '@selfmp3/client'
+import { leading, motion, type } from '@selfmp3/client'
 import { motionMs } from '../ui/motion'
 import { EASE_IN_CSS, EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
 import { floating } from '../ui/surfaces'
@@ -283,9 +283,9 @@ export function TooltipHost(): ReactNode {
           ...floating(colors),
           color: colors.textSecondary,
           fontFamily: FONT_STACK,
-          fontSize: 12,
+          fontSize: type.small,
           fontWeight: 500,
-          lineHeight: 1.35,
+          lineHeight: leading.small,
           pointerEvents: 'none',
           animation: leaving
             ? `selfmp3-tooltip-out ${motion.fast}ms ${EASE_IN_CSS} forwards`
@@ -301,7 +301,7 @@ export function TooltipHost(): ReactNode {
                 background: colors.surface2,
                 color: colors.textSecondary,
                 padding: '0 5px',
-                fontSize: 10.5,
+                fontSize: type.tiny,
                 lineHeight: '16px',
                 borderRadius: 4,
                 fontFamily: FONT_STACK,

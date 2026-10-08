@@ -3,7 +3,15 @@ import type { ReactNode } from 'react'
 import { ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { plural, type Song } from '@selfmp3/shared'
-import { HIT_TARGET, failureText, radius, space, useBulkDeleteSongs } from '@selfmp3/client'
+import {
+  failureText,
+  HIT_TARGET,
+  leading,
+  radius,
+  space,
+  type,
+  useBulkDeleteSongs,
+} from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
@@ -202,13 +210,13 @@ const styles = StyleSheet.create(theme => ({
   title: {
     flex: 1,
     color: theme.colors.textPrimary,
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: type.title,
+    lineHeight: leading.title,
     fontWeight: '700',
     paddingTop: space.sm,
   },
   body: { paddingVertical: space.lg, paddingHorizontal: 18, gap: space.md },
-  lede: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 20 },
+  lede: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   strong: { color: theme.colors.textPrimary, fontWeight: '600' },
   strongDestructive: { color: theme.colors.danger },
   list: {
@@ -218,9 +226,9 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: 12,
     gap: 2,
   },
-  listItem: { color: theme.colors.textSecondary, fontSize: 12 },
+  listItem: { color: theme.colors.textSecondary, fontSize: type.small },
   listRest: { color: theme.colors.textMuted, fontStyle: 'italic' },
-  error: { color: theme.colors.danger, fontSize: 12, lineHeight: 18 },
+  error: { color: theme.colors.danger, fontSize: type.small, lineHeight: leading.small },
   actions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',

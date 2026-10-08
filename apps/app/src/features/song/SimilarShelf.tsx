@@ -88,6 +88,11 @@ const styles = StyleSheet.create(theme => ({
   list: { gap: 8, paddingRight: space.lg },
   card: { width: 84, padding: 4, gap: 3, borderRadius: radius.cover },
   cardPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.08) },
-  cardTitle: { color: theme.colors.textPrimary, fontSize: 11, fontWeight: '600', marginTop: 3 },
-  cardArtist: { color: theme.colors.textSecondary, fontSize: type.small - 2 },
+  cardTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: type.tiny,
+    fontWeight: '600',
+    marginTop: 3,
+  },
+  cardArtist: { color: theme.colors.textSecondary, fontSize: type.tiny },
 }))

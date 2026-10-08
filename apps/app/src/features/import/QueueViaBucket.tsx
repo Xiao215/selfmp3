@@ -2,7 +2,14 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { failureText, radius, useLibrary, useRequestCloudImport } from '@selfmp3/client'
+import {
+  failureText,
+  leading,
+  radius,
+  type,
+  useLibrary,
+  useRequestCloudImport,
+} from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
 import { card, sectionTitle } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
@@ -122,18 +129,18 @@ const styles = StyleSheet.create(theme => ({
     gap: 10,
   },
   title: sectionTitle(theme.colors),
-  body: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 19 },
+  body: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   // A control on the card: one step up from it, a pill, no edge.
   input: {
     backgroundColor: theme.colors.surface2,
     borderRadius: radius.pill,
     color: theme.colors.textPrimary,
-    fontSize: 14,
+    fontSize: type.body,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
   field: { marginTop: 2 },
-  error: { color: theme.colors.danger, fontSize: 13 },
-  good: { color: theme.colors.good, fontSize: 13 },
+  error: { color: theme.colors.danger, fontSize: type.sub },
+  good: { color: theme.colors.good, fontSize: type.sub },
   actions: { flexDirection: 'row', marginTop: 4 },
 }))

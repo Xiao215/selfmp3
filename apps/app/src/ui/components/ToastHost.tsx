@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Text } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { motion, radius } from '@selfmp3/client'
+import { motion, radius, type } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { currentToasts, dismissToast, subscribeToasts, type Toast } from '../toast'
@@ -152,8 +152,8 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
     ...floating(theme.colors),
   },
-  text: { color: theme.colors.textPrimary, fontSize: 13, flexShrink: 1 },
+  text: { color: theme.colors.textPrimary, fontSize: type.sub, flexShrink: 1 },
   action: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill },
   actionPressed: { backgroundColor: theme.colors.surface3 },
-  actionLabel: { fontSize: 13, fontWeight: '600' },
+  actionLabel: { fontSize: type.sub, fontWeight: '600' },
 }))

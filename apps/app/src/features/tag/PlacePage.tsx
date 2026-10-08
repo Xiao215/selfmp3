@@ -6,7 +6,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useNavigation, useRouter } from 'expo-router'
 import type { NativeStackNavigationProp } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
-import { fonts, isDownloaded, tagColors, type, useLibrary } from '@selfmp3/client'
+import { fonts, isDownloaded, space, tagColors, type, useLibrary } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -552,14 +552,19 @@ const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   listArea: { flex: 1, minHeight: 0 },
   kindDot: { width: 7, height: 7, borderRadius: 3.5 },
-  nameSerif: { fontFamily: fonts.serif, fontSize: 52, lineHeight: 60, letterSpacing: -0.5 },
+  nameSerif: {
+    fontFamily: fonts.serif,
+    fontSize: type.display,
+    lineHeight: 53,
+    letterSpacing: -0.5,
+  },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 6 },
-  plus: { color: theme.colors.textSecondary, fontSize: 14 },
+  plus: { color: theme.colors.textSecondary, fontSize: type.sub },
   album: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingHorizontal: 20,
+    paddingHorizontal: space.gutter,
     paddingTop: 14,
     paddingBottom: 6,
   },
@@ -569,5 +574,5 @@ const styles = StyleSheet.create(theme => ({
     fontWeight: '600',
     flexShrink: 1,
   },
-  albumYear: { color: theme.colors.textMuted, fontSize: 13 },
+  albumYear: { color: theme.colors.textMuted, fontSize: type.sub },
 }))

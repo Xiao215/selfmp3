@@ -11,17 +11,19 @@ import {
 import type { ReactElement, ReactNode } from 'react'
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import type { GestureResponderEvent } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { plural, type LyricsSearchHit, type Song, type Tag, type Artist } from '@selfmp3/shared'
 import {
-  STALE,
   clientApi,
   isDownloaded,
   queryKeys,
   radius,
+  space,
+  STALE,
   tagColors,
+  type,
   useLibrary,
 } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
@@ -34,7 +36,11 @@ import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
-import { ChevronRight, Search, Sparkle, User, X } from '../../ui/components/Icons'
+import { ChevronRight, Sparkle, User } from '../../ui/components/Icons'
+import { EmptyState } from '../../ui/components/EmptyState'
+import { SearchField } from '../../ui/components/SearchField'
+import { SectionHead } from '../../ui/components/SectionHead'
+import { SONG_LINE_COVER } from '../../ui/components/SongLine'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SongList } from '../../ui/components/SongList'
 import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
@@ -44,7 +50,6 @@ import { useRowTagPicker } from '../../ui/components/useRowTagPicker'
 import { SongRow } from '../../ui/components/SongRow'
 import { useSongTagLookup } from '../../ui/songTags'
 import { useDebounced } from '../../ui/useDebounced'
-import { label as labelText } from '../../ui/surfaces'
 import { artistLink, tagLink } from '../tag/placeLinks'
 import { noteTagUsed } from '../library/recentTags.store'
 import { AskAnswer } from '../smart/AskAnswer'
@@ -85,8 +90,6 @@ const SearchSelection = createContext<Selection | null>(null)
  * shows for anyone who types the address.
  */
 export function SearchScreen(): ReactNode {
-  const { theme } = useUnistyles()
-  const accent = useAccent()
   const router = useRouter()
   const params = useLocalSearchParams<{ scope?: string; q?: string }>()
   const { wide } = useLayout()
@@ -96,7 +99,6 @@ export function SearchScreen(): ReactNode {
 
   const [query, setQuery] = useState(() => (typeof params.q === 'string' ? params.q : ''))
   const [scope, setScope] = useState<SearchScope>(() => parseScope(params.scope))
-  const [focused, setFocused] = useState(false)
   /** What was asked (S1), answered in place of the results until the words change. */
   const [asking, setAsking] = useState<string | null>(null)
   /** An answer is on its way, so the field offers Stop where it offers Clear. */
@@ -164,56 +166,43 @@ export function SearchScreen(): ReactNode {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={[styles.page, wide && styles.pageWide]} testID="search-screen">
         <View style={styles.head}>
-          <View style={[styles.field, focused && { borderColor: accent.accent }]}>
-            <Search size={18} color={focused ? accent.accent : theme.colors.textSecondary} />
-            <TextInput
-              ref={field}
-              autoFocus
-              value={query}
-              // New words leave the question behind: the answer on its way is
-              // dropped with it, and the results for what is typed come back.
-              onChangeText={text => {
-                setQuery(text)
-                setAsking(null)
-              }}
-              // Enter asks only when nothing matches (I1); with matches it puts
-              // the keyboard away and the results stay where they are.
-              onSubmitEditing={() => {
-                // Counted for the words as they are now: the results follow the
-                // field a beat behind, and a paste then Enter used to land in
-                // that beat, find "nothing" and ask about a song it had.
-                const matches =
-                  shown === query
-                    ? counts.all
-                    : scopeCounts(searchLibrary(query, library), lyricHits.length).all
-                if (switches.ask && asksOnEnter(query, matches)) setAsking(query.trim())
-                else field.current?.blur()
-              }}
-              onFocus={() => setFocused(true)}
-              onBlur={() => setFocused(false)}
-              placeholder="Songs, tags, artists, lyrics"
-              placeholderTextColor={theme.colors.textMuted}
-              autoCapitalize="none"
-              autoCorrect={false}
-              spellCheck={false}
-              returnKeyType="search"
-              accessibilityLabel="Search"
-              testID="search-field"
-              style={styles.input}
-            />
-            {working ? (
-              <StopButton onPress={() => setAsking(null)} size={26} testID="ask-stop" />
-            ) : query ? (
-              <Pressable
-                onPress={() => setQuery('')}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel="Clear search"
-              >
-                <X size={16} tone="textMuted" />
-              </Pressable>
-            ) : null}
-          </View>
+          <SearchField
+            inputRef={field}
+            autoFocus
+            value={query}
+            // New words leave the question behind: the answer on its way is
+            // dropped with it, and the results for what is typed come back.
+            onChangeText={text => {
+              setQuery(text)
+              setAsking(null)
+            }}
+            // Enter asks only when nothing matches (I1); with matches it puts
+            // the keyboard away and the results stay where they are.
+            onSubmitEditing={() => {
+              // Counted for the words as they are now: the results follow the
+              // field a beat behind, and a paste then Enter used to land in
+              // that beat, find "nothing" and ask about a song it had.
+              const matches =
+                shown === query
+                  ? counts.all
+                  : scopeCounts(searchLibrary(query, library), lyricHits.length).all
+              if (switches.ask && asksOnEnter(query, matches)) setAsking(query.trim())
+              else field.current?.blur()
+            }}
+            placeholder="Songs, tags, artists, lyrics"
+            autoCapitalize="none"
+            autoCorrect={false}
+            spellCheck={false}
+            returnKeyType="search"
+            accessibilityLabel="Search"
+            testID="search-field"
+            style={styles.field}
+            trailing={
+              working ? (
+                <StopButton onPress={() => setAsking(null)} size={26} testID="ask-stop" />
+              ) : undefined
+            }
+          />
           <Pressable onPress={close} accessibilityRole="button" hitSlop={8}>
             <Text style={styles.cancel}>Cancel</Text>
           </Pressable>
@@ -298,7 +287,7 @@ export function SearchScreen(): ReactNode {
               <AskCard words={words} first={false} onAsk={() => setAsking(words)} />
             ) : null}
             {!answering && counts[scope] === 0 && !(scope === 'lyrics' && fromCloud) ? (
-              <Text style={styles.nothing}>Nothing matches “{shown.trim()}”.</Text>
+              <NothingMatches words={shown.trim()} />
             ) : null}
             <BarRoom />
             <ChromeSpacer />
@@ -372,7 +361,7 @@ function BeforeTyping({
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.results}>
       {tags.length > 0 ? (
         <View style={styles.section}>
-          <Text style={styles.label}>Your tags</Text>
+          <SectionHead title="Your tags" style={styles.sectionHead} />
           <View style={styles.chips}>
             {tags.map(tag => (
               <Chip
@@ -388,7 +377,7 @@ function BeforeTyping({
       ) : null}
       {recent.length > 0 ? (
         <View style={styles.section}>
-          <Text style={styles.label}>Recently played</Text>
+          <SectionHead title="Recently played" style={styles.sectionHead} />
           <SongRows songs={recent} testPrefix="search-recent" />
         </View>
       ) : null}
@@ -432,7 +421,12 @@ function AllResults({
         <View style={styles.section}>
           <SectionHead
             title="Songs"
-            more={found.songs.length > songs.length ? () => onSeeAll('songs') : null}
+            style={styles.sectionHead}
+            action={
+              found.songs.length > songs.length
+                ? { label: 'See all', onPress: () => onSeeAll('songs') }
+                : null
+            }
           />
           <SongRows songs={songs} testPrefix="search-song" />
         </View>
@@ -441,7 +435,12 @@ function AllResults({
         <View style={styles.section}>
           <SectionHead
             title="Lyrics"
-            more={lyricHits.length > ALL_LIMITS.lyrics ? () => onSeeAll('lyrics') : null}
+            style={styles.sectionHead}
+            action={
+              lyricHits.length > ALL_LIMITS.lyrics
+                ? { label: 'See all', onPress: () => onSeeAll('lyrics') }
+                : null
+            }
           />
           <LyricResults hits={lyricHits.slice(0, ALL_LIMITS.lyrics)} cloud={false} />
         </View>
@@ -450,17 +449,15 @@ function AllResults({
   )
 }
 
-function SectionHead({ title, more }: { title: string; more: (() => void) | null }): ReactNode {
+/** What a search with no results says. */
+function NothingMatches({ words }: { words: string }): ReactNode {
   return (
-    <View style={styles.sectionHead}>
-      <Text style={styles.label}>{title}</Text>
-      {more ? (
-        <Pressable onPress={more} accessibilityRole="button" hitSlop={8} style={styles.seeAll}>
-          <Text style={styles.seeAllText}>See all</Text>
-          <ChevronRight size={12} tone="accent" />
-        </Pressable>
-      ) : null}
-    </View>
+    <EmptyState
+      compact
+      testID="search-nothing"
+      title={`Nothing matches “${words}”`}
+      line="Try fewer letters."
+    />
   )
 }
 
@@ -537,7 +534,7 @@ function SongResults({ songs, query }: { songs: readonly Song[]; query: string }
         renderSong={rows.renderSong}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.songList, selection?.active && !wide && styles.barPadding]}
-        empty={<Text style={styles.nothing}>Nothing matches “{query.trim()}”.</Text>}
+        empty={<NothingMatches words={query.trim()} />}
       />
       {rows.menu}
     </>
@@ -677,9 +674,11 @@ function LyricResults({
   const byId = useSongsById()
   if (cloud) {
     return (
-      <Text style={styles.nothing}>
-        Searching lyrics needs your library’s computer, which this device can’t reach right now.
-      </Text>
+      <EmptyState
+        compact
+        title="Lyrics can’t be searched right now"
+        line="Searching lyrics needs your library’s computer, which this device can’t reach right now."
+      />
     )
   }
   return (
@@ -695,7 +694,7 @@ function LyricResults({
             accessibilityLabel={`${hit.title}: ${hit.line}`}
             style={({ pressed }) => [styles.lyric, pressed && styles.pressed]}
           >
-            <Cover uri={song ? artFor(song) : null} title={hit.title} size={40} />
+            <Cover uri={song ? artFor(song) : null} title={hit.title} size={SONG_LINE_COVER} />
             <View style={styles.lyricText}>
               <Text style={styles.lyricLine} numberOfLines={2}>
                 {hit.before}
@@ -736,8 +735,8 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
   },
   askText: { flex: 1, minWidth: 0, gap: 2 },
-  askTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  askSub: { color: theme.colors.textMuted, fontSize: 12.5 },
+  askTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  askSub: { color: theme.colors.textMuted, fontSize: type.small },
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   page: { flex: 1 },
   pageWide: { maxWidth: 760, width: '100%', alignSelf: 'center', paddingTop: 24 },
@@ -748,35 +747,14 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: 16,
     paddingTop: 12,
   },
-  field: {
-    flex: 1,
-    height: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface1,
-    // Clear at rest, the accent while typing: the focus ring, not a hairline.
-    borderWidth: 1.5,
-    borderColor: theme.colors.surface1,
-  },
-  input: { flex: 1, minWidth: 0, color: theme.colors.textPrimary, fontSize: 16 },
-  cancel: { color: theme.colors.accent, fontSize: 15, fontWeight: '600' },
+  field: { flex: 1 },
+  cancel: { color: theme.colors.accent, fontSize: type.body, fontWeight: '600' },
   scopesRow: { flexGrow: 0 },
   scopes: { gap: 8, paddingHorizontal: 16, paddingVertical: 14 },
   results: { paddingHorizontal: 8, gap: 18 },
   songList: { paddingHorizontal: 0 },
   section: { gap: 4 },
-  sectionHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-  },
-  label: { ...labelText(theme.colors), paddingHorizontal: 8, paddingBottom: 6 },
-  seeAll: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingBottom: 6 },
-  seeAllText: { color: theme.colors.accent, fontSize: 13, fontWeight: '600' },
+  sectionHead: { paddingHorizontal: space.sm, paddingBottom: space.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 8 },
   place: {
     flexDirection: 'row',
@@ -796,8 +774,8 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
   },
   dot: { width: 10, height: 10, borderRadius: 5 },
-  placeName: { flex: 1, color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  placeHint: { color: theme.colors.textSecondary, fontSize: 13 },
+  placeName: { flex: 1, color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  placeHint: { color: theme.colors.textSecondary, fontSize: type.sub },
   lyric: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -807,12 +785,5 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: 12,
   },
   lyricText: { flex: 1, minWidth: 0, gap: 2 },
-  lyricLine: { color: theme.colors.textPrimary, fontSize: 15 },
-  nothing: {
-    color: theme.colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-  },
+  lyricLine: { color: theme.colors.textPrimary, fontSize: type.body },
 }))

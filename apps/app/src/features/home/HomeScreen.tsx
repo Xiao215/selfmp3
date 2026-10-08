@@ -7,7 +7,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { useRouter } from 'expo-router'
 import { artistOr, plural } from '@selfmp3/shared'
 import type { Song, Stats } from '@selfmp3/shared'
-import { fonts, radius, tagColors, type, useLibrary } from '@selfmp3/client'
+import { fonts, leading, radius, tagColors, type, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { useDragScroll } from '../../ports/dragScroll'
 import { Avatar } from '../../ui/components/Avatar'
@@ -18,8 +18,11 @@ import { useBottomInset } from '../../shell/bottomInset'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { Cover } from '../../ui/components/Cover'
+import { EmptyState } from '../../ui/components/EmptyState'
 import { IconButton } from '../../ui/components/IconButton'
-import { ChevronRight, Download, Plus, Search, Sparkle } from '../../ui/components/Icons'
+import { SearchField } from '../../ui/components/SearchField'
+import { SectionHead } from '../../ui/components/SectionHead'
+import { ChevronRight, Download, Plus, Sparkle } from '../../ui/components/Icons'
 import { useAccent } from '../../ui/accent'
 import { useSongColor } from '../../ui/useSongColor'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -154,7 +157,17 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
             same numbers already were (`F`, Xiao 2026-10-04). */}
         {sunday && !wide ? <SundayLead card={sunday} song={sundaySong} onOpen={openWeek} /> : null}
 
-        {empty ? null : <SearchField wide={wide} onPress={openSearch} />}
+        {/* A door to the one Search, not a second place to type. */}
+        {empty ? null : (
+          <SearchField
+            testID="home-search"
+            onPress={openSearch}
+            accessibilityLabel="Search"
+            placeholder={
+              wide ? 'One song, a tag, an artist, a lyric…' : 'One song, an artist, a lyric…'
+            }
+          />
+        )}
 
         <View style={beside ? styles.columns : styles.stack}>
           <View style={beside ? styles.mainColumn : styles.stack}>
@@ -365,51 +378,6 @@ function PhoneHeader(): ReactNode {
   )
 }
 
-/** One field that looks like a box to type in and opens search. */
-function SearchField({ wide, onPress }: { wide: boolean; onPress: () => void }): ReactNode {
-  const press = usePressScale(0.98)
-  return (
-    <Animated.View style={press.style}>
-      <Pressable
-        testID="home-search"
-        onPress={onPress}
-        {...press.handlers}
-        accessibilityRole="search"
-        accessibilityLabel="Search"
-        style={[styles.search, wide && styles.searchWide]}
-      >
-        <Search size={18} tone="textSecondary" />
-        <Text style={styles.searchHint} numberOfLines={1}>
-          {wide ? 'One song, a tag, an artist, a lyric…' : 'One song, an artist, a lyric…'}
-        </Text>
-      </Pressable>
-    </Animated.View>
-  )
-}
-
-function SectionHead({
-  title,
-  action,
-  testID,
-}: {
-  title: string
-  action: { label: string; onPress: () => void } | null
-  testID?: string
-}): ReactNode {
-  return (
-    <View style={styles.sectionHead}>
-      <Text style={styles.sectionTitle} accessibilityRole="header">
-        {title}
-      </Text>
-      {action ? (
-        <Pressable onPress={action.onPress} accessibilityRole="link" hitSlop={8} testID={testID}>
-          <Text style={styles.linkSmall}>{action.label}</Text>
-        </Pressable>
-      ) : null}
-    </View>
-  )
-}
-
 /**
  * The tiles, two across on a phone; on a computer as many as fit a tile of
  * `WIDE_TILE_MIN`, two to three, so a page narrowed by Up next drops a column
@@ -433,12 +401,13 @@ function Tiles({ tiles, loading }: { tiles: readonly HomeTile[]; loading: boolea
   if (loading) return <View style={styles.tilesPlaceholder} />
   if (tiles.length === 0) {
     return (
-      <View style={styles.emptyTile} testID="home-no-tags">
-        <Text style={styles.emptyTitle}>Your tags will live here</Text>
-        <Text style={styles.emptyBody}>
-          Hold a song in Library and choose Tags to give it its first one.
-        </Text>
-      </View>
+      <EmptyState
+        compact
+        style={styles.emptyTile}
+        testID="home-no-tags"
+        title="Your tags will live here"
+        line="Hold a song in Library and choose Tags to give it its first one."
+      />
     )
   }
   return (
@@ -970,7 +939,7 @@ const styles = StyleSheet.create(theme => ({
   greetingBlock: { gap: 4, paddingTop: 14 },
   greeting: { ...serif(theme.colors, type.display), lineHeight: 50, letterSpacing: -0.5 },
   greetingDot: { fontFamily: fonts.serifItalic, color: theme.colors.accent },
-  subline: { color: theme.colors.textSecondary, fontSize: 15 },
+  subline: { color: theme.colors.textSecondary, fontSize: type.body },
   // The Sunday card (`P06`, E): the week's number one, under the greeting.
   sunday: {
     ...card(theme.colors),
@@ -982,27 +951,10 @@ const styles = StyleSheet.create(theme => ({
   },
   sundayCover: { ...artShadow(theme.colors, 'lean'), borderRadius: 12 },
   sundayText: { flex: 1, minWidth: 0, gap: 3 },
-  kicker: { fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
-  sundayTitle: { ...sectionTitle(theme.colors), fontSize: 17 },
-  sundayLine: { color: theme.colors.textSecondary, fontSize: 13 },
-  search: {
-    height: 54,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 20,
-  },
-  searchWide: { height: 48 },
-  searchHint: { flex: 1, color: theme.colors.textMuted, fontSize: 16 },
-  sectionHead: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-  },
-  sectionTitle: sectionTitle(theme.colors),
-  linkSmall: { color: theme.colors.accent, fontSize: 13, fontWeight: '600' },
+  kicker: { fontSize: type.tiny, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+  sundayTitle: { ...sectionTitle(theme.colors), fontSize: type.title },
+  sundayLine: { color: theme.colors.textSecondary, fontSize: type.sub },
+  linkSmall: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '600' },
   tiles: { gap: TILE_GAP },
   tileRow: { flexDirection: 'row', gap: TILE_GAP },
   tileCell: { flex: 1, minWidth: 0 },
@@ -1016,13 +968,13 @@ const styles = StyleSheet.create(theme => ({
   tileWide: { height: 118, padding: 16 },
   tileName: {
     fontFamily: fonts.display,
-    fontSize: type.tile,
-    lineHeight: type.tile + 3,
+    fontSize: type.large,
+    lineHeight: leading.large,
     letterSpacing: -0.3,
     paddingRight: 36,
   },
-  tileNameSmall: { fontSize: type.tile - 3, lineHeight: type.tile },
-  tileCount: { fontSize: 12, fontWeight: '500' },
+  tileNameSmall: { fontSize: type.section, lineHeight: leading.section },
+  tileCount: { fontSize: type.small, fontWeight: '500' },
   tileCover: {
     position: 'absolute',
     right: -8,
@@ -1033,17 +985,7 @@ const styles = StyleSheet.create(theme => ({
   },
   tileCoverWide: { right: -6, bottom: -8 },
   tilesPlaceholder: { height: 218 },
-  emptyTile: {
-    ...card(theme.colors),
-    padding: 18,
-    gap: 6,
-  },
-  emptyTitle: {
-    fontFamily: fonts.display,
-    fontSize: type.section,
-    color: theme.colors.textPrimary,
-  },
-  emptyBody: { color: theme.colors.textSecondary, fontSize: 14, lineHeight: 20 },
+  emptyTile: card(theme.colors),
   firstCard: {
     borderRadius: radius.cardLg,
     padding: 22,
@@ -1059,18 +1001,23 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     marginBottom: 6,
   },
-  firstTitle: { ...serif(theme.colors, 28), lineHeight: 34, letterSpacing: -0.3 },
-  firstBody: { color: theme.colors.textSecondary, fontSize: 14, lineHeight: 21, maxWidth: 440 },
+  firstTitle: { ...serif(theme.colors, type.page), lineHeight: 36, letterSpacing: -0.3 },
+  firstBody: {
+    color: theme.colors.textSecondary,
+    fontSize: type.sub,
+    lineHeight: leading.sub,
+    maxWidth: 440,
+  },
   firstAction: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
-  firstActionLabel: { fontSize: 14, fontWeight: '600' },
+  firstActionLabel: { fontSize: type.body, fontWeight: '600' },
   recents: { gap: 10, paddingRight: 20 },
   recentTitle: {
     color: theme.colors.textPrimary,
-    fontSize: 12,
+    fontSize: type.small,
     fontWeight: '600',
     marginTop: 6,
   },
-  recentArtist: { color: theme.colors.textSecondary, fontSize: 12 },
+  recentArtist: { color: theme.colors.textSecondary, fontSize: type.small },
   recentBadge: {
     position: 'absolute',
     left: 6,
@@ -1085,7 +1032,7 @@ const styles = StyleSheet.create(theme => ({
   weekCard: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14, overflow: 'hidden' },
   readyHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   readyCover: { ...artShadow(theme.colors, 'lean'), borderRadius: 10 },
-  readyTitle: { color: theme.colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  readyTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   readyButton: {
     height: 36,
     borderRadius: radius.pill,
@@ -1093,12 +1040,16 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
   },
   readyButtonPressed: { opacity: 0.85 },
-  readyButtonLabel: { color: theme.colors.surface0, fontSize: 13, fontWeight: '600' },
+  readyButtonLabel: { color: theme.colors.surface0, fontSize: type.sub, fontWeight: '600' },
   weekNumbers: { flexDirection: 'row', justifyContent: 'space-between' },
   figure: { gap: 2 },
-  figureValue: serif(theme.colors, 30),
-  figureUnit: { fontFamily: fonts.serif, fontSize: 18, color: theme.colors.textSecondary },
-  figureCaption: { color: theme.colors.textSecondary, fontSize: 12 },
+  figureValue: serif(theme.colors, type.page),
+  figureUnit: {
+    fontFamily: fonts.serif,
+    fontSize: type.section,
+    color: theme.colors.textSecondary,
+  },
+  figureCaption: { color: theme.colors.textSecondary, fontSize: type.small },
   importCard: {
     ...card(theme.colors),
     padding: 14,
@@ -1115,6 +1066,6 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
   },
   importText: { flex: 1, gap: 2 },
-  importTitle: { color: theme.colors.textPrimary, fontSize: 14, fontWeight: '600' },
-  importBody: { color: theme.colors.textSecondary, fontSize: 12 },
+  importTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  importBody: { color: theme.colors.textSecondary, fontSize: type.small },
 }))

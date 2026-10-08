@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, ReactNode, RefObject } from 'react'
 import type { FlatList, LayoutChangeEvent } from 'react-native'
 import { useUnistyles } from 'react-native-unistyles'
-import { radius, withAlpha } from '@selfmp3/client'
+import { radius, type, withAlpha } from '@selfmp3/client'
 import type { Song } from '@selfmp3/shared'
 import { useArt } from '../offline/useArt'
 import { usePlayingSongId } from '../player/PlayerProvider'
@@ -392,7 +392,7 @@ function Scrollbar({
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             fontFamily: FONT_STACK,
-            fontSize: 14,
+            fontSize: type.body,
             fontWeight: 700,
             color: theme.colors.textPrimary,
             backgroundColor: theme.colors.surface3,

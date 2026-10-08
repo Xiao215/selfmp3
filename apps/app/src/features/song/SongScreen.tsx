@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
 import {
   fonts,
+  leading,
   radius,
   space,
   type,
@@ -364,8 +365,8 @@ function SongMissing(): ReactNode {
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  content: { paddingHorizontal: 20, gap: 18 },
-  contentWide: { paddingHorizontal: 40 },
+  content: { paddingHorizontal: space.gutter, gap: 18 },
+  contentWide: { paddingHorizontal: space.gutterWide },
   // The light reaches down behind the head and fades into the ground before the card.
   light: { position: 'absolute', top: 0, left: 0, right: 0, height: 560 },
   // No glass here. The bar scrolls with the head rather than floating over
@@ -389,19 +390,19 @@ const styles = StyleSheet.create(theme => ({
   title: {
     color: theme.colors.textPrimary,
     fontFamily: fonts.display,
-    fontSize: 26,
-    lineHeight: 30,
+    fontSize: type.page,
+    lineHeight: leading.page,
     letterSpacing: -0.4,
   },
-  titleWide: { fontSize: 40, lineHeight: 46, letterSpacing: -0.8 },
+  titleWide: { fontSize: type.display, lineHeight: leading.display, letterSpacing: -0.8 },
   byline: { color: theme.colors.textSecondary, fontSize: type.body },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
-  plus: { color: theme.colors.textSecondary, fontSize: 14 },
+  plus: { color: theme.colors.textSecondary, fontSize: type.sub },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   card: { ...card(theme.colors), padding: space.lg, gap: space.md },
   cardLabel: labelText(theme.colors),
-  story: { color: theme.colors.textSecondary, fontSize: 15, lineHeight: 23 },
-  count: serif(theme.colors, 24),
+  story: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
+  count: serif(theme.colors, type.large),
   bright: { color: theme.colors.textPrimary },
   strip: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 28 },
   bar: {
@@ -415,5 +416,5 @@ const styles = StyleSheet.create(theme => ({
   fix: { alignItems: 'flex-start' },
   missing: { padding: 24, gap: 12, alignItems: 'flex-start' },
   missingTitle: pageTitle(theme.colors),
-  missingText: { color: theme.colors.textSecondary, fontSize: 15, lineHeight: 22 },
+  missingText: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
 }))

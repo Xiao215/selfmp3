@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { fonts, radius, space, useLibrary } from '@selfmp3/client'
+import { fonts, leading, radius, space, type, useLibrary } from '@selfmp3/client'
 import type { Song } from '@selfmp3/shared'
 import {
   coverFor,
@@ -220,17 +220,17 @@ const styles = StyleSheet.create(theme => ({
   columnWide: { flexGrow: 0, width: 560, maxWidth: '100%' },
   hello: { gap: space.sm },
   // A greeting, so the serif: one weight, never bolded.
-  title: { ...serif(theme.colors, 40), lineHeight: 42, letterSpacing: -0.5 },
-  titleWide: { fontSize: 52, lineHeight: 54, letterSpacing: -0.8 },
+  title: { ...serif(theme.colors, type.display), lineHeight: 48, letterSpacing: -0.5 },
+  titleWide: { fontSize: type.display, lineHeight: leading.display, letterSpacing: -0.8 },
   titleMark: { fontFamily: fonts.serifItalic, color: theme.colors.accent },
-  lead: { color: theme.colors.textSecondary, fontSize: 15, lineHeight: 22 },
-  leadWide: { fontSize: 16, lineHeight: 24 },
+  lead: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
+  leadWide: { fontSize: type.body, lineHeight: leading.body },
   card: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14 },
   cardWide: { padding: 20 },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   cardWords: { flex: 1, minWidth: 0, gap: 2 },
-  summary: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  detail: { color: theme.colors.textSecondary, fontSize: 13 },
+  summary: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  detail: { color: theme.colors.textSecondary, fontSize: type.sub },
   track: {
     height: 6,
     borderRadius: radius.pill,
@@ -246,7 +246,7 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  moreText: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '600' },
+  moreText: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '600' },
   keep: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -255,8 +255,8 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 4,
   },
   keepWords: { flex: 1, gap: 2 },
-  keepLabel: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  keepHint: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18 },
+  keepLabel: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  keepHint: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   // At the foot of a phone, where a thumb is; under the switch on a computer.
   continue: { marginTop: 'auto', marginBottom: 60 },
   continueWide: { marginTop: 0, marginBottom: 0 },

@@ -14,7 +14,7 @@ import {
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { PRIVACY_POLICY_URL } from '@selfmp3/shared'
 import { DoormanError } from '@selfmp3/replica'
-import { fonts, radius, space, tagColors, type } from '@selfmp3/client'
+import { fonts, leading, radius, space, tagColors, type } from '@selfmp3/client'
 import { session as cloud } from '../../replica'
 import { keptCovers } from '../../offline/covers'
 import { deviceWord } from '../../ports/device'
@@ -404,11 +404,11 @@ const styles = StyleSheet.create(theme => ({
   brand: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   brandName: sectionTitle(theme.colors),
   // A welcome, so the serif: one weight, never bolded.
-  headline: { ...serif(theme.colors, 44), lineHeight: 44, letterSpacing: -0.6 },
-  headlineWide: { fontSize: 60, lineHeight: 60, letterSpacing: -1 },
+  headline: { ...serif(theme.colors, type.display), lineHeight: 46, letterSpacing: -0.6 },
+  headlineWide: { fontSize: type.display, lineHeight: leading.display, letterSpacing: -1 },
   mark: { fontFamily: fonts.serifItalic, color: theme.colors.accent },
-  body: { color: theme.colors.textSecondary, fontSize: 16, lineHeight: 23 },
-  bodyWide: { fontSize: 17, lineHeight: 26, maxWidth: 420 },
+  body: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
+  bodyWide: { fontSize: type.title, lineHeight: leading.title, maxWidth: 420 },
   spinner: { alignSelf: 'flex-start', marginTop: space.sm },
   actions: { gap: space.lg },
   error: { color: theme.colors.danger, fontSize: type.body },
@@ -417,10 +417,10 @@ const styles = StyleSheet.create(theme => ({
   footnote: {
     color: theme.colors.textMuted,
     fontSize: type.small,
-    lineHeight: 17,
+    lineHeight: leading.small,
     textAlign: 'center',
   },
-  footnoteWide: { fontSize: 13, lineHeight: 19, maxWidth: 420, textAlign: 'left' },
+  footnoteWide: { fontSize: type.sub, lineHeight: leading.sub, maxWidth: 420, textAlign: 'left' },
   privacy: { color: theme.colors.textSecondary, textDecorationLine: 'underline' },
   pressed: { opacity: 0.6 },
   tiles: {
@@ -451,7 +451,7 @@ const styles = StyleSheet.create(theme => ({
     ...floating(theme.colors),
   },
   tileWide: { width: 170, height: 120, padding: 16 },
-  tileName: { fontFamily: fonts.display, fontSize: 18, letterSpacing: -0.2 },
+  tileName: { fontFamily: fonts.display, fontSize: type.section, letterSpacing: -0.2 },
   tileSquares: { flexDirection: 'row', gap: 3 },
   tileSquare: { width: 16, height: 16, borderRadius: 4 },
   fan: { flexDirection: 'row', gap: 10, marginBottom: 10 },

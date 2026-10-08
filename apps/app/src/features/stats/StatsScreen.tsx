@@ -5,7 +5,15 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg'
 import type { Song, Stats } from '@selfmp3/shared'
-import { motion, radius, tagColors, useLibrary, type ServerConnection } from '@selfmp3/client'
+import {
+  leading,
+  motion,
+  radius,
+  tagColors,
+  type,
+  useLibrary,
+  type ServerConnection,
+} from '@selfmp3/client'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { useArt } from '../../offline/useArt'
@@ -33,6 +41,7 @@ import {
   type StatsPeriod,
 } from './stats.model'
 import { useSvgId } from '../../ui/useSvgId'
+import { EmptyState } from '../../ui/components/EmptyState'
 
 /** The line beside Listened, in its own box's units. */
 const SPARK = { width: 120, height: 56 }
@@ -58,14 +67,14 @@ export function StatsScreen({ via }: { via?: ServerConnection } = {}): ReactNode
       {isLoading && !stats ? (
         <Text style={styles.hint}>Working it out…</Text>
       ) : !stats ? (
-        <Empty
+        <EmptyState
           title="Stats need your library"
-          hint="They’ll be here when your library is reachable again."
+          line="They’ll be here when your library is reachable again."
         />
       ) : stats.totals.plays === 0 ? (
-        <Empty
+        <EmptyState
           title="Nothing to show yet"
-          hint="Play some music and this fills in — how long, when, and what most."
+          line="Play some music and this fills in — how long, when, and what most."
         />
       ) : (
         <>
@@ -548,17 +557,8 @@ function RankedLine({
   )
 }
 
-function Empty({ title, hint }: { title: string; hint: string }): ReactNode {
-  return (
-    <View style={styles.empty}>
-      <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={[styles.hint, styles.emptyHint]}>{hint}</Text>
-    </View>
-  )
-}
-
 const styles = StyleSheet.create(theme => ({
-  hint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
+  hint: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
   // A big card on the ground (`S2`: 22 round), told apart by tone, not an edge.
   card: { ...card(theme.colors, radius.cardLg), padding: 18 },
   cardWide: { height: 190, paddingHorizontal: 20 },
@@ -580,9 +580,9 @@ const styles = StyleSheet.create(theme => ({
    * The serif's figures stand taller than their own line, so a line box the
    * size of the type cut the top off "20". A fifth again is room for the ink.
    */
-  bigNumber: { ...serif(theme.colors, 52), lineHeight: 62 },
-  bigNumberWide: { fontSize: 60, lineHeight: 72 },
-  cardLine: { color: theme.colors.textSecondary, fontSize: 13 },
+  bigNumber: { ...serif(theme.colors, type.display), lineHeight: 55 },
+  bigNumberWide: { fontSize: type.display, lineHeight: leading.display },
+  cardLine: { color: theme.colors.textSecondary, fontSize: type.sub },
   small: { height: 150, padding: 16, justifyContent: 'space-between' },
   hours: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 44 },
   hoursWide: { height: 60 },
@@ -594,13 +594,13 @@ const styles = StyleSheet.create(theme => ({
   dotPlayed: { backgroundColor: theme.colors.accent },
   dotToday: { backgroundColor: theme.colors.textPrimary },
   cardFoot: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 8 },
-  midNumber: { ...serif(theme.colors, 28), lineHeight: 30 },
-  cardNote: { color: theme.colors.textSecondary, fontSize: 12 },
+  midNumber: { ...serif(theme.colors, type.page), lineHeight: 32 },
+  cardNote: { color: theme.colors.textSecondary, fontSize: type.small },
   ranked: { paddingTop: 14, paddingBottom: 8, paddingHorizontal: 16, gap: 8 },
   rankedWide: { flexDirection: 'row', gap: 36, paddingVertical: 18, paddingHorizontal: 22 },
   rankedColumn: { flex: 1, minWidth: 0, gap: 4 },
   columnLabel: { ...label(theme.colors), paddingBottom: 4 },
-  listEmpty: { color: theme.colors.textMuted, fontSize: 13, paddingVertical: 14 },
+  listEmpty: { color: theme.colors.textMuted, fontSize: type.sub, paddingVertical: 14 },
   line: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -609,7 +609,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.cover,
   },
   linePressed: { opacity: 0.7 },
-  rank: { ...serif(theme.colors, 18), width: 18, color: theme.colors.textMuted },
+  rank: { ...serif(theme.colors, type.section), width: 18, color: theme.colors.textMuted },
   lead: {
     height: 112,
     marginBottom: 6,
@@ -629,10 +629,10 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: 12,
   },
   // The serif's figures stand taller than their own size (bigNumber above).
-  leadRank: { ...serif(theme.colors, 46), lineHeight: 50, color: theme.colors.accent },
+  leadRank: { ...serif(theme.colors, type.display), lineHeight: 50, color: theme.colors.accent },
   leadNames: { flex: 1, minWidth: 0, paddingBottom: 4 },
-  leadName: { color: theme.colors.textPrimary, fontSize: 19, fontWeight: '700' },
-  leadNote: { color: theme.colors.textSecondary, fontSize: 12.5, marginTop: 2 },
+  leadName: { color: theme.colors.textPrimary, fontSize: type.section, fontWeight: '700' },
+  leadNote: { color: theme.colors.textSecondary, fontSize: type.small, marginTop: 2 },
   tagSquare: {
     width: 36,
     height: 36,
@@ -651,10 +651,10 @@ const styles = StyleSheet.create(theme => ({
     flexShrink: 1,
     minWidth: 0,
     color: theme.colors.textPrimary,
-    fontSize: 14,
+    fontSize: type.body,
     fontWeight: '600',
   },
-  lineTrailing: { flexShrink: 0, color: theme.colors.textSecondary, fontSize: 12 },
+  lineTrailing: { flexShrink: 0, color: theme.colors.textSecondary, fontSize: type.small },
   track: {
     height: 4,
     borderRadius: 2,
@@ -663,7 +663,4 @@ const styles = StyleSheet.create(theme => ({
   },
   fill: { height: 4, borderRadius: 2, backgroundColor: theme.colors.textMuted },
   fillFirst: { backgroundColor: theme.colors.accent },
-  empty: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emptyTitle: { color: theme.colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  emptyHint: { textAlign: 'center', maxWidth: 360 },
 }))

@@ -14,7 +14,7 @@ import { useLocalSearchParams } from 'expo-router'
 import Constants from 'expo-constants'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { type Settings } from '@selfmp3/shared'
-import { radius, useHealth, useSettings, useUpdateSettings } from '@selfmp3/client'
+import { radius, space, type, useHealth, useSettings, useUpdateSettings } from '@selfmp3/client'
 import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanizationPref'
 import { loginItem } from '../../ports/loginItem'
 import { macApp } from '../../ports/macApp'
@@ -512,7 +512,14 @@ function SectionIndex({
           pressed && styles.indexPressed,
         ]}
       >
-        <Text style={[styles.indexText, current && styles.indexTextOn]}>{section.label}</Text>
+        <Text
+          style={[
+            column ? styles.indexText : styles.chipText,
+            current && (column ? styles.indexTextOn : styles.chipTextOn),
+          ]}
+        >
+          {section.label}
+        </Text>
       </Pressable>
     )
   })
@@ -598,10 +605,10 @@ const styles = StyleSheet.create(theme => ({
     paddingRight: INDEX_GUTTER,
   },
   // `S2`'s phone gutter.
-  contentNarrow: { paddingTop: NARROW_TOP, paddingHorizontal: 20 },
+  contentNarrow: { paddingTop: NARROW_TOP, paddingHorizontal: space.gutter },
   head: { marginBottom: 20, gap: 12, alignItems: 'flex-start' },
   title: pageTitle(theme.colors),
-  sub: { color: theme.colors.textMuted, fontSize: 13, marginTop: 4 },
+  sub: { color: theme.colors.textMuted, fontSize: type.sub, marginTop: 4 },
   subCapped: { color: theme.colors.danger },
   panels: { gap: 20, maxWidth: 780 },
   advanced: { gap: 20, paddingTop: 12 },
@@ -624,23 +631,26 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: 10,
     borderRadius: radius.pill,
   },
-  // The section you are on is the selected tone, as a chosen segment is (`S2`):
-  // a lighter fill, not an accent edge.
-  indexItemOn: { backgroundColor: theme.colors.surfaceSelected },
-  chipOn: { backgroundColor: theme.colors.surfaceSelected },
-  indexPressed: { backgroundColor: theme.colors.surface3 },
-  indexText: { color: theme.colors.textMuted, fontSize: 13 },
-  indexTextOn: { color: theme.colors.textPrimary, fontWeight: '600' },
+  // The section you are on is "on" as a chosen chip is: white, with dark ink
+  // (proposal P1). A grey fill a step lighter read as hovered, not chosen.
+  indexItemOn: { backgroundColor: theme.colors.textPrimary },
+  chipOn: { backgroundColor: theme.colors.textPrimary },
+  indexPressed: { opacity: 0.8 },
+  indexText: { color: theme.colors.textMuted, fontSize: type.sub },
+  indexTextOn: { color: theme.colors.onPrimary, fontWeight: '600' },
+  // The phone's row of chips is `Chip`'s filter pill: its padding, its type.
+  chipText: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '500' },
+  chipTextOn: { color: theme.colors.onPrimary },
   chipBar: {
     marginHorizontal: -20,
     paddingVertical: 10,
     marginBottom: CHIPS_GAP,
     backgroundColor: theme.colors.surface0,
   },
-  chips: { gap: 6, paddingHorizontal: 20 },
+  chips: { gap: 6, paddingHorizontal: space.gutter },
   chip: {
-    paddingVertical: 7,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,
   },

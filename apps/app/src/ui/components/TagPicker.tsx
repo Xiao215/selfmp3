@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { ScrollView, Text, TextInput, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { ScrollView, Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import { fuzzyRank, plural, TAG_NAME_MAX, type Song, type Tag } from '@selfmp3/shared'
 import {
   failureText,
   HIT_TARGET,
-  radius,
   space,
   tagColors,
+  type,
+  useBulkTag,
   useCreateTag,
   useLibrary,
-  useBulkTag,
   useSetSongTags,
 } from '@selfmp3/client'
 import { useArtistNudge } from '../../features/tag/useArtistNudge'
@@ -24,6 +24,7 @@ import { Popover } from './Popover'
 import type { PopoverAnchor } from '../rightClick'
 import { Press } from './Press'
 import { tagChanges, tagsAcross } from './tagPicker.model'
+import { SearchField } from './SearchField'
 
 /**
  * Attach tags to a song.
@@ -247,11 +248,9 @@ export function TagSearchList({
   /** Another library's tags, when the ticked ids are not this device's. */
   from?: TagSource
 }): ReactNode {
-  const { theme } = useUnistyles()
   const accent = useAccent()
   // In a pop-up with a mouse the rows are a menu's, not a finger's.
   const dense = usePanelDense()
-  const [focused, setFocused] = useState(false)
   const { data: library } = useLibrary()
   const tags = useMemo<readonly Offered[]>(() => {
     if (!from) return (library?.tags ?? []).map(tag => ({ tag, there: true }))
@@ -343,19 +342,13 @@ export function TagSearchList({
 
   return (
     <View style={styles.root}>
-      <TextInput
-        style={[
-          styles.input,
-          dense && styles.inputDense,
-          focused && { borderColor: accent.accent },
-        ]}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+      <SearchField
+        raised
+        style={[styles.input, dense && styles.inputDense]}
         value={query}
         onChangeText={setQuery}
         onSubmitEditing={submit}
         placeholder="Search or create a tag…"
-        placeholderTextColor={theme.colors.textMuted}
         autoCapitalize="none"
         autoCorrect={false}
         autoFocus={autoFocus}
@@ -435,32 +428,15 @@ export function TagSearchList({
 
 const styles = StyleSheet.create(theme => ({
   input: {
-    minHeight: HIT_TARGET,
     marginHorizontal: space.md,
     // The same room at the top as at the sides: against the panel's own edge
     // the field read as something that had slipped out of the box.
     marginTop: space.md,
     marginBottom: space.xs,
-    paddingHorizontal: 10,
-    color: theme.colors.textPrimary,
-    fontSize: 14,
-    // A control on the panel, a step up from a sheet or a popover. Its edge is
-    // clear until it carries the focus ring, in the accent. The browser's own
-    // ring on top of it drew a second, white outline, and Chrome draws an
-    // `auto` ring at any width: it has to be no outline at all.
-    backgroundColor: theme.colors.surface3,
-    borderWidth: 1,
-    borderColor: 'transparent',
-    borderRadius: radius.pill,
-    _web: { outlineStyle: 'none' },
   },
   /* In a pop-up: room above the box, a menu's height. */
-  inputDense: {
-    minHeight: 36,
-    marginTop: space.sm,
-    marginHorizontal: space.sm,
-    marginBottom: space.sm,
-  },
+  /* In a pop-up: a menu's room around the box. */
+  inputDense: { marginTop: space.sm, marginHorizontal: space.sm, marginBottom: space.sm },
   itemDense: {
     minHeight: 34,
     paddingHorizontal: space.sm + 2,
@@ -478,17 +454,17 @@ const styles = StyleSheet.create(theme => ({
   },
   itemPressed: { backgroundColor: theme.colors.surface3 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  itemLabel: { flex: 1, color: theme.colors.textPrimary, fontSize: 14 },
-  count: { color: theme.colors.textMuted, fontSize: 11 },
+  itemLabel: { flex: 1, color: theme.colors.textPrimary, fontSize: type.body },
+  count: { color: theme.colors.textMuted, fontSize: type.tiny },
   // Set apart from the list by room, not a rule.
   create: {
     marginTop: space.xs,
   },
   createName: { fontWeight: '700' },
-  hint: { color: theme.colors.textMuted, fontSize: 12, padding: space.md },
+  hint: { color: theme.colors.textMuted, fontSize: type.small, padding: space.md },
   error: {
     color: theme.colors.danger,
-    fontSize: 12,
+    fontSize: type.small,
     paddingHorizontal: space.md,
     paddingTop: space.xs,
   },

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { awayCopy, space, type Reach, type ServerNeed } from '@selfmp3/client'
+import { awayCopy, space, type Reach, type ServerNeed, leading, type } from '@selfmp3/client'
 import { useAccent } from '../ui/accent'
 import { Button } from '../ui/components/Button'
 import { Refresh } from '../ui/components/Icons'
@@ -61,7 +61,7 @@ export function ServerAway({
 }
 
 /** The card's type: its title, and the line or two under it. */
-const TEXT = { title: 15, body: 13, bodyLine: 19 } as const
+const TEXT = { title: type.body, body: type.sub, bodyLine: leading.sub } as const
 /** Room inside the card. */
 const CARD_PADDING = 18
 /** Between the spinner and what it says. */

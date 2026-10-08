@@ -6,6 +6,7 @@ import type { AskAnswer } from '@selfmp3/shared'
 import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
 import { useSongsById } from '../../ui/songsById'
 import { playbackStep, type PlaybackStep } from './playbackAnswer.model'
+import { leading, type } from '@selfmp3/client'
 
 /**
  * What each playback answer came to, by the answer, once it has been carried
@@ -66,5 +67,5 @@ export function PlaybackAnswer({
 }
 
 const styles = StyleSheet.create(theme => ({
-  line: { color: theme.colors.textPrimary, fontSize: 14.5, lineHeight: 21 },
+  line: { color: theme.colors.textPrimary, fontSize: type.body, lineHeight: leading.body },
 }))

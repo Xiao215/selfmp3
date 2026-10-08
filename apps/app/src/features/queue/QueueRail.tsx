@@ -5,7 +5,7 @@ import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
-import { motion, radius, space, type, withAlpha } from '@selfmp3/client'
+import { leading, motion, radius, space, type, withAlpha } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useOverlay } from '../../shell/Overlay'
@@ -39,6 +39,7 @@ import {
   type QueueRow,
 } from './queue.model'
 import { useQueueEdits } from './useQueueEdits'
+import { SONG_LINE_COVER, SongLine } from '../../ui/components/SongLine'
 
 /** The rail's width (`S2`, "Gutters": up-next rail 288). */
 const RAIL_WIDTH = 288
@@ -652,23 +653,23 @@ function PlayingRow({
       onPress={onOpen}
       accessibilityRole="button"
       accessibilityLabel={`Playing ${row.song.title}. Open now playing`}
-      style={[styles.row, styles.playing, { backgroundColor: withAlpha(tone.color, 0.2) }]}
+      style={[styles.row, { backgroundColor: withAlpha(tone.color, 0.2) }]}
     >
       {over ? <View style={[styles.dropLine, styles.dropLineFoot]} /> : null}
-      <View>
-        <Cover uri={artUri} title={row.song.album || row.song.title} size={34} />
-        <View style={styles.equalizer} pointerEvents="none">
-          <Equalizer paused={!playing} size={12} color={tone.tint} />
-        </View>
-      </View>
-      <View style={styles.text}>
-        <Text style={[styles.songTitle, { color: tone.tint }]} numberOfLines={1}>
-          {row.song.title}
-        </Text>
-        <Text style={styles.sub} numberOfLines={1}>
-          {artistOr(row.song.artist)} · {formatDuration(row.song.duration)}
-        </Text>
-      </View>
+      <SongLine
+        style={styles.face}
+        title={row.song.title}
+        titleStyle={{ color: tone.tint }}
+        sub={`${artistOr(row.song.artist)} · ${formatDuration(row.song.duration)}`}
+        cover={
+          <View>
+            <Cover uri={artUri} title={row.song.album || row.song.title} size={SONG_LINE_COVER} />
+            <View style={styles.equalizer} pointerEvents="none">
+              <Equalizer paused={!playing} size={12} color={tone.tint} />
+            </View>
+          </View>
+        }
+      />
     </Pressable>
   )
 }
@@ -810,22 +811,20 @@ function RowFace({
 }): ReactNode {
   const { theme } = useUnistyles()
   return (
-    <View style={styles.face}>
-      {grip ? (
-        <View style={styles.gripSlot}>
-          <Grip size={14} color={theme.colors.textMuted} />
-        </View>
-      ) : null}
-      <Cover uri={artUri} title={song.album || song.title} size={34} />
-      <View style={styles.text}>
-        <Text style={styles.songTitle} numberOfLines={1}>
-          {song.title}
-        </Text>
-        <Text style={styles.sub} numberOfLines={1}>
-          {artistOr(song.artist)} · {formatDuration(song.duration)}
-        </Text>
-      </View>
-    </View>
+    <SongLine
+      style={styles.face}
+      leading={
+        grip ? (
+          <View style={styles.gripSlot}>
+            <Grip size={14} color={theme.colors.textMuted} />
+          </View>
+        ) : null
+      }
+      artUri={artUri}
+      coverTitle={song.album || song.title}
+      title={song.title}
+      sub={`${artistOr(song.artist)} · ${formatDuration(song.duration)}`}
+    />
   )
 }
 
@@ -877,7 +876,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface3,
     boxShadow: `0 10px 28px ${theme.colors.floatShadow}`,
   },
-  hintText: { color: theme.colors.textPrimary, fontSize: type.small, lineHeight: 18 },
+  hintText: { color: theme.colors.textPrimary, fontSize: type.small, lineHeight: leading.small },
   listContent: { paddingBottom: space.md },
   label: { ...label(theme.colors), paddingTop: space.md, paddingBottom: space.xs, paddingLeft: 6 },
   slot: { height: ROW_HEIGHT, borderRadius: radius.cover },
@@ -898,21 +897,12 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.cover,
     paddingRight: 6,
   },
-  // Laid out as a row's face is, so its cover and words line up with the rows under it.
-  playing: { paddingLeft: 6, gap: space.sm },
   greyed: { opacity: 0.42 },
   press: { flex: 1, minWidth: 0, alignSelf: 'stretch', borderRadius: radius.cover },
   pressed: { backgroundColor: theme.colors.surface2 },
   // In from the row's edge by the list's bleed, so the covers stand under the
   // heading while a pressed row's shade still reaches past them.
-  face: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    paddingLeft: 6,
-  },
+  face: { flex: 1, minWidth: 0, paddingVertical: 0, paddingHorizontal: 0, paddingLeft: 6 },
   gripSlot: {
     width: 24,
     alignSelf: 'stretch',
@@ -931,9 +921,6 @@ const styles = StyleSheet.create(theme => ({
     // The shade a playing row lays over its cover (`SongRow`).
     backgroundColor: theme.colors.coverShade,
   },
-  text: { flex: 1, minWidth: 0, gap: 1, marginLeft: space.sm },
-  songTitle: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
-  sub: { color: theme.colors.textSecondary, fontSize: type.tiny },
   dropLineFoot: { top: undefined, bottom: 0 },
   // Let go anywhere else in the rail and the song joins the end: the whole
   // rail says so, since there is no one row to draw a line against.
@@ -969,7 +956,7 @@ const styles = StyleSheet.create(theme => ({
   },
   letGoText: { color: theme.colors.textPrimary, fontSize: type.tiny, fontWeight: '600' },
   autoMix: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  autoMixLabel: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '500' },
+  autoMixLabel: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '500' },
   autoMixHint: {
     flex: 1,
     minWidth: 0,

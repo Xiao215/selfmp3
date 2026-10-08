@@ -9,7 +9,14 @@ import {
   type MetadataSuggestion,
   type Song,
 } from '@selfmp3/shared'
-import { failureText, oklchToHexAlpha, radius, type ServerConnection } from '@selfmp3/client'
+import {
+  failureText,
+  leading,
+  oklchToHexAlpha,
+  radius,
+  type,
+  type ServerConnection,
+} from '@selfmp3/client'
 import { useMetadataSource } from './metadataSource'
 import { useMetadataSuggestion } from './useMetadataSuggestion'
 import {
@@ -564,8 +571,8 @@ const styles = StyleSheet.create(theme => ({
   fields: { flex: 1, minWidth: 0, gap: 7 },
   fieldsWide: { flex: 0 },
   fieldRow: { flexDirection: 'row', gap: 12 },
-  fieldLabel: { width: 84, color: theme.colors.textMuted, fontSize: 13, paddingTop: 2 },
-  fieldValue: { flex: 1, color: theme.colors.textPrimary, fontSize: 13 },
+  fieldLabel: { width: 84, color: theme.colors.textMuted, fontSize: type.sub, paddingTop: 2 },
+  fieldValue: { flex: 1, color: theme.colors.textPrimary, fontSize: type.sub },
   // A box only by its underline, so the panel still reads as the song's card.
   fieldInput: {
     paddingVertical: 2,
@@ -578,9 +585,9 @@ const styles = StyleSheet.create(theme => ({
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   groupTitle: groupLabel(theme.colors),
   candidates: { paddingVertical: 18, paddingHorizontal: 20, gap: 12 },
-  hint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17 },
+  hint: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
   strong: { color: theme.colors.textPrimary },
-  link: { fontSize: 12, textDecorationLine: 'underline' },
+  link: { fontSize: type.small, textDecorationLine: 'underline' },
   list: { gap: 4 },
   candidate: {
     flexDirection: 'row',
@@ -605,17 +612,22 @@ const styles = StyleSheet.create(theme => ({
     borderColor: theme.colors.surface3,
   },
   suggestedAsk: { paddingVertical: 12 },
-  suggestedWhy: { color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 2 },
+  suggestedWhy: {
+    color: theme.colors.textSecondary,
+    fontSize: type.small,
+    lineHeight: leading.small,
+    marginTop: 2,
+  },
   suggestedAgain: { alignSelf: 'flex-end', marginRight: 4 },
   // The picked suggestion wears the palette's selected-row colour, not an accent edge.
   candidateActive: { backgroundColor: theme.colors.accentSelected },
   candidateMain: { flex: 1, minWidth: 0, gap: 2 },
-  candidateTitle: { color: theme.colors.textSecondary, fontSize: 14, fontWeight: '500' },
-  candidateSub: { color: theme.colors.textMuted, fontSize: 12 },
+  candidateTitle: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '500' },
+  candidateSub: { color: theme.colors.textMuted, fontSize: type.small },
   candidateMeta: { alignItems: 'flex-end', gap: 4 },
   badge: { paddingVertical: 2, paddingHorizontal: 7, borderRadius: radius.pill },
-  badgeText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
-  score: { color: theme.colors.textMuted, fontSize: 12, fontVariant: ['tabular-nums'] },
+  badgeText: { fontSize: type.tiny, fontWeight: '700', letterSpacing: 0.5 },
+  score: { color: theme.colors.textMuted, fontSize: type.small, fontVariant: ['tabular-nums'] },
   // Space, not a rule, sets the changes apart from the suggestions.
   diff: { marginTop: 16, gap: 2 },
   diffHead: {
@@ -640,12 +652,12 @@ const styles = StyleSheet.create(theme => ({
   diffBodyWide: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
   diffBodyNarrow: { flex: 1, minWidth: 0, gap: 2 },
   diffLabel: { color: theme.colors.textMuted },
-  diffLabelWide: { width: 92, fontSize: 13 },
-  diffLabelNarrow: { fontSize: 11, fontWeight: '600', letterSpacing: 0.55 },
-  values: { flex: 1, minWidth: 0, fontSize: 13, color: theme.colors.textSecondary },
-  valuesNarrow: { fontSize: 14 },
+  diffLabelWide: { width: 92, fontSize: type.sub },
+  diffLabelNarrow: { fontSize: type.tiny, fontWeight: '600', letterSpacing: 0.55 },
+  values: { flex: 1, minWidth: 0, fontSize: type.sub, color: theme.colors.textSecondary },
+  valuesNarrow: { fontSize: type.body },
   old: { color: theme.colors.textMuted, textDecorationLine: 'line-through' },
-  arrow: { color: theme.colors.textMuted, fontSize: 12 },
+  arrow: { color: theme.colors.textMuted, fontSize: type.small },
   new: { color: theme.colors.textPrimary },
   coverChange: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
   pill: {
@@ -656,7 +668,7 @@ const styles = StyleSheet.create(theme => ({
   },
   pillText: {
     color: theme.colors.textSecondary,
-    fontSize: 10,
+    fontSize: type.tiny,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },

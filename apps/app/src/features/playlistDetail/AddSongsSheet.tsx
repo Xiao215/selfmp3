@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { artistOr, formatDuration, fuzzyRank, type Song } from '@selfmp3/shared'
 import {
   failureText,
   radius,
   space,
+  type,
   useAddToPlaylist,
   useBulkTag,
   useLibrary,
@@ -15,9 +16,11 @@ import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
-import { Cover } from '../../ui/components/Cover'
-import { Check, Plus, Search } from '../../ui/components/Icons'
+import { Check, Plus } from '../../ui/components/Icons'
 import { Sheet } from '../../ui/components/Sheet'
+import { EmptyState } from '../../ui/components/EmptyState'
+import { SearchField } from '../../ui/components/SearchField'
+import { SongLine } from '../../ui/components/SongLine'
 
 /** Enough to scroll through; a search narrows past it. */
 const SHOWN = 60
@@ -73,7 +76,6 @@ export function AddSongsSheet({
   const bulkTag = useBulkTag()
   const [query, setQuery] = useState('')
   const [added, setAdded] = useState<ReadonlySet<number>>(new Set())
-  const [focused, setFocused] = useState(false)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const making = target.kind === 'new'
@@ -149,74 +151,65 @@ export function AddSongsSheet({
       testID="add-songs"
     >
       <View style={styles.body}>
-        <View style={[styles.search, focused && { borderColor: accent.accent }]}>
-          <Search size={15} color={theme.colors.textMuted} />
-          <TextInput
-            style={styles.input}
-            value={query}
-            onChangeText={setQuery}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            placeholder="Search your library"
-            placeholderTextColor={theme.colors.textMuted}
-            accessibilityLabel="Search your library"
-            autoCorrect={false}
-            autoCapitalize="none"
-            autoFocus
-          />
-        </View>
+        <SearchField
+          raised
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search your library"
+          autoCorrect={false}
+          autoCapitalize="none"
+          autoFocus
+        />
 
         <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
           {results.length === 0 ? (
-            <Text style={styles.hint}>Nothing matches “{query.trim()}”.</Text>
+            <EmptyState compact title={`Nothing matches “${query.trim()}”`} />
           ) : (
             results.map(song => {
               const justAdded = added.has(song.id)
               const already = !justAdded && inPlaylist.has(song.id)
               return (
-                <View key={song.id} style={[styles.row, already && styles.already]}>
-                  <Cover uri={artFor(song)} title={song.album || song.title} size={36} />
-                  <View style={styles.text}>
-                    <Text style={styles.title} numberOfLines={1}>
-                      {song.title}
-                    </Text>
-                    <Text style={styles.artist} numberOfLines={1}>
-                      {artistOr(song.artist)}
-                    </Text>
-                  </View>
-                  <Text style={styles.time}>{formatDuration(song.duration)}</Text>
-                  {already ? (
-                    <Text style={styles.state}>{tagging ? 'Has it' : 'In this list'}</Text>
-                  ) : justAdded ? (
-                    <Pressable
-                      onPress={() => unpick(song)}
-                      disabled={!making && !tagging}
-                      accessibilityRole={making || tagging ? 'button' : undefined}
-                      accessibilityLabel={
-                        tagging
-                          ? `Take the tag off ${song.title}`
-                          : making
-                            ? `Take ${song.title} back out`
-                            : `${song.title} added`
-                      }
-                      style={styles.addedMark}
-                    >
-                      <Check size={14} color={accent.accent} />
-                      <Text style={[styles.state, { color: accent.accent }]}>
-                        {tagging ? 'Tagged' : 'Added'}
-                      </Text>
-                    </Pressable>
-                  ) : (
-                    <Pressable
-                      onPress={() => add(song)}
-                      accessibilityRole="button"
-                      accessibilityLabel={tagging ? `Tag ${song.title}` : `Add ${song.title}`}
-                      style={({ pressed }) => [styles.add, pressed && styles.pressed]}
-                    >
-                      <Plus size={15} color={theme.colors.textPrimary} />
-                    </Pressable>
-                  )}
-                </View>
+                <SongLine
+                  key={song.id}
+                  style={[styles.row, already && styles.already]}
+                  artUri={artFor(song)}
+                  coverTitle={song.album || song.title}
+                  title={song.title}
+                  sub={`${artistOr(song.artist)} · ${formatDuration(song.duration)}`}
+                  trailing={
+                    already ? (
+                      <Text style={styles.state}>{tagging ? 'Has it' : 'In this list'}</Text>
+                    ) : justAdded ? (
+                      <Pressable
+                        onPress={() => unpick(song)}
+                        disabled={!making && !tagging}
+                        accessibilityRole={making || tagging ? 'button' : undefined}
+                        accessibilityLabel={
+                          tagging
+                            ? `Take the tag off ${song.title}`
+                            : making
+                              ? `Take ${song.title} back out`
+                              : `${song.title} added`
+                        }
+                        style={styles.addedMark}
+                      >
+                        <Check size={14} color={accent.accent} />
+                        <Text style={[styles.state, { color: accent.accent }]}>
+                          {tagging ? 'Tagged' : 'Added'}
+                        </Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        onPress={() => add(song)}
+                        accessibilityRole="button"
+                        accessibilityLabel={tagging ? `Tag ${song.title}` : `Add ${song.title}`}
+                        style={({ pressed }) => [styles.add, pressed && styles.pressed]}
+                      >
+                        <Plus size={15} color={theme.colors.textPrimary} />
+                      </Pressable>
+                    )
+                  }
+                />
               )
             })
           )}
@@ -254,41 +247,10 @@ export function AddSongsSheet({
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm, padding: space.xs },
-  search: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    paddingHorizontal: space.md,
-    minHeight: 38,
-    // A search field on the sheet, raised above it whether the sheet is a
-    // card (a phone) or the control surface (a dialog). The edge only
-    // carries the focus ring: at rest it is the fill's own colour.
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: theme.colors.surface3,
-    backgroundColor: theme.colors.surface3,
-  },
-  input: {
-    flex: 1,
-    minWidth: 0,
-    color: theme.colors.textPrimary,
-    fontSize: 14,
-    paddingVertical: 8,
-  },
   list: { maxHeight: 380 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 5,
-    paddingHorizontal: space.xs,
-  },
+  row: { paddingHorizontal: space.xs },
   already: { opacity: 0.55 },
-  text: { flex: 1, minWidth: 0 },
-  title: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '500' },
-  artist: { color: theme.colors.textMuted, fontSize: 11.5 },
-  time: { color: theme.colors.textMuted, fontSize: 11.5, fontVariant: ['tabular-nums'] },
-  state: { color: theme.colors.textMuted, fontSize: 12, fontWeight: '600' },
+  state: { color: theme.colors.textMuted, fontSize: type.small, fontWeight: '600' },
   addedMark: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -314,6 +276,6 @@ const styles = StyleSheet.create(theme => ({
     gap: space.sm,
   },
   footActions: { flexDirection: 'row', gap: space.sm },
-  error: { color: theme.colors.danger, fontSize: 12, paddingHorizontal: space.xs },
-  hint: { color: theme.colors.textMuted, fontSize: 12, padding: space.xs, flexShrink: 1 },
+  error: { color: theme.colors.danger, fontSize: type.small, paddingHorizontal: space.xs },
+  hint: { color: theme.colors.textMuted, fontSize: type.small, padding: space.xs, flexShrink: 1 },
 }))

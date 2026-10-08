@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Animated, Pressable, Text } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import Svg, { Path } from 'react-native-svg'
-import { radius } from '@selfmp3/client'
+import { radius, type } from '@selfmp3/client'
 import { usePressScale } from '../../ui/motion'
 
 /**
@@ -69,5 +69,5 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     gap: 10,
   },
-  label: { color: theme.colors.onPrimary, fontSize: 16, fontWeight: '600' },
+  label: { color: theme.colors.onPrimary, fontSize: type.body, fontWeight: '600' },
 }))

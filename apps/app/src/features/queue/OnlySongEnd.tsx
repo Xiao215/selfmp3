@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
-import { space, useLibrary } from '@selfmp3/client'
+import { space, type, useLibrary } from '@selfmp3/client'
 import type { PlayerApi } from '../../player/PlayerProvider'
 import { Button } from '../../ui/components/Button'
 import { Shuffle, Sparkles } from '../../ui/components/Icons'
@@ -89,7 +89,7 @@ const styles = StyleSheet.create(theme => ({
   },
   title: {
     color: theme.colors.textPrimary,
-    fontSize: 15,
+    fontSize: type.body,
     fontWeight: '600',
     textAlign: 'center',
   },

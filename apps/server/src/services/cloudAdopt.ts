@@ -336,7 +336,7 @@ export class CloudAdopt {
       lyricsKind: song.lyrics?.kind ?? null,
       romanizedKey: song.lyrics?.romanized ?? null,
       lyricsSig: song.lyrics ? tagsLyricsSignature(audioSig) : NO_FILE_SIGNATURE,
-      motionKey: song.motion ?? null,
+      motionKey: song.motion,
       motionSig: NO_FILE_SIGNATURE,
     })
     // So the next pass does not ask the bucket whether it has files it just

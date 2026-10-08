@@ -38,6 +38,7 @@ const song = (u: string, overrides: Partial<CloudSong> = {}): CloudSong => ({
   cover: null,
   coverTone: null,
   lyrics: null,
+  motion: null,
   instrumental: false,
   loved: false,
   playCount: 0,
@@ -89,6 +90,8 @@ const BASE: CloudSnapshot = {
       updatedAt: '2026-09-01 10:00:00',
     },
   ],
+  artists: [],
+  sound: null,
 }
 
 /** A device's view of BASE plus changes, and a context to edit it with. */

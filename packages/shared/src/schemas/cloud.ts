@@ -119,20 +119,6 @@ export const CloudLyricsSchema = z.object({
 })
 export type CloudLyrics = z.infer<typeof CloudLyricsSchema>
 
-/**
- * A song's cover colour as a snapshot carries it. Snapshots written before
- * every field was written explicitly may leave it out, and one may lack the
- * palette; either reads as no colour, which the next snapshot puts right.
- */
-// TODO(after the Pi publishes): replace with `CoverToneSchema.nullable()`; buildSnapshot
-// writes null when there is no colour, and every tone it writes has a palette.
-const SnapshotCoverToneSchema = CoverToneSchema.extend({
-  palette: CoverToneSchema.shape.palette.optional(),
-})
-  .nullable()
-  .optional()
-  .transform(tone => (tone?.palette ? { ...tone, palette: tone.palette } : null))
-
 export const CloudSongSchema = z.object({
   uid: UidSchema,
   title: z.string(),
@@ -146,15 +132,14 @@ export const CloudSongSchema = z.object({
   audio: CloudAudioSchema,
   cover: CloudCoverSchema.nullable(),
   /** The cover's colour, as the server picked it (schemas/song.ts). Null until it has read the cover. */
-  coverTone: SnapshotCoverToneSchema,
+  coverTone: CoverToneSchema.nullable(),
   lyrics: CloudLyricsSchema.nullable(),
   /**
    * The song's motion curve (schemas/motion.ts), as JSON in `lyrics/`: how loud
    * it is and where the hits are, for the visuals on a device that cannot
    * listen live. Null until the server has analysed the song and put it up.
    */
-  // TODO(after the Pi publishes): drop `.optional()` here; buildSnapshot writes null.
-  motion: fileKey('lyrics').nullable().optional(),
+  motion: fileKey('lyrics').nullable(),
   instrumental: z.boolean(),
   loved: z.boolean(),
   playCount: z.number().int().nonnegative(),
@@ -162,8 +147,8 @@ export const CloudSongSchema = z.object({
   addedAt: z.string(),
   sourceUrl: z.string().nullable(),
   tagUids: z.array(UidSchema),
-  // TODO(after the Pi publishes): drop `.default(null)` here; buildSnapshot writes it.
-  audioFeatures: AudioFeaturesSchema.nullable().default(null),
+  /** How the song sounds, as the server's analyser measured it (schemas/audioFeatures.ts). Null until it has. */
+  audioFeatures: AudioFeaturesSchema.nullable(),
   /** Per field: title, artist, loved, … */
   stamps: StampsSchema.optional(),
   /** Per tag, whether it was last put on the song or taken off. */
@@ -301,17 +286,14 @@ export const CloudSnapshotSchema = z.object({
    * For each device, the last of its log files already folded into this
    * snapshot. A device reading it replays only the files after these.
    */
-  // TODO(after the Pi publishes): drop `.default({})` here; buildSnapshot writes it.
-  upTo: z.record(z.string(), z.number().int().nonnegative()).default({}),
+  upTo: z.record(z.string(), z.number().int().nonnegative()),
   songs: z.array(CloudSongSchema),
   tags: z.array(CloudTagSchema),
   playlists: z.array(CloudPlaylistSchema),
   /** Every artist of the library's songs the server has a picture for. */
-  // TODO(after the Pi publishes): drop `.default([])` here; buildSnapshot writes it.
-  artists: z.array(CloudArtistSchema).default([]),
+  artists: z.array(CloudArtistSchema),
   /** How every song sounds, as the server heard it; null before it has heard any. */
-  // TODO(after the Pi publishes): drop `.default(null)` here; buildSnapshot writes it.
-  sound: CloudSoundSchema.nullable().default(null),
+  sound: CloudSoundSchema.nullable(),
   /**
    * Tags made twice under one name, on two devices before either heard of
    * the other: the second uid, and the tag it was folded into. A late change

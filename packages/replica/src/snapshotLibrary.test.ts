@@ -25,6 +25,7 @@ const song = (u: string, overrides: Partial<CloudSong> = {}): CloudSong => ({
   cover: null,
   coverTone: null,
   lyrics: null,
+  motion: null,
   instrumental: false,
   loved: false,
   playCount: 0,
@@ -45,6 +46,7 @@ const snapshot = (overrides: Partial<CloudSnapshot> = {}): CloudSnapshot => ({
   tags: [],
   playlists: [],
   artists: [],
+  sound: null,
   ...overrides,
 })
 

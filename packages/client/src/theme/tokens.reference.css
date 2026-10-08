@@ -111,8 +111,9 @@
   --surface-selected: #ffffff;
 
   --text-primary: #1b1a17;
-  --text-secondary: #6b675f;
-  --text-muted: #8a857b;
+  --text-secondary: #55514a;
+  --text-muted: #67625a;
+  --warning: #7f5300;
 
   --accent: oklch(0.52 0.19 var(--accent-hue));
   --accent-strong: oklch(0.46 0.21 var(--accent-hue));

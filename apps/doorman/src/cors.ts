@@ -1,3 +1,4 @@
+import { DESKTOP_APP_ORIGIN, EXTENSION_ORIGIN, EXTENSION_SIGNIN_ORIGIN } from '@selfmp3/shared'
 import type { Log } from './context.js'
 import { errorResponse, forbidden } from './http.js'
 
@@ -23,6 +24,19 @@ const MAX_AGE_SECONDS = '86400'
 let parsed: { from: string; origins: ReadonlySet<string> } | null = null
 
 /**
+ * The self.mp3 apps' own origins, on every doorman's list whatever APP_ORIGINS
+ * says: the desktop app's page, the extension's pages and worker, and the
+ * address Chrome brings the extension's sign-in back to. They are the same on
+ * every install (packages/shared/src/origins.ts), so APP_ORIGINS names only the
+ * addresses the web app is served from.
+ */
+const OWN_ORIGINS: readonly string[] = [
+  DESKTOP_APP_ORIGIN,
+  EXTENSION_ORIGIN,
+  EXTENSION_SIGNIN_ORIGIN,
+]
+
+/**
  * Schemes a browser hands out itself, which no installed app's page is served
  * from. An entry with one of these is a mistake, and is dropped rather than
  * allowed.
@@ -40,9 +54,9 @@ const BROWSER_SCHEMES = new Set([
 ])
 
 /**
- * APP_ORIGINS as a set of origins, each tidied the way a browser sends it, so
- * a trailing slash in the setting does not lock the app out. Worked out again
- * only when the setting changes.
+ * The apps' own origins, and APP_ORIGINS as a set of origins, each tidied the
+ * way a browser sends it, so a trailing slash in the setting does not lock the
+ * app out. Worked out again only when the setting changes.
  *
  * Two kinds of entry. A web address, whose origin is what the browser sends.
  * And an installed app's own scheme — `app://selfmp3`, the desktop app's page —
@@ -54,7 +68,7 @@ const BROWSER_SCHEMES = new Set([
 export function allowedOrigins(value: string | undefined, log: Log): ReadonlySet<string> {
   const from = value ?? ''
   if (parsed?.from === from) return parsed.origins
-  const origins = new Set<string>()
+  const origins = new Set<string>(OWN_ORIGINS)
   for (const entry of from.split(',')) {
     const trimmed = entry.trim()
     if (!trimmed) continue

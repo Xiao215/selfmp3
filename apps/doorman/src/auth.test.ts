@@ -2,6 +2,7 @@ import {
   DoormanClaimResultSchema,
   DoormanMeSchema,
   ErrorBodySchema,
+  EXTENSION_SIGNIN_ORIGIN,
   formatSignInCode,
 } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
@@ -18,7 +19,6 @@ import {
   APP_ORIGIN,
   CLIENT_ID,
   DOORMAN_ORIGIN,
-  EXTENSION_RETURN,
   ME,
   harness,
   idTokenClaims,
@@ -263,7 +263,7 @@ describe('coming back from Google', () => {
       'http://localhost:4600/settings/cloud',
       'http://127.0.0.1:8123/',
       // Chrome's address for the browser extension, which launchWebAuthFlow watches for.
-      `${EXTENSION_RETURN}/`,
+      `${EXTENSION_SIGNIN_ORIGIN}/`,
     ]) {
       const h = harness()
       const started = await begin(h, `&return=${encodeURIComponent(returnTo)}`)

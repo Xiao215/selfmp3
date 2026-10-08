@@ -118,17 +118,19 @@ The doorman signs people in with an OAuth client that you own, in the
 1. In `wrangler.toml`, set `GOOGLE_CLIENT_ID` to the client ID. It is not a
    secret: it appears in every sign-in link.
 2. Check `APP_ORIGINS` in `wrangler.toml`: the address the web app is served
-
-`APP_SCHEMES` is the same idea for the native app: the URL schemes the
-doorman may send a signed-in phone back to, comma separated, defaulting to
-`selfmp3`. It is never used for CORS — a scheme has no origin to check one
-against — only for the redirect at the end of a sign-in. What rides back is
-the code alone; the attempt stays on the device, so a scheme another app has
-also claimed is half of a pair and no use on its own.
    from, `https://xiao215.github.io`. Browsers may call the doorman only from
    there, and a sign-in only sends you back there — or to this computer
    (`http://localhost` or `http://127.0.0.1`, for the server's own page, where
-   it signs itself in and names its bucket).
+   it signs itself in and names its bucket). The desktop app's and the browser
+   extension's own origins are always allowed and are not listed: the doorman
+   takes them from `packages/shared/src/origins.ts`.
+
+   `APP_SCHEMES` is the same idea for the native app: the URL schemes the
+   doorman may send a signed-in phone back to, comma separated, defaulting to
+   `selfmp3`. It is never used for CORS — a scheme has no origin to check one
+   against — only for the redirect at the end of a sign-in. What rides back is
+   the code alone; the attempt stays on the device, so a scheme another app has
+   also claimed is half of a pair and no use on its own.
 3. Make a seal key, 32 random bytes:
 
    ```sh

@@ -339,6 +339,7 @@ export function PlacePage({
           />
           <Button
             testID="place-shuffle"
+            label="Shuffle"
             accessibilityLabel={`Shuffle ${title}`}
             icon={<Shuffle size={16} tone="textPrimary" />}
             disabled={ids.length === 0}

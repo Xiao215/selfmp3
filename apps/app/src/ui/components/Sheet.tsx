@@ -264,6 +264,11 @@ export function Sheet({
             </View>
           </GestureDetector>
           {content}
+          {/* The panel carries on below its foot, out of sight until something
+              lifts it: the keyboard, whose rounded and see-through edge
+              otherwise showed the dimmed page under a sheet that had been
+              shifted up whole, and the four points the rise overshoots. */}
+          <View pointerEvents="none" style={[styles.skirt, { height: windowHeight }]} />
         </Animated.View>
       )}
     </>,
@@ -364,6 +369,13 @@ const styles = StyleSheet.create(theme => ({
     borderTopRightRadius: radius.sheet,
     ...floating(theme.colors),
     paddingHorizontal: space.sm,
+  },
+  skirt: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: theme.colors.surface1,
   },
   dialogFrame: {
     position: 'absolute',

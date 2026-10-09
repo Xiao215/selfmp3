@@ -266,10 +266,11 @@ export function createContainer(configured: Config): Container {
     // The bucket's words, read from this disk after the first time.
     kept: new KeptCloudFiles(path.join(config.dataDir, 'cloud-files'), logger),
     // The last thing that needs a song's audio here; once it is done, the
-    // copy on this disk may go. With the listening model ready, that includes
-    // being heard, so hearing it later does not cost a download.
+    // copy on this disk may go. Where songs are heard, that includes being
+    // heard (loaded or not, the model is let go when idle), so hearing it
+    // later does not cost a download.
     analysed: songId =>
-      audioFeatures.isAnalysed(songId, ANALYSIS_VERSION) && (!sound.isReady || sound.has(songId)),
+      audioFeatures.isAnalysed(songId, ANALYSIS_VERSION) && (!sound.canHear || sound.has(songId)),
     cloudDir: config.cloudDir ?? undefined,
     publishAnyway: config.publishAnyway,
     importRequests,

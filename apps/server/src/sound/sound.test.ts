@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import Database from 'better-sqlite3'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { song } from '../ai/fixtures/library.js'
 import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
@@ -27,15 +27,20 @@ function toward(axis: number, lean = 0, other = (axis + 1) % SOUND_DIMENSIONS): 
 /** A model that hears every clip as axis 9 and reads each word as its own axis. */
 class FakeModel implements SoundModel {
   heard: number[] = []
+  closed = 0
+  /** While set, reading words waits for it: a use still under way. */
+  hold: Promise<void> | null = null
   readonly words: Record<string, Float32Array> = { calm: toward(0), loud: toward(1) }
   hearClip(pcm: Float32Array): Promise<Float32Array> {
     this.heard.push(pcm.length)
     return Promise.resolve(toward(9))
   }
-  readText(text: string): Promise<Float32Array> {
-    return Promise.resolve(this.words[text] ?? toward(5))
+  async readText(text: string): Promise<Float32Array> {
+    if (this.hold) await this.hold
+    return this.words[text] ?? toward(5)
   }
   close(): Promise<void> {
+    this.closed++
     return Promise.resolve()
   }
 }
@@ -61,15 +66,22 @@ describe('SoundService', () => {
     fs.rmSync(dataDir, { recursive: true, force: true })
   })
 
+  let made: number
+
   /** A service whose model files are an empty list in a folder that exists: always to hand. */
-  const service = (enabled = true): SoundService => {
+  const service = (enabled = true, idleMs?: number): SoundService => {
     const config = { dataDir, sound: { enabled, models: dataDir, threads: 1 } }
+    made = 0
     return new SoundService({
       config,
       vectors,
       logger,
       files: new SoundModelFiles({ config, logger, files: [] }),
-      makeModel: () => model,
+      makeModel: () => {
+        made++
+        return model
+      },
+      ...(idleMs === undefined ? {} : { idleMs }),
     })
   }
 
@@ -82,6 +94,52 @@ describe('SoundService', () => {
     expect(sound.status()).toEqual({ state: 'ready', heard: 1, pending: 2, message: null })
     // Newest first, and never a song it has had its say on.
     expect(sound.nextPending()).toBe(4)
+  })
+
+  describe('letting the model go when idle', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('lets it go after a while unused, and loads it again for the next use', async () => {
+      vi.useFakeTimers()
+      vectors.upsert(1, SOUND_MODEL.name, toward(0))
+      const sound = service(true, 60_000)
+      expect(await sound.match('calm', [1])).not.toBeNull()
+      expect(made).toBe(1)
+
+      await vi.advanceTimersByTimeAsync(59_000)
+      expect(model.closed).toBe(0)
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(model.closed).toBe(1)
+      // Still a server that hears songs: copies wait to be heard, and it says ready.
+      expect(sound.canHear).toBe(true)
+      expect(sound.status().state).toBe('ready')
+
+      expect(await sound.match('calm', [1])).not.toBeNull()
+      expect(made).toBe(2)
+    })
+
+    it('never lets it go in the middle of a use', async () => {
+      vi.useFakeTimers()
+      vectors.upsert(1, SOUND_MODEL.name, toward(0))
+      const sound = service(true, 60_000)
+      let finish: () => void = () => undefined
+      model.hold = new Promise(resolve => {
+        finish = resolve
+      })
+      const reading = sound.match('calm', [1])
+      await vi.advanceTimersByTimeAsync(5 * 60_000)
+      expect(model.closed).toBe(0)
+
+      finish()
+      await reading
+      // The clock starts when the use ends.
+      await vi.advanceTimersByTimeAsync(59_000)
+      expect(model.closed).toBe(0)
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(model.closed).toBe(1)
+    })
   })
 
   it('stays off when switched off, and fetches nothing', async () => {

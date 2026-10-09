@@ -118,7 +118,10 @@ above to the decimal. The files (about 750 MB) are a release of this repository,
 against hashes written in `sound/models.ts`. A failed download is tried again an hour later.
 The model runs in a worker thread (`sound/clamp3Worker.ts`): a pass on onnxruntime-node
 blocks the thread it runs on, and on the event loop each one froze the server for seconds
-on a Pi.
+on a Pi. Loaded, it is about 600 MB, so it is let go after ten minutes unused and loaded
+again, in a few seconds, by the next song to hear or "sounds like" search
+(`IDLE_UNLOAD_MS`, `sound/sound.ts`): a backlog paused for the day used to hold it all day.
+A song's copy on the server is still kept until it has been heard, loaded or not.
 
 | Setting | |
 |---|---|

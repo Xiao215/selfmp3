@@ -27,6 +27,15 @@ const ARTIST_NUDGE = 0.02
 
 const DECODE_TIMEOUT_MS = 60_000
 
+/**
+ * The model is let go after this long unused. Loaded it is the server's
+ * biggest single use of memory — about 600 MB on a Pi, in its worker — and it
+ * is wanted in bursts: a backlog heard over a night, an import's songs, a
+ * "sounds like" search now and then. Kept loaded, it sat idle all day once a
+ * backlog paused. Loading it again takes a few seconds, on the next use.
+ */
+const IDLE_UNLOAD_MS = 10 * 60_000
+
 export class SoundService {
   readonly #enabled: boolean
   readonly #threads: number
@@ -37,6 +46,10 @@ export class SoundService {
   readonly #changed: () => void
   #model: SoundModel | null = null
   #cache: Map<number, Float32Array> | null = null
+  readonly #idleMs: number
+  /** Uses of the model under way: it is never let go in the middle of one. */
+  #inUse = 0
+  #idleTimer: NodeJS.Timeout | null = null
 
   constructor(deps: {
     config: Pick<Config, 'dataDir' | 'sound'>
@@ -48,6 +61,8 @@ export class SoundService {
     makeModel?: (dir: string, threads: number) => SoundModel
     /** A song was heard, given up on or forgotten: the bucket's copy is behind. */
     changed?: () => void
+    /** How long the model is kept unused before it is let go (`IDLE_UNLOAD_MS`); a test's own. */
+    idleMs?: number
   }) {
     this.#enabled = deps.config.sound.enabled
     this.#threads = deps.config.sound.threads
@@ -56,6 +71,7 @@ export class SoundService {
     this.#files = deps.files ?? new SoundModelFiles({ config: deps.config, logger: deps.logger })
     this.#makeModel = deps.makeModel ?? ((dir, threads) => new Clamp3Worker(dir, threads))
     this.#changed = deps.changed ?? (() => undefined)
+    this.#idleMs = deps.idleMs ?? IDLE_UNLOAD_MS
   }
 
   /** The model whose vectors these are. */
@@ -67,9 +83,14 @@ export class SoundService {
     return this.#enabled
   }
 
-  /** Whether the model can be used right now, without waiting for anything. */
-  get isReady(): boolean {
-    return this.#model !== null
+  /**
+   * Whether songs are heard here: the model is on and its files are to hand,
+   * loaded or not — it is let go when idle, and loaded again when wanted. A
+   * song's copy here is kept until it has been heard while this holds, so
+   * hearing it never costs a download.
+   */
+  get canHear(): boolean {
+    return this.#enabled && (this.#model !== null || this.#files.state === 'ready')
   }
 
   /** When to try for the model again after it could not be had; null otherwise. */
@@ -80,7 +101,7 @@ export class SoundService {
   status(): AnalysisStatus['sound'] {
     const state = !this.#enabled
       ? 'off'
-      : this.#model
+      : this.canHear
         ? 'ready'
         : this.#files.state === 'failed'
           ? 'failed'
@@ -111,7 +132,47 @@ export class SoundService {
         threads: this.#threads,
       })
     }
+    // Loaded and not used is let go too.
+    if (this.#inUse === 0) this.#letGoWhenIdle()
     return true
+  }
+
+  /** The model, held for one use: not let go until the use is over, and the idle clock starts after it. */
+  async #using<T>(use: (model: SoundModel) => Promise<T>): Promise<T> {
+    // Let go since it was made ready — a download that outlasted the idle
+    // clock — is loaded again, not a song that cannot be heard.
+    if (!this.#model) await this.prepare()
+    const model = this.#model
+    if (!model) throw new Error('the listening model is not ready')
+    this.#inUse++
+    if (this.#idleTimer) clearTimeout(this.#idleTimer)
+    this.#idleTimer = null
+    try {
+      return await use(model)
+    } finally {
+      this.#inUse--
+      if (this.#inUse === 0) this.#letGoWhenIdle()
+    }
+  }
+
+  #letGoWhenIdle(): void {
+    if (this.#idleTimer) clearTimeout(this.#idleTimer)
+    this.#idleTimer = setTimeout(() => {
+      this.#idleTimer = null
+      const model = this.#model
+      if (!model || this.#inUse > 0) return
+      this.#model = null
+      this.#logger.info('listening model let go while idle', {
+        minutes: Math.round(this.#idleMs / 60_000),
+      })
+      model.close().catch((error: unknown) => {
+        this.#logger.warn('the listening model did not close cleanly', {
+          message: error instanceof Error ? error.message : String(error),
+        })
+      })
+    }, this.#idleMs)
+    // Never hold the process open just to let the model go.
+    this.#idleTimer.unref()
   }
 
   /** The next song waiting to be heard, newest first, passing over the ones in `skip`. */
@@ -129,9 +190,9 @@ export class SoundService {
    * cannot; `markUnhearable` then records that, so it is not tried forever.
    */
   async hear(songId: number, file: string, duration: number): Promise<void> {
-    const model = this.#model
-    if (!model) throw new Error('the listening model is not ready')
-    const vector = await model.hearClip(await decodeWindows(file, duration))
+    const vector = await this.#using(async model =>
+      model.hearClip(await decodeWindows(file, duration)),
+    )
     this.#vectors.upsert(songId, SOUND_MODEL.name, vector)
     this.#cache?.set(songId, vector)
     this.#changed()
@@ -194,7 +255,7 @@ export class SoundService {
   async match(text: string, songIds: readonly number[]): Promise<Map<number, number> | null> {
     const all = this.#all()
     if (!this.#enabled || all.size === 0 || !(await this.prepare()) || !this.#model) return null
-    const query = await this.#model.readText(text)
+    const query = await this.#using(model => model.readText(text))
     const out = new Map<number, number>()
     for (const id of songIds) {
       const vector = all.get(id)
@@ -248,8 +309,11 @@ export class SoundService {
   }
 
   async close(): Promise<void> {
-    await this.#model?.close()
+    if (this.#idleTimer) clearTimeout(this.#idleTimer)
+    this.#idleTimer = null
+    const model = this.#model
     this.#model = null
+    await model?.close()
   }
 }
 

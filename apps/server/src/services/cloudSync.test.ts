@@ -184,8 +184,7 @@ describe('CloudSyncService', () => {
       },
       debounceMs: 5,
       retryDelaysMs: [30],
-      publishDeferMs: 40,
-      publishDeferMaxMs: 120,
+      importPacing: { first: 40, steps: [{ from: 0, every: 120 }] },
       // A second apart per call, so every snapshot gets a name of its own.
       now: () => new Date((clock += 1000)),
     }

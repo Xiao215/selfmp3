@@ -58,7 +58,10 @@ remembered for the session as having no words — and each of those asked the bu
 What a song costs on its way up is kept small on purpose: the server sends each of its files
 without asking the bucket about it first, and so does the doorman (Backblaze takes
 `If-None-Match` on an upload and ignores it, and the server knows from its listing what the
-bucket has); a run of imports publishes one snapshot every so often rather than one per song;
+bucket has); a run of imports publishes its first snapshot within a minute and the rest further apart the
+longer it goes on — two minutes, then five, then ten (`services/importPacing.ts`) — since every
+snapshot is a listing and a read on each device that is looking, and a thousand-song day
+published one a song;
 and the server prunes its old snapshots from memory instead of listing the folder after each
 one.
 

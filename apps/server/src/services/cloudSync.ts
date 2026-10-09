@@ -43,6 +43,7 @@ import { LocalCloudStore } from '../bucket/local.js'
 import { DoormanClient } from '../bucket/doorman.js'
 import type { KeptCloudFiles } from '../bucket/kept.js'
 import { debounce, type Debounced } from './debounce.js'
+import { importPacer, type ImportPacer } from './importPacing.js'
 import type {
   CloudConnection,
   CloudRepository,
@@ -149,15 +150,6 @@ const LOG_READS_AT_ONCE = 6
 
 /** Songs whose files are looked at together while a pass works out what changed. */
 const SIGNATURES_AT_ONCE = 16
-
-/**
- * How long a snapshot waits while imports are still coming, and the most it
- * waits. One snapshot per imported song was a listing and a write on the
- * server and a read on every device for each of a hundred songs; one every
- * so often says the same by the end of the wave.
- */
-const PUBLISH_DEFER_MS = 45_000
-const PUBLISH_DEFER_MAX_MS = 2 * 60_000
 
 /**
  * While songs are still being heard, the sound vectors go up at most this
@@ -291,10 +283,11 @@ interface CloudSyncDeps {
   readonly doormanUrl?: string
   readonly openDoorman?: (url: string) => Doorman
   readonly debounceMs?: number
-  /** How long a snapshot waits while imports are still coming (`PUBLISH_DEFER_MS`). */
-  readonly publishDeferMs?: number
-  /** The most it waits during a run that never pauses (`PUBLISH_DEFER_MAX_MS`). */
-  readonly publishDeferMaxMs?: number
+  /**
+   * How soon a run of imports publishes its first snapshot, and how far apart
+   * the ones after it are (services/importPacing.ts). Tests make them short.
+   */
+  readonly importPacing?: Parameters<typeof importPacer>[1]
   /**
    * Publish this server's library as it stands (`SELFMP3_PUBLISH_ANYWAY`):
    * no adoption first, and no refusing to replace a bigger library.
@@ -359,7 +352,8 @@ export class CloudSyncService {
   #again = false
   readonly #kickDebounce: Debounced
   /** The snapshot a run of imports owes, written once the run pauses. */
-  readonly #publishLater: Debounced
+  /** The snapshots of a run of imports, paced (services/importPacing.ts). */
+  readonly #publishLater: ImportPacer
   /**
    * The snapshot folder as last listed, kept up to date with what this
    * device writes and deletes, so pruning needs no listing of its own after
@@ -438,21 +432,16 @@ export class CloudSyncService {
      * `maxWaitMs` is what guarantees the pass still happens during one.
      */
     this.#kickDebounce = debounce(() => void this.#pass(), deps.debounceMs ?? DEFAULT_DEBOUNCE_MS)
-    const defer = deps.publishDeferMs ?? PUBLISH_DEFER_MS
-    this.#publishLater = debounce(
-      () => {
-        const store = this.#store
-        if (store && !this.#stopped) {
-          this.#publish(store).catch(error => {
-            this.#logger.warn('could not publish the imports’ snapshot', {
-              message: messageOf(error),
-            })
+    this.#publishLater = importPacer(() => {
+      const store = this.#store
+      if (store && !this.#stopped) {
+        this.#publish(store).catch(error => {
+          this.#logger.warn('could not publish the imports’ snapshot', {
+            message: messageOf(error),
           })
-        }
-      },
-      defer,
-      Math.max(defer, deps.publishDeferMaxMs ?? PUBLISH_DEFER_MAX_MS),
-    )
+        })
+      }
+    }, deps.importPacing)
     this.#now = deps.now ?? (() => new Date())
     this.#signInPollMs = deps.signInPollMs ?? SIGN_IN_POLL_MS
     this.#logPollMs = deps.logPollMs ?? LOG_POLL_MS
@@ -850,7 +839,8 @@ export class CloudSyncService {
    * song could not be put in the bucket.
    *
    * With `more` imports still to come, the snapshot waits (`#publishLater`):
-   * a run of songs is one snapshot every so often, not one each.
+   * a run of songs is one snapshot every so often, further apart the longer
+   * the run goes on, not one each. The last song of a run is published now.
    */
   async uploadSong(songId: number, { more = false }: { more?: boolean } = {}): Promise<void> {
     const store = this.#store

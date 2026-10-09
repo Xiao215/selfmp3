@@ -1,9 +1,15 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated } from 'react-native'
+import { StyleSheet } from 'react-native'
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native'
-import { spring } from '../motion'
-import { clamp01 } from '@selfmp3/shared'
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  type SharedValue,
+} from 'react-native-reanimated'
+import { motion } from '@selfmp3/client'
+import { useMotionReduced } from '../motion'
 
 interface Box {
   readonly x: number
@@ -22,13 +28,8 @@ interface Box {
  * box it is on now. Until the lit item has laid out there is no highlight to
  * move, and `placed` is false so the item can draw its own fill for that frame.
  *
- * The highlight is laid out at the box it is going to — plain numbers, from
- * React — and only a transform carries it there from the box it left: a
- * translation between the two centres and a scale for any difference in
- * size, applied in that order so the centre lands first and the size follows
- * around it, both on the native driver. At rest the transform is the
- * identity, so what is on screen is exactly what React last committed,
- * whatever happened in between.
+ * The highlight's box is Reanimated's alone (`Highlight`): React never commits
+ * a position for it, so there is no second answer to where it is.
  *
  * It used to be laid out with animated `left` and `width`, moved on the
  * JavaScript side. On the new architecture that meant the slide wrote the
@@ -39,7 +40,16 @@ interface Box {
  * started, and React, believing the pill was already at its destination,
  * never sent it again. A tab lit on Home under a pill sitting on Library
  * (Xiao's recording, 2026-09-22), and it stayed that way until something
- * else moved the pill. Nothing the highlight owns can now be out of date.
+ * else moved the pill.
+ *
+ * Then it was laid out at the box it was going to, with a native-driven
+ * transform carrying it there from wherever JavaScript last heard it was. On
+ * a phone the native side tells JavaScript only now and then, and not at all
+ * while the arriving page holds the thread: Library tapped, its page still
+ * building, Playlists tapped, and the pill went back to Home before setting
+ * off, the Library slide not yet begun as far as JavaScript knew (Xiao,
+ * 2026-10-09). Each move's end also sent the whole transform again from those
+ * stale numbers, a frame of the pill at the slide's start.
  */
 export function useSlidingHighlight<K extends string>(
   active: K | null,
@@ -50,35 +60,6 @@ export function useSlidingHighlight<K extends string>(
   highlight: ReactNode
 } {
   const [boxes, setBoxes] = useState<Partial<Record<K, Box>>>({})
-  const [progress] = useState(() => new Animated.Value(1))
-  // The slide, as nodes built once: how far the highlight is from its box
-  // (`dx`, `dy`) and how much bigger or smaller it was (`sx`, `sy`, less one),
-  // each fading to nothing as `progress` reaches 1. A new slide is four
-  // numbers sent to them, not four nodes rebuilt for every render.
-  const [slide] = useState(() => {
-    const dx = new Animated.Value(0)
-    const dy = new Animated.Value(0)
-    const sx = new Animated.Value(0)
-    const sy = new Animated.Value(0)
-    const left = progress.interpolate({ inputRange: [0, 1], outputRange: [1, 0] })
-    return {
-      dx,
-      dy,
-      sx,
-      sy,
-      transform: [
-        { translateX: Animated.multiply(left, dx) },
-        { translateY: Animated.multiply(left, dy) },
-        { scaleX: Animated.add(1, Animated.multiply(left, sx)) },
-        { scaleY: Animated.add(1, Animated.multiply(left, sy)) },
-      ],
-    }
-  })
-  // Where the highlight was last sent, and how far along that slide it is,
-  // read back from the value: a new slide begins from wherever this one was
-  // cut off. Kept out of the render, which reads none of it.
-  const last = useRef<{ from: Box; to: Box } | null>(null)
-  const at = useRef(1)
   const measure = useCallback(
     (key: K) => (event: LayoutChangeEvent) => {
       const { x, y, width, height } = event.nativeEvent.layout
@@ -93,78 +74,64 @@ export function useSlidingHighlight<K extends string>(
     [],
   )
 
-  // Where it is going. A new lit item slides from wherever the highlight is
-  // *now* — the last box it was sent to, less the part of that slide it has
-  // not made yet — so a second tap during a slide turns the pill rather than
-  // snapping it to the first tap's tab and starting again. The same item
-  // laid out again (a resize) is simply moved.
+  // Where it is going. The same item laid out again (a resize) moves too.
   const target = active === null ? undefined : boxes[active]
   const [pair, setPair] = useState<{ key: K; to: Box } | null>(null)
   if (active !== null && target && pair?.to !== target) setPair({ key: active, to: target })
 
-  // Before the paint, so the frame the new pair is drawn in starts where the
-  // highlight was rather than flashing where it is going. The move is the one
-  // spring (`M1`): a spring sent to a new end carries its speed with it, so a
-  // slide interrupted by another tab keeps going rather than restarting.
-  useLayoutEffect(() => {
-    if (!pair) return undefined
-    const was = last.current
-    const sliding = was !== null && was.to !== pair.to && !sameBox(was.to, pair.to)
-    const from = sliding ? boxBetween(was.from, was.to, at.current) : pair.to
-    last.current = { from, to: pair.to }
-    if (!sliding) {
-      progress.setValue(1)
-      at.current = 1
-      return undefined
-    }
-    slide.dx.setValue(from.x + from.width / 2 - (pair.to.x + pair.to.width / 2))
-    slide.dy.setValue(from.y + from.height / 2 - (pair.to.y + pair.to.height / 2))
-    slide.sx.setValue(pair.to.width > 0 ? from.width / pair.to.width - 1 : 0)
-    slide.sy.setValue(pair.to.height > 0 ? from.height / pair.to.height - 1 : 0)
-    progress.setValue(0)
-    at.current = 0
-    const follow = progress.addListener(({ value }) => {
-      at.current = value
-    })
-    const move = spring(progress, 1)
-    return () => {
-      progress.removeListener(follow)
-      move?.stop()
-    }
-  }, [pair, progress, slide])
-
   const placed = active !== null && target !== undefined && pair !== null
-  const highlight =
-    placed && pair ? (
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          style,
-          {
-            position: 'absolute',
-            left: pair.to.x,
-            top: pair.to.y,
-            width: pair.to.width,
-            height: pair.to.height,
-            transform: slide.transform,
-          },
-        ]}
-      />
-    ) : null
+  const highlight = placed && pair ? <Highlight to={pair.to} style={style} /> : null
 
   return { measure, placed, highlight }
 }
 
-/** Where a highlight sliding from `from` to `to` is at `progress` of the way. */
-function boxBetween(from: Box, to: Box, progress: number): Box {
-  const p = clamp01(progress)
-  return {
-    x: from.x + (to.x - from.x) * p,
-    y: from.y + (to.y - from.y) * p,
-    width: from.width + (to.width - from.width) * p,
-    height: from.height + (to.height - from.height) * p,
-  }
+/** The one spring (`M1`), as Reanimated takes it. */
+const SPRING = { stiffness: motion.spring.stiffness, damping: motion.spring.damping, mass: 1 }
+
+/**
+ * The highlight, from the first box it is placed at.
+ *
+ * Its place and size are shared values, moved on the UI thread. A new box
+ * springs them from wherever they are at that moment, so a second tap during
+ * a slide turns the pill rather than snapping it to the first tap's tab and
+ * starting again, and the spring keeps its speed through the turn. Nothing
+ * asks JavaScript where the highlight is; JavaScript only says where it goes.
+ *
+ * The size is a width and a height rather than a scale, so the pill's round
+ * ends stay round on the way.
+ */
+function Highlight({ to, style }: { to: Box; style: StyleProp<ViewStyle> }): ReactNode {
+  const reduced = useMotionReduced()
+  const x = useSharedValue(to.x)
+  const y = useSharedValue(to.y)
+  const width = useSharedValue(to.width)
+  const height = useSharedValue(to.height)
+  // The box it was last sent to: a resize that changed nothing is not a move.
+  const sent = useRef(to)
+  // Before the paint, as everything else the new lit item changes is drawn.
+  useLayoutEffect(() => {
+    if (sameBox(sent.current, to)) return
+    sent.current = to
+    const go = (value: SharedValue<number>, end: number): void => {
+      value.value = reduced ? end : withSpring(end, SPRING)
+    }
+    go(x, to.x)
+    go(y, to.y)
+    go(width, to.width)
+    go(height, to.height)
+  }, [to, reduced, x, y, width, height])
+  const box = useAnimatedStyle(() => ({
+    transform: [{ translateX: x.value }, { translateY: y.value }],
+    width: width.value,
+    height: height.value,
+  }))
+  return <Animated.View pointerEvents="none" style={[style, styles.highlight, box]} />
 }
+
+const styles = StyleSheet.create({
+  // At the group's corner; the transform puts it on its item.
+  highlight: { position: 'absolute', left: 0, top: 0 },
+})
 
 /** The same place and size: a resize that changed nothing is not a slide. */
 function sameBox(a: Box, b: Box): boolean {

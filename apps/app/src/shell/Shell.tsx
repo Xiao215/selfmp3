@@ -59,11 +59,18 @@ import { setPaletteOpen, usePaletteOpen } from './palette'
 export function Shell({
   children,
   chrome,
+  covered = false,
   sidebar = true,
 }: {
   children: ReactNode
   /** False while a screen owns the whole display, and before there is a server. */
   chrome: boolean
+  /**
+   * True while a phone's Now Playing is a native modal over the whole shell.
+   * Up next is the page's own then: drawn here, it opened under the page and
+   * the page's Up next button seemed to do nothing.
+   */
+  covered?: boolean
   /**
    * False while a desktop screen covers the sidebar but not the player bar:
    * Now Playing, which keeps play and pause where your hand already is. The
@@ -77,7 +84,13 @@ export function Shell({
 
   return (
     <OverlayProvider>
-      <Frame wide={wide && chrome} chrome={chrome} sidebar={sidebar} barHidden={barHidden}>
+      <Frame
+        wide={wide && chrome}
+        chrome={chrome}
+        covered={covered}
+        sidebar={sidebar}
+        barHidden={barHidden}
+      >
         {children}
       </Frame>
       <PlaybackNotices />
@@ -109,9 +122,9 @@ export function Shell({
  * earlier: a page that moves to a new parent is a new page.
  *
  * Phone: the page, and over its foot the mini player and the tab bar, and over
- * those Up next when it is open (`P25`); Up next is there without the chrome
- * too, since Now Playing's foot opens it, and the toasts come after it so an
- * Undo is drawn over the sheet that asked for it. Computer: the page
+ * those Up next when it is open (`P25`), and the toasts after it so an Undo is
+ * drawn over the sheet that asked for it. Not while Now Playing's native modal
+ * covers all of it: the page draws its own Up next and toasts then. Computer: the page
  * (measured, for the screens that lay out by its width), Up next's rail
  * beside it, the sidebar lying over the page's left edge, and the player bar
  * across the foot.
@@ -128,12 +141,14 @@ export function Shell({
 function Frame({
   wide,
   chrome,
+  covered,
   sidebar,
   barHidden,
   children,
 }: {
   wide: boolean
   chrome: boolean
+  covered: boolean
   sidebar: boolean
   barHidden: boolean
   children: ReactNode
@@ -179,7 +194,7 @@ function Frame({
       {wide ? <BarSlot hidden={barHidden} /> : null}
       {!wide && chrome ? <MiniPlayer /> : null}
       {!wide && chrome ? <BottomNav /> : null}
-      {wide ? null : <QueueSheet />}
+      {wide || covered ? null : <QueueSheet />}
       {/* On every compact page, chrome or not: a toast raised by a full-screen
           page (Now Playing, the import review) has nowhere else to land, and
           the row already drops to the foot when there is no chrome to sit on. */}

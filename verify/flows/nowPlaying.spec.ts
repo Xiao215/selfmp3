@@ -97,8 +97,8 @@ test.describe('now playing', () => {
     await expect(page.getByTestId('now-playing-info')).toBeVisible()
     await expect(page.getByRole('tab')).toHaveCount(0)
 
-    // The foot: Lyrics (Visual for a song with none), Sleep and Up next.
-    const words = page.getByRole('button', { name: /^(Lyrics|Visual)$/ })
+    // The foot: Lyrics (a phone has no visual, so even for a song with none), Sleep and Up next.
+    const words = page.getByRole('button', { name: 'Lyrics', exact: true })
     await expect(words).toBeVisible()
     await expect(page.getByRole('button', { name: 'Sleep', exact: true })).toBeVisible()
     await expect(page.getByTestId('now-playing-queue')).toBeVisible()

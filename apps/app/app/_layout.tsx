@@ -329,7 +329,7 @@ function RootRoutes(): ReactNode {
   const nowPlaying = useMemo(() => nowPlayingOptions(wide, reduced), [wide, reduced])
 
   return (
-    <Shell chrome={chrome} sidebar={!(stage && arriving)}>
+    <Shell chrome={chrome} covered={covered} sidebar={!(stage && arriving)}>
       <Stack screenOptions={screenOptions} screenLayout={keepNearTop}>
         <Stack.Screen name="now-playing" options={nowPlaying} />
         {PLACES.map(name => (

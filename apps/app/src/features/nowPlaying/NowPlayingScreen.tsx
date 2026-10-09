@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   Animated,
@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
+import { Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { Song } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
@@ -66,8 +66,11 @@ import { artShadow, label } from '../../ui/surfaces'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { OverlayProvider } from '../../shell/Overlay'
+import { modalCoversScreen } from '../../ports/modalCoversScreen'
+import { ToastHost } from '../../ui/components/ToastHost'
 import { useLayout } from '../../shell/useLayout'
 import { DevicesSheet } from '../devices/DevicesSheet'
+import { QueueSheet } from '../queue/QueueSheet'
 import { openQueueSheet } from '../queue/queueSheet.store'
 import { songLink } from '../song/song.model'
 import { tagLink } from '../tag/placeLinks'
@@ -82,11 +85,8 @@ import {
   swipeOutcome,
   type PhoneView,
 } from './nowPlaying.model'
-import { SongVisual } from './SongVisual'
-import type { MotionSampler } from './motionSource.model'
 import { StageLyrics } from './StageLyrics'
 import { TaggingLine } from './TaggingLine'
-import { useMotionSampler } from './useMotionSampler'
 import { useSongWords } from './useSongWords'
 import { useTagging } from './useTagging'
 
@@ -110,13 +110,38 @@ export function NowPlayingScreen(): ReactNode {
   // A phone presents this page as a native modal, above the whole app, the
   // shell's overlay host included: a sheet drawn there sat under the page and
   // never showed (Sleep, Devices, the song menu). So the phone's page has a host of
-  // its own, inside the modal.
+  // its own, inside the modal. Up next and the toasts are the shell's own
+  // rather than overlays, and they come here for the same reason: the foot's
+  // Up next opened a sheet nobody could see (`Shell`'s `covered`). In a
+  // browser the page is inside the shell, whose own are drawn over it.
   return wide ? (
     <NowPlayingStage />
   ) : (
     <OverlayProvider>
       <PhoneNowPlaying />
+      {modalCoversScreen ? <OverTheModal /> : null}
     </OverlayProvider>
+  )
+}
+
+/**
+ * Up next and the toast row, drawn inside the modal while it covers the shell:
+ * the sheet over the page's foot, and the toasts after it so a removal's Undo
+ * is over the sheet that asked for it. The shell's toast row is still there
+ * under the page, with the resume offer that is decided once per launch; this
+ * is just the messages.
+ */
+function OverTheModal(): ReactNode {
+  const insets = useSafeAreaInsets()
+  const router = useRouter()
+  const go = useCallback((href: Href) => leaveTo(router, href), [router])
+  return (
+    <>
+      <QueueSheet go={go} />
+      <View pointerEvents="box-none" style={[styles.toasts, { bottom: insets.bottom + space.sm }]}>
+        <ToastHost />
+      </View>
+    </>
   )
 }
 
@@ -189,7 +214,7 @@ function PhoneNowPlaying(): ReactNode {
  * scrubber and the transport, and a foot of three — Lyrics, Sleep and the
  * queue. The words (`?view=lyrics`): the lyrics fill the page under a small
  * header, with the scrubber and the transport kept, so reading along never
- * costs the skip. A song with no lyrics shows its visual there instead.
+ * costs the skip. A song with no lyrics says so there; a phone has no visual.
  *
  * A pull up on the cover opens the words and a pull down on the words goes
  * back; a pull down on the cover puts the page away, as Apple Music's does.
@@ -214,8 +239,6 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
   const words = lyrics.words
   // Not while offline: the words may exist, and there is text to say why they are not here.
   const noLyrics = words.status === 'missing' && !words.offline
-  const showVisual = noLyrics && view === 'lyrics'
-  const sampler = useMotionSampler(song, showVisual)
 
   const [sleepOpen, setSleepOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -412,7 +435,6 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
             song={song}
             uri={uri}
             color={songColor.color}
-            noLyrics={noLyrics}
             tagging={tagging.on ? { line: tagging.line, stop: tagging.stop } : null}
             onClose={close}
             onOpenSong={openSong}
@@ -435,7 +457,6 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
             uri={uri}
             lyrics={lyrics}
             noLyrics={noLyrics}
-            sampler={sampler}
             onBack={() => setView('cover')}
             fingerOnWords={fingerOnWords}
           />
@@ -519,7 +540,6 @@ function CoverView({
   song,
   uri,
   color,
-  noLyrics,
   tagging,
   onClose,
   onOpenSong,
@@ -533,7 +553,6 @@ function CoverView({
   song: Song
   uri: string | null | undefined
   color: string
-  noLyrics: boolean
   /** The page opening, 0 to 1; already 1 by the time the words have been and gone. */
   opening: Animated.Value
   /** Where the mini player's cover was, for the page's cover to start from. */
@@ -675,7 +694,7 @@ function CoverView({
       */}
       <View style={styles.foot}>
         <View style={styles.footRow}>
-          <Button label={noLyrics ? 'Visual' : 'Lyrics'} onPress={onLyrics} />
+          <Button label="Lyrics" onPress={onLyrics} />
           <Button label={sleepLeft ?? 'Sleep'} active={sleepLeft !== null} onPress={onSleep} />
           <Button
             icon={<UpNext size={19} color={theme.colors.textPrimary} />}
@@ -825,17 +844,15 @@ function BreathingCover({
 /**
  * The words alone (`P22`): a small header with the way back, the song and the
  * romaji or pinyin switch; the lyrics across the page; and the scrubber and
- * the transport under them. A song with no lyrics puts its visual (`P24`) in
- * the same place the words would have had, so the page reads the same either
- * way, and the switch's place asks the lookup for lyrics again, as the
- * computer's does.
+ * the transport under them. A song with no lyrics says so where the words
+ * would be — no visual on a phone (Xiao, 2026-10-09) — and the switch's place
+ * asks the lookup for lyrics again, as the computer's does.
  */
 function WordsView({
   song,
   uri,
   lyrics,
   noLyrics,
-  sampler,
   onBack,
   fingerOnWords,
 }: {
@@ -843,7 +860,6 @@ function WordsView({
   uri: string | null | undefined
   lyrics: ReturnType<typeof useSongWords>
   noLyrics: boolean
-  sampler: MotionSampler
   onBack: () => void
   /** Set while a finger that came down on the words is still down: the page's pull leaves it to the list. */
   fingerOnWords: Flag
@@ -897,35 +913,31 @@ function WordsView({
         ) : null}
       </View>
 
-      {noLyrics ? (
-        <View pointerEvents="none" style={styles.visualPanel}>
-          <SongVisual song={song} sampler={sampler} cover={uri} rounded />
-        </View>
-      ) : (
-        <View
-          style={styles.words}
-          // Raw touches reach the view they landed in whoever holds the
-          // gesture, so this is told of the lift even after the list has it.
-          onTouchStart={() => fingerOnWords.set(true)}
-          onTouchEnd={() => fingerOnWords.set(false)}
-          onTouchCancel={() => fingerOnWords.set(false)}
-        >
-          {words.status === 'lyrics' ? (
-            <StageLyrics
-              parsed={words.parsed}
-              roman={words.roman}
-              focus={false}
-              fontSize={fontSize}
-            />
-          ) : (
-            <Text style={styles.wordsStatus}>
-              {words.status === 'loading'
+      <View
+        style={styles.words}
+        // Raw touches reach the view they landed in whoever holds the
+        // gesture, so this is told of the lift even after the list has it.
+        onTouchStart={() => fingerOnWords.set(true)}
+        onTouchEnd={() => fingerOnWords.set(false)}
+        onTouchCancel={() => fingerOnWords.set(false)}
+      >
+        {words.status === 'lyrics' ? (
+          <StageLyrics
+            parsed={words.parsed}
+            roman={words.roman}
+            focus={false}
+            fontSize={fontSize}
+          />
+        ) : (
+          <Text style={styles.wordsStatus}>
+            {noLyrics
+              ? 'No lyrics for this song.'
+              : words.status === 'loading'
                 ? 'Looking for lyrics…'
                 : 'Lyrics need your library — they’ll show once it’s reachable.'}
-            </Text>
-          )}
-        </View>
-      )}
+          </Text>
+        )}
+      </View>
 
       <View style={styles.progress}>
         <PhoneSeek color={theme.colors.textPrimary} />
@@ -1110,19 +1122,20 @@ const styles = StyleSheet.create(theme => ({
     marginHorizontal: -space.lg,
     paddingHorizontal: space.lg - 6,
   },
-  visualPanel: {
-    flex: 1,
-    minHeight: 0,
-    marginTop: space.md,
-    marginBottom: space.md,
-    borderRadius: radius.cardLg,
-    overflow: 'hidden',
-  },
   wordsStatus: {
     color: theme.colors.textMuted,
     fontSize: type.sub,
     textAlign: 'center',
     marginTop: 40,
+  },
+  // The shell's toast row, at the foot of the page, which has no chrome to sit above.
+  toasts: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
   },
   wordsControls: {
     flexDirection: 'row',

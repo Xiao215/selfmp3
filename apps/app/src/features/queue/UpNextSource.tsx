@@ -20,8 +20,11 @@ import { useSaveUpNext } from '../lists/useSaveUpNext'
  */
 export const UpNextSource = memo(function UpNextSource({
   onOpen,
+  go,
 }: {
   onOpen?: () => void
+  /** Follows the link instead of the router's push (`useQueueEdits`). */
+  go?: (href: Href) => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
@@ -33,7 +36,8 @@ export const UpNextSource = memo(function UpNextSource({
   const open = line.link
     ? (): void => {
         onOpen?.()
-        router.navigate(line.link as Href)
+        if (go) go(line.link as Href)
+        else router.navigate(line.link as Href)
       }
     : undefined
 

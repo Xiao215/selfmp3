@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -60,25 +60,31 @@ export function OnlySongEnd({
  * Up next is not already open to say it: the mini player or the player bar
  * stays, paused at the song's end, and the message points at Up next. Taken
  * away once Up next is open, or once something plays again: it is then said
- * there, or no longer true. Called by the sheet and by the rail, only one of
- * which is ever mounted.
+ * there, or no longer true. Called by the sheet and by the rail.
+ *
+ * The message raised is kept here rather than by each caller: the shell's
+ * sheet and the one inside the phone's Now Playing take turns as the page
+ * opens and closes, and each new one found the song still ended and said so
+ * again.
  */
 export function useOnlySongEndNotice(player: Parameters<typeof onlySongEnded>[0]): void {
   const ended = onlySongEnded(player)
   const open = useQueueSheetOpen()
-  const raised = useRef<number | null>(null)
   useEffect(() => {
-    if (!ended || isQueueSheetOpen()) return
-    raised.current = showToast('That was the only song', 'info', {
+    if (!ended || isQueueSheetOpen() || raised !== null) return
+    raised = showToast('That was the only song', 'info', {
       actions: [{ label: 'Up next', onPress: openQueueSheet }],
     })
   }, [ended])
   useEffect(() => {
-    if (raised.current === null || (ended && !open)) return
-    dismissToast(raised.current)
-    raised.current = null
+    if (raised === null || (ended && !open)) return
+    dismissToast(raised)
+    raised = null
   }, [ended, open])
 }
+
+/** The "only song" message up now, if any: one for the app, whichever Up next raised it. */
+let raised: number | null = null
 
 const styles = StyleSheet.create(theme => ({
   card: {

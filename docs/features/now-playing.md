@@ -77,9 +77,9 @@ The page is laid out the same way whether a song has words or not: the visual ta
 column the lyrics would have run in, rounded like a card, and the cover, the title and the
 tabs keep the places they have on a song with words. Expanding gives the visual the whole
 window, as it gives the words the whole page; it fades into its new place rather than
-gliding, because a canvas cannot be stretched between the two. On a phone the visual sits
-in the words' own area on the second view, with the header and the transport on the page's
-usual ground.
+gliding, because a canvas cannot be stretched between the two. A phone's page has no visual
+(Xiao, 2026-10-09): its words view says "No lyrics for this song." with **Find lyrics**
+beside the title.
 
 **What moves them** (`motionSource.model.ts`), in this order. Where the browser can listen
 (`ports/liveAudio`: Chrome, Edge, Firefox, the desktop app) the engine's Web Audio analyser
@@ -93,12 +93,17 @@ neither falls back to a stand-in drawn from its tempo and energy.
 No tabs at the top (docs/ui-mock `P21`): the ⌄, the words "Now playing", and ⓘ, which opens
 the song's own page. The cover breathes — a little smaller while paused, full size while
 playing — with the title, the artists (each a link), the tags, the scrubber and the round
-Play under it. The foot is **Lyrics** (or **Visual**), **Sleep**, **Up next** and a ⋯: the
+Play under it. The foot is **Lyrics**, **Sleep**, **Up next** and a ⋯: the
 song menu every song has (Tags, Add to playlist, Add to Up next, Play similar songs,
 Download in the app, Song details), then a short "This player" group with Devices, then
 Delete from library…. Sleep is not repeated there; it has its own button. There are no page
 dots: the gestures are up and down, not sideways. Swiping up, the Lyrics pill or a tap on the cover opens the
 lyrics on their own (`/now-playing?view=lyrics`, `P22`); swiping down comes back.
+
+The page is a native modal over the whole app, so the shell's Up next sheet and toast row
+would sit under it, out of sight. While it is up the page draws its own: Up next over its
+foot, and the toasts after it so a removal's Undo shows (`OverTheModal`). Links out of that
+Up next — a tag, the source line — take the page down before the page they open is pushed.
 
 ## Files
 

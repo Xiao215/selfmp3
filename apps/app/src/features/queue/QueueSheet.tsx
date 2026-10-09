@@ -5,7 +5,7 @@ import type { StyleProp, ViewStyle } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import { useRouter } from 'expo-router'
+import { useRouter, type Href } from 'expo-router'
 import { artistOr, plural, formatDuration, type Song, type Tag } from '@selfmp3/shared'
 import {
   fonts,
@@ -73,8 +73,12 @@ const SHEET_TOP = 16
  * so a song's menu or the Undo toast still land above it. Stays mounted while
  * shut and draws nothing then, so the Undo it raised can still reach the queue
  * as it is when pressed (`useQueueEdits`).
+ *
+ * The phone's Now Playing draws one of its own while its native modal covers
+ * the shell's, and hands it `go` so a tag or the source line takes the modal
+ * down before the page is pushed.
  */
-export function QueueSheet(): ReactNode {
+export function QueueSheet({ go }: { go?: (href: Href) => void }): ReactNode {
   const open = useQueueSheetOpen()
   const { wide } = useLayout()
   const loaded = usePlayer().current !== null
@@ -91,10 +95,10 @@ export function QueueSheet(): ReactNode {
   if (shown && !mounted) setMounted(true)
   const gone = useCallback(() => setMounted(false), [])
   // Here, above the panel, so an Undo raised before it shut still reaches the queue.
-  const edits = useQueueEdits(mounted)
+  const edits = useQueueEdits(mounted, go)
   useOnlySongEndNotice(edits.player)
 
-  return mounted ? <SheetPanel shown={shown} onGone={gone} edits={edits} /> : null
+  return mounted ? <SheetPanel shown={shown} onGone={gone} edits={edits} go={go} /> : null
 }
 
 /**
@@ -124,10 +128,12 @@ function SheetPanel({
   shown,
   onGone,
   edits,
+  go,
 }: {
   shown: boolean
   onGone: () => void
   edits: ReturnType<typeof useQueueEdits>
+  go?: (href: Href) => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const insets = useSafeAreaInsets()
@@ -377,7 +383,7 @@ function SheetPanel({
                 </Pressable>
               </View>
             </View>
-            <UpNextSource onOpen={closeQueueSheet} />
+            <UpNextSource onOpen={closeQueueSheet} go={go} />
           </View>
         </GestureDetector>
 

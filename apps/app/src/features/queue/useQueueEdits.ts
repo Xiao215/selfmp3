@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { useRouter } from 'expo-router'
+import { useRouter, type Href } from 'expo-router'
 import { plural, type Tag } from '@selfmp3/shared'
 import { useLibrary } from '@selfmp3/client'
 import { usePlayer, type PlayerApi } from '../../player/PlayerProvider'
@@ -23,8 +23,14 @@ const NO_ROWS: ReturnType<typeof queueRows> = { playing: null, next: [], played:
  * for the Undo, and every play, pause and song change reaches them; only an
  * open one resolves the queue into rows, which for a library shuffled is
  * thousands of songs.
+ *
+ * `go` follows a link out of Up next — a tag's chip — when the router's own
+ * push would land somewhere unseen: under the phone's Now Playing modal.
  */
-export function useQueueEdits(shown: boolean): {
+export function useQueueEdits(
+  shown: boolean,
+  go?: (href: Href) => void,
+): {
   player: PlayerApi
   rows: ReturnType<typeof queueRows>
   /** Take one song out, with an Undo for five seconds. */
@@ -99,9 +105,10 @@ export function useQueueEdits(shown: boolean): {
       if (!tag) return
       noteTagUsed(tag.id)
       closeQueueSheet()
-      router.navigate(tagLink(tag.name))
+      if (go) go(tagLink(tag.name))
+      else router.navigate(tagLink(tag.name))
     },
-    [tags, router],
+    [tags, router, go],
   )
 
   return { player, rows, remove, clearRest, tagsOf, openTag }

@@ -39,6 +39,9 @@ export function periodLabel(period: StatsPeriod): string {
   return PERIOD_LABELS[period]
 }
 
+/** What is behind "Report", under its name wherever it is a row. */
+export const REPORT_HINT = 'Your week, month or year, as a page'
+
 /** Whether an address's `range` names one of the windows. */
 export function isStatsPeriod(value: string | undefined): value is StatsPeriod {
   return (STATS_PERIODS as readonly string[]).includes(value ?? '')

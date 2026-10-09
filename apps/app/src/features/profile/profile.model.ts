@@ -1,7 +1,13 @@
 import { plural, type Stats } from '@selfmp3/shared'
 import { unreachableLabel } from '../library/library.model'
 import type { DevicePlace } from '../settings/settings.model'
-import { durationWords, formatHour, peakHour, peakHourWords } from '../stats/stats.model'
+import {
+  durationWords,
+  formatHour,
+  peakHour,
+  peakHourWords,
+  REPORT_HINT,
+} from '../stats/stats.model'
 
 /**
  * The Profile page, without the screen (`P31`): who you are and how big your
@@ -38,7 +44,7 @@ export function profileRows({ place }: { place: DevicePlace }): readonly Profile
       id: 'report',
       label: 'Report',
       href: '/stats/report',
-      hint: 'Your week, month or year, as a page',
+      hint: REPORT_HINT,
     },
     {
       id: 'settings',

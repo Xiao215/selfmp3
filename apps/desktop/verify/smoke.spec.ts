@@ -842,17 +842,7 @@ test.describe('an application, not a page', () => {
     try {
       const page = await app.firstWindow()
       await page.waitForLoadState('domcontentloaded')
-      /*
-       * The app's own player tells the shell what is playing too
-       * (`ports/mediaSession.web.ts`): "nothing", once, as it mounts. Sent any
-       * earlier, the test's "playing" could land first and be overwritten a
-       * moment later — which failed this about one run in five. So wait for the
-       * app to be up, then one frame more for the effects it queued at mount.
-       */
       await expect(page.locator('body')).toContainText(/self\.mp3/i, { timeout: 30_000 })
-      await page.evaluate(
-        () => new Promise<void>(resolve => requestAnimationFrame(() => setTimeout(resolve, 0))),
-      )
 
       const tell = async (playing: boolean): Promise<boolean> => {
         await page.evaluate(
@@ -873,9 +863,18 @@ test.describe('an application, not a page', () => {
         )
       }
 
-      expect(await tell(true)).toBe(true)
+      /*
+       * The app's own player tells the shell what is playing too
+       * (`ports/mediaSession.web.ts`): "nothing", once, whenever its player
+       * mounts — which is not tied to anything this test can wait for, and
+       * landing just after a "playing" here it put the blocker down. Waiting a
+       * frame after the page drew still failed now and then. It is only ever
+       * "nothing" and only ever sent once, so "playing" is told again until it
+       * holds; "nothing" needs no retry, the app could only agree.
+       */
+      await expect.poll(() => tell(true)).toBe(true)
       expect(await tell(false)).toBe(false)
-      expect(await tell(true)).toBe(true)
+      await expect.poll(() => tell(true)).toBe(true)
     } finally {
       await app.close()
     }

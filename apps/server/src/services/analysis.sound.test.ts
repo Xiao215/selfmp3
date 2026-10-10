@@ -32,7 +32,9 @@ const hasFfmpeg = spawnSync('ffmpeg', ['-version']).status === 0
  * And what it costs the bucket: a song whose copy here has gone is one of the
  * day's downloads, counted across restarts.
  */
-describe.skipIf(!hasFfmpeg)('analysis, hearing', () => {
+// Real ffmpeg decodes and analyses each song: about a second on an idle
+// machine, and many times that on a busy one, so the default 5 s is too tight.
+describe.skipIf(!hasFfmpeg)('analysis, hearing', { timeout: 30_000 }, () => {
   let dir: string
   let db: Database.Database
   let vectors: SoundVectorsRepository

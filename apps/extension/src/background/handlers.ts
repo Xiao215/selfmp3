@@ -354,8 +354,8 @@ export function createHandlers({
     },
 
     async requests() {
-      if (!(await cloud?.session())) return { imports: [] }
-      return needsCloud().api.cloudImports()
+      if (!cloud || !(await cloud.session())) return { imports: [] }
+      return cloud.api.cloudImports()
     },
 
     async cancelRequest({ uid }) {
@@ -382,7 +382,9 @@ export function forPages(handlers: Handlers, watcher: JobWatcher | undefined): H
   return {
     ...handlers,
     async queue(request) {
-      void watcher?.seen()
+      void watcher?.seen().catch(() => {
+        // The badge keeps its `!` until the next look; the queue is still read.
+      })
       return handlers.queue(request)
     },
   }

@@ -20,11 +20,6 @@ import type { KeyValueStore } from './store.js'
  *   hands the URL back, and the page opens it (`signIn` in handlers.ts).
  */
 
-/** `https://<id>.chromiumapp.org/`, which Chrome hands back to the flow that asked. */
-function redirectUrl(): string {
-  return chrome.identity.getRedirectURL()
-}
-
 interface PlatformDeps {
   readonly store: KeyValueStore
   readonly fetch: typeof fetch
@@ -59,7 +54,8 @@ export function extensionCloudPlatform({
     store: deviceStore(store),
     fetch: (url, init) => fetchImpl(url, init as RequestInit),
     randomBytes: into => crypto.getRandomValues(into),
-    returnUrl: redirectUrl(),
+    // `https://<id>.chromiumapp.org/`, which Chrome hands back to the flow that asked.
+    returnUrl: chrome.identity.getRedirectURL(),
     openSignIn,
     deviceKind: 'extension',
 

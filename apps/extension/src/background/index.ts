@@ -26,10 +26,9 @@ const store = idbStore()
 const cloud = createCloud(store, (input, init) => fetch(input, init))
 
 /*
- * The badge's colours, from the theme itself. Hand copies of these drifted
- * once already, which is why `scripts/theme.mjs` exists; the hue is named
- * rather than left to default because the extension has no hue setting and
- * never will (theme.mjs says why).
+ * The badge's colours, from the theme itself rather than a hand copy, which
+ * drifts (`scripts/theme.mjs`). The hue is named rather than left to default
+ * because the extension has no hue setting and never will (theme.mjs says why).
  */
 const THEME_COLORS = darkPalette(DEFAULT_ACCENT_HUE)
 
@@ -123,12 +122,19 @@ async function quickImport(url: string): Promise<void> {
 
 installMenus({ quickImport, openReview: openPopupWindow })
 
+/** One read of the queue for the badge, from the alarm or a worker starting. */
+const tick = (): void => {
+  void watcher.tick().catch(() => {
+    // IndexedDB or the badge did not answer this once: the next alarm reads again.
+  })
+}
+
 // The badge, kept right even when the worker was stopped in between.
 void chrome.alarms.create(ALARM, { periodInMinutes: ALARM_MINUTES })
 chrome.alarms.onAlarm.addListener(alarm => {
-  if (alarm.name === ALARM) void watcher.tick()
+  if (alarm.name === ALARM) tick()
 })
-void watcher.tick()
+tick()
 
 chrome.notifications.onClicked.addListener(id => {
   void chrome.tabs.create({ url: `${DEFAULT_APP_URL}/import` })
@@ -138,9 +144,14 @@ chrome.notifications.onClicked.addListener(id => {
 // A first install has nowhere to import to yet: open the page that says where.
 chrome.runtime.onInstalled.addListener(details => {
   if (details.reason !== 'install') return
-  void handlers.status({ type: 'status' }).then(status => {
-    if (status.mode === 'none') void chrome.runtime.openOptionsPage()
-  })
+  void handlers.status({ type: 'status' }).then(
+    status => {
+      if (status.mode === 'none') void chrome.runtime.openOptionsPage()
+    },
+    () => {
+      // Where things stand could not be read: the popup's Options button still leads there.
+    },
+  )
 })
 
 /*

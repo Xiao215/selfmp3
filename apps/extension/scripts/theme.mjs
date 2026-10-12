@@ -3,10 +3,8 @@
  *
  * `packages/client/src/theme/tokens.ts` is the one place the design's colours,
  * shapes and type are written down (docs/ARCHITECTURE.md: one design token
- * source). The extension used to keep a hand copy of them in CSS, and a hand
- * copy is one that drifts: it was still drawing the old tinted surfaces after
- * the app had moved to `S2`'s. So the build writes the copy instead, from the
- * compiled tokens, every time it runs.
+ * source). A hand copy of them in CSS is one that drifts, so the build writes
+ * the copy instead, from the compiled tokens, every time it runs.
  *
  * Two files come out, both git-ignored, as the desktop icon and the service
  * worker are — a generated file that is also committed is one someone edits:

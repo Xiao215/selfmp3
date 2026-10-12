@@ -10,6 +10,7 @@ import type { ImportRequestView } from '@selfmp3/replica'
 import {
   extractUrls,
   formatDuration,
+  plural,
   type ImportEnqueue,
   type ImportJob,
   type ImportPreview,
@@ -37,6 +38,7 @@ import {
   toggleId,
   toggleLeftOut,
   type Connection,
+  type RowState,
 } from './popup.model.js'
 
 /**
@@ -605,7 +607,7 @@ function ReviewRow({
   onToggle,
 }: {
   item: ImportPreviewItem
-  state: 'in' | 'yours' | 'out'
+  state: RowState
   editing: boolean
   onEdit: () => void
   onDone: () => void
@@ -916,9 +918,7 @@ export function BucketFooter({
       text={
         waiting === 0
           ? 'Nothing waiting'
-          : waiting === 1
-            ? '1 link waiting for your server'
-            : `${waiting} links waiting for your server`
+          : `${plural(waiting, 'link', 'links')} waiting for your server`
       }
       onOpen={onOpen}
     />

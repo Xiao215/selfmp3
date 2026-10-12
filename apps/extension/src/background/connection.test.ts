@@ -133,4 +133,25 @@ describe('createRouter', () => {
     fail = false
     expect(await router.route()).toEqual({ mode: 'none' })
   })
+
+  it('keeps a newer answer when an older one fails after a forget', async () => {
+    let calls = 0
+    let failFirst: (error: Error) => void = () => undefined
+    const router = createRouter(
+      sources({
+        signedIn: () => {
+          calls += 1
+          if (calls === 1) return new Promise((_, reject) => (failFirst = reject))
+          return Promise.resolve(false)
+        },
+      }),
+    )
+    const first = router.route()
+    router.forget()
+    expect(await router.route()).toEqual({ mode: 'none' })
+    failFirst(new Error('stale'))
+    await expect(first).rejects.toThrow('stale')
+    await router.route()
+    expect(calls).toBe(2)
+  })
 })

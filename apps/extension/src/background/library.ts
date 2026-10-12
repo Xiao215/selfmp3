@@ -39,8 +39,9 @@ type LibrarySnapshot = z.infer<typeof SnapshotSchema>
 const KEY = 'library'
 
 /**
- * The library as the popup needs it — the link index and the tags — kept across worker restarts and fetched again only when the
- * server says it changed.
+ * The library as the popup needs it — the link index and the tags — kept
+ * across worker restarts and fetched again only when the server says it
+ * changed.
  *
  * The server's version is a counter that starts again when the server does, so
  * a restarted server could land back on the number that was kept; the song

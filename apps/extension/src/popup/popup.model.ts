@@ -406,7 +406,7 @@ export function songRequest(
  */
 
 /** What a row says at its far end: its length, "Yours already", or "Left out". */
-type RowState = 'in' | 'yours' | 'out'
+export type RowState = 'in' | 'yours' | 'out'
 
 export function rowState(review: Review, index: number): RowState {
   const item = review.items[index]

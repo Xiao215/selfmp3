@@ -1,4 +1,4 @@
-import { DEFAULT_LOCAL_SERVER_URL, signInCodeFromUrl } from '@selfmp3/shared'
+import { DEFAULT_LOCAL_SERVER_URL, plural, signInCodeFromUrl } from '@selfmp3/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { ask, BridgeError, type Status } from '../bridge.js'
@@ -175,7 +175,7 @@ export function Options(): ReactNode {
               <span>
                 {account ? 'Also pointed at ' : 'Pointed at '}
                 <b>{server.baseUrl}</b>
-                {!account && songCount !== null ? ` · ${songCount} songs` : ''}
+                {!account && songCount !== null ? ` · ${plural(songCount, 'song', 'songs')}` : ''}
                 {mode === 'away' && <span className="quiet"> · it isn’t answering right now.</span>}
               </span>
               <button
@@ -253,7 +253,7 @@ function accountLine(
   baseUrl: string | null,
   songCount: number | null,
 ): string {
-  const songs = songCount !== null ? ` · ${songCount} songs` : ''
+  const songs = songCount !== null ? ` · ${plural(songCount, 'song', 'songs')}` : ''
   if (mode === 'server') return `Your server answers at ${baseUrl ?? 'its own address'}${songs}`
   if (mode === 'bucket') return `Your server isn’t answering, so links wait in your bucket${songs}`
   return 'Looking for your server.'

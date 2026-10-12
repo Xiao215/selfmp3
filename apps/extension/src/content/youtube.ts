@@ -38,7 +38,8 @@ const FOLLOW_QUEUED_MS = 10_000
 let pill: PillHandles | null = null
 let repairs = 0
 let seenUrl = ''
-let polling = false
+/** The video whose import is being followed, if any (`follow`). */
+let following: string | null = null
 
 const site = siteOf(location.hostname)
 
@@ -89,20 +90,27 @@ async function refresh(videoId: string): Promise<PillState | null> {
   return reply.value
 }
 
-/** While an import of ours is going, keep the pill's percentage moving. */
+/**
+ * While an import of ours is going, keep the pill's percentage moving.
+ *
+ * One video at a time: an import started on the next song takes over, rather
+ * than waiting out the last song's ten-second queue poll to notice it left.
+ */
 function follow(videoId: string): void {
-  if (polling) return
-  polling = true
+  if (following === videoId) return
+  following = videoId
   const again = (): void => {
     void (async () => {
+      if (following !== videoId) return
       if (!pill || videoIdNow() !== videoId) {
-        polling = false
+        following = null
         return
       }
       const state = (await refresh(videoId))?.state
+      if (following !== videoId) return
       if (state === 'importing') setTimeout(again, FOLLOW_IMPORTING_MS)
       else if (state === 'queued') setTimeout(again, FOLLOW_QUEUED_MS)
-      else polling = false
+      else following = null
     })()
   }
   setTimeout(again, FOLLOW_FIRST_MS)

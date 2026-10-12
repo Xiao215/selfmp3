@@ -83,8 +83,9 @@ export function createRouter(sources: RouteSources, now = () => Date.now()): Rou
   return {
     route() {
       if (held && now() - held.at < ROUTE_MEMO_MS) return held.route
-      const route = chooseRoute(sources).catch((error: unknown) => {
-        held = null
+      const route: Promise<Route> = chooseRoute(sources).catch((error: unknown) => {
+        // Only this answer: one asked for since `forget` is still good.
+        if (held?.route === route) held = null
         throw error
       })
       held = { at: now(), route }

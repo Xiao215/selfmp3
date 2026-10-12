@@ -6,8 +6,7 @@ import { extractUrls } from '@selfmp3/shared'
  * Two items: one that imports with your defaults and says so through the badge
  * and the notification, and one that opens the popup on that link so the title
  * can be corrected and tags picked first. Not a playlist: an import only ever
- * tags (`E4` still says "and a playlist"; the popup it opens no longer offers
- * one). A link is all either needs, so neither asks for permission to read any
+ * tags. A link is all either needs, so neither asks for permission to read any
  * page.
  */
 

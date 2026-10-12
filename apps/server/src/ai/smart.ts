@@ -84,8 +84,8 @@ export class SmartFeatures {
     this.#deps = { ...deps, remembered: new Remembered() }
   }
 
-  describe(request: DescribeInput): Promise<DescribeResult> {
-    return describe(this.#deps, request)
+  describe(request: DescribeInput, signal?: AbortSignal): Promise<DescribeResult> {
+    return describe(this.#stoppedBy(signal), request)
   }
 
   ask(
@@ -159,8 +159,8 @@ export class SmartFeatures {
   }
 
   /** A5 · the Report in a few sentences; `again` writes it afresh. */
-  written(range: WrappedRange, again = false): Promise<WrittenReport> {
-    return written(this.#deps, range, again)
+  written(range: WrappedRange, again = false, signal?: AbortSignal): Promise<WrittenReport> {
+    return written(this.#stoppedBy(signal), range, again)
   }
 
   /** Fix metadata's Suggested card: one song's names from the catalogues (`fixSong.ts`). */
@@ -169,8 +169,8 @@ export class SmartFeatures {
   }
 
   /** A4 · Tidy up: the names that look wrong, as changes to approve. */
-  tidy(): Promise<TidyResult> {
-    return tidy(this.#deps)
+  tidy(signal?: AbortSignal): Promise<TidyResult> {
+    return tidy(this.#stoppedBy(signal))
   }
 
   /** Tags for the songs without one, as changes to approve (Tags' untagged card). */

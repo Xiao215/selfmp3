@@ -12,9 +12,10 @@ import { sendStoredImage } from '../http/sendStoredImage.js'
  * By name, as an artist is: nothing has an id for one. The first route says
  * whether there is a picture, finding one if it can — the only request that
  * goes out to YouTube Music — and the second serves the copy kept, as
- * `/art/:id` serves a cover: the banner, or the portrait cut square from it. A device signed in to the cloud reaches these
- * the way it reaches the stats: the server is the one with a YouTube Music
- * client, and an artist's page is lit by a song's cover when it is away.
+ * `/art/:id` serves a cover: the banner, or the portrait cut square from it.
+ * A device signed in to the cloud reaches these the way it reaches the stats:
+ * the server is the one with a YouTube Music client, and an artist's page is
+ * lit by a song's cover when it is away.
  */
 export function artistRoutes(container: Container): Router {
   const router = Router()

@@ -264,7 +264,10 @@ export class LyricsService {
         headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
-      if (!response.ok) return null
+      if (!response.ok) {
+        await response.body?.cancel()
+        return null
+      }
       return (await response.json()) as T
     } catch (error) {
       this.#logger.debug('lyrics lookup failed', {

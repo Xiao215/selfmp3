@@ -271,28 +271,33 @@ export function stagingDir(config: Pick<Config, 'dataDir'>): string {
   return path.join(config.dataDir, 'incoming')
 }
 
+/**
+ * The environment, as the schema reads it. A variable exported empty counts as
+ * unset, as it does for the folders, except the doorman's address: there an
+ * empty one is how you say there is none.
+ */
 function readEnv(): unknown {
   const env = process.env
   return {
-    port: env['SELFMP3_PORT'] ?? undefined,
-    host: env['SELFMP3_HOST'] ?? undefined,
+    port: env['SELFMP3_PORT'] || undefined,
+    host: env['SELFMP3_HOST'] || undefined,
     publicUrl: env['SELFMP3_PUBLIC_URL'] || undefined,
     appUrl: env['SELFMP3_APP_URL'] || undefined,
     // Resolved here rather than as schema defaults so a profile set by `.env`
     // (read just before this) chooses the folders too, not only one exported.
     ...resolveDirs(env),
-    authToken: env['SELFMP3_AUTH_TOKEN'] ?? undefined,
-    corsOrigins: env['SELFMP3_CORS_ORIGINS'] ?? undefined,
+    authToken: env['SELFMP3_AUTH_TOKEN'] || undefined,
+    corsOrigins: env['SELFMP3_CORS_ORIGINS'] || undefined,
     ai: {
       baseUrl: env['SELFMP3_AI_BASE_URL'] || undefined,
-      apiKey: env['SELFMP3_AI_API_KEY'] ?? undefined,
+      apiKey: env['SELFMP3_AI_API_KEY'] || undefined,
       modelFast: env['SELFMP3_AI_MODEL_FAST'] || undefined,
       modelSmart: env['SELFMP3_AI_MODEL_SMART'] || undefined,
       timeoutSeconds: env['SELFMP3_AI_TIMEOUT_SECONDS'] || undefined,
     },
     doormanUrl: env['SELFMP3_DOORMAN_URL'] ?? undefined,
-    logLevel: env['SELFMP3_LOG_LEVEL'] ?? undefined,
-    scanOnBoot: env['SELFMP3_SCAN_ON_BOOT'] ?? undefined,
+    logLevel: env['SELFMP3_LOG_LEVEL'] || undefined,
+    scanOnBoot: env['SELFMP3_SCAN_ON_BOOT'] || undefined,
     cloudDir: env['SELFMP3_CLOUD_DIR'] || undefined,
     publishAnyway: env['SELFMP3_PUBLISH_ANYWAY'] || undefined,
     sound: {

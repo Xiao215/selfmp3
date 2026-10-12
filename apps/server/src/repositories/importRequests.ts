@@ -51,7 +51,8 @@ function toRequest(row: RequestRow): ImportRequest {
     playlistUid: row.playlist_uid,
     requestedBy: row.requested_by,
     requestedAt: row.requested_at,
-    state: CloudImportSchema.shape.state.catch('failed').parse(row.state),
+    // The table's CHECK holds it to these states.
+    state: CloudImportSchema.shape.state.parse(row.state),
     title: row.title,
     songUids: uidList(row.song_uids),
     error: row.error,
@@ -147,9 +148,11 @@ export class ImportRequestRepository {
    * worked on loses the songs still waiting to download. True when it changed.
    */
   cancel(uid: string, at: string): boolean {
-    const changed = this.#cancel.run(at, uid).changes
-    if (changed > 0) this.#cancelJobs.run(uid)
-    return changed > 0
+    return this.#db.transaction(() => {
+      if (this.#cancel.run(at, uid).changes === 0) return false
+      this.#cancelJobs.run(uid)
+      return true
+    })()
   }
 
   /** Requests no device that can fetch has looked at yet, oldest first. */

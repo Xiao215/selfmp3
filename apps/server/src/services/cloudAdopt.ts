@@ -25,11 +25,11 @@ import { sha256 } from '../util/hash.js'
 /**
  * Taking on the library that is already in the bucket (docs/SYNC.md).
  *
- * Until now the server only ever *wrote* snapshots. That is fine for the server
- * that filled the bucket and wrong for every other one: a fresh install signing
- * in to an account with 52 songs in it held nothing, published nothing as the
- * whole library, and every device followed it. The guard in cloudSnapshot.ts
- * stops that happening now — but stopping is not an answer either, because
+ * A server that only wrote snapshots would be right for the server that
+ * filled the bucket and wrong for every other one: a fresh install signing in
+ * to an account with 52 songs in it holds nothing, and would publish nothing
+ * as the whole library for every device to follow. The guard in
+ * cloudSnapshot.ts stops that — but stopping is not an answer either, because
  * "set self.mp3 up on a new Mac and get my library back" is the same shape.
  *
  * So before a server publishes for the first time into a bucket that has a
@@ -201,11 +201,9 @@ export class CloudAdopt {
    *
    * A uid says who made the row, not what the song is. Two servers that each
    * scanned or imported the same file hand out a uid apiece, and matching on
-   * uid alone took the second for a new song: it was given a row, fetched from
-   * the bucket into a folder with a (2) after it, and published to every
-   * device as a second copy of a song they already had. Run alternately, two
-   * such servers add a copy of every shared song on every round — which is
-   * what a real library looked like on 2026-09-17, three rows to a song.
+   * uid alone would take the second for a new song — a second row, published
+   * to every device as a second copy. Run alternately, two such servers would
+   * add a copy of every shared song on every round.
    *
    * What a song is, is its audio, and the bucket already names every file by
    * the hash of its bytes. So the same key is the same song. This server knows
@@ -297,10 +295,7 @@ export class CloudAdopt {
       if (tag) this.#tags.addToSong(id, tag.id)
     }
 
-    if (song.audioFeatures) {
-      const { analyzedAt, ...rest } = song.audioFeatures
-      this.#features.insertSynced(id, { ...rest, analyzedAt })
-    }
+    if (song.audioFeatures) this.#features.insertSynced(id, song.audioFeatures)
 
     // The colour was read from the cover in the bucket, which is the cover this
     // song has. `art_rev` is 0 on a row nobody has written a cover for, and

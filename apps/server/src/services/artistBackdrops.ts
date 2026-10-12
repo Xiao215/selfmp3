@@ -311,7 +311,10 @@ export class ArtistBackdropService {
   async #download(url: string): Promise<Buffer | null> {
     try {
       const response = await this.#fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
-      if (!response.ok) return null
+      if (!response.ok) {
+        await response.body?.cancel()
+        return null
+      }
       return await readCapped(response, MAX_PICTURE_BYTES)
     } catch (error) {
       this.#logger.debug('could not fetch the picture', {

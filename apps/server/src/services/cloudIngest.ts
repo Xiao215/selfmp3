@@ -294,7 +294,7 @@ export class CloudIngest {
 
       case 'playlistOrdered': {
         // A playlist that follows tags takes a hand order too, so its order
-        // travels between devices like any other (Xiao, 2026-09-21).
+        // travels between devices like any other.
         const playlist = this.#sync.playlist(change.uid)
         if (!playlist) return false
         if (!hlcWins(change.hlc, this.#sync.stamp('playlist', change.uid, 'order'))) return false

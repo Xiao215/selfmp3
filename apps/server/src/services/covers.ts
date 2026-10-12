@@ -112,9 +112,8 @@ export class CoverService {
 
   /**
    * Written under a name of its own and renamed into place, so the thumbnail's
-   * real name only ever holds a whole file. Written straight there, a second
-   * request arriving mid-write found the name, was sent the half a JPEG it
-   * held, and kept that for a week.
+   * real name only ever holds a whole file: a request arriving mid-write would
+   * otherwise be sent half a JPEG, and keep it for a week.
    */
   async #makeThumbnail(
     songId: number,
@@ -162,9 +161,7 @@ export class CoverService {
 
   /**
    * Delete every thumbnail no request would ask for: of a song with no cover
-   * kept, or made from a picture since replaced. Covers replaced before
-   * `save` dropped a song's thumbnails left theirs here — squared covers'
-   * letterboxed ones among them. Returns how many went.
+   * kept, or made from a picture since replaced. Returns how many went.
    */
   async sweepThumbnails(): Promise<number> {
     let swept = 0
@@ -204,13 +201,12 @@ export class CoverService {
   /**
    * Download art from a URL (used for imports where yt-dlp gave a thumbnail).
    *
-   * The ten seconds cover the whole thing, headers and body together. Stopping
-   * the clock once the headers arrived left a server that answers promptly and
-   * then trickles able to hold this open indefinitely — and the fix-covers pass
-   * waits on this one song at a time, so one slow host wedged the lot with no
-   * way to stop or restart it. The size cap is for the same reason from the
-   * other direction: a cover is tens of kilobytes, and nothing says the thing
-   * at the end of that URL is a cover.
+   * The ten seconds cover the whole thing, headers and body together: a host
+   * that answers promptly and then trickles could otherwise hold this open
+   * indefinitely, and the fix-covers pass waits on this one song at a time.
+   * The size cap is for the same reason from the other direction: a cover is
+   * tens of kilobytes, and nothing says the thing at the end of that URL is a
+   * cover.
    */
   async saveFromUrl(songId: number, url: string): Promise<boolean> {
     // `z.string().url()` upstream says it is a URL, not that it is a web
@@ -225,10 +221,16 @@ export class CoverService {
 
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(10_000) })
-      if (!response.ok) return false
+      if (!response.ok) {
+        await response.body?.cancel()
+        return false
+      }
 
       const declared = Number(response.headers.get('content-length') ?? Number.NaN)
-      if (Number.isFinite(declared) && declared > MAX_COVER_BYTES) return false
+      if (Number.isFinite(declared) && declared > MAX_COVER_BYTES) {
+        await response.body?.cancel()
+        return false
+      }
 
       const contentType = response.headers.get('content-type') ?? ''
       const extension = contentType.includes('png')

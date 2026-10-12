@@ -114,6 +114,8 @@ export class NeteaseMusic {
         redirect: 'manual',
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
+      // Only the redirect's address is wanted, not what it says about it.
+      await response.body?.cancel()
       const location = response.headers.get('location')
       return location ? neteaseLink(location) : null
     } catch {
@@ -270,7 +272,10 @@ export class NeteaseMusic {
         },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
-      if (!response.ok) return null
+      if (!response.ok) {
+        await response.body?.cancel()
+        return null
+      }
       const json = (await response.json()) as { code?: number }
       // The API answers 200 with its own code; anything but 200 there is a refusal.
       return json.code === undefined || json.code === 200 ? json : null

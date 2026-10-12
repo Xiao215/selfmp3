@@ -74,7 +74,9 @@ async function run(command: Command, baseUrl: string, token: string | null): Pro
           const result = await client.post<ImportShareResult>('/import/share', { url })
           const what =
             result.kind === 'playlist' ? `playlist "${result.playlistTitle ?? ''}"` : 'track'
-          const skipped = result.skipped ? ` (${result.skipped} already queued)` : ''
+          const skipped = result.skipped
+            ? ` (${result.skipped} already in your library or queued)`
+            : ''
           out(`queued ${result.jobs.length} from ${what}${skipped}: ${url}`)
         } catch (error) {
           failures += 1

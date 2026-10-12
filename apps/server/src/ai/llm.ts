@@ -267,7 +267,10 @@ export function openAiCompatible(
       }
       throw new LlmError('unreachable', `The model answered ${response.status}: ${detail}`)
     }
-    const reply = ChatReplySchema.safeParse(await response.json().catch(() => null))
+    const body: unknown = await response.json().catch(() => null)
+    // Stopped while the reply was still arriving is a stop, not a reply that made no sense.
+    if (stop?.aborted) throw stopped(task)
+    const reply = ChatReplySchema.safeParse(body)
     if (!reply.success)
       throw new LlmError('invalid', 'The model sent something that is not a chat reply')
     const { message } = reply.data.choices[0]!

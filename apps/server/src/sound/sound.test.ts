@@ -10,7 +10,7 @@ import { createLogger } from '../logger.js'
 import { SoundVectorsRepository } from '../repositories/soundVectors.js'
 import type { SoundModel } from './clamp3.js'
 import { SOUND_MODEL, SoundModelFiles } from './models.js'
-import { decodeWindows, SoundService } from './sound.js'
+import { decodeWindows, ModelUnavailableError, SoundService } from './sound.js'
 import { SOUND_DIMENSIONS, SOUND_SAMPLE_RATE, unit } from './vectors.js'
 
 const logger = createLogger('silent')
@@ -228,6 +228,23 @@ describe('SoundService', () => {
       expect(model.heard).toEqual([30 * SOUND_SAMPLE_RATE])
       expect(vectors.all(SOUND_MODEL.name).get(2)).toEqual(toward(9))
       expect(sound.closeTo(2, [1, 2])).toEqual(new Map())
+    })
+
+    it('says it was the model, not the song, when the model would not hear it', async () => {
+      const sound = service()
+      model.hearClip = () => Promise.reject(new Error('the listening model stopped (exit code 1)'))
+      await expect(sound.hear(2, tone(12), 12)).rejects.toBeInstanceOf(ModelUnavailableError)
+      expect(sound.has(2)).toBe(false)
+    })
+
+    it('says it was the song when its file will not decode', async () => {
+      const sound = service()
+      const file = path.join(dataDir, 'not-audio.wav')
+      fs.writeFileSync(file, 'not audio at all')
+      const heard = sound.hear(2, file, 12)
+      await expect(heard).rejects.toThrow()
+      await expect(heard).rejects.not.toBeInstanceOf(ModelUnavailableError)
+      expect(model.heard).toEqual([])
     })
   })
 })

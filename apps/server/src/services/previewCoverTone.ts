@@ -109,7 +109,10 @@ export class PreviewCoverTones {
       await response.body?.cancel()
       throw new Error('the picture moved somewhere covers are not kept')
     }
-    if (!response.ok) throw new Error(`the picture answered ${response.status}`)
+    if (!response.ok) {
+      await response.body?.cancel()
+      throw new Error(`the picture answered ${response.status}`)
+    }
     const bytes = await readCapped(response, MAX_BYTES)
     if (!bytes) throw new Error('the picture is too large to be a cover')
 

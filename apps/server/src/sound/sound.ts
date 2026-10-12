@@ -2,6 +2,7 @@ import type { AnalysisStatus, Song } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { SoundVectorsRepository } from '../repositories/soundVectors.js'
+import { messageOf } from '../util/errors.js'
 import { ffmpegFailure, runFfmpeg } from '../services/ffmpeg.js'
 import type { SoundModel } from './clamp3.js'
 import { Clamp3Worker } from './clamp3Worker.js'
@@ -35,6 +36,19 @@ const DECODE_TIMEOUT_MS = 60_000
  * backlog paused. Loading it again takes a few seconds, on the next use.
  */
 const IDLE_UNLOAD_MS = 10 * 60_000
+
+/**
+ * The listening model would not hear a clip: it could not be loaded, was not
+ * ready, or its thread died or failed mid-pass. The model's fault, not the
+ * song's, so the song is not recorded as unhearable for it. A file that will
+ * not decode throws a plain error.
+ */
+export class ModelUnavailableError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ModelUnavailableError'
+  }
+}
 
 export class SoundService {
   readonly #enabled: boolean
@@ -167,7 +181,7 @@ export class SoundService {
       })
       model.close().catch((error: unknown) => {
         this.#logger.warn('the listening model did not close cleanly', {
-          message: error instanceof Error ? error.message : String(error),
+          message: messageOf(error),
         })
       })
     }, this.#idleMs)
@@ -187,12 +201,19 @@ export class SoundService {
 
   /**
    * Hear a song from a file on this disk and keep its vector. Throws when it
-   * cannot; `markUnhearable` then records that, so it is not tried forever.
+   * cannot: `ModelUnavailableError` when the model is at fault, which is worth
+   * trying again later, and a plain error when the file will not decode,
+   * which `markUnhearable` then records so it is not tried forever.
    */
   async hear(songId: number, file: string, duration: number): Promise<void> {
-    const vector = await this.#using(async model =>
-      model.hearClip(await decodeWindows(file, duration)),
-    )
+    // Decoded first: a file ffmpeg cannot read does not load the model for nothing.
+    const clip = await decodeWindows(file, duration)
+    let vector: Float32Array
+    try {
+      vector = await this.#using(model => model.hearClip(clip))
+    } catch (error) {
+      throw new ModelUnavailableError(messageOf(error))
+    }
     this.#vectors.upsert(songId, SOUND_MODEL.name, vector)
     this.#cache?.set(songId, vector)
     this.#changed()
@@ -254,7 +275,7 @@ export class SoundService {
    */
   async match(text: string, songIds: readonly number[]): Promise<Map<number, number> | null> {
     const all = this.#all()
-    if (!this.#enabled || all.size === 0 || !(await this.prepare()) || !this.#model) return null
+    if (!this.#enabled || all.size === 0 || !(await this.prepare())) return null
     const query = await this.#using(model => model.readText(text))
     const out = new Map<number, number>()
     for (const id of songIds) {

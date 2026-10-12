@@ -351,7 +351,6 @@ export class CloudSyncService {
   #running: Promise<void> | null = null
   #again = false
   readonly #kickDebounce: Debounced
-  /** The snapshot a run of imports owes, written once the run pauses. */
   /** The snapshots of a run of imports, paced (services/importPacing.ts). */
   readonly #publishLater: ImportPacer
   /**
@@ -423,14 +422,9 @@ export class CloudSyncService {
     this.#openStore = deps.openStore ?? (connection => new S3CloudStore(connection))
     const openDoorman = deps.openDoorman ?? ((url: string) => new DoormanClient(url))
     this.#doorman = deps.doormanUrl ? openDoorman(deps.doormanUrl) : null
-    /*
-     * The shared debounce, for its ceiling.
-     *
-     * A hand-rolled trailing debounce pushed the pass back on every change and
-     * had nothing to stop it: a steady drip of edits — a big import tagging as
-     * it goes — held the cloud off for the whole burst, however long that was.
-     * `maxWaitMs` is what guarantees the pass still happens during one.
-     */
+    // The shared debounce, for its ceiling: a steady drip of edits — a big
+    // import tagging as it goes — still gets a pass during the burst rather
+    // than only once it ends.
     this.#kickDebounce = debounce(() => void this.#pass(), deps.debounceMs ?? DEFAULT_DEBOUNCE_MS)
     this.#publishLater = importPacer(() => {
       const store = this.#store
@@ -1226,17 +1220,18 @@ export class CloudSyncService {
     try {
       const own = this.#deviceId()
       const listing = await this.#listLogs(store)
-      const fresh =
-        listing !== null &&
-        unfoldedLogKeys(listing.keys, sync.cursors()).some(
+      if (listing) {
+        const fresh = unfoldedLogKeys(listing.keys, sync.cursors()).some(
           key => parseLogKey(key)?.deviceId !== own,
         )
-      if (listing && fresh) {
-        // The pass reads this listing rather than making its own.
-        this.#logListing = listing
-        void this.#pass()
-      } else if (listing) this.#readAllLogs(listing)
-      if (fresh) return
+        if (fresh) {
+          // The pass reads this listing rather than making its own.
+          this.#logListing = listing
+          void this.#pass()
+          return
+        }
+        this.#readAllLogs(listing)
+      }
       // A new Wi-Fi network is a new address, with nothing else about the
       // library to say: the snapshot goes up again so a device can still find
       // this server.
@@ -1295,12 +1290,11 @@ export class CloudSyncService {
   /**
    * Take on the bucket's library, once per bucket, before publishing to it.
    *
-   * The server used to only write snapshots. A server that holds nothing and
-   * signs in to a bucket that holds fifty-two songs therefore published its
-   * nothing as the whole library, and every device followed it — which is not a
-   * story about a bug so much as about a missing half of the design, because
-   * the guard that now stops it leaves "set this up on a new Mac and get my
-   * library back" with nowhere to go.
+   * Without it, a server that holds nothing and signs in to a bucket that
+   * holds fifty-two songs would publish its nothing as the whole library, and
+   * every device would follow it. The guard (`#refuseToLoseLibrary`) stops
+   * that, but stopping leaves "set this up on a new Mac and get my library
+   * back" with nowhere to go.
    *
    * Everything here fails closed. "I could not read the bucket's library" must
    * never come out the far side as "the bucket has no library": that is the
@@ -1818,9 +1812,8 @@ export class CloudSyncService {
     if (this.#deps.publishAnyway) return null
 
     // Every failure here means "there is a library and I cannot see it",
-    // which is the one situation this guard exists for. It used to swallow all
-    // of these and publish, which is how it sat here for its whole life looking
-    // like protection while protecting nothing.
+    // which is the one situation this guard exists for: none of them may be
+    // taken as leave to publish.
     let inBucket: number
     try {
       // Adoption read it moments ago in this same pass: those bytes, not a second download.
@@ -1943,9 +1936,9 @@ export class CloudSyncService {
     // there: is this server about to throw away somebody's library?
     if (!this.#checkedAgainstBucket) {
       const refusal = await this.#refuseToLoseLibrary(store, snapshot.songs.length)
-      // Thrown, not returned. Returned, the pass that asked carried on, called
-      // itself idle and cleared the error — and with the check marked done,
-      // the next pass seconds later published over the library after all.
+      // Thrown, not returned: returned, the pass that asked would carry on as
+      // though the snapshot were up — letting go of copies, emptying the
+      // trash — and call itself idle with the error cleared.
       if (refusal) {
         this.#logger.error(refusal)
         throw new CloudError('other', refusal)
@@ -1977,8 +1970,11 @@ export class CloudSyncService {
         keys.splice(keys.indexOf(old), 1)
       }
     } catch (error) {
-      // An old snapshot left behind costs a few kilobytes; it is not worth failing over.
+      // An old snapshot left behind costs a few kilobytes; it is not worth
+      // failing over. The next publish lists the folder afresh: adoption's
+      // listing is older than every snapshot this server has written since.
       this.#snapshotKeys = null
+      this.#newestRead = null
       this.#logger.debug('could not delete old snapshots', { message: messageOf(error) })
     }
   }

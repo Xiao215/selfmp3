@@ -193,9 +193,9 @@ export function createContainer(configured: Config): Container {
   const importRequests = new ImportRequestRepository(db)
 
   const metadata = new MetadataService(storage, logger)
+  const netease = new NeteaseMusic(logger)
   // The words come from the bucket once the sidecar has gone up and been let
   // go; the sync is built below, so it is reached lazily.
-  const netease = new NeteaseMusic(logger)
   const lyrics: LyricsService = new LyricsService(
     storage,
     logger,

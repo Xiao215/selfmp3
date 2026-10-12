@@ -72,7 +72,16 @@ describe.skipIf(!hasFfmpeg)('analysis, hearing', { timeout: 30_000 }, () => {
    */
   async function loop(
     bucket: Buffer | Error | null,
-    { enabled = true, analysed = true }: { enabled?: boolean; analysed?: boolean } = {},
+    {
+      enabled = true,
+      analysed = true,
+      hearClip,
+    }: {
+      enabled?: boolean
+      analysed?: boolean
+      /** The model's answer to a clip, where it is not the ordinary one. */
+      hearClip?: SoundModel['hearClip']
+    } = {},
   ): Promise<AnalysisService> {
     const insert = db.prepare(
       'INSERT OR IGNORE INTO songs (id, path, title, duration) VALUES (?, ?, ?, 40)',
@@ -93,12 +102,14 @@ describe.skipIf(!hasFfmpeg)('analysis, hearing', { timeout: 30_000 }, () => {
     }
     const config = { dataDir: dir, sound: { enabled, models: dir, threads: 1 } }
     const model: SoundModel = {
-      hearClip: () => {
-        heard++
-        const v = new Float32Array(SOUND_DIMENSIONS)
-        v[heard] = 1
-        return Promise.resolve(unit(v))
-      },
+      hearClip:
+        hearClip ??
+        (() => {
+          heard++
+          const v = new Float32Array(SOUND_DIMENSIONS)
+          v[heard] = 1
+          return Promise.resolve(unit(v))
+        }),
       readText: () => Promise.reject(new Error('not asked')),
       close: () => Promise.resolve(),
     }
@@ -168,6 +179,29 @@ describe.skipIf(!hasFfmpeg)('analysis, hearing', { timeout: 30_000 }, () => {
     expect(heard).toBe(1)
     expect(vectors.has(2, SOUND_MODEL.name)).toBe(false)
     expect(analysis.status().sound).toMatchObject({ heard: 1, pending: 1 })
+    analysis.stop()
+  })
+
+  it('records a song whose file will not decode, so it is not tried forever', async () => {
+    const analysis = await loop(Buffer.from('not audio at all'))
+    expect(heard).toBe(1)
+    expect(vectors.has(2, SOUND_MODEL.name)).toBe(true)
+    expect(analysis.status().sound).toMatchObject({ heard: 1, pending: 0 })
+  })
+
+  it('leaves songs waiting when the model will not run, rather than giving them up', async () => {
+    let asked = 0
+    const analysis = await loop(fs.readFileSync(path.join(dir, 'here.wav')), {
+      hearClip: () => {
+        asked++
+        return Promise.reject(new Error('could not load the listening model'))
+      },
+    })
+    expect(vectors.has(1, SOUND_MODEL.name)).toBe(false)
+    expect(vectors.has(2, SOUND_MODEL.name)).toBe(false)
+    expect(analysis.status().sound).toMatchObject({ heard: 0, pending: 2 })
+    // Set aside after the first: the other song is not tried, to fail the same way.
+    expect(asked).toBe(1)
     analysis.stop()
   })
 

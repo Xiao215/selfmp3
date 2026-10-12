@@ -52,6 +52,14 @@ export function mediaRoutes(container: Container): Router {
   const stream = route({ params: ParamsWithId }, async ({ params, req, res }) => {
     const song = requireSong(container.songs, params.id)
 
+    // Somebody is listening right now, which macOS has no way of knowing
+    // from an open socket. Held until this response is done however it
+    // ends — finished, aborted, or the phone walking out of range — and
+    // taken before anything is awaited, so a response closed meanwhile
+    // still lets it go.
+    const awake = container.keepAwake.hold()
+    res.on('close', awake)
+
     // A copy still here — an import not yet uploaded, or not yet analysed —
     // is served from here; otherwise the bucket is where the song is.
     let source = await container.storage.rangeSource(song.path, song.mime)
@@ -63,12 +71,6 @@ export function mediaRoutes(container: Container): Router {
       }
       source = bucketSource(store, song, state)
     }
-
-    // Somebody is listening right now, which macOS has no way of knowing
-    // from an open socket. Held until this response is done however it
-    // ends — finished, aborted, or the phone walking out of range.
-    const awake = container.keepAwake.hold()
-    res.on('close', awake)
 
     await sendRange(req, res, source)
     return undefined

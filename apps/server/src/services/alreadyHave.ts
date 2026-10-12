@@ -5,12 +5,10 @@ import { foldForMatch, similarAtLeast, type Folded } from './youtubeMatch.js'
  * Is this track already in the library?
  *
  * One rule for every way a song can arrive — a pasted link, a shared link, a
- * list of names — because there were two, and the weaker one let things
- * through. The import preview compared `artist::title` as exact lowercased
- * strings; a dev library ended up with the same ZUTOMAYO track ten times over,
- * because YouTube gave the channel as "ZUTOMAYO" one week and "ずっと真夜中で
- * いいのに。 ZUTOMAYO" the next, and two strings that differ by one character
- * are, to an exact comparison, two different songs.
+ * list of names. Not an exact `artist::title` comparison: YouTube gives a
+ * channel as "ZUTOMAYO" one week and "ずっと真夜中でいいのに。 ZUTOMAYO" the
+ * next, and two strings that differ by one character are, to an exact
+ * comparison, two different songs.
  *
  * Three things are checked, cheapest first, and any one of them is enough:
  *
@@ -68,7 +66,7 @@ const SECONDS = 6
  *
  * Made once per request rather than per track: a preview or a review asks
  * about every one of its songs, a library is thousands of rows, and cleaning
- * and folding each row again for each song asked about was a good part of the
+ * and folding each row again for each song asked about would be most of the
  * cost.
  */
 interface LibraryIndex<T extends LibrarySong> {

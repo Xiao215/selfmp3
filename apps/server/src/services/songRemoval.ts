@@ -31,14 +31,13 @@ interface RemovedElsewhere {
  *
  * A song is a row and everything that hangs off it — its cover, its lyrics
  * cache, its motion curve, its rows in the lyrics index, whatever copy of its
- * audio is still on this disk, and its files in the bucket. Four places used
- * to spell that list out by hand, and each forgot a different item: this is
- * the one list, so a new kind of derived data is added here and nowhere else.
+ * audio is still on this disk, and its files in the bucket. This is the one
+ * list of it, so a new kind of derived data is added here and nowhere else.
  *
  * Removing is one thing, everywhere (docs/SYNC.md). There is no "keep the
  * file": this server keeps no copy of the library, so a copy left here would
- * only be the next sweep's new song — which is exactly how forty-three removed
- * songs came back one evening. The bucket's files are not deleted here but
+ * only be the next sweep's new song, and the removed song would come back.
+ * The bucket's files are not deleted here but
  * *trashed* (`cloud_trash`): the cloud pass lets them go once the snapshot
  * without the song has gone up and no other song names them.
  *

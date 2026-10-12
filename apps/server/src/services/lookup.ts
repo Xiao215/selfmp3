@@ -51,6 +51,7 @@ async function getJson(deps: ProviderDeps, url: string): Promise<unknown> {
       signal: AbortSignal.timeout(deps.timeoutMs ?? REQUEST_TIMEOUT_MS),
     })
     if (!response.ok) {
+      await response.body?.cancel()
       deps.logger.warn('lookup request failed', { url, status: response.status })
       return null
     }

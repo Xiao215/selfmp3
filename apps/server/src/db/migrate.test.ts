@@ -64,4 +64,38 @@ describe('migrate', () => {
     expect(count(db, 'song_tags')).toBe(1)
     expect(count(db, 'playlist_items')).toBe(0)
   })
+
+  it('gives an import job named by another build the queue’s own words, and holds it to them', () => {
+    const db = new Database(':memory:')
+    migrate(db, createLogger('silent'))
+    const latest = db.pragma('user_version', { simple: true }) as number
+    // The table as it was before 39, which named nothing.
+    db.exec(`
+      DROP TABLE import_jobs;
+      CREATE TABLE import_jobs (
+        id TEXT PRIMARY KEY, url TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued',
+        step TEXT NOT NULL DEFAULT 'waiting', progress REAL, title TEXT NOT NULL DEFAULT '',
+        artist TEXT NOT NULL DEFAULT '', album TEXT NOT NULL DEFAULT '', thumbnail TEXT,
+        duration REAL NOT NULL DEFAULT 0, error TEXT, song_id INTEGER, attempts INTEGER NOT NULL DEFAULT 0,
+        tag_ids TEXT NOT NULL DEFAULT '[]', playlist_id INTEGER, position INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')), request_uid TEXT
+      );
+      INSERT INTO import_jobs (id, url, status, step) VALUES
+        ('a', 'u', 'failed', 'fetching'),
+        ('b', 'u', 'done', 'tagging'),
+        ('c', 'u', 'queued', 'waiting');
+    `)
+    db.pragma(`user_version = ${latest - 1}`)
+    migrate(db, createLogger('silent'))
+
+    expect(db.prepare('SELECT id, status, step FROM import_jobs ORDER BY id').all()).toEqual([
+      { id: 'a', status: 'error', step: 'waiting' },
+      { id: 'b', status: 'done', step: 'finished' },
+      { id: 'c', status: 'queued', step: 'waiting' },
+    ])
+    expect(() =>
+      db.prepare("INSERT INTO import_jobs (id, url, status) VALUES ('d', 'u', 'paused')").run(),
+    ).toThrow(/CHECK/)
+  })
 })

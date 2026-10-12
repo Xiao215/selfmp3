@@ -64,10 +64,8 @@ function toJob(row: ImportJobRow): ImportJob {
   return {
     id: row.id,
     url: row.url,
-    // A row from a build that knew other names reads as failed and waiting,
-    // never as a broken queue.
-    status: ImportStatusSchema.catch('error').parse(row.status),
-    step: ImportStepSchema.catch('waiting').parse(row.step),
+    status: ImportStatusSchema.parse(row.status),
+    step: ImportStepSchema.parse(row.step),
     progress: row.progress,
     title: row.title,
     artist: row.artist,

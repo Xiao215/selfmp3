@@ -777,6 +777,59 @@ const MIGRATIONS: readonly Migration[] = [
       INSERT INTO bucket_downloads (id) VALUES (1);
     `,
   },
+  {
+    // 39. An import job's status and step are one of the names the queue knows,
+    // and the table holds it to that. A row left with another name reads as it
+    // already did: failed, and waiting (or finished, when it is over).
+    name: 'import jobs hold only the queue’s own states',
+    sql: `
+      UPDATE import_jobs SET status = 'error'
+        WHERE status NOT IN ('queued','running','done','error','cancelled');
+      UPDATE import_jobs
+        SET step = CASE WHEN status IN ('done','cancelled') THEN 'finished' ELSE 'waiting' END
+        WHERE step NOT IN ('waiting','resolving','downloading','converting','lyrics','saving',
+                           'uploading','finished');
+
+      CREATE TABLE import_jobs_new (
+        id           TEXT    PRIMARY KEY,
+        url          TEXT    NOT NULL,
+        status       TEXT    NOT NULL DEFAULT 'queued'
+                     CHECK (status IN ('queued','running','done','error','cancelled')),
+        step         TEXT    NOT NULL DEFAULT 'waiting'
+                     CHECK (step IN ('waiting','resolving','downloading','converting','lyrics',
+                                     'saving','uploading','finished')),
+        progress     REAL,
+        title        TEXT    NOT NULL DEFAULT '',
+        artist       TEXT    NOT NULL DEFAULT '',
+        album        TEXT    NOT NULL DEFAULT '',
+        thumbnail    TEXT,
+        duration     REAL    NOT NULL DEFAULT 0,
+        error        TEXT,
+        song_id      INTEGER REFERENCES songs(id) ON DELETE SET NULL,
+        attempts     INTEGER NOT NULL DEFAULT 0,
+        tag_ids      TEXT    NOT NULL DEFAULT '[]',
+        playlist_id  INTEGER REFERENCES playlists(id) ON DELETE SET NULL,
+        position     INTEGER NOT NULL DEFAULT 0,
+        created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+        updated_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+        request_uid  TEXT
+      );
+      INSERT INTO import_jobs_new (
+        id, url, status, step, progress, title, artist, album, thumbnail, duration,
+        error, song_id, attempts, tag_ids, playlist_id, position, created_at, updated_at,
+        request_uid
+      )
+      SELECT
+        id, url, status, step, progress, title, artist, album, thumbnail, duration,
+        error, song_id, attempts, tag_ids, playlist_id, position, created_at, updated_at,
+        request_uid
+      FROM import_jobs;
+      DROP TABLE import_jobs;
+      ALTER TABLE import_jobs_new RENAME TO import_jobs;
+      CREATE INDEX idx_import_jobs_status ON import_jobs(status, position);
+      CREATE INDEX idx_import_jobs_request ON import_jobs(request_uid) WHERE request_uid IS NOT NULL;
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

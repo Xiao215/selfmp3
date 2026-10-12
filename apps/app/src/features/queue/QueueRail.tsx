@@ -72,12 +72,11 @@ const VIEWPORT_GUESS = 800
  * played greyed at the end. Hold a row to move it, and the rows it passes step
  * aside for it exactly as the phone's sheet's do (`useMakeRoom`): one reorder
  * language on every surface, so where the row will land is a gap and never a
- * line. Keep dragging past the
- * rail's edge and the row shrinks, greys and says "Let go to remove"; let go
- * and it is gone, with an Undo for five seconds, and dragged back in nothing
- * happens. So that a drag is never the only way, Delete or Backspace on a
- * focused row, and "Remove from queue" in its right-click menu, do the same and
- * draw nothing.
+ * line. Keep dragging past the rail's edge and the row shrinks, greys and says
+ * "Let go to remove"; let go and it is gone, with an Undo for five seconds, and
+ * dragged back in nothing happens. So that a drag is never the only way, Delete
+ * or Backspace on a focused row, and "Remove from Up next" in its right-click
+ * menu, do the same and draw nothing.
  *
  * Always mounted in the wide frame and drawing nothing while shut, so an Undo
  * raised here still reaches the queue as it is when pressed (`useQueueEdits`).

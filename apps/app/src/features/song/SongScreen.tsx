@@ -54,10 +54,9 @@ import { useVia } from '../../connection/via'
  * A song's own page, `/song/<id>` (docs/ui-mock `P15`).
  *
  * Lit by its cover, with the song's cover, name, artists and tags at the top;
- * Play, Lyrics and Play next under them (Play next moved here from the song
- * menu); then what you and the song have done together, and songs that sound
- * like it. Everything the old Song details dialog said follows at the end, in
- * the same quiet groups, with Fix metadata beside the facts it fixes.
+ * Play, Lyrics and Play next under them; then what you and the song have done
+ * together, and songs that sound like it. The song's facts follow at the end,
+ * in quiet groups, with Fix metadata beside the facts it fixes.
  *
  * On a computer it is the same page at the window's width, inside the shell:
  * there is no board for it, and the page reads as well wide (docs/UI-MIGRATION.md,
@@ -232,7 +231,7 @@ function SongPage({ song }: { song: Song }): ReactNode {
             }}
           />
           {/* Not for the song playing: it is where "next" is counted from, and a
-              greyed button there only asked why. */}
+              greyed button there would only ask why. */}
           {isCurrent ? null : (
             <Button
               testID="song-play-next"

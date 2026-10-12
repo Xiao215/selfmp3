@@ -324,7 +324,6 @@ export function SettingsScreen(): ReactNode {
               {healthLine(health.data, {
                 loading: health.isPending,
                 error: health.isError ? health.error : null,
-                fromCloud,
                 capped,
                 compact: !wide,
               })}

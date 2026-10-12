@@ -98,8 +98,8 @@ const UP_NEXT_LEAD = 15
  *
  * `missing` is one state however the song came to have no words: the lookup
  * found nothing, or it answered before that the song has none and that answer
- * was kept. Both show the song's visual (`visuals.model.ts`), so the app never
- * has to say which. Only `offline` is told apart, because there the words may
+ * was kept. Both show the song's visual on a computer (`visuals.model.ts`) and
+ * "No lyrics" on a phone, so the app never has to say which. Only `offline` is told apart, because there the words may
  * well exist and simply cannot be asked for.
  */
 export type SongWords =
@@ -126,8 +126,8 @@ export function resolveSongWords({
    * The library's own answer that this song has no words: the server writes it
    * down the first time a lookup finds none. Taken here rather than waited
    * for, so a song that is played again is on its visual from the first frame
-   * — the lookup saying "none" a moment later used to flip the page's Lyrics
-   * button to Visual after it had already been drawn.
+   * rather than flipping its Lyrics tab to Visual when the lookup says "none"
+   * a moment later.
    */
   instrumental: boolean
   romanizationOn: boolean

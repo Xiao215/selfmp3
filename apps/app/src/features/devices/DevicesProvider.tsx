@@ -305,6 +305,8 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
           if (libraryVersion.current === event.version) return
           libraryVersion.current = event.version
           void client.invalidateQueries({ queryKey: queryKeys.library })
+          // What automatic downloads keep follows the library.
+          void client.invalidateQueries({ queryKey: queryKeys.manifest })
           return
       }
     },

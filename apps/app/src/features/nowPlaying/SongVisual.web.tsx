@@ -44,8 +44,8 @@ import {
  * A paused canvas that has come to rest asks for no more frames, as the phone's
  * does, and playing again starts the loop from the motion it left off at.
  * Reduce Motion draws a single still frame in its own effect and runs no loop at
- * all — it used to keep one going for as long as the page was open, working out
- * a key sixty times a second to decide to draw nothing.
+ * all, rather than one working out a key sixty times a second to decide to draw
+ * nothing.
  *
  * What does not move — the ground, its two washes and the disc's shadow — is
  * painted once into canvases of its own and copied in each frame
@@ -333,10 +333,9 @@ function freeLayers(kept: Kept | null): void {
  * out from behind it, as strong as the hit.
  *
  * The ground, its washes and the disc's shadow come from `kept`; what moves is
- * drawn over them. The flash, which used to lighten the ground's middle, is a
- * wash of white over it now, there only while a strong hit is fading; and the
- * shadow, painted once at the disc's resting size, is stretched with the
- * disc's kick.
+ * drawn over them. The flash is a wash of white over the ground's middle,
+ * there only while a strong hit is fading; and the shadow, painted once at the
+ * disc's resting size, is stretched with the disc's kick.
  */
 function draw(
   ctx: Ctx,

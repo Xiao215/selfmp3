@@ -112,6 +112,17 @@ describe('recentItems', () => {
     expect(keys(recentItems(dated, 1, 2))).toEqual(['song-1', 'song-2'])
     expect(recentItems(undefined)).toEqual([])
   })
+
+  it('orders a server stamp and an ISO one by the time they say, not as text', () => {
+    // The server writes `YYYY-MM-DD HH:MM:SS`; a playlist this device just
+    // started is stamped with an ISO time.
+    const mixed = {
+      ...library,
+      songs: [song(1, 'アイドル', 'x', { lastPlayedAt: '2026-09-12 10:00:00' })],
+      playlists: [{ id: 9, name: 'evening', lastPlayedAt: '2026-09-12T09:00:00.000Z' }] as never,
+    }
+    expect(recentItems(mixed).map(item => item.kind)).toEqual(['song', 'playlist'])
+  })
 })
 
 describe('lyricsQueryFor', () => {

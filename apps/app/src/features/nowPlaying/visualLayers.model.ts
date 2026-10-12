@@ -102,10 +102,10 @@ export function shadowSprite(radius: number, dpr: number): { side: number; half:
 }
 
 /**
- * How much white the flash lays over the ground's middle: what the ground's
- * middle used to be lightened by (5% at a full flash), or nothing at all when
- * that would not move a pixel by half a step — so a canvas between hits does
- * not fill the screen again with a wash nobody could see.
+ * How much white the flash lays over the ground's middle: 5% at a full flash,
+ * or nothing at all when that would not move a pixel by half a step — so a
+ * canvas between hits does not fill the screen again with a wash nobody could
+ * see.
  */
 export function flashLift(flash: number): number {
   const lift = Math.max(0, flash) * 0.05

@@ -446,9 +446,9 @@ function TileGrid({
    * Rows of `columns`, each tile a flex column of its row, and blank cells
    * filling out the last row so a lone tile keeps a column's width. Sized by
    * the row rather than by a number: a width worked out in JavaScript arrives
-   * a frame after the layout it was worked out from, and while a window was
-   * being dragged narrower the tiles kept the old width for that frame and
-   * lay across the card column beside them (Xiao's recording, 2026-09-23).
+   * a frame after the layout it was worked out from, and while a window is
+   * dragged narrower the tiles would keep the old width for that frame and
+   * lie across the card column beside them.
    */
   const rows: HomeTile[][] = []
   for (let start = 0; start < tiles.length; start += columns)

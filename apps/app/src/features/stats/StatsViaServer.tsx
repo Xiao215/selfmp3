@@ -17,8 +17,8 @@ import type { StatsPeriod } from './stats.model'
  *
  * When it cannot be reached the page is still drawn — the title, the window,
  * the way to the Report — with the reason in its body. Leaving Stats out of
- * the sidebar instead, which is what this replaces, told a device signed in to
- * the cloud that the feature did not exist.
+ * the sidebar instead would tell a device signed in to the cloud that the
+ * feature did not exist.
  */
 export function StatsViaServer(): ReactNode {
   const { fromCloud } = useConnection()

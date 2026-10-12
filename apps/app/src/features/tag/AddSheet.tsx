@@ -191,7 +191,18 @@ function AddSheetBody({
         keyboardShouldPersistTaps="handled"
         initialNumToRender={20}
         style={{ height: Math.min(420, window.height * 0.45) }}
-        ListEmptyComponent={<EmptyState compact title={`Nothing matches “${query.trim()}”`} />}
+        ListEmptyComponent={
+          <EmptyState
+            compact
+            title={
+              query.trim()
+                ? `Nothing matches “${query.trim()}”`
+                : list === 'tags'
+                  ? 'No tags yet'
+                  : 'No artists yet'
+            }
+          />
+        }
       />
 
       <View style={styles.foot}>

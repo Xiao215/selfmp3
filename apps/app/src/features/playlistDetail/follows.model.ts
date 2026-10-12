@@ -5,8 +5,7 @@ import type { SmartRules } from '@selfmp3/shared'
  * row.
  *
  * A rule set can hold more than tags — a length, a play count, "not this tag",
- * written by the rule editor this row replaced or by another client — and the
- * row has no chip for those. So this
+ * written by another client — and the row has no chip for those. So this
  * narrows rather than asserts: anything that is not "has this tag" is left out
  * of the chips, and `withFollowedTags` below leaves it in the rules.
  */

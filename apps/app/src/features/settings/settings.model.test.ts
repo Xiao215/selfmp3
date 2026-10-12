@@ -176,10 +176,9 @@ describe('settings', () => {
   it('says it is checking while it checks, and which side it could not reach', () => {
     expect(healthLine(undefined, { loading: true })).toBe('Checking your library…')
     expect(healthLine(undefined, { error: true })).toBe('Can’t reach your library')
-    expect(healthLine(undefined, { error: true, fromCloud: true })).toBe('Can’t reach your library')
     const capped = new ApiError(502, 'cap exceeded', 'bucket_cap_exceeded')
     const now = new Date('2026-10-08T04:00:00Z')
-    expect(healthLine(undefined, { error: capped, fromCloud: true, now })).toBe(
+    expect(healthLine(undefined, { error: capped, now })).toBe(
       'Storage allowance used up · resets in about 20 hours',
     )
   })
@@ -187,11 +186,11 @@ describe('settings', () => {
   it('says the bucket is refusing over a doorman that answered, shorter on a phone', () => {
     const doorman = { ok: true as const, version: 'web', uptimeSeconds: 0 }
     const now = new Date('2026-10-08T04:00:00Z')
-    expect(healthLine(doorman, { fromCloud: true })).toBe('self.mp3 web')
-    expect(healthLine(doorman, { fromCloud: true, capped: true, now })).toBe(
+    expect(healthLine(doorman, {})).toBe('self.mp3 web')
+    expect(healthLine(doorman, { capped: true, now })).toBe(
       'Storage allowance used up · resets in about 20 hours',
     )
-    expect(healthLine(doorman, { fromCloud: true, capped: true, compact: true, now })).toBe(
+    expect(healthLine(doorman, { capped: true, compact: true, now })).toBe(
       'Storage allowance used up · 20 h left',
     )
   })

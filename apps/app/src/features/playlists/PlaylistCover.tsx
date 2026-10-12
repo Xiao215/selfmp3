@@ -48,7 +48,7 @@ export function PlaylistCover({
     })
     const withArt = songs.filter(song => artFor(song) !== null)
     if (withArt.length >= 4) return withArt.slice(0, 4)
-    return withArt.slice(0, 1).length > 0 ? withArt.slice(0, 1) : songs.slice(0, 1)
+    return (withArt.length > 0 ? withArt : songs).slice(0, 1)
   }, [byId, songIds, artFor])
 
   // Held, not rebuilt: a tag list or a playlist grid draws one of these per

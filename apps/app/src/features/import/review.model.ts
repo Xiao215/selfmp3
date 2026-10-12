@@ -9,7 +9,7 @@ import { enqueueRequest, notFound, stillLooking, taken, type Review } from '@sel
  * `Review` already holds the songs coming in as `chosen`, so a row's checkbox
  * takes one from there and puts it back. A song the library already has, or
  * one a job is already queued for, is never coming in and has no box — it is
- * "In library" or "In the queue", and skipped.
+ * "In library" or "Importing", and skipped.
  */
 
 /**

@@ -92,6 +92,10 @@ describe('listening before importing', () => {
       'Unknown artist',
     )
     expect(listenDetail({ track, status: 'error' })).toBe('Couldn’t play this one from YouTube')
+    const netease = { ...track, url: 'https://music.163.com/song?id=1973665667' }
+    expect(listenDetail({ track: netease, status: 'error' })).toBe(
+      'Couldn’t play this one from 网易云',
+    )
   })
 
   it('fills the bar to where the song is, and nothing before its length is known', () => {

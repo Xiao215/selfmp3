@@ -85,12 +85,18 @@ export function WelcomeScreen(): ReactNode {
   const [kept, setKept] = useState<readonly string[] | null>(null)
 
   // What this device kept from before. Until it answers, nothing is drawn
-  // above the words rather than tiles that a moment later become covers.
+  // above the words rather than tiles that a moment later become covers; a
+  // store that cannot be read is nothing kept, and the tiles.
   useEffect(() => {
     let cancelled = false
-    void keptCovers(WELCOME_FAN + 1).then(found => {
-      if (!cancelled) setKept(found)
-    })
+    void keptCovers(WELCOME_FAN + 1).then(
+      found => {
+        if (!cancelled) setKept(found)
+      },
+      () => {
+        if (!cancelled) setKept([])
+      },
+    )
     return () => {
       cancelled = true
     }
@@ -105,12 +111,12 @@ export function WelcomeScreen(): ReactNode {
 
   /** Ask the doorman how it is going: now, and whenever the app comes back. */
   const check = useCallback(async (): Promise<void> => {
-    const pending = await cloud.pendingSignIn()
-    if (!pending) {
-      setStage(current => afterCheck(current, 'gone', Date.now()))
-      return
-    }
     try {
+      const pending = await cloud.pendingSignIn()
+      if (!pending) {
+        setStage(current => afterCheck(current, 'gone', Date.now()))
+        return
+      }
       const outcome = await cloud.claimSignIn(pending.attempt)
       if (outcome.status === 'signed-in') signedInToCloud(outcome.session)
       else {

@@ -111,7 +111,7 @@ export function wordsFrame(width: number, geometry: StageGeometry, m: number): W
   }
 }
 
-/** The row under a stacked page's cover: Lyrics and About, Romaji and expand (`T05`). */
+/** The row under a stacked page's cover: Lyrics and Details, Romaji and expand (`T05`). */
 export function stackedTabsTop(geometry: StageGeometry): number {
   return COVER_TOP + geometry.inset + geometry.cover + 24
 }

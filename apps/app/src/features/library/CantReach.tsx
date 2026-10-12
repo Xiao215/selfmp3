@@ -13,9 +13,9 @@ import { BACKBLAZE_CAPS_URL, bucketCapped, unreachableCopy } from './library.mod
  * What stands where the library would, when it did not answer and nothing is
  * kept from before: the Library's list and the Playlists grid.
  *
- * One state, said once, with the two things that can fix it. "Nothing here
- * yet" and "Nothing of your own yet" were what these pages said before, which
- * told someone with four hundred songs to import one. Try again asks at once
+ * One state, said once, with the two things that can fix it — not "Nothing
+ * here yet", which would tell someone with four hundred songs to import one.
+ * Try again asks at once
  * rather than waiting for the next refetch; Connection settings opens Settings
  * at the address, which is the other half of most of these. A bucket whose
  * daily allowance is used up was reached fine: the second button is then

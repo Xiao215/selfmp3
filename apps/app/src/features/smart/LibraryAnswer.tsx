@@ -152,5 +152,4 @@ const styles = StyleSheet.create(theme => ({
   more: { alignSelf: 'flex-start', paddingVertical: 5, paddingHorizontal: space.xs },
   moreText: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '500' },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
-  pressed: { opacity: 0.6 },
 }))

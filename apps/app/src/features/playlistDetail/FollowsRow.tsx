@@ -11,15 +11,16 @@ import { Plus } from '../../ui/components/Icons'
 import { ListenTags } from '../../ui/components/ListenTags'
 import { card } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
+import { tagsWithIds } from '../lists/lists.model'
 import { followedTagIds, withFollowedTags } from './follows.model'
 
 /**
  * One line above the songs: the tags this playlist follows.
  *
- * It replaces a panel of seventeen rule fields — text matching, play counts,
- * year, BPM, musical key, loudness — that were a search engine bolted onto a
- * library you browse by feel. In a tag-first app almost nobody opens a playlist
- * to ask about its loudness; they open it for the tags. So the tags are all
+ * Not a panel of rule fields — text matching, play counts, year, BPM, key,
+ * loudness — which would be a search engine bolted onto a library you browse
+ * by feel. In a tag-first app almost nobody opens a playlist to ask about its
+ * loudness; they open it for the tags. So the tags are all
  * this takes, and they are shown in the same chips the library head uses, so
  * there is one thing to learn rather than two. A rule the chips cannot draw —
  * a length, a play count — is still followed: a chip edit changes only the
@@ -43,7 +44,7 @@ export function FollowsRow({
   const [choosing, setChoosing] = useState(false)
 
   const tagIds = followedTagIds(playlist.rules)
-  const chosen = tagIds.flatMap(id => tags.filter(tag => tag.id === id))
+  const chosen = tagsWithIds(tagIds, tags)
 
   const setTags = (next: readonly number[]): void => {
     // The last tag cannot go: a playlist following nothing is empty, which
@@ -115,7 +116,7 @@ export function FollowsRow({
             onClose={() => setChoosing(false)}
             selected={tagIds}
             onToggle={toggle}
-            summary={`${plural(playlist.songCount, 'song', 'songs')}`}
+            summary={plural(playlist.songCount, 'song', 'songs')}
           />
         </View>
       ) : null}

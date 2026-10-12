@@ -180,8 +180,8 @@ export function SearchScreen(): ReactNode {
             // the keyboard away and the results stay where they are.
             onSubmitEditing={() => {
               // Counted for the words as they are now: the results follow the
-              // field a beat behind, and a paste then Enter used to land in
-              // that beat, find "nothing" and ask about a song it had.
+              // field a beat behind, and a paste then Enter would land in that
+              // beat, find "nothing" and ask about a song it had.
               const matches =
                 shown === query
                   ? counts.all
@@ -571,7 +571,7 @@ function useSongRows(
 } {
   const player = usePlayerCommands()
   const artFor = useArt(ROW_COVER_SIZE)
-  const router = useRouter()
+  const openTag = useOpenTag()
   const { data: library } = useLibrary()
   const { state: downloads } = useDownloads()
   const { openId: menuSongId, onMore, menu } = useSongMenu()
@@ -583,9 +583,9 @@ function useSongRows(
   const onTag = useCallback(
     (tagId: number) => {
       const tag = tags?.find(each => each.id === tagId)
-      if (tag) router.navigate(tagLink(tag.name))
+      if (tag) openTag(tag)
     },
-    [tags, router],
+    [tags, openTag],
   )
   const selection = useContext(SearchSelection)
   const ids = useMemo(() => songs.map(song => song.id), [songs])

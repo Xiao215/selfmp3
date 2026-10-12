@@ -190,9 +190,9 @@ export function PlacePage({
   }
   /*
    * The grow waits for the navigator's crossfade to start as well as for the
-   * hero to be measured. Sent at layout, it had all but landed before the
-   * native side began the fade, so the page arrived with the head already in
-   * place and the tile seemed not to grow at all.
+   * hero to be measured. Sent at layout, it would all but land before the
+   * native side began the fade, so the page would arrive with the head already
+   * in place and the tile would seem not to grow at all.
    */
   const navigation = useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>()
   const growReady = useRef({ measured: false, fading: false })
@@ -379,7 +379,7 @@ export function PlacePage({
   )
 }
 
-/** What is on, as chips: the first stays, the rest can be taken off; then Add. */
+/** What is on, as chips, any of which can be taken off while another stays; then Add. */
 function Chips({
   chosen,
   onRemove,
@@ -391,7 +391,7 @@ function Chips({
 }): ReactNode {
   return (
     <View style={styles.chips}>
-      {chosen.map((entry, index) => (
+      {chosen.map(entry => (
         <Chip
           key={placeKey(entry)}
           label={placeName(entry)}
@@ -400,7 +400,7 @@ function Chips({
           selected
           compact
           onPress={() => undefined}
-          onRemove={index > 0 || chosen.length > 1 ? () => onRemove(entry) : undefined}
+          onRemove={chosen.length > 1 ? () => onRemove(entry) : undefined}
         />
       ))}
       <Chip

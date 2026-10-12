@@ -106,8 +106,8 @@ export function widgetSnapshot(input: {
  * Whether a new snapshot is worth sending: the widget is redrawn by the
  * system on each, and a budget of reloads a day is all an app gets. Position
  * alone moving is not news — the widget counts down by itself — but a new
- * song, play or pause, or a seek that moves the end by more than a few
- * seconds is.
+ * song, play or pause, its cover arriving, or a seek that moves the end by
+ * more than a few seconds is.
  */
 export function snapshotChanged(before: WidgetSnapshot | null, after: WidgetSnapshot): boolean {
   if (!before) return true
@@ -118,7 +118,8 @@ export function snapshotChanged(before: WidgetSnapshot | null, after: WidgetSnap
   if (
     playingBefore.title !== playingAfter.title ||
     playingBefore.artist !== playingAfter.artist ||
-    playingBefore.playing !== playingAfter.playing
+    playingBefore.playing !== playingAfter.playing ||
+    playingBefore.cover.length !== playingAfter.cover.length
   )
     return true
   if (playingAfter.playing) return Math.abs(playingBefore.endsAt - playingAfter.endsAt) > 5

@@ -95,7 +95,7 @@ export function ConnectionPanel({
               ) : null}
               <Button
                 label={storage ? 'Change' : 'Connect'}
-                onPress={() => router.push(STORAGE_ROUTE as never)}
+                onPress={() => router.push(STORAGE_ROUTE)}
                 testID="cloud-storage-change"
               />
               {storage ? (

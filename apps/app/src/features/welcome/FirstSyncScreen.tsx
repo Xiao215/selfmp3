@@ -125,7 +125,7 @@ export function FirstSyncScreen(): ReactNode {
               {helloLine(name)}
               <Text style={styles.titleMark}>.</Text>
             </Text>
-            <Text style={[styles.lead, wide && styles.leadWide]}>
+            <Text style={styles.lead}>
               Your library is on its way. You can start playing while the covers arrive.
             </Text>
           </View>
@@ -224,7 +224,6 @@ const styles = StyleSheet.create(theme => ({
   titleWide: { fontSize: type.display, lineHeight: leading.display, letterSpacing: -0.8 },
   titleMark: { fontFamily: fonts.serifItalic, color: theme.colors.accent },
   lead: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
-  leadWide: { fontSize: type.body, lineHeight: leading.body },
   card: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14 },
   cardWide: { padding: 20 },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },

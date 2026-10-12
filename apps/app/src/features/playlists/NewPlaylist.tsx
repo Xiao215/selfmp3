@@ -23,6 +23,7 @@ import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { ListMusic, Sparkle, Tag as TagIcon } from '../../ui/components/Icons'
 import { Sheet } from '../../ui/components/Sheet'
 import { followRules } from '../lists/followRules'
+import { tagsWithIds } from '../lists/lists.model'
 import { AddSongsSheet } from '../playlistDetail/AddSongsSheet'
 import { SongsAnswer } from '../smart/SongsAnswer'
 import { useSmartServer } from '../smart/useSmartServer'
@@ -78,7 +79,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   })
 
   const tags: readonly Tag[] = library?.tags ?? []
-  const chosen = tagIds.flatMap(id => tags.filter(tag => tag.id === id))
+  const chosen = tagsWithIds(tagIds, tags)
   const tagsName = chosen.map(tag => tag.name).join(' · ')
   const songs = library?.songs ?? []
   // What it would hold, worked out here rather than asked of the server: the
@@ -394,7 +395,7 @@ function Option({
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm, padding: space.sm },
-  // One field holding the chosen tags and the words, as a chip input does.
+  // The one text field a step shows: the words asked for, or the name.
   field: {
     flexDirection: 'row',
     flexWrap: 'wrap',

@@ -35,8 +35,8 @@ export type SectionId =
  * the server or the Mac app rather than using self.mp3, so it sits under
  * Advanced at the end, behind one chip (O1).
  *
- * Devices is not one of those any more: a cloud library finds its server the way
- * Import does, and with no server in reach it still shows the last list it had.
+ * Devices is not `server`: a cloud library finds its server the way Import
+ * does, and with no server in reach it still shows the last list it had.
  */
 export const ALL_SECTIONS: readonly {
   id: SectionId
@@ -214,7 +214,6 @@ export function healthLine(
     readonly loading?: boolean
     /** What the check failed with; any truthy value counts as failed. */
     readonly error?: unknown
-    readonly fromCloud?: boolean
     /**
      * The bucket refusing for the day. Said over a health that answered: in the
      * cloud the health is the doorman's, and the doorman answers while the
@@ -249,7 +248,7 @@ export const RECENT_DEVICE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
  * Settings' device rows, split: this device, anything online, and anything
  * seen in the last week first; the rest behind "Show N older".
  *
- * Takes the rows already folded by name (`deviceListView`) and in their order,
+ * Takes the rows already folded by name (`deviceGroups`) and in their order,
  * which is this device, then online, then most recently seen — so the split
  * keeps that order on both sides.
  */

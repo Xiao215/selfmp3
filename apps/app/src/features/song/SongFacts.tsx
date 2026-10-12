@@ -42,7 +42,7 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
   const artFor = useArt()
   // The energy wave and the source link are drawn in the song's own colour —
   // the one its cover gives the page around them — rather than this device's
-  // accent, which read as a stray blue against the wash of the cover.
+  // accent, which would read as a stray blue against the wash of the cover.
   const songColor = useSongColor(song, artFor(song))
   const { state: downloads, queue, installed } = useDownloads()
   // The same removal as the song's menu: by hand, with an Undo.

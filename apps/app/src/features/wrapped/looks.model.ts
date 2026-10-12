@@ -242,13 +242,17 @@ function shortDay(date: string): string {
   return `${at.getUTCDate()} ${MONTHS[at.getUTCMonth()]}`
 }
 
-/** "21 Aug – 19 Sep 2026": the window, as a dateline. */
+/**
+ * "21 Aug – 19 Sep 2026": the window, as a dateline. A window that began in
+ * an earlier year says so: "20 Sep 2025 – 19 Sep 2026".
+ */
 export function dateline(input: LookInput): string {
   const { first, last } = windowDays(input)
   const year = last.slice(0, 4)
-  return first === last
-    ? `${shortDay(last)} ${year}`
-    : `${shortDay(first)} – ${shortDay(last)} ${year}`
+  if (first === last) return `${shortDay(last)} ${year}`
+  const firstYear = first.slice(0, 4)
+  const start = firstYear === year ? shortDay(first) : `${shortDay(first)} ${firstYear}`
+  return `${start} – ${shortDay(last)} ${year}`
 }
 
 // --- the calendar ----------------------------------------------------------------

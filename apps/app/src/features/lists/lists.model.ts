@@ -70,6 +70,9 @@ export type ListSource =
     }
   | { readonly kind: 'songs'; readonly origin: SongsOrigin; readonly name: string }
 
+/** What Up next is called while Forgotten gems play, from Library's row or the playlists grid. */
+export const GEMS_SOURCE: ListSource = { kind: 'songs', origin: 'gems', name: 'Forgotten gems' }
+
 /**
  * A song picked out of a general list — a Library row, a song or a lyric hit
  * in the palette — played alone: Up next becomes just it, and whatever it held
@@ -640,17 +643,17 @@ export function recentSongIds(
   entry: RecentList,
   library: { readonly songs: readonly Song[]; readonly tags: readonly Tag[] },
 ): number[] {
-  const known = new Set(library.songs.map(song => song.id))
-  const kept = entry.songIds.filter(id => known.has(id))
   const source = entry.source
-  if (source.kind === 'tag' || source.kind === 'artist' || source.kind === 'combined') {
-    const places =
-      source.kind === 'combined'
-        ? combinedPlaces(source, library.tags, library.songs)
-        : source.kind === 'tag'
-          ? combinedPlaces({ tagIds: [source.tagId], artistKeys: [] }, library.tags, library.songs)
-          : combinedPlaces({ tagIds: [], artistKeys: [source.key] }, library.tags, library.songs)
-    if (places.length > 0) return placeSongs(places, library.songs).map(song => song.id)
-  }
-  return kept
+  const parts =
+    source.kind === 'combined'
+      ? source
+      : source.kind === 'tag'
+        ? { tagIds: [source.tagId], artistKeys: [] }
+        : source.kind === 'artist'
+          ? { tagIds: [], artistKeys: [source.key] }
+          : null
+  const places = parts ? combinedPlaces(parts, library.tags, library.songs) : []
+  if (places.length > 0) return placeSongs(places, library.songs).map(song => song.id)
+  const known = new Set(library.songs.map(song => song.id))
+  return entry.songIds.filter(id => known.has(id))
 }

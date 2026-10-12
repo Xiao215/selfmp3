@@ -360,8 +360,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     },
     {
       title: 'Lyrics',
-      rows: lyricHits.map(hit => ({
-        key: `lyric-${hit.songId}`,
+      // One song can have several lines that match, so a hit's key is its place too.
+      rows: lyricHits.map((hit, index) => ({
+        key: `lyric-${hit.songId}-${index}`,
         label: `${hit.title}: ${hit.before}${hit.match}${hit.after}`,
         run: () => playSong(hit.songId),
         node: (

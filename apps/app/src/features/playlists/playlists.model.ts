@@ -55,7 +55,7 @@ export function isLive(playlist: Pick<Playlist, 'kind'>): boolean {
   return playlist.kind === 'live'
 }
 
-const songsWord = (count: number): string => `${plural(count, 'song', 'songs')}`
+const songsWord = (count: number): string => plural(count, 'song', 'songs')
 
 /**
  * The line under a tile's name: "5 songs · yesterday".
@@ -214,10 +214,14 @@ export function listedPlaylists(
  * The playlists a song can be added to, for every "Add to playlist" list:
  * only the ones you keep (a live playlist's rules decide its songs), the one
  * played last first, because that is the one you are most likely reaching for.
+ * `except` is the playlist the list was opened from, which is not offered.
  */
-export function playlistsToAddTo(playlists: readonly Playlist[]): readonly Playlist[] {
+export function playlistsToAddTo(
+  playlists: readonly Playlist[],
+  except?: number,
+): readonly Playlist[] {
   return sortPlaylists(
-    playlists.filter(playlist => !isLive(playlist)),
+    playlists.filter(playlist => !isLive(playlist) && playlist.id !== except),
     'recent',
   )
 }

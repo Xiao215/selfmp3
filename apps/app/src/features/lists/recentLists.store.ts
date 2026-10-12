@@ -51,13 +51,20 @@ let playingKey: string | null = null
 /**
  * What plays was saved as a playlist: its tile in Recently played is that
  * playlist from now on, so playing it again does not offer Save again.
+ * Returns what puts the tile back as it was, for a Save that is undone and
+ * whose playlist no longer exists.
  */
-export function noteListSaved(saved: ListSource): void {
+export function noteListSaved(saved: ListSource): () => void {
   const key = sourceKey(saved, [])
-  if (playingKey === null || key === null) return
+  if (playingKey === null || key === null) return () => {}
   const from = playingKey
+  const before = snapshot().find(each => each.key === from)
   playingKey = key
   write(withListRenamed(snapshot(), from, key, saved))
+  return () => {
+    if (playingKey === key) playingKey = from
+    if (before) write(withListRenamed(snapshot(), key, from, before.source))
+  }
 }
 
 export function useRecentLists(): readonly RecentList[] {

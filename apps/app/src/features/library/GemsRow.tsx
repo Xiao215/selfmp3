@@ -15,6 +15,7 @@ import { Press } from '../../ui/components/Press'
 import { ChevronDown, ChevronRight, Play } from '../../ui/components/Icons'
 import { card, sectionTitle } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
+import { GEMS_SOURCE } from '../lists/lists.model'
 
 const COLLAPSED_KEY = 'gems.collapsed'
 
@@ -28,9 +29,6 @@ const COLLAPSED_KEY = 'gems.collapsed'
  * the server cannot be reached — because an error box above the library would
  * be worse than no row at all.
  */
-/** What Up next is called while the gems play. */
-const GEMS = { kind: 'songs', origin: 'gems', name: 'Forgotten gems' } as const
-
 export function GemsRow(): ReactNode {
   const { theme } = useUnistyles()
   const gems = useGems(12)
@@ -52,13 +50,12 @@ export function GemsRow(): ReactNode {
   }
 
   const cards = data.songs.map((song, index) => (
-    // It sinks under the finger, as everything pressed does (`Press`). A grey
-    // box behind it was wider than the cover and sat off to its right
-    // (Xiao, 2026-10-08).
+    // It sinks under the finger, as everything pressed does (`Press`), rather
+    // than drawing a box behind it that would be wider than the cover.
     <Press
       key={song.id}
       wrap={few ? styles.cardFewWrap : null}
-      onPress={() => player.playFrom(ids, index, { source: GEMS })}
+      onPress={() => player.playFrom(ids, index, { source: GEMS_SOURCE })}
       accessibilityRole="button"
       accessibilityLabel={`${song.title} — ${artistOr(song.artist)}`}
       {...tip(`${song.title} — ${artistOr(song.artist)}`)}
@@ -93,8 +90,8 @@ export function GemsRow(): ReactNode {
           ) : (
             <ChevronDown size={15} color={theme.colors.textMuted} />
           )}
-          {/* On a phone the line goes under the name: beside it, it ran off
-              the edge of the card (2026-10-08). */}
+          {/* On a phone the line goes under the name: beside it, it runs off
+              the edge of the card. */}
           <View style={wide ? styles.titleWords : styles.titleWordsStacked}>
             <Text style={styles.titleLabel}>Forgotten gems</Text>
             <Text style={styles.hint} numberOfLines={wide ? 1 : 2}>
@@ -108,7 +105,7 @@ export function GemsRow(): ReactNode {
             <Button
               label="Play all"
               icon={<Play size={13} color={theme.colors.textPrimary} />}
-              onPress={() => player.playFrom(ids, 0, { source: GEMS })}
+              onPress={() => player.playFrom(ids, 0, { source: GEMS_SOURCE })}
             />
             <Button label="Add to Up next" onPress={() => player.addToQueue(ids)} />
           </View>

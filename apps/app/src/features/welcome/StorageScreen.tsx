@@ -251,7 +251,7 @@ export function StorageScreen(): ReactNode {
           Where it lives
           <Text style={styles.titleMark}>.</Text>
         </Text>
-        <Text style={[styles.lead, wide && styles.leadWide]}>
+        <Text style={styles.lead}>
           {mode === 'backblaze'
             ? 'Your music goes in a bucket you own. Paste the key for it; self.mp3 asks Backblaze which bucket it opens, and where.'
             : 'Your music goes in a bucket you own. Its address, its name, and a key for it with read and write.'}
@@ -356,7 +356,6 @@ const styles = StyleSheet.create(theme => ({
   titleWide: { fontSize: type.display, lineHeight: leading.display, letterSpacing: -0.8 },
   titleMark: { fontFamily: fonts.serifItalic, color: theme.colors.accent },
   lead: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
-  leadWide: { fontSize: type.body, lineHeight: leading.body },
   account: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   accountText: { flex: 1, minWidth: 0, color: theme.colors.textMuted, fontSize: type.sub },
   card: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14 },

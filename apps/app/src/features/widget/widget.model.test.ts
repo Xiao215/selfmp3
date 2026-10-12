@@ -73,4 +73,10 @@ describe('when to send a new snapshot', () => {
       true,
     )
   })
+
+  it('sends the cover of the playing song once it has one', () => {
+    const covered = widgetSnapshot({ ...base, coverOf: item => (item.id === 9 ? 'BBBB' : '') })
+    const bare = widgetSnapshot({ ...base, coverOf: () => '' })
+    expect(snapshotChanged(bare, covered)).toBe(true)
+  })
 })

@@ -29,8 +29,8 @@ export interface ProfileRow {
 }
 
 /**
- * Import, Report and Settings. Tags left this list when Home's tiles and
- * "All N tags" became the way to them; Stats left it for the card above.
+ * Import, Report and Settings. Tags are reached from Home's tiles and "All N
+ * tags", and Stats from the card above.
  */
 export function profileRows({ place }: { place: DevicePlace }): readonly ProfileRow[] {
   return [
@@ -77,7 +77,7 @@ export function profileName(accountName: string | null | undefined): string {
  *
  * When it cannot be reached it says that too, which a phone has nowhere else
  * to say. Being in step is the normal case and is not announced: "synced
- * just now" was a word about plumbing on every visit.
+ * just now" would be a word about plumbing on every visit.
  */
 export function profileLine({
   songs,
@@ -103,8 +103,8 @@ export interface MonthCard {
   readonly listened: string
   /**
    * "min", where the time is minutes — drawn smaller beside the number, as the
-   * streak's "days" is. Baked into the number it was the only figure on the
-   * card whose unit shouted (Xiao, 2026-09-22). Hours stay whole: "3h 05" has
+   * streak's "days" is. Baked into the number it would be the only figure on
+   * the card whose unit shouted. Hours stay whole: "3h 05" has
    * no word to take off the end.
    */
   readonly listenedUnit?: string

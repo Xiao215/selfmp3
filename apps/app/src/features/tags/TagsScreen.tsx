@@ -82,8 +82,9 @@ const ROW_GAP = 24
 /** The page's side margins: a phone's, and a computer's. */
 const NARROW_GUTTER = 20
 const WIDE_GUTTER = 48
-/** How many artists the untagged card names on a computer; a phone names two. */
+/** How many artists the untagged card names on a computer, and on a phone. */
 const WAITING_SHOWN = 3
+const PHONE_WAITING_SHOWN = 2
 const NOTHING_WAITING = { artists: [], rest: 0 } as const
 
 type EditTag = (tag: Tag) => void
@@ -96,7 +97,7 @@ type HoldRef = (tagId: number, node: View | null) => void
  *
  * A tile opens the tag's page. With a pointer, the tag's record slides out
  * and Play waits on its label, and a ⋯ and right-click open the tag's editor
- * (G, H); on a phone a tap opens and holding edits, as before. A tag every one
+ * (G, H); on a phone a tap opens and holding edits. A tag every one
  * of whose songs another tag carries is drawn inside that tag (E), and tags
  * with a song or two wait at the end (L), so the page opens on the ones in
  * use. Picking tags to combine is not here: a tag's page has Add for that.
@@ -115,14 +116,14 @@ export function TagsScreen(): ReactNode {
   const switches = useSmartSwitches()
   const [gridWidth, setGridWidth] = useState(0)
   /*
-   * The tile handlers are made once and take the tag they act on. As arrows in
-   * the grid below they were new on every render, so every tile — and the
-   * cover in each — redrew whenever the screen did.
+   * The tile handlers are made once and take the tag they act on, so a render
+   * of the screen redraws no tile and no cover in one.
    */
   const latest = useRef({ player, router })
   useEffect(() => {
     latest.current = { player, router }
   })
+  const rowRefs = useRef(new Map<number, View>())
   const holdRowRef = useCallback<HoldRef>((tagId, node) => {
     if (node) rowRefs.current.set(tagId, node)
     else rowRefs.current.delete(tagId)
@@ -146,7 +147,6 @@ export function TagsScreen(): ReactNode {
   // The editor is anchored to the tile that asked for it. One anchor for the
   // page, pointed at that tile as it opens, so the page keeps a single editor.
   const editorAnchor = useRef<View | null>(null)
-  const rowRefs = useRef(new Map<number, View>())
 
   const tags = useMemo<readonly Tag[]>(() => library?.tags ?? [], [library?.tags])
   const standings = useMemo(
@@ -163,6 +163,11 @@ export function TagsScreen(): ReactNode {
   const waiting = useMemo(
     () => (library ? waitingArtists(library.songs, WAITING_SHOWN) : NOTHING_WAITING),
     [library],
+  )
+  // A phone names fewer, so what its "and others" counts is the rest after those.
+  const phoneRest = useMemo(
+    () => (library && !wide ? waitingArtists(library.songs, PHONE_WAITING_SHOWN).rest : 0),
+    [library, wide],
   )
 
   const measured = wide ? gridWidth : width - NARROW_GUTTER * 2
@@ -259,7 +264,7 @@ export function TagsScreen(): ReactNode {
           <UntaggedCard
             count={playAndTag.count}
             artists={waiting.artists}
-            rest={waiting.rest}
+            rest={wide ? waiting.rest : phoneRest}
             wide={wide}
             onStart={playAndTag.start}
             onSuggest={switches.tags ? () => setSuggesting(true) : undefined}
@@ -444,6 +449,7 @@ function UntaggedCard({
 }: {
   count: number
   artists: readonly WaitingArtist[]
+  /** The songs by none of the artists named. */
   rest: number
   wide: boolean
   onStart: () => void
@@ -454,8 +460,7 @@ function UntaggedCard({
   const { theme } = useUnistyles()
   const press = usePressScale(0.98)
   const art = useArt(COVER_STACK)
-  const named = wide ? artists : artists.slice(0, 2)
-  const more = wide ? rest : count - named.reduce((sum, artist) => sum + artist.count, 0)
+  const named = wide ? artists : artists.slice(0, PHONE_WAITING_SHOWN)
   const title = untaggedCardTitle(count)
 
   const covers =
@@ -501,7 +506,7 @@ function UntaggedCard({
             )}
           </Text>
         ))}
-        {more > 0 ? (wide ? ` · and ${more.toLocaleString()} more` : ' · and others') : ''}
+        {rest > 0 ? (wide ? ` · and ${rest.toLocaleString()} more` : ' · and others') : ''}
       </>
     )
 

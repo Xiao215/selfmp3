@@ -6,7 +6,7 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { download, progressGate } from './files.js'
+import { download, move, progressGate } from './files.js'
 
 /*
  * The shell's two edges, faked at the boundary and nowhere nearer: `electron`
@@ -186,6 +186,28 @@ describe('download', () => {
     const songs = join(harness.userData, 'songs')
     await expect(stat(join(songs, '1.m4a'))).rejects.toThrow()
     expect(stalled.cancelled()).toBe(true)
+  })
+})
+
+describe('move', () => {
+  beforeEach(async () => {
+    harness.userData = await mkdtemp(join(tmpdir(), 'selfmp3-move-'))
+  })
+  afterEach(async () => {
+    await rm(harness.userData, { recursive: true, force: true })
+  })
+
+  it('hands a played copy to the downloads under its own name', async () => {
+    await mkdir(join(harness.userData, 'recent'), { recursive: true })
+    await writeFile(join(harness.userData, 'recent', 'a.m4a'), 'twelve bytes')
+
+    expect(await move('recent', 'songs', 'a.m4a')).toEqual({ name: 'a.m4a', bytes: 12 })
+    expect(await readFile(join(harness.userData, 'songs', 'a.m4a'), 'utf8')).toBe('twelve bytes')
+    await expect(stat(join(harness.userData, 'recent', 'a.m4a'))).rejects.toThrow()
+  })
+
+  it('says there was nothing to move', async () => {
+    expect(await move('recent', 'songs', 'gone.m4a')).toBeNull()
   })
 })
 

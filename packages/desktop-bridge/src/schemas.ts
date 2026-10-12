@@ -145,13 +145,15 @@ export const updateStatusSchema = z.object({
 export type UpdateStatus = z.infer<typeof updateStatusSchema>
 
 /**
- * The two kinds of file the shell keeps, and nothing else.
+ * The kinds of file the shell keeps, and nothing else.
  *
  * An enum rather than a path, because this is the whole of what the page may
- * name: `songs` and `covers` are directories under `userData`, and a `kind` that
- * could be anything would be a path the renderer chose.
+ * name: each is a directory under `userData`, and a `kind` that could be
+ * anything would be a path the renderer chose. `recent` holds cloud songs kept
+ * because they were played — a cache, apart from the downloads in `songs`, so
+ * it never counts as "on this computer".
  */
-export const fileKindSchema = z.enum(['songs', 'covers'])
+export const fileKindSchema = z.enum(['songs', 'covers', 'recent'])
 export type FileKind = z.infer<typeof fileKindSchema>
 
 /**

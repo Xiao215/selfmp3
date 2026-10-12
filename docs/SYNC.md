@@ -126,9 +126,9 @@ song bytes stream through it without it holding them.
    only the last few songs it played, because a library of a thousand songs is not something a
    tab should quietly copy and a tab's storage is the browser's to evict. A song already on the
    device plays from the device: see
-   `packages/client/src/downloads/recentCopies.ts` and
-   `apps/app/src/ports/recentCopies.web.ts`, which hold the songs an installed app kept
-   because they were played.
+   `packages/client/src/downloads/recentCopies.ts` and its ports — `recentCopies.ts` on a
+   phone, `desktop/recentCopies.desktop.ts` in the desktop app (a `recent` folder beside
+   `songs`) — which hold the songs an installed app kept because they were played.
 
    How a tab does it: the page asks for a song and a cover at addresses of the app's own,
    `api/stream/<id>` and `api/art/<id>` under the base the build was made for

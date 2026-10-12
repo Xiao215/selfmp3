@@ -241,6 +241,19 @@ export async function remove(kind: FileKind, name: string): Promise<void> {
   await rm(`${target}.part`, { force: true })
 }
 
+/** One kind's file into another's folder, renamed rather than copied. Null when there is none. */
+export async function move(from: FileKind, to: FileKind, name: string): Promise<FileStat> {
+  const source = pathFor(from, name)
+  const target = await writablePathFor(to, name)
+  try {
+    await rename(source, target)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+    throw error
+  }
+  return statOne(to, name)
+}
+
 export async function statOne(kind: FileKind, name: string): Promise<FileStat> {
   // Outside the `try`: a name that is refused is still an error, not "no file".
   const target = pathFor(kind, name)

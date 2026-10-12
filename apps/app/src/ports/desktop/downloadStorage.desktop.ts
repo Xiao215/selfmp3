@@ -8,9 +8,12 @@ import {
   type ServerConnection,
   type TransferProgress,
 } from '@selfmp3/client'
+import { bucketHold } from '@selfmp3/replica'
 
+import { askWhyRefused } from '../bucketRefusal'
 import { sourceFor } from '../songSource'
 import { desktop } from './bridge'
+import { adoptRecent } from './recentCopies.desktop'
 
 /**
  * Where the installed desktop app keeps songs: files on disk, beside a JSON
@@ -51,8 +54,15 @@ function transferFor(
   return {
     async run() {
       if (cancelled) throw new Error('cancelled')
+      // Played lately, so a copy may be here already (recentCopies.desktop.ts):
+      // the same bytes, moved into place rather than fetched a second time.
+      const adopted = await adoptRecent(song).catch(() => null)
+      if (adopted !== null) return adopted
       const from = await sourceFor(song, connection)
       if (cancelled) throw new Error('cancelled')
+      // The bucket refusing reads for the day: this one would be refused too.
+      const held = from.headers ? bucketHold('read') : null
+      if (held) throw new Error(held.message)
 
       const stop = bridge.onProgress(progress => {
         if (progress.id === id) {
@@ -69,6 +79,13 @@ function transferFor(
         })
         // `null` is the port's "stopped, not failed"; the queue resumes it.
         return result.state === 'done' ? result.bytes : null
+      } catch (error) {
+        if (cancelled || !from.headers) throw error
+        // From the bucket: the doorman is asked why, the way a phone asks, so
+        // a refusal for the day holds the other downloads too.
+        const why = await askWhyRefused(from.url, from.headers)
+        if (why === null) throw error
+        throw new Error(why, { cause: error })
       } finally {
         stop()
       }

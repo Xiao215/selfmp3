@@ -37,6 +37,7 @@ import { onDeepLinkRoute } from '../ports/deepLinks'
 import { usePlayerCommands, useSongLoaded } from '../player/PlayerProvider'
 import { SEEK_STEP_SECONDS, VOLUME_STEP } from '../player/progress.model'
 import { QueueRail, useQueueRailRoom } from '../features/queue/QueueRail'
+import { RoomSheets } from '../features/room/RoomSheets'
 import { QueueSheet } from '../features/queue/QueueSheet'
 import { ContentWidthContext } from './contentWidth'
 import { createValueStore } from '../state/valueStore.model'
@@ -198,6 +199,8 @@ function Frame({
           page (Now Playing, the import review) has nowhere else to land, and
           the row already drops to the foot when there is no chrome to sit on. */}
       {wide ? null : <Toasts />}
+      {/* A listening room's sheets: Together, Add songs, People. */}
+      <RoomSheets />
     </View>
   )
 }

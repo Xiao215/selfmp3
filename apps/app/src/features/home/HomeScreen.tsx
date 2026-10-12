@@ -6,6 +6,9 @@ import { StyleSheet } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { useRouter } from 'expo-router'
 import { artistOr, plural } from '@selfmp3/shared'
+import { useRecentRooms } from '../room/pastRooms.store'
+import { RoomFaces } from '../room/RoomFace'
+import type { PastRoom } from '../room/room.model'
 import type { Song, Stats } from '@selfmp3/shared'
 import { fonts, leading, radius, tagColors, type, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
@@ -112,6 +115,8 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
     [library, wide],
   )
   const recentLists = useRecentLists()
+  // Rooms listened in together, for a few days after they end (features/room).
+  const rooms = useRecentRooms()
   const recents = useMemo(
     () => (library ? homeRecents(recentLists, library.songs) : []),
     [library, recentLists],
@@ -204,13 +209,13 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
           ) : null}
         </View>
 
-        {recents.length > 0 ? (
+        {recents.length > 0 || rooms.length > 0 ? (
           <View style={styles.stack}>
             <SectionHead
               title="Recently played"
               action={{ label: 'Library', onPress: () => router.navigate('/library') }}
             />
-            <Recents recents={recents} wide={wide} />
+            <Recents recents={recents} rooms={rooms} wide={wide} />
           </View>
         ) : null}
       </ScrollView>
@@ -566,7 +571,15 @@ const FROM_RECENTS = { kind: 'songs', origin: 'recent', name: 'Recently played' 
  * a song played on its own as that song. A tap plays it again; a list that
  * was never saved can be saved from Up next.
  */
-function Recents({ recents, wide }: { recents: readonly HomeRecent[]; wide: boolean }): ReactNode {
+function Recents({
+  recents,
+  rooms,
+  wide,
+}: {
+  recents: readonly HomeRecent[]
+  rooms: readonly PastRoom[]
+  wide: boolean
+}): ReactNode {
   const player = usePlayerCommands()
   const router = useRouter()
   const art = useArt()
@@ -591,6 +604,9 @@ function Recents({ recents, wide }: { recents: readonly HomeRecent[]; wide: bool
       testID="home-recents"
       {...drag}
     >
+      {rooms.map(room => (
+        <PastRoomTile key={`room-${room.code}`} room={room} size={size} />
+      ))}
       {recents.map((recent, index) => {
         if (recent.kind === 'song') {
           const song = recent.song
@@ -674,6 +690,35 @@ function Recents({ recents, wide }: { recents: readonly HomeRecent[]; wide: bool
       {/* Drawn over everything by the overlay host, wherever it stands here. */}
       {songMenu.menu}
     </ScrollView>
+  )
+}
+
+/**
+ * A room listened in together, once it ended (docs/features/listen-together.md,
+ * mock R11): who was there, as their faces. Opens the room's page, to save it
+ * or get a friend's song.
+ */
+function PastRoomTile({ room, size }: { room: PastRoom; size: number }): ReactNode {
+  const router = useRouter()
+  const others = room.people.filter(person => person.name !== 'You')
+  return (
+    <Pressable
+      testID={`home-recent-room-${room.code}`}
+      onPress={() => router.push({ pathname: '/past-room/[code]', params: { code: room.code } })}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${room.title}`}
+      style={{ width: size }}
+    >
+      <View style={[styles.roomTile, { width: size, height: size }]}>
+        <RoomFaces people={others.slice(0, 4)} size={Math.round(size / 3.6)} />
+      </View>
+      <Text style={styles.recentTitle} numberOfLines={1}>
+        {room.title}
+      </Text>
+      <Text style={styles.recentArtist} numberOfLines={1}>
+        Together · {plural(room.songs.length, 'song', 'songs')}
+      </Text>
+    </Pressable>
   )
 }
 
@@ -1018,6 +1063,12 @@ const styles = StyleSheet.create(theme => ({
     marginTop: 6,
   },
   recentArtist: { color: theme.colors.textSecondary, fontSize: type.small },
+  roomTile: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    backgroundColor: theme.colors.surface2,
+  },
   recentBadge: {
     position: 'absolute',
     left: 6,

@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { Song } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
 import {
+  isRoomTrackId,
   fonts,
   HIT_TARGET,
   leading,
@@ -26,6 +27,7 @@ import {
   useToggleLoved,
   withAlpha,
 } from '@selfmp3/client'
+import { RoomSongLine } from '../room/RoomSongLine'
 import {
   usePlayer,
   usePlayerCommands,
@@ -604,45 +606,52 @@ function CoverView({
             <ArtistLinks artist={song.artist} onOpen={href => leaveTo(router, href)} />
           </Text>
         </View>
-        <IconButton
-          onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
-          label={song.loved ? 'Unlike' : 'Like'}
-          active={song.loved}
-          filled
-        >
-          <Heart
-            size={20}
-            filled={song.loved}
-            color={song.loved ? theme.colors.danger : theme.colors.textPrimary}
-          />
-        </IconButton>
+        {/* A friend's song in a room is not yours to like. */}
+        {isRoomTrackId(song.id) ? null : (
+          <IconButton
+            onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
+            label={song.loved ? 'Unlike' : 'Like'}
+            active={song.loved}
+            filled
+          >
+            <Heart
+              size={20}
+              filled={song.loved}
+              color={song.loved ? theme.colors.danger : theme.colors.textPrimary}
+            />
+          </IconButton>
+        )}
       </View>
 
+      {/* A room's song says who brought it where a song of your own has its tags. */}
+      {isRoomTrackId(song.id) ? <RoomSongLine song={song} /> : null}
       {/* The song's tags, quietly: each chip is a door to its tag, and + adds one. */}
-      <View style={styles.tags}>
-        {tags.map(tag => (
-          <Chip
-            key={tag.id}
-            label={tag.name}
-            hue={tag.hue}
-            selected={false}
-            compact
-            // A page of the app, so the modal goes down first, as the song's
-            // own page does (`openSong`): pushed from inside it, the tag's page
-            // landed under the modal, out of sight.
-            onPress={() => leaveTo(router, tagLink(tag.name))}
-          />
-        ))}
-        <Pressable
-          onPress={onTags}
-          accessibilityRole="button"
-          accessibilityLabel={tags.length > 0 ? 'Edit tags' : 'Add a tag'}
-          hitSlop={8}
-          style={({ pressed }) => [styles.addTag, pressed && styles.addTagPressed]}
-        >
-          <Plus size={13} color={theme.colors.textSecondary} />
-        </Pressable>
-      </View>
+      {isRoomTrackId(song.id) ? null : (
+        <View style={styles.tags}>
+          {tags.map(tag => (
+            <Chip
+              key={tag.id}
+              label={tag.name}
+              hue={tag.hue}
+              selected={false}
+              compact
+              // A page of the app, so the modal goes down first, as the song's
+              // own page does (`openSong`): pushed from inside it, the tag's page
+              // landed under the modal, out of sight.
+              onPress={() => leaveTo(router, tagLink(tag.name))}
+            />
+          ))}
+          <Pressable
+            onPress={onTags}
+            accessibilityRole="button"
+            accessibilityLabel={tags.length > 0 ? 'Edit tags' : 'Add a tag'}
+            hitSlop={8}
+            style={({ pressed }) => [styles.addTag, pressed && styles.addTagPressed]}
+          >
+            <Plus size={13} color={theme.colors.textSecondary} />
+          </Pressable>
+        </View>
+      )}
 
       <View style={styles.progress}>
         <PhoneSeek color={color} />

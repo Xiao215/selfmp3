@@ -6,6 +6,7 @@ import { BucketError, type BucketErrorKind, type Fetch } from './bucket.js'
 import type { Context, Env, Log } from './context.js'
 import { allowedOrigins, isForeignWrite, preflight, withCors } from './cors.js'
 import * as files from './files.js'
+import { rooms } from './rooms.js'
 import {
   DoormanError,
   errorResponse,
@@ -69,6 +70,7 @@ const ROUTES: Readonly<Record<string, Readonly<Record<string, Route>>>> = {
 }
 
 const FILES = '/v1/files/'
+const ROOMS = '/v1/rooms'
 
 /** Errors from the bucket, as a device sees them: the doorman's own upstream failed. */
 const BUCKET_CODES: Readonly<Record<BucketErrorKind, string>> = {
@@ -126,7 +128,9 @@ export function createDoorman(deps: DoormanDeps = {}): Doorman {
         await response.body.cancel()
         response = new Response(null, { status: response.status, headers: response.headers })
       }
-      withCors(request, response, origins)
+      // A room's socket is answered by its Durable Object with headers that
+      // cannot be changed, and a WebSocket is not a CORS request anyway.
+      if (response.status !== 101) withCors(request, response, origins)
       return response
     },
   }
@@ -140,6 +144,7 @@ async function route(ctx: Context): Promise<Response> {
   if (isForeignWrite(request, ctx.origins)) throw forbidden('this address may not use the doorman')
 
   if (path.startsWith(FILES)) return files.file(ctx, path.slice(FILES.length))
+  if (path === ROOMS || path.startsWith(`${ROOMS}/`)) return rooms(ctx)
 
   // Own properties only: a request whose method is `constructor` or
   // `toString` must not find its way to Object.prototype.

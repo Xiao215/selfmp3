@@ -39,6 +39,8 @@ import {
   type QueueRow,
 } from './queue.model'
 import { useQueueEdits } from './useQueueEdits'
+import { RoomList, TogetherButton } from '../room/RoomList'
+import { useRoom } from '../room/room.store'
 import { SONG_LINE_COVER, SongLine } from '../../ui/components/SongLine'
 
 /** The rail's width (`S2`, "Gutters": up-next rail 288). */
@@ -102,7 +104,9 @@ function useQueueRailShown(): boolean {
   const open = useQueueSheetOpen()
   const { wide } = useLayout()
   const player = usePlayer()
-  return open && wide && player.current !== null
+  // In a room, Up next is the room's, whether or not this device plays it.
+  const inRoom = useRoom().state !== null
+  return open && wide && (player.current !== null || inRoom)
 }
 
 /**
@@ -160,6 +164,7 @@ function Rail({
   const router = useRouter()
   const artFor = useArt(ROW_COVER_SIZE)
   const { player, rows, remove } = edits
+  const inRoom = useRoom().state !== null
   // Drag-out made known once (`useRailHint`); anything done in the rail puts it away.
   const hint = useRailHint(shown && rows.next.length > 0)
   const hintIn = usePresence(hint.shown, motion.base, motion.fast)
@@ -467,132 +472,143 @@ function Rail({
           <Text style={styles.title} accessibilityRole="header">
             Up next
           </Text>
-          <IconButton onPress={closeQueueSheet} label="Hide Up next" size={28} filled>
-            <ChevronRight size={15} color={theme.colors.textSecondary} />
-          </IconButton>
+          <View style={styles.headButtons}>
+            {inRoom ? null : <TogetherButton />}
+            <IconButton onPress={closeQueueSheet} label="Hide Up next" size={28} filled>
+              <ChevronRight size={15} color={theme.colors.textSecondary} />
+            </IconButton>
+          </View>
         </View>
-        <UpNextSource />
-        <Text style={styles.summary}>{nextSummary(rows.next)}</Text>
+        {inRoom ? (
+          <ScrollView style={styles.list} contentContainerStyle={styles.roomContent}>
+            <RoomList />
+          </ScrollView>
+        ) : (
+          <>
+            <UpNextSource />
+            <Text style={styles.summary}>{nextSummary(rows.next)}</Text>
 
-        <ScrollView
-          style={styles.list}
-          contentContainerStyle={styles.listContent}
-          // A held row is being moved, not the list under it.
-          scrollEnabled={drag === null}
-          onScroll={onScroll}
-          scrollEventThrottle={16}
-          onLayout={event => setViewport(event.nativeEvent.layout.height)}
-        >
-          {playing ? (
-            <PlayingRow
-              row={playing}
-              artUri={artFor(playing.song)}
-              playing={player.isPlaying}
-              onOpen={() => router.navigate('/now-playing')}
-              onDropSongs={actions.dropSongs}
-            />
-          ) : null}
-          {ended && playing ? <OnlySongEnd song={playing.song} player={player} /> : null}
-          <Animated.View style={slide.rows}>
-            <View style={{ height: rows.next.length * ROW_HEIGHT }}>
-              {rows.next.slice(nextAt.start, nextAt.end).map((row, at) => (
-                <View
-                  key={row.song.id}
-                  style={[styles.placed, { top: (nextAt.start + at) * ROW_HEIGHT }]}
-                >
-                  <RailRow
-                    song={row.song}
-                    index={row.index}
-                    artUri={artFor(row.song)}
-                    kind="next"
-                    placeholder={drag?.from === row.index}
-                    // A row out past the rail's edge is being removed, not
-                    // moved, so the room it had opened closes again.
-                    shift={drag && !drag.out ? roomShift(row.index, drag.from, drag.over) : 0}
-                    carrying={drag !== null}
-                    settling={lift.wearing === row.song.id}
-                    actions={actions}
-                  />
-                </View>
-              ))}
-            </View>
-            {rows.played.length > 0 ? (
-              <>
-                <Text
-                  style={styles.label}
-                  onLayout={event => setPlayedLabel(event.nativeEvent.layout.height)}
-                >
-                  Played
-                </Text>
-                <View style={{ height: rows.played.length * ROW_HEIGHT }}>
-                  {rows.played.slice(playedAt.start, playedAt.end).map((row, at) => (
+            <ScrollView
+              style={styles.list}
+              contentContainerStyle={styles.listContent}
+              // A held row is being moved, not the list under it.
+              scrollEnabled={drag === null}
+              onScroll={onScroll}
+              scrollEventThrottle={16}
+              onLayout={event => setViewport(event.nativeEvent.layout.height)}
+            >
+              {playing ? (
+                <PlayingRow
+                  row={playing}
+                  artUri={artFor(playing.song)}
+                  playing={player.isPlaying}
+                  onOpen={() => router.navigate('/now-playing')}
+                  onDropSongs={actions.dropSongs}
+                />
+              ) : null}
+              {ended && playing ? <OnlySongEnd song={playing.song} player={player} /> : null}
+              <Animated.View style={slide.rows}>
+                <View style={{ height: rows.next.length * ROW_HEIGHT }}>
+                  {rows.next.slice(nextAt.start, nextAt.end).map((row, at) => (
                     <View
                       key={row.song.id}
-                      style={[styles.placed, { top: (playedAt.start + at) * ROW_HEIGHT }]}
+                      style={[styles.placed, { top: (nextAt.start + at) * ROW_HEIGHT }]}
                     >
                       <RailRow
                         song={row.song}
                         index={row.index}
                         artUri={artFor(row.song)}
-                        kind="played"
-                        placeholder={false}
-                        shift={0}
-                        carrying={false}
+                        kind="next"
+                        placeholder={drag?.from === row.index}
+                        // A row out past the rail's edge is being removed, not
+                        // moved, so the room it had opened closes again.
+                        shift={drag && !drag.out ? roomShift(row.index, drag.from, drag.over) : 0}
+                        carrying={drag !== null}
                         settling={lift.wearing === row.song.id}
                         actions={actions}
                       />
                     </View>
                   ))}
                 </View>
-              </>
-            ) : null}
-          </Animated.View>
-          {hintIn.mounted ? (
-            <Animated.View
-              style={[
-                styles.hint,
-                // Under the first song to come, the one it is about; last, so
-                // it is drawn over the rows.
-                { top: (playing ? ROW_HEIGHT : 0) + ROW_HEIGHT + 6, opacity: hintIn.progress },
-              ]}
-              testID="queue-rail-hint"
-            >
-              <Pressable
-                onPress={hint.dismiss}
-                accessibilityRole="button"
-                accessibilityHint="Dismisses the tip"
-                accessibilityLiveRegion="polite"
-              >
-                {/* "right‑click" with a hyphen that does not break, so the bubble
+                {rows.played.length > 0 ? (
+                  <>
+                    <Text
+                      style={styles.label}
+                      onLayout={event => setPlayedLabel(event.nativeEvent.layout.height)}
+                    >
+                      Played
+                    </Text>
+                    <View style={{ height: rows.played.length * ROW_HEIGHT }}>
+                      {rows.played.slice(playedAt.start, playedAt.end).map((row, at) => (
+                        <View
+                          key={row.song.id}
+                          style={[styles.placed, { top: (playedAt.start + at) * ROW_HEIGHT }]}
+                        >
+                          <RailRow
+                            song={row.song}
+                            index={row.index}
+                            artUri={artFor(row.song)}
+                            kind="played"
+                            placeholder={false}
+                            shift={0}
+                            carrying={false}
+                            settling={lift.wearing === row.song.id}
+                            actions={actions}
+                          />
+                        </View>
+                      ))}
+                    </View>
+                  </>
+                ) : null}
+              </Animated.View>
+              {hintIn.mounted ? (
+                <Animated.View
+                  style={[
+                    styles.hint,
+                    // Under the first song to come, the one it is about; last, so
+                    // it is drawn over the rows.
+                    { top: (playing ? ROW_HEIGHT : 0) + ROW_HEIGHT + 6, opacity: hintIn.progress },
+                  ]}
+                  testID="queue-rail-hint"
+                >
+                  <Pressable
+                    onPress={hint.dismiss}
+                    accessibilityRole="button"
+                    accessibilityHint="Dismisses the tip"
+                    accessibilityLiveRegion="polite"
+                  >
+                    {/* "right‑click" with a hyphen that does not break, so the bubble
                     never splits the word across its two lines. A touch has no
                     right-click to offer. */}
-                <Text style={styles.hintText}>
-                  {finePointer
-                    ? 'Drag a song out to remove it, or right‑click for more.'
-                    : 'Drag a song out to remove it.'}
-                </Text>
-              </Pressable>
-            </Animated.View>
-          ) : null}
-        </ScrollView>
+                    <Text style={styles.hintText}>
+                      {finePointer
+                        ? 'Drag a song out to remove it, or right‑click for more.'
+                        : 'Drag a song out to remove it.'}
+                    </Text>
+                  </Pressable>
+                </Animated.View>
+              ) : null}
+            </ScrollView>
 
-        <View style={styles.autoMix}>
-          <Toggle
-            value={player.autoMix}
-            onChange={player.setAutoMix}
-            label="Auto-mix"
-            testID="auto-mix"
-          />
-          <Text style={styles.autoMixLabel}>Auto-mix</Text>
-          <Text style={styles.autoMixHint} numberOfLines={1}>
-            {autoMixLine({
-              autoMix: player.autoMix,
-              canCrossfade: player.canCrossfade,
-              upcoming: rows.next.length,
-              nextCrossfadeSeconds: player.nextCrossfadeSeconds,
-            })}
-          </Text>
-        </View>
+            <View style={styles.autoMix}>
+              <Toggle
+                value={player.autoMix}
+                onChange={player.setAutoMix}
+                label="Auto-mix"
+                testID="auto-mix"
+              />
+              <Text style={styles.autoMixLabel}>Auto-mix</Text>
+              <Text style={styles.autoMixHint} numberOfLines={1}>
+                {autoMixLine({
+                  autoMix: player.autoMix,
+                  canCrossfade: player.canCrossfade,
+                  upcoming: rows.next.length,
+                  nextCrossfadeSeconds: player.nextCrossfadeSeconds,
+                })}
+              </Text>
+            </View>
+          </>
+        )}
 
         <Popover
           open={menuRow !== null}
@@ -862,6 +878,7 @@ const styles = StyleSheet.create(theme => ({
     boxShadow: `-18px 0 40px ${theme.colors.floatShadow}`,
   },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headButtons: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   title: sectionTitle(theme.colors),
   summary: { color: theme.colors.textSecondary, fontSize: type.small, marginTop: -6 },
   list: { flex: 1, marginHorizontal: -6 },
@@ -877,6 +894,7 @@ const styles = StyleSheet.create(theme => ({
   },
   hintText: { color: theme.colors.textPrimary, fontSize: type.small, lineHeight: leading.small },
   listContent: { paddingBottom: space.md },
+  roomContent: { paddingHorizontal: 6, paddingBottom: space.md },
   label: { ...label(theme.colors), paddingTop: space.md, paddingBottom: space.xs, paddingLeft: 6 },
   slot: { height: ROW_HEIGHT, borderRadius: radius.cover },
   // A drawn row at its place in its run, which keeps the height of every row.

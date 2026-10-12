@@ -95,6 +95,8 @@ const ALLOWED = new Map([
   ['MovingProps', 'StageMove, both twins'],
   // Read by the Workers runtime, not by an import: wrangler.toml names the class.
   ['Changes', 'the doorman’s Durable Object class, bound by name in wrangler.toml'],
+  ['Room', 'the doorman’s room Durable Object class, bound by name in wrangler.toml'],
+  ['RoomObject', 'exported from the doorman’s index.ts as Room, the name wrangler.toml binds'],
   // Module state a test empties between cases; nothing the app runs needs it.
   ['forgetChipWidths', 'rowTags.ts, emptied between its tests'],
   ['resetImportDraft', 'importDraft.ts, emptied between the review tests'],

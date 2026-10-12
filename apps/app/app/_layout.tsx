@@ -20,6 +20,7 @@ import { LibraryFilterProvider } from '../src/features/library/libraryFilter'
 import { CarProvider } from '../src/ports/car/CarProvider'
 import { DownloadsProvider } from '../src/offline/DownloadsProvider'
 import { useKeepAlongside } from '../src/offline/useKeepAlongside'
+import { RoomProvider } from '../src/features/room/RoomProvider'
 import { PlayerProvider } from '../src/player/PlayerProvider'
 import { useRecordRecentLists } from '../src/features/lists/recentLists.store'
 import { usePlaybackMemory } from '../src/player/usePlaybackMemory'
@@ -37,6 +38,7 @@ import { installedApp } from '../src/ports/install'
 import { storedFirstSync } from '../src/features/welcome/firstSyncMemory'
 import { useLayout } from '../src/shell/useLayout'
 import { setRootWidth } from '../src/shell/rootWidth'
+import { opensSignedOut } from '../src/shell/fullScreen.model'
 import { pageOwnsScreen, setPageChrome } from '../src/shell/pageChrome'
 import { SIDEBAR_WIDTH } from '../src/shell/Sidebar'
 import { useStageArriving } from '../src/shell/stageArrival'
@@ -178,20 +180,23 @@ export default function RootLayout(): ReactNode {
                     build a heartbeat and calls back into it to execute a handoff,
                     and the player has no idea other devices exist.
                   */}
-                  <DevicesProvider>
-                    <CarProvider>
-                      {/* Around the shell: the sidebar and the library share it. */}
-                      <LibraryFilterProvider>
-                        <RootRoutes />
-                        {/* What is kept in step behind the pages: drawn as nothing. */}
-                        <Keeping />
-                        {/* The home-screen widget's snapshot, where there is one. */}
-                        <WidgetSync />
-                        {/* The bucket refusing for the day, said once. */}
-                        <BucketHoldNotice />
-                      </LibraryFilterProvider>
-                    </CarProvider>
-                  </DevicesProvider>
+                  {/* Listening together: the room's songs, and the host's player playing them. */}
+                  <RoomProvider>
+                    <DevicesProvider>
+                      <CarProvider>
+                        {/* Around the shell: the sidebar and the library share it. */}
+                        <LibraryFilterProvider>
+                          <RootRoutes />
+                          {/* What is kept in step behind the pages: drawn as nothing. */}
+                          <Keeping />
+                          {/* The home-screen widget's snapshot, where there is one. */}
+                          <WidgetSync />
+                          {/* The bucket refusing for the day, said once. */}
+                          <BucketHoldNotice />
+                        </LibraryFilterProvider>
+                      </CarProvider>
+                    </DevicesProvider>
+                  </RoomProvider>
                 </PlayerProvider>
               </DownloadsProvider>
             </ConnectionProvider>
@@ -251,7 +256,11 @@ function RootRoutes(): ReactNode {
     // server does not have to be running. Welcome is where it starts, and in a
     // development build it also takes a server's address, for the simulator
     // tests. Signing out lands here too, by the same rule.
-    if (status === 'missing' && pathname !== '/welcome') router.replace('/welcome')
+    // A room's invite and the room itself are the exception: a friend
+    // without self.mp3 joins with a name (docs/features/listen-together.md).
+    if (status === 'missing' && pathname !== '/welcome' && !opensSignedOut(pathname)) {
+      router.replace('/welcome')
+    }
   }, [status, pathname, router])
 
   // Welcome with a library is done: an account with no bucket yet goes to

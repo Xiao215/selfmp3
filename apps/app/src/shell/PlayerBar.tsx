@@ -7,6 +7,7 @@ import type { LayoutChangeEvent } from 'react-native'
 import { usePathname, useRouter } from 'expo-router'
 import { artistOr, clamp01 } from '@selfmp3/shared'
 import { warmCoverPalette } from '../features/nowPlaying/useCoverPalette'
+import { isRoomTrackId } from '@selfmp3/client'
 import { radius, space, type, useToggleLoved, withAlpha, type SongColors } from '@selfmp3/client'
 import { DevicesSheet } from '../features/devices/DevicesSheet'
 import { UpNextTarget } from '../ui/components/CoverFlight'
@@ -173,8 +174,9 @@ export function PlayerBar(): ReactNode {
               </View>
             </Pressable>
             {/* Under the tight width the song's name needs the room more: Like and
-                Tags are on Now Playing and in the song menu as well. */}
-            {tight ? null : (
+                Tags are on Now Playing and in the song menu as well. A friend's
+                song in a room is not in your library to like or tag. */}
+            {tight || isRoomTrackId(song.id) ? null : (
               <>
                 <IconButton
                   onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}

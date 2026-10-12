@@ -12,3 +12,4 @@ import { createDoorman } from './doorman.js'
 export default createDoorman() satisfies ExportedHandler<Env>
 
 export { ChangesObject as Changes } from './changes.js'
+export { RoomObject as Room } from './room.js'

@@ -4,6 +4,7 @@ import type { Fetch, FetchInit } from './bucket.js'
 import { ChangesObject } from './changes.js'
 import type { Env } from './context.js'
 import { createDoorman, type Doorman } from './doorman.js'
+import { Room, type RoomSocket } from './room.js'
 import { toBase64, toBase64Url, utf8 } from './encoding.js'
 import type { KvStore } from './kv.js'
 
@@ -542,6 +543,110 @@ export class FakeChanges {
   }
 }
 
+/** A member's socket in a fake room: what it was sent, and whether it was closed. */
+export class FakeSocket implements RoomSocket {
+  readonly sent: unknown[] = []
+  closed: { code: number; reason: string } | null = null
+
+  constructor(readonly member: string) {}
+
+  send(text: string): void {
+    if (this.closed) throw new Error('the socket is closed')
+    this.sent.push(JSON.parse(text))
+  }
+
+  close(code: number, reason: string): void {
+    this.closed = { code, reason }
+  }
+
+  /** The last message of a kind it was sent. */
+  last(type: string): Record<string, unknown> | undefined {
+    return [...this.sent]
+      .reverse()
+      .find(message => (message as { type?: string }).type === type) as
+      Record<string, unknown> | undefined
+  }
+}
+
+/**
+ * A Durable Object namespace of real `Room`s, each with storage in a map, an
+ * alarm the test can ring, and sockets the test can read. An upgrade cannot be
+ * answered with a 101 outside the Workers runtime, so a fake room answers it
+ * with a 200 (JSON, as the doorman passes any answer but a 101 on) and keeps
+ * a `FakeSocket` for the member instead.
+ */
+export class FakeRooms {
+  readonly rooms = new Map<
+    string,
+    { room: Room; values: Map<string, unknown>; sockets: FakeSocket[]; alarm: number | null }
+  >()
+
+  constructor(readonly clock: Clock) {}
+
+  namespace(): DurableObjectNamespace {
+    const get = (id: { name: string }) => ({
+      fetch: (input: string | Request, init?: RequestInit): Promise<Response> =>
+        this.#room(id.name).room.fetch(new Request(input, init)),
+    })
+    return { idFromName: (name: string) => ({ name }), get } as unknown as DurableObjectNamespace
+  }
+
+  /** The sockets open in a room, by member. */
+  sockets(code: string): FakeSocket[] {
+    return this.#room(code).sockets.filter(socket => !socket.closed)
+  }
+
+  alarmOf(code: string): number | null {
+    return this.#room(code).alarm
+  }
+
+  /** Ring the room's alarm, as the runtime would once its time came. */
+  ring(code: string): Promise<void> {
+    return this.#room(code).room.alarm()
+  }
+
+  stored(code: string): Map<string, unknown> {
+    return this.#room(code).values
+  }
+
+  #room(name: string) {
+    let held = this.rooms.get(name)
+    if (!held) {
+      const values = new Map<string, unknown>()
+      const sockets: FakeSocket[] = []
+      const entry = { values, sockets, alarm: null as number | null, room: null as unknown as Room }
+      entry.room = new Room({
+        storage: {
+          get: <T>(key: string) =>
+            Promise.resolve(structuredClone(values.get(key)) as T | undefined),
+          put: <T>(key: string, value: T) => {
+            values.set(key, structuredClone(value))
+            return Promise.resolve()
+          },
+          deleteAll: () => {
+            values.clear()
+            entry.alarm = null
+            return Promise.resolve()
+          },
+          setAlarm: when => {
+            entry.alarm = when
+            return Promise.resolve()
+          },
+        },
+        accept: (_request, member) => {
+          sockets.push(new FakeSocket(member))
+          return Response.json({ socket: member })
+        },
+        sockets: () => sockets.filter(socket => !socket.closed),
+        now: () => this.clock.now,
+      })
+      held = entry
+      this.rooms.set(name, held)
+    }
+    return held
+  }
+}
+
 // --- The harness -----------------------------------------------------------------
 
 export interface Harness {
@@ -552,6 +657,7 @@ export interface Harness {
   readonly bucket: FakeBucket
   readonly backblaze: FakeBackblaze
   readonly changes: FakeChanges
+  readonly rooms: FakeRooms
   readonly clock: Clock
   /** Every request the doorman made to the outside, in order, with the options fetch was given. */
   readonly outside: Array<SeenRequest & { readonly init: FetchInit }>
@@ -641,6 +747,7 @@ export function harness(): Harness {
   const bucket = new FakeBucket()
   const backblaze = new FakeBackblaze()
   const changes = new FakeChanges()
+  const rooms = new FakeRooms(clock)
   const outside: Harness['outside'] = []
 
   const internet: Fetch = async (address, init) => {
@@ -658,6 +765,7 @@ export function harness(): Harness {
   const env: Harness['env'] = {
     KV: kv,
     CHANGES: changes.namespace(),
+    ROOMS: rooms.namespace(),
     GOOGLE_CLIENT_ID: CLIENT_ID,
     GOOGLE_CLIENT_SECRET: CLIENT_SECRET,
     SEAL_KEY,
@@ -742,6 +850,7 @@ export function harness(): Harness {
     bucket,
     backblaze,
     changes,
+    rooms,
     clock,
     outside,
     logs,

@@ -22,6 +22,7 @@ import {
   noContent,
   notFound,
 } from './http.js'
+import type { Bucket } from './bucket.js'
 import type { Session } from './sessions.js'
 
 /**
@@ -131,6 +132,21 @@ async function read(
   key: string,
   method: 'GET' | 'HEAD',
 ): Promise<Response> {
+  return relayRead(ctx, await requireBucket(ctx, session), key, method)
+}
+
+/**
+ * A file from a bucket, as a device reads it: the request's range and
+ * conditions passed on, and what the bucket says about the file passed back.
+ * A device's own reads come here, and so do a room's members' reads of a
+ * song lent to the room (rooms.ts).
+ */
+export async function relayRead(
+  ctx: Context,
+  bucket: Bucket,
+  key: string,
+  method: 'GET' | 'HEAD',
+): Promise<Response> {
   const forward = new Headers()
   const range = ctx.request.headers.get('range')
   if (range !== null && RANGE.test(range.trim())) forward.set('range', range.trim())
@@ -139,7 +155,6 @@ async function read(
     if (value !== null) forward.set(name, value)
   }
 
-  const bucket = await requireBucket(ctx, session)
   const upstream = await bucket.fetchObject(method, key, forward)
   if (!upstream) throw notFound('no such file')
   if (upstream.status === 412) {

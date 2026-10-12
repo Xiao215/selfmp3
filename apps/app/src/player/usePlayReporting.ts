@@ -36,11 +36,17 @@ interface PlayReporting {
 
 export function usePlayReporting({
   songs,
+  countAs,
   keepPlayed,
   connection,
 }: {
   /** The library, for the song's length: how much counts as a play. */
   readonly songs: RefObject<ReadonlyMap<number, Song>>
+  /**
+   * Which library song a play counts for: itself, or for a room's song your
+   * own copy of it, or null for a friend's song, which counts for nobody here.
+   */
+  readonly countAs: (songId: number) => number | null
   /** A song listened to is one worth keeping here, where songs stream. */
   readonly keepPlayed: (songId: number) => void
   /** Only to send again when the server this device talks to changes. */
@@ -60,11 +66,14 @@ export function usePlayReporting({
       if (!completed && held.listenedSeconds < needed) return
 
       held.counted = true
+      const counted = countAs(songId)
       // Kept on the phone first: with the server asleep it goes when the server wakes.
-      recordListen(songId, Math.round(held.listenedSeconds * 1000), completed)
+      if (counted !== null) {
+        recordListen(counted, Math.round(held.listenedSeconds * 1000), completed)
+      }
       keepPlayed(songId)
     },
-    [keepPlayed, songs, tracking],
+    [countAs, keepPlayed, songs, tracking],
   )
 
   useEffect(() => {

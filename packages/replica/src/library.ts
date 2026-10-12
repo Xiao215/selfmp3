@@ -28,10 +28,12 @@ import {
   type SyncManifest,
   MotionSchema,
   type Motion,
+  type RoomSong,
 } from '@selfmp3/shared'
 import type { EditContext } from './edits.js'
 import { bucketHold, BUCKET_CAP_CODE } from './hold.js'
 import { upgradeKeptBase } from './keptBase.js'
+import { roomSongOf } from './roomSong.js'
 import { foldedOwnLogs, latestStamp, replay, replayedSnapshot } from './replay.js'
 import {
   NO_IDS,
@@ -271,6 +273,12 @@ export interface CloudLibraryApi {
     readonly artists: readonly ArtistPictureKeys[]
   } | null
   cloudManifest: (scope: 'library' | 'playlists') => SyncManifest
+  /**
+   * One of your songs as a listening room carries it (roomSong.ts), from the
+   * library held in memory; null while none is loaded, or for a song a room
+   * could not play.
+   */
+  cloudRoomSongNow: (songId: number) => RoomSong | null
   forgetCloudLibrary: () => Promise<void>
 }
 
@@ -1156,6 +1164,15 @@ export function createCloudLibrary(
   }
 
   /** What this device should keep, for automatic downloads: every song, or those in playlists. */
+  function cloudRoomSongNow(songId: number): RoomSong | null {
+    const view = replica?.view
+    const files = view?.files[songId]
+    const song = view?.library.songs.find(candidate => candidate.id === songId)
+    if (!view || !files || !song) return null
+    const uid = Object.entries(view.ids.songs).find(([, id]) => id === songId)?.[0] ?? null
+    return roomSongOf(song, files, uid)
+  }
+
   function cloudManifest(scope: 'library' | 'playlists'): SyncManifest {
     const view = replica?.view
     if (!view) return { version: 0, songCount: 0, totalBytes: 0, entries: [] }
@@ -1248,6 +1265,7 @@ export function createCloudLibrary(
     cloudArtistPictureNow,
     cloudPicturesNow,
     cloudManifest,
+    cloudRoomSongNow,
     forgetCloudLibrary,
   }
 }

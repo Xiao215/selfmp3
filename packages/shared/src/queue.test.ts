@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  withUpcoming,
   insertAt,
   advance,
   cycleRepeat,
@@ -401,5 +402,28 @@ describe('queueSections', () => {
     const { next, played } = queueSections(state)
     expect(removeAt(state, next[0]?.index ?? -1).items).toEqual([5, 6])
     expect(removeAt(state, played[0]?.index ?? -1).items).toEqual([6, 7])
+  })
+})
+
+describe('withUpcoming', () => {
+  it('keeps the playing song and those before it, and puts the list after it', () => {
+    const state: QueueState = {
+      items: [1, 2, 3, 4],
+      index: 1,
+      original: [4, 3, 2, 1],
+      shuffle: true,
+      repeat: 'off',
+    }
+    expect(withUpcoming(state, [9, 2, 8])).toEqual({
+      items: [1, 2, 9, 8],
+      index: 1,
+      original: [1, 2, 9, 8],
+      shuffle: false,
+      repeat: 'off',
+    })
+  })
+
+  it('leaves nothing playing when nothing was', () => {
+    expect(withUpcoming(EMPTY_QUEUE, [5, 6])).toMatchObject({ items: [5, 6], index: -1 })
   })
 })

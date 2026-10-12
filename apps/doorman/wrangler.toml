@@ -50,9 +50,19 @@ id = "ac00b5cff3df480fabc0df100615d071"
 name = "CHANGES"
 class_name = "Changes"
 
+# Listening rooms (src/room.ts): one Durable Object per room code, holding the
+# room and its members' WebSockets while it lasts, and nothing once it ends.
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Changes"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Room"]
 
 # Secrets, set once with `npx wrangler secret put <NAME>`, typing the value when asked:
 #   GOOGLE_CLIENT_SECRET  the OAuth client's secret, from the Google Cloud console
@@ -76,3 +86,7 @@ id = "local-dev-only"
 [[env.dev.durable_objects.bindings]]
 name = "CHANGES"
 class_name = "Changes"
+
+[[env.dev.durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"

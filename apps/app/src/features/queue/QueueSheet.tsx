@@ -54,6 +54,8 @@ import {
   type QueueRow,
 } from './queue.model'
 import { useQueueEdits } from './useQueueEdits'
+import { RoomList, TogetherButton } from '../room/RoomList'
+import { useRoom } from '../room/room.store'
 
 /** How far below the status bar the sheet's top edge sits (`P25`: the page's title peeks out). */
 const SHEET_TOP = 16
@@ -82,12 +84,14 @@ export function QueueSheet({ go }: { go?: (href: Href) => void }): ReactNode {
   const open = useQueueSheetOpen()
   const { wide } = useLayout()
   const loaded = usePlayer().current !== null
-  const shown = open && loaded && !wide
+  // In a room, Up next is the room's, whether or not this device plays it.
+  const inRoom = useRoom().state !== null
+  const shown = open && (loaded || inRoom) && !wide
 
   // Nothing left to show: the queue was cleared, or its last song removed.
   useEffect(() => {
-    if (open && !loaded) closeQueueSheet()
-  }, [open, loaded])
+    if (open && !loaded && !inRoom) closeQueueSheet()
+  }, [open, loaded, inRoom])
 
   // Mounted from the moment it is asked for until its exit has played out,
   // as `Sheet` is. Adjusted during render so opening never shows a frame without it.
@@ -142,6 +146,7 @@ function SheetPanel({
   const artFor = useArt(ROW_COVER_SIZE)
   const { state: downloads, installed, streamBlocked } = useDownloads()
   const { player, rows, remove, clearRest, tagsOf, openTag } = edits
+  const inRoom = useRoom().state !== null
   const [progress] = useState(() => new Animated.Value(0))
   const [pull] = useState(() => new Animated.Value(0))
   // The dim's opacity, a native node built once: the curve runs past 1 on the
@@ -344,50 +349,65 @@ function SheetPanel({
             >
               <View style={styles.grabber} />
             </Pressable>
-            <View style={styles.titleRow}>
-              <Text style={styles.title} accessibilityRole="header">
-                Up next
-              </Text>
-              <View style={styles.pills}>
-                {/* On is white, as a chosen chip is (proposal P1); the
+            {inRoom ? null : (
+              <View style={styles.titleRow}>
+                <Text style={styles.title} accessibilityRole="header">
+                  Up next
+                </Text>
+                <View style={styles.pills}>
+                  {/* On is white, as a chosen chip is (proposal P1); the
                     transport's own shuffle says it in colour instead. */}
-                <Button
-                  label="Shuffle"
-                  icon={
-                    <Shuffle
-                      size={16}
-                      color={
-                        player.queue.shuffle ? theme.colors.onPrimary : theme.colors.textPrimary
-                      }
-                    />
-                  }
-                  active={player.queue.shuffle}
-                  onPress={player.toggleShuffle}
-                />
-                {/* Outlined, so it is not read as a second mode beside Shuffle,
+                  <Button
+                    label="Shuffle"
+                    icon={
+                      <Shuffle
+                        size={16}
+                        color={
+                          player.queue.shuffle ? theme.colors.onPrimary : theme.colors.textPrimary
+                        }
+                      />
+                    }
+                    active={player.queue.shuffle}
+                    onPress={player.toggleShuffle}
+                  />
+                  {/* Outlined, so it is not read as a second mode beside Shuffle,
                     and it says what it leaves: the song playing carries on. */}
-                <Pressable
-                  onPress={clearRest}
-                  disabled={!clearable}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: !clearable }}
-                  testID="queue-clear-rest"
-                  style={({ pressed }) => [
-                    styles.pill,
-                    styles.pillGhost,
-                    pressed && styles.pillGhostPressed,
-                    !clearable && styles.pillOff,
-                  ]}
-                >
-                  <Text style={styles.pillText}>Clear the rest</Text>
-                </Pressable>
+                  <Pressable
+                    onPress={clearRest}
+                    disabled={!clearable}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: !clearable }}
+                    testID="queue-clear-rest"
+                    style={({ pressed }) => [
+                      styles.pill,
+                      styles.pillGhost,
+                      pressed && styles.pillGhostPressed,
+                      !clearable && styles.pillOff,
+                    ]}
+                  >
+                    <Text style={styles.pillText}>Clear the rest</Text>
+                  </Pressable>
+                </View>
               </View>
-            </View>
-            <UpNextSource onOpen={closeQueueSheet} go={go} />
+            )}
+            {inRoom ? null : (
+              <View style={styles.sourceRow}>
+                <View style={styles.source}>
+                  <UpNextSource onOpen={closeQueueSheet} go={go} />
+                </View>
+                <TogetherButton labelled />
+              </View>
+            )}
           </View>
         </GestureDetector>
 
-        {playing ? (
+        {inRoom ? (
+          <ScrollView style={styles.list} contentContainerStyle={styles.roomContent}>
+            <RoomList />
+          </ScrollView>
+        ) : null}
+
+        {playing && !inRoom ? (
           <PlayingCard
             song={playing.song}
             artUri={artFor(playing.song)}
@@ -398,48 +418,50 @@ function SheetPanel({
           />
         ) : null}
 
-        <ScrollView
-          style={styles.list}
-          contentContainerStyle={styles.listContent}
-          scrollEnabled={drag === null}
-        >
-          {ended && playing ? (
-            <OnlySongEnd song={playing.song} player={player} />
-          ) : (
-            <Text style={styles.label}>{nextLabel(rows.next)}</Text>
-          )}
-          {shownNext.map(entry => row(entry, true))}
-          {rows.next.length > shownNext.length ? (
-            <Text style={styles.more}>
-              and {plural(rows.next.length - shownNext.length, 'song', 'songs')} after that
-            </Text>
-          ) : null}
-          {rows.played.length > 0 ? (
-            <>
-              <Text style={[styles.label, styles.playedLabel]}>Played</Text>
-              {shownPlayed.map(entry => row(entry, false))}
-            </>
-          ) : null}
+        {inRoom ? null : (
+          <ScrollView
+            style={styles.list}
+            contentContainerStyle={styles.listContent}
+            scrollEnabled={drag === null}
+          >
+            {ended && playing ? (
+              <OnlySongEnd song={playing.song} player={player} />
+            ) : (
+              <Text style={styles.label}>{nextLabel(rows.next)}</Text>
+            )}
+            {shownNext.map(entry => row(entry, true))}
+            {rows.next.length > shownNext.length ? (
+              <Text style={styles.more}>
+                and {plural(rows.next.length - shownNext.length, 'song', 'songs')} after that
+              </Text>
+            ) : null}
+            {rows.played.length > 0 ? (
+              <>
+                <Text style={[styles.label, styles.playedLabel]}>Played</Text>
+                {shownPlayed.map(entry => row(entry, false))}
+              </>
+            ) : null}
 
-          <View style={styles.autoMix}>
-            <Toggle
-              value={player.autoMix}
-              onChange={player.setAutoMix}
-              label="Auto-mix"
-              testID="auto-mix"
-            />
-            <Text style={styles.autoMixLabel}>Auto-mix</Text>
-            <Text style={styles.autoMixHint} numberOfLines={1}>
-              {autoMixLine({
-                autoMix: player.autoMix,
-                canCrossfade: player.canCrossfade,
-                upcoming: rows.next.length,
-                nextCrossfadeSeconds: player.nextCrossfadeSeconds,
-              })}
-            </Text>
-          </View>
-          <Text style={styles.hint}>Hold a song to move it · swipe left to remove it</Text>
-        </ScrollView>
+            <View style={styles.autoMix}>
+              <Toggle
+                value={player.autoMix}
+                onChange={player.setAutoMix}
+                label="Auto-mix"
+                testID="auto-mix"
+              />
+              <Text style={styles.autoMixLabel}>Auto-mix</Text>
+              <Text style={styles.autoMixHint} numberOfLines={1}>
+                {autoMixLine({
+                  autoMix: player.autoMix,
+                  canCrossfade: player.canCrossfade,
+                  upcoming: rows.next.length,
+                  nextCrossfadeSeconds: player.nextCrossfadeSeconds,
+                })}
+              </Text>
+            </View>
+            <Text style={styles.hint}>Hold a song to move it · swipe left to remove it</Text>
+          </ScrollView>
+        )}
       </Animated.View>
       {tagPicker}
     </View>
@@ -793,6 +815,8 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface3,
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sourceRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  source: { flex: 1, minWidth: 0 },
   title: {
     color: theme.colors.textPrimary,
     fontFamily: fonts.display,
@@ -858,6 +882,7 @@ const styles = StyleSheet.create(theme => ({
   cardPlayPressed: { transform: [{ scale: 0.96 }] },
   list: { flex: 1 },
   listContent: { paddingBottom: space.lg },
+  roomContent: { paddingHorizontal: 18, paddingBottom: space.lg },
   label: { ...label(theme.colors), paddingHorizontal: 18, paddingBottom: space.xs },
   playedLabel: { paddingTop: space.md },
   more: { color: theme.colors.textMuted, fontSize: type.sub, paddingVertical: 10 },

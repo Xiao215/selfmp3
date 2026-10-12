@@ -196,6 +196,25 @@ export function insertAt(state: QueueState, songIds: readonly number[], at: numb
   return { ...state, items, original: withOriginal(state, inserted), index }
 }
 
+/**
+ * Everything after the playing song, replaced by these songs in this order:
+ * what a room's host does whenever the room's list changes
+ * (docs/features/listen-together.md). The playing song and those before it
+ * stay where they are, and the list is in its own order, so shuffle goes off.
+ */
+export function withUpcoming(state: QueueState, songIds: readonly number[]): QueueState {
+  const current = state.items[state.index]
+  const kept = state.index >= 0 ? state.items.slice(0, state.index + 1) : []
+  const items = [...kept, ...songIds.filter(id => id !== current)]
+  return {
+    ...state,
+    items,
+    original: items,
+    shuffle: false,
+    index: state.index,
+  }
+}
+
 /** Append to the end of the queue. */
 export function enqueue(state: QueueState, songIds: readonly number[]): QueueState {
   if (songIds.length === 0) return state

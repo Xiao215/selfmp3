@@ -24,6 +24,7 @@ import { z } from 'zod'
  *   GET    /v1/list?prefix=<p>&cursor=<c>
  *   GET    /v1/changes                                 → the account's change counter
  *   GET | HEAD | PUT | DELETE  /v1/files/<key>
+ *   /v1/rooms/…                                         listening rooms (schemas/room.ts)
  *
  * Everything but health, start, callback and claim needs
  * `Authorization: Bearer <session>`.

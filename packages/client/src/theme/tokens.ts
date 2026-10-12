@@ -139,6 +139,27 @@ export function tagColors(
   }
 }
 
+/**
+ * The eight hues a listening room gives its people, in the order it hands
+ * them out (`RoomMember.colour`): the host's is the first.
+ */
+const ROOM_FACE_HUES = [268, 55, 180, 350, 300, 95, 140, 20] as const
+
+/**
+ * A person's face in a room (docs/features/listen-together.md): a round fill
+ * in their hue with their initial on it. Light enough in both themes to
+ * take dark ink, so the letter reads the same everywhere.
+ */
+export function roomFace(
+  colour: number,
+  scheme: ColorScheme = activeScheme,
+): { fill: string; ink: string } {
+  const hue = ROOM_FACE_HUES[colour % ROOM_FACE_HUES.length] ?? DEFAULT_ACCENT_HUE
+  return scheme === 'light'
+    ? { fill: oklchToHex(0.74, 0.13, hue), ink: oklchToHex(0.22, 0.04, hue) }
+    : { fill: oklchToHex(0.8, 0.11, hue), ink: oklchToHex(0.2, 0.03, hue) }
+}
+
 export type Accent = ReturnType<typeof buildAccent>
 
 /**

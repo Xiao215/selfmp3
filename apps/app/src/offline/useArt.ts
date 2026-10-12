@@ -3,6 +3,7 @@ import type { Song } from '@selfmp3/shared'
 import { artAddress } from '../api/mediaAddress.model'
 import { mediaSourcesFor } from '../api/mediaSources'
 import { useConnection } from '../connection/ConnectionProvider'
+import { roomTrack } from '../player/roomTracks'
 import { watchCovers } from './coverChanges'
 import {
   coverFailed,
@@ -59,6 +60,10 @@ export function useArt(drawnAt: number = KEPT_COVER_SIZE): (song: Song) => Art {
 
   return useCallback(
     (song: Song): Art => {
+      // A room's song: your own copy's picture when this device keeps one,
+      // else the one the room lends (player/roomTracks.ts).
+      const track = roomTrack(song.id)
+      if (track) return (track.yours !== null ? coverFor(track.yours) : null) ?? track.cover
       if (!song.hasArt) return null
       watch.ask(song.id)
       // Whichever address this library has, if it has one.

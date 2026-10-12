@@ -59,6 +59,11 @@ export * from './devices/translate.js'
 
 export { createListenOutbox } from './listens/outbox.js'
 
+/** Listening together: a room on the doorman, its clock, and its songs as tracks. */
+export * from './room/roomApi.js'
+export * from './room/roomClock.js'
+export * from './room/roomTracks.js'
+
 /** The colours a cover lends Now Playing. */
 export * from './art/palette.js'
 /** The colour a cover lends what is playing: the row, the bars. */

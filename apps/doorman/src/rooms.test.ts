@@ -165,6 +165,18 @@ describe('songs a friend brings', () => {
     expect(asked).toBe(`/${BUCKET}/mia/${AUDIO}`)
   })
 
+  it('may be read by the web app’s audio element, which asks with credentials', async () => {
+    const s = await setup()
+    const mia = await join(s, 'Mia', s.friend)
+    const added = await state(await act(s, mia, { type: 'add', song: song('x') }, s.friend))
+    const response = await s.h.call(
+      `/v1/rooms/${s.room.code}/files/${added.entries[0]?.id ?? ''}/audio?t=${s.room.token}`,
+      { origin: APP_ORIGIN },
+    )
+    expect(response.headers.get('access-control-allow-origin')).toBe(APP_ORIGIN)
+    expect(response.headers.get('access-control-allow-credentials')).toBe('true')
+  })
+
   it('need the friend signed in as the member who joined', async () => {
     const s = await setup()
     const mia = await join(s, 'Mia', s.friend)

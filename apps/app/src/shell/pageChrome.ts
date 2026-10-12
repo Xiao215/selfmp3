@@ -1,5 +1,5 @@
 import { createValueStore } from '../state/valueStore.model'
-import { FULL_SCREEN_ROUTES } from './fullScreen.model'
+import { FULL_SCREEN_ROUTES, opensSignedOut } from './fullScreen.model'
 import { useValueStore } from '../state/useValueStore'
 
 /**
@@ -27,7 +27,7 @@ const PHONE_FULL_SCREEN = ['/profile', '/import', '/stats', '/settings', '/searc
 
 /** Does this page take the whole display, leaving no room for the chrome? */
 export function pageOwnsScreen(pathname: string, wide: boolean): boolean {
-  if (FULL_SCREEN_ROUTES.includes(pathname)) return true
+  if (FULL_SCREEN_ROUTES.includes(pathname) || opensSignedOut(pathname)) return true
   if (wide) return false
   return PHONE_FULL_SCREEN.some(route => pathname === route || pathname.startsWith(`${route}/`))
 }

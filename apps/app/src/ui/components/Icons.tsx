@@ -461,6 +461,25 @@ export const Devices = icon(() => (
   </>
 ))
 
+/** To the top of a list: what a room's host does to play a song next. */
+export const ToTop = icon(() => (
+  <>
+    <Path d="M5 4h14" />
+    <Path d="M12 20V9" />
+    <Path d="m7 13 5-5 5 5" />
+  </>
+))
+
+/** Listening together (docs/features/listen-together.md): two people, side by side. */
+export const People = icon(() => (
+  <>
+    <Circle cx="9" cy="8" r="3.5" />
+    <Path d="M2.5 20c.6-3.6 3.3-6 6.5-6s5.9 2.4 6.5 6" />
+    <Circle cx="17" cy="9" r="2.6" />
+    <Path d="M17.5 14c2.3.3 3.7 2.4 4 5" />
+  </>
+))
+
 export const Remote = icon(() => (
   <>
     <Rect x="3" y="3" width="10" height="18" rx="2" />

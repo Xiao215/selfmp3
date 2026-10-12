@@ -87,7 +87,13 @@ export async function rooms(ctx: Context): Promise<Response> {
     const file = LentFileSchema.parse(await lent.json())
     const target = await ctx.accounts.bucket(file.sub)
     if (!target) throw notFound('that song’s owner has no bucket connected any more')
-    return relayRead(ctx, new Bucket(target, ctx.bucketDeps), file.key, method)
+    const response = await relayRead(ctx, new Bucket(target, ctx.bucketDeps), file.key, method)
+    // The web app's audio element asks with credentials (apps/app's
+    // engine.web.ts), which a browser lets it read only when the answer says
+    // so, besides naming the origin (cors.ts does that for every answer).
+    // The doorman keeps no cookies, so there is nothing more this lets through.
+    response.headers.set('access-control-allow-credentials', 'true')
+    return response
   }
   throw notFound()
 }

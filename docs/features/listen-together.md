@@ -113,6 +113,54 @@ reach the host's server.
 | The rules: who may do what, taking turns, the clock, what a member may read | `packages/shared/src/room.ts` |
 | A room: one Durable Object per code, its sockets, its alarm | `apps/doorman/src/room.ts` |
 | The doorman's routes, and lending a song's files from its owner's bucket | `apps/doorman/src/rooms.ts` |
+| A device's side: the doorman's routes, the clock's offset, a room song as a track | `packages/client/src/room/` |
+| One of your songs as a room carries it | `packages/replica/src/roomSong.ts` (`cloudRoomSongNow`) |
+| The room this device is in: its pass, its socket, Join, Leave | `apps/app/src/features/room/room.store.ts` |
+| Rows, tracks, the host's plan, Keep it going, what Recently played keeps | `apps/app/src/features/room/room.model.ts` |
+| The host's player playing the room; everyone's phones following it | `apps/app/src/features/room/RoomProvider.tsx` |
+| The room in Up next (phone sheet, computer rail, the room's page) | `apps/app/src/features/room/RoomList.tsx` |
+| Together and the invite, Add songs (Mine, In the room, A link), People | `apps/app/src/features/room/RoomSheets.tsx` |
+| `/join/<code>`, `/room`, `/past-room/<code>` | `apps/app/src/features/room/RoomScreens.tsx` |
+| Who brought the song, and Get it, in Now Playing | `apps/app/src/features/room/RoomSongLine.tsx` |
+
+**A room's songs in the player.** The player and every row are keyed by song id, and a
+friend's song has none on this device. So each room entry gets an id of its own: negative,
+which no library hands out (`roomTrackId`). The room's provider registers each entry as a
+track (`player/roomTracks.ts`): the song, where it streams from, its cover, and your own
+copy if you have one. The player reads that beside the library. A track plays your own copy
+when it can, and otherwise the lent file; a play counts only for your own copy.
+
+**The host's player plays the room** (`hostPlan`). It starts when the first song comes in
+and nothing of your own is playing. It keeps everything after the playing song the room's
+list (`withUpcoming` in `packages/shared/src/queue.ts`). When it ran out and a song arrives,
+it goes on. It reports what it is on whenever that differs from what the room says. It
+acts once on each skip or pause a friend asks for (`want`). Together keeps what was
+playing: the song and what follows it go in as the host's, and the room starts at the
+place the song was.
+
+**Testing it without Google or Backblaze.** The doorman's test harness
+(`apps/doorman/src/fakes.ts`) has a fake Google, KV and bucket. Run in Node behind an HTTP
+server, with real WebSockets for the rooms, it serves the web app as a whole doorman: two
+signed-in accounts, each with a bucket stocked from the development library. That is how
+this was tried in Chromium: a host, a friend on a phone-sized window and a guest, with a
+friend's song playing on the host and, on everyone's phone, in step on the friend's.
+
+## Not built yet
+
+- **Keep it going by sound.** It takes turns between what people brought (shelves, and
+  songs that played, leaving out the last dozen). It does not yet pick by how the last songs
+  sounded: the listening model's vectors are on the server and in each owner's bucket, not
+  on the host's device.
+- **Shared playlists that last** (the second half of A3). A room ends as a Recently played
+  tile, whose page saves the songs that are yours as a playlist and offers Get it for the
+  rest. A playlist friends keep adding to after the room, and Play together on it, are not
+  built.
+- **A QR code** on the invite. The code and the link are shared through the system's share
+  sheet; nothing draws a QR yet.
+- **Links on everyone's phone.** A link plays through the host's server, which only the
+  host's device reaches, so other phones skip it.
+- **A phone or the desktop app, by hand.** Tried in Chromium only. The phone streams a lent
+  file with no header; the desktop app's `app://` origin is one the doorman already allows.
 
 The doorman's routes:
 

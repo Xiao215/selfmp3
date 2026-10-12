@@ -13,3 +13,12 @@ export const GATE_ROUTES: readonly string[] = ['/welcome', STORAGE_ROUTE, '/firs
  * each has its own entrance rather than the shell's page step (`pageStep.ts`).
  */
 export const FULL_SCREEN_ROUTES: readonly string[] = [...GATE_ROUTES, '/now-playing']
+
+/**
+ * The pages that open without signing in: joining a room from its invite
+ * link, and the room itself — all a friend without self.mp3 ever sees
+ * (docs/features/listen-together.md). Each has its own head, so no chrome.
+ */
+export function opensSignedOut(pathname: string): boolean {
+  return pathname === '/room' || pathname.startsWith('/join/')
+}

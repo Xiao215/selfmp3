@@ -23,6 +23,7 @@ import {
   resolveQueue,
   setShuffle,
   withoutSongs,
+  withUpcoming,
   type QueueState,
   type Song,
 } from '@selfmp3/shared'
@@ -79,6 +80,7 @@ import {
 import { createValueStore, type ValueStore } from '../state/valueStore.model'
 import { useValueStore } from '../state/useValueStore'
 import { useSongsById } from '../ui/songsById'
+import { roomTrack, useRoomTracks, withRoomSongs } from './roomTracks'
 
 /**
  * The React glue between the queue rules and whatever makes a sound.
@@ -171,6 +173,11 @@ export interface PlayerApi {
   reorderQueue: (from: number, to: number) => void
   /** Put songs at one place in the queue: where a drag let go of them. */
   insertIntoQueue: (at: number, songIds: readonly number[]) => void
+  /**
+   * Everything after the playing song, replaced by these in this order: a
+   * room's host keeping Up next the room's list (features/room).
+   */
+  setUpcoming: (songIds: readonly number[]) => void
   /** Empty the queue and stop: signing out. */
   clearQueue: () => void
   /**
@@ -242,6 +249,7 @@ type PlayerCommands = Pick<
   | 'removeFromQueue'
   | 'reorderQueue'
   | 'insertIntoQueue'
+  | 'setUpcoming'
   | 'clearQueue'
   | 'clearRest'
   | 'restoreRest'
@@ -278,9 +286,53 @@ interface PlayerStores {
 
 const PlayerStoresContext = createContext<PlayerStores | null>(null)
 
+/** A room's song counts as a play of your own copy of it, when you have one, and of nothing else. */
+function countPlayAs(songId: number): number | null {
+  const track = roomTrack(songId)
+  return track ? track.yours : songId
+}
+
 export function PlayerProvider({ children }: { children: ReactNode }): ReactNode {
   const { connection, fromCloud } = useConnection()
-  const { queue: downloadQueue, checkPlay, mayPlay, keepPlayed, keepAhead } = useDownloads()
+  const {
+    queue: downloadQueue,
+    checkPlay: checkLibraryPlay,
+    mayPlay: mayLibraryPlay,
+    keepPlayed: keepLibraryPlayed,
+    keepAhead,
+  } = useDownloads()
+
+  /*
+   * A room's song (roomTracks.ts) plays from your own copy when you have one
+   * that can play here, and otherwise from where the room lends it: the
+   * doorman, or the host's server for a link. Either way nothing about it is
+   * this device's to download first, so it never waits on the questions a
+   * library song asks (mobile data, a song not kept).
+   */
+  const mayPlay = useCallback(
+    (songId: number): boolean => {
+      const track = roomTrack(songId)
+      if (!track) return mayLibraryPlay(songId)
+      return track.stream !== null || (track.yours !== null && mayLibraryPlay(track.yours))
+    },
+    [mayLibraryPlay],
+  )
+  const checkPlay = useCallback(
+    (songId: number, retry: () => void): boolean => {
+      const track = roomTrack(songId)
+      if (!track) return checkLibraryPlay(songId, retry)
+      if (track.stream === null && track.yours !== null) return checkLibraryPlay(track.yours, retry)
+      return true
+    },
+    [checkLibraryPlay],
+  )
+  /** A room's song counts as a play of your own copy, when you have one, and of nothing else. */
+  const keepPlayed = useCallback(
+    (songId: number) => {
+      if (!roomTrack(songId)) keepLibraryPlayed(songId)
+    },
+    [keepLibraryPlayed],
+  )
   const { data: serverSettings } = useSettings()
 
   // Built once and kept: an engine outlives every render, and rebuilding it
@@ -308,7 +360,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     volume: createValueStore(volumeOf(engine.state), sameVolume),
   }))
 
-  const songsById = useSongsById()
+  const songsById = withRoomSongs(useSongsById(), useRoomTracks())
 
   // Refs so the engine's callbacks always see current values without being
   // torn down and rewired on every render.
@@ -464,7 +516,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     (songId: number) => {
       keepPlayed(songId)
       const next = peekPlayable(queueRef.current, mayPlay)
-      if (next === null || next === songId) return
+      if (next === null || next === songId || roomTrack(next)) return
       void keepAhead(next).then(kept => {
         if (kept) engine.refreshLookahead?.()
       })
@@ -473,6 +525,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   )
   const { tracking: trackingRef, flushPlay } = usePlayReporting({
     songs: songsRef,
+    countAs: countPlayAs,
     keepPlayed: keepPlayedAndNext,
     connection,
   })
@@ -515,20 +568,49 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     [downloadQueue],
   )
 
+  /** The library song a room's track plays as: your own copy, when it can play here. */
+  const ownCopy = useCallback(
+    (track: { readonly yours: number | null }): number | null =>
+      track.yours !== null && mayLibraryPlay(track.yours) ? track.yours : null,
+    [mayLibraryPlay],
+  )
+
   useEffect(() => {
     return engine.connect({
       // Past songs that cannot play here, so a lookahead never preloads one.
       nextTrackId: () => peekPlayable(queueRef.current, mayPlay),
 
-      streamUrl: songId =>
-        streamAddress(songId, songsRef.current.get(songId)?.rev, sourcesFor(songId)),
+      streamUrl: songId => {
+        const track = roomTrack(songId)
+        const from = track ? ownCopy(track) : songId
+        if (from === null) return track?.stream?.url ?? ''
+        return streamAddress(from, songsRef.current.get(from)?.rev, sourcesFor(from))
+      },
       // Decided by the same rule over the same sources, so an address and what
       // has to be sent with it can never come from two different places.
-      streamHeaders: songId => streamHeaders(sourcesFor(songId)),
+      streamHeaders: songId => {
+        const track = roomTrack(songId)
+        const from = track ? ownCopy(track) : songId
+        if (from === null) return track?.stream?.headers ?? null
+        return streamHeaders(sourcesFor(from))
+      },
 
       trackMetadata: songId => {
-        const song = songsRef.current.get(songId)
+        // A room's song is asked for the moment the room hands it over, which
+        // can be before this provider has drawn with it.
+        const track = roomTrack(songId)
+        const song = songsRef.current.get(songId) ?? track?.song
         if (!song) return null
+        if (track) {
+          return {
+            title: song.title,
+            artist: song.artist,
+            album: song.album,
+            ...(track.cover ? { artwork: track.cover } : {}),
+            ...(song.duration > 0 ? { duration: song.duration } : {}),
+            contentType: song.mime,
+          }
+        }
         // The lock screen's cover: the copy on this device, read now rather than
         // from a render, since this is asked when the player takes the song.
         // One kept later reaches the card through `refreshNowPlaying`, below.
@@ -611,6 +693,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     loadIndex,
     flushPlay,
     mayPlay,
+    ownCopy,
     sourcesFor,
     stores,
     sleepAtSongEndRef,
@@ -764,7 +847,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       // says which song, and what happened to it.
       console.warn(`Playback failed for song ${songId}:`, state.error)
 
-      const title = songsRef.current.get(songId)?.title ?? 'this song'
+      const title =
+        songsRef.current.get(songId)?.title ?? roomTrack(songId)?.song.title ?? 'this song'
       // One message about skipping at a time: each replaces the last. A run of
       // songs that would not play stacked a toast apiece up the screen, which
       // read as the app falling apart (Xiao, 2026-10-08).
@@ -895,6 +979,19 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     [mutateQueue],
   )
 
+  const setUpcoming = useCallback(
+    (songIds: readonly number[]) => {
+      const before = queueRef.current
+      const after = withUpcoming(before, songIds)
+      const same =
+        after.index === before.index &&
+        after.items.length === before.items.length &&
+        after.items.every((id, index) => before.items[index] === id)
+      if (!same || before.shuffle) mutateQueue(() => after)
+    },
+    [mutateQueue],
+  )
+
   const clearQueue = useCallback(() => {
     engine.pause()
     commitQueue(EMPTY_QUEUE)
@@ -1013,6 +1110,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       playNext,
       addToQueue,
       insertIntoQueue,
+      setUpcoming,
       removeFromQueue,
       reorderQueue,
       clearQueue,
@@ -1042,6 +1140,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       playNext,
       addToQueue,
       insertIntoQueue,
+      setUpcoming,
       removeFromQueue,
       reorderQueue,
       clearQueue,

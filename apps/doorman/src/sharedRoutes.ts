@@ -156,7 +156,7 @@ async function list(ctx: Context, session: Session): Promise<Response> {
     const answer = await sharedObject(ctx, id).fetch(
       `https://shared/summary?sub=${encodeURIComponent(session.sub)}`,
     )
-    if (answer.ok) summaries.push((await answer.json()))
+    if (answer.ok) summaries.push(await answer.json())
     else {
       await answer.body?.cancel()
       // Left, or gone: off the list.

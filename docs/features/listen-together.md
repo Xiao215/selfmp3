@@ -80,6 +80,17 @@ song and move it; a moved song leaves the turns and stays where it was put (`roo
 **Keep it going** (on by default): with two songs left, the room adds songs that sound like
 the last ones, taking turns between the people whose songs were played.
 
+- **Where the songs come from:** shelves, and songs that played, leaving out the last dozen.
+- **How a song is picked:** each person's turn is the song of theirs whose sound is nearest
+  to the songs playing and just played.
+- **Where the sound comes from:** every member who brings songs reads their own bucket's sound
+  pack (the listening model's vectors, `snapshot.sound`) and tells the room how their own songs
+  sound. Each vector is packed to a byte per dimension, about a kilobyte
+  (`packages/shared/src/soundVectors.ts`).
+- **Where the room keeps them:** beside its state, never in it, so no socket carries them.
+  Nobody can describe someone else's songs.
+- **Without vectors:** where the room has none for what played, it picks by turns alone.
+
 ## What friends see of you (S1)
 
 Only the songs you add. A friend can also put up a **shelf**: one tag or playlist of theirs,
@@ -91,7 +102,8 @@ room.
 When the room ends it becomes a Recently played tile, **With Mia, Ken, Ana**. Its page lists
 every song that played, with who brought it:
 
-- **Save as playlist** keeps it.
+- **Open the shared playlist**, when the host kept the room as one (below).
+- **Save as playlist** keeps the songs that are yours as a playlist of your own.
 - **Get it** brings one of a friend's songs home. Your server imports it from the same link
   hers came from (the song's source link), into your own bucket, and finds its words again.
   A song with no link, such as a file Mia dropped in, says *Mia's only*.
@@ -102,8 +114,53 @@ A guest has no library, so they can paste a YouTube, YouTube Music or 网易云 
 through the host's server, the same stream that import review previews from. Nothing is
 kept. *Get it* afterwards imports it properly.
 
-The first version plays a link only **On this phone**, since only the host's device can
-reach the host's server.
+**How it reaches everyone.** The host's device reaches its own server directly. For everyone
+else, the first time a link comes in, the host tells the room where its server answers from
+the internet:
+
+- **Which address:** the https one, usually the Tailscale Funnel's `*.ts.net`
+  (`publicServerBase`).
+- **How it plays:** the doorman plays the link through that address for every member.
+- **The token:** the server's token stays in the room's private storage, never sent to a
+  member, and goes with the room.
+- **A server the internet can't reach:** a link plays on the host's device alone, and
+  everyone's phone skips it.
+
+## Shared playlists
+
+A shared playlist is a playlist friends keep adding to, after a room or without one.
+
+- **Who has it:** it belongs to Google accounts rather than devices, so it is on every device
+  of everyone in it, among their playlists, with their faces for a cover.
+- **Where it lives:** the doorman keeps it as a Durable Object per playlist, plus a list per
+  account of the playlists it is in.
+- **Its songs:** each stays in its owner's bucket and is lent to the playlist's people for as
+  long as it is in it.
+- **Adding:** anyone in it adds their own songs, and a song goes in once.
+- **Taking out:** you take out your own songs; whoever made it can take out anyone's, and
+  rename it.
+- **Leaving:** leaving takes your songs with you, because nobody can lend them any more. The
+  last to leave lets it go.
+
+Its page:
+
+- **Play** plays it on this device: each song lent by the doorman, or your own copy.
+- **Play together** opens a room filled with it. Its songs are lent from each owner's bucket
+  even when the owner is not in the room, and named for them.
+- **Add songs** adds from your library.
+- **Invite** shares a link and a QR code: `/shared/<id>/join/<invite>`. Joining needs an
+  account; an invite opened before signing in opens again after.
+- **More** holds Rename and Leave.
+
+A room's host can **Keep as a shared playlist** from People: everyone in the room who signed
+in gets it, with every song that played or is waiting. Guests, who have no account, do not.
+
+## The invite
+
+The invite carries the room's link as a QR code beside the code, for a friend across the
+table. It is drawn as one SVG path from `toqr`, the encoder Expo's CLI already ships. It is
+always black on white, because that is what cameras read. **Share invite** opens the system's
+share sheet; where there is none (the desktop app), it copies the link.
 
 ## How it is built
 
@@ -121,6 +178,11 @@ reach the host's server.
 | The room in Up next (phone sheet, computer rail, the room's page) | `apps/app/src/features/room/RoomList.tsx` |
 | Together and the invite, Add songs (Mine, In the room, A link), People | `apps/app/src/features/room/RoomSheets.tsx` |
 | `/join/<code>`, `/room`, `/past-room/<code>` | `apps/app/src/features/room/RoomScreens.tsx` |
+| The invite's QR code | `apps/app/src/features/room/qr.model.ts`, `RoomQr.tsx` |
+| Sound vectors: reading a pack, packing, closeness | `packages/shared/src/soundVectors.ts` |
+| A shared playlist's rules | `packages/shared/src/sharedPlaylist.ts`, `schemas/shared.ts` |
+| A shared playlist on the doorman, and its routes | `apps/doorman/src/shared.ts`, `sharedRoutes.ts` |
+| Shared playlists in the app: Playlists, their page, joining | `apps/app/src/features/shared/` |
 | Who brought the song, and Get it, in Now Playing | `apps/app/src/features/room/RoomSongLine.tsx` |
 
 **A room's songs in the player.** The player and every row are keyed by song id, and a
@@ -145,23 +207,6 @@ signed-in accounts, each with a bucket stocked from the development library. Tha
 this was tried in Chromium: a host, a friend on a phone-sized window and a guest, with a
 friend's song playing on the host and, on everyone's phone, in step on the friend's.
 
-## Not built yet
-
-- **Keep it going by sound.** It takes turns between what people brought (shelves, and
-  songs that played, leaving out the last dozen). It does not yet pick by how the last songs
-  sounded: the listening model's vectors are on the server and in each owner's bucket, not
-  on the host's device.
-- **Shared playlists that last** (the second half of A3). A room ends as a Recently played
-  tile, whose page saves the songs that are yours as a playlist and offers Get it for the
-  rest. A playlist friends keep adding to after the room, and Play together on it, are not
-  built.
-- **A QR code** on the invite. The code and the link are shared through the system's share
-  sheet; nothing draws a QR yet.
-- **Links on everyone's phone.** A link plays through the host's server, which only the
-  host's device reaches, so other phones skip it.
-- **A phone or the desktop app, by hand.** Tried in Chromium only. The phone streams a lent
-  file with no header; the desktop app's `app://` origin is one the doorman already allows.
-
 The doorman's routes:
 
 ```
@@ -171,12 +216,21 @@ GET  /v1/rooms/<code>?t=<token>                  → RoomState
 POST /v1/rooms/<code>/act?t=<token>  RoomAction  → RoomState     add needs the session too
 GET  /v1/rooms/<code>/socket?t=<token>           WebSocket: state down, ping up
 GET  /v1/rooms/<code>/files/<entry>/<part>?t=<token>   audio | cover | lyrics | romanized
+GET | POST /v1/rooms/<code>/vectors?t=<token>    how the room's songs sound
+PUT  /v1/rooms/<code>/link-server?t=<token>      the host's server, for links
+POST /v1/rooms/<code>/keep?t=<token>             kept as a shared playlist   signed in
+POST /v1/rooms/<code>/from-shared?t=<token>      a shared playlist's songs   signed in
+
+GET | POST /v1/shared                            yours; make one             signed in
+GET  /v1/shared/<id>   POST …/join   POST …/act                            signed in
+GET  /v1/shared/<id>/files/<entry>/<part>?t=<listen token>
 ```
 
 The member's token rides in the query. A browser's WebSocket and an `<audio>` element cannot
 send a header, and those are the two things that most need it. Tokens are kept only as their
 hash. Which Google account each signed-in member joined as is kept beside them and never
-sent to anyone: it is what the doorman lends a member's songs by.
+sent to anyone: it is what the doorman lends a member's songs by. A shared playlist's files
+take its listen token in the same way, which opens that playlist's songs and nothing else.
 
 A room ends in any of these ways:
 
@@ -184,11 +238,25 @@ A room ends in any of these ways:
 - the host leaves;
 - nobody has done anything for two hours (`ROOM_IDLE_MS`).
 
-It is forgotten ten minutes after it ends.
+It is forgotten ten minutes after it ends. A shared playlist lasts until its last person
+leaves.
 
-**Deploying.** The room class needs the `ROOMS` binding and the `v2` migration in
-`apps/doorman/wrangler.toml`. `npx wrangler deploy` from `apps/doorman` creates it; nothing
-deploys the doorman automatically.
+**Deploying.** The room and shared playlist classes need the `ROOMS` and `SHARED` bindings
+and the `v2` and `v3` migrations in `apps/doorman/wrangler.toml`. `npx wrangler deploy` from
+`apps/doorman` creates them; nothing deploys the doorman automatically.
 
-**Who can sign in.** A friend who brings songs signs in to *your* doorman, so their address
-must be on its `ALLOWED_EMAILS`. Anyone not on it can still join as a guest.
+**Who can sign in.** A friend who brings songs, or joins a shared playlist, signs in to
+*your* doorman, so their address must be on its `ALLOWED_EMAILS` (`*` lets anyone in). Anyone
+not on it can still join a room as a guest.
+
+## Tried on
+
+Chromium, the iPhone simulator (iPhone 17) and the desktop app (Electron), all against the
+real doorman code (see "Testing it without Google or Backblaze"). On the iPhone:
+
+- the room opened from what was playing without a gap;
+- a friend's song streamed from her bucket;
+- a shared playlist's page drew its lent covers.
+
+The desktop app copies the invite where it has no share sheet. Not yet tried on a real iPhone
+or Android.

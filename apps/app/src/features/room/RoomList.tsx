@@ -27,7 +27,6 @@ import { Toggle } from '../../ui/components/Toggle'
 import { RoomFace, RoomFaces } from './RoomFace'
 import {
   isHost,
-  nameOf,
   peopleHere,
   playedRows,
   playingRow,
@@ -232,7 +231,6 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
       {next.slice(0, SHOWN_NEXT).map((row, index) => (
         <EntryRow
           key={row.entry.id}
-          state={state}
           row={row}
           action={
             host && index > 0 ? (
@@ -279,7 +277,6 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
           {played.map(row => (
             <EntryRow
               key={row.entry.id}
-              state={state}
               row={row}
               dim
               action={
@@ -319,13 +316,11 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
 }
 
 const EntryRow = memo(function EntryRow({
-  state,
   row,
   action,
   remove = false,
   dim = false,
 }: {
-  state: RoomState
   row: RoomRow
   action?: ReactNode
   remove?: boolean

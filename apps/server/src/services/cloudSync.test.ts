@@ -29,6 +29,7 @@ import { CloudError, type CloudStore } from '../bucket/store.js'
 import { MemoryCloudStore } from './fixtures/memoryStore.js'
 import { KeptCloudFiles } from '../bucket/kept.js'
 import { AudioFeaturesRepository } from '../repositories/audioFeatures.js'
+import { ANALYSIS_VERSION } from '@selfmp3/shared'
 import { CloudRepository } from '../repositories/cloud.js'
 import { MotionStore } from './motionStore.js'
 import { ImportRepository } from '../repositories/imports.js'
@@ -185,6 +186,8 @@ describe('CloudSyncService', () => {
       debounceMs: 5,
       retryDelaysMs: [30],
       importPacing: { first: 40, steps: [{ from: 0, every: 120 }] },
+      // A snapshot of nothing but enrichment is held this long, not ten minutes.
+      enrichmentDeferMs: 10,
       // A second apart per call, so every snapshot gets a name of its own.
       now: () => new Date((clock += 1000)),
     }
@@ -678,6 +681,8 @@ describe('CloudSyncService', () => {
           logger: createLogger('silent'),
           openStore: () => bucket,
           motion: store,
+          debounceMs: 5,
+          enrichmentDeferMs: 10,
         })
         extras.push(service)
         const run = async (): Promise<void> => {
@@ -699,8 +704,9 @@ describe('CloudSyncService', () => {
         await store.write(id, CURVE)
         await run()
 
+        // A curve is enrichment: its snapshot is held a moment, then goes up.
         const key = keyOf(id)
-        expect(latest().songs[0]?.motion).toBe(key)
+        await vi.waitFor(() => expect(latest().songs[0]?.motion).toBe(key))
         expect(bucket.objects.get(key)?.contentType).toBe('application/json')
         expect(JSON.parse(bucket.objects.get(key)?.body.toString() ?? 'null')).toEqual({
           version: 1,
@@ -726,8 +732,27 @@ describe('CloudSyncService', () => {
         await run()
         const second = keyOf(id)
         expect(second).not.toBe(first)
-        expect(latest().songs[0]?.motion).toBe(second)
+        await vi.waitFor(() => expect(latest().songs[0]?.motion).toBe(second))
         expect(bucket.objects.has(second)).toBe(true)
+      })
+
+      it('keeps the curve it replaced until the snapshot naming the new one is up', async () => {
+        const id = addSong('A - One', 'one')
+        const { store, run, keyOf } = withMotion()
+        await store.write(id, CURVE)
+        await run()
+        const first = keyOf(id)
+        await vi.waitFor(() => expect(latest().songs[0]?.motion).toBe(first))
+
+        await store.write(id, { ...CURVE, loudness: Uint8Array.from([9, 9, 9, 9]) })
+        await run()
+        // Held: the bucket's snapshot still names the first, so it stays.
+        expect(latest().songs[0]?.motion).toBe(first)
+        expect(bucket.objects.has(first)).toBe(true)
+
+        const second = keyOf(id)
+        await vi.waitFor(() => expect(latest().songs[0]?.motion).toBe(second))
+        await vi.waitFor(() => expect(bucket.objects.has(first)).toBe(false))
       })
 
       it('uploads a curve the bucket lost again', async () => {
@@ -859,9 +884,14 @@ describe('CloudSyncService', () => {
       artists.kept.set('yoasobi', { banner: 'wider', portrait: 'round', rev: 'r2' })
       await pass()
 
-      expect(latest().artists[0]?.banner.key).toBe(`covers/${sha('wider')}.jpg`)
-      expect(bucket.keys('covers/')).toEqual(
-        [`covers/${sha('wider')}.jpg`, `covers/${sha('round')}.jpg`].sort(),
+      // A picture is enrichment: held a moment, and the old one let go after it.
+      await vi.waitFor(() =>
+        expect(latest().artists[0]?.banner.key).toBe(`covers/${sha('wider')}.jpg`),
+      )
+      await vi.waitFor(() =>
+        expect(bucket.keys('covers/')).toEqual(
+          [`covers/${sha('wider')}.jpg`, `covers/${sha('round')}.jpg`].sort(),
+        ),
       )
     })
 
@@ -956,15 +986,16 @@ describe('CloudSyncService', () => {
 
       clock += 61 * 60_000
       await pass()
+      // The vectors' pointer is enrichment: its snapshot is held a moment.
+      await vi.waitFor(() => expect(latest().sound!.key).not.toBe(before))
       const after = latest().sound!.key
-      expect(after).not.toBe(before)
       expect(packOf(latest())!.entries).toHaveLength(2)
-      expect(packKeys()).toEqual([after])
+      await vi.waitFor(() => expect(packKeys()).toEqual([after]))
 
       // The last song heard: no more waiting.
       vectors.upsert(third, MODEL, along(3))
       await pass()
-      expect(packOf(latest())!.entries).toHaveLength(3)
+      await vi.waitFor(() => expect(packOf(latest())!.entries).toHaveLength(3))
     })
 
     /** Their library of three, two of them heard by their server (one could not be). */
@@ -2276,6 +2307,58 @@ describe('CloudSyncService', () => {
       await vi.waitFor(() => expect(songs.byId(id)?.loved).toBe(true), { timeout: 2_000 })
       await sync.whenIdle()
       expect(logListings()).toBe(before + 1)
+    })
+
+    /** Tempo and key arriving for a song: enrichment, which a device need not have at once. */
+    const analyse = (songId: number, bpm: number): void => {
+      new AudioFeaturesRepository(db).upsert(songId, {
+        bpm,
+        energy: 0.5,
+        loudnessLufs: -14,
+        key: 'A minor',
+        camelot: '8A',
+        danceability: 0.5,
+        version: ANALYSIS_VERSION,
+      })
+    }
+
+    it('holds a snapshot of nothing but enrichment, and publishes it once, a while later', async () => {
+      const first = addSong('A - One', 'one')
+      const second = addSong('B - Two', 'two')
+      sync = makeSync({ enrichmentDeferMs: 300 })
+      await connect()
+      const published = () => bucket.puts.filter(key => key.startsWith('snapshots/')).length
+      const before = published()
+
+      analyse(first, 120)
+      await pass()
+      analyse(second, 90)
+      await pass()
+      expect(published()).toBe(before)
+
+      // One snapshot, with both.
+      await vi.waitFor(() => expect(latest().songs.every(song => song.audioFeatures)).toBe(true), {
+        timeout: 2_000,
+      })
+      await sync.whenIdle()
+      expect(published()).toBe(before + 1)
+    })
+
+    it('publishes at once when anything else changes, and takes the held enrichment with it', async () => {
+      const id = addSong('A - One', 'one')
+      sync = makeSync({ enrichmentDeferMs: 60_000 })
+      await connect()
+      const published = () => bucket.puts.filter(key => key.startsWith('snapshots/')).length
+      const before = published()
+
+      analyse(id, 120)
+      await pass()
+      expect(published()).toBe(before)
+
+      songs.patch(id, { title: 'Uno' })
+      await pass()
+      expect(published()).toBe(before + 1)
+      expect(latest().songs[0]).toMatchObject({ title: 'Uno', audioFeatures: { bpm: 120 } })
     })
 
     it('restarted with nothing new, reads the newest snapshot once and publishes nothing', async () => {

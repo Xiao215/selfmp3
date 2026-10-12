@@ -73,8 +73,10 @@ import {
   publishUncheckableMessage,
   publishWouldLoseLibrary,
   snapshotContentHash,
+  snapshotCoreHash,
   snapshotSongCount,
   storedSnapshotContentHash,
+  storedSnapshotCoreHash,
 } from './cloudSnapshot.js'
 import type { AdoptionResult, CloudAdopt } from './cloudAdopt.js'
 import { messageOf } from '../util/errors.js'
@@ -142,6 +144,17 @@ const LOG_LISTING_TRUSTED_MS = 30 * 60_000
  */
 const LOGS_TIDIED_AFTER_MS = 10 * 60_000
 const LOGS_TIDIED_AT_ONCE = 50
+
+/**
+ * A snapshot that changes nothing but what arrives after a song does — its
+ * cover's colour, its motion curve and analysis, the sound vectors' pointer,
+ * artists' pictures (`snapshotCoreHash`) — waits this long to be published,
+ * and goes up then with all of them. Each of those used to be a snapshot of
+ * its own: after an import, a cover's colour for each song, then the motion
+ * curves, then the vectors, every one a download for every device. Anything
+ * else that changes publishes at once, and takes them with it.
+ */
+const ENRICHMENT_DEFER_MS = 10 * 60_000
 
 /** How long a listing the idle poll made is good for the pass it starts. */
 const POLLED_LISTING_KEPT_MS = 60_000
@@ -298,7 +311,15 @@ interface CloudSyncDeps {
   readonly logPollMs?: number
   /** How long a pass that did not get everything up waits before the next: a step per failure. */
   readonly retryDelaysMs?: readonly number[]
+  /** How long a snapshot of nothing but enrichment waits (`ENRICHMENT_DEFER_MS`); a test's own. */
+  readonly enrichmentDeferMs?: number
 }
+
+/**
+ * What became of a publish: a snapshot written, none needed (it would say what
+ * the last did), or held back because all it adds is enrichment.
+ */
+type PublishOutcome = 'published' | 'unchanged' | 'deferred'
 
 export class CloudSyncService {
   readonly #deps: CloudSyncDeps
@@ -309,6 +330,7 @@ export class CloudSyncService {
   readonly #signInPollMs: number
   readonly #logPollMs: number
   readonly #retryDelaysMs: readonly number[]
+  readonly #enrichmentDeferMs: number
 
   /**
    * Called after a pass has applied other devices' changes, so the library
@@ -392,7 +414,7 @@ export class CloudSyncService {
   #stopped = false
 
   /** Publishing is one at a time: the import step and a pass can both ask. */
-  #publishing: Promise<void> = Promise.resolve()
+  #publishing: Promise<unknown> = Promise.resolve()
   /**
    * Bucket deletions in flight, by key. An upload of the same bytes during one
    * waits for it, so a file is never taken for present because it was about
@@ -400,6 +422,11 @@ export class CloudSyncService {
    */
   readonly #deleting = new Map<string, Promise<void>>()
   #lastSnapshotHash: string | null = null
+  /** `snapshotCoreHash` of the last snapshot published. */
+  #lastCoreHash: string | null = null
+  /** Set when held-back enrichment is due: the next publish writes it. */
+  #enrichmentDue = false
+  #enrichmentTimer: NodeJS.Timeout | null = null
   /** The addresses the last snapshot carried, to notice when the server has moved. */
   #publishedServer: string | null = null
 
@@ -440,6 +467,7 @@ export class CloudSyncService {
     this.#signInPollMs = deps.signInPollMs ?? SIGN_IN_POLL_MS
     this.#logPollMs = deps.logPollMs ?? LOG_POLL_MS
     this.#retryDelaysMs = deps.retryDelaysMs ?? RETRY_DELAYS_MS
+    this.#enrichmentDeferMs = deps.enrichmentDeferMs ?? ENRICHMENT_DEFER_MS
     if (deps.cloudDir) this.#useFolder(deps.cloudDir)
   }
 
@@ -966,21 +994,26 @@ export class CloudSyncService {
       await this.#uploadSound(store)
 
       if (generation !== this.#generation) return
-      await this.#publish(store)
+      const outcome = await this.#publish(store)
 
-      const finished = this.#deps.imports.finishUploaded()
-      if (finished > 0)
-        this.#logger.info('finished imports that were waiting to upload', { count: finished })
+      // Held back, the snapshot in the bucket is still the one before: a file
+      // this pass replaced is still named there, so nothing is let go or
+      // deleted until the held snapshot goes up, with a pass of its own.
+      if (outcome !== 'deferred') {
+        const finished = this.#deps.imports.finishUploaded()
+        if (finished > 0)
+          this.#logger.info('finished imports that were waiting to upload', { count: finished })
 
-      // Only now, with the snapshot up: what this disk holds of the library
-      // is no longer needed here, what the library no longer names is no
-      // longer needed in the bucket, and nothing can take a removed song back.
-      cloud.forgetRemoved()
-      await this.#letGo(settled)
-      if (generation !== this.#generation || this.#stopped) return
-      await this.#emptyTrash(store)
-      if (generation !== this.#generation || this.#stopped) return
-      await this.#tidyLogs(store, logs.keys)
+        // Only now, with the snapshot up: what this disk holds of the library
+        // is no longer needed here, what the library no longer names is no
+        // longer needed in the bucket, and nothing can take a removed song back.
+        cloud.forgetRemoved()
+        await this.#letGo(settled)
+        if (generation !== this.#generation || this.#stopped) return
+        await this.#emptyTrash(store)
+        if (generation !== this.#generation || this.#stopped) return
+        await this.#tidyLogs(store, logs.keys)
+      }
 
       if (changed.length > 0) {
         this.#logger.info('cloud pass complete', { uploaded: changed.length - failed, failed })
@@ -1333,9 +1366,11 @@ export class CloudSyncService {
 
     let snapshot: CloudSnapshot
     let hash: string
+    let coreHash: string
     try {
       snapshot = parseSnapshot(newest.body)
       hash = storedSnapshotContentHash(newest.body)
+      coreHash = storedSnapshotCoreHash(newest.body)
     } catch (error) {
       throw new CloudError(
         'other',
@@ -1348,6 +1383,7 @@ export class CloudSyncService {
       // word, it would be one more download for every device and nothing new
       // in it: the next snapshot goes up when the library has moved on.
       this.#lastSnapshotHash = hash
+      this.#lastCoreHash = coreHash
       this.#lastSnapshotAt = snapshot.writtenAt
       this.#ownNewest = {
         key: newest.key,
@@ -1882,14 +1918,17 @@ export class CloudSyncService {
     return server === undefined ? null : JSON.stringify(server)
   }
 
-  #publish(store: CloudStore): Promise<void> {
+  #publish(store: CloudStore): Promise<PublishOutcome> {
     const run = this.#publishing.then(() => this.#publishNow(store))
     this.#publishing = run.catch(() => undefined)
     return run
   }
 
-  /** Write a snapshot, unless it would say exactly what the last one did. */
-  async #publishNow(store: CloudStore): Promise<void> {
+  /**
+   * Write a snapshot, unless it would say exactly what the last one did — or
+   * all it adds is enrichment, which waits (`ENRICHMENT_DEFER_MS`).
+   */
+  async #publishNow(store: CloudStore): Promise<PublishOutcome> {
     const { cloud, songs, tags, playlists, sync, importRequests } = this.#deps
 
     // Never before the bucket's own library has been taken on. A pass reaches
@@ -1930,7 +1969,16 @@ export class CloudSyncService {
     })
 
     const hash = snapshotContentHash(snapshot)
-    if (hash === this.#lastSnapshotHash) return
+    if (hash === this.#lastSnapshotHash) return 'unchanged'
+    const coreHash = snapshotCoreHash(snapshot)
+    if (
+      this.#lastSnapshotHash !== null &&
+      coreHash === this.#lastCoreHash &&
+      !this.#enrichmentDue
+    ) {
+      this.#holdEnrichment()
+      return 'deferred'
+    }
 
     // Once per run, before this device's first snapshot replaces whatever is
     // there: is this server about to throw away somebody's library?
@@ -1953,7 +2001,12 @@ export class CloudSyncService {
     // Only now is the bucket's newest snapshot this device's own.
     this.#checkedAgainstBucket = true
     this.#lastSnapshotHash = hash
+    this.#lastCoreHash = coreHash
     this.#lastSnapshotAt = snapshot.writtenAt
+    // What was held back went up with this one.
+    this.#enrichmentDue = false
+    if (this.#enrichmentTimer) clearTimeout(this.#enrichmentTimer)
+    this.#enrichmentTimer = null
     this.#ownNewest = { key, writtenAt: writtenAt.getTime(), upTo: snapshot.upTo }
 
     try {
@@ -1977,6 +2030,22 @@ export class CloudSyncService {
       this.#newestRead = null
       this.#logger.debug('could not delete old snapshots', { message: messageOf(error) })
     }
+    return 'published'
+  }
+
+  /**
+   * A snapshot of nothing but enrichment is waiting: it goes up after
+   * `ENRICHMENT_DEFER_MS`, by a pass of its own (so the files it replaced are
+   * let go after it), unless something else publishes it first.
+   */
+  #holdEnrichment(): void {
+    if (this.#enrichmentTimer || this.#stopped) return
+    this.#enrichmentTimer = setTimeout(() => {
+      this.#enrichmentTimer = null
+      this.#enrichmentDue = true
+      this.kick()
+    }, this.#enrichmentDeferMs)
+    this.#enrichmentTimer.unref()
   }
 
   // --- The bucket's format -----------------------------------------------------
@@ -2082,6 +2151,10 @@ export class CloudSyncService {
   /** Everything remembered of what the bucket held, for a bucket that is new or not trusted. */
   #forgetBucketReads(): void {
     this.#lastSnapshotHash = null
+    this.#lastCoreHash = null
+    this.#enrichmentDue = false
+    if (this.#enrichmentTimer) clearTimeout(this.#enrichmentTimer)
+    this.#enrichmentTimer = null
     this.#snapshotKeys = null
     this.#logsListed = null
     this.#logListing = null
@@ -2099,9 +2172,11 @@ export class CloudSyncService {
     if (this.#retry) clearTimeout(this.#retry)
     if (this.#logPoll) clearInterval(this.#logPoll)
     if (this.#soundTimer) clearTimeout(this.#soundTimer)
+    if (this.#enrichmentTimer) clearTimeout(this.#enrichmentTimer)
     this.#retry = null
     this.#logPoll = null
     this.#soundTimer = null
+    this.#enrichmentTimer = null
   }
 }
 

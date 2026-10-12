@@ -345,3 +345,39 @@ export function snapshotContentHash(snapshot: { readonly writtenAt?: unknown }):
 export function storedSnapshotContentHash(body: Buffer): string {
   return snapshotContentHash(JSON.parse(snapshotText(body)) as { writtenAt?: unknown })
 }
+
+/**
+ * What a snapshot says that a device needs promptly, as a hash: all of it but
+ * what analysis, the listening model and the picture lookups add after a song
+ * has arrived — its cover's colour, its motion curve, its tempo and key, the
+ * pointer to every song's sound vector, and artists' pictures. A snapshot that
+ * changes only those can wait a little to be published (cloudSync.ts,
+ * `ENRICHMENT_DEFER_MS`): every snapshot is a download for every device, and
+ * an import's songs were each published again for each of them.
+ */
+export function snapshotCoreHash(snapshot: {
+  readonly writtenAt?: unknown
+  readonly songs?: readonly object[]
+  readonly sound?: unknown
+  readonly artists?: unknown
+}): string {
+  const { writtenAt: _when, sound: _sound, artists: _artists, songs, ...rest } = snapshot
+  const core = {
+    ...rest,
+    songs: (songs ?? []).map(song => {
+      const {
+        coverTone: _tone,
+        motion: _motion,
+        audioFeatures: _features,
+        ...kept
+      } = song as Record<string, unknown>
+      return kept
+    }),
+  }
+  return sha256(Buffer.from(JSON.stringify(core)))
+}
+
+/** The same, of a snapshot as the bucket holds it (see `storedSnapshotContentHash`). */
+export function storedSnapshotCoreHash(body: Buffer): string {
+  return snapshotCoreHash(JSON.parse(snapshotText(body)) as { writtenAt?: unknown })
+}

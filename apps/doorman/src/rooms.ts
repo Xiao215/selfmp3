@@ -75,7 +75,11 @@ export async function rooms(ctx: Context): Promise<Response> {
   }
   if (action === 'socket' && entry === undefined) {
     if (method !== 'GET') return methodNotAllowed(['GET'])
-    return room.fetch(new Request(`https://room${withToken('/socket')}`, ctx.request))
+    const answer = await room.fetch(new Request(`https://room${withToken('/socket')}`, ctx.request))
+    // An answer from a Durable Object has headers that cannot be changed,
+    // and every answer but the socket itself gets the CORS headers added
+    // (doorman.ts): a refusal is made again as the doorman's own.
+    return answer.status === 101 ? answer : relayed(answer)
   }
   if (action === 'files' && entry !== undefined && part !== undefined && rest.length === 0) {
     if (method !== 'GET' && method !== 'HEAD') return methodNotAllowed(['GET', 'HEAD'])

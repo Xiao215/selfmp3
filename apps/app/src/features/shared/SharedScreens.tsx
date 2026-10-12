@@ -177,31 +177,31 @@ export function SharedPlaylistScreen(): ReactNode {
         {rows.map((row, at) => {
           const song = roomTrack(row.trackId)?.song
           return (
-            <Pressable
-              key={row.entry.id}
-              onPress={() => playHere(at)}
-              accessibilityRole="button"
-              accessibilityLabel={`Play ${row.entry.song.title}`}
-              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-              testID={`shared-row-${row.entry.id}`}
-            >
-              <View>
-                <Cover uri={song ? artFor(song) : null} title={row.entry.song.title} size={44} />
-                {row.owner ? (
-                  <View style={styles.badge}>
-                    <RoomFace name={row.owner.name} colour={row.owner.colour} size={20} ring />
-                  </View>
-                ) : null}
-              </View>
-              <View style={styles.rowText}>
-                <Text style={styles.rowTitle} numberOfLines={1}>
-                  {row.entry.song.title}
-                </Text>
-                <Text style={styles.text} numberOfLines={1}>
-                  {artistOr(row.entry.song.artist)} ·{' '}
-                  {row.owner?.id === playlist.you ? 'You' : (row.owner?.name ?? 'Someone')}
-                </Text>
-              </View>
+            <View key={row.entry.id} style={styles.row} testID={`shared-row-${row.entry.id}`}>
+              <Pressable
+                onPress={() => playHere(at)}
+                accessibilityRole="button"
+                accessibilityLabel={`Play ${row.entry.song.title}`}
+                style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
+              >
+                <View>
+                  <Cover uri={song ? artFor(song) : null} title={row.entry.song.title} size={44} />
+                  {row.owner ? (
+                    <View style={styles.badge}>
+                      <RoomFace name={row.owner.name} colour={row.owner.colour} size={20} ring />
+                    </View>
+                  ) : null}
+                </View>
+                <View style={styles.rowText}>
+                  <Text style={styles.rowTitle} numberOfLines={1}>
+                    {row.entry.song.title}
+                  </Text>
+                  <Text style={styles.text} numberOfLines={1}>
+                    {artistOr(row.entry.song.artist)} ·{' '}
+                    {row.owner?.id === playlist.you ? 'You' : (row.owner?.name ?? 'Someone')}
+                  </Text>
+                </View>
+              </Pressable>
               {row.removable ? (
                 <Pressable
                   onPress={() =>
@@ -215,7 +215,7 @@ export function SharedPlaylistScreen(): ReactNode {
                   <X size={16} color={theme.colors.textSecondary} />
                 </Pressable>
               ) : null}
-            </Pressable>
+            </View>
           )
         })}
       </ScrollView>
@@ -491,6 +491,7 @@ const styles = StyleSheet.create(theme => ({
   people: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 60 },
+  rowMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: space.md },
   pressed: { opacity: 0.7 },
   badge: { position: 'absolute', right: -5, bottom: -5 },
   rowText: { flex: 1, minWidth: 0, gap: 2 },

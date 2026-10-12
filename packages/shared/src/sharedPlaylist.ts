@@ -79,6 +79,10 @@ export function applySharedAction(
         return refuse('invalid', 'a song of yours has its audio in your bucket')
       }
       if (doc.entries.length >= SHARED_MAX_ENTRIES) return refuse('full', 'this playlist is full')
+      const key = action.song.audio.key
+      if (doc.entries.some(entry => entry.song.audio?.key === key)) {
+        return refuse('invalid', 'that song is in this playlist already')
+      }
       const entry: SharedEntry = { id: newId(), song: action.song, owner: memberId, addedAt: now }
       return { ...touched, entries: [...doc.entries, entry] }
     }

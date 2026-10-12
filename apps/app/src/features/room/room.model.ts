@@ -83,16 +83,36 @@ export interface RoomRow {
   readonly owner: RoomMember | undefined
   /** You may take it out: yours, or you are the host. */
   readonly removable: boolean
+  /**
+   * Whose song it is, as its face and name: whoever added it, or — for a
+   * shared playlist's song whose owner is not here — that owner.
+   */
+  readonly face: { readonly name: string; readonly colour: number } | null
+  readonly who: string
+}
+
+/** A face colour for someone not in the room, the same every time for the same name. */
+function colourOfName(name: string): number {
+  let sum = 0
+  for (const char of name) sum += char.codePointAt(0) ?? 0
+  return sum % 8
 }
 
 function rowOf(state: RoomState, entry: RoomEntry): RoomRow {
   const host = isHost(state)
+  const by = memberOf(state, entry.addedBy)
   return {
     entry,
     trackId: roomTrackId(entry.id),
-    by: memberOf(state, entry.addedBy),
+    by,
     owner: memberOf(state, entry.owner),
     removable: entry.playedAt === null && (host || entry.addedBy === state.you),
+    face: entry.from
+      ? { name: entry.from, colour: colourOfName(entry.from) }
+      : by
+        ? { name: by.name, colour: by.colour }
+        : null,
+    who: entry.from ?? nameOf(state, by),
   }
 }
 

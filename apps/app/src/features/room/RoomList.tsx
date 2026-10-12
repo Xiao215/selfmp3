@@ -146,9 +146,9 @@ function PlayingCard({ state }: { state: RoomState }): ReactNode {
     <View style={[styles.card, { backgroundColor: withAlpha(tone.color, 0.2) }]}>
       <View>
         <Cover uri={art} title={song.title} size={48} />
-        {row.by ? (
+        {row.face ? (
           <View style={styles.badge}>
-            <RoomFace name={row.by.name} colour={row.by.colour} size={20} ring />
+            <RoomFace name={row.face.name} colour={row.face.colour} size={20} ring />
           </View>
         ) : null}
       </View>
@@ -338,9 +338,9 @@ const EntryRow = memo(function EntryRow({
     <View style={[styles.row, dim && styles.dim]} testID={`room-row-${row.entry.id}`}>
       <View>
         <Cover uri={artFor(song)} title={song.title} size={44} />
-        {row.by ? (
+        {row.face ? (
           <View style={styles.badge}>
-            <RoomFace name={row.by.name} colour={row.by.colour} size={20} ring />
+            <RoomFace name={row.face.name} colour={row.face.colour} size={20} ring />
           </View>
         ) : null}
       </View>
@@ -349,7 +349,7 @@ const EntryRow = memo(function EntryRow({
           {song.title}
         </Text>
         <Text style={styles.rowSub} numberOfLines={1}>
-          {artistOr(song.artist)} · {nameOf(state, row.by)}
+          {artistOr(song.artist)} · {row.who}
           {row.entry.song.link ? ' · from a link' : ''}
         </Text>
       </View>

@@ -102,6 +102,14 @@ describe('a shared playlist', () => {
     expect(canReadSharedEntry(doc, 'cccccccccccc', entry)).toBeNull()
   })
 
+  it('holds a song once', () => {
+    expect(
+      applySharedAction(playlist(), M, { type: 'add', song: song(1) }, 3000, newId),
+    ).toMatchObject({
+      refused: 'invalid',
+    })
+  })
+
   it('moves a song', () => {
     let doc = act(playlist(), M, { type: 'add', song: song(2) })
     doc = act(doc, X, { type: 'move', entryId: doc.entries[1]?.id ?? '', to: 0 })

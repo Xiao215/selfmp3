@@ -5,6 +5,7 @@ import { ChangesObject } from './changes.js'
 import type { Env } from './context.js'
 import { createDoorman, type Doorman } from './doorman.js'
 import { Room, type RoomSocket } from './room.js'
+import { Shared } from './shared.js'
 import { toBase64, toBase64Url, utf8 } from './encoding.js'
 import type { KvStore } from './kv.js'
 
@@ -647,6 +648,52 @@ export class FakeRooms {
   }
 }
 
+/** A Durable Object namespace of real `Shared` playlists, each with storage in a map. */
+export class FakeShared {
+  readonly playlists = new Map<string, { shared: Shared; values: Map<string, unknown> }>()
+
+  constructor(readonly clock: Clock) {}
+
+  namespace(): DurableObjectNamespace {
+    const get = (id: { name: string }) => ({
+      fetch: (input: string | Request, init?: RequestInit): Promise<Response> =>
+        this.#playlist(id.name).shared.fetch(new Request(input, init)),
+    })
+    return { idFromName: (name: string) => ({ name }), get } as unknown as DurableObjectNamespace
+  }
+
+  stored(id: string): Map<string, unknown> {
+    return this.#playlist(id).values
+  }
+
+  #playlist(name: string) {
+    let held = this.playlists.get(name)
+    if (!held) {
+      const values = new Map<string, unknown>()
+      held = {
+        values,
+        shared: new Shared({
+          storage: {
+            get: <T>(key: string) =>
+              Promise.resolve(structuredClone(values.get(key)) as T | undefined),
+            put: <T>(key: string, value: T) => {
+              values.set(key, structuredClone(value))
+              return Promise.resolve()
+            },
+            deleteAll: () => {
+              values.clear()
+              return Promise.resolve()
+            },
+          },
+          now: () => this.clock.now,
+        }),
+      }
+      this.playlists.set(name, held)
+    }
+    return held
+  }
+}
+
 // --- The harness -----------------------------------------------------------------
 
 export interface Harness {
@@ -658,6 +705,7 @@ export interface Harness {
   readonly backblaze: FakeBackblaze
   readonly changes: FakeChanges
   readonly rooms: FakeRooms
+  readonly shared: FakeShared
   readonly clock: Clock
   /** Any other host a test puts on the internet: a room host's server, say. */
   readonly elsewhere: Map<string, (request: Request) => Response | Promise<Response>>
@@ -750,6 +798,7 @@ export function harness(): Harness {
   const backblaze = new FakeBackblaze()
   const changes = new FakeChanges()
   const rooms = new FakeRooms(clock)
+  const shared = new FakeShared(clock)
   const outside: Harness['outside'] = []
   const elsewhere: Harness['elsewhere'] = new Map()
 
@@ -771,6 +820,7 @@ export function harness(): Harness {
     KV: kv,
     CHANGES: changes.namespace(),
     ROOMS: rooms.namespace(),
+    SHARED: shared.namespace(),
     GOOGLE_CLIENT_ID: CLIENT_ID,
     GOOGLE_CLIENT_SECRET: CLIENT_SECRET,
     SEAL_KEY,
@@ -856,6 +906,7 @@ export function harness(): Harness {
     backblaze,
     changes,
     rooms,
+    shared,
     elsewhere,
     clock,
     outside,

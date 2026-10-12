@@ -10,7 +10,7 @@ import { toQR } from 'toqr'
 /** The light border a reader needs around the code, in modules. */
 export const QR_QUIET = 4
 
-export interface QrDrawing {
+interface QrDrawing {
   /** Modules across, border included: the path's viewBox is this square. */
   readonly size: number
   /** Every dark module, as one path in module units. */

@@ -12,6 +12,9 @@ import {
   RoomLinkServerSchema,
   RoomVectorsSchema,
   RoomRightsSchema,
+  RoomSongSchema,
+  ROOM_MAX_WAITING,
+  waitingEntries,
   addRoomMember,
   applyRoomAction,
   canReadEntry,
@@ -59,6 +62,8 @@ interface Secrets {
   readonly subs: Record<string, string>
   /** Where the host's server answers from the internet, for playing links (`RoomLinkServer`). */
   readonly linkServer?: RoomLinkServer
+  /** Entry id → the account a shared playlist's song is lent from, when its owner is not in the room. */
+  readonly entrySubs?: Record<string, string>
 }
 
 const EMPTY_SECRETS: Secrets = { tokens: {}, subs: {} }
@@ -107,6 +112,21 @@ const ActRequestSchema = z.object({
 export type ActRequest = z.infer<typeof ActRequestSchema>
 
 const LinkServerRequestSchema = z.object({ server: RoomLinkServerSchema })
+
+/** A shared playlist's songs coming into the room, each with whose account lends it. */
+export const ImportSchema = z.object({
+  items: z
+    .array(z.object({ song: RoomSongSchema, sub: z.string().min(1), name: RoomMemberNameSchema }))
+    .max(500),
+})
+type Import = z.infer<typeof ImportSchema>
+
+/** The room as a shared playlist would keep it. */
+export const KeepableSchema = z.object({
+  members: z.array(z.object({ sub: z.string(), name: RoomMemberNameSchema })),
+  items: z.array(z.object({ song: RoomSongSchema, sub: z.string() })),
+})
+type Keepable = z.infer<typeof KeepableSchema>
 type LinkServerRequest = z.infer<typeof LinkServerRequestSchema>
 
 /** Whose bucket a lent file comes from, and its key there. */
@@ -170,6 +190,10 @@ export class Room {
           return await this.#vectors(url)
         case 'POST /vectors':
           return await this.#addVectors(url, RoomVectorsSchema.parse(await request.json()))
+        case 'GET /keepable':
+          return await this.#keepable(url)
+        case 'POST /import':
+          return await this.#import(url, ImportSchema.parse(await request.json()))
         case 'POST /link-server':
           return await this.#linkServer(url, LinkServerRequestSchema.parse(await request.json()))
         default:
@@ -305,6 +329,13 @@ export class Room {
       return answer(404, 'room_missing', 'that song is not in the room')
     }
     const secrets = await this.#secrets()
+    const lentFrom = secrets.entrySubs?.[entry.id]
+    if (entry.owner === null && lentFrom) {
+      const key = keyOf(entry.song, part.data)
+      if (!key) return answer(404, 'room_missing', 'that song has no such file')
+      const body: LentFile = { sub: lentFrom, key }
+      return Response.json(body)
+    }
     if (entry.owner === null) {
       // A link: played through the host's server, when it said where that is.
       const server = secrets.linkServer
@@ -321,6 +352,68 @@ export class Room {
     if (!key || !sub) return answer(404, 'room_missing', 'that song has no such file')
     const body: LentFile = { sub, key }
     return Response.json(body)
+  }
+
+  /**
+   * What keeping the room as a shared playlist takes (sharedRoutes.ts): its
+   * signed-in people, and every song with the account it is lent from. The
+   * host's to ask.
+   */
+  async #keepable(url: URL): Promise<Response> {
+    const found = await this.#member(url, { ended: true })
+    if (found instanceof Response) return found
+    const { doc, member } = found
+    if (doc.members.find(other => other.id === member)?.kind !== 'host') {
+      return answer(403, 'room_forbidden', 'only the host keeps the room')
+    }
+    const secrets = await this.#secrets()
+    const body: Keepable = {
+      members: doc.members.flatMap(other => {
+        const sub = secrets.subs[other.id]
+        return sub && !other.left ? [{ sub, name: other.name }] : []
+      }),
+      items: doc.entries.flatMap(entry => {
+        const sub = entry.owner ? secrets.subs[entry.owner] : secrets.entrySubs?.[entry.id]
+        return sub && entry.song.audio ? [{ song: entry.song, sub }] : []
+      }),
+    }
+    return Response.json(body)
+  }
+
+  /**
+   * A shared playlist's songs, into the room (sharedRoutes.ts checked that the
+   * host is one of its people): each lent from its owner's account, named by
+   * them though they are not here. The host's to do.
+   */
+  async #import(url: URL, input: Import): Promise<Response> {
+    const found = await this.#member(url)
+    if (found instanceof Response) return found
+    const { doc, member } = found
+    if (doc.members.find(other => other.id === member)?.kind !== 'host') {
+      return answer(403, 'room_forbidden', 'only the host plays a shared playlist here')
+    }
+    const now = this.#runtime.now()
+    const room = Math.max(0, ROOM_MAX_WAITING - waitingEntries(doc).length)
+    const secrets = await this.#secrets()
+    const entrySubs = { ...secrets.entrySubs }
+    const added = input.items.slice(0, room).map(item => {
+      const id = this.#newId()
+      entrySubs[id] = item.sub
+      return {
+        id,
+        song: item.song,
+        addedBy: member,
+        owner: null,
+        from: item.name,
+        addedAt: now,
+        at: null,
+        playedAt: null,
+      }
+    })
+    await this.#runtime.storage.put<Secrets>('secrets', { ...secrets, entrySubs })
+    const next = { ...doc, entries: [...doc.entries, ...added], activeAt: now }
+    await this.#save(next, null)
+    return Response.json(this.#stateFor(next, member))
   }
 
   /** How the room's songs sound, for the host's Keep it going. */
@@ -463,7 +556,7 @@ export class Room {
 }
 
 /** The key of the file a part names, or null when the song has none. */
-function keyOf(song: RoomDoc['entries'][number]['song'], part: RoomFilePart): string | null {
+export function keyOf(song: RoomDoc['entries'][number]['song'], part: RoomFilePart): string | null {
   switch (part) {
     case 'audio':
       return song.audio?.key ?? null
@@ -485,7 +578,7 @@ function send(socket: RoomSocket, message: RoomServerMessage): void {
   }
 }
 
-function randomHex(bytes: number): string {
+export function randomHex(bytes: number): string {
   return [...crypto.getRandomValues(new Uint8Array(bytes))]
     .map(byte => byte.toString(16).padStart(2, '0'))
     .join('')

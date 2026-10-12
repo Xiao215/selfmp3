@@ -175,7 +175,7 @@ function refuse(refused: RoomRefusal['refused'], message: string): RoomRefusal {
   return { refused, message }
 }
 
-export function isRoomRefusal(value: RoomDoc | RoomRefusal): value is RoomRefusal {
+export function isRoomRefusal<T extends object>(value: T | RoomRefusal): value is RoomRefusal {
   return 'refused' in value
 }
 
@@ -249,6 +249,7 @@ export function applyRoomAction(
       song,
       addedBy: memberId,
       owner,
+      from: null,
       addedAt: now,
       at: null,
       playedAt: null,

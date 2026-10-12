@@ -31,6 +31,7 @@ const ENTRY: RoomEntry = {
   song: SONG,
   addedBy: 'bbbbbbbbbbbb',
   owner: 'bbbbbbbbbbbb',
+  from: null,
   addedAt: Date.parse('2026-10-12T20:00:00Z'),
   at: null,
   playedAt: null,

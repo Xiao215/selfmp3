@@ -9,12 +9,22 @@ import {
   RoomJoinSchema,
   RoomLinkServerSchema,
   RoomVectorsSchema,
+  SharedFromRoomSchema,
+  SharedKeepSchema,
 } from '@selfmp3/shared'
 import { Bucket } from './bucket.js'
 import { requireSession, type Context } from './context.js'
 import { relayRead } from './files.js'
 import { DoormanError, json, methodNotAllowed, notFound, readJson } from './http.js'
-import { LentFileSchema, type ActRequest, type CreateRequest, type JoinRequest } from './room.js'
+import {
+  KeepableSchema,
+  LentFileSchema,
+  type ActRequest,
+  type CreateRequest,
+  type JoinRequest,
+} from './room.js'
+import { LentSongsSchema } from './shared.js'
+import { newSharedId, post as sharedPost, rememberShared, sharedObject } from './sharedRoutes.js'
 import { bearerToken, type Session } from './sessions.js'
 
 /**
@@ -111,6 +121,42 @@ export async function rooms(ctx: Context): Promise<Response> {
     if (method !== 'POST') return methodNotAllowed(['GET', 'POST'])
     const body = await readJson(ctx.request, RoomVectorsSchema, VECTORS_MAX_BYTES)
     return relayed(await ask(withToken('/vectors'), post(body)))
+  }
+  if (action === 'keep' && entry === undefined) {
+    // The room, kept as a shared playlist: everyone in it who signed in has it.
+    if (method !== 'POST') return methodNotAllowed(['POST'])
+    const session = await requireSession(ctx)
+    const body = await readJson(ctx.request, SharedKeepSchema)
+    const keepable = await ask(withToken('/keepable'))
+    if (!keepable.ok) return relayed(keepable)
+    const room = KeepableSchema.parse(await keepable.json())
+    const id = newSharedId()
+    const made = await sharedObject(ctx, id).fetch(
+      'https://shared/create-from',
+      sharedPost({
+        id,
+        name: body.name,
+        creator: session.sub,
+        members: room.members,
+        items: room.items,
+      }),
+    )
+    if (made.ok) {
+      for (const member of room.members) await rememberShared(ctx, member.sub, id)
+    }
+    return relayed(made)
+  }
+  if (action === 'from-shared' && entry === undefined) {
+    // A shared playlist's songs into the room, lent from each owner's bucket.
+    if (method !== 'POST') return methodNotAllowed(['POST'])
+    const session = await requireSession(ctx)
+    const body = await readJson(ctx.request, SharedFromRoomSchema)
+    const lent = await sharedObject(ctx, body.shared).fetch(
+      `https://shared/lend?sub=${encodeURIComponent(session.sub)}`,
+    )
+    if (!lent.ok) return relayed(lent)
+    const songs = LentSongsSchema.parse(await lent.json())
+    return relayed(await ask(withToken('/import'), post(songs)))
   }
   if (action === 'link-server' && entry === undefined) {
     if (method !== 'PUT') return methodNotAllowed(['PUT'])

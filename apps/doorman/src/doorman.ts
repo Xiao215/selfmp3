@@ -7,6 +7,7 @@ import type { Context, Env, Log } from './context.js'
 import { allowedOrigins, isForeignWrite, preflight, withCors } from './cors.js'
 import * as files from './files.js'
 import { rooms } from './rooms.js'
+import { shared } from './sharedRoutes.js'
 import {
   DoormanError,
   errorResponse,
@@ -71,6 +72,7 @@ const ROUTES: Readonly<Record<string, Readonly<Record<string, Route>>>> = {
 
 const FILES = '/v1/files/'
 const ROOMS = '/v1/rooms'
+const SHARED = '/v1/shared'
 
 /** Errors from the bucket, as a device sees them: the doorman's own upstream failed. */
 const BUCKET_CODES: Readonly<Record<BucketErrorKind, string>> = {
@@ -145,6 +147,7 @@ async function route(ctx: Context): Promise<Response> {
 
   if (path.startsWith(FILES)) return files.file(ctx, path.slice(FILES.length))
   if (path === ROOMS || path.startsWith(`${ROOMS}/`)) return rooms(ctx)
+  if (path === SHARED || path.startsWith(`${SHARED}/`)) return shared(ctx)
 
   // Own properties only: a request whose method is `constructor` or
   // `toString` must not find its way to Object.prototype.

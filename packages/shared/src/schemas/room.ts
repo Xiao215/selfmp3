@@ -134,8 +134,13 @@ export const RoomEntrySchema = z.object({
   song: RoomSongSchema,
   /** Who put it in. */
   addedBy: RoomIdSchema,
-  /** Whose bucket it plays from; null for a link. */
+  /**
+   * Whose bucket it plays from; null for a link, and for a song from a shared
+   * playlist whose owner is not in the room (`from`).
+   */
   owner: RoomIdSchema.nullable(),
+  /** Whose song it is when they are not in the room: a shared playlist's (`/from-shared`). */
+  from: RoomMemberNameSchema.nullable().default(null),
   addedAt: z.number().int().nonnegative(),
   /**
    * Where the host moved it to in the list, counted from the top of what is

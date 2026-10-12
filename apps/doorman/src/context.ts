@@ -31,6 +31,8 @@ export interface Env {
    * the same reason as CHANGES: without it, `/v1/rooms` answers 404.
    */
   readonly ROOMS?: DurableObjectNamespace
+  /** Shared playlists, one Durable Object per playlist (shared.ts). Optional as ROOMS is. */
+  readonly SHARED?: DurableObjectNamespace
   readonly GOOGLE_CLIENT_ID?: string
   readonly GOOGLE_CLIENT_SECRET?: string
   /** base64 of 32 random bytes; every key the doorman uses comes from it. See keys.ts. */

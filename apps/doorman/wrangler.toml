@@ -56,6 +56,12 @@ class_name = "Changes"
 name = "ROOMS"
 class_name = "Room"
 
+# Shared playlists (src/shared.ts): one Durable Object per playlist, kept
+# until its last person leaves.
+[[durable_objects.bindings]]
+name = "SHARED"
+class_name = "SharedPlaylist"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Changes"]
@@ -63,6 +69,10 @@ new_sqlite_classes = ["Changes"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["Room"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["SharedPlaylist"]
 
 # Secrets, set once with `npx wrangler secret put <NAME>`, typing the value when asked:
 #   GOOGLE_CLIENT_SECRET  the OAuth client's secret, from the Google Cloud console
@@ -90,3 +100,7 @@ class_name = "Changes"
 [[env.dev.durable_objects.bindings]]
 name = "ROOMS"
 class_name = "Room"
+
+[[env.dev.durable_objects.bindings]]
+name = "SHARED"
+class_name = "SharedPlaylist"

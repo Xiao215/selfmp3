@@ -32,6 +32,7 @@ export * from './schemas/doorman.js'
 export * from './schemas/sync.js'
 export * from './schemas/ai.js'
 export * from './schemas/room.js'
+export * from './schemas/shared.js'
 
 export * from './format.js'
 export * from './range.js'
@@ -61,6 +62,7 @@ export * from './dates.js'
 export * from './exhaustive.js'
 export * from './room.js'
 export * from './soundVectors.js'
+export * from './sharedPlaylist.js'
 
 /** Audio file extensions the scanner will pick up. */
 export const AUDIO_EXTENSIONS = [

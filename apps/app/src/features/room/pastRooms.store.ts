@@ -19,6 +19,7 @@ const PastRoomSchema = z.object({
   title: z.string(),
   endedAt: z.number(),
   people: z.array(z.object({ name: z.string(), colour: z.number() })),
+  shared: z.string().nullable().optional(),
   songs: z.array(
     z.object({ song: RoomSongSchema, by: z.string(), colour: z.number(), mine: z.boolean() }),
   ),

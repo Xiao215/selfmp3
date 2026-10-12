@@ -19,6 +19,8 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Select } from '../../ui/components/Select'
 import { floating, pageTitle } from '../../ui/surfaces'
 import { CantReach } from '../library/CantReach'
+import { useSharedList } from '../shared/sharedPlaylists'
+import { SharedTile } from '../shared/SharedScreens'
 import { NewPlaylist } from './NewPlaylist'
 import { PlaylistCover } from './PlaylistCover'
 import {
@@ -97,6 +99,7 @@ export function PlaylistsScreen(): ReactNode {
     [router],
   )
 
+  const { data: shared } = useSharedList()
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -162,6 +165,10 @@ export function PlaylistsScreen(): ReactNode {
             <NewTile width={tileWidth} onPress={() => setNewOpen(true)} />
             {/* Built in, and not a playlist: nothing to delete or rename. */}
             <GemsTile width={tileWidth} />
+            {/* Shared with friends (features/shared): kept by the doorman, not this library. */}
+            {(shared ?? []).map(item => (
+              <SharedTile key={item.id} playlist={item} width={tileWidth} />
+            ))}
             {playlists.map((playlist, index) => (
               <PlaylistTile
                 key={playlist.id}

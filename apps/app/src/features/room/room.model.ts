@@ -328,6 +328,8 @@ export interface PastRoom {
   readonly title: string
   readonly endedAt: number
   readonly people: readonly { readonly name: string; readonly colour: number }[]
+  /** The shared playlist it was kept as, when it was (features/shared). */
+  readonly shared?: string | null
   readonly songs: readonly {
     readonly song: RoomSong
     readonly by: string

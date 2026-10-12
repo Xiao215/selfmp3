@@ -60,11 +60,13 @@ export function RoomSongLine({ song }: { song: Song }): ReactNode {
   const whose = owner && owner.id !== state.you ? owner : by
   const line = yours
     ? `${nameOf(state, by)} added it · in your library`
-    : entry.song.link
-      ? `${nameOf(state, by)} added it from a link`
-      : whose?.id === state.you
-        ? 'You brought this'
-        : `${nameOf(state, whose)} brought this · not in your library`
+    : entry.from
+      ? `${entry.from}’s, from a shared playlist · not in your library`
+      : entry.song.link
+        ? `${nameOf(state, by)} added it from a link`
+        : whose?.id === state.you
+          ? 'You brought this'
+          : `${nameOf(state, whose)} brought this · not in your library`
   return (
     <View style={styles.line} testID="now-playing-room-line">
       {by ? <RoomFace name={by.name} colour={by.colour} size={22} /> : null}

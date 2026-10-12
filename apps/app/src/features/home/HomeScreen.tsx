@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router'
 import { artistOr, plural } from '@selfmp3/shared'
 import { useRecentRooms } from '../room/pastRooms.store'
 import { RoomFaces } from '../room/RoomFace'
+import { useResumeSharedJoin } from '../shared/SharedScreens'
 import type { PastRoom } from '../room/room.model'
 import type { Song, Stats } from '@selfmp3/shared'
 import { fonts, leading, radius, tagColors, type, useLibrary } from '@selfmp3/client'
@@ -79,6 +80,8 @@ import { useVia } from '../../connection/via'
  * (Xiao, 2026-09-22).
  */
 export function HomeScreen(): ReactNode {
+  // A shared playlist's invite opened before signing in (features/shared).
+  useResumeSharedJoin()
   const { data: stats } = useStatsFor(useVia(), '7d')
   return <HomePage stats={stats} />
 }

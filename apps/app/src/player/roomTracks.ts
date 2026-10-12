@@ -2,12 +2,13 @@ import { useSyncExternalStore } from 'react'
 import type { Song } from '@selfmp3/shared'
 
 /**
- * The songs of the room this device is in, as the player plays them
- * (docs/features/listen-together.md, @selfmp3/client's roomTracks.ts).
+ * Songs that are not in this device's library, as the player plays them
+ * (docs/features/listen-together.md, @selfmp3/client's roomTracks.ts): the
+ * room this device is in, and a shared playlist played here.
  *
- * The room's provider fills this whenever the room changes; the player reads
- * it beside the library, so a friend's song is a song like any other to the
- * queue, the rows and the lock screen. Empty outside a room.
+ * Whoever has them fills this as they change; the player reads it beside the
+ * library, so a friend's song is a song like any other to the queue, the
+ * rows and the lock screen.
  */
 export interface RoomTrack {
   readonly song: Song
@@ -19,13 +20,29 @@ export interface RoomTrack {
   readonly yours: number | null
 }
 
+/**
+ * Each place songs come from that is not the library, by name: the room
+ * (`room`), and a shared playlist being played here (`shared:<id>`).
+ */
+const sources = new Map<string, ReadonlyMap<number, RoomTrack>>()
 let tracks: ReadonlyMap<number, RoomTrack> = new Map()
 const listeners = new Set<() => void>()
 
-export function setRoomTracks(next: ReadonlyMap<number, RoomTrack>): void {
-  if (next.size === 0 && tracks.size === 0) return
-  tracks = next
+/** The tracks one place gives, replacing what it gave before; an empty map takes them away. */
+export function setTrackSource(source: string, next: ReadonlyMap<number, RoomTrack>): void {
+  const before = sources.get(source)
+  if (next.size === 0 && !before) return
+  if (next.size === 0) sources.delete(source)
+  else sources.set(source, next)
+  const merged = new Map<number, RoomTrack>()
+  for (const given of sources.values()) for (const [id, track] of given) merged.set(id, track)
+  tracks = merged
   for (const listener of listeners) listener()
+}
+
+/** The room's tracks (features/room's RoomProvider). */
+export function setRoomTracks(next: ReadonlyMap<number, RoomTrack>): void {
+  setTrackSource('room', next)
 }
 
 export function roomTrack(songId: number): RoomTrack | undefined {

@@ -34,10 +34,19 @@ import { useCloudSession } from '../profile/useCloudSession'
 import { lookUpLink, playableLink } from './linkSong'
 import { RoomFace } from './RoomFace'
 import { RoomQr } from './RoomQr'
-import { inviteLink, isHost, nameOf, playedRows, roomTitle, youMay } from './room.model'
+import { inviteLink, isHost, nameOf, pastTitle, playedRows, roomTitle, youMay } from './room.model'
 import { closeRoomSheet, useRoomSheet } from './roomSheets.store'
 import { sayRoomFailure } from './roomFailure'
-import { leaveRoom, roomAct, setRoomStartHint, startRoom, useRoom } from './room.store'
+import {
+  keptAsOf,
+  leaveRoom,
+  noteKeptAs,
+  roomAct,
+  setRoomStartHint,
+  startRoom,
+  useRoom,
+} from './room.store'
+import { sharedApi, sharedSession } from '../shared/sharedPlaylists'
 
 /**
  * A room's sheets (docs/features/listen-together.md): Together — opening a
@@ -289,7 +298,19 @@ function AddSheet({ open, state }: { open: boolean; state: RoomState }): ReactNo
             label="Where songs come from"
           />
         ) : null}
-        {shownTab === 'mine' ? <Mine /> : null}
+        {shownTab === 'mine' ? (
+          <MyLibraryPicker
+            onAdd={song =>
+              roomAct({ type: 'add', song }).then(
+                () => true,
+                (error: unknown) => {
+                  sayRoomFailure(error)
+                  return false
+                },
+              )
+            }
+          />
+        ) : null}
         {shownTab === 'room' ? <InTheRoom state={state} /> : null}
         {shownTab === 'link' ? <ALink state={state} /> : null}
       </View>
@@ -298,7 +319,16 @@ function AddSheet({ open, state }: { open: boolean; state: RoomState }): ReactNo
 }
 
 /** Your own songs: found by name, added from your bucket. */
-function Mine(): ReactNode {
+/**
+ * Your own songs, found by name, each added with `onAdd` as a song a room or a
+ * shared playlist carries — lent from your bucket. `onAdd` says whether it
+ * went in, so the row can say so.
+ */
+export function MyLibraryPicker({
+  onAdd,
+}: {
+  onAdd: (song: RoomSong) => Promise<boolean>
+}): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
   const { data: library } = useLibrary()
@@ -322,12 +352,7 @@ function Mine(): ReactNode {
       showToast('That song is not in your bucket yet', 'warn')
       return
     }
-    try {
-      await roomAct({ type: 'add', song: roomSong })
-      setAdded(before => new Set([...before, song.id]))
-    } catch (error) {
-      sayRoomFailure(error)
-    }
+    if (await onAdd(roomSong)) setAdded(before => new Set([...before, song.id]))
   }
 
   return (
@@ -716,6 +741,7 @@ function PeopleSheet({ open, state }: { open: boolean; state: RoomState }): Reac
               />
             </View>
           ) : null}
+          {host ? <KeepAsShared state={state} /> : null}
           <Button
             label={host ? 'End the room' : 'Leave the room'}
             variant="danger"
@@ -741,6 +767,56 @@ function PeopleSheet({ open, state }: { open: boolean; state: RoomState }): Reac
         onCancel={() => setConfirming(false)}
       />
     </>
+  )
+}
+
+/**
+ * The room, kept as a shared playlist (features/shared): everyone in it who
+ * signed in finds it in their Playlists, and can go on adding to it.
+ */
+function KeepAsShared({ state }: { state: RoomState }): ReactNode {
+  const router = useRouter()
+  const { pass } = useRoom()
+  const [busy, setBusy] = useState(false)
+  const [kept, setKept] = useState<string | null>(() => keptAsOf(state.code))
+  const keep = async (): Promise<void> => {
+    if (!pass) return
+    setBusy(true)
+    try {
+      const session = await sharedSession()
+      const playlist = await sharedApi.keepRoom(pass, session, pastTitle(state).slice(0, 120))
+      noteKeptAs(state.code, playlist.id)
+      setKept(playlist.id)
+      showToast(`Kept as “${playlist.name}”, for everyone here who signed in`, 'good', {
+        actions: [
+          {
+            label: 'Open',
+            onPress: () => {
+              closeRoomSheet()
+              router.push({ pathname: '/shared/[id]', params: { id: playlist.id } })
+            },
+          },
+        ],
+      })
+    } catch (error) {
+      sayRoomFailure(error)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <View style={styles.keep}>
+      <Button
+        label={kept ? 'Kept as a shared playlist' : 'Keep as a shared playlist'}
+        busy={busy}
+        disabled={kept !== null}
+        onPress={() => void keep()}
+        testID="room-keep"
+      />
+      <Text style={styles.text}>
+        Everyone here who signed in gets it in their Playlists, and can keep adding to it.
+      </Text>
+    </View>
   )
 }
 
@@ -841,5 +917,6 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.mini,
     backgroundColor: theme.colors.surface2,
   },
+  keep: { gap: space.xs },
   right: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 48 },
 }))

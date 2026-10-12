@@ -136,7 +136,9 @@ function PlayingCard({ state }: { state: RoomState }): ReactNode {
   // The host's own player has Next; a friend's card is their only way to skip.
   const maySkip = !host && youMay(state, 'skip')
   const whose = !row.owner
-    ? 'from a link'
+    ? row.entry.from
+      ? `${row.entry.from}’s`
+      : 'from a link'
     : row.owner.id === state.you
       ? 'yours'
       : `${row.owner.name}’s`

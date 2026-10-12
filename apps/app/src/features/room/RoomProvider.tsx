@@ -45,6 +45,7 @@ import {
 import {
   connectRoom,
   currentRoom,
+  keptAsOf,
   onRoomEnded,
   roomAct,
   roomApi,
@@ -129,7 +130,7 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     () =>
       onRoomEnded(ended => {
         const past = pastRoomOf(ended, Date.now())
-        if (past) rememberPastRoom(past)
+        if (past) rememberPastRoom({ ...past, shared: keptAsOf(ended.code) })
         if (roomTrack(live.current.playingId ?? 0)) {
           commands.setUpcoming([])
           if (live.current.playing) commands.toggle()

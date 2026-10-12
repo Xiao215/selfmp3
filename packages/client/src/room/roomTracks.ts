@@ -19,8 +19,11 @@ export function isRoomTrackId(songId: number): boolean {
   return songId < 0
 }
 
-/** A room entry as a library song, for the player and the rows that draw it. */
-export function roomTrackSong(entry: RoomEntry): Song {
+/**
+ * A room's entry — or a shared playlist's, which has the same parts — as a
+ * library song, for the player and the rows that draw it.
+ */
+export function roomTrackSong(entry: Pick<RoomEntry, 'id' | 'song' | 'addedAt'>): Song {
   const song = entry.song
   return {
     id: roomTrackId(entry.id),

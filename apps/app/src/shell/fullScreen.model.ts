@@ -20,5 +20,10 @@ export const FULL_SCREEN_ROUTES: readonly string[] = [...GATE_ROUTES, '/now-play
  * (docs/features/listen-together.md). Each has its own head, so no chrome.
  */
 export function opensSignedOut(pathname: string): boolean {
-  return pathname === '/room' || pathname.startsWith('/join/')
+  // A shared playlist's invite opens too, to say that joining one needs signing in.
+  return (
+    pathname === '/room' ||
+    pathname.startsWith('/join/') ||
+    /^\/shared\/[^/]+\/join\//.test(pathname)
+  )
 }

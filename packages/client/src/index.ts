@@ -5,7 +5,7 @@
  * compiled without the DOM so the same code runs in a browser, on a phone and
  * in a test. Everything platform-shaped is an interface in `platform.ts`.
  */
-export type { ApiTransport, ClientRequestInit } from './platform.js'
+export type { ApiTransport, ClientFetch, ClientRequestInit } from './platform.js'
 
 export { ApiError, failureText } from './api/error.js'
 export { createApi, type Api } from './api/api.js'
@@ -63,6 +63,7 @@ export { createListenOutbox } from './listens/outbox.js'
 export * from './room/roomApi.js'
 export * from './room/roomClock.js'
 export * from './room/roomTracks.js'
+export * from './room/sharedApi.js'
 
 /** The colours a cover lends Now Playing. */
 export * from './art/palette.js'

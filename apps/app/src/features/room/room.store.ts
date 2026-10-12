@@ -11,6 +11,7 @@ import {
   RoomError,
   withClockSample,
   type ClockSample,
+  type ClientFetch,
   type RoomPass,
 } from '@selfmp3/client'
 import { doormanUrl } from '../../ports/doormanUrl'
@@ -45,13 +46,15 @@ const PING_MS = 10_000
 /** The longest wait between tries at reconnecting. */
 const MAX_BACKOFF_MS = 15_000
 
-export const roomApi = createRoomApi(doormanUrl, (url, init) =>
+/** The global fetch, as the client package's rooms ask for one. */
+export const plainFetch: ClientFetch = (url, init) =>
   fetch(url, {
     ...(init?.method ? { method: init.method } : {}),
     ...(init?.headers ? { headers: init.headers } : {}),
     ...(init?.body ? { body: init.body } : {}),
-  }),
-)
+  })
+
+export const roomApi = createRoomApi(doormanUrl, plainFetch)
 
 let view: RoomView = { pass: readPass(), state: null, offset: 0, link: 'offline' }
 const listeners = new Set<() => void>()
@@ -102,6 +105,20 @@ export function useRoom(): RoomView {
 export function onRoomEnded(listener: (state: RoomState) => void): () => void {
   endedListeners.add(listener)
   return () => endedListeners.delete(listener)
+}
+
+/**
+ * The shared playlist each room was kept as (`Keep as a shared playlist`), so
+ * the room's page in Recently played can open it.
+ */
+const keptAs = new Map<string, string>()
+
+export function noteKeptAs(code: string, shared: string): void {
+  keptAs.set(code, shared)
+}
+
+export function keptAsOf(code: string): string | null {
+  return keptAs.get(code) ?? null
 }
 
 // --- the socket ------------------------------------------------------------------

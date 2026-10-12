@@ -306,9 +306,19 @@ export function PastRoomScreen(): ReactNode {
           </View>
         </View>
         <View style={styles.actions}>
+          {past.shared ? (
+            <Button
+              label="Open the shared playlist"
+              variant="primary"
+              onPress={() =>
+                router.push({ pathname: '/shared/[id]', params: { id: past.shared ?? '' } })
+              }
+              testID="past-room-shared"
+            />
+          ) : null}
           <Button
             label={`Save ${plural(yourIds.length, 'song', 'songs')} as a playlist`}
-            variant="primary"
+            variant={past.shared ? 'secondary' : 'primary'}
             busy={saving}
             disabled={yourIds.length === 0}
             onPress={() => void save()}

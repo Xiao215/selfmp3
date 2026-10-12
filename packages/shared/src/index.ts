@@ -31,6 +31,7 @@ export * from './coverArt.js'
 export * from './schemas/doorman.js'
 export * from './schemas/sync.js'
 export * from './schemas/ai.js'
+export * from './schemas/room.js'
 
 export * from './format.js'
 export * from './range.js'
@@ -58,6 +59,7 @@ export * from './theme.js'
 export * from './math.js'
 export * from './dates.js'
 export * from './exhaustive.js'
+export * from './room.js'
 
 /** Audio file extensions the scanner will pick up. */
 export const AUDIO_EXTENSIONS = [

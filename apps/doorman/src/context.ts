@@ -26,6 +26,11 @@ export interface Env {
    * `/v1/changes` with a 404 — which a device reads as "list, then".
    */
   readonly CHANGES?: DurableObjectNamespace
+  /**
+   * Listening rooms, one Durable Object per room code (room.ts). Optional for
+   * the same reason as CHANGES: without it, `/v1/rooms` answers 404.
+   */
+  readonly ROOMS?: DurableObjectNamespace
   readonly GOOGLE_CLIENT_ID?: string
   readonly GOOGLE_CLIENT_SECRET?: string
   /** base64 of 32 random bytes; every key the doorman uses comes from it. See keys.ts. */

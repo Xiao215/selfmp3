@@ -8,6 +8,7 @@ import {
   RoomIdSchema,
   RoomJoinSchema,
   RoomLinkServerSchema,
+  RoomVectorsSchema,
 } from '@selfmp3/shared'
 import { Bucket } from './bucket.js'
 import { requireSession, type Context } from './context.js'
@@ -105,6 +106,12 @@ export async function rooms(ctx: Context): Promise<Response> {
     response.headers.set('access-control-allow-credentials', 'true')
     return response
   }
+  if (action === 'vectors' && entry === undefined) {
+    if (method === 'GET') return relayed(await ask(withToken('/vectors')))
+    if (method !== 'POST') return methodNotAllowed(['GET', 'POST'])
+    const body = await readJson(ctx.request, RoomVectorsSchema, VECTORS_MAX_BYTES)
+    return relayed(await ask(withToken('/vectors'), post(body)))
+  }
   if (action === 'link-server' && entry === undefined) {
     if (method !== 'PUT') return methodNotAllowed(['PUT'])
     const server = await readJson(ctx.request, RoomLinkServerSchema)
@@ -112,6 +119,9 @@ export async function rooms(ctx: Context): Promise<Response> {
   }
   throw notFound()
 }
+
+/** Three hundred packed vectors, a kilobyte each, and their keys. */
+const VECTORS_MAX_BYTES = 400 * 1024
 
 /** What a link's stream says about itself that a player can use. */
 const LISTEN_RELAYED = ['content-type', 'content-length', 'content-range', 'accept-ranges']

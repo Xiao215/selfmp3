@@ -1,12 +1,15 @@
+import { z } from 'zod'
 import {
   ErrorBodySchema,
   RoomJoinedSchema,
   RoomStateSchema,
+  RoomVectorsSchema,
   type RoomAction,
   type RoomCreate,
   type RoomFilePart,
   type RoomJoined,
   type RoomLinkServer,
+  type RoomVectors,
   type RoomState,
 } from '@selfmp3/shared'
 import type { ClientFetch } from '../platform.js'
@@ -17,6 +20,8 @@ import type { ClientFetch } from '../platform.js'
  * and of the songs it lends. The routes are the doorman's (apps/doorman's
  * rooms.ts); the shapes are packages/shared's schemas/room.ts.
  */
+
+const KeptSchema = z.object({ kept: z.number().int().nonnegative() })
 
 /** A room's answer that was not a yes, with the doorman's own words. */
 export class RoomError extends Error {
@@ -52,6 +57,10 @@ interface RoomApi {
   act(pass: RoomPass, action: RoomAction, session?: string | null): Promise<RoomState>
   /** The host saying where its server answers from the internet, so links play for everyone. */
   linkServer(pass: RoomPass, server: RoomLinkServer): Promise<RoomState>
+  /** How the room's songs sound, for Keep it going. */
+  vectors(pass: RoomPass): Promise<RoomVectors>
+  /** How your own songs in the room sound; answers how many the room kept. */
+  addVectors(pass: RoomPass, vectors: RoomVectors): Promise<number>
   /** The member's WebSocket. */
   socketUrl(pass: RoomPass): string
   /** One of a song's files, for an audio element, an image or the phone's player. */
@@ -105,6 +114,9 @@ export function createRoomApi(doormanUrl: string, fetch: ClientFetch): RoomApi {
       send(at(pass, '/act'), body => RoomStateSchema.parse(body), action, session ?? null),
     linkServer: (pass, server) =>
       send(at(pass, '/link-server'), body => RoomStateSchema.parse(body), server, null, 'PUT'),
+    vectors: pass => send(at(pass, '/vectors'), body => RoomVectorsSchema.parse(body)),
+    addVectors: (pass, vectors) =>
+      send(at(pass, '/vectors'), body => KeptSchema.parse(body).kept, vectors),
     socketUrl: pass => at(pass, '/socket').replace(/^http/, 'ws'),
     fileUrl: (pass, entryId, part) => at(pass, `/files/${entryId}/${part}`),
   }

@@ -291,6 +291,41 @@ describe('a link a guest pastes', () => {
   })
 })
 
+describe('how the room’s songs sound', () => {
+  const VECTOR = 'A'.repeat(1024)
+  const OTHER = `audio/${'ef'.repeat(32)}.m4a`
+
+  it('is told by each member for their own songs, and read by the room', async () => {
+    const s = await setup()
+    const mia = await join(s, 'Mia', s.friend)
+    await state(await act(s, mia, { type: 'add', song: song('x') }, s.friend))
+    const sent = await s.h.call(`/v1/rooms/${s.room.code}/vectors?t=${mia.token}`, {
+      json: { model: 'clamp3-saas-1', vectors: { [AUDIO]: VECTOR, [OTHER]: VECTOR } },
+    })
+    // Mia's own song is kept; one she did not bring is not hers to describe.
+    expect(await sent.json()).toEqual({ kept: 1 })
+    const read = await s.h.call(`/v1/rooms/${s.room.code}/vectors?t=${s.room.token}`)
+    expect(await read.json()).toEqual({ model: 'clamp3-saas-1', vectors: { [AUDIO]: VECTOR } })
+  })
+
+  it('keeps one model’s vectors, and none in the room’s state', async () => {
+    const s = await setup()
+    const mia = await join(s, 'Mia', s.friend)
+    await state(await act(s, mia, { type: 'add', song: song('x') }, s.friend))
+    await s.h.call(`/v1/rooms/${s.room.code}/vectors?t=${mia.token}`, {
+      json: { model: 'clamp3-saas-1', vectors: { [AUDIO]: VECTOR } },
+    })
+    const other = await s.h.call(`/v1/rooms/${s.room.code}/vectors?t=${mia.token}`, {
+      json: { model: 'another-model', vectors: { [AUDIO]: 'B'.repeat(1024) } },
+    })
+    expect(await other.json()).toEqual({ kept: 0 })
+    const seen = JSON.stringify(
+      await (await s.h.call(`/v1/rooms/${s.room.code}?t=${mia.token}`)).json(),
+    )
+    expect(seen).not.toContain(VECTOR)
+  })
+})
+
 describe('a member’s socket', () => {
   it('hears the room whenever anything changes, and who is online', async () => {
     const s = await setup()

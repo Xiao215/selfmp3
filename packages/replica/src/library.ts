@@ -29,6 +29,7 @@ import {
   MotionSchema,
   type Motion,
   type RoomSong,
+  decodeSoundPack,
 } from '@selfmp3/shared'
 import type { EditContext } from './edits.js'
 import { bucketHold, BUCKET_CAP_CODE } from './hold.js'
@@ -280,6 +281,14 @@ export interface CloudLibraryApi {
    * could not play.
    */
   cloudRoomSongNow: (songId: number) => RoomSong | null
+  /**
+   * How your library's songs sound (shared soundVectors.ts), by audio key,
+   * from the pack the snapshot names; null before the server has heard any,
+   * or with no library loaded. Read once per pack and kept in memory.
+   */
+  cloudSoundVectors: (
+    session: CloudSession,
+  ) => Promise<{ model: string; vectors: ReadonlyMap<string, Float32Array> } | null>
   forgetCloudLibrary: () => Promise<void>
 }
 
@@ -1162,6 +1171,36 @@ export function createCloudLibrary(
     return roomSongOf(song, files, uid)
   }
 
+  let soundRead: {
+    key: string
+    pack: Promise<{ model: string; vectors: ReadonlyMap<string, Float32Array> } | null>
+  } | null = null
+
+  function cloudSoundVectors(
+    session: CloudSession,
+  ): Promise<{ model: string; vectors: ReadonlyMap<string, Float32Array> } | null> {
+    const sound = replica?.base.snapshot?.sound
+    if (!sound) return Promise.resolve(null)
+    if (soundRead?.key !== sound.key) {
+      const pack = (async () => {
+        const response = await sessionApi.doormanFetch(session, `/v1/files/${sound.key}`)
+        if (!response.ok) return null
+        return decodeSoundPack(new Uint8Array(await response.arrayBuffer()))
+      })()
+      // A failed read is tried again next time, not kept.
+      pack.then(
+        result => {
+          if (result === null && soundRead?.pack === pack) soundRead = null
+        },
+        () => {
+          if (soundRead?.pack === pack) soundRead = null
+        },
+      )
+      soundRead = { key: sound.key, pack }
+    }
+    return soundRead.pack
+  }
+
   function cloudManifest(scope: 'library' | 'playlists'): SyncManifest {
     const view = replica?.view
     if (!view) return { version: 0, songCount: 0, totalBytes: 0, entries: [] }
@@ -1240,6 +1279,7 @@ export function createCloudLibrary(
     cloudPicturesNow,
     cloudManifest,
     cloudRoomSongNow,
+    cloudSoundVectors,
     forgetCloudLibrary,
   }
 }

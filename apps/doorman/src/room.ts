@@ -7,7 +7,10 @@ import {
   RoomJoinSchema,
   RoomMemberNameSchema,
   RoomModeSchema,
+  ROOM_MAX_VECTORS,
+  ROOM_VECTORS_AT_ONCE,
   RoomLinkServerSchema,
+  RoomVectorsSchema,
   RoomRightsSchema,
   addRoomMember,
   applyRoomAction,
@@ -18,6 +21,7 @@ import {
   type RoomDoc,
   type RoomFilePart,
   type RoomLinkServer,
+  type RoomVectors,
   type RoomRefusal,
   type RoomServerMessage,
 } from '@selfmp3/shared'
@@ -162,6 +166,10 @@ export class Room {
           return await this.#socket(request, url)
         case 'GET /file':
           return await this.#file(url)
+        case 'GET /vectors':
+          return await this.#vectors(url)
+        case 'POST /vectors':
+          return await this.#addVectors(url, RoomVectorsSchema.parse(await request.json()))
         case 'POST /link-server':
           return await this.#linkServer(url, LinkServerRequestSchema.parse(await request.json()))
         default:
@@ -313,6 +321,53 @@ export class Room {
     if (!key || !sub) return answer(404, 'room_missing', 'that song has no such file')
     const body: LentFile = { sub, key }
     return Response.json(body)
+  }
+
+  /** How the room's songs sound, for the host's Keep it going. */
+  async #vectors(url: URL): Promise<Response> {
+    const found = await this.#member(url)
+    if (found instanceof Response) return found
+    const kept = (await this.#runtime.storage.get<RoomVectors>('vectors')) ?? null
+    const body: RoomVectors = kept ?? { model: '', vectors: {} }
+    return Response.json(body)
+  }
+
+  /**
+   * A member's vectors for their own songs — ones they brought or put on a
+   * shelf — so nobody can say how someone else's songs sound. One model per
+   * room: vectors from another are not comparable, and are left out.
+   */
+  async #addVectors(url: URL, input: RoomVectors): Promise<Response> {
+    const found = await this.#member(url)
+    if (found instanceof Response) return found
+    const { doc, member } = found
+    const theirs = new Set<string>()
+    for (const entry of doc.entries) {
+      if (entry.owner === member && entry.song.audio) theirs.add(entry.song.audio.key)
+    }
+    for (const shelf of doc.shelves) {
+      if (shelf.member !== member) continue
+      for (const song of shelf.songs) if (song.audio) theirs.add(song.audio.key)
+    }
+    const offered = Object.entries(input.vectors)
+    if (offered.length > ROOM_VECTORS_AT_ONCE) {
+      return answer(413, 'too_large', 'send fewer vectors at once')
+    }
+    const kept = (await this.#runtime.storage.get<RoomVectors>('vectors')) ?? {
+      model: input.model,
+      vectors: {},
+    }
+    if (kept.model !== input.model) return Response.json({ kept: 0 })
+    const vectors = { ...kept.vectors }
+    let added = 0
+    for (const [key, value] of offered) {
+      if (!theirs.has(key) || key in vectors) continue
+      if (Object.keys(vectors).length >= ROOM_MAX_VECTORS) break
+      vectors[key] = value
+      added++
+    }
+    await this.#runtime.storage.put<RoomVectors>('vectors', { model: kept.model, vectors })
+    return Response.json({ kept: added })
   }
 
   /** The host saying where its server answers from the internet, or that it no longer does. */

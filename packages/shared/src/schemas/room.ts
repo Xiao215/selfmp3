@@ -297,6 +297,28 @@ export const RoomLinkServerSchema = z
   .nullable()
 export type RoomLinkServer = z.infer<typeof RoomLinkServerSchema>
 
+/**
+ * How songs in the room sound (soundVectors.ts), for Keep it going: each
+ * packed vector by its song's audio key, all from one model. A member sends
+ * the vectors of their own songs, from their own bucket's pack; the host's
+ * device reads them all. Kept apart from the room, so no state carries them.
+ *
+ *   POST /v1/rooms/<code>/vectors?t=<token>   RoomVectors   (a member's own songs)
+ *   GET  /v1/rooms/<code>/vectors?t=<token>   → RoomVectors
+ */
+export const RoomVectorsSchema = z.object({
+  model: z.string().min(1).max(100),
+  vectors: z.record(
+    z.string().regex(/^audio\/[0-9a-f]{64}\.[a-z0-9]{1,5}$/, 'not an audio key'),
+    z.string().length(1024),
+  ),
+})
+export type RoomVectors = z.infer<typeof RoomVectorsSchema>
+
+/** Vectors a room keeps, and takes in one go. */
+export const ROOM_MAX_VECTORS = 2000
+export const ROOM_VECTORS_AT_ONCE = 300
+
 /** The parts of a song the doorman lends. */
 export const RoomFilePartSchema = z.enum(['audio', 'cover', 'lyrics', 'romanized'])
 export type RoomFilePart = z.infer<typeof RoomFilePartSchema>

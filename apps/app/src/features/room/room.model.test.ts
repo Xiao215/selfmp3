@@ -6,6 +6,7 @@ import {
   newRoomDoc,
   roomStateFor,
   DEFAULT_ROOM_RIGHTS,
+  soundCloseness,
   type RoomAction,
   type RoomDoc,
   type RoomRefusal,
@@ -23,6 +24,7 @@ import {
   needsReport,
   pastRoomOf,
   pastTitle,
+  soundTarget,
   roomLine,
   roomTracks,
   upcomingRows,
@@ -217,13 +219,47 @@ describe('keep it going', () => {
     doc = act(doc, X, { type: 'add', song: song(3) })
     const three = doc.entries[0]?.id ?? ''
     doc = act(doc, X, { type: 'report', entryId: three, position: 0, playing: true })
-    const picks = keepGoingPicks(as(doc, X), 4, () => 0)
+    const picks = keepGoingPicks(as(doc, X), 4, { random: () => 0 })
     expect(picks.every(pick => pick.type === 'fromShelf')).toBe(true)
     expect(picks).toHaveLength(2)
 
     doc = act(doc, X, { type: 'report', entryId: null, position: 0, playing: false })
     // Song 3 just played: it does not come straight back.
-    expect(keepGoingPicks(as(doc, X), 4, () => 0).some(pick => pick.type === 'again')).toBe(false)
+    expect(
+      keepGoingPicks(as(doc, X), 4, { random: () => 0 }).some(pick => pick.type === 'again'),
+    ).toBe(false)
+  })
+})
+
+describe('keep it going, by sound', () => {
+  it('gives each person’s turn to the song of theirs that sounds nearest to what just played', () => {
+    const vector = (fill: number): Int8Array => new Int8Array(768).fill(fill)
+    let doc = room()
+    doc = act(doc, M, {
+      type: 'shelf',
+      shelf: { name: 'night walk', songs: [song(1), song(2), song(3)] },
+    })
+    doc = act(doc, X, { type: 'add', song: song(4) })
+    doc = act(doc, X, {
+      type: 'report',
+      entryId: doc.entries[0]?.id ?? null,
+      position: 0,
+      playing: true,
+    })
+    const vectors = new Map([
+      [song(4).audio?.key ?? '', vector(100)],
+      [song(1).audio?.key ?? '', vector(-100)],
+      [song(2).audio?.key ?? '', vector(90)],
+    ])
+    const target = soundTarget(as(doc, X), vectors)
+    if (!target) throw new Error('no target')
+    const near = (candidate: RoomSong): number | null => {
+      const found = candidate.audio ? vectors.get(candidate.audio.key) : undefined
+      return found ? soundCloseness(found, target) : null
+    }
+    const picks = keepGoingPicks(as(doc, X), 3, { closeness: near, random: () => 0 })
+    // Song 2 sounds like song 4; song 1 is its opposite; song 3 was never heard.
+    expect(picks.map(pick => (pick.type === 'fromShelf' ? pick.index : -1))).toEqual([1, 0, 2])
   })
 })
 

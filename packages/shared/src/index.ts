@@ -60,6 +60,7 @@ export * from './math.js'
 export * from './dates.js'
 export * from './exhaustive.js'
 export * from './room.js'
+export * from './soundVectors.js'
 
 /** Audio file extensions the scanner will pick up. */
 export const AUDIO_EXTENSIONS = [

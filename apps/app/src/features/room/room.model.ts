@@ -3,6 +3,7 @@ import {
   playedEntries,
   roomPosition,
   roomTitle,
+  soundCentre,
   type RoomAction,
   type RoomEntry,
   type RoomMember,
@@ -234,12 +235,21 @@ export function freshWant(state: RoomState, lastSeq: number): RoomState['want'] 
  * Songs to add when the list runs low, taking turns between the people whose
  * songs are in the room: from shelves, and songs that played, leaving out the
  * last few to play so nothing comes straight back. As actions the host sends.
+ *
+ * With `closeness` — how near a song sounds to what just played
+ * (`soundTarget`) — each person's turn is the nearest of theirs; a song with
+ * no vector comes after those that have one, in no particular order.
  */
 export function keepGoingPicks(
   state: RoomState,
   count: number,
-  random = Math.random,
+  options: {
+    readonly random?: () => number
+    readonly closeness?: (song: RoomSong) => number | null
+  } = {},
 ): RoomAction[] {
+  const random = options.random ?? Math.random
+  const closeness = options.closeness
   const recent = new Set(
     playedEntries(state)
       .slice(0, 12)
@@ -248,12 +258,12 @@ export function keepGoingPicks(
   const waiting = new Set(
     state.entries.filter(entry => entry.playedAt === null).map(entry => keyOf(entry.song)),
   )
-  const byPerson = new Map<string, RoomAction[]>()
+  const byPerson = new Map<string, { action: RoomAction; near: number | null }[]>()
   const offer = (person: string, song: RoomSong, action: RoomAction): void => {
     const key = keyOf(song)
     if (recent.has(key) || waiting.has(key)) return
     const list = byPerson.get(person) ?? []
-    list.push(action)
+    list.push({ action, near: closeness ? closeness(song) : null })
     byPerson.set(person, list)
   }
   for (const shelf of state.shelves) {
@@ -269,7 +279,15 @@ export function keepGoingPicks(
     offer(entry.owner ?? entry.addedBy, entry.song, { type: 'again', entryId: entry.id })
   }
 
-  const queues = [...byPerson.values()].map(list => shuffled(list, random))
+  const queues = [...byPerson.values()].map(list => {
+    const heard = list.filter(pick => pick.near !== null)
+    heard.sort((a, b) => (b.near ?? 0) - (a.near ?? 0))
+    const unheard = shuffled(
+      list.filter(pick => pick.near === null),
+      random,
+    )
+    return [...heard, ...unheard].map(pick => pick.action)
+  })
   const picks: RoomAction[] = []
   for (let round = 0; picks.length < count; round++) {
     let any = false
@@ -350,4 +368,22 @@ export function pastTitle(state: RoomState): string {
 /** The room's invite link: opens the join page, in the app or a browser. */
 export function inviteLink(appUrl: string, code: string): string {
   return `${appUrl.replace(/\/+$/, '')}/join/${code}`
+}
+
+/**
+ * Where the room's music is: the songs playing and just played, as one
+ * packed vector (shared soundVectors.ts), from the vectors the room keeps.
+ * Null when none of them has one.
+ */
+export function soundTarget(
+  state: RoomState,
+  vectors: ReadonlyMap<string, Int8Array>,
+): Int8Array | null {
+  const playing = playingRow(state)?.entry
+  const recent = [...(playing ? [playing] : []), ...playedEntries(state)].slice(0, 3)
+  const heard = recent.flatMap(entry => {
+    const vector = entry.song.audio ? vectors.get(entry.song.audio.key) : undefined
+    return vector ? [vector] : []
+  })
+  return soundCentre(heard)
 }

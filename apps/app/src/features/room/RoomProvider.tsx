@@ -10,7 +10,17 @@ import {
   shouldResync,
   useLibrary,
 } from '@selfmp3/client'
+import {
+  ROOM_VECTORS_AT_ONCE,
+  packVector,
+  soundCloseness,
+  unpackVector,
+  type RoomSong,
+  type RoomState,
+} from '@selfmp3/shared'
+import type { RoomPass } from '@selfmp3/client'
 import { mediaUrlFor } from '../../api/client'
+import { library as cloudLibrary, session as cloudSession } from '../../replica'
 import { useServerDirect } from '../../connection/useServerDirect'
 import {
   usePlayer,
@@ -30,6 +40,7 @@ import {
   pastRoomOf,
   positionNow,
   roomTracks,
+  soundTarget,
 } from './room.model'
 import {
   connectRoom,
@@ -207,11 +218,54 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     if (!state || !host || !state.keepGoing || !state.playing) return
     if (state.order.length >= KEEP_WAITING || keptFor.current === state.playing.entryId) return
     keptFor.current = state.playing.entryId
-    const picks = keepGoingPicks(state, KEEP_WAITING - state.order.length)
+    const wanted = KEEP_WAITING - state.order.length
     void (async () => {
+      // By sound where the room knows how its songs sound; by turns alone otherwise.
+      const closeness = await closenessTo(state, pass).catch(() => undefined)
+      const picks = keepGoingPicks(state, wanted, closeness ? { closeness } : {})
       for (const action of picks) await roomAct(action).catch(() => undefined)
     })()
-  }, [state, host])
+  }, [state, host, pass])
+
+  // How your own songs in the room sound, told to the room once each: what
+  // the host's Keep it going ranks by. Read from your bucket's pack.
+  const toldVectors = useRef<{ code: string; keys: Set<string> }>({ code: '', keys: new Set() })
+  useEffect(() => {
+    if (!state || !pass) return
+    const you = state.members.find(member => member.id === state.you)
+    if (!you || you.kind === 'guest') return
+    if (toldVectors.current.code !== state.code) {
+      toldVectors.current = { code: state.code, keys: new Set() }
+    }
+    const told = toldVectors.current.keys
+    const yours = new Set<string>()
+    for (const entry of state.entries) {
+      if (entry.owner === state.you && entry.song.audio) yours.add(entry.song.audio.key)
+    }
+    for (const shelf of state.shelves) {
+      if (shelf.member !== state.you) continue
+      for (const song of shelf.songs) if (song.audio) yours.add(song.audio.key)
+    }
+    const missing = [...yours].filter(key => !told.has(key)).slice(0, ROOM_VECTORS_AT_ONCE)
+    if (missing.length === 0) return
+    for (const key of missing) told.add(key)
+    void (async () => {
+      const session = await cloudSession.loadSession()
+      const pack = session ? await cloudLibrary.cloudSoundVectors(session) : null
+      if (!pack) return
+      const vectors: Record<string, string> = {}
+      for (const key of missing) {
+        const vector = pack.vectors.get(key)
+        if (vector) vectors[key] = packVector(vector)
+      }
+      if (Object.keys(vectors).length > 0) {
+        await roomApi.addVectors(pass, { model: pack.model, vectors })
+      }
+    })().catch(() => {
+      // Told again with the next change to the room.
+      for (const key of missing) told.delete(key)
+    })
+  }, [state, pass])
 
   // --- everyone else, on everyone's phone ----------------------------------------
 
@@ -250,4 +304,27 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
   }, [inRoom, host, report, follow])
 
   return children
+}
+
+/**
+ * How near a song sounds to what the room just played, from the vectors the
+ * room keeps; undefined when it has none for what played.
+ */
+async function closenessTo(
+  state: RoomState,
+  pass: RoomPass | null,
+): Promise<((song: RoomSong) => number | null) | undefined> {
+  if (!pass) return undefined
+  const kept = await roomApi.vectors(pass)
+  const vectors = new Map<string, Int8Array>()
+  for (const [key, text] of Object.entries(kept.vectors)) {
+    const vector = unpackVector(text)
+    if (vector) vectors.set(key, vector)
+  }
+  const target = soundTarget(state, vectors)
+  if (!target) return undefined
+  return song => {
+    const vector = song.audio ? vectors.get(song.audio.key) : undefined
+    return vector ? soundCloseness(vector, target) : null
+  }
 }

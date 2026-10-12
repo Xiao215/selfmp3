@@ -86,13 +86,15 @@ const MAX_JSON_BYTES = 16 * 1024
 export async function readJson<Output>(
   request: Request,
   schema: ZodType<Output, ZodTypeDef, unknown>,
+  /** Larger only for a body that has to be: a room's sound vectors. */
+  maxBytes: number = MAX_JSON_BYTES,
 ): Promise<Output> {
   const type = request.headers.get('content-type') ?? ''
   if (!/^application\/json(?:\s*;|$)/i.test(type)) {
     throw new DoormanError(415, 'unsupported_media_type', 'send JSON, as application/json')
   }
-  const bytes = await readBytes(request.body, MAX_JSON_BYTES + 1)
-  if (bytes.length > MAX_JSON_BYTES) {
+  const bytes = await readBytes(request.body, maxBytes + 1)
+  if (bytes.length > maxBytes) {
     throw new DoormanError(413, 'too_large', 'that body is too big')
   }
 

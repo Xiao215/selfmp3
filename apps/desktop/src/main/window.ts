@@ -1,11 +1,10 @@
 import { join } from 'node:path'
 
 import { BrowserWindow, screen, shell } from 'electron'
-
+import { APP_ORIGIN } from '@selfmp3/desktop-bridge'
 import { NATIVE_BACKGROUND } from '@selfmp3/shared'
 
 import { MINIMUM_SIZE, openingBounds, rememberBounds } from './bounds.js'
-import { APP_ORIGIN } from '@selfmp3/desktop-bridge'
 
 /**
  * The window.
@@ -81,8 +80,12 @@ export function createWindow({
     if (url.startsWith('https://') || url.startsWith('http://')) void shell.openExternal(url)
     return { action: 'deny' }
   })
+  // Whole origins, so `app://selfmp3.example` or another port does not pass for the app.
+  const ownOrigins = devUrl === null ? [APP_ORIGIN] : [APP_ORIGIN, new URL(devUrl).origin]
+  const isOwnPage = (url: string): boolean =>
+    ownOrigins.some(origin => url === origin || url.startsWith(`${origin}/`))
   window_.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith(APP_ORIGIN) && !(devUrl !== null && url.startsWith(devUrl))) {
+    if (!isOwnPage(url)) {
       event.preventDefault()
       if (url.startsWith('https://') || url.startsWith('http://')) void shell.openExternal(url)
     }

@@ -110,6 +110,25 @@ describe('download', () => {
     expect(await readFile(join(songs, '1.m4a'), 'utf8')).toBe('hello')
   })
 
+  it('starts over when the .part already reaches the end of the file', async () => {
+    const songs = join(harness.userData, 'songs')
+    await mkdir(songs, { recursive: true })
+    await writeFile(join(songs, '1.m4a.part'), 'hello')
+    harness.fetch
+      .mockResolvedValueOnce(new Response(null, { status: 416 }))
+      .mockResolvedValueOnce(respond(200, [bytes('hello')]).response)
+
+    const result = await download(
+      { id: 'd6', kind: 'songs', name: '1.m4a', url: 'https://s.example/1' },
+      () => {},
+    )
+
+    expect(harness.fetch.mock.calls[0]?.[1].headers['Range']).toBe('bytes=5-')
+    expect(harness.fetch.mock.calls[1]?.[1].headers['Range']).toBeUndefined()
+    expect(result).toEqual({ state: 'done', bytes: 5 })
+    expect(await readFile(join(songs, '1.m4a'), 'utf8')).toBe('hello')
+  })
+
   it('says what a refusal said, not only its status', async () => {
     const refused = {
       ok: false,

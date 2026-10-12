@@ -97,15 +97,6 @@ describe('the change counter', () => {
     expect(h.logs.map(entry => entry.message)).toContain('the change counter could not be moved')
   })
 
-  it('is a 404 on a doorman deployed without one, which a device reads as “list, then”', async () => {
-    const { h, token } = await connected()
-    delete h.env.CHANGES
-    expect((await h.call('/v1/changes', { token })).status).toBe(404)
-    const response = await put(h, token, LOG)
-    expect(response.status).toBe(204)
-    expect(response.headers.get(CHANGES_HEADER)).toBeNull()
-  })
-
   it('needs a session', async () => {
     const { h } = await connected()
     expect((await h.call('/v1/changes')).status).toBe(401)

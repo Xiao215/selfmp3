@@ -14,18 +14,15 @@ import { bearerToken, type Session, type Sessions } from './sessions.js'
  */
 
 /**
- * The Worker's settings: the KV binding, the public vars in wrangler.toml, and
- * the secrets set with `wrangler secret put`. The secrets are optional here
- * because a missing one has to become a message that says so, not a crash.
+ * The Worker's settings: the KV and Durable Object bindings, the public vars
+ * in wrangler.toml, and the secrets set with `wrangler secret put`. The
+ * secrets are optional here because a missing one has to become a message that
+ * says so, not a crash.
  */
 export interface Env {
   readonly KV: KvStore
-  /**
-   * Each account's change counter (changes.ts). Optional so that a doorman
-   * deployed without the binding still serves everything else, and answers
-   * `/v1/changes` with a 404 — which a device reads as "list, then".
-   */
-  readonly CHANGES?: DurableObjectNamespace
+  /** Each account's change counter (changes.ts). */
+  readonly CHANGES: DurableObjectNamespace
   readonly GOOGLE_CLIENT_ID?: string
   readonly GOOGLE_CLIENT_SECRET?: string
   /** base64 of 32 random bytes; every key the doorman uses comes from it. See keys.ts. */
@@ -131,8 +128,7 @@ export async function requireBucket(ctx: Context, session: Session): Promise<Buc
   return new Bucket(target, ctx.bucketDeps)
 }
 
-/** The signed-in account's change counter, or null when this doorman has none. */
-export function changesOf(ctx: Context, session: Session): ChangeCounter | null {
-  const namespace = ctx.env.CHANGES
-  return namespace ? changeCounter(namespace, session.sub) : null
+/** The signed-in account's change counter. */
+export function changesOf(ctx: Context, session: Session): ChangeCounter {
+  return changeCounter(ctx.env.CHANGES, session.sub)
 }

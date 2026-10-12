@@ -98,15 +98,10 @@ export async function list(ctx: Context): Promise<Response> {
   return json(body)
 }
 
-/**
- * `GET /v1/changes` — where the account's change counter stands. A 404 on a
- * doorman deployed without one, which a device takes as "list, then".
- */
+/** `GET /v1/changes` — where the account's change counter stands. */
 export async function changes(ctx: Context): Promise<Response> {
   const session = await requireSession(ctx)
-  const counter = changesOf(ctx, session)
-  if (!counter) throw notFound('this doorman keeps no change counter')
-  const body: DoormanChanges = { changes: await counter.read() }
+  const body: DoormanChanges = { changes: await changesOf(ctx, session).read() }
   return json(body)
 }
 
@@ -248,10 +243,9 @@ async function counted(
   key: string,
   response: Response,
 ): Promise<Response> {
-  const counter = isLookedAtCloudKey(key) ? changesOf(ctx, session) : null
-  if (!counter) return response
+  if (!isLookedAtCloudKey(key)) return response
   try {
-    const { before, after } = await counter.bump()
+    const { before, after } = await changesOf(ctx, session).bump()
     response.headers.set(CHANGES_HEADER, `${before} ${after}`)
   } catch (error) {
     ctx.log.warn('the change counter could not be moved', {

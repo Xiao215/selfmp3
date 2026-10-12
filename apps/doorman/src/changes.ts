@@ -1,4 +1,5 @@
 import { DoormanChangesSchema, type DoormanChanges } from '@selfmp3/shared'
+import { z } from 'zod'
 
 /**
  * Each account's change counter: how a device asks "has anything a look would
@@ -29,6 +30,11 @@ export interface ChangeCounter {
   bump(): Promise<{ readonly before: string; readonly after: string }>
 }
 
+const MovedSchema = z.object({
+  before: DoormanChangesSchema.shape.changes,
+  after: DoormanChangesSchema.shape.changes,
+})
+
 /** The account's counter, through the Worker's binding. */
 export function changeCounter(namespace: DurableObjectNamespace, sub: string): ChangeCounter {
   const stub = namespace.get(namespace.idFromName(sub))
@@ -39,13 +45,7 @@ export function changeCounter(namespace: DurableObjectNamespace, sub: string): C
   }
   return {
     read: async () => DoormanChangesSchema.parse(await ask('/', 'GET')).changes,
-    bump: async () => {
-      const moved = (await ask('/bump', 'POST')) as { before?: unknown; after?: unknown }
-      return {
-        before: DoormanChangesSchema.shape.changes.parse(moved.before),
-        after: DoormanChangesSchema.shape.changes.parse(moved.after),
-      }
-    },
+    bump: async () => MovedSchema.parse(await ask('/bump', 'POST')),
   }
 }
 

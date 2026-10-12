@@ -94,7 +94,7 @@ export function setShuffle(state: QueueState, shuffle: boolean, random?: () => n
     return {
       ...state,
       shuffle: true,
-      original: state.items.length > 0 ? [...state.items] : state.original,
+      original: [...state.items],
       items: [current, ...shuffleArray(rest, random)],
       index: 0,
     }
@@ -173,7 +173,7 @@ export function playNext(state: QueueState, songIds: readonly number[]): QueueSt
  * out of where it was first, and `at` is then read against what is left, so
  * dragging a song three places down lands it three places down rather than
  * two. The playing song is never moved out from under the player, and `at` is
- * clamped, so a drop past the last row lands at the end (Xiao, 2026-09-22).
+ * clamped, so a drop past the last row lands at the end.
  */
 export function insertAt(state: QueueState, songIds: readonly number[], at: number): QueueState {
   if (songIds.length === 0) return state

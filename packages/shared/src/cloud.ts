@@ -311,9 +311,8 @@ export const DEFAULT_DOORMAN_URL = 'https://selfmp3-doorman.xiaozhang20030215.wo
  * Where the app is, for something that has a server's address but needs to send
  * someone to the app instead — the browser extension's "open the queue", say.
  *
- * It used to be enough to open the server's own address, because the server
- * served the app there. It serves its own page now (`apps/server/src/http/admin.ts`),
- * so the two are different places and the difference has to be named. A fork
+ * The server's own address is not it: the server serves its own page there
+ * (`apps/server/src/http/admin.ts`), so the two are different places. A fork
  * publishes its own Pages site and changes this one line, as with the doorman
  * above. `apps/server/public/admin.html` links to the same address, and is the
  * one copy that cannot import this: it is a plain file with no build step.

@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { CoverToneSchema } from './song.js'
 import { HLC_PATTERN } from '../hlc.js'
 import { HueSchema, IdSchema } from './common.js'
-import { SignInCodeSchema } from './doorman.js'
+import { DoormanStorageSchema, SignInAttemptSchema, SignInCodeSchema } from './doorman.js'
 import { AudioFeaturesSchema } from './audioFeatures.js'
 import {
   BoolRuleSchema,
@@ -343,9 +343,7 @@ export type CloudConnect = z.infer<typeof CloudConnectSchema>
  * away (a window opened after an await is a popup, and gets blocked), and
  * tells the server, which waits for Google to finish and keeps the session.
  */
-export const CloudSignInSchema = z.object({
-  attempt: z.string().regex(/^[0-9a-f]{32}$/, 'not a sign-in attempt'),
-})
+export const CloudSignInSchema = z.object({ attempt: SignInAttemptSchema })
 export type CloudSignIn = z.infer<typeof CloudSignInSchema>
 
 /** The code the doorman showed once Google signed you in (doorman.ts): what claims the session. */
@@ -374,16 +372,7 @@ export const CloudStatusSchema = z.object({
   /** A bucket is in use: connected directly, or belonging to the signed-in account. */
   connected: z.boolean(),
   /** Where it is connected to. The key itself is never sent back. */
-  target: z
-    .object({
-      endpoint: z.string(),
-      region: z.string(),
-      bucket: z.string(),
-      prefix: z.string(),
-      /** The first few characters of the key id, to tell two keys apart. */
-      keyIdHint: z.string(),
-    })
-    .nullable(),
+  target: DoormanStorageSchema.nullable(),
   /** This server's name in the bucket. */
   deviceId: z.string().nullable(),
   state: z.enum(['off', 'idle', 'syncing', 'error']),

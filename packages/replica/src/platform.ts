@@ -116,7 +116,7 @@ export interface CloudPlatform {
    */
   readonly textCache?: TextCache
 
-  /** Somewhere to say that something was skipped. Optional; console by default. */
+  /** Somewhere to say that something was skipped. Optional; without it, nothing is said. */
   warn?(message: string): void
 }
 

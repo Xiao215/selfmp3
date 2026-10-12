@@ -54,7 +54,8 @@ interface Put {
 
 /**
  * A bucket that answers listings and remembers what was written into it —
- * and, with `counting`, keeps a change counter the way the doorman does.
+ * and, with `counting`, keeps a change counter the way the doorman does
+ * (without it, the counter fails to answer).
  */
 function fakeBucket({ counting = false }: { counting?: boolean } = {}) {
   const puts: Put[] = []
@@ -101,7 +102,8 @@ function fakeBucket({ counting = false }: { counting?: boolean } = {}) {
     }
 
     if (path === '/v1/changes') {
-      if (!counting) return reply(404, { error: 'not found', code: 'not_found' })
+      // A counter that cannot be read: the doorman's Durable Object having a moment.
+      if (!counting) return reply(503, { error: 'unavailable', code: 'error' })
       asked++
       return reply(200, { changes: counter(count) })
     }
@@ -546,7 +548,26 @@ describe('opening', () => {
     const opening = made.library.loadCloudLibrary(SESSION)
     await made.library.forgetCloudLibrary()
     await expect(opening).rejects.toMatchObject({ status: 401 })
+    // Nothing of the old account is left on the device but the session itself.
+    expect([...store.data.keys()].filter(key => key !== 'cloud-session')).toEqual([])
     // The next open starts afresh, under a new name, rather than handing back the old one.
+    await made.library.loadCloudLibrary(SESSION)
+    expect(made.library.pendingCloudChanges()).toBe(0)
+  })
+
+  it('does not keep an edit made for an account signed out of meanwhile', async () => {
+    const store = memoryStore()
+    const made = build(store)
+    await signedIn(made)
+    await made.library.loadCloudLibrary(SESSION)
+    const editing = made.library.recordChanges(SESSION, ctx => ({
+      changes: edits.createTag(ctx, 'old account', undefined).changes,
+      answer: () => undefined,
+    }))
+    await made.library.forgetCloudLibrary()
+    await expect(editing).rejects.toMatchObject({ status: 401 })
+    // Nothing of it is left to go up into whatever bucket signs in next.
+    expect(store.data.has('cloud-outbox')).toBe(false)
     await made.library.loadCloudLibrary(SESSION)
     expect(made.library.pendingCloudChanges()).toBe(0)
   })
@@ -826,7 +847,7 @@ describe('what looking costs the bucket', () => {
     expect(view.library.songs).toHaveLength(1)
   })
 
-  it('looks a good deal less often with a doorman that keeps no counter', async () => {
+  it('looks a good deal less often while the counter cannot be read', async () => {
     const made = build()
     await signedIn(made)
     await made.library.loadCloudLibrary(SESSION)

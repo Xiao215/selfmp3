@@ -227,7 +227,7 @@ export type ImportEnqueue = z.infer<typeof ImportEnqueueSchema>
 
 export const ImportEnqueueResultSchema = z.object({
   jobs: z.array(ImportJobSchema),
-  /** Tracks left out because they were already queued. */
+  /** Tracks left out because they were already in the library or queued. */
   skipped: z.number().int().nonnegative(),
   /** The playlist the tracks will land in, when there is one. */
   playlistId: IdSchema.nullable(),

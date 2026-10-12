@@ -44,6 +44,8 @@ describe('formatBytes', () => {
     expect(formatBytes(512)).toBe('512 B')
     expect(formatBytes(1024)).toBe('1 KB')
     expect(formatBytes(1_572_864)).toBe('1.5 MB')
+    // An average can come out under a byte; it is bytes, not 1024 times as many.
+    expect(formatBytes(0.5)).toBe('1 B')
     expect(formatBytes(3_221_225_472)).toBe('3 GB')
   })
 })

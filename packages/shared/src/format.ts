@@ -1,3 +1,4 @@
+import { clamp } from './math.js'
 import { fromSqliteTime } from './sync.js'
 
 /**
@@ -32,7 +33,8 @@ export function formatLongDuration(seconds: number): string {
 export function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB', 'TB'] as const
-  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  // Clamped at both ends: under one byte the logarithm is negative.
+  const exponent = clamp(Math.floor(Math.log(bytes) / Math.log(1024)), 0, units.length - 1)
   const value = bytes / Math.pow(1024, exponent)
   const unit = units[exponent] ?? 'B'
   const rounded = exponent === 0 ? String(Math.round(value)) : value.toFixed(1).replace(/\.0$/, '')
@@ -44,8 +46,8 @@ export function formatBytes(bytes: number): string {
  *
  * A string is a stamp — ISO, or SQLite's `YYYY-MM-DD HH:MM:SS`, which is UTC
  * without saying so. A number is epoch milliseconds, which is what a device's
- * heartbeat carries; the device lists used to phrase their own ("3 min ago")
- * and there is no reason for the same gap to read two ways.
+ * heartbeat carries, so the device lists phrase a gap the way everything else
+ * does.
  */
 export function formatRelative(at: string | null, now?: Date): string
 export function formatRelative(at: number, now?: Date): string

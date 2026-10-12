@@ -51,11 +51,27 @@ export function parseQuery(search: string): RouteQuery {
   for (const pair of search.replace(/^\?/, '').split('&')) {
     if (!pair) continue
     const eq = pair.indexOf('=')
-    const key = decodeURIComponent((eq === -1 ? pair : pair.slice(0, eq)).replace(/\+/g, ' '))
-    const value = eq === -1 ? '' : decodeURIComponent(pair.slice(eq + 1).replace(/\+/g, ' '))
+    const key = decode(eq === -1 ? pair : pair.slice(0, eq))
+    const value = eq === -1 ? '' : decode(pair.slice(eq + 1))
     if (!values.has(key)) values.set(key, value)
   }
   return { get: name => values.get(name) ?? null }
+}
+
+/** One part of a query; a `%` that starts no escape is kept as it is, as a browser keeps it. */
+function decode(part: string): string {
+  const spaced = part.replace(/\+/g, ' ')
+  try {
+    return decodeURIComponent(spaced)
+  } catch {
+    return spaced.replace(/(?:%[0-9a-fA-F]{2})+/g, run => {
+      try {
+        return decodeURIComponent(run)
+      } catch {
+        return run
+      }
+    })
+  }
 }
 
 /**
@@ -492,11 +508,15 @@ export function createCloudRoutes(
       }
     } catch (error) {
       if (error instanceof CloudRouteError) throw error
-      // Not the request (that is `parseInput`): what the bucket or this device's copy answered.
-      if (error instanceof z.ZodError) {
+      // Not the request (that is `parseInput`): what the bucket or this device's
+      // copy answered — the wrong shape, or not JSON at all. Anything else that
+      // is not a CloudRouteError reaches the app as "offline", which this is not.
+      if (error instanceof z.ZodError || error instanceof SyntaxError) {
+        const why =
+          error instanceof z.ZodError ? (error.issues[0]?.message ?? 'shape mismatch') : 'not JSON'
         throw new CloudRouteError(
           502,
-          `Unexpected answer from the bucket: ${error.issues[0]?.message ?? 'shape mismatch'}`,
+          `Unexpected answer from the bucket: ${why}`,
           'contract_mismatch',
         )
       }
@@ -535,7 +555,7 @@ export function createCloudRoutes(
     return params
   }
 
-  const id = (params: readonly string[], index = 0): number => Number(params[index])
+  const id = (params: readonly string[]): number => Number(params[0])
 
   function songOf(view: CloudLibrary, songId: number) {
     const found = view.byId.songs.get(songId)

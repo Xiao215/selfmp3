@@ -2,13 +2,12 @@
  * A copy of the library a device kept before the snapshot's shape was settled,
  * brought up to it.
  *
- * Until 2f590638 (2026-10-07) a snapshot could leave out a song's `motion`,
- * `audioFeatures` and `coverTone` and the snapshot's `upTo`, `artists` and
- * `sound`, and the schema filled them in as it read. A device kept what it had
- * read, so its copy can lack any of them. The schema stopped filling them in,
- * and such a copy was then thrown away and fetched again from the bucket —
- * which, on a day the bucket refuses reads, left a phone with no library at
- * all while every song it had downloaded sat on its disk (Xiao, 2026-10-08).
+ * A snapshot once could leave out a song's `motion`, `audioFeatures` and
+ * `coverTone` and the snapshot's `upTo`, `artists` and `sound`, and a device
+ * kept what it had read, so its copy can lack any of them. Thrown away and
+ * fetched again instead, such a copy left a phone on a day the bucket refused
+ * reads with no library at all, while every song it had downloaded sat on its
+ * disk.
  *
  * The copy is migrated instead, with the same answers the old schema gave:
  * a field left out is null (or empty), and a cover colour without a palette is

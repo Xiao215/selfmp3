@@ -23,6 +23,8 @@ describe('parseQuery', () => {
     '?q=two+words',
     '?q=a%26b',
     '?weird=%E2%9C%93',
+    '?q=100%',
+    '?q=%E2%9C%93%zz',
     '',
     '?',
     '?&&',
@@ -90,9 +92,12 @@ describe('/api/cloud/uids', () => {
     sound: null,
   }
 
-  /** Enough of a store and a bucket to read one snapshot through. */
-  /** A captive portal by default: a 200 that is not the doorman's. */
-  function device(health: unknown = '<html>Sign in to the Wi-Fi</html>') {
+  /**
+   * Enough of a store and a bucket to read one snapshot through. The doorman's
+   * health is a captive portal by default: a 200 that is not the doorman's.
+   * `snapshotBytes`, when given, is what the snapshot reads as instead.
+   */
+  function device(health: unknown = '<html>Sign in to the Wi-Fi</html>', snapshotBytes?: string) {
     const data = new Map<string, unknown>()
     const clone = (value: unknown): unknown =>
       value === undefined ? null : JSON.parse(JSON.stringify(value))
@@ -146,6 +151,13 @@ describe('/api/cloud/uids', () => {
         if (path === '/v1/health') return reply(200, health)
         if (path.startsWith('/v1/files/')) {
           const key = path.slice('/v1/files/'.length)
+          if (snapshotBytes !== undefined && key.startsWith('snapshots/')) {
+            return reply(200, null).then(response => ({
+              ...response,
+              arrayBuffer: () =>
+                Promise.resolve(new TextEncoder().encode(snapshotBytes).slice().buffer),
+            }))
+          }
           return files.has(key) ? reply(200, files.get(key)) : reply(404, {})
         }
         return reply(404, {})
@@ -225,6 +237,22 @@ describe('/api/cloud/uids', () => {
       status: 0,
       code: 'offline',
     })
+  })
+
+  /*
+   * The bucket's own data is not the app's mistake, and not the network being
+   * away either: a snapshot that is not JSON at all says so the way one of the
+   * wrong shape does, rather than reading as "offline".
+   */
+  it('calls a snapshot that does not read an unexpected answer, not offline', async () => {
+    for (const bytes of ['{"format": 1, "songs": [', JSON.stringify({ format: 'one' })]) {
+      const made = device(undefined, bytes)
+      await made.session.saveSession(SESSION)
+      await expect(made.cloudRequest('GET', '/api/library', undefined)).rejects.toMatchObject({
+        status: 502,
+        code: 'contract_mismatch',
+      })
+    }
   })
 
   it('answers for a doorman that is there, with no song count it does not know', async () => {

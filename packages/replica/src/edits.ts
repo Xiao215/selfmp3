@@ -360,9 +360,8 @@ export function cancelImport(ctx: EditContext, uid: string): Change[] {
  *
  * A live playlist takes a hand order too — the server keeps it and lays it
  * over the rule's answer, and this is the same edit travelling through the
- * bucket (Xiao, 2026-09-21). Refusing it here is what a phone hit while the
- * web, which reaches a server directly, had already been let through
- * (Xiao, 2026-09-22).
+ * bucket, so a phone is let through just as the web, which reaches a server
+ * directly, is.
  */
 export function reorderPlaylist(
   ctx: EditContext,

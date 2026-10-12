@@ -3,9 +3,8 @@ import type { Db } from '../db/index.js'
 /**
  * The songs this server's background work — analysis and the listening
  * model — has downloaded from the bucket on one day (UTC, as Backblaze counts
- * its daily allowance): one row, kept across restarts. Kept in memory it
- * started again at nought on every restart, and the Pi restarts with every
- * update, so the day's limit was a limit per run.
+ * its daily allowance): one row, kept in the database so that a restart — and
+ * the Pi restarts with every update — does not start the day's count over.
  */
 export class BucketDownloadsRepository {
   readonly #read

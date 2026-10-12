@@ -1,13 +1,11 @@
 /**
  * Answering `Range:` for audio, as a rule with no server in it.
  *
- * This was `apps/server/src/http/range.ts`, which has more tests than anything
- * else in the repository and has been getting seeking right for a year. It is
- * here because the desktop shell now has to answer the same header: Electron's
- * `protocol.handle` hands over the request's `Range:`, but `net.fetch` of a
- * `file://` URL ignores it and answers 200 with the whole body, so the 206 has
- * to be built by hand — and building a second one would be building a second
- * set of bugs.
+ * Shared because the desktop shell has to answer the same header as the
+ * server: Electron's `protocol.handle` hands over the request's `Range:`, but
+ * `net.fetch` of a `file://` URL ignores it and answers 200 with the whole
+ * body, so the 206 has to be built by hand — and building a second one would
+ * be building a second set of bugs.
  *
  * The server keeps its Express glue (`sendRange`) and imports the rule; the
  * shell imports the same rule and writes Electron's `Response`. One parser,
@@ -63,7 +61,7 @@ export function parseRange(
  */
 interface RangeAnswer {
   readonly status: 200 | 206 | 416
-  /** Inclusive byte offsets, as HTTP defines them. Absent for a 416. */
+  /** Inclusive byte offsets, as HTTP defines them. Meaningless for a 416 (0 and -1). */
   readonly start: number
   readonly end: number
   /** How many bytes the body carries. Zero for a 416 and for an empty file. */

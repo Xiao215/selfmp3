@@ -89,6 +89,9 @@ export function registerIpc({
   ipcMain.handle(CHANNELS.filesDelete, (_event, kind: unknown, name: unknown) =>
     files.remove(fileKindSchema.parse(kind), fileNameSchema.parse(name)),
   )
+  ipcMain.handle(CHANNELS.filesMove, (_event, from: unknown, to: unknown, name: unknown) =>
+    files.move(fileKindSchema.parse(from), fileKindSchema.parse(to), fileNameSchema.parse(name)),
+  )
   ipcMain.handle(CHANNELS.filesStat, (_event, kind: unknown, name: unknown) =>
     files.statOne(fileKindSchema.parse(kind), fileNameSchema.parse(name)),
   )

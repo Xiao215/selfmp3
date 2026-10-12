@@ -14,21 +14,18 @@ import { bearerToken, type Session, type Sessions } from './sessions.js'
  */
 
 /**
- * The Worker's settings: the KV binding, the public vars in wrangler.toml, and
- * the secrets set with `wrangler secret put`. The secrets are optional here
- * because a missing one has to become a message that says so, not a crash.
+ * The Worker's settings: the KV and Durable Object bindings, the public vars
+ * in wrangler.toml, and the secrets set with `wrangler secret put`. The
+ * secrets are optional here because a missing one has to become a message that
+ * says so, not a crash.
  */
 export interface Env {
   readonly KV: KvStore
+  /** Each account's change counter (changes.ts). */
+  readonly CHANGES: DurableObjectNamespace
   /**
-   * Each account's change counter (changes.ts). Optional so that a doorman
-   * deployed without the binding still serves everything else, and answers
-   * `/v1/changes` with a 404 — which a device reads as "list, then".
-   */
-  readonly CHANGES?: DurableObjectNamespace
-  /**
-   * Listening rooms, one Durable Object per room code (room.ts). Optional for
-   * the same reason as CHANGES: without it, `/v1/rooms` answers 404.
+   * Listening rooms, one Durable Object per room code (room.ts). Optional:
+   * without it, `/v1/rooms` answers 404.
    */
   readonly ROOMS?: DurableObjectNamespace
   /** Shared playlists, one Durable Object per playlist (shared.ts). Optional as ROOMS is. */
@@ -138,8 +135,7 @@ export async function requireBucket(ctx: Context, session: Session): Promise<Buc
   return new Bucket(target, ctx.bucketDeps)
 }
 
-/** The signed-in account's change counter, or null when this doorman has none. */
-export function changesOf(ctx: Context, session: Session): ChangeCounter | null {
-  const namespace = ctx.env.CHANGES
-  return namespace ? changeCounter(namespace, session.sub) : null
+/** The signed-in account's change counter. */
+export function changesOf(ctx: Context, session: Session): ChangeCounter {
+  return changeCounter(ctx.env.CHANGES, session.sub)
 }

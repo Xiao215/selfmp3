@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import type { Href } from 'expo-router'
 import { useUnistyles } from 'react-native-unistyles'
 import { usePageBack } from '../useBackTo'
 import { IconButton } from './IconButton'
@@ -9,10 +10,8 @@ import { ChevronLeft } from './Icons'
  * head's left, as the month page has (docs/ui-mock `P33`), with the page's
  * title under it on a phone.
  *
- * One control for all of them. Profile's three pages each drew their own —
- * a text row on two, this button on the third — and three ways back that
- * look like three different things is three things to learn (Xiao,
- * 2026-09-20).
+ * One control for all of them: three ways back that look like three
+ * different things are three things to learn.
  *
  * Back to the page you were just on; `to` only when there is none (J1,
  * `usePageBack`). A computer draws it only for a page opened from inside
@@ -23,11 +22,11 @@ export function BackButton({
   testID,
 }: {
   /** Where it goes when there is no page behind this one: a link, a reload. */
-  to: string
+  to: Href
   testID?: string
 }): ReactNode {
   const { theme } = useUnistyles()
-  const { shown, back } = usePageBack(to as never)
+  const { shown, back } = usePageBack(to)
   if (!shown) return null
   return (
     <IconButton label="Back" filled onPress={back} testID={testID}>

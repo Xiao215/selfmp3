@@ -170,9 +170,12 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
        * no real play could ever displace it. Clamped against the change's own
        * stamp rather than against the wall clock, because every device has to
        * replay this log to the same library; reading the time here would make
-       * the answer depend on when it was read.
+       * the answer depend on when it was read. A time that does not read as
+       * one (the schema lets through an offset no clock has) is the stamp's.
        */
-      const at = toSqliteTime(Math.min(Date.parse(change.playedAt), hlcTime(change.hlc)))
+      const stamped = hlcTime(change.hlc)
+      const played = Date.parse(change.playedAt)
+      const at = toSqliteTime(Number.isNaN(played) ? stamped : Math.min(played, stamped))
       library.songs.set(song.uid, {
         ...song,
         playCount: song.playCount + 1,
@@ -349,11 +352,25 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
 
     case 'playlistOrdered': {
       const playlist = library.playlists.get(change.uid)
-      if (!playlist || playlist.kind !== 'manual') return false
+      if (!playlist) return false
       if (!hlcWins(change.hlc, playlist.stamps?.['order'])) return false
+      // A playlist that follows tags takes a hand order too, as the server's
+      // does. Its rules say which songs are in it, worked out as it is shown
+      // (the replica's `inKeptOrder`), so what it keeps here is only the order
+      // to lay over them — and a song its rules matched since the snapshot,
+      // not in `songUids` yet, can still be put in place.
+      const current =
+        playlist.kind === 'live'
+          ? [
+              ...new Set([
+                ...playlist.songUids,
+                ...change.songUids.filter(uid => library.songs.has(uid)),
+              ]),
+            ]
+          : playlist.songUids
       library.playlists.set(playlist.uid, {
         ...playlist,
-        songUids: reordered(playlist.songUids, change.songUids),
+        songUids: reordered(current, change.songUids),
         stamps: { ...playlist.stamps, order: change.hlc },
         updatedAt: laterTime(playlist.updatedAt, change.hlc),
       })

@@ -3,10 +3,9 @@ import { formatBytes } from '@selfmp3/shared'
 /**
  * When a device downloads, what it says about it, and when a song cannot play.
  *
- * The design Xiao chose on 2026-09-12 (docs/features/offline-sync.md), written
- * once for every client that keeps songs: the phone and the desktop. A browser
- * always streams, so for it most of this answers
- * "nothing to do".
+ * The design in docs/features/offline-sync.md, written once for every client
+ * that keeps songs: the phone and the desktop. A browser always streams, so
+ * for it most of this answers "nothing to do".
  *
  * Nothing here knows how the network is detected or where bytes go. It is
  * handed the situation and returns a decision, which is what makes it testable.
@@ -21,8 +20,8 @@ export const LARGE_SYNC_BYTES = 500 * 1024 * 1024
 /**
  * Wi-Fi, for downloading's purposes. A connection the device cannot name counts:
  * refusing to download on a desk is worse than the data it might cost, and a
- * Mac treats every connection as Wi-Fi (decided the same day). A phone on a
- * personal hotspot reports Wi-Fi, and is treated as Wi-Fi.
+ * computer treats every connection as Wi-Fi. A phone on a personal hotspot
+ * reports Wi-Fi, and is treated as Wi-Fi.
  */
 export function onWifi(network: NetworkKind): boolean {
   return network === 'wifi' || network === 'unknown'
@@ -51,7 +50,7 @@ export interface SyncSituation {
   /**
    * The bucket refusing reads for the day, for a library read from it: every
    * download would be refused, so none is started until the hold lifts —
-   * each start would ask once more, and fail once more (2026-10-08).
+   * each start would ask once more, and fail once more.
    */
   readonly held: boolean
 }
@@ -204,10 +203,10 @@ export function playBlock({
   bucketStreams: boolean
   /**
    * The bucket refusing reads for the day (replica's `bucketHold`). A song not
-   * on this device would be refused too: with Wi-Fi up it was still tried,
-   * failed, was retried and skipped, and three of those stopped the music
-   * however many downloaded songs came after (2026-10-08). An installed app
-   * only: a browser's service worker may still have a played song to hand.
+   * on this device would be refused too: tried anyway, it fails, is retried
+   * and skipped, and three of those stop the music however many downloaded
+   * songs come after. An installed app only: a browser's service worker may
+   * still have a played song to hand.
    */
   bucketHeld: boolean
   dataAllowed: boolean

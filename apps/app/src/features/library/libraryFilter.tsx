@@ -7,7 +7,7 @@ import { createLibraryFilterStore, type LibraryFilterStore } from './libraryFilt
  * The library's filter, held above the library.
  *
  * Library's own tag strip and sort, kept above the screen so they are still
- * there when you come back to it. Nothing else filters Library any more: a tag
+ * there when you come back to it. Nothing else filters Library: a tag
  * opens its own page (docs/UI-MIGRATION.md, Phase 4). Only React here: the
  * model reads it, and the model may not import anything that draws.
  *

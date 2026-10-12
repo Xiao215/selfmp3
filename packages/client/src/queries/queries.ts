@@ -73,10 +73,9 @@ import {
  * cache invalidation lives here rather than being sprinkled across components.
  * That is what keeps two open tabs — or a phone and a laptop — consistent.
  *
- * What looked like platform differences turned out to be about the platform,
- * not the query: the phone keys every cache entry by the server's address,
- * which is now a `queryClient.clear()` when the address changes, and every
- * query is gated on having an address at all, which is `ClientState.ready`.
+ * Keys carry no server address: the cache is cleared when the address changes
+ * (`queryClient.clear()`), and every query is gated on having an address at
+ * all, which is `ClientState.ready`.
  */
 
 /**
@@ -226,6 +225,13 @@ export function useLibrary(): UseQueryResult<Library, Error> {
     enabled: ready,
     queryFn: async (): Promise<Library> => {
       const api = clientApi()
+      // Let go of meanwhile — `clear()` on a switch of server, a sign-in or a
+      // sign-out — whatever this asking finds is the last library's, and is
+      // neither saved nor put in the cache.
+      const cache = client.getQueryCache()
+      const asking = cache.find({ queryKey: queryKeys.library, exact: true })
+      const letGo = (): boolean =>
+        cache.find({ queryKey: queryKeys.library, exact: true }) !== asking
       // The cloud library is its own saved copy, kept on the device already and
       // answered from it first: saving the answer again is the whole library
       // written twice, and reading the old copy first is slower than the answer.
@@ -242,7 +248,12 @@ export function useLibrary(): UseQueryResult<Library, Error> {
           ?.read()
           .catch(() => null)
         void saved?.then(copy => {
-          if (copy && !answered && client.getQueryData(queryKeys.library) === undefined) {
+          if (
+            copy &&
+            !answered &&
+            !letGo() &&
+            client.getQueryData(queryKeys.library) === undefined
+          ) {
             client.setQueryData(queryKeys.library, copy, { updatedAt: 0 })
           }
         })
@@ -250,7 +261,7 @@ export function useLibrary(): UseQueryResult<Library, Error> {
       try {
         const library = await api.library()
         answered = true
-        if (!fromCloud) snapshotWritesFor(client).offer(library)
+        if (!fromCloud && !letGo()) snapshotWritesFor(client).offer(library)
         return library
       } catch (error) {
         answered = true
@@ -262,12 +273,20 @@ export function useLibrary(): UseQueryResult<Library, Error> {
         //
         // The copy is put in the cache and the error is still thrown, so a
         // screen gets both: `data` to draw, and `isError` to say the server is
-        // not there. Returning the copy as the answer hid the failure — the
-        // phone said "13 songs" beside covers that would not load and playlists
-        // that came back empty, and nothing on it could say why.
-        const cached = (await (saved ?? librarySnapshot()?.read())) ?? null
-        if (cached && !client.getQueryData(queryKeys.library)) {
-          client.setQueryData(queryKeys.library, cached)
+        // not there. Returning the copy as the answer would hide the failure — a
+        // phone saying "13 songs" beside covers that will not load and
+        // playlists that come back empty, with nothing on it to say why.
+        //
+        // Only a server's: the saved copy is a server's library, never the
+        // bucket's, and nothing to read when the cache already has one.
+        if (!fromCloud && !letGo() && !client.getQueryData(queryKeys.library)) {
+          const cached = await (saved ??
+            librarySnapshot()
+              ?.read()
+              .catch(() => null))
+          if (cached && !letGo() && !client.getQueryData(queryKeys.library)) {
+            client.setQueryData(queryKeys.library, cached)
+          }
         }
         throw error
       }

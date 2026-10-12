@@ -125,9 +125,8 @@ export function SeekBar({
   const fillWidth = `${tenths / 10}%` as const
 
   /*
-   * The thumb swells under the finger. On the spring, as every press in the app
-   * is (`M1`, "Press"): it was a style flip from 1 to 1.2 and back, the one
-   * control in the app that jumped where everything around it sinks.
+   * The thumb swells under the finger, on the spring, as every press in the
+   * app does (`M1`, "Press").
    */
   const grabbing = dragging !== null
   const [grabbed] = useState(() => new Animated.Value(1))
@@ -150,7 +149,7 @@ export function SeekBar({
   }
 
   // Whole points, for the reason the fill is rounded: an unrounded position
-  // was a new CSS rule for every tick of every song.
+  // is a new CSS rule for every tick of every song.
   const thumbLeft = Math.max(0, Math.round(width * at - (inline ? THUMB_INLINE : THUMB) / 2))
 
   const bar = (
@@ -234,7 +233,7 @@ const styles = StyleSheet.create(theme => ({
     minWidth: 36,
     textAlign: 'center',
   },
-  hitInline: { paddingVertical: 8 },
+  hitInline: { paddingVertical: space.sm },
   trackInline: { height: 4, borderRadius: 2 },
   fillInline: { height: 4, borderRadius: 2 },
   thumbInline: { width: THUMB_INLINE, height: THUMB_INLINE, borderRadius: THUMB_INLINE / 2 },

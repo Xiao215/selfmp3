@@ -54,7 +54,7 @@ export function playlistRoutes(container: Container): Router {
       // The kind is not a field of the patch: a manual playlist has no rules
       // to set, and a live one is made manual by `stopFollowing`, not by
       // taking its rules away.
-      if (body.rules !== undefined && playlist.kind === 'manual' && body.rules !== null) {
+      if (playlist.kind === 'manual' && body.rules != null) {
         throw HttpError.badRequest('a manual playlist cannot have rules')
       }
       if (body.rules === null && playlist.kind === 'live') {
@@ -171,9 +171,8 @@ export function playlistRoutes(container: Container): Router {
   router.put(
     '/playlists/:id/order',
     route({ params: ParamsWithId, body: ReorderPlaylistSchema }, ({ params, body }): Ok => {
-      // A playlist that follows tags takes a hand order too: it keeps finding
-      // songs, and the ones it finds land after the order you set (Xiao,
-      // 2026-09-21).
+      // A playlist that follows tags takes a hand order too: the songs it
+      // finds later land after the order you set (`PlaylistRepository.reorder`).
       requirePlaylist(params.id)
       container.playlists.reorder(params.id, body.songIds)
       container.edits.playlist(params.id, ['order'])

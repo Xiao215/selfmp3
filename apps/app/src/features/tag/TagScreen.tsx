@@ -31,10 +31,11 @@ export function TagScreen(): ReactNode {
   const [tagging, setTagging] = useState(false)
   const anchor = useRef<View | null>(null)
   // The tag this page is about, held by id once found, so a rename is followed.
+  // A name in the address that is another tag's moves the page to that tag.
   const [tagId, setTagId] = useState<number | null>(null)
 
   const byName = library ? existingTag(library.tags, name ?? '') : null
-  if (byName && tagId === null) setTagId(byName.id)
+  if (byName && byName.id !== tagId) setTagId(byName.id)
   const tag = library?.tags.find(entry => entry.id === tagId) ?? byName
 
   useEffect(() => {

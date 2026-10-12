@@ -10,9 +10,9 @@ import { devicePlace } from '../settings/settings.model'
  * Says, once, that the bucket has refused for the day (docs/SYNC.md, "Caps").
  * Draws nothing.
  *
- * Without this the day's cap showed up as everything else: songs skipped one
- * after another, letter tiles where covers were, a song remembered as having
- * no words. The player still names the song it could not play; this names the
+ * Without this the day's cap would show up as everything else: songs skipped
+ * one after another, letter tiles where covers were, a song remembered as
+ * having no words. The player still names the song it could not play; this names the
  * reason, the first time, in plain words: the doorman's own message talks
  * about Backblaze and its caps, which only Account › Storage has explained.
  * For as long as the hold lasts, Settings says so under its title and on
@@ -21,8 +21,8 @@ import { devicePlace } from '../settings/settings.model'
 export function BucketHoldNotice(): ReactNode {
   const hold = useBucketHold()
   // Once for the day, not each time the hold is renewed: it lapses and is
-  // asked about again every ten minutes, and each renewal said it again
-  // (2026-10-08). Library's line and the faded rows say it from then on.
+  // asked about again every ten minutes. Library's line and the faded rows
+  // say it from then on.
   const saidAt = useRef<number | null>(null)
   useEffect(() => {
     if (hold === null) return

@@ -107,13 +107,9 @@ export async function buildImportPreview(deps: PreviewDeps, text: string): Promi
   if (urls.length === 0) return previewList(deps, text)
 
   /*
-   * What is already here, so the UI can grey out duplicates.
-   *
-   * This was a set of `artist::title` compared as exact lowercased strings,
-   * and it let the same song in ten times: YouTube hands back a different
-   * spelling of the channel from one week to the next, and two strings that
-   * differ by one character are two different songs to an exact comparison.
-   * `alreadyHave` knows the link, the fuzzy name and the length instead.
+   * What is already here, so the UI can grey out duplicates: by the link, the
+   * fuzzy name and the length (`alreadyHave`), not an exact `artist::title`,
+   * since YouTube spells a channel differently from one week to the next.
    */
   const library = libraryIndex(deps.songs.all())
   const waiting = waitingToUpload(deps)
@@ -214,13 +210,10 @@ export async function findLooking<T extends ImportPreviewItem>(
 
 /**
  * Which songs are yours but not yet where every device reads — on this server,
- * waiting to upload.
- *
- * "In library" was the answer for any song this server held, and a song whose
- * upload the bucket refused is one: the phone's library, read from the bucket,
- * did not show it, the queue row that said so had been cleared, and the same
- * link pasted again said the song was already there. It is; just not there.
- * Without a bucket this server's library is the library, and nothing waits.
+ * waiting to upload. A song whose upload the bucket refused is in this
+ * server's library but not the phone's, so "In library" alone would be wrong
+ * about it. Without a bucket this server's library is the library, and
+ * nothing waits.
  */
 export function waitingToUpload(
   deps: Pick<PreviewDeps, 'cloudRepo' | 'cloudSync'>,

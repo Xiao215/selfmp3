@@ -329,7 +329,7 @@ export function linkHint(text: string): string | null {
  * song waiting on its upload is not one — it is in the library already and
  * goes up by itself — and neither is one that was paused.
  */
-export function failedJob(job: Pick<ImportJob, 'status' | 'step'>): boolean {
+function failedJob(job: Pick<ImportJob, 'status' | 'step'>): boolean {
   return job.status === 'error' && !waitingToUpload(job)
 }
 

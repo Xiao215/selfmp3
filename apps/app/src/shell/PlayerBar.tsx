@@ -48,7 +48,7 @@ import { TagPicker } from '../ui/components/TagPicker'
 import { leaveStage } from './stageExit'
 import { handOffCover } from '../ui/coverHandoff'
 import { Press } from '../ui/components/Press'
-import { useLayout } from './useLayout'
+import { useLayoutValue } from './useLayout'
 import { floating } from '../ui/surfaces'
 import { PlayPauseIcon } from '../ui/components/PlayPauseIcon'
 import { goBack } from '../ui/useBackTo'
@@ -88,11 +88,13 @@ export function PlayerBar(): ReactNode {
   const artFor = useArt()
   const router = useRouter()
   const toggleLoved = useToggleLoved()
-  const { width } = useLayout()
   const insets = useSafeAreaInsets()
   // An iPad at 834 points has less room than any desktop window the bar was
   // drawn for: the song and the transport give up width before the tools go.
-  const tight = width < TIGHT_WIDTH
+  // Asked as answers, so a window being dragged redraws the bar only as it
+  // crosses one of these lines.
+  const tight = useLayoutValue(layout => layout.width < TIGHT_WIDTH)
+  const compact = useLayoutValue(layout => layout.width < COMPACT_WIDTH)
   const song = player.current
   // Asked once here and handed to every control that draws in it, rather than
   // each asking the player and the covers again for the same colour.
@@ -248,7 +250,7 @@ export function PlayerBar(): ReactNode {
           <SleepButton tone={songColor} />
         </View>
         <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Volume">
-          <VolumeControl compact={width < COMPACT_WIDTH} tone={songColor} />
+          <VolumeControl compact={compact} tone={songColor} />
         </View>
         <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Panels">
           <UpNextTarget>
@@ -287,9 +289,9 @@ export function PlayerBar(): ReactNode {
 /** The bar filling with the song's colour, and the bright line along its top. */
 function PlayedWash({ color }: { color: string }): ReactNode {
   const { position, duration } = usePlayerProgress()
-  // Rounded once, by the wash: rounding here as well only made its steps
-  // coarser than the ones it had already settled on.
-  const fraction = duration > 0 ? Math.min(1, position / duration) : 0
+  // Not rounded or clamped here: the wash does both, once, and rounding twice
+  // would make its steps coarser than the ones it settles on.
+  const fraction = duration > 0 ? position / duration : 0
   return <ProgressWash fraction={fraction} color={color} alpha={0.2} fade={40} line="top" />
 }
 
@@ -335,8 +337,7 @@ function PlayButton({
       ]}
     >
       {/* Streaming, the first second is silence, and a pause glyph through it
-          reads as "already playing" — so the button says it is working
-          (Xiao, 2026-09-21). */}
+          reads as "already playing" — so the button says it is working. */}
       <PlayPauseIcon
         playing={playing}
         busy={stalled}
@@ -349,8 +350,8 @@ function PlayButton({
 
 /**
  * A lit control that says its value — "24 min", "End of song" — so a running
- * timer can be read off the bar without opening anything. Shown only while the setting differs from normal; otherwise the
- * plain icon is.
+ * timer can be read off the bar without opening anything. Shown only while
+ * the setting differs from normal; otherwise the plain icon is.
  */
 function ValuePill({
   tone,
@@ -387,7 +388,7 @@ function SleepButton({ tone }: { tone: SongColors }): ReactNode {
   const player = usePlayer()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<View>(null)
-  const left = useSleepMinutesLeft(player.sleepTimerEndsAt)
+  const left = useSleepMinutesLeft()
   const toggle = (): void => setOpen(value => !value)
 
   return (

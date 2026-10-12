@@ -78,11 +78,10 @@ const LOOK_KEY = 'cloud-look'
  *
  * A look asks the doorman's change counter first (`/v1/changes`), which costs
  * the bucket nothing, and lists `log/` and `snapshots/` only when it has moved.
- * Without a counter — a doorman deployed before it — every look is those two
- * listings, and the bucket counts listings against a daily allowance
- * (docs/SYNC.md, "Caps"): a look every minute or so, from one open tab, was
- * most of the allowance on its own. So a device that knows of no counter
- * looks a good deal less often.
+ * While the counter cannot be read, every look is those two listings, and the
+ * bucket counts listings against a daily allowance (docs/SYNC.md, "Caps"): a
+ * look every minute or so, from one open tab, was most of the allowance on its
+ * own. So a device that has no counter to go by looks a good deal less often.
  */
 const FRESH_MS = 60_000
 const LISTED_FRESH_MS = 5 * 60_000
@@ -185,8 +184,8 @@ interface Replica {
   /**
    * When the bucket was last looked at (`checkedAt`) and last listed
    * (`listedAt`), and the change counter as it stood before that listing —
-   * or as this device's own writes have moved it since. Null when the doorman
-   * keeps no counter.
+   * or as this device's own writes have moved it since. Null when it could not
+   * be read.
    */
   look: Look
   /**
@@ -314,9 +313,7 @@ export function createCloudLibrary(
   sessionApi: CloudSessionApi,
 ): CloudLibraryApi {
   const { store } = platform
-  const warn = (message: string): void => {
-    if (platform.warn) platform.warn(message)
-  }
+  const warn = (message: string): void => platform.warn?.(message)
 
   let replica: Replica | null = null
   let opening: Promise<Replica> | null = null
@@ -458,29 +455,12 @@ export function createCloudLibrary(
     // what it read must not become the library the next sign-in is answered from.
     const began = generation
     const attempt: Promise<Replica> = (async () => {
-      const outbox = await changeOutbox(current => current, { check: true })
-      const kept = storedBase(await store.read(BASE_KEY))
-      const base = kept?.base ?? null
-      if (kept?.upgraded) await store.write(BASE_KEY, kept.base)
-      const r: Replica = {
-        base: base ?? { key: null, snapshot: null },
-        baseStored: base !== null,
-        logs: storedLogs(await store.read(LOGS_KEY)),
-        outbox,
-        clock: new HlcClock(outbox.device, { last: outbox.last }),
-        library: replay(null, [], []),
-        view: snapshotToLibrary(emptySnapshot(), NO_IDS, 0),
-        viewStale: false,
-        // Only with the copy it describes: a look without a base to go with it says nothing.
-        look: base ? storedLook(await store.read(LOOK_KEY)) : NEVER_LOOKED,
-        mustCheck: false,
-      }
-      await rebuild(r)
+      const r = await exclusive(() => openKept(began))
       // Never read from the bucket: there is nothing here to show without it,
       // so a failure here leaves nothing behind to be shown instead. A device
       // that has read it before answers from its copy at once, and looks in
       // the background (loadCloudLibrary).
-      if (!base) {
+      if (!r.baseStored) {
         // Reads refused for the day: the snapshot would be refused too, and
         // every screen asking again listed the bucket again first, spending
         // the listings' allowance on an answer known before asking.
@@ -488,7 +468,7 @@ export function createCloudLibrary(
         if (held) throw new DoormanError(502, held.message, BUCKET_CAP_CODE)
         await refresh(r, session, { list: true })
       }
-      if (began !== generation) throw new DoormanError(401, 'Signed out.', 'unauthorized')
+      if (began !== generation) throw signedOut()
       replica = r
       listenForConnection()
       // Anything left over from last time goes up now.
@@ -499,6 +479,34 @@ export function createCloudLibrary(
     })
     opening = attempt
     return attempt
+  }
+
+  /**
+   * The replica from what this device kept, shown. In the lock, as signing
+   * out removes what is kept in it: begun before a sign-out, this finishes
+   * first and the removal follows; begun after, it writes nothing.
+   */
+  async function openKept(began: number): Promise<Replica> {
+    if (began !== generation) throw signedOut()
+    const outbox = await changeOutbox(current => current, { check: true })
+    const kept = storedBase(await store.read(BASE_KEY))
+    const base = kept?.base ?? null
+    if (kept?.upgraded) await store.write(BASE_KEY, kept.base)
+    const r: Replica = {
+      base: base ?? { key: null, snapshot: null },
+      baseStored: base !== null,
+      logs: storedLogs(await store.read(LOGS_KEY)),
+      outbox,
+      clock: new HlcClock(outbox.device, { last: outbox.last }),
+      library: replay(null, [], []),
+      view: snapshotToLibrary(emptySnapshot(), NO_IDS, 0),
+      viewStale: false,
+      // Only with the copy it describes: a look without a base to go with it says nothing.
+      look: base ? storedLook(await store.read(LOOK_KEY)) : NEVER_LOOKED,
+      mustCheck: false,
+    }
+    await rebuild(r)
+    return r
   }
 
   function emptySnapshot(): CloudSnapshot {
@@ -606,15 +614,13 @@ export function createCloudLibrary(
   let unread: { changes: string; logKeys: string[]; newest: string | null } | null = null
 
   /**
-   * Where the doorman's change counter stands, or null when there is none to
-   * ask — a doorman deployed before it answers 404 — or it cannot be asked.
-   * Either way the look lists, as it always did; a doorman that cannot be
-   * reached will say so there.
+   * Where the doorman's change counter stands, or null when it cannot be
+   * asked. Then the look lists; a doorman that cannot be reached will say so
+   * there.
    */
   async function readCounter(session: CloudSession): Promise<string | null> {
     try {
       const response = await sessionApi.doormanFetch(session, '/v1/changes')
-      if (response.status === 404) return null
       return DoormanChangesSchema.parse(await response.json()).changes
     } catch {
       return null
@@ -921,6 +927,9 @@ export function createCloudLibrary(
   ): Promise<T> {
     const r = await open(session)
     return exclusive(async () => {
+      // Signed out since: this account's outbox is gone, and an edit put in
+      // a new one would go up into whichever bucket signs in next.
+      if (replica !== r) throw signedOut()
       // A deferred edit reads only ids, which plays never change.
       if (!options.deferView && r.viewStale) await show(r)
       const { changes, answer } = build({ view: r.view, stamp: () => r.clock.tick() })
@@ -1009,11 +1018,11 @@ export function createCloudLibrary(
             json: file,
           })
           if (!response.ok) throw new DoormanError(response.status, 'the file could not be written')
-          // Signed out meanwhile: everything of this account's here is gone already.
-          if (replica !== r) return
           // Inside the lock: a look at the bucket swapping `r.logs` in between
           // would otherwise lose this file from both the logs and the outbox.
-          await exclusive(async () => {
+          const kept = await exclusive(async () => {
+            // Signed out meanwhile: everything of this account's here is gone already.
+            if (replica !== r) return false
             // Now a log file like any other device's, until a snapshot folds it in.
             r.logs.set(key, file)
             await store.write(LOGS_KEY, Object.fromEntries(r.logs))
@@ -1022,7 +1031,9 @@ export function createCloudLibrary(
             await changeOutbox(current =>
               current.inflight?.seq === inflight.seq ? { ...current, inflight: null } : current,
             )
+            return true
           })
+          if (!kept) return
         }
         retries = 0
       } catch (error) {
@@ -1226,15 +1237,26 @@ export function createCloudLibrary(
     opening = null
     unread = null
     generation++
-    written = null
     retries = 0
     if (flushTimer) clearTimeout(flushTimer)
     flushTimer = null
-    await Promise.all(
-      [IDS_KEY, FILES_KEY, PLAYLISTS_KEY, STATE_KEY, BASE_KEY, LOGS_KEY, OUTBOX_KEY, LOOK_KEY].map(
-        key => store.remove(key).catch(() => undefined),
-      ),
-    )
+    // In the lock, so an edit or an upload already under way finishes first
+    // and nothing it writes outlives the sign-out.
+    await exclusive(async () => {
+      written = null
+      await Promise.all(
+        [
+          IDS_KEY,
+          FILES_KEY,
+          PLAYLISTS_KEY,
+          STATE_KEY,
+          BASE_KEY,
+          LOGS_KEY,
+          OUTBOX_KEY,
+          LOOK_KEY,
+        ].map(key => store.remove(key).catch(() => undefined)),
+      )
+    })
     await platform.textCache?.clear().catch(() => undefined)
   }
 
@@ -1245,6 +1267,10 @@ export function createCloudLibrary(
    */
   async function readText(response: CloudResponse): Promise<string> {
     return platform.decodeText(new Uint8Array(await response.arrayBuffer()))
+  }
+
+  function signedOut(): DoormanError {
+    return new DoormanError(401, 'Signed out.', 'unauthorized')
   }
 
   function asLocalIds(value: unknown): LocalIds {

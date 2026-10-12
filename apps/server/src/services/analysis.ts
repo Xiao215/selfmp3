@@ -19,7 +19,7 @@ import {
 import { analyzePcmInWorker } from './analysisWorker.js'
 import { ffmpegFailure, runFfmpeg } from './ffmpeg.js'
 import type { MotionStore } from './motionStore.js'
-import type { SoundService } from '../sound/sound.js'
+import { ModelUnavailableError, type SoundService } from '../sound/sound.js'
 import { messageOf } from '../util/errors.js'
 
 /**
@@ -79,6 +79,12 @@ const BUCKET_DOWNLOADS_PER_DAY = 1_000
  */
 const FETCH_FAILURES_TO_WAIT = 3
 const BUCKET_RETRY_MS = 30 * 60_000
+/**
+ * A listening model that would not run a clip it was given — it failed to
+ * load, or its thread died — is not asked again for this long. Its fault, not
+ * the song's: the song waits rather than being recorded as unhearable.
+ */
+const MODEL_RETRY_MS = 30 * 60_000
 
 /** A song with no audio here and none in the bucket: nothing to analyse or hear. */
 class NoAudioError extends Error {}
@@ -94,8 +100,8 @@ class NotFetchedError extends Error {}
 class DownloadsSpentError extends Error {}
 
 /** The day as Backblaze counts it: `2026-10-07`, in UTC. */
-function utcDay(ms = Date.now()): string {
-  return new Date(ms).toISOString().slice(0, 10)
+function utcDay(): string {
+  return new Date().toISOString().slice(0, 10)
 }
 
 /** A song's audio as a path ffmpeg can read, and how to be rid of it afterwards. */
@@ -130,6 +136,8 @@ export class AnalysisService {
   /** Songs the bucket would not give this time round, and how many failed in a row. */
   readonly #notFetched = new Set<number>()
   #fetchFailures = 0
+  /** Until when the listening model is let be, after it would not run (`MODEL_RETRY_MS`). */
+  #modelDownUntil = 0
 
   constructor(deps: {
     config: Config
@@ -241,8 +249,7 @@ export class AnalysisService {
       while (!this.#stopped) {
         if (this.#busy()) {
           // Come back once the important work is done. One timer, not one per
-          // kick: a scan kicks once per song ingested, and each of those used
-          // to leave another timer behind to wake the process for nothing.
+          // kick: a scan kicks once per song ingested.
           this.#wakeAt(Date.now() + BUSY_RETRY_MS)
           return
         }
@@ -290,7 +297,6 @@ export class AnalysisService {
             danceability: null,
             version: ANALYSIS_VERSION,
           })
-          this.#current = null
         }
 
         await sleep(BREATHER_MS)
@@ -321,13 +327,13 @@ export class AnalysisService {
    * a song whose copy is here costs nothing. A bucket that would not give it,
    * a few times in a row, is not answering, and the loop waits instead.
    */
-  #passOver(song: { id: number; title: string }, error: Error): boolean {
+  #passOver(song: { id: number; title: string }, error: unknown): boolean {
     this.#notFetched.add(song.id)
     if (error instanceof DownloadsSpentError) return true
     this.#fetchFailures++
     this.#logger.warn('could not fetch a song from the bucket; trying again later', {
       song: song.title,
-      message: error.message,
+      message: messageOf(error),
     })
     if (this.#fetchFailures < FETCH_FAILURES_TO_WAIT) return true
     this.#fetchFailures = 0
@@ -366,7 +372,7 @@ export class AnalysisService {
         }),
       ])
       // Pure CPU for a few hundred milliseconds, off the thread that answers
-      // the phone: a seek that landed during it used to wait for it.
+      // the phone, where a seek landing during it would wait for it.
       const features = await this.#analyzePcm(pcm, ANALYSIS_SAMPLE_RATE, ANALYSE_TIMEOUT_MS)
 
       // The curve before the row: a row at this version is what says the song
@@ -388,8 +394,14 @@ export class AnalysisService {
       // Heard now, while the file is here: later it may be in the bucket only,
       // and hearing it then would be a second download. So the model is made
       // ready for it rather than only used if it already was.
-      if (this.#sound && !this.#sound.has(songId) && (await this.#sound.prepare())) {
-        await this.#hearFile(songId, key, file, duration)
+      const sound = this.#sound
+      if (
+        sound &&
+        !sound.has(songId) &&
+        Date.now() >= this.#modelDownUntil &&
+        (await sound.prepare())
+      ) {
+        await this.#hearFile(sound, songId, key, file, duration)
       }
 
       this.#logger.debug('analysed', {
@@ -421,6 +433,10 @@ export class AnalysisService {
       if (this.#notFetched.size > 0) this.#comeBackForPassedOver()
       return false
     }
+    if (Date.now() < this.#modelDownUntil) {
+      this.#wakeAt(this.#modelDownUntil)
+      return false
+    }
     if (!(await sound.prepare())) {
       const at = sound.retryAt
       if (at !== null) this.#wakeAt(at)
@@ -448,34 +464,59 @@ export class AnalysisService {
       // The bucket did not give it (its daily cap, or the network), or today's
       // downloads are spent. The song is not given up for that: it is passed
       // over for now.
-      return this.#passOver(song, error instanceof Error ? error : new Error(messageOf(error)))
+      return this.#passOver(song, error)
     }
 
     // No onProgress here: a vector changes nothing in the library the devices
     // hold, so hearing does not have them fetch it again.
     this.#current = { id: song.id, title: song.title }
+    let ran: boolean
     try {
-      await this.#hearFile(song.id, song.path, local.file, song.duration)
+      ran = await this.#hearFile(sound, song.id, song.path, local.file, song.duration)
     } finally {
       await local.cleanup()
       this.#current = null
+    }
+    if (!ran) {
+      this.#wakeAt(this.#modelDownUntil)
+      return false
     }
     await sleep(BREATHER_MS)
     return true
   }
 
-  /** Hear one song from a file on this disk; a song that cannot be heard is recorded so. */
-  async #hearFile(songId: number, key: string, file: string, duration: number): Promise<void> {
+  /**
+   * Hear one song from a file on this disk; a song that cannot be heard is
+   * recorded so. False when it was the model that would not run, which sets
+   * hearing aside for `MODEL_RETRY_MS` and leaves the song waiting.
+   */
+  async #hearFile(
+    sound: SoundService,
+    songId: number,
+    key: string,
+    file: string,
+    duration: number,
+  ): Promise<boolean> {
     const startedAt = Date.now()
     try {
-      await this.#sound!.hear(songId, file, duration)
+      await sound.hear(songId, file, duration)
       this.#logger.debug('heard', { song: key, ms: Date.now() - startedAt })
+      return true
     } catch (error) {
+      if (error instanceof ModelUnavailableError) {
+        this.#modelDownUntil = Date.now() + MODEL_RETRY_MS
+        this.#logger.warn('the listening model would not run; trying again later', {
+          song: key,
+          message: messageOf(error),
+        })
+        return false
+      }
       this.#logger.warn('could not hear a song', {
         song: key,
         message: messageOf(error),
       })
-      this.#sound!.markUnhearable(songId)
+      sound.markUnhearable(songId)
+      return true
     }
   }
 

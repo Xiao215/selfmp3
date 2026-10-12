@@ -6,9 +6,9 @@ import { useMotionReduced } from './motion'
 /**
  * A row of a list that changes under a person's hand: it fades in where it
  * arrives and out where it leaves, and the rows around it glide to their new
- * places instead of jumping. Pressing Retry on a failed import took its row
- * out of the list in one frame, and the row below it was simply there under
- * the pointer.
+ * places instead of jumping. Without them, pressing Retry on a failed import
+ * takes its row out of the list in one frame, and the row below is simply
+ * there under the pointer.
  *
  * Reanimated's layout animations, for what the `Animated` moves in
  * `motion.ts` cannot do: a row's place is the layout's, not a value of ours,

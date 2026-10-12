@@ -15,7 +15,7 @@ import type { Song } from '@selfmp3/shared'
 import { useArrival } from '../motion'
 import { PinnedHeaderScope, pinnedHeaderProps } from '../../ports/pinnedHeader'
 import { useListScrollbar } from '../../ports/listScrollbar'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutValue } from '../../shell/useLayout'
 import { positionLabel, type ScrollLabel } from './listScrollbar.model'
 
 /** Module-level, so the list is not handed a new function on every render. */
@@ -140,7 +140,7 @@ export function SongList({
   )
 
   // A computer's scrollbar over the list's right edge; a phone keeps its own.
-  const { wide } = useLayout()
+  const wide = useLayoutValue(layout => layout.wide)
   const listRef = useRef<FlatList<Song>>(null)
   const scrollbar = useListScrollbar({
     list: listRef,

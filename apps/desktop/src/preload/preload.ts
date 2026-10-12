@@ -91,6 +91,8 @@ const bridge: DesktopBridge = {
     delete: async (kind, name) => {
       await ipcRenderer.invoke(CHANNELS.filesDelete, kind, name)
     },
+    move: async (from, to, name) =>
+      fileStatSchema.parse(await ipcRenderer.invoke(CHANNELS.filesMove, from, to, name)),
     stat: async (kind, name) =>
       fileStatSchema.parse(await ipcRenderer.invoke(CHANNELS.filesStat, kind, name)),
     list: async kind => fileListSchema.parse(await ipcRenderer.invoke(CHANNELS.filesList, kind)),

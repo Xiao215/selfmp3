@@ -76,8 +76,8 @@ export async function romanizeLibrary(deps: {
       if ((await romanizeAndKeep(deps, song.id, text, hash)) !== null) made++
     } catch (error) {
       // Words a song keeps only in the bucket are read from there, and a
-      // bucket that refuses one read refuses them all: a boot with the key
-      // refused was ninety warnings that all said the same thing.
+      // bucket that refuses one read refuses them all: one warning, not one
+      // per song saying the same thing.
       if (error instanceof CloudError) {
         deps.logger.warn('romanizing stopped early', { message: error.message })
         break

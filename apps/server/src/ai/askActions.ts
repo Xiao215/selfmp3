@@ -149,9 +149,9 @@ export function songsMatching(
   for (const term of wanted) {
     for (const hit of lyrics(term)) {
       const song = byId.get(hit.songId)
-      if (song && !found.has(song.id)) found.set(song.id, { song, line: hit.line })
-      else if (song && found.get(song.id)!.line === null)
+      if (song && (found.get(song.id)?.line ?? null) === null) {
         found.set(song.id, { song, line: hit.line })
+      }
     }
   }
   return [...found.values()].slice(0, MAX_FOUND)

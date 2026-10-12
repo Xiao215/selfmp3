@@ -81,8 +81,7 @@ export function buildAccent(
     accentWash: oklchToHexAlpha(0.72, 0.16, hue, washAlpha),
     // A tint, not a slab. At 0.4 alpha a screen of ticked rows was a wall of
     // colour with the artwork fighting through it, and the tick on each row —
-    // which is what actually says "selected" — had nothing to stand against
-    // (Xiao, 2026-09-22).
+    // which is what actually says "selected" — had nothing to stand against.
     accentSelected: oklchToHexAlpha(0.34, 0.07, hue, 0.28),
   }
 }
@@ -320,9 +319,8 @@ export const radius = {
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, gutter: 20, xl: 24, gutterWide: 40 } as const
 
 /**
- * The type scale: nine sizes and no others (proposal P1, 2026-10-08). There
- * were about thirty, half-point ones among them, and two sizes a point apart
- * read as a mistake rather than as a step.
+ * The type scale: nine sizes and no others. Two sizes a point apart read as a
+ * mistake rather than as a step.
  *
  * - `tiny` 11: counts, times, the small uppercase heading (`label()`, tracked
  *   `labelTracking`).

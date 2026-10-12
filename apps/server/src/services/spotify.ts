@@ -38,7 +38,10 @@ export class SpotifyLists {
         signal: AbortSignal.timeout(SPOTIFY_TIMEOUT_MS),
         headers: { 'user-agent': BROWSER_USER_AGENT, accept: 'text/html' },
       })
-      if (!response.ok) throw new Error(`Spotify answered ${response.status}`)
+      if (!response.ok) {
+        await response.body?.cancel()
+        throw new Error(`Spotify answered ${response.status}`)
+      }
       html = await response.text()
     } catch (error) {
       const message = messageOf(error)

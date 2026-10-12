@@ -89,8 +89,8 @@ export function songColors(
  * `theme.colors.x` is not a hex string but `var(--colors-x)`, and slicing an
  * alpha byte onto that made `var(--c1a` — an unclosed function that Chrome's
  * CSS parser could not recover from, so every rule written after it in the
- * page's one stylesheet was dropped (Xiao's tag pills drawn in black, a row's
- * title dark, the player bar without its slider, after pressing any button).
+ * page's one stylesheet was dropped (tag pills drawn in black, a row's title
+ * dark, the player bar without its slider, after pressing any button).
  */
 export function withAlpha(color: string, alpha: number): string {
   const opacity = clamp(alpha, 0, 1)

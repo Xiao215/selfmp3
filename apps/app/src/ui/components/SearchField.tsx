@@ -10,12 +10,11 @@ import { Search, X } from './Icons'
 import { Press } from './Press'
 
 /**
- * The one search field (proposal P1, 2026-10-08): a pill one step up from
+ * The one search field: a pill one step up from
  * what it sits on, a magnifier, the words, and a × once there are words to
  * clear. Its edge is clear at rest and turns the accent while it has the
- * focus, as does the magnifier: the focus ring, not a hairline. Search's own
- * page is where it was drawn first, and every other search — a sheet's, the
- * palette's, a panel's — is this one.
+ * focus, as does the magnifier: the focus ring, not a hairline. Every search —
+ * Search's own page, a sheet's, the palette's, a panel's — is this one.
  *
  * 48 high with a finger, 40 with a mouse (`useLayoutValue`, `dense`).
  * `raised` is for a field on a card, a sheet or a panel rather than on the

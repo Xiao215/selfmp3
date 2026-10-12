@@ -200,9 +200,8 @@ below); the plain command deploys the real doorman.
 - **What a device may do to the library**: read everything in it, add files,
   replace or delete snapshots and change logs, and delete a song, cover or
   lyrics file — which the server does once no song names it, after a removal
-  (docs/SYNC.md). It can never replace one of those once it is there, and
-  never replace or delete `format.json` (the doorman writes that when a bucket
-  is connected).
+  (docs/SYNC.md). It can never replace or delete `format.json` (the doorman
+  writes that when a bucket is connected).
 - **Old versions in a Backblaze bucket**: B2 keeps a deleted or replaced
   file's old version, billed as stored, unless the bucket's Lifecycle Settings
   say "Keep only the last version of the file" (docs/SYNC.md, *Setting up*).

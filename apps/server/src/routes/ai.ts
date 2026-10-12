@@ -57,9 +57,9 @@ export function aiRoutes(container: Container): Router {
 
   router.post(
     '/ai/describe',
-    route({ body: DescribeRequestSchema }, ({ body }): Promise<DescribeResult> => {
+    route({ body: DescribeRequestSchema }, ({ body, res }): Promise<DescribeResult> => {
       allowed('smartAsk')
-      return answering(container.smart.describe(body))
+      return answering(container.smart.describe(body, whileWaited(res)))
     }),
   )
 
@@ -107,9 +107,9 @@ export function aiRoutes(container: Container): Router {
           again: BooleanQuerySchema,
         }),
       },
-      ({ query }): Promise<WrittenReport> => {
+      ({ query, res }): Promise<WrittenReport> => {
         allowed('smartWritten')
-        return answering(container.smart.written(query.range, query.again))
+        return answering(container.smart.written(query.range, query.again, whileWaited(res)))
       },
     ),
   )
@@ -132,9 +132,9 @@ export function aiRoutes(container: Container): Router {
 
   router.get(
     '/ai/tidy',
-    route({}, (): Promise<TidyResult> => {
+    route({}, ({ res }): Promise<TidyResult> => {
       allowed('smartTidy')
-      return container.smart.tidy()
+      return answering(container.smart.tidy(whileWaited(res)))
     }),
   )
 

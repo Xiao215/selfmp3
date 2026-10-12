@@ -122,14 +122,14 @@ export function UpNextTarget({ children }: { children: ReactNode }): ReactNode {
   const reduced = useMotionReduced()
   const landed = useSyncExternalStore(subscribeFlights, landingCount, landingCount)
   const [scale] = useState(() => new Animated.Value(1))
-  // Landings before this button was drawn are not its to answer.
-  const [before] = useState(landed)
-  const [seen, setSeen] = useState(landed)
-  if (landed !== seen) setSeen(landed)
+  // The landing last answered: those before this button was drawn are not its
+  // to answer, and a change of Reduce Motion is not a new landing.
+  const answered = useRef(landed)
   useEffect(() => {
-    if (reduced || seen === before) return
-    timing(scale, 1.12, MOVE_MS.landing, () => spring(scale, 1), { easing: ease.out })
-  }, [seen, before, reduced, scale])
+    if (answered.current === landed) return
+    answered.current = landed
+    if (!reduced) timing(scale, 1.12, MOVE_MS.landing, () => spring(scale, 1), { easing: ease.out })
+  }, [landed, reduced, scale])
   const held = useRef<View | null>(null)
   const ref = useCallback((node: View | null) => {
     registerUpNextTarget(node, held.current)

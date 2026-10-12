@@ -4,9 +4,9 @@
  *
  * While a composition is open the keys are the input method's. Enter takes
  * the candidate, Escape drops it, the arrows move between candidates, Space
- * picks one. A listener that answered them closed the palette on the first
- * Escape and opened the top result on the first Enter, so a search in Chinese
- * could not be typed at all. `keyCode` 229 is what browsers report for such a
+ * picks one. A listener that answered them would close the palette on the
+ * first Escape and open the top result on the first Enter, so a search in
+ * Chinese could not be typed at all. `keyCode` 229 is what browsers report for such a
  * keydown where `isComposing` is not set (UI Events, "determine keyCode").
  */
 export function isComposing(event: { isComposing?: boolean; keyCode?: number }): boolean {

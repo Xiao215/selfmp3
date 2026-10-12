@@ -40,15 +40,15 @@ import { useSvgId } from '../useSvgId'
 
 /**
  * Past this width of page the album leaves the second line for a column of its
- * own. It was 1160 of window, of which the sidebar takes 244; measured against
- * the page itself, it stays right when Up next's rail narrows the page.
+ * own. Measured against the page itself rather than the window, so it stays
+ * right when Up next's rail narrows the page.
  */
 const ALBUM_COLUMN_CONTENT_WIDTH = 916
 /**
  * And past this much, a row has room for its tags as chips — well below the
  * album's column, because an iPad in portrait has 590 points of page and a
- * tag added to a song there never appeared on its row at all (Xiao,
- * 2026-09-21). `RowTags` fits what it can into the room and counts the rest.
+ * tag added to a song there should still appear on its row. `RowTags` fits
+ * what it can into the room and counts the rest.
  */
 const TAG_CHIPS_CONTENT_WIDTH = 520
 
@@ -60,8 +60,9 @@ const TAG_CHIPS_CONTENT_WIDTH = 520
  *
  * Two shapes. At phone width, with a finger and no hover: a tap plays, the ⋯
  * is always there at a finger-sized target, and holding the row selects it —
- * or, in a list whose order is yours, picks it up to move it. At desktop width it is a table row: the checkbox and
- * the position (or the equaliser, for the song that is loaded), the art, the
+ * or, in a list whose order is yours, picks it up to move it. At desktop width
+ * it is a table row: the checkbox and the position (or the equaliser, for the
+ * song that is loaded), the art, the
  * title over the artist, the album in a column of its own once there is room,
  * the tags, the length and ⋯.
  *
@@ -177,7 +178,7 @@ export const SongRow = memo(function SongRow({
   onLongPress?: (song: Song) => void
   /**
    * This row's menu is open. The menu covers the pointer, so the row stops
-   * hearing it; without this the ⋯ faded out under its own menu and stayed
+   * hearing it; without this the ⋯ would fade out under its own menu and stay
    * clickable while invisible.
    */
   menuOpen?: boolean
@@ -200,7 +201,7 @@ export const SongRow = memo(function SongRow({
   const wash = usePresence(active, MOVE_MS.wash, motion.base)
   // The playing row wears its cover's colour, and keeps it while its wash
   // draws back: asked for nothing the moment it stopped, the leaving wash
-  // turned the accent's blue. Every other row asks for nothing, and so does
+  // would turn the accent's blue. Every other row asks for nothing, and so does
   // not re-render when the accent changes.
   const songColor = useSongColor(song, artUri, active || wash.mounted)
   // Asked as answers, not as the width: a window being dragged is a new width
@@ -243,7 +244,7 @@ export const SongRow = memo(function SongRow({
     onStart: press.rest,
   })
   // What holding the row does, the same at both widths: what the list asked
-  // for, or nothing. It no longer opens the ⋯ menu anywhere — the ⋯ does.
+  // for, or nothing. The menu is the ⋯'s, never the hold's.
   const onHold = onLongPress ? () => onLongPress(song) : undefined
   // A right-click anywhere on the row opens the same menu at the pointer.
   const onRightClick = rightClick(onMore ? at => onMore(at, song) : undefined)
@@ -402,11 +403,8 @@ export const SongRow = memo(function SongRow({
 
         <Pressable
           onPress={event => onPress(event, song)}
-          // The phone's answer. This branch used to ignore `onLongPress`
-          // altogether, so a row whose hold belonged to something else — a
-          // playlist row being moved — still opened its ⋯ menu 450ms in, and
-          // the menu's own backdrop then swallowed every press after it (Xiao,
-          // 2026-09-21).
+          // The phone's answer: a row whose hold belongs to something else — a
+          // playlist row being moved — leaves it to that.
           onLongPress={onHold}
           {...press.handlers}
           delayLongPress={MOVE_MS.longPress}
@@ -631,9 +629,9 @@ function SelectBox({
 /**
  * A song's tags, as many as the slot holds, and a count for the rest.
  *
- * The slot is a fixed width, so what used to happen to a fourth tag — or to
- * one long name — was that it was cut in half against the album column. Chips
- * are laid in until the next will not fit and the remainder becomes a "+2"
+ * The slot is a fixed width, so a fourth tag — or one long name — would be cut
+ * in half against the album column. Chips are laid in until the next will not
+ * fit and the remainder becomes a "+2"
  * that opens the tag window, where all of them are. See `rowTags.ts` for how
  * the fitting is worked out. The same rule on a phone's second line, in a
  * lane of its own width (`underBudget`).
@@ -761,15 +759,15 @@ function Waking({
  * row's comes in. `progress` is the row's presence.
  *
  * From the right, where the gradient is strongest, rather than from the left:
- * grown from the left, the strong end rode the stretch and stopped at a hard
- * line partway across the row on every frame of the move. Anchored at the
+ * grown from the left, the strong end would ride the stretch and stop at a
+ * hard line partway across the row on every frame of the move. Anchored at the
  * right it never leaves the row's rounded edge, and the edge that moves is the
- * clear one (Xiao chose A, 2026-10-04).
+ * clear one.
  */
 function RowWash({ color, progress }: { color: string; progress: Animated.Value }): ReactNode {
   // Its own id per row. A screen the router keeps hidden behind this one (a
   // playlist listing the same song) holds a wash too; with one shared id, the
-  // visible row's url() landed on the hidden, zero-size gradient and drew nothing.
+  // visible row's url() would land on the hidden, zero-size gradient and draw nothing.
   const id = useSvgId('rowwash')
   return (
     <Animated.View
@@ -852,9 +850,8 @@ const styles = StyleSheet.create(theme => ({
   },
   /* A row held and moving. The cell around it does the raising (`LiftedCell`);
      this is only what the row itself wears while it is off the page. */
-  // The same shadow everything floating wears, from the palette: written out
-  // here it was black at 0.45 whatever the theme, so in the light one a held
-  // row cast a shadow the design system does not have.
+  // The same shadow everything floating wears, from the palette, so it follows
+  // the theme.
   lifted: {
     backgroundColor: theme.colors.surface2,
     ...floating(theme.colors),

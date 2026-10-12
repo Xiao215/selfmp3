@@ -8,9 +8,9 @@ import { timing } from '../ui/motion'
  * the screen, which the keyboard would otherwise cover.
  *
  * A sheet's search field is near its top and its rows are under it: with the
- * keyboard up and nothing moving, the tag picker showed one row and hid the
- * rest, so a tag further down the list could not be reached to untick it
- * (Xiao, 2026-10-07). `lift` is negative, ready for a `translateY`.
+ * keyboard up and nothing moving, the tag picker would show one row and hide
+ * the rest, so a tag further down the list could not be reached to untick it.
+ * `lift` is negative, ready for a `translateY`.
  *
  * Only while `active`, so a closed sheet is not listening. The web's twin is
  * `keyboardLift.web.ts`, where nothing lifts.

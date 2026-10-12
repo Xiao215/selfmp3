@@ -86,11 +86,9 @@ const cacheStorage: DownloadStorage = {
      * The same address the player asks for, which is what lets the service
      * worker answer it from the cache without the player knowing a copy
      * exists — and, for a cloud library, what makes downloading possible at
-     * all. There is no server to build an address from there, and this used to
-     * give up on one: `configureAudioCache` was never called, and every
-     * download threw "configureAudioCache() has not been called" from inside
-     * the cache. The worker fetches the bucket's file and the response is kept
-     * under its own address, so playing it afterwards needs no network.
+     * all, with no server to build an address from. The worker fetches the
+     * bucket's file and the response is kept under its own address, so playing
+     * it afterwards needs no network.
      *
      * `local` is null on purpose. A browser's copy *is* the thing this address
      * reaches; `localUri` returns null here for the same reason.

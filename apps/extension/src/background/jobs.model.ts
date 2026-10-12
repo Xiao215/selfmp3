@@ -90,11 +90,7 @@ export function noticeFor(batch: FinishedBatch): { title: string; message: strin
   const parts: string[] = []
   if (batch.batch.label) parts.push(batch.batch.label)
   else if (added.length === 1 && added[0]?.artist) parts.push(added[0].artist)
-  if (added.length > 0 && failed.length > 0) {
-    parts.push(
-      failed.length === 1 ? '1 couldn’t be downloaded' : `${failed.length} couldn’t be downloaded`,
-    )
-  }
+  if (added.length > 0 && failed.length > 0) parts.push(`${failed.length} couldn’t be downloaded`)
   if (added.length === 0 && failed.length > 0) {
     parts.push(failed[0]?.error ?? 'The server did not say why.')
   }

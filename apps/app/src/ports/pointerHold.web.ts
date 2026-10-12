@@ -18,7 +18,7 @@ import type { PointerHold } from './pointerHold'
  * row keeps the drag while the list rearranges underneath it, and a capture
  * is released the moment the button comes up. Nothing is captured until the
  * hold has elapsed, so a click still plays the song and a drag before then
- * still scrolls the page (Xiao, 2026-09-21).
+ * still scrolls the page.
  */
 export function usePointerHold(ref: RefObject<View | null>, hold: PointerHold): void {
   // The callbacks as they are now, so the listeners are attached once and a
@@ -107,7 +107,15 @@ export function usePointerHold(ref: RefObject<View | null>, hold: PointerHold): 
     node.addEventListener('pointercancel', cancel)
     node.addEventListener('click', click, true)
     return () => {
+      // Let go of mid-hold — the row unmounted, or moving was switched off —
+      // the hold ends as if taken away, or nothing would ever say so: the row
+      // stays swollen, and `setReorderHold` keeps every row undraggable.
+      if (timer !== null) latest.current.onHolding?.(false)
       forget()
+      if (lifted) {
+        lifted = false
+        latest.current.onEnd(0, 0)
+      }
       node.removeEventListener('pointerdown', down)
       node.removeEventListener('pointermove', move)
       node.removeEventListener('pointerup', up)

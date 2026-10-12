@@ -5,11 +5,10 @@ import { StyleSheet } from 'react-native-unistyles'
 import { leading, space, type } from '@selfmp3/client'
 
 /**
- * What stands where a list would be, when there is nothing in it (proposal P1,
- * 2026-10-08): an optional icon, a title saying what is missing, one short
- * line saying what to do about it, and the button that does it. There were
- * nine of these, each laid out its own way; a person met a different kind of
- * "nothing" on every page.
+ * What stands where a list would be, when there is nothing in it: an optional
+ * icon, a title saying what is missing, one short line saying what to do
+ * about it, and the button that does it — one kind of "nothing" on every
+ * page.
  *
  * `children` go under the line — the button, or the one thing a page needs to
  * show there (Library's "You're looking inside" and its tags). `compact` is

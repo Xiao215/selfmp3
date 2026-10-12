@@ -8,9 +8,12 @@ import {
   type ServerConnection,
   type TransferProgress,
 } from '@selfmp3/client'
+import { bucketHold } from '@selfmp3/replica'
 
+import { askWhyRefused } from '../bucketRefusal'
 import { sourceFor } from '../songSource'
 import { desktop } from './bridge'
+import { adoptRecent } from './recentCopies.desktop'
 
 /**
  * Where the installed desktop app keeps songs: files on disk, beside a JSON
@@ -51,8 +54,15 @@ function transferFor(
   return {
     async run() {
       if (cancelled) throw new Error('cancelled')
+      // Played lately, so a copy may be here already (recentCopies.desktop.ts):
+      // the same bytes, moved into place rather than fetched a second time.
+      const adopted = await adoptRecent(song).catch(() => null)
+      if (adopted !== null) return adopted
       const from = await sourceFor(song, connection)
       if (cancelled) throw new Error('cancelled')
+      // The bucket refusing reads for the day: this one would be refused too.
+      const held = from.headers ? bucketHold('read') : null
+      if (held) throw new Error(held.message)
 
       const stop = bridge.onProgress(progress => {
         if (progress.id === id) {
@@ -69,6 +79,13 @@ function transferFor(
         })
         // `null` is the port's "stopped, not failed"; the queue resumes it.
         return result.state === 'done' ? result.bytes : null
+      } catch (error) {
+        if (cancelled || !from.headers) throw error
+        // From the bucket: the doorman is asked why, the way a phone asks, so
+        // a refusal for the day holds the other downloads too.
+        const why = await askWhyRefused(from.url, from.headers)
+        if (why === null) throw error
+        throw new Error(why, { cause: error })
       } finally {
         stop()
       }
@@ -111,13 +128,9 @@ export const downloadStorage: DownloadStorage = {
     if (!desktop) return
     /*
      * Through `files.write`, which is the shell's channel for the page's own
-     * text. This was once a `blob:` URL handed to `fetchTo`, on the reasoning
-     * that the shell already knew how to put a fetched body in a file — but it
-     * is the *main* process that fetches, and a blob URL belongs to the
-     * renderer that created it, so the main process could not read one at all
-     * (`net::ERR_UNKNOWN_URL_SCHEME`, and the URL schema rejected it before
-     * even that). Every write was refused, which meant downloads never survived
-     * a relaunch: the files were on disk and no index said so.
+     * text — not a `blob:` URL handed to `fetchTo`: it is the *main* process
+     * that fetches, and a blob URL belongs to the renderer that created it, so
+     * the main process cannot read one at all (`net::ERR_UNKNOWN_URL_SCHEME`).
      */
     await desktop.files.write(INDEX_KIND, INDEX_NAME, JSON.stringify(index))
   },

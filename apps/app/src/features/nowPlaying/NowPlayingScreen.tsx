@@ -261,9 +261,9 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
   /*
    * The page's two views pass each other (`M2`, 1): the one arriving springs up
    * from its own side and the one leaving slides back out to its, and both are
-   * there for the length of the move. The view that went used to be taken away
-   * in the frame the other was asked for, so the cover simply stopped existing
-   * and the words rose over the blurred ground alone.
+   * there for the length of the move. Taken away in the frame the other is
+   * asked for, the cover would simply stop existing and the words rise over
+   * the blurred ground alone.
    *
    * Each has a value of its own rather than the two sharing one, so turning
    * round part-way is a spring retargeted from wherever the view has got to:
@@ -373,9 +373,9 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
           flick: PULL.flick,
         })
         // Let go far enough down: the pull is left where the finger left it and
-        // the page goes on from there to the foot. It used to spring back to
-        // nothing and navigate in the same tick, so the page bounced up as the
-        // route changed under it and the two raced.
+        // the page goes on from there to the foot. Springing back to nothing
+        // and navigating in the same tick would bounce the page up as the
+        // route changed under it.
         if (outcome === 'close') {
           putAway(router)
           return
@@ -573,7 +573,7 @@ function CoverView({
   const library = useLibrary()
   const toggleLoved = useToggleLoved()
   // While the timer runs the Sleep pill says how long is left, not just "Sleep".
-  const sleepLeft = useSleepMinutesLeft(player.sleepTimerEndsAt)
+  const sleepLeft = useSleepMinutesLeft()
   const tags = (library.data?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
 
   return (

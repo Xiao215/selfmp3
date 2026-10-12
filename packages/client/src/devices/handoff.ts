@@ -30,7 +30,12 @@ export function handoffTarget(state: PlaybackState, now: number): HandoffTarget 
   if (state.songId === null) return null
 
   const position = Math.max(0, extrapolatePosition(state, now))
-  const found = state.queueIds.indexOf(state.songId)
+  // The index where it agrees, so a song queued twice resumes at the copy that
+  // was playing rather than the first.
+  const found =
+    state.queueIds[state.queueIndex] === state.songId
+      ? state.queueIndex
+      : state.queueIds.indexOf(state.songId)
 
   if (found === -1) return { queueIds: [state.songId], index: 0, position }
   return { queueIds: state.queueIds, index: found, position }

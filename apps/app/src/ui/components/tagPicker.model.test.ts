@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Song } from '@selfmp3/shared'
 
-import { tagChanges, tagsAcross } from './tagPicker.model'
+import { tagChanges, tagsAcross, undoTagChange } from './tagPicker.model'
 
 const song = (id: number, tagIds: number[]): Song => ({ id, tagIds }) as unknown as Song
 
@@ -49,5 +49,36 @@ describe('what a set of ticks changes', () => {
     const { after } = tagChanges(across, new Set([10, 20]))
     expect(after.some.size).toBe(0)
     expect([...after.all].sort()).toEqual([10, 20])
+  })
+})
+
+describe('a tag change the library did not take', () => {
+  const across = tagsAcross([song(1, [10, 20]), song(2, [10])])
+
+  it('takes back only the failed tag, and keeps a later tap that worked', () => {
+    // 40 ticked (it fails), then 50 ticked (it lands).
+    const first = tagChanges(across, new Set([10, 40]))
+    const second = tagChanges(first.after, new Set([10, 40, 50]))
+    const undone = undoTagChange(second.after, across, 40, 'add')
+    expect([...undone.all].sort()).toEqual([10, 50])
+  })
+
+  it('puts a mixed tag back to mixed when ticking it on the rest failed', () => {
+    const ticked = tagChanges(across, new Set([10, 20]))
+    const undone = undoTagChange(ticked.after, across, 20, 'add')
+    expect([...undone.all]).toEqual([10])
+    expect([...undone.some]).toEqual([20])
+  })
+
+  it('ticks a tag again when taking it off failed', () => {
+    const unticked = tagChanges(across, new Set())
+    const undone = undoTagChange(unticked.after, across, 10, 'remove')
+    expect([...undone.all]).toEqual([10])
+  })
+
+  it('leaves a tag tapped again since to that later tap', () => {
+    const ticked = tagChanges(across, new Set([10, 40]))
+    const unticked = tagChanges(ticked.after, new Set([10]))
+    expect(undoTagChange(unticked.after, across, 40, 'add')).toBe(unticked.after)
   })
 })

@@ -185,6 +185,11 @@ describe('the playlists a song can be added to', () => {
     ])
     expect(names(choices)).toEqual(['Zulu', 'Alpha'])
   })
+
+  it('leaves out the playlist it was opened from', () => {
+    const here = playlist('Here')
+    expect(names(playlistsToAddTo([playlist('Alpha'), here], here.id))).toEqual(['Alpha'])
+  })
 })
 
 describe('making a playlist', () => {

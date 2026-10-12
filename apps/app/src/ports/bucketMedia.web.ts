@@ -11,8 +11,8 @@ import { desktop } from './desktop/bridge'
  * which is the point. The service worker intercepts them (sw/sw.ts), looks the
  * song's bucket key and the doorman session out of IndexedDB, and fetches the
  * file with the bearer header an `<audio>` element and an `<img>` could never
- * have sent. A player's range goes through as it is, so a song streams rather
- * than having to arrive whole.
+ * have sent. A song is downloaded whole once, and the player's ranges are read
+ * from that download as it arrives (sw.ts, `playFromBucket`).
  *
  * `rev` rides along as `?v=`. The worker matches the path, so the query is
  * free to name the revision — which is how a replaced cover defeats the cache

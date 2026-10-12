@@ -18,8 +18,8 @@ export const FIELD_LABELS: Record<Field, string> = {
   albumArtist: 'Album artist',
   year: 'Year',
   trackNo: 'Track №',
-  // The picture, not a word: "Artwork" beside struck-through text read as one
-  // more text field.
+  // The picture, not a word: "Artwork" beside struck-through text would read
+  // as one more text field.
   artwork: 'Cover',
 }
 
@@ -107,8 +107,7 @@ export function editable(value: string | number | null | undefined): string {
  * words, a year or track number as a number or nothing. A field typed back
  * to what the song has is no change, a title typed to nothing is not a
  * change either (a song has a title), and a number that is not one is left
- * as it was. The dialog used to show the song's values as words alone,
- * with a hint to "correct the title by hand first" and nowhere to do it.
+ * as it was.
  */
 export function handEdits(
   song: Pick<Song, 'title' | 'artist' | 'album' | 'albumArtist' | 'year' | 'trackNo'>,

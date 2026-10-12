@@ -6,10 +6,9 @@ import { Circle, Path, Rect, Svg } from 'react-native-svg'
 /**
  * The app's icon set, hand-drawn rather than system glyphs.
  *
- * These were text characters — `♪`, `≣`, `⚙`, `↓` — chosen to avoid a native
- * module for "a dozen glyphs". It saved a dependency and cost the app its
- * face: a system font's approximations of them do not sit together, do not
- * share a weight, and do not look like the same product.
+ * Not text characters (`♪`, `≣`, `⚙`, `↓`): a system font's approximations
+ * of them do not sit together, do not share a weight, and do not look like the
+ * same product.
  *
  * Each is hand-drawn on a 24-unit grid with a 1.8 stroke: a `color` prop
  * stands in for CSS's `currentColor`, and `knockout` takes the surface a
@@ -232,10 +231,10 @@ export function Downloaded({
 /**
  * A song that is not on this device: the cloud it is in, and nothing else.
  *
- * It was a download arrow in a circle, which says what you could do to the
- * song rather than where it is — and beside a row that offers downloading in
- * its ⋯ menu, an arrow reads as a button (Xiao, 2026-09-22). The same cloud
- * the download icons are drawn from, without their arrow.
+ * Not a download arrow, which says what you could do to the song rather than
+ * where it is — and beside a row that offers downloading in its ⋯ menu, an
+ * arrow reads as a button. The same cloud the download icons are drawn from,
+ * without their arrow.
  */
 export const NotDownloaded = icon(
   () => <Path d="M7 17.5a4 4 0 0 1 0-8 5.5 5.5 0 0 1 10.5 1.5 3.5 3.5 0 0 1-.5 6.5Z" />,
@@ -420,7 +419,7 @@ export const Collapse = icon(() => <Path d="M4 10h6V4M20 14h-6v6M10 10 4 4M14 14
 
 /**
  * Add to Up next: a list with a plus. Only for adding — opening Up next is
- * `UpNext`, and Play next is `Next` (proposal H2, 2026-10-08).
+ * `UpNext`, and Play next is `Next`.
  */
 export const QueueAdd = icon(() => (
   <>
@@ -432,7 +431,7 @@ export const QueueAdd = icon(() => (
 /** Open Up next: the list itself, with a play mark at the song that is playing. */
 export const UpNext = icon(color => (
   <>
-    <Path d="M4 5.6v6.8L9.4 9z" fill={color} />
+    <Path d="M4 5.6v6.8L9.4 9z" fill={color} stroke="none" />
     <Path d="M13 7h8M13 11.5h8M4 17.5h17" />
   </>
 ))

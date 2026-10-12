@@ -188,9 +188,8 @@ export function OfflinePanel({
         {/*
          * Deleting files takes as long as it takes, and the two buttons that
          * do it act on overlapping sets. While either is running both say so
-         * and neither fires: pressing "Remove all from this phone" a second time
-         * used to start a second pass over an index the first was still
-         * rewriting. `removing` is the provider's, so the state survives this
+         * and neither fires: pressing "Remove all" a second time would start
+         * a second pass over an index the first is still rewriting. `removing` is the provider's, so the state survives this
          * panel and covers the removal the confirmation dialog starts.
          */}
         {stale !== null && stale.all.length > 0 ? (

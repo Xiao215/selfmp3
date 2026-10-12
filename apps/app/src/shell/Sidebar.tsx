@@ -2,7 +2,7 @@ import { memo, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useLayout } from './useLayout'
+import { useLayoutValue } from './useLayout'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { plural, fuzzyRank, type Playlist, type Tag } from '@selfmp3/shared'
@@ -71,8 +71,7 @@ import { label as labelText } from '../ui/surfaces'
  * The tab bar's destinations and two more: a computer reaches Import and Stats
  * from the rail, where a phone reaches them through Profile (docs/UI-MIGRATION.md,
  * Open question 7). Which one a page belongs to is `activeDestination`, the
- * same tested function the tab bar asks — the rail used to derive it inline
- * with a `startsWith`, which lit Stats for any page whose name began that way.
+ * same tested function the tab bar asks.
  *
  * At the top, under the brand, a Search row that opens the command palette —
  * the one way to it in a browser tab, which has no ⌘K of its own.
@@ -96,7 +95,7 @@ const DESTINATIONS: {
   { href: '/library', label: 'Library', Icon: Music },
   // Import and Stats both need the server itself. A cloud library reaches it by
   // the addresses in its last sync and says so when it cannot, which is the
-  // page's business — leaving the row out instead said the feature did not exist.
+  // page's business — leaving the row out would say the feature did not exist.
   // Stats keeps a row of its own on a computer; on a phone it is under Profile
   // (docs/UI-MIGRATION.md, Open question 7).
   { href: '/import', label: 'Import', Icon: Download },
@@ -113,9 +112,9 @@ function SidebarInner(): ReactNode {
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const pathname = usePathname()
-  // The lit destination's fill slides to the next one, 180 ms, as the page
-  // changes beside it (docs/ui-mock `M3`, 5). Within these four rows only: a
-  // playlist or a tag further down is lit in place.
+  // The lit destination's fill slides to the next one, on the spring, as the
+  // page changes beside it (docs/ui-mock `M3`, 5). Within these four rows
+  // only: a playlist or a tag further down is lit in place.
   const lit = activeDestination(
     pathname,
     DESTINATIONS.map(destination => destination.href),
@@ -131,8 +130,8 @@ function SidebarInner(): ReactNode {
     >
       {/*
         The installed desktop app's traffic lights sit over this corner. The strip
-        is what the window is dragged by, since there is no title bar above it
-        any more; it is nothing at all in a browser, where the inset is zero.
+        is what the window is dragged by, since the window has no title bar of
+        its own; it is nothing at all in a browser, where the inset is zero.
       */}
       {titleBarInset > 0 ? (
         <View
@@ -525,7 +524,7 @@ function TagRow({
   // A pointer can hover, so the row's controls wait for it; a finger cannot,
   // so they are simply there. Asked of the pointer and not of the platform —
   // a touch-screen browser never hovers, and an iPad with a trackpad does.
-  const { finePointer } = useLayout()
+  const finePointer = useLayoutValue(layout => layout.finePointer)
   const [hovered, setHovered] = useState(false)
   const [editing, setEditing] = useState(false)
   const moreRef = useRef<View>(null)
@@ -637,7 +636,7 @@ function Foot(): ReactNode {
         style={({ pressed }) => [
           styles.status,
           pathname === '/profile' && styles.itemOn,
-          pressed && { backgroundColor: theme.colors.surface2 },
+          pressed && styles.rowPressed,
         ]}
         onPress={() => {
           enterFromSidebar()
@@ -730,7 +729,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,
   },
-  // Pointed at, a step lighter: tone, where it used to gain an edge.
+  // Pointed at, a step lighter in tone, with no edge.
   searchHovered: {
     backgroundColor: theme.colors.surface3,
     _web: { transitionDuration: `${MOVE_MS.hoverIn}ms` },
@@ -773,8 +772,8 @@ const styles = StyleSheet.create(theme => ({
   // which is kept for the button that commits something (`S2`). Raised rather
   // than `surfaceSelected`, which is white on Paper, as the rail is.
   // The radius is the highlight's own: the sliding fill is a view behind the
-  // rows, not the row itself, so without it the lit destination had square
-  // corners while every row it slid between was rounded.
+  // rows, not the row itself, so without it the lit destination would have
+  // square corners while every row it slid between was rounded.
   itemOn: { backgroundColor: theme.colors.surface3, borderRadius: ITEM_RADIUS },
   labelOn: { color: theme.colors.textPrimary, fontWeight: '600' },
   rowPressed: { backgroundColor: theme.colors.surface2 },
@@ -908,6 +907,6 @@ const styles = StyleSheet.create(theme => ({
 /**
  * The rail is the same on every page, and the frame around it is rebuilt
  * several times on a single step between pages: without this the playlists,
- * the tags and the status row were reconciled every one of those times.
+ * the tags and the status row would be reconciled every one of those times.
  */
 export const Sidebar = memo(SidebarInner)

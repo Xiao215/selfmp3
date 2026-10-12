@@ -248,12 +248,9 @@ export function Popup(): ReactNode {
   })
 
   /**
-   * Open the app, which is not the server.
-   *
-   * These used to be the same address: the server served the app at its own
-   * origin, so the queue was one path away from the address in Options. The
-   * server serves only its own setup page now, so this goes to the published
-   * app instead — and it does not need the server to be reachable to do it.
+   * Open the app, which is not the server: the server serves only its own
+   * setup page, so this goes to the published app — and does not need the
+   * server to be reachable to do it.
    */
   const openApp = (path: string): void => {
     void chrome.tabs.create({ url: `${DEFAULT_APP_URL}${path}` })

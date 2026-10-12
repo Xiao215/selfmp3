@@ -160,13 +160,13 @@ function readAccentColor(): string {
 }
 
 /**
- * The accent colour, or `fallback` while `wanted` is false — and while it is
+ * The accent colour, or nothing while `wanted` is false — and while it is
  * false, no re-render when the accent changes. For a component of which there
  * are hundreds and which needs the accent only now and then: a song row needs
  * it only while it is the playing one.
  */
-export function useAccentColor(wanted = true, fallback = ''): string {
-  const read = useCallback(() => (wanted ? readAccentColor() : fallback), [wanted, fallback])
+export function useAccentColor(wanted = true): string {
+  const read = useCallback(() => (wanted ? readAccentColor() : ''), [wanted])
   return useSyncExternalStore(subscribeAccent, read, read)
 }
 

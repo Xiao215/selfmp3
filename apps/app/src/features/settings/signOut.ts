@@ -1,4 +1,5 @@
 import { plural } from '@selfmp3/shared'
+import type { DevicePlace } from './settings.model'
 /**
  * Signing this device out of the cloud.
  *
@@ -9,8 +10,7 @@ import { plural } from '@selfmp3/shared'
  * 1. Stop the music, and empty the queue. First, before anything is taken
  *    away: the songs it is playing are about to be deleted and the library
  *    they came from forgotten, and a device that has signed out and is still
- *    singing is plainly wrong — it went on playing all the way to Welcome
- *    (Xiao, 2026-09-22).
+ *    singing is plainly wrong.
  * 2. One last try at sending the changes made here. It may fail (offline, the
  *    doorman busy); signing out goes on regardless, which the confirmation
  *    warned about.
@@ -56,7 +56,7 @@ export async function signOutOfCloud(steps: SignOutSteps): Promise<void> {
 }
 
 /** The confirmation's words, with what would be lost if it cannot be sent now. */
-export function signOutWarning(pendingChanges: number, place: 'phone' | 'computer'): string {
+export function signOutWarning(pendingChanges: number, place: DevicePlace): string {
   const base = `Songs on this ${place} are removed; your music stays in your storage.`
   if (pendingChanges <= 0) return base
   const one = pendingChanges === 1

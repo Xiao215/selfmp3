@@ -218,11 +218,11 @@ type RingInk = (typeof RING_INKS)[number]
  * Which of a palette's three inks the ring with this id draws in. Rings count
  * up from the first one of a song, so consecutive rings take turns.
  *
- * Both twins ask this, and they used to each have their own copy of the rule.
- * The browser coloured a ring by its own id; the phone keeps one view per ring
- * slot and colours that view once, when it is made, by the slot — a border
- * colour is a paint prop, so changing it mid-flight would be a shadow-tree
- * commit, and the view a ring lands in is `id % MAX_RINGS`. Those two agree
+ * Both twins ask this, so the rule is written once. The browser colours a
+ * ring by its own id; the phone keeps one view per ring slot and colours that
+ * view once, when it is made, by the slot — a border colour is a paint prop,
+ * so changing it mid-flight would be a shadow-tree commit, and the view a ring
+ * lands in is `id % MAX_RINGS`. Those two agree
  * only while `MAX_RINGS` is a whole number of turns of `RING_INKS`, which is
  * what `ringInk(id) === ringInk(id % MAX_RINGS)` says and a vitest case holds:
  * break it and the same song would colour its rings differently on a phone and

@@ -150,14 +150,15 @@ export function OrderedSongList({
   const dragEnd = useCallback(
     (songId: number, dy: number) => {
       const now = latest.current
-      const index = now.songIds.indexOf(songId)
-      if (index < 0) return
-      const moved = movedTo(now.songIds, index, dy, now.rowHeight)
-      // `dragY` is left where it is: the settle covers the frame before the
-      // new order lands (see the playlist page's history for why).
+      // `dragY` is left where it is until the new order lands (`LiftedCell`
+      // says why). The move ends even when its song has left the list under
+      // it, or the list would stay carrying a row that is not there.
       setDrag(null)
       moving.current = { carried: false, droppedAt: Date.now() }
       dropRow()
+      const index = now.songIds.indexOf(songId)
+      if (index < 0) return
+      const moved = movedTo(now.songIds, index, dy, now.rowHeight)
       if (moved) now.onReorder?.(moved.songIds)
     },
     [dropRow],
@@ -334,15 +335,15 @@ interface RowActions {
 /**
  * One row of an ordered list: the library's row, with what an order adds.
  *
- * The row itself is `SongRow`, the same component and the same file the
- * library draws — a song row is a song row, and a playlist that had its own
- * was a playlist whose songs had no ⋯ at a finger's size and no colour under
- * the one that was playing. It is drawn without tag chips, as every row inside
- * a place is (`S3`). What a playlist adds is the hold that lifts a row and the
- * lifted look while it is being moved; where it would land is the gap the rows
- * around it open (`LiftedCell`), not a line drawn between two of them, which
- * is how the queue sheet and the rail say the same thing. Taking a song off the
- * playlist is in the ⋯ menu, where everything else done to a song already is.
+ * The row itself is `SongRow`, the same component and the same file the library
+ * draws — a song row is a song row: a playlist's own would lack the ⋯ at a
+ * finger's size and the colour under the one playing. It is drawn without tag
+ * chips, as every row inside a place is (`S3`). What a playlist adds is the
+ * hold that lifts a row and the lifted look while it is being moved; where it
+ * would land is the gap the rows around it open (`LiftedCell`), not a line
+ * drawn between two of them, which is how the queue sheet and the rail say the
+ * same thing. Taking a song off the playlist is in the ⋯ menu, where everything
+ * else done to a song already is.
  *
  * Only the handlers that need this row's song or place are made here — the
  * press, which plays from it, and those that carry a move. The rest are the
@@ -390,9 +391,8 @@ const OrderedRow = memo(function OrderedRow({
   )
 
   // One gesture, everywhere: hold the row and it lifts — and with a mouse a
-  // plain drag lifts it as well (`useDragToReorder`, above). The grip column
-  // that used to stand in for it on a computer is gone — six dots on every
-  // row read as clutter (Xiao, 2026-09-21).
+  // plain drag lifts it as well (`useDragToReorder`, above). There is no grip
+  // column: six dots on every row read as clutter.
   return (
     <HoldToReorder
       enabled={reorderable}
@@ -460,7 +460,7 @@ type CellProps = ComponentProps<NonNullable<FlatListProps<Song>['CellRendererCom
  *
  * On the cell rather than the row because a list puts each row in a cell of
  * its own, and on a phone a raised `zIndex` only counts among siblings — a
- * row raised inside its cell still slid under the next cell. Reads the move
+ * row raised inside its cell would still slide under the next cell. Reads the move
  * from context, so this component stays the same one for the list's life and
  * starting a move does not remount every row, and its gesture with it.
  *

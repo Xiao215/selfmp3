@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { plural, fuzzyRank, type Tag } from '@selfmp3/shared'
 import { chooserTagGroups, HIT_TARGET, space, type, useLibrary } from '@selfmp3/client'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutValue } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { Chip } from './Chip'
 import { card, label as labelText } from '../surfaces'
@@ -71,7 +71,7 @@ function Panel({
   onDone: () => void
   summary?: string
 }): ReactNode {
-  const { wide } = useLayout()
+  const wide = useLayoutValue(layout => layout.wide)
   const accent = useAccent()
   const [query, setQuery] = useState('')
   const { data: library } = useLibrary()
@@ -97,11 +97,11 @@ function Panel({
     />
   )
 
-  /** A labelled lane: the heading beside the chips, or above them on a phone. */
+  // A labelled lane: the heading beside the chips, or above them on a phone.
   // A lane says what it is only when that tells you something. The tags you
-  // use most are what the panel opens on, so naming them spent a quarter of a
-  // phone's width saying "the usual ones" (Xiao, 2026-09-22); Lately keeps its
-  // name, because the point of that lane is that these are the new ones.
+  // use most are what the panel opens on, so naming them would spend a quarter
+  // of a phone's width saying "the usual ones"; Lately keeps its name, because
+  // the point of that lane is that these are the new ones.
   const lane = (label: string | null, list: readonly Tag[]): ReactNode =>
     list.length === 0 ? null : (
       <View style={wide ? styles.lane : styles.laneStacked}>

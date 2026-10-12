@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { leading, radius, space, type } from '@selfmp3/client'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutValue } from '../../shell/useLayout'
 import { Button } from './Button'
 import { Dialog } from './Dialog'
 import { floating } from '../surfaces'
@@ -17,10 +17,9 @@ import { floating } from '../surfaces'
  *
  * It arrives and leaves the way a computer's sheet does (`Dialog`'s
  * `animated`): the ground behind it dims while the dialog fades up, and it
- * goes back the same way, staying mounted until that has landed. It used to be
- * a hard cut both ways — the only overlay in the app with no motion at all,
- * which made the one dialog that asks before something irreversible read like
- * an error box.
+ * goes back the same way, staying mounted until that has landed, so the one
+ * dialog that asks before something irreversible does not read like an error
+ * box.
  */
 export function ConfirmDialog({
   open,
@@ -89,7 +88,7 @@ function Question({
   onConfirm: () => void
   onCancel: () => void
 }): ReactNode {
-  const { wide } = useLayout()
+  const wide = useLayoutValue(layout => layout.wide)
   return (
     <>
       <Text style={styles.title} accessibilityRole="header">

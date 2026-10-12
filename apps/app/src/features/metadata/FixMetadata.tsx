@@ -21,8 +21,8 @@ import { reachedConnection } from '../../connection/via'
  * it about the same song under the number *it* uses (`useServerSongIds`).
  *
  * The button is on the details panel either way. Hiding it when the server is
- * off, which is what this replaces, said "this library cannot have its
- * metadata fixed" rather than "your server is not answering".
+ * off would say "this library cannot have its metadata fixed" rather than
+ * "your server is not answering".
  */
 export function FixMetadata({ song, onClose }: { song: Song; onClose: () => void }): ReactNode {
   const { fromCloud } = useConnection()

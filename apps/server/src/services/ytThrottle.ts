@@ -208,10 +208,8 @@ export function isRateLimited(message: string): boolean {
  * YouTube refused the address for rate.
  *
  * A class rather than a phrase to look for, because the message is rewritten
- * for people on its way up (ytCookies.ts) and the first version of this looked
- * for yt-dlp's wording in text that no longer contained it: the explanation
- * and the detection each worked, and together they cancelled out. The type
- * survives whatever the message is changed to say.
+ * for people on its way up (ytCookies.ts) and no longer carries yt-dlp's
+ * wording. The type survives whatever the message is changed to say.
  */
 export class RateLimitedError extends Error {
   constructor(message: string) {

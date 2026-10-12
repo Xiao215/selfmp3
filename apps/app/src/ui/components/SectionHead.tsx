@@ -6,11 +6,10 @@ import { space, type } from '@selfmp3/client'
 import { sectionTitle } from '../surfaces'
 
 /**
- * A section's heading inside a page (proposal P1, 2026-10-08): its name in the
- * display face at 18, and at the other end, when there is more than the
- * section shows, a link to the rest — "All 9", "See all", "Library". Home and
- * Search each had their own, one a display heading and the other a small
- * uppercase label, so the same kind of thing read as two.
+ * A section's heading inside a page: its name in the display face at 18, and
+ * at the other end, when there is more than the section shows, a link to the
+ * rest — "All 9", "See all", "Library". One heading for every page, so the
+ * same kind of thing reads as one.
  *
  * The small uppercase label (`label()` in surfaces) stays what it is for: a
  * quiet name over a group of settings or a card's figure, not a section.

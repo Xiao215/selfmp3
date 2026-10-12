@@ -110,7 +110,7 @@ export function TooltipHost(): ReactNode {
     const hide = (): void => {
       window.clearTimeout(timer)
       // Nothing up and nothing on its way: every click anywhere calls this,
-      // and a fade-out of nothing was two renders and a timer for each.
+      // and a fade-out of nothing would be two renders and a timer for each.
       if (current === null && !visible) return
       if (visible) warmUntil = performance.now() + WARM_MS
       observer.disconnect()

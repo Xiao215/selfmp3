@@ -31,8 +31,8 @@ export const DIALOG_RISE = 10
  * holding the leaving state so it never blinks out.
  *
  * At desktop width a sheet across the whole foot of the window is a phone's
- * gesture on a screen that has none: a tag list opened from a song's menu ran
- * two thousand pixels wide. There it is a window the size of its content,
+ * gesture on a screen that has none — a tag list would run two thousand
+ * pixels wide. There it is a window the size of its content,
  * centred.
  *
  * Detached from whatever opened it, so a title names the thing it is about.
@@ -70,12 +70,11 @@ export function Sheet({
   const wide = useLayoutValue(layout => layout.wide)
   const dense = useLayoutValue(layout => layout.dense)
   /*
-   * How far the panel travels: its own height, once it has laid out. Until then
-   * there is nothing to rise from — it used to fall back to the window's
-   * height, which is farther than the panel is tall, so the very first open of
-   * a sheet covered more ground in the same 300 ms and arrived visibly faster
-   * than every open after it. The panel is held invisible and still for the one
-   * frame it takes to measure instead.
+   * How far the panel travels: its own height, once it has laid out. The
+   * window's height is farther than the panel is tall, so a first open
+   * measured by it would cover more ground in the same 300 ms and arrive
+   * visibly faster than every open after it. The panel is held invisible and
+   * still for the one frame it takes to measure instead.
    */
   const [panelHeight, setPanelHeight] = useState(0)
   const measured = panelHeight > 0
@@ -89,8 +88,8 @@ export function Sheet({
   // A sheet that was never told its height would never rise: every platform
   // the app runs on reports a layout, but a panel held invisible on the
   // strength of that is a panel that could be lost. So the window's height
-  // stands in if no layout has come by the next frame — the old travel, which
-  // only makes the very first rise a little quick.
+  // stands in if no layout has come by the next frame, which only makes the
+  // very first rise a little quick.
   useEffect(() => {
     if (!open || wide || measured) return undefined
     const frame = requestAnimationFrame(() => setPanelHeight(height => height || windowHeight))
@@ -108,7 +107,7 @@ export function Sheet({
   const risen = useRef(false)
   // Whether it has been open since it last went down: a sheet that has never
   // been opened has no exit to play. Most are mounted closed — every list's
-  // song menu, its tag picker — and each one sent two moves on mount.
+  // song menu, its tag picker — and each would otherwise send two moves on mount.
   const up = useRef(false)
   // Escape closes it on the web. Nothing on a phone.
   useEscape(open, onClose, { layer: true })
@@ -141,9 +140,8 @@ export function Sheet({
   /*
    * Pulled down by its head: the panel follows the finger, and far enough or
    * fast enough puts it away. Only the head, not the items, so a pull on a long
-   * list of tags is still a scroll. Lifted here from the queue sheet, which had
-   * it alone, so that every sheet — menus, the tag picker, sleep — can be pulled
-   * away.
+   * list of tags is still a scroll. Every sheet — menus, the tag picker, sleep
+   * — can be pulled away.
    */
   const pullDown = useMemo(
     () =>
@@ -163,16 +161,15 @@ export function Sheet({
   )
 
   // The curve runs past 1 on the way up; nothing that fades goes past opaque.
-  // Built once, not per render.
   const shown = useMemo(
     () => progress.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
     [progress],
   )
-  // The rise, plus whatever a finger has added to it. Rebuilt only when the
-  // panel's own height — the distance — changes.
   // Above the keyboard while one is up: a field in a sheet is near its top,
   // and the rows it searches are what the keyboard would cover.
   const keyboard = useKeyboardLift(mounted && !wide)
+  // The rise, plus whatever a finger has added to it. Rebuilt only when the
+  // panel's own height — the distance — changes.
   const rise = useMemo(
     () =>
       Animated.add(
@@ -218,8 +215,8 @@ export function Sheet({
     </View>
   )
 
-  // Drawn by the shell's overlay host rather than in a `Modal` of its own.
-  // See src/shell/Overlay.tsx for why there are no windows any more.
+  // Drawn by the shell's overlay host rather than in a `Modal` of its own
+  // (src/shell/Overlay.tsx says why).
   useOverlay(
     <>
       <Animated.View style={[styles.backdrop, { opacity: shown }]}>

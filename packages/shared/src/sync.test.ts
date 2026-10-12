@@ -369,6 +369,33 @@ describe('plays', () => {
     ])
     expect(library.songs.get(SONG_A)?.lastPlayedAt).toBe('2026-09-10 00:26:45')
   })
+
+  it('dates a play whose time cannot be read by the change that reports it', () => {
+    // The schema's datetime takes an offset no clock has; Date.parse does not.
+    const read = readLogFile({
+      format: 1,
+      device: 'web-bbbb',
+      seq: 1,
+      writtenAt: '2026-09-10T00:00:00.000Z',
+      changes: [
+        {
+          type: 'songPlayed',
+          hlc: at(5),
+          uid: SONG_A,
+          playId: 'play-odd-offset',
+          playedAt: '2026-09-09T08:30:00+99:99',
+          msPlayed: 180_000,
+          completed: true,
+        },
+      ],
+    })
+    if (!read.ok) throw new Error('the file did not read')
+    const library = replay(read.file.changes)
+    expect(library.songs.get(SONG_A)).toMatchObject({
+      playCount: 1,
+      lastPlayedAt: '2026-09-10 00:26:45',
+    })
+  })
 })
 
 describe('playlists', () => {
@@ -428,9 +455,28 @@ describe('playlists', () => {
   it('that are live take their songs from their rules, not from changes', () => {
     const library = replay([
       { type: 'playlistSong', hlc: at(1), uid: LIVE, songUid: SONG_A, on: true },
-      { type: 'playlistOrdered', hlc: at(2), uid: LIVE, songUids: [SONG_A] },
     ])
     expect(library.playlists.get(LIVE)?.songUids).toEqual([])
+  })
+
+  it('that are live keep a hand order, naming songs their rules matched since', () => {
+    const from = snapshot()
+    const live = from.playlists.find(item => item.uid === LIVE)
+    if (!live) throw new Error('no live playlist')
+    const library = replay(
+      [
+        {
+          type: 'playlistOrdered',
+          hlc: at(1),
+          uid: LIVE,
+          songUids: [SONG_C, SONG_A, uid(0xee)],
+        },
+      ],
+      snapshot({ playlists: [{ ...live, songUids: [SONG_A, SONG_B] }] }),
+    )
+    // Not a song in the library is left out; one the snapshot did not list is placed.
+    expect(library.playlists.get(LIVE)?.songUids).toEqual([SONG_C, SONG_A, SONG_B])
+    expect(library.playlists.get(LIVE)?.stamps?.['order']).toBe(at(1))
   })
 
   it('removed stay removed', () => {

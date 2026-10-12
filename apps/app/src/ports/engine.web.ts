@@ -501,6 +501,19 @@ class AudioEngine implements PlaybackEngine {
     this.#wiring.onTrackEnd?.()
   }
 
+  /**
+   * The order behind this song changed. A song already fetched for the
+   * handover that no longer comes next is let go, so a crossfade never fades
+   * into it; the one that does is fetched in its place on the next tick, if
+   * its moment has come. A fade already under way is left to finish.
+   */
+  refreshLookahead(): void {
+    if (this.#preloadedId === null || this.#fadeTimer !== null) return
+    if ((this.#wiring.nextTrackId?.() ?? null) === this.#preloadedId) return
+    this.#preloadedId = null
+    this.#secondary.removeAttribute('src')
+  }
+
   #preload(): void {
     const nextId = this.#wiring.nextTrackId?.() ?? null
     if (nextId === null || nextId === this.#currentId) return

@@ -293,8 +293,10 @@ export function importRoutes(container: Container): Router {
       const tagIds = container.tags.exists([
         ...new Set([...body.tagIds, ...settings.defaultImportTagIds]),
       ])
+      // Skipped counts everything the link held that was not queued now: the
+      // songs the preview found in the library as well as the ones `freshOf` left out.
       return {
-        ...enqueue(items, fresh, tagIds, {
+        ...enqueue(preview.items, fresh, tagIds, {
           playlistId: null,
           createPlaylistName:
             body.createPlaylist && preview.kind === 'playlist' ? preview.playlistTitle : null,

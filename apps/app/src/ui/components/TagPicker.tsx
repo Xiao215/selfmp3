@@ -15,7 +15,7 @@ import {
   useSetSongTags,
 } from '@selfmp3/client'
 import { useArtistNudge } from '../../features/tag/useArtistNudge'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutValue } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { Checkbox } from './Checkbox'
 import { Plus } from './Icons'
@@ -23,7 +23,7 @@ import { usePanelDense } from './panel'
 import { Popover } from './Popover'
 import type { PopoverAnchor } from '../rightClick'
 import { Press } from './Press'
-import { tagChanges, tagsAcross } from './tagPicker.model'
+import { tagChanges, tagsAcross, undoTagChange } from './tagPicker.model'
 import { SearchField } from './SearchField'
 
 /**
@@ -133,7 +133,7 @@ function SelectionPicker({
   const [shown, setShown] = useState(() => tagsAcross(songs))
   const latest = useRef(shown)
   const bulkTag = useBulkTag()
-  const { wide } = useLayout()
+  const wide = useLayoutValue(layout => layout.wide)
   return (
     <TagSearchList
       selected={shown.all}
@@ -143,19 +143,19 @@ function SelectionPicker({
         const { add, remove, after } = tagChanges(before, next)
         latest.current = after
         setShown(after)
-        // A tap the library did not take goes back to what is true, as a
-        // song's picker does — unless another tap has landed since, which
-        // owns the boxes now. The failure itself is said by the app's toast.
-        const undo = {
-          onError: () => {
-            if (latest.current !== after) return
-            latest.current = before
-            setShown(before)
-          },
-        }
+        // A tag the library did not take goes back to what it was, and every
+        // other tap stands. Each change's own promise, not `mutate`'s
+        // callbacks, which are kept for the newest call only. The failure
+        // itself is said by the app's toast.
         const songIds = songs.map(song => song.id)
-        for (const tagId of add) bulkTag.mutate({ songIds, tagId, action: 'add' }, undo)
-        for (const tagId of remove) bulkTag.mutate({ songIds, tagId, action: 'remove' }, undo)
+        const send = (tagId: number, action: 'add' | 'remove'): void => {
+          bulkTag.mutateAsync({ songIds, tagId, action }).catch(() => {
+            latest.current = undoTagChange(latest.current, before, tagId, action)
+            setShown(latest.current)
+          })
+        }
+        for (const tagId of add) send(tagId, 'add')
+        for (const tagId of remove) send(tagId, 'remove')
       }}
       onLeave={onLeave}
       autoFocus={wide}
@@ -166,7 +166,7 @@ function SelectionPicker({
 function Picker({ song, onLeave }: { song: Song; onLeave: () => void }): ReactNode {
   const [selected, setSelected] = useState<ReadonlySet<number>>(() => new Set(song.tagIds))
   const setSongTags = useSetSongTags()
-  const { wide } = useLayout()
+  const wide = useLayoutValue(layout => layout.wide)
   // The last set the library took, for a tick that did not: the box goes back
   // to what is true rather than showing a tag the song does not have.
   const saved = useRef<ReadonlySet<number>>(selected)
@@ -181,9 +181,9 @@ function Picker({ song, onLeave }: { song: Song; onLeave: () => void }): ReactNo
         setSelected(next)
         const tick = ++newest.current
         // Each tick's own promise, not `mutate`'s callbacks: those are kept
-        // for the newest call only, so quick ticks lost every answer but the
-        // last, and a failure went back to the set the picker opened with —
-        // an empty box over a tag the song had (Xiao, 2026-10-07).
+        // for the newest call only, so quick ticks would lose every answer but
+        // the last, and a failure would go back to the set the picker opened
+        // with — an empty box over a tag the song has.
         setSongTags.mutateAsync({ songId: song.id, tagIds: [...next] }).then(
           answer => {
             saved.current = new Set(answer.tagIds)
@@ -209,8 +209,8 @@ function Picker({ song, onLeave }: { song: Song; onLeave: () => void }): ReactNo
  * one; everywhere else this is left out and the picker is this device's.
  *
  * A tag made on this device reaches that server only when it next reads the
- * devices' logs, up to ten minutes later (cloudSync.ts), so it was missing
- * from the list until then (Xiao, 2026-10-05). It is offered anyway, and
+ * devices' logs, up to ten minutes later (cloudSync.ts), so it would be
+ * missing from the list until then. It is offered anyway, and
  * ticking it makes it there by name — both ends take two tags made under
  * one name for one tag (`tagCreated`, sync.ts).
  */
@@ -434,7 +434,6 @@ const styles = StyleSheet.create(theme => ({
     marginTop: space.md,
     marginBottom: space.xs,
   },
-  /* In a pop-up: room above the box, a menu's height. */
   /* In a pop-up: a menu's room around the box. */
   inputDense: { marginTop: space.sm, marginHorizontal: space.sm, marginBottom: space.sm },
   itemDense: {

@@ -4,7 +4,7 @@ import { DEFAULT_FILTER, type LibraryFilter } from '@selfmp3/client'
 /**
  * The library filter as a store rather than as React state in a provider.
  *
- * In state, every change to it was a new context value, and a new context
+ * In state, every change to it would be a new context value, and a new context
  * value renders everything below the provider that reads it. A store keeps the
  * context value fixed, and only what reads the filter renders when it changes.
  */

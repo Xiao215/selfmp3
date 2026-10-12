@@ -301,7 +301,7 @@ function Stage({
   const window = useWindowDimensions()
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
   const [tagsOpen, setTagsOpen] = useState(false)
-  /** "Fix metadata…" under About: the same dialog the song's page opens. */
+  /** "Fix song info…" under Details: the same dialog the song's page opens. */
   const [fixing, setFixing] = useState(false)
   // The song's ⋯ menu, the one its rows and its page have: without it the page
   // playing a song was the one place that song could not be removed or listed.
@@ -411,7 +411,7 @@ function Stage({
   const hasLyrics = words.status === 'lyrics'
   // Not while offline: the words may exist, and there is text to say why they are not here.
   const noLyrics = words.status === 'missing' && !words.offline
-  // Only on its own tab: About is text, and wants the calm ground.
+  // Only on its own tab: Details is text, and wants the calm ground.
   const showVisual = noLyrics && shownTab === 'lyrics'
   const box = stageCover(geometry)
   /*
@@ -430,7 +430,7 @@ function Stage({
     easeIn: Easing.out(Easing.quad),
   })
   // Following the music only while the visual is there, its fade out included:
-  // About has no visual, so it neither fetches the curve nor asks to listen.
+  // Details has no visual, so it neither fetches the curve nor asks to listen.
   const sampler = useMotionSampler(song, visualPresence.mounted)
   /*
    * And the same fade again when the mode changes, because the mode is what
@@ -471,7 +471,7 @@ function Stage({
   const openSong = (): void => router.push(songLink(song.id))
 
   // "Look for lyrics again" asks the lookup afresh, clearing the answer it
-  // saved that the song has none. Beside Visual and About on the stage; in
+  // saved that the song has none. Beside Visual and Details on the stage; in
   // Focus, where the tabs are put away, at the top right where the romaji
   // switch sits for a song with words.
   const lookAgainPill = showVisual ? (

@@ -22,11 +22,11 @@ type ConnectionKind = 'wifi' | 'cellular' | 'none' | 'unknown'
 
 async function connectionKind(): Promise<ConnectionKind> {
   /*
-   * A computer's connection is never metered, as far as this app is concerned
-   * (decided 2026-09-12). Wired, Wi-Fi at a desk, a laptop tethered — none of
-   * them is the train the 500 MB question exists for, and `expo-network` in a
-   * browser build cannot tell them apart anyway. Asked through a port rather
-   * than by looking at the platform.
+   * A computer's connection is never metered, as far as this app is
+   * concerned. Wired, Wi-Fi at a desk, a laptop tethered — none of them is the
+   * train the 500 MB question exists for, and `expo-network` in a browser
+   * build cannot tell them apart anyway. Asked through a port rather than by
+   * looking at the platform.
    */
   if (!meteredConnections) return 'wifi'
   try {

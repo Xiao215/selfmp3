@@ -21,16 +21,14 @@ const QUICK_MS = 120
  * cover this device is still fetching (`useArt` says `undefined`). And a
  * letter tile — a solid colour from the title and its first letter — for a
  * song with no picture, or one whose picture failed: a server that is not
- * running, mostly. Without the letter every cover on an offline phone was a
- * blank grey square, which reads as broken rather than as "no picture".
+ * running, mostly. Without the letter every cover on an offline phone would be
+ * a blank grey square, which reads as broken rather than as "no picture".
  *
- * The letter used to be drawn under every cover, always, with the picture
- * fading in over it: every cover that was still on its way showed a letter
- * first and then swapped it for the picture, which Xiao saw as the app showing
- * the wrong cover for half a second (2026-10-07). The letter now means only
- * "there is no picture", and a picture already to hand is shown at once; one
- * that takes longer fades in over the quiet tile (`motion.base`), so a list
- * scrolled through a hundred of them does not pop.
+ * The letter means only "there is no picture": drawn under every cover, it
+ * would show first and then be swapped for the picture, which reads as the
+ * wrong cover for half a second. A picture already to hand is shown at once;
+ * one that takes longer fades in over the quiet tile (`motion.base`), so a
+ * list scrolled through a hundred of them does not pop.
  *
  * A new address for the same tile — a server's cover kept on the device and
  * drawn from the file after that — keeps the picture it had under the new one
@@ -55,7 +53,10 @@ export function Cover({
   // The address that last decoded. While it is not this one, it is the picture
   // left under the one loading.
   const [loadedUri, setLoadedUri] = useState<string | null>(null)
-  const under = uri && loadedUri && loadedUri !== uri && loadedUri !== failedUri ? loadedUri : null
+  // Not under a failed one: that song has no picture, and the last one is
+  // another song's.
+  const under =
+    uri && !failed && loadedUri && loadedUri !== uri && loadedUri !== failedUri ? loadedUri : null
   const [shown] = useState(() => new Animated.Value(0))
   // When this address was first drawn, to tell a cached picture from a slow one.
   const askedAt = useRef(0)

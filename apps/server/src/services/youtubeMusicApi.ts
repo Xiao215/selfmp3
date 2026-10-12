@@ -54,7 +54,10 @@ export class YouTubeMusicApi {
         body: JSON.stringify({ ...body, context: { client } }),
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
-      if (!response.ok) return null
+      if (!response.ok) {
+        await response.body?.cancel()
+        return null
+      }
       return await response.json()
     } catch (error) {
       this.#logger.debug('lookup failed', {

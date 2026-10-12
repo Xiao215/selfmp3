@@ -181,8 +181,8 @@ export interface PlaybackEngine {
 
   /**
    * Tell an engine that keeps a lookahead that the order behind the current
-   * song changed. Only the phone's keeps one; the web engine asks
-   * `nextTrackId` when it is ready to preload, and leaves this out.
+   * song changed, or where the next song comes from: the phone's lends the
+   * player the next song, and the browser's fetches it ahead of a handover.
    */
   refreshLookahead?(): void
 }

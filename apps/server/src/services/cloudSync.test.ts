@@ -2160,6 +2160,26 @@ describe('CloudSyncService', () => {
       expect(snapshotKeys().length).toBeLessThanOrEqual(3)
     })
 
+    it('lists the snapshot folder again after a prune fails, and catches up', async () => {
+      addSong('A - One', 'one')
+      await connect()
+      const remove = bucket.delete.bind(bucket)
+      let failed = false
+      bucket.delete = key => {
+        if (!failed && key.startsWith('snapshots/')) {
+          failed = true
+          return Promise.reject(new CloudError('network', 'Could not reach the bucket.'))
+        }
+        return remove(key)
+      }
+      for (const name of ['B - Two', 'C - Three', 'D - Four', 'E - Five', 'F - Six', 'G - Seven']) {
+        addSong(name, name)
+        await pass()
+      }
+      expect(failed).toBe(true)
+      expect(snapshotKeys().length).toBeLessThanOrEqual(3)
+    })
+
     it('publishes one snapshot for a run of imports, not one each', async () => {
       await connect()
       const before = snapshotKeys().length

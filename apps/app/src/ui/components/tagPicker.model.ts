@@ -43,3 +43,27 @@ export function tagChanges(
   const some = new Set([...before.some].filter(id => !next.has(id)))
   return { add, remove, after: { all: next, some } }
 }
+
+/**
+ * What the picker shows once one tag's change has failed, from what it shows
+ * now (`current`) and what it showed before that tap (`before`): that tag goes
+ * back to what it was, and every other tap stands — each bulk change is a tag
+ * of its own, so a later tap's answer says nothing about this one. A tag that
+ * has been tapped again since is the later tap's, and is left alone.
+ */
+export function undoTagChange(
+  current: TagsAcross,
+  before: TagsAcross,
+  tagId: number,
+  action: 'add' | 'remove',
+): TagsAcross {
+  if (action === 'add') {
+    if (!current.all.has(tagId)) return current
+    const all = new Set(current.all)
+    all.delete(tagId)
+    const some = before.some.has(tagId) ? new Set([...current.some, tagId]) : current.some
+    return { all, some }
+  }
+  if (current.all.has(tagId) || current.some.has(tagId)) return current
+  return { all: new Set([...current.all, tagId]), some: current.some }
+}

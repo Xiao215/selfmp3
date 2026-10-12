@@ -133,12 +133,11 @@ function bare(name: string): string {
  * The channel may say more than the piece does — "Ayase / YOASOBI" for a title
  * that says "YOASOBI" — so a piece contained in the channel counts.
  *
- * The other way round does not, and used to. A piece that merely *contains* the
- * channel's name was read as being it, so "Jade Moon Upon a Sea of Clouds -
- * Disc 1: Glazed Moon Over the Tides｜Genshin Impact" made the entire disc name
- * the artist and threw the real title away — three discs arriving as three
- * songs called the same thing. A sentence with the artist's name somewhere in
- * it is not the artist's name.
+ * The other way round does not. Read as the artist, a piece that merely
+ * *contains* the channel's name would make "Jade Moon Upon a Sea of Clouds -
+ * Disc 1: Glazed Moon Over the Tides｜Genshin Impact" all artist and throw the
+ * real title away — three discs arriving as three songs called the same thing.
+ * A sentence with the artist's name somewhere in it is not the artist's name.
  */
 function namesChannel(piece: string, channel: string): boolean {
   const a = bare(piece)

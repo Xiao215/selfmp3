@@ -151,12 +151,10 @@ export function LibraryScreen(): ReactNode {
   /*
    * A row's handlers, one of each for the whole list.
    *
-   * They were closures made per row per render, over the player, the
-   * selection and the ids — so no row's memo ever held, and a song change, a
-   * pause or a keystroke in the search redrew every row on screen. Now each
-   * is made once and handed the row's song, and reads what it needs at the
-   * moment of the press from `latest`. Whether a row is the playing one the
-   * row asks the player itself (`useSongPlayback`).
+   * Each is made once and handed the row's song, and reads what it needs at
+   * the moment of the press from `latest`, so a row's memo holds through a
+   * song change, a pause or a new selection. Whether a row is the playing one
+   * the row asks the player itself (`useSongPlayback`).
    */
   const { playFrom } = player
   const latest = useRef({ selection, songIds, playFrom, model, router })
@@ -175,15 +173,13 @@ export function LibraryScreen(): ReactNode {
     toggleTag(tagId)
   }, [])
   /*
-   * A chip on a row opens its tag's page, as it does in every other list
-   * (E1, 2026-10-08); it used to filter here and open the page everywhere
-   * else. A tag chosen from a row is as much a sign of interest as one chosen
-   * from the strip, so it leads the recent list too.
+   * A chip on a row opens its tag's page, as it does in every other list. A
+   * tag chosen from a row is as much a sign of interest as one chosen from
+   * the strip, so it leads the recent list too.
    *
    * Every row is handed this, so it reads the model and the router through
-   * `latest` like the handlers below: made over the model, it was remade
-   * whenever the library changed, and a like redrew every row on screen to
-   * give each a new copy.
+   * `latest` like the handlers below: made over the model, it would be remade
+   * whenever the library changed, and a like would redraw every row.
    */
   const openTag = useCallback((tagId: number) => {
     const { model: now, router: to } = latest.current
@@ -197,10 +193,10 @@ export function LibraryScreen(): ReactNode {
     // Shift and Cmd on the web, and a tap in selection mode, select; a plain
     // tap still plays.
     if (now.selection.click(song.id, modifiersOf(event))) return
-    // That song and nothing after it, and whatever Up next held is gone: the
-    // 1,300 rows around it used to fill Up next on both sides (`playAlone`).
-    // The whole list plays from Shuffle, or Play with tags on; the tags ticked
-    // are not what is playing, so Up next wears no name for the one song.
+    // That song and nothing after it, and whatever Up next held is gone
+    // (`playAlone`). The whole list plays from Shuffle, or Play with tags on;
+    // the tags ticked are not what is playing, so Up next wears no name for
+    // the one song.
     playAlone(now, song.id)
   }, [])
   const onRowMore = songMenu.onMore
@@ -376,8 +372,6 @@ export function LibraryScreen(): ReactNode {
           tap on a row plays that song alone. But tags turn this list into an
           idea, and an idea is worth starting, so the two controls a computer
           keeps in its header take a row of their own here.
-          Without them the phone could pick tags and then had to be told to go
-          somewhere else to play them.
         */}
         {!wide && model.tagFiltered ? (
           <View style={styles.phoneTransport} ref={transportRef} collapsable={false}>
@@ -655,7 +649,6 @@ export function LibraryScreen(): ReactNode {
   )
 }
 
-/** A library with no songs in it: an invitation, not an error. */
 /**
  * The narrowest page column that takes the header on one row. Up next's rail
  * beside a small window leaves less than this, and a head that stacked into
@@ -753,7 +746,7 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     gap: space.sm,
   },
-  /* At phone width Select, Play and Shuffle take a line of their own, at the end of it. */
+  /* When the head stacks, Shuffle and Play take a line of their own, at the end of it. */
   transportCompact: {
     flexBasis: '100%',
     justifyContent: 'flex-end',

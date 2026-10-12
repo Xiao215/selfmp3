@@ -94,7 +94,7 @@ import { devicePlace } from '../settings/settings.model'
  * it is picking stays what the page shows, and it takes a hand order too.
  *
  * Arriving with `?rename=1` puts the cursor in the name — where a playlist
- * just saved from a tag pick sends you when you press Rename on the message.
+ * just made from a selection sends you, with a name ready to type over.
  */
 export function PlaylistDetailScreen(): ReactNode {
   const { theme } = useUnistyles()
@@ -117,7 +117,7 @@ export function PlaylistDetailScreen(): ReactNode {
   const updatePlaylist = useUpdatePlaylist()
   const deletePlaylist = useDeletePlaylist()
   const reorderPlaylist = useReorderPlaylist()
-  const { state: downloads, installed, downloadByHand, removing } = useDownloads()
+  const { state: downloads, installed, requestDownload, removing } = useDownloads()
   // Taking the playlist's songs off this device can be undone, as one song's can.
   const removeDownloads = useDownloadRemoval()
 
@@ -307,7 +307,7 @@ export function PlaylistDetailScreen(): ReactNode {
   )
 
   // Above the songs, and scrolled with them: the songs are a virtualised list
-  // now — a live playlist with no rules is the whole library — and this is its
+  // — a live playlist with no rules is the whole library — and this is its
   // header rather than the top of a ScrollView drawing every row at once.
   const header = playlist ? (
     <View>
@@ -408,14 +408,14 @@ export function PlaylistDetailScreen(): ReactNode {
           <ListMusic size={30} color={theme.colors.textMuted} />
         )
       }
-      title={live ? 'No songs match these rules yet' : 'Nothing here yet'}
+      title={live ? 'No songs have these tags yet' : 'Nothing here yet'}
       line={
         live
-          ? 'Loosen a rule and the songs that match appear here as you change it.'
+          ? 'Tag a few songs, or change the tags it follows above, and they appear here.'
           : 'Search your library and add as many songs as you like.'
       }
     >
-      {/* A live playlist's Edit rules is in the sentence just above. */}
+      {/* A live playlist fills from its tags, in the row above. */}
       {live ? null : (
         <Button
           label="Add songs"
@@ -499,9 +499,9 @@ export function PlaylistDetailScreen(): ReactNode {
           />
         ) : null}
         {/*
-         * Keeping this one playlist on the phone (Open question 5): here rather
-         * than on the page, where it was a third button beside Play. Once every
-         * song is here the same place takes it back off.
+         * Keeping this one playlist on the phone: here rather than on the page,
+         * where it would be a third button beside Play. Once every song is here
+         * the same place takes it back off.
          */}
         {installed && !emptyPlaylist ? (
           pendingBytes > 0 ? (
@@ -509,7 +509,7 @@ export function PlaylistDetailScreen(): ReactNode {
               icon={menuIcon(CloudDownload)}
               label="Download"
               detail={formatBytes(pendingBytes)}
-              onPress={menuAction(() => downloadByHand(songIds))}
+              onPress={menuAction(() => requestDownload(songIds))}
             />
           ) : (
             <SheetItem
@@ -587,8 +587,8 @@ const styles = StyleSheet.create(theme => ({
   listArea: { flex: 1, minWidth: 0 },
   scroll: { flex: 1 },
   // No side padding on the list: the rows carry their own, as the library's
-  // do, and an extra 16 here is what made the same row sit in a different
-  // place on this page. The head and the empty state take it themselves.
+  // do, and an extra 16 here would sit the same row in a different place on
+  // this page. The head and the empty state take it themselves.
   content: { paddingBottom: space.xl },
   gutter: { paddingHorizontal: space.lg },
   nameWide: { fontSize: type.display, lineHeight: leading.display, letterSpacing: -1.5 },
@@ -606,7 +606,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: 12,
     backgroundColor: theme.colors.surface2,
   },
-  // Room between the menu's groups, where a line used to be.
+  // Room between the menu's groups, rather than a line.
   divider: { height: space.sm },
   spinner: { marginTop: space.xl },
 }))

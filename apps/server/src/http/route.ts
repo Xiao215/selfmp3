@@ -1,5 +1,7 @@
 import type { Request, RequestHandler, Response } from 'express'
 import type { z } from 'zod'
+import { formatZodError } from '@selfmp3/shared'
+import { HttpError } from './errors.js'
 
 /**
  * A typed route wrapper.
@@ -7,9 +9,10 @@ import type { z } from 'zod'
  * Express handlers are `any` by default, which quietly undoes most of the
  * benefit of TypeScript at exactly the place untrusted data enters. This wraps
  * a handler with zod schemas for params, query and body, so inside the handler
- * every input is both validated and correctly typed. The handler is `async`, so
- * a throw — zod's on a bad input, or the handler's own — rejects the promise,
- * and Express 5 hands a rejected handler to the error middleware itself.
+ * every input is both validated and correctly typed. An input that fails its
+ * schema is a 400; the handler is `async`, so that throw, or the handler's own,
+ * rejects the promise, and Express 5 hands a rejected handler to the error
+ * middleware itself.
  *
  * The generics are over the *schemas* rather than over bare `Params`/`Query`/
  * `Body` types. Writing `params?: z.ZodType<Params>` looks equivalent but is
@@ -56,17 +59,9 @@ export function route<
   ) => unknown,
 ): RequestHandler {
   return async (req: Request, res: Response): Promise<void> => {
-    const params = (schemas.params ? schemas.params.parse(req.params) : req.params) as Parsed<
-      P,
-      Record<string, string>
-    >
-
-    const query = (schemas.query ? schemas.query.parse(req.query) : req.query) as Parsed<
-      Q,
-      Record<string, unknown>
-    >
-
-    const body = (schemas.body ? schemas.body.parse(req.body) : req.body) as Parsed<B, unknown>
+    const params = parseInput(schemas.params, req.params) as Parsed<P, Record<string, string>>
+    const query = parseInput(schemas.query, req.query) as Parsed<Q, Record<string, unknown>>
+    const body = parseInput(schemas.body, req.body) as Parsed<B, unknown>
 
     const result = await handler({ params, query, body, req, res })
 
@@ -77,4 +72,18 @@ export function route<
     }
     res.json(result)
   }
+}
+
+/**
+ * One input checked against its schema. Only here is a failed parse the
+ * sender's mistake: a zod error from deeper in — a reply from the doorman or
+ * a model that did not have the shape it should — is this server's, a 500.
+ */
+function parseInput(schema: z.ZodTypeAny | undefined, value: unknown): unknown {
+  if (!schema) return value
+  const parsed = schema.safeParse(value)
+  if (!parsed.success) {
+    throw HttpError.badRequest(formatZodError(parsed.error), parsed.error.issues)
+  }
+  return parsed.data
 }

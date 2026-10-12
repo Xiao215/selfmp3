@@ -4,6 +4,7 @@ import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { withAlpha } from '@selfmp3/client'
+import { clamp01 } from '@selfmp3/shared'
 import { useSvgId } from '../useSvgId'
 
 /**
@@ -15,8 +16,8 @@ import { useSvgId } from '../useSvgId'
  * fades with it and ends where it ends.
  *
  * The fade is centred on where the song has got to rather than ending there:
- * half of it before, half after. Ending there, the wash always looked to be
- * running behind the scrubber's own handle (Xiao, 2026-09-21).
+ * half of it before, half after. Ending there, the wash would always look to be
+ * running behind the scrubber's own handle.
  */
 export function ProgressWash({
   fraction,
@@ -37,7 +38,7 @@ export function ProgressWash({
    * A bright line along the wash's edge, and which edge it runs along. It is
    * drawn here rather than by the bar so that it ends where the wash ends: a
    * line of its own, stopping at the playhead, reads as a second and
-   * disagreeing answer to how far the song has got (Xiao, 2026-09-21).
+   * disagreeing answer to how far the song has got.
    */
   line?: 'top' | 'foot'
 }): ReactNode {
@@ -48,15 +49,14 @@ export function ProgressWash({
    * atomic CSS rule (`nowPlaying/stageMove.model.ts` explains the mechanism at
    * length) — but to a tenth of a percent, not to a whole one.
    *
-   * A whole percent is a thousandth of the rules and it is also two seconds of
-   * a three-minute song: the wash sat still and then jumped fourteen points,
-   * four times in six seconds, which is what a bar that is not following its
-   * song looks like (Xiao, 2026-09-22). A tenth moves it about a point and a
-   * half per tick, as often as the scrubber's own thumb moves, and the values
-   * still repeat — a thousand of them, reused by every song — so the sheet
-   * stops growing exactly as it did before.
+   * A whole percent would be a thousandth of the rules, but it is also two
+   * seconds of a three-minute song: the wash would sit still and then jump
+   * fourteen points, which is what a bar that is not following its song looks
+   * like. A tenth moves it about a point and a half per tick, as often as the
+   * scrubber's own thumb moves, and the values still repeat — a thousand of
+   * them, reused by every song — so the sheet stops growing.
    */
-  const at = `${Math.round(Math.min(1, Math.max(0, fraction)) * 1000) / 10}%` as const
+  const at = `${Math.round(clamp01(fraction) * 1000) / 10}%` as const
   const half = fade / 2
 
   return (
@@ -104,13 +104,12 @@ function Fade({
     <View style={style}>
       {/*
         Pinned to all four edges, and a box of one unit stretched over it.
-        Both halves are needed, and each one alone has failed: percentages on
+        Both halves are needed, and each one alone fails: percentages on
         their own measure nothing on a phone, and `flex: 1` on its own leaves
         the element with no definite height in a browser, where an `svg` with
         a square viewBox then takes its width for its height — a 40-point
-        gradient down a bar 84 tall, which reads as no gradient at all and
-        left the wash ending at a hard line (Xiao, 2026-09-22). This is the
-        pairing `CoverLight` already draws its light with.
+        gradient down a bar 84 tall, which reads as a hard line rather than a
+        fade. This is the pairing `CoverLight` draws its light with.
       */}
       <Svg
         style={StyleSheet.absoluteFill}

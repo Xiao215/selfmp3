@@ -4,7 +4,7 @@
  * Backblaze stops answering reads once a day's count passes the account's cap,
  * and the doorman says so with `bucket_cap_exceeded`. Every read after that is
  * refused the same way until the cap is raised or the day turns, so asking is
- * pointless — and this device kept asking: a look at the bucket on every
+ * pointless — and a device asks often: a look at the bucket on every
  * library read, every song's words as it played, every cover a row drew. So a
  * refusal is held for a while, and reads inside the hold are refused here
  * without a request. Ten minutes, then one real request finds out whether it
@@ -29,9 +29,9 @@ export interface BucketHold {
 /**
  * What Backblaze counts against a day's allowance, each under a cap of its
  * own: reading a file (Class B) and listing a folder (Class C). One can be
- * spent while the other is not — on 2026-10-08 every read was refused while
- * every listing still answered — so each is held, and let go, by itself: a
- * listing that answers says nothing about whether a read would.
+ * spent while the other is not — every read refused while every listing still
+ * answers — so each is held, and let go, by itself: a listing that answers
+ * says nothing about whether a read would.
  */
 export type BucketCall = 'read' | 'list'
 

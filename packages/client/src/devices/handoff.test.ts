@@ -27,6 +27,10 @@ describe('handoffTarget', () => {
     expect(handoffTarget(state({ queueIndex: 0 }), NOW)?.index).toBe(1)
   })
 
+  it('resumes a song queued twice at the copy that was playing', () => {
+    expect(handoffTarget(state({ queueIds: [2, 1, 2], queueIndex: 2 }), NOW)?.index).toBe(2)
+  })
+
   it('plays the song alone when the queue does not contain it', () => {
     expect(handoffTarget(state({ queueIds: [7, 8] }), NOW)).toEqual({
       queueIds: [2],

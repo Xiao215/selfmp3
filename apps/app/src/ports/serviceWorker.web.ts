@@ -30,6 +30,9 @@ import { CLAIM_GRACE_MS, shouldReloadForControl } from './serviceWorkerControl.m
  * manifest and an apple-touch-icon are a browser's way of being installed, and
  * this one already is.
  */
+/** Whether the page is listening to the worker yet. */
+let hearingWorker = false
+
 export function registerServiceWorker({ cloud }: { cloud: boolean }): void {
   if (desktop) return
 
@@ -43,12 +46,16 @@ export function registerServiceWorker({ cloud }: { cloud: boolean }): void {
    * own (sw.ts, `BUCKET_CAPPED`) and says so here, so the page's reads — the
    * snapshot, the words — hold off too, and the screens can say why.
    */
-  navigator.serviceWorker.addEventListener('message', event => {
-    const data: unknown = event.data
-    if (typeof data !== 'object' || data === null) return
-    const { type, message } = data as { type?: unknown; message?: unknown }
-    if (type === 'BUCKET_CAPPED' && typeof message === 'string') holdBucket(message, 'read')
-  })
+  if (!hearingWorker) {
+    // Once, though this runs again for every change of connection.
+    hearingWorker = true
+    navigator.serviceWorker.addEventListener('message', event => {
+      const data: unknown = event.data
+      if (typeof data !== 'object' || data === null) return
+      const { type, message } = data as { type?: unknown; message?: unknown }
+      if (type === 'BUCKET_CAPPED' && typeof message === 'string') holdBucket(message, 'read')
+    })
+  }
   const script = appPath(cloud ? 'sw.js?cloud=1' : 'sw.js')
   navigator.serviceWorker
     .register(script, { scope: appPath('') })

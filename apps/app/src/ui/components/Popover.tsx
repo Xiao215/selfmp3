@@ -230,49 +230,43 @@ function AnchoredPopover({
   )
 
   useOverlay(
-    <>
-      {anchor ? (
-        // Everywhere but the control itself. A backdrop over the control took
-        // the pointer off its row, so a row's ⋯ faded out under the mouse; with
-        // a hole there the row keeps its hover, and pressing the control again
-        // reaches the control, which closes what it opened. A right-click
-        // outside closes it too, rather than drawing the browser's menu on it.
-        <>
-          <Pressable
-            style={[styles.catcher, { top: 0, left: 0, right: 0, height: Math.max(0, anchor.y) }]}
-            onPress={onClose}
-            accessibilityLabel="Close"
-            {...rightClick(onClose)}
-          />
-          <Pressable
-            style={[
-              styles.catcher,
-              { top: anchor.y + anchor.height, left: 0, right: 0, bottom: 0 },
-            ]}
-            onPress={onClose}
-            {...rightClick(onClose)}
-          />
-          <Pressable
-            style={[
-              styles.catcher,
-              { top: anchor.y, left: 0, width: Math.max(0, anchor.x), height: anchor.height },
-            ]}
-            onPress={onClose}
-            {...rightClick(onClose)}
-          />
-          <Pressable
-            style={[
-              styles.catcher,
-              { top: anchor.y, left: anchor.x + anchor.width, right: 0, height: anchor.height },
-            ]}
-            onPress={onClose}
-            {...rightClick(onClose)}
-          />
-        </>
-      ) : (
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
-      )}
-      {anchor ? (
+    anchor ? (
+      <>
+        {/*
+          Everywhere but the control itself. A backdrop over the control would
+          take the pointer off its row, so a row's ⋯ would fade out under the
+          mouse; with a hole there the row keeps its hover, and pressing the
+          control again reaches the control, which closes what it opened. A
+          right-click outside closes it too, rather than drawing the browser's
+          menu on it.
+        */}
+        <Pressable
+          style={[styles.catcher, { top: 0, left: 0, right: 0, height: Math.max(0, anchor.y) }]}
+          onPress={onClose}
+          accessibilityLabel="Close"
+          {...rightClick(onClose)}
+        />
+        <Pressable
+          style={[styles.catcher, { top: anchor.y + anchor.height, left: 0, right: 0, bottom: 0 }]}
+          onPress={onClose}
+          {...rightClick(onClose)}
+        />
+        <Pressable
+          style={[
+            styles.catcher,
+            { top: anchor.y, left: 0, width: Math.max(0, anchor.x), height: anchor.height },
+          ]}
+          onPress={onClose}
+          {...rightClick(onClose)}
+        />
+        <Pressable
+          style={[
+            styles.catcher,
+            { top: anchor.y, left: anchor.x + anchor.width, right: 0, height: anchor.height },
+          ]}
+          onPress={onClose}
+          {...rightClick(onClose)}
+        />
         <Animated.View
           testID={testID}
           onLayout={event => {
@@ -311,8 +305,8 @@ function AnchoredPopover({
             <PanelDenseContext.Provider value={dense}>{children}</PanelDenseContext.Provider>
           </ScrollView>
         </Animated.View>
-      ) : null}
-    </>,
+      </>
+    ) : null,
     mounted && anchor !== null,
   )
 

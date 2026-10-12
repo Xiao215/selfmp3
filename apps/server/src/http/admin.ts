@@ -5,17 +5,13 @@ import express, { type Express } from 'express'
 /**
  * The server's own page: setting it up, and seeing how it is doing.
  *
- * This used to be the app. The server served `apps/app/dist` — the same Expo
- * web export GitHub Pages serves — at every path that was not `/api`, and a tab
- * opened here answered from this server's database rather than from the bucket.
- * That made `localhost:4600` a fourth surface with its own library and no sign
- * in, which is the one place the app skipped the door every other device goes
- * through.
- *
- * So the server does not serve the app any more. The library is the bucket's
- * (docs/SYNC.md), the server is what imports into it and publishes, and this
- * page is where you connect it and check on it. You listen in the app: the
- * Pages tab, the desktop app, or your phone.
+ * The server serves no app. The library is the bucket's (docs/SYNC.md), the
+ * server is what imports into it and publishes, and this page is where you
+ * connect it and check on it. You listen in the app: the Pages tab, the
+ * desktop app, or your phone. An app served from here would answer from this
+ * server's database rather than from the bucket — a surface with its own
+ * library and no sign-in, the one place that skips the door every other
+ * device goes through.
  *
  * Plain files, no build step. They are read from `apps/server/public`, which
  * sits beside `src` and `dist` alike, so this resolves the same whether the

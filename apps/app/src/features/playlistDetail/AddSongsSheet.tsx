@@ -163,7 +163,10 @@ export function AddSongsSheet({
 
         <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
           {results.length === 0 ? (
-            <EmptyState compact title={`Nothing matches “${query.trim()}”`} />
+            <EmptyState
+              compact
+              title={query.trim() ? `Nothing matches “${query.trim()}”` : 'No songs yet'}
+            />
           ) : (
             results.map(song => {
               const justAdded = added.has(song.id)

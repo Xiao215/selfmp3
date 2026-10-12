@@ -44,8 +44,8 @@ export function OverlayProvider({ children }: { children: ReactNode }): ReactNod
 
   // An entry keeps its place: the host paints in the order overlays opened,
   // which is the order `useEscape` closes them in. Moving a re-rendered one
-  // to the end put whichever owner rendered last on top, so a popover under a
-  // sheet came over it the moment its screen re-rendered.
+  // to the end would put whichever owner rendered last on top, so a popover
+  // under a sheet would come over it the moment its screen re-rendered.
   const set = useCallback((id: string, node: ReactNode) => {
     setNodes(current => {
       const index = current.findIndex(entry => entry.id === id)
@@ -106,10 +106,10 @@ export function useOverlay(node: ReactNode, active: boolean): void {
   //
   // A layout effect, so the host has caught up before the event that caused
   // this render is done. After a keystroke, React puts a text box back to the
-  // value it last drew; with a passive effect the host had not drawn the new
-  // one yet, so every key wrote the old text into the box and then the new.
-  // Each write cancels an input method's composition: pinyin typed into the
-  // Search box came out as "nninihnihanihao你好".
+  // value it last drew; with a passive effect the host would not have drawn
+  // the new one yet, so every key would write the old text into the box and
+  // then the new. Each write cancels an input method's composition, and
+  // pinyin typed into the Search box would come out as "nninihnihanihao你好".
   useLayoutEffect(() => {
     if (!api) return
     if (active) api.set(id, node)

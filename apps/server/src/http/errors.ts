@@ -1,6 +1,4 @@
-import { formatZodError } from '@selfmp3/shared'
 import type { NextFunction, Request, Response } from 'express'
-import { ZodError } from 'zod'
 import type { Logger } from '../logger.js'
 import { messageOf } from '../util/errors.js'
 
@@ -66,13 +64,6 @@ export function errorHandler(logger: Logger) {
     if (res.headersSent) {
       // The response is already streaming; all we can do is cut it off.
       res.end()
-      return
-    }
-
-    if (error instanceof ZodError) {
-      const message = formatZodError(error)
-      logger.warn('request failed validation', { path: req.path, message })
-      res.status(400).json({ error: message, code: 'bad_request', details: error.issues })
       return
     }
 

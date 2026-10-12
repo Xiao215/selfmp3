@@ -166,10 +166,8 @@ export class ImportQueueService {
   /**
    * Take a job off the queue for good: a waiting one goes, a downloading one
    * is stopped and goes, a failed or paused one goes. A job past its
-   * download is adding its song and is refused, as a cancel is. The X on a
-   * row used to cancel, which left a "Cancelled" row that Resume all would
-   * pick up again: getting rid of a song took two taps and was undone by
-   * one.
+   * download is adding its song and is refused, as a cancel is. Not a
+   * cancel: that leaves a "Cancelled" row, which Resume all picks up again.
    */
   remove(jobId: string): boolean {
     if (this.#imports.cancel(jobId)) this.#inFlight.get(jobId)?.abort()
@@ -611,8 +609,13 @@ export class ImportQueueService {
       const folder = path.posix.dirname(candidate)
       if (this.#claimedFolders.has(folder)) continue
       this.#claimedFolders.add(folder)
-      if (await isFreeOnDisk(this.#storage, candidate)) return candidate
-      this.#claimedFolders.delete(folder)
+      let free = false
+      try {
+        free = await isFreeOnDisk(this.#storage, candidate)
+      } finally {
+        if (!free) this.#claimedFolders.delete(folder)
+      }
+      if (free) return candidate
     }
     throw new Error('could not find a free name for this song in the library')
   }

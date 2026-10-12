@@ -32,8 +32,8 @@ const MAX_RETRY_MS = 30_000
  * every ten seconds from each device, and the stream stays up all the while
  * music plays in a pocket, so a long evening's listening grew it by megabytes
  * an hour and made each event's scan longer than the last: the lag that came
- * with a long session, and memory iOS kills a background app for (Xiao,
- * 2026-10-07). A new connection starts empty, and the server replays the
+ * with a long session, and memory iOS kills a background app for. A new
+ * connection starts empty, and the server replays the
  * current state to it as its first frames, so nothing is missed.
  */
 export const RECYCLE_AFTER_CHARS = 128 * 1024
@@ -58,12 +58,12 @@ export const serverEvents: ServerEventStream = {
       /*
        * Once per connection, and only for the one this stream is reading. A
        * failed XHR reports itself twice — readyState 4 and then `onerror` (or
-       * `ontimeout`) — and each used to schedule a connection of its own, so
-       * every drop doubled the streams: a phone that slept and woke through an
-       * evening held six at once, iOS's limit for one host, and every other
-       * request to the server queued behind them until it timed out. The app
-       * said the server could not be reached while it answered, tags did not
-       * save, and each stream kept its own growing response (Xiao, 2026-10-07).
+       * `ontimeout`) — and if each scheduled a connection of its own, every
+       * drop would double the streams: a phone that slept and woke through an
+       * evening would hold six at once, iOS's limit for one host, and every
+       * other request to the server would queue behind them until it timed
+       * out — the server said to be unreachable while it answered, tags not
+       * saving, and each stream keeping its own growing response.
        */
       let ended = false
       const scheduleRetry = (): void => {

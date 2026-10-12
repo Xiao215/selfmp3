@@ -11,8 +11,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * and nothing hands the shell a URL it cannot fetch.
  */
 
+let held: { message: string } | null = null
+
 const bridge = {
+  onProgress: () => () => undefined,
   files: {
+    download: vi.fn(async () => ({ state: 'done' as const, bytes: 1 })),
     write: vi.fn(async () => undefined),
     fetchTo: vi.fn(async () => undefined),
     delete: vi.fn(async () => undefined),
@@ -24,6 +28,15 @@ vi.mock('./bridge', () => ({
   get desktop() {
     return bridge
   },
+}))
+vi.mock('@selfmp3/replica', () => ({ bucketHold: () => held }))
+vi.mock('../bucketRefusal', () => ({ askWhyRefused: async () => null }))
+vi.mock('./recentCopies.desktop', () => ({ adoptRecent: async () => null }))
+vi.mock('../songSource', () => ({
+  sourceFor: async () => ({
+    url: 'https://doorman.example/v1/files/audio/x.m4a',
+    headers: { Authorization: 'Bearer t' },
+  }),
 }))
 vi.mock('../../api/client', () => ({ mediaUrlFor: () => ({ stream: () => '' }) }))
 vi.mock('../../replica', () => ({
@@ -53,6 +66,19 @@ describe('the desktop download index', () => {
     bridge.files.fetchTo.mockClear()
     bridge.files.delete.mockReset()
     bridge.files.delete.mockResolvedValue(undefined)
+    bridge.files.download.mockClear()
+    held = null
+  })
+
+  it('does not ask a bucket refusing for the day for a song', async () => {
+    const { downloadStorage } = await import('./downloadStorage.desktop')
+    held = { message: 'Your storage is past today’s allowance.' }
+    const song = { id: 1, path: 'audio/x.m4a' } as Parameters<typeof downloadStorage.begin>[0]
+
+    await expect(downloadStorage.begin(song, 0, () => undefined).run()).rejects.toThrow(
+      'past today’s allowance',
+    )
+    expect(bridge.files.download).not.toHaveBeenCalled()
   })
 
   it('waits for the shell to delete a kept file, and passes on its refusal', async () => {

@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
@@ -8,6 +9,8 @@ import { OverlayProvider } from '../../shell/Overlay'
 import { ImportReview } from './ImportReview'
 import { draftFor, patchDraft, resetImportDraft } from './importDraft'
 
+/** Whether the review is the page on top; a page pushed over it leaves it drawn underneath. */
+const mockFocused = { current: true }
 jest.mock('expo-router', () => ({
   Redirect: () => null,
   useRouter: () => ({
@@ -18,19 +21,28 @@ jest.mock('expo-router', () => ({
   }),
   useNavigation: () => ({ getState: () => undefined }),
   usePathname: () => '/',
+  // As the stack's: the effect runs while the page is on top, and its cleanup once it is not.
+  useFocusEffect: (effect: () => undefined | (() => void)) => {
+    const { useEffect } = jest.requireActual<typeof import('react')>('react')
+    const focused = mockFocused.current
+    useEffect(() => (focused ? effect() : undefined), [focused, effect])
+  },
 }))
 
 // The floating chrome's room reads the player; there is no player here.
 jest.mock('../../shell/bottomInset', () => ({ useFootInset: () => 0 }))
 
+const mockClose = jest.fn()
+// One set of handlers for every render, as the real hook's keep their identity.
+const mockListen = {
+  listening: null,
+  toggle: () => undefined,
+  seek: () => undefined,
+  close: (options?: { resume?: boolean }) => mockClose(options),
+}
 jest.mock('./ImportListen', () => ({
   ...jest.requireActual('./ImportListen'),
-  useListen: () => ({
-    listening: null,
-    toggle: () => undefined,
-    seek: () => undefined,
-    close: () => undefined,
-  }),
+  useListen: () => mockListen,
 }))
 
 const mockEnqueue = jest.fn()
@@ -107,7 +119,8 @@ const item = (n: number, title: string, alreadyHave = false) => ({
   youtube: null,
 })
 
-const draw = async (): Promise<void> => {
+/** Draws the review, and gives back a way to draw it again (after `mockFocused` changes). */
+const draw = async (): Promise<() => unknown> => {
   const client = new QueryClient({
     // The picker reads this device's library too; its collection timer would
     // hold the runner open long after the test had passed.
@@ -116,7 +129,8 @@ const draw = async (): Promise<void> => {
       mutations: { retry: false, gcTime: Infinity },
     },
   })
-  await render(
+  // A new element each time, or React keeps the drawn one as it is.
+  const page = (): ReactElement => (
     <SafeAreaProvider initialMetrics={METRICS}>
       <QueryClientProvider client={client}>
         {/* The tag picker is a sheet, and a sheet is drawn by the shell's overlay host. */}
@@ -124,8 +138,10 @@ const draw = async (): Promise<void> => {
           <ImportReview />
         </OverlayProvider>
       </QueryClientProvider>
-    </SafeAreaProvider>,
+    </SafeAreaProvider>
   )
+  const view = await render(page())
+  return () => view.rerender(page())
 }
 
 /**
@@ -138,6 +154,8 @@ describe('Import review, on a phone', () => {
     mockEnqueue.mockReset()
     mockAlreadyHave.mockReset().mockResolvedValue({ have: [] })
     mockCreateTag.mockClear()
+    mockClose.mockClear()
+    mockFocused.current = true
     mockTags.length = 1
     patchDraft('own', {
       review: reviewFrom({
@@ -211,6 +229,38 @@ describe('Import review, on a phone', () => {
     })
     expect(screen.getByLabelText('Title of track 3')).toBeTruthy()
     expect(screen.getByText('Import 0 songs')).toBeTruthy()
+  })
+
+  it('ticks the open song from its card, liked while hearing it', async () => {
+    await draw()
+    await act(async () => {
+      await fireEvent.press(screen.getByLabelText('Deselect 怪物'))
+    })
+    await act(async () => {
+      await fireEvent.press(screen.getByLabelText('怪物, YOASOBI'))
+    })
+    expect(screen.getByLabelText('Title of track 3')).toBeTruthy()
+    await act(async () => {
+      await fireEvent.press(screen.getByLabelText('Select 怪物'))
+    })
+    expect(screen.getByLabelText('Deselect 怪物')).toBeTruthy()
+    expect(screen.getByLabelText('Title of track 3')).toBeTruthy()
+    expect(screen.getByText('Import 2 songs')).toBeTruthy()
+  })
+
+  it('stops the preview and puts the card away when another page goes over it', async () => {
+    const redraw = await draw()
+    await act(async () => {
+      await fireEvent.press(screen.getByLabelText('怪物, YOASOBI'))
+    })
+    expect(screen.getByLabelText('Title of track 3')).toBeTruthy()
+    expect(mockClose).not.toHaveBeenCalled()
+    mockFocused.current = false
+    await act(async () => {
+      await redraw()
+    })
+    await waitFor(() => expect(mockClose).toHaveBeenCalledWith({ resume: false }))
+    expect(screen.queryByLabelText('Title of track 3')).toBeNull()
   })
 
   it('unticks every song from the head, and ticks them all back', async () => {

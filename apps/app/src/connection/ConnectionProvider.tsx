@@ -48,7 +48,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
   const [fromCloud, setFromCloud] = useState(false)
   const [needsStorage, setNeedsStorage] = useState(false)
   const queryClient = useQueryClient()
-  useCloudLook(fromCloud)
+  // Not before the bucket is connected: there is nothing in it to ask about.
+  useCloudLook(fromCloud && !needsStorage)
 
   /*
    * Forget everything cached for the previous server.

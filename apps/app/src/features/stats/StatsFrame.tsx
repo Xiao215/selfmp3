@@ -114,7 +114,7 @@ export function StatsFrame({
         <View style={styles.head}>
           <View style={[styles.titles, wide ? null : styles.titlesPhone]}>
             {/* No caption under the name: the window's own control says which
-                window this is, and said it twice. */}
+                window this is, and a caption would say it twice. */}
             <Text style={styles.heading} accessibilityRole="header">
               Stats
             </Text>
@@ -151,7 +151,7 @@ export function StatsFrame({
 /**
  * "Report": a pill in the computer's header, the page's last row on a phone.
  * The row is drawn as You draws it, with its icon and what is behind it: the
- * bare word under the cards read as a heading whose section never came.
+ * bare word under the cards would read as a heading whose section never came.
  */
 function ReportLink({ pill }: { pill: boolean }): ReactNode {
   const router = useRouter()

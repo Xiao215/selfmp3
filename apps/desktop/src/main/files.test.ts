@@ -6,7 +6,7 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { download, progressGate } from './files.js'
+import { download, move, progressGate } from './files.js'
 
 /*
  * The shell's two edges, faked at the boundary and nowhere nearer: `electron`
@@ -110,6 +110,25 @@ describe('download', () => {
     expect(await readFile(join(songs, '1.m4a'), 'utf8')).toBe('hello')
   })
 
+  it('starts over when the .part already reaches the end of the file', async () => {
+    const songs = join(harness.userData, 'songs')
+    await mkdir(songs, { recursive: true })
+    await writeFile(join(songs, '1.m4a.part'), 'hello')
+    harness.fetch
+      .mockResolvedValueOnce(new Response(null, { status: 416 }))
+      .mockResolvedValueOnce(respond(200, [bytes('hello')]).response)
+
+    const result = await download(
+      { id: 'd6', kind: 'songs', name: '1.m4a', url: 'https://s.example/1' },
+      () => {},
+    )
+
+    expect(harness.fetch.mock.calls[0]?.[1].headers['Range']).toBe('bytes=5-')
+    expect(harness.fetch.mock.calls[1]?.[1].headers['Range']).toBeUndefined()
+    expect(result).toEqual({ state: 'done', bytes: 5 })
+    expect(await readFile(join(songs, '1.m4a'), 'utf8')).toBe('hello')
+  })
+
   it('says what a refusal said, not only its status', async () => {
     const refused = {
       ok: false,
@@ -167,6 +186,28 @@ describe('download', () => {
     const songs = join(harness.userData, 'songs')
     await expect(stat(join(songs, '1.m4a'))).rejects.toThrow()
     expect(stalled.cancelled()).toBe(true)
+  })
+})
+
+describe('move', () => {
+  beforeEach(async () => {
+    harness.userData = await mkdtemp(join(tmpdir(), 'selfmp3-move-'))
+  })
+  afterEach(async () => {
+    await rm(harness.userData, { recursive: true, force: true })
+  })
+
+  it('hands a played copy to the downloads under its own name', async () => {
+    await mkdir(join(harness.userData, 'recent'), { recursive: true })
+    await writeFile(join(harness.userData, 'recent', 'a.m4a'), 'twelve bytes')
+
+    expect(await move('recent', 'songs', 'a.m4a')).toEqual({ name: 'a.m4a', bytes: 12 })
+    expect(await readFile(join(harness.userData, 'songs', 'a.m4a'), 'utf8')).toBe('twelve bytes')
+    await expect(stat(join(harness.userData, 'recent', 'a.m4a'))).rejects.toThrow()
+  })
+
+  it('says there was nothing to move', async () => {
+    expect(await move('recent', 'songs', 'gone.m4a')).toBeNull()
   })
 })
 

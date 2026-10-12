@@ -1,3 +1,4 @@
+import type { z } from 'zod'
 import {
   DEFAULT_SETTINGS,
   SettingsSchema,
@@ -10,9 +11,10 @@ import type { Db } from '../db/index.js'
  * Settings live in a key/value table rather than a single JSON blob, so two
  * clients writing different settings at the same time cannot clobber each
  * other's change. Reads merge stored values over the defaults, which means a
- * newly added setting works immediately without a migration. It also works the
- * other way: the schema strips keys it does not know, so the row of a setting
- * that was later removed is simply ignored.
+ * newly added setting works immediately without a migration. Each stored value
+ * is checked against its own field: one that no longer fits — or the row of a
+ * setting that was later removed — falls back to its default alone, and every
+ * other setting keeps what was chosen.
  */
 export class SettingsRepository {
   readonly #all
@@ -34,17 +36,21 @@ export class SettingsRepository {
   }
 
   get(): Settings {
+    const fields: Record<string, z.ZodTypeAny | undefined> = SettingsSchema.shape
     const stored: Record<string, unknown> = {}
     for (const row of this.#all.all()) {
+      const field = fields[row.key]
+      if (!field) continue
+      let value: unknown
       try {
-        stored[row.key] = JSON.parse(row.value)
+        value = JSON.parse(row.value)
       } catch {
-        // A corrupt value falls back to its default rather than breaking boot.
+        continue
       }
+      const parsed = field.safeParse(value)
+      if (parsed.success) stored[row.key] = parsed.data
     }
-
-    const merged = SettingsSchema.safeParse({ ...DEFAULT_SETTINGS, ...stored })
-    return merged.success ? merged.data : DEFAULT_SETTINGS
+    return SettingsSchema.parse({ ...DEFAULT_SETTINGS, ...stored })
   }
 
   update(patch: UpdateSettings): Settings {

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Text } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { motion, radius, type } from '@selfmp3/client'
-import { useLayout } from '../../shell/useLayout'
+import { motion, radius, space, type } from '@selfmp3/client'
+import { useLayoutValue } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { currentToasts, dismissToast, subscribeToasts, type Toast } from '../toast'
 import { IconButton } from './IconButton'
@@ -64,7 +64,7 @@ function ToastItem({
 }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
-  const { finePointer } = useLayout()
+  const finePointer = useLayoutValue(layout => layout.finePointer)
   // From 0, and the animated value from the first render: swapping a plain
   // number for an Animated value after mount leaves react-native-web drawing
   // the number (see Popover).
@@ -141,10 +141,10 @@ const styles = StyleSheet.create(theme => ({
   toast: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: space.sm,
     maxWidth: 560,
-    paddingVertical: 8,
-    paddingRight: 8,
+    paddingVertical: space.sm,
+    paddingRight: space.sm,
     paddingLeft: 14,
     // A floating pill with no edge: its shadow lifts it off the page. An error
     // says so in its red text; the other tones are told by what they say.
@@ -153,7 +153,7 @@ const styles = StyleSheet.create(theme => ({
     ...floating(theme.colors),
   },
   text: { color: theme.colors.textPrimary, fontSize: type.sub, flexShrink: 1 },
-  action: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill },
+  action: { paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: radius.pill },
   actionPressed: { backgroundColor: theme.colors.surface3 },
   actionLabel: { fontSize: type.sub, fontWeight: '600' },
 }))

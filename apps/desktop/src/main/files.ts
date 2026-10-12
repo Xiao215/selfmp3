@@ -95,15 +95,30 @@ export async function download(
    * disagree after a crash mid-write, and an append that lands at the wrong
    * offset is a song that plays for forty seconds and then stops.
    */
-  const resumeFrom = await sizeOf(part)
+  let resumeFrom = await sizeOf(part)
   const controller = new AbortController()
   running.set(request.id, controller)
 
   try {
-    const headers: Record<string, string> = { ...request.headers }
-    if (resumeFrom > 0) headers['Range'] = `bytes=${resumeFrom}-`
+    const ask = (from: number): Promise<Response> =>
+      net.fetch(request.url, {
+        headers: { ...request.headers, ...(from > 0 ? { Range: `bytes=${from}-` } : {}) },
+        signal: controller.signal,
+      })
 
-    const response = await net.fetch(request.url, { headers, signal: controller.signal })
+    let response = await ask(resumeFrom)
+    /*
+     * A 416 says the `.part` already reaches the end of the file: it was
+     * finished but never renamed, or the file it was part of has changed.
+     * Asking again from the same offset would be refused every time, so the
+     * `.part` goes and the file is fetched whole.
+     */
+    if (resumeFrom > 0 && response.status === 416) {
+      await response.body?.cancel().catch(() => {})
+      await rm(part, { force: true })
+      resumeFrom = 0
+      response = await ask(0)
+    }
     if (!response.ok) throw new Error(await refusal(response, request.url))
 
     /*
@@ -224,6 +239,19 @@ export async function remove(kind: FileKind, name: string): Promise<void> {
   const target = pathFor(kind, name)
   await rm(target, { force: true })
   await rm(`${target}.part`, { force: true })
+}
+
+/** One kind's file into another's folder, renamed rather than copied. Null when there is none. */
+export async function move(from: FileKind, to: FileKind, name: string): Promise<FileStat> {
+  const source = pathFor(from, name)
+  const target = await writablePathFor(to, name)
+  try {
+    await rename(source, target)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+    throw error
+  }
+  return statOne(to, name)
 }
 
 export async function statOne(kind: FileKind, name: string): Promise<FileStat> {

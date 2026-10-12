@@ -3,7 +3,7 @@
  * phone's own page alike.
  *
  * The page is a route, and the router swaps routes at once: closing it from the
- * player bar or its own chevron cut straight back to the library. The page
+ * player bar or its own chevron would cut straight back to the library. The page
  * registers how it leaves while it is showing; whoever closes it goes through
  * `leaveStage`, which plays that and then navigates. With no page showing it
  * just navigates.
@@ -24,8 +24,8 @@ let leave: Leave | null = null
 /**
  * An exit already playing. The chevron, Escape, the pull and the player bar can
  * all reach `leaveStage` within a frame or two of each other, and without this
- * that started two exits and called `router.back()` twice — one press too far
- * back through the history.
+ * that would start two exits and call `router.back()` twice — one press too
+ * far back through the history.
  */
 let leaving = false
 

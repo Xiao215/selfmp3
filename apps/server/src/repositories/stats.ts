@@ -143,8 +143,8 @@ export class StatsRepository {
       }))
 
     // Zero-fill so the chart shows quiet days as gaps rather than skipping them.
-    const filledDaily =
-      RANGE_DAYS[range] === null ? daily : zeroFill(daily, RANGE_DAYS[range] ?? 30)
+    const days = RANGE_DAYS[range]
+    const filledDaily = days === null ? daily : zeroFill(daily, days)
 
     const hourlyRows = this.#db
       .prepare<unknown[], { hour: string; plays: number }>(

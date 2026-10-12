@@ -164,11 +164,25 @@ describe('CloudIngest', () => {
       tags: [...library.tags.values()],
       playlists: [...library.playlists.values()].map(playlist =>
         playlist.kind === 'live' && playlist.rules
-          ? { ...playlist, songUids: livePlaylistSongs(playlist.rules, list) }
+          ? {
+              ...playlist,
+              songUids: inKeptOrder(playlist.songUids, livePlaylistSongs(playlist.rules, list)),
+            }
           : playlist,
       ),
       aliases: library.aliases.size > 0 ? Object.fromEntries(library.aliases) : undefined,
     }
+  }
+
+  /**
+   * The rule's songs in the order kept by hand, the rest after: as a phone
+   * shows a playlist that follows tags (packages/replica/src/replay.ts).
+   */
+  function inKeptOrder(kept: readonly string[], matched: readonly string[]): string[] {
+    const place = new Map(kept.map((uid, at) => [uid, at]))
+    const known = matched.filter(uid => place.has(uid))
+    known.sort((x, y) => (place.get(x) ?? 0) - (place.get(y) ?? 0))
+    return [...known, ...matched.filter(uid => !place.has(uid))]
   }
 
   /** Two libraries side by side, with nothing but order to tell them apart. */
@@ -291,6 +305,8 @@ describe('CloudIngest', () => {
         msPlayed: 90_000,
         completed: true,
       },
+      // A playlist that follows tags takes a hand order too.
+      { type: 'playlistOrdered', hlc: at(29), uid: LOVED, songUids: [C, B] },
       // For something that is not here, nothing happens.
       { type: 'songEdited', hlc: at(30), uid: '9'.repeat(32), fields: { title: 'Ghost' } },
     ]
@@ -300,7 +316,7 @@ describe('CloudIngest', () => {
     const phone = replayed(before, changes)
 
     expect(comparable(after)).toEqual(comparable(phone))
-    expect(result.applied).toBe(18)
+    expect(result.applied).toBe(19)
     // And it is the library it should be, not just the same wrong one twice.
     const song = (uid: string) => after.songs.find(s => s.uid === uid)
     expect(song(A)).toMatchObject({ title: 'Alpha (Server)', artist: 'Phone', tagUids: [] })
@@ -311,7 +327,7 @@ describe('CloudIngest', () => {
     const playlist = (uid: string) => after.playlists.find(p => p.uid === uid)
     expect(playlist(road)).toMatchObject({ name: 'Road trip', pinned: true, songUids: [B, C] })
     expect(playlist(MIX)?.songUids).toEqual([B, A, C])
-    expect(playlist(LOVED)).toMatchObject({ name: 'Favourites', songUids: [B, C] })
+    expect(playlist(LOVED)).toMatchObject({ name: 'Favourites', songUids: [C, B] })
     expect(playlist(RAINY)?.rules?.rules).toEqual([
       { field: 'tag', op: 'has', tagUid: MISSING_TAG_UID },
     ])

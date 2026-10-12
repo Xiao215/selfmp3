@@ -26,8 +26,7 @@ built.on('exit', code => {
 
   /*
    * Whatever was asked for on the way in, handed straight to Electron. The
-   * window used to take no arguments at all, and the one that matters is
-   * `--user-data-dir`: the single-instance lock is keyed on `userData`, so two
+   * one that matters is `--user-data-dir`: the single-instance lock is keyed on `userData`, so two
    * development windows at once are two `userData` directories, and without a
    * way to name one the second launch hands its arguments to the first and
    * exits. Electron reads its own switches wherever they appear, which is why

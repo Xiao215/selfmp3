@@ -93,7 +93,7 @@ export function ResumeToast(): ReactNode {
 
   return (
     // Never wider than the window's room for it: in an iPad's Slide Over, 320
-    // wide, it ran past both edges (docs/ui-mock `T08`).
+    // wide, it would run past both edges (docs/ui-mock `T08`).
     <View style={[styles.toast, { maxWidth: Math.min(460, width - 32) }]} role="status">
       <Pressable
         onPress={() => {
@@ -112,7 +112,7 @@ export function ResumeToast(): ReactNode {
         accessibilityLabel={`Continue ${song.title} by ${artistOr(song.artist)}, from ${shortDeviceName(candidate.name)}`}
         style={[styles.main, !finePointer && styles.mainTouch, hovered && styles.mainHovered]}
       >
-        {/* The song's title gets the room: on a phone it was cut to "第七夜 …"
+        {/* The song's title gets the room: on a phone it would be cut to "第七夜 …"
             behind the artist and the device. The device is said on a computer,
             which has room for it, and read out everywhere. */}
         <Text style={[styles.label, { color: accent.accent }]}>Continue</Text>

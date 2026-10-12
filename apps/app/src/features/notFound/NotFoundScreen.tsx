@@ -28,8 +28,8 @@ const PLACES: readonly { href: Href; label: string }[] = [
 
 /**
  * An address no page answers, drawn inside the app rather than as Expo's
- * "Unmatched Route" — which is what the installed app showed for
- * `app://selfmp3/nope`, with no way back but quitting.
+ * "Unmatched Route" — which would leave the installed app at
+ * `app://selfmp3/nope` with no way back but quitting.
  *
  * The shell stays around it (the sidebar and player bar on a computer, the
  * tabs on a phone), so the way out is everywhere it usually is. The one

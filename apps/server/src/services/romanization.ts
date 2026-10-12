@@ -149,7 +149,8 @@ export class RomanizationService {
       }),
     )
 
-    const complete = !(plan.includes('pinyin') && !pinyin) && !(plan.includes('romaji') && !romaji)
+    // Pinyin is plain JS and loads or throws; only the dictionary can be missing.
+    const complete = romaji !== null || !plan.includes('romaji')
     return { lyrics: { language, synced, lines: romanized }, complete }
   }
 }

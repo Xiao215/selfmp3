@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Easing, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { useAccentColor } from '../accent'
 import { nativeDriver } from '../motion'
 
 /**
@@ -34,13 +33,10 @@ export function Equalizer({
   size = 14,
 }: {
   paused?: boolean
-  color?: string
+  /** The playing song's tint. */
+  color: string
   size?: number
 }): ReactNode {
-  // The accent only when no colour is given: a playing row always gives its
-  // own, and then the accent picker has nothing to say to it.
-  const accent = useAccentColor(color === undefined)
-  const barColor = color ?? accent
   // Created once, through state rather than a ref: these are read while
   // rendering, and a ref read during render is exactly what the compiler
   // objects to — correctly, since a ref is not a render input.
@@ -137,7 +133,7 @@ export function Equalizer({
   return (
     <View style={[styles.row, { height: size }]}>
       {shapes.map((shape, index) => (
-        <Animated.View key={index} style={[styles.bar, shape, { backgroundColor: barColor }]} />
+        <Animated.View key={index} style={[styles.bar, shape, { backgroundColor: color }]} />
       ))}
     </View>
   )

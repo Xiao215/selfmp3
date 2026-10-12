@@ -31,25 +31,13 @@ interface Box {
  * The highlight's box is Reanimated's alone (`Highlight`): React never commits
  * a position for it, so there is no second answer to where it is.
  *
- * It used to be laid out with animated `left` and `width`, moved on the
- * JavaScript side. On the new architecture that meant the slide wrote the
- * view's position past React, and the position React had committed was
- * already the destination; when the page arriving beside the bar held the
- * JavaScript thread through the whole slide — Home's tags and covers on a
- * phone — the next React commit put the pill back where the slide had
- * started, and React, believing the pill was already at its destination,
- * never sent it again. A tab lit on Home under a pill sitting on Library
- * (Xiao's recording, 2026-09-22), and it stayed that way until something
- * else moved the pill.
- *
- * Then it was laid out at the box it was going to, with a native-driven
- * transform carrying it there from wherever JavaScript last heard it was. On
- * a phone the native side tells JavaScript only now and then, and not at all
- * while the arriving page holds the thread: Library tapped, its page still
- * building, Playlists tapped, and the pill went back to Home before setting
- * off, the Library slide not yet begun as far as JavaScript knew (Xiao,
- * 2026-10-09). Each move's end also sent the whole transform again from those
- * stale numbers, a frame of the pill at the slide's start.
+ * Not animated `left` and `width` moved from JavaScript: on the new
+ * architecture those writes go past React, and when the arriving page holds
+ * the JavaScript thread through the slide, the next commit puts the pill back
+ * where it started. Nor a native-driven transform from where JavaScript last
+ * heard it was: a phone tells JavaScript where a native move has got to only
+ * now and then, so a second tap while the first page is still building would
+ * send the pill back to its old tab before it set off.
  */
 export function useSlidingHighlight<K extends string>(
   active: K | null,
@@ -76,11 +64,8 @@ export function useSlidingHighlight<K extends string>(
 
   // Where it is going. The same item laid out again (a resize) moves too.
   const target = active === null ? undefined : boxes[active]
-  const [pair, setPair] = useState<{ key: K; to: Box } | null>(null)
-  if (active !== null && target && pair?.to !== target) setPair({ key: active, to: target })
-
-  const placed = active !== null && target !== undefined && pair !== null
-  const highlight = placed && pair ? <Highlight to={pair.to} style={style} /> : null
+  const placed = target !== undefined
+  const highlight = target ? <Highlight to={target} style={style} /> : null
 
   return { measure, placed, highlight }
 }

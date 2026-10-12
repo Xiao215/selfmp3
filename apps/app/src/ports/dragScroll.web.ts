@@ -24,11 +24,14 @@ export function useDragScroll(): { ref: RefObject<ScrollView | null> } {
 
     let from: { x: number; left: number } | null = null
     let dragging = false
+    /** A drag just ended: the click the button coming up makes is the drag's. */
+    let dragged = false
 
     const down = (event: PointerEvent): void => {
       // The left button of a mouse or a trackpad only: a finger has its own.
       if (event.pointerType === 'touch' || event.button !== 0) return
       from = { x: event.clientX, left: node.scrollLeft }
+      dragged = false
     }
     const move = (event: PointerEvent): void => {
       if (!from) return
@@ -46,11 +49,15 @@ export function useDragScroll(): { ref: RefObject<ScrollView | null> } {
       from = null
       if (!dragging) return
       dragging = false
+      dragged = true
       node.style.cursor = ''
     }
-    // A drag that ended over a cover must not also press it.
+    // A drag that ended over a cover must not also press it. The click comes
+    // after `pointerup`, so it is told by `dragged`, not by `dragging`.
     const click = (event: MouseEvent): void => {
-      if (dragging) event.stopPropagation()
+      if (!dragged) return
+      dragged = false
+      event.stopPropagation()
     }
 
     node.addEventListener('pointerdown', down)

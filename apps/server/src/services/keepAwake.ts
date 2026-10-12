@@ -71,16 +71,19 @@ export function createKeepAwake(
   function start(): void {
     if (child || !supported) return
     try {
-      child = spawnOne()
-      child.once('error', (error: Error) => {
+      const spawned = spawnOne()
+      child = spawned
+      // Only this process's own end forgets it: one killed by `release` exits
+      // a moment later, by when the next hold may have started another.
+      spawned.once('error', (error: Error) => {
         // No caffeinate on this machine, somehow. Worth one line, not a crash.
         logger.warn('could not hold the machine awake', { message: error.message })
-        child = null
+        if (child === spawned) child = null
       })
       // If it dies on its own, forget it rather than holding a dead reference
       // and never starting another.
-      child.once('exit', () => {
-        child = null
+      spawned.once('exit', () => {
+        if (child === spawned) child = null
       })
       logger.debug('holding the machine awake')
     } catch (error) {

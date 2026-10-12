@@ -11,7 +11,7 @@
 
 export type TabHref = '/' | '/library' | '/playlists'
 
-/** The pages reached from Home, and Home itself. */
+/** The pages reached from Home. */
 const HOME_PAGES = [
   '/tags',
   '/tag',
@@ -33,8 +33,7 @@ function under(pathname: string, base: string): boolean {
  * from the rail itself rather than through Profile.
  *
  * The longest match wins, so `/stats/report` lights Stats. `under` rather
- * than a bare `startsWith`, so `/statsomething` lights nothing — the sidebar
- * derived this inline and had that bug.
+ * than a bare `startsWith`, so `/statsomething` lights nothing.
  */
 export function activeDestination(pathname: string, hrefs: readonly string[]): string | null {
   const matches = hrefs.filter(href => (href === '/' ? pathname === '/' : under(pathname, href)))

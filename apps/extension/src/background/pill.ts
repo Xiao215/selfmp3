@@ -12,7 +12,15 @@ import type { Route } from './connection.js'
  * right-click item does.
  */
 
-const idle: PillState = { state: 'idle', progress: null, jobId: null, message: null }
+/** A state with nothing else to say: no percentage, no job, no reason. */
+const bare = (state: PillState['state']): PillState => ({
+  state,
+  progress: null,
+  jobId: null,
+  message: null,
+})
+
+const idle = bare('idle')
 
 /**
  * How a job in the queue reads to the pill. A job still waiting its turn is
@@ -32,7 +40,7 @@ export function stateOfJob(job: ImportJob): PillState {
       message: null,
     }
   }
-  if (job.status === 'done') return { state: 'added', progress: null, jobId: null, message: null }
+  if (job.status === 'done') return bare('added')
   if (job.status === 'error') {
     return { state: 'failed', progress: null, jobId: null, message: job.error ?? 'Failed' }
   }
@@ -47,11 +55,8 @@ export function stateOfJob(job: ImportJob): PillState {
  * report but that it is waiting.
  */
 export function stateOfRequest(request: ImportRequestView): PillState {
-  if (isPendingRequest(request)) {
-    return { state: 'waiting', progress: null, jobId: null, message: null }
-  }
-  if (request.state === 'done')
-    return { state: 'added', progress: null, jobId: null, message: null }
+  if (isPendingRequest(request)) return bare('waiting')
+  if (request.state === 'done') return bare('added')
   if (request.state === 'failed') {
     return { state: 'failed', progress: null, jobId: null, message: request.error ?? 'Failed' }
   }
@@ -85,7 +90,7 @@ export function createPageHandler(handlers: Handlers, mode: () => Promise<Route[
 
     if (request.type === 'pillState') {
       const hit = await handlers.songFor({ type: 'songFor', url })
-      if (hit) return { state: 'have', progress: null, jobId: null, message: null }
+      if (hit) return bare('have')
       if (viaBucket) {
         const waiting = await requestFor(url)
         return waiting ? stateOfRequest(waiting) : idle
@@ -116,7 +121,7 @@ export function createPageHandler(handlers: Handlers, mode: () => Promise<Route[
     if (items.length === 0) {
       // Nothing to add: yours already, or a job for it is already going.
       const job = await jobFor(url)
-      return job ? stateOfJob(job) : { state: 'have', progress: null, jobId: null, message: null }
+      return job ? stateOfJob(job) : bare('have')
     }
     const result = await handlers.enqueue({
       type: 'enqueue',

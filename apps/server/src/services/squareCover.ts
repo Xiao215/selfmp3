@@ -6,11 +6,11 @@ import sharp from 'sharp'
  * Most covers that are not square came from a video: yt-dlp embeds the
  * video's still, 1280×720, or an older 4:3 one (480×360, 640×480) with black
  * bands above and below — and for a YouTube Music art track, the square art
- * sits in the middle of it on black at the sides. Every square frame cropped
- * those to their middle, which kept the bands in a letterboxed still; and the
- * places that draw the whole file — the lock screen, the widget, a browser's
- * media controls, every device that keeps the bucket's copy — showed a
- * rectangle with bars (Xiao, 2026-10-07).
+ * sits in the middle of it on black at the sides. A square frame cropping
+ * those to their middle keeps the bands in a letterboxed still, and the places
+ * that draw the whole file — the lock screen, the widget, a browser's media
+ * controls, every device that keeps the bucket's copy — show a rectangle with
+ * bars.
  *
  * So the black border is trimmed first, which for an art track leaves exactly
  * the art, and what is left is cropped to its centre square. The trim is kept

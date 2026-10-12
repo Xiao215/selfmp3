@@ -1,3 +1,5 @@
+import { BUCKET_CAP_CODE } from '@selfmp3/replica'
+
 /**
  * The one error type every screen already knows how to read.
  *
@@ -37,7 +39,7 @@ export class ApiError extends Error {
    * cap resets at midnight GMT, or once it is raised.
    */
   get isBucketCapped(): boolean {
-    return this.code === 'bucket_cap_exceeded'
+    return this.code === BUCKET_CAP_CODE
   }
 }
 

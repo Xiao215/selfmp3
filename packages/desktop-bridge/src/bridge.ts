@@ -58,6 +58,12 @@ export interface DesktopBridge {
     /** Abort, leaving the `.part` for a later resume. */
     cancel(id: string): Promise<void>
     delete(kind: FileKind, name: string): Promise<void>
+    /**
+     * A file from one kind to another under the same name — a played copy
+     * becoming a download — and its size there, or null when there was none
+     * to move. A rename, so the bytes are not fetched or copied again.
+     */
+    move(from: FileKind, to: FileKind, name: string): Promise<FileStat>
     stat(kind: FileKind, name: string): Promise<FileStat>
     list(kind: FileKind): Promise<readonly { name: string; bytes: number }[]>
     /** A whole small file, with no progress. Covers. */

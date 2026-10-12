@@ -36,8 +36,8 @@ export const GIVE_UP_AFTER = 3
  *
  * Every read finds the route first, and finding the route reads the bucket,
  * which counts each listing against a daily allowance. A batch the queue
- * could not finish — the server's uploads refused for a day — kept the badge
- * reading every thirty seconds for the whole day, and that alone was the
+ * cannot finish — the server's uploads refused for a day — would keep the
+ * badge reading every thirty seconds all day, and that alone is the
  * allowance. The first reads come at every alarm, as an import that is
  * moving deserves; twenty minutes between reads is still a badge that
  * catches up.
@@ -84,8 +84,6 @@ interface Watcher {
   tick(forced?: boolean): Promise<void>
   /** The popup was opened: a failure has been seen, so the badge goes quiet. */
   seen(): Promise<void>
-  /** Keep ticking while this worker is awake and something of ours is going. */
-  follow(): void
 }
 
 export function createWatcher({
@@ -179,6 +177,31 @@ export function createWatcher({
     else await slowDown(pace)
   }
 
+  /** Keep ticking while this worker is awake and something of ours is going. */
+  function follow(): void {
+    if (following) return
+    following = true
+    misses = 0
+    const again = (): void => {
+      void (async () => {
+        let more = false
+        try {
+          await tick(true)
+          // A server that has missed a few answers is asleep: the alarm
+          // keeps looking every 30 s, and this worker may stop.
+          more = misses < GIVE_UP_AFTER && (await read()).length > 0
+        } catch {
+          // IndexedDB failing to answer is no reason to stop watching: it
+          // may simply have been busy for that one moment.
+          more = true
+        }
+        if (more) setTimeout(again, AWAKE_POLL_MS)
+        else following = false
+      })()
+    }
+    setTimeout(again, AWAKE_POLL_MS)
+  }
+
   return {
     async add(jobs, label) {
       if (jobs.length === 0) return
@@ -194,7 +217,7 @@ export function createWatcher({
       going += jobs.length
       await badge(badgeText(going, failed))
       await resetPace()
-      this.follow()
+      follow()
     },
 
     tick,
@@ -204,30 +227,6 @@ export function createWatcher({
     async seen() {
       failed = false
       await badge(badgeText(going, false))
-    },
-
-    follow() {
-      if (following) return
-      following = true
-      misses = 0
-      const again = (): void => {
-        void (async () => {
-          let more = false
-          try {
-            await tick(true)
-            // A server that has missed a few answers is asleep: the alarm
-            // keeps looking every 30 s, and this worker may stop.
-            more = misses < GIVE_UP_AFTER && (await read()).length > 0
-          } catch {
-            // IndexedDB failing to answer is no reason to stop watching: it
-            // may simply have been busy for that one moment.
-            more = true
-          }
-          if (more) setTimeout(again, AWAKE_POLL_MS)
-          else following = false
-        })()
-      }
-      setTimeout(again, AWAKE_POLL_MS)
     },
   }
 }

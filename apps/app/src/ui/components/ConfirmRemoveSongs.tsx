@@ -14,7 +14,7 @@ import {
 } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayerCommands } from '../../player/PlayerProvider'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutValue } from '../../shell/useLayout'
 import { showToast } from '../toast'
 import { Button } from './Button'
 import { Dialog, DialogHead } from './Dialog'
@@ -98,8 +98,8 @@ export function RemoveSongs({
  * row leaves the library on every device, whatever this device downloaded of
  * it goes with it, and the bucket lets the song's files go once nothing names
  * them (docs/SYNC.md). There is no "keep the file": the server keeps no copy
- * to keep, and a copy left on a disk somewhere is exactly how removed songs
- * used to come back.
+ * to keep, and a copy left on a disk somewhere is exactly how a removed song
+ * comes back.
  *
  * A failure is shown inside the dialog, which stays open so that trying again
  * is one press, rather than closing it and reporting underneath.
@@ -119,7 +119,7 @@ export function ConfirmRemoveSongs({
   onConfirm: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  const { wide } = useLayout()
+  const wide = useLayoutValue(layout => layout.wide)
   const place = devicePlace(deviceKind())
 
   const count = songs.length

@@ -239,6 +239,14 @@ describe('staleDownloads', () => {
       staleDownloads(index, manifest([{ id: 1, sizeBytes: 1000, etag: 'etag-1' }])),
     ).toMatchObject({ gone: [], changed: [], all: [], bytes: 0 })
   })
+
+  it('does not call a song changed when nothing was known of its audio at download', () => {
+    // Downloaded before the manifest listed it: a song imported a moment ago.
+    const index = withEntries(entry(1, { etag: '' }))
+    expect(
+      staleDownloads(index, manifest([{ id: 1, sizeBytes: 1000, etag: 'etag-1' }])),
+    ).toMatchObject({ gone: [], changed: [], all: [] })
+  })
 })
 
 describe('bytesToDownload', () => {

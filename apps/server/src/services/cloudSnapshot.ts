@@ -264,9 +264,8 @@ export function publishWouldLoseLibrary(inBucket: number, onThisDevice: number):
  * Deciding by the two magic bytes rather than by what we wrote is the only
  * reading that holds either way.
  *
- * Getting this wrong is what made the guard around it useless for its whole
- * life: it decompressed unconditionally, threw on already-decoded JSON, and the
- * caller took the throw as "could not check" and published over the library.
+ * Decompressing unconditionally throws on already-decoded JSON, and a guard
+ * that took that throw as "could not check" would publish over the library.
  *
  * Throws when the bytes are not a snapshot. That is deliberate — the caller
  * must treat "cannot read it" as a reason to stop, never as permission.
@@ -281,8 +280,8 @@ export function snapshotSongCount(body: Buffer): number {
  * A snapshot's bytes as its JSON text, however the bucket handed them over.
  *
  * The one decision any reader of a snapshot has to make, so exactly one place
- * makes it. A second reader written later that assumes gzip is the shape of
- * the bug above, and `MemoryCloudStore` cannot catch it: the fake returns the
+ * makes it. A second reader that assumes gzip is the trap above, and
+ * `MemoryCloudStore` cannot catch it: the fake returns the
  * bytes it was given, and the real store returns what fetch already decoded.
  */
 function snapshotText(body: Buffer): string {

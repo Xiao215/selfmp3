@@ -217,16 +217,18 @@ function startLibrary(container: Container): void {
       .scan()
       .then(result => {
         if (result.added || result.updated) container.bumpLibraryVersion()
-        // Lyrics+: index lyrics for search once the scan knows which songs have them.
-        warmLyrics()
       })
       .catch((error: unknown) => {
         logger.error('initial scan failed', {
           message: messageOf(error),
         })
       })
-      // Publishing reads what the scan found, so it waits for it — however it went.
-      .finally(startCloud)
+      // The lyrics index and publishing read what the scan found, so they wait
+      // for it — however it went.
+      .finally(() => {
+        warmLyrics()
+        startCloud()
+      })
   }
 }
 

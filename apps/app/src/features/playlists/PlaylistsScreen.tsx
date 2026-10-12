@@ -21,6 +21,7 @@ import { floating, pageTitle } from '../../ui/surfaces'
 import { CantReach } from '../library/CantReach'
 import { useSharedList } from '../shared/sharedPlaylists'
 import { SharedTile } from '../shared/SharedScreens'
+import { GEMS_SOURCE } from '../lists/lists.model'
 import { NewPlaylist } from './NewPlaylist'
 import { PlaylistCover } from './PlaylistCover'
 import {
@@ -85,11 +86,10 @@ export function PlaylistsScreen(): ReactNode {
   const tileWidth =
     measured > 0 ? Math.floor((measured - GAP * (columns - 1)) / columns) : undefined
   /*
-   * One reading of the clock and one playback hook for the whole page. Called
-   * in each tile, `usePlaylistPlayback` subscribed every tile to the player,
-   * so a pause redrew all of them and the four covers in each mosaic; and a
-   * fresh `new Date()` made every tile's line a new string besides. One
-   * reading per mount is enough: the line it feeds is grained in days.
+   * One reading of the clock and one playback hook for the whole page, handed
+   * to every tile: a tile that subscribed to the player itself would redraw
+   * its four-cover mosaic on every pause. One reading per mount is enough:
+   * the line it feeds is grained in days.
    */
   const now = useMemo(() => new Date(), [])
   const playback = usePlaylistPlayback()
@@ -245,11 +245,7 @@ function GemsTile({ width }: { width: number | undefined }): ReactNode {
   return (
     <View style={[styles.tile, width ? { width } : null]}>
       <Pressable
-        onPress={() =>
-          player.playFrom(ids, 0, {
-            source: { kind: 'songs', origin: 'gems', name: 'Forgotten gems' },
-          })
-        }
+        onPress={() => player.playFrom(ids, 0, { source: GEMS_SOURCE })}
         accessibilityRole="button"
         accessibilityLabel="Play forgotten gems"
         {...tip(`Liked or well played, quiet for ${data.minDays}+ days`)}

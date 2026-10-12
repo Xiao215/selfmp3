@@ -108,8 +108,8 @@ export function SleepMenu({
  * to end, or null with none set: the label a button wears while the timer runs.
  * Whole minutes rounded up, so it never says 0.
  */
-export function useSleepMinutesLeft(endsAt: number | null): string | null {
-  const { sleepAtSongEnd } = usePlayer()
+export function useSleepMinutesLeft(): string | null {
+  const { sleepAtSongEnd, sleepTimerEndsAt: endsAt } = usePlayer()
   const now = useClock(endsAt, 5_000, true)
   if (sleepAtSongEnd) return 'End of song'
   if (endsAt === null) return null

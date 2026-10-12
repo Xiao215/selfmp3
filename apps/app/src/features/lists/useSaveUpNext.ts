@@ -85,7 +85,11 @@ export function useSaveUpNext(): {
         }
         setSource(kept)
         // Played again from Recently played, it is simply that playlist.
-        noteListSaved({ kind: 'playlist', playlistId: created.id, name: created.name })
+        const undoRecent = noteListSaved({
+          kind: 'playlist',
+          playlistId: created.id,
+          name: created.name,
+        })
         showToast(`Saved “${created.name}”`, 'good', {
           actions: [
             {
@@ -99,6 +103,7 @@ export function useSaveUpNext(): {
             {
               label: 'Undo',
               onPress: () => {
+                undoRecent()
                 setSource(before)
                 void clientApi()
                   .deletePlaylist(created.id)

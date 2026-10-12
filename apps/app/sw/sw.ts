@@ -10,14 +10,14 @@
  *  2. **Audio** — cache-first, and critically it answers range requests out of
  *     the cache. Without that, iOS Safari will not play a cached file at all,
  *     because it always asks for `Range: bytes=0-1` first.
- *  3. **API** — network-first with a cached fallback for the library, so a
- *     sleeping Mac degrades to "yesterday's library" rather than an error.
+ *  3. **API** — the network, and an honest "offline" when it is not there;
+ *     covers are kept, cache-first, and nothing else.
  *
- * Built for the web (GitHub Pages, docs/SYNC.md) there is no Mac: a song or a
- * cover this device does not have yet is fetched from the bucket through the
- * doorman instead, with the session the app keeps in IndexedDB. The player's
- * range goes to the bucket as it is, so a song streams rather than having to
- * arrive whole; only what the page asks to keep is kept.
+ * Signed in to the cloud there is no server: a song or a cover this device
+ * does not have yet is fetched from the bucket through the doorman instead,
+ * with the session the app keeps in IndexedDB. A song is downloaded whole
+ * once and every range is read from that download as it arrives
+ * (`playFromBucket`); the last few played are kept.
  *
  * The app may live under a path (`/selfmp3/` on Pages), so every path here is
  * taken relative to the scope this worker was registered with.
@@ -26,7 +26,15 @@
  * is the whole point of this file and is not something a generic recipe does.
  */
 
-import { AUDIO_CACHE, CLOUD_FILES_CACHE, PLAYED_CACHE, REFRESH_HEADER } from './names'
+import {
+  AUDIO_CACHE,
+  CLOUD_FILES_CACHE,
+  DB_NAME,
+  DB_STORE,
+  DB_VERSION,
+  PLAYED_CACHE,
+  REFRESH_HEADER,
+} from './names'
 
 declare const self: ServiceWorkerGlobalScope
 
@@ -34,11 +42,10 @@ declare const self: ServiceWorkerGlobalScope
  * A stamp the build replaces, so each build's shell is its own cache.
  *
  * The shell holds hashed asset files, which a new build renames rather than
- * overwrites. With one fixed cache name nothing ever went out of it: every
- * build's superseded JavaScript and CSS stayed on the device for good. Naming
- * the cache after the build means `activate` sweeps the last one away as part
- * of what it already does. Left as `dev` when nothing substitutes it, which is
- * what `vite dev` wants anyway — one cache it keeps reusing.
+ * overwrites: under one fixed cache name, every build's superseded JavaScript
+ * and CSS would stay on the device for good. Naming the cache after the build
+ * means `activate` sweeps the last one away as part of what it already does.
+ * Left as `dev` when nothing substitutes it — one cache it keeps reusing.
  */
 declare const __SHELL_BUILD__: string
 const SHELL_BUILD = typeof __SHELL_BUILD__ === 'string' ? __SHELL_BUILD__ : 'dev'
@@ -46,15 +53,8 @@ const SHELL_BUILD = typeof __SHELL_BUILD__ === 'string' ? __SHELL_BUILD__ : 'dev
 const SHELL_CACHE = `selfmp3-shell-${SHELL_BUILD}`
 /*
  * The API and audio caches are deliberately *not* named after the build: what
- * they hold is the person's, not this build's. Yesterday's library is what a sleeping Mac
- * degrades to, and re-downloading every song on a deploy is unthinkable.
- */
-/*
- * v2: v1 could hold a cover under an address that named a different cover —
- * the page's address changed with the library while this worker still read
- * the old key for the song (see `bucketFileFor`) — and, kept immutable, that
- * picture never left. Naming a new cache lets `activate` drop v1 whole; what
- * it held is thirty-odd small pictures the bucket hands back on the next look.
+ * they hold is the person's, not this build's, and re-downloading every song
+ * and cover on a deploy is unthinkable.
  */
 const API_CACHE = 'selfmp3-api-v2'
 
@@ -64,7 +64,7 @@ const API_CACHE = 'selfmp3-api-v2'
  */
 const OWNED_CACHES = new Set([SHELL_CACHE, API_CACHE, AUDIO_CACHE, CLOUD_FILES_CACHE, PLAYED_CACHE])
 
-/** `/` served by the Mac, `/selfmp3/` on GitHub Pages: this worker's scope. */
+/** `/` in the desktop app, `/selfmp3/` on GitHub Pages: this worker's scope. */
 const BASE = new URL(self.registration.scope).pathname
 
 /** Registered as `sw.js?cloud=1` when signed in to the cloud (src/ports/serviceWorker.web.ts): only then is there a bucket to ask. */
@@ -104,10 +104,9 @@ self.addEventListener('message', event => {
   const data: unknown = event.data
   if (typeof data === 'object' && data !== null && 'type' in data) {
     const { type } = data as { type: string }
-    if (type === 'SKIP_WAITING') void self.skipWaiting()
     // A page loaded around this worker, by a hard reload, asking to be answered
     // for after all (src/ports/serviceWorker.web.ts).
-    if (type === 'CLAIM') void self.clients.claim()
+    if (type === 'CLAIM') event.waitUntil(self.clients.claim())
   }
 })
 
@@ -177,7 +176,7 @@ async function handleAudio(request: Request, url: URL, event: FetchEvent): Promi
    *
    * `cache: 'reload'` only skips the browser's HTTP cache — this worker sits
    * in front of that and would hand back the copy the page is trying to
-   * replace, so a song whose file changed on the Mac could never be refreshed
+   * replace, so a song whose file changed on the server could never be refreshed
    * and every pass re-stored what it already had. The page asks with a header
    * rather than a query, since what is stored is keyed by path alone.
    */
@@ -195,7 +194,7 @@ async function handleAudio(request: Request, url: URL, event: FetchEvent): Promi
   const fromBucket = await bucketFileFor(url, 'audio')
   if (fromBucket) return playFromBucket(fromBucket, request, event)
 
-  // Served by the Mac, and not on this device: go to the network and store
+  // Served by the server, and not on this device: go to the network and store
   // nothing. What this cache holds is the page's decision, never a side
   // effect of playing something (src/ports/offline.web.ts).
   try {
@@ -262,7 +261,7 @@ async function playFromBucket(
   const head = await download.head
   if (head.kind === 'refused') return download.refusal()
 
-  if (!range) return download.whole()
+  if (!range || !isByteRange(range)) return download.whole()
   const wanted = byteRange(range, head.size)
   if (!wanted) return rangeNotSatisfiable(head.size)
   if (wanted.start > download.received + WAIT_AHEAD_BYTES) return fetchFromBucket(file, range)
@@ -329,11 +328,12 @@ class Arriving {
     this.#notify()
     const headers = new Headers(response.headers)
     headers.set('Cache-Control', 'private, max-age=31536000, immutable')
+    // The chunks stay: a range still streaming from this download reads them
+    // until it closes, and the whole of it goes with the last one.
     await cache.put(
       name,
       new Response(new Blob(this.#chunks as BlobPart[]), { status: 200, headers }),
     )
-    this.#chunks = []
     const names = await cache.keys()
     for (const old of names.slice(0, Math.max(0, names.length - PLAYED_KEPT))) {
       await cache.delete(old)
@@ -432,10 +432,17 @@ function playedName(key: string): string {
   return new URL(`played/${key}`, self.registration.scope).href
 }
 
+const BYTE_RANGE = /^bytes=(\d*)-(\d*)$/
+
+/** Whether a `Range` header is one byte range; any other is answered with the whole file. */
+function isByteRange(range: string): boolean {
+  return BYTE_RANGE.test(range.trim())
+}
+
 /** A byte range of a file this big, inclusive at both ends; null for none that fits. */
 function byteRange(range: string, size: number): { start: number; end: number } | null {
-  const match = /^bytes=(\d*)-(\d*)$/.exec(range.trim())
-  if (!match) return { start: 0, end: size - 1 }
+  const match = BYTE_RANGE.exec(range.trim())
+  if (!match) return null
   const [, rawStart = '', rawEnd = ''] = match
   let start: number
   let end: number
@@ -448,7 +455,8 @@ function byteRange(range: string, size: number): { start: number; end: number } 
     start = Number(rawStart)
     end = rawEnd === '' ? size - 1 : Math.min(Number(rawEnd), size - 1)
   }
-  return start <= end && start < size ? { start, end } : null
+  // `end` is at most the last byte, so this also keeps `start` inside the file.
+  return start <= end ? { start, end } : null
 }
 
 /**
@@ -456,35 +464,17 @@ function byteRange(range: string, size: number): { start: number; end: number } 
  *
  * Through a blob, not an array buffer: a player asks for a song a range at a
  * time, and reading the whole file into this worker's memory for each range
- * was a song's worth of copying per seek. A cached response's blob is backed
- * by the cache on disk, and slicing it copies nothing until the bytes are read.
+ * would be a song's worth of copying per seek. A cached response's blob is
+ * backed by the cache on disk, and slicing it copies nothing until the bytes
+ * are read.
  */
 async function sliceResponse(response: Response, rangeHeader: string): Promise<Response> {
-  const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim())
-  if (!match) return response
-
+  if (!isByteRange(rangeHeader)) return response
   const blob = await response.blob()
   const size = blob.size
-
-  const [, rawStart = '', rawEnd = ''] = match
-
-  let start: number
-  let end: number
-
-  if (rawStart === '') {
-    // Suffix range: the last N bytes.
-    const suffix = Number(rawEnd)
-    if (!Number.isFinite(suffix) || suffix <= 0) return rangeNotSatisfiable(size)
-    start = Math.max(0, size - suffix)
-    end = size - 1
-  } else {
-    start = Number(rawStart)
-    end = rawEnd === '' ? size - 1 : Math.min(Number(rawEnd), size - 1)
-  }
-
-  if (!Number.isFinite(start) || !Number.isFinite(end) || start > end || start >= size) {
-    return rangeNotSatisfiable(size)
-  }
+  const wanted = byteRange(rangeHeader, size)
+  if (!wanted) return rangeNotSatisfiable(size)
+  const { start, end } = wanted
 
   const headers = new Headers()
   headers.set('Content-Type', response.headers.get('content-type') ?? 'audio/mp4')
@@ -513,7 +503,7 @@ function rangeNotSatisfiable(size: number): Response {
  *
  * Nothing is kept — not even the library, which the page already saves in
  * IndexedDB (src/offline/libraryCache.web.ts). A second copy here, served
- * stale as a 200 when the Mac is away, tells the page it was answered when it
+ * stale as a 200 when the server is away, tells the page it was answered when it
  * was not; the page's own copy does that job and shows the copy for what it is.
  */
 async function networkFirst(request: Request): Promise<Response> {
@@ -534,8 +524,8 @@ async function networkFirst(request: Request): Promise<Response> {
  * on the end (src/ports/coverPixels.web.ts), so that a browser's HTTP cache
  * does not hand a canvas the copy an `<img>` loaded without CORS. Here both
  * are one picture from one bucket file, answered from this worker either way;
- * kept as two entries of one path, each store swept the other
- * (`replaceOtherVersions`), and every song played fetched its cover again.
+ * kept as two entries of one path, each store would sweep the other
+ * (`replaceOtherVersions`), and every song played would fetch its cover again.
  */
 function coverKey(url: URL): string {
   const key = new URL(url.href)
@@ -554,9 +544,9 @@ function coverKey(url: URL): string {
  * each swept before either had stored, and both versions stayed.
  *
  * A version is its `v`, not the whole query: a row asks for a cover at
- * `size=128` and the player bar for the same one at full size, and each
- * store used to sweep out the other, so the two went back to the network in
- * turn and a row's cover came in late every time the song played.
+ * `size=128` and the player bar for the same one at full size; if each store
+ * swept out the other, the two would go back to the network in turn and a
+ * row's cover would come in late every time the song played.
  */
 async function cacheFirst(
   request: Request,
@@ -641,15 +631,11 @@ async function handleShell(request: Request, url: URL): Promise<Response> {
 
 // --- The bucket, for the web build --------------------------------------------
 
-/**
- * Where the app keeps the doorman session and each song's files: IndexedDB,
- * database `selfmp3`, store `kv` — see src/ports/idbStore.web.ts, and packages/replica's
- * session.ts (`cloud-session`) and library.ts (`cloud-files`).
+/*
+ * Where the app keeps the doorman session and each song's files: IndexedDB
+ * (`DB_NAME` in ./names.ts), under packages/replica's keys — session.ts
+ * (`cloud-session`) and library.ts (`cloud-files`).
  */
-const DB_NAME = 'selfmp3'
-const DB_STORE = 'kv'
-/** src/ports/idbStore.web.ts's DB_VERSION. Opened with the same version and upgrade, whoever gets there first. */
-const DB_VERSION = 1
 
 interface BucketFile {
   /** `audio/<sha256>.m4a`: the bytes, for good. */
@@ -665,7 +651,7 @@ const MAP_REREAD_MS = 400
 /**
  * The bucket file behind a stream or cover URL, when the app is signed in to
  * the doorman — which only the web build is. Null otherwise: served by the
- * Mac, nothing here changes.
+ * server, nothing here changes.
  *
  * The address itself says which file it means. A library read from the
  * bucket gives a song's `rev` as `<audio hash>.<cover hash>`, the first twelve
@@ -674,9 +660,9 @@ const MAP_REREAD_MS = 400
  * songs to keys read here is only the way from that to the whole key, and it
  * can lag: the page writes it to IndexedDB after it has drawn the library,
  * and the copy kept here is trusted for a few seconds. When a cover changed,
- * a row asked for the new address inside that lag, was answered with the old
- * file, and the cache kept that answer under the new address for good — 祝福
- * wore THE BOOK's pink for a day, in the right green. So a key that does not
+ * a row asking for the new address inside that lag would be answered with the
+ * old file, and the cache would keep that answer under the new address for
+ * good — one song wearing another's cover. So a key that does not
  * name what the address names is read again, a little later, a few times;
  * one that still does not is no answer at all, and nothing is stored.
  */
@@ -739,7 +725,7 @@ async function bucketPicture(request: Request, url: URL): Promise<Response> {
 /**
  * The twelve hex characters the address's `?v=` gives for `kind`'s key, or
  * null for an address that names no key: a song with no cover (`0` there),
- * or a Mac's addresses, whose `rev` is the file's size, mtime and art
+ * or a server's addresses, whose `rev` is the file's size, mtime and art
  * revision in base 36 and never twelve hex characters.
  */
 function keyHashIn(url: URL, kind: 'audio' | 'cover'): string | null {

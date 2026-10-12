@@ -15,10 +15,10 @@ import { useAccent } from '../ui/accent'
  * So the browser's ring is turned off, once, here, and drawn again as ours:
  * one line in the app's accent, only while someone is moving focus with Tab,
  * so a Tab still shows where you are and a click shows nothing.
- * `:focus-visible` alone was not enough: the browser counts any key as keyboard
- * use, so pressing Space to pause after clicking a song drew a box round that
- * song's row. Tab turns the ring on; a pointer press turns it off. A text field with
- * a border of its own takes the accent as its border colour instead; a field
+ * `:focus-visible` alone is not enough: the browser counts any key as keyboard
+ * use, so pressing Space to pause after clicking a song would draw a box round
+ * that song's row. Tab turns the ring on; a pointer press turns it off. A text
+ * field with a border of its own takes the accent as its border colour instead; a field
  * without one sits in a box that is the visible field, and that box shows
  * focus itself (the library's search turns its border to the accent while its
  * input has focus).

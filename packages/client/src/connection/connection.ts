@@ -23,8 +23,8 @@ export interface ServerConnection {
  * ways of reaching the server differ in exactly that. `tailscale serve --bg 4600`
  * (docs/SETUP.md) puts the server behind Tailscale's own HTTPS on 443, so a
  * bare hostname is `https://`. A port typed out is someone reaching the server
- * directly, which is plain HTTP. Guessing `http://` for both — which is what
- * this did — makes the address the setup guide produces impossible to enter.
+ * directly, which is plain HTTP. Guessing `http://` for both would make the
+ * address the setup guide produces impossible to enter.
  *
  * Parsed by hand rather than with `URL`, which this package cannot use: it is
  * not in the ES2023 library it compiles against, and the version React Native
@@ -56,8 +56,7 @@ export function normaliseBaseUrl(input: string): string | null {
   // `user:pw@host` loses the credentials and keeps the host, which is what
   // `URL` does. Worth knowing that it is a silent drop rather than a refusal:
   // someone who types credentials here gets unauthenticated requests and no
-  // explanation. Refusing would be kinder, but this is a move, and changing
-  // behaviour inside one is how a regression hides.
+  // explanation.
   const at = authority.lastIndexOf('@')
   const hostPort = at === -1 ? authority : authority.slice(at + 1)
 

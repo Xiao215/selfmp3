@@ -7,12 +7,15 @@ import {
   offlineStorageAvailable,
   uncacheSong,
 } from './offline.web'
+import { desktopRecentCopies } from './desktop/recentCopies.desktop'
+import { desktop } from './desktop/bridge'
 import { prefs } from './prefs'
 
 /**
  * Songs kept because they were played, in a browser: built over the same
  * audio cache downloads use, so the service worker serves a kept copy exactly
- * as it serves a download.
+ * as it serves a download. The installed desktop app, whose `app://` page has
+ * no Cache API, keeps files through the shell instead (`recentCopies.desktop.ts`).
  *
  * The rules for when to keep one are the caller's (`DownloadsProvider`: only a
  * cloud library, not a song removed by hand); this only keeps, trims and lists.
@@ -29,7 +32,7 @@ function save(kept: ReadonlyMap<number, number>): void {
 }
 
 /** The songs held only because they were played, so "on this device" can leave them out. */
-export function recentIds(): ReadonlySet<number> {
+function browserRecentIds(): ReadonlySet<number> {
   return new Set(load().keys())
 }
 
@@ -38,7 +41,7 @@ export function recentIds(): ReadonlySet<number> {
  * service worker answers the song's ordinary address from it. A phone, which
  * keeps files, has one to give (the twin).
  */
-export function recentUri(_songId: number): string | null {
+function browserRecentUri(_songId: number): string | null {
   return null
 }
 
@@ -46,19 +49,19 @@ export function recentUri(_songId: number): string | null {
  * Asked for by hand: the copy stays where it is and stops being the budget's.
  * It is already in the cache downloads use, so it simply becomes one.
  */
-export function promoteRecent(songIds: readonly number[]): void {
-  forgetRecent(songIds)
+function browserPromoteRecent(songIds: readonly number[]): void {
+  browserForgetRecent(songIds)
 }
 
 /** Asked for by hand, or removed: no longer this budget's to count. */
-export function forgetRecent(songIds: readonly number[]): void {
+function browserForgetRecent(songIds: readonly number[]): void {
   const kept = load()
   let changed = false
   for (const songId of songIds) changed = kept.delete(songId) || changed
   if (changed) save(kept)
 }
 
-export function clearRecent(): void {
+function browserClearRecent(): void {
   prefs.set(RECENT_KEY, '{}')
 }
 
@@ -69,7 +72,7 @@ export function clearRecent(): void {
  * before the track is. A song already kept by hand is somebody's download and
  * not touched; one of ours played again becomes the newest.
  */
-export async function keepRecentlyPlayed({ id: songId }: Pick<Song, 'id' | 'path'>): Promise<void> {
+async function browserKeepRecentlyPlayed({ id: songId }: Pick<Song, 'id' | 'path'>): Promise<void> {
   if (!offlineStorageAvailable()) return
   try {
     const kept = load()
@@ -115,3 +118,21 @@ async function quotaBytes(): Promise<number | null> {
     return null
   }
 }
+
+const browserRecentCopies = {
+  recentIds: browserRecentIds,
+  recentUri: browserRecentUri,
+  promoteRecent: browserPromoteRecent,
+  forgetRecent: browserForgetRecent,
+  clearRecent: browserClearRecent,
+  keepRecentlyPlayed: browserKeepRecentlyPlayed,
+}
+
+const chosen: typeof browserRecentCopies = desktop ? desktopRecentCopies : browserRecentCopies
+
+export const recentIds = chosen.recentIds
+export const recentUri = chosen.recentUri
+export const promoteRecent = chosen.promoteRecent
+export const forgetRecent = chosen.forgetRecent
+export const clearRecent = chosen.clearRecent
+export const keepRecentlyPlayed = chosen.keepRecentlyPlayed

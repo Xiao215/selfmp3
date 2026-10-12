@@ -532,9 +532,9 @@ describe('keeping songs on this device', () => {
   })
 
   it('forgets only the files that actually went, and says which did not', async () => {
-    // The index used to be written before the file was touched, and the delete
-    // was fire-and-forget: a file that refused to go was orphaned — no entry,
-    // no tally, no way to remove it again.
+    // Written before the file is touched, with the delete left to itself, the
+    // index would orphan a file that refused to go — no entry, no tally, no
+    // way to remove it again.
     const { storage, queue } = setup({ index: addEntry(addEntry(EMPTY_INDEX, entry(1)), entry(2)) })
     await queue.load()
     storage.failDelete.add(1)
@@ -655,9 +655,9 @@ describe('keeping songs on this device', () => {
   })
 
   it('still plays a kept song whose cover changed, and not one whose audio did', async () => {
-    // A rev ends with its cover's part. The cover rework of 2026-10-07 gave
-    // every song a new one, and a phone stopped playing its downloads: it
-    // streamed them, and with the bucket capped played nothing at all.
+    // A rev ends with its cover's part. A new cover for every song must not
+    // stop a phone playing its downloads: it would stream them, and with the
+    // bucket capped play nothing at all.
     const cloud = { ...entry(1), rev: 'a1b2.c3d4' }
     const server = { ...entry(2), rev: '1k.mg3.4' }
     const { queue } = setup({ index: addEntry(addEntry(EMPTY_INDEX, cloud), server) })

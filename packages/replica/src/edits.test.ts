@@ -249,6 +249,21 @@ describe('editing playlists', () => {
     expect(changes.map(change => change.type)).toEqual(['playlistOrdered'])
   })
 
+  it('shows a playlist that follows tags in the order it was put in, straight away', () => {
+    const d = device()
+    const live = d.idOf('playlists', '8')
+    const [a, b, c] = ['a', 'b', 'c'].map(u => d.idOf('songs', u)) as [number, number, number]
+    // Loved here, after the snapshot: the rule matches them, title first.
+    expect(d.apply(edits.loveSongs(d.ctx(), [a, b, c], true)).playlistSongs[live]).toEqual([
+      a,
+      b,
+      c,
+    ])
+    const view = d.apply(edits.reorderPlaylist(d.ctx(), live, [c, a]))
+    // The order names two; the third keeps its place after them.
+    expect(view.playlistSongs[live]).toEqual([c, a, b])
+  })
+
   it('refuses to put songs into a live playlist, or none that exist', () => {
     const d = device()
     expect(() => edits.addToPlaylist(d.ctx(), d.idOf('playlists', '8'), [1], undefined)).toThrow(

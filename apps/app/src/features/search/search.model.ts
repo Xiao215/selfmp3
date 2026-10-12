@@ -1,4 +1,5 @@
 import {
+  fromSqliteTime,
   fuzzyRank,
   isCjkQuery,
   type Library,
@@ -50,9 +51,8 @@ interface SearchFound {
 const NOTHING: SearchFound = { songs: [], tags: [], artists: [] }
 
 /**
- * What a query finds in the library, each kind best first. Songs whose file is
- * missing are left out, as they are from Library. Lyrics are the server's to
- * search and arrive separately (`lyricsQueryFor`).
+ * What a query finds in the library, each kind best first. Lyrics are the
+ * server's to search and arrive separately (`lyricsQueryFor`).
  */
 export function searchLibrary(query: string, library: SearchLibrary | undefined): SearchFound {
   const trimmed = query.trim()
@@ -133,18 +133,19 @@ export function recentItems(
   if (!library || limit <= 0) return []
   const current =
     currentSongId === null ? undefined : library.songs.find(song => song.id === currentSongId)
-  const dated: { at: string; item: RecentItem }[] = []
+  // The server's `YYYY-MM-DD HH:MM:SS` and this device's ISO stamps do not
+  // sort as text against each other, so they are compared as times.
+  const dated: { at: number; item: RecentItem }[] = []
+  const add = (stamp: string | null, item: RecentItem): void => {
+    const at = stamp ? fromSqliteTime(stamp) : Number.NaN
+    if (!Number.isNaN(at)) dated.push({ at, item })
+  }
   for (const song of library.songs) {
-    if (song.lastPlayedAt && song.id !== currentSongId) {
-      dated.push({ at: song.lastPlayedAt, item: { kind: 'song', song } })
-    }
+    if (song.id !== currentSongId) add(song.lastPlayedAt, { kind: 'song', song })
   }
-  for (const playlist of library.playlists) {
-    if (playlist.lastPlayedAt)
-      dated.push({ at: playlist.lastPlayedAt, item: { kind: 'playlist', playlist } })
-  }
-  // ISO timestamps sort as text; the newest is the largest.
-  dated.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
+  for (const playlist of library.playlists)
+    add(playlist.lastPlayedAt, { kind: 'playlist', playlist })
+  dated.sort((a, b) => b.at - a.at)
   const items = dated.map(entry => entry.item)
   return (current ? [{ kind: 'song' as const, song: current }, ...items] : items).slice(0, limit)
 }

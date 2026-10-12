@@ -10,8 +10,6 @@ import type { PlaybackEngine } from '@selfmp3/client'
  * well as a value. The ref is the one thing that crosses back: the wiring runs
  * inside the engine's own callback, where a value captured at render would be
  * the one from whenever that callback was made.
- *
- * Lifted out of `PlayerProvider`, which held it among a dozen other concerns.
  */
 interface SleepTimer {
   /** When playback stops, or null when nothing is set. */
@@ -52,7 +50,8 @@ export function useSleepTimer(engine: PlaybackEngine): SleepTimer {
   useEffect(() => {
     if (endsAt === null) return undefined
     let wait: ReturnType<typeof setTimeout> | undefined
-    let fade: ReturnType<typeof setInterval> | undefined
+    /** The fade under way, and the level it started from. */
+    let fade: { readonly timer: ReturnType<typeof setInterval>; readonly from: number } | undefined
     // Woken when the time is up rather than every second to ask whether it is:
     // a minute at most at a time, so a long wait never rests on one timer the
     // platform may have let drift, and the stop lands within a beat of when it
@@ -63,30 +62,43 @@ export function useSleepTimer(engine: PlaybackEngine): SleepTimer {
         wait = setTimeout(sleepWhenDue, Math.min(left, LONGEST_WAIT_MS))
         return
       }
+      // Muted, there is nothing to fade — and moving the level unmutes.
+      if (engine.state.muted) {
+        engine.pause()
+        setEndsAt(null)
+        return
+      }
       // Fade out rather than cutting off, which is much gentler if you are
       // actually falling asleep to it.
-      const startVolume = engine.state.volume
+      const from = engine.state.volume
       let step = 0
-      fade = setInterval(() => {
+      const timer = setInterval(() => {
         step++
-        engine.setVolume(startVolume * (1 - step / FADE_STEPS))
-        if (step >= FADE_STEPS) {
-          clearInterval(fade)
-          engine.pause()
-          engine.setVolume(startVolume)
-        }
+        engine.setVolume(from * (1 - step / FADE_STEPS))
+        if (step < FADE_STEPS) return
+        clearInterval(timer)
+        fade = undefined
+        engine.pause()
+        engine.setVolume(from)
+        // Used up: nothing is set any more, and the bar stops counting down.
+        setEndsAt(null)
       }, FADE_MS / FADE_STEPS)
+      fade = { timer, from }
     }
     sleepWhenDue()
     return () => {
       if (wait !== undefined) clearTimeout(wait)
-      if (fade !== undefined) clearInterval(fade)
+      if (fade === undefined) return
+      // Called off part-way through the fade: the level goes back to where it
+      // was, rather than staying wherever the fade had got to.
+      clearInterval(fade.timer)
+      engine.setVolume(fade.from)
     }
   }, [endsAt, engine])
 
   /*
    * Held, for the reason `useVolumeControls` gives: `PlayerApi` is built
-   * from this, so a new object render would be a new api and every screen
+   * from this, so a new object each render would be a new api and every screen
    * reading the player would redraw with it.
    */
   return useMemo(

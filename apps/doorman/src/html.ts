@@ -28,10 +28,9 @@ import { sha256Base64 } from './encoding.js'
  * The pages' colours are the app's own, from `@selfmp3/client/tokens` — the
  * one module of the client package with nothing in it but the palettes, so
  * the Worker bundles a few hundred lines of colour arithmetic and none of the
- * client. They used to be a hand copy in OKLCH, which had drifted: a cool
- * near-white where the app had moved to Paper's cream. Dark first, as the app
- * is, and Paper when the system is light; the accent at the default hue, since
- * a sign-in page has no device to read a chosen one from.
+ * client, and a page cannot drift from the app. Dark first, as the app is,
+ * and Paper when the system is light; the accent at the default hue, since a
+ * sign-in page has no device to read a chosen one from.
  */
 function paletteVars(palette: ThemePalette): string {
   return [

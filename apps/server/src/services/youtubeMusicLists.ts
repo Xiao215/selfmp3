@@ -75,11 +75,10 @@ export class YouTubeMusicLists {
    * page only names the playlist.
    *
    * An album's own playlist — the `OLAK5uy_…` list a `watch?v=…&list=` link
-   * from an album carries — is answered with rows and no header at all, and
-   * used to be handed to yt-dlp for that, whose listing has no album: the
-   * review showed the album's songs with the album column blank, and the
-   * songs arrived with one. Its rows each name the album they are from, and
-   * the album's own page has the title, artist, cover and count.
+   * from an album carries — is answered with rows and no header at all. It
+   * is read as the album rather than handed to yt-dlp, whose listing has no
+   * album: its rows each name the album they are from, and the album's own
+   * page has the title, artist, cover and count.
    */
   async playlist(playlistId: string): Promise<SongList | null> {
     const page = await this.#api.post('browse', { browseId: `VL${playlistId}` })

@@ -15,7 +15,6 @@ import { useBucketHold } from '../features/profile/useBucketHold'
 import {
   dataAnswer,
   downloadAsk,
-  isDownloaded,
   onWifi,
   pendingIds,
   playBlock,
@@ -149,7 +148,7 @@ interface DownloadsContextValue {
   /**
    * A song not on this device cannot start now, whatever is tapped: a library
    * from the bucket with no connection, or with the bucket refusing reads for
-   * the day. Rows fade such songs, rather than a tap finding out (2026-10-08).
+   * the day. Rows fade such songs, rather than a tap finding out.
    */
   readonly streamBlocked: boolean
   /** True when the song can start; otherwise the reason is put to the person, with `retry`. */
@@ -440,7 +439,6 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
   // The player's commands are made once; they read the latest rules through this.
   const songsById = useSongsById()
   const rules = useRef({
-    index: state.index,
     network,
     prefs,
     fromCloud,
@@ -450,7 +448,6 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
   })
   useEffect(() => {
     rules.current = {
-      index: state.index,
       network,
       prefs,
       fromCloud,
@@ -458,24 +455,41 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       excluded,
       songsById,
     }
-  }, [state.index, network, prefs, fromCloud, dataAllowed, excluded, songsById])
+  }, [network, prefs, fromCloud, dataAllowed, excluded, songsById])
+
+  /*
+   * A file here the player would use: a download first, then a copy kept
+   * because it was played. Asked the way the player asks (`localUri`, with the
+   * song's rev), so a kept file the player would not use counts as none.
+   */
+  const hereNow = useCallback(
+    (songId: number): boolean =>
+      downloadQueue.localUri(songId, rules.current.songsById.get(songId)?.rev) !== null ||
+      recentUri(songId) !== null,
+    [],
+  )
 
   /** The song, when a copy of it may be kept for having been (or being about to be) played. */
-  const keepable = useCallback((songId: number): Song | null => {
-    const now = rules.current
-    // Only where songs come from the bucket; reaching a server, this device either
-    // holds the files already or streams them from home. Playing a song removed
-    // by hand is not asking for it back, and one downloading everything anyway
-    // has nothing to second-guess.
-    if (!now.fromCloud || now.excluded.has(songId)) return null
-    // A browser streams and keeps nothing, played or not.
-    if (!installedApp) return null
-    if (now.prefs.autoOnWifi) return null
-    // A copy is a fetch of its own, so it answers to the rule every other
-    // download does: not over mobile data nobody agreed to.
-    if (now.network === 'cellular' && !now.dataAllowed) return null
-    return now.songsById.get(songId) ?? null
-  }, [])
+  const keepable = useCallback(
+    (songId: number): Song | null => {
+      const now = rules.current
+      // On this device already: another copy would be a second trip to the bucket.
+      if (hereNow(songId)) return null
+      // Only where songs come from the bucket; reaching a server, this device either
+      // holds the files already or streams them from home. Playing a song removed
+      // by hand is not asking for it back, and one downloading everything anyway
+      // has nothing to second-guess.
+      if (!now.fromCloud || now.excluded.has(songId)) return null
+      // A browser streams and keeps nothing, played or not.
+      if (!installedApp) return null
+      if (now.prefs.autoOnWifi) return null
+      // A copy is a fetch of its own, so it answers to the rule every other
+      // download does: not over mobile data nobody agreed to.
+      if (now.network === 'cellular' && !now.dataAllowed) return null
+      return now.songsById.get(songId) ?? null
+    },
+    [hereNow],
+  )
 
   const keepPlayed = useCallback(
     (songId: number) => {
@@ -487,8 +501,6 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
 
   const keepAhead = useCallback(
     async (songId: number): Promise<boolean> => {
-      const now = rules.current
-      if (isDownloaded(now.index, songId) || recentUri(songId) !== null) return false
       const song = keepable(songId)
       if (!song) return false
       await keepRecentlyPlayed(song)
@@ -497,28 +509,26 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     [keepable],
   )
 
-  const blockFor = useCallback((songId: number): PlayBlock | null => {
-    const now = rules.current
-    return playBlock({
-      // A copy kept because it was played is a file here like any other, and
-      // plays with no signal; it is only left out of what is *listed* as here.
-      // Asked second: it goes to the disk, and a download is the common answer.
-      // Asked the way the player asks (`localUri`, with the song's rev): a kept
-      // file the player would not use is not a reason to let it try.
-      downloaded:
-        downloadQueue.localUri(songId, now.songsById.get(songId)?.rev) !== null ||
-        recentUri(songId) !== null,
-      installed: installedApp,
-      network: now.network,
-      streamUndownloaded: now.prefs.streamUndownloaded,
-      fromCloud: now.fromCloud,
-      bucketStreams: bucketMedia !== null,
-      // Asked at the moment of playing, like the rest: a hold comes and goes
-      // by the minute, and the player asks this for every song it lines up.
-      bucketHeld: bucketHold('read') !== null,
-      dataAllowed: now.dataAllowed,
-    })
-  }, [])
+  const blockFor = useCallback(
+    (songId: number): PlayBlock | null => {
+      const now = rules.current
+      return playBlock({
+        // A copy kept because it was played is a file here like any other, and
+        // plays with no signal; it is only left out of what is *listed* as here.
+        downloaded: hereNow(songId),
+        installed: installedApp,
+        network: now.network,
+        streamUndownloaded: now.prefs.streamUndownloaded,
+        fromCloud: now.fromCloud,
+        bucketStreams: bucketMedia !== null,
+        // Asked at the moment of playing, like the rest: a hold comes and goes
+        // by the minute, and the player asks this for every song it lines up.
+        bucketHeld: bucketHold('read') !== null,
+        dataAllowed: now.dataAllowed,
+      })
+    },
+    [hereNow],
+  )
 
   const mayPlay = useCallback((songId: number) => blockFor(songId) === null, [blockFor])
 

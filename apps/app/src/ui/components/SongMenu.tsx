@@ -49,8 +49,8 @@ import type { PopoverAnchor } from '../rightClick'
 /**
  * The ⋯ menu for a song (docs/ui-mock `P14`): the one song menu, the same
  * items in the same order wherever a song is — a row's ⋯, a held row, a
- * right-click, Now Playing's ⋯ on a phone or a computer (proposal B1,
- * 2026-10-08). People learn one menu and find it everywhere.
+ * right-click, Now Playing's ⋯ on a phone or a computer. People learn one
+ * menu and find it everywhere.
  *
  * At phone width this is a row's only set of actions, so everything a row can
  * do has to be reachable from here, tagging included. The song heads it —
@@ -69,11 +69,12 @@ import type { PopoverAnchor } from '../rightClick'
  * everywhere, and the download here goes with it — so it asks once and does
  * that. The question is the selection bar's dialog, not a second state of the
  * menu: the menu closes, and one press in a dialog answers it. Asked inside
- * the menu, the same popup took two presses, and the second landed where the
- * first had been (Xiao, 2026-10-02).
+ * the menu, the same popup would take two presses, and the second would land
+ * where the first had been.
  *
- * Dropping the download on its own is "Remove from this phone", beside Download:
- * keeping the song and freeing the room is a different wish.
+ * Dropping the download on its own is "Remove from this phone", in Download's
+ * place once the song is kept here: keeping the song and freeing the room is a
+ * different wish.
  */
 export function SongMenu({
   song,
@@ -206,10 +207,9 @@ function Items({
   const song = library?.songs.find(item => item.id === given.id) ?? given
   const tags = (library?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
   const held = isDownloaded(downloads.index, song.id)
-  // A live playlist's rules decide its songs, so it is not offered.
-  const manualPlaylists = playlistsToAddTo(library?.playlists ?? []).filter(
-    list => list.id !== playlist?.id,
-  )
+  // A live playlist's rules decide its songs, so it is not offered; nor is the
+  // playlist this menu was opened from.
+  const manualPlaylists = playlistsToAddTo(library?.playlists ?? [], playlist?.id)
   const byline = [artistOr(song.artist), song.duration > 0 ? formatDuration(song.duration) : '']
     .filter(Boolean)
     .join(' · ')

@@ -103,10 +103,9 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
   const allMatched = useMemo(() => bothTagsCount(visible, filter.tagIds), [visible, filter.tagIds])
 
   /*
-   * The actions, made once. They were arrows in the object below, new on
-   * every render, and a row is handed `toggleTag` for its chips: every row
-   * of the library redrew whenever the screen did, whatever had changed.
-   * `setFilter` is a state setter, so none of these ever needs remaking.
+   * The actions, made once: a row is handed `toggleTag` for its chips, so a
+   * new one each render would redraw every row of the library. `setFilter` is
+   * a state setter, so none of these ever needs remaking.
    */
   const setSort = useCallback(
     (sort: SongSortField) => setFilter(current => ({ ...current, sort })),
@@ -138,7 +137,7 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       heading: filterHeading(filter, allTags),
       tagFiltered: tagFiltered(filter),
       chosenTags,
-      subtitle: isPending ? 'Loading…' : `${plural(visible.length, 'song', 'songs')}`,
+      subtitle: isPending ? 'Loading…' : plural(visible.length, 'song', 'songs'),
       matchNote: isPending ? null : matchNote(filter.tagIds.length, allMatched, visible.length),
       sortLabel: SORT_OPTIONS.find(option => option.field === filter.sort)?.label ?? 'Sort',
       sortOptions: SORT_OPTIONS,

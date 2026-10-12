@@ -380,12 +380,12 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
    *
    * The ref is what every command and every engine callback reads, and it has
    * to be right the moment a command returns, not after the render that
-   * follows. It used to be filled in by an effect, so two commands in one tick
-   * — a headset's double-tap sending Next twice, a drop into Up next calling
-   * `next()` and then `addToQueue` — both read the queue from before the first,
-   * and the phone's lookahead, asked for the next song straight after a skip,
-   * was told the song that had just been left. State still renders what is
-   * shown; the ref is the source of truth for what happens next.
+   * follows: filled in by an effect, two commands in one tick — a headset's
+   * double-tap sending Next twice, a drop into Up next calling `next()` and
+   * then `addToQueue` — would both read the queue from before the first, and
+   * the phone's lookahead, asked for the next song straight after a skip,
+   * would be told the song just left. State still renders what is shown; the
+   * ref is the source of truth for what happens next.
    */
   const commitQueue = useCallback((next: QueueState) => {
     queueRef.current = next
@@ -456,8 +456,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
      * fires when it has actually run dry, so it is always worth showing; the
      * phone's player reports Loading or Buffering every time it takes a track,
      * including one already on the disk that is ready in a blink. Told
-     * straight through, the phone flashed a spinner on every press of play —
-     * one tap, four changes of glyph (Xiao, 2026-09-27). A stall that clears
+     * straight through, the phone would flash a spinner on every press of
+     * play — one tap, four changes of glyph. A stall that clears
      * inside the grace was never worth drawing; one that outlasts it is the
      * one the spinner is for, and clearing is always told at once.
      */
@@ -493,20 +493,14 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   useEffect(() => () => engine.destroy(), [engine])
 
   /*
-   * The volume: a line or two over the engine, with the preference this
-   * device remembers it by. The seams below — reporting a
-   * play, wiring the engine, the commands — stay here, because each holds a
-   * dozen refs the others read; pulled apart they would take a dozen
+   * The volume and the sleep timer: a line or two each over the engine. The
+   * seams below — wiring the engine, the commands — stay here, because each
+   * holds a dozen refs the others read; pulled apart they would take a dozen
    * arguments, which is a worse seam than a long function.
    */
   const volume = useVolumeControls(engine)
   const sleep = useSleepTimer(engine)
 
-  /*
-   * Counting a play and sending what this device kept: `usePlayReporting`.
-   * The tracking ref stays here, because the engine's callbacks below write
-   * to it as the song runs.
-   */
   /*
    * A song that counts as played is kept, where songs stream from the bucket,
    * and so is the one after it, ahead of time: it then plays from the disk
@@ -525,6 +519,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     },
     [engine, keepAhead, keepPlayed, mayPlay],
   )
+  // Counting a play and sending what this device kept. The tracking ref is
+  // handed out, because the engine's callbacks below write to it as the song
+  // runs.
   const { tracking: trackingRef, flushPlay } = usePlayReporting({
     songs: songsRef,
     countAs: countPlayAs,
@@ -779,9 +776,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
 
   /*
    * Next and Previous change the song, never whether it is playing: paused,
-   * they land on the new song paused, the way a restart already did. They used
-   * to start the new song regardless, so Previous left a paused player paused
-   * or set it playing depending only on whether it was past three seconds.
+   * they land on the new song paused, the way a restart does — so Previous
+   * does not leave a paused player paused or set it playing depending only on
+   * whether it was past three seconds.
    */
   const next = useCallback(() => {
     // Pressing Next is not the song running out: `auto` false, so repeat-one
@@ -817,8 +814,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
 
   /*
    * A song that stops with an error: tried again, then skipped, then stopped,
-   * and each said on screen (recoverPlayback). Nothing read the engine's error
-   * before — a dropped connection ended the music without a word.
+   * and each said on screen (recoverPlayback), so a dropped connection does
+   * not end the music without a word.
    */
   const recoveryRef = useRef({
     lastError: null as string | null,
@@ -852,8 +849,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       const title =
         songsRef.current.get(songId)?.title ?? roomTrack(songId)?.song.title ?? 'this song'
       // One message about skipping at a time: each replaces the last. A run of
-      // songs that would not play stacked a toast apiece up the screen, which
-      // read as the app falling apart (Xiao, 2026-10-08).
+      // songs that would not play would otherwise stack a toast apiece up the
+      // screen, which reads as the app falling apart.
       const say = (text: string, tone: 'warn' | 'error'): void => {
         if (recovery.toastId !== null) dismissToast(recovery.toastId)
         recovery.toastId = showToast(text, tone)

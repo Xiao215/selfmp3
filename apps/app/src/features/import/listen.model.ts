@@ -82,11 +82,10 @@ export function listenLabel(title: string, status: ListenStatus | null): string 
   return status === 'playing' ? `Pause ${title}` : `Listen to ${title}`
 }
 
-/** The bar's second line: the artist, or why it would not play. */
+/** The bar's second line: the artist, or why it would not play, from where it streams. */
 export function listenDetail(listening: Pick<Listening, 'track' | 'status'>): string {
-  return listening.status === 'error'
-    ? 'Couldn’t play this one from YouTube'
-    : artistOr(listening.track.artist)
+  if (listening.status !== 'error') return artistOr(listening.track.artist)
+  return `Couldn’t play this one from ${isNeteaseUrl(listening.track.url) ? '网易云' : 'YouTube'}`
 }
 
 /** How far along the bar is filled, 0 to 1. Nothing while the length is unknown. */

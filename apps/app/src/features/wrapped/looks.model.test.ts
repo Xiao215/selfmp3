@@ -177,6 +177,11 @@ describe('the window', () => {
     expect(dateline(INPUT)).toBe('21 Aug – 19 Sep 2026')
   })
 
+  it('names both years when the window crosses New Year', () => {
+    const year = { wrapped: { ...WRAPPED, range: 'year' as const }, daily: [] }
+    expect(dateline(year)).toBe('20 Sep 2025 – 19 Sep 2026')
+  })
+
   it('starts all time at the first day anything was played', () => {
     const all = { wrapped: { ...WRAPPED, range: 'all' as const, from: null }, daily: DAILY }
     expect(windowDays(all).first).toBe('2026-08-21')

@@ -89,6 +89,31 @@ describe('keepAwake', () => {
     expect(fake.killed).toBe(1)
   })
 
+  it('keeps the new process when the one it let go of exits after the next hold', () => {
+    const exits: Array<() => void> = []
+    let killed = 0
+    const spawn = (): Caffeinator => ({
+      kill: () => {
+        killed += 1
+      },
+      once: (event, listener) => {
+        if (event === 'exit') exits.push(() => listener(new Error('exited')))
+      },
+    })
+    const keep = createKeepAwake(silent, { platform: 'darwin', spawnCaffeinate: spawn })
+
+    keep.hold()()
+    vi.advanceTimersByTime(LINGER_MS + 1)
+    const next = keep.hold()
+    // The first process's exit arrives only now, after the kill.
+    exits[0]?.()
+    expect(keep.active).toBe(true)
+
+    next()
+    vi.advanceTimersByTime(LINGER_MS + 1)
+    expect(killed).toBe(2)
+  })
+
   it('does nothing at all off macOS', () => {
     const fake = fakeCaffeinate()
     const keep = createKeepAwake(silent, { platform: 'linux', spawnCaffeinate: fake.spawn })

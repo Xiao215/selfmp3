@@ -112,7 +112,7 @@ export function Button({
           there is nothing to say and the spinner is the whole button.
           With an icon to replace, the spinner is laid over it and the two
           crossfade in the same slot, so the button's width never changes;
-          with no icon it takes its own room, as it always did. */}
+          with no icon it takes its own room. */}
         {icon || spinner.mounted ? (
           <View style={styles.badge}>
             {icon ? <Animated.View style={iconFade}>{icon}</Animated.View> : null}

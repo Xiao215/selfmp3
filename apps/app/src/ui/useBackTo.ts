@@ -1,5 +1,5 @@
 import { useNavigation, useRouter, type Href } from 'expo-router'
-import { useLayout } from '../shell/useLayout'
+import { useLayoutValue } from '../shell/useLayout'
 import { useOpenedFromSidebar } from '../shell/sidebarEntry'
 import { isBehind, type StackState } from './backTo.model'
 
@@ -50,7 +50,7 @@ export function usePageBack(fallback: Href): {
   readonly back: () => void
 } {
   const router = useRouter()
-  const { wide } = useLayout()
+  const wide = useLayoutValue(layout => layout.wide)
   const fromSidebar = useOpenedFromSidebar()
   return {
     shown: !wide || (!fromSidebar && router.canGoBack()),

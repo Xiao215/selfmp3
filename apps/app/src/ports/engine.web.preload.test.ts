@@ -128,3 +128,35 @@ describe('a song loaded to sit paused', () => {
     expect(primary.currentTime).toBe(0)
   })
 })
+
+describe('the song fetched ahead of a handover', () => {
+  it('is let go when the order behind the song changes, and the new next one fetched', async () => {
+    const { audioEngine, primary, secondary } = await engine()
+    let next = 8
+    audioEngine.connect({ nextTrackId: () => next })
+    await audioEngine.load(7)
+    primary.duration = 200
+    primary.currentTime = 190
+    primary.dispatchEvent(new Event('timeupdate'))
+    expect(secondary.src).toBe('/api/stream/8')
+
+    // "Play next" on another song in the last seconds of this one.
+    next = 9
+    audioEngine.refreshLookahead?.()
+    expect(secondary.src).toBe('')
+    primary.dispatchEvent(new Event('timeupdate'))
+    expect(secondary.src).toBe('/api/stream/9')
+  })
+
+  it('is kept while it still comes next', async () => {
+    const { audioEngine, primary, secondary } = await engine()
+    audioEngine.connect({ nextTrackId: () => 8 })
+    await audioEngine.load(7)
+    primary.duration = 200
+    primary.currentTime = 190
+    primary.dispatchEvent(new Event('timeupdate'))
+    audioEngine.refreshLookahead?.()
+    expect(secondary.src).toBe('/api/stream/8')
+    expect(secondary.loads).toEqual(['/api/stream/8'])
+  })
+})

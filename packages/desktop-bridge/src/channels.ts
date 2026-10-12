@@ -21,6 +21,7 @@ export const CHANNELS = {
   filesDownload: 'selfmp3:files.download',
   filesCancel: 'selfmp3:files.cancel',
   filesDelete: 'selfmp3:files.delete',
+  filesMove: 'selfmp3:files.move',
   filesStat: 'selfmp3:files.stat',
   filesList: 'selfmp3:files.list',
   filesFetchTo: 'selfmp3:files.fetchTo',

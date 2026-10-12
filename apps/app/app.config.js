@@ -128,10 +128,9 @@ const config = {
   /**
    * Values the app reads at runtime through `expo-constants`.
    *
-   * The doorman is the one thing the phone cannot work out for itself: the web
-   * app gets it from a Vite variable and the Mac from its environment, and a
-   * binary has neither. Set SELFMP3_DOORMAN_URL when building to point a copy
-   * at your own; left alone it is the one in packages/shared/src/cloud.ts.
+   * The doorman is the one thing the phone cannot work out for itself. Set
+   * SELFMP3_DOORMAN_URL when building to point a copy at your own; left alone
+   * it is the one in packages/shared/src/cloud.ts.
    */
   extra: {
     // Spread rather than `?? null`: Expo serialises a null in `extra` as `{}`,
@@ -156,9 +155,8 @@ const config = {
   experiments: {
     typedRoutes: false,
     // GitHub Pages serves the app from /selfmp3/ rather than the root, and the
-    // Mac serves the same build from /. One build cannot be both, so the path
-    // is a build-time variable: unset for the Mac, /selfmp3 for Pages. This is
-    // the replacement for the web app's VITE_BASE.
+    // desktop app loads the same build from /. One build cannot be both, so the
+    // path is a build-time variable: unset for the desktop, /selfmp3 for Pages.
     ...(process.env.EXPO_PUBLIC_BASE ? { baseUrl: process.env.EXPO_PUBLIC_BASE } : {}),
   },
 }

@@ -12,7 +12,7 @@ import { streamFailureMessage } from './streamFailure.model'
  * for, and its answer is the reason. A bucket past its day's allowance is
  * then held for the whole app (`@selfmp3/replica`'s `bucketHold`): the songs
  * lined up after are passed over for the ones on this phone, and the
- * downloads wait, rather than each being tried and refused (2026-10-08). While
+ * downloads wait, rather than each being tried and refused. While
  * the hold stands nothing is asked; its words are the answer.
  */
 export async function askWhyRefused(

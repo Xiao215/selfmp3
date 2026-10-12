@@ -5,12 +5,8 @@ import type { PlaybackEngine } from '@selfmp3/client'
 import { prefs } from '../ports/prefs'
 
 /**
- * The level and mute, and the preference this device remembers the level by.
- *
- * A line or two each over the engine. It came out of `PlayerProvider`, which
- * was one eight-hundred-line function with its seams written in as banner
- * comments; this is the one with no ties to the rest — the engine and `prefs`
- * are all it touches.
+ * The level and mute, and the preference this device remembers the level by:
+ * a line or two each over the engine, which with `prefs` is all it touches.
  */
 
 const VOLUME_KEY = 'volume'

@@ -19,10 +19,10 @@ import { sendRemoteCommand } from './remoteCommands'
  * Whether this JavaScript context has already wired the handlers up.
  *
  * `registerPlaybackService` is called from the layout's module body
- * (`registerPlayback.ts`), and Fast
- * Refresh re-runs module bodies — so every reload in development stacked
- * another full set of handlers on the same events, and one tap of the lock
- * screen's Next skipped as many tracks as there had been reloads. A fresh
+ * (`registerPlayback.ts`), and Fast Refresh re-runs module bodies — so without
+ * this every reload in development would stack another full set of handlers on
+ * the same events, and one tap of the lock screen's Next would skip as many
+ * tracks as there had been reloads. A fresh
  * context (a cold start, or Android's headless task) starts false again, which
  * is exactly right: those genuinely do need wiring up.
  */

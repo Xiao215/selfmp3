@@ -74,11 +74,13 @@ const manual = playlist(21)
 
 /** What the stub server answers `GET /api/library` with, and every offline copy saved. */
 let serverLibrary: Library
+/** Set to hold the server's answer back, as a slow one does. */
+let slowAnswer: Promise<Library> | null = null
 const savedCopies: Library[] = []
 
 configureClient({
   api: {
-    library: () => Promise.resolve(serverLibrary),
+    library: () => slowAnswer ?? Promise.resolve(serverLibrary),
     setSongTags: (id: number, tagIds: number[]) => Promise.resolve(song(id, { tagIds })),
     bulkDeleteSongs: () => Promise.resolve({ removed: 1, failed: [] }),
     createTag: ({ name }: { name: string }) =>
@@ -228,5 +230,28 @@ describe('useLibrary', () => {
     mount(client, useLibrary)
     await vi.waitFor(() => expect(savedCopies).toHaveLength(2))
     expect(savedCopies.map(copy => copy.playlists[0]?.id)).toEqual([manual.id, live.id])
+  })
+
+  it('does not save an answer that arrives after the library was let go', async () => {
+    savedCopies.length = 0
+    let answer = (_library: Library): void => undefined
+    slowAnswer = new Promise(resolve => {
+      answer = resolve
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    mount(client, useLibrary)
+    await vi.waitFor(() => expect(client.isFetching({ queryKey: queryKeys.library })).toBe(1))
+
+    // Another server now: the first one's library, landing late, is not its.
+    act(() => client.clear())
+    answer(library([manual]))
+    slowAnswer = null
+    await act(() => Promise.resolve())
+    expect(savedCopies).toEqual([])
+
+    serverLibrary = library([live])
+    mount(client, useLibrary)
+    await vi.waitFor(() => expect(savedCopies).toHaveLength(1))
+    expect(savedCopies[0]?.playlists[0]?.id).toBe(live.id)
   })
 })

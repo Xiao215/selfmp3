@@ -53,7 +53,7 @@ describe('downloading automatically', () => {
   })
 
   it('waits out a bucket refusing reads for the day, and says so', () => {
-    // Every start would ask once more and be refused once more (2026-10-08).
+    // Every start would ask once more and be refused once more.
     expect(shouldAutoDownload({ ...phone, held: true })).toBe(false)
     expect(syncHeaderText(syncHeader({ ...phone, held: true }), 'phone').text).toBe(
       '40 not on this phone · storage limit reached for today',
@@ -178,8 +178,8 @@ describe('playing a song that is not downloaded', () => {
     })
 
     it('does not try one the bucket would refuse for the day', () => {
-      // Tried, it failed, was retried and skipped — and three skips in a row
-      // stopped the music before the downloaded songs after them (2026-10-08).
+      // Tried, it fails, is retried and skipped — and three skips in a row
+      // stop the music before the downloaded songs after them.
       expect(playBlock({ ...cloud, bucketHeld: true })).toBe('held')
       // No signal says more than the refusal does.
       expect(playBlock({ ...cloud, bucketHeld: true, network: 'none' })).toBe('offline')

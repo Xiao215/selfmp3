@@ -1,23 +1,20 @@
-import { DAY_MS, type Device } from '@selfmp3/shared'
+import type { Device } from '@selfmp3/shared'
 
 /**
- * The Devices list in Settings, made short enough to read.
+ * The Devices list in Settings, folded so it reads as one row per device.
  *
  * Every browser that opens self.mp3 gets its own device id, kept in that
  * browser's storage for that address, so the same laptop turns up again under
  * a new id whenever its storage is cleared or it opens the app at another
  * address. Left as it was, the list grew a row for each of those, all called
- * "Mac · Chrome". Three rules keep it useful:
+ * "Mac · Chrome". So devices that are offline and share a name are one row,
+ * showing the one seen last; forgetting the row forgets all of them. This
+ * device and devices online now are never folded, since those are the rows you
+ * act on.
  *
- * - Devices that are offline and share a name are one row, showing the one
- *   seen last; forgetting the row forgets all of them. This device and devices
- *   online now are never folded, since those are the rows you act on.
- * - The list shows this device, what is online, and what was seen in the last
- *   day, up to five rows.
- * - Everything else waits behind "Show N older devices".
- *
- * The server forgets devices a week after they were last seen, so "older" does
- * not grow forever either.
+ * Rows come in order: this device, then what is online, then the most recently
+ * seen. Which of them wait behind "Show N older" is Settings' call
+ * (`splitDevices`).
  */
 
 /** One row: a device, or several offline ones that share a name. */
@@ -28,21 +25,10 @@ interface DeviceGroup {
   readonly ids: readonly string[]
 }
 
-interface DeviceListView {
-  readonly recent: readonly DeviceGroup[]
-  readonly older: readonly DeviceGroup[]
-}
-
-/** Seen within this long counts as recent. */
-const RECENT_DEVICE_MS = DAY_MS
-/** Rows shown before "Show N older devices", unless more are online. */
-export const RECENT_DEVICE_LIMIT = 5
-
-export function deviceListView(
+export function deviceGroups(
   devices: readonly Device[],
   thisDeviceId: string | null,
-  now: number = Date.now(),
-): DeviceListView {
+): readonly DeviceGroup[] {
   const pinned = (device: Device): boolean => device.id === thisDeviceId || device.online
 
   // This device first, then what is online, then the most recently seen.
@@ -67,15 +53,5 @@ export function deviceListView(
     byName.set(key, group)
     groups.push(group)
   }
-
-  const recent: DeviceGroup[] = []
-  const older: DeviceGroup[] = []
-  for (const group of groups) {
-    const { device } = group
-    if (pinned(device)) recent.push(group)
-    else if (now - device.lastSeenAt <= RECENT_DEVICE_MS && recent.length < RECENT_DEVICE_LIMIT)
-      recent.push(group)
-    else older.push(group)
-  }
-  return { recent, older }
+  return groups
 }

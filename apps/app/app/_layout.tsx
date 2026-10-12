@@ -70,8 +70,7 @@ listenForAppFocus()
 /**
  * The design's two faces (`fonts` in packages/client). A native build embeds
  * them through the `expo-font` config plugin, so this finds them already there;
- * a browser gets them as `@font-face` from here, and a dev client built before
- * the plugin was added loads them at runtime the same way.
+ * a browser gets them as `@font-face` from here.
  */
 const FONTS = {
   InstrumentSerif_400Regular,
@@ -99,11 +98,11 @@ const queryClient = new QueryClient({
       // then the cached library beats a spinner that never ends.
       retry: 1,
       refetchOnWindowFocus: false,
-      // How long an answer nothing on screen reads is kept. It was a day, for
-      // every question — each song's lyrics and motion, each artist, each
-      // Ask — and a long session held all of them. Nothing here is persisted,
-      // so a day bought no offline copy: those are the snapshots
-      // (`api/client.ts`). The library itself is always read, so never dropped.
+      // How long an answer nothing on screen reads is kept: not long, or a long
+      // session holds every song's lyrics and motion, each artist, each Ask.
+      // Nothing here is persisted, so keeping longer buys no offline copy:
+      // those are the snapshots (`api/client.ts`). The library itself is
+      // always read, so never dropped.
       gcTime: 10 * 60 * 1000,
     },
   },
@@ -160,9 +159,7 @@ function nowPlayingOptions(wide: boolean, reduced: boolean) {
 export default function RootLayout(): ReactNode {
   return (
     // Outermost of all: gesture handler installs the root it arbitrates
-    // gestures under, and a handler mounted outside one never fires. The one
-    // gesture in the app is holding a playlist's row to move it
-    // (`ui/components/HoldToReorder`), and it is the page furthest from here.
+    // gestures under, and a handler mounted outside one never fires.
     <GestureHandlerRootView
       style={styles.root}
       // The width every screen lays out by, measured here (`shell/rootWidth`).

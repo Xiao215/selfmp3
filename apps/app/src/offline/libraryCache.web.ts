@@ -5,8 +5,8 @@ import { deleteStored, readStored, writeStored } from '../ports/idbStore.web'
  * The last library payload, in a browser: a snapshot kept in IndexedDB.
  *
  * The phone's file (`libraryCache.ts`) writes through expo-file-system, which a
- * browser does not have, so until this file the web build never kept the
- * library and could not open one it had seen with no network.
+ * browser does not have; without this the web build could not open a library
+ * it had seen with no network.
  *
  * Failures are swallowed on purpose: a private window, a full disk or a quota
  * refusal is a slower cold start, never a failure to work online.

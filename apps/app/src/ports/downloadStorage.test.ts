@@ -5,9 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * uses (the same shape `recentCopies.test.ts` fakes).
  *
  * One thing pinned: `delete` settles once the file is gone and rejects when
- * the system would not let it go. The port used to type it `void`, so a throw
- * from `File.delete()` was a stray exception out of the queue's `remove` —
- * and the queue had already written the index without the song.
+ * the system would not let it go. Typed `void`, a throw from `File.delete()`
+ * would be a stray exception out of the queue's `remove` — after the queue
+ * had already written the index without the song.
  */
 
 /** Path → size in bytes. */

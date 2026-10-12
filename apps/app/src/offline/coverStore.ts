@@ -200,11 +200,10 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
   /**
    * A cloud cover already on this device, found in the render that asks for
    * it. The cloud covers are not primed — their names are hashes, not songs —
-   * so every cover of every launch used to be a letter tile for the frames it
-   * took `ensureCover` to look on disk and announce it, and then a picture:
-   * the switch Xiao saw on every list (2026-10-07). The library held in
-   * memory already names the file, and a phone can see whether it is there
-   * without waiting.
+   * so without this every cover of every launch would be a letter tile for the
+   * frames it takes `ensureCover` to look on disk and announce it, and then a
+   * picture. The library held in memory already names the file, and a phone
+   * can see whether it is there without waiting.
    */
   const peek = (songId: number): string | undefined => {
     if (!platform.peekCloud || !platform.canKeep() || notOnDisk.has(songId)) return undefined
@@ -241,9 +240,9 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
       const signedIn = await cloudSession.loadSession()
       if (!signedIn) return null
       // The bucket refusing for the day: not asked again until the hold is
-      // up, however many rows want their cover meanwhile.
-      const held = bucketHold('read')
-      if (held) throw new Error(held.message)
+      // up, however many rows want their cover meanwhile — and not a failure
+      // worth a warning per row, since the hold already says why.
+      if (bucketHold('read')) return null
       return platform.keepCloud(name, doormanFileUrl(key), doormanAuth(signedIn.token))
     })().finally(() => fetchingFile.delete(name))
     fetchingFile.set(name, work)

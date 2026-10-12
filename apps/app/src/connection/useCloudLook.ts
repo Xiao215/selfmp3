@@ -19,11 +19,8 @@ const ASK_EVERY_MS = 60_000
  * nothing should render for it — a query held by every screen that reads the
  * library re-rendered them as it went. Skipped while the app is in the
  * background, as TanStack Query's own intervals are, and for a server, whose
- * news comes by itself.
- *
- * The routes asked every few seconds — where the server is, which uid is
- * which song — used to be what kept looking, eighty seconds apart, two
- * listings a time. They answer from the device's copy now, and this is the
+ * news comes by itself. The routes asked every few seconds — where the server
+ * is, which uid is which song — answer from the device's copy, and this is the
  * one thing that asks.
  */
 export function useCloudLook(fromCloud: boolean): void {

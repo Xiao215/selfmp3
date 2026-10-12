@@ -9,6 +9,8 @@ import type {
   TrackMetadata,
 } from '@selfmp3/client'
 
+import { clamp01 } from '@selfmp3/shared'
+
 import { ensurePlayer } from '../player/setup'
 import { askWhyRefused } from './bucketRefusal'
 
@@ -167,8 +169,10 @@ class NativeEngine implements PlaybackEngine {
     // reloading here is what would turn a gapless join into a stutter. The
     // player used up the song lent behind this one to get here, so lend the
     // next: without it the join after this song is a gap, and Next on the lock
-    // screen has nowhere to go.
-    if (this.#currentSongId === songId) {
+    // screen has nowhere to go. Not while an older load is still moving the
+    // player: it is about to put its own song in, and this one has to be put
+    // back rather than taken as sounding.
+    if (this.#currentSongId === songId && !this.#loading) {
       if (startAt !== undefined) await TrackPlayer.seekTo(startAt)
       if (overtaken()) return
       if (autoplay) await TrackPlayer.play()
@@ -273,9 +277,13 @@ class NativeEngine implements PlaybackEngine {
   }
 
   setVolume(volume: number): void {
-    this.#volume = volume
-    void TrackPlayer.setVolume(this.#muted ? 0 : volume)
-    this.#patch({ volume })
+    const clamped = clamp01(volume)
+    // Moving the level unmutes, unless it is moved to nothing: the browser's
+    // engine's rule, so a key or a slider means the same on both.
+    this.#muted = clamped === 0 ? this.#muted : false
+    this.#volume = clamped
+    void TrackPlayer.setVolume(this.#muted ? 0 : clamped)
+    this.#patch({ volume: clamped, muted: this.#muted })
   }
 
   setMuted(muted: boolean): void {
@@ -404,7 +412,7 @@ class NativeEngine implements PlaybackEngine {
    * day's allowance, a doorman that is down, and a file that is not there.
    * The doorman is asked (`askWhyRefused`), and a refusal for the day is held
    * for the whole app, so the songs lined up next that are not on this phone
-   * are passed over for the ones that are (2026-10-08). The web engine asks
+   * are passed over for the ones that are. The web engine asks
    * the same way (`#explainSource`).
    */
   async #explainFailure(songId: number | null, said: string): Promise<void> {

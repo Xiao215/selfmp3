@@ -123,6 +123,8 @@ function transferFor(
       try {
         finished = await task.downloadAsync()
       } catch (error) {
+        // Called off: nothing went wrong, and nothing to ask the doorman.
+        if (cancelled) throw error
         // From the bucket, the task says only that it failed: the doorman is
         // asked why, and a refusal for the day holds the other downloads too.
         const why = from.headers ? await askWhyRefused(from.url, from.headers) : null

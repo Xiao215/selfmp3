@@ -45,8 +45,7 @@ interface ListenOutbox {
 export function createListenOutbox(store: OutboxStore): ListenOutbox {
   /**
    * Storage can be missing or refuse — private browsing, a full disk, an
-   * unreadable file. The events then live in memory for this session, which is
-   * no worse than before, when they were not kept at all.
+   * unreadable file. The events then live in memory for this session.
    */
   let memoryFallback: OutboxEvent[] | null = null
 
@@ -85,23 +84,41 @@ export function createListenOutbox(store: OutboxStore): ListenOutbox {
     }
   }
 
+  /** Send what is waiting once, and say how many the server took. */
+  async function flushOnce(): Promise<number> {
+    const waiting = await read()
+    if (waiting.length === 0) return 0
+    const result = await flushOutbox(waiting, send)
+    const kept = new Set(result.remaining.map(event => event.id))
+    const handled = new Set(waiting.filter(event => !kept.has(event.id)).map(event => event.id))
+    await change(events => events.filter(event => !handled.has(event.id)))
+    return result.sent
+  }
+
   let flushing: Promise<number> | null = null
+  /** Asked for while a flush ran, which read the list before whatever asked. */
+  let again = false
 
   /**
-   * Only one flush runs at a time; a call during one joins it. Sent events are
-   * removed by id rather than by overwriting the list, so a play recorded
-   * mid-flush is never lost.
+   * Only one flush runs at a time; a call during one joins it, and the flush
+   * goes round once more for it — a play recorded mid-flush is not in the list
+   * that flush read, and would otherwise wait for the next time the app comes
+   * back. Sent events are removed by id rather than by overwriting the list,
+   * so a play recorded mid-flush is never lost.
    */
   function flushListens(): Promise<number> {
-    flushing ??= (async () => {
+    if (flushing) {
+      again = true
+      return flushing
+    }
+    flushing = (async () => {
+      let sent = 0
       try {
-        const waiting = await read()
-        if (waiting.length === 0) return 0
-        const result = await flushOutbox(waiting, send)
-        const kept = new Set(result.remaining.map(event => event.id))
-        const handled = new Set(waiting.filter(event => !kept.has(event.id)).map(event => event.id))
-        await change(events => events.filter(event => !handled.has(event.id)))
-        return result.sent
+        do {
+          again = false
+          sent += await flushOnce()
+        } while (again)
+        return sent
       } finally {
         flushing = null
       }

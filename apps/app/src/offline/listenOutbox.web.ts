@@ -6,8 +6,8 @@ import { readStored, updateStored } from '../ports/idbStore.web'
  * A browser's listen outbox: `packages/client`'s, over IndexedDB.
  *
  * The phone keeps it as a JSON file (`listenOutbox.ts`); a browser has no files
- * to keep, and a play counted while the server was away used to live only in
- * memory and be gone at the next reload. IndexedDB keeps it, and changes it in
+ * to keep, and a play counted while the server was away, held only in memory,
+ * would be gone at the next reload. IndexedDB keeps it, and changes it in
  * one transaction, which other tabs of the same app wait their turn for — two
  * tabs counting plays at once cannot each write over the other's.
  *

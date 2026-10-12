@@ -98,16 +98,6 @@ describe('covers on a phone', () => {
     )
   })
 
-  it('moves the covers once kept in the cache into the document folder, not fetching them again', async () => {
-    disk.add('file:///cache/covers')
-    disk.add('file:///cache/covers/hash-7.jpg')
-    const { ensureCover } = await covers()
-
-    expect(await ensureCover(7)).toBe('file:///document/covers/hash-7.jpg')
-    expect(FakeFile.downloadFileAsync).not.toHaveBeenCalled()
-    expect(disk.has('file:///cache/covers')).toBe(false)
-  })
-
   it('forgets everything at sign-out: memory and the folder', async () => {
     disk.add('file:///document/covers')
     disk.add('file:///document/covers/12-r1.jpg')

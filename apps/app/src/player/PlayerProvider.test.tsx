@@ -10,10 +10,9 @@ import { PlayerProvider, usePlayer, type PlayerApi } from './PlayerProvider'
  * The queue the commands read is the queue the last command left.
  *
  * Every command reads `queueRef` and the engine asks it for the lookahead, so
- * the ref has to be right the moment a command returns. It used to be filled
- * in by an effect after the render, and two commands in one tick — a headset's
- * double-tap, a drop into Up next that skips and then adds — both saw the queue
- * from before the first. These render the real provider over a fake engine, so
+ * the ref has to be right the moment a command returns, or two commands in one
+ * tick — a headset's double-tap, a drop into Up next that skips and then adds —
+ * both see the queue from before the first. These render the real provider over a fake engine, so
  * they prove the commit itself rather than the model behind it.
  */
 

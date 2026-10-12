@@ -24,8 +24,7 @@ import { floating } from '../ui/surfaces'
 import { useSongColor } from '../ui/useSongColor'
 
 /**
- * A long song list's own scrollbar in a browser and the Mac app (Xiao chose B,
- * C and E of the scrollbar mock, 2026-10-02).
+ * A long song list's own scrollbar in a browser and the Mac app.
  *
  * The browser's own bar stays hidden everywhere (`scrollbars.web.ts`): a mouse
  * on a Mac drew a white gutter beside every list. This one is drawn over the

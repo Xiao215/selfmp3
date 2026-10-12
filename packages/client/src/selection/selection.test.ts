@@ -90,6 +90,17 @@ describe('selection', () => {
     expect(ids(clickSelected(anchoredElsewhere, 9, SHIFT, VISIBLE).state)).toEqual([9])
   })
 
+  it('makes that row the anchor, so the next shift-click is a range from it', () => {
+    const first = clickSelected({ ...EMPTY_SELECTION, anchor: 42 }, 5, SHIFT, VISIBLE).state
+    expect(first.anchor).toBe(5)
+    expect(ids(clickSelected(first, 7, SHIFT, VISIBLE).state)).toEqual(
+      ids(
+        clickSelected(clickSelected(EMPTY_SELECTION, 5, PLAIN, VISIBLE).state, 7, SHIFT, VISIBLE)
+          .state,
+      ),
+    )
+  })
+
   it('entering selection mode can start from a row', () => {
     const state = enterSelection(EMPTY_SELECTION, 9)
     expect(state.mode).toBe(true)

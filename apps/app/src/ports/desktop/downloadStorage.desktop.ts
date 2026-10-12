@@ -111,13 +111,9 @@ export const downloadStorage: DownloadStorage = {
     if (!desktop) return
     /*
      * Through `files.write`, which is the shell's channel for the page's own
-     * text. This was once a `blob:` URL handed to `fetchTo`, on the reasoning
-     * that the shell already knew how to put a fetched body in a file — but it
-     * is the *main* process that fetches, and a blob URL belongs to the
-     * renderer that created it, so the main process could not read one at all
-     * (`net::ERR_UNKNOWN_URL_SCHEME`, and the URL schema rejected it before
-     * even that). Every write was refused, which meant downloads never survived
-     * a relaunch: the files were on disk and no index said so.
+     * text — not a `blob:` URL handed to `fetchTo`: it is the *main* process
+     * that fetches, and a blob URL belongs to the renderer that created it, so
+     * the main process cannot read one at all (`net::ERR_UNKNOWN_URL_SCHEME`).
      */
     await desktop.files.write(INDEX_KIND, INDEX_NAME, JSON.stringify(index))
   },

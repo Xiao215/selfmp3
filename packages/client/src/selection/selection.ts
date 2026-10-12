@@ -57,10 +57,9 @@ export function allSelected(state: SelectionState, visibleIds: readonly number[]
  *
  * Unticking the last selected row also leaves selection mode: with nothing
  * selected there is nothing for the checkboxes to be for, and making someone
- * find the ✕ as well was one step too many (asked for by Xiao, 2026-09-13).
- * Emptying the selection from the bar's own checkbox (`clearSelection`) leaves
- * it for the same reason, since 2026-09-25: a bar over a list with nothing
- * chosen read as something left behind.
+ * find the ✕ as well is one step too many. Emptying the selection from the
+ * bar's own checkbox (`clearSelection`) leaves it for the same reason: a bar
+ * over a list with nothing chosen reads as something left behind.
  */
 export function toggleSelected(state: SelectionState, id: number): SelectionState {
   const ids = new Set(state.ids)
@@ -98,8 +97,17 @@ export function clickSelected(
 ): ClickResult {
   if (modifiers.shiftKey) {
     // The anchor stays put, so moving a shift-click up and down the list grows
-    // and shrinks one range instead of leaving a trail behind it.
-    return { state: { ...state, ids: new Set(rangeTo(state, id, visibleIds)) }, handled: true }
+    // and shrinks one range instead of leaving a trail behind it. With none to
+    // range from — or one no longer in the list — this row becomes it.
+    const anchored = state.anchor !== null && visibleIds.includes(state.anchor)
+    return {
+      state: {
+        ...state,
+        ids: new Set(rangeTo(state, id, visibleIds)),
+        anchor: anchored ? state.anchor : id,
+      },
+      handled: true,
+    }
   }
   if (modifiers.metaKey || modifiers.ctrlKey || state.mode) {
     return { state: toggleSelected(state, id), handled: true }
@@ -128,7 +136,7 @@ export function selectAllVisible(
  * Empty the selection and leave selection mode. The anchor is kept.
  *
  * The bar's own deselect-all is this too: with nothing chosen there is nothing
- * for a bar to act on, and the bar goes with the ticks (Xiao, 2026-09-25).
+ * for a bar to act on, and the bar goes with the ticks.
  */
 export function clearSelection(state: SelectionState): SelectionState {
   return state.ids.size === 0 && !state.mode ? state : { ...state, ids: NO_IDS, mode: false }

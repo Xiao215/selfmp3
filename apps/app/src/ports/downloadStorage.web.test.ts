@@ -3,10 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 /*
  * The browser's download storage, over a fake of the audio cache it writes to.
  *
- * One thing pinned: `delete` is the cache's promise, not a fire-and-forget. It
- * used to swallow the rejection, so a copy the cache would not give up was
- * dropped from the index anyway — still taking space, counted nowhere, and
- * with nothing left that could ask for it to go again.
+ * One thing pinned: `delete` is the cache's promise, not a fire-and-forget.
+ * Swallowing the rejection would drop a copy the cache would not give up from
+ * the index anyway — still taking space, counted nowhere, and with nothing
+ * left that could ask for it to go again.
  */
 
 const cache = {

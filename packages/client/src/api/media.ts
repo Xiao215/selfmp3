@@ -61,11 +61,12 @@ export function createMediaUrl(transport: ApiTransport) {
      * The server asks yt-dlp where it lives on YouTube and streams it back, so
      * this only answers where there is a server. It is here rather than in the
      * component that plays it because it is a route, and routes live in one
-     * place — the same reason the phase 1 gate greps for stragglers.
+     * place.
      *
      * The token rides along as it does for a stream: the phone's player is
      * handed the address and nothing else. Without it every preview through a
-     * server that asks for one was a 401 the player sat on without a word.
+     * server that asks for one would be a 401 the player sits on without a
+     * word.
      */
     importListen: (url: string) =>
       withParams(transport.url('/api/import/listen'), undefined, { url, ...media() }),

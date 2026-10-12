@@ -141,7 +141,7 @@ export function filterSongs(
   if (filter.downloadedOnly) result = result.filter(song => isDownloaded(song.id))
 
   // The shared comparison, so the phone and the desktop put the same library in
-  // the same order. A separate local copy once drifted from this in four places.
+  // the same order.
   const sorted = sortSongs(result, filter.sort, filter.descending)
   return filter.tagIds.length > 1 ? byTagMatches(sorted, filter.tagIds) : sorted
 }

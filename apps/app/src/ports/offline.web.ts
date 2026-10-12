@@ -42,8 +42,8 @@ function streamUrlFor(songId: number): string {
  * file into memory. A 60 MB library would be painful to shuttle through JS
  * blobs; here the browser handles it natively.
  *
- * The cache name is versioned so a breaking change can invalidate everything
- * at once by bumping it.
+ * The cache's name (`AUDIO_CACHE`, sw/names.ts) is versioned so a breaking
+ * change can invalidate everything at once by bumping it.
  */
 
 /**
@@ -169,7 +169,7 @@ export async function cacheSong(
     ...(signal ? { signal } : {}),
   })
 
-  if (!response.ok || response.status !== 200) {
+  if (response.status !== 200) {
     throw new Error(`could not download song ${songId} (${response.status})`)
   }
 

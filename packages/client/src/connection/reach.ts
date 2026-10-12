@@ -91,9 +91,10 @@ export function reachServer(
  *
  * Said without the word: on everyday screens the server is "your library's
  * computer" — the one machine that imports, keeps every play and asks the
- * model — and the bucket is "your storage" (G1). `needs` is what goes through
- * that computer, and what is lost while it is off. `meanwhile` is what the screen can still offer — importing has one,
- * because a link can be left in the bucket for the server to take when it wakes
+ * model — and the bucket is "your storage". `needs` is what goes through that
+ * computer, and what is lost while it is off. `meanwhile` is what the screen
+ * can still offer — importing has one, because a link can be left in the
+ * bucket for the server to take when it wakes
  * (SYNC.md, rule 6), and a screen with a way forward should not be telling
  * anyone to come back later. Stats and metadata have none: the history and the
  * lookups exist only where the server is, so waiting really is the answer.

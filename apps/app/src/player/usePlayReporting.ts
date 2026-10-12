@@ -15,8 +15,6 @@ import { flushListens, recordListen } from '../offline/listenOutbox'
  * played on a plane still counts. The tracking itself lives in the provider's
  * ref, because the engine's own callbacks write to it as the song runs; this
  * hook owns what to do with it when the song stops.
- *
- * Lifted out of `PlayerProvider`, whose seams were banner comments.
  */
 interface PlayTracking {
   songId: number | null

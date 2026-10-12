@@ -7,13 +7,12 @@ import { doormanAuth, doormanFileUrl } from '../replica'
  *
  * On a phone a song's address is the doorman's own, `/v1/files/<key>`, and the
  * bearer goes with it as a header. The doorman reads a bearer header and
- * nothing else, and for a long time this file said a phone therefore could not
- * stream at all: an OS audio player is handed a URL and has no chance to attach
- * one. That is true of an `<audio>` element. It is not true of the player this
- * app uses, which takes headers with each track and sends them on every request
- * it makes for it, ranges included (`ports/engine.ts`, `#trackFor`). So a cloud
- * song that is not on the disk streams, where it used to be refused until it
- * had been downloaded — which on a phone short of room meant not at all.
+ * nothing else. An `<audio>` element is handed a URL and has no chance to
+ * attach one, but the player this app uses takes headers with each track and
+ * sends them on every request it makes for it, ranges included
+ * (`ports/engine.ts`, `#trackFor`). So a cloud song that is not on the disk
+ * streams, rather than waiting to be downloaded — which on a phone short of
+ * room would mean not at all.
  *
  * The key is the song's `path`: a library read from the bucket names each file
  * by where it is there. Nothing here can know a song by its id alone, or hold a

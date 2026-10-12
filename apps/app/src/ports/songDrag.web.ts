@@ -51,6 +51,17 @@ function setDragging(next: boolean): void {
   for (const listener of listeners) listener()
 }
 
+/** Clear the drag under way once the page next hears of it ending. */
+function endWhenTheDragDoes(): void {
+  const signs = ['drop', 'dragend', 'pointermove'] as const
+  const ended = (): void => {
+    for (const sign of signs) document.removeEventListener(sign, ended, true)
+    carrying = null
+    setDragging(false)
+  }
+  for (const sign of signs) document.addEventListener(sign, ended, true)
+}
+
 function element(ref: RefObject<View | null>): HTMLElement | null {
   return (ref.current as unknown as HTMLElement | null) ?? null
 }
@@ -127,6 +138,8 @@ export function useSongDragSource(
     const setDraggable = (next: boolean): void => {
       node.draggable = next
     }
+    /** Whether the drag under way began here. */
+    let mine = false
     const start = (event: DragEvent): void => {
       // Before anything else: a row held a moment before the pointer moved is
       // still pressed in, and goes back to its size as the drag begins.
@@ -140,9 +153,11 @@ export function useSongDragSource(
       event.dataTransfer.effectAllowed = 'copyMove'
       showDragImage(event, carried.length === 1 ? named.current : many)
       carrying = carried
+      mine = true
       setDragging(true)
     }
     const end = (): void => {
+      mine = false
       carrying = null
       setDragging(false)
     }
@@ -155,6 +170,11 @@ export function useSongDragSource(
       draggables.delete(setDraggable)
       node.removeEventListener('dragstart', start)
       node.removeEventListener('dragend', end)
+      // A row scrolled away mid-drag is gone before its `dragend`, which a
+      // detached element does not get: the drag is over at the first sign of
+      // it ending anywhere — a drop, a `dragend`, or the pointer moving again,
+      // which it does not while a drag is under way.
+      if (mine) endWhenTheDragDoes()
     }
   }, [ref, enabled])
 }
@@ -187,7 +207,7 @@ export function useSongDropTarget(
       // Without this the browser refuses the drop.
       event.preventDefault()
       // Targets nest — a queue row inside the rail — and the innermost one
-      // owns the drop, or a song would be added twice (Xiao, 2026-09-22).
+      // owns the drop, or a song would be added twice.
       event.stopPropagation()
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
       setOver(true)
@@ -247,7 +267,7 @@ function scrollerOf(from: EventTarget | null, frame: HTMLElement): HTMLElement |
 
 /**
  * A list whose order is yours, reordered by the browser's own drag: a plain
- * click-drag on a row moves it, with no hold first (small fix 5, 2026-10-08).
+ * click-drag on a row moves it, with no hold first.
  *
  * The row is already draggable — it drags onto a playlist in the sidebar —
  * and one gesture cannot be two, since a drag the browser has begun cannot be
@@ -340,6 +360,13 @@ export function useDragToReorder(
     node.addEventListener('drop', drop)
     node.addEventListener('dragend', end)
     return () => {
+      // Let go of mid-drag — the list unmounted, or reordering was switched
+      // off — the row goes home, or the list would hold it lifted for good.
+      if (moving) {
+        const { songId } = moving
+        moving = null
+        latest.current.onEnd(songId, 0)
+      }
       node.removeEventListener('dragstart', start)
       node.removeEventListener('dragenter', over)
       node.removeEventListener('dragover', over)
@@ -350,12 +377,14 @@ export function useDragToReorder(
   }, [ref, enabled])
 }
 
+function subscribeDragging(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
 export function useSongDragActive(): boolean {
   return useSyncExternalStore(
-    listener => {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
+    subscribeDragging,
     () => dragging,
     () => false,
   )

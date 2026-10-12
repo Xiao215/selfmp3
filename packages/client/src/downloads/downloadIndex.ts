@@ -29,10 +29,9 @@ const DownloadEntrySchema = z.object({
    *
    * The file is named after the song's id, and a server's ids are only stable
    * while its database is. Rebuild it and every id is handed out again: the
-   * file called `2.m4a` then holds whatever used to be song 2, and the app
-   * played it happily under the new song's name (Xiao's iPad, 2026-09-20 —
-   * 42 of 45 kept songs were somebody else's audio). Required, so a kept copy
-   * is always one that can be vouched for.
+   * file called `2.m4a` then holds whatever was song 2 before, and would be
+   * played under the new song's name. Required, so a kept copy is always one
+   * that can be vouched for.
    */
   rev: z.string(),
   downloadedAt: z.string(),
@@ -96,12 +95,12 @@ export function isDownloaded(index: DownloadIndex, songId: number): boolean {
  * True when the entry remembers the same audio the library reports now. A
  * song's `rev` ends with its cover's part — `<audio>.<cover>` from the bucket,
  * `<size>.<mtime>.<art>` from a server — and a new cover is not a new song:
- * compared whole, the cover rework of 2026-10-07 made every kept file "not
- * this song's" while the catch-up pass (which compares audio only, below)
- * rightly fetched nothing, so a phone streamed songs it had on its disk, and
- * with the bucket capped could play none of them (2026-10-08). A song the
- * library has not told us the rev of cannot be matched against, so it is not
- * played from disk either: it streams instead.
+ * compared whole, a new cover would make a kept file "not this song's" while
+ * the catch-up pass (which compares audio only, below) rightly fetches
+ * nothing, so a phone would stream songs it has on its disk, and with the
+ * bucket capped could play none of them. A song the library has not told us
+ * the rev of cannot be matched against, so it is not played from disk either:
+ * it streams instead.
  */
 export function entryIsCurrent(entry: DownloadEntry | null, rev: string | undefined): boolean {
   return entry !== null && rev !== undefined && audioOfRev(entry.rev) === audioOfRev(rev)
@@ -253,7 +252,10 @@ export function staleDownloads(index: DownloadIndex, manifest: SyncManifest): St
   for (const entry of Object.values(index.entries)) {
     const current = byId.get(entry.songId)
     if (current === undefined) gone.push(entry.songId)
-    else if (audioStamp(current.etag) !== audioStamp(entry.etag)) changed.push(entry.songId)
+    // An empty etag is nothing known: the song was downloaded before the
+    // manifest listed it, and is no evidence of a change.
+    else if (entry.etag !== '' && audioStamp(current.etag) !== audioStamp(entry.etag))
+      changed.push(entry.songId)
     else continue
     bytes += entry.sizeBytes
   }

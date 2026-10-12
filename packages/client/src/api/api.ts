@@ -248,7 +248,10 @@ export function createApi({ context, fetch }: ApiOptions) {
       )
     }
 
-    return parseAnswer(schema, await response.json(), path)
+    // A body that is not JSON at all — a proxy's or a captive portal's page —
+    // is the same broken contract as JSON of the wrong shape, not a crash.
+    const payload: unknown = await response.json().catch(() => undefined)
+    return parseAnswer(schema, payload, path)
   }
 
   return {

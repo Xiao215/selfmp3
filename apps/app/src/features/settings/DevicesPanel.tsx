@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { formatRelative, type Device } from '@selfmp3/shared'
 import {
   clientApi,
-  deviceListView,
+  deviceGroups,
   failureText,
   queryKeys,
   radius,
@@ -167,10 +167,10 @@ function DevicesList({
   // Offline devices that share a name folded into one row; this device, what
   // is online and what was seen in the last week first; the rest behind a button.
   const [now] = useState(Date.now)
-  const view = useMemo(() => {
-    const folded = deviceListView(listed, deviceId, now)
-    return splitDevices([...folded.recent, ...folded.older], deviceId, now)
-  }, [listed, deviceId, now])
+  const view = useMemo(
+    () => splitDevices(deviceGroups(listed, deviceId), deviceId, now),
+    [listed, deviceId, now],
+  )
   const rows = showOlder ? [...view.recent, ...view.older] : view.recent
   const olderIds = view.older.flatMap(row => row.ids)
 

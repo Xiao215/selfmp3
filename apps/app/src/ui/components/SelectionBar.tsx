@@ -24,7 +24,7 @@ import { usePlaylistRemoval } from '../../features/playlists/usePlaylistRemoval'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useDownloadRemoval } from '../../offline/useDownloadRemoval'
 import { usePlayerCommands } from '../../player/PlayerProvider'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutValue } from '../../shell/useLayout'
 import { ease, timing, usePresence } from '../motion'
 import { MOVE_MS, overshootRange } from '../motion.model'
 import { showToast } from '../toast'
@@ -108,10 +108,9 @@ const setFloating = (change: 1 | -1): void => {
  * list below it is that much shorter, so at no scroll position does the bar
  * cover a row. On a page whose head scrolls with its songs it is drawn in the
  * list instead, at the head's foot, and stays at the top once the head has gone
- * (`inline`, in `SongList`'s `pinned`). It floated over the list once, to keep
- * the rows still as it arrived — but the row it landed on was the one you had
- * just ticked, which you could then neither read nor untick, so overlaying the
- * list is not on offer. What is on offer is the lane opening rather than
+ * (`inline`, in `SongList`'s `pinned`). It never floats over the list: the row
+ * it would land on is the one just ticked, which you could then neither read
+ * nor untick. Instead the lane opens rather than
  * appearing: the room grows from nothing to the bar's height over `motion.base`
  * and closes again over `motion.fast`, and the bar comes down into it. The room
  * is a height, so it is the one thing here on the JavaScript side (as the
@@ -121,14 +120,14 @@ const setFloating = (change: 1 | -1): void => {
  *
  * It sits where the eye already is while ticking and where nothing else
  * competes (the foot of the window has the player bar and the toasts). It is
- * anchored by the count,
- * because the count is what you have to be sure of before pressing anything
+ * anchored by the count, because the count is what you have to be sure of before pressing anything
  * else, and by a tri-state checkbox beside a line that says in words what
  * "all" currently means. Select-all while a search or filter is on selects the
  * filtered set, and the bar says so.
  *
- * On a phone it still floats, at the bottom, above the mini player or the tabs, where
- * a thumb is: the count, then Play, Queue, More and Done as icons on one line.
+ * On a phone it still floats, at the bottom, above the mini player or the
+ * tabs, where a thumb is: the count, then Play, Add to Up next, More and Done
+ * as icons on one line.
  * Select all and a playlist's Remove move into More there.
  *
  * It rises from under its place there with the same four points of overshoot
@@ -136,9 +135,9 @@ const setFloating = (change: 1 | -1): void => {
  * landed (`usePresence`): a bar that pops in and out reads as a mistake rather
  * than as an answer to what was just ticked.
  *
- * Play and Queue are in the bar because they are harmless and frequent.
- * Everything that edits the library sits behind More — a popover at desktop
- * width, a sheet on a phone — with "remove from library" last and in red, and
+ * Play and Add to Up next are in the bar because they are harmless and
+ * frequent. Everything that edits the library sits behind More — a popover at
+ * desktop width, a sheet on a phone — with "Delete from library" last and in red, and
  * behind a confirmation.
  */
 export function SelectionBar({
@@ -151,7 +150,7 @@ export function SelectionBar({
   onDeselectAll,
   onDone,
   playlist,
-  shown = true,
+  shown,
   inline = false,
 }: {
   /** The selected songs, in the order the list has them. */
@@ -169,13 +168,10 @@ export function SelectionBar({
   /** Set in a playlist, which offers removing from it without deleting. */
   playlist?: { readonly id: number; readonly name: string }
   /**
-   * Whether the bar belongs on screen. Left out it is simply on screen for as
-   * long as it is drawn, which is how a screen that puts it up and takes it
-   * down again by mounting it reads; a screen that keeps it mounted and turns
-   * this off instead gets the sink as well, because nothing can leave a screen
-   * it has already been cut from.
+   * Whether the bar belongs on screen. Kept mounted and turned off, it sinks
+   * rather than vanishing.
    */
-  shown?: boolean
+  shown: boolean
   /**
    * On a computer, drawn inside the list at the foot of its header
    * (`SongList`'s `pinned`) rather than over the top of the list area: a page
@@ -185,7 +181,7 @@ export function SelectionBar({
   inline?: boolean
 }): ReactNode {
   const { theme } = useUnistyles()
-  const { wide } = useLayout()
+  const wide = useLayoutValue(layout => layout.wide)
   // Above the tab bar and the mini player, which float over the page on a phone.
   const chrome = useFloatingChrome()
   /*
@@ -197,7 +193,7 @@ export function SelectionBar({
   const { top: statusBar } = useSafeAreaInsets()
   const { data: library } = useLibrary()
   const player = usePlayerCommands()
-  const { state: downloads, downloadByHand } = useDownloads()
+  const { state: downloads, requestDownload } = useDownloads()
   const removeDownloads = useDownloadRemoval()
 
   const bulkLoved = useBulkLoved()
@@ -285,10 +281,8 @@ export function SelectionBar({
   // just untagged — takes the picker with it, rather than leave it over none.
   if (tagging && count === 0) setTagging(false)
   const ids = useMemo(() => songs.map(song => song.id), [songs])
-  // Pinned first; not the playlist this is, and never a live one.
-  const manualPlaylists = playlistsToAddTo(library?.playlists ?? []).filter(
-    list => list.id !== playlist?.id,
-  )
+  // The one played last first; not the playlist this is, and never a live one.
+  const manualPlaylists = playlistsToAddTo(library?.playlists ?? [], playlist?.id)
   const router = useRouter()
   const { mutateAsync: createPlaylist } = useCreatePlaylist()
 
@@ -357,8 +351,7 @@ export function SelectionBar({
    * The same count on a phone, where the bar is icons and the number is the
    * only word in it: the figure in an accent pill with "selected" beside it,
    * rather than one small grey line adrift in the bar's left half. It is what
-   * you check before pressing anything, so it is what the bar is anchored by
-   * (Xiao, 2026-09-22).
+   * you check before pressing anything, so it is what the bar is anchored by.
    */
   const countBadge = (
     // One phrase to anything that reads or looks for it — a screen reader, and
@@ -649,9 +642,10 @@ export function SelectionBar({
               <SheetItem
                 icon={<CloudDownload size={15} color={theme.colors.textSecondary} />}
                 label={`Download ${held.length > 0 ? 'the rest' : 'all'}`}
-                // By hand, as a song's menu downloads: picked songs stay, and a
-                // song removed by hand before is no longer kept off this device.
-                onPress={act(() => downloadByHand(ids))}
+                // By hand, as a song's menu downloads: picked songs stay, a song
+                // removed by hand comes back, and mobile data or a large total
+                // is asked about first.
+                onPress={act(() => requestDownload(ids))}
               />
             ) : null}
             {held.length > 0 ? (

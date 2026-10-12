@@ -56,9 +56,8 @@ export function sectionTitle(colors: ThemePalette) {
     letterSpacing: -0.2,
     // The display face's last glyph leans past its own advance width, and
     // tracked tighter still it is cut off by the text's own box: "Your tags"
-    // loses the tail of its s on a phone. Two points was not enough of a
-    // reprieve on a real one (Xiao, 2026-09-22); six is, and is still less
-    // than the space that follows any heading.
+    // loses the tail of its s on a phone. Two points is not enough on a real
+    // one; six is, and is still less than the space that follows any heading.
     paddingRight: 6,
   } as const
 }

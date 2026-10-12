@@ -18,9 +18,8 @@ interface RowTagPicker {
 
 /**
  * The tag window of a list that shows tags on its rows (`S3`): Library,
- * Search, Up next. One window for the list, as `useSongMenu` is one menu. The
- * "+2" on a row opened it in Library and did nothing in Search or Up next,
- * which each lacked these same three pieces (E1, 2026-10-08).
+ * Search, Up next. One window for the list, as `useSongMenu` is one menu, so
+ * the "+2" on a row opens it wherever the row is drawn.
  *
  * `onEditTags` is made once, so a row handed it is never drawn again for it.
  */

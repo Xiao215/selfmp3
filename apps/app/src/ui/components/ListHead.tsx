@@ -61,7 +61,7 @@ export function ListHead({
 }): ReactNode {
   const { top } = useSafeAreaInsets()
   return (
-    <View style={[styles.head, wide && styles.headWide, { paddingTop: top + 8 }]}>
+    <View style={[styles.head, wide && styles.headWide, { paddingTop: top + space.sm }]}>
       <CoverLight color={light} art={art} />
       {topBar ? <View style={styles.topBar}>{topBar}</View> : null}
       <Animated.View
@@ -98,20 +98,20 @@ export const listHeadText = StyleSheet.create(theme => ({
 }))
 
 const styles = StyleSheet.create(theme => ({
-  head: { paddingHorizontal: space.gutter, paddingBottom: 16, gap: 18, overflow: 'hidden' },
+  head: { paddingHorizontal: space.gutter, paddingBottom: space.lg, gap: 18, overflow: 'hidden' },
   // No paddingTop here: the head's own, under the status bar, is set inline.
   headWide: { paddingHorizontal: space.gutterWide },
   // No glass here. The bar scrolls with the head rather than floating over
-  // the page, and it carries no fill, so `backdrop-filter` only blurred the
+  // the page, and it carries no fill, so `backdrop-filter` would only blur the
   // head's own light inside the bar's rectangle — a band across the top with
-  // a hard edge where the filter stopped (Xiao, 2026-09-21).
+  // a hard edge where the filter stops.
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 8,
+    paddingTop: space.sm,
   },
-  hero: { gap: 16 },
+  hero: { gap: space.lg },
   // The buttons go under the name when the page cannot hold all three abreast
   // (an iPad in portrait), rather than squeezing the name to nothing.
   heroWide: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 28 },

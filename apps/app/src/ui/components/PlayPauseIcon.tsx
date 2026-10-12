@@ -18,17 +18,17 @@ import { lightTap } from '../../ports/haptics'
  * A light tap of haptics goes with the swap (`M1`, 2): the press is answered in
  * the hand at the moment the glyph turns over. Only a phone has one.
  *
- * It used to turn a quarter as it went, which on a triangle and two bars read
- * as a spin rather than a swap (Xiao, 2026-09-21): they are the same control
- * saying two things, not two things changing places.
+ * It does not turn as it goes: on a triangle and two bars a turn reads as a
+ * spin rather than a swap, and they are the same control saying two things,
+ * not two things changing places.
  *
  * Waiting on the track, it is a spinner instead — the same answer in every
  * play button there is, so the bar, the mini player and a song's page cannot
- * drift apart (Xiao, 2026-09-27). Nothing swaps while it waits: the spinner is
- * already motion, and a glyph turning over behind it was the second animation
- * for one press. The spinner crossfades with the glyph over `motion.fast` and is
- * held for at least `MOVE_MS.busyHold` once shown (`useMinimumBusy`), so a song
- * that starts at once no longer flickers glyph → spinner → glyph.
+ * drift apart. Nothing swaps while it waits: the spinner is already motion,
+ * and a glyph turning over behind it would be a second animation for one
+ * press. The spinner crossfades with the glyph over `motion.fast` and is held
+ * for at least `MOVE_MS.busyHold` once shown (`useMinimumBusy`), so a song
+ * that starts at once does not flicker glyph → spinner → glyph.
  *
  * Only the glyph; the button around it is the caller's.
  */
@@ -122,9 +122,9 @@ export function PlayPauseIcon({
 /**
  * The spinner is drawn the size of the glyph it stands in for. A native one
  * comes in two sizes, 20 and 37 points, and choosing between them by the
- * glyph's size gave a 22-point button the 37: the mini player's spinner was
- * nearly twice its triangle (Xiao, 2026-10-04). So it is always the small
- * one, scaled to the share of the glyph's box a triangle's ink fills.
+ * glyph's size would give a 22-point button the 37, nearly twice its
+ * triangle. So it is always the small one, scaled to the share of the glyph's
+ * box a triangle's ink fills.
  */
 const SMALL_SPINNER = 20
 const SPINNER_SHARE = 0.85

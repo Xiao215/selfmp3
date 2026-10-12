@@ -12,9 +12,9 @@ import { devicePlace } from '../../features/settings/settings.model'
 import { deviceKind } from '../../ports/device'
 
 /**
- * One line saying whether this device has your music yet, in the words Xiao
- * chose — "Downloading 12 of 40", "40 not on this phone · on data · Download",
- * "40 not on this phone · offline" — with the device named as the word table
+ * One line saying whether this device has your music yet — "Downloading 12
+ * of 40", "40 not on this phone · on data · Download", "40 not on this phone
+ * · offline" — with the device named as the word table
  * names it (docs/features/design-system.md, Words).
  *
  * Only when there is something to say. On Wi-Fi with automatic downloads on,

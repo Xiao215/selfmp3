@@ -4,7 +4,7 @@ import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { NAV_HEIGHT, radius, type } from '@selfmp3/client'
+import { NAV_HEIGHT, radius, space, type } from '@selfmp3/client'
 import { glassBlur, glassFill } from '../../ports/glassBlur'
 import { navBottom } from '../../shell/bottomInset'
 import { useFade } from '../motion'
@@ -20,7 +20,7 @@ import { singularPlaces } from '../../ports/singularPlaces'
  * with Home, Library and Playlists, the three of them sharing its width.
  *
  * No search circle beside it: Home and Library each carry a search field of
- * their own, and a third way in took the room the tabs needed (Xiao, 2026-09-20).
+ * their own, and a third way in would take the room the tabs need.
  *
  * Hand-rolled rather than expo-router's Tabs: the mini player floats directly
  * above it, and a custom bar is less code besides.
@@ -57,9 +57,8 @@ function BottomNavInner(): ReactNode {
   const pill = useSlidingHighlight(current, styles.pill)
 
   return (
-    <>
-      <View style={[styles.bar, { bottom }]} accessibilityRole="tablist">
-        {/*
+    <View style={[styles.bar, { bottom }]} accessibilityRole="tablist">
+      {/*
           The tabs share the bar's width, so each one's width changes when the
           bar's does and the pill is measured again (a position that moves
           without a size that changes is not always reported). Narrower than
@@ -67,50 +66,48 @@ function BottomNavInner(): ReactNode {
           sideways, as Home's recents do, rather than squeezing them to
           nothing.
         */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabs}
-          keyboardShouldPersistTaps="handled"
-        >
-          {pill.highlight}
-          {TABS.map(tab => {
-            const active = tab.href === current
-            return (
-              <Pressable
-                key={tab.href}
-                onLayout={pill.measure(tab.href)}
-                // Its own fill only until the sliding pill has somewhere to be.
-                style={[styles.tab, active && !pill.placed && styles.tabOn]}
-                onPress={() => {
-                  // A lit tab still goes to its own first page: Home from
-                  // Settings, Playlists from a playlist, as a phone's tab bar does.
-                  if (pathname === tab.href) return
-                  // On a phone, back down to the tab if it is in the stack, or
-                  // in place of the page on top if not: a tab is a place, not a
-                  // page on a pile. Navigating pushed one every tap, and a long
-                  // session's stack grew without end — every page still a
-                  // native screen, every navigation walking all of them
-                  // (Xiao, 2026-10-07). A browser keeps one of each place
-                  // already (`ports/singularPlaces`), and its history is the
-                  // pile the back button walks.
-                  if (singularPlaces) router.navigate(tab.href)
-                  else router.dismissTo(tab.href)
-                }}
-                testID={`tab-${tab.id}`}
-                accessibilityRole="tab"
-                accessibilityLabel={tab.label}
-                accessibilityState={{ selected: active }}
-                // react-native-web does not turn `accessibilityState` into aria-selected.
-                aria-selected={active}
-              >
-                <TabInk active={active} label={tab.label} Icon={tab.Icon} />
-              </Pressable>
-            )
-          })}
-        </ScrollView>
-      </View>
-    </>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.tabs}
+        keyboardShouldPersistTaps="handled"
+      >
+        {pill.highlight}
+        {TABS.map(tab => {
+          const active = tab.href === current
+          return (
+            <Pressable
+              key={tab.href}
+              onLayout={pill.measure(tab.href)}
+              // Its own fill only until the sliding pill has somewhere to be.
+              style={[styles.tab, active && !pill.placed && styles.tabOn]}
+              onPress={() => {
+                // A lit tab still goes to its own first page: Home from
+                // Settings, Playlists from a playlist, as a phone's tab bar does.
+                if (pathname === tab.href) return
+                // On a phone, back down to the tab if it is in the stack, or
+                // in place of the page on top if not: a tab is a place, not a
+                // page on a pile, and pushing one per tap would grow the stack
+                // without end — every page still a native screen, every
+                // navigation walking all of them. A browser keeps one of each place
+                // already (`ports/singularPlaces`), and its history is the
+                // pile the back button walks.
+                if (singularPlaces) router.navigate(tab.href)
+                else router.dismissTo(tab.href)
+              }}
+              testID={`tab-${tab.id}`}
+              accessibilityRole="tab"
+              accessibilityLabel={tab.label}
+              accessibilityState={{ selected: active }}
+              // react-native-web does not turn `accessibilityState` into aria-selected.
+              aria-selected={active}
+            >
+              <TabInk active={active} label={tab.label} Icon={tab.Icon} />
+            </Pressable>
+          )
+        })}
+      </ScrollView>
+    </View>
   )
 }
 
@@ -153,7 +150,7 @@ function TabInk({
 }
 
 /** Room from each edge of the display. */
-const EDGE = 16
+const EDGE = space.lg
 
 const styles = StyleSheet.create(theme => ({
   bar: {
@@ -183,7 +180,7 @@ const styles = StyleSheet.create(theme => ({
     flexShrink: 0,
     flexBasis: 0,
     minWidth: 72,
-    paddingHorizontal: 8,
+    paddingHorizontal: space.sm,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',

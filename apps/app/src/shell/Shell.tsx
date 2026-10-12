@@ -6,13 +6,13 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { CoverFlight } from '../ui/components/CoverFlight'
 import type { ReactNode } from 'react'
 import { router, usePathname } from 'expo-router'
 import { Animated, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet } from 'react-native-unistyles'
 import { BottomNav } from '../ui/components/BottomNav'
+import { CoverFlight } from '../ui/components/CoverFlight'
 import { MiniPlayer } from '../ui/components/MiniPlayer'
 import { SELECTION_BAR_SPACE, selectionBarLift } from '../ui/components/SelectionBar'
 import { ResumeToast } from '../features/devices/ResumeToast'
@@ -27,10 +27,10 @@ import { Sidebar, SIDEBAR_WIDTH } from './Sidebar'
 import { useFloatingChrome } from './bottomInset'
 import { stageIdle, subscribeStageIdle } from './stageIdle'
 import { useCommands } from './useCommands'
-import { useLayout } from './useLayout'
+import { useLayout, useLayoutValue } from './useLayout'
 import { ease, timing, useFade, usePresence } from '../ui/motion'
 import { MOVE_MS } from '../ui/motion.model'
-import { motion } from '@selfmp3/client'
+import { motion, space } from '@selfmp3/client'
 import { pageKey, stepSide } from './pageStep'
 import { stackMoves } from '../ports/stackMoves'
 import { onDeepLinkRoute } from '../ports/deepLinks'
@@ -78,7 +78,7 @@ export function Shell({
    */
   sidebar?: boolean
 }): ReactNode {
-  const { wide } = useLayout()
+  const wide = useLayoutValue(layout => layout.wide)
   // Focus with a still mouse: the bar fades away over the page, which runs on under it.
   const barHidden = useSyncExternalStore(subscribeStageIdle, stageIdle, stageIdle)
 
@@ -116,10 +116,9 @@ export function Shell({
  * place in it whether the frame is a phone's or a computer's, so crossing 820 —
  * an iPad turned, a Split View divider dragged, a window resized — swaps the
  * chrome around the page and never remounts it: the song, the scroll, a
- * half-typed search and an open sheet stay (docs/ui-mock `T09`). Two frame
- * components, as this was, were two trees, and React rebuilt every screen at
- * the crossing. Now Playing's taking the tab bar away learned the same lesson
- * earlier: a page that moves to a new parent is a new page.
+ * half-typed search and an open sheet stay (docs/ui-mock `T09`): a page that
+ * moves to a new parent is a new page, and React would rebuild every screen at
+ * the crossing.
  *
  * Phone: the page, and over its foot the mini player and the tab bar, and over
  * those Up next when it is open (`P25`), and the toasts after it so an Undo is
@@ -131,12 +130,12 @@ export function Shell({
  *
  * The sidebar is over the page's column rather than beside it, and each page
  * keeps clear of it with its own padding (`app/_layout.tsx`). Beside it, the
- * column grew by the sidebar's width whenever Now Playing took the sidebar
- * away, and everything in the column was laid out again: Home reflowed in
- * plain view under the rising page, and on an iPad the native stack was
- * resized in the middle of its own slide, which left a white strip down the
- * side until the slide ended (Xiao's recording, 2026-09-21). Now the column
- * is one width always, and Now Playing is simply the page with no padding.
+ * column would grow by the sidebar's width whenever Now Playing took the
+ * sidebar away, and everything in it would be laid out again: Home reflowing
+ * in plain view under the rising page, and an iPad's native stack resized in
+ * the middle of its own slide, leaving a white strip down the side. Over it,
+ * the column is one width always, and Now Playing is simply the page with no
+ * padding.
  */
 function Frame({
   wide,
@@ -155,10 +154,10 @@ function Frame({
 }): ReactNode {
   /*
    * What a page has to lay out in: the window less the sidebar over it and
-   * whatever stands beside it, worked out rather than measured. Measuring the
-   * column fed every frame of Up next's slide back through React — the width
-   * ticked, the whole page rendered again for it, and a 300 ms move took
-   * a second at a dozen frames. Worked out, the page settles for where the
+   * whatever stands beside it, worked out rather than measured. Measured, every
+   * frame of Up next's slide would come back through React — the width ticks,
+   * the whole page renders again for it, and a 300 ms move takes a second at a
+   * dozen frames. Worked out, the page settles for where the
    * slide ends the moment the rail is asked for, and the slide itself is the
    * browser's layout alone, as the sidebar's fade has always been.
    *
@@ -224,8 +223,8 @@ const SIDEBAR_RETURN_DELAY_MS = stackMoves ? MOVE_MS.sidebarReturn : 0
  * The sidebar, over the left edge of the page's column.
  *
  * Kept mounted while Now Playing covers it, and faded rather than taken out:
- * taken out, it was built again each time the page closed, and its playlists'
- * covers came in a moment after the rest of it. Once it has faded it is out
+ * taken out, it would be built again each time the page closed, and its
+ * playlists' covers come in a moment after the rest of it. Once it has faded it is out
  * of the way of a pointer, a keyboard and a screen reader.
  */
 function SidebarSlot({ shown }: { shown: boolean }): ReactNode {
@@ -261,8 +260,8 @@ function SidebarSlot({ shown }: { shown: boolean }): ReactNode {
  * phone's mini player has always worked this way.
  *
  * Focus with a still mouse fades the bar rather than taking it out. Taking it
- * out remounted the whole bar at the next nudge of the mouse and changed the
- * page's height both ways, which re-centred the lyrics each time; Now Playing
+ * out would remount the whole bar at the next nudge of the mouse and change the
+ * page's height both ways, re-centring the lyrics each time; Now Playing
  * reaches under the bar instead, so there is nothing to re-lay. Later in the
  * tree than the page, so drawn over it.
  */
@@ -271,11 +270,11 @@ function BarSlot({ hidden }: { hidden: boolean }): ReactNode {
   const loaded = useSongLoaded()
   // The bar itself slides, on the native driver; the room the page gives it
   // is simply given, in the same frame, because the room is at the foot of a
-  // list whose end is off the screen. It used to be the slot's height that
-  // grew, on the JavaScript thread, which is the one thing a bar full of
-  // transport should not be doing while the first song starts. When the
-  // queue empties the bar slides back down, quicker, and the room goes with
-  // it once it is out of sight.
+  // list whose end is off the screen. Growing the slot's height instead would
+  // run on the JavaScript thread, the one thing a bar full of transport should
+  // not be doing while the first song starts. When the queue empties the bar
+  // slides back down, quicker, and the room goes with it once it is out of
+  // sight.
   const { mounted, progress } = usePresence(loaded, MOVE_MS.barRise, motion.base)
   // Focus with a still mouse: a fade, not a cut, out slowly and back the
   // moment the mouse moves.
@@ -411,7 +410,7 @@ function MenuCommands(): ReactNode {
  * The command palette, opened by the sidebar's Search row or, in the installed
  * app, by View › Search (⌘K), which arrives here as a menu command.
  *
- * A browser tab has no key for it on purpose (decided 2026-09-14): ⌘K there is
+ * A browser tab has no key for it on purpose: ⌘K there is
  * the browser's own, and a page that takes it answers a key the person meant
  * for the browser. The installed app has a menu that says ⌘K out loud.
  */
@@ -464,8 +463,8 @@ const styles = StyleSheet.create(theme => ({
     right: 0,
     bottom: TOASTS_BOTTOM,
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
+    gap: space.sm,
+    paddingHorizontal: space.lg,
   },
   root: {
     flex: 1,
@@ -487,7 +486,7 @@ const styles = StyleSheet.create(theme => ({
     minWidth: 0,
     minHeight: 0,
   },
-  // A row, so the rail stretches to the slot's height as it did beside the page.
+  // A row, so the sidebar stretches to the slot's height.
   sidebarSlot: {
     position: 'absolute',
     top: 0,

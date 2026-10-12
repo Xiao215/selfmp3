@@ -20,7 +20,7 @@ export const MOVE_MS = {
   sheetDown: 220,
   /** Up next's rail on a computer, sliding back out past the right edge (`M3`, 6). */
   railOut: 200,
-  /** The tab bar's pill, and the page stepping in (`M2`, 4). */
+  /** A tab's or a segment's ink lighting as the pill reaches it, and a phone's page stepping in (`M2`, 4). */
   tab: 200,
   /** A playing row's wash coming in from the right (`M2`, 5). */
   wash: 260,
@@ -42,7 +42,7 @@ export const MOVE_MS = {
   hoverOut: 140,
   /** A tag's record sliding a little further out of its sleeve under the pointer, and back. */
   record: 420,
-  /** A computer's page settling in, and the sidebar's highlight (`M3`, 5). */
+  /** A computer's page settling in (`M3`, 5). */
   page: 180,
   /** The player bar rising from the foot on a computer, once (`M3`, 1), and sinking when there is nothing to play. */
   barRise: 200,

@@ -12,7 +12,7 @@ import { usePressScale } from '../motion'
  *
  * The scale is on a view around the Pressable, because a Pressable's style
  * function cannot carry an animated value; `wrap` is that view's own layout
- * (a flex, a width), and `style` is the Pressable's, as it always was.
+ * (a flex, a width), and `style` is the Pressable's.
  * `onLayout` reports the wrapper, which is where the thing is on the screen
  * (a sliding highlight measures its items by it) — the Pressable inside is
  * always at 0, 0 of it.
@@ -20,9 +20,9 @@ import { usePressScale } from '../motion'
  * A tap lets go here, not on Pressable's word. Pressable runs `onPress` at
  * once but lets go of `pressed` (and calls `onPressOut`) on a timer, up to
  * 130 ms after the finger came down; a tap that sets off a long stretch of
- * work holds that timer back for all of it. A tag ticked off in the picker
- * lost its tick at once while the row stayed lit and sunk for three seconds
- * more (Xiao, 2026-10-07). So `onPress` lets go of the look as well, in the
+ * work holds that timer back for all of it: a tag ticked off in the picker
+ * would lose its tick at once while the row stayed lit and sunk for seconds
+ * more. So `onPress` lets go of the look as well, in the
  * same commit as whatever the tap changed.
  */
 export const Press = forwardRef<View, PressProps>(function Press(

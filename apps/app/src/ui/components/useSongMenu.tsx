@@ -21,7 +21,7 @@ interface SongListMenu {
  * The ⋯ menu of a song list: one menu for the list, opened beside the row
  * whose ⋯ was pressed — at desktop width — and closed by pressing it again.
  * The library, a tag's or an artist's page, search's rows and a playlist's
- * ordered list each kept the same three pieces of this by hand.
+ * ordered list all share it.
  *
  * `onMore` is made once, so a row handed it is never drawn again for it.
  */

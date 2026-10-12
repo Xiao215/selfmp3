@@ -4,6 +4,7 @@ import { Animated, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { motion } from '@selfmp3/client'
+import { clamp } from '@selfmp3/shared'
 import { spring, timing } from '../motion'
 import { ADJUST_ACTIONS, fractionOf, HUE_STOPS, valueAt } from './slider.model'
 import type { SliderProps } from './slider.types'
@@ -119,6 +120,13 @@ export function Slider({
         spring(grab, 1)
         onCommit?.(follow(event.nativeEvent.locationX))
       }}
+      // Taken away by the system (a gesture of its own, the app going to the
+      // background): the drag ends where it had got to.
+      onResponderTerminate={() => {
+        dragging.current = false
+        spring(grab, 1)
+        onCommit?.(shown)
+      }}
       accessibilityRole="adjustable"
       accessibilityLabel={label}
       aria-valuemin={min}
@@ -126,9 +134,10 @@ export function Slider({
       aria-valuenow={shown}
       accessibilityActions={ADJUST_ACTIONS}
       onAccessibilityAction={event => {
-        const next = Math.max(
+        const next = clamp(
+          shown + (event.nativeEvent.actionName === 'increment' ? step : -step),
           min,
-          Math.min(max, shown + (event.nativeEvent.actionName === 'increment' ? step : -step)),
+          max,
         )
         setLocal({ value: next, from: value })
         onChange?.(next)

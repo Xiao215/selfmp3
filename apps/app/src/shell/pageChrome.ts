@@ -20,7 +20,7 @@ import { useValueStore } from '../state/useValueStore'
  * And, on a phone only, the pages it opens over its tabs rather than as one:
  * everything under Profile, and Search. They are a step away from the tabs
  * rather than one of them, and each carries its own way back, so the display
- * is theirs (Xiao, 2026-09-20). A computer keeps its sidebar and its player
+ * is theirs. A computer keeps its sidebar and its player
  * bar on all of them, because the sidebar is how it reaches them at all.
  */
 const PHONE_FULL_SCREEN = ['/profile', '/import', '/stats', '/settings', '/search']

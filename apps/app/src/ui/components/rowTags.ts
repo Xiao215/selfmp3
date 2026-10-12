@@ -5,7 +5,7 @@ import type { Tag } from '@selfmp3/shared'
  * How many of a song's tags fit in its row, and how many are left over.
  *
  * The slot is a fixed width at the end of the row, so a fourth tag — or one
- * long name — used to be sliced in half and bleed into the album column. A cut
+ * long name — would be sliced in half and bleed into the album column. A cut
  * chip reads as a rendering fault, and the one thing it cannot tell you is how
  * many tags you are not seeing. So chips are laid in until the next one will
  * not fit and the remainder becomes a count: three short tags all show, one
@@ -51,8 +51,8 @@ export function chipBudget({ hasAddButton }: { hasAddButton: boolean }): number 
 
 /**
  * On a phone the chips are not beside the title but on the line under it,
- * after the artist and the length, so the title has the whole row (Xiao chose
- * E1, 2026-10-08): titles here are long, often in two languages, and chips
+ * after the artist and the length, so the title has the whole row: titles
+ * here are long, often in two languages, and chips
  * beside them cut "第七夜 - The Ninth Night" to "第七夜 - Th…". The lane is
  * what that line has left once the words have kept enough to be read, and
  * never more than two short chips and a count.
@@ -168,8 +168,8 @@ const widthOf = (tag: Tag): number => measured.get(tag.name) ?? estimateChipWidt
  *
  * A new width somewhere re-renders only the rows it changes the answer for.
  * Every chip reports its width once, and on a first screen of songs that is
- * dozens of reports: each one used to redraw the tags of every row on screen.
- * The store's answer for a row is how many of its tags fit, a number, so a
+ * dozens of reports, each of which would otherwise redraw the tags of every
+ * row on screen. The store's answer for a row is how many of its tags fit, a number, so a
  * report that leaves that number alone is no render at all.
  */
 export function useFittedTags(

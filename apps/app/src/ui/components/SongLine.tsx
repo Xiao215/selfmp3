@@ -10,15 +10,14 @@ import { Press } from './Press'
 export const SONG_LINE_COVER = 36
 
 /**
- * The compact song line (proposal P1, 2026-10-08): a 36 cover, the title, a
- * line under it, and whatever the place needs at the end — a time, a ×, a
- * play mark. For the places a song is mentioned rather than listed: a sheet
- * picking songs, the palette, Up next's rail, Ask's answers, a profile's
- * month. There were a dozen of these with nine cover sizes between them.
+ * The compact song line: a 36 cover, the title, a line under it, and whatever
+ * the place needs at the end — a time, a ×, a play mark. For the places a song
+ * is mentioned rather than listed: a sheet picking songs, the palette, Up
+ * next's rail, Ask's answers, a profile's month — one line, one cover size.
  *
  * It is not `SongRow`. A list of songs — Library, a playlist, a tag, the
- * Songs of a search — is drawn with that, the row with the heart, the tags and
- * the ⋯; this is the line that names a song somewhere else.
+ * Songs of a search — is drawn with that, the row with the tags and the ⋯;
+ * this is the line that names a song somewhere else.
  *
  * Given `onPress` it is pressable, sinking as a row does; without, it is the
  * face alone, for a row whose press, hold and keys a screen owns (the rail's).
@@ -35,7 +34,6 @@ export function SongLine({
   trailing,
   titleStyle,
   onPress,
-  onLongPress,
   disabled,
   accessibilityLabel,
   accessibilityRole = 'button',
@@ -53,7 +51,6 @@ export function SongLine({
   /** The title's colour, when the song's own: the playing song's tint. */
   titleStyle?: StyleProp<TextStyle>
   onPress?: () => void
-  onLongPress?: () => void
   disabled?: boolean
   accessibilityLabel?: string
   accessibilityRole?: AccessibilityRole
@@ -94,7 +91,6 @@ export function SongLine({
     <Press
       depth="row"
       onPress={onPress}
-      onLongPress={onLongPress}
       disabled={disabled}
       accessibilityRole={accessibilityRole}
       accessibilityLabel={accessibilityLabel}

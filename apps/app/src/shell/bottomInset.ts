@@ -3,7 +3,7 @@ import { SafeAreaInsetsContext } from 'react-native-safe-area-context'
 import { MINI_PLAYER_HEIGHT, NAV_HEIGHT } from '@selfmp3/client'
 import { useSongLoaded } from '../player/PlayerProvider'
 import { usePageChrome } from './pageChrome'
-import { useLayout } from './useLayout'
+import { useLayoutValue } from './useLayout'
 
 /**
  * On a phone the tab bar and the mini player float over the page (docs/ui-mock
@@ -39,7 +39,7 @@ function floatingChromeHeight(safeBottom: number, miniPlayer: boolean): number {
  * things that float above it: toasts, the selection bar. Zero on a computer.
  */
 export function useFloatingChrome(): number {
-  const { wide } = useLayout()
+  const wide = useLayoutValue(layout => layout.wide)
   // The context rather than `useSafeAreaInsets`, which throws outside a
   // provider: a screen drawn alone in a test has none, and no inset to keep.
   const safeBottom = useContext(SafeAreaInsetsContext)?.bottom ?? 0
@@ -68,7 +68,7 @@ export function useBottomInset(): number {
  * whose player bar takes its own row under the page.
  */
 export function useFootInset(): number {
-  const { wide } = useLayout()
+  const wide = useLayoutValue(layout => layout.wide)
   const safeBottom = useContext(SafeAreaInsetsContext)?.bottom ?? 0
   const chrome = useFloatingChrome()
   if (wide) return 0

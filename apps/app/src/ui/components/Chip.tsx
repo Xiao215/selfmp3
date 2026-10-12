@@ -2,7 +2,6 @@ import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePressScale } from '../motion'
-import { MOVE_MS } from '../motion.model'
 import { radius, tagColors, type } from '@selfmp3/client'
 import { Check } from './Icons'
 import { Press } from './Press'
@@ -38,7 +37,6 @@ export function Chip({
   compact = false,
   dashed = false,
   onPress,
-  onLongPress,
   onRemove,
 }: {
   testID?: string
@@ -51,7 +49,6 @@ export function Chip({
   compact?: boolean
   dashed?: boolean
   onPress: () => void
-  onLongPress?: () => void
   onRemove?: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -79,8 +76,6 @@ export function Chip({
       <Pressable
         {...press.handlers}
         onPress={onPress}
-        onLongPress={onLongPress}
-        delayLongPress={MOVE_MS.longPress}
         accessibilityRole="button"
         accessibilityLabel={
           count === undefined ? label : `${label}, ${plural(count, 'song', 'songs')}`

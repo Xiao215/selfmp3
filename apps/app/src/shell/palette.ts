@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router'
 import type { SearchScope } from '../features/search/search.model'
 import { createValueStore } from '../state/valueStore.model'
 import { useValueStore } from '../state/useValueStore'
-import { useLayout } from './useLayout'
+import { useLayoutValue } from './useLayout'
 
 /**
  * Whether the command palette is open.
@@ -26,7 +26,7 @@ export function usePaletteOpen(): boolean {
  * into it on Home, Library and Tags.
  */
 export function useOpenSearch(scope: SearchScope): () => void {
-  const { wide } = useLayout()
+  const wide = useLayoutValue(layout => layout.wide)
   const router = useRouter()
   return () => {
     if (wide) setPaletteOpen(true)

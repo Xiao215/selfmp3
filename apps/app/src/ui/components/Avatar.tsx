@@ -13,15 +13,14 @@ import { User } from './Icons'
 /**
  * Who is signed in, as a round mark: the Google account's picture, the
  * initials of its name when there is no picture, and the plain figure when
- * there is neither — the way every other app does it (Xiao, 2026-09-20).
+ * there is neither — the way every other app does it.
  *
  * The tile behind it is the accent's, as the tag tiles are, so the initials
  * read on it in any look.
  *
  * The initials are always drawn and the picture fades in over them once it has
- * decoded (`motion.base`, as a cover does): the picture used to pop in, and a
- * picture that fails to load used to be a hard cut back to the letters. With the
- * letters underneath there is nothing to cut to.
+ * decoded (`motion.base`, as a cover does), so a picture that fails to load
+ * leaves the letters, with nothing to cut back to.
  */
 export function Avatar({
   account,

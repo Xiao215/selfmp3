@@ -34,9 +34,9 @@ export function dropIndex(from: number, dy: number, rowHeight: number, count: nu
  * send. Null when it landed where it started — a hold let go without moving,
  * or a move that came back — and there is nothing to tell the server.
  *
- * One function for both ways of moving a row: the grip a mouse drags at
- * desktop width, and a held finger on a phone. They differ in how the travel
- * is measured, and in nothing after that.
+ * One function for every way of moving a row: a held finger, a held pointer,
+ * and a mouse's plain drag (`useDragToReorder`). They differ in how the
+ * travel is measured, and in nothing after that.
  */
 export function movedTo(
   songIds: readonly number[],

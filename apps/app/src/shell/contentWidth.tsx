@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useSyncExternalStore } from 'react'
+import { createContext, useContext, useSyncExternalStore } from 'react'
 
 import { createValueStore, type ValueStore } from '../state/valueStore.model'
 
@@ -7,8 +7,9 @@ import { createValueStore, type ValueStore } from '../state/valueStore.model'
  * beside the page, as the shell works it out (`Shell`).
  *
  * The window is the wrong measure for a screen's own layout: the sidebar takes
- * 244 of it and Up next 288 while it is open. A row that chose its columns from the window drew an album column into a
- * page too narrow for one. Worked out and not measured, so that a panel
+ * 244 of it and Up next 288 while it is open, and a row that chose its columns
+ * from the window would draw an album column into a page too narrow for one.
+ * Worked out and not measured, so that a panel
  * sliding in changes it once, to where the slide ends, and not every frame.
  * Null on a phone.
  *
@@ -33,6 +34,6 @@ export function useContentWidth(): number | null {
  */
 export function useContentWidthValue<T>(select: (width: number | null) => T): T {
   const store = useContext(ContentWidthContext)
-  const read = useCallback(() => select(store.get()), [store, select])
+  const read = (): T => select(store.get())
   return useSyncExternalStore(store.subscribe, read, read)
 }

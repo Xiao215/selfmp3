@@ -21,7 +21,7 @@ export function readHue(): number {
     if (raw === null) return DEFAULT_ACCENT_HUE
     const parsed: unknown = JSON.parse(raw)
     const hue =
-      typeof parsed === 'object' && parsed !== null ? (parsed as { hue?: unknown }).hue : undefined
+      typeof parsed === 'object' && parsed !== null && 'hue' in parsed ? parsed.hue : undefined
     // Anything else — a file from a newer build, a half-written one — is just
     // the default. There is nothing here worth failing to start over.
     return typeof hue === 'number' && Number.isFinite(hue) && hue >= 0 && hue < 360

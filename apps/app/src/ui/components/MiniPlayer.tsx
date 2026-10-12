@@ -53,8 +53,10 @@ function MiniPlayerInner(): ReactNode {
   const [rise] = useState(() => new Animated.Value(song && session.seen(RISE_KEY) ? 1 : 0))
   const [shown, setShown] = useState<Song | null>(song)
   if (song && song !== shown) setShown(song)
-  const [sinking, setSinking] = useState(false)
-  const shownId = useRef<number | null>(null)
+  // The song the effect below last answered for: the one whose words leave as
+  // the next song's arrive. Not `shown`, which is already the new song by the
+  // time the effect runs.
+  const last = useRef<Song | null>(null)
   // Which way the words go as the song changes: up and away for the next
   // song, down for the one before, told by where the two sit in the queue.
   const index = player.queue.index
@@ -88,33 +90,28 @@ function MiniPlayerInner(): ReactNode {
 
   useEffect(() => {
     if (!song) {
-      if (shownId.current === null) return
-      shownId.current = null
+      if (last.current === null) return
+      last.current = null
       session.forget(RISE_KEY)
-      setSinking(true)
-      timing(rise, 0, motion.base, () => setSinking(false), { easing: ease.in })
+      timing(rise, 0, motion.base, () => setShown(null), { easing: ease.in })
       return
     }
-    if (shownId.current === null) {
-      setSinking(false)
+    if (last.current === null) {
       if (session.first(RISE_KEY))
         timing(rise, 1, MOVE_MS.rise, undefined, { easing: ease.overshoot })
       else rise.setValue(1)
-    } else if (shownId.current !== song.id) {
+    } else if (last.current.id !== song.id) {
       // The old words step out one way and the new ones step in behind them
       // from the other, a real swap rather than a blank and a fade-in.
       wordsWay.setValue(index < lastIndex.current ? -1 : 1)
-      setLeaving(shown)
+      setLeaving(last.current)
       gone.setValue(0)
       timing(gone, 1, motion.base, () => setLeaving(null), { easing: ease.in })
       words.setValue(0)
       timing(words, 1, motion.slow, undefined, { easing: ease.out })
     }
-    shownId.current = song.id
+    last.current = song
     lastIndex.current = index
-    // `shown` is the previous song on the render this effect answers, which
-    // is exactly the one that leaves.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [song, index, rise, words, wordsWay, gone])
 
   // The card as a whole sinks under a finger (`M1`, 1), to a row's depth:
@@ -142,7 +139,8 @@ function MiniPlayerInner(): ReactNode {
     })
   }
 
-  const card = song ?? (sinking ? shown : null)
+  // With the queue emptied, the last song stays drawn until the card has sunk.
+  const card = song ?? shown
   const songColor = useSongColor(card, card ? artFor(card) : null)
   if (!card) return null
 
@@ -154,7 +152,7 @@ function MiniPlayerInner(): ReactNode {
         { bottom: navBottom(insets.bottom) + NAV_HEIGHT + MINI_PLAYER_GAP },
         arrival,
       ]}
-      pointerEvents={sinking ? 'none' : 'auto'}
+      pointerEvents={song ? 'auto' : 'none'}
     >
       <View style={styles.clip} pointerEvents="none">
         <MiniProgress color={songColor.color} alpha={theme.colors.washAlpha} />
@@ -196,9 +194,7 @@ function MiniPlayerInner(): ReactNode {
       {/*
         The transport carries whether it is playing in its own testID, rather
         than a separate marker element. A marker with nothing in it has no size,
-        and a flow quite reasonably does not count a zero-by-zero view as
-        visible — which is how the first run of the smoke flow failed against an
-        app that was, on screen, plainly playing.
+        and a flow does not count a zero-by-zero view as visible.
       */}
       <IconButton
         testID={player.isPlaying ? 'mini-player-playing' : 'mini-player-paused'}
@@ -228,7 +224,7 @@ const RISE_KEY = 'mini-player-rise'
 const RISE_RANGE = overshootRange(MINI_PLAYER_HEIGHT, 5)
 
 /** Room from each edge of the display (the tab bar under it keeps 16). */
-const EDGE = 12
+const EDGE = space.md
 
 /** How far the words step as one song's give way to the next's. */
 const WORDS_STEP = 8
@@ -254,7 +250,7 @@ function MiniProgress({ color, alpha }: { color: string; alpha: number }): React
   const { position, duration } = usePlayerProgress()
   return (
     <ProgressWash
-      fraction={duration > 0 ? Math.min(1, position / duration) : 0}
+      fraction={duration > 0 ? position / duration : 0}
       color={color}
       alpha={alpha}
       fade={24}
@@ -271,9 +267,9 @@ const styles = StyleSheet.create(theme => ({
     height: MINI_PLAYER_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: space.xs,
     paddingLeft: space.sm,
-    paddingRight: 4,
+    paddingRight: space.xs,
     borderRadius: radius.mini,
     // A control's tone over the page; it floats over the list, so it casts
     // the floating shadow (`S2`, "Depth").
@@ -301,7 +297,7 @@ const styles = StyleSheet.create(theme => ({
   meta: {
     flex: 1,
     minWidth: 0,
-    marginLeft: 8,
+    marginLeft: space.sm,
     gap: 1,
     overflow: 'hidden',
   },

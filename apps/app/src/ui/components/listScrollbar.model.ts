@@ -4,8 +4,7 @@ import type { Song, SongSortField } from '@selfmp3/shared'
 /**
  * A long song list's scrollbar on a computer, as numbers (`ports/listScrollbar`):
  * where the thumb sits, which song a scroll position is at, and what the bubble
- * beside a dragged thumb says about it (Xiao chose B, C and E of the scrollbar
- * mock, 2026-10-02).
+ * beside a dragged thumb says about it.
  */
 
 /** What the bubble says about the song at the top of the list. */

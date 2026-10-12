@@ -29,11 +29,10 @@ const MARK_FROM = 0.6
  * gone when it is off, and only their coming and going moves — the fill
  * fading in over `motion.fast`, the tick growing from `MARK_FROM` on the
  * spring — as Reanimated's entering and exiting animations, on the UI thread.
- * It used to fade a layer that was always there with `Animated` on the native
- * driver, and a React commit landing while the JavaScript thread was busy put
- * that layer's opacity back where the fade began: quick taps in the tag
- * picker, with a library's worth of work after each, left a ticked tag drawn
- * empty and an unticked one drawn half full (Xiao, 2026-10-07).
+ * Not a layer that is always there, faded with `Animated`: a React commit
+ * landing while the JavaScript thread is busy puts such a layer's opacity back
+ * where the fade began, so quick taps in the tag picker would leave a ticked
+ * tag drawn empty and an unticked one half full.
  */
 export function Checkbox({
   checked,

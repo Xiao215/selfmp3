@@ -65,10 +65,10 @@ export function useHotkeys(hotkeys: Hotkeys, { beforeFocused = false }: HotkeyOp
         event.preventDefault()
         // Kept from the focused element too: react-native-web's buttons take
         // Space and Enter for themselves and stop them bubbling, so a listener
-        // on the way back up never heard them.
+        // on the way back up would never hear them.
         if (beforeFocused) event.stopPropagation()
-        // A held key repeats. Holding Space flipped between play and pause as
-        // fast as the keyboard repeats, so these answer the press, not the hold.
+        // A held key repeats, and held Space would flip between play and pause
+        // as fast as the keyboard repeats, so these answer the press, not the hold.
         if (beforeFocused && event.repeat) return
         handler()
       }

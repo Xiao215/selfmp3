@@ -9,10 +9,10 @@ import { GATE_ROUTES } from './fullScreen.model'
  * on the pushed screen — and from iOS 26 react-native-screens takes that swipe
  * anywhere on the display rather than at the left edge alone, because
  * `fullScreenSwipeEnabled` defaults to true there. So a swipe across the middle
- * of Playlists dragged Library back in, which reads as switching tabs by
- * swiping. No iOS app does that, and it was never designed here.
+ * of Playlists would drag Library back in, which reads as switching tabs by
+ * swiping. No iOS app does that, and it is not designed here.
  *
- * A tab's own page is exactly where it happened: changing tab always pushes
+ * A tab's own page is exactly where it would happen: changing tab always pushes
  * one, so a screen that a tab leads to directly is the only place a pop can
  * cross tabs. Taking the gesture off those, and leaving it everywhere else, is
  * the whole rule — a playlist, Settings, Stats and the migration page are each

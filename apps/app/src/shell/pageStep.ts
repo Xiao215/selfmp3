@@ -23,7 +23,7 @@ const PHONE_ORDER = ['/', '/library', '/playlists', '/search'] as const
  * On a phone it is the tab, because the stack moves a page pushed within one
  * itself — unless it does not (`stackMoves`, false in a browser), and then
  * every page is its own change or nothing would move at all: Profile opened
- * from Home, and Settings from Profile, arrived instantly.
+ * from Home, and Settings from Profile, would arrive instantly.
  */
 export function pageKey(pathname: string, wide: boolean, stackMoves = true): string | null {
   if (FULL_SCREEN_ROUTES.includes(pathname)) return null
@@ -52,8 +52,8 @@ const PLACE_ROUTES = ['tag/[name]', 'artist/[name]', 'combined']
  * pushes slides in from the right and back out to it — iOS's own push, the
  * one the swipe back drags — except a place opened from its Home tile, which
  * crossfades over 340 ms while its head grows out of the tile and, going
- * back, shrinks into it (`PlacePage`; Xiao chose A and D, 2026-10-04: a
- * crossfade said nothing about which way you went). A computer's pages all
+ * back, shrinks into it (`PlacePage`), since a crossfade alone says nothing
+ * about which way you went. A computer's pages all
  * play none: the step is the whole of its page change. A browser's stack has
  * no moves at all, so there only the step plays. With less motion asked for,
  * none at all: the navigator's moves are outside `ui/motion.ts`, so they are

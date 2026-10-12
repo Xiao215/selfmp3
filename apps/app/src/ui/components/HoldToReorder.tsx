@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, View } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutValue } from '../../shell/useLayout'
 import { usePointerHold } from '../../ports/pointerHold'
 import { setReorderHold } from '../../ports/songDrag'
 import { lightTap } from '../../ports/haptics'
@@ -15,12 +15,11 @@ import { MOVE_MS } from '../motion.model'
  * A finger has no grip to aim at — a 44-point handle in a row that is 48 tall
  * would take the title's room — so the row itself is the handle, and holding
  * it is what says "I mean to move this, not to play it". A mouse holds a row
- * the same way: the six-dot grip that used to stand in for this on a computer
- * is gone, because a column of dots on every row reads as clutter and a
- * pointer can hold a row as well as a finger can (Xiao, 2026-09-21).
+ * the same way: there is no grip column, since a column of dots on every row
+ * reads as clutter and a pointer can hold a row as well as a finger can.
  *
- * Gesture handler rather than a pan responder, which is what this was and what
- * did not work on a real phone. A pan responder lives in React's touch system,
+ * Gesture handler rather than a pan responder, which does not work on a real
+ * phone. A pan responder lives in React's touch system,
  * above the platform's: the row's own `Pressable` holds the touch, and taking
  * it away mid-gesture — which is exactly what a hold has to do — depends on a
  * chain of should-set callbacks firing in the right order against a scroll
@@ -33,16 +32,15 @@ import { MOVE_MS } from '../motion.model'
  * preference: gesture handler's web build recognises the first hold of a page
  * and then never activates again — reproduced at 1280 and not at 390, with
  * the song drag off and every row undraggable, so it is the recogniser and
- * not the browser's drag (Xiao, 2026-09-21). A pan responder has none of the
- * arbitration trouble here that it had on a phone, because a mouse is not
- * competing with a scroll: nothing claims the pointer until the hold has
- * already elapsed, and then this takes it. It is also exact, which is why the
- * grip used one.
+ * not the browser's drag. A pan responder has none of the arbitration
+ * trouble here that it has on a phone, because a mouse is not competing with
+ * a scroll: nothing claims the pointer until the hold has already elapsed,
+ * and then this takes it.
  *
  * In a browser one more thing has to be true: a row that is itself draggable
  * — a song drags onto a playlist in the sidebar — must stand its drag down
  * while this one is happening, or the browser's drag cancels the pointer
- * stream mid-move. The row is now the handle for both, so it is the hold that
+ * stream mid-move. The row is the handle for both, so it is the hold that
  * says so, at the moment it activates and before the pointer has moved:
  * `setReorderHold` in `ports/songDrag`.
  *
@@ -87,11 +85,11 @@ interface HoldToReorderProps {
 }
 
 export function HoldToReorder(props: HoldToReorderProps): ReactNode {
-  // `dense` is a mouse on a computer — the same signal the grip was drawn by.
+  // `dense` is a mouse on a computer.
   // A mouse in a phone-width window keeps the finger's recogniser: the gesture
   // it competes with there is the queue row's swipe, which is gesture
   // handler's own and reads the pointer stream this one would take.
-  const { dense } = useLayout()
+  const dense = useLayoutValue(layout => layout.dense)
   return dense ? <HeldByPointer {...props} /> : <HeldByFinger {...props} />
 }
 
@@ -217,8 +215,8 @@ const LIFT_SCALE = 1.04
  * hold is being counted, grows to the full lift the moment the row is carried,
  * and settles back on the spring when the row is let go — the board's "letting
  * go drops it", and where the haptic tap belongs. A wait with no feedback at
- * all reads as nothing happening, which is what the hold used to be for its
- * whole third of a second; the swell runs on `ease.in` over the hold's own
+ * all reads as nothing happening for the hold's whole third of a second; the
+ * swell runs on `ease.in` over the hold's own
  * length, so most of it happens in the last third of the wait — late enough
  * that a press which was only a press barely moves.
  *

@@ -2,7 +2,6 @@ import { useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import type { View as RNView } from 'react-native'
 import { plural, TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
 import {
   failureText,
@@ -44,7 +43,7 @@ export function TagEditor({
 }: {
   /** The tag being edited, or null when closed. */
   tag: Tag | null
-  anchorRef: RefObject<RNView | null>
+  anchorRef: RefObject<View | null>
   onDeleted?: () => void
   onClose: () => void
 }): ReactNode {
@@ -73,6 +72,10 @@ function Editor({
   const { theme } = useUnistyles()
   const accent = useAccent()
   const [name, setName] = useState(tag.name)
+  // The hue the tag had when this opened leads the swatches while it is open:
+  // the tag's own changes with every tap, and a row led by it would shift
+  // under the pointer and lose the colour it started from.
+  const [openedHue] = useState(tag.hue)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const rename = useRenameTag()
   const setHue = useSetTagHue()
@@ -130,7 +133,7 @@ function Editor({
         <Text style={styles.fieldLabel}>Colour</Text>
         <HueSwatches
           value={tag.hue}
-          first={tag.hue}
+          first={openedHue}
           onChange={hue => setHue.mutate({ id: tag.id, hue })}
         />
       </View>

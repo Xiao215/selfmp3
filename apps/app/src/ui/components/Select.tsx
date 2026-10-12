@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
-import { useLayout } from '../../shell/useLayout'
-import { ease, timing } from '../motion'
+import { useLayoutValue } from '../../shell/useLayout'
+import { useFade } from '../motion'
 import { Popover } from './Popover'
 import { Press } from './Press'
 import { SheetItem } from './Sheet'
@@ -52,13 +52,10 @@ export function Select<T extends string | number>({
   testID?: string
   size?: 'normal' | 'small' | 'inline'
 }): ReactNode {
-  const { dense } = useLayout()
+  const dense = useLayoutValue(layout => layout.dense)
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<View>(null)
-  const [turn] = useState(() => new Animated.Value(0))
-  useEffect(() => {
-    timing(turn, open ? 1 : 0, motion.base, undefined, { easing: ease.out })
-  }, [open, turn])
+  const turn = useFade(open, motion.base, motion.base)
   // Built once: the same rotation node for the life of the control.
   const chevron = useMemo(
     () => ({
@@ -106,7 +103,7 @@ export function Select<T extends string | number>({
         ]}
         // A toggle, not an open: the popover leaves a hole over this control
         // so that pressing it again reaches it, and what opened the list is
-        // what a second press on it should close (Xiao, 2026-09-21).
+        // what a second press on it should close.
         onPress={() => setOpen(shown => !shown)}
         testID={testID}
         // This control is a combobox named by what is chosen, with the

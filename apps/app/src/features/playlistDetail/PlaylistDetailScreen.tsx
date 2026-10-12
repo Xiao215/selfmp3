@@ -408,10 +408,10 @@ export function PlaylistDetailScreen(): ReactNode {
           <ListMusic size={30} color={theme.colors.textMuted} />
         )
       }
-      title={live ? 'No songs match these rules yet' : 'Nothing here yet'}
+      title={live ? 'No songs have these tags yet' : 'Nothing here yet'}
       line={
         live
-          ? 'Loosen a rule and the songs that match appear here as you change it.'
+          ? 'Tag a few songs, or change the tags it follows above, and they appear here.'
           : 'Search your library and add as many songs as you like.'
       }
     >

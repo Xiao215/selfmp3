@@ -473,8 +473,9 @@ function RankedArtistFace({
  * are quieter, so the eye reads the list as "the first, and then the others".
  *
  * Each opens its page: a song its own page, an artist or a tag the place. A
- * song this device cannot line up with the server's, and the songs with no
- * artist, open nothing.
+ * song this device cannot line up with the server's, the songs with no
+ * artist, and a tag the library no longer has (it has no colour either) open
+ * nothing.
  */
 function RankedLine({
   row,
@@ -487,6 +488,7 @@ function RankedLine({
   song: Song | undefined
   /** An artist's stand-in cover (`RankedArtistFace`). */
   cover: Song | undefined
+  /** A tag's colour; none when the library no longer has the tag. */
   hue: number | undefined
   testID: string
 }): ReactNode {
@@ -503,7 +505,9 @@ function RankedLine({
         ? row.known
           ? () => router.navigate(artistLink(row.name))
           : undefined
-        : () => router.navigate(tagLink(row.name))
+        : hue !== undefined
+          ? () => router.navigate(tagLink(row.name))
+          : undefined
 
   const picture =
     row.kind === 'song' ? (

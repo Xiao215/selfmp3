@@ -35,6 +35,7 @@ import { IconButton } from './IconButton'
 import {
   CheckSquare,
   CloudDownload,
+  CloudRemove,
   Heart,
   ListMusic,
   More,
@@ -650,7 +651,7 @@ export function SelectionBar({
             ) : null}
             {held.length > 0 ? (
               <SheetItem
-                icon={<X size={15} color={theme.colors.textSecondary} />}
+                icon={<CloudRemove size={15} color={theme.colors.textSecondary} />}
                 label={`Remove ${held.length === count ? '' : `${held.length} `}from this ${place}`}
                 onPress={act(() => removeDownloads(held.map(song => song.id)))}
               />

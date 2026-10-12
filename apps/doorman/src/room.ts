@@ -114,7 +114,7 @@ export type ActRequest = z.infer<typeof ActRequestSchema>
 const LinkServerRequestSchema = z.object({ server: RoomLinkServerSchema })
 
 /** A shared playlist's songs coming into the room, each with whose account lends it. */
-export const ImportSchema = z.object({
+const ImportSchema = z.object({
   items: z
     .array(z.object({ song: RoomSongSchema, sub: z.string().min(1), name: RoomMemberNameSchema }))
     .max(500),

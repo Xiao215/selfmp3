@@ -63,7 +63,7 @@ const CreateSchema = z.object({
 })
 
 /** A room kept: its signed-in people, and its songs with whose bucket each is in. */
-export const CreateFromSchema = z.object({
+const CreateFromSchema = z.object({
   id: z.string(),
   name: SharedNameSchema,
   creator: SubSchema,
@@ -73,7 +73,7 @@ export const CreateFromSchema = z.object({
     .max(32),
   items: z.array(z.object({ song: RoomSongSchema, sub: SubSchema })).max(500),
 })
-export type CreateFrom = z.infer<typeof CreateFromSchema>
+type CreateFrom = z.infer<typeof CreateFromSchema>
 
 const JoinSchema = z.object({
   sub: SubSchema,
@@ -86,7 +86,7 @@ const ActSchema = z.object({ sub: SubSchema, action: SharedActionSchema })
 export const LentSongsSchema = z.object({
   items: z.array(z.object({ song: RoomSongSchema, sub: z.string(), name: RoomMemberNameSchema })),
 })
-export type LentSongs = z.infer<typeof LentSongsSchema>
+type LentSongs = z.infer<typeof LentSongsSchema>
 
 const STATUS: Readonly<Record<RoomRefusal['refused'], number>> = {
   forbidden: 403,

@@ -36,7 +36,7 @@ function indexKey(sub: string): string {
   return `shared:${sub}`
 }
 
-export async function sharedIds(ctx: Context, sub: string): Promise<string[]> {
+async function sharedIds(ctx: Context, sub: string): Promise<string[]> {
   const stored = await ctx.env.KV.get(indexKey(sub))
   if (!stored) return []
   try {

@@ -6,6 +6,7 @@ import {
   type AudioPlayer,
   type AudioStatus,
 } from 'expo-audio'
+import { AppState } from 'react-native'
 import type { ListenAudio, ListenState, ListenStatus } from './listen.types'
 
 /**
@@ -168,6 +169,21 @@ export function createListenAudio(): ListenAudio | null {
       })
   }
 
+  /*
+   * A preview pauses when the app goes to the background. The lock screen and
+   * the Dynamic Island are track-player's, so they showed the library's song,
+   * the one the preview had paused, as playing over a preview you could no
+   * longer see or stop. Back in the app the card is where it was, paused.
+   */
+  const backgrounded = AppState.addEventListener('change', state => {
+    if (state !== 'background' || src === null || asked !== 'play') return
+    asked = 'pause'
+    clearSilence()
+    player?.pause()
+    if (player) report(player.currentStatus)
+    else tell({ status: 'paused', currentTime: 0, duration: NaN })
+  })
+
   return {
     play: uri => {
       src = uri
@@ -206,6 +222,7 @@ export function createListenAudio(): ListenAudio | null {
       return () => listeners.delete(listener)
     },
     dispose: () => {
+      backgrounded.remove()
       opening++
       src = null
       clearSilence()

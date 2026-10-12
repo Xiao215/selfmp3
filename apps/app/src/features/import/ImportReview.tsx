@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { Redirect } from 'expo-router'
+import { Redirect, useFocusEffect } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import {
   artistOr,
@@ -165,6 +165,19 @@ export function ImportReview({
   useEffect(() => {
     if (leftReview) close({ resume: false })
   }, [leftReview, close])
+  // Nor does a page left for another: the stack keeps the review drawn
+  // underneath (`keepNearTop`), and its preview played on over the page you
+  // went to, with nothing on screen to stop it.
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        setOpen(null)
+        setOpening(null)
+        close({ resume: false })
+      },
+      [close],
+    ),
+  )
 
   /*
    * The handlers the rows are given read the review and the preview through a
@@ -741,7 +754,9 @@ function NameField({
   if (wide) return input
   return (
     <View style={[styles.field, focused && styles.fieldFocused]}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      <Text style={styles.fieldLabel} numberOfLines={1}>
+        {label}
+      </Text>
       {input}
     </View>
   )
@@ -829,6 +844,19 @@ const PhoneRow = memo(function PhoneRow({
         testID={`import-row-${index}`}
       >
         <View style={styles.openTop}>
+          {/* The row's box stays where it was, so a song liked while hearing it is ticked from here. */}
+          <View style={styles.selectOpen}>
+            {state === 'missing' ? (
+              <View style={styles.select} />
+            ) : (
+              <SelectBox
+                item={item}
+                checked={state !== 'out'}
+                onToggle={() => onToggleChosen(index)}
+                wide={false}
+              />
+            )}
+          </View>
           <ListenCover
             item={item}
             listening={listening}
@@ -1232,6 +1260,8 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface1,
   },
   openTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  // The card's padding less its reach past the list: the box lines up with the closed rows' boxes.
+  selectOpen: { marginLeft: -4, marginRight: -4 },
   fields: { flex: 1, minWidth: 0, gap: 6 },
   // A field on the card is sunk to the ground's tone; the focused one carries the accent ring.
   field: {
@@ -1244,7 +1274,8 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface0,
   },
   fieldFocused: { boxShadow: `0 0 0 1.5px ${theme.colors.accent}` },
-  fieldLabel: { ...groupLabel(theme.colors), width: 42, fontSize: type.tiny, letterSpacing: 0.7 },
+  // Wide enough for ARTIST on one line, with the box beside the cover.
+  fieldLabel: { ...groupLabel(theme.colors), width: 52, fontSize: type.tiny, letterSpacing: 0.7 },
   fieldWide: {
     height: 32,
     marginLeft: -8,

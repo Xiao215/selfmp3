@@ -572,7 +572,8 @@ export class FakeSocket implements RoomSocket {
  * A Durable Object namespace of real `Room`s, each with storage in a map, an
  * alarm the test can ring, and sockets the test can read. An upgrade cannot be
  * answered with a 101 outside the Workers runtime, so a fake room answers it
- * with a 200 and keeps a `FakeSocket` for the member instead.
+ * with a 200 (JSON, as the doorman passes any answer but a 101 on) and keeps
+ * a `FakeSocket` for the member instead.
  */
 export class FakeRooms {
   readonly rooms = new Map<
@@ -634,7 +635,7 @@ export class FakeRooms {
         },
         accept: (_request, member) => {
           sockets.push(new FakeSocket(member))
-          return new Response(null, { status: 200, headers: { 'x-fake-socket': member } })
+          return Response.json({ socket: member })
         },
         sockets: () => sockets.filter(socket => !socket.closed),
         now: () => this.clock.now,

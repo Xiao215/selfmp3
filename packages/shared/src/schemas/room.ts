@@ -18,6 +18,7 @@ import { CoverToneSchema } from './song.js'
  *   POST /v1/rooms/<code>/act?t=<token>    RoomAction      → RoomState
  *   GET  /v1/rooms/<code>/socket?t=<token>  WebSocket: RoomServerMessage down, RoomClientMessage up
  *   GET  /v1/rooms/<code>/files/<entry>/<part>?t=<token>   → the file, ranges and all
+ *   PUT  /v1/rooms/<code>/link-server?t=<token>  RoomLinkServer  (the host's)
  *
  * The member's token rides in the query rather than a header, because the two
  * things that most need it — a WebSocket from a browser and an <audio>
@@ -194,6 +195,12 @@ export const RoomDocSchema = z.object({
   playing: RoomPlayingSchema.nullable(),
   want: RoomWantSchema.nullable(),
   endedAt: z.number().int().nonnegative().nullable(),
+  /**
+   * The host's server can be reached from the internet, and the doorman plays
+   * links through it for everyone (`RoomLinkServer`); without it a link plays
+   * on the host's device alone.
+   */
+  linkRelay: z.boolean(),
   /** The last time anyone did anything: a room nobody touches for two hours ends. */
   activeAt: z.number().int().nonnegative(),
 })
@@ -269,6 +276,26 @@ export const RoomActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('end') }),
 ])
 export type RoomAction = z.infer<typeof RoomActionSchema>
+
+/**
+ * Where the host's server can be reached from the internet, and its token:
+ * what lets the doorman play a link through it for members whose devices
+ * cannot reach it. Kept by the room beside its members' tokens, never sent to
+ * a member, and forgotten with the room.
+ *
+ *   PUT /v1/rooms/<code>/link-server?t=<host's token>   RoomLinkServer | null
+ */
+export const RoomLinkServerSchema = z
+  .object({
+    base: z
+      .string()
+      .url()
+      .max(300)
+      .regex(/^https:\/\/[^/?#]+$/, 'an https address with nothing after the host'),
+    token: z.string().min(1).max(500).nullable(),
+  })
+  .nullable()
+export type RoomLinkServer = z.infer<typeof RoomLinkServerSchema>
 
 /** The parts of a song the doorman lends. */
 export const RoomFilePartSchema = z.enum(['audio', 'cover', 'lyrics', 'romanized'])

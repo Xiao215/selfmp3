@@ -58,6 +58,7 @@ export function newRoomDoc(input: {
     playing: null,
     want: null,
     endedAt: null,
+    linkRelay: false,
     activeAt: input.now,
   }
 }

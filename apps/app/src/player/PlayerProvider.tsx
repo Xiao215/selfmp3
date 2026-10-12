@@ -321,8 +321,10 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     (songId: number, retry: () => void): boolean => {
       const track = roomTrack(songId)
       if (!track) return checkLibraryPlay(songId, retry)
-      if (track.stream === null && track.yours !== null) return checkLibraryPlay(track.yours, retry)
-      return true
+      if (track.stream !== null) return true
+      // Nowhere to play it from here — a link only the host's device can
+      // reach: the room moves on without this device.
+      return track.yours !== null && checkLibraryPlay(track.yours, retry)
     },
     [checkLibraryPlay],
   )

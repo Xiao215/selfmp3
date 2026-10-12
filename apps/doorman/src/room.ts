@@ -7,6 +7,7 @@ import {
   RoomJoinSchema,
   RoomMemberNameSchema,
   RoomModeSchema,
+  RoomLinkServerSchema,
   RoomRightsSchema,
   addRoomMember,
   applyRoomAction,
@@ -16,6 +17,7 @@ import {
   roomStateFor,
   type RoomDoc,
   type RoomFilePart,
+  type RoomLinkServer,
   type RoomRefusal,
   type RoomServerMessage,
 } from '@selfmp3/shared'
@@ -51,6 +53,8 @@ interface Secrets {
   readonly tokens: Record<string, string>
   /** Member id → the Google account they joined signed in as. */
   readonly subs: Record<string, string>
+  /** Where the host's server answers from the internet, for playing links (`RoomLinkServer`). */
+  readonly linkServer?: RoomLinkServer
 }
 
 const EMPTY_SECRETS: Secrets = { tokens: {}, subs: {} }
@@ -98,8 +102,18 @@ const ActRequestSchema = z.object({
 })
 export type ActRequest = z.infer<typeof ActRequestSchema>
 
+const LinkServerRequestSchema = z.object({ server: RoomLinkServerSchema })
+type LinkServerRequest = z.infer<typeof LinkServerRequestSchema>
+
 /** Whose bucket a lent file comes from, and its key there. */
-export const LentFileSchema = z.object({ sub: z.string(), key: z.string() })
+/**
+ * Where a lent file comes from: a key in its owner's bucket, or — for a link —
+ * the host's server's stream of it, token and all, which only the Worker sees.
+ */
+export const LentFileSchema = z.union([
+  z.object({ sub: z.string(), key: z.string() }),
+  z.object({ listen: z.string().url() }),
+])
 type LentFile = z.infer<typeof LentFileSchema>
 
 const STATUS: Readonly<Record<RoomRefusal['refused'], number>> = {
@@ -148,6 +162,8 @@ export class Room {
           return await this.#socket(request, url)
         case 'GET /file':
           return await this.#file(url)
+        case 'POST /link-server':
+          return await this.#linkServer(url, LinkServerRequestSchema.parse(await request.json()))
         default:
           return answer(404, 'not_found', 'no such endpoint')
       }
@@ -277,14 +293,42 @@ export class Room {
     if (found instanceof Response) return found
     const part = RoomFilePartSchema.safeParse(url.searchParams.get('part'))
     const entry = canReadEntry(found.doc, found.member, url.searchParams.get('entry') ?? '')
-    if (!part.success || !entry || entry.owner === null) {
+    if (!part.success || !entry) {
       return answer(404, 'room_missing', 'that song is not in the room')
     }
+    const secrets = await this.#secrets()
+    if (entry.owner === null) {
+      // A link: played through the host's server, when it said where that is.
+      const server = secrets.linkServer
+      if (!entry.song.link || part.data !== 'audio' || !server) {
+        return answer(404, 'room_missing', 'that link plays on the host’s device only')
+      }
+      const query = new URLSearchParams({ url: entry.song.link })
+      if (server.token) query.set('token', server.token)
+      const lent: LentFile = { listen: `${server.base}/api/import/listen?${query.toString()}` }
+      return Response.json(lent)
+    }
     const key = keyOf(entry.song, part.data)
-    const sub = (await this.#secrets()).subs[entry.owner]
+    const sub = secrets.subs[entry.owner]
     if (!key || !sub) return answer(404, 'room_missing', 'that song has no such file')
     const body: LentFile = { sub, key }
     return Response.json(body)
+  }
+
+  /** The host saying where its server answers from the internet, or that it no longer does. */
+  async #linkServer(url: URL, input: LinkServerRequest): Promise<Response> {
+    const found = await this.#member(url)
+    if (found instanceof Response) return found
+    const host = found.doc.members.find(member => member.id === found.member)
+    if (host?.kind !== 'host') return answer(403, 'room_forbidden', 'only the host plays links')
+    const secrets = await this.#secrets()
+    await this.#runtime.storage.put<Secrets>('secrets', {
+      ...secrets,
+      linkServer: input.server,
+    })
+    const doc = { ...found.doc, linkRelay: input.server !== null, activeAt: this.#runtime.now() }
+    await this.#save(doc, null)
+    return Response.json(this.#stateFor(doc, found.member))
   }
 
   /** The member the token in the address names, in a room still going. */

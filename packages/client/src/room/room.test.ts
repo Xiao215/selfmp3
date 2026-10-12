@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { RoomEntry, RoomSong, Song } from '@selfmp3/shared'
-import { createRoomApi, RoomError } from './roomApi.js'
+import { createRoomApi, publicServerBase, RoomError } from './roomApi.js'
 import { clockOffset, shouldResync, withClockSample, CLOCK_SAMPLES } from './roomClock.js'
 import { isRoomTrackId, libraryIndex, roomTrackId, roomTrackSong, yoursOf } from './roomTracks.js'
 
@@ -122,5 +122,20 @@ describe('a room’s song as a track', () => {
     const sameLink = libraryIndex([mine(9, `audio/${'cd'.repeat(32)}.m4a`, SONG.sourceUrl)])
     expect(yoursOf(SONG, sameLink)).toBe(9)
     expect(yoursOf(SONG, libraryIndex([]))).toBeNull()
+  })
+})
+
+describe('the host’s server, for links', () => {
+  it('is reached at its public name, never a home or tailnet address', () => {
+    expect(
+      publicServerBase([
+        'http://localhost:4600',
+        'http://10.0.0.190:4600',
+        'http://100.75.87.109:4600',
+        'https://100.75.87.109',
+        'https://pi.tail3d8516.ts.net/',
+      ]),
+    ).toBe('https://pi.tail3d8516.ts.net')
+    expect(publicServerBase(['http://10.0.0.190:4600'])).toBeNull()
   })
 })

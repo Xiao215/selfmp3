@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
-import { libraryIndex, roomTrackId, shouldResync, useLibrary } from '@selfmp3/client'
+import { useQuery } from '@tanstack/react-query'
+import {
+  clientApi,
+  libraryIndex,
+  publicServerBase,
+  queryKeys,
+  roomTrackId,
+  shouldResync,
+  useLibrary,
+} from '@selfmp3/client'
 import { mediaUrlFor } from '../../api/client'
 import { useServerDirect } from '../../connection/useServerDirect'
 import {
@@ -72,6 +81,26 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
       serverConnection ? mediaUrlFor(serverConnection).importListen(url) : null,
     [serverConnection],
   )
+
+  // Links for everyone: the host tells the room where its server answers from
+  // the internet, once, the first time a link comes in.
+  const { data: cloudServer } = useQuery({
+    queryKey: queryKeys.cloudServer,
+    queryFn: () => clientApi().cloudServer(),
+    enabled: host && hasLinks,
+  })
+  const toldLinkServer = useRef<string | null>(null)
+  useEffect(() => {
+    if (!state || !pass || !host || !hasLinks || state.linkRelay) return
+    if (toldLinkServer.current === state.code) return
+    const said = cloudServer?.server
+    const base = said ? publicServerBase(said.addresses) : null
+    if (!said || !base) return
+    toldLinkServer.current = state.code
+    void roomApi.linkServer(pass, { base, token: said.token }).catch(() => {
+      toldLinkServer.current = null
+    })
+  }, [state, pass, host, hasLinks, cloudServer])
 
   // What the engine's callbacks and the timers read, current without re-wiring.
   const live = useRef({ playingId, playing, queueIndex: queue.index })

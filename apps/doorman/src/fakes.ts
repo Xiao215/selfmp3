@@ -659,6 +659,8 @@ export interface Harness {
   readonly changes: FakeChanges
   readonly rooms: FakeRooms
   readonly clock: Clock
+  /** Any other host a test puts on the internet: a room host's server, say. */
+  readonly elsewhere: Map<string, (request: Request) => Response | Promise<Response>>
   /** Every request the doorman made to the outside, in order, with the options fetch was given. */
   readonly outside: Array<SeenRequest & { readonly init: FetchInit }>
   /** What the doorman wrote to its log, instead of the console. */
@@ -749,6 +751,7 @@ export function harness(): Harness {
   const changes = new FakeChanges()
   const rooms = new FakeRooms(clock)
   const outside: Harness['outside'] = []
+  const elsewhere: Harness['elsewhere'] = new Map()
 
   const internet: Fetch = async (address, init) => {
     const request = new Request(address, init)
@@ -759,6 +762,8 @@ export function harness(): Harness {
     if (url.host === B2_API_HOST || url.host === B2_ACCOUNT_API_HOST) {
       return backblaze.handle(request)
     }
+    const other = elsewhere.get(url.host)
+    if (other) return other(request)
     throw new TypeError('fetch failed')
   }
 
@@ -851,6 +856,7 @@ export function harness(): Harness {
     backblaze,
     changes,
     rooms,
+    elsewhere,
     clock,
     outside,
     logs,

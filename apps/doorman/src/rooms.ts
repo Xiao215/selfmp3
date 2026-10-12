@@ -7,6 +7,7 @@ import {
   RoomFilePartSchema,
   RoomIdSchema,
   RoomJoinSchema,
+  RoomLinkServerSchema,
 } from '@selfmp3/shared'
 import { Bucket } from './bucket.js'
 import { requireSession, type Context } from './context.js'
@@ -89,9 +90,14 @@ export async function rooms(ctx: Context): Promise<Response> {
     const lent = await ask(withToken('/file', { entry, part }))
     if (!lent.ok) return relayed(lent)
     const file = LentFileSchema.parse(await lent.json())
-    const target = await ctx.accounts.bucket(file.sub)
-    if (!target) throw notFound('that song’s owner has no bucket connected any more')
-    const response = await relayRead(ctx, new Bucket(target, ctx.bucketDeps), file.key, method)
+    let response: Response
+    if ('listen' in file) {
+      response = await listenThrough(ctx, file.listen, method)
+    } else {
+      const target = await ctx.accounts.bucket(file.sub)
+      if (!target) throw notFound('that song’s owner has no bucket connected any more')
+      response = await relayRead(ctx, new Bucket(target, ctx.bucketDeps), file.key, method)
+    }
     // The web app's audio element asks with credentials (apps/app's
     // engine.web.ts), which a browser lets it read only when the answer says
     // so, besides naming the origin (cors.ts does that for every answer).
@@ -99,7 +105,51 @@ export async function rooms(ctx: Context): Promise<Response> {
     response.headers.set('access-control-allow-credentials', 'true')
     return response
   }
+  if (action === 'link-server' && entry === undefined) {
+    if (method !== 'PUT') return methodNotAllowed(['PUT'])
+    const server = await readJson(ctx.request, RoomLinkServerSchema)
+    return relayed(await ask(withToken('/link-server'), post({ server })))
+  }
   throw notFound()
+}
+
+/** What a link's stream says about itself that a player can use. */
+const LISTEN_RELAYED = ['content-type', 'content-length', 'content-range', 'accept-ranges']
+
+/**
+ * A link's audio, from the host's server's own stream of it
+ * (apps/server's `/api/import/listen`): ranges passed on, and the answer
+ * handed back as it comes. The address carries the server's token, so it is
+ * the room's to make and only ever fetched here.
+ */
+async function listenThrough(
+  ctx: Context,
+  address: string,
+  method: 'GET' | 'HEAD',
+): Promise<Response> {
+  const headers = new Headers()
+  const range = ctx.request.headers.get('range')
+  if (range !== null && /^bytes=\d*-\d*$/.test(range.trim())) headers.set('range', range.trim())
+  let upstream: Response
+  try {
+    upstream = await ctx.fetch(address, { method: 'GET', headers, cache: 'no-store' })
+  } catch {
+    throw new DoormanError(502, 'link_unreachable', 'the host’s server cannot be reached')
+  }
+  if (!upstream.ok) {
+    await upstream.body?.cancel()
+    throw new DoormanError(502, 'link_unplayable', 'the host’s server could not play that link')
+  }
+  const out = new Headers({ 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' })
+  for (const name of LISTEN_RELAYED) {
+    const value = upstream.headers.get(name)
+    if (value !== null) out.set(name, value)
+  }
+  if (method === 'HEAD') {
+    await upstream.body?.cancel()
+    return new Response(null, { status: upstream.status, headers: out })
+  }
+  return new Response(upstream.body, { status: upstream.status, headers: out })
 }
 
 /** The room's answer, passed on as JSON the doorman's own way: never cached. */

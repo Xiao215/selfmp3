@@ -220,6 +220,77 @@ describe('songs a friend brings', () => {
   })
 })
 
+describe('a link a guest pastes', () => {
+  const LINK = {
+    ...song('From a link'),
+    uid: null,
+    audio: null,
+    sourceUrl: 'https://youtu.be/abc',
+    link: 'https://youtu.be/abc',
+  }
+
+  it('plays for everyone through the host’s server, once the host says where it is', async () => {
+    const s = await setup()
+    const ana = await join(s, 'Ana')
+    const asked: Array<{ url: string; range: string | null }> = []
+    s.h.elsewhere.set('pi.example.ts.net', request => {
+      asked.push({ url: request.url, range: request.headers.get('range') })
+      return new Response('abc', {
+        status: 206,
+        headers: { 'content-type': 'audio/webm', 'content-range': 'bytes 0-2/3' },
+      })
+    })
+    const added = await state(await act(s, ana, { type: 'addLink', song: LINK }))
+    const entry = added.entries[0]?.id ?? ''
+    expect((await file(s, ana, entry)).status).toBe(404)
+
+    const told = await s.h.call(`/v1/rooms/${s.room.code}/link-server?t=${s.room.token}`, {
+      method: 'PUT',
+      json: { base: 'https://pi.example.ts.net', token: 'server-secret' },
+    })
+    expect((await state(told)).linkRelay).toBe(true)
+
+    const played = await file(s, ana, entry, 'audio', 'bytes=0-2')
+    expect(played.status).toBe(206)
+    expect(await played.text()).toBe('abc')
+    expect(asked[0]?.range).toBe('bytes=0-2')
+    const sent = new URL(asked[0]?.url ?? '')
+    expect(sent.pathname).toBe('/api/import/listen')
+    expect(sent.searchParams.get('url')).toBe('https://youtu.be/abc')
+    expect(sent.searchParams.get('token')).toBe('server-secret')
+  })
+
+  it('keeps the host’s server and its token from every member', async () => {
+    const s = await setup()
+    const ana = await join(s, 'Ana')
+    await s.h.call(`/v1/rooms/${s.room.code}/link-server?t=${s.room.token}`, {
+      method: 'PUT',
+      json: { base: 'https://pi.example.ts.net', token: 'server-secret' },
+    })
+    const seen = JSON.stringify(
+      await (await s.h.call(`/v1/rooms/${s.room.code}?t=${ana.token}`)).json(),
+    )
+    expect(seen).not.toContain('server-secret')
+    expect(seen).not.toContain('pi.example')
+    const refused = await s.h.call(`/v1/rooms/${s.room.code}/link-server?t=${ana.token}`, {
+      method: 'PUT',
+      json: { base: 'https://evil.example', token: null },
+    })
+    expect(refused.status).toBe(403)
+  })
+
+  it('takes only an https address with nothing after the host', async () => {
+    const s = await setup()
+    for (const base of ['http://pi.example', 'https://pi.example/api', 'not a url']) {
+      const response = await s.h.call(`/v1/rooms/${s.room.code}/link-server?t=${s.room.token}`, {
+        method: 'PUT',
+        json: { base, token: null },
+      })
+      expect(response.status, base).toBe(400)
+    }
+  })
+})
+
 describe('a member’s socket', () => {
   it('hears the room whenever anything changes, and who is online', async () => {
     const s = await setup()

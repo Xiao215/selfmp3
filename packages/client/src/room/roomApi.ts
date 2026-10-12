@@ -6,6 +6,7 @@ import {
   type RoomCreate,
   type RoomFilePart,
   type RoomJoined,
+  type RoomLinkServer,
   type RoomState,
 } from '@selfmp3/shared'
 import type { ClientFetch } from '../platform.js'
@@ -49,6 +50,8 @@ interface RoomApi {
   state(pass: RoomPass): Promise<RoomState>
   /** `add` needs the session of the member who joined: the song is lent from their bucket. */
   act(pass: RoomPass, action: RoomAction, session?: string | null): Promise<RoomState>
+  /** The host saying where its server answers from the internet, so links play for everyone. */
+  linkServer(pass: RoomPass, server: RoomLinkServer): Promise<RoomState>
   /** The member's WebSocket. */
   socketUrl(pass: RoomPass): string
   /** One of a song's files, for an audio element, an image or the phone's player. */
@@ -65,12 +68,13 @@ export function createRoomApi(doormanUrl: string, fetch: ClientFetch): RoomApi {
     parse: (body: unknown) => T,
     body?: unknown,
     session?: string | null,
+    method?: 'POST' | 'PUT',
   ): Promise<T> => {
     const headers: Record<string, string> = {}
     if (body !== undefined) headers['content-type'] = 'application/json'
     if (session) headers['authorization'] = `Bearer ${session}`
     const response = await fetch(url, {
-      method: body === undefined ? 'GET' : 'POST',
+      method: body === undefined ? 'GET' : (method ?? 'POST'),
       headers,
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     })
@@ -99,7 +103,25 @@ export function createRoomApi(doormanUrl: string, fetch: ClientFetch): RoomApi {
     state: pass => send(at(pass), body => RoomStateSchema.parse(body)),
     act: (pass, action, session) =>
       send(at(pass, '/act'), body => RoomStateSchema.parse(body), action, session ?? null),
+    linkServer: (pass, server) =>
+      send(at(pass, '/link-server'), body => RoomStateSchema.parse(body), server, null, 'PUT'),
     socketUrl: pass => at(pass, '/socket').replace(/^http/, 'ws'),
     fileUrl: (pass, entryId, part) => at(pass, `/files/${entryId}/${part}`),
   }
+}
+
+/**
+ * The one of a server's addresses the internet can reach, for the doorman to
+ * play links through: https, and a name rather than a home or tailnet address
+ * (a Tailscale Funnel's `*.ts.net` is the usual one). Null when it has none.
+ */
+export function publicServerBase(addresses: readonly string[]): string | null {
+  for (const address of addresses) {
+    const match = /^https:\/\/([^/:?#]+)(?::\d+)?\/?$/i.exec(address.trim())
+    const host = match?.[1]?.toLowerCase()
+    if (!host || host === 'localhost' || host.endsWith('.local')) continue
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(host) || host.includes(':')) continue
+    return address.trim().replace(/\/+$/, '')
+  }
+  return null
 }

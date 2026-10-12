@@ -190,6 +190,26 @@ describe('what a member sees', () => {
   })
 })
 
+describe('a link on someone else’s phone', () => {
+  it('plays through the doorman once the host has said where its server is, and not before', () => {
+    let doc = act(room(), A, {
+      type: 'addLink',
+      song: song(9, { uid: null, audio: null, link: 'https://youtu.be/abc' }),
+    })
+    const sources = {
+      file: (entryId: string, part: 'audio' | 'cover') => `doorman/${entryId}/${part}`,
+      link: () => null,
+      library: libraryIndex([]),
+    }
+    const id = roomTrackId(doc.entries[0]?.id ?? '')
+    expect(roomTracks(as(doc, M), sources).get(id)?.stream).toBeNull()
+    doc = { ...doc, linkRelay: true }
+    expect(roomTracks(as(doc, M), sources).get(id)?.stream?.url).toBe(
+      `doorman/${doc.entries[0]?.id}/audio`,
+    )
+  })
+})
+
 describe('keep it going', () => {
   it('adds from shelves and what played, taking turns, and nothing that just played', () => {
     let doc = room()

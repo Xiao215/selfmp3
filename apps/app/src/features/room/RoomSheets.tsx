@@ -33,6 +33,7 @@ import { Toggle } from '../../ui/components/Toggle'
 import { useCloudSession } from '../profile/useCloudSession'
 import { lookUpLink, playableLink } from './linkSong'
 import { RoomFace } from './RoomFace'
+import { RoomQr } from './RoomQr'
 import { inviteLink, isHost, nameOf, playedRows, roomTitle, youMay } from './room.model'
 import { closeRoomSheet, useRoomSheet } from './roomSheets.store'
 import { sayRoomFailure } from './roomFailure'
@@ -192,13 +193,16 @@ function Invite({ state }: { state: RoomState }): ReactNode {
   return (
     <View style={styles.body}>
       <View style={styles.codeCard}>
-        <Text style={styles.label}>Room code</Text>
-        <Text style={styles.code} selectable testID="room-code">
-          {formatRoomCode(state.code)}
-        </Text>
-        <Text style={styles.link} selectable numberOfLines={2}>
-          {link}
-        </Text>
+        <RoomQr text={link} size={132} />
+        <View style={styles.codeText}>
+          <Text style={styles.label}>Room code</Text>
+          <Text style={styles.code} selectable testID="room-code">
+            {formatRoomCode(state.code)}
+          </Text>
+          <Text style={styles.link} selectable numberOfLines={3}>
+            {link}
+          </Text>
+        </View>
       </View>
       <Text style={styles.text}>
         {state.mode === 'speaker'
@@ -574,9 +578,10 @@ function ALink({ state }: { state: RoomState }): ReactNode {
           testID="room-link-look"
         />
       )}
-      {state.mode === 'everyone' ? (
+      {state.mode === 'everyone' && !state.linkRelay ? (
         <Text style={styles.text}>
-          A link plays only on the host’s device, so in this room the others will hear it skipped.
+          Everyone else hears a link when the host’s server can be reached from the internet;
+          otherwise it plays on the host’s device alone.
         </Text>
       ) : null}
     </View>
@@ -791,11 +796,14 @@ const styles = StyleSheet.create(theme => ({
   },
   input: { color: theme.colors.textPrimary, fontSize: type.body, minHeight: 28 },
   codeCard: {
-    gap: space.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.lg,
     padding: space.lg,
     borderRadius: radius.card,
     backgroundColor: theme.colors.surface2,
   },
+  codeText: { flex: 1, minWidth: 0, gap: space.xs },
   code: {
     color: theme.colors.textPrimary,
     fontSize: type.page,

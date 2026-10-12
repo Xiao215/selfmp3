@@ -135,7 +135,12 @@ export function roomTracks(state: RoomState, sources: TrackSources): Map<number,
   const tracks = new Map<number, RoomTrack>()
   for (const entry of state.entries) {
     const song = entry.song
-    const linkStream = song.link ? sources.link(song.link) : null
+    // A link: through this device's own way to the host's server, when it
+    // has one (the host), else through the doorman once the host has said
+    // where its server answers (`linkRelay`).
+    const linkStream = song.link
+      ? (sources.link(song.link) ?? (state.linkRelay ? sources.file(entry.id, 'audio') : null))
+      : null
     tracks.set(roomTrackId(entry.id), {
       song: roomTrackSong(entry),
       stream: song.audio

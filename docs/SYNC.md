@@ -61,7 +61,10 @@ without asking the bucket about it first, and so does the doorman (Backblaze tak
 bucket has); a run of imports publishes its first snapshot within a minute and the rest further apart the
 longer it goes on — two minutes, then five, then ten (`services/importPacing.ts`) — since every
 snapshot is a listing and a read on each device that is looking, and a thousand-song day
-published one a song;
+published one a song; a snapshot that adds nothing but what arrives after a song — its cover's
+colour, its motion curve and analysis, the sound vectors' pointer, artists' pictures — is held
+ten minutes and goes up once with all of them (`ENRICHMENT_DEFER_MS`), where each used to be a
+snapshot of its own, unless something else is published first and takes them along;
 and the server prunes its old snapshots from memory instead of listing the folder after each
 one.
 

@@ -410,11 +410,9 @@ export function ImportScreen({
   // shown once, on the first such row, when there are two or more to act on.
   const swipeable =
     !wide && folded ? [...folded.failed, ...folded.importing].filter(dismissable) : []
-  // After the box's guide, never with it.
-  const [swipeTarget, swipeGuide] = useGuide(
-    'import-rows',
-    swipeable.length >= 2 && guideSeen('import-box') && !boxGuide.shown,
-  )
+  // On a later visit than the box's guide: one guide a visit.
+  const [boxSeenBefore] = useState(() => guideSeen('import-box'))
+  const [swipeTarget, swipeGuide] = useGuide('import-rows', swipeable.length >= 2 && boxSeenBefore)
   const firstSwipe = swipeable[0]?.id ?? null
   const rowProps = (job: ImportJob) => ({
     job,

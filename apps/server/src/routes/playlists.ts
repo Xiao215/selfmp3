@@ -5,6 +5,9 @@ import {
   RemoveFromPlaylistSchema,
   ReorderPlaylistSchema,
   UpdatePlaylistSchema,
+  noSongsProblem,
+  playlistPatchProblem,
+  playlistSongsProblem,
   type Ok,
   type RemovedFromPlaylist,
 } from '@selfmp3/shared'
@@ -12,8 +15,6 @@ import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
 import { ParamsWithId } from '../http/params.js'
-
-const LIVE_BUILDS_ITSELF = 'a live playlist builds itself — edit its rules instead'
 
 export function playlistRoutes(container: Container): Router {
   const router = Router()
@@ -50,16 +51,8 @@ export function playlistRoutes(container: Container): Router {
   router.patch(
     '/playlists/:id',
     route({ params: ParamsWithId, body: UpdatePlaylistSchema }, ({ params, body }) => {
-      const playlist = requirePlaylist(params.id)
-      // The kind is not a field of the patch: a manual playlist has no rules
-      // to set, and a live one is made manual by `stopFollowing`, not by
-      // taking its rules away.
-      if (playlist.kind === 'manual' && body.rules != null) {
-        throw HttpError.badRequest('a manual playlist cannot have rules')
-      }
-      if (body.rules === null && playlist.kind === 'live') {
-        throw HttpError.badRequest('a live playlist needs a rule set; stop following it instead')
-      }
+      const problem = playlistPatchProblem(requirePlaylist(params.id).kind, body)
+      if (problem) throw HttpError.refused(problem)
       const updated = container.playlists.update(params.id, body)
       container.edits.playlist(
         params.id,
@@ -88,7 +81,7 @@ export function playlistRoutes(container: Container): Router {
     '/playlists/:id/stop-following',
     route({ params: ParamsWithId }, ({ params }) => {
       const playlist = requirePlaylist(params.id)
-      container.playlists.stopFollowing(playlist)
+      container.playlists.stopFollowing(playlist, container.playlists.songIds(playlist))
       container.edits.playlist(params.id, ['rules', 'order'])
       container.bumpLibraryVersion()
       return container.playlists.byId(params.id) ?? playlist
@@ -123,15 +116,14 @@ export function playlistRoutes(container: Container): Router {
   router.post(
     '/playlists/:id/songs',
     route({ params: ParamsWithId, body: AddToPlaylistSchema }, ({ params, body }) => {
-      const playlist = requirePlaylist(params.id)
-      if (playlist.kind === 'live') {
-        throw HttpError.badRequest(LIVE_BUILDS_ITSELF)
-      }
+      const live = playlistSongsProblem(requirePlaylist(params.id).kind)
+      if (live) throw HttpError.refused(live)
 
       // Drop ids that are not real songs rather than failing the whole request.
       const present = container.songs.existingIds(body.songIds)
       const valid = body.songIds.filter(id => present.has(id))
-      if (valid.length === 0) throw HttpError.badRequest('none of those songs exist')
+      const none = noSongsProblem(valid.length)
+      if (none) throw HttpError.refused(none)
 
       if (body.position === undefined) container.playlists.add(params.id, valid)
       else container.playlists.add(params.id, valid, body.position)
@@ -156,10 +148,8 @@ export function playlistRoutes(container: Container): Router {
     route(
       { params: ParamsWithId, body: RemoveFromPlaylistSchema },
       ({ params, body }): RemovedFromPlaylist => {
-        const playlist = requirePlaylist(params.id)
-        if (playlist.kind === 'live') {
-          throw HttpError.badRequest(LIVE_BUILDS_ITSELF)
-        }
+        const live = playlistSongsProblem(requirePlaylist(params.id).kind)
+        if (live) throw HttpError.refused(live)
         const removed = container.playlists.removeMany(params.id, body.songIds)
         container.edits.playlistSongs(params.id, body.songIds)
         if (removed > 0) container.bumpLibraryVersion()

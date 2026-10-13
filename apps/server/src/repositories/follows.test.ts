@@ -98,7 +98,7 @@ describe('a playlist that follows tags', () => {
     const before = playlists.songIds(playlist)
     expect(before.sort()).toEqual([1, 2])
 
-    playlists.stopFollowing(playlist)
+    playlists.stopFollowing(playlist, playlists.songIds(playlist))
 
     const after = playlists.byId(playlist.id)
     expect(after?.kind).toBe('manual')
@@ -113,14 +113,14 @@ describe('a playlist that follows tags', () => {
   it('keeps the order the rules had put them in', () => {
     const playlist = following([chill, chinese])
     const ordered = playlists.songIds(playlist)
-    playlists.stopFollowing(playlist)
+    playlists.stopFollowing(playlist, playlists.songIds(playlist))
     expect(playlists.songIds(playlists.byId(playlist.id)!)).toEqual(ordered)
   })
 
   it('does nothing to a playlist that was not following anything', () => {
     const plain = playlists.create({ name: 'Gym', description: '', kind: 'manual', rules: null })
     playlists.add(plain.id, [3, 1])
-    playlists.stopFollowing(plain)
+    playlists.stopFollowing(plain, [])
     expect(playlists.byId(plain.id)?.kind).toBe('manual')
     expect(playlists.songIds(playlists.byId(plain.id)!)).toEqual([3, 1])
   })

@@ -151,21 +151,21 @@ The worker is pull-based: after each job finishes it asks the database for the n
 coordination is needed between the HTTP layer and the worker, and a job added by your phone
 gets picked up by the same loop.
 
-### Live playlist rules compile to parameterised SQL
+### Live playlist rules have one evaluator
 
-`services/smartPlaylist.ts` is the only place in the server that builds a query string from
-user input, so it follows two rules absolutely:
-
-1. Every user **value** is a bound parameter.
-2. Every user **identifier** (column, sort field, direction) is looked up in a fixed map. If
-   it is not in the map, it does not exist.
+`packages/shared/src/smartRules.ts` (`livePlaylistSongs`) decides which songs a live
+playlist holds and in what order, on every side: a device runs it over its snapshot, and the
+server (`repositories/playlists.ts`) over its own songs, read once per change to the
+database. No query string is ever built from a rule. The server once compiled rules to SQL,
+and the two copies disagreed — about what a song with words is, until its words were up —
+so now only the facts each side feeds in can differ, and they are the snapshot's: a song
+"has lyrics" or "has art" when the bucket has them. `cloudIngest.test.ts` runs every
+kind of rule, sort and limit on the server and over the snapshot it publishes and expects
+the same songs.
 
 The rule types are a discriminated union and every switch over them ends in
-`assertNever`, so adding a variant to the shared schema makes this file — and the
-in-memory matcher in `packages/shared/src/smartRules.ts` — stop compiling until the new
-case is handled. The tests run the generated
-SQL against a real in-memory database — asserting on the SQL *string* would be brittle and
-would not prove the query is even valid.
+`assertNever`, so adding a variant to the shared schema stops the evaluator compiling
+until the new case is handled.
 
 ### The player is three pieces, deliberately
 
@@ -407,7 +407,7 @@ each.
 |---|---|
 | `range.ts` | Highest bug density, worst failure mode, purely functional |
 | `queue.ts` | All the awkward ordering rules, no mocking required |
-| `smartPlaylist.ts` | Builds SQL from user input — run it against a real database |
+| `smartRules.ts` | One evaluator for every side; the server is held to it over its real database |
 | `lrc.ts` | The format is loose in the wild; fixtures are synthetic placeholder text |
 | `format.ts` | Cheap, and formatting bugs are visible to the user everywhere |
 | `metadata.ts` | Filename parsing has a long tail of real-world shapes |

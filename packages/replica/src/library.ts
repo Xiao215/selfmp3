@@ -24,6 +24,7 @@ import {
   newestSnapshotKey,
   parseChangesHeader,
   readLogFile,
+  toSqliteTime,
   unfoldedLogKeys,
   type Change,
   type CloudSnapshot,
@@ -74,6 +75,7 @@ const BASE_KEY = 'cloud-base'
 const LOGS_KEY = 'cloud-logs'
 const OUTBOX_KEY = 'cloud-outbox'
 const LOOK_KEY = 'cloud-look'
+const PLAYED_KEY = 'cloud-playlists-played'
 
 /**
  * Within this long of the last look at the bucket, the library is answered
@@ -178,6 +180,8 @@ interface Replica {
   clock: HlcClock
   library: SyncLibrary
   view: CloudLibrary
+  /** When each playlist was last started here, by uid: kept on this device alone. */
+  played: Readonly<Record<string, string>>
   /**
    * `library` has changes `view` does not show yet: plays, recorded
    * without rebuilding the view (`recordChanges`' `deferView`). The next read
@@ -245,6 +249,8 @@ export interface CloudLibraryApi {
     build: (ctx: EditContext) => { changes: readonly Change[]; answer: (view: CloudLibrary) => T },
     options?: RecordOptions,
   ) => Promise<T>
+  /** A playlist was started: this device's "Recently played" order. False for one it does not have. */
+  markPlaylistPlayed: (session: CloudSession, playlistId: number) => Promise<boolean>
   pendingCloudChanges: () => number
   flushCloudChanges: () => Promise<void>
   cloudPlaylistSongs: (playlistId: number) => Promise<readonly number[]>
@@ -451,6 +457,12 @@ export function createCloudLibrary(
     return logs
   }
 
+  /** The playlists' played times as kept, or none when they do not read as such. */
+  function storedPlayed(value: unknown): Record<string, string> {
+    const parsed = z.record(z.string()).safeParse(value)
+    return parsed.success ? parsed.data : {}
+  }
+
   async function open(session: CloudSession): Promise<Replica> {
     if (replica) return replica
     if (opening) return opening
@@ -503,6 +515,7 @@ export function createCloudLibrary(
       clock: new HlcClock(outbox.device, { last: outbox.last }),
       library: replay(null, [], []),
       view: snapshotToLibrary(emptySnapshot(), NO_IDS, 0),
+      played: storedPlayed(await store.read(PLAYED_KEY)),
       viewStale: false,
       // Only with the copy it describes: a look without a base to go with it says nothing.
       look: base ? storedLook(await store.read(LOOK_KEY)) : NEVER_LOOKED,
@@ -548,7 +561,12 @@ export function createCloudLibrary(
     const before = (written ??= await readWritten())
     const previous = replica?.view.ids ?? before.ids
     const version = before.version + 1
-    r.view = snapshotToLibrary(replayedSnapshot(r.library, r.base.snapshot), previous, version)
+    r.view = snapshotToLibrary(
+      replayedSnapshot(r.library, r.base.snapshot),
+      previous,
+      version,
+      r.played,
+    )
     // Ids are only ever added, and every one added moves `next` on.
     if (before.ids.next !== r.view.ids.next) await store.write(IDS_KEY, r.view.ids)
     if (!sameValue(before.files, r.view.files)) await store.write(CLOUD_FILES_KEY, r.view.files)
@@ -933,7 +951,11 @@ export function createCloudLibrary(
       if (replica !== r) throw signedOut()
       // A deferred edit reads only ids, which plays never change.
       if (!options.deferView && r.viewStale) await show(r)
-      const { changes, answer } = build({ view: r.view, stamp: () => r.clock.tick() })
+      const { changes, answer } = build({
+        view: r.view,
+        stamp: () => r.clock.tick(),
+        counted: r.library.counted,
+      })
       if (changes.length > 0) {
         // Stamped after everything this device has seen, so applying them on top
         // is the same as replaying from the start.
@@ -948,6 +970,25 @@ export function createCloudLibrary(
         scheduleFlush(FLUSH_DELAY_MS)
       }
       return answer(r.view)
+    })
+  }
+
+  /**
+   * Note that a playlist was just started, for the playlists page's "Recently
+   * played" order. Kept on this device, not recorded as a change: it moves on
+   * every play, and a server keeps it to itself as well. False for a playlist
+   * this device does not have.
+   */
+  async function markPlaylistPlayed(session: CloudSession, playlistId: number): Promise<boolean> {
+    const r = await open(session)
+    return exclusive(async () => {
+      if (replica !== r) throw signedOut()
+      const uid = r.view.uids.playlists.get(playlistId)
+      if (!uid) return false
+      r.played = { ...r.played, [uid]: toSqliteTime(Date.now()) }
+      await store.write(PLAYED_KEY, r.played)
+      await show(r)
+      return true
     })
   }
 
@@ -1267,6 +1308,7 @@ export function createCloudLibrary(
           LOGS_KEY,
           OUTBOX_KEY,
           LOOK_KEY,
+          PLAYED_KEY,
         ].map(key => store.remove(key).catch(() => undefined)),
       )
     })
@@ -1307,6 +1349,7 @@ export function createCloudLibrary(
     onCloudLibraryChanged,
     cloudLibraryVersion,
     recordChanges,
+    markPlaylistPlayed,
     pendingCloudChanges,
     flushCloudChanges,
     cloudPlaylistSongs,

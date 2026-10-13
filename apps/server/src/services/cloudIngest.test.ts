@@ -4,6 +4,7 @@ import {
   MISSING_TAG_UID,
   applyChanges,
   formatHlc,
+  inKeptOrder,
   livePlaylistSongs,
   syncLibrary,
   type Change,
@@ -153,7 +154,11 @@ describe('CloudIngest', () => {
     })
   }
 
-  /** What a phone makes of the same changes over the snapshot it had. */
+  /**
+   * What a phone makes of the same changes over the snapshot it had: each
+   * playlist that follows tags its rule's songs, in the order kept by hand
+   * (packages/replica/src/replay.ts).
+   */
   function replayed(from: CloudSnapshot, changes: readonly Change[]): CloudSnapshot {
     const library = syncLibrary(from)
     applyChanges(library, changes)
@@ -172,17 +177,6 @@ describe('CloudIngest', () => {
       ),
       aliases: library.aliases.size > 0 ? Object.fromEntries(library.aliases) : undefined,
     }
-  }
-
-  /**
-   * The rule's songs in the order kept by hand, the rest after: as a phone
-   * shows a playlist that follows tags (packages/replica/src/replay.ts).
-   */
-  function inKeptOrder(kept: readonly string[], matched: readonly string[]): string[] {
-    const place = new Map(kept.map((uid, at) => [uid, at]))
-    const known = matched.filter(uid => place.has(uid))
-    known.sort((x, y) => (place.get(x) ?? 0) - (place.get(y) ?? 0))
-    return [...known, ...matched.filter(uid => !place.has(uid))]
   }
 
   /** Two libraries side by side, with nothing but order to tell them apart. */
@@ -352,6 +346,87 @@ describe('CloudIngest', () => {
     expect(comparable(serverSnapshot())).toEqual(comparable(replayed(before, changes)))
   })
 
+  it('keeps a live playlist’s rules when a change would take them away', () => {
+    const a = addSong('Alpha')
+    songs.patch(a, { loved: true })
+    const loved = playlists.create({
+      name: 'Loved',
+      description: '',
+      kind: 'live',
+      rules: {
+        match: 'all',
+        rules: [{ field: 'loved', op: 'is', value: true }],
+        orderBy: 'title',
+        order: 'asc',
+        limit: null,
+      },
+    }).id
+    const before = serverSnapshot()
+    const changes: Change[] = [
+      {
+        type: 'playlistEdited',
+        hlc: at(1),
+        uid: uidOf('playlists', loved),
+        fields: { rules: null },
+      },
+    ]
+    expect(ingest.apply(changes).applied).toBe(0)
+    // Stored, the null read here as a manual playlist with nothing in it.
+    expect(playlists.byId(loved)).toMatchObject({ kind: 'live', songCount: 1 })
+    expect(comparable(serverSnapshot())).toEqual(comparable(replayed(before, changes)))
+  })
+
+  it('takes the tags a removal emptied, and leaves one another device has just made', () => {
+    const a = addSong('Alpha')
+    const b = addSong('Bravo')
+    const chill = tags.create('chill').id
+    tags.setSongTags(a, [chill])
+    const before = serverSnapshot()
+    const made = 'f'.repeat(31) + '4'
+    const changes: Change[] = [
+      // Made on one phone, to be filled in a moment…
+      { type: 'tagCreated', hlc: at(1, 'web-cccc2222'), uid: made, name: 'later', hue: 90 },
+      // …while another removed a song, and the tag it was the last song of.
+      { type: 'songRemoved', hlc: at(2), uid: uidOf('songs', a) },
+      { type: 'tagRemoved', hlc: at(3), uid: uidOf('tags', chill) },
+    ]
+    ingest.apply(changes)
+    expect(tags.all().map(tag => tag.name)).toEqual(['later'])
+    expect(songs.byId(b)).not.toBeNull()
+    expect(comparable(serverSnapshot())).toEqual(comparable(replayed(before, changes)))
+  })
+
+  it('stops a playlist following its tags with the songs the phone kept', () => {
+    const a = addSong('Alpha')
+    const b = addSong('Bravo')
+    songs.patch(a, { loved: true })
+    const rules: SmartRules = {
+      match: 'all',
+      rules: [{ field: 'loved', op: 'is', value: true }],
+      orderBy: 'title',
+      order: 'asc',
+      limit: null,
+    }
+    const loved = playlists.create({ name: 'Loved', description: '', kind: 'live', rules }).id
+    const LOVED = uidOf('playlists', loved)
+    const before = serverSnapshot()
+    const changes: Change[] = [
+      // Loved on the phone, which then stopped the playlist with both in it,
+      // in the order it showed them: the server keeps that, not its own answer.
+      { type: 'songEdited', hlc: at(1), uid: uidOf('songs', b), fields: { loved: true } },
+      {
+        type: 'playlistUnfollowed',
+        hlc: at(2),
+        uid: LOVED,
+        songUids: [uidOf('songs', b), uidOf('songs', a)],
+      },
+    ]
+    ingest.apply(changes)
+    expect(playlists.byId(loved)).toMatchObject({ kind: 'manual', rules: null })
+    expect(playlists.songIds(playlists.byId(loved)!)).toEqual([b, a])
+    expect(comparable(serverSnapshot())).toEqual(comparable(replayed(before, changes)))
+  })
+
   it('applies a change arriving late only where nothing later has been', () => {
     const a = addSong('Alpha')
     const A = uidOf('songs', a)
@@ -426,7 +501,18 @@ describe('CloudIngest', () => {
         addSong('50% Off', { artist: 'Sale_Band' }),
         addSong('Old', { artist: 'Aurora' }),
       ]
-      const [one, two, three, four, five] = ids as [number, number, number, number, number, number]
+      const [one, two, three, four, five, six] = ids as [
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+      ]
+      // Words and a cover this server has read and not put up yet: no phone
+      // can see them, so no rule here may count them either.
+      songs.setLyricsKind(six, 'synced')
+      db.prepare('UPDATE songs SET has_art = 1 WHERE id = ?').run(six)
       songs.patch(one, { loved: true })
       songs.patch(four, { loved: true })
       for (const [id, plays] of [
@@ -467,7 +553,9 @@ describe('CloudIngest', () => {
         { ...base, rules: [{ field: 'duration', op: 'gt', value: 103 }] },
         { ...base, rules: [{ field: 'loved', op: 'is', value: true }] },
         { ...base, rules: [{ field: 'hasLyrics', op: 'is', value: false }] },
+        { ...base, rules: [{ field: 'hasLyrics', op: 'is', value: true }] },
         { ...base, rules: [{ field: 'hasArt', op: 'is', value: true }] },
+        { ...base, rules: [{ field: 'hasArt', op: 'is', value: false }] },
         { ...base, rules: [{ field: 'bpm', op: 'eq', value: 128 }] },
         { ...base, rules: [{ field: 'energy', op: 'lt', value: 0.6 }] },
         { ...base, rules: [{ field: 'loudness', op: 'lte', value: -9 }] },

@@ -649,10 +649,14 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 - [ ] **T-388** An iPad registers in the cloud as `iphone` (`ports/cloudPlatform.ts`). → D
 - [ ] **T-389** Phone engine: a song with nowhere to play from leaves the previous song sounding with `playing: true`; repeat-one likely never reports the song's end. → D
 - [ ] **T-390** Phone `adoptRecent` moves a stale (old-hash) played copy into a download; desktop refuses it. Both sides keep playing or keep the old file when a song's audio changes. → D
-- [ ] **T-391** Cloud mode can null a live playlist's rules (server refuses; replica allows), which empties it on the server. → A
-- [ ] **T-392** Deleting a tag rewrites live rules on devices but leaves the dead id on the server, and `tags.id` can be reused. → A
-- [ ] **T-393** Removing songs prunes empty tags on the server only (and also prunes a tag another device just made). → A
-- [ ] **T-394** Cloud mode answers 501 for `stop-following`, `/played` and `lyrics/search`; lyrics 404 codes and `/played`'s duplicate flag differ. → A
+- [x] **T-391** Cloud mode can null a live playlist's rules (server refuses; replica allows), which empties it on the server. → A
+  - Shared `playlistPatchProblem` used by the route, the replica, the replay and the ingest; a change breaking it is ignored on both sides.
+- [x] **T-392** Deleting a tag rewrites live rules on devices but leaves the dead id on the server, and `tags.id` can be reused. → A
+  - Decision: migration 41 (AUTOINCREMENT, sequence past every id a rule or import names) instead of rewriting rules; a dead id on the server now means what `MISSING_TAG_UID` means on a device.
+- [x] **T-393** Removing songs prunes empty tags on the server only (and also prunes a tag another device just made). → A
+  - Decision: tags emptied by a removal still go (shared `tagsEmptiedBy`), as explicit `tagRemoved` changes from a device; the ingest no longer sweeps.
+- [x] **T-394** Cloud mode answers 501 for `stop-following`, `/played` and `lyrics/search`; lyrics 404 codes and `/played`'s duplicate flag differ. → A
+  - Stop following is a new `playlistUnfollowed` change; a playlist's last-played time is kept per device; lyrics search is listed server-only (the UI already skips it in the cloud).
 - [x] **T-395** Every doorman 409 reads as "No bucket is connected" (the 20-grant limit too); `bucket_refused_key`/`no_such_bucket` fall to `other`. → B1
   - The server maps by code: `no_storage` and `no_such_bucket` are `missing`, `too_many_grants` says to remove a server, `bucket_unreachable` is `network`; `bucket_refused_key` stays `other` (the bucket's key, not this server's session, so nothing to sign in again for).
 - [ ] **T-396** "Same link" has four rules: 网易云 and `?si=` links are not seen as queued by the extension or `isPending`. → B2
@@ -661,9 +665,12 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 
 ### A — Server and replica answer the same API from one set of rules
 
-- [ ] **T-399** Move the edit change builders from `packages/replica/src/edits.ts` into `packages/shared` with the guards (`playlistPatchProblem`, live-playlist add guards, rename clash, create-or-return tag, insert-at-position, kept order, reorder via `reordered`); server routes call the same guards. Delete the private copy in `cloudIngest.test.ts`.
-- [ ] **T-400** One contract test: every client route is handled by the replica or marked server-only; the same cases run against both answerers.
-- [ ] **T-401** Smart rules: one evaluator (`shared/smartRules.ts`); hasLyrics/hasArt read the same facts on both sides.
+- [x] **T-399** Move the edit change builders from `packages/replica/src/edits.ts` into `packages/shared` with the guards (`playlistPatchProblem`, live-playlist add guards, rename clash, create-or-return tag, insert-at-position, kept order, reorder via `reordered`); server routes call the same guards. Delete the private copy in `cloudIngest.test.ts`.
+  - Decision: the guards and pure pieces moved (shared `editRules.ts`, `playlistPatchProblem`, generic `reordered`); the change builders stay in the replica, the only side that records changes.
+- [x] **T-400** One contract test: every client route is handled by the replica or marked server-only; the same cases run against both answerers.
+  - `packages/client/src/api/contract.test.ts` over `SERVER_ONLY_ROUTES`; the shared cases are the server-vs-phone parity tests in `cloudIngest.test.ts` (extended for each fix here).
+- [x] **T-401** Smart rules: one evaluator (`shared/smartRules.ts`); hasLyrics/hasArt read the same facts on both sides.
+  - The SQL compiler is gone; the server evaluates over facts read once per database change. Decision: "has lyrics/art" means the bucket has them, as the snapshot says.
 
 ### B1 — The doorman wire is one module
 

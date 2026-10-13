@@ -1,16 +1,53 @@
 import {
   SmartRulesSchema,
+  inKeptOrder,
+  insertedAt,
+  livePlaylistSongs,
   playlistRules,
+  reordered,
+  toCloudRules,
   type PlaylistRules,
   type CreatePlaylist,
   type Playlist,
+  type RuleSong,
   type SmartRules,
   type UpdatePlaylist,
 } from '@selfmp3/shared'
-import type Database from 'better-sqlite3'
 import type { Db } from '../db/index.js'
 import type { PlaylistRow } from '../db/rows.js'
-import { compileSmartRules } from '../services/smartPlaylist.js'
+
+/** A song as a live playlist's rules read it, straight from the database. */
+interface RuleSongRow {
+  id: number
+  uid: string
+  title: string
+  artist: string
+  album: string
+  album_artist: string
+  play_count: number
+  duration: number
+  year: number | null
+  added_at: string
+  last_played_at: string | null
+  loved: number
+  lyrics_key: string | null
+  lyrics_kind: string | null
+  cover_key: string | null
+  analyzed_at: string | null
+  bpm: number | null
+  energy: number | null
+  loudness_lufs: number | null
+  camelot: string | null
+  tag_uids: string | null
+}
+
+/** Every song as the rules read it, and the ways back to this server's ids. */
+interface RuleFacts {
+  readonly songs: readonly RuleSong[]
+  readonly idOf: ReadonlyMap<string, number>
+  readonly durationOf: ReadonlyMap<number, number>
+  readonly tagUid: ReadonlyMap<number, string>
+}
 
 /** A playlist row with its counts, as both reads of whole playlists want it. */
 const PLAYLIST_SELECT = `
@@ -27,7 +64,9 @@ const PLAYLIST_SELECT = `
  *
  * A manual playlist stores an ordered list of song ids. A live playlist
  * stores a rule set and resolves to song ids on demand, so it stays correct as
- * the library changes without anyone having to refresh it.
+ * the library changes without anyone having to refresh it — with the one
+ * evaluator every device runs (shared smartRules.ts), over the same facts the
+ * snapshot gives them, so a phone and this server agree on its songs.
  */
 export class PlaylistRepository {
   readonly #db: Db
@@ -47,11 +86,10 @@ export class PlaylistRepository {
   readonly #markPlayed
   readonly #touch
   readonly #kinds
-  /**
-   * Live playlists' rule queries, by their SQL: there is one per rule set, and
-   * every library read asks each of them again, so each is prepared once.
-   */
-  readonly #ruleStatements = new Map<string, Database.Statement<unknown[]>>()
+  readonly #ruleSongs
+  readonly #tagUids
+  readonly #changed
+  #factsCache: { key: string; facts: RuleFacts } | null = null
 
   constructor(db: Db) {
     this.#db = db
@@ -104,6 +142,21 @@ export class PlaylistRepository {
     this.#kinds = db.prepare<[], { id: number; kind: string; rules: string | null }>(
       'SELECT id, kind, rules FROM playlists',
     )
+    this.#ruleSongs = db.prepare<[], RuleSongRow>(`
+      SELECT s.id, s.uid, s.title, s.artist, s.album, s.album_artist, s.play_count,
+             s.duration, s.year, s.added_at, s.last_played_at, s.loved,
+             c.lyrics_key, c.lyrics_kind, c.cover_key,
+             f.analyzed_at, f.bpm, f.energy, f.loudness_lufs, f.camelot,
+             (SELECT GROUP_CONCAT(t.uid) FROM song_tags st JOIN tags t ON t.id = st.tag_id
+               WHERE st.song_id = s.id) AS tag_uids
+        FROM songs s
+        LEFT JOIN cloud_songs c ON c.song_id = s.id
+        LEFT JOIN song_audio_features f ON f.song_id = s.id
+    `)
+    this.#tagUids = db.prepare<[], { id: number; uid: string }>('SELECT id, uid FROM tags')
+    this.#changed = db.prepare<[], { writes: number; others: number }>(
+      'SELECT total_changes() AS writes, (SELECT data_version FROM pragma_data_version) AS others',
+    )
   }
 
   /**
@@ -153,24 +206,70 @@ export class PlaylistRepository {
     }
   }
 
-  /** The statement for a rule's SQL, prepared the first time it is asked for. */
-  #ruleStatement<Row>(sql: string): Database.Statement<unknown[], Row> {
-    let statement = this.#ruleStatements.get(sql)
-    if (!statement) {
-      statement = this.#db.prepare<unknown[]>(sql)
-      this.#ruleStatements.set(sql, statement)
+  /**
+   * What every rule reads of every song, read again only when the database
+   * has changed since: a library read asks each live playlist in turn, and a
+   * snapshot each one again. `total_changes()` moves with every write on this
+   * connection, `data_version` with any on another.
+   */
+  #facts(): RuleFacts {
+    const changed = this.#changed.get()
+    const key = `${changed?.writes ?? 0}:${changed?.others ?? 0}`
+    if (this.#factsCache?.key === key) return this.#factsCache.facts
+    const songs: RuleSong[] = []
+    const idOf = new Map<string, number>()
+    const durationOf = new Map<number, number>()
+    for (const row of this.#ruleSongs.all()) {
+      idOf.set(row.uid, row.id)
+      durationOf.set(row.id, row.duration)
+      songs.push({
+        uid: row.uid,
+        title: row.title,
+        artist: row.artist,
+        album: row.album,
+        albumArtist: row.album_artist,
+        tagUids: row.tag_uids ? row.tag_uids.split(',') : [],
+        playCount: row.play_count,
+        duration: row.duration,
+        year: row.year,
+        addedAt: row.added_at,
+        lastPlayedAt: row.last_played_at,
+        loved: row.loved === 1,
+        // As the snapshot carries them (`buildSnapshot`): what the bucket has.
+        lyrics:
+          row.lyrics_key !== null && row.lyrics_kind !== null ? { key: row.lyrics_key } : null,
+        cover: row.cover_key !== null ? { key: row.cover_key } : null,
+        audioFeatures:
+          row.analyzed_at === null
+            ? null
+            : {
+                bpm: row.bpm,
+                energy: row.energy,
+                loudnessLufs: row.loudness_lufs,
+                camelot: row.camelot,
+              },
+      })
     }
-    // One cache for every row shape; each SQL text only ever has the one.
-    return statement as Database.Statement<unknown[], Row>
+    const tagUid = new Map(this.#tagUids.all().map(row => [row.id, row.uid]))
+    const facts = { songs, idOf, durationOf, tagUid }
+    this.#factsCache = { key, facts }
+    return facts
+  }
+
+  /** The songs a rule set matches, by id, in the rule's own order (shared `livePlaylistSongs`). */
+  #matched(rules: SmartRules): number[] {
+    const { songs, idOf, tagUid } = this.#facts()
+    const cloudRules = toCloudRules(rules, id => tagUid.get(id) ?? null)
+    return livePlaylistSongs(cloudRules, songs).flatMap(uid => idOf.get(uid) ?? [])
   }
 
   #liveStats(rules: SmartRules): { count: number; duration: number } {
-    const { sql, params } = compileSmartRules(rules)
-    const row = this.#ruleStatement<{ count: number; duration: number | null }>(
-      `SELECT COUNT(*) AS count, COALESCE(SUM(duration), 0) AS duration
-         FROM songs WHERE id IN (${sql})`,
-    ).get(...params)
-    return { count: row?.count ?? 0, duration: row?.duration ?? 0 }
+    const { durationOf } = this.#facts()
+    const matched = this.#matched(rules)
+    return {
+      count: matched.length,
+      duration: matched.reduce((sum, id) => sum + (durationOf.get(id) ?? 0), 0),
+    }
   }
 
   all(): Playlist[] {
@@ -253,21 +352,23 @@ export class PlaylistRepository {
   }
 
   /**
-   * Stop a playlist following its tags, keeping every song it has right now.
+   * Stop a playlist following its tags, keeping `keep` as its songs: the ones
+   * it shows right now (`songIds`), or the ones the device that stopped it
+   * showed (`playlistUnfollowed`).
    *
    * The songs a live playlist shows are the answer to its rules, worked out on
    * every read and stored nowhere — so switching it off without writing them
-   * down first would empty it. This resolves them once, writes them as the
-   * playlist's own items in the order they were in, and only then changes the
-   * kind. One transaction: a crash half-way through would otherwise leave a
-   * playlist that is neither.
+   * down first would empty it. This writes them as the playlist's own items
+   * in that order, and only then changes the kind. One transaction: a crash
+   * half-way through would otherwise leave a playlist that is neither.
    */
-  stopFollowing(playlist: Playlist): void {
+  stopFollowing(
+    playlist: { readonly id: number; readonly kind: Playlist['kind'] },
+    keep: readonly number[],
+  ): void {
     if (playlist.kind !== 'live') return
-    const keep = this.songIds(playlist)
     this.#db.transaction(() => {
-      this.#clearItems.run(playlist.id)
-      keep.forEach((songId, index) => this.#insertItem.run(playlist.id, songId, index))
+      this.#replaceItems(playlist.id, keep)
       this.#makeManual.run(playlist.id)
     })()
   }
@@ -288,13 +389,14 @@ export class PlaylistRepository {
   songIds(playlist: Pick<Playlist, 'id' | 'kind' | 'rules'>): number[] {
     if (playlist.kind === 'live') {
       if (!playlist.rules) return []
-      const { sql, params } = compileSmartRules(playlist.rules)
-      const matched = this.#ruleStatement<{ id: number }>(sql)
-        .all(...params)
-        .map(row => row.id)
-      return this.#inKeptOrder(playlist.id, matched)
+      // In the order kept by hand, which the playlist's own items hold.
+      return inKeptOrder(this.#itemIds(playlist.id), this.#matched(playlist.rules))
     }
-    return this.#items.all(playlist.id).map(row => row.song_id)
+    return this.#itemIds(playlist.id)
+  }
+
+  #itemIds(playlistId: number): number[] {
+    return this.#items.all(playlistId).map(row => row.song_id)
   }
 
   /**
@@ -314,27 +416,6 @@ export class PlaylistRepository {
     return ids
   }
 
-  /**
-   * The rule's answer, in the order you put it in.
-   *
-   * A playlist that follows tags can still be reordered by hand (Xiao,
-   * 2026-09-21): the order you dragged it into is kept in the playlist's own
-   * items and wins, and songs the rule has matched since — which have no place
-   * in it yet — follow at the end in the rule's own order. A song that stops
-   * matching keeps its stored place silently, so tagging it again puts it back
-   * where you had it rather than at the bottom.
-   */
-  #inKeptOrder(playlistId: number, matched: readonly number[]): number[] {
-    const place = new Map<number, number>()
-    for (const row of this.#items.all(playlistId)) place.set(row.song_id, place.size)
-    if (place.size === 0) return [...matched]
-    const kept: number[] = []
-    const rest: number[] = []
-    for (const id of matched) (place.has(id) ? kept : rest).push(id)
-    kept.sort((a, b) => (place.get(a) ?? 0) - (place.get(b) ?? 0))
-    return [...kept, ...rest]
-  }
-
   /** Append or insert songs, keeping positions dense and ordered. */
   add(playlistId: number, songIds: readonly number[], position?: number): void {
     const run = this.#db.transaction(() => {
@@ -348,12 +429,7 @@ export class PlaylistRepository {
       // positions in place, which is simpler to reason about and cheap at
       // playlist scale.
       const existing = this.#items.all(playlistId).map(row => row.song_id)
-      const already = new Set(existing)
-      const incoming = songIds.filter(id => !already.has(id))
-      const clamped = Math.min(Math.max(position, 0), existing.length)
-      const merged = [...existing.slice(0, clamped), ...incoming, ...existing.slice(clamped)]
-      this.#clearItems.run(playlistId)
-      merged.forEach((songId, index) => this.#insertItem.run(playlistId, songId, index))
+      this.#replaceItems(playlistId, insertedAt(existing, songIds, position))
     })
     run()
     this.#touch.run(playlistId)
@@ -401,16 +477,15 @@ export class PlaylistRepository {
         playlist && playlist.kind === 'live'
           ? this.songIds(playlist)
           : this.#items.all(playlistId).map(row => row.song_id)
-      const existingSet = new Set(existing)
-      const ordered = songIds.filter(id => existingSet.has(id))
-      const orderedSet = new Set(ordered)
-      const leftovers = existing.filter(id => !orderedSet.has(id))
-      const merged = [...ordered, ...leftovers]
-
-      this.#clearItems.run(playlistId)
-      merged.forEach((songId, index) => this.#insertItem.run(playlistId, songId, index))
+      this.#replaceItems(playlistId, reordered(existing, songIds))
     })
     run()
     this.#touch.run(playlistId)
+  }
+
+  /** The playlist's own items, all of them, in this order. Caller wraps this in a transaction. */
+  #replaceItems(playlistId: number, songIds: readonly number[]): void {
+    this.#clearItems.run(playlistId)
+    songIds.forEach((songId, index) => this.#insertItem.run(playlistId, songId, index))
   }
 }

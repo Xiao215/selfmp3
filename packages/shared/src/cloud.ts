@@ -362,7 +362,7 @@ export function parseEndpoint(input: string): { url: string; region: string | nu
 /**
  * Stands in for a tag that has since been deleted. No tag has it, so a rule
  * naming it keeps meaning what it did: "has" matches nothing, "does not have"
- * matches everything — exactly how the SQL treats a deleted tag's id.
+ * matches everything — as a deleted tag's id does on a server, which never gives it out again.
  */
 export const MISSING_TAG_UID = '0'.repeat(32)
 

@@ -67,6 +67,48 @@ describe('migrate', () => {
     expect(count(db, 'playlist_items')).toBe(0)
   })
 
+  /*
+   * A live playlist names its tags by id here. Given out again, the id of a
+   * deleted tag made the playlist follow whichever tag was made next.
+   */
+  it('never gives a tag’s id out twice, nor one a rule or an import still names', () => {
+    const db = new Database(':memory:')
+    db.pragma('foreign_keys = ON')
+    migrate(db, createLogger('silent'))
+    const latest = db.pragma('user_version', { simple: true }) as number
+    const tagRule = (tagId: number) =>
+      JSON.stringify({ match: 'all', rules: [{ field: 'tag', op: 'has', tagId }] })
+    // Tags as they were before 41, with ids that could be handed out again;
+    // tag 7 is gone but a playlist's rule still names it, and 9 an import's.
+    db.exec(`
+      PRAGMA foreign_keys = OFF;
+      DROP TABLE tags;
+      CREATE TABLE tags (
+        id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        hue INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        uid TEXT NOT NULL DEFAULT (lower(hex(randomblob(16))))
+      );
+      PRAGMA foreign_keys = ON;
+      INSERT INTO songs (id, path, title) VALUES (1, 'a.m4a', 'A');
+      INSERT INTO tags (id, name) VALUES (1, 'Rain'), (3, 'Sun');
+      INSERT INTO song_tags (song_id, tag_id) VALUES (1, 3);
+      INSERT INTO playlists (name, kind, rules) VALUES ('Gone', 'live', '${tagRule(7)}');
+      INSERT INTO playlists (name, kind, rules) VALUES ('Broken', 'live', 'not json');
+      INSERT INTO import_jobs (id, url, tag_ids) VALUES ('j', 'u', '[1, 9]');
+    `)
+    db.pragma('user_version = 40')
+    migrate(db, createLogger('silent'))
+
+    expect(db.pragma('user_version', { simple: true })).toBe(latest)
+    expect(count(db, 'song_tags')).toBe(1)
+    const made = (name: string) =>
+      Number(db.prepare('INSERT INTO tags (name) VALUES (?)').run(name).lastInsertRowid)
+    expect(made('Snow')).toBe(10)
+    // The newest deleted, and the next made: a new id, not the one just freed.
+    db.prepare('DELETE FROM tags WHERE id = 10').run()
+    expect(made('Hail')).toBe(11)
+  })
+
   it('gives an import job named by another build the queue’s own words, and holds it to them', () => {
     const db = new Database(':memory:')
     migrate(db, createLogger('silent'))

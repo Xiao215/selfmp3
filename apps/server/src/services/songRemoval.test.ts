@@ -147,11 +147,13 @@ describe('SongRemovalService', () => {
       const loud = tags.create('loud')
       tags.addToSong(one.id, chill.id)
       tags.addToSong(two.id, loud.id)
+      // Made a moment ago and not filled yet: not the removal's to take.
+      tags.create('new')
 
       const result = await removal.remove([one.id])
 
       expect(result).toEqual({ removed: [one.id], failed: [] })
-      expect(tags.all().map(tag => tag.name)).toEqual(['loud'])
+      expect(tags.all().map(tag => tag.name)).toEqual(['loud', 'new'])
       expect(songs.byId(two.id)).not.toBeNull()
       expect(changes).toBe(1)
     })

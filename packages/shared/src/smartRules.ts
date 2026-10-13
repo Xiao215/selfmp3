@@ -2,31 +2,63 @@ import { compatibleCamelot } from './audioFeatures.js'
 import { assertNever } from './exhaustive.js'
 import { DAY_MS } from './math.js'
 import type { CloudSmartRule, CloudSmartRules, CloudSong } from './schemas/cloud.js'
+import type { AudioFeatures } from './schemas/audioFeatures.js'
 import type { SongSortField } from './schemas/common.js'
 import { asciiLower, toSqliteTime } from './sync.js'
 
 /**
- * Live playlists on a device (docs/SYNC.md): the rules the server compiles to
- * SQL (apps/server/src/services/smartPlaylist.ts), run over the library in
- * memory instead. So a playlist of loved songs gains a song the moment it is
- * loved on a phone, with the server asleep. A test runs both over one library
- * and expects the same songs in the same order.
+ * What a rule reads of a song: a snapshot's song is one as it stands, and a
+ * server builds the same from its database (`PlaylistRepository`).
+ *
+ * "Has lyrics" and "has art" ask whether the bucket has the song's words and
+ * its cover, the one fact every device can see: a server that read the
+ * words, and has not put them up yet, would otherwise put the song in a
+ * playlist no phone does.
+ */
+export type RuleSong = Pick<
+  CloudSong,
+  | 'uid'
+  | 'title'
+  | 'artist'
+  | 'album'
+  | 'albumArtist'
+  | 'tagUids'
+  | 'playCount'
+  | 'duration'
+  | 'year'
+  | 'addedAt'
+  | 'lastPlayedAt'
+  | 'loved'
+> & {
+  readonly lyrics: object | null
+  readonly cover: object | null
+  readonly audioFeatures: Pick<AudioFeatures, 'bpm' | 'energy' | 'loudnessLufs' | 'camelot'> | null
+}
+
+/**
+ * Live playlists, on every side (docs/SYNC.md): the one evaluator of a rule
+ * set, run over the library in memory — by a device over its snapshot, so a
+ * playlist of loved songs gains a song the moment it is loved on a phone with
+ * the server asleep, and by the server over its own songs. The server once
+ * compiled the rules to SQL instead, and the two disagreed about what a song
+ * with words is; now only the facts each feeds in can differ, and a test
+ * holds those to the snapshot's.
  *
  * Text matches the way SQLite's LIKE and NOCASE do: ignoring the case of A–Z
  * and only of A–Z. Two songs that tie on the sort field are ordered by when
- * they were added and then by uid — the two keys both sides carry. A row id
+ * they were added and then by uid — the two keys every side carries. A row id
  * would not do: a server that adopted a bucket gave its ids out in the
  * snapshot's order, which is the reverse of the library's.
  */
 export function livePlaylistSongs(
   rules: CloudSmartRules,
-  songs: readonly CloudSong[],
+  songs: readonly RuleSong[],
   options: { now?: number; random?: () => number } = {},
 ): string[] {
   const now = options.now ?? Date.now()
   const random = options.random ?? Math.random
   const matches = rules.rules.map(rule => matcher(rule, now))
-  const keep = (song: CloudSong): boolean =>
+  const keep = (song: RuleSong): boolean =>
     matches.length === 0 ||
     (rules.match === 'any'
       ? matches.some(match => match(song))
@@ -34,7 +66,7 @@ export function livePlaylistSongs(
 
   const kept = songs.filter(keep)
 
-  let ordered: CloudSong[]
+  let ordered: RuleSong[]
   if (rules.orderBy === 'random') {
     ordered = kept
       .map(song => ({ song, sort: random() }))
@@ -61,7 +93,7 @@ export function livePlaylistSongs(
 
 type SortValue = string | number | null
 
-const SORT_VALUES: Record<Exclude<SongSortField, 'random'>, (song: CloudSong) => SortValue> = {
+const SORT_VALUES: Record<Exclude<SongSortField, 'random'>, (song: RuleSong) => SortValue> = {
   addedAt: song => song.addedAt,
   title: song => asciiLower(song.title),
   artist: song => asciiLower(song.artist),
@@ -92,7 +124,7 @@ function compareNumber(op: 'gt' | 'lt' | 'eq' | 'gte' | 'lte', a: number, b: num
   }
 }
 
-function matcher(rule: CloudSmartRule, now: number): (song: CloudSong) => boolean {
+function matcher(rule: CloudSmartRule, now: number): (song: RuleSong) => boolean {
   switch (rule.field) {
     case 'title':
     case 'artist':
@@ -135,7 +167,7 @@ function matcher(rule: CloudSmartRule, now: number): (song: CloudSong) => boolea
       const field = rule.field
       if (rule.op === 'never') return song => song[field] === null
       const since = toSqliteTime(now - rule.days * DAY_MS)
-      // "Not played in the last N days" includes never played, as the SQL does.
+      // "Not played in the last N days" includes never played: what people mean by forgotten.
       return rule.op === 'inLastDays'
         ? song => song[field] !== null && (song[field] ?? '') >= since
         : song => song[field] === null || (song[field] ?? '') < since
@@ -153,13 +185,13 @@ function matcher(rule: CloudSmartRule, now: number): (song: CloudSong) => boolea
     case 'bpm':
     case 'energy':
     case 'loudness': {
-      const read = (song: CloudSong): number | null | undefined =>
+      const read = (song: RuleSong): number | null | undefined =>
         rule.field === 'bpm'
           ? song.audioFeatures?.bpm
           : rule.field === 'energy'
             ? song.audioFeatures?.energy
             : song.audioFeatures?.loudnessLufs
-      // A song not analysed yet matches no feature rule, as in the SQL.
+      // A song not analysed yet matches no feature rule, rather than matching as if its BPM were zero.
       return song => {
         const value = read(song)
         return value != null && compareNumber(rule.op, value, rule.value)

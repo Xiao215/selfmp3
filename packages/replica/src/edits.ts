@@ -1,7 +1,14 @@
 import {
-  hueFromString,
+  insertedAt,
+  newTagHue,
   newUid,
-  sameTagName,
+  noSongsProblem,
+  playlistPatchProblem,
+  playlistSongsProblem,
+  tagFlips,
+  tagNamed,
+  tagRenameProblem,
+  tagsEmptiedBy,
   toCloudRules,
   type Change,
   type CreatePlaylist,
@@ -11,7 +18,7 @@ import {
   type SongPatch,
   type UpdatePlaylist,
 } from '@selfmp3/shared'
-import { CloudRouteError, notFound } from './errors.js'
+import { CloudRouteError, notFound, refused } from './errors.js'
 import type { CloudLibrary } from './snapshotLibrary.js'
 
 /**
@@ -20,8 +27,9 @@ import type { CloudLibrary } from './snapshotLibrary.js'
  * Each takes the library as this device shows it, by the ids the app uses,
  * and says what changed, by uid. The replica applies them here at once and
  * uploads them; every other device replays them. Pure — the clock, new uids
- * and the time are handed in — and as strict as the server's routes, so an edit
- * the server would refuse is refused here too, before it is recorded.
+ * and the time are handed in — and held to the rules the server's routes are
+ * (shared editRules.ts), so an edit the server would refuse is refused here
+ * too, before it is recorded, in the same words.
  */
 export interface EditContext {
   readonly view: CloudLibrary
@@ -29,6 +37,8 @@ export interface EditContext {
   readonly stamp: () => string
   readonly newUid?: () => string
   readonly now?: () => Date
+  /** Plays this device has counted already, by id: one sent again is not recorded twice. */
+  readonly counted?: ReadonlySet<string>
 }
 
 const make = (ctx: EditContext): string => (ctx.newUid ?? newUid)()
@@ -71,9 +81,11 @@ function knownSongs(ctx: EditContext, ids: readonly number[]): [number, string][
   })
 }
 
-function manual(ctx: EditContext, id: number, refusal: string): Playlist & { uid: string } {
+/** A playlist songs can be put into by hand, as the server's routes hold one to. */
+function manual(ctx: EditContext, id: number): Playlist & { uid: string } {
   const found = playlist(ctx, id)
-  if (found.kind === 'live') throw new CloudRouteError(400, refusal, 'bad_request')
+  const problem = playlistSongsProblem(found.kind)
+  if (problem) throw refused(problem)
   return found
 }
 
@@ -98,11 +110,13 @@ export function setSongTags(ctx: EditContext, id: number, tagIds: readonly numbe
   const current = song(ctx, id)
   const uid = songUid(ctx, id)
   // Tags that are gone are dropped quietly, as the server does for a stale phone.
-  const wanted = new Set(tagIds.filter(tagId => ctx.view.uids.tags.has(tagId)))
-  const had = new Set(current.tagIds)
+  const { on, off } = tagFlips(
+    current.tagIds,
+    tagIds.filter(tagId => ctx.view.uids.tags.has(tagId)),
+  )
   const flips = [
-    ...[...wanted].filter(tagId => !had.has(tagId)).map(tagId => ({ tagId, on: true })),
-    ...current.tagIds.filter(tagId => !wanted.has(tagId)).map(tagId => ({ tagId, on: false })),
+    ...on.map(tagId => ({ tagId, on: true })),
+    ...off.map(tagId => ({ tagId, on: false })),
   ]
   return flips.map(({ tagId, on }) => ({
     type: 'songTagged' as const,
@@ -130,21 +144,35 @@ export function tagSongs(
   }))
 }
 
-/** Out of the library, on every device. */
+/**
+ * Out of the library, on every device — with each tag only these songs had,
+ * as the server's own removal takes them (`tagsEmptiedBy`).
+ */
 export function removeSongs(ctx: EditContext, ids: readonly number[]): Change[] {
-  return knownSongs(ctx, ids).map(([, uid]) => ({
-    type: 'songRemoved' as const,
-    hlc: ctx.stamp(),
-    uid,
-  }))
+  const known = knownSongs(ctx, ids)
+  const emptied = tagsEmptiedBy(
+    ctx.view.library.tags,
+    known.flatMap(([id]) => ctx.view.byId.songs.get(id) ?? []),
+  )
+  return [
+    ...known.map(([, uid]) => ({ type: 'songRemoved' as const, hlc: ctx.stamp(), uid })),
+    ...emptied.map(id => ({ type: 'tagRemoved' as const, hlc: ctx.stamp(), uid: tagUid(ctx, id) })),
+  ]
 }
 
+/**
+ * A play, or nothing when this device has counted it already: the play
+ * outbox sends one again when the answer to it was lost, and the server
+ * answers that as a duplicate too.
+ */
 export function playSong(ctx: EditContext, id: number, event: PlayEvent): Change[] {
+  const uid = songUid(ctx, id)
+  if (event.clientId && ctx.counted?.has(event.clientId)) return []
   return [
     {
       type: 'songPlayed',
       hlc: ctx.stamp(),
-      uid: songUid(ctx, id),
+      uid,
       // The play outbox's own id, so a play sent twice still counts once.
       playId: event.clientId ?? make(ctx),
       playedAt: event.playedAt ?? nowOf(ctx).toISOString(),
@@ -165,19 +193,11 @@ export function createTag(
   name: string,
   hue: number | undefined,
 ): { changes: Change[]; uid: string } {
-  const existing = ctx.view.library.tags.find(tag => sameTagName(tag.name, name))
+  const existing = tagNamed(ctx.view.library.tags, name)
   if (existing) return { changes: [], uid: tagUid(ctx, existing.id) }
   const uid = make(ctx)
   return {
-    changes: [
-      {
-        type: 'tagCreated',
-        hlc: ctx.stamp(),
-        uid,
-        name,
-        hue: hue ?? hueFromString(name.toLowerCase()),
-      },
-    ],
+    changes: [{ type: 'tagCreated', hlc: ctx.stamp(), uid, name, hue: newTagHue(name, hue) }],
     uid,
   }
 }
@@ -188,11 +208,8 @@ export function editTag(
   fields: { name?: string | undefined; hue?: number | undefined },
 ): Change[] {
   const uid = tagUid(ctx, id)
-  if (fields.name !== undefined) {
-    const name = fields.name
-    const clash = ctx.view.library.tags.find(tag => tag.id !== id && sameTagName(tag.name, name))
-    if (clash) throw new CloudRouteError(409, `a tag called "${name}" already exists`, 'conflict')
-  }
+  const clash = tagRenameProblem(ctx.view.library.tags, id, fields.name)
+  if (clash) throw refused(clash)
   return [
     {
       type: 'tagEdited',
@@ -239,9 +256,8 @@ export function createPlaylist(
 
 export function editPlaylist(ctx: EditContext, id: number, patch: UpdatePlaylist): Change[] {
   const found = playlist(ctx, id)
-  if (patch.rules !== undefined && found.kind === 'manual' && patch.rules !== null) {
-    throw new CloudRouteError(400, 'a manual playlist cannot have rules', 'bad_request')
-  }
+  const problem = playlistPatchProblem(found.kind, patch)
+  if (problem) throw refused(problem)
   return [
     {
       type: 'playlistEdited',
@@ -259,6 +275,25 @@ export function editPlaylist(ctx: EditContext, id: number, patch: UpdatePlaylist
   ]
 }
 
+/**
+ * Stop a playlist following its tags, keeping the songs it shows here now, in
+ * that order — what the server's own Stop following keeps. A playlist that
+ * follows nothing is left as it is, and that is not an error: the asker
+ * wanted one that does not follow tags, and there it is.
+ */
+export function stopFollowing(ctx: EditContext, id: number): Change[] {
+  const found = playlist(ctx, id)
+  if (found.kind !== 'live') return []
+  return [
+    {
+      type: 'playlistUnfollowed',
+      hlc: ctx.stamp(),
+      uid: found.uid,
+      songUids: (ctx.view.playlistSongs[id] ?? []).map(songId => songUid(ctx, songId)),
+    },
+  ]
+}
+
 export function removePlaylist(ctx: EditContext, id: number): Change[] {
   return [{ type: 'playlistRemoved', hlc: ctx.stamp(), uid: playlist(ctx, id).uid }]
 }
@@ -270,11 +305,10 @@ export function addToPlaylist(
   songIds: readonly number[],
   position: number | undefined,
 ): Change[] {
-  const found = manual(ctx, id, 'a live playlist builds itself — edit its rules instead')
+  const found = manual(ctx, id)
   const valid = knownSongs(ctx, songIds)
-  if (valid.length === 0) {
-    throw new CloudRouteError(400, 'none of those songs exist', 'bad_request')
-  }
+  const none = noSongsProblem(valid.length)
+  if (none) throw refused(none)
   const changes: Change[] = valid.map(([, songUid]) => ({
     type: 'playlistSong' as const,
     hlc: ctx.stamp(),
@@ -284,9 +318,11 @@ export function addToPlaylist(
   }))
   if (position !== undefined) {
     const current = ctx.view.playlistSongs[id] ?? []
-    const incoming = valid.map(([songId]) => songId).filter(songId => !current.includes(songId))
-    const at = Math.min(Math.max(position, 0), current.length)
-    const order = [...current.slice(0, at), ...incoming, ...current.slice(at)]
+    const order = insertedAt(
+      current,
+      valid.map(([songId]) => songId),
+      position,
+    )
     changes.push({
       type: 'playlistOrdered',
       hlc: ctx.stamp(),
@@ -302,7 +338,7 @@ export function removeFromPlaylist(
   id: number,
   songIds: readonly number[],
 ): Change[] {
-  const found = manual(ctx, id, 'a live playlist builds itself — edit its rules instead')
+  const found = manual(ctx, id)
   return knownSongs(ctx, songIds).map(([, songUid]) => ({
     type: 'playlistSong' as const,
     hlc: ctx.stamp(),
@@ -322,10 +358,7 @@ export function requestImport(
   ctx: EditContext,
   input: { url: string; tagIds: readonly number[]; playlistId: number | null },
 ): { changes: Change[]; uid: string } {
-  const playlistUid =
-    input.playlistId === null
-      ? null
-      : manual(ctx, input.playlistId, 'imported songs go into a manual playlist').uid
+  const playlistUid = input.playlistId === null ? null : manual(ctx, input.playlistId).uid
   const uid = make(ctx)
   return {
     changes: [

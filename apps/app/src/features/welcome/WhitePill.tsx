@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text } from 'react-native'
+import { ActivityIndicator, Text } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import Svg, { Path } from 'react-native-svg'
 import { radius, type } from '@selfmp3/client'
-import { usePressScale } from '../../ui/motion'
+import { Press } from '../../ui/components/Press'
 
 /**
  * The one button on each page on the way in — Welcome, Where it lives and
@@ -12,11 +12,17 @@ import { usePressScale } from '../../ui/motion'
  * White rather than the accent, as the round Play is: it is the only thing on
  * the page to press, and on the way in the accent has not been chosen yet.
  * On a computer it keeps a width of its own instead of the page's (`C01`).
+ *
+ * On `Press`, so it lets go when the tap lands as every button does. `busy`
+ * puts a spinner before the label and stops a second press while the first
+ * is still being answered: "Connecting…" could be pressed again, and was.
  */
 export function WhitePill({
   label,
   onPress,
   google = false,
+  busy = false,
+  disabled = false,
   width,
   testID,
 }: {
@@ -24,24 +30,32 @@ export function WhitePill({
   onPress: () => void
   /** Google's G before the label, for the button that opens Google. */
   google?: boolean
+  busy?: boolean
+  disabled?: boolean
   width?: number
   testID?: string
 }): ReactNode {
-  const press = usePressScale()
+  const { theme } = useUnistyles()
+  const inactive = disabled || busy
   return (
-    <Animated.View style={[width === undefined ? styles.fill : { width }, press.style]}>
-      <Pressable
-        {...press.handlers}
-        testID={testID}
-        onPress={onPress}
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        style={styles.pill}
-      >
-        {google ? <GoogleMark /> : null}
-        <Text style={styles.label}>{label}</Text>
-      </Pressable>
-    </Animated.View>
+    <Press
+      depth="control"
+      wrap={width === undefined ? styles.fill : { width }}
+      testID={testID}
+      onPress={onPress}
+      disabled={inactive}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: inactive, busy }}
+      style={[styles.pill, disabled && styles.disabled]}
+    >
+      {busy ? (
+        <ActivityIndicator size="small" color={theme.colors.onPrimary} />
+      ) : google ? (
+        <GoogleMark />
+      ) : null}
+      <Text style={styles.label}>{label}</Text>
+    </Press>
   )
 }
 
@@ -69,5 +83,6 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     gap: 10,
   },
+  disabled: { opacity: 0.45 },
   label: { color: theme.colors.onPrimary, fontSize: type.body, fontWeight: '600' },
 }))

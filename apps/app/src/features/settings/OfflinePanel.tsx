@@ -16,7 +16,9 @@ import { useConnection } from '../../connection/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
 import { CloudDownload, Trash, X } from '../../ui/components/Icons'
 import { Toggle } from '../../ui/components/Toggle'
-import { ButtonRow, Meter, Notice, Panel, partStyles, Row, Stats } from './SettingsParts'
+import { ButtonRow, Panel, partStyles, Row, Stats } from './SettingsParts'
+import { ProgressBar } from '../../ui/components/ProgressBar'
+import { NoticeCard } from '../../ui/components/NoticeCard'
 import { devicePlace, type Confirming } from './settings.model'
 import { deviceKind } from '../../ports/device'
 
@@ -141,7 +143,7 @@ export function OfflinePanel({
         </Row>
       ) : null}
       {tally.songs > 0 ? (
-        <Meter fraction={tally.here / tally.songs} label={`Songs on this ${place}`} />
+        <ProgressBar fraction={tally.here / tally.songs} label={`Songs on this ${place}`} />
       ) : null}
 
       {working ? (
@@ -154,7 +156,11 @@ export function OfflinePanel({
         </View>
       ) : null}
 
-      {downloads.error ? <Notice tone="error">{downloads.error}</Notice> : null}
+      {downloads.error ? (
+        <NoticeCard wash style={partStyles.notice} tone="error">
+          {downloads.error}
+        </NoticeCard>
+      ) : null}
       {stale !== null && stale.all.length > 0 ? (
         <Text style={partStyles.hint}>{staleHint(stale)}</Text>
       ) : null}
@@ -247,6 +253,9 @@ function staleHint(stale: StaleDownloads): string {
 function DownloadMeter(): ReactNode {
   const progress = useDownloadProgress()
   return (
-    <Meter fraction={progress.totalBytes > 0 ? progress.bytesWritten / progress.totalBytes : 0} />
+    <ProgressBar
+      fraction={progress.totalBytes > 0 ? progress.bytesWritten / progress.totalBytes : 0}
+      label="This download"
+    />
   )
 }

@@ -1,19 +1,20 @@
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Stats } from '@selfmp3/shared'
 import { leading, radius, space, type, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
-import { ChevronRight, Download, Settings, Sparkles } from '../../ui/components/Icons'
+import { Download, Settings, Sparkles } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useArt } from '../../offline/useArt'
 import { Avatar } from '../../ui/components/Avatar'
+import { NavRow } from '../../ui/components/NavRow'
 import { useAccount } from './useAccount'
 import { deviceKind } from '../../ports/device'
-import { card, label, serif } from '../../ui/surfaces'
+import { card, label, pageFrame, serif } from '../../ui/surfaces'
 import { devicePlace } from '../settings/settings.model'
 import { useStatsFor, useStatsSongs } from '../stats/statsSource'
 import {
@@ -211,39 +212,24 @@ function OnRepeat({
 }
 
 function Row({ row }: { row: ProfileRow }): ReactNode {
-  const { theme } = useUnistyles()
   const router = useRouter()
   const Icon = ICONS[row.id]
-
   return (
-    <Pressable
+    <NavRow
+      icon={<Icon size={19} tone="textPrimary" />}
+      title={row.label}
+      hint={row.hint}
       onPress={() => router.push(row.href)}
-      accessibilityRole="link"
-      accessibilityLabel={`${row.label}, ${row.hint}`}
       testID={`profile-${row.id}`}
-      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-    >
-      <View style={styles.rowIcon}>
-        <Icon size={19} tone="textPrimary" />
-      </View>
-      <View style={styles.rowWords}>
-        <Text style={styles.rowLabel} numberOfLines={1}>
-          {row.label}
-        </Text>
-        <Text style={styles.rowHint} numberOfLines={1}>
-          {row.hint}
-        </Text>
-      </View>
-      <ChevronRight size={16} color={theme.colors.textMuted} />
-    </Pressable>
+    />
   )
 }
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40, gap: 24 },
-  contentWide: { paddingTop: 40, paddingHorizontal: 44, maxWidth: 640 + 88 },
-  contentNarrow: { paddingTop: 16, paddingHorizontal: space.gutter },
+  contentWide: { ...pageFrame(true), maxWidth: 640 + space.gutterWide * 2 },
+  contentNarrow: pageFrame(false),
   person: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   personWords: { flex: 1, minWidth: 0, gap: 3 },
   name: { ...serif(theme.colors, type.page), lineHeight: 34 },
@@ -260,17 +246,4 @@ const styles = StyleSheet.create(theme => ({
   figureUnit: { fontSize: type.section },
   figureLabel: { color: theme.colors.textSecondary, fontSize: type.small },
   repeat: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 60 },
-  rowPressed: { opacity: 0.6 },
-  rowIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surface2,
-  },
-  rowWords: { flex: 1, minWidth: 0, gap: 2 },
-  rowLabel: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  rowHint: { color: theme.colors.textSecondary, fontSize: type.small },
 }))

@@ -17,7 +17,7 @@ import {
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { Button } from '../../ui/components/Button'
-import { Checkbox } from '../../ui/components/Checkbox'
+import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { Chip } from '../../ui/components/Chip'
 import { X } from '../../ui/components/Icons'
 import { useSongsById } from '../../ui/songsById'
@@ -27,6 +27,7 @@ import { describeNotes, onlyTags, parts, picksHere, tagIdsFor } from './smart.mo
 import { useSmartServer } from './useSmartServer'
 import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
+import { StatusLine } from '../../ui/components/StatusLine'
 
 /**
  * Songs picked from a description (docs/features/ai.md): what it understood,
@@ -179,16 +180,15 @@ export function SongsAnswer({
       ) : null}
 
       {!edited && onlyTags(understanding) ? (
-        <Pressable
+        <CheckRow
+          checked={keepFilled}
           onPress={() => setKeepFilled(on => !on)}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: keepFilled }}
-          accessibilityLabel="Fill it from these tags as they grow"
+          label="Fill it from these tags as they grow"
           style={styles.checkRow}
         >
           <Checkbox checked={keepFilled} />
           <Text style={styles.checkLabel}>Fill it from these tags as they grow</Text>
-        </Pressable>
+        </CheckRow>
       ) : null}
 
       {again.isPending ? (
@@ -197,9 +197,9 @@ export function SongsAnswer({
         </Text>
       ) : null}
       {again.error ? (
-        <Text style={styles.error}>{failureText('Couldn’t pick again', again.error)}</Text>
+        <StatusLine>{failureText('Couldn’t pick again', again.error)}</StatusLine>
       ) : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <StatusLine>{error}</StatusLine> : null}
 
       <View style={styles.actions}>
         {onCancel ? <Button label="Cancel" onPress={onCancel} /> : null}
@@ -253,6 +253,5 @@ const styles = StyleSheet.create(theme => ({
   pressed: { opacity: 0.6 },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: 4 },
   checkLabel: { color: theme.colors.textPrimary, fontSize: type.sub, flexShrink: 1 },
-  error: { color: theme.colors.danger, fontSize: type.small },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
 }))

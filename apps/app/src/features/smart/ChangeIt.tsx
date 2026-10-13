@@ -11,6 +11,7 @@ import { StopButton } from './StopButton'
 import { changeAnswer, showAnswerStep, useKeptAnswer } from './answers.store'
 import { newTicket, useAskProgress } from './useAskProgress'
 import { useSmartServer } from './useSmartServer'
+import { StatusLine } from '../../ui/components/StatusLine'
 
 /**
  * "Change it" (docs/features/ai.md): an answer to Ask changed in your own
@@ -131,7 +132,7 @@ export function ChangeIt({
         testID="change-it"
       />
       {change.error ? (
-        <Text style={styles.error}>{failureText('Couldn’t change it', change.error)}</Text>
+        <StatusLine>{failureText('Couldn’t change it', change.error)}</StatusLine>
       ) : null}
     </View>
   )
@@ -367,5 +368,4 @@ const styles = StyleSheet.create(theme => ({
   doing: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '500', flexShrink: 0 },
   words: { color: theme.colors.textMuted, fontSize: type.sub, flexShrink: 1 },
   pressed: { opacity: 0.6 },
-  error: { color: theme.colors.danger, fontSize: type.sub },
 }))

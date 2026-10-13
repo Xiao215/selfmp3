@@ -1,47 +1,34 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Linking,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-} from 'react-native'
+import { ActivityIndicator, Linking, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import type { CloudConnect } from '@selfmp3/shared'
-import { fonts, leading, radius, space, type } from '@selfmp3/client'
-import { library as cloudLibrary, session as cloud } from '../../replica'
-import { deviceKind, deviceWord } from '../../ports/device'
-import { devicePlace } from '../settings/settings.model'
+import { leading, radius, space, type } from '@selfmp3/client'
+import { session as cloud } from '../../replica'
+import { deviceWord } from '../../ports/device'
 import { installedApp } from '../../ports/install'
-import { keyboardAvoidBehavior } from '../../ports/keyboard'
-import { titleBarInset } from '../../ports/titleBarInset'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
-import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
-import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { card, serif } from '../../ui/surfaces'
-import { signOutWarning } from '../settings/signOut'
-import { useSignOut } from '../settings/useSignOut'
+import { SignOutDialog } from '../settings/SignOutDialog'
+import { TextField } from '../../ui/components/TextField'
+import { BucketAddressFields } from './BucketAddressFields'
 import { useCloudSession } from '../profile/useCloudSession'
 import { afterWelcome } from './firstSync.model'
 import { storedFirstSync } from './firstSyncMemory'
 import {
   addressReady,
+  cloudConnectInput,
   BACKBLAZE_URL,
   backblazeReady,
   HELPER_STEPS,
-  needsRegion,
   TRYING,
   type AddressFields,
   type StorageMode,
 } from './storage.model'
 import { WhitePill } from './WhitePill'
-import { ScrollView } from '../../ui/components/Scroll'
+import { OnboardingCard, OnboardingFootnote, OnboardingPage } from './OnboardingPage'
+import { StatusLine } from '../../ui/components/StatusLine'
 
 /**
  * Where it lives: the page between the first Google sign-in on an account and
@@ -64,7 +51,6 @@ export function StorageScreen(): ReactNode {
   const router = useRouter()
   const { wide, finePointer } = useLayout()
   const { storageConnected } = useConnection()
-  const signOut = useSignOut()
 
   const [mode, setMode] = useState<StorageMode>('backblaze')
   const [keyId, setKeyId] = useState('')
@@ -81,9 +67,6 @@ export function StorageScreen(): ReactNode {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [leaving, setLeaving] = useState(false)
-  // Read when Sign out is pressed rather than on every keystroke, and kept
-  // while the dialog closes.
-  const [leaveWarning, setLeaveWarning] = useState('')
   const email = useCloudSession().data?.email ?? null
 
   const ready = mode === 'backblaze' ? backblazeReady(keyId, applicationKey) : addressReady(address)
@@ -110,15 +93,7 @@ export function StorageScreen(): ReactNode {
         if (mode === 'backblaze') {
           await cloud.connectBackblaze(session, { keyId, applicationKey })
         } else {
-          const input: CloudConnect = {
-            endpoint: address.endpoint,
-            bucket: address.bucket,
-            prefix: address.prefix,
-            keyId: address.keyId,
-            applicationKey: address.applicationKey,
-            ...(needsRegion(address.endpoint) ? { region: address.region } : {}),
-          }
-          await cloud.connectStorage(session, input)
+          await cloud.connectStorage(session, cloudConnectInput(address))
         }
         // The bucket is there: the library comes down from it now, and the
         // usual way on from Welcome takes over.
@@ -133,80 +108,46 @@ export function StorageScreen(): ReactNode {
   }
 
   const device = deviceWord({ wide, finePointer })
-  const field = (
-    label: string,
-    value: string,
-    onChange: (text: string) => void,
-    options: { placeholder?: string; hint?: string; secret?: boolean; testID?: string } = {},
-  ): ReactNode => (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        testID={options.testID}
-        style={styles.input}
-        value={value}
-        onChangeText={onChange}
-        placeholder={options.placeholder}
-        placeholderTextColor={theme.colors.textMuted}
-        secureTextEntry={options.secret}
-        autoCapitalize="none"
-        autoCorrect={false}
-        autoComplete="off"
-        accessibilityLabel={label}
-        editable={!busy}
-      />
-      {options.hint ? <Text style={styles.hint}>{options.hint}</Text> : null}
-    </View>
-  )
-
   const backblazeFields = (
-    <View style={styles.card}>
-      {field('Key ID', keyId, setKeyId, {
-        placeholder: '004a1b2c3d4e5f0000000000f',
-        testID: 'storage-key-id',
-      })}
-      {field('Application key', applicationKey, setApplicationKey, {
-        hint: 'A key made for one bucket, with read and write. Backblaze shows it once.',
-        secret: true,
-        testID: 'storage-application-key',
-      })}
-    </View>
+    <OnboardingCard>
+      <TextField
+        label="Key ID"
+        value={keyId}
+        onChangeText={setKeyId}
+        placeholder="004a1b2c3d4e5f0000000000f"
+        autoCapitalize="none"
+        autoComplete="off"
+        disabled={busy}
+        testID="storage-key-id"
+      />
+      <TextField
+        label="Application key"
+        hint="A key made for one bucket, with read and write. Backblaze shows it once."
+        value={applicationKey}
+        onChangeText={setApplicationKey}
+        secret
+        autoCapitalize="none"
+        autoComplete="off"
+        disabled={busy}
+        testID="storage-application-key"
+      />
+    </OnboardingCard>
   )
 
   const addressFields = (
-    <View style={styles.card}>
-      {field('Endpoint', address.endpoint, endpoint => setAddress({ ...address, endpoint }), {
-        placeholder: 's3.us-west-004.backblazeb2.com',
-        hint: 'On the bucket’s own page.',
-        testID: 'storage-endpoint',
-      })}
-      {needsRegion(address.endpoint)
-        ? field('Region', address.region, region => setAddress({ ...address, region }), {
-            hint: 'As your provider names it. For Cloudflare R2 it is auto.',
-          })
-        : null}
-      {field('Bucket', address.bucket, bucket => setAddress({ ...address, bucket }), {
-        placeholder: 'selfmp3-yourname',
-        hint: 'Its name, not its ID.',
-        testID: 'storage-bucket',
-      })}
-      {field('Folder', address.prefix, prefix => setAddress({ ...address, prefix }), {
-        hint: 'Everything goes under this folder in the bucket.',
-      })}
-      {field('Key ID', address.keyId, keyId => setAddress({ ...address, keyId }), {
-        testID: 'storage-address-key-id',
-      })}
-      {field(
-        'Application key',
-        address.applicationKey,
-        applicationKey => setAddress({ ...address, applicationKey }),
-        { secret: true, testID: 'storage-address-application-key' },
-      )}
-    </View>
+    <OnboardingCard>
+      <BucketAddressFields
+        value={address}
+        onChange={setAddress}
+        disabled={busy}
+        keyHint="Shown once, as you make it. Sealed for the sign-in service."
+        testID="storage-address"
+      />
+    </OnboardingCard>
   )
 
   const helper = (
-    <View style={styles.card}>
+    <OnboardingCard>
       <Pressable
         onPress={() => setHelperOpen(open => !open)}
         accessibilityRole="button"
@@ -241,37 +182,24 @@ export function StorageScreen(): ReactNode {
           </View>
         </>
       ) : null}
-    </View>
+    </OnboardingCard>
   )
 
-  const column = (
-    <View style={[styles.column, wide && styles.columnWide]}>
-      <View style={styles.head}>
-        <Text style={[styles.title, wide && styles.titleWide]} accessibilityRole="header">
-          Where it lives
-          <Text style={styles.titleMark}>.</Text>
-        </Text>
-        <Text style={styles.lead}>
-          {mode === 'backblaze'
-            ? 'Your music goes in a bucket you own. Paste the key for it; self.mp3 asks Backblaze which bucket it opens, and where.'
-            : 'Your music goes in a bucket you own. Its address, its name, and a key for it with read and write.'}
-        </Text>
-      </View>
-
+  return (
+    <OnboardingPage
+      title="Where it lives"
+      keyboard
+      lead={
+        mode === 'backblaze'
+          ? 'Your music goes in a bucket you own. Paste the key for it; self.mp3 asks Backblaze which bucket it opens, and where.'
+          : 'Your music goes in a bucket you own. Its address, its name, and a key for it with read and write.'
+      }
+    >
       <View style={styles.account}>
         <Text style={styles.accountText} numberOfLines={1}>
           {email ? `Signed in as ${email}` : 'Signed in'}
         </Text>
-        <Button
-          label="Sign out"
-          variant="text"
-          onPress={() => {
-            setLeaveWarning(
-              signOutWarning(cloudLibrary.pendingCloudChanges(), devicePlace(deviceKind())),
-            )
-            setLeaving(true)
-          }}
-        />
+        <Button label="Sign out" variant="text" onPress={() => setLeaving(true)} />
       </View>
 
       {mode === 'backblaze' ? backblazeFields : addressFields}
@@ -283,16 +211,13 @@ export function StorageScreen(): ReactNode {
           <Text style={styles.tryingText}>{TRYING}</Text>
         </View>
       ) : null}
-      {error ? (
-        <Text style={styles.error} accessibilityRole="alert">
-          {error}
-        </Text>
-      ) : null}
+      {error ? <StatusLine>{error}</StatusLine> : null}
 
       <View style={[styles.actions, wide && styles.actionsWide]}>
         <WhitePill
           testID="storage-connect"
           label={busy ? 'Connecting…' : 'Connect'}
+          busy={busy}
           width={wide ? 240 : undefined}
           onPress={connect}
         />
@@ -309,64 +234,21 @@ export function StorageScreen(): ReactNode {
             setMode(mode === 'backblaze' ? 'address' : 'backblaze')
           }}
         />
-        <Text style={[styles.footnote, wide && styles.footnoteWide]}>
-          The key goes to the sign-in service, sealed. This {device} never keeps it.
-        </Text>
+        <View style={styles.footnote}>
+          <OnboardingFootnote>
+            The key goes to the sign-in service, sealed. This {device} never keeps it.
+          </OnboardingFootnote>
+        </View>
       </View>
 
-      <ConfirmDialog
-        open={leaving}
-        title="Sign out?"
-        body={leaveWarning}
-        confirmLabel="Sign out"
-        danger
-        onConfirm={() => {
-          setLeaving(false)
-          void signOut()
-        }}
-        onCancel={() => setLeaving(false)}
-      />
-    </View>
-  )
-
-  return (
-    <SafeAreaView style={styles.screen}>
-      <KeyboardAvoidingView style={styles.screen} behavior={keyboardAvoidBehavior}>
-        <ScrollView contentContainerStyle={[styles.page, wide && styles.pageWide]}>
-          {column}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      <SignOutDialog open={leaving} onClose={() => setLeaving(false)} />
+    </OnboardingPage>
   )
 }
 
 const styles = StyleSheet.create(theme => ({
-  screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  page: { flexGrow: 1, paddingHorizontal: 28, paddingTop: 44 + titleBarInset, paddingBottom: 40 },
-  // On a computer the page is one column in the middle of the window, as First sync is (`C02`).
-  pageWide: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-  column: { flexGrow: 1, gap: 22 },
-  columnWide: { flexGrow: 0, width: 560, maxWidth: '100%' },
-  head: { gap: space.sm },
-  // A page on the way in, so the serif: one weight, never bolded.
-  title: { ...serif(theme.colors, type.display), lineHeight: 48, letterSpacing: -0.5 },
-  titleWide: { fontSize: type.display, lineHeight: leading.display, letterSpacing: -0.8 },
-  titleMark: { fontFamily: fonts.serifItalic, color: theme.colors.accent },
-  lead: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
   account: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   accountText: { flex: 1, minWidth: 0, color: theme.colors.textMuted, fontSize: type.sub },
-  card: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14 },
-  field: { gap: 6 },
-  fieldLabel: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '600' },
-  // A control on the card: a control's fill, a pill, no edge (as Welcome's address form).
-  input: {
-    backgroundColor: theme.colors.surface2,
-    borderRadius: radius.pill,
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    paddingHorizontal: space.lg,
-    paddingVertical: space.md,
-  },
   hint: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
   helperHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   helperWords: { flex: 1, minWidth: 0, gap: 1 },
@@ -398,15 +280,7 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.sub,
     lineHeight: leading.sub,
   },
-  error: { color: theme.colors.danger, fontSize: type.body, lineHeight: leading.body },
   actions: { marginTop: 'auto', gap: 4, alignItems: 'stretch' },
   actionsWide: { alignItems: 'flex-start' },
-  footnote: {
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    lineHeight: leading.small,
-    textAlign: 'center',
-    paddingTop: space.sm,
-  },
-  footnoteWide: { textAlign: 'left', maxWidth: 420 },
+  footnote: { paddingTop: space.sm },
 }))

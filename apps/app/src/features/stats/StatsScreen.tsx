@@ -42,6 +42,7 @@ import {
 } from './stats.model'
 import { useSvgId } from '../../ui/useSvgId'
 import { EmptyState } from '../../ui/components/EmptyState'
+import { PageLoading } from '../../ui/components/PageLoading'
 
 /** The line beside Listened, in its own box's units. */
 const SPARK = { width: 120, height: 56 }
@@ -65,7 +66,7 @@ export function StatsScreen({ via }: { via?: ServerConnection } = {}): ReactNode
   return (
     <StatsFrame period={period} onPeriod={setPeriod} testID="stats-screen">
       {isLoading && !stats ? (
-        <Text style={styles.hint}>Working it out…</Text>
+        <PageLoading line="Working it out…" />
       ) : !stats ? (
         <EmptyState
           title="Stats need your library"
@@ -562,7 +563,6 @@ function RankedLine({
 }
 
 const styles = StyleSheet.create(theme => ({
-  hint: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
   // A big card on the ground (`S2`: 22 round), told apart by tone, not an edge.
   card: { ...card(theme.colors, radius.cardLg), padding: 18 },
   cardWide: { height: 190, paddingHorizontal: 20 },

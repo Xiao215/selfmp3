@@ -650,8 +650,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 - [ ] **T-383** "Add to Up next" on the answer page and the songs answer card calls `playNext`. → F
 - [ ] **T-384** Opening a tag from Home, Now Playing, the song menu, the song page, Stats or an artist page skips `noteTagUsed`, so the sidebar's recent tags miss it. Decision: every open counts. → F
 - [ ] **T-385** Sidebar tabs never announce the selected one (`aria-selected` only in BottomNav); pressing the lit sidebar item does not go back to its root page. → H
-- [ ] **T-386** The sidebar's new-tag field has no `maxLength`, no focus ring, swallows create errors, and checks duplicates differently from the Tags page. → G
-- [ ] **T-387** Settings → Cloud's bucket form signs out without asking; its fields stay editable while checking. → G
+- [x] **T-386** The sidebar's new-tag field has no `maxLength`, no focus ring, swallows create errors, and checks duplicates differently from the Tags page. → G
+- [x] **T-387** Settings → Cloud's bucket form signs out without asking; its fields stay editable while checking. → G
 - [x] **T-388** An iPad registers in the cloud as `iphone` (`ports/cloudPlatform.ts`). → D
   - `deviceModel()` in the device port names the kind on both twins; `returnUrl` is `signInReturnUrl('welcome')`.
 - [x] **T-389** Phone engine: a song with nowhere to play from leaves the previous song sounding with `playing: true`; repeat-one likely never reports the song's end. → D
@@ -737,9 +737,12 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 
 ### G — Pages, forms and notices
 
-- [ ] **T-423** `PageHeader`/`Page` (back, title, top and gutter tokens); `BackButton` takes `onPress`; `MissingPage`; `PageLoading`; one onboarding page shell; `WhitePill` on `Press` with busy/disabled.
-- [ ] **T-424** `TextField` (+ action slot, focus ring, schema limits); one bucket address form for Settings and Storage; `useNewTagForm` for the sidebar and Tags; sign-out confirm in one place.
-- [ ] **T-425** `Checkbox` with `onChange` and `aria-checked` everywhere; `NoticeCard`, `StatusLine`, `ServerAway` variants and one `JoinSharedButton`; `ProgressBar`; `Kbd`; `NavRow`; `HueSwatches` with options; Settings chips on `Chip`.
+- [x] **T-423** `PageHeader`/`Page` (back, title, top and gutter tokens); `BackButton` takes `onPress`; `MissingPage`; `PageLoading`; one onboarding page shell; `WhitePill` on `Press` with busy/disabled.
+  - Done as `PageHeader` + `pageFrame(wide)` (no `Page` wrapper: Settings, Library and Search own their scroll views). Every page title is the display face; the serif is for a person's name and numbers. Search's "‹ Songs 12" is a crumb, not a page's way back, and keeps its look.
+- [x] **T-424** `TextField` (+ action slot, focus ring, schema limits); one bucket address form for Settings and Storage; `useNewTagForm` for the sidebar and Tags; sign-out confirm in one place.
+  - Fields that edit text in place, drawn as the text they edit (a playlist's name in its head, Ask's Change it bar, an import row's title, the song-info dialog's values), stay `TextInput`s: they are not form fields. The duplicate check is `existingTag` (the server's comparison); the sidebar opens the tag, Tags opens its editor.
+- [x] **T-425** `Checkbox` with `onChange` and `aria-checked` everywhere; `NoticeCard`, `StatusLine`, `ServerAway` variants and one `JoinSharedButton`; `ProgressBar`; `Kbd`; `NavRow`; `HueSwatches` with options; Settings chips on `Chip`.
+  - `ServerAway` has `row` (Settings) beside the card; Devices' "showing the last list" line and You's month card keep their own words (they are about what they show, not the server). Tags' untagged card stays its own (its line holds links to artists). `ToggleRow` is left to T-428. The DOM tooltip's key cap shares `KBD`'s shape but keeps its colours, which sit on the tooltip's own ground.
 
 ### H — Grids, shelves, rooms, smart answers, navigation
 

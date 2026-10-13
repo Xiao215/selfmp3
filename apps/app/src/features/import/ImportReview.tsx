@@ -4,25 +4,16 @@ import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { Redirect } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
-import {
-  ApiError,
-  leading,
-  radius,
-  space,
-  type,
-  type Review,
-  type ServerConnection,
-} from '@selfmp3/client'
+import { ApiError, leading, space, type, type Review, type ServerConnection } from '@selfmp3/client'
 import { useFootInset } from '../../shell/bottomInset'
 import { useLayout } from '../../shell/useLayout'
 import { canListenHere } from '../../ports/listen'
-import { label as groupLabel, pageTitle, serif } from '../../ui/surfaces'
-import { BackButton } from '../../ui/components/BackButton'
+import { label as groupLabel, pageFrame, pageTitle } from '../../ui/surfaces'
+import { PageHeader } from '../../ui/components/PageHeader'
+import { NoticeCard } from '../../ui/components/NoticeCard'
 import { Button } from '../../ui/components/Button'
 import { useBackTo } from '../../ui/useBackTo'
 import { Cover } from '../../ui/components/Cover'
-import { IconButton } from '../../ui/components/IconButton'
-import { X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useListen } from './ImportListen'
 import { TagThem } from './ImportTags'
@@ -183,15 +174,12 @@ export function ImportReview({
            * left as the page's title (J1), and the count under that. The draft keeps the
            * review, and the preview stops with the page.
            */}
-          <BackButton to="/import" testID="import-review-back" />
-          <View style={styles.namesPhone}>
-            <Text style={styles.namePhone} numberOfLines={1} accessibilityRole="header">
-              {reviewName(review)}
-            </Text>
-            <Text style={styles.count} testID="import-count">
-              {countLabel(review, false)}
-            </Text>
-          </View>
+          <PageHeader
+            title={reviewName(review)}
+            subtitle={countLabel(review, false)}
+            subtitleTestID="import-count"
+            back={{ to: '/import', testID: 'import-review-back' }}
+          />
         </Pressable>
       )}
 
@@ -246,18 +234,17 @@ export function ImportReview({
         style={[wide ? styles.footWide : styles.footPhone, { paddingBottom: footInset + 12 }]}
       >
         {error ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{error}</Text>
-            <IconButton onPress={() => setError(null)} label="Dismiss">
-              <X size={15} tone="textMuted" />
-            </IconButton>
-          </View>
+          <NoticeCard tone="error" onDismiss={() => setError(null)}>
+            {error}
+          </NoticeCard>
         ) : null}
         {finder.error ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{finder.error}</Text>
-            <Button label="Try again" variant="text" onPress={finder.retry} />
-          </View>
+          <NoticeCard
+            tone="error"
+            actions={<Button label="Try again" variant="text" onPress={finder.retry} />}
+          >
+            {finder.error}
+          </NoticeCard>
         ) : null}
         <View style={wide ? styles.footRow : styles.footColumn}>
           <View style={wide ? styles.tagsWide : null}>
@@ -308,22 +295,13 @@ const styles = StyleSheet.create(theme => ({
   scroll: { flex: 1 },
   pressed: { opacity: 0.6 },
   // As Import's head: the button, the words under it on the left, room above and below.
-  headPhone: {
-    alignItems: 'flex-start',
-    gap: 12,
-    paddingTop: 8,
-    paddingBottom: 14,
-    paddingHorizontal: space.gutter,
-  },
-  namesPhone: { alignSelf: 'stretch', gap: 2 },
-  namePhone: pageTitle(theme.colors),
+  headPhone: { ...pageFrame(false), paddingBottom: 14 },
   count: { color: theme.colors.textSecondary, fontSize: type.sub, fontVariant: ['tabular-nums'] },
   headWide: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-    paddingTop: 36,
-    paddingHorizontal: space.gutterWide,
+    ...pageFrame(true),
     paddingBottom: 14,
   },
   mosaic: {
@@ -337,8 +315,7 @@ const styles = StyleSheet.create(theme => ({
   },
   names: { flex: 1, minWidth: 0, gap: 2 },
   kicker: { ...groupLabel(theme.colors), fontSize: type.small, color: theme.colors.textSecondary },
-  // The serif has one weight; the name is never bolded.
-  nameWide: { ...serif(theme.colors, type.page), lineHeight: 34 },
+  nameWide: pageTitle(theme.colors),
   hint: {
     color: theme.colors.textSecondary,
     fontSize: type.sub,
@@ -355,14 +332,4 @@ const styles = StyleSheet.create(theme => ({
   tagsWide: { flex: 1, minWidth: 0 },
   cancel: { paddingHorizontal: 8, paddingVertical: 8 },
   cancelText: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '600' },
-  error: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingLeft: 14,
-    paddingRight: 4,
-    borderRadius: radius.card,
-    backgroundColor: theme.colors.surface1,
-  },
-  errorText: { flex: 1, color: theme.colors.danger, fontSize: type.sub, lineHeight: leading.sub },
 }))

@@ -1,15 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Text, TextInput, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { artistOr, formatRoomCode, plural, RoomCodeSchema, type RoomSong } from '@selfmp3/shared'
+import {
+  artistOr,
+  formatRoomCode,
+  plural,
+  RoomCodeSchema,
+  type RoomSong,
+  RoomMemberNameSchema,
+} from '@selfmp3/shared'
 import {
   failureText,
   libraryIndex,
   queryKeys,
-  radius,
   space,
   type,
   useCreatePlaylist,
@@ -20,10 +26,11 @@ import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { prefs } from '../../ports/prefs'
-import { useAccent } from '../../ui/accent'
-import { label, serif } from '../../ui/surfaces'
+import { label, pageTitle } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { BackButton } from '../../ui/components/BackButton'
+import { MissingPage } from '../../ui/components/MissingPage'
+import { TextField } from '../../ui/components/TextField'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -47,8 +54,6 @@ const GUEST_NAME_KEY = 'room.name'
  * otherwise a name is all it asks.
  */
 export function JoinScreen(): ReactNode {
-  const { theme } = useUnistyles()
-  const accent = useAccent()
   const router = useRouter()
   const { code: given } = useLocalSearchParams<{ code: string }>()
   const code = RoomCodeSchema.safeParse(given ?? '')
@@ -62,7 +67,6 @@ export function JoinScreen(): ReactNode {
     prefs.get(GUEST_NAME_KEY) ?? (me ? ((me.name ?? me.email).trim().split(/\s+/)[0] ?? '') : '')
   const name = typed ?? suggested
   const [busy, setBusy] = useState(false)
-  const [focused, setFocused] = useState(false)
 
   // Already in this room: straight to it.
   const already = code.success && room.pass?.code === code.data
@@ -87,15 +91,16 @@ export function JoinScreen(): ReactNode {
   }
 
   if (!code.success) {
+    // A guest in a browser has nowhere in the app to go back to.
     return (
-      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-        <View style={styles.centre}>
-          <Text style={styles.big} accessibilityRole="header">
-            That is not a room code
-          </Text>
-          <Text style={styles.text}>A code is six letters and digits, like KQ7 482.</Text>
-        </View>
-      </SafeAreaView>
+      <MissingPage
+        title="That is not a room code"
+        line="A code is six letters and digits, like KQ7 482."
+        back={status === 'ready' ? '/' : undefined}
+        action={
+          status === 'ready' ? { label: 'Home', onPress: () => router.replace('/') } : undefined
+        }
+      />
     )
   }
 
@@ -114,22 +119,15 @@ export function JoinScreen(): ReactNode {
         {room.pass && !already ? (
           <Text style={styles.text}>Joining leaves the room you are in now.</Text>
         ) : null}
-        <View style={[styles.field, focused && { borderColor: accent.accent }]}>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            onSubmitEditing={() => void join()}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            placeholder="Your name"
-            placeholderTextColor={theme.colors.textMuted}
-            accessibilityLabel="Your name"
-            maxLength={40}
-            autoFocus={!name}
-            testID="room-join-name"
-          />
-        </View>
+        <TextField
+          value={name}
+          onChangeText={setName}
+          onSubmitEditing={() => void join()}
+          placeholder="Your name"
+          limit={RoomMemberNameSchema}
+          autoFocus={!name}
+          testID="room-join-name"
+        />
         <Button
           label="Join"
           variant="primary"
@@ -164,18 +162,14 @@ export function RoomScreen(): ReactNode {
   const { status } = useConnection()
   if (!state) {
     return (
-      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-        <View style={styles.centre}>
-          <Text style={styles.big} accessibilityRole="header">
-            You are not in a room
-          </Text>
-          <Text style={styles.text}>
-            A room is Up next, shared: open one from Together in Up next, or join with a friend’s
-            code.
-          </Text>
-          {status === 'ready' ? <Button label="Home" onPress={() => router.replace('/')} /> : null}
-        </View>
-      </SafeAreaView>
+      <MissingPage
+        title="You are not in a room"
+        line="A room is Up next, shared: open one from Together in Up next, or join with a friend’s code."
+        back={status === 'ready' ? '/' : undefined}
+        action={
+          status === 'ready' ? { label: 'Home', onPress: () => router.replace('/') } : undefined
+        }
+      />
     )
   }
   return (
@@ -211,12 +205,11 @@ export function PastRoomScreen(): ReactNode {
 
   if (!past) {
     return (
-      <SafeAreaView style={styles.screen} edges={['top']}>
-        <View style={styles.centre}>
-          <BackButton to="/" />
-          <Text style={styles.big}>That room is no longer kept</Text>
-        </View>
-      </SafeAreaView>
+      <MissingPage
+        title="That room is no longer kept"
+        line="Recently played keeps the last few rooms you were in."
+        back="/"
+      />
     )
   }
 
@@ -401,20 +394,10 @@ const styles = StyleSheet.create(theme => ({
     padding: space.gutter,
     paddingBottom: 120,
   },
-  big: { ...serif(theme.colors, type.page) },
+  big: pageTitle(theme.colors),
   label: label(theme.colors),
   text: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: 18 },
   link: { color: theme.colors.textPrimary, fontWeight: '600', textDecorationLine: 'underline' },
-  field: {
-    minHeight: 48,
-    justifyContent: 'center',
-    paddingHorizontal: space.md,
-    borderRadius: radius.field,
-    backgroundColor: theme.colors.surface2,
-    borderWidth: 1.5,
-    borderColor: theme.colors.surface2,
-  },
-  input: { color: theme.colors.textPrimary, fontSize: type.title, minHeight: 28 },
   pastHead: { gap: space.sm },
   people: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },

@@ -35,7 +35,7 @@ import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
-import { ChevronLeft, ChevronRight, Sparkle, User } from '../../ui/components/Icons'
+import { ChevronLeft, Sparkle, User } from '../../ui/components/Icons'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { SearchField } from '../../ui/components/SearchField'
 import { SectionHead } from '../../ui/components/SectionHead'
@@ -69,6 +69,8 @@ import {
 } from './search.model'
 import { useSongsById } from '../../ui/songsById'
 import { useGoBack } from '../../ui/useBackTo'
+import { PAGE_TOP_PHONE, PAGE_TOP_WIDE } from '../../ui/surfaces'
+import { NavRow } from '../../ui/components/NavRow'
 import { ScrollView } from '../../ui/components/Scroll'
 
 /** What a song played from Search names Up next: the rows and the lyric hits alike. */
@@ -313,26 +315,18 @@ function AskCard({
   onAsk: () => void
 }): ReactNode {
   return (
-    <Pressable
-      onPress={onAsk}
-      accessibilityRole="button"
+    <NavRow
+      card
+      icon={<Sparkle size={17} />}
+      accent
+      title={`Ask for “${words}”`}
+      hint={ASK_SUB}
+      role="button"
       accessibilityLabel={`Ask: ${words}`}
-      style={({ pressed }) => [styles.ask, !first && styles.askAfter, pressed && styles.askPressed]}
+      onPress={onAsk}
+      style={first ? undefined : styles.askAfter}
       testID="search-ask"
-    >
-      <View style={styles.askIcon}>
-        <Sparkle size={17} />
-      </View>
-      <View style={styles.askText}>
-        <Text style={styles.askTitle} numberOfLines={1}>
-          Ask for “{words}”
-        </Text>
-        <Text style={styles.askSub} numberOfLines={1}>
-          {ASK_SUB}
-        </Text>
-      </View>
-      <ChevronRight size={16} tone="textMuted" />
-    </Pressable>
+    />
   )
 }
 
@@ -722,36 +716,22 @@ function LyricResults({
 const styles = StyleSheet.create(theme => ({
   barRoom: { height: SELECTION_BAR_SPACE },
   barPadding: { paddingBottom: SELECTION_BAR_SPACE },
-  ask: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 12,
-    borderRadius: radius.card,
-    backgroundColor: theme.colors.surface2,
-  },
   askAfter: { marginTop: 12 },
-  askPressed: { opacity: 0.75 },
-  askIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: theme.colors.accentPill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  askText: { flex: 1, minWidth: 0, gap: 2 },
-  askTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  askSub: { color: theme.colors.textMuted, fontSize: type.small },
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   page: { flex: 1 },
-  pageWide: { maxWidth: 760, width: '100%', alignSelf: 'center', paddingTop: 24 },
+  // The field's row starts where every page's first row does (`PAGE_TOP_WIDE`).
+  pageWide: {
+    maxWidth: 760,
+    width: '100%',
+    alignSelf: 'center',
+    paddingTop: PAGE_TOP_WIDE - PAGE_TOP_PHONE,
+  },
   head: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: PAGE_TOP_PHONE,
   },
   field: { flex: 1 },
   cancel: { color: theme.colors.accent, fontSize: type.body, fontWeight: '600' },

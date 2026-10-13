@@ -1,0 +1,129 @@
+import { useState } from 'react'
+import type { ReactNode } from 'react'
+import type { TextInputProps } from 'react-native'
+import { TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
+import { useCreateTag } from '@selfmp3/client'
+import { autoTagHue } from '../../ui/components/HueSwatches'
+import { TextField } from '../../ui/components/TextField'
+import { existingTag } from '../tag/tag.model'
+import { useArtistNudge } from '../tag/useArtistNudge'
+
+/** What a new-tag form holds and does, wherever it is drawn. */
+interface NewTagForm {
+  readonly name: string
+  readonly setName: (name: string) => void
+  /** The colour it will be: the one picked, or the one the name gives it. */
+  readonly hue: number
+  /** The colour the name alone would give it, which leads the swatches. */
+  readonly autoHue: number
+  readonly setHue: (hue: number) => void
+  readonly ready: boolean
+  readonly busy: boolean
+  /** The last try was refused: said under the form until the name changes. */
+  readonly failed: boolean
+  readonly submit: () => void
+  /** The artist's-name question (`P11`), drawn wherever the form is. */
+  readonly nudge: ReactNode
+}
+
+/** What the form says when the server would not make the tag. */
+export const NEW_TAG_FAILED = 'Couldn’t make that tag. Try a different name.'
+
+/**
+ * Making a tag, in the sidebar's form and on the Tags page alike: the name,
+ * its colour (the name's own until one is picked), the artist's-name question
+ * (`P11`) and the server's answer.
+ *
+ * A name that is already a tag's — compared as the server compares them,
+ * case and spaces aside (`existingTag`) — makes nothing: `onExisting` gets
+ * the tag, because choosing it beats making its twin. The sidebar opens its
+ * page; the Tags page opens its editor.
+ *
+ * Once made, the name and the colour clear for the next, and `onMade` says
+ * so (the sidebar closes its form; the Tags page keeps it, since tags arrive
+ * in handfuls). A refusal keeps the name and says so: the sidebar's form
+ * used to close at once and swallow it.
+ */
+export function useNewTagForm({
+  tags,
+  onExisting,
+  onMade,
+}: {
+  tags: readonly Tag[]
+  onExisting: (tag: Tag) => void
+  onMade?: () => void
+}): NewTagForm {
+  const createTag = useCreateTag()
+  const artistNudge = useArtistNudge()
+  const [name, setNameState] = useState('')
+  // A colour picked for the new tag; left alone, the name chooses one.
+  const [picked, setPicked] = useState<number | undefined>(undefined)
+  const trimmed = name.trim()
+  const autoHue = autoTagHue(trimmed)
+
+  const make = async (wanted: string): Promise<void> => {
+    const tag = { name: wanted, ...(picked === undefined ? {} : { hue: picked }) }
+    if (!(await createTag.mutateAsync(tag).catch(() => null))) return
+    setNameState('')
+    setPicked(undefined)
+    onMade?.()
+  }
+
+  return {
+    name,
+    setName: text => {
+      setNameState(text)
+      createTag.reset()
+    },
+    hue: picked ?? autoHue,
+    autoHue,
+    setHue: setPicked,
+    ready: trimmed.length > 0,
+    busy: createTag.isPending,
+    failed: createTag.isError,
+    submit: () => {
+      if (!trimmed) return
+      const already = existingTag(tags, trimmed)
+      if (already) {
+        setNameState('')
+        setPicked(undefined)
+        onExisting(already)
+        return
+      }
+      artistNudge.check(trimmed, () => void make(trimmed))
+    },
+    nudge: artistNudge.nudge,
+  }
+}
+
+/**
+ * A new tag's name: a `TextField` that stops where the server would refuse
+ * (`TAG_NAME_MAX`) and makes the tag on Enter while keeping the field, as
+ * tags arrive in handfuls.
+ */
+export function TagNameField({
+  form,
+  ...field
+}: { form: NewTagForm } & Pick<
+  TextInputProps,
+  'placeholder' | 'autoFocus' | 'onBlur' | 'testID'
+> & {
+    action?: ReactNode
+    size?: 'regular' | 'small'
+  }): ReactNode {
+  return (
+    <TextField
+      {...field}
+      value={form.name}
+      onChangeText={form.setName}
+      onSubmitEditing={form.submit}
+      maxLength={TAG_NAME_MAX}
+      autoCapitalize="none"
+      // Enter makes the tag and stays in the field: dismissing the keyboard
+      // after each one costs a tap to get it back.
+      submitBehavior="submit"
+      returnKeyType="done"
+      accessibilityLabel="New tag name"
+    />
+  )
+}

@@ -1,7 +1,7 @@
 import { useOpenSearch } from '../../shell/palette'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Pressable, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import type { GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
@@ -12,7 +12,6 @@ import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { HIT_TARGET, isDownloaded, leading, radius, space, type } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayerCommands } from '../../player/PlayerProvider'
-import { useAccent } from '../../ui/accent'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { Downloaded, Play, Plus, Shuffle, SortLines } from '../../ui/components/Icons'
@@ -44,7 +43,9 @@ import { tagLink } from '../tag/placeLinks'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { usePullToRefresh } from './usePullToRefresh'
 import { useSongTagLookup } from '../../ui/songTags'
-import { label, PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageTitle } from '../../ui/surfaces'
+import { label, pageFrame } from '../../ui/surfaces'
+import { PageHeader } from '../../ui/components/PageHeader'
+import { PageLoading } from '../../ui/components/PageLoading'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
 import { ScrollView } from '../../ui/components/Scroll'
 
@@ -60,7 +61,6 @@ import { ScrollView } from '../../ui/components/Scroll'
 export function LibraryScreen(): ReactNode {
   const { fromCloud } = useConnection()
   const { theme } = useUnistyles()
-  const accent = useAccent()
   const { wide, dense, finePointer } = useLayout()
   // One row needs about 600 points once Shuffle is an icon: title, search, order
   // and shuffle, the search giving up width first. An iPad's column beside the
@@ -313,22 +313,27 @@ export function LibraryScreen(): ReactNode {
           The tags picked to narrow it are the strip below, not the title: a
           tag you want as a place has its own page now.
         */}
-        <View style={headWide ? styles.titlesWide : wide ? undefined : styles.phoneTitles}>
-          <View style={wide ? undefined : styles.phoneTitleRow}>
-            <Text
-              style={[styles.heading, !wide && styles.phoneHeading]}
-              numberOfLines={1}
-              accessibilityRole="header"
-            >
-              Library
-            </Text>
-            {/*
-            A phone's order, as a round button beside the title (docs/ui-mock
-            `P12`); a computer has it in its head row. No button for choosing:
-            holding a row starts it, everywhere (Xiao, 2026-09-20).
-          */}
-            {wide ? null : (
-              <View style={styles.phoneTools}>
+        <PageHeader
+          title="Library"
+          subtitle={
+            <>
+              {model.subtitle}
+              {installed && !model.loading
+                ? ` · ${hereCount} on this ${deviceWord({ wide, finePointer })}`
+                : ''}
+              {model.matchNote ? (
+                <Text testID="library-match-note"> · {model.matchNote}</Text>
+              ) : null}
+            </>
+          }
+          subtitleTestID="library-subline"
+          style={headWide ? styles.titlesWide : undefined}
+          actions={
+            // A phone's order, as a round button beside the title (docs/ui-mock
+            // `P12`); a computer has it in its head row. No button for
+            // choosing: holding a row starts it, everywhere (Xiao, 2026-09-20).
+            wide ? undefined : (
+              <>
                 <IconButton
                   label="Sort"
                   filled
@@ -350,23 +355,10 @@ export function LibraryScreen(): ReactNode {
                     <Shuffle size={16} color={theme.colors.textPrimary} />
                   </IconButton>
                 )}
-              </View>
-            )}
-          </View>
-          <View style={styles.subRow}>
-            <Text style={styles.sub} testID="library-subline">
-              {model.subtitle}
-              {installed && !model.loading
-                ? ` · ${hereCount} on this ${deviceWord({ wide, finePointer })}`
-                : ''}
-            </Text>
-            {model.matchNote ? (
-              <Text style={styles.sub} testID="library-match-note">
-                · {model.matchNote}
-              </Text>
-            ) : null}
-          </View>
-        </View>
+              </>
+            )
+          }
+        />
 
         {/*
           A phone's library keeps Shuffle with its tools in the title row — a
@@ -624,7 +616,7 @@ export function LibraryScreen(): ReactNode {
         />
 
         {model.loading ? (
-          <ActivityIndicator style={styles.spinner} color={accent.accent} />
+          <PageLoading />
         ) : (
           <SongList
             arrivalKey={arrivalKey}
@@ -663,7 +655,6 @@ const HEAD_ROW_WIDTH = 600
 const SHUFFLE_LABEL_WIDTH = 760
 
 const styles = StyleSheet.create(theme => ({
-  subRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 },
   /* Play first, the white round one: it is what picking tags was for. */
   phoneTransport: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   chooser: { paddingHorizontal: space.gutter },
@@ -671,29 +662,15 @@ const styles = StyleSheet.create(theme => ({
     flex: 1,
     backgroundColor: theme.colors.surface0,
   },
-  head: {
-    paddingHorizontal: space.gutter,
-    paddingTop: PAGE_TOP_PHONE,
-    gap: space.md,
-  },
-  // Where every page's title sits on a computer (`PAGE_TOP_WIDE`).
-  headGutterWide: { paddingHorizontal: space.gutterWide, paddingTop: PAGE_TOP_WIDE },
+  head: { ...pageFrame(false), gap: space.md },
+  // Where every page's title sits on a computer.
+  headGutterWide: pageFrame(true),
   gutterWide: { paddingHorizontal: space.gutterWide },
-  heading: pageTitle(theme.colors),
-  phoneTitles: { alignSelf: 'stretch' },
-  phoneTitleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  phoneHeading: { flex: 1 },
-  phoneTools: { flexDirection: 'row', gap: space.sm },
   orderLabel: {
     ...label(theme.colors),
     paddingHorizontal: space.gutter,
     paddingTop: space.sm,
     paddingBottom: 2,
-  },
-  sub: {
-    color: theme.colors.textMuted,
-    fontSize: type.sub,
-    marginTop: 3,
   },
   headWide: {
     flexDirection: 'row',
@@ -795,8 +772,5 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 7,
-  },
-  spinner: {
-    marginTop: space.xl,
   },
 }))

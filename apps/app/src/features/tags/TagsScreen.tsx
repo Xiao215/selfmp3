@@ -1,32 +1,20 @@
 import { useEffect, useCallback, memo, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, TextInput, View, type LayoutChangeEvent } from 'react-native'
+import { Animated, Pressable, Text, View, type LayoutChangeEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
-import {
-  fonts,
-  HIT_TARGET,
-  leading,
-  radius,
-  space,
-  tagColors,
-  type,
-  useCreateTag,
-  useLibrary,
-} from '@selfmp3/client'
+import { type Tag } from '@selfmp3/shared'
+import { fonts, leading, radius, space, tagColors, type, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { tabbing } from '../../shell/FocusStyle'
 import { useOpenSearch } from '../../shell/palette'
 import { useLayout } from '../../shell/useLayout'
-import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import {
-  ChevronLeft,
   ChevronRight,
   More,
   Plus,
@@ -36,29 +24,21 @@ import {
   X,
 } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { HueSwatches, autoTagHue } from '../../ui/components/HueSwatches'
+import { HueSwatches } from '../../ui/components/HueSwatches'
 import { TagEditor } from '../../ui/components/TagEditor'
 import { useFade, usePressScale } from '../../ui/motion'
 import { MOVE_MS } from '../../ui/motion.model'
-import {
-  card,
-  label,
-  PAGE_TOP_PHONE,
-  PAGE_TOP_WIDE,
-  pageTitle,
-  TITLE_UNDER_BACK,
-} from '../../ui/surfaces'
+import { card, label, pageFrame } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { noteTagUsed } from '../library/recentTags.store'
 import { artistLink, tagLink } from '../tag/placeLinks'
 import {
-  existingTag,
+  noTagsLine,
   tagLine,
   tagsMostPlayed,
   untaggedCardTitle,
   type TagStanding,
 } from '../tag/tag.model'
-import { useArtistNudge } from '../tag/useArtistNudge'
 import { usePlayAndTag } from '../tag/usePlayAndTag'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { SuggestTagsSheet } from '../smart/SuggestTagsSheet'
@@ -71,7 +51,9 @@ import {
   type TagEntry,
   type WaitingArtist,
 } from './tags.model'
-import { usePageBack } from '../../ui/useBackTo'
+import { PageHeader } from '../../ui/components/PageHeader'
+import { StatusLine } from '../../ui/components/StatusLine'
+import { NEW_TAG_FAILED, TagNameField, useNewTagForm } from './useNewTagForm'
 import { ScrollView } from '../../ui/components/Scroll'
 
 /** Tiles at least this wide on a computer, as many as fit; two across on a phone. */
@@ -81,7 +63,6 @@ const GAP = 16
 const ROW_GAP = 24
 /** The page's side margins: a phone's, and a computer's. */
 const NARROW_GUTTER = space.gutter
-const WIDE_GUTTER = space.gutterWide
 /** How many artists the untagged card names on a computer, and on a phone. */
 const WAITING_SHOWN = 3
 const PHONE_WAITING_SHOWN = 2
@@ -176,7 +157,6 @@ export function TagsScreen(): ReactNode {
     : PHONE_COLUMNS
   const tileWidth = measured > 0 ? Math.floor((measured - GAP * (columns - 1)) / columns) : 0
 
-  const page = usePageBack('/')
   // The one Search, on its Tags scope: the page on a phone, the palette over
   // this page on a computer (docs/ui-mock `P18`, `C05`).
   const openSearch = useOpenSearch()
@@ -226,28 +206,12 @@ export function TagsScreen(): ReactNode {
       <ScrollView
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
       >
-        {/* The way back and the page's buttons on one line, the name under it
-            on the left (J1); with no way back the name leads that line. */}
-        <View style={styles.heads}>
-          {page.shown ? (
-            <View style={styles.header}>
-              <IconButton label="Back" filled onPress={page.back} testID="tags-back">
-                <ChevronLeft size={18} tone="textPrimary" />
-              </IconButton>
-              <View style={styles.headerFill} />
-              {actions}
-            </View>
-          ) : null}
-          <View style={styles.header}>
-            <View style={styles.titles}>
-              <Text style={styles.heading} accessibilityRole="header">
-                Tags
-              </Text>
-              {library ? <Text style={styles.sub}>{tagsHeadline(tags.length)}</Text> : null}
-            </View>
-            {page.shown ? null : actions}
-          </View>
-        </View>
+        <PageHeader
+          title="Tags"
+          subtitle={library ? tagsHeadline(tags.length) : undefined}
+          back={{ to: '/', testID: 'tags-back' }}
+          actions={actions}
+        />
 
         {adding ? (
           <NewTag
@@ -277,9 +241,7 @@ export function TagsScreen(): ReactNode {
         {!library ? (
           <Text style={styles.hint}>Tags load with your library.</Text>
         ) : standings.length === 0 ? (
-          <Text style={styles.hint}>
-            No tags yet. Make one with the +, or from any song’s ⋯ › Tags.
-          </Text>
+          <Text style={styles.hint}>No tags yet. {noTagsLine(finePointer)}</Text>
         ) : (
           <View
             style={styles.runs}
@@ -330,48 +292,16 @@ function NewTag({
   onClose: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  const accent = useAccent()
-  const createTag = useCreateTag()
-  const nudge = useArtistNudge()
-  const [name, setName] = useState('')
-  // A colour picked for the new tag; left alone, the name chooses one.
-  const [hue, setHue] = useState<number | undefined>(undefined)
-  const [focused, setFocused] = useState(false)
-  const trimmed = name.trim()
-  const autoHue = autoTagHue(trimmed)
-
-  const make = async (wanted: string): Promise<void> => {
-    const tag = { name: wanted, ...(hue === undefined ? {} : { hue }) }
-    if (!(await createTag.mutateAsync(tag).catch(() => null))) return
-    // The field stays open and empty: tags arrive in handfuls, and a second
-    // one should not cost another trip to the +. The colour goes too: the
-    // next tag is its own, not a twin of this one.
-    setName('')
-    setHue(undefined)
-  }
-
-  const submit = (): void => {
-    if (!trimmed) return
-    const already = existingTag(tags, trimmed)
-    if (already) {
-      setName('')
-      onExisting(already)
-      return
-    }
-    nudge.check(trimmed, () => void make(trimmed))
-  }
-
-  const close = (): void => {
-    createTag.reset()
-    onClose()
-  }
+  // The field stays open and empty once a tag is made: tags arrive in
+  // handfuls, and a second one should not cost another trip to the +.
+  const form = useNewTagForm({ tags, onExisting })
 
   return (
     <View style={styles.newCard} testID="tags-new-form">
       <View style={styles.newHeadRow}>
         <Text style={styles.fieldLabel}>New tag</Text>
         <Pressable
-          onPress={close}
+          onPress={onClose}
           hitSlop={10}
           accessibilityRole="button"
           accessibilityLabel="Close new tag"
@@ -379,52 +309,34 @@ function NewTag({
           <X size={14} color={theme.colors.textMuted} />
         </Pressable>
       </View>
-      <View style={styles.newRow}>
-        <TextInput
-          style={[styles.input, focused && { borderColor: accent.accent }]}
-          value={name}
-          onChangeText={text => {
-            setName(text)
-            createTag.reset()
-          }}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          onSubmitEditing={submit}
-          placeholder="chill, 中文, gym…"
-          placeholderTextColor={theme.colors.textMuted}
-          autoFocus
-          autoCapitalize="none"
-          autoCorrect={false}
-          // Enter makes the tag and stays in the field: tags arrive in
-          // handfuls, and dismissing the keyboard after each one costs a tap
-          // to get it back.
-          submitBehavior="submit"
-          returnKeyType="done"
-          maxLength={TAG_NAME_MAX}
-          accessibilityLabel="New tag name"
-          testID="tags-new-name"
-        />
-        <Button
-          label="Create"
-          variant="primary"
-          disabled={trimmed.length === 0}
-          busy={createTag.isPending}
-          onPress={submit}
-          testID="tags-create"
-        />
-      </View>
+      <TagNameField
+        form={form}
+        placeholder="chill, 中文, gym…"
+        autoFocus
+        testID="tags-new-name"
+        action={
+          <Button
+            label="Create"
+            variant="primary"
+            disabled={!form.ready}
+            busy={form.busy}
+            onPress={form.submit}
+            testID="tags-create"
+          />
+        }
+      />
       <View style={styles.newColour}>
         <Text style={styles.fieldLabel}>Colour</Text>
-        <HueSwatches value={hue ?? autoHue} first={autoHue} onChange={setHue} />
+        <HueSwatches value={form.hue} first={form.autoHue} onChange={form.setHue} />
       </View>
-      {createTag.isError ? (
-        <Text style={styles.error}>Couldn’t make that tag. Try a different name.</Text>
+      {form.failed ? (
+        <StatusLine>{NEW_TAG_FAILED}</StatusLine>
       ) : (
         <Text style={styles.newHint}>
           A tag is a word or two. Put it on songs from a song’s ⋯, or while one is playing.
         </Text>
       )}
-      {nudge.nudge}
+      {form.nudge}
     </View>
   )
 }
@@ -839,38 +751,14 @@ const COMPACT_PANEL = 200
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { gap: space.lg },
-  contentNarrow: { paddingTop: PAGE_TOP_PHONE, paddingHorizontal: NARROW_GUTTER },
-  contentWide: { paddingTop: PAGE_TOP_WIDE, paddingHorizontal: WIDE_GUTTER, width: '100%' },
-  heads: { gap: TITLE_UNDER_BACK },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerFill: { flex: 1 },
-  titles: { flex: 1, minWidth: 0, gap: 2 },
-  heading: pageTitle(theme.colors),
-  sub: { color: theme.colors.textSecondary, fontSize: type.sub },
+  contentNarrow: pageFrame(false),
+  contentWide: { ...pageFrame(true), width: '100%' },
   hint: { color: theme.colors.textMuted, fontSize: type.sub, lineHeight: leading.sub },
   newCard: { gap: space.sm, padding: space.md, ...card(theme.colors) },
   newHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   fieldLabel: label(theme.colors),
-  newRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   newColour: { gap: 6 },
   newHint: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
-  error: { color: theme.colors.danger, fontSize: type.small },
-  input: {
-    flex: 1,
-    minWidth: 0,
-    minHeight: HIT_TARGET,
-    paddingHorizontal: space.md,
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    // A control on a card, one step up from it. The edge is there only to
-    // carry the focus ring: at rest it is the fill's own colour, so nothing
-    // outlines the field until it has focus.
-    backgroundColor: theme.colors.surface2,
-    borderWidth: 1,
-    borderColor: theme.colors.surface2,
-    borderRadius: radius.pill,
-    _web: { outlineStyle: 'none' },
-  },
   untagged: {
     flexDirection: 'row',
     alignItems: 'center',

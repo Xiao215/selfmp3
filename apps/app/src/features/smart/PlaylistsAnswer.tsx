@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQueryClient } from '@tanstack/react-query'
 import { plural, type AskAnswer, type Playlist } from '@selfmp3/shared'
@@ -16,10 +16,11 @@ import {
   useLibrary,
 } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
-import { Checkbox } from '../../ui/components/Checkbox'
+import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { showToast } from '../../ui/toast'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { FOLLOWS_LABEL, isLive, newPlaylist } from '../playlists/playlists.model'
+import { StatusLine } from '../../ui/components/StatusLine'
 
 /** A playlist as it was, so a delete can be undone: its songs in their order, its rules. */
 interface Kept {
@@ -188,17 +189,16 @@ export function PlaylistsAnswer({
             {row}
           </View>
         ) : (
-          <Pressable
+          <CheckRow
             key={playlist.id}
+            checked={on}
+            label={playlist.name}
             onPress={() => toggle(playlist.id)}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: on }}
-            accessibilityLabel={playlist.name}
             style={({ pressed }) => [styles.row, pressed && styles.pressed]}
           >
             {row}
             <Checkbox checked={on} />
-          </Pressable>
+          </CheckRow>
         )
       })}
       {answer.unknown.length > 0 ? (
@@ -206,7 +206,7 @@ export function PlaylistsAnswer({
           No playlist here is called {answer.unknown.map(name => `“${name}”`).join(' or ')}.
         </Text>
       ) : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <StatusLine>{error}</StatusLine> : null}
       <View style={styles.actions}>
         <Button label="Cancel" onPress={onDone} />
         {renaming ? (
@@ -255,6 +255,5 @@ const styles = StyleSheet.create(theme => ({
   arrow: { color: theme.colors.textMuted },
   meta: { color: theme.colors.textMuted, fontSize: type.small },
   note: { color: theme.colors.textMuted, fontSize: type.small },
-  error: { color: theme.colors.danger, fontSize: type.sub },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
 }))

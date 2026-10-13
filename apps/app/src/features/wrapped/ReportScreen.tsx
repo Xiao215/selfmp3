@@ -4,15 +4,7 @@ import { ActivityIndicator, Image, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import type { WrappedRange } from '@selfmp3/shared'
-import {
-  failureText,
-  leading,
-  space,
-  type,
-  useLibrary,
-  withAlpha,
-  type ServerConnection,
-} from '@selfmp3/client'
+import { failureText, type, useLibrary, withAlpha, type ServerConnection } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
@@ -22,15 +14,18 @@ import { canSaveLook, saveLook } from '../../ports/saveLook'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
-import { useBackTo, usePageBack } from '../../ui/useBackTo'
+import { useBackTo } from '../../ui/useBackTo'
 import { BackButton } from '../../ui/components/BackButton'
+import { EmptyState } from '../../ui/components/EmptyState'
+import { PageLoading } from '../../ui/components/PageLoading'
+import { NoticeCard } from '../../ui/components/NoticeCard'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { Download, Play } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Segmented } from '../../ui/components/Segmented'
 import { Select } from '../../ui/components/Select'
-import { card, floating, sectionTitle } from '../../ui/surfaces'
+import { floating, pageFrame } from '../../ui/surfaces'
 import { WrittenReport } from '../smart/WrittenReport'
 import { useStatsFor, useStatsSongs, useWrappedFor } from '../stats/statsSource'
 import { LOOK_VIEWS } from './looks'
@@ -189,45 +184,35 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
     </ReportFrame>
   )
 
-  if (isLoading && !wrapped) return shell(<Text style={styles.hint}>Working it out…</Text>)
+  if (isLoading && !wrapped) return shell(<PageLoading line="Working it out…" />)
 
   if (!wrapped) {
     return shell(
-      <View style={styles.empty}>
-        <Text style={styles.emptyTitle}>The report needs your library</Text>
-        <Text style={[styles.hint, styles.center]}>
-          It’ll be here when your library is reachable again.
-        </Text>
-      </View>,
+      <EmptyState
+        title="The report needs your library"
+        line="It’ll be here when your library is reachable again."
+      />,
     )
   }
 
   if (wrapped.totals.plays === 0) {
     return shell(
-      <View style={styles.empty}>
-        <Text style={styles.emptyTitle}>{emptyTitle(frame.range)}</Text>
-        <Text style={[styles.hint, styles.center]}>{emptyHint(frame.range)}</Text>
-        <View style={styles.emptyActions}>
-          {longerRanges(frame.range).map(option => (
-            <Button key={option} label={tryLabel(option)} onPress={() => frame.onRange(option)} />
-          ))}
-          <Button
-            label="Go to the library"
-            icon={<Play size={15} color={theme.colors.textPrimary} />}
-            onPress={() => backTo('/library')}
-          />
-        </View>
-      </View>,
+      <EmptyState title={emptyTitle(frame.range)} line={emptyHint(frame.range)}>
+        {longerRanges(frame.range).map(option => (
+          <Button key={option} label={tryLabel(option)} onPress={() => frame.onRange(option)} />
+        ))}
+        <Button
+          label="Go to the library"
+          icon={<Play size={15} color={theme.colors.textPrimary} />}
+          onPress={() => backTo('/library')}
+        />
+      </EmptyState>,
     )
   }
 
   return shell(
     <>
-      {shareError ? (
-        <View style={styles.notice} accessibilityRole="alert">
-          <Text style={styles.noticeText}>{shareError}</Text>
-        </View>
-      ) : null}
+      {shareError ? <NoticeCard tone="error">{shareError}</NoticeCard> : null}
       <LookStage
         pageRef={page}
         look={frame.look}
@@ -263,7 +248,6 @@ function ReportFrame({
   const { theme } = useUnistyles()
   const { wide } = useLayout()
   const accent = useAccent()
-  const page = usePageBack('/stats')
   const picker = (
     <LookPicker
       looks={looksFor(wide)}
@@ -278,6 +262,9 @@ function ReportFrame({
     return (
       <SafeAreaView style={styles.screen} edges={['top']}>
         <ScrollView contentContainerStyle={styles.contentWide} testID="report-screen">
+          {/* Back to wherever the Report was opened from (J1): Stats, or Home's
+              week; above the bar, where every page's way back is. */}
+          <BackButton to="/stats" testID="report-back" />
           <View style={styles.bar}>
             {picker}
             <View style={styles.barEnd}>
@@ -291,10 +278,6 @@ function ReportFrame({
                 }))}
               />
               {share}
-              {/* Back to wherever the Report was opened from (J1): Stats, or Home's week. */}
-              {page.shown ? (
-                <Button variant="text" label="Back" onPress={page.back} testID="report-back" />
-              ) : null}
             </View>
           </View>
           {children}
@@ -480,8 +463,8 @@ const styles = StyleSheet.create(theme => ({
     bottom: -60,
     opacity: 0.8,
   },
-  contentWide: { paddingTop: 28, paddingHorizontal: space.gutterWide, paddingBottom: 48, gap: 20 },
-  contentNarrow: { paddingTop: 8, paddingHorizontal: space.gutter, paddingBottom: 28, gap: 16 },
+  contentWide: { ...pageFrame(true), paddingBottom: 48, gap: 20 },
+  contentNarrow: { ...pageFrame(false), paddingBottom: 28, gap: 16 },
   bar: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -520,18 +503,4 @@ const styles = StyleSheet.create(theme => ({
   swatchArt: { width: '100%', height: '100%' },
   pickLabel: { fontSize: type.tiny, fontWeight: '600', color: theme.colors.textSecondary },
   pickLabelActive: { color: theme.colors.textPrimary },
-  hint: { color: theme.colors.textMuted, fontSize: type.sub, lineHeight: leading.sub },
-  center: { textAlign: 'center', maxWidth: 420 },
-  empty: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emptyTitle: sectionTitle(theme.colors),
-  emptyActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 10,
-    marginTop: 8,
-  },
-  // A card, with the danger in its ink rather than an edge.
-  notice: { ...card(theme.colors), paddingVertical: 10, paddingHorizontal: 14 },
-  noticeText: { color: theme.colors.danger, fontSize: type.sub },
 }))

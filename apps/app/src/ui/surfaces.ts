@@ -1,4 +1,4 @@
-import { fonts, labelTracking, radius, type, type ThemePalette } from '@selfmp3/client'
+import { fonts, labelTracking, radius, space, type, type ThemePalette } from '@selfmp3/client'
 
 /**
  * The few shapes every screen repeats, from docs/ui-mock `S2`, so a card or a
@@ -53,6 +53,21 @@ export const PAGE_TOP_WIDE = 40
  */
 export const PAGE_TOP_PHONE = 6
 export const TITLE_UNDER_BACK = 12
+
+const FRAME_WIDE = { paddingTop: PAGE_TOP_WIDE, paddingHorizontal: space.gutterWide } as const
+const FRAME_PHONE = { paddingTop: PAGE_TOP_PHONE, paddingHorizontal: space.gutter } as const
+
+/**
+ * A page's top and sides: where its first row starts and how far in its
+ * content sits, on a computer or a phone. Each page wrote these four numbers
+ * itself and they drifted — 4, 16, 18 and 40 under a phone's status bar, 16
+ * and 44 at the sides — so the title jumped as the tabs switched. The same
+ * two objects every time, so it can sit in a style array without a new
+ * object each render.
+ */
+export function pageFrame(wide: boolean): typeof FRAME_WIDE | typeof FRAME_PHONE {
+  return wide ? FRAME_WIDE : FRAME_PHONE
+}
 
 /** A page's title: the display face at 30, on a phone and a computer alike. */
 export function pageTitle(colors: ThemePalette) {

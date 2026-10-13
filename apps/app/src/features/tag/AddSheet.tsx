@@ -9,7 +9,7 @@ import { songsById } from '../../ui/songsById'
 import { ArtistFace } from './ArtistFace'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
-import { Checkbox } from '../../ui/components/Checkbox'
+import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { Chip } from '../../ui/components/Chip'
 import { User } from '../../ui/components/Icons'
 import { Segmented } from '../../ui/components/Segmented'
@@ -100,12 +100,10 @@ function AddSheetBody({
     const place = item.place
     const on = onKeys.has(placeKey(place))
     return (
-      <Pressable
+      <CheckRow
+        checked={on}
         onPress={() => setDraft(current => togglePlace(current, place))}
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: on }}
-        aria-checked={on}
-        accessibilityLabel={`${placeName(place)}, ${plural(placeSize(place), 'song', 'songs')}`}
+        label={`${placeName(place)}, ${plural(placeSize(place), 'song', 'songs')}`}
         style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       >
         {place.kind === 'tag' ? (
@@ -124,7 +122,7 @@ function AddSheetBody({
         </Text>
         <Text style={styles.size}>{placeSize(place)}</Text>
         <Checkbox checked={on} />
-      </Pressable>
+      </CheckRow>
     )
   }
 

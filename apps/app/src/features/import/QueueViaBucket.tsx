@@ -1,18 +1,13 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Text, TextInput, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import {
-  failureText,
-  leading,
-  radius,
-  type,
-  useLibrary,
-  useRequestCloudImport,
-} from '@selfmp3/client'
+import { View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
+import { failureText, useLibrary, useRequestCloudImport, space } from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
-import { card, sectionTitle } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
+import { NoticeCard, NoticeText } from '../../ui/components/NoticeCard'
+import { StatusLine } from '../../ui/components/StatusLine'
+import { TextField } from '../../ui/components/TextField'
 import { CloudUpload } from '../../ui/components/Icons'
 import { TagChooser } from '../../ui/components/TagChooser'
 
@@ -35,7 +30,6 @@ import { TagChooser } from '../../ui/components/TagChooser'
  * link holds, or play it first, because only the server can read it at all.
  */
 export function QueueViaBucket(): ReactNode {
-  const { theme } = useUnistyles()
   const accent = useAccent()
   const { data: library } = useLibrary()
   const queue = useRequestCloudImport()
@@ -66,26 +60,34 @@ export function QueueViaBucket(): ReactNode {
   }
 
   return (
-    <View style={styles.card} testID="import-queue-via-bucket">
-      <Text style={styles.title} accessibilityRole="header">
-        Add it anyway
-      </Text>
-      <Text style={styles.body}>
+    <NoticeCard
+      title="Add it anyway"
+      style={styles.card}
+      testID="import-queue-via-bucket"
+      actions={
+        <Button
+          label={queue.isPending ? 'Adding…' : 'Add for later'}
+          icon={<CloudUpload size={13} color={accent.onAccent} />}
+          variant="primary"
+          disabled={!ready}
+          onPress={submit}
+          testID="queue-submit"
+        />
+      }
+    >
+      <NoticeText>
         Leave the link here and your library’s computer downloads it the next time it’s on. It shows
         up in your library soon after.
-      </Text>
+      </NoticeText>
 
-      <TextInput
-        style={styles.input}
+      <TextField
         value={url}
         onChangeText={text => {
           setUrl(text)
           setAdded(false)
         }}
         placeholder="Paste a link"
-        placeholderTextColor={theme.colors.textMuted}
         autoCapitalize="none"
-        autoCorrect={false}
         inputMode="url"
         onSubmitEditing={submit}
         accessibilityLabel="Link to import"
@@ -99,48 +101,19 @@ export function QueueViaBucket(): ReactNode {
       ) : null}
 
       {queue.isError ? (
-        <Text style={styles.error}>{failureText('That could not be added', queue.error)}</Text>
+        <StatusLine>{failureText('That could not be added', queue.error)}</StatusLine>
       ) : null}
       {added ? (
-        <Text style={styles.good} accessibilityLiveRegion="polite" testID="queue-added">
+        <StatusLine tone="good" testID="queue-added">
           Added. It waits in your library’s pending imports until that computer is on.
-        </Text>
+        </StatusLine>
       ) : null}
-
-      <View style={styles.actions}>
-        <Button
-          label={queue.isPending ? 'Adding…' : 'Add for later'}
-          icon={<CloudUpload size={13} color={accent.onAccent} />}
-          variant="primary"
-          disabled={!ready}
-          onPress={submit}
-          testID="queue-submit"
-        />
-      </View>
-    </View>
+    </NoticeCard>
   )
 }
 
-const styles = StyleSheet.create(theme => ({
-  card: {
-    ...card(theme.colors),
-    marginTop: 16,
-    padding: 18,
-    gap: 10,
-  },
-  title: sectionTitle(theme.colors),
-  body: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
-  // A control on the card: one step up from it, a pill, no edge.
-  input: {
-    backgroundColor: theme.colors.surface2,
-    borderRadius: radius.pill,
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
+const styles = StyleSheet.create(() => ({
+  // Under the away notice, apart from it as the page's blocks are.
+  card: { marginTop: space.lg },
   field: { marginTop: 2 },
-  error: { color: theme.colors.danger, fontSize: type.sub },
-  good: { color: theme.colors.good, fontSize: type.sub },
-  actions: { flexDirection: 'row', marginTop: 4 },
 }))

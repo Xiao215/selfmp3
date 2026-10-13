@@ -32,7 +32,6 @@ import {
   reviewFrom,
   searchQuery,
   sharedLinks,
-  space,
   stepFraction,
   timeLeft,
   type,
@@ -41,23 +40,19 @@ import {
 } from '@selfmp3/client'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
-import { BackButton } from '../../ui/components/BackButton'
-import {
-  card,
-  label as groupLabel,
-  PAGE_TOP_PHONE,
-  PAGE_TOP_WIDE,
-  pageTitle,
-  TITLE_UNDER_BACK,
-} from '../../ui/surfaces'
+import { PageHeader } from '../../ui/components/PageHeader'
+import { NavRow } from '../../ui/components/NavRow'
+import { ProgressBar } from '../../ui/components/ProgressBar'
+import { NoticeCard, NoticeText } from '../../ui/components/NoticeCard'
+import { card, label as groupLabel, pageFrame } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
-import { Check, ChevronRight, More, Next, Refresh, Search, X } from '../../ui/components/Icons'
+import { Check, More, Next, Refresh, Search, X } from '../../ui/components/Icons'
 import { Popover } from '../../ui/components/Popover'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SheetItem } from '../../ui/components/Sheet'
-import { ease, timing, useFade } from '../../ui/motion'
+import { useFade } from '../../ui/motion'
 import { MOVE_MS } from '../../ui/motion.model'
 import { useRowMotion } from '../../ui/rowMotion'
 import { QueueRing } from './QueueRing'
@@ -300,76 +295,57 @@ export function ImportScreen({
   const notices = (
     <>
       {tools && !tools.ytdlp ? (
-        <View style={styles.notice}>
-          <View style={styles.noticeBody}>
-            <Text style={styles.noticeText}>
-              <Text style={[styles.strong, styles.strongWarn]}>yt-dlp isn’t installed.</Text>{' '}
-              Importing needs it. Install both tools with:
-            </Text>
-            <Text style={styles.code} selectable>
-              brew install yt-dlp ffmpeg
-            </Text>
-          </View>
-          <Button
-            label="Check again"
-            icon={<Refresh size={13} color={theme.colors.textPrimary} />}
-            onPress={() => void refetchTools()}
-          />
-        </View>
+        <NoticeCard
+          tone="warn"
+          title="yt-dlp isn’t installed"
+          actions={
+            <Button
+              label="Check again"
+              icon={<Refresh size={13} color={theme.colors.textPrimary} />}
+              onPress={() => void refetchTools()}
+            />
+          }
+        >
+          <NoticeText>Importing needs it. Install both tools with:</NoticeText>
+          <Text style={styles.code} selectable>
+            brew install yt-dlp ffmpeg
+          </Text>
+        </NoticeCard>
       ) : null}
       {tools?.ytdlp && !tools.ffmpeg ? (
-        <View style={styles.notice}>
-          <Text style={styles.noticeText}>
-            <Text style={styles.strong}>ffmpeg isn’t installed.</Text> Downloads still work, but
-            cover art and tags won’t be embedded. brew install ffmpeg
+        <NoticeCard tone="warn" title="ffmpeg isn’t installed">
+          <NoticeText>Downloads still work, but cover art and tags won’t be embedded.</NoticeText>
+          <Text style={styles.code} selectable>
+            brew install ffmpeg
           </Text>
-        </View>
+        </NoticeCard>
       ) : null}
       {error ? (
-        <View style={[styles.notice, styles.noticeError]} accessibilityRole="alert">
-          <Text style={[styles.noticeText, styles.noticeTextError]}>{error}</Text>
-          <IconButton onPress={() => setError(null)} label="Dismiss">
-            <X size={15} color={theme.colors.textMuted} />
-          </IconButton>
-        </View>
+        <NoticeCard tone="error" onDismiss={() => setError(null)}>
+          {error}
+        </NoticeCard>
       ) : null}
       {/* Songs picked in a search and not imported yet: the search is in the draft, one tap away. */}
       {search && picked > 0 ? (
-        <Pressable
-          style={({ pressed }) => [styles.linkCard, pressed && styles.linkCardPressed]}
-          onPress={() => router.push('/import/search')}
-          accessibilityRole="link"
+        <NavRow
+          card
+          title={`Search · ${search.query}`}
+          hint={`${plural(picked, 'song', 'songs')} picked · not imported yet`}
           accessibilityLabel="Go on picking songs"
+          onPress={() => router.push('/import/search')}
           testID="import-resume-search"
-        >
-          <View style={styles.linkCardText}>
-            <Text style={styles.linkCardTitle} numberOfLines={1}>
-              Search · {search.query}
-            </Text>
-            <Text style={styles.linkCardSub}>
-              {plural(picked, 'song', 'songs')} picked · not imported yet
-            </Text>
-          </View>
-          <ChevronRight size={16} color={theme.colors.textMuted} />
-        </Pressable>
+        />
       ) : null}
       {/* A review left with Back is still in the draft, one tap from where it was. */}
       {review && review.items.length > 0 && !preview.isPending ? (
-        <Pressable
-          style={({ pressed }) => [styles.linkCard, pressed && styles.linkCardPressed]}
-          onPress={() => router.push('/import/review')}
-          accessibilityRole="link"
+        <NavRow
+          card
+          title={reviewName(review)}
+          hint={`${countLabel(review, true)} · not imported yet`}
           accessibilityLabel={`Go on reviewing ${reviewName(review)}`}
+          onPress={() => router.push('/import/review')}
           testID="import-resume-review"
-        >
-          <View style={styles.linkCardText}>
-            <Text style={styles.linkCardTitle} numberOfLines={1}>
-              {reviewName(review)}
-            </Text>
-            <Text style={styles.linkCardSub}>{countLabel(review, true)} · not imported yet</Text>
-          </View>
-          <ChevronRight size={16} color={theme.colors.textMuted} />
-        </Pressable>
+        />
       ) : null}
     </>
   )
@@ -484,14 +460,13 @@ export function ImportScreen({
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentPhone]}
         testID="import-screen"
       >
-        <View style={styles.head}>
-          {/* On a phone Import is a page over Home or Profile, and the ‹ goes
-              back to it (`BackButton`); the name sits under it on the left (J1). */}
-          <BackButton to="/profile" testID="import-back" />
-          <Text style={styles.heading} accessibilityRole="header">
-            Import
-          </Text>
-        </View>
+        {/* On a phone Import is a page over Home or Profile, and the ‹ goes
+            back to it; the name sits under it on the left (J1). */}
+        <PageHeader
+          title="Import"
+          back={{ to: '/profile', testID: 'import-back' }}
+          style={styles.head}
+        />
 
         {wide ? (
           // One column, the page's width, and what arrived under it at the foot
@@ -501,13 +476,10 @@ export function ImportScreen({
             <View style={styles.formColumn}>
               {form}
               {notices}
-              <View style={styles.otherWays}>
-                <Text style={styles.otherTitle}>Other ways in</Text>
-                <Text style={styles.otherBody}>
-                  Share a link from the browser extension, or to self.mp3 from YouTube or 网易云音乐
-                  itself. It lands here.
-                </Text>
-              </View>
+              <NoticeCard title="Other ways in">
+                Share a link from the browser extension, or to self.mp3 from YouTube or 网易云音乐
+                itself. It lands here.
+              </NoticeCard>
             </View>
             {jobs}
           </View>
@@ -622,32 +594,17 @@ function nextLine(pacing: ImportPacing): string {
  * per song sat at 0 % through the wait for its turn and then jumped to full.
  */
 function RunProgress({ run }: { run: ImportRun }): ReactNode {
-  const fraction = run.total > 0 ? run.done / run.total : 0
-  const [drawn] = useState(() => new RNAnimated.Value(fraction))
-  const sent = useRef(fraction)
-  useEffect(() => {
-    if (sent.current === fraction) return
-    sent.current = fraction
-    // A width is no transform: the native driver cannot move it.
-    timing(drawn, fraction, MOVE_MS.ringFill, undefined, { easing: ease.out, native: false })
-  }, [fraction, drawn])
-  const [width] = useState(() =>
-    drawn.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'], extrapolate: 'clamp' }),
-  )
   return (
     <View style={styles.run} testID="import-run">
       <View style={styles.runLine}>
         <Text style={styles.runCount}>{`${run.done} of ${run.total} in`}</Text>
         <Text style={styles.runLeft}>{run.leftMs === null ? 'Paused' : timeLeft(run.leftMs)}</Text>
       </View>
-      <View
-        style={styles.runTrack}
-        accessibilityRole="progressbar"
-        accessibilityLabel="Songs imported"
-        accessibilityValue={{ min: 0, max: run.total, now: run.done }}
-      >
-        <RNAnimated.View style={[styles.runFill, { width }]} />
-      </View>
+      <ProgressBar
+        fraction={run.total > 0 ? run.done / run.total : 0}
+        label="Songs imported"
+        animated
+      />
     </View>
   )
 }
@@ -1045,11 +1002,10 @@ const ON_DANGER = '#fff'
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40 },
-  contentWide: { paddingTop: PAGE_TOP_WIDE, paddingHorizontal: space.gutterWide },
-  contentPhone: { paddingTop: PAGE_TOP_PHONE, paddingHorizontal: space.gutter },
+  contentWide: pageFrame(true),
+  contentPhone: pageFrame(false),
   pressed: { opacity: 0.6 },
-  head: { alignItems: 'flex-start', gap: TITLE_UNDER_BACK, marginBottom: 20 },
-  heading: pageTitle(theme.colors),
+  head: { marginBottom: 20 },
   formColumn: { gap: 22 },
   stack: { gap: 24 },
   form: { gap: 10 },
@@ -1083,9 +1039,6 @@ const styles = StyleSheet.create(theme => ({
   pasted: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   pastedText: { color: theme.colors.good, fontSize: type.small, fontWeight: '600' },
   searchText: { color: theme.colors.accent },
-  strong: { color: theme.colors.textPrimary, fontWeight: '600' },
-  // With no edge around the notice, its first words carry the warning's colour.
-  strongWarn: { color: theme.colors.warning },
   // On the notice's card, so one step up from it.
   code: {
     marginTop: 6,
@@ -1096,40 +1049,6 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
     borderRadius: radius.coverSm,
   },
-  // A notice is a card; a warning or an error is told by its words, not an edge.
-  notice: {
-    ...card(theme.colors),
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  noticeError: { paddingRight: 4 },
-  noticeBody: { flex: 1 },
-  noticeText: {
-    flex: 1,
-    color: theme.colors.textSecondary,
-    fontSize: type.sub,
-    lineHeight: leading.sub,
-  },
-  noticeTextError: { color: theme.colors.danger },
-  linkCard: {
-    ...card(theme.colors),
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  linkCardPressed: { backgroundColor: theme.colors.surface2 },
-  linkCardText: { flex: 1, minWidth: 0, gap: 3 },
-  linkCardTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  linkCardSub: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
-  // `C13`'s card: the other ways a song gets here.
-  otherWays: { ...card(theme.colors), gap: 6, paddingVertical: 16, paddingHorizontal: 18 },
-  otherTitle: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
-  otherBody: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   shareHint: { color: theme.colors.textMuted, fontSize: type.sub, lineHeight: leading.sub },
   jobs: { gap: 6 },
   groupApart: { marginTop: 12 },
@@ -1175,11 +1094,4 @@ const styles = StyleSheet.create(theme => ({
   },
   runCount: { color: theme.colors.textPrimary, fontSize: type.section, fontWeight: '700' },
   runLeft: { color: theme.colors.textSecondary, fontSize: type.sub },
-  runTrack: {
-    height: 5,
-    borderRadius: radius.pill,
-    overflow: 'hidden',
-    backgroundColor: theme.colors.surface2,
-  },
-  runFill: { height: 5, borderRadius: radius.pill, backgroundColor: theme.colors.accent },
 }))

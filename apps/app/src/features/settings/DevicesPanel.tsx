@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Text, TextInput, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { formatRelative, type Device } from '@selfmp3/shared'
+import { formatRelative, type Device, DeviceNameSchema } from '@selfmp3/shared'
 import {
   clientApi,
   deviceGroups,
@@ -30,6 +30,7 @@ import {
 } from '../devices/lastKnownDevices.model'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { prefs } from '../../ports/prefs'
+import { TextField } from '../../ui/components/TextField'
 import { Panel, partStyles, Row } from './SettingsParts'
 import { splitDevices } from './settings.model'
 import { reachedConnection } from '../../connection/via'
@@ -177,10 +178,11 @@ function DevicesList({
   return (
     <Panel title="Devices" hint={hint} anchor={anchor}>
       <Row label="This device’s name" hint="Shown on your other devices.">
-        <TextInput
-          style={partStyles.input}
+        <TextField
+          size="small"
+          style={partStyles.field}
           value={shown}
-          maxLength={60}
+          limit={DeviceNameSchema}
           accessibilityLabel="This device’s name"
           onChangeText={text => setDraft({ text, from: name })}
           onEndEditing={() => {

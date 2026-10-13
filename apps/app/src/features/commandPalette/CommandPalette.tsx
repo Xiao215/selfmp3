@@ -61,6 +61,7 @@ import { EmptyState } from '../../ui/components/EmptyState'
 import { SearchField } from '../../ui/components/SearchField'
 import { SONG_LINE_COVER, SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
+import { Kbd } from '../../ui/components/Kbd'
 
 /** One selectable row: what it is drawn as, what it is read out as, and what Enter does. */
 interface Row {
@@ -617,7 +618,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
                   {caps.map((cap, index) => (
                     <Text key={cap}>
                       {index > 0 ? ' ' : ''}
-                      <Text style={styles.kbd}> {cap} </Text>
+                      <Kbd>{cap}</Kbd>
                     </Text>
                   ))}{' '}
                   {word}
@@ -626,17 +627,16 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
             : null}
           {asking === null || !answerKeys ? (
             <Text style={styles.footText}>
-              <Text style={styles.kbd}> ↑ </Text> <Text style={styles.kbd}> ↓ </Text> move
+              <Kbd>↑</Kbd> <Kbd>↓</Kbd> move
             </Text>
           ) : null}
           {asking === null ? (
             <Text style={styles.footText}>
-              <Text style={styles.kbd}> ↵ </Text> open
+              <Kbd>↵</Kbd> open
             </Text>
           ) : null}
           <Text style={styles.footText}>
-            <Text style={styles.kbd}> esc </Text>{' '}
-            {asking === null ? 'close' : working ? 'stop' : 'back to results'}
+            <Kbd>esc</Kbd> {asking === null ? 'close' : working ? 'stop' : 'back to results'}
           </Text>
         </View>
       ) : null}
@@ -710,10 +710,4 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface0,
   },
   footText: { color: theme.colors.textMuted, fontSize: type.tiny },
-  kbd: {
-    fontSize: type.tiny,
-    color: theme.colors.textPrimary,
-    backgroundColor: theme.colors.surface2,
-    borderRadius: 5,
-  },
 }))

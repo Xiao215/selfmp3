@@ -21,14 +21,14 @@ import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { IconButton } from '../../ui/components/IconButton'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
-import { ChevronLeft, More, Play, Shuffle, Sparkle } from '../../ui/components/Icons'
+import { More, Play, Shuffle, Sparkle } from '../../ui/components/Icons'
+import { BackButton } from '../../ui/components/BackButton'
+import { MissingPage } from '../../ui/components/MissingPage'
 import { OrderedSongList } from '../../ui/components/OrderedSongList'
 import { Popover } from '../../ui/components/Popover'
-import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SheetItem } from '../../ui/components/Sheet'
 import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
 import { showToast } from '../../ui/toast'
-import { serif } from '../../ui/surfaces'
 import { useSongsById } from '../../ui/songsById'
 import { useSongColor } from '../../ui/useSongColor'
 import type { ListSource } from '../lists/lists.model'
@@ -39,7 +39,7 @@ import { changeAnswer, reorderAnswer, useKeptAnswer } from './answers.store'
 import { ChangeIt } from './ChangeIt'
 import { answerSongs, describeNotes, parts } from './smart.model'
 import { useSmartServer } from './useSmartServer'
-import { useGoBack } from '../../ui/useBackTo'
+import { StatusLine } from '../../ui/components/StatusLine'
 
 /**
  * An answer to Ask as a page of its own, `/answer?id=…` (docs/features/lists.md,
@@ -105,21 +105,15 @@ export function AnswerScreen(): ReactNode {
     },
   })
 
-  const back = useGoBack('/search')
-
   if (!kept || !result) {
     return (
-      <SafeAreaView style={styles.screen} edges={['top']}>
-        <View style={styles.gone} testID="answer-gone">
-          <Text style={styles.goneTitle} accessibilityRole="header">
-            This answer is gone
-          </Text>
-          <Text style={styles.goneText}>
-            Answers are kept while the app is open. Ask again and it will pick again.
-          </Text>
-          <Button label="Search" onPress={() => router.replace('/search')} />
-        </View>
-      </SafeAreaView>
+      <MissingPage
+        testID="answer-gone"
+        title="This answer is gone"
+        line="Answers are kept while the app is open. Ask again and it will pick again."
+        back="/search"
+        action={{ label: 'Search', onPress: () => router.replace('/search') }}
+      />
     )
   }
 
@@ -170,9 +164,7 @@ export function AnswerScreen(): ReactNode {
       art={null}
       topBar={
         <>
-          <IconButton label="Back" onPress={back} filled>
-            <ChevronLeft size={20} tone="textPrimary" />
-          </IconButton>
+          <BackButton to="/search" always />
           <View ref={moreRef} collapsable={false}>
             <IconButton
               label="More for this answer"
@@ -228,7 +220,7 @@ export function AnswerScreen(): ReactNode {
             </Text>
           ))}
           {again.error ? (
-            <Text style={styles.error}>{failureText('Couldn’t pick again', again.error)}</Text>
+            <StatusLine>{failureText('Couldn’t pick again', again.error)}</StatusLine>
           ) : null}
         </>
       }
@@ -327,8 +319,4 @@ const styles = StyleSheet.create(theme => ({
   nameLong: { fontSize: type.page, lineHeight: leading.page, letterSpacing: -0.4 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 6 },
   note: { color: theme.colors.textMuted, fontSize: type.small },
-  error: { color: theme.colors.danger, fontSize: type.sub },
-  gone: { padding: 24, gap: 12, alignItems: 'flex-start' },
-  goneTitle: { ...serif(theme.colors, type.page) },
-  goneText: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
 }))

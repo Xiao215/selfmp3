@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { ActivityIndicator, Pressable, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import type { LayoutChangeEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
@@ -17,7 +17,9 @@ import { IconButton } from '../../ui/components/IconButton'
 import { Live, Play, Plus } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Select } from '../../ui/components/Select'
-import { floating, PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageTitle } from '../../ui/surfaces'
+import { floating, pageFrame } from '../../ui/surfaces'
+import { PageHeader } from '../../ui/components/PageHeader'
+import { PageLoading } from '../../ui/components/PageLoading'
 import { CantReach } from '../library/CantReach'
 import { useSharedList } from '../shared/sharedPlaylists'
 import { SharedTile } from '../shared/SharedScreens'
@@ -60,7 +62,6 @@ const SORT_PREF = 'playlists.sort'
  */
 export function PlaylistsScreen(): ReactNode {
   const { theme } = useUnistyles()
-  const accent = useAccent()
   const router = useRouter()
   // The app's own width, not the window's: an iPad in Split View is handed
   // half the screen and told about the whole of it (`shell/rootWidth.ts`).
@@ -104,63 +105,56 @@ export function PlaylistsScreen(): ReactNode {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView contentContainerStyle={[styles.content, wide && styles.contentWide]}>
-        <View style={[styles.head, wide && styles.headWide]}>
-          <View style={[styles.titles, !wide && styles.titlesPhone]}>
-            {/* A phone's New sits beside the name, as Library's buttons do;
-                a computer's goes at the far end with the order. */}
-            <View style={wide ? undefined : styles.phoneTitleRow}>
-              <Text
-                style={[styles.heading, !wide && styles.phoneHeading]}
-                accessibilityRole="header"
-              >
-                Playlists
-              </Text>
-              {wide ? null : (
-                <IconButton
+        <PageHeader
+          title="Playlists"
+          subtitle={
+            model.loading
+              ? 'Loading…'
+              : model.unreachable
+                ? 'Not loaded'
+                : playlists.length === 0
+                  ? 'None of your own yet'
+                  : playlistsSubline(playlists.length, sort)
+          }
+          style={styles.head}
+          actions={
+            // A phone's New sits beside the name, as Library's buttons do; a
+            // computer's goes at the far end with the order.
+            wide ? (
+              <>
+                <Select
+                  size="small"
+                  value={sort}
+                  options={PLAYLIST_SORTS}
+                  onChange={setSort}
+                  label="Sort by"
+                  testID="playlists-sort"
+                />
+                {/* White, as `C07` draws it: `active` is the pill's white. */}
+                <Button
+                  label="New"
+                  icon={<Plus size={15} color={theme.colors.onPrimary} />}
+                  active
                   onPress={() => setNewOpen(true)}
-                  label="New playlist"
-                  filled
-                  active={newOpen}
                   testID="playlists-new"
-                >
-                  <Plus size={20} color={theme.colors.textPrimary} />
-                </IconButton>
-              )}
-            </View>
-            <Text style={styles.sub}>
-              {model.loading
-                ? 'Loading…'
-                : model.unreachable
-                  ? 'Not loaded'
-                  : playlists.length === 0
-                    ? 'None of your own yet'
-                    : playlistsSubline(playlists.length, sort)}
-            </Text>
-          </View>
-          {wide ? (
-            <View style={styles.headActions}>
-              <Select
-                size="small"
-                value={sort}
-                options={PLAYLIST_SORTS}
-                onChange={setSort}
-                label="Sort by"
-                testID="playlists-sort"
-              />
-              {/* White, as `C07` draws it: `active` is the pill's white. */}
-              <Button
-                label="New"
-                icon={<Plus size={15} color={theme.colors.onPrimary} />}
-                active
+                />
+              </>
+            ) : (
+              <IconButton
                 onPress={() => setNewOpen(true)}
+                label="New playlist"
+                filled
+                active={newOpen}
                 testID="playlists-new"
-              />
-            </View>
-          ) : null}
-        </View>
+              >
+                <Plus size={20} color={theme.colors.textPrimary} />
+              </IconButton>
+            )
+          }
+        />
 
         {model.loading ? (
-          <ActivityIndicator style={styles.spinner} color={accent.accent} />
+          <PageLoading />
         ) : model.unreachable ? (
           // Not "nothing of your own yet": nothing is known about them at all.
           <CantReach error={model.failure} onRetry={model.retry} />
@@ -354,24 +348,9 @@ const PlaylistTile = memo(function PlaylistTile({
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  content: { paddingHorizontal: space.gutter, paddingBottom: space.xl },
-  contentWide: { paddingHorizontal: space.gutterWide },
-  head: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: space.md,
-    paddingTop: PAGE_TOP_PHONE,
-    paddingBottom: space.lg,
-  },
-  headWide: { paddingTop: PAGE_TOP_WIDE },
-  titles: { flexShrink: 1, minWidth: 0 },
-  titlesPhone: { flex: 1 },
-  phoneTitleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  phoneHeading: { flex: 1 },
-  heading: pageTitle(theme.colors),
-  sub: { color: theme.colors.textMuted, fontSize: type.sub, marginTop: 3 },
-  headActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  content: { ...pageFrame(false), paddingBottom: space.xl },
+  contentWide: pageFrame(true),
+  head: { paddingBottom: space.lg },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   tile: { width: '100%' },
   newCover: {
@@ -412,5 +391,4 @@ const styles = StyleSheet.create(theme => ({
     ...floating(theme.colors),
   },
   fabPressed: { transform: [{ scale: 0.95 }] },
-  spinner: { marginTop: space.xl },
 }))

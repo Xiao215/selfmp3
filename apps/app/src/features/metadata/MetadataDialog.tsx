@@ -41,11 +41,12 @@ import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { floating, label as groupLabel } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
-import { Checkbox } from '../../ui/components/Checkbox'
+import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
 import { Dialog, DialogHead } from '../../ui/components/Dialog'
 import { Check, Sparkle } from '../../ui/components/Icons'
 import { ScrollView } from '../../ui/components/Scroll'
+import { StatusLine } from '../../ui/components/StatusLine'
 
 /** A source's badge at one hue, as an OKLCH pair: ground, ink. */
 const badgeTone = (hue: number): [string, string] => [
@@ -198,11 +199,7 @@ export function MetadataDialog({
         {lookup.isPending ? <ActivityIndicator size="small" color={accent.accent} /> : null}
       </View>
 
-      {lookup.isError ? (
-        <Text style={[styles.hint, { color: theme.colors.danger }]}>
-          Couldn’t reach the lookup services.
-        </Text>
-      ) : null}
+      {lookup.isError ? <StatusLine>Couldn’t reach the lookup services.</StatusLine> : null}
       {lookup.isSuccess && candidates.length === 0 ? (
         <Text style={styles.hint}>
           Nothing matched on iTunes or MusicBrainz.{' '}
@@ -296,12 +293,11 @@ export function MetadataDialog({
                 </View>
               </View>
               {diffs.map(diff => (
-                <Pressable
+                <CheckRow
                   key={diff.field}
+                  checked={ticked.has(diff.field)}
+                  label={diffLabel(diff, song.hasArt)}
                   onPress={() => toggle(diff.field)}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: ticked.has(diff.field) }}
-                  accessibilityLabel={diffLabel(diff, song.hasArt)}
                   style={({ pressed }) => [
                     styles.diffRow,
                     !wide && styles.diffRowNarrow,
@@ -345,7 +341,7 @@ export function MetadataDialog({
                       </Text>
                     )}
                   </View>
-                </Pressable>
+                </CheckRow>
               ))}
             </>
           )}
@@ -428,7 +424,6 @@ function SuggestedCard({
   onAgain: () => void
   onPick: () => void
 }): ReactNode {
-  const { theme } = useUnistyles()
   const accent = useAccent()
   const answer = state.data
   const sparkle = <Sparkle size={14} color={accent.accent} />
@@ -464,9 +459,7 @@ function SuggestedCard({
           </View>
         </Pressable>
         {state.error ? (
-          <Text style={[styles.hint, { color: theme.colors.danger }]}>
-            {failureText('Couldn’t suggest', state.error)}
-          </Text>
+          <StatusLine>{failureText('Couldn’t suggest', state.error)}</StatusLine>
         ) : null}
       </View>
     )

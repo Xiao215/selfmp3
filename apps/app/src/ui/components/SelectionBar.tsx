@@ -400,16 +400,13 @@ export function SelectionBar({
           testID="selection-bar"
         >
           <View style={styles.anchor}>
-            <Pressable
+            <Checkbox
+              checked={allSelected}
+              mixed={!allSelected && count > 0}
+              onChange={() => (allSelected ? onDeselectAll() : onSelectAll())}
+              label={`${allSelected ? 'Deselect' : 'Select'} all ${total} ${totalWord} ${scope}`}
               style={styles.all}
-              onPress={() => (allSelected ? onDeselectAll() : onSelectAll())}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: allSelected ? true : count > 0 ? 'mixed' : false }}
-              aria-checked={allSelected ? true : count > 0 ? 'mixed' : false}
-              accessibilityLabel={`${allSelected ? 'Deselect' : 'Select'} all ${total} ${totalWord} ${scope}`}
-            >
-              <Checkbox checked={allSelected} mixed={!allSelected && count > 0} />
-            </Pressable>
+            />
             <View style={styles.counts}>
               {countText}
               {allSelected ? (

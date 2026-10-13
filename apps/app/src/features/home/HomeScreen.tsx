@@ -21,6 +21,7 @@ import { useOpenSearch } from '../../shell/palette'
 import { useBottomInset } from '../../shell/bottomInset'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
+import { noTagsLine } from '../tag/tag.model'
 import { Cover } from '../../ui/components/Cover'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { IconButton } from '../../ui/components/IconButton'
@@ -32,7 +33,7 @@ import { useSongColor } from '../../ui/useSongColor'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { session, useArrival, usePressScale } from '../../ui/motion'
 import { handOffPlace } from '../../ui/coverHandoff'
-import { artShadow, card, PAGE_TOP_WIDE, sectionTitle, serif } from '../../ui/surfaces'
+import { artShadow, card, pageFrame, sectionTitle, serif } from '../../ui/surfaces'
 import { tagFromTileLink } from '../tag/placeLinks'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import {
@@ -396,7 +397,7 @@ function Tiles({ tiles, loading }: { tiles: readonly HomeTile[]; loading: boolea
   // The width is the layout's to answer, not something to hand down three
   // components; `artFor` stays a prop on purpose, so the grid keeps one
   // watcher for its covers rather than one per tile.
-  const { wide } = useLayout()
+  const { wide, finePointer } = useLayout()
   const router = useRouter()
   const art = useArt()
   // A tile is a column of the grid however many there are: one tag is half a
@@ -415,7 +416,7 @@ function Tiles({ tiles, loading }: { tiles: readonly HomeTile[]; loading: boolea
         style={styles.emptyTile}
         testID="home-no-tags"
         title="Your tags will live here"
-        line="Hold a song in Library and choose Tags to give it its first one."
+        line={noTagsLine(finePointer)}
       />
     )
   }
@@ -969,8 +970,8 @@ function useTilesRowWidth(wide: boolean): number {
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { gap: 22 },
-  contentNarrow: { paddingHorizontal: GUTTER_NARROW, paddingTop: 4 },
-  contentWide: { paddingHorizontal: GUTTER_WIDE, paddingTop: PAGE_TOP_WIDE },
+  contentNarrow: pageFrame(false),
+  contentWide: pageFrame(true),
   stack: { gap: 10 },
   cardsStacked: { gap: 12 },
   cardsAbreast: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },

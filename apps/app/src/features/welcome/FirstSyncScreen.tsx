@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { fonts, leading, radius, space, type, useLibrary } from '@selfmp3/client'
+import { leading, radius, space, type, useLibrary } from '@selfmp3/client'
 import type { Song } from '@selfmp3/shared'
 import {
   coverFor,
@@ -15,13 +15,10 @@ import {
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useCloudSession } from '../profile/useCloudSession'
 import { useArt } from '../../offline/useArt'
-import { titleBarInset } from '../../ports/titleBarInset'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { Cover } from '../../ui/components/Cover'
-import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Toggle } from '../../ui/components/Toggle'
-import { card, serif } from '../../ui/surfaces'
 import {
   arrival,
   helloLine,
@@ -32,7 +29,8 @@ import {
 } from './firstSync.model'
 import { rememberFirstSyncSeen } from './firstSyncMemory'
 import { WhitePill } from './WhitePill'
-import { ScrollView } from '../../ui/components/Scroll'
+import { ProgressBar } from '../../ui/components/ProgressBar'
+import { OnboardingCard, OnboardingPage } from './OnboardingPage'
 
 /**
  * First sync (docs/ui-mock `P03`, `C02`): the page between the first Google
@@ -118,58 +116,45 @@ export function FirstSyncScreen(): ReactNode {
   const keep = keepEverySongCopy(wide, bytes)
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <ScrollView contentContainerStyle={[styles.page, wide && styles.pageWide]}>
-        <View style={[styles.column, wide && styles.columnWide]}>
-          <View style={styles.hello}>
-            <Text style={[styles.title, wide && styles.titleWide]} accessibilityRole="header">
-              {helloLine(name)}
-              <Text style={styles.titleMark}>.</Text>
+    <OnboardingPage
+      title={helloLine(name)}
+      lead="Your library is on its way. You can start playing while the covers arrive."
+    >
+      <OnboardingCard testID="first-sync-progress">
+        <View style={styles.cardRow}>
+          <Stack songs={withArt} total={songs.length} size={wide ? 48 : 44} />
+          <View style={styles.cardWords}>
+            <Text style={styles.summary} numberOfLines={1}>
+              {now.summary ?? 'Finding your library…'}
             </Text>
-            <Text style={styles.lead}>
-              Your library is on its way. You can start playing while the covers arrive.
-            </Text>
-          </View>
-
-          <View style={[styles.card, wide && styles.cardWide]} testID="first-sync-progress">
-            <View style={styles.cardRow}>
-              <Stack songs={withArt} total={songs.length} size={wide ? 48 : 44} />
-              <View style={styles.cardWords}>
-                <Text style={styles.summary} numberOfLines={1}>
-                  {now.summary ?? 'Finding your library…'}
-                </Text>
-                {now.detail ? <Text style={styles.detail}>{now.detail}</Text> : null}
-              </View>
-            </View>
-            <View style={styles.track}>
-              <View style={[styles.fill, { width: `${Math.round(now.fraction * 100)}%` }]} />
-            </View>
-          </View>
-
-          <View style={styles.keep}>
-            <Toggle
-              testID="first-sync-keep"
-              value={prefs.autoOnWifi}
-              onChange={autoOnWifi => setPrefs({ autoOnWifi })}
-              label={keep.label}
-            />
-            <View style={styles.keepWords}>
-              <Text style={styles.keepLabel}>{keep.label}</Text>
-              <Text style={styles.keepHint}>{keep.hint}</Text>
-            </View>
-          </View>
-
-          <View style={[styles.continue, wide && styles.continueWide]}>
-            <WhitePill
-              testID="first-sync-continue"
-              label="Start listening"
-              width={wide ? 240 : undefined}
-              onPress={() => router.replace('/')}
-            />
+            {now.detail ? <Text style={styles.detail}>{now.detail}</Text> : null}
           </View>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+        <ProgressBar fraction={now.fraction} label="Your library arriving" />
+      </OnboardingCard>
+
+      <View style={styles.keep}>
+        <Toggle
+          testID="first-sync-keep"
+          value={prefs.autoOnWifi}
+          onChange={autoOnWifi => setPrefs({ autoOnWifi })}
+          label={keep.label}
+        />
+        <View style={styles.keepWords}>
+          <Text style={styles.keepLabel}>{keep.label}</Text>
+          <Text style={styles.keepHint}>{keep.hint}</Text>
+        </View>
+      </View>
+
+      <View style={[styles.continue, wide && styles.continueWide]}>
+        <WhitePill
+          testID="first-sync-continue"
+          label="Start listening"
+          width={wide ? 240 : undefined}
+          onPress={() => router.replace('/')}
+        />
+      </View>
+    </OnboardingPage>
   )
 }
 
@@ -213,31 +198,10 @@ function Stack({
 }
 
 const styles = StyleSheet.create(theme => ({
-  screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  page: { flexGrow: 1, paddingHorizontal: 28, paddingTop: 60 + titleBarInset },
-  // On a computer the page is one column in the middle of the window (`C02`).
-  pageWide: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-  column: { flexGrow: 1, gap: 28 },
-  columnWide: { flexGrow: 0, width: 560, maxWidth: '100%' },
-  hello: { gap: space.sm },
-  // A greeting, so the serif: one weight, never bolded.
-  title: { ...serif(theme.colors, type.display), lineHeight: 48, letterSpacing: -0.5 },
-  titleWide: { fontSize: type.display, lineHeight: leading.display, letterSpacing: -0.8 },
-  titleMark: { fontFamily: fonts.serifItalic, color: theme.colors.accent },
-  lead: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
-  card: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14 },
-  cardWide: { padding: 20 },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   cardWords: { flex: 1, minWidth: 0, gap: 2 },
   summary: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   detail: { color: theme.colors.textSecondary, fontSize: type.sub },
-  track: {
-    height: 6,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface2,
-    overflow: 'hidden',
-  },
-  fill: { height: 6, borderRadius: radius.pill, backgroundColor: theme.colors.accent },
   stack: { flexDirection: 'row' },
   stacked: { marginLeft: -18 },
   more: {

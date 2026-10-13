@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { plural, fuzzyRank, type Tag } from '@selfmp3/shared'
 import { chooserTagGroups, HIT_TARGET, space, type, useLibrary } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
+import { noTagsLine } from '../../features/tag/tag.model'
 import { useAccent } from '../accent'
 import { Chip } from './Chip'
 import { card, label as labelText } from '../surfaces'
@@ -73,6 +74,7 @@ function Panel({
   summary?: string
 }): ReactNode {
   const wide = useLayoutValue(layout => layout.wide)
+  const finePointer = useLayoutValue(layout => layout.finePointer)
   const accent = useAccent()
   const [query, setQuery] = useState('')
   const { data: library } = useLibrary()
@@ -144,10 +146,7 @@ function Panel({
             lane(`${matches.length} of ${tags.length}`, matches)
           )
         ) : tags.length === 0 ? (
-          <Text style={styles.hint}>
-            No tags yet. Tags are how you find things later — put one on a song and it turns up
-            here.
-          </Text>
+          <Text style={styles.hint}>No tags yet. {noTagsLine(finePointer)}</Text>
         ) : (
           <>
             {lane(null, mostUsed)}

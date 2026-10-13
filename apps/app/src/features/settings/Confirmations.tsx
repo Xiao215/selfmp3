@@ -2,13 +2,12 @@ import type { ReactNode } from 'react'
 import { useRouter } from 'expo-router'
 import { failureText, useStartAnalysis } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
-import { library as cloudLibrary, session as cloudSession } from '../../replica'
+import { session as cloudSession } from '../../replica'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { STORAGE_ROUTE } from '../welcome/storage.model'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { showToast } from '../../ui/toast'
-import { signOutWarning } from './signOut'
-import { useSignOut } from './useSignOut'
+import { SignOutDialog } from './SignOutDialog'
 import { devicePlace, type Confirming } from './settings.model'
 import { deviceKind } from '../../ports/device'
 
@@ -23,11 +22,10 @@ export function Confirmations({
   const { storageForgotten } = useConnection()
   const { removeAll } = useDownloads()
   const startAnalysis = useStartAnalysis()
-  const signOut = useSignOut()
   const place = devicePlace(deviceKind())
 
   const dialogs: Record<
-    Exclude<Confirming, null>,
+    Exclude<Confirming, 'sign-out' | null>,
     { title: string; body: string; label: string; run: () => void }
   > = {
     'remove-downloads': {
@@ -41,15 +39,6 @@ export function Confirmations({
       body: 'Tempo, key, energy and loudness are worked out again from each file.',
       label: 'Redo all',
       run: () => startAnalysis.mutate(true),
-    },
-    'sign-out': {
-      title: 'Sign out?',
-      // Counted only while this dialog is the one asking: Settings redraws
-      // for many reasons, and the count walks the changes not yet sent.
-      body:
-        confirming === 'sign-out' ? signOutWarning(cloudLibrary.pendingCloudChanges(), place) : '',
-      label: 'Sign out',
-      run: () => void signOut(),
     },
     'forget-storage': {
       title: 'Disconnect your storage?',
@@ -70,20 +59,23 @@ export function Confirmations({
         })(),
     },
   }
-  const dialog = confirming === null ? null : dialogs[confirming]
+  const dialog = confirming === null || confirming === 'sign-out' ? null : dialogs[confirming]
 
   return (
-    <ConfirmDialog
-      open={dialog !== null}
-      title={dialog?.title ?? ''}
-      body={dialog?.body ?? ''}
-      confirmLabel={dialog?.label ?? ''}
-      danger
-      onConfirm={() => {
-        dialog?.run()
-        onDone()
-      }}
-      onCancel={onDone}
-    />
+    <>
+      <SignOutDialog open={confirming === 'sign-out'} onClose={onDone} />
+      <ConfirmDialog
+        open={dialog !== null}
+        title={dialog?.title ?? ''}
+        body={dialog?.body ?? ''}
+        confirmLabel={dialog?.label ?? ''}
+        danger
+        onConfirm={() => {
+          dialog?.run()
+          onDone()
+        }}
+        onCancel={onDone}
+      />
+    </>
   )
 }

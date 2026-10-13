@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, TextInput, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
-import { plural, formatLongDuration, type Tag } from '@selfmp3/shared'
+import { plural, formatLongDuration, type Tag, NameSchema } from '@selfmp3/shared'
 import {
   ApiError,
   failureText,
@@ -16,7 +16,7 @@ import {
   useLibrary,
 } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
-import { useAccent } from '../../ui/accent'
+import { TextField } from '../../ui/components/TextField'
 import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
@@ -54,7 +54,6 @@ type Kind = 'pick' | 'follow' | 'describe'
  */
 export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => void }): ReactNode {
   const { theme } = useUnistyles()
-  const accent = useAccent()
   const router = useRouter()
   const { mutateAsync: createPlaylist } = useCreatePlaylist()
   const server = useSmartServer()
@@ -66,7 +65,6 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   const [tagIds, setTagIds] = useState<readonly number[]>([])
   const [words, setWords] = useState('')
   const [name, setName] = useState('')
-  const [focused, setFocused] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   /** Named, and picking its songs: the playlist does not exist yet. */
@@ -193,30 +191,26 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
     onSubmit: () => void
     placeholder: string
     label: string
+    limit?: { readonly maxLength: number | null }
     testID: string
   }): ReactNode => (
-    <View style={[styles.field, focused && { borderColor: accent.accent }]}>
-      <TextInput
-        // One field per step: a new key starts the next one focused, with its own text.
-        key={props.testID}
-        style={styles.input}
-        value={props.value}
-        onChangeText={props.onChangeText}
-        onSubmitEditing={props.onSubmit}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        placeholder={props.placeholder}
-        placeholderTextColor={theme.colors.textMuted}
-        accessibilityLabel={props.label}
-        autoFocus
-        // A name that starts as a suggestion is replaced by the first letter typed.
-        selectTextOnFocus
-        autoCorrect={false}
-        returnKeyType="done"
-        submitBehavior="submit"
-        testID={props.testID}
-      />
-    </View>
+    <TextField
+      // One field per step: a new key starts the next one focused, with its own text.
+      key={props.testID}
+      raised
+      value={props.value}
+      onChangeText={props.onChangeText}
+      onSubmitEditing={props.onSubmit}
+      placeholder={props.placeholder}
+      accessibilityLabel={props.label}
+      limit={props.limit}
+      autoFocus
+      // A name that starts as a suggestion is replaced by the first letter typed.
+      selectTextOnFocus
+      returnKeyType="done"
+      submitBehavior="submit"
+      testID={props.testID}
+    />
   )
 
   return (
@@ -299,6 +293,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
             onSubmit: make,
             placeholder: 'Name',
             label: 'Playlist name',
+            limit: NameSchema,
             testID: 'new-playlist-field',
           })
         )}
@@ -396,31 +391,6 @@ function Option({
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm, padding: space.sm },
-  // The one text field a step shows: the words asked for, or the name.
-  field: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 6,
-    minHeight: 40,
-    paddingHorizontal: space.sm,
-    paddingVertical: 5,
-    // A control on the sheet, which is a card on a phone and the control
-    // surface as a dialog, so the field is raised above both. The edge only
-    // carries the focus ring: at rest it is the fill's own colour.
-    backgroundColor: theme.colors.surface3,
-    borderWidth: 1,
-    borderColor: theme.colors.surface3,
-    borderRadius: radius.card,
-  },
-  input: {
-    flexGrow: 1,
-    flexBasis: 160,
-    minHeight: 28,
-    paddingHorizontal: 4,
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-  },
   chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
   // A long tag list scrolls inside the sheet rather than pushing its buttons off.
   tagScroll: { maxHeight: 260 },

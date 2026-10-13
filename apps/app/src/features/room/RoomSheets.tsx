@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, TextInput, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import {
@@ -24,6 +24,8 @@ import { library as cloudLibrary } from '../../replica'
 import { label } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { Button } from '../../ui/components/Button'
+import { TextField } from '../../ui/components/TextField'
+import { SearchField } from '../../ui/components/SearchField'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { Cover } from '../../ui/components/Cover'
 import { Check, Plus } from '../../ui/components/Icons'
@@ -156,11 +158,8 @@ function Start(): ReactNode {
 }
 
 function JoinByCode(): ReactNode {
-  const { theme } = useUnistyles()
-  const accent = useAccent()
   const router = useRouter()
   const [code, setCode] = useState('')
-  const [focused, setFocused] = useState(false)
   const valid = RoomCodeSchema.safeParse(code).success
   const join = (): void => {
     if (!valid) return
@@ -170,26 +169,18 @@ function JoinByCode(): ReactNode {
   return (
     <View style={styles.join}>
       <Text style={styles.label}>Or join one</Text>
-      <View style={styles.joinRow}>
-        <View style={[styles.field, styles.grow, focused && { borderColor: accent.accent }]}>
-          <TextInput
-            style={styles.input}
-            value={code}
-            onChangeText={setCode}
-            onSubmitEditing={join}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            placeholder="Room code"
-            placeholderTextColor={theme.colors.textMuted}
-            accessibilityLabel="Room code"
-            autoCapitalize="characters"
-            autoCorrect={false}
-            maxLength={9}
-            testID="room-code-field"
-          />
-        </View>
-        <Button label="Join" disabled={!valid} onPress={join} testID="room-code-join" />
-      </View>
+      <TextField
+        raised
+        value={code}
+        onChangeText={setCode}
+        onSubmitEditing={join}
+        placeholder="Room code"
+        autoCapitalize="characters"
+        // Six letters and digits, and the space or dash a code is written with.
+        maxLength={9}
+        testID="room-code-field"
+        action={<Button label="Join" disabled={!valid} onPress={join} testID="room-code-join" />}
+      />
     </View>
   )
 }
@@ -330,7 +321,6 @@ export function MyLibraryPicker({
 }: {
   onAdd: (song: RoomSong) => Promise<boolean>
 }): ReactNode {
-  const { theme } = useUnistyles()
   const accent = useAccent()
   const { data: library } = useLibrary()
   const artFor = useArt(ROW_COVER_SIZE)
@@ -358,18 +348,14 @@ export function MyLibraryPicker({
 
   return (
     <View style={styles.tab}>
-      <View style={styles.field}>
-        <TextInput
-          style={styles.input}
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search your songs"
-          placeholderTextColor={theme.colors.textMuted}
-          accessibilityLabel="Search your songs"
-          autoCorrect={false}
-          testID="room-add-search"
-        />
-      </View>
+      <SearchField
+        raised
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Search your songs"
+        autoCorrect={false}
+        testID="room-add-search"
+      />
       <ScrollView style={styles.scroll}>
         {found.map(song => (
           <SongPick
@@ -535,7 +521,6 @@ function ShelfPicker({ state }: { state: RoomState }): ReactNode {
 
 /** A link from YouTube or 网易云: played through the host's server, kept by nobody. */
 function ALink({ state }: { state: RoomState }): ReactNode {
-  const { theme } = useUnistyles()
   const accent = useAccent()
   const [text, setText] = useState('')
   const [found, setFound] = useState<RoomSong | null>(null)
@@ -563,23 +548,20 @@ function ALink({ state }: { state: RoomState }): ReactNode {
 
   return (
     <View style={styles.tab}>
-      <View style={styles.field}>
-        <TextInput
-          style={styles.input}
-          value={text}
-          onChangeText={next => {
-            setText(next)
-            setFound(null)
-          }}
-          onSubmitEditing={() => void look()}
-          placeholder="A YouTube or 网易云 link"
-          placeholderTextColor={theme.colors.textMuted}
-          accessibilityLabel="A link to a song"
-          autoCapitalize="none"
-          autoCorrect={false}
-          testID="room-link-field"
-        />
-      </View>
+      <TextField
+        raised
+        value={text}
+        onChangeText={next => {
+          setText(next)
+          setFound(null)
+        }}
+        onSubmitEditing={() => void look()}
+        placeholder="A YouTube or 网易云 link"
+        accessibilityLabel="A link to a song"
+        autoCapitalize="none"
+        inputMode="url"
+        testID="room-link-field"
+      />
       {found ? (
         <View style={styles.found}>
           <SongPick
@@ -860,18 +842,6 @@ const styles = StyleSheet.create(theme => ({
   choiceSub: { color: theme.colors.textSecondary, fontSize: type.sub },
   pressed: { transform: [{ scale: 0.98 }] },
   join: { gap: space.sm, paddingTop: space.md },
-  joinRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  grow: { flex: 1 },
-  field: {
-    minHeight: 44,
-    justifyContent: 'center',
-    paddingHorizontal: space.md,
-    borderRadius: radius.field,
-    backgroundColor: theme.colors.surface3,
-    borderWidth: 1,
-    borderColor: theme.colors.surface3,
-  },
-  input: { color: theme.colors.textPrimary, fontSize: type.body, minHeight: 28 },
   codeCard: {
     flexDirection: 'row',
     alignItems: 'center',

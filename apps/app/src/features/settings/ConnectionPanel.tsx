@@ -19,7 +19,7 @@ import { useCloudSession } from '../profile/useCloudSession'
 import { STORAGE_ROUTE, whereItIs } from '../welcome/storage.model'
 import { ButtonRow, Details, Panel, partStyles, Row } from './SettingsParts'
 import { computerRow, noComputersHint } from './computers.model'
-import { type Confirming } from './settings.model'
+import type { Confirming } from './settings.model'
 import { plural } from '@selfmp3/shared'
 
 /**

@@ -43,3 +43,10 @@ export const DEFAULT_SERVER_PORT = 4600
 
 /** Where a server on this computer, left on its default port, is listening. */
 export const DEFAULT_LOCAL_SERVER_URL = `http://localhost:${DEFAULT_SERVER_PORT}`
+
+/**
+ * Where `npm run dev` serves the app for a browser (Metro's web server, on the
+ * port after the server's): what the desktop shell's development window and
+ * the browser flows open unless told otherwise.
+ */
+export const DEFAULT_LOCAL_WEB_URL = `http://localhost:${DEFAULT_SERVER_PORT + 1}`

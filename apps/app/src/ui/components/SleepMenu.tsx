@@ -1,6 +1,6 @@
 import { useLayoutEffect, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { Text, View } from 'react-native'
+import { Text, type View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { formatDuration } from '@selfmp3/shared'
 import { space, type } from '@selfmp3/client'

@@ -7,6 +7,7 @@
 // uses that instead and the root config ignores apps/app.
 
 const expoConfig = require('eslint-config-expo/flat')
+const base = require('../../eslint.base.cjs')
 const typescript = require('@typescript-eslint/eslint-plugin')
 const typescriptParser = require('@typescript-eslint/parser')
 
@@ -28,8 +29,8 @@ module.exports = [
   },
   {
     rules: {
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
-      eqeqeq: ['error', 'always', { null: 'ignore' }],
+      'no-console': base.rules['no-console'],
+      eqeqeq: base.rules.eqeqeq,
     },
   },
   {
@@ -49,15 +50,16 @@ module.exports = [
     },
   },
   {
-    // Same unused-variable convention as the root config: an error, with a
-    // leading underscore as the explicit opt-out.
+    // The root config's TypeScript rules (eslint.base.cjs): unused variables
+    // with the underscore opt-out, and `import type` for what is only a type.
     files: ['**/*.ts', '**/*.tsx'],
     plugins: { '@typescript-eslint': typescript },
     rules: {
-      '@typescript-eslint/no-unused-vars': [
-        'error',
-        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
-      ],
+      '@typescript-eslint/no-unused-vars': base.rules['@typescript-eslint/no-unused-vars'],
+      '@typescript-eslint/consistent-type-imports':
+        base.rules['@typescript-eslint/consistent-type-imports'],
+      '@typescript-eslint/no-import-type-side-effects':
+        base.rules['@typescript-eslint/no-import-type-side-effects'],
     },
   },
   {
@@ -77,13 +79,12 @@ module.exports = [
       parser: typescriptParser,
       parserOptions: { projectService: true, tsconfigRootDir: __dirname },
     },
-    rules: {
-      '@typescript-eslint/no-floating-promises': 'error',
-      '@typescript-eslint/no-misused-promises': [
-        'error',
-        { checksVoidReturn: { attributes: false } },
-      ],
-    },
+    rules: base.typeAwareRules,
+  },
+  {
+    // What a test may do that the code under test may not, as at the root.
+    files: base.testFiles,
+    rules: base.testRules,
   },
   {
     // Jest's globals, for the component tests and their setup. The model tests

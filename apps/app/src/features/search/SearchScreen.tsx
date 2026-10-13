@@ -9,8 +9,7 @@ import {
   useState,
 } from 'react'
 import type { ReactElement, ReactNode } from 'react'
-import { Pressable, Text, TextInput, View } from 'react-native'
-import type { GestureResponderEvent } from 'react-native'
+import { Pressable, Text, type TextInput, View, type GestureResponderEvent } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'

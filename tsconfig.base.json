@@ -14,12 +14,9 @@
     "sourceMap": true,
     "composite": true,
     "removeComments": false,
-    "verbatimModuleSyntax": true,
-    "isolatedModules": true,
 
     /* Interop */
     "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "skipLibCheck": true
   }

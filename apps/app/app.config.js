@@ -14,12 +14,15 @@
  */
 const { NATIVE_BACKGROUND } = require('@selfmp3/shared')
 
+/** The version is the package's, as the desktop app's and the extension's are. */
+const { version } = require('./package.json')
+
 /** @type {import('@expo/config-types').ExpoConfig} */
 const config = {
   name: 'self.mp3',
   slug: 'selfmp3',
   scheme: 'selfmp3',
-  version: '1.0.0',
+  version,
   orientation: 'portrait',
   userInterfaceStyle: 'dark',
   newArchEnabled: true,

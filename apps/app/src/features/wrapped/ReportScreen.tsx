@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { ActivityIndicator, Image, Pressable, Text, View } from 'react-native'
+import { Image, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import type { WrappedRange } from '@selfmp3/shared'
@@ -42,6 +42,8 @@ import {
 import { emptyHint, emptyTitle, longerRanges, tryLabel, shareFileName } from './wrapped.model'
 import { isStatsPeriod, periodLabel, STATS_PERIODS, statsRangeFor } from '../stats/stats.model'
 import { ScrollView } from '../../ui/components/Scroll'
+import { Press } from '../../ui/components/Press'
+import { Spinner } from '../../ui/components/Spinner'
 
 /** How wide a portrait look is drawn on a computer: its board's own width, near enough. */
 const PORTRAIT_ON_COMPUTER = 480
@@ -170,11 +172,7 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
       onPress={() => void share()}
       testID="report-share"
     >
-      {sharing ? (
-        <ActivityIndicator size="small" color={theme.colors.textMuted} />
-      ) : (
-        <Download size={18} color={theme.colors.textPrimary} />
-      )}
+      {sharing ? <Spinner /> : <Download size={18} color={theme.colors.textPrimary} />}
     </IconButton>
   )
 
@@ -404,7 +402,8 @@ function LookPicker({
       {looks.map(id => {
         const active = id === value
         return (
-          <Pressable
+          <Press
+            feedback="dim"
             key={id}
             onPress={() => onChange(id)}
             accessibilityRole="button"
@@ -412,7 +411,7 @@ function LookPicker({
             accessibilityState={{ selected: active }}
             aria-pressed={active}
             testID={`report-look-${id}`}
-            style={({ pressed }) => [styles.pick, pressed && styles.pressed]}
+            style={styles.pick}
           >
             <View
               style={[
@@ -432,7 +431,7 @@ function LookPicker({
             <Text style={[styles.pickLabel, active && styles.pickLabelActive]}>
               {LOOK_LABELS[id]}
             </Text>
-          </Pressable>
+          </Press>
         )
       })}
     </View>
@@ -487,7 +486,6 @@ const styles = StyleSheet.create(theme => ({
   picker: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 14 },
   pickerNarrow: { justifyContent: 'center', paddingTop: 4 },
   pick: { alignItems: 'center', gap: 5 },
-  pressed: { opacity: 0.7 },
   // Lifted off the page like the paper it is; firmer than a card's, which
   // white on cream needs at this size. The dark theme's card shadow is none.
   swatch: {

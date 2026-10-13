@@ -17,6 +17,7 @@ import { Play } from '../../ui/components/Icons'
 import { card } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { GEMS_SOURCE } from '../lists/lists.model'
+import { SONG_ACTION_LABELS } from '../../ui/songActions.model'
 
 const COLLAPSED_KEY = 'gems.collapsed'
 
@@ -65,7 +66,10 @@ export function GemsRow(): ReactNode {
                 icon={<Play size={13} color={theme.colors.textPrimary} />}
                 onPress={() => play(0)}
               />
-              <Button label="Add to Up next" onPress={() => player.addToQueue(ids)} />
+              <Button
+                label={SONG_ACTION_LABELS.addToUpNext}
+                onPress={() => player.addToQueue(ids)}
+              />
             </>
           )
         }

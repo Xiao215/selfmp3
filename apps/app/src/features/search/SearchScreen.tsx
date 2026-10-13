@@ -1,10 +1,10 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, type TextInput, View, type ViewStyle } from 'react-native'
+import { Text, type TextInput, View, type ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import type { LyricsSearchHit, Song, Tag, Artist } from '@selfmp3/shared'
-import { space, type, useLibrary } from '@selfmp3/client'
+import { hitSlopFor, leading, space, type, useLibrary } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -14,6 +14,7 @@ import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
+import { Press } from '../../ui/components/Press'
 import { ChevronLeft, Sparkle } from '../../ui/components/Icons'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { SearchField } from '../../ui/components/SearchField'
@@ -159,18 +160,24 @@ export function SearchScreen(): ReactNode {
             style={styles.field}
             trailing={stop ? <StopButton onPress={stop} size={26} testID="ask-stop" /> : undefined}
           />
-          <Pressable onPress={close} accessibilityRole="button" hitSlop={8}>
+          <Press
+            feedback="dim"
+            onPress={close}
+            accessibilityRole="button"
+            hitSlop={hitSlopFor(leading.body)}
+          >
             <Text style={styles.cancel}>Cancel</Text>
-          </Pressable>
+          </Press>
         </View>
 
         {typed && section !== null ? (
-          <Pressable
+          <Press
+            feedback="wash"
             onPress={() => setSection(null)}
             accessibilityRole="button"
             accessibilityLabel={`${SECTION_TITLES[section]}, ${counts[section]}. Back to all results`}
-            style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
-            hitSlop={4}
+            style={styles.back}
+            hitSlop={hitSlopFor(leading.body + space.sm * 2)}
             testID="search-back"
           >
             <ChevronLeft size={18} tone="textSecondary" />
@@ -178,7 +185,7 @@ export function SearchScreen(): ReactNode {
               {SECTION_TITLES[section]}
             </Text>
             <Text style={styles.backCount}>{counts[section]}</Text>
-          </Pressable>
+          </Press>
         ) : (
           <View style={styles.headGap} />
         )}
@@ -522,13 +529,14 @@ function LyricResults({
       {hits.map((hit, index) => {
         const song = byId.get(hit.songId)
         return (
-          <Pressable
+          <Press
+            feedback="wash"
             key={`${hit.songId}-${index}`}
             testID={`search-lyric-${index}`}
             onPress={() => player.playFrom([hit.songId], 0, { source: FROM_SEARCH })}
             accessibilityRole="button"
             accessibilityLabel={`${hit.title}: ${hit.line}`}
-            style={({ pressed }) => [styles.lyric, pressed && styles.pressed]}
+            style={styles.lyric}
           >
             <Cover uri={song ? artFor(song) : null} title={hit.title} size={SONG_LINE_COVER} />
             <View style={styles.lyricText}>
@@ -542,7 +550,7 @@ function LyricResults({
                 {hit.artist ? ` · ${hit.artist}` : ''}
               </Text>
             </View>
-          </Pressable>
+          </Press>
         )
       })}
     </>
@@ -582,7 +590,6 @@ const styles = StyleSheet.create(theme => ({
     paddingRight: 12,
     borderRadius: 12,
   },
-  backPressed: { backgroundColor: theme.colors.surface1 },
   backTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   backCount: { color: theme.colors.textMuted, fontSize: type.body },
   results: { paddingHorizontal: 8, gap: 18 },
@@ -592,7 +599,6 @@ const styles = StyleSheet.create(theme => ({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 8 },
   // A place's line, the height of a lyric's beside it.
   place: { paddingVertical: 8 },
-  pressed: { backgroundColor: theme.colors.surface1 },
   lyricSong: { color: theme.colors.textSecondary, fontSize: type.sub },
   lyric: {
     flexDirection: 'row',

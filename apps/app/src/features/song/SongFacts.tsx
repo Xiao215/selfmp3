@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Linking, Pressable, Text, View } from 'react-native'
+import { Linking, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { plural, formatBytes, formatDuration, formatRelative, type Song } from '@selfmp3/shared'
 import {
@@ -23,6 +23,7 @@ import { EnergyWave } from '../../ui/components/EnergyWave'
 import { label as labelText } from '../../ui/surfaces'
 import { deviceKind } from '../../ports/device'
 import { devicePlace, onThisDevice } from '../settings/settings.model'
+import { Press } from '../../ui/components/Press'
 
 /**
  * Everything the app knows about one song, in plain words: the quiet end of
@@ -172,14 +173,15 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
         </Fact>
         <Fact label="Source">
           {song.sourceUrl ? (
-            <Pressable
+            <Press
+              feedback="dim"
               accessibilityRole="link"
               onPress={() => void Linking.openURL(song.sourceUrl ?? '')}
             >
               <Text style={[styles.strong, { color: songColor.color }]}>
                 {sourceName(song.sourceUrl)}
               </Text>
-            </Pressable>
+            </Press>
           ) : (
             <Text style={styles.strong}>Your library folder</Text>
           )}

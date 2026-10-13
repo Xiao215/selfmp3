@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
@@ -17,6 +17,7 @@ import { keepAnswer, useKeptAnswer } from './answers.store'
 import { ChangeIt } from './ChangeIt'
 import { answerSongs } from './smart.model'
 import { useSmartServer } from './useSmartServer'
+import { Press } from '../../ui/components/Press'
 
 /**
  * Ask's answer when it is songs, as it sits in Search (docs/features/lists.md,
@@ -74,11 +75,12 @@ export function SongsAnswerCard({
   return (
     <View style={styles.stack}>
       <View style={styles.card}>
-        <Pressable
+        <Press
+          feedback="dim"
           onPress={open}
           accessibilityRole="button"
           accessibilityLabel={`Open the ${plural(ids.length, 'song', 'songs')} picked for “${text}”`}
-          style={({ pressed }) => [styles.opens, pressed && styles.pressed]}
+          style={styles.opens}
           testID="songs-answer-card"
         >
           <View ref={coverRef} collapsable={false}>
@@ -93,7 +95,7 @@ export function SongsAnswerCard({
             </Text>
           </View>
           <ChevronRight size={14} color={theme.colors.textMuted} />
-        </Pressable>
+        </Press>
         {next ? (
           // Asked what plays after this song, it plays them next, and says so:
           // "Add to Up next" puts songs at the end everywhere else (T-383).
@@ -137,7 +139,6 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
   },
   opens: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: space.md },
-  pressed: { opacity: 0.8 },
   text: { flex: 1, minWidth: 0, gap: 2 },
   title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   meta: { color: theme.colors.textMuted, fontSize: type.small },

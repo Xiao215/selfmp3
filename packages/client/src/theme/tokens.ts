@@ -392,6 +392,15 @@ export const fonts = {
 /** `tokens.reference.css`'s `--hit-target`: the smallest comfortable touch target. */
 export const HIT_TARGET = 44
 
+/**
+ * The slop that brings a target `size` points high (or across) up to
+ * `HIT_TARGET` without changing what is drawn: half the difference each way,
+ * and none for anything already that big.
+ */
+export function hitSlopFor(size: number): number {
+  return Math.max(0, (HIT_TARGET - size) / 2)
+}
+
 /** The phone's floating tab bar (`P04`): 60 high, floating over the page. */
 export const NAV_HEIGHT = 60
 

@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Text } from 'react-native'
+import { Text } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import Svg, { Path } from 'react-native-svg'
 import { radius, type } from '@selfmp3/client'
 import { Press } from '../../ui/components/Press'
+import { OPACITY } from '../../ui/motion.model'
+import { Spinner } from '../../ui/components/Spinner'
 
 /**
  * The one button on each page on the way in — Welcome, Where it lives and
@@ -35,7 +37,6 @@ export function WhitePill({
   width?: number
   testID?: string
 }): ReactNode {
-  const { theme } = useUnistyles()
   const inactive = disabled || busy
   return (
     <Press
@@ -49,11 +50,7 @@ export function WhitePill({
       accessibilityState={{ disabled: inactive, busy }}
       style={[styles.pill, disabled && styles.disabled]}
     >
-      {busy ? (
-        <ActivityIndicator size="small" color={theme.colors.onPrimary} />
-      ) : google ? (
-        <GoogleMark />
-      ) : null}
+      {busy ? <Spinner tone="onPrimary" /> : google ? <GoogleMark /> : null}
       <Text style={styles.label}>{label}</Text>
     </Press>
   )
@@ -83,6 +80,6 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     gap: 10,
   },
-  disabled: { opacity: 0.45 },
+  disabled: { opacity: OPACITY.disabled },
   label: { color: theme.colors.onPrimary, fontSize: type.body, fontWeight: '600' },
 }))

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
@@ -31,6 +31,7 @@ import { useSmartServer } from '../smart/useSmartServer'
 import { newPlaylist } from './playlists.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { AnswerActions } from '../smart/AnswerParts'
+import { Press } from '../../ui/components/Press'
 
 /** Where the sheet is: the kind first, then what the kind needs, then the name. */
 type Step = 'kind' | 'tags' | 'describe' | 'name'
@@ -366,16 +367,13 @@ function Option({
   onPress: () => void
   testID: string
 }): ReactNode {
-  const { theme } = useUnistyles()
   return (
-    <Pressable
+    <Press
+      feedback="wash"
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={title}
-      style={({ pressed }) => [
-        styles.option,
-        pressed && { backgroundColor: theme.colors.surface3 },
-      ]}
+      style={styles.option}
       testID={testID}
     >
       <View style={styles.optionIcon}>{icon}</View>
@@ -387,7 +385,7 @@ function Option({
           {sub}
         </Text>
       </View>
-    </Pressable>
+    </Press>
   )
 }
 

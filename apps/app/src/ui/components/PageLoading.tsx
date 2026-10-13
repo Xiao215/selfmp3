@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { space, type } from '@selfmp3/client'
-import { useAccent } from '../accent'
+import { Spinner } from './Spinner'
 
 /**
  * What a page's body is while what it shows is on its way: the accent's
@@ -14,7 +14,6 @@ import { useAccent } from '../accent'
  * Stats, the Report and a shared playlist said it in words of three sizes.
  */
 export function PageLoading({ line, testID }: { line?: string; testID?: string }): ReactNode {
-  const accent = useAccent()
   return (
     <View
       style={styles.loading}
@@ -23,7 +22,7 @@ export function PageLoading({ line, testID }: { line?: string; testID?: string }
       accessibilityLiveRegion="polite"
       testID={testID}
     >
-      <ActivityIndicator color={accent.accent} />
+      <Spinner tone="accent" />
       {line ? <Text style={styles.line}>{line}</Text> : null}
     </View>
   )

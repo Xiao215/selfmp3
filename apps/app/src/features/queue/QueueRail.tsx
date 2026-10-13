@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, View } from 'react-native'
+import { Animated, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
@@ -10,14 +10,12 @@ import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useOverlay } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
 import { ease, spring, timing, usePresence } from '../../ui/motion'
-import { MOVE_MS, roomShift } from '../../ui/motion.model'
+import { MOVE_MS, OPACITY, roomShift } from '../../ui/motion.model'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronRight, Downloaded, Grip, NotDownloaded } from '../../ui/components/Icons'
 import { HoldToReorder, useLiftScale, useMakeRoom } from '../../ui/components/HoldToReorder'
 import { useSongDropTarget } from '../../ports/songDrag'
-import { Popover } from '../../ui/components/Popover'
-import { SheetItem } from '../../ui/components/Sheet'
 import { UpNextSource } from './UpNextSource'
 import { OnlySongEnd, useOnlySongEndNotice } from './OnlySongEnd'
 import { useRailHint } from './useRailHint'
@@ -43,6 +41,8 @@ import { RoomList, TogetherButton } from '../room/RoomList'
 import { useRoom } from '../room/room.store'
 import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
+import { Press } from '../../ui/components/Press'
+import { Menu } from '../../ui/components/MoreMenu'
 
 /** The rail's width (`S2`, "Gutters": up-next rail 288). */
 const RAIL_WIDTH = 288
@@ -499,7 +499,8 @@ function Rail({
                     ]}
                     testID="queue-rail-hint"
                   >
-                    <Pressable
+                    <Press
+                      feedback="dim"
                       onPress={hint.dismiss}
                       accessibilityRole="button"
                       accessibilityHint="Dismisses the tip"
@@ -513,7 +514,7 @@ function Rail({
                           ? 'Drag a song out to remove it, or right‑click for more.'
                           : 'Drag a song out to remove it.'}
                       </Text>
-                    </Pressable>
+                    </Press>
                   </Animated.View>
                 ) : null
               }
@@ -523,29 +524,29 @@ function Rail({
           </>
         )}
 
-        <Popover
+        <Menu
           open={menuRow !== null}
           onClose={() => setMenuRow(null)}
           anchorRef={menuAnchor}
           align="start"
-          width={200}
+          items={[
+            {
+              key: 'play',
+              label: 'Play',
+              onPress: () => {
+                if (menuRow) actions.play(menuRow.index)
+              },
+            },
+            {
+              key: 'remove',
+              label: 'Remove from Up next',
+              onPress: () => {
+                if (menuRow) actions.remove(menuRow.index)
+              },
+            },
+          ]}
           testID="queue-menu"
-        >
-          <SheetItem
-            label="Play"
-            onPress={() => {
-              if (menuRow) actions.play(menuRow.index)
-              setMenuRow(null)
-            }}
-          />
-          <SheetItem
-            label="Remove from Up next"
-            onPress={() => {
-              if (menuRow) actions.remove(menuRow.index)
-              setMenuRow(null)
-            }}
-          />
-        </Popover>
+        />
       </Animated.View>
     </Animated.View>
   )
@@ -695,12 +696,13 @@ const RailRow = memo(function RailRow({
             settling && { transform: [{ scale: actions.lift }] },
           ]}
         >
-          <Pressable
+          <Press
+            feedback="wash"
             testID={`queue-row-${index}`}
             onPress={() => actions.play(index)}
             accessibilityRole="button"
             accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
-            style={({ pressed }) => [styles.press, pressed && styles.pressed]}
+            style={styles.press}
             {...web}
           >
             <RowFace
@@ -714,7 +716,7 @@ const RailRow = memo(function RailRow({
                 ) : null
               }
             />
-          </Pressable>
+          </Press>
         </Animated.View>
       </HoldToReorder>
     </Animated.View>
@@ -824,9 +826,8 @@ const styles = StyleSheet.create(theme => ({
     paddingRight: 6,
   },
   greyed: { opacity: 0.42 },
-  unavailable: { opacity: 0.55 },
+  unavailable: { opacity: OPACITY.dim },
   press: { flex: 1, minWidth: 0, alignSelf: 'stretch', borderRadius: radius.cover },
-  pressed: { backgroundColor: theme.colors.surface2 },
   // In from the row's edge by the list's bleed, so the covers stand under the
   // heading while a pressed row's shade still reaches past them.
   face: { flex: 1, minWidth: 0, paddingVertical: 0, paddingHorizontal: 0, paddingLeft: 6 },

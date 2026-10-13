@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter, type Href } from 'expo-router'
 import { leading, radius, space, type } from '@selfmp3/client'
@@ -10,6 +10,7 @@ import { Button } from '../../ui/components/Button'
 import { ChevronLeft } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { pageTitle } from '../../ui/surfaces'
+import { Press } from '../../ui/components/Press'
 
 /**
  * The waveform's bars, left to right: a height each, and 0 for the one that
@@ -105,14 +106,15 @@ export function NotFoundScreen(): ReactNode {
         {wide ? (
           <View style={styles.places}>
             {PLACES.map(place => (
-              <Pressable
+              <Press
+                feedback="wash"
                 key={place.label}
                 onPress={() => router.replace(place.href)}
                 accessibilityRole="link"
-                style={({ pressed }) => [styles.place, pressed && styles.placePressed]}
+                style={styles.place}
               >
                 <Text style={styles.placeText}>{place.label}</Text>
-              </Pressable>
+              </Press>
             ))}
           </View>
         ) : null}
@@ -171,6 +173,5 @@ const styles = StyleSheet.create(theme => ({
     marginTop: space.xs,
   },
   place: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: radius.pill },
-  placePressed: { backgroundColor: theme.colors.surface2 },
   placeText: { color: theme.colors.textMuted, fontSize: type.sub },
 }))

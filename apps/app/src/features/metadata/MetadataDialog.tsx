@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native'
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- the song's values are edited in place, drawn as the text they are
+import { Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
@@ -43,6 +44,8 @@ import { floating, label as groupLabel } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
+import { Press } from '../../ui/components/Press'
+import { Spinner } from '../../ui/components/Spinner'
 import { Dialog, DialogHead } from '../../ui/components/Dialog'
 import { Check, Sparkle } from '../../ui/components/Icons'
 import { ScrollView } from '../../ui/components/Scroll'
@@ -196,7 +199,7 @@ export function MetadataDialog({
       <View style={styles.sectionHead}>
         <Text style={styles.groupTitle}>SUGGESTIONS</Text>
         {candidates.length > 0 ? <Pill text={String(candidates.length)} /> : null}
-        {lookup.isPending ? <ActivityIndicator size="small" color={accent.accent} /> : null}
+        {lookup.isPending ? <Spinner tone="accent" /> : null}
       </View>
 
       {lookup.isError ? <StatusLine>Couldn’t reach the lookup services.</StatusLine> : null}
@@ -226,17 +229,14 @@ export function MetadataDialog({
           const active = index === selectedKey
           const [ground, ink] = SOURCE_TONE[candidate.source]
           return (
-            <Pressable
+            <Press
+              feedback="wash"
               key={`${candidate.source}-${index}`}
               onPress={() => setSelectedKey(index)}
               accessibilityRole="radio"
               accessibilityState={{ checked: active }}
               accessibilityLabel={`${candidate.title}, ${candidateLine(candidate)}, ${SOURCE_LABELS[candidate.source]}, ${scorePercent(candidate.score)}`}
-              style={({ pressed }) => [
-                styles.candidate,
-                pressed && styles.candidatePressed,
-                active && styles.candidateActive,
-              ]}
+              style={[styles.candidate, active && styles.candidateActive]}
             >
               <Cover
                 uri={candidate.artworkUrl ?? null}
@@ -259,7 +259,7 @@ export function MetadataDialog({
                 </View>
                 <Text style={styles.score}>{scorePercent(candidate.score)}</Text>
               </View>
-            </Pressable>
+            </Press>
           )
         })}
       </View>
@@ -298,11 +298,8 @@ export function MetadataDialog({
                   checked={ticked.has(diff.field)}
                   label={diffLabel(diff, song.hasArt)}
                   onPress={() => toggle(diff.field)}
-                  style={({ pressed }) => [
-                    styles.diffRow,
-                    !wide && styles.diffRowNarrow,
-                    pressed && styles.diffPressed,
-                  ]}
+                  feedback="wash"
+                  style={[styles.diffRow, !wide && styles.diffRowNarrow]}
                 >
                   <Checkbox checked={ticked.has(diff.field)} />
                   <View style={wide ? styles.diffBodyWide : styles.diffBodyNarrow}>
@@ -431,7 +428,7 @@ function SuggestedCard({
   if (state.isPending) {
     return (
       <View style={[styles.suggested, styles.suggestedAsk]} testID="metadata-suggest-pending">
-        <ActivityIndicator size="small" color={accent.accent} />
+        <Spinner tone="accent" />
         <Text style={styles.candidateSub}>Reading the listings and the song’s file…</Text>
       </View>
     )
@@ -439,16 +436,13 @@ function SuggestedCard({
   if (!answer) {
     return (
       <View style={styles.suggestedWrap}>
-        <Pressable
+        <Press
+          feedback="wash"
           onPress={onAsk}
           accessibilityRole="button"
           accessibilityLabel="Suggest names"
           testID="metadata-suggest"
-          style={({ pressed }) => [
-            styles.suggested,
-            styles.suggestedAsk,
-            pressed && styles.candidatePressed,
-          ]}
+          style={[styles.suggested, styles.suggestedAsk]}
         >
           {sparkle}
           <View style={styles.candidateMain}>
@@ -457,7 +451,7 @@ function SuggestedCard({
               Reads this song’s names, file and link with the listings, 网易云’s too
             </Text>
           </View>
-        </Pressable>
+        </Press>
         {state.error ? (
           <StatusLine>{failureText('Couldn’t suggest', state.error)}</StatusLine>
         ) : null}
@@ -475,18 +469,15 @@ function SuggestedCard({
   ].filter(Boolean)
   return (
     <View style={styles.suggestedWrap}>
-      <Pressable
+      <Press
+        feedback="wash"
         onPress={pick ? onPick : undefined}
         disabled={!pick}
         accessibilityRole={pick ? 'radio' : undefined}
         accessibilityState={pick ? { checked: active } : undefined}
         accessibilityLabel={pick ? `Suggested: ${pick.title}, ${candidateLine(pick)}` : answer.why}
         testID="metadata-suggested"
-        style={({ pressed }) => [
-          styles.suggested,
-          pressed && pick && styles.candidatePressed,
-          active && styles.candidateActive,
-        ]}
+        style={[styles.suggested, active && styles.candidateActive]}
       >
         {sparkle}
         <View style={styles.candidateMain}>
@@ -504,7 +495,7 @@ function SuggestedCard({
         <View style={[styles.badge, { backgroundColor: SOURCE_TONE.ai[0] }]}>
           <Text style={[styles.badgeText, { color: SOURCE_TONE.ai[1] }]}>SUGGESTED</Text>
         </View>
-      </Pressable>
+      </Press>
       <Text
         style={[styles.link, styles.suggestedAgain, { color: accent.accent }]}
         onPress={onAgain}
@@ -591,7 +582,6 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: 10,
     borderRadius: radius.row,
   },
-  candidatePressed: { backgroundColor: theme.colors.surface2 },
   // What a model offers is dashed until it is taken (docs/features/ai.md, rule 2).
   suggestedWrap: { gap: 4 },
   suggested: {
@@ -642,7 +632,6 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.row,
   },
   diffRowNarrow: { alignItems: 'flex-start', paddingVertical: 9 },
-  diffPressed: { backgroundColor: theme.colors.surface2 },
   diffBodyWide: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
   diffBodyNarrow: { flex: 1, minWidth: 0, gap: 2 },
   diffLabel: { color: theme.colors.textMuted },

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, View } from 'react-native'
+import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Tag } from '@selfmp3/shared'
 import { ApiError, space, type ServerConnection } from '@selfmp3/client'
@@ -15,6 +15,7 @@ import { useImportDraft } from './importDraft'
 import { draftSourceFor } from './importDraft.model'
 import { useImportSource } from './importSource'
 import { importLabel } from './review.model'
+import { TapAway } from '../../ui/components/TapAway'
 
 /** What Import's pages say when the server they were pointed at stops answering. */
 const STOPPED_ANSWERING = 'Your library’s computer stopped answering. Looking for it again…'
@@ -124,9 +125,8 @@ export function ImportFoot({
   const { wide } = useLayout()
   const footInset = useFootInset()
   return (
-    <Pressable
+    <TapAway
       onPress={wide ? undefined : onGround}
-      accessible={false}
       style={[wide ? styles.footWide : styles.footPhone, { paddingBottom: footInset + 12 }]}
     >
       {error ? (
@@ -157,7 +157,7 @@ export function ImportFoot({
           testID={testID}
         />
       </View>
-    </Pressable>
+    </TapAway>
   )
 }
 

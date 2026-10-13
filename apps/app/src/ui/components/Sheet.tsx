@@ -13,7 +13,7 @@ import { PanelDenseContext, usePanelDense } from './panel'
 import { Press } from './Press'
 import { floating } from '../surfaces'
 import { ease, spring, timing } from '../motion'
-import { MOVE_MS, overshootRange, PULL } from '../motion.model'
+import { MOVE_MS, OPACITY, overshootRange, PULL } from '../motion.model'
 import { useKeyboardLift } from '../../ports/keyboardLift'
 
 /**
@@ -498,7 +498,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
   },
   itemDisabled: {
-    opacity: 0.45,
+    opacity: OPACITY.disabled,
   },
   itemIcon: {
     width: 18,

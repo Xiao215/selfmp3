@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, View } from 'react-native'
+import { Animated, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg'
@@ -38,6 +38,7 @@ import {
 import { useSvgId } from '../../ui/useSvgId'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { PageLoading } from '../../ui/components/PageLoading'
+import { Press } from '../../ui/components/Press'
 
 /** The line beside Listened, in its own box's units. */
 const SPARK = { width: 120, height: 56 }
@@ -384,13 +385,14 @@ function LeadCard({
   const shade = useSvgId('statslead')
 
   return (
-    <Pressable
+    <Press
+      depth="row"
       disabled={!open}
       onPress={open}
       accessibilityRole={open ? 'link' : undefined}
       accessibilityLabel={spoken}
       testID={testID}
-      style={({ pressed }) => [styles.lead, pressed && styles.linePressed]}
+      style={styles.lead}
     >
       {/*
        * The picture keeps to the right and fades into the card under the
@@ -434,7 +436,7 @@ function LeadCard({
           </Text>
         </View>
       </View>
-    </Pressable>
+    </Press>
   )
 }
 
@@ -512,7 +514,8 @@ function RankedLine({
     )
 
   return (
-    <Pressable
+    <Press
+      feedback="dim"
       disabled={!open}
       onPress={open}
       accessibilityRole={open ? 'link' : undefined}
@@ -520,7 +523,7 @@ function RankedLine({
         row.kind === 'song' && row.artist ? `, ${row.artist}` : ''
       }, ${row.trailing}`}
       testID={testID}
-      style={({ pressed }) => [styles.line, pressed && styles.linePressed]}
+      style={styles.line}
     >
       <Text style={styles.rank}>{row.rank}</Text>
       {picture}
@@ -543,7 +546,7 @@ function RankedLine({
           />
         </View>
       </View>
-    </Pressable>
+    </Press>
   )
 }
 
@@ -597,7 +600,6 @@ const styles = StyleSheet.create(theme => ({
     minHeight: 48,
     borderRadius: radius.cover,
   },
-  linePressed: { opacity: 0.7 },
   rank: { ...serif(theme.colors, type.section), width: 18, color: theme.colors.textMuted },
   lead: {
     height: 112,

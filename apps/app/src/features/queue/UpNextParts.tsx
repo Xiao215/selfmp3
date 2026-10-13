@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, View } from 'react-native'
+import { Animated, Text, View } from 'react-native'
 import type { NativeScrollEvent, NativeSyntheticEvent, StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { artistOr, formatDuration, type Tag } from '@selfmp3/shared'
@@ -18,6 +18,8 @@ import { Toggle } from '../../ui/components/Toggle'
 import { useRoom } from '../room/room.store'
 import { autoMixLine, upNextWindow, type QueueRow } from './queue.model'
 import { closeQueueSheet, useQueueSheetOpen } from './queueSheet.store'
+import { Press } from '../../ui/components/Press'
+import { OPACITY } from '../../ui/motion.model'
 
 /*
  * Up next's parts, for the phone's sheet (`QueueSheet`) and the computer's
@@ -121,7 +123,7 @@ export function ClearRestButton({
 }): ReactNode {
   const dense = useLayoutValue(layout => layout.dense)
   return (
-    <Pressable
+    <Press
       onPress={onPress}
       disabled={!enabled}
       accessibilityRole="button"
@@ -135,7 +137,7 @@ export function ClearRestButton({
       ]}
     >
       <Text style={[styles.clearText, dense && styles.clearTextDense]}>Clear the rest</Text>
-    </Pressable>
+    </Press>
   )
 }
 
@@ -322,7 +324,7 @@ const styles = StyleSheet.create(theme => ({
   },
   clearDense: { height: 28, paddingHorizontal: 10 },
   clearPressed: { backgroundColor: theme.colors.surface3 },
-  clearOff: { opacity: 0.4 },
+  clearOff: { opacity: OPACITY.disabled },
   clearText: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
   clearTextDense: { fontSize: type.small },
   autoMix: { flexDirection: 'row', alignItems: 'center', gap: space.sm },

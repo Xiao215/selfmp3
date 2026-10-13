@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import type { ReactNode, Ref } from 'react'
-import { Pressable, Text, TextInput, View } from 'react-native'
+import { Text, TextInput, View } from 'react-native'
 import type { StyleProp, TextInputProps, ViewStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { HIT_TARGET, iconSize, radius, space, type } from '@selfmp3/client'
+import { HIT_TARGET, hitSlopFor, iconSize, radius, space, type } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { Search, X } from './Icons'
@@ -104,14 +104,15 @@ export function SearchField({
       {trailing !== undefined ? (
         trailing
       ) : value && onChangeText ? (
-        <Pressable
+        <Press
+          feedback="dim"
           onPress={() => onChangeText('')}
-          hitSlop={10}
+          hitSlop={hitSlopFor(iconSize.small)}
           accessibilityRole="button"
           accessibilityLabel="Clear search"
         >
           <X size={iconSize.small} tone="textMuted" />
-        </Pressable>
+        </Press>
       ) : null}
     </View>
   )

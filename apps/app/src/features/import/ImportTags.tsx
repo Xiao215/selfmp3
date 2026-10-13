@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Tag } from '@selfmp3/shared'
 import { radius, type } from '@selfmp3/client'
 import { TagChipRow } from '../../ui/components/TagChooser'
 import { Sheet } from '../../ui/components/Sheet'
 import { TagSearchList } from '../../ui/components/TagPicker'
+import { Press } from '../../ui/components/Press'
 
 /**
  * The tags an import arrives with, which is all an import can add: it never
@@ -70,7 +71,7 @@ export function TagItPill({
   return (
     <View style={styles.sentence}>
       <Text style={styles.words}>Tag it</Text>
-      <Pressable
+      <Press
         onPress={() => setOpen(true)}
         accessibilityRole="button"
         accessibilityLabel={`Tag it: ${shown}. Change`}
@@ -81,7 +82,7 @@ export function TagItPill({
           {shown}
         </Text>
         <Text style={styles.caret}>▾</Text>
-      </Pressable>
+      </Press>
       <Text style={styles.words}>as it arrives</Text>
       <TagSheet
         open={open}

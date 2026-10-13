@@ -3,7 +3,15 @@ import type { ReactNode } from 'react'
 import { Animated, Text, View } from 'react-native'
 import type { ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { motion, space, syncHeader, syncHeaderText, type } from '@selfmp3/client'
+import {
+  hitSlopFor,
+  leading,
+  motion,
+  space,
+  syncHeader,
+  syncHeaderText,
+  type,
+} from '@selfmp3/client'
 import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvider'
 import { timing } from '../motion'
 import { card } from '../surfaces'
@@ -61,9 +69,9 @@ export function SyncStatus(): ReactNode {
         </Text>
         {action ? (
           <Press
-            depth="control"
+            feedback="dim"
             onPress={onAction}
-            hitSlop={8}
+            hitSlop={hitSlopFor(leading.small)}
             accessibilityRole="button"
             accessibilityLabel={action}
           >

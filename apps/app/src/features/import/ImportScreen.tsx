@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated as RNAnimated, Pressable, Text, TextInput, View } from 'react-native'
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- the compose box grows with what is pasted, drawn as the page's own words
+import { Animated as RNAnimated, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
@@ -47,11 +48,8 @@ import { card, pageFrame } from '../../ui/surfaces'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
-import { IconButton } from '../../ui/components/IconButton'
-import { Check, More, Next, Refresh, Search, X } from '../../ui/components/Icons'
-import { Popover } from '../../ui/components/Popover'
+import { Check, Next, Refresh, Search, X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { SheetItem } from '../../ui/components/Sheet'
 import { useFade } from '../../ui/motion'
 import { MOVE_MS } from '../../ui/motion.model'
 import { useRowMotion } from '../../ui/rowMotion'
@@ -64,6 +62,8 @@ import { useImportFailure } from './ImportPage'
 import { useImportSource } from './importSource'
 import { comingIn, countLabel, reviewName } from './review.model'
 import { ScrollView } from '../../ui/components/Scroll'
+import { Press } from '../../ui/components/Press'
+import { MoreMenu, type MenuItem } from '../../ui/components/MoreMenu'
 
 /** How many of today's finished imports are listed before "Show all". */
 const FINISHED_SHOWN = 5
@@ -856,45 +856,40 @@ function RowMore({
   removeTestID: string
   nextTestID: string
 }): ReactNode {
-  const { theme } = useUnistyles()
-  const anchor = useRef<View>(null)
   const opacity = useFade(shown, MOVE_MS.hoverIn, MOVE_MS.hoverOut)
+  const items: MenuItem[] = [
+    ...(onNext
+      ? [
+          {
+            key: 'next',
+            label: 'Import next',
+            icon: <Next size={15} tone="textPrimary" />,
+            onPress: onNext,
+            testID: nextTestID,
+          },
+        ]
+      : []),
+    {
+      key: 'remove',
+      label: 'Remove from imports',
+      icon: <X size={15} tone="danger" />,
+      danger: true,
+      onPress: onRemove,
+      testID: removeTestID,
+    },
+  ]
   return (
     <RNAnimated.View style={{ opacity }} pointerEvents={enabled ? 'auto' : 'none'}>
-      <View ref={anchor} collapsable={false}>
-        <IconButton
-          onPress={() => onOpen(true)}
-          label={`More for ${name}`}
-          caption="More"
-          disabled={!enabled}
-          testID={testID}
-        >
-          <More size={17} color={theme.colors.textMuted} />
-        </IconButton>
-      </View>
-      <Popover open={open} onClose={() => onOpen(false)} anchorRef={anchor} width={220}>
-        {onNext ? (
-          <SheetItem
-            label="Import next"
-            icon={<Next size={15} tone="textPrimary" />}
-            onPress={() => {
-              onOpen(false)
-              onNext()
-            }}
-            testID={nextTestID}
-          />
-        ) : null}
-        <SheetItem
-          label="Remove from imports"
-          icon={<X size={15} color={theme.colors.danger} />}
-          danger
-          onPress={() => {
-            onOpen(false)
-            onRemove()
-          }}
-          testID={removeTestID}
-        />
-      </Popover>
+      <MoreMenu
+        name={name}
+        filled={false}
+        disabled={!enabled}
+        caption="More"
+        open={open}
+        onOpenChange={onOpen}
+        items={items}
+        testID={testID}
+      />
     </RNAnimated.View>
   )
 }
@@ -931,39 +926,33 @@ function SwipeActions({
       renderRightActions={(_progress, _translation, swipeable) => (
         <View style={styles.swipeActions}>
           {onNext ? (
-            <Pressable
+            <Press
+              feedback="dim"
               onPress={() => {
                 swipeable.close()
                 onNext()
               }}
               accessibilityRole="button"
               accessibilityLabel={`Import ${name} next`}
-              style={({ pressed }) => [
-                styles.swipeAction,
-                styles.swipeNext,
-                pressed && styles.pressed,
-              ]}
+              style={[styles.swipeAction, styles.swipeNext]}
               testID={nextTestID}
             >
               <Text style={[styles.swipeActionText, styles.swipeNextText]}>Next</Text>
-            </Pressable>
+            </Press>
           ) : null}
-          <Pressable
+          <Press
+            feedback="dim"
             onPress={() => {
               swipeable.close()
               onRemove()
             }}
             accessibilityRole="button"
             accessibilityLabel={`Remove ${name} from imports`}
-            style={({ pressed }) => [
-              styles.swipeAction,
-              styles.swipeRemove,
-              pressed && styles.pressed,
-            ]}
+            style={[styles.swipeAction, styles.swipeRemove]}
             testID={testID}
           >
             <Text style={styles.swipeActionText}>Remove</Text>
-          </Pressable>
+          </Press>
         </View>
       )}
     >
@@ -994,7 +983,6 @@ const styles = StyleSheet.create(theme => ({
   content: { paddingBottom: 40 },
   contentWide: pageFrame(true),
   contentPhone: pageFrame(false),
-  pressed: { opacity: 0.6 },
   head: { marginBottom: 20 },
   formColumn: { gap: 22 },
   stack: { gap: 24 },

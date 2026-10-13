@@ -7,6 +7,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { X } from '../../ui/components/Icons'
 import { SONG_LINE_COVER, SongLine } from '../../ui/components/SongLine'
 import { RoomFace } from './RoomFace'
+import { OPACITY } from '../../ui/motion.model'
 
 /** Whose song it is, as a face on its cover's corner. */
 interface Face {
@@ -96,5 +97,5 @@ export function RoomEntryLine({
 
 const styles = StyleSheet.create({
   badge: { position: 'absolute', right: -5, bottom: -5 },
-  dim: { opacity: 0.55 },
+  dim: { opacity: OPACITY.dim },
 })

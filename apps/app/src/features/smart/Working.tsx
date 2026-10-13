@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { space, type, withAlpha } from '@selfmp3/client'
 import { Check } from '../../ui/components/Icons'
+import { Spinner } from '../../ui/components/Spinner'
 
 /** One step of a wait: what it says while it runs, once it is done, and from when. */
 interface WorkingStep {
@@ -79,7 +80,7 @@ export function Working({
               </View>
             ) : (
               <View style={styles.mark}>
-                <ActivityIndicator size="small" color={theme.colors.textMuted} />
+                <Spinner />
               </View>
             )}
             <Text style={[styles.label, !done && styles.now]} numberOfLines={1}>

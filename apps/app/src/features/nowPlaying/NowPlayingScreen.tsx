@@ -883,19 +883,17 @@ function BreathingCover({
         )
       }}
     >
-      <Animated.View
-        ref={guideTarget}
-        collapsable={false}
-        // Shrunk to the cover, so the spotlight is the cover's and not the room around it.
-        style={[styles.guideFrame, guide.shown && riseWith(guide, 24)]}
-      >
+      <Animated.View style={guide.shown ? riseWith(guide, 24) : null}>
         <Animated.View style={[styles.artShadow, { transform }]}>
           <Pressable
             onPress={onPress}
             accessibilityRole="button"
             accessibilityLabel="Show the lyrics"
           >
-            <Cover uri={uri} title={song.album || song.title} size={size} />
+            {/* What the lyrics guide lights: the cover, not the room around it. */}
+            <View ref={guideTarget} collapsable={false}>
+              <Cover uri={uri} title={song.album || song.title} size={size} />
+            </View>
           </Pressable>
         </Animated.View>
       </Animated.View>
@@ -1098,7 +1096,6 @@ const styles = StyleSheet.create(theme => ({
     flex: 1,
     textAlign: 'center',
   },
-  guideFrame: { alignSelf: 'center' },
   art: {
     flex: 1,
     minHeight: 0,

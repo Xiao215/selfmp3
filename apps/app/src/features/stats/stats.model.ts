@@ -301,27 +301,13 @@ export function rankedSongs(top: readonly TopSong[], limit = RANKED_ROWS): Ranke
 }
 
 /**
- * Artists by time listened.
- *
- * The server groups plays by the artist string as written, so "ヨルシカ feat.
- * suis" is one line of its own. Artists here are split the way the rest of the
- * app splits them (Open question 3): a collaboration counts for everyone it
- * names, and two spellings that differ only in case are one artist.
+ * Artists by time listened. The server has already split each credit into
+ * the artists it names (a collaboration counts for everyone in it), the way
+ * the rest of the app splits them.
  */
 export function rankedArtists(top: readonly TopEntry[], limit = RANKED_ROWS): RankedRow[] {
-  const folded = new Map<string, { name: string; minutes: number; plays: number }>()
-  for (const entry of top) {
-    const names = entry.key === UNKNOWN_ARTIST ? [entry.key] : splitArtists(entry.key)
-    for (const name of names) {
-      const key = artistKey(name)
-      const had = folded.get(key)
-      if (had) {
-        had.minutes += entry.minutes
-        had.plays += entry.plays
-      } else folded.set(key, { name, minutes: entry.minutes, plays: entry.plays })
-    }
-  }
-  const rows = [...folded.values()]
+  const rows = top
+    .map(entry => ({ name: entry.key, minutes: entry.minutes, plays: entry.plays }))
     .sort((a, b) => b.minutes - a.minutes || b.plays - a.plays || a.name.localeCompare(b.name))
     .slice(0, limit)
   const most = Math.max(1, rows[0]?.minutes ?? 0)

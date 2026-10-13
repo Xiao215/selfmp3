@@ -8,7 +8,7 @@ import {
   type TopSong,
 } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
-import { dayGap, runs, toMinutes } from './listening.js'
+import { dayGap, runs, toMinutes, topArtists, type ArtistPlaysRow } from './listening.js'
 
 /**
  * Listening statistics, derived from the `play_events` table.
@@ -241,18 +241,14 @@ export class StatsRepository {
       if (slot) hourly[hour] = { hour, plays: row.plays }
     }
 
-    // 'Unknown artist' is `UNKNOWN_ARTIST` from @selfmp3/shared, which the app
-    // compares this key with: change the two together.
-    const topArtists: TopEntry[] = this.#db
-      .prepare<unknown[], { key: string; plays: number; ms: number | null }>(
-        `SELECT COALESCE(NULLIF(s.artist, ''), 'Unknown artist') AS key,
-                COUNT(*) AS plays, COALESCE(SUM(e.ms_played), 0) AS ms
+    const artistRows = this.#db
+      .prepare<unknown[], ArtistPlaysRow>(
+        `SELECT s.artist, COUNT(*) AS plays, COALESCE(SUM(e.ms_played), 0) AS ms
            FROM play_events e JOIN songs s ON s.id = e.song_id
           WHERE ${joined.clause}
-          GROUP BY key ORDER BY plays DESC, key LIMIT 10`,
+          GROUP BY s.artist ORDER BY plays DESC`,
       )
       .all(...params)
-      .map(row => ({ key: row.key, plays: row.plays, minutes: toMinutes(row.ms) }))
 
     const topTags: TopEntry[] = this.#db
       .prepare<unknown[], { key: string; plays: number; ms: number | null }>(
@@ -310,7 +306,7 @@ export class StatsRepository {
       longestStreakDays: streaks.longest,
       daily: filledDaily,
       hourly,
-      topArtists,
+      topArtists: topArtists(artistRows, 10),
       topTags,
       topSongs,
     }

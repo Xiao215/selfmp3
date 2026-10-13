@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { Song } from './schemas/song.js'
-import { artistKey, findArtist, libraryArtists, songArtistKeys, splitArtists } from './artists.js'
+import {
+  artistKey,
+  findArtist,
+  libraryArtists,
+  mainArtist,
+  songArtistKeys,
+  splitArtists,
+  UNKNOWN_ARTIST,
+  withoutRepeats,
+} from './artists.js'
 
 const song = (id: number, artist: string): Song => ({ id, artist }) as unknown as Song
 
@@ -34,6 +43,42 @@ describe('splitArtists', () => {
   it('names nobody for an empty string, and each name once', () => {
     expect(splitArtists('')).toEqual([])
     expect(splitArtists('A & a')).toEqual(['A'])
+    expect(splitArtists('薛之谦, 薛之谦, 薛之谦')).toEqual(['薛之谦'])
+  })
+
+  it('splits the lists 网易云 and the AI read: 、 ; and a slash between names', () => {
+    expect(splitArtists('ヨルシカ feat. suis')).toEqual(['ヨルシカ', 'suis'])
+    expect(splitArtists('A、B')).toEqual(['A', 'B'])
+    expect(splitArtists('A；B; C')).toEqual(['A', 'B', 'C'])
+    expect(splitArtists('周杰伦/费玉清')).toEqual(['周杰伦', '费玉清'])
+    expect(splitArtists('Ayase / ikura')).toEqual(['Ayase', 'ikura'])
+    expect(splitArtists('YOASOBI（feat. Ayase）')).toEqual(['YOASOBI', 'Ayase'])
+    expect(splitArtists('A Feat. B')).toEqual(['A', 'B'])
+  })
+
+  it('leaves a slash inside a name alone', () => {
+    expect(splitArtists('AC/DC')).toEqual(['AC/DC'])
+    expect(splitArtists('AC/DC feat. Ayase')).toEqual(['AC/DC', 'Ayase'])
+  })
+
+  it("splits only a credit's list when asked for the list", () => {
+    expect(splitArtists('Yu-Peng Chen, HOYO-MiX', 'list')).toEqual(['Yu-Peng Chen', 'HOYO-MiX'])
+    expect(splitArtists('A & B、C feat. D', 'list')).toEqual(['A & B', 'C feat. D'])
+  })
+})
+
+describe('mainArtist', () => {
+  it('is the first name a credit gives, or the unknown artist', () => {
+    expect(mainArtist('ヨルシカ feat. suis')).toBe('ヨルシカ')
+    expect(mainArtist('')).toBe(UNKNOWN_ARTIST)
+  })
+})
+
+describe('withoutRepeats', () => {
+  it('drops a name a list repeats, and leaves a credit without repeats as written', () => {
+    expect(withoutRepeats('薛之谦, 薛之谦, 薛之谦')).toBe('薛之谦')
+    expect(withoutRepeats('A,B')).toBe('A,B')
+    expect(withoutRepeats('A & B, a & b')).toBe('A & B')
   })
 })
 

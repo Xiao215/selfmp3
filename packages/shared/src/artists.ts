@@ -1,4 +1,5 @@
 import type { Song } from './schemas/song.js'
+import { CJK } from './titles.js'
 
 /**
  * Artists, from the songs' own artist strings (docs/UI-MIGRATION.md, Phase 4
@@ -15,10 +16,9 @@ import type { Song } from './schemas/song.js'
  */
 
 /**
- * What a song with no artist is credited to. The server groups such songs
- * under this same name in its stats and wrapped queries (repositories/stats.ts,
- * repositories/wrapped.ts), so a client comparing a stats key with it must use
- * this one string.
+ * What a song with no artist is credited to. The server's Stats and Wrapped
+ * count such songs under this name (repositories/listening.ts), so a client
+ * comparing a stats key with it must use this one string.
  */
 export const UNKNOWN_ARTIST = 'Unknown artist'
 
@@ -36,21 +36,46 @@ export interface Artist {
 }
 
 /** "(feat. B)" and "[ft. B]": the brackets go, the name stays as one more artist. */
-const BRACKETED_GUEST = /\s*[([]\s*(?:feat\.?|ft\.?|featuring)\s+([^)\]]+)[)\]]/gi
+const BRACKETED_GUEST = /\s*[([（]\s*(?:feat\.?|ft\.?|featuring)\s+([^)\]）]+)[)\]）]/gi
+
+/** Where a list of names is: a comma (either width), "、" and a semicolon (either width). */
+const LIST = /\s*[,，、;；]\s*/
 
 /**
- * Between two names: a comma, "&", "×", an " x " standing alone, and the
- * featuring words. A lone "x" needs spaces round it, so "Xiao" and "Sixx" are
- * left whole.
+ * Between two names, on top of a list: "&", "×", an " x " standing alone, and
+ * the featuring words. A lone "x" needs spaces round it, so "Xiao" and "Sixx"
+ * are left whole.
  */
-const SEPARATOR = /\s*(?:,|&|×|\s[xX]\s|\s(?:feat\.?|ft\.?|featuring)\s)\s*/
+const JOIN = /\s*(?:[,，、;；]|&|＆|×|\s[xX]\s|\s(?:feat\.?|ft\.?|featuring)\s)\s*/i
 
-/** The names one artist string holds, in the order it gives them. */
-export function splitArtists(artist: string): string[] {
-  const flat = artist.replace(BRACKETED_GUEST, ', $1')
+/**
+ * A slash between two names: "A / B", or "周杰伦/费玉清" where either side is
+ * Chinese, Japanese or Korean. A slash inside a Latin name ("AC/DC") is part of it.
+ */
+const SPACED_SLASH = /\s+\/\s+/g
+const CJK_SLASH = new RegExp(`(${CJK.source})\\s*/\\s*|\\s*/\\s*(?=${CJK.source})`, 'gu')
+
+/**
+ * The names one artist string holds, in the order it gives them, each once.
+ *
+ * The one splitter for every place that asks who a song is by: the library's
+ * artists, Stats and Wrapped, the AI's view of the library, CarPlay. By
+ * default every way a credit joins two names splits it ("A feat. B", "A & B",
+ * "A、B", "A / B"). `'list'` splits only where the credit is a list (commas,
+ * "、", semicolons) and keeps "A & B" and "A feat. B" whole, for the tidy and
+ * the metadata check, which rewrite a credit name by name and join it again.
+ */
+export function splitArtists(artist: string, at: 'names' | 'list' = 'names'): string[] {
+  const flat =
+    at === 'list'
+      ? artist
+      : artist
+          .replace(BRACKETED_GUEST, ', $1')
+          .replace(SPACED_SLASH, ', ')
+          .replace(CJK_SLASH, (_, before: string | undefined) => (before ? `${before}, ` : ', '))
   const names: string[] = []
   const seen = new Set<string>()
-  for (const part of flat.split(SEPARATOR)) {
+  for (const part of flat.split(at === 'list' ? LIST : JOIN)) {
     const name = part.replace(/\s+/g, ' ').trim()
     const key = artistKey(name)
     if (key === '' || seen.has(key)) continue
@@ -58,6 +83,18 @@ export function splitArtists(artist: string): string[] {
     names.push(name)
   }
   return names
+}
+
+/** Who a song is mostly by: the first name its artist string gives, or `UNKNOWN_ARTIST`. */
+export function mainArtist(artist: string): string {
+  return splitArtists(artist)[0] ?? UNKNOWN_ARTIST
+}
+
+/** "薛之谦, 薛之谦, 薛之谦" → "薛之谦": each name in a list once, the first spelling kept. */
+export function withoutRepeats(credit: string): string {
+  const names = splitArtists(credit, 'list')
+  const written = credit.split(LIST).filter(part => part.trim() !== '')
+  return names.length === written.length ? credit : names.join(', ')
 }
 
 /** How two spellings are compared: trimmed, spaces collapsed, case ignored. */

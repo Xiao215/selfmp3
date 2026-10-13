@@ -2,6 +2,7 @@ import { z } from 'zod/v4'
 import {
   DAY_MS,
   fromSqliteTime,
+  splitArtists,
   UnderstandingSchema,
   type DescribePick,
   type DescribeRequest,
@@ -10,7 +11,7 @@ import {
   type Tag,
   type Understanding,
 } from '@selfmp3/shared'
-import { creditNames, hasWords, libraryShape, songTable } from './library.js'
+import { hasWords, libraryShape, songTable } from './library.js'
 import { LlmError, Remembered, type Llm } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
 
@@ -238,7 +239,7 @@ export function songsFitting(
   return songs.filter(song => {
     if (hasPlaces) {
       const inTag = song.tagIds.some(id => anyTags.has(id))
-      const byArtist = creditNames(song.artist).some(name => artists.includes(name.toLowerCase()))
+      const byArtist = splitArtists(song.artist).some(name => artists.includes(name.toLowerCase()))
       if (!inTag && !byArtist) return false
     }
     if (song.tagIds.some(id => noTags.has(id))) return false
@@ -337,7 +338,7 @@ export function groundPlan(
   tags: readonly Tag[],
 ): { understanding: Understanding; unknown: string[] } {
   const tagNames = tags.map(tag => tag.name)
-  const artistNames = [...new Set(songs.flatMap(song => creditNames(song.artist)))]
+  const artistNames = [...new Set(songs.flatMap(song => splitArtists(song.artist)))]
   const anyTags = resolveNames(plan.anyTags, tagNames)
   const noTags = resolveNames(plan.noTags, tagNames)
   const artists = resolveNames(plan.artists, artistNames)

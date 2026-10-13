@@ -1,6 +1,6 @@
 import { z } from 'zod/v4'
-import type { AskAnswer, Song, Tag } from '@selfmp3/shared'
-import { creditNames, libraryShape } from './library.js'
+import { splitArtists, type AskAnswer, type Song, type Tag } from '@selfmp3/shared'
+import { libraryShape } from './library.js'
 import { Remembered, tool, type Llm } from './llm.js'
 import type { CatalogueSearch } from './names.js'
 import { NO_STEPS, type Steps } from './progress.js'
@@ -74,7 +74,7 @@ function toolsFor(deps: ExploreDeps, steps: Steps) {
     return song =>
       song.artist.toLowerCase().includes(wanted) ||
       song.albumArtist.toLowerCase().includes(wanted) ||
-      creditNames(song.artist).some(each => each.toLowerCase() === wanted)
+      splitArtists(song.artist).some(each => each.toLowerCase() === wanted)
   }
 
   const search = tool({
@@ -132,7 +132,7 @@ function toolsFor(deps: ExploreDeps, steps: Steps) {
       for (const song of songs.filter(each => inTag(each) && byArtist(each))) {
         const names =
           key === 'artist'
-            ? creditNames(song.artist).slice(0, 1)
+            ? splitArtists(song.artist).slice(0, 1)
             : key === 'album'
               ? [song.album ? `${song.album} · ${song.albumArtist || song.artist}` : '(no album)']
               : key === 'tag'

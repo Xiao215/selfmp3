@@ -1,11 +1,4 @@
-import {
-  artistOr,
-  DAY_MS,
-  fromSqliteTime,
-  UNKNOWN_ARTIST,
-  type Song,
-  type Tag,
-} from '@selfmp3/shared'
+import { artistOr, DAY_MS, fromSqliteTime, mainArtist, type Song, type Tag } from '@selfmp3/shared'
 import { tally } from './text.js'
 
 /**
@@ -16,25 +9,6 @@ import { tally } from './text.js'
  * Everything here is plain text built the same way every time, so the same
  * library gives the same prompt and a cached answer can be found again.
  */
-
-/**
- * The people a credit names, once each, in order.
- *
- * Credits arrive as "薛之谦, 薛之谦, 薛之谦", "Yu-Peng Chen, HOYO-MiX" or
- * "A feat. B"; the first name is who the song is mostly by.
- */
-export function creditNames(artist: string): string[] {
-  const names: string[] = []
-  for (const part of artist.split(/\s*(?:,|、|;|\/|\s&\s|\sfeat\.?\s|\sft\.?\s)\s*/i)) {
-    const name = part.trim()
-    if (name && !names.some(other => other.toLowerCase() === name.toLowerCase())) names.push(name)
-  }
-  return names
-}
-
-export function mainArtist(artist: string): string {
-  return creditNames(artist)[0] ?? UNKNOWN_ARTIST
-}
 
 /** With words: lyrics were found and nobody said it has none. */
 export function hasWords(song: Song): boolean {

@@ -102,3 +102,22 @@ test.describe('the song menu', () => {
     await expect(menu).toHaveCount(0)
   })
 })
+
+test.describe('the ⋯ caption', () => {
+  test('a resting pointer captions it in one short line', async ({ page }, info) => {
+    test.skip(info.project.name === 'phone', 'a caption is a pointer’s, and a phone has none')
+    await openLibrary(page)
+    await libraryReady(page)
+    await skipIfNoLibrary(page)
+
+    const title = await titleOf(songRows(page).first())
+    await songRows(page).first().hover()
+    await page.getByRole('button', { name: `More actions for ${title}` }).hover()
+    const caption = page.getByRole('tooltip')
+    await expect(caption).toHaveText('More')
+    // One line of small type and its padding. A unitless line height in the
+    // DOM is a multiple of the font size, and drew this ~200px tall.
+    const box = await caption.boundingBox()
+    expect(box?.height ?? 0).toBeLessThan(40)
+  })
+})

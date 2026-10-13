@@ -285,7 +285,9 @@ export function TooltipHost(): ReactNode {
           fontFamily: FONT_STACK,
           fontSize: type.small,
           fontWeight: 500,
-          lineHeight: leading.small,
+          // In pixels: a bare number is a multiple of the font size in the DOM,
+          // where react-native-web would have read it as points.
+          lineHeight: `${leading.small}px`,
           pointerEvents: 'none',
           animation: leaving
             ? `selfmp3-tooltip-out ${motion.fast}ms ${EASE_IN_CSS} forwards`

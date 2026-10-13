@@ -152,7 +152,7 @@ export interface Container {
   close(): void
 }
 
-export interface ContainerOptions {
+interface ContainerOptions {
   /**
    * What this library shares with others on the same machine (shared.ts).
    * Absent, it makes its own, and lets go of it when it closes.

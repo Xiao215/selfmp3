@@ -18,7 +18,7 @@ import { DoormanAccountSchema } from '@selfmp3/shared'
  * devices already hold.
  */
 
-export const WorkspaceIdSchema = z.string().regex(/^[0-9a-f]{16}$/, 'not a workspace id')
+const WorkspaceIdSchema = z.string().regex(/^[0-9a-f]{16}$/, 'not a workspace id')
 
 const GrantSchema = z.object({
   /** The doorman session the account gave this server. */
@@ -26,7 +26,6 @@ const GrantSchema = z.object({
   /** Its id in the account's list of grants; null for a device's session, before it was swapped. */
   id: z.string().nullable(),
 })
-export type HubGrant = z.infer<typeof GrantSchema>
 
 const EntrySchema = z.object({
   id: WorkspaceIdSchema,

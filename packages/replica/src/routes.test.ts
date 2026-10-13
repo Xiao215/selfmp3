@@ -135,6 +135,7 @@ describe('/api/cloud/uids', () => {
     const fetched: string[] = []
     const platform: CloudPlatform = {
       doormanUrl: DOORMAN,
+      sharedServerUrl: '',
       store,
       fetch: (url: string) => {
         const path = url.slice(DOORMAN.length)

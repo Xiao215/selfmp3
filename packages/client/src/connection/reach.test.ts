@@ -70,6 +70,15 @@ describe('awayCopy', () => {
     expect(awayCopy(false, 'stats').body).toContain('let it run for a minute')
   })
 
+  it('offers the shared computer to a library that never had one', () => {
+    const offer = awayCopy(false, 'stats', true)
+    expect(offer.title).toBe('No computer works for your library yet')
+    expect(offer.body).toContain('Stats come from your library’s computer')
+    expect(offer.body).toContain('The shared computer can')
+    // A computer of its own that is only off is not offered a different one.
+    expect(awayCopy(true, 'stats', true).title).toBe('Your library’s computer isn’t answering')
+  })
+
   it('leads with what this screen came for, so the card is not the same card everywhere', () => {
     expect(awayCopy(true, 'import').body).toContain(
       'Importing goes through your library’s computer',

@@ -17,8 +17,10 @@ import type {
   Health,
   AnalysisStatus,
   CloudConnect,
+  CloudServer,
   CloudStatus,
   DeviceList,
+  DoormanGrants,
   Library,
   Settings,
   Stats,
@@ -88,6 +90,7 @@ const playlistsKey = ['playlist'] as const
 export const queryKeys = {
   cloudImports: ['cloud-imports'] as const,
   cloudServer: ['cloud-server'] as const,
+  serverGrants: ['cloud-grants'] as const,
   library: ['library'] as const,
   settings: ['settings'] as const,
   importQueue: ['import', 'queue'] as const,
@@ -1170,6 +1173,46 @@ export function useRequestCloudImport(): UseMutationResult<
     mutationFn: (input: CloudImportRequest) => clientApi().requestCloudImport(input),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.cloudImports })
+    },
+  })
+}
+
+// --- the shared computer (docs/features/shared-server.md) ---------------------
+
+/** The servers this account has let into its bucket. */
+export function useServerGrants(enabled = true): UseQueryResult<DoormanGrants, Error> {
+  const { ready } = useClientState()
+  return useQuery({
+    queryKey: queryKeys.serverGrants,
+    enabled: ready && enabled,
+    staleTime: STALE.minute,
+    queryFn: () => clientApi().serverGrants(),
+  })
+}
+
+/**
+ * Have the shared computer work for this account. What it answers is where
+ * the account's library there listens, which every screen that needs a server
+ * then finds at once, before any snapshot names it.
+ */
+export function useJoinSharedServer(): UseMutationResult<CloudServer | null, Error, void> {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: async () => (await clientApi().joinSharedServer()).server,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.cloudServer })
+      void client.invalidateQueries({ queryKey: queryKeys.serverGrants })
+    },
+  })
+}
+
+/** Take a server's way into the bucket back; it lets the library go at its next look. */
+export function useRemoveServerGrant(): UseMutationResult<unknown, Error, string> {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => clientApi().removeServerGrant(id),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.serverGrants })
     },
   })
 }

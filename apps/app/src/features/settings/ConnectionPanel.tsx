@@ -2,8 +2,14 @@ import type { ReactNode } from 'react'
 import { Linking, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { useLibrary } from '@selfmp3/client'
+import {
+  useJoinSharedServer,
+  useLibrary,
+  useRemoveServerGrant,
+  useServerGrants,
+} from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
+import { sharedServerUrl } from '../../ports/sharedServerUrl'
 import { Button } from '../../ui/components/Button'
 import { Refresh } from '../../ui/components/Icons'
 import { useLayout } from '../../shell/useLayout'
@@ -12,6 +18,7 @@ import { useBucketHold } from '../profile/useBucketHold'
 import { useCloudSession } from '../profile/useCloudSession'
 import { STORAGE_ROUTE, whereItIs } from '../welcome/storage.model'
 import { ButtonRow, Details, Panel, partStyles, Row } from './SettingsParts'
+import { computerRow, noComputersHint } from './computers.model'
 import { type Confirming } from './settings.model'
 import { plural } from '@selfmp3/shared'
 
@@ -34,6 +41,10 @@ import { plural } from '@selfmp3/shared'
  * has no Settings → Cloud, and this is where the bucket connected on Where it
  * lives can be changed or forgotten afterwards. A bucket refusing for the day
  * says so there too, with the way to raise its cap.
+ *
+ * Computers are the servers the account has let into its bucket
+ * (docs/features/shared-server.md): each can be removed here, and with none,
+ * the shared one this build offers is a tap away.
  */
 export function ConnectionPanel({
   anchor,
@@ -108,6 +119,7 @@ export function ConnectionPanel({
               ) : null}
             </View>
           </Row>
+          <Computers />
         </>
       ) : (
         <Row label="Address">
@@ -149,6 +161,58 @@ export function ConnectionPanel({
         />
       </ButtonRow>
     </Panel>
+  )
+}
+
+/** The servers this account has let in, each with Remove; the shared one offered when there are none. */
+function Computers(): ReactNode {
+  const grants = useServerGrants()
+  const join = useJoinSharedServer()
+  const remove = useRemoveServerGrant()
+  const failed = join.error ?? remove.error
+  const list = grants.data?.grants
+  if (!list || list.length === 0) {
+    return (
+      <Row
+        label="Computers"
+        hint={
+          grants.isPending
+            ? 'Loading…'
+            : grants.isError
+              ? 'Can’t say right now.'
+              : failed
+                ? failed.message
+                : noComputersHint(sharedServerUrl)
+        }
+      >
+        {list && sharedServerUrl ? (
+          <Button
+            label={join.isPending ? 'Joining…' : 'Use the shared computer'}
+            disabled={join.isPending}
+            onPress={() => join.mutate()}
+            testID="cloud-computer-join"
+          />
+        ) : null}
+      </Row>
+    )
+  }
+  return (
+    <>
+      {list.map(grant => {
+        const row = computerRow(grant)
+        return (
+          <Row key={grant.id} label={row.label} hint={failed ? failed.message : row.hint}>
+            <Button
+              label="Remove"
+              variant="danger"
+              disabled={remove.isPending}
+              onPress={() => remove.mutate(grant.id)}
+              testID="cloud-computer-remove"
+            />
+          </Row>
+        )
+      })}
+    </>
   )
 }
 

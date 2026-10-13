@@ -21,6 +21,7 @@ import {
   ArtistBackdropSchema,
   DeviceCommandResultSchema,
   DeviceListSchema,
+  DoormanGrantsSchema,
   ErrorBodySchema,
   HealthSchema,
   ImportEnqueueResultSchema,
@@ -552,6 +553,18 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     /** Where the server behind a cloud library listens, from its last snapshot. */
     cloudServer: () => request('GET', '/api/cloud/server', CloudServerViewSchema),
+
+    /**
+     * Have the shared server work for this account (docs/features/shared-server.md),
+     * for a cloud library whose bucket names no server of its own.
+     */
+    joinSharedServer: () => request('POST', '/api/cloud/server/join', CloudServerViewSchema),
+
+    /** The servers this account has let into its bucket, from the doorman. */
+    serverGrants: () => request('GET', '/api/cloud/grants', DoormanGrantsSchema),
+
+    /** Take a server's way into the bucket back. */
+    removeServerGrant: (id: string) => request('DELETE', `/api/cloud/grants/${id}`, OkSchema),
 
     /**
      * The uid behind each song id in whichever library answers this — this

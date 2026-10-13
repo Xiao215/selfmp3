@@ -36,7 +36,7 @@ import { HubRegistry, type HubEntry } from './registry.js'
  * data folder itself, as the server always did.
  */
 
-export interface Workspace {
+interface Workspace {
   /** The entry in `hub.json`; null for the one library of a folder bucket. */
   readonly entry: HubEntry | null
   readonly container: Container
@@ -269,6 +269,15 @@ export class Hub {
     const workspace = this.#workspaces.get(id)
     const grant = workspace?.entry?.grant
     if (!workspace || !grant || !this.#doorman || this.#stopped) return
+    // A library from before whose old session ended was never given a grant
+    // to take back: its plays may not all be in the bucket yet, so it waits
+    // for someone to sign it in again rather than being let go.
+    if (grant.id === null) {
+      this.logger.warn('a library from before lost its session; it waits to be joined again', {
+        workspace: id,
+      })
+      return
+    }
     void this.#doorman.me(grant.token).then(
       () => undefined,
       (error: unknown) => {
@@ -371,7 +380,7 @@ export class Hub {
 }
 
 /** A workspace's configuration: the server's, in folders of its own, with its own token. */
-export function workspaceConfig(config: Config, entry: HubEntry): Config {
+function workspaceConfig(config: Config, entry: HubEntry): Config {
   const dataDir = path.join(config.dataDir, 'accounts', entry.id)
   const libraryDir = path.join(config.libraryDir, entry.id)
   for (const dir of [dataDir, libraryDir, path.join(dataDir, 'covers')]) {

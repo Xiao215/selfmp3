@@ -317,6 +317,15 @@ export function isCloudListPrefix(prefix: string): boolean {
 export const DEFAULT_DOORMAN_URL = 'https://selfmp3-doorman.xiaozhang20030215.workers.dev'
 
 /**
+ * The server that works for anyone signed in, unless told otherwise
+ * (SELFMP3_SERVER_URL when building the app; docs/features/shared-server.md).
+ * An account whose bucket names no server of its own is offered this one: it
+ * imports, keeps Stats and asks the model for whoever joins it, in each
+ * one's own bucket. A fork with no such server sets this to ''.
+ */
+export const DEFAULT_SERVER_URL = 'https://pi.tail3d8516.ts.net'
+
+/**
  * Where the app is, for something that has a server's address but needs to send
  * someone to the app instead — the browser extension's "open the queue", say.
  *

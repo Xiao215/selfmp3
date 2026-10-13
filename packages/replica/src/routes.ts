@@ -33,6 +33,7 @@ import type { CloudLibraryApi } from './library.js'
 import type { CloudPlatform } from './platform.js'
 import { CloudImportRequestSchema } from './schemas.js'
 import { DoormanError, type CloudSession, type CloudSessionApi } from './session.js'
+import { createSharedServer } from './sharedServer.js'
 import type { CloudLibrary } from './snapshotLibrary.js'
 
 /** As much of a query string as any route reads. */
@@ -132,8 +133,9 @@ export function createCloudRoutes(
     peekCloudLibrary,
     recordChanges,
   } = library
+  const shared = createSharedServer(platform, sessionApi)
 
-  /** Routes as `METHOD /path`: `:id` for a number, `:uid` for a uid. */
+  /** Routes as `METHOD /path`: `:id` for a number, `:uid` for a uid, `:grant` for a grant's id. */
   const ROUTES: ReadonlyArray<readonly [string, string, Handler]> = [
     ['GET', '/api/library', async ({ session }) => (await loadCloudLibrary(session)).library],
     ['GET', '/api/library/version', ({ session }) => cloudLibraryVersion(session)],
@@ -470,10 +472,29 @@ export function createCloudRoutes(
     // Asked every few seconds by every screen that might use the server, so
     // from this device's copy alone: as a library read, it was a look at the
     // bucket — two counted listings — every eighty seconds the app was open.
+    // A server this account has just joined goes in until the snapshot names
+    // it (sharedServer.ts): a minute or so, and then the snapshot says the same.
     [
       'GET',
       '/api/cloud/server',
-      async ({ session }) => ({ server: (await peekCloudLibrary(session)).server }),
+      async ({ session }) => ({
+        server: (await peekCloudLibrary(session)).server ?? (await shared.joined(session)),
+      }),
+    ],
+    [
+      'POST',
+      '/api/cloud/server/join',
+      async ({ session }) => ({ server: await shared.join(session) }),
+    ],
+    // The servers this account has let into its bucket, from the doorman.
+    ['GET', '/api/cloud/grants', ({ session }) => shared.grants(session)],
+    [
+      'DELETE',
+      '/api/cloud/grants/:grant',
+      async ({ session, params }) => {
+        await shared.removeGrant(session, params[0] ?? '')
+        return { ok: true }
+      },
     ],
     /*
      * The uid behind each of this device's song ids — the other half of the
@@ -544,8 +565,9 @@ export function createCloudRoutes(
     if (want.length !== have.length) return null
     const params: string[] = []
     for (let i = 0; i < want.length; i++) {
-      if (want[i] === ':id' || want[i] === ':uid') {
-        const shape = want[i] === ':id' ? /^\d+$/ : /^[0-9a-f]{32}$/
+      if (want[i] === ':id' || want[i] === ':uid' || want[i] === ':grant') {
+        const shape =
+          want[i] === ':id' ? /^\d+$/ : want[i] === ':uid' ? /^[0-9a-f]{32}$/ : /^[0-9a-f]{16}$/
         if (!shape.test(have[i] ?? '')) return null
         params.push(have[i] ?? '')
       } else if (want[i] !== have[i]) {

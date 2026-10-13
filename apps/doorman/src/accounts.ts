@@ -180,7 +180,7 @@ export class Accounts {
  * The account as others may know it (`DoormanAccountSchema`): derived from the
  * Google id, so it never changes, without being it.
  */
-export async function accountId(sub: string): Promise<string> {
+async function accountId(sub: string): Promise<string> {
   return (await sha256Hex(`account:${sub}`)).slice(0, 32)
 }
 

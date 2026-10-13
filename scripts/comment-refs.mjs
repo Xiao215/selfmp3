@@ -43,6 +43,7 @@ const ALLOWED = [
   ['library.json', 'the library snapshot the phone keeps'],
   ['userData/secrets.json', 'the desktop keychain fallback'],
   ['userData/window.json', "the desktop window's last bounds"],
+  ['hub.json', "who a server works for, in the server's data directory"],
 
   // Objects in the bucket, which is not a checkout.
   ['format.json', "the bucket's own marker, written when one is connected"],

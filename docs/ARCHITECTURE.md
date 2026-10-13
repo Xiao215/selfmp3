@@ -21,7 +21,9 @@ packages/client          what the app shares across platforms: API client, React
 apps/server
   main.ts                boot, shutdown, signals
   config.ts              env → validated, frozen config object
-  container.ts           composition root: constructs everything, once
+  hub/                   a library (workspace) per account that joined; routing by token
+  shared.ts              what every library on the machine shares: the model, YouTube's pace
+  container.ts           composition root for one library: constructs everything, once
   app.ts                 express wiring, middleware order
   http/                  route helper, error handling, range requests
   db/                    connection, migrations, row types
@@ -230,6 +232,13 @@ the server made the old shape look like it still worked, so it went, and
 `/api` is untouched by any of this. The browser extension still talks to a
 server at its address, because only the server runs yt-dlp.
 
+And the server works for more than one person. Each Google account that joins
+it gets a workspace — a whole container, its own database and queue — under
+`<data>/accounts/<id>/`, and a request finds its workspace by its token. Every
+workspace's database is a cache of that account's bucket, play history
+included, so the only thing the server keeps of its own is the list of who
+joined (`hub.json`). See [features/shared-server.md](features/shared-server.md).
+
 The cost is honest and current: **Stats, the Untagged inbox and metadata lookup
 are server-only**, and the app hides them when its library is the bucket's.
 Every surface is now cloud-only, so nothing draws them today. The routes are
@@ -409,10 +418,12 @@ Run `npm run check` for typecheck + lint + tests.
 
 ## Things deliberately not done
 
-- **No account, no password, no session.** There is one person here. What guards the API is
-  a single bearer token the server makes for itself and publishes into the bucket, so every
-  device signed in to your Google account is given it and nobody types anything
-  (`apps/server/src/repositories/auth.ts`). Requests from the server's own machine skip it,
+- **No account, no password, no session on the server.** Google, through the doorman, is
+  the only sign-in. What guards each library's API is a bearer token of its own
+  (`apps/server/src/hub/registry.ts`), published into that account's bucket, so every device
+  signed in to the account is given it and nobody types anything. Joining is the one moment
+  the server sees a doorman session, and it trades it for a grant at once. A request from
+  the server's own machine with no token goes to the only library when there is only one,
   since whoever is there can read the database it is in (`apps/server/src/http/local.ts`).
 - **No ORM.** Hand-written SQL in typed repositories. At this size an ORM adds a layer of
   indirection over queries that are already short and readable.

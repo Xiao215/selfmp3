@@ -69,6 +69,7 @@ jobs:
           # Pages serves from /<repo>; app.config.js turns this into Expo's baseUrl.
           EXPO_PUBLIC_BASE: ${{ steps.pages.outputs.base_path }}
           SELFMP3_DOORMAN_URL: ${{ vars.DOORMAN_URL }}
+          SELFMP3_SERVER_URL: ${{ vars.SERVER_URL }}
 
       # Pages answers a path it has no file for with 404.html. Make that the
       # app itself, so a link straight to a page like /selfmp3/settings opens.

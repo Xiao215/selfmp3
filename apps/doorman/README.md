@@ -10,6 +10,10 @@ Backblaze B2 bucket. It does three things:
 3. **Passes a signed-in device's reads and writes through to that bucket**,
    so no phone or browser ever holds the bucket's key.
 
+It also hands out **grants**: a session an account gives a server, so that the
+server can work in the account's bucket while none of its devices is open
+([docs/features/shared-server.md](../../docs/features/shared-server.md)).
+
 Why it exists, and how devices use the bucket, is in [docs/SYNC.md](../../docs/SYNC.md).
 The API it serves is the contract in
 [packages/shared/src/schemas/doorman.ts](../../packages/shared/src/schemas/doorman.ts).
@@ -179,6 +183,11 @@ below); the plain command deploys the real doorman.
   account at once, the lost device's included, for good; then sign in again
   where you want to be. It can take up to a minute to reach every Cloudflare
   location.
+- **Grants** are the servers an account has let into its bucket
+  (`/v1/grants`): sessions of their own, made with a device's session, with no
+  180-day end. Each account sees and removes its own in self.mp3's Settings ›
+  Account › Computers. Signing out everywhere ends them too, and a grant can
+  never make another. Making one costs two KV writes, and so does ending one.
 - **ALLOWED_EMAILS** is the whole list of who may sign in. Letter case does
   not matter. If it is empty or missing, nobody can sign in. Taking an address
   off the list refuses its sessions straight away, but does not end them:

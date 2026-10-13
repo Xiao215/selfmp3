@@ -141,7 +141,7 @@ CSC_NAME="Apple Development: you@example.com (TEAMID)"
 Every `npm run build:desktop` reads it and prints `development-signed build`, from a
 worktree too — a worktree branched from your checkout has no `.env` of its own, so the
 main checkout's is read after it. The same file holds the server's own settings, such as
-`SELFMP3_AUTH_TOKEN`; a variable set in the shell wins over the file. The keychain asks
+`SELFMP3_PUBLIC_URL`; a variable set in the shell wins over the file. The keychain asks
 once more, the first time that build runs; after Always Allow, every later build signed
 with the same certificate is the same app to it.
 
@@ -345,18 +345,18 @@ Anything from the table in `README.md` can go in the `environment:` block of
 
 ```yaml
 environment:
-  SELFMP3_AUTH_TOKEN: <openssl rand -hex 24>   # a token of your own, instead of its own
+  SELFMP3_PUBLIC_URL: https://<machine>.<tailnet>.ts.net
   SELFMP3_LOG_LEVEL: debug
 ```
 
-The token is worth a word in a container. The server always has one — it makes its own on
-the first boot that finds none — but it keeps it in the database, which here is a bind mount
-that a `docker compose down -v` or a fresh `./data` would take with it. Every device signed
-in to your bucket would then be holding last week's key until the next sync reached it.
-Setting `SELFMP3_AUTH_TOKEN` in the compose file pins it to something the container cannot
-lose. The exemption for requests from the server's own machine does not help you here
-either: the container is its own machine, so a request from the host arrives over the
-network like any other.
+The tokens are worth a word in a container. The server works for every account that joins
+it, and each account's library answers to a token of its own, kept in `./data/hub.json`
+with the grant the account gave it ([features/shared-server.md](features/shared-server.md)).
+Everything else under `./data` is a copy of the accounts' buckets, but that file is not: a
+`docker compose down -v` or a fresh `./data` would leave every device holding a token
+nothing answers to, until it joins again. Keep the bind mount. The exemption for requests
+from the server's own machine does not help you here either: the container is its own
+machine, so a request from the host arrives over the network like any other.
 
 ---
 

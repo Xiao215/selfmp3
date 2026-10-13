@@ -61,6 +61,7 @@ function platform(
     opened,
     store,
     doormanUrl: DOORMAN,
+    sharedServerUrl: '',
     fetch: (url, init) => {
       const call = { url, init }
       calls.push(call)

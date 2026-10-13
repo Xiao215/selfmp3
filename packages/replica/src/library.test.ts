@@ -177,6 +177,7 @@ function platformFor(bucket: ReturnType<typeof fakeBucket>, store: DeviceStore):
   }
   return {
     doormanUrl: DOORMAN,
+    sharedServerUrl: '',
     store,
     fetch: bucket.fetch,
     randomBytes: into => into.fill(3),

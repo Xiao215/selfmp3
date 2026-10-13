@@ -2,6 +2,19 @@ import { fireEvent, render, screen } from '@testing-library/react-native'
 
 import { ServerAway } from './ServerAway'
 
+const mockShared = { url: '' }
+jest.mock('../ports/sharedServerUrl', () => ({
+  get sharedServerUrl() {
+    return mockShared.url
+  },
+}))
+
+const mockJoin = { mutate: jest.fn(), isPending: false, error: null as Error | null }
+jest.mock('@selfmp3/client', () => ({
+  ...jest.requireActual('@selfmp3/client'),
+  useJoinSharedServer: () => mockJoin,
+}))
+
 /**
  * The card that replaced not drawing the screen at all.
  *
@@ -12,7 +25,12 @@ import { ServerAway } from './ServerAway'
  */
 describe('ServerAway', () => {
   const lookAgain = jest.fn()
-  beforeEach(() => lookAgain.mockClear())
+  beforeEach(() => {
+    lookAgain.mockClear()
+    mockJoin.mutate.mockClear()
+    mockJoin.error = null
+    mockShared.url = ''
+  })
 
   it('says it is looking, with nothing to press', async () => {
     await render(
@@ -55,5 +73,35 @@ describe('ServerAway', () => {
 
     await fireEvent.press(screen.getByTestId('metadata-server-look-again'))
     expect(lookAgain).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers the shared computer to a library that never had one, and joins it', async () => {
+    mockShared.url = 'https://pi.example.ts.net'
+    await render(
+      <ServerAway
+        reach={{ state: 'away', said: false, lookAgain }}
+        need="import"
+        testID="import-server"
+      />,
+    )
+    expect(screen.getByText('No computer works for your library yet')).toBeTruthy()
+    await fireEvent.press(screen.getByTestId('import-server-join'))
+    expect(mockJoin.mutate).toHaveBeenCalledTimes(1)
+    // Joined, the screen looks again and finds it.
+    const [, options] = mockJoin.mutate.mock.calls[0] as [unknown, { onSuccess: () => void }]
+    options.onSuccess()
+    expect(lookAgain).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers nothing to a library whose own computer is only off', async () => {
+    mockShared.url = 'https://pi.example.ts.net'
+    await render(
+      <ServerAway
+        reach={{ state: 'away', said: true, lookAgain }}
+        need="stats"
+        testID="stats-server"
+      />,
+    )
+    expect(screen.queryByTestId('stats-server-join')).toBeNull()
   })
 })

@@ -13,6 +13,9 @@ import { clamp01 } from '@selfmp3/shared'
 
 import { ensurePlayer } from '../player/setup'
 import { askWhyRefused } from './bucketRefusal'
+import { deviceKind } from './device'
+import { cannotPlayYet } from './streamFailure.model'
+import { devicePlace } from '../features/settings/settings.model'
 
 /**
  * The phone's engine: react-native-track-player behind `PlaybackEngine`.
@@ -189,7 +192,12 @@ class NativeEngine implements PlaybackEngine {
     try {
       const track = this.#trackFor(songId)
       if (!track) {
-        this.#patch({ error: `Song ${songId} cannot be played from this device yet.` })
+        this.#patch({
+          error: cannotPlayYet(
+            this.#wiring.trackMetadata?.(songId)?.title,
+            devicePlace(deviceKind()),
+          ),
+        })
         return
       }
 

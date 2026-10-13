@@ -1,5 +1,7 @@
 import { BUCKET_CAP_CODE, bucketHold, holdBucket } from '@selfmp3/replica'
 import { streamFailureMessage } from './streamFailure.model'
+import { deviceKind } from './device'
+import { devicePlace } from '../features/settings/settings.model'
 
 /**
  * Why a file from the bucket would not come, asked of the doorman, or null
@@ -25,7 +27,7 @@ export async function askWhyRefused(
     const response = await fetch(url, { headers: { ...headers, range: 'bytes=0-0' } })
     if (response.ok || response.status === 206) return null
     const body = await response.text()
-    const message = streamFailureMessage(response.status, body)
+    const message = streamFailureMessage(response.status, body, devicePlace(deviceKind()))
     if (refusedForTheDay(body)) holdBucket(message, 'read')
     return message
   } catch {

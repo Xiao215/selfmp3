@@ -55,6 +55,8 @@ vi.mock('../api/client', () => ({
   api: {},
   mediaUrlFor: () => ({ stream: () => '', art: () => '' }),
 }))
+// Who this device is reads React Native, which a node test cannot load.
+vi.mock('./device', () => ({ deviceKind: () => 'phone' }))
 vi.mock('./recentCopies', () => ({ adoptRecent: async () => null }))
 vi.mock('./songSource', () => ({ sourceFor: async () => ({ url: '' }) }))
 vi.mock('../offline/covers', () => ({

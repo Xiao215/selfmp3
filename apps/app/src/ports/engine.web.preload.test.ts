@@ -10,6 +10,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * count.
  */
 
+// The place word is the browser's own (device.web.ts); here it is a computer.
+vi.mock('./device', () => ({ deviceKind: () => 'desktop' }))
+
 class FakeAudio extends EventTarget {
   preload = 'metadata'
   crossOrigin: string | null = null

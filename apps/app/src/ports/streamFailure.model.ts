@@ -1,3 +1,5 @@
+import type { DevicePlace } from '../features/settings/settings.model'
+
 /**
  * Why a song would not play, from what its stream address answers.
  *
@@ -7,13 +9,14 @@
  * said "not available offline" for all three. The address itself says which:
  * asked for one byte, it answers with the service worker's words (a 503 in
  * plain text) or the doorman's (a 502 in JSON, with `error`).
+ *
+ * The service worker's 503 is always the same news — the song is not here and
+ * the network did not bring it — so it is said in the app's words for this
+ * device (`notHere`) rather than the worker's, which cannot know the place.
  */
-export function streamFailureMessage(status: number, body: string): string {
+export function streamFailureMessage(status: number, body: string, place: DevicePlace): string {
   const text = body.trim()
-  const plain =
-    status === 404 || status === 503
-      ? 'This song is not available offline'
-      : 'Could not play this song'
+  const plain = status === 404 || status === 503 ? notHere(place) : 'Could not play this song'
   if (text.startsWith('{')) {
     try {
       const parsed: unknown = JSON.parse(text)
@@ -23,6 +26,22 @@ export function streamFailureMessage(status: number, body: string): string {
       // Not JSON after all: read as words below.
     }
   }
+  if (status === 503) return plain
   if (text && text.length <= 300 && !text.startsWith('<')) return text.replace(/\.$/, '')
   return plain
+}
+
+/** A song with no copy here and no way to fetch one. */
+export function notHere(place: DevicePlace): string {
+  return `This song isn’t on this ${place}`
+}
+
+/**
+ * A song the player has no address for at all: named when the player knows
+ * its title, which it does for any song in the library.
+ */
+export function cannotPlayYet(title: string | null | undefined, place: DevicePlace): string {
+  return title
+    ? `“${title}” can’t be played on this ${place} yet.`
+    : `This song can’t be played on this ${place} yet.`
 }

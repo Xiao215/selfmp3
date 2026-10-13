@@ -1,4 +1,7 @@
 import {
+  DOORMAN_ERROR,
+  DOORMAN_PATHS,
+  DoormanError,
   ROOM_CODE_ALPHABET,
   ROOM_CODE_LENGTH,
   RoomActionSchema,
@@ -11,11 +14,13 @@ import {
   RoomVectorsSchema,
   SharedFromRoomSchema,
   SharedKeepSchema,
+  STREAM_RELAYED_HEADERS,
+  relayedRange,
 } from '@selfmp3/shared'
 import { Bucket } from './bucket.js'
 import { requireSession, type Context } from './context.js'
 import { relayRead } from './files.js'
-import { DoormanError, json, methodNotAllowed, notFound, readJson } from './http.js'
+import { json, methodNotAllowed, notFound, readJson } from './http.js'
 import {
   KeepableSchema,
   LentFileSchema,
@@ -39,7 +44,7 @@ import { bearerToken, type Session } from './sessions.js'
  * from that bucket the way it reads a device's own.
  */
 
-const ROOMS = '/v1/rooms'
+const ROOMS = DOORMAN_PATHS.rooms
 
 /** Codes tried before giving up on finding a free one: 729 million to choose from. */
 const CODE_TRIES = 5
@@ -169,9 +174,6 @@ export async function rooms(ctx: Context): Promise<Response> {
 /** Three hundred packed vectors, a kilobyte each, and their keys. */
 const VECTORS_MAX_BYTES = 400 * 1024
 
-/** What a link's stream says about itself that a player can use. */
-const LISTEN_RELAYED = ['content-type', 'content-length', 'content-range', 'accept-ranges']
-
 /**
  * A link's audio, from the host's server's own stream of it
  * (apps/server's `/api/import/listen`): ranges passed on, and the answer
@@ -184,20 +186,28 @@ async function listenThrough(
   method: 'GET' | 'HEAD',
 ): Promise<Response> {
   const headers = new Headers()
-  const range = ctx.request.headers.get('range')
-  if (range !== null && /^bytes=\d*-\d*$/.test(range.trim())) headers.set('range', range.trim())
+  const range = relayedRange(ctx.request.headers.get('range'))
+  if (range !== null) headers.set('range', range)
   let upstream: Response
   try {
     upstream = await ctx.fetch(address, { method: 'GET', headers, cache: 'no-store' })
   } catch {
-    throw new DoormanError(502, 'link_unreachable', 'the host’s server cannot be reached')
+    throw new DoormanError(
+      502,
+      DOORMAN_ERROR.linkUnreachable,
+      'the host’s server cannot be reached',
+    )
   }
   if (!upstream.ok) {
     await upstream.body?.cancel()
-    throw new DoormanError(502, 'link_unplayable', 'the host’s server could not play that link')
+    throw new DoormanError(
+      502,
+      DOORMAN_ERROR.linkUnplayable,
+      'the host’s server could not play that link',
+    )
   }
   const out = new Headers({ 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' })
-  for (const name of LISTEN_RELAYED) {
+  for (const name of STREAM_RELAYED_HEADERS) {
     const value = upstream.headers.get(name)
     if (value !== null) out.set(name, value)
   }
@@ -235,7 +245,7 @@ async function create(ctx: Context, namespace: DurableObjectNamespace): Promise<
     if (response.status !== 409) return relayed(response)
     await response.body?.cancel()
   }
-  throw new DoormanError(503, 'room_codes', 'could not find a free room code; try again')
+  throw new DoormanError(503, DOORMAN_ERROR.roomCodes, 'could not find a free room code; try again')
 }
 
 /** The session the request brings, when it brings one. A token that is no good is said so. */

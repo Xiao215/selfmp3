@@ -1,6 +1,12 @@
 import { createHash } from 'node:crypto'
 import { Readable } from 'node:stream'
 import type { S3Client } from '@aws-sdk/client-s3'
+import {
+  bucketUnreachable,
+  classifyBucketRefusal,
+  type BucketRefusal,
+  type BucketRefusalKind,
+} from '@selfmp3/shared'
 import type { CloudConnection } from '../repositories/cloud.js'
 import { errorName, errorStatus, isNotFound, loadS3, streamToBuffer, type S3Module } from './s3.js'
 import { messageOf } from '../util/errors.js'
@@ -67,18 +73,13 @@ export interface CloudStore {
 }
 
 /**
- * Why a bucket operation failed, in terms of what to do about it:
- * `auth` — the key is wrong or not allowed; `network` — the bucket could not
- * be reached; `missing` — no such bucket; `cap` — the account's allowance for
- * the day is used up, so nothing else will get through either; `other` —
- * anything else.
+ * Why a bucket operation failed, in terms of what to do about it: the kinds
+ * of packages/shared's `BucketRefusalKind`, which the doorman's own errors use.
  */
-type CloudErrorKind = 'auth' | 'network' | 'missing' | 'cap' | 'other'
-
 export class CloudError extends Error {
-  readonly kind: CloudErrorKind
+  readonly kind: BucketRefusalKind
 
-  constructor(kind: CloudErrorKind, message: string) {
+  constructor(kind: BucketRefusalKind, message: string) {
     super(message)
     this.name = 'CloudError'
     this.kind = kind
@@ -248,60 +249,33 @@ export class S3CloudStore implements CloudStore {
   #explain(error: unknown): CloudError {
     if (error instanceof CloudError) return error
     const host = hostOf(this.#connection.endpoint)
-    const name = errorName(error)
     const status = errorStatus(error)
-    const code = errorCode(error)
-
-    if (name === 'NoSuchBucket') {
-      return new CloudError(
-        'missing',
-        `There is no bucket called “${this.#connection.bucket}” at ${host}.`,
-      )
-    }
-    const said = messageOf(error)
-    if (
-      status === 401 ||
-      status === 403 ||
-      [
-        'InvalidAccessKeyId',
-        'SignatureDoesNotMatch',
-        'AccessDenied',
-        'Unauthorized',
-        'Forbidden',
-      ].includes(name)
-    ) {
-      // Backblaze answers a used-up daily cap with the same 403 a wrong key
-      // gets, and says which only in its message.
-      if (/cap exceeded/i.test(said)) {
-        return new CloudError(
-          'cap',
-          `Backblaze says “${said}”: the bucket's allowance for today is used up. Raise it ` +
-            'under Caps & Alerts at backblaze.com, or wait — caps reset at midnight GMT, 5 pm Pacific.',
-        )
-      }
-      return new CloudError(
-        'auth',
-        `The bucket refused the key${name ? ` (${name})` : ''}. Check the key ID and the ` +
-          `application key, and that the key is allowed to use “${this.#connection.bucket}”.`,
-      )
-    }
-    if (
+    const refused: BucketRefusal =
       status === undefined &&
-      ([
-        'ENOTFOUND',
-        'ECONNREFUSED',
-        'ECONNRESET',
-        'ETIMEDOUT',
-        'EAI_AGAIN',
-        'ENETUNREACH',
-      ].includes(code) ||
-        name === 'TimeoutError')
-    ) {
-      return new CloudError('network', `Could not reach ${host}.`)
-    }
-    return new CloudError('other', `${host}: ${said}`)
+      (NETWORK_CODES.has(errorCode(error)) || errorName(error) === 'TimeoutError')
+        ? bucketUnreachable(host)
+        : classifyBucketRefusal(
+            // The SDK names its error after S3's code, and carries S3's message as its own.
+            { status, code: errorName(error) || null, message: messageOf(error) },
+            {
+              bucket: this.#connection.bucket,
+              host,
+              secrets: [this.#connection.applicationKey, this.#connection.keyId],
+            },
+          )
+    return new CloudError(refused.kind, refused.message)
   }
 }
+
+/** Node's words for a bucket it could not reach at all. */
+const NETWORK_CODES: ReadonlySet<string> = new Set([
+  'ENOTFOUND',
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'EAI_AGAIN',
+  'ENETUNREACH',
+])
 
 /** `https://s3.us-west-004.backblazeb2.com` → `s3.us-west-004.backblazeb2.com`, for messages. */
 export function hostOf(url: string): string {

@@ -1,8 +1,9 @@
 import {
-  ErrorBodySchema,
+  DOORMAN_PATHS,
   RoomStateSchema,
   SharedPlaylistSchema,
   SharedSummariesSchema,
+  type DoormanFetch,
   type RoomFilePart,
   type RoomState,
   type SharedAction,
@@ -10,8 +11,8 @@ import {
   type SharedPlaylist,
   type SharedSummary,
 } from '@selfmp3/shared'
-import type { ClientFetch } from '../platform.js'
-import { RoomError, type RoomPass } from './roomApi.js'
+import type { RoomPass } from './roomApi.js'
+import { doormanSend } from './send.js'
 
 /**
  * Shared playlists on the doorman, from a device
@@ -37,55 +38,34 @@ interface SharedApi {
   fillRoom(pass: RoomPass, session: string, shared: string): Promise<RoomState>
 }
 
-export function createSharedApi(doormanUrl: string, fetch: ClientFetch): SharedApi {
+export function createSharedApi(doormanUrl: string, fetch: DoormanFetch): SharedApi {
   const base = doormanUrl.replace(/\/+$/, '')
-
-  const send = async <T>(
-    url: string,
-    session: string,
-    parse: (body: unknown) => T,
-    body?: unknown,
-  ): Promise<T> => {
-    const headers: Record<string, string> = { authorization: `Bearer ${session}` }
-    if (body !== undefined) headers['content-type'] = 'application/json'
-    const response = await fetch(url, {
-      method: body === undefined ? 'GET' : 'POST',
-      headers,
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    })
-    const answer: unknown = response.status === 204 ? null : await response.json().catch(() => null)
-    if (!response.ok) {
-      const error = ErrorBodySchema.safeParse(answer)
-      throw new RoomError(
-        response.status,
-        error.success ? error.data.code : 'shared_error',
-        error.success ? error.data.error : `the playlist answered ${response.status}`,
-      )
-    }
-    return parse(answer)
-  }
+  const send = doormanSend(base, fetch)
   const one = (body: unknown): SharedPlaylist => SharedPlaylistSchema.parse(body)
-  const room = (pass: RoomPass, path: string): string =>
-    `${base}/v1/rooms/${pass.code}${path}?t=${pass.token}`
+  const playlist = DOORMAN_PATHS.sharedPlaylist
 
   return {
-    list: session => send(`${base}/v1/shared`, session, body => SharedSummariesSchema.parse(body)),
-    create: (session, input) => send(`${base}/v1/shared`, session, one, input),
-    get: (session, id) => send(`${base}/v1/shared/${id}`, session, one),
+    list: session =>
+      send(DOORMAN_PATHS.shared, body => SharedSummariesSchema.parse(body), { session }),
+    create: (session, input) => send(DOORMAN_PATHS.shared, one, { json: input, session }),
+    get: (session, id) => send(playlist(id), one, { session }),
     join: (session, id, invite, name) =>
-      send(`${base}/v1/shared/${id}/join`, session, one, { invite, name }),
+      send(playlist(id, '/join'), one, { json: { invite, name }, session }),
     act: (session, id, action) =>
-      send(
-        `${base}/v1/shared/${id}/act`,
+      send(playlist(id, '/act'), body => (body === null ? null : one(body)), {
+        json: action,
         session,
-        body => (body === null ? null : one(body)),
-        action,
-      ),
-    fileUrl: (playlist, entryId, part) =>
-      `${base}/v1/shared/${playlist.id}/files/${entryId}/${part}?t=${playlist.token}`,
-    keepRoom: (pass, session, name) => send(room(pass, '/keep'), session, one, { name }),
+      }),
+    fileUrl: (shared, entryId, part) =>
+      `${base}${playlist(shared.id, `/files/${entryId}/${part}`, shared.token)}`,
+    keepRoom: (pass, session, name) =>
+      send(DOORMAN_PATHS.room(pass.code, '/keep', pass.token), one, { json: { name }, session }),
     fillRoom: (pass, session, shared) =>
-      send(room(pass, '/from-shared'), session, body => RoomStateSchema.parse(body), { shared }),
+      send(
+        DOORMAN_PATHS.room(pass.code, '/from-shared', pass.token),
+        body => RoomStateSchema.parse(body),
+        { json: { shared }, session },
+      ),
   }
 }
 

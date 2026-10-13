@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { answerRange, parseRange } from './range.js'
+import { answerRange, parseRange, relayedRange } from './range.js'
 
 /**
  * Range parsing is the single most bug-prone piece of the streaming path, and
@@ -131,5 +131,20 @@ describe('answerRange', () => {
   it('asks for no bytes from an empty file, rather than 0 to -1', () => {
     const answer = answerRange({ ...base, sizeBytes: 0, rangeHeader: undefined })
     expect(answer.length).toBe(0)
+  })
+})
+
+describe('relayedRange', () => {
+  it('passes on one byte range, trimmed', () => {
+    expect(relayedRange(' bytes=2-5 ')).toBe('bytes=2-5')
+    expect(relayedRange('bytes=500-')).toBe('bytes=500-')
+    expect(relayedRange('bytes=-500')).toBe('bytes=-500')
+  })
+
+  it('passes on nothing that parseRange would answer with the whole file', () => {
+    for (const header of [null, undefined, '', 'bytes=-', 'items=0-5', 'bytes=0-1, 5-6']) {
+      expect(relayedRange(header)).toBeNull()
+      expect(parseRange(header, 1000)).toBeNull()
+    }
   })
 })

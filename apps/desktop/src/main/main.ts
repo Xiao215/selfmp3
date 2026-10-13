@@ -2,7 +2,8 @@ import { join } from 'node:path'
 
 import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
-import { DEEP_LINK_SCHEME, EVENTS } from '@selfmp3/desktop-bridge'
+import { EVENTS } from '@selfmp3/desktop-bridge'
+import { DEEP_LINK_SCHEME } from '@selfmp3/shared'
 
 import { DeepLinks, deepLinkFromArgv, followPage } from './deepLinks.js'
 import { desktopInfo, registerIpc } from './ipc.js'

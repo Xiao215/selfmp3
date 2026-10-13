@@ -1,3 +1,4 @@
+import { bucketUnreachable, classifyBucketRefusal, type BucketRefusalKind } from '@selfmp3/shared'
 import { AwsV4Signer } from 'aws4fetch'
 import { fromUtf8, sha256Hex, utf8 } from './encoding.js'
 import { discard, readBytes } from './http.js'
@@ -72,9 +73,10 @@ interface BucketObject {
 
 /**
  * Why a request to the bucket failed, in terms of what to do about it — the
- * same kinds, and the same words, as the server's `CloudError`.
+ * same kinds, and the same words, as the server's `CloudError`: both read a
+ * refusal with packages/shared's `classifyBucketRefusal`.
  */
-export type BucketErrorKind = 'auth' | 'network' | 'missing' | 'cap' | 'other'
+export type BucketErrorKind = BucketRefusalKind
 
 export class BucketError extends Error {
   readonly kind: BucketErrorKind
@@ -96,14 +98,6 @@ const MAX_ERROR_BYTES = 16 * 1024
  * device's connection takes.
  */
 const QUICK_TIMEOUT_MS = 30_000
-
-const AUTH_CODES = new Set([
-  'InvalidAccessKeyId',
-  'SignatureDoesNotMatch',
-  'AccessDenied',
-  'Unauthorized',
-  'Forbidden',
-])
 
 interface SendOptions {
   readonly query?: ReadonlyArray<readonly [string, string]>
@@ -268,7 +262,8 @@ export class Bucket {
     try {
       return await this.#deps.fetch(url, init)
     } catch {
-      throw new BucketError('network', `Could not reach ${this.#host}.`)
+      const refused = bucketUnreachable(this.#host)
+      throw new BucketError(refused.kind, refused.message)
     }
   }
 
@@ -303,48 +298,15 @@ export class Bucket {
   async #explain(response: Response): Promise<BucketError> {
     const body = await readBytes(response.body, MAX_ERROR_BYTES)
     const { code, message } = parseError(fromUtf8(body))
-    const { status } = response
-    const bucket = this.#target.bucket
-
-    if (code === 'NoSuchBucket') {
-      return new BucketError('missing', `There is no bucket called “${bucket}” at ${this.#host}.`)
-    }
-    if (status === 401 || status === 403 || (code !== null && AUTH_CODES.has(code))) {
-      // Backblaze answers a used-up cap with the same 403 a wrong key gets,
-      // and says which only in its message: "Transaction cap exceeded". Read
-      // as a refused key, a day's worth of imports looked like a lost key.
-      if (message && /cap exceeded/i.test(message)) {
-        return new BucketError(
-          'cap',
-          `Backblaze says “${this.#describe(status, null, message)}”: the bucket's allowance ` +
-            'for today is used up. Raise it under Caps & Alerts at backblaze.com, or wait — ' +
-            'caps reset at midnight GMT, 5 pm Pacific.',
-        )
-      }
-      const said = message?.trim()
-        ? ` Backblaze said “${this.#describe(status, null, message)}”.`
-        : ''
-      return new BucketError(
-        'auth',
-        `The bucket refused the key${code ? ` (${code})` : ''}. Check the key ID and the ` +
-          `application key, and that the key is allowed to use “${bucket}”.${said}`,
-      )
-    }
-    return new BucketError('other', `${this.#host}: ${this.#describe(status, code, message)}`)
-  }
-
-  /**
-   * The bucket's own words, when it gave some: they are usually the useful
-   * part ("the region 'us-east-1' is wrong; expecting 'eu-central-003'").
-   * Trimmed, and with anything that could be the key taken out.
-   */
-  #describe(status: number, code: string | null, message: string | null): string {
-    let text = message?.trim() || code || `it answered ${status}`
-    for (const secret of [this.#target.applicationKey, this.#target.keyId]) {
-      if (secret) text = text.split(secret).join('…')
-    }
-    if (text.length > 240) text = `${text.slice(0, 240)}…`
-    return message?.trim() && code ? `${text} (${code})` : text
+    const refused = classifyBucketRefusal(
+      { status: response.status, code, message },
+      {
+        bucket: this.#target.bucket,
+        host: this.#host,
+        secrets: [this.#target.applicationKey, this.#target.keyId],
+      },
+    )
+    return new BucketError(refused.kind, refused.message)
   }
 }
 

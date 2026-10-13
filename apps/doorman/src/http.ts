@@ -1,45 +1,36 @@
-import { formatZodError, type ErrorBody } from '@selfmp3/shared'
+import { DOORMAN_ERROR, DoormanError, formatZodError, type ErrorBody } from '@selfmp3/shared'
 import type { ZodType, ZodTypeDef } from 'zod'
 import { fromUtf8 } from './encoding.js'
 
 /**
- * One error type for the whole doorman, and the plumbing every route shares.
+ * The plumbing every route shares, and one error type for the whole doorman:
+ * the same `DoormanError` its clients read back (packages/shared's
+ * doormanClient.ts), so a code is spelled once from the throw to the screen.
  *
  * Handlers throw a `DoormanError` and the router turns it into a response, so
  * every error a device sees has the shape of `ErrorBodySchema`. The message is
  * always written here, by the doorman: nothing a caller sent, and nothing
  * secret, is ever echoed back in one.
  */
-export class DoormanError extends Error {
-  readonly status: number
-  readonly code: string
-
-  constructor(status: number, code: string, message: string) {
-    super(message)
-    this.name = 'DoormanError'
-    this.status = status
-    this.code = code
-  }
-}
 
 export const badRequest = (message: string): DoormanError =>
-  new DoormanError(400, 'bad_request', message)
+  new DoormanError(400, DOORMAN_ERROR.badRequest, message)
 
 export const unauthorized = (message = 'sign in first'): DoormanError =>
-  new DoormanError(401, 'unauthorized', message)
+  new DoormanError(401, DOORMAN_ERROR.unauthorized, message)
 
 export const forbidden = (message: string): DoormanError =>
-  new DoormanError(403, 'forbidden', message)
+  new DoormanError(403, DOORMAN_ERROR.forbidden, message)
 
 export const notFound = (message = 'no such endpoint'): DoormanError =>
-  new DoormanError(404, 'not_found', message)
+  new DoormanError(404, DOORMAN_ERROR.notFound, message)
 
 export const unprocessable = (message: string): DoormanError =>
-  new DoormanError(422, 'unprocessable', message)
+  new DoormanError(422, DOORMAN_ERROR.unprocessable, message)
 
 /** Something the owner has to fix in the Worker's settings, not the caller. */
 export const notSetUp = (message: string): DoormanError =>
-  new DoormanError(500, 'not_set_up', message)
+  new DoormanError(500, DOORMAN_ERROR.notSetUp, message)
 
 /** JSON, never cached: every answer the API gives is about one person, now. */
 export function json(body: unknown, status = 200): Response {
@@ -63,7 +54,11 @@ export function errorResponse(error: DoormanError): Response {
 export function methodNotAllowed(allowed: readonly string[]): Response {
   const allow = allowed.join(', ')
   const response = errorResponse(
-    new DoormanError(405, 'method_not_allowed', `use ${allow.replace(/, (?=[^,]*$)/, ' or ')}`),
+    new DoormanError(
+      405,
+      DOORMAN_ERROR.methodNotAllowed,
+      `use ${allow.replace(/, (?=[^,]*$)/, ' or ')}`,
+    ),
   )
   response.headers.set('allow', allow)
   return response
@@ -91,11 +86,15 @@ export async function readJson<Output>(
 ): Promise<Output> {
   const type = request.headers.get('content-type') ?? ''
   if (!/^application\/json(?:\s*;|$)/i.test(type)) {
-    throw new DoormanError(415, 'unsupported_media_type', 'send JSON, as application/json')
+    throw new DoormanError(
+      415,
+      DOORMAN_ERROR.unsupportedMediaType,
+      'send JSON, as application/json',
+    )
   }
   const bytes = await readBytes(request.body, maxBytes + 1)
   if (bytes.length > maxBytes) {
-    throw new DoormanError(413, 'too_large', 'that body is too big')
+    throw new DoormanError(413, DOORMAN_ERROR.tooLarge, 'that body is too big')
   }
 
   let data: unknown

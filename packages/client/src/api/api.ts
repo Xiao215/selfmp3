@@ -96,6 +96,7 @@ import {
   type UpdatePlaylist,
   type UpdateSettings,
   type DoormanAccessUpdate,
+  API_ERROR,
 } from '@selfmp3/shared'
 import type { z } from 'zod'
 import {
@@ -136,9 +137,17 @@ async function cloudAnswer<S extends z.ZodTypeAny>(
     payload = await cloudRequest(method, path, body)
   } catch (error) {
     if (error instanceof CloudRouteError) {
-      throw new ApiError(error.code === 'offline' ? 0 : error.status, error.message, error.code)
+      throw new ApiError(
+        error.code === API_ERROR.offline ? 0 : error.status,
+        error.message,
+        error.code,
+      )
     }
-    throw new ApiError(0, error instanceof Error ? error.message : 'network unavailable', 'offline')
+    throw new ApiError(
+      0,
+      error instanceof Error ? error.message : 'network unavailable',
+      API_ERROR.offline,
+    )
   }
   const answers = typeof payload === 'object' && payload !== null ? payload : null
   const checked = answers ? checkedAnswers.get(answers) : undefined
@@ -168,7 +177,7 @@ function parseAnswer<S extends z.ZodTypeAny>(
     throw new ApiError(
       500,
       `Unexpected answer from ${path}: ${parsed.error.issues[0]?.message ?? 'shape mismatch'}`,
-      'contract_mismatch',
+      API_ERROR.contractMismatch,
     )
   }
   return parsed.data as z.output<S>
@@ -214,7 +223,7 @@ export function createApi({ context, fetch }: ApiOptions) {
     }
 
     if (!transport) {
-      throw new ApiError(0, 'No server, and not signed in to the cloud.', 'offline')
+      throw new ApiError(0, 'No server, and not signed in to the cloud.', API_ERROR.offline)
     }
 
     let response
@@ -237,7 +246,7 @@ export function createApi({ context, fetch }: ApiOptions) {
       throw new ApiError(
         0,
         error instanceof Error ? error.message : 'network unavailable',
-        'offline',
+        API_ERROR.offline,
       )
     }
 

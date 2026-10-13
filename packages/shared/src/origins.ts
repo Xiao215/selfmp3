@@ -43,3 +43,12 @@ export const DEFAULT_SERVER_PORT = 4600
 
 /** Where a server on this computer, left on its default port, is listening. */
 export const DEFAULT_LOCAL_SERVER_URL = `http://localhost:${DEFAULT_SERVER_PORT}`
+
+/**
+ * The scheme the installed apps answer to: `selfmp3://welcome#signin-code=…`
+ * brings a sign-in back, `selfmp3://tag/<name>` opens a tag from a widget.
+ * The phone declares it (apps/app/app.config.js), the desktop shell claims it
+ * and is built to (apps/desktop/electron-builder.yml), and the doorman sends a
+ * finished sign-in to it unless APP_SCHEMES names another.
+ */
+export const DEEP_LINK_SCHEME = 'selfmp3'

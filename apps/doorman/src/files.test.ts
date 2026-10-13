@@ -241,6 +241,21 @@ describe('reading a file', () => {
     expect(h.bucket.requests.at(-1)?.headers.get('range')).toBeNull()
   })
 
+  /*
+   * One range, as a room's link relay takes and as packages/shared's
+   * `parseRange` reads: this relay used to pass several on, the other none.
+   */
+  it('passes one range on, and asks for the whole file for several', async () => {
+    const { h, token } = await connected()
+    h.bucket.put(`selfmp3/${SONG}`, '0123456789')
+    const several = await h.call(`/v1/files/${SONG}`, {
+      token,
+      headers: { range: 'bytes=0-1, 5-6' },
+    })
+    expect(several.status).toBe(200)
+    expect(h.bucket.requests.at(-1)?.headers.get('range')).toBeNull()
+  })
+
   it('says a missing file is missing', async () => {
     const { h, token } = await connected()
     const response = await h.call(`/v1/files/${SONG}`, { token })

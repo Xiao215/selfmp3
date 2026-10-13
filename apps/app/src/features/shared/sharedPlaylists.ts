@@ -1,7 +1,13 @@
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import { useCallback } from 'react'
-import type { SharedAction, SharedPlaylist, SharedSummary } from '@selfmp3/shared'
-import { createSharedApi, RoomError } from '@selfmp3/client'
+import {
+  DOORMAN_ERROR,
+  DoormanError,
+  type SharedAction,
+  type SharedPlaylist,
+  type SharedSummary,
+} from '@selfmp3/shared'
+import { createSharedApi } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { doormanUrl } from '../../ports/doormanUrl'
 import { session as cloudSession } from '../../replica'
@@ -20,7 +26,9 @@ const KEY = ['shared'] as const
 /** The session every shared playlist call is made with. */
 export async function sharedSession(): Promise<string> {
   const signedIn = await cloudSession.loadSession().catch(() => null)
-  if (!signedIn) throw new RoomError(401, 'unauthorized', 'sign in to share playlists')
+  if (!signedIn) {
+    throw new DoormanError(401, DOORMAN_ERROR.unauthorized, 'sign in to share playlists')
+  }
   return signedIn.token
 }
 

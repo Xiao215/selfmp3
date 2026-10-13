@@ -1,4 +1,7 @@
 import {
+  DOORMAN_ERROR,
+  DOORMAN_PATHS,
+  DoormanError,
   DoormanGrantRequestSchema,
   type DoormanGrant,
   type DoormanGrantMade,
@@ -6,7 +9,7 @@ import {
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { requireSession, type Context } from './context.js'
-import { DoormanError, forbidden, json, methodNotAllowed, notFound, readJson } from './http.js'
+import { forbidden, json, methodNotAllowed, notFound, readJson } from './http.js'
 import { getRecord, putRecord } from './kv.js'
 import type { Session } from './sessions.js'
 
@@ -43,7 +46,7 @@ type StoredGrant = z.infer<typeof StoredGrantSchema>
 
 const StoredGrantsSchema = z.array(StoredGrantSchema)
 
-const GRANTS = '/v1/grants'
+const GRANTS = DOORMAN_PATHS.grants
 
 /** `/v1/grants` and `/v1/grants/<id>`. */
 export async function grants(ctx: Context): Promise<Response> {
@@ -71,7 +74,11 @@ async function make(ctx: Context): Promise<Response> {
   const replaced = stored.filter(grant => grant.server === request.server)
   const kept = stored.filter(grant => grant.server !== request.server)
   if (kept.length >= MAX_GRANTS) {
-    throw new DoormanError(409, 'too_many_grants', 'remove a server before adding another')
+    throw new DoormanError(
+      409,
+      DOORMAN_ERROR.tooManyGrants,
+      'remove a server before adding another',
+    )
   }
 
   const id = randomId()

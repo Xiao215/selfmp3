@@ -1,4 +1,4 @@
-import { DoormanClaimResultSchema } from '@selfmp3/shared'
+import { DoormanClaimResultSchema, signInStartUrl } from '@selfmp3/shared'
 import { AwsV4Signer } from 'aws4fetch'
 import type { Fetch, FetchInit } from './bucket.js'
 import { ChangesObject } from './changes.js'
@@ -876,7 +876,9 @@ export function harness(): Harness {
 
   const signIn = async (changes: Partial<Profile> = {}): Promise<string> => {
     const attempt = newAttempt()
-    const start = await call(`/v1/auth/start?attempt=${attempt}`)
+    const start = await call(
+      signInStartUrl(DOORMAN_ORIGIN, attempt, null).slice(DOORMAN_ORIGIN.length),
+    )
     const sentTo = new URL(start.headers.get('location') ?? 'about:blank')
     const code = google.code(
       idTokenClaims({ ...ME, ...changes }, sentTo.searchParams.get('nonce') ?? '', clock),

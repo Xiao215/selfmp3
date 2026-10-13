@@ -1,4 +1,5 @@
 import { holdBucket } from '@selfmp3/replica'
+import { SW_MESSAGE } from '../../sw/names'
 import { appPath } from './appPath'
 import { desktop } from './desktop/bridge'
 import { CLAIM_GRACE_MS, shouldReloadForControl } from './serviceWorkerControl.model'
@@ -43,7 +44,7 @@ export function registerServiceWorker({ cloud }: { cloud: boolean }): void {
   /*
    * The worker fetches songs and covers from the bucket for the player, and
    * is the first to hear the bucket refuse for the day. It holds off on its
-   * own (sw.ts, `BUCKET_CAPPED`) and says so here, so the page's reads — the
+   * own (sw.ts, `SW_MESSAGE.bucketCapped`) and says so here, so the page's reads — the
    * snapshot, the words — hold off too, and the screens can say why.
    */
   if (!hearingWorker) {
@@ -53,7 +54,9 @@ export function registerServiceWorker({ cloud }: { cloud: boolean }): void {
       const data: unknown = event.data
       if (typeof data !== 'object' || data === null) return
       const { type, message } = data as { type?: unknown; message?: unknown }
-      if (type === 'BUCKET_CAPPED' && typeof message === 'string') holdBucket(message, 'read')
+      if (type === SW_MESSAGE.bucketCapped && typeof message === 'string') {
+        holdBucket(message, 'read')
+      }
     })
   }
   const script = appPath(cloud ? 'sw.js?cloud=1' : 'sw.js')
@@ -81,7 +84,7 @@ const RELOADED_AT_KEY = 'selfmp3.sw.reloadedForControl'
  */
 async function takeControlBack(registration: ServiceWorkerRegistration): Promise<void> {
   if (navigator.serviceWorker.controller) return
-  registration.active?.postMessage({ type: 'CLAIM' })
+  registration.active?.postMessage({ type: SW_MESSAGE.claim })
   await new Promise<void>(resolve => {
     const timer = setTimeout(resolve, CLAIM_GRACE_MS)
     navigator.serviceWorker.addEventListener(

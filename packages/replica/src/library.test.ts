@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { isLookedAtCloudKey, type CloudSnapshot } from '@selfmp3/shared'
+import {
+  CLOUD_FILES_KEY as FILES_KEY,
+  isCloudFileKey,
+  isLookedAtCloudKey,
+  type CloudSnapshot,
+} from '@selfmp3/shared'
 import * as edits from './edits.js'
 import { createCloudLibrary } from './library.js'
 import { createCloudSession, type CloudSession } from './session.js'
@@ -15,9 +20,6 @@ import type { CloudPlatform, CloudResponse, DeviceStore, TextCache } from './pla
  * replay a different library depending on which it read. So that contract is
  * what these hold down.
  */
-
-/** The key the service worker reads each song's files under (apps/app/sw/sw.ts). */
-const FILES_KEY = 'cloud-files'
 
 const DOORMAN = 'https://doorman.test'
 const TOKEN = 'tok'.padEnd(32, '0')
@@ -110,8 +112,9 @@ function fakeBucket({ counting = false }: { counting?: boolean } = {}) {
     if (path.startsWith('/v1/list')) {
       const prefix = decodeURIComponent(/prefix=([^&]*)/.exec(path)?.[1] ?? '')
       lists.push(prefix)
+      // As the doorman does: only the library's own files are a device's business.
       const objects = [...files.keys()]
-        .filter(key => key.startsWith(prefix))
+        .filter(key => key.startsWith(prefix) && isCloudFileKey(key))
         .map(key => ({ key, size: 1 }))
       return reply(200, { objects, cursor: null })
     }
@@ -126,7 +129,8 @@ function fakeBucket({ counting = false }: { counting?: boolean } = {}) {
         const body: unknown = JSON.parse(String(init.body))
         puts.push({ key, body })
         files.set(key, body)
-        return reply(200, {}, moved(key))
+        // The doorman answers a write with no body at all.
+        return reply(204, null, moved(key))
       }
       if (init?.method === 'DELETE') {
         files.delete(key)

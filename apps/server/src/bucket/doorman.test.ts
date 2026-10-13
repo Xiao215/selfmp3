@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net'
 import { getGlobalDispatcher, setGlobalDispatcher } from 'undici'
 import { describe, expect, it } from 'vitest'
 import type { DoormanMe } from '@selfmp3/shared'
+import { DOORMAN_ORIGIN, harness } from '../../../doorman/src/fakes.js'
 import { speakHttp1 } from '../http/outgoing.js'
 import { DoormanClient } from './doorman.js'
 import { CloudError } from './store.js'
@@ -100,8 +101,29 @@ describe('DoormanClient', () => {
   it('turns each way of failing into an error that says what to do', async () => {
     const answers: Array<[Response, string, RegExp]> = [
       [json({ error: 'nope', code: 'unauthorized' }, 401), 'auth', /Sign in again/],
-      [json({ error: 'no bucket', code: 'conflict' }, 409), 'missing', /No bucket/],
-      [json({ error: 'The bucket refused the key.', code: 'x' }, 422), 'other', /refused the key/],
+      [
+        json({ error: 'connect your bucket first', code: 'no_storage' }, 409),
+        'missing',
+        /No bucket/,
+      ],
+      // The same status, for something else entirely: the account's grants are full.
+      [
+        json({ error: 'remove a server before adding another', code: 'too_many_grants' }, 409),
+        'other',
+        /Remove one/,
+      ],
+      // The bucket's key, not this server's session: nothing to sign in again for.
+      [
+        json({ error: 'The bucket refused the key.', code: 'bucket_refused_key' }, 502),
+        'other',
+        /refused the key/,
+      ],
+      [
+        json({ error: 'There is no bucket called “x”.', code: 'no_such_bucket' }, 502),
+        'missing',
+        /no bucket called/,
+      ],
+      [json({ error: 'Could not reach s3.', code: 'bucket_unreachable' }, 502), 'network', /reach/],
       [json({ error: 'Backblaze says “cap”.', code: 'bucket_cap_exceeded' }, 502), 'cap', /cap/],
     ]
     for (const [response, kind, text] of answers) {
@@ -146,6 +168,23 @@ describe('DoormanClient', () => {
 
     const silent = stand(() => new Response('', { status: 502 })).client
     await expect(silent.me('t')).rejects.toThrow('the doorman answered 502')
+  })
+
+  it('says what the real doorman’s grant limit means, rather than “no bucket”', async () => {
+    const h = harness()
+    const device = await h.signIn()
+    const client = new DoormanClient(DOORMAN_ORIGIN, (url, init) =>
+      h.doorman.fetch(new Request(url, init), h.env),
+    )
+    for (let n = 0; n < 20; n++) {
+      await client.grant(device, { server: `https://server-${n}.example`, name: `server ${n}` })
+    }
+    const refused = await client
+      .grant(device, { server: 'https://one-more.example', name: 'one more' })
+      .catch((e: unknown) => e)
+    expect(refused).toBeInstanceOf(CloudError)
+    expect(refused).toMatchObject({ kind: 'other' })
+    expect((refused as Error).message).toMatch(/already lets as many servers in/)
   })
 
   describe('the bucket, through it', () => {

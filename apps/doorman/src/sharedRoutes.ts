@@ -1,4 +1,5 @@
 import {
+  DOORMAN_PATHS,
   SharedActionSchema,
   SharedCreateSchema,
   SharedIdSchema,
@@ -27,7 +28,7 @@ import type { Session } from './sessions.js'
  * before it is shown.
  */
 
-const SHARED = '/v1/shared'
+const SHARED = DOORMAN_PATHS.shared
 
 /** The playlists an account is in, as KV keeps them. */
 const IndexSchema = z.array(SharedIdSchema)

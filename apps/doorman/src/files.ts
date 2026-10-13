@@ -1,5 +1,7 @@
 import {
   CHANGES_HEADER,
+  DOORMAN_ERROR,
+  DoormanError,
   FORMAT_KEY,
   SNAPSHOTS_FOLDER,
   isCloudFileKey,
@@ -7,12 +9,12 @@ import {
   isDeletableCloudKey,
   isHashNamedCloudKey,
   isLookedAtCloudKey,
+  relayedRange,
   type DoormanChanges,
   type DoormanList,
 } from '@selfmp3/shared'
 import { changesOf, requireBucket, requireSession, type Context } from './context.js'
 import {
-  DoormanError,
   badRequest,
   discard,
   errorResponse,
@@ -57,9 +59,6 @@ const CONDITIONS = [
   'if-unmodified-since',
   'if-range',
 ]
-
-/** A byte range, or a few. Anything else is ignored, as HTTP lets a server do. */
-const RANGE = /^bytes=\d*-\d*(?:,\s*\d*-\d*)*$/
 
 /** What the bucket says about the object that a device can use. */
 const RELAYED = [
@@ -148,8 +147,8 @@ export async function relayRead(
   method: 'GET' | 'HEAD',
 ): Promise<Response> {
   const forward = new Headers()
-  const range = ctx.request.headers.get('range')
-  if (range !== null && RANGE.test(range.trim())) forward.set('range', range.trim())
+  const range = relayedRange(ctx.request.headers.get('range'))
+  if (range !== null) forward.set('range', range)
   for (const name of CONDITIONS) {
     const value = ctx.request.headers.get(name)
     if (value !== null) forward.set(name, value)
@@ -159,12 +158,16 @@ export async function relayRead(
   if (!upstream) throw notFound('no such file')
   if (upstream.status === 412) {
     await discard(upstream)
-    throw new DoormanError(412, 'precondition_failed', 'the file is not the one you have')
+    throw new DoormanError(
+      412,
+      DOORMAN_ERROR.preconditionFailed,
+      'the file is not the one you have',
+    )
   }
   if (upstream.status === 416) {
     await discard(upstream)
     const response = errorResponse(
-      new DoormanError(416, 'range_not_satisfiable', 'that range is not in the file'),
+      new DoormanError(416, DOORMAN_ERROR.rangeNotSatisfiable, 'that range is not in the file'),
     )
     const contentRange = upstream.headers.get('content-range')
     if (contentRange) response.headers.set('content-range', contentRange)
@@ -198,12 +201,16 @@ async function write(ctx: Context, session: Session, key: string): Promise<Respo
   }
   const declared = ctx.request.headers.get('content-length')
   if (declared === null) {
-    throw new DoormanError(411, 'length_required', 'say how big the file is, with Content-Length')
+    throw new DoormanError(
+      411,
+      DOORMAN_ERROR.lengthRequired,
+      'say how big the file is, with Content-Length',
+    )
   }
   if (!/^\s*\d{1,15}\s*$/.test(declared)) throw badRequest('Content-Length is not a number')
   const length = Number(declared)
   if (length > MAX_UPLOAD_BYTES) {
-    throw new DoormanError(413, 'too_large', `a file can be at most ${MAX_UPLOAD_MB} MB`)
+    throw new DoormanError(413, DOORMAN_ERROR.tooLarge, `a file can be at most ${MAX_UPLOAD_MB} MB`)
   }
   const body = ctx.request.body
   if (length > 0 && !body) throw badRequest('the file is missing')

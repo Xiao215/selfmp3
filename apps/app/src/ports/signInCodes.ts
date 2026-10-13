@@ -1,4 +1,4 @@
-import { signInCodeFromUrl } from '@selfmp3/shared'
+import { DEEP_LINK_SCHEME, signInCodeFromUrl } from '@selfmp3/shared'
 
 /**
  * Sign-in links coming back to the app, and the inbox they wait in.
@@ -34,7 +34,7 @@ export function signInLink(url: string): SignInLink | null {
   if (code === null) return null
   const path = url
     .replace(/[?#].*$/, '')
-    .replace(/^selfmp3:\/\//, '/')
+    .replace(new RegExp(`^${DEEP_LINK_SCHEME}://`), '/')
     .replace(/\/+$/, '')
   const last = path.slice(path.lastIndexOf('/') + 1)
   return last === 'welcome' || last === 'settings' ? { target: last, code } : null

@@ -41,6 +41,7 @@ import type {
   SyncManifest,
   CreateTag,
 } from '@selfmp3/shared'
+import { API_ERROR } from '@selfmp3/shared'
 import { ApiError } from '../api/error.js'
 import type { Api } from '../api/api.js'
 import {
@@ -1319,7 +1320,7 @@ export function useMotion(songId: number | null): MotionCurve | null {
       failures < 1 &&
       error instanceof ApiError &&
       error.status >= 500 &&
-      error.code !== 'contract_mismatch',
+      error.code !== API_ERROR.contractMismatch,
     select: decodeMotion,
     queryFn: async (): Promise<Motion> => {
       if (songId === null) throw new Error('no song')

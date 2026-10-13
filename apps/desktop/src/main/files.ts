@@ -12,6 +12,7 @@ import {
   type FileStat,
   type Usage,
 } from '@selfmp3/desktop-bridge'
+import { refusalWords } from '@selfmp3/shared'
 
 import { resolveWithinRoot } from './paths.js'
 
@@ -345,13 +346,14 @@ async function sizeOf(path: string): Promise<number> {
 }
 
 /** How much of a refusal's body is worth repeating. */
-const QUOTED_BYTES = 240
+const QUOTED_CHARACTERS = 240
 
 /**
  * A refusal in words: the status and host, and what the answer said — the
  * doorman's `error` for a bucket that would not give the file, or the text
- * of a page. "502 from the doorman" told nobody that the bucket's allowance
- * for the day was used up, which is what the doorman had said.
+ * of a page (packages/shared's `refusalWords`, as the server reads one).
+ * "502 from the doorman" told nobody that the bucket's allowance for the day
+ * was used up, which is what the doorman had said.
  */
 async function refusal(response: Response, url: string): Promise<string> {
   const head = `${response.status} from ${hostOf(url)}`
@@ -361,18 +363,7 @@ async function refusal(response: Response, url: string): Promise<string> {
   } catch {
     return head
   }
-  try {
-    const parsed: unknown = JSON.parse(text)
-    const error = (parsed as { error?: unknown } | null)?.error
-    if (typeof error === 'string' && error.trim()) return `${head}: ${error.trim()}`
-  } catch {
-    // Not JSON: a page, or nothing.
-  }
-  const words = text
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, QUOTED_BYTES)
+  const words = refusalWords(text, QUOTED_CHARACTERS)
   return words ? `${head}: ${words}` : head
 }
 

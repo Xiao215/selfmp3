@@ -1,3 +1,5 @@
+import { DEEP_LINK_SCHEME } from '@selfmp3/shared'
+
 /**
  * What a `selfmp3://` link asks the app to do, and how to read one.
  *
@@ -11,9 +13,12 @@
 export type DeepLinkRoute =
   { readonly kind: 'now-playing' } | { readonly kind: 'playlist'; readonly id: string }
 
+/** The app's own links: the scheme, a host, and what follows it. */
+const APP_LINK = new RegExp(`^${DEEP_LINK_SCHEME}://([A-Za-z-]+)(?:/([^?#]*))?`)
+
 /** `selfmp3://playlist/12` → the playlist; `selfmp3://now-playing` → the stage. */
 export function routeFor(url: string): DeepLinkRoute | null {
-  const match = /^selfmp3:\/\/([A-Za-z-]+)(?:\/([^?#]*))?/.exec(url)
+  const match = APP_LINK.exec(url)
   if (!match) return null
   const [, host, rest] = match
   if (host === 'now-playing') return { kind: 'now-playing' }

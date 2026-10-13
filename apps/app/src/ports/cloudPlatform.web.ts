@@ -1,3 +1,4 @@
+import { DEEP_LINK_SCHEME } from '@selfmp3/shared'
 import type { CloudPlatform, DeviceStore, TextCache } from '@selfmp3/replica'
 import { CLOUD_FILES_CACHE, PLAYED_CACHE } from '../../sw/names'
 import { appPath } from './appPath'
@@ -102,7 +103,9 @@ export const cloudPlatform: CloudPlatform = {
    * the person's own browser, because Google refuses an embedded window and
    * because a browser that already knows them is one fewer password typed.
    */
-  returnUrl: desktop ? 'selfmp3://welcome' : `${window.location.origin}${appPath('welcome')}`,
+  returnUrl: desktop
+    ? `${DEEP_LINK_SCHEME}://welcome`
+    : `${window.location.origin}${appPath('welcome')}`,
   openSignIn: url => (desktop ? desktop.openExternal(url) : window.location.assign(url)),
 
   deviceKind: (() => {

@@ -256,18 +256,21 @@ export class PlaylistRepository {
   }
 
   /**
-   * Stop a playlist following its tags, keeping every song it has right now.
+   * Stop a playlist following its tags, keeping `keep` as its songs: the ones
+   * it shows right now (`songIds`), or the ones the device that stopped it
+   * showed (`playlistUnfollowed`).
    *
    * The songs a live playlist shows are the answer to its rules, worked out on
    * every read and stored nowhere — so switching it off without writing them
-   * down first would empty it. This resolves them once, writes them as the
-   * playlist's own items in the order they were in, and only then changes the
-   * kind. One transaction: a crash half-way through would otherwise leave a
-   * playlist that is neither.
+   * down first would empty it. This writes them as the playlist's own items
+   * in that order, and only then changes the kind. One transaction: a crash
+   * half-way through would otherwise leave a playlist that is neither.
    */
-  stopFollowing(playlist: Playlist): void {
+  stopFollowing(
+    playlist: { readonly id: number; readonly kind: Playlist['kind'] },
+    keep: readonly number[],
+  ): void {
     if (playlist.kind !== 'live') return
-    const keep = this.songIds(playlist)
     this.#db.transaction(() => {
       this.#replaceItems(playlist.id, keep)
       this.#makeManual.run(playlist.id)

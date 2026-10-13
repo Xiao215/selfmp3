@@ -376,6 +376,23 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
       })
       return true
     }
+
+    case 'playlistUnfollowed': {
+      // A change to its rules made later wins over stopping, as any later
+      // edit of a field does; a playlist already manual has nothing to stop.
+      const playlist = library.playlists.get(change.uid)
+      if (!playlist || playlist.kind !== 'live') return false
+      if (!hlcWins(change.hlc, playlist.stamps?.['rules'])) return false
+      library.playlists.set(playlist.uid, {
+        ...playlist,
+        kind: 'manual',
+        rules: null,
+        songUids: [...new Set(change.songUids)].filter(uid => library.songs.has(uid)),
+        stamps: { ...playlist.stamps, rules: change.hlc, order: change.hlc },
+        updatedAt: laterTime(playlist.updatedAt, change.hlc),
+      })
+      return true
+    }
   }
 }
 

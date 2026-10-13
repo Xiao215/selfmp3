@@ -297,6 +297,23 @@ describe('editing playlists', () => {
     ).toThrow(/cannot have rules/)
   })
 
+  it('stops a playlist following its tags, keeping the songs it shows', () => {
+    const d = device()
+    const live = d.idOf('playlists', '8')
+    d.apply(edits.editSong(d.ctx(), d.idOf('songs', 'b'), { loved: true }))
+    const changes = edits.stopFollowing(d.ctx(), live)
+    expect(changes).toEqual([
+      { type: 'playlistUnfollowed', hlc: expect.any(String), uid: uid('8'), songUids: [uid('b')] },
+    ])
+    let view = d.apply(changes)
+    expect(view.byId.playlists.get(live)).toMatchObject({ kind: 'manual', rules: null })
+    // Loving another song no longer reaches it: that is the point.
+    view = d.apply(edits.editSong(d.ctx(), d.idOf('songs', 'c'), { loved: true }))
+    expect(view.playlistSongs[live]).toEqual([d.idOf('songs', 'b')])
+    // And a playlist that follows nothing is left as it is.
+    expect(edits.stopFollowing(d.ctx(), live)).toEqual([])
+  })
+
   it('refuses to take a live playlist’s rules away, as the server does', () => {
     // Recorded, it emptied the playlist on the server: a live row with no
     // rules reads there as a manual playlist with nothing in it.

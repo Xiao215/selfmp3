@@ -312,6 +312,23 @@ export class CloudIngest {
         this.#dated(playlist, change.hlc)
         return true
       }
+
+      case 'playlistUnfollowed': {
+        // Its songs are the ones the device that stopped it showed, not
+        // whatever the rule answers here now.
+        const playlist = this.#sync.playlist(change.uid)
+        if (!playlist || playlist.kind !== 'live') return false
+        if (!hlcWins(change.hlc, this.#sync.stamp('playlist', change.uid, 'rules'))) return false
+        const songIds = [...new Set(change.songUids)].flatMap(uid => {
+          const id = this.#sync.songId(uid)
+          return id === null ? [] : [id]
+        })
+        this.#playlists.stopFollowing(playlist, songIds)
+        this.#sync.setStamp('playlist', change.uid, 'rules', change.hlc)
+        this.#sync.setStamp('playlist', change.uid, 'order', change.hlc)
+        this.#dated(playlist, change.hlc)
+        return true
+      }
     }
   }
 

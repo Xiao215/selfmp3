@@ -37,6 +37,8 @@ export interface EditContext {
   readonly stamp: () => string
   readonly newUid?: () => string
   readonly now?: () => Date
+  /** Plays this device has counted already, by id: one sent again is not recorded twice. */
+  readonly counted?: ReadonlySet<string>
 }
 
 const make = (ctx: EditContext): string => (ctx.newUid ?? newUid)()
@@ -158,12 +160,19 @@ export function removeSongs(ctx: EditContext, ids: readonly number[]): Change[] 
   ]
 }
 
+/**
+ * A play, or nothing when this device has counted it already: the play
+ * outbox sends one again when the answer to it was lost, and the server
+ * answers that as a duplicate too.
+ */
 export function playSong(ctx: EditContext, id: number, event: PlayEvent): Change[] {
+  const uid = songUid(ctx, id)
+  if (event.clientId && ctx.counted?.has(event.clientId)) return []
   return [
     {
       type: 'songPlayed',
       hlc: ctx.stamp(),
-      uid: songUid(ctx, id),
+      uid,
       // The play outbox's own id, so a play sent twice still counts once.
       playId: event.clientId ?? make(ctx),
       playedAt: event.playedAt ?? nowOf(ctx).toISOString(),
@@ -262,6 +271,25 @@ export function editPlaylist(ctx: EditContext, id: number, patch: UpdatePlaylist
           ? { rules: patch.rules ? cloudRules(ctx, patch.rules) : null }
           : {}),
       },
+    },
+  ]
+}
+
+/**
+ * Stop a playlist following its tags, keeping the songs it shows here now, in
+ * that order — what the server's own Stop following keeps. A playlist that
+ * follows nothing is left as it is, and that is not an error: the asker
+ * wanted one that does not follow tags, and there it is.
+ */
+export function stopFollowing(ctx: EditContext, id: number): Change[] {
+  const found = playlist(ctx, id)
+  if (found.kind !== 'live') return []
+  return [
+    {
+      type: 'playlistUnfollowed',
+      hlc: ctx.stamp(),
+      uid: found.uid,
+      songUids: (ctx.view.playlistSongs[id] ?? []).map(songId => songUid(ctx, songId)),
     },
   ]
 }

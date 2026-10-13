@@ -37,4 +37,4 @@ export {
 export type { CloudPlatform, DeviceStore, TextCache } from './platform.js'
 export { DoormanError, createCloudSession, type CloudSession } from './session.js'
 export { createCloudLibrary } from './library.js'
-export { createCloudRoutes } from './routes.js'
+export { SERVER_ONLY_ROUTES, createCloudRoutes } from './routes.js'

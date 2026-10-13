@@ -81,7 +81,7 @@ export function playlistRoutes(container: Container): Router {
     '/playlists/:id/stop-following',
     route({ params: ParamsWithId }, ({ params }) => {
       const playlist = requirePlaylist(params.id)
-      container.playlists.stopFollowing(playlist)
+      container.playlists.stopFollowing(playlist, container.playlists.songIds(playlist))
       container.edits.playlist(params.id, ['rules', 'order'])
       container.bumpLibraryVersion()
       return container.playlists.byId(params.id) ?? playlist

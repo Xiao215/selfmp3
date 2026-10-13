@@ -396,6 +396,37 @@ describe('CloudIngest', () => {
     expect(comparable(serverSnapshot())).toEqual(comparable(replayed(before, changes)))
   })
 
+  it('stops a playlist following its tags with the songs the phone kept', () => {
+    const a = addSong('Alpha')
+    const b = addSong('Bravo')
+    songs.patch(a, { loved: true })
+    const rules: SmartRules = {
+      match: 'all',
+      rules: [{ field: 'loved', op: 'is', value: true }],
+      orderBy: 'title',
+      order: 'asc',
+      limit: null,
+    }
+    const loved = playlists.create({ name: 'Loved', description: '', kind: 'live', rules }).id
+    const LOVED = uidOf('playlists', loved)
+    const before = serverSnapshot()
+    const changes: Change[] = [
+      // Loved on the phone, which then stopped the playlist with both in it,
+      // in the order it showed them: the server keeps that, not its own answer.
+      { type: 'songEdited', hlc: at(1), uid: uidOf('songs', b), fields: { loved: true } },
+      {
+        type: 'playlistUnfollowed',
+        hlc: at(2),
+        uid: LOVED,
+        songUids: [uidOf('songs', b), uidOf('songs', a)],
+      },
+    ]
+    ingest.apply(changes)
+    expect(playlists.byId(loved)).toMatchObject({ kind: 'manual', rules: null })
+    expect(playlists.songIds(playlists.byId(loved)!)).toEqual([b, a])
+    expect(comparable(serverSnapshot())).toEqual(comparable(replayed(before, changes)))
+  })
+
   it('applies a change arriving late only where nothing later has been', () => {
     const a = addSong('Alpha')
     const A = uidOf('songs', a)

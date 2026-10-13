@@ -180,6 +180,7 @@ function DevicesList({
       <Row label="This device’s name" hint="Shown on your other devices.">
         <TextField
           size="small"
+          style={partStyles.field}
           value={shown}
           limit={DeviceNameSchema}
           accessibilityLabel="This device’s name"

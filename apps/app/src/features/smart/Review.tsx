@@ -8,7 +8,7 @@ import { leading, onMac, radius, space, type, withAlpha } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { Button } from '../../ui/components/Button'
-import { Checkbox } from '../../ui/components/Checkbox'
+import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { ChevronDown, ChevronRight, Sparkle } from '../../ui/components/Icons'
 import { useSongsById } from '../../ui/songsById'
 import { label as labelText } from '../../ui/surfaces'
@@ -324,15 +324,15 @@ export function Review<T extends Reviewed>({
     const songs = shownOf(each)
     return (
       <View key={change.key}>
-        <Pressable
+        <CheckRow
           ref={place(id)}
+          checked={full}
+          mixed={on}
+          label={labelOf(each)}
           onPress={() => {
             setAt(null)
             flip([each], !full)
           }}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: full ? true : on ? 'mixed' : false }}
-          accessibilityLabel={labelOf(each)}
           style={({ pressed }) => [
             styles.change,
             at === id && styles.at,
@@ -367,7 +367,7 @@ export function Review<T extends Reviewed>({
               )}
             </Pressable>
           ) : null}
-        </Pressable>
+        </CheckRow>
         {opened ? (
           <View style={styles.songs}>
             {songs.map(songId => {
@@ -376,16 +376,15 @@ export function Review<T extends Reviewed>({
               const songStop = `song:${change.key}:${songId}`
               const kept = on && !leftOut.has(leftOutKey(change.key, songId))
               return (
-                <Pressable
+                <CheckRow
                   key={songId}
                   ref={place(songStop)}
+                  checked={kept}
+                  label={`${song.title}, ${artistOr(song.artist)}`}
                   onPress={() => {
                     setAt(null)
                     flipSong(each, songId)
                   }}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: kept }}
-                  accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
                   style={({ pressed }) => [
                     styles.song,
                     at === songStop && styles.at,
@@ -401,7 +400,7 @@ export function Review<T extends Reviewed>({
                     title={song.title}
                     sub={songLine(song, each)}
                   />
-                </Pressable>
+                </CheckRow>
               )
             })}
             {songs.length < each.songIds.length ? (
@@ -448,15 +447,15 @@ export function Review<T extends Reviewed>({
           const text = bandText[band.by]
           return (
             <View key={band.by} style={styles.band} testID={`${testID}-band-${band.by}`}>
-              <Pressable
+              <CheckRow
                 ref={place(id)}
+                checked={all}
+                mixed={on > 0}
+                label={`${text.title}, ${on} of ${list.length} ticked`}
                 onPress={() => {
                   setAt(null)
                   flip(list, !all)
                 }}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: all ? true : on ? 'mixed' : false }}
-                accessibilityLabel={`${text.title}, ${on} of ${list.length} ticked`}
                 style={({ pressed }) => [
                   styles.bandHead,
                   at === id && styles.at,
@@ -470,7 +469,7 @@ export function Review<T extends Reviewed>({
                 <Text style={styles.count}>
                   {on} of {list.length} ticked
                 </Text>
-              </Pressable>
+              </CheckRow>
               <Text style={styles.bandNote}>{text.note}</Text>
               {band.sections.map(section => {
                 const shown = allOf.has(section.title)

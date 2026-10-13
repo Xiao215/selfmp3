@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { StyleProp, ViewStyle } from 'react-native'
-import { Animated, Pressable, Text, View } from 'react-native'
+import { Animated } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { radius, type } from '@selfmp3/client'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
 import { PageHeader } from '../../ui/components/PageHeader'
-import { ChevronRight, Sparkles } from '../../ui/components/Icons'
+import { Button } from '../../ui/components/Button'
+import { NavRow } from '../../ui/components/NavRow'
+import { Sparkles } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Segmented } from '../../ui/components/Segmented'
 import { Select } from '../../ui/components/Select'
@@ -156,42 +157,24 @@ export function StatsFrame({
 }
 
 /**
- * "Report": a pill in the computer's header, the page's last row on a phone.
- * The row is drawn as You draws it, with its icon and what is behind it: the
- * bare word under the cards would read as a heading whose section never came.
+ * "Report": a button in the computer's header, the page's last row on a phone.
+ * The row is You's (`NavRow`), with its icon and what is behind it: the bare
+ * word under the cards would read as a heading whose section never came.
  */
 function ReportLink({ pill }: { pill: boolean }): ReactNode {
   const router = useRouter()
-  return (
-    <Pressable
-      onPress={() => router.push(REPORT_HREF)}
-      accessibilityRole="link"
-      accessibilityLabel={pill ? 'Report' : `Report, ${REPORT_HINT}`}
+  const open = (): void => router.push(REPORT_HREF)
+  return pill ? (
+    <Button label="Report" onPress={open} testID="stats-report" />
+  ) : (
+    <NavRow
+      icon={<Sparkles size={19} tone="textPrimary" />}
+      title="Report"
+      hint={REPORT_HINT}
+      onPress={open}
+      style={styles.line}
       testID="stats-report"
-      style={({ pressed }) => [
-        pill ? styles.pill : styles.line,
-        pressed && (pill ? styles.pillPressed : styles.linePressed),
-      ]}
-    >
-      {pill ? (
-        <Text style={styles.pillText}>Report</Text>
-      ) : (
-        <>
-          <View style={styles.lineIcon}>
-            <Sparkles size={19} tone="textPrimary" />
-          </View>
-          <View style={styles.lineWords}>
-            <Text style={styles.linkText} numberOfLines={1}>
-              Report
-            </Text>
-            <Text style={styles.linkHint} numberOfLines={1}>
-              {REPORT_HINT}
-            </Text>
-          </View>
-          <ChevronRight size={16} tone="textMuted" />
-        </>
-      )}
-    </Pressable>
+    />
   )
 }
 
@@ -206,27 +189,5 @@ const styles = StyleSheet.create(theme => ({
   stack: { gap: 12 },
   stackWide: { gap: 14 },
   head: { marginBottom: 8 },
-  pill: {
-    height: 36,
-    paddingHorizontal: 16,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface2,
-    justifyContent: 'center',
-  },
-  pillPressed: { backgroundColor: theme.colors.surface3 },
-  // You's rows (ProfileScreen.tsx), so the two pages' Report look alike.
-  line: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 60, marginTop: 4 },
-  linePressed: { opacity: 0.6 },
-  lineIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surface2,
-  },
-  lineWords: { flex: 1, minWidth: 0, gap: 2 },
-  pillText: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
-  linkText: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  linkHint: { color: theme.colors.textSecondary, fontSize: type.small },
+  line: { marginTop: 4 },
 }))

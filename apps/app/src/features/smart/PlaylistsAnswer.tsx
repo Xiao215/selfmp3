@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQueryClient } from '@tanstack/react-query'
 import { plural, type AskAnswer, type Playlist } from '@selfmp3/shared'
@@ -16,7 +16,7 @@ import {
   useLibrary,
 } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
-import { Checkbox } from '../../ui/components/Checkbox'
+import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { showToast } from '../../ui/toast'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { FOLLOWS_LABEL, isLive, newPlaylist } from '../playlists/playlists.model'
@@ -189,17 +189,16 @@ export function PlaylistsAnswer({
             {row}
           </View>
         ) : (
-          <Pressable
+          <CheckRow
             key={playlist.id}
+            checked={on}
+            label={playlist.name}
             onPress={() => toggle(playlist.id)}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: on }}
-            accessibilityLabel={playlist.name}
             style={({ pressed }) => [styles.row, pressed && styles.pressed]}
           >
             {row}
             <Checkbox checked={on} />
-          </Pressable>
+          </CheckRow>
         )
       })}
       {answer.unknown.length > 0 ? (

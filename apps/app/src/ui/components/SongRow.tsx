@@ -614,15 +614,12 @@ function SelectBox({
   phone?: boolean
 }): ReactNode {
   return (
-    <Pressable
-      onPress={onToggle}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked: selected }}
-      accessibilityLabel={selected ? `Deselect ${song.title}` : `Select ${song.title}`}
+    <Checkbox
+      checked={selected}
+      onChange={onToggle}
+      label={selected ? `Deselect ${song.title}` : `Select ${song.title}`}
       style={phone ? styles.select : styles.selectWide}
-    >
-      <Checkbox checked={selected} />
-    </Pressable>
+    />
   )
 }
 

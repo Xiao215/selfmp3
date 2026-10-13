@@ -17,7 +17,7 @@ import {
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { Button } from '../../ui/components/Button'
-import { Checkbox } from '../../ui/components/Checkbox'
+import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { Chip } from '../../ui/components/Chip'
 import { X } from '../../ui/components/Icons'
 import { useSongsById } from '../../ui/songsById'
@@ -180,16 +180,15 @@ export function SongsAnswer({
       ) : null}
 
       {!edited && onlyTags(understanding) ? (
-        <Pressable
+        <CheckRow
+          checked={keepFilled}
           onPress={() => setKeepFilled(on => !on)}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: keepFilled }}
-          accessibilityLabel="Fill it from these tags as they grow"
+          label="Fill it from these tags as they grow"
           style={styles.checkRow}
         >
           <Checkbox checked={keepFilled} />
           <Text style={styles.checkLabel}>Fill it from these tags as they grow</Text>
-        </Pressable>
+        </CheckRow>
       ) : null}
 
       {again.isPending ? (

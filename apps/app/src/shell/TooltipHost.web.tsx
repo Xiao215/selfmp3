@@ -6,6 +6,7 @@ import { leading, motion, type } from '@selfmp3/client'
 import { motionMs } from '../ui/motion'
 import { EASE_IN_CSS, EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
 import { floating } from '../ui/surfaces'
+import { KBD } from '../ui/components/Kbd'
 
 /**
  * Hover captions for the whole app, from one `data-tip` attribute.
@@ -302,10 +303,10 @@ export function TooltipHost(): ReactNode {
                 flexShrink: 0,
                 background: colors.surface2,
                 color: colors.textSecondary,
-                padding: '0 5px',
+                padding: `0 ${KBD.paddingHorizontal}px`,
                 fontSize: type.tiny,
                 lineHeight: '16px',
-                borderRadius: 4,
+                borderRadius: KBD.radius,
                 fontFamily: FONT_STACK,
               }}
             >

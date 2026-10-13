@@ -24,6 +24,7 @@ import { useBucketHold } from '../profile/useBucketHold'
 import { deviceKind } from '../../ports/device'
 import { useLayout } from '../../shell/useLayout'
 import { PageHeader } from '../../ui/components/PageHeader'
+import { Chip } from '../../ui/components/Chip'
 import { Toggle } from '../../ui/components/Toggle'
 import { label, PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageFrame, sectionTitle } from '../../ui/surfaces'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -493,34 +494,36 @@ function SectionIndex({
 
   return sections.map(section => {
     const current = on === section.id
+    if (!column) {
+      // A phone's index is a row of chips, the lit one the section on screen.
+      return (
+        <Chip
+          key={section.id}
+          label={section.label}
+          selected={current}
+          role="link"
+          onPress={() => onGo(section.id)}
+          onLayout={event => {
+            const { x, width: chipWidth } = event.nativeEvent.layout
+            chipAt.current.set(section.id, { x, width: chipWidth })
+          }}
+        />
+      )
+    }
     return (
       <Pressable
         key={section.id}
         onPress={() => onGo(section.id)}
-        onLayout={
-          column
-            ? undefined
-            : event => {
-                const { x, width: chipWidth } = event.nativeEvent.layout
-                chipAt.current.set(section.id, { x, width: chipWidth })
-              }
-        }
         accessibilityRole="link"
         accessibilityState={{ selected: current }}
+        aria-current={current ? 'page' : undefined}
         style={({ pressed }) => [
-          column ? styles.indexItem : styles.chip,
-          current && (column ? styles.indexItemOn : styles.chipOn),
+          styles.indexItem,
+          current && styles.indexItemOn,
           pressed && styles.indexPressed,
         ]}
       >
-        <Text
-          style={[
-            column ? styles.indexText : styles.chipText,
-            current && (column ? styles.indexTextOn : styles.chipTextOn),
-          ]}
-        >
-          {section.label}
-        </Text>
+        <Text style={[styles.indexText, current && styles.indexTextOn]}>{section.label}</Text>
       </Pressable>
     )
   })
@@ -633,13 +636,9 @@ const styles = StyleSheet.create(theme => ({
   // The section you are on is "on" as a chosen chip is: white, with dark ink
   // (proposal P1). A grey fill a step lighter read as hovered, not chosen.
   indexItemOn: { backgroundColor: theme.colors.textPrimary },
-  chipOn: { backgroundColor: theme.colors.textPrimary },
   indexPressed: { opacity: 0.8 },
   indexText: { color: theme.colors.textMuted, fontSize: type.sub },
   indexTextOn: { color: theme.colors.onPrimary, fontWeight: '600' },
-  // The phone's row of chips is `Chip`'s filter pill: its padding, its type.
-  chipText: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '500' },
-  chipTextOn: { color: theme.colors.onPrimary },
   chipBar: {
     marginHorizontal: -20,
     paddingVertical: 10,
@@ -647,10 +646,4 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface0,
   },
   chips: { gap: 6, paddingHorizontal: space.gutter },
-  chip: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface2,
-  },
 }))

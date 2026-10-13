@@ -259,17 +259,12 @@ function SelectBox({
   wide: boolean
 }): ReactNode {
   return (
-    <Pressable
-      onPress={onToggle}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked }}
-      // As ListenBar's value: react-native-web drops `accessibilityState` from the web.
-      aria-checked={checked}
-      accessibilityLabel={checked ? `Deselect ${item.title}` : `Select ${item.title}`}
+    <Checkbox
+      checked={checked}
+      onChange={onToggle}
+      label={checked ? `Deselect ${item.title}` : `Select ${item.title}`}
       style={wide ? styles.selectWide : styles.select}
-    >
-      <Checkbox checked={checked} />
-    </Pressable>
+    />
   )
 }
 

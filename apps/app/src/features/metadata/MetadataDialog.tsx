@@ -41,7 +41,7 @@ import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { floating, label as groupLabel } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
-import { Checkbox } from '../../ui/components/Checkbox'
+import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
 import { Dialog, DialogHead } from '../../ui/components/Dialog'
 import { Check, Sparkle } from '../../ui/components/Icons'
@@ -293,12 +293,11 @@ export function MetadataDialog({
                 </View>
               </View>
               {diffs.map(diff => (
-                <Pressable
+                <CheckRow
                   key={diff.field}
+                  checked={ticked.has(diff.field)}
+                  label={diffLabel(diff, song.hasArt)}
                   onPress={() => toggle(diff.field)}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: ticked.has(diff.field) }}
-                  accessibilityLabel={diffLabel(diff, song.hasArt)}
                   style={({ pressed }) => [
                     styles.diffRow,
                     !wide && styles.diffRowNarrow,
@@ -342,7 +341,7 @@ export function MetadataDialog({
                       </Text>
                     )}
                   </View>
-                </Pressable>
+                </CheckRow>
               ))}
             </>
           )}

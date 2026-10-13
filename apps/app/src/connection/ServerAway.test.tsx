@@ -93,6 +93,22 @@ describe('ServerAway', () => {
     expect(lookAgain).toHaveBeenCalledTimes(1)
   })
 
+  it('says the same in a Settings row, and offers the shared computer there too', async () => {
+    mockShared.url = 'https://pi.example.ts.net'
+    await render(
+      <ServerAway
+        reach={{ state: 'away', said: false, lookAgain }}
+        need="ai"
+        row
+        testID="smart-server"
+      />,
+    )
+    expect(screen.getByText('No computer works for your library yet')).toBeTruthy()
+    expect(screen.getByTestId('smart-server-join')).toBeTruthy()
+    await fireEvent.press(screen.getByTestId('smart-server-look-again'))
+    expect(lookAgain).toHaveBeenCalledTimes(1)
+  })
+
   it('offers nothing to a library whose own computer is only off', async () => {
     mockShared.url = 'https://pi.example.ts.net'
     await render(

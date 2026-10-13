@@ -706,7 +706,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
   - Done as `PageHeader` + `pageFrame(wide)` (no `Page` wrapper: Settings, Library and Search own their scroll views). Every page title is the display face; the serif is for a person's name and numbers. Search's "‹ Songs 12" is a crumb, not a page's way back, and keeps its look.
 - [x] **T-424** `TextField` (+ action slot, focus ring, schema limits); one bucket address form for Settings and Storage; `useNewTagForm` for the sidebar and Tags; sign-out confirm in one place.
   - Fields that edit text in place, drawn as the text they edit (a playlist's name in its head, Ask's Change it bar, an import row's title, the song-info dialog's values), stay `TextInput`s: they are not form fields. The duplicate check is `existingTag` (the server's comparison); the sidebar opens the tag, Tags opens its editor.
-- [ ] **T-425** `Checkbox` with `onChange` and `aria-checked` everywhere; `NoticeCard`, `StatusLine`, `ServerAway` variants and one `JoinSharedButton`; `ProgressBar`; `Kbd`; `NavRow`; `HueSwatches` with options; Settings chips on `Chip`.
+- [x] **T-425** `Checkbox` with `onChange` and `aria-checked` everywhere; `NoticeCard`, `StatusLine`, `ServerAway` variants and one `JoinSharedButton`; `ProgressBar`; `Kbd`; `NavRow`; `HueSwatches` with options; Settings chips on `Chip`.
+  - `ServerAway` has `row` (Settings) beside the card; Devices' "showing the last list" line and You's month card keep their own words (they are about what they show, not the server). Tags' untagged card stays its own (its line holds links to artists). `ToggleRow` is left to T-428. The DOM tooltip's key cap shares `KBD`'s shape but keeps its colours, which sit on the tooltip's own ground.
 
 ### H — Grids, shelves, rooms, smart answers, navigation
 

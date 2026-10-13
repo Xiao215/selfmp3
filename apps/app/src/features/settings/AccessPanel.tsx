@@ -5,7 +5,7 @@ import { Button } from '../../ui/components/Button'
 import { Toggle } from '../../ui/components/Toggle'
 import { anyoneHint, withEmail, withoutEmail } from './access.model'
 import { TextField } from '../../ui/components/TextField'
-import { Panel, Row } from './SettingsParts'
+import { Panel, partStyles, Row } from './SettingsParts'
 import { StatusLine } from '../../ui/components/StatusLine'
 
 /**
@@ -71,6 +71,7 @@ export function AccessPanel(): ReactNode {
       >
         <TextField
           size="small"
+          style={partStyles.field}
           value={typed}
           placeholder="name@gmail.com"
           autoCapitalize="none"

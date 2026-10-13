@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
+import type { LayoutChangeEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePressScale } from '../motion'
 import { radius, tagColors, type } from '@selfmp3/client'
@@ -25,6 +26,11 @@ import { plural } from '@selfmp3/shared'
  * A finger's target on a phone: 8 by 14 around 13-point text. `compact` is
  * the smaller chip for a row with a mouse. `onRemove` adds the ×. `dashed` is
  * the add chip: an outline and no fill, for "+ tag".
+ *
+ * A chip is a toggle; `role="link"` makes it a way to a place instead — the
+ * Settings index on a phone, whose lit chip is the section on screen.
+ * `onLayout` reports where it sits in its row, for a row that scrolls the lit
+ * one into view.
  */
 export function Chip({
   testID,
@@ -38,6 +44,8 @@ export function Chip({
   dashed = false,
   onPress,
   onRemove,
+  onLayout,
+  role = 'button',
 }: {
   testID?: string
   label: string
@@ -50,6 +58,8 @@ export function Chip({
   dashed?: boolean
   onPress: () => void
   onRemove?: () => void
+  onLayout?: (event: LayoutChangeEvent) => void
+  role?: 'button' | 'link'
 }): ReactNode {
   const { theme } = useUnistyles()
   const press = usePressScale()
@@ -67,6 +77,7 @@ export function Chip({
   return (
     <Animated.View
       testID={testID}
+      onLayout={onLayout}
       style={[
         styles.chip,
         selected ? styles.chipSelected : dashed ? styles.chipDashed : styles.chipOff,
@@ -76,14 +87,16 @@ export function Chip({
       <Pressable
         {...press.handlers}
         onPress={onPress}
-        accessibilityRole="button"
+        accessibilityRole={role}
         accessibilityLabel={
           count === undefined ? label : `${label}, ${plural(count, 'song', 'songs')}`
         }
         accessibilityState={{ selected }}
-        // A chip is a toggle; react-native-web does not turn `accessibilityState`
-        // into anything a browser reads, so the state is said here too.
-        aria-pressed={selected}
+        // react-native-web does not turn `accessibilityState` into anything a
+        // browser reads, so the state is said here too: pressed for a toggle,
+        // the current place for a link.
+        aria-pressed={role === 'button' ? selected : undefined}
+        aria-current={role === 'link' && selected ? 'page' : undefined}
         style={({ pressed }) => [
           styles.press,
           padding,

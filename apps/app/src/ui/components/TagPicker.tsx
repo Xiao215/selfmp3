@@ -17,7 +17,7 @@ import {
 import { useArtistNudge } from '../../features/tag/useArtistNudge'
 import { useLayoutValue } from '../../shell/useLayout'
 import { useAccent } from '../accent'
-import { Checkbox } from './Checkbox'
+import { Checkbox, CheckRow } from './Checkbox'
 import { Plus } from './Icons'
 import { usePanelDense } from './panel'
 import { Popover } from './Popover'
@@ -371,9 +371,11 @@ export function TagSearchList({
           return (
             // A row the width of the panel, so it sinks to a row's depth rather
             // than a control's (`M1`, 1).
-            <Press
+            <CheckRow
               key={there ? item.id : `here:${item.id}`}
-              depth="row"
+              checked={on}
+              mixed={partly}
+              label={item.name}
               style={({ pressed }) => [
                 styles.item,
                 dense && styles.itemDense,
@@ -383,11 +385,6 @@ export function TagSearchList({
                 pick(offered)
                 setQuery('')
               }}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: on ? true : partly ? 'mixed' : false }}
-              // react-native-web does not turn `accessibilityState` into aria-checked.
-              aria-checked={on ? true : partly ? 'mixed' : false}
-              accessibilityLabel={item.name}
             >
               <Checkbox checked={on} mixed={partly} />
               <View style={[styles.dot, { backgroundColor: tagColors(item.hue).dot }]} />
@@ -395,7 +392,7 @@ export function TagSearchList({
                 {item.name}
               </Text>
               <Text style={styles.count}>{item.songCount}</Text>
-            </Press>
+            </CheckRow>
           )
         })}
         {ranked.length === 0 && !trimmed ? (

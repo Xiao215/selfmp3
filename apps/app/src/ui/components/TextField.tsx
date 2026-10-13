@@ -143,7 +143,6 @@ const styles = StyleSheet.create(theme => ({
   /* In a Settings row, beside its words. */
   inputSmall: {
     minHeight: 36,
-    minWidth: 220,
     paddingHorizontal: 14,
     paddingVertical: 6,
     fontSize: type.sub,

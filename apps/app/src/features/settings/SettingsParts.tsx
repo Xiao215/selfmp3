@@ -6,7 +6,6 @@ import { leading, radius, type } from '@selfmp3/client'
 import { ChevronDown, ChevronRight } from '../../ui/components/Icons'
 import { Slider } from '../../ui/components/Slider'
 import { card, label as labelText, serif } from '../../ui/surfaces'
-import { clamp01 } from '@selfmp3/shared'
 
 /**
  * The pieces every Settings section is made of: one row anatomy — name, a
@@ -137,27 +136,8 @@ export function Stats({
   )
 }
 
-export function Meter({ fraction, label }: { fraction: number; label?: string }): ReactNode {
-  return (
-    <View
-      style={styles.meter}
-      role="progressbar"
-      aria-label={label}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(fraction * 100)}
-    >
-      <View style={[styles.meterFill, { width: `${clamp01(fraction) * 100}%` }]} />
-    </View>
-  )
-}
-
 export function ButtonRow({ children }: { children: ReactNode }): ReactNode {
   return <View style={styles.buttons}>{children}</View>
-}
-
-export function Kbd({ children }: { children: string }): ReactNode {
-  return <Text style={styles.kbd}>{children}</Text>
 }
 
 /** Rows that are there when asked for: shut until "Details" is pressed. */
@@ -183,6 +163,8 @@ export function Details({ children }: { children: ReactNode }): ReactNode {
 export const partStyles = StyleSheet.create(theme => ({
   // A notice in a panel (`NoticeCard`, washed): room above and below it, as a row has.
   notice: { marginVertical: 8 },
+  // A field beside a row's words: wide enough for an address or a name.
+  field: { minWidth: 220 },
   progress: { marginVertical: 14, gap: 8 },
   progressText: { color: theme.colors.textSecondary, fontSize: type.sub },
   valueText: { color: theme.colors.textPrimary, fontSize: type.sub },
@@ -269,21 +251,5 @@ const styles = StyleSheet.create(theme => ({
   stats: { flexDirection: 'row', gap: 32, marginTop: 16, marginBottom: 12 },
   statValue: serif(theme.colors, type.page),
   statLabel: { color: theme.colors.textMuted, fontSize: type.small },
-  meter: { height: 6, borderRadius: 3, backgroundColor: theme.colors.surface3, overflow: 'hidden' },
-  meterFill: {
-    height: '100%',
-    borderTopRightRadius: 3,
-    borderBottomRightRadius: 3,
-    backgroundColor: theme.colors.accent,
-  },
   buttons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
-  kbd: {
-    color: theme.colors.textPrimary,
-    fontSize: type.tiny,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 5,
-    backgroundColor: theme.colors.surface3,
-    overflow: 'hidden',
-  },
 }))

@@ -41,16 +41,18 @@ import {
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
 import { PageHeader } from '../../ui/components/PageHeader'
+import { NavRow } from '../../ui/components/NavRow'
+import { ProgressBar } from '../../ui/components/ProgressBar'
 import { NoticeCard, NoticeText } from '../../ui/components/NoticeCard'
 import { card, label as groupLabel, pageFrame } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
-import { Check, ChevronRight, More, Next, Refresh, Search, X } from '../../ui/components/Icons'
+import { Check, More, Next, Refresh, Search, X } from '../../ui/components/Icons'
 import { Popover } from '../../ui/components/Popover'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SheetItem } from '../../ui/components/Sheet'
-import { ease, timing, useFade } from '../../ui/motion'
+import { useFade } from '../../ui/motion'
 import { MOVE_MS } from '../../ui/motion.model'
 import { useRowMotion } from '../../ui/rowMotion'
 import { QueueRing } from './QueueRing'
@@ -325,41 +327,25 @@ export function ImportScreen({
       ) : null}
       {/* Songs picked in a search and not imported yet: the search is in the draft, one tap away. */}
       {search && picked > 0 ? (
-        <Pressable
-          style={({ pressed }) => [styles.linkCard, pressed && styles.linkCardPressed]}
-          onPress={() => router.push('/import/search')}
-          accessibilityRole="link"
+        <NavRow
+          card
+          title={`Search · ${search.query}`}
+          hint={`${plural(picked, 'song', 'songs')} picked · not imported yet`}
           accessibilityLabel="Go on picking songs"
+          onPress={() => router.push('/import/search')}
           testID="import-resume-search"
-        >
-          <View style={styles.linkCardText}>
-            <Text style={styles.linkCardTitle} numberOfLines={1}>
-              Search · {search.query}
-            </Text>
-            <Text style={styles.linkCardSub}>
-              {plural(picked, 'song', 'songs')} picked · not imported yet
-            </Text>
-          </View>
-          <ChevronRight size={16} color={theme.colors.textMuted} />
-        </Pressable>
+        />
       ) : null}
       {/* A review left with Back is still in the draft, one tap from where it was. */}
       {review && review.items.length > 0 && !preview.isPending ? (
-        <Pressable
-          style={({ pressed }) => [styles.linkCard, pressed && styles.linkCardPressed]}
-          onPress={() => router.push('/import/review')}
-          accessibilityRole="link"
+        <NavRow
+          card
+          title={reviewName(review)}
+          hint={`${countLabel(review, true)} · not imported yet`}
           accessibilityLabel={`Go on reviewing ${reviewName(review)}`}
+          onPress={() => router.push('/import/review')}
           testID="import-resume-review"
-        >
-          <View style={styles.linkCardText}>
-            <Text style={styles.linkCardTitle} numberOfLines={1}>
-              {reviewName(review)}
-            </Text>
-            <Text style={styles.linkCardSub}>{countLabel(review, true)} · not imported yet</Text>
-          </View>
-          <ChevronRight size={16} color={theme.colors.textMuted} />
-        </Pressable>
+        />
       ) : null}
     </>
   )
@@ -608,32 +594,17 @@ function nextLine(pacing: ImportPacing): string {
  * per song sat at 0 % through the wait for its turn and then jumped to full.
  */
 function RunProgress({ run }: { run: ImportRun }): ReactNode {
-  const fraction = run.total > 0 ? run.done / run.total : 0
-  const [drawn] = useState(() => new RNAnimated.Value(fraction))
-  const sent = useRef(fraction)
-  useEffect(() => {
-    if (sent.current === fraction) return
-    sent.current = fraction
-    // A width is no transform: the native driver cannot move it.
-    timing(drawn, fraction, MOVE_MS.ringFill, undefined, { easing: ease.out, native: false })
-  }, [fraction, drawn])
-  const [width] = useState(() =>
-    drawn.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'], extrapolate: 'clamp' }),
-  )
   return (
     <View style={styles.run} testID="import-run">
       <View style={styles.runLine}>
         <Text style={styles.runCount}>{`${run.done} of ${run.total} in`}</Text>
         <Text style={styles.runLeft}>{run.leftMs === null ? 'Paused' : timeLeft(run.leftMs)}</Text>
       </View>
-      <View
-        style={styles.runTrack}
-        accessibilityRole="progressbar"
-        accessibilityLabel="Songs imported"
-        accessibilityValue={{ min: 0, max: run.total, now: run.done }}
-      >
-        <RNAnimated.View style={[styles.runFill, { width }]} />
-      </View>
+      <ProgressBar
+        fraction={run.total > 0 ? run.done / run.total : 0}
+        label="Songs imported"
+        animated
+      />
     </View>
   )
 }
@@ -1078,18 +1049,6 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
     borderRadius: radius.coverSm,
   },
-  linkCard: {
-    ...card(theme.colors),
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  linkCardPressed: { backgroundColor: theme.colors.surface2 },
-  linkCardText: { flex: 1, minWidth: 0, gap: 3 },
-  linkCardTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  linkCardSub: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
   shareHint: { color: theme.colors.textMuted, fontSize: type.sub, lineHeight: leading.sub },
   jobs: { gap: 6 },
   groupApart: { marginTop: 12 },
@@ -1135,11 +1094,4 @@ const styles = StyleSheet.create(theme => ({
   },
   runCount: { color: theme.colors.textPrimary, fontSize: type.section, fontWeight: '700' },
   runLeft: { color: theme.colors.textSecondary, fontSize: type.sub },
-  runTrack: {
-    height: 5,
-    borderRadius: radius.pill,
-    overflow: 'hidden',
-    backgroundColor: theme.colors.surface2,
-  },
-  runFill: { height: 5, borderRadius: radius.pill, backgroundColor: theme.colors.accent },
 }))

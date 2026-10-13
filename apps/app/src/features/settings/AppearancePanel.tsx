@@ -1,9 +1,11 @@
+import { useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { View } from 'react-native'
+import { useUnistyles } from 'react-native-unistyles'
 import { buildAccent } from '@selfmp3/client'
 import { ACCENT_PRESETS, useAccent } from '../../ui/accent'
 import type { ThemeChoice } from '../../ui/appearancePrefs'
+import { HueSwatches } from '../../ui/components/HueSwatches'
 import { Select } from '../../ui/components/Select'
 import { Slider } from '../../ui/components/Slider'
 import { Panel, Row } from './SettingsParts'
@@ -13,14 +15,17 @@ import { accentName } from './settings.model'
  * Each preset's swatch colour, worked out once: the panel redraws on every
  * frame of a hue drag, and building seven accents per frame was most of it.
  */
-const PRESET_SWATCHES = ACCENT_PRESETS.map(preset => ({
-  ...preset,
-  color: buildAccent(preset.hue).accent,
-}))
+const PRESET_SWATCHES = ACCENT_PRESETS.map(preset => {
+  const built = buildAccent(preset.hue)
+  return { hue: preset.hue, name: preset.name, fill: built.accent, tick: built.onAccent }
+})
 
 export function AppearancePanel({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
   const { theme: ui } = useUnistyles()
   const accent = useAccent()
+  // Ringed in the ink, whichever accent is chosen: the ring is the choice.
+  const ring = ui.colors.textPrimary
+  const swatches = useMemo(() => PRESET_SWATCHES.map(each => ({ ...each, ring })), [ring])
   return (
     <Panel title="Appearance" hint="on this device" anchor={anchor}>
       <Row label="Theme" hint="System follows this device.">
@@ -40,23 +45,13 @@ export function AppearancePanel({ anchor }: { anchor: (node: View | null) => voi
         hint={`Tints the whole app · ${accentName(accent.hue, ACCENT_PRESETS)}`}
         last
       >
-        <View style={styles.swatches}>
-          {PRESET_SWATCHES.map(preset => (
-            <Pressable
-              key={preset.hue}
-              onPress={() => accent.setHue(preset.hue)}
-              hitSlop={4}
-              accessibilityRole="button"
-              accessibilityLabel={preset.name}
-              accessibilityState={{ selected: accent.hue === preset.hue }}
-              style={[
-                styles.swatch,
-                { backgroundColor: preset.color },
-                accent.hue === preset.hue && { borderColor: ui.colors.textPrimary },
-              ]}
-            />
-          ))}
-        </View>
+        <HueSwatches
+          value={accent.hue}
+          options={swatches}
+          label="Accent colour"
+          onChange={accent.setHue}
+          size={22}
+        />
         <Slider
           value={accent.hue}
           min={0}
@@ -71,8 +66,3 @@ export function AppearancePanel({ anchor }: { anchor: (node: View | null) => voi
     </Panel>
   )
 }
-
-const styles = StyleSheet.create(() => ({
-  swatches: { flexDirection: 'row', gap: 6 },
-  swatch: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: 'transparent' },
-}))

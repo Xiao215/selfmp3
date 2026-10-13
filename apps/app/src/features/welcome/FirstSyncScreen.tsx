@@ -29,6 +29,7 @@ import {
 } from './firstSync.model'
 import { rememberFirstSyncSeen } from './firstSyncMemory'
 import { WhitePill } from './WhitePill'
+import { ProgressBar } from '../../ui/components/ProgressBar'
 import { OnboardingCard, OnboardingPage } from './OnboardingPage'
 
 /**
@@ -129,9 +130,7 @@ export function FirstSyncScreen(): ReactNode {
             {now.detail ? <Text style={styles.detail}>{now.detail}</Text> : null}
           </View>
         </View>
-        <View style={styles.track}>
-          <View style={[styles.fill, { width: `${Math.round(now.fraction * 100)}%` }]} />
-        </View>
+        <ProgressBar fraction={now.fraction} label="Your library arriving" />
       </OnboardingCard>
 
       <View style={styles.keep}>
@@ -203,13 +202,6 @@ const styles = StyleSheet.create(theme => ({
   cardWords: { flex: 1, minWidth: 0, gap: 2 },
   summary: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   detail: { color: theme.colors.textSecondary, fontSize: type.sub },
-  track: {
-    height: 6,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface2,
-    overflow: 'hidden',
-  },
-  fill: { height: 6, borderRadius: radius.pill, backgroundColor: theme.colors.accent },
   stack: { flexDirection: 'row' },
   stacked: { marginLeft: -18 },
   more: {

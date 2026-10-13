@@ -24,7 +24,8 @@ import { Popover } from '../../ui/components/Popover'
 import { SheetItem } from '../../ui/components/Sheet'
 import { addressReady, cloudConnectInput, type AddressFields } from '../welcome/storage.model'
 import { BucketAddressFields } from '../welcome/BucketAddressFields'
-import { Lead, Meter, Panel, partStyles, Row } from './SettingsParts'
+import { Lead, Panel, partStyles, Row } from './SettingsParts'
+import { ProgressBar } from '../../ui/components/ProgressBar'
 import { NoticeCard } from '../../ui/components/NoticeCard'
 
 /**
@@ -264,7 +265,7 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
               : 'Checking what changed…'}
           </Text>
           {progress && progress.total > 0 ? (
-            <Meter fraction={progress.done / progress.total} />
+            <ProgressBar fraction={progress.done / progress.total} label="Songs uploaded" />
           ) : null}
         </View>
       ) : null}

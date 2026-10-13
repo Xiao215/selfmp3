@@ -209,6 +209,16 @@ export function unreachableLabel(error: unknown): string {
 }
 
 /**
+ * What a page whose numbers come from the library says while the library is
+ * out of reach — Stats, the Report, Profile's month — in one line, so the
+ * three say it the same way.
+ */
+export const SHOWS_WHEN_REACHABLE = 'This shows when your library is reachable again.'
+
+/** The same for lyrics, on a phone's Now Playing and a computer's. */
+export const LYRICS_WHEN_REACHABLE = 'Lyrics show when your library is reachable again.'
+
+/**
  * What the "can't reach" card says: that the library did not answer, and
  * what to check.
  *

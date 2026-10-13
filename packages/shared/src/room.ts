@@ -30,7 +30,7 @@ export const ROOM_IDLE_MS = 2 * 60 * 60 * 1000
 
 export function newRoomDoc(input: {
   code: string
-  host: { id: string; name: string }
+  host: { id: string; name: string; picture: string | null }
   mode: RoomMode
   rights: RoomRights
   keepGoing: boolean
@@ -48,6 +48,7 @@ export function newRoomDoc(input: {
         name: input.host.name,
         kind: 'host',
         colour: 0,
+        picture: input.host.picture,
         joinedAt: input.now,
         online: false,
         left: false,
@@ -76,7 +77,12 @@ export function roomTitle(doc: Pick<RoomDoc, 'members'>): string {
 /** A new member, with the first face colour nobody here has. */
 export function addRoomMember(
   doc: RoomDoc,
-  member: { id: string; name: string; kind: Exclude<RoomMemberKind, 'host'> },
+  member: {
+    id: string
+    name: string
+    kind: Exclude<RoomMemberKind, 'host'>
+    picture: string | null
+  },
   now: number,
 ): RoomDoc | RoomRefusal {
   if (doc.endedAt !== null) return refuse('ended', 'this room has ended')
@@ -250,6 +256,7 @@ export function applyRoomAction(
       addedBy: memberId,
       owner,
       from: null,
+      fromPicture: null,
       addedAt: now,
       at: null,
       playedAt: null,

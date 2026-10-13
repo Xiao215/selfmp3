@@ -68,15 +68,21 @@ function ok(value: RoomDoc | RoomRefusal): RoomDoc {
 function room(): RoomDoc {
   let doc = newRoomDoc({
     code: 'KQ7482',
-    host: { id: 'aaaaaaaaaaaa', name: 'Xiao' },
+    host: { id: 'aaaaaaaaaaaa', name: 'Xiao', picture: null },
     mode: 'speaker',
     rights: DEFAULT_ROOM_RIGHTS,
     keepGoing: true,
     now: 1000,
   })
-  doc = ok(addRoomMember(doc, { id: 'bbbbbbbbbbbb', name: 'Mia', kind: 'friend' }, 1100))
-  doc = ok(addRoomMember(doc, { id: 'cccccccccccc', name: 'Ken', kind: 'friend' }, 1200))
-  doc = ok(addRoomMember(doc, { id: 'dddddddddddd', name: 'Ana', kind: 'guest' }, 1300))
+  doc = ok(
+    addRoomMember(doc, { id: 'bbbbbbbbbbbb', name: 'Mia', kind: 'friend', picture: null }, 1100),
+  )
+  doc = ok(
+    addRoomMember(doc, { id: 'cccccccccccc', name: 'Ken', kind: 'friend', picture: null }, 1200),
+  )
+  doc = ok(
+    addRoomMember(doc, { id: 'dddddddddddd', name: 'Ana', kind: 'guest', picture: null }, 1300),
+  )
   return doc
 }
 const X = 'aaaaaaaaaaaa'

@@ -14,7 +14,7 @@ import { requireSession, type Context } from './context.js'
 import { relayRead } from './files.js'
 import { json, methodNotAllowed, notFound, readJson } from './http.js'
 import { secureHex } from './encoding.js'
-import type { Session } from './sessions.js'
+import { facePicture, type Session } from './sessions.js'
 
 /**
  * Shared playlists (docs/features/listen-together.md, "Shared playlists"; the
@@ -97,7 +97,7 @@ export async function shared(ctx: Context): Promise<Response> {
     const id = newSharedId()
     const made = await sharedObject(ctx, id).fetch(
       'https://shared/create',
-      post({ ...body, id, sub: session.sub }),
+      post({ ...body, id, sub: session.sub, picture: facePicture(session) }),
     )
     if (made.ok) await rememberShared(ctx, session.sub, id)
     return relayed(made)
@@ -128,7 +128,10 @@ export async function shared(ctx: Context): Promise<Response> {
   const session = await requireSession(ctx)
   if (action === undefined) {
     if (method !== 'GET') return methodNotAllowed(['GET'])
-    const viewed = await object.fetch(`https://shared/view?sub=${encodeURIComponent(session.sub)}`)
+    const query = new URLSearchParams({ sub: session.sub })
+    const picture = facePicture(session)
+    if (picture !== null) query.set('picture', picture)
+    const viewed = await object.fetch(`https://shared/view?${query.toString()}`)
     if (viewed.status === 403 || viewed.status === 404)
       await forgetShared(ctx, session.sub, id.data)
     return relayed(viewed)
@@ -136,7 +139,10 @@ export async function shared(ctx: Context): Promise<Response> {
   if (action === 'join' && entry === undefined) {
     if (method !== 'POST') return methodNotAllowed(['POST'])
     const body = await readJson(ctx.request, SharedJoinSchema)
-    const joined = await object.fetch('https://shared/join', post({ ...body, sub: session.sub }))
+    const joined = await object.fetch(
+      'https://shared/join',
+      post({ ...body, sub: session.sub, picture: facePicture(session) }),
+    )
     if (joined.ok) await rememberShared(ctx, session.sub, id.data)
     return relayed(joined)
   }

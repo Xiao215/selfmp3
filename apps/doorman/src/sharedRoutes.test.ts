@@ -7,14 +7,19 @@ import {
   type SharedPlaylist,
 } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
-import { harness, type Harness } from './fakes.js'
+import { ME, harness, type Harness } from './fakes.js'
 
 /**
  * Shared playlists, as the doorman keeps them: on every device of everyone in
  * them, each song lent from its owner's bucket for as long as it is in it.
  */
 
-const MIA = { sub: '208234567890123456789', email: 'friend@example.com', name: 'Mia' }
+const MIA = {
+  sub: '208234567890123456789',
+  email: 'friend@example.com',
+  name: 'Mia',
+  picture: 'https://lh3.googleusercontent.com/a/mia',
+}
 const KEN = { sub: '308234567890123456789', email: 'ken@example.com', name: 'Ken' }
 
 function song(n: number): RoomSong {
@@ -140,6 +145,41 @@ describe('a shared playlist', () => {
     expect(s.h.shared.stored(made.id).size).toBe(0)
   })
 
+  it('shows each person’s Google picture from their session, never from what they send', async () => {
+    const s = await setup()
+    const elsewhere = 'https://example.com/someone-else.png'
+    const made = await playlist(
+      await s.h.call('/v1/shared', {
+        token: s.me,
+        json: { name: 'Saturday', you: 'Xiao', songs: [], picture: elsewhere },
+      }),
+    )
+    const joined = await playlist(
+      await s.h.call(`/v1/shared/${made.id}/join`, {
+        token: s.mia,
+        json: { invite: made.invite, name: 'Mia', picture: elsewhere },
+      }),
+    )
+    expect(joined.members.map(member => member.picture)).toEqual([ME.picture, MIA.picture])
+    const list = SharedSummariesSchema.parse(
+      await (await s.h.call('/v1/shared', { token: s.mia })).json(),
+    )
+    expect(list[0]?.people.map(person => person.picture)).toEqual([ME.picture, MIA.picture])
+  })
+
+  it('gives someone kept from before faces had pictures theirs when they next look', async () => {
+    const s = await setup()
+    const made = await make(s)
+    const stored = s.h.shared.stored(made.id)
+    const doc = stored.get('doc') as { members: Record<string, unknown>[] }
+    for (const member of doc.members) delete member.picture
+    stored.set('doc', doc)
+    const looked = await playlist(await s.h.call(`/v1/shared/${made.id}`, { token: s.me }))
+    expect(looked.members.map(member => member.picture)).toEqual([ME.picture])
+    const kept = stored.get('doc') as { members: { picture?: string | null }[] }
+    expect(kept.members[0]?.picture).toBe(ME.picture)
+  })
+
   it('keeps no account and no token where its people can see', async () => {
     const s = await setup()
     const made = await make(s)
@@ -181,9 +221,9 @@ describe('a room and a shared playlist', () => {
       }),
     )
     // Ana joined with only a name: there is no account to give it to.
-    expect(kept.members.map(member => [member.name, member.creator])).toEqual([
-      ['Xiao', true],
-      ['Mia', false],
+    expect(kept.members.map(member => [member.name, member.creator, member.picture])).toEqual([
+      ['Xiao', true, ME.picture],
+      ['Mia', false, MIA.picture],
     ])
     expect(kept.entries.map(entry => entry.song.title)).toEqual(['Song 2'])
     const hers = SharedSummariesSchema.parse(
@@ -223,9 +263,9 @@ describe('a room and a shared playlist', () => {
         })
       ).json(),
     )
-    expect(filled.entries.map(entry => [entry.song.title, entry.from])).toEqual([
-      ['Song 1', 'Xiao'],
-      ['Song 2', 'Mia'],
+    expect(filled.entries.map(entry => [entry.song.title, entry.from, entry.fromPicture])).toEqual([
+      ['Song 1', 'Xiao', ME.picture],
+      ['Song 2', 'Mia', MIA.picture],
     ])
     const mias = filled.entries[1]?.id ?? ''
     const played = await s.h.call(`/v1/rooms/${host.code}/files/${mias}/audio?t=${host.token}`)

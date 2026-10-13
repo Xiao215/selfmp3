@@ -1,11 +1,11 @@
 import { useSyncExternalStore } from 'react'
 
 /**
- * Which of a room's sheets is open (`RoomSheets`): Together's start and
- * invite, adding songs, the people in it. Opened from Up next, the room's
- * page and Now Playing; drawn once, by the shell.
+ * Which of a room's sheets is open (`RoomSheets`): Together — opening a room,
+ * or the room once you are in one — and adding songs. Opened from Up next, the
+ * room's page and the player; drawn once, by the shell.
  */
-type RoomSheet = 'together' | 'add' | 'people'
+type RoomSheet = 'together' | 'add'
 
 let open: RoomSheet | null = null
 const listeners = new Set<() => void>()

@@ -14,7 +14,11 @@ interface SharedRow {
   /** Yours, or anyone's when you made the playlist. */
   readonly removable: boolean
   /** Whose song it is, as its face and name, as a room's row says it. */
-  readonly face: { readonly name: string; readonly colour: number } | null
+  readonly face: {
+    readonly name: string
+    readonly colour: number
+    readonly picture: string | null
+  } | null
   /** "You", their name, or "Someone" for an owner who has left. */
   readonly who: string
 }
@@ -29,7 +33,7 @@ export function sharedRows(playlist: SharedPlaylist): SharedRow[] {
       trackId: roomTrackId(entry.id),
       owner,
       removable: creator || entry.owner === playlist.you,
-      face: owner ? { name: owner.name, colour: owner.colour } : null,
+      face: owner ? { name: owner.name, colour: owner.colour, picture: owner.picture } : null,
       who: !owner ? 'Someone' : owner.id === playlist.you ? 'You' : owner.name,
     }
   })

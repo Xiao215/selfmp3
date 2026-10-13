@@ -30,7 +30,7 @@ import {
 } from './room.js'
 import { LentSongsSchema } from './shared.js'
 import { newSharedId, post as sharedPost, rememberShared, sharedObject } from './sharedRoutes.js'
-import { bearerToken, type Session } from './sessions.js'
+import { bearerToken, facePicture, type Session } from './sessions.js'
 
 /**
  * Rooms: listening together (docs/features/listen-together.md; the contract is
@@ -78,7 +78,11 @@ export async function rooms(ctx: Context): Promise<Response> {
     if (method !== 'POST') return methodNotAllowed(['POST'])
     const body = await readJson(ctx.request, RoomJoinSchema)
     const session = await optionalSession(ctx)
-    const join: JoinRequest = { name: body.name, sub: session?.sub ?? null }
+    const join: JoinRequest = {
+      name: body.name,
+      sub: session?.sub ?? null,
+      picture: session ? facePicture(session) : null,
+    }
     return relayed(await ask('/join', post(join)))
   }
   if (action === 'act' && entry === undefined) {
@@ -235,6 +239,7 @@ async function create(ctx: Context, namespace: DurableObjectNamespace): Promise<
       code,
       sub: session.sub,
       name: body.name,
+      picture: facePicture(session),
       mode: body.mode,
       rights: body.rights,
       keepGoing: body.keepGoing,

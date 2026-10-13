@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { RoomIdSchema, RoomMemberNameSchema, RoomSongSchema } from './room.js'
+import { MemberPictureSchema, RoomIdSchema, RoomMemberNameSchema, RoomSongSchema } from './room.js'
 
 /**
  * Shared playlists: a playlist friends keep adding to, after a room or
@@ -38,6 +38,8 @@ export const SharedMemberSchema = z.object({
   name: RoomMemberNameSchema,
   /** As in a room: which of the eight face colours is theirs. */
   colour: z.number().int().min(0).max(7),
+  /** As in a room: their face's picture, or null. */
+  picture: MemberPictureSchema.nullable().default(null),
   joinedAt: z.number().int().nonnegative(),
   /** Made it: may rename it, and take out anyone's song. */
   creator: z.boolean(),
@@ -84,7 +86,13 @@ export type SharedPlaylist = z.infer<typeof SharedPlaylistSchema>
 export const SharedSummarySchema = z.object({
   id: SharedIdSchema,
   name: SharedNameSchema,
-  people: z.array(z.object({ name: RoomMemberNameSchema, colour: z.number().int() })),
+  people: z.array(
+    z.object({
+      name: RoomMemberNameSchema,
+      colour: z.number().int(),
+      picture: MemberPictureSchema.nullable().default(null),
+    }),
+  ),
   songs: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
 })

@@ -69,7 +69,7 @@ export function RoomSongLine({ song }: { song: Song }): ReactNode {
           : `${nameOf(state, whose)} brought this · not in your library`
   return (
     <View style={styles.line} testID="now-playing-room-line">
-      {by ? <RoomFace name={by.name} colour={by.colour} size={22} /> : null}
+      {by ? <RoomFace name={by.name} colour={by.colour} picture={by.picture} size={22} /> : null}
       <Text style={styles.text} numberOfLines={1}>
         {line}
       </Text>

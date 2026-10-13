@@ -48,11 +48,11 @@ function playlist(): SharedDoc {
   const doc = newSharedDoc({
     id: '0123456789abcdef',
     name: 'Saturday with Mia',
-    creator: { id: X, name: 'Xiao' },
+    creator: { id: X, name: 'Xiao', picture: null },
     songs: [{ id: newId(), song: song(1) }],
     now: 1000,
   })
-  return ok(addSharedMember(doc, { id: M, name: 'Mia' }, 2000))
+  return ok(addSharedMember(doc, { id: M, name: 'Mia', picture: null }, 2000))
 }
 
 const act = (doc: SharedDoc, who: string, action: SharedAction): SharedDoc =>

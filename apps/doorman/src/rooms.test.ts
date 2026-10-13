@@ -7,7 +7,7 @@ import {
   type RoomState,
 } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
-import { APP_ORIGIN, BUCKET, harness, type Harness } from './fakes.js'
+import { APP_ORIGIN, BUCKET, ME, harness, type Harness } from './fakes.js'
 import { newRoomCode } from './rooms.js'
 
 /**
@@ -18,7 +18,12 @@ import { newRoomCode } from './rooms.js'
 
 const SHA = 'ab'.repeat(32)
 const AUDIO = `audio/${SHA}.m4a`
-const FRIEND = { sub: '208234567890123456789', email: 'friend@example.com', name: 'Mia' }
+const FRIEND = {
+  sub: '208234567890123456789',
+  email: 'friend@example.com',
+  name: 'Mia',
+  picture: 'https://lh3.googleusercontent.com/a/mia',
+}
 
 function song(title: string, audioKey = AUDIO): RoomSong {
   return {
@@ -110,6 +115,42 @@ describe('opening and joining a room', () => {
       ['Mia', 'friend'],
     ])
     expect(ana.state.you).toBe(ana.member)
+  })
+
+  it('shows each signed-in person’s Google picture as their face, and no guest’s', async () => {
+    const s = await setup()
+    expect(s.room.state.members[0]?.picture).toBe(ME.picture)
+    // A picture in the body is nobody's word for anything: only a session's counts.
+    const elsewhere = 'https://example.com/someone-else.png'
+    const joined = async (name: string, session?: string) => {
+      const response = await s.h.call(`/v1/rooms/${s.room.code}/join`, {
+        json: { name, picture: elsewhere },
+        ...(session ? { token: session } : {}),
+      })
+      return RoomJoinedSchema.parse(await response.json())
+    }
+    await joined('Ana')
+    const mia = await joined('Mia', s.friend)
+    expect(mia.state.members.map(member => [member.name, member.picture])).toEqual([
+      ['Xiao', ME.picture],
+      ['Ana', null],
+      ['Mia', FRIEND.picture],
+    ])
+
+    // Google's address that is not https is no face.
+    const plain = await s.h.signIn({ sub: '308234567890123456789', picture: 'http://x.test/k' })
+    const ken = await joined('Ken', plain)
+    expect(ken.state.members.at(-1)?.picture).toBeNull()
+  })
+
+  it('opens a room kept before faces had pictures, with none', async () => {
+    const s = await setup()
+    const stored = s.h.rooms.stored(s.room.code)
+    const doc = stored.get('doc') as { members: Record<string, unknown>[] }
+    for (const member of doc.members) delete member.picture
+    stored.set('doc', doc)
+    const opened = await state(await s.h.call(`/v1/rooms/${s.room.code}?t=${s.room.token}`))
+    expect(opened.members.map(member => member.picture)).toEqual([null])
   })
 
   it('takes a code however it was typed, and says plainly when there is no such room', async () => {

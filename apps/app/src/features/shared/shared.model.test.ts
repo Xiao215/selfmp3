@@ -33,8 +33,8 @@ function playlist(you: string, creator: string): SharedPlaylist {
     createdAt: 0,
     updatedAt: 0,
     members: [
-      { id: X, name: 'Xiao', colour: 0, joinedAt: 0, creator: creator === X },
-      { id: M, name: 'Mia', colour: 1, joinedAt: 0, creator: creator === M },
+      { id: X, name: 'Xiao', colour: 0, picture: null, joinedAt: 0, creator: creator === X },
+      { id: M, name: 'Mia', colour: 1, picture: null, joinedAt: 0, creator: creator === M },
     ],
     entries: [
       { id: '000000000001', song: song(1), owner: X, addedAt: 0 },
@@ -55,7 +55,7 @@ describe('a shared playlist here', () => {
   it('names whose each song is as a room does: You, or their name and face', () => {
     const rows = sharedRows(playlist(X, X))
     expect(rows.map(row => row.who)).toEqual(['You', 'Mia'])
-    expect(rows[1]?.face).toEqual({ name: 'Mia', colour: 1 })
+    expect(rows[1]?.face).toEqual({ name: 'Mia', colour: 1, picture: null })
     const gone = { ...playlist(X, X), members: [] }
     expect(sharedRows(gone).map(row => [row.who, row.face])).toEqual([
       ['Someone', null],

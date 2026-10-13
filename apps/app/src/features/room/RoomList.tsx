@@ -81,7 +81,7 @@ export function RoomList({ head = true }: { head?: boolean }): ReactNode {
   )
 }
 
-/** The room's name, its people and where it plays, with Invite and the people's sheet. */
+/** The room's name, its people and where it plays, with the room's sheet. */
 export function RoomHead({
   state,
   link,
@@ -105,9 +105,9 @@ export function RoomHead({
       </View>
       <View style={styles.headButtons}>
         <Press
-          onPress={() => openRoomSheet('people')}
+          onPress={() => openRoomSheet('together')}
           accessibilityRole="button"
-          accessibilityLabel="People and room options"
+          accessibilityLabel="The room: invite, people, end it"
           {...tip('People')}
           testID="room-people"
           style={styles.round}
@@ -156,7 +156,15 @@ function RoomPlaying({ state }: { state: RoomState }): ReactNode {
       line={<RoomClock state={state} artist={artistOr(song.artist)} duration={song.duration} />}
       playing={playing}
       badge={
-        row.face ? <RoomFace name={row.face.name} colour={row.face.colour} size={20} ring /> : null
+        row.face ? (
+          <RoomFace
+            name={row.face.name}
+            colour={row.face.colour}
+            picture={row.face.picture}
+            size={20}
+            ring
+          />
+        ) : null
       }
     >
       {mayToggle ? (

@@ -18,10 +18,23 @@ const PastRoomSchema = z.object({
   code: z.string(),
   title: z.string(),
   endedAt: z.number(),
-  people: z.array(z.object({ name: z.string(), colour: z.number() })),
+  // A room remembered before faces had pictures has none.
+  people: z.array(
+    z.object({
+      name: z.string(),
+      colour: z.number(),
+      picture: z.string().nullable().default(null),
+    }),
+  ),
   shared: z.string().nullable().optional(),
   songs: z.array(
-    z.object({ song: RoomSongSchema, by: z.string(), colour: z.number(), mine: z.boolean() }),
+    z.object({
+      song: RoomSongSchema,
+      by: z.string(),
+      colour: z.number(),
+      picture: z.string().nullable().default(null),
+      mine: z.boolean(),
+    }),
   ),
 })
 

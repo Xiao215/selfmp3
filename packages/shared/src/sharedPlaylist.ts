@@ -24,7 +24,7 @@ function refuse(refused: RoomRefusal['refused'], message: string): RoomRefusal {
 export function newSharedDoc(input: {
   id: string
   name: string
-  creator: { id: string; name: string }
+  creator: { id: string; name: string; picture: string | null }
   songs: readonly { id: string; song: RoomSong }[]
   now: number
 }): SharedDoc {
@@ -38,6 +38,7 @@ export function newSharedDoc(input: {
         id: input.creator.id,
         name: input.creator.name,
         colour: 0,
+        picture: input.creator.picture,
         joinedAt: input.now,
         creator: true,
       },
@@ -51,7 +52,7 @@ export function newSharedDoc(input: {
 /** Someone new, with the first face colour nobody in it has. */
 export function addSharedMember(
   doc: SharedDoc,
-  member: { id: string; name: string },
+  member: { id: string; name: string; picture: string | null },
   now: number,
 ): SharedDoc | RoomRefusal {
   if (doc.members.length >= SHARED_MAX_MEMBERS) return refuse('full', 'this playlist is full')
@@ -126,7 +127,11 @@ export function sharedSummary(doc: SharedDoc): SharedSummary {
   return {
     id: doc.id,
     name: doc.name,
-    people: doc.members.map(member => ({ name: member.name, colour: member.colour })),
+    people: doc.members.map(member => ({
+      name: member.name,
+      colour: member.colour,
+      picture: member.picture,
+    })),
     songs: doc.entries.length,
     updatedAt: doc.updatedAt,
   }

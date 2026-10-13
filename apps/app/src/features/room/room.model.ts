@@ -58,6 +58,13 @@ export function nameOf(state: RoomState, member: RoomMember | undefined): string
   return member.id === state.you ? 'You' : member.name
 }
 
+/** People named in a sentence: "Mia", "Mia and Kai", "Mia, Kai and 2 others". */
+export function namesOf(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? 'nobody'
+  if (names.length <= 3) return `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
+  return `${names.slice(0, 2).join(', ')} and ${names.length - 2} others`
+}
+
 /** The line under the room's name: who is here, and where it plays. */
 export function roomLine(state: RoomState): string {
   const here = peopleHere(state).length
@@ -88,7 +95,11 @@ export interface RoomRow {
    * Whose song it is, as its face and name: whoever added it, or — for a
    * shared playlist's song whose owner is not here — that owner.
    */
-  readonly face: { readonly name: string; readonly colour: number } | null
+  readonly face: {
+    readonly name: string
+    readonly colour: number
+    readonly picture: string | null
+  } | null
   readonly who: string
 }
 
@@ -109,9 +120,9 @@ function rowOf(state: RoomState, entry: RoomEntry): RoomRow {
     owner: memberOf(state, entry.owner),
     removable: entry.playedAt === null && (host || entry.addedBy === state.you),
     face: entry.from
-      ? { name: entry.from, colour: colourOfName(entry.from) }
+      ? { name: entry.from, colour: colourOfName(entry.from), picture: entry.fromPicture }
       : by
-        ? { name: by.name, colour: by.colour }
+        ? { name: by.name, colour: by.colour, picture: by.picture }
         : null,
     who: entry.from ?? nameOf(state, by),
   }
@@ -335,13 +346,18 @@ export interface PastRoom {
   readonly code: string
   readonly title: string
   readonly endedAt: number
-  readonly people: readonly { readonly name: string; readonly colour: number }[]
+  readonly people: readonly {
+    readonly name: string
+    readonly colour: number
+    readonly picture: string | null
+  }[]
   /** The shared playlist it was kept as, when it was (features/shared). */
   readonly shared?: string | null
   readonly songs: readonly {
     readonly song: RoomSong
     readonly by: string
     readonly colour: number
+    readonly picture: string | null
     /** Brought by you, from your own library. */
     readonly mine: boolean
   }[]
@@ -357,11 +373,16 @@ export function pastRoomOf(state: RoomState, now: number): PastRoom | null {
     code: state.code,
     title: pastTitle(state),
     endedAt: state.endedAt ?? now,
-    people: state.members.map(member => ({ name: nameOf(state, member), colour: member.colour })),
+    people: state.members.map(member => ({
+      name: nameOf(state, member),
+      colour: member.colour,
+      picture: member.picture,
+    })),
     songs: rows.map(row => ({
       song: row.entry.song,
       by: nameOf(state, row.by),
       colour: row.by?.colour ?? 0,
+      picture: row.by?.picture ?? null,
       mine: row.entry.owner === state.you,
     })),
   }

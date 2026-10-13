@@ -14,7 +14,7 @@ import { peopleHere, roomTitle } from './room.model'
 import { openRoomSheet } from './roomSheets.store'
 import { useRoom } from './room.store'
 
-/** The most faces drawn where the room shows itself; the People sheet has everyone. */
+/** The most faces drawn where the room shows itself; the room's sheet has everyone. */
 const FACES = 3
 
 /**
@@ -23,7 +23,7 @@ const FACES = 3
  * are when a friend asks what is playing, rather than inside the queue.
  *
  * Out of a room it is People, opening Together (where it plays, or a code to
- * join). In one it is the room's faces, opening the invite.
+ * join). In one it is the room's faces, opening the room's sheet.
  */
 export function TogetherButton({
   filled = false,
@@ -55,8 +55,8 @@ export function TogetherButton({
       feedback="dim"
       onPress={() => openRoomSheet('together')}
       accessibilityRole="button"
-      accessibilityLabel={`${roomTitle(state)}, ${people.length} here. Invite friends`}
-      {...tip('Invite friends')}
+      accessibilityLabel={`${roomTitle(state)}, ${people.length} here. Invite, people, end it`}
+      {...tip('The room')}
       hitSlop={6}
       testID="together"
       style={styles.faces}
@@ -68,7 +68,7 @@ export function TogetherButton({
 
 /**
  * The room in the middle of the phone's Now Playing head while you are in
- * one: its faces and its name, opening the invite.
+ * one: its faces and its name, opening the room's sheet.
  */
 export function RoomPill(): ReactNode {
   const { state } = useRoom()
@@ -79,7 +79,7 @@ export function RoomPill(): ReactNode {
     <Press
       onPress={() => openRoomSheet('together')}
       accessibilityRole="button"
-      accessibilityLabel={`${title}, ${people.length} here. Invite friends`}
+      accessibilityLabel={`${title}, ${people.length} here. Invite, people, end it`}
       testID="together"
       style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
     >

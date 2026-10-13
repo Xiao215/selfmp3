@@ -1,3 +1,4 @@
+import { MemberPictureSchema } from '@selfmp3/shared'
 import { z } from 'zod'
 import { recall, remember, type BoundedCache } from './boundedCache.js'
 import { TOKEN_PATTERN, randomToken, sha256Hex } from './encoding.js'
@@ -44,6 +45,15 @@ const SessionSchema = IdentitySchema.extend({
   grant: z.string().optional(),
 })
 export type Session = z.infer<typeof SessionSchema>
+
+/**
+ * The session's Google profile picture, as its face in a room or a shared
+ * playlist: only ever from here, and only an https address.
+ */
+export function facePicture(session: Session): string | null {
+  const parsed = MemberPictureSchema.safeParse(session.picture)
+  return parsed.success ? parsed.data : null
+}
 
 export type SessionCache = BoundedCache<Session>
 

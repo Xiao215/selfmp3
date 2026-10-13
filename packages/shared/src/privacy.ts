@@ -24,7 +24,7 @@ interface PrivacyPolicy {
 export const PRIVACY_POLICY_URL = `${DEFAULT_APP_URL}/privacy.html`
 
 export const PRIVACY_POLICY: PrivacyPolicy = {
-  updated: '22 September 2026',
+  updated: '13 October 2026',
   sections: [
     {
       heading: 'What self.mp3 is',
@@ -39,6 +39,7 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
         'Google tells the doorman your account’s id, your email address, your name and the address of your profile picture. Nothing else is asked for, and the doorman never sees your Google password.',
         'These four are kept in a session record, so your devices can stay signed in, and shown back to you in the app as who is signed in. A session lasts 180 days from sign-in, or until you sign out. Signing out everywhere ends every session of your account at once.',
         'While a sign-in is in progress, the same four are held for ten minutes under the attempt, then discarded.',
+        'In a listening room or a shared playlist you open or join while signed in, the other people in it see your profile picture beside the name you go by there.',
       ],
     },
     {

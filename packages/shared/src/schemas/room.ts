@@ -83,12 +83,27 @@ export const RoomMemberNameSchema = z.string().trim().min(1).max(40)
 export const RoomMemberKindSchema = z.enum(['host', 'friend', 'guest'])
 export type RoomMemberKind = z.infer<typeof RoomMemberKindSchema>
 
+/**
+ * A signed-in person's Google profile picture, drawn as their face. The
+ * doorman takes it from their session, never from anything a device sends.
+ */
+export const MemberPictureSchema = z
+  .string()
+  .max(2000)
+  .url()
+  .regex(/^https:\/\//, 'an https address')
+
 export const RoomMemberSchema = z.object({
   id: RoomIdSchema,
   name: RoomMemberNameSchema,
   kind: RoomMemberKindSchema,
   /** Which of the room's eight face colours is theirs. */
   colour: z.number().int().min(0).max(7),
+  /**
+   * Their face's picture; null for a guest, or anyone without one. A room
+   * kept from before faces had pictures has none.
+   */
+  picture: MemberPictureSchema.nullable().default(null),
   joinedAt: z.number().int().nonnegative(),
   /** Has a socket open right now. */
   online: z.boolean(),
@@ -141,6 +156,8 @@ export const RoomEntrySchema = z.object({
   owner: RoomIdSchema.nullable(),
   /** Whose song it is when they are not in the room: a shared playlist's (`/from-shared`). */
   from: RoomMemberNameSchema.nullable().default(null),
+  /** That owner's face's picture, when they have one. */
+  fromPicture: MemberPictureSchema.nullable().default(null),
   addedAt: z.number().int().nonnegative(),
   /**
    * Where the host moved it to in the list, counted from the top of what is

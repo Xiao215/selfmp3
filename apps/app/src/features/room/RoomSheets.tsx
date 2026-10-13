@@ -1,8 +1,8 @@
 import { createContext, useContext, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
-import { StyleSheet } from 'react-native-unistyles'
-import { useRouter, type Href } from 'expo-router'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { usePathname, useRouter, type Href } from 'expo-router'
 import {
   artistOr,
   formatRoomCode,
@@ -14,7 +14,7 @@ import {
   type RoomState,
   type Song,
 } from '@selfmp3/shared'
-import { radius, space, type, useLibrary } from '@selfmp3/client'
+import { iconSize, radius, space, type, useLibrary } from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
 import { usePlayer } from '../../player/PlayerProvider'
 import { appAddress, shareLink } from '../../ports/shareLink'
@@ -30,11 +30,24 @@ import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { Segmented } from '../../ui/components/Segmented'
 import { Sheet } from '../../ui/components/Sheet'
 import { ToggleRow } from '../../ui/components/Toggle'
+import { ChevronDown, ChevronRight } from '../../ui/components/Icons'
 import { useCloudSession } from '../profile/useCloudSession'
 import { lookUpLink, playableLink } from './linkSong'
 import { RoomFace } from './RoomFace'
 import { RoomQr } from './RoomQr'
-import { inviteLink, isHost, nameOf, pastTitle, playedRows, roomTitle, youMay } from './room.model'
+import {
+  inviteLink,
+  isHost,
+  nameOf,
+  namesOf,
+  pastRoomOf,
+  pastTitle,
+  peopleHere,
+  playedRows,
+  roomLine,
+  roomTitle,
+  youMay,
+} from './room.model'
 import { closeRoomSheet, useRoomSheet } from './roomSheets.store'
 import { sayRoomFailure } from './roomFailure'
 import {
@@ -65,8 +78,7 @@ function useGo(): (href: Href) => void {
 
 /**
  * A room's sheets (docs/features/listen-together.md): Together — opening a
- * room, or its invite once you are in one — adding songs, and the people in
- * it. Drawn once by the shell, opened from wherever the room is shown, and
+ * room, or the room itself once you are in one — and adding songs. Drawn once by the shell, opened from wherever the room is shown, and
  * again inside the phone's Now Playing (with `go`), which covers the shell.
  */
 export function RoomSheets({ go = null }: { go?: ((href: Href) => void) | null }): ReactNode {
@@ -76,30 +88,90 @@ export function RoomSheets({ go = null }: { go?: ((href: Href) => void) | null }
     <RoomGo.Provider value={go}>
       <TogetherSheet open={open === 'together'} state={state} />
       {state ? <AddSheet open={open === 'add'} state={state} /> : null}
-      {state ? <PeopleSheet open={open === 'people'} state={state} /> : null}
     </RoomGo.Provider>
   )
 }
 
 // --- Together ----------------------------------------------------------------------
 
+/**
+ * Together, from the player's People button: out of a room, where it plays or
+ * a code to join; in one, the room itself (E1, Xiao 2026-10-13) — the invite,
+ * who is here, what friends may do, and ending it or leaving at the foot, the
+ * same sheet from Now Playing's pill, the player bar's faces and Up next's ⋯.
+ */
 function TogetherSheet({ open, state }: { open: boolean; state: RoomState | null }): ReactNode {
+  const leave = useLeave()
+  // The room you asked to end, while the question is up.
+  const [asking, setAsking] = useState<RoomState | null>(null)
+  const others = asking ? peopleHere(asking).filter(member => member.id !== asking.you) : []
   return (
-    <Sheet
-      open={open}
-      onClose={closeRoomSheet}
-      title={state ? 'Invite friends' : 'Listen together'}
-      subtitle={
-        state
-          ? 'They open the link, or type the code in Listen together.'
-          : 'Up next becomes a room friends add songs to.'
-      }
-      testID="room-together"
-      width={420}
-    >
-      {state ? <Invite state={state} /> : <Start />}
-    </Sheet>
+    <>
+      <Sheet
+        open={open}
+        onClose={closeRoomSheet}
+        title={state ? roomTitle(state) : 'Listen together'}
+        subtitle={state ? roomLine(state) : 'Up next becomes a room friends add songs to.'}
+        testID="room-together"
+        width={420}
+      >
+        {state ? (
+          <RoomOptions
+            state={state}
+            onLeave={() => {
+              // Asked only when it reaches someone else (C1): the host ending it
+              // for friends still in it. Leaving, or ending it alone, just goes.
+              if (isHost(state) && peopleHere(state).some(member => member.id !== state.you)) {
+                setAsking(state)
+              } else void leave(state)
+            }}
+          />
+        ) : (
+          <Start />
+        )}
+      </Sheet>
+      <ConfirmDialog
+        open={asking !== null}
+        title={`End the room for ${namesOf(others.map(member => member.name))}?`}
+        body="Their music stops, and their songs stop playing. It stays in your Recently played."
+        confirmLabel="End it"
+        danger
+        onConfirm={() => {
+          if (asking) void leave(asking)
+          setAsking(null)
+        }}
+        onCancel={() => setAsking(null)}
+      />
+    </>
   )
+}
+
+/**
+ * Out of a room: ended, if it was yours. A toast says so and, once a song has
+ * played, offers the room as Recently played keeps it (C3). The room's own
+ * page goes with it; anywhere else you stay where you were.
+ */
+function useLeave(): (state: RoomState) => Promise<void> {
+  const router = useRouter()
+  const pathname = usePathname()
+  const go = useGo()
+  const overNowPlaying = useContext(RoomGo) !== null
+  return async state => {
+    closeRoomSheet()
+    const played = pastRoomOf(state, Date.now()) !== null
+    await leaveRoom()
+    if (!overNowPlaying && pathname === '/room') router.replace('/')
+    showToast(isHost(state) ? 'Room ended' : `You left ${roomTitle(state)}`, 'info', {
+      actions: played
+        ? [
+            {
+              label: 'See what played',
+              onPress: () => go({ pathname: '/past-room/[code]', params: { code: state.code } }),
+            },
+          ]
+        : [],
+    })
+  }
 }
 
 function Start(): ReactNode {
@@ -205,32 +277,25 @@ function Invite({ state }: { state: RoomState }): ReactNode {
     if (how === 'copied') showToast('Invite link copied', 'good')
   }
   return (
-    <View style={styles.body}>
-      <View style={styles.codeCard}>
-        <RoomQr text={link} size={132} />
-        <View style={styles.codeText}>
-          <Text style={styles.label}>Room code</Text>
-          <Text style={styles.code} selectable testID="room-code">
-            {formatRoomCode(state.code)}
-          </Text>
-          <Text style={styles.link} selectable numberOfLines={3}>
-            {link}
-          </Text>
+    <View style={styles.codeCard}>
+      <RoomQr text={link} size={96} />
+      <View style={styles.codeText}>
+        <Text style={styles.label}>Room code</Text>
+        <Text style={styles.code} selectable testID="room-code">
+          {formatRoomCode(state.code)}
+        </Text>
+        <Text style={styles.link} selectable numberOfLines={2}>
+          {link}
+        </Text>
+        <View style={styles.shareRow}>
+          <Button
+            label="Share invite"
+            variant="primary"
+            onPress={() => void share()}
+            testID="room-share"
+          />
         </View>
       </View>
-      <Text style={styles.text}>
-        {state.mode === 'speaker'
-          ? 'It plays on the host’s device. Friends add songs from their phones.'
-          : 'It plays on everyone’s phone, in step.'}{' '}
-        Friends with self.mp3 bring their own songs; anyone else joins in a browser with just a
-        name.
-      </Text>
-      <Button
-        label="Share invite"
-        variant="primary"
-        onPress={() => void share()}
-        testID="room-share"
-      />
     </View>
   )
 }
@@ -375,7 +440,16 @@ function InTheRoom({ state }: { state: RoomState }): ReactNode {
           <View key={shelf.member} style={styles.section}>
             <SectionHead
               look="label"
-              lead={owner ? <RoomFace name={owner.name} colour={owner.colour} size={20} /> : null}
+              lead={
+                owner ? (
+                  <RoomFace
+                    name={owner.name}
+                    colour={owner.colour}
+                    picture={owner.picture}
+                    size={20}
+                  />
+                ) : null
+              }
               title={`${nameOf(state, owner)}’s shelf · ${shelf.name}`}
               style={styles.sectionHead}
             />
@@ -600,116 +674,113 @@ function SongPick({
   )
 }
 
-// --- People ----------------------------------------------------------------------
+// --- The room ----------------------------------------------------------------------
 
-function PeopleSheet({ open, state }: { open: boolean; state: RoomState }): ReactNode {
-  const router = useRouter()
-  // Over Now Playing the song carries on there; elsewhere the room's page goes.
-  const overNowPlaying = useContext(RoomGo) !== null
+const RIGHTS: readonly { key: keyof RoomRights; label: string; hint?: string }[] = [
+  { key: 'add', label: 'Add songs' },
+  { key: 'skip', label: 'Skip' },
+  { key: 'pause', label: 'Pause and play' },
+  { key: 'links', label: 'Add links', hint: 'Plays straight from the link; nothing is kept' },
+]
+
+/** The room's sheet, in a room: the invite, its people, and ending it or leaving. */
+function RoomOptions({ state, onLeave }: { state: RoomState; onLeave: () => void }): ReactNode {
+  const { theme } = useUnistyles()
   const host = isHost(state)
-  const [confirming, setConfirming] = useState(false)
+  const [rightsOpen, setRightsOpen] = useState(false)
   const setRight = (key: keyof RoomRights, value: boolean): void => {
     void roomAct({ type: 'settings', rights: { ...state.rights, [key]: value } }).catch(
       sayRoomFailure,
     )
   }
-  const leave = async (): Promise<void> => {
-    setConfirming(false)
-    closeRoomSheet()
-    await leaveRoom()
-    if (!overNowPlaying) router.replace('/')
-  }
-  const people = state.members.filter(member => !member.left)
+  const allowed = RIGHTS.filter(right => state.rights[right.key]).map(right => right.label)
   return (
-    <>
-      <Sheet
-        open={open}
-        onClose={closeRoomSheet}
-        title="People"
-        testID="room-people-sheet"
-        width={420}
-      >
-        <View style={styles.body}>
-          {people.map(member => {
-            const songs = state.entries.filter(entry => entry.addedBy === member.id).length
-            const kind =
-              member.kind === 'host'
-                ? 'Host'
-                : member.kind === 'guest'
-                  ? 'In a browser'
-                  : 'Brings their own songs'
-            return (
-              <View key={member.id} style={styles.person}>
-                <RoomFace name={member.name} colour={member.colour} size={36} />
-                <View style={styles.pickText}>
-                  <Text style={styles.pickTitle}>
-                    {nameOf(state, member)}
-                    {member.online ? '' : ' · away'}
-                  </Text>
-                  <Text style={styles.pickSub}>
-                    {kind} · added {songs}
-                  </Text>
-                </View>
-                {host && member.kind !== 'host' ? (
-                  <Button
-                    label="Remove"
-                    variant="text"
-                    onPress={() =>
-                      void roomAct({ type: 'kick', member: member.id }).catch(sayRoomFailure)
-                    }
-                  />
-                ) : null}
+    <View style={styles.body}>
+      <Invite state={state} />
+      <View>
+        {peopleHere(state).map(member => {
+          const songs = state.entries.filter(entry => entry.addedBy === member.id).length
+          const kind =
+            member.kind === 'host'
+              ? 'Host'
+              : member.kind === 'guest'
+                ? 'In a browser'
+                : 'Brings their own songs'
+          return (
+            <View key={member.id} style={styles.person}>
+              <RoomFace
+                name={member.name}
+                colour={member.colour}
+                picture={member.picture}
+                size={36}
+              />
+              <View style={styles.pickText}>
+                <Text style={styles.pickTitle}>
+                  {nameOf(state, member)}
+                  {member.online ? '' : ' · away'}
+                </Text>
+                <Text style={styles.pickSub}>
+                  {kind} · added {songs}
+                </Text>
               </View>
-            )
-          })}
-          {host ? (
-            <View style={styles.rights}>
-              <Text style={styles.label}>Friends can</Text>
-              <Right
-                label="Add songs"
-                value={state.rights.add}
-                onChange={v => setRight('add', v)}
-              />
-              <Right label="Skip" value={state.rights.skip} onChange={v => setRight('skip', v)} />
-              <Right
-                label="Pause and play"
-                value={state.rights.pause}
-                onChange={v => setRight('pause', v)}
-              />
-              <Right
-                label="Add links"
-                hint="Plays straight from the link; nothing is kept"
-                value={state.rights.links}
-                onChange={v => setRight('links', v)}
-              />
+              {host && member.kind !== 'host' ? (
+                <Button
+                  label="Remove"
+                  variant="text"
+                  onPress={() =>
+                    void roomAct({ type: 'kick', member: member.id }).catch(sayRoomFailure)
+                  }
+                />
+              ) : null}
             </View>
-          ) : null}
-          {host ? <KeepAsShared state={state} /> : null}
-          <Button
-            label={host ? 'End the room' : 'Leave the room'}
-            variant="danger"
-            onPress={() => setConfirming(true)}
-            testID="room-leave"
-          />
-          <Text style={styles.text}>
-            {host
-              ? 'Ends it for everyone. It stays in your Recently played.'
-              : 'It stays in your Recently played.'}
-          </Text>
+          )
+        })}
+      </View>
+      {host ? (
+        <View style={styles.rights}>
+          <Press
+            onPress={() => setRightsOpen(was => !was)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: rightsOpen }}
+            testID="room-rights"
+            style={styles.rightsHead}
+          >
+            <Text style={styles.rightsTitle}>Friends can</Text>
+            <Text style={styles.rightsNow} numberOfLines={1}>
+              {allowed.length > 0 ? allowed.join(', ') : 'Only listen'}
+            </Text>
+            {rightsOpen ? (
+              <ChevronDown size={iconSize.small} color={theme.colors.textSecondary} />
+            ) : (
+              <ChevronRight size={iconSize.small} color={theme.colors.textSecondary} />
+            )}
+          </Press>
+          {rightsOpen
+            ? RIGHTS.map(right => (
+                <Right
+                  key={right.key}
+                  label={right.label}
+                  hint={right.hint}
+                  value={state.rights[right.key]}
+                  onChange={value => setRight(right.key, value)}
+                />
+              ))
+            : null}
         </View>
-      </Sheet>
-      <ConfirmDialog
-        open={confirming}
-        title={host ? 'End the room?' : 'Leave the room?'}
-        body={
-          host ? 'Everyone in it stops hearing it, and friends’ songs stop playing.' : undefined
-        }
-        confirmLabel={host ? 'End it' : 'Leave'}
-        danger
-        onConfirm={() => void leave()}
-        onCancel={() => setConfirming(false)}
+      ) : null}
+      {host ? <KeepAsShared state={state} /> : null}
+      <Button
+        label={host ? 'End the room' : 'Leave the room'}
+        variant="danger"
+        onPress={onLeave}
+        testID="room-leave"
       />
-    </>
+      <Text style={styles.text}>
+        {host
+          ? 'Ends it for everyone. It stays in your Recently played.'
+          : 'It stays in your Recently played.'}
+      </Text>
+    </View>
   )
 }
 
@@ -817,9 +888,18 @@ const styles = StyleSheet.create(theme => ({
   person: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 56 },
   rights: {
     gap: 2,
-    padding: space.md,
+    paddingHorizontal: space.md,
     borderRadius: radius.mini,
     backgroundColor: theme.colors.surface2,
   },
+  rightsHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 48 },
+  rightsTitle: rowTitle(theme.colors),
+  rightsNow: {
+    flex: 1,
+    textAlign: 'right',
+    color: theme.colors.textSecondary,
+    fontSize: type.sub,
+  },
+  shareRow: { flexDirection: 'row', paddingTop: space.xs },
   keep: { gap: space.xs },
 }))

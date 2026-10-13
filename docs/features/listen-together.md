@@ -26,11 +26,19 @@ what is playing, rather than inside the queue:
   Devices. It opens Together: where it plays, or a code to join;
 - in a room, that button is the room's faces. On the phone's Now Playing the room takes the
   head's middle as *Xiao's room* (unless the sleep timer or play-and-tag has it). Either opens
-  the invite;
+  the room's sheet;
 - on Home, a **Listen together** card until this device has been in a room or was told
   *Not now*. It is kept with the guides (`together-card`), so Show tips again brings it back.
 
 Up next lists the room while you are in one; it is no longer the way in.
+
+**The room's sheet, and ending it (E1 + C1 + C3, Xiao 2026-10-13).** In a room, the pill, the
+player bar's faces and the ⋯ on Up next's room head all open one sheet: the invite (QR, code,
+Share invite), who is here, **Friends can** (folded to one line until opened), Keep as a shared
+playlist, and **End the room** at the foot (**Leave the room** for a friend). Ending asks first
+only when it reaches someone else, naming them (*End the room for Mia and Kai?*); leaving, or
+ending a room you are alone in, just goes. Either way a toast says so, with **See what played**
+once a song has played, which opens the room in Recently played.
 
 | Who | How they join | What they can add |
 |---|---|---|
@@ -38,7 +46,14 @@ Up next lists the room while you are in one; it is no longer the way in.
 | **Friend** | Signed in to self.mp3, opens the code | Their own songs, from their own bucket. What's in the room. Links |
 | **Guest** | A browser and a name | What's in the room. Links |
 
-What a friend or a guest may do is the host's choice under **People**:
+**Faces.** Each person is a round face in their own colour, which also marks the songs they
+added. Someone signed in shows their Google profile picture, inside a thin ring of their
+colour; a guest, or anyone without a picture, shows their initial. The doorman takes the
+picture from the session, never from what a device sends, and a shared playlist's people
+show theirs the same way. Rooms and playlists kept before faces had pictures load with
+none; a shared playlist's person gets theirs the next time they open it.
+
+What a friend or a guest may do is the host's choice under **Friends can**:
 
 - **Add songs**, on by default.
 - **Skip**, on by default.
@@ -165,7 +180,7 @@ Its page:
   account; an invite opened before signing in opens again after.
 - **More** holds Rename and Leave.
 
-A room's host can **Keep as a shared playlist** from People: everyone in the room who signed
+A room's host can **Keep as a shared playlist** from the room's sheet: everyone in the room who signed
 in gets it, with every song that played or is waiting. Guests, who have no account, do not.
 
 ## The invite
@@ -189,7 +204,7 @@ share sheet; where there is none (the desktop app), it copies the link.
 | Rows, tracks, the host's plan, Keep it going, what Recently played keeps | `apps/app/src/features/room/room.model.ts` |
 | The host's player playing the room; everyone's phones following it | `apps/app/src/features/room/RoomProvider.tsx` |
 | The room in Up next (phone sheet, computer rail, the room's page) | `apps/app/src/features/room/RoomList.tsx` |
-| Together and the invite, Add songs (Mine, In the room, A link), People | `apps/app/src/features/room/RoomSheets.tsx` |
+| Together and the room's sheet (invite, people, ending it), Add songs (Mine, In the room, A link) | `apps/app/src/features/room/RoomSheets.tsx` |
 | The way in: the player's button, the room's pill, Home's card | `apps/app/src/features/room/Together.tsx` |
 | `/join/<code>`, `/room`, `/past-room/<code>` | `apps/app/src/features/room/RoomScreens.tsx` |
 | The invite's QR code | `apps/app/src/features/room/qr.model.ts`, `RoomQr.tsx` |

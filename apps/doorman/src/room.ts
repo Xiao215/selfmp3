@@ -7,6 +7,7 @@ import {
   RoomDocSchema,
   RoomFilePartSchema,
   RoomJoinSchema,
+  MemberPictureSchema,
   RoomMemberNameSchema,
   RoomModeSchema,
   ROOM_MAX_VECTORS,
@@ -98,13 +99,18 @@ const CreateRequestSchema = z.object({
   code: z.string(),
   sub: z.string().min(1),
   name: RoomMemberNameSchema,
+  /** The session's, never the request's (rooms.ts). */
+  picture: MemberPictureSchema.nullable(),
   mode: RoomModeSchema,
   rights: RoomRightsSchema,
   keepGoing: z.boolean(),
 })
 export type CreateRequest = z.infer<typeof CreateRequestSchema>
 
-const JoinRequestSchema = RoomJoinSchema.extend({ sub: z.string().min(1).nullable() })
+const JoinRequestSchema = RoomJoinSchema.extend({
+  sub: z.string().min(1).nullable(),
+  picture: MemberPictureSchema.nullable(),
+})
 export type JoinRequest = z.infer<typeof JoinRequestSchema>
 
 const ActRequestSchema = z.object({
@@ -118,14 +124,27 @@ const LinkServerRequestSchema = z.object({ server: RoomLinkServerSchema })
 /** A shared playlist's songs coming into the room, each with whose account lends it. */
 const ImportSchema = z.object({
   items: z
-    .array(z.object({ song: RoomSongSchema, sub: z.string().min(1), name: RoomMemberNameSchema }))
+    .array(
+      z.object({
+        song: RoomSongSchema,
+        sub: z.string().min(1),
+        name: RoomMemberNameSchema,
+        picture: MemberPictureSchema.nullable(),
+      }),
+    )
     .max(500),
 })
 type Import = z.infer<typeof ImportSchema>
 
 /** The room as a shared playlist would keep it. */
 export const KeepableSchema = z.object({
-  members: z.array(z.object({ sub: z.string(), name: RoomMemberNameSchema })),
+  members: z.array(
+    z.object({
+      sub: z.string(),
+      name: RoomMemberNameSchema,
+      picture: MemberPictureSchema.nullable(),
+    }),
+  ),
   items: z.array(z.object({ song: RoomSongSchema, sub: z.string() })),
 })
 type Keepable = z.infer<typeof KeepableSchema>
@@ -258,7 +277,7 @@ export class Room {
     const token = this.#newToken()
     const doc = newRoomDoc({
       code: input.code,
-      host: { id: member, name: input.name },
+      host: { id: member, name: input.name, picture: input.picture },
       mode: input.mode,
       rights: input.rights,
       keepGoing: input.keepGoing,
@@ -282,7 +301,13 @@ export class Room {
     const token = this.#newToken()
     const joined = addRoomMember(
       doc,
-      { id: member, name: input.name, kind: input.sub ? 'friend' : 'guest' },
+      {
+        id: member,
+        name: input.name,
+        kind: input.sub ? 'friend' : 'guest',
+        // A guest has no session, so no picture: only a signed-in friend's shows.
+        picture: input.sub ? input.picture : null,
+      },
       now,
     )
     if (isRoomRefusal(joined)) return refusal(joined)
@@ -381,7 +406,7 @@ export class Room {
     const body: Keepable = {
       members: doc.members.flatMap(other => {
         const sub = secrets.subs[other.id]
-        return sub && !other.left ? [{ sub, name: other.name }] : []
+        return sub && !other.left ? [{ sub, name: other.name, picture: other.picture }] : []
       }),
       items: doc.entries.flatMap(entry => {
         const sub = entry.owner ? secrets.subs[entry.owner] : secrets.entrySubs?.[entry.id]
@@ -416,6 +441,7 @@ export class Room {
         addedBy: member,
         owner: null,
         from: item.name,
+        fromPicture: item.picture,
         addedAt: now,
         at: null,
         playedAt: null,

@@ -344,7 +344,7 @@ export function PastRoomScreen(): ReactNode {
               key={`${at}-${entry.song.title}`}
               song={entry.song}
               uri={entry.song.artwork}
-              face={{ name: entry.by, colour: entry.colour }}
+              face={{ name: entry.by, colour: entry.colour, picture: entry.picture }}
               who={entry.by}
               note={mine ? 'yours' : undefined}
               trailing={

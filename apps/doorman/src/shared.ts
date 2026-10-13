@@ -1,6 +1,7 @@
 import {
   DOORMAN_ERROR,
   type DoormanErrorCode,
+  MemberPictureSchema,
   RoomMemberNameSchema,
   RoomSongSchema,
   SharedActionSchema,
@@ -57,9 +58,13 @@ interface SharedRuntime {
 
 const SubSchema = z.string().min(1)
 
+/** A person's face's picture: the Worker's, from their session (sharedRoutes.ts). */
+const PictureSchema = MemberPictureSchema.nullable()
+
 const CreateSchema = z.object({
   id: z.string(),
   sub: SubSchema,
+  picture: PictureSchema,
   name: SharedNameSchema,
   you: RoomMemberNameSchema,
   songs: z.array(RoomSongSchema).max(200),
@@ -71,7 +76,7 @@ const CreateFromSchema = z.object({
   name: SharedNameSchema,
   creator: SubSchema,
   members: z
-    .array(z.object({ sub: SubSchema, name: RoomMemberNameSchema }))
+    .array(z.object({ sub: SubSchema, name: RoomMemberNameSchema, picture: PictureSchema }))
     .min(1)
     .max(32),
   items: z.array(z.object({ song: RoomSongSchema, sub: SubSchema })).max(500),
@@ -80,6 +85,7 @@ type CreateFrom = z.infer<typeof CreateFromSchema>
 
 const JoinSchema = z.object({
   sub: SubSchema,
+  picture: PictureSchema,
   invite: SharedInviteSchema,
   name: RoomMemberNameSchema,
 })
@@ -87,7 +93,14 @@ const ActSchema = z.object({ sub: SubSchema, action: SharedActionSchema })
 
 /** The songs a room may play from this playlist: each with its owner's account and name. */
 export const LentSongsSchema = z.object({
-  items: z.array(z.object({ song: RoomSongSchema, sub: z.string(), name: RoomMemberNameSchema })),
+  items: z.array(
+    z.object({
+      song: RoomSongSchema,
+      sub: z.string(),
+      name: RoomMemberNameSchema,
+      picture: PictureSchema,
+    }),
+  ),
 })
 type LentSongs = z.infer<typeof LentSongsSchema>
 
@@ -132,7 +145,10 @@ export class Shared {
         case 'POST /join':
           return await this.#join(JoinSchema.parse(await request.json()))
         case 'GET /view':
-          return await this.#view(SubSchema.parse(url.searchParams.get('sub')))
+          return await this.#view(
+            SubSchema.parse(url.searchParams.get('sub')),
+            PictureSchema.parse(url.searchParams.get('picture')),
+          )
         case 'GET /summary':
           return await this.#summary(SubSchema.parse(url.searchParams.get('sub')))
         case 'POST /act':
@@ -157,7 +173,7 @@ export class Shared {
     const doc = newSharedDoc({
       id: input.id,
       name: input.name,
-      creator: { id: member, name: input.you },
+      creator: { id: member, name: input.you, picture: input.picture },
       songs: input.songs.map(song => ({ id: this.#newId(), song })),
       now: this.#runtime.now(),
     })
@@ -187,12 +203,12 @@ export class Shared {
         doc = newSharedDoc({
           id: input.id,
           name: input.name,
-          creator: { id, name: person.name },
+          creator: { id, name: person.name, picture: person.picture },
           songs: [],
           now,
         })
       } else {
-        const joined = addSharedMember(doc, { id, name: person.name }, now)
+        const joined = addSharedMember(doc, { id, name: person.name, picture: person.picture }, now)
         if (isRoomRefusal(joined)) break
         doc = joined
       }
@@ -228,7 +244,11 @@ export class Shared {
     const already = this.#memberOf(secrets, input.sub)
     if (already) return Response.json(this.#viewOf(doc, secrets, already))
     const member = this.#newId()
-    const joined = addSharedMember(doc, { id: member, name: input.name }, this.#runtime.now())
+    const joined = addSharedMember(
+      doc,
+      { id: member, name: input.name, picture: input.picture },
+      this.#runtime.now(),
+    )
     if (isRoomRefusal(joined)) return this.#refusal(joined)
     const next: Secrets = {
       ...secrets,
@@ -239,10 +259,25 @@ export class Shared {
     return Response.json(this.#viewOf(joined, next, member))
   }
 
-  async #view(sub: string): Promise<Response> {
+  /**
+   * The playlist, for one of its people, whose face takes the picture their
+   * session has now: one who joined before faces had pictures, or has since
+   * changed theirs, shows it from their next look.
+   */
+  async #view(sub: string, picture: string | null): Promise<Response> {
     const found = await this.#found(sub)
     if (found instanceof Response) return found
-    return Response.json(this.#viewOf(found.doc, found.secrets, found.member))
+    let doc = found.doc
+    if (doc.members.some(member => member.id === found.member && member.picture !== picture)) {
+      doc = {
+        ...doc,
+        members: doc.members.map(member =>
+          member.id === found.member ? { ...member, picture } : member,
+        ),
+      }
+      await this.#save(doc, found.secrets)
+    }
+    return Response.json(this.#viewOf(doc, found.secrets, found.member))
   }
 
   async #summary(sub: string): Promise<Response> {
@@ -280,12 +315,14 @@ export class Shared {
   async #lend(sub: string): Promise<Response> {
     const found = await this.#found(sub)
     if (found instanceof Response) return found
-    const names = new Map(found.doc.members.map(member => [member.id, member.name]))
+    const people = new Map(found.doc.members.map(member => [member.id, member]))
     const body: LentSongs = {
       items: found.doc.entries.flatMap(entry => {
         const owner = found.secrets.subs[entry.owner]
-        const name = names.get(entry.owner)
-        return owner && name ? [{ song: entry.song, sub: owner, name }] : []
+        const person = people.get(entry.owner)
+        return owner && person
+          ? [{ song: entry.song, sub: owner, name: person.name, picture: person.picture }]
+          : []
       }),
     }
     return Response.json(body)

@@ -16,6 +16,7 @@ import {
 } from '@selfmp3/shared'
 import { libraryIndex, roomTrackId } from '@selfmp3/client'
 import {
+  namesOf,
   entryOfTrack,
   freshWant,
   hostPlan,
@@ -39,6 +40,7 @@ import {
 const X = 'aaaaaaaaaaaa'
 const M = 'bbbbbbbbbbbb'
 const A = 'dddddddddddd'
+const MIAS_PICTURE = 'https://lh3.googleusercontent.com/a/mia'
 
 function song(n: number, extra: Partial<RoomSong> = {}): RoomSong {
   const sha = n.toString(16).padStart(2, '0').repeat(32)
@@ -70,14 +72,14 @@ function ok(value: RoomDoc | RoomRefusal): RoomDoc {
 function room(): RoomDoc {
   let doc = newRoomDoc({
     code: 'KQ7482',
-    host: { id: X, name: 'Xiao' },
+    host: { id: X, name: 'Xiao', picture: null },
     mode: 'speaker',
     rights: DEFAULT_ROOM_RIGHTS,
     keepGoing: true,
     now: 1000,
   })
-  doc = ok(addRoomMember(doc, { id: M, name: 'Mia', kind: 'friend' }, 1100))
-  doc = ok(addRoomMember(doc, { id: A, name: 'Ana', kind: 'guest' }, 1200))
+  doc = ok(addRoomMember(doc, { id: M, name: 'Mia', kind: 'friend', picture: MIAS_PICTURE }, 1100))
+  doc = ok(addRoomMember(doc, { id: A, name: 'Ana', kind: 'guest', picture: null }, 1200))
   return doc
 }
 
@@ -160,6 +162,12 @@ describe('what a member sees', () => {
     const removable = (who: string) => upcomingRows(as(doc, who)).map(row => row.removable)
     expect(removable(M)).toEqual([true, false])
     expect(removable(X)).toEqual([true, true])
+  })
+
+  it('draws a signed-in friend’s face as their picture, and a guest’s as their initial', () => {
+    let doc = act(room(), M, { type: 'add', song: song(1) })
+    doc = act(doc, A, { type: 'again', entryId: doc.entries[0]?.id ?? '' })
+    expect(upcomingRows(as(doc, X)).map(row => row.face?.picture)).toEqual([MIAS_PICTURE, null])
   })
 
   it('plays a song you have from your own copy, and a link through the host’s server', () => {
@@ -301,5 +309,14 @@ describe('after the room', () => {
     expect(inviteLink('https://xiao215.github.io/selfmp3/', 'KQ7482')).toBe(
       'https://xiao215.github.io/selfmp3/join/KQ7482',
     )
+  })
+})
+
+describe('names in a sentence', () => {
+  it('lists two or three, and counts the rest', () => {
+    expect(namesOf(['Mia'])).toBe('Mia')
+    expect(namesOf(['Mia', 'Kai'])).toBe('Mia and Kai')
+    expect(namesOf(['Mia', 'Kai', 'Ana'])).toBe('Mia, Kai and Ana')
+    expect(namesOf(['Mia', 'Kai', 'Ana', 'Leo'])).toBe('Mia, Kai and 2 others')
   })
 })

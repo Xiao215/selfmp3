@@ -14,6 +14,7 @@ import { coverSize, iconSize } from '@selfmp3/client'
 interface Face {
   readonly name: string
   readonly colour: number
+  readonly picture: string | null
 }
 
 /**
@@ -26,7 +27,7 @@ function FaceBadge({ face, children }: { face: Face | null; children: ReactNode 
       {children}
       {face ? (
         <View style={styles.badge}>
-          <RoomFace name={face.name} colour={face.colour} size={18} ring />
+          <RoomFace name={face.name} colour={face.colour} picture={face.picture} size={18} ring />
         </View>
       ) : null}
     </View>

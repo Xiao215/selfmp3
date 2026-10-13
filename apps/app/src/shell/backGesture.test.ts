@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { activeTab } from '../ui/components/bottomNav.model'
-import { swipeBackAllowed } from './backGesture'
+import { fullScreenSwipeAllowed, swipeBackAllowed } from './backGesture'
 
 /** The three tabs the bar draws, as `BottomNav` lists them. */
 const TABS = ['/', '/library', '/playlists']
@@ -52,5 +52,18 @@ describe('the swipe-back gesture', () => {
     // A `fullScreenModal` has no horizontal pop of its own; pulling it down to
     // close is `NowPlayingScreen`'s own responder.
     expect(swipeBackAllowed('now-playing')).toBe(true)
+  })
+
+  it("waits for the edge where a preview's bar drags sideways", () => {
+    for (const route of ['import/review', 'import/search']) {
+      expect(swipeBackAllowed(route)).toBe(true)
+      expect(fullScreenSwipeAllowed(route)).toBe(false)
+    }
+  })
+
+  it('keeps the whole-display swipe everywhere else', () => {
+    for (const route of ['import/index', 'playlists/[id]', 'settings', 'stats/index', 'tags']) {
+      expect(fullScreenSwipeAllowed(route)).toBe(true)
+    }
   })
 })

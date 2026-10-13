@@ -27,7 +27,7 @@ import { usePlaybackMemory } from '../src/player/usePlaybackMemory'
 import { registerPlayback } from '../src/player/registerPlayback'
 import { ConnectionProvider, useConnection } from '../src/connection/ConnectionProvider'
 import { Shell } from '../src/shell/Shell'
-import { addressOf, swipeBackAllowed } from '../src/shell/backGesture'
+import { addressOf, fullScreenSwipeAllowed, swipeBackAllowed } from '../src/shell/backGesture'
 import { fromTile } from '../src/features/tag/placeLinks'
 import { nowPlayingAnimation, stackAnimation } from '../src/shell/pageStep'
 import { keepNearTop } from '../src/shell/keepNearTop'
@@ -328,6 +328,8 @@ function RootRoutes(): ReactNode {
         // without it iOS popped back to the tab underneath on a swipe.
         // `src/shell/backGesture.ts` has the rule and the reason.
         gestureEnabled: swipeBackAllowed(route.name),
+        // Edge-only where the page has a bar to drag sideways (same file).
+        fullScreenGestureEnabled: fullScreenSwipeAllowed(route.name),
       }),
     [surface, wide, ready, reduced],
   )

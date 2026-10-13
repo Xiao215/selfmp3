@@ -649,7 +649,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 - [ ] **T-382** Search rows never fade songs that cannot play here; three different "unavailable" rules exist (Library, OrderedSongList, QueueSheet). → F
 - [ ] **T-383** "Add to Up next" on the answer page and the songs answer card calls `playNext`. → F
 - [ ] **T-384** Opening a tag from Home, Now Playing, the song menu, the song page, Stats or an artist page skips `noteTagUsed`, so the sidebar's recent tags miss it. Decision: every open counts. → F
-- [ ] **T-385** Sidebar tabs never announce the selected one (`aria-selected` only in BottomNav); pressing the lit sidebar item does not go back to its root page. → H
+- [x] **T-385** Sidebar tabs never announce the selected one (`aria-selected` only in BottomNav); pressing the lit sidebar item does not go back to its root page. → H
+  - `shell/nav.model.ts`: one `NAV` table, `navItemProps(active)` (role, state and `aria-selected`) and `navGoes` (a lit place still goes to its first page) for the tab bar, the rail's rows and its Playlists header. The command palette's own "Go to" list is F's and left as it is.
 - [x] **T-386** The sidebar's new-tag field has no `maxLength`, no focus ring, swallows create errors, and checks duplicates differently from the Tags page. → G
 - [x] **T-387** Settings → Cloud's bucket form signs out without asking; its fields stay editable while checking. → G
 - [x] **T-388** An iPad registers in the cloud as `iphone` (`ports/cloudPlatform.ts`). → D

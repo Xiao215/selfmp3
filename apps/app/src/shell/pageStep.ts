@@ -1,4 +1,4 @@
-import { activeTab } from '../ui/components/bottomNav.model'
+import { activeTab, TABS } from './nav.model'
 import { MOVE_MS } from '../ui/motion.model'
 import { addressOf } from './backGesture'
 import { FULL_SCREEN_ROUTES } from './fullScreen.model'
@@ -15,7 +15,7 @@ import { FULL_SCREEN_ROUTES } from './fullScreen.model'
  */
 
 /** The phone's tabs, left to right, and Search's circle after them. */
-const PHONE_ORDER = ['/', '/library', '/playlists', '/search'] as const
+const PHONE_ORDER: readonly string[] = [...TABS.map(tab => tab.href), '/search']
 
 /**
  * What a page change is counted by, or null for a page that does not count.
@@ -37,8 +37,8 @@ export function pageKey(pathname: string, wide: boolean, stackMoves = true): str
  * Settings — comes from the right, the way a push does.
  */
 export function stepSide(from: string, to: string): -1 | 1 {
-  const was = PHONE_ORDER.indexOf(from as (typeof PHONE_ORDER)[number])
-  const now = PHONE_ORDER.indexOf(to as (typeof PHONE_ORDER)[number])
+  const was = PHONE_ORDER.indexOf(from)
+  const now = PHONE_ORDER.indexOf(to)
   if (was === -1 || now === -1) return 1
   return now < was ? -1 : 1
 }

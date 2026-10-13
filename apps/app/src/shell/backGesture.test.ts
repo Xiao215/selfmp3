@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { activeTab } from '../ui/components/bottomNav.model'
+import { activeTab, TABS } from './nav.model'
 import { fullScreenSwipeAllowed, swipeBackAllowed } from './backGesture'
-
-/** The three tabs the bar draws, as `BottomNav` lists them. */
-const TABS = ['/', '/library', '/playlists']
 
 describe('the swipe-back gesture', () => {
   it('is off on every page a tab points at, so no swipe changes tab', () => {
@@ -21,7 +18,7 @@ describe('the swipe-back gesture', () => {
     // Changing tab pushes the tab's own page, and nothing else does, so the
     // pages that must refuse the gesture are exactly these three. A fourth tab
     // is covered the moment `activeTab` knows it.
-    for (const href of TABS) {
+    for (const { href } of TABS) {
       expect(activeTab(href)).toBe(href)
       expect(swipeBackAllowed(href === '/' ? 'index' : href.slice(1))).toBe(false)
     }

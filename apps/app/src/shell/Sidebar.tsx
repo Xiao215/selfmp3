@@ -42,24 +42,15 @@ import { StatusLine } from '../ui/components/StatusLine'
 import { NoticeCard } from '../ui/components/NoticeCard'
 import { useConnection } from '../connection/ConnectionProvider'
 import { BrandMark } from '../ui/components/BrandMark'
-import {
-  BarChart,
-  Download,
-  Home,
-  Live,
-  More,
-  Music,
-  Plus,
-  Search,
-  Tag as TagIcon,
-} from '../ui/components/Icons'
+import { Live, More, Plus, Search, Tag as TagIcon } from '../ui/components/Icons'
 import { HueSwatches } from '../ui/components/HueSwatches'
 import { TagEditor } from '../ui/components/TagEditor'
 import { tip } from '../ui/tip'
 import { rightClick } from '../ui/rightClick'
 import { Avatar } from '../ui/components/Avatar'
 import { useAccount } from '../features/profile/useAccount'
-import { activeDestination } from '../ui/components/bottomNav.model'
+import { activeDestination, NAV, navGoes, navItemProps } from './nav.model'
+import { NAV_ICON } from './navIcons'
 import { useSlidingHighlight } from '../ui/components/SlidingHighlight'
 import { useFade } from '../ui/motion'
 import { EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
@@ -70,10 +61,10 @@ import { ScrollView } from '../ui/components/Scroll'
 /**
  * The desktop's left rail.
  *
- * The tab bar's destinations and two more: a computer reaches Import and Stats
- * from the rail, where a phone reaches them through Profile (docs/UI-MIGRATION.md,
- * Open question 7). Which one a page belongs to is `activeDestination`, the
- * same tested function the tab bar asks.
+ * The tab bar's places and two more (`NAV`): a computer reaches Import and
+ * Stats from the rail, where a phone reaches them through Profile. Which one a
+ * page belongs to is `activeDestination`, and a lit one pressed goes back to
+ * its first page, as a tab does (`navGoes`).
  *
  * At the top, under the brand, a Search row that opens the command palette —
  * the one way to it in a browser tab, which has no ⌘K of its own.
@@ -88,21 +79,7 @@ import { ScrollView } from '../ui/components/Scroll'
  * edits it, and the TAGS header opens all of them. At the foot, you, and a
  * card only when something needs you.
  */
-const DESTINATIONS: {
-  href: '/' | '/library' | '/import' | '/stats'
-  label: string
-  Icon: typeof Music
-}[] = [
-  { href: '/', label: 'Home', Icon: Home },
-  { href: '/library', label: 'Library', Icon: Music },
-  // Import and Stats both need the server itself. A cloud library reaches it by
-  // the addresses in its last sync and says so when it cannot, which is the
-  // page's business — leaving the row out would say the feature did not exist.
-  // Stats keeps a row of its own on a computer; on a phone it is under Profile
-  // (docs/UI-MIGRATION.md, Open question 7).
-  { href: '/import', label: 'Import', Icon: Download },
-  { href: '/stats', label: 'Stats', Icon: BarChart },
-]
+const ROWS = NAV.filter(place => place.rail === 'row')
 
 /** How many playlists the rail lists: the ones played last. The header opens them all. */
 const RAIL_PLAYLISTS = 4
@@ -116,11 +93,9 @@ function SidebarInner(): ReactNode {
   const pathname = usePathname()
   // The lit destination's fill slides to the next one, on the spring, as the
   // page changes beside it (docs/ui-mock `M3`, 5). Within these four rows
-  // only: a playlist or a tag further down is lit in place.
-  const lit = activeDestination(
-    pathname,
-    DESTINATIONS.map(destination => destination.href),
-  )
+  // only: Playlists' header, a playlist or a tag further down is lit in place.
+  const destination = activeDestination(pathname)
+  const lit = ROWS.some(row => row.href === destination) ? destination : null
   const slide = useSlidingHighlight(lit, styles.itemOn)
   // What a press here opens is a place of its own, with no ‹ (J1).
   useRecordSidebarEntry()
@@ -150,26 +125,26 @@ function SidebarInner(): ReactNode {
 
       <View accessibilityRole="tablist" style={styles.nav}>
         {slide.highlight}
-        {DESTINATIONS.map(destination => {
-          const active = destination.href === lit
+        {ROWS.map(row => {
+          const active = row.href === lit
+          const Icon = NAV_ICON[row.id]
           return (
             <Pressable
-              key={destination.href}
-              onLayout={slide.measure(destination.href)}
+              key={row.href}
+              onLayout={slide.measure(row.href)}
               style={[styles.item, active && !slide.placed && styles.itemOn]}
               onPress={() => {
-                if (active) return
+                if (!navGoes(pathname, row.href)) return
                 enterFromSidebar()
-                router.navigate(destination.href)
+                router.navigate(row.href)
               }}
-              accessibilityRole="tab"
-              accessibilityLabel={destination.label}
-              accessibilityState={{ selected: active }}
-              testID={`nav-${destination.label.toLowerCase()}`}
+              accessibilityLabel={row.label}
+              {...navItemProps(active)}
+              testID={`nav-${row.id}`}
             >
-              <destination.Icon size={18} tone={active ? 'textPrimary' : 'textMuted'} />
+              <Icon size={18} tone={active ? 'textPrimary' : 'textMuted'} />
               <Text style={[styles.label, active && styles.labelOn]} numberOfLines={1}>
-                {destination.label}
+                {row.label}
               </Text>
             </Pressable>
           )
@@ -242,7 +217,7 @@ function Playlists(): ReactNode {
   const listed = useMemo(() => listedPlaylists(all ?? [], 'recent'), [all])
   const recent = listed.slice(0, RAIL_PLAYLISTS)
   // Lit on a playlist's own page too: that page is inside this section.
-  const onPage = pathname === '/playlists' || pathname.startsWith('/playlists/')
+  const onPage = activeDestination(pathname) === '/playlists'
 
   return (
     <View style={styles.section} testID="sidebar-playlists">
@@ -254,13 +229,12 @@ function Playlists(): ReactNode {
       <View style={styles.groupTitle}>
         <Pressable
           onPress={() => {
-            if (pathname === '/playlists') return
+            if (!navGoes(pathname, '/playlists')) return
             enterFromSidebar()
             router.navigate('/playlists')
           }}
-          accessibilityRole="tab"
           accessibilityLabel="Playlists"
-          accessibilityState={{ selected: onPage }}
+          {...navItemProps(onPage)}
           testID="nav-playlists"
           style={styles.groupTitleMain}
         >

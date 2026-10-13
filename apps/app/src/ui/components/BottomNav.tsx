@@ -10,8 +10,9 @@ import { navBottom } from '../../shell/bottomInset'
 import { useFade } from '../motion'
 import { MOVE_MS } from '../motion.model'
 import { floating } from '../surfaces'
-import { activeTab, type TabHref } from './bottomNav.model'
-import { Home, ListMusic, Music } from './Icons'
+import { activeTab, navGoes, navItemProps, TABS, type TabHref } from '../../shell/nav.model'
+import { NAV_ICON } from '../../shell/navIcons'
+import type { Music } from './Icons'
 import { useSlidingHighlight } from './SlidingHighlight'
 import { singularPlaces } from '../../ports/singularPlaces'
 import { ScrollView } from './Scroll'
@@ -36,12 +37,6 @@ import { ScrollView } from './Scroll'
  * Both float, on glass: a translucent fill that a browser also blurs. The page
  * runs on under them, so every list keeps room at its end (`useBottomInset`).
  */
-const TABS: { href: TabHref; label: string; Icon: typeof Music; id: string }[] = [
-  { href: '/', label: 'Home', Icon: Home, id: 'home' },
-  { href: '/library', label: 'Library', Icon: Music, id: 'library' },
-  { href: '/playlists', label: 'Playlists', Icon: ListMusic, id: 'playlists' },
-]
-
 function BottomNavInner(): ReactNode {
   const router = useRouter()
   const pathname = usePathname()
@@ -82,9 +77,7 @@ function BottomNavInner(): ReactNode {
               // Its own fill only until the sliding pill has somewhere to be.
               style={[styles.tab, active && !pill.placed && styles.tabOn]}
               onPress={() => {
-                // A lit tab still goes to its own first page: Home from
-                // Settings, Playlists from a playlist, as a phone's tab bar does.
-                if (pathname === tab.href) return
+                if (!navGoes(pathname, tab.href)) return
                 // On a phone, back down to the tab if it is in the stack, or
                 // in place of the page on top if not: a tab is a place, not a
                 // page on a pile, and pushing one per tap would grow the stack
@@ -96,13 +89,10 @@ function BottomNavInner(): ReactNode {
                 else router.dismissTo(tab.href)
               }}
               testID={`tab-${tab.id}`}
-              accessibilityRole="tab"
               accessibilityLabel={tab.label}
-              accessibilityState={{ selected: active }}
-              // react-native-web does not turn `accessibilityState` into aria-selected.
-              aria-selected={active}
+              {...navItemProps(active)}
             >
-              <TabInk active={active} label={tab.label} Icon={tab.Icon} />
+              <TabInk active={active} label={tab.label} Icon={NAV_ICON[tab.id]} />
             </Pressable>
           )
         })}

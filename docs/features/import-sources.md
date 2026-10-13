@@ -1,8 +1,8 @@
 # Import sources
 
 Import's one box takes words to search for, a link from YouTube, YouTube Music, 网易云音乐
-or Spotify, or a list of song names. A search shows what it found under the box as it is
-typed; anything else shows every song on the same review before anything downloads. Under
+or Spotify, or a list of song names. A search opens its own page of what it found; anything
+else shows every song on the same review before anything downloads. Under
 the box it says what it read ("网易云 playlist", "Spotify album", "A list of song names").
 
 Each song comes from one of two places: YouTube, or 网易云 itself. Spotify's audio cannot
@@ -47,9 +47,10 @@ says so, with the way round it: paste its songs as a list, or a CSV from
 
 ## Searching
 
-One line of words with no link in it is a search (`searchQuery`). A blank line after the
-words does not count, so a Return pressed out of habit keeps it a search; a second line of
-words makes it a list of names, below.
+One line of words with no link in it is a search (`searchQuery`): the box's button reads
+**Search**, and opens `/import/search` with the words, which leave the box as a looked-up
+link does. A blank line after the words does not count; a second line of words makes it a
+list of names, below.
 
 The server asks YouTube Music's song search and 网易云's at once (`services/importSearch.ts`,
 ten answers each) and makes them one list. A song both places have is one row, from where a
@@ -67,15 +68,17 @@ The two lists take turns, YouTube Music's first: for a song 网易云 has no rig
 first answers are other people's covers. 网易云's search says on each song what this server
 may play of it, so free or VIP needs no second request.
 
-The results are the review's rows, under the box (`ImportScreen.tsx`, `ReviewRows.tsx`):
-tap a cover to hear it, open a row to fix its name or switch between 网易云 and YouTube,
-"In library" for a song you have. Nothing starts ticked, and an unticked row looks like any
+The search page (`ImportSearch.tsx`) is laid out as the review is: Back, then a search
+field that searches again as it is edited, then the review's rows (`ReviewRows.tsx`): tap
+a cover to hear it, open a row to fix its name or switch between 网易云 and YouTube, "In
+library" for a song you have. Nothing starts ticked, and an unticked row looks like any
 other; only its box says. Ticked songs stay ticked above the next search's songs under
-**Picked**, so a few songs can be gathered over several searches. The foot of the page
-says what is picked and imports it, with the box's Tag it tags; then the box starts afresh.
+**Picked**, so a few songs can be gathered over several searches. The foot holds the tags
+they arrive with and **Import N songs**, which queues them and goes back to Import.
 
 The search is asked once typing settles (350 ms), only for the latest words, and kept in
-the import draft with its ticks, so it outlives the page and a reload.
+the import draft with its ticks, so Back keeps it — Import offers it again ("Search · …,
+2 songs picked") while anything is picked — and a reload finds it as it was.
 
 ## A list of song names
 
@@ -156,4 +159,4 @@ source link, a 网易云 song in any spelling, or the name and length.
 - `packages/client/src/import/model.ts` — `describePaste`, `searchQuery`, `withFound`, `chooseSource`, `lookAgain`.
 - `apps/app/src/features/import/useFindSongs.ts`, `ImportReview.tsx` — the review.
 - `apps/app/src/features/import/ReviewRows.tsx` — the review's rows, which a search's songs share.
-- `apps/app/src/features/import/useSongSearch.ts`, `importDraft.model.ts` (`withSearchResults`) — searching.
+- `apps/app/src/features/import/ImportSearch.tsx`, `useSongSearch.ts`, `importDraft.model.ts` (`withSearchResults`) — searching.

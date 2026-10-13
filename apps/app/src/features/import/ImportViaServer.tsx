@@ -9,6 +9,7 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { pageTitle } from '../../ui/surfaces'
 import { ImportReview } from './ImportReview'
 import { ImportScreen } from './ImportScreen'
+import { ImportSearch } from './ImportSearch'
 import { QueueViaBucket } from './QueueViaBucket'
 
 /**
@@ -27,21 +28,22 @@ import { QueueViaBucket } from './QueueViaBucket'
  * So the away card now says what is lost, which is the *looking* rather than
  * the importing, and the form beneath it adds the song anyway.
  *
- * `page` is which of Import's two pages this is: the link and the queue, or
- * the review of a link (`/import/review`). Away from the server both are the
- * away screen, since a review cannot be looked at without it either.
+ * `page` is which of Import's pages this is: the link and the queue, the
+ * review of a link (`/import/review`), or a search (`/import/search`). Away
+ * from the server each is the away screen, since a review cannot be looked at
+ * without it, nor a search made.
  */
 export function ImportViaServer({
   page = 'import',
-}: { page?: 'import' | 'review' } = {}): ReactNode {
+}: { page?: 'import' | 'review' | 'search' } = {}): ReactNode {
   const { wide } = useLayout()
   const reach = useServerDirect()
   if (reach.state === 'reachable') {
-    return page === 'review' ? (
-      <ImportReview via={reach.connection} onUnreachable={reach.lookAgain} />
-    ) : (
-      <ImportScreen via={reach.connection} onUnreachable={reach.lookAgain} />
-    )
+    if (page === 'review')
+      return <ImportReview via={reach.connection} onUnreachable={reach.lookAgain} />
+    if (page === 'search')
+      return <ImportSearch via={reach.connection} onUnreachable={reach.lookAgain} />
+    return <ImportScreen via={reach.connection} onUnreachable={reach.lookAgain} />
   }
 
   return (

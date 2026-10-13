@@ -5,20 +5,25 @@ import { configureClient, type Api } from '@selfmp3/client'
 import type { ImportPreviewItem } from '@selfmp3/shared'
 
 import { ImportScreen } from './ImportScreen'
-import { draftFor, resetImportDraft } from './importDraft'
+import { ImportSearch } from './ImportSearch'
+import { draftFor, patchDraft, resetImportDraft } from './importDraft'
+import { withSearchResults } from './importDraft.model'
 
+const mockPush = jest.fn()
+const mockReplace = jest.fn()
+const mockParams: { q?: string } = {}
 jest.mock('expo-router', () => ({
   useFocusEffect: () => undefined,
   useRouter: () => ({
-    push: () => undefined,
+    push: (to: unknown) => mockPush(to),
     back: () => undefined,
-    replace: () => undefined,
+    replace: (to: unknown) => mockReplace(to),
     setParams: () => undefined,
     canGoBack: () => false,
   }),
   useNavigation: () => ({ getState: () => undefined }),
   usePathname: () => '/',
-  useLocalSearchParams: () => ({}),
+  useLocalSearchParams: () => mockParams,
 }))
 
 // The floating chrome's room reads the player; there is no player here.
@@ -40,7 +45,6 @@ jest.mock('./ImportListen', () => ({
 
 const mockSearch = jest.fn()
 const mockEnqueue = jest.fn()
-const mockFind = jest.fn()
 jest.mock('./importSource', () => {
   let source: unknown = null
   return {
@@ -48,11 +52,12 @@ jest.mock('./importSource', () => {
       source ??= {
         api: {
           importSearch: (query: string) => mockSearch(query),
-          importFind: (tracks: unknown) => mockFind(tracks),
+          importFind: () => Promise.resolve({ found: [] }),
           importEnqueue: (request: unknown) => mockEnqueue(request),
           importPreview: () => Promise.reject(new Error('not looked up here')),
         },
         library: { songs: [], tags: [], playlists: [] },
+        createTag: () => Promise.reject(new Error('no tags here')),
         tools: { ytdlp: true, ffmpeg: true },
         refetchTools: () => Promise.resolve(),
         queue: { jobs: [], active: 0, queued: 0, done: 0, pacing: null, run: null },
@@ -99,80 +104,108 @@ const ANSWERS: Record<string, ImportPreviewItem[]> = {
   yorushika: [song('c', 'ヒッチコック', 'ヨルシカ'), song('d', '又三郎', 'ヨルシカ')],
 }
 
+const draw = async (page: 'import' | 'search'): Promise<void> => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  await render(
+    <SafeAreaProvider initialMetrics={METRICS}>
+      <QueryClientProvider client={client}>
+        {page === 'import' ? <ImportScreen /> : <ImportSearch />}
+      </QueryClientProvider>
+    </SafeAreaProvider>,
+  )
+}
+
+beforeEach(() => {
+  resetImportDraft()
+  delete mockParams.q
+  mockPush.mockReset()
+  mockReplace.mockReset()
+  mockSearch
+    .mockReset()
+    .mockImplementation((query: string) => Promise.resolve({ items: ANSWERS[query] ?? [] }))
+  mockEnqueue.mockReset().mockResolvedValue({ jobs: [], skipped: 0, playlistId: null })
+})
+
 /**
  * Searching from Import's box (docs/features/import-sources.md, "Searching"):
- * one line of words finds songs on YouTube Music and 网易云 as it is typed,
- * a few are ticked over one search or several, and Import brings them in.
+ * one line of words is a search, made on a page of its own as a link's
+ * review is.
  */
-describe('Import, searching for songs', () => {
-  const draw = async (): Promise<void> => {
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-    })
-    await render(
-      <SafeAreaProvider initialMetrics={METRICS}>
-        <QueryClientProvider client={client}>
-          <ImportScreen />
-        </QueryClientProvider>
-      </SafeAreaProvider>,
-    )
-  }
+describe('Import, a search typed into the box', () => {
   const type = async (text: string): Promise<void> => {
     await fireEvent.changeText(screen.getByLabelText('Links to import'), text)
   }
 
-  beforeEach(() => {
-    resetImportDraft()
-    mockSearch
-      .mockReset()
-      .mockImplementation((query: string) => Promise.resolve({ items: ANSWERS[query] ?? [] }))
-    mockEnqueue.mockReset().mockResolvedValue({ jobs: [], skipped: 0, playlistId: null })
-    mockFind.mockReset()
+  it('opens the search page with the words, and the box lets them go', async () => {
+    await draw('import')
+    await type('孤勇者\n')
+    await fireEvent.press(screen.getByTestId('import-search'))
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/import/search', params: { q: '孤勇者' } })
+    expect(draftFor('own').links).toBe('')
+    // Nothing is searched for on Import itself.
+    expect(mockSearch).not.toHaveBeenCalled()
   })
 
-  it('finds songs as the words are typed, and ticks none of them', async () => {
-    await draw()
-    await type('孤勇者')
+  it('looks up two lines as a list of names, and a link as a link', async () => {
+    await draw('import')
+    await type('Daft Punk - Get Lucky\nRadiohead - Creep')
+    expect(screen.getByTestId('import-look-up')).toBeTruthy()
+    expect(screen.queryByTestId('import-search')).toBeNull()
+    await type('https://youtu.be/dGZqpVCJP3k')
+    expect(screen.getByTestId('import-look-up')).toBeTruthy()
+  })
+
+  it('offers songs picked in a search and not imported yet', async () => {
+    const search = withSearchResults(null, '孤勇者', ANSWERS['孤勇者'] ?? [])
+    patchDraft('own', {
+      search: { ...search, review: { ...search.review, chosen: new Set([0]) } },
+    })
+    await draw('import')
+    await fireEvent.press(screen.getByTestId('import-resume-search'))
+    expect(mockPush).toHaveBeenCalledWith('/import/search')
+    expect(screen.getByText('1 song picked · not imported yet')).toBeTruthy()
+  })
+})
+
+describe('Import’s search page', () => {
+  const type = async (text: string): Promise<void> => {
+    await fireEvent.changeText(screen.getByLabelText('Search for songs'), text)
+  }
+
+  it('searches for the words it was opened with, and ticks none of what it finds', async () => {
+    mockParams.q = '孤勇者'
+    await draw('search')
     expect(await screen.findByText('安達組合')).toBeTruthy()
     expect(mockSearch).toHaveBeenCalledWith('孤勇者')
     expect(screen.getByLabelText('Select 孤勇者')).toBeTruthy()
-    expect(screen.queryByTestId('import-picked')).toBeNull()
-    // A search has nothing to look up: what it found is already there.
-    expect(screen.queryByTestId('import-look-up')).toBeNull()
+    expect(screen.getByTestId('import-search-commit')).toBeDisabled()
   })
 
-  it('imports the songs ticked over two searches, then starts afresh', async () => {
-    await draw()
-    await type('孤勇者')
+  it('imports the songs ticked over two searches, then goes back to Import afresh', async () => {
+    mockParams.q = '孤勇者'
+    await draw('search')
     await fireEvent.press(await screen.findByLabelText('Select 孤勇者'))
     await type('yorushika')
     await fireEvent.press(await screen.findByLabelText('Select 又三郎'))
     // The song ticked in the first search is still there, above the second's.
-    expect(await screen.findByText('Picked: 孤勇者, 又三郎')).toBeTruthy()
     expect(screen.getByText('Picked')).toBeTruthy()
+    expect(screen.getByLabelText('Deselect 孤勇者')).toBeTruthy()
 
-    await fireEvent.press(screen.getByTestId('import-picked-commit'))
+    await fireEvent.press(screen.getByTestId('import-search-commit'))
     await waitFor(() => expect(mockEnqueue).toHaveBeenCalledTimes(1))
     const request = mockEnqueue.mock.calls[0]?.[0] as { items: { url: string }[] }
     expect(request.items.map(item => item.url)).toEqual([
       'https://music.youtube.com/watch?v=a',
       'https://music.youtube.com/watch?v=d',
     ])
-    await waitFor(() => expect(draftFor('own')).toMatchObject({ links: '', search: null }))
-  })
-
-  it('looks up two lines as a list of names, and a link as a link, never as a search', async () => {
-    await draw()
-    await type('Daft Punk - Get Lucky\nRadiohead - Creep')
-    expect(screen.getByTestId('import-look-up')).toBeTruthy()
-    await type('https://youtu.be/dGZqpVCJP3k')
-    expect(screen.getByTestId('import-look-up')).toBeTruthy()
-    await new Promise(resolve => setTimeout(resolve, 500))
-    expect(mockSearch).not.toHaveBeenCalled()
+    await waitFor(() => expect(draftFor('own').search).toBeNull())
+    expect(mockReplace).toHaveBeenCalledWith('/import')
   })
 
   it('says when nothing was found, and when the search failed, with a way to try again', async () => {
-    await draw()
+    await draw('search')
     await type('zzzz')
     expect(await screen.findByText('Nothing found for “zzzz”.')).toBeTruthy()
     mockSearch.mockRejectedValueOnce(new Error('Failed to fetch'))

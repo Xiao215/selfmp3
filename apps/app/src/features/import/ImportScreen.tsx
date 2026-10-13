@@ -6,7 +6,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import Animated, { LayoutAnimationConfig } from 'react-native-reanimated'
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable'
-import type { ImportJob, ImportPacing, ImportRun, Tag } from '@selfmp3/shared'
+import {
+  plural,
+  type ImportJob,
+  type ImportPacing,
+  type ImportRun,
+  type Tag,
+} from '@selfmp3/shared'
 import {
   ApiError,
   canImportNext,
@@ -31,7 +37,6 @@ import {
   timeLeft,
   type,
   type QueueChange,
-  type Review,
   type ServerConnection,
 } from '@selfmp3/client'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
@@ -57,29 +62,14 @@ import { MOVE_MS } from '../../ui/motion.model'
 import { useRowMotion } from '../../ui/rowMotion'
 import { QueueRing } from './QueueRing'
 import { TagItPill } from './ImportTags'
-import { chooseAllIn, draftFor, useImportDraft } from './importDraft'
+import { draftFor, useImportDraft } from './importDraft'
 import { draftSourceFor } from './importDraft.model'
 import { reviewUrls, useRefreshReview } from './useRefreshReview'
 import { useImportSource } from './importSource'
-import {
-  comingIn,
-  countLabel,
-  importLabel,
-  importRequest,
-  reviewName,
-  stillFinding,
-} from './review.model'
-import { useListen } from './ImportListen'
-import { ReviewGridHead, useReviewRows } from './ReviewRows'
-import { useFindSongs } from './useFindSongs'
-import { useSongSearch } from './useSongSearch'
-import { useFootInset } from '../../shell/bottomInset'
+import { comingIn, countLabel, reviewName } from './review.model'
 
 /** How many of today's finished imports are listed before "Show all". */
 const FINISHED_SHOWN = 5
-
-/** How many of a search's songs show before "Show more", under the songs picked before it. */
-const FOUND_SHOWN = 8
 
 /**
  * How many rows Currently importing and Couldn't import each list before
@@ -118,9 +108,8 @@ export function ImportScreen({
 } = {}): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
-  const { wide, finePointer } = useLayout()
+  const { wide } = useLayout()
   const rowMotion = useRowMotion()
-  const footInset = useFootInset()
   /** "Show all" under Earlier today: the whole history is read only then. */
   const [showAll, setShowAll] = useState(false)
   const source = useImportSource(via, { history: showAll })
@@ -213,113 +202,22 @@ export function ImportScreen({
   }
 
   const pasted = describePaste(links)
-  const folded = queue ? foldQueue(queue.jobs) : null
-  const controls = folded ? queueControls(folded.importing) : null
-  const ready = canLookUp(links) && !preview.isPending && tools?.ytdlp !== false
-
   /*
    * One line of words with no link is a search (docs/features/import-sources.md,
-   * "Searching"): what it finds shows under the box as it is typed, as the
-   * review's rows, and the songs ticked there are imported from the foot of
-   * the page, gathered over as many searches as it takes. Two lines or more
+   * "Searching"), made on a page of its own as a link's review is: the words
+   * go there and leave the box, as a link looked up does. Two lines or more
    * are a list of names, looked up as before.
    */
   const query = searchQuery(links)
   const search = draft.search
-  const searching = useSongSearch(api, key, query, search?.query ?? null)
-  // A 网易云 song it only previews, with no YouTube Music answer surely the same, is found as it shows.
-  const searchFinder = useFindSongs(api, key, search?.review ?? null, 'search')
-  const listen = useListen(via, api)
-  const found = useReviewRows({
-    draft: key,
-    list: 'search',
-    review: query === null ? null : (search?.review ?? null),
-    listen,
-    wide,
-    finePointer,
-    showFrom: true,
-    unticked: 'picking',
-  })
-  /** "Show more" pressed for these words; new words start short again. */
-  const [moreFor, setMoreFor] = useState<string | null>(null)
   const picked = search ? comingIn(search.review) : 0
-  const pickedFinding = search ? stillFinding(search.review) : 0
-  const pickedNames = search
-    ? search.review.items
-        .filter((_, index) => search.review.chosen.has(index))
-        .map(item => item.title || 'Untitled')
-    : []
-  const importPicked = useMutation({
-    mutationFn: (review: Review) => api.importEnqueue(importRequest(review, tagIds)),
-    onSuccess: () => {
-      // The songs are in the queue now, under the box; the box starts afresh, as after a review.
-      void source.invalidateQueue()
-      listen.close({ resume: false })
-      patchDraft({ links: '', search: null, tagIds: new Set() })
-    },
-    onError: failed,
-  })
-
-  const searchList =
-    query === null ? null : (
-      <Pressable
-        onPress={wide || found.open === null ? undefined : found.closeRow}
-        accessible={false}
-        style={styles.found}
-        testID="import-search"
-      >
-        {searching.error ? (
-          <View style={[styles.notice, styles.noticeError]} accessibilityRole="alert">
-            <Text style={[styles.noticeText, styles.noticeTextError]}>{searching.error}</Text>
-            <Button label="Try again" variant="text" onPress={searching.retry} />
-          </View>
-        ) : null}
-        {searchFinder.error ? (
-          <View style={[styles.notice, styles.noticeError]} accessibilityRole="alert">
-            <Text style={[styles.noticeText, styles.noticeTextError]}>{searchFinder.error}</Text>
-            <Button label="Try again" variant="text" onPress={searchFinder.retry} />
-          </View>
-        ) : null}
-        {search && found.rows.length > 0 ? (
-          <View accessibilityRole="list" accessibilityLabel="Songs found">
-            {wide ? <ReviewGridHead leading={null} showFrom /> : null}
-            {search.picked > 0 ? (
-              <>
-                <Text style={styles.groupLabel} accessibilityRole="header">
-                  Picked
-                </Text>
-                {found.rows.slice(0, search.picked)}
-              </>
-            ) : null}
-            {found.rows.length > search.picked && (search.picked > 0 || !wide) ? (
-              <Text
-                style={[styles.groupLabel, search.picked > 0 && styles.foundApart]}
-                accessibilityRole="header"
-              >
-                Songs
-              </Text>
-            ) : null}
-            {found.rows.slice(
-              search.picked,
-              moreFor === search.query ? undefined : search.picked + FOUND_SHOWN,
-            )}
-            {moreFor !== search.query && found.rows.length > search.picked + FOUND_SHOWN ? (
-              <View style={styles.foundMore}>
-                <Button
-                  label="Show more"
-                  variant="text"
-                  onPress={() => setMoreFor(search.query)}
-                  testID="import-search-more"
-                />
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-        {search?.query === query && !searching.searching && found.rows.length === search.picked ? (
-          <Text style={styles.foundNone}>Nothing found for “{query}”.</Text>
-        ) : null}
-      </Pressable>
-    )
+  const openSearch = (words: string): void => {
+    patchDraft({ links: '' })
+    router.push({ pathname: '/import/search', params: { q: words } })
+  }
+  const folded = queue ? foldQueue(queue.jobs) : null
+  const controls = folded ? queueControls(folded.importing) : null
+  const ready = canLookUp(links) && !preview.isPending && tools?.ytdlp !== false
 
   const form = (
     <View style={styles.form}>
@@ -355,12 +253,10 @@ export function ImportScreen({
           accessibilityLabel="Links to import"
         />
         {query !== null ? (
-          <View style={styles.pasted} testID="import-searching">
+          <View style={styles.pasted} testID="import-pasted">
             <Search size={13} tone="accent" />
-            <Text style={[styles.pastedText, styles.searchingText]}>
-              {searching.searching
-                ? 'Searching YouTube Music and 网易云…'
-                : 'Searched YouTube Music and 网易云'}
+            <Text style={[styles.pastedText, styles.searchText]}>
+              Search YouTube Music and 网易云
             </Text>
           </View>
         ) : pasted ? (
@@ -377,7 +273,13 @@ export function ImportScreen({
             onChange={next => patchDraft({ tagIds: next })}
           />
           {query !== null ? (
-            <Text style={styles.composeHint}>A second line makes it a list</Text>
+            <Button
+              label="Search"
+              variant="primary"
+              disabled={tools?.ytdlp === false}
+              onPress={() => openSearch(query)}
+              testID="import-search"
+            />
           ) : (
             <Button
               label={preview.isPending ? 'Looking…' : 'Look it up'}
@@ -391,7 +293,6 @@ export function ImportScreen({
           )}
         </View>
       </View>
-      {searchList}
     </View>
   )
 
@@ -430,6 +331,26 @@ export function ImportScreen({
             <X size={15} color={theme.colors.textMuted} />
           </IconButton>
         </View>
+      ) : null}
+      {/* Songs picked in a search and not imported yet: the search is in the draft, one tap away. */}
+      {search && picked > 0 ? (
+        <Pressable
+          style={({ pressed }) => [styles.linkCard, pressed && styles.linkCardPressed]}
+          onPress={() => router.push('/import/search')}
+          accessibilityRole="link"
+          accessibilityLabel="Go on picking songs"
+          testID="import-resume-search"
+        >
+          <View style={styles.linkCardText}>
+            <Text style={styles.linkCardTitle} numberOfLines={1}>
+              Search · {search.query}
+            </Text>
+            <Text style={styles.linkCardSub}>
+              {plural(picked, 'song', 'songs')} picked · not imported yet
+            </Text>
+          </View>
+          <ChevronRight size={16} color={theme.colors.textMuted} />
+        </Pressable>
       ) : null}
       {/* A review left with Back is still in the draft, one tap from where it was. */}
       {review && review.items.length > 0 && !preview.isPending ? (
@@ -607,40 +528,6 @@ export function ImportScreen({
         )}
         <ChromeSpacer />
       </ScrollView>
-      {/*
-       * The songs ticked in searches, and the commit, in reach however far
-       * down the page is scrolled: there only while something is picked.
-       */}
-      {picked > 0 && search ? (
-        <View
-          style={[
-            wide ? styles.pickedFootWide : styles.pickedFoot,
-            { paddingBottom: footInset + 12 },
-          ]}
-          testID="import-picked"
-        >
-          <View style={styles.pickedLine}>
-            <Text style={styles.pickedNames} numberOfLines={1}>
-              Picked: {pickedNames.join(', ')}
-            </Text>
-            <Button
-              label="Clear"
-              variant="text"
-              onPress={() => chooseAllIn(key, false, 'search')}
-              testID="import-picked-clear"
-            />
-          </View>
-          <Button
-            label={importLabel(picked, pickedFinding)}
-            variant="primary"
-            grow={!wide}
-            disabled={pickedFinding > 0}
-            busy={importPicked.isPending}
-            onPress={() => importPicked.mutate(search.review)}
-            testID="import-picked-commit"
-          />
-        </View>
-      ) : null}
     </SafeAreaView>
   )
 }
@@ -1196,30 +1083,7 @@ const styles = StyleSheet.create(theme => ({
   // What the box holds, said under it before it is looked up.
   pasted: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   pastedText: { color: theme.colors.good, fontSize: type.small, fontWeight: '600' },
-  searchingText: { color: theme.colors.accent },
-  composeHint: { color: theme.colors.textMuted, fontSize: type.small, paddingVertical: 10 },
-  // A search's songs, under the box: the review's rows, with Picked and Songs over them.
-  found: { gap: 8, paddingTop: 8 },
-  foundApart: { marginTop: 14 },
-  foundMore: { alignItems: 'flex-start' },
-  foundNone: { color: theme.colors.textSecondary, fontSize: type.sub, paddingVertical: 8 },
-  // The foot while songs are picked: what they are, and Import.
-  pickedFoot: {
-    gap: 10,
-    paddingTop: 10,
-    paddingHorizontal: space.gutter,
-    backgroundColor: theme.colors.surface0,
-  },
-  pickedFootWide: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    paddingTop: 12,
-    paddingHorizontal: 48,
-    backgroundColor: theme.colors.surface0,
-  },
-  pickedLine: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 },
-  pickedNames: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: type.sub },
+  searchText: { color: theme.colors.accent },
   strong: { color: theme.colors.textPrimary, fontWeight: '600' },
   // With no edge around the notice, its first words carry the warning's colour.
   strongWarn: { color: theme.colors.warning },

@@ -82,6 +82,7 @@ import { tagLink } from '../tag/placeLinks'
 import { tip } from '../../ui/tip'
 import { artShadow, floating, label } from '../../ui/surfaces'
 import { ScrollView } from '../../ui/components/Scroll'
+import { LYRICS_WHEN_REACHABLE } from '../library/library.model'
 
 /*
  * Where the top row starts. The page covers the sidebar, which is what keeps
@@ -709,9 +710,7 @@ function Stage({
             />
           ) : noLyrics ? null : (
             <View style={styles.status}>
-              <Text style={styles.statusText}>
-                Lyrics need your library — reconnect to look them up
-              </Text>
+              <Text style={styles.statusText}>{LYRICS_WHEN_REACHABLE}</Text>
             </View>
           )
         ) : (

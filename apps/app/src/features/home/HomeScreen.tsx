@@ -23,6 +23,7 @@ import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { Cover } from '../../ui/components/Cover'
 import { EmptyState } from '../../ui/components/EmptyState'
+import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { SearchField } from '../../ui/components/SearchField'
 import { SectionHead } from '../../ui/components/SectionHead'
@@ -76,8 +77,8 @@ import { ScrollView } from '../../ui/components/Scroll'
  * otherwise rather than a zero.
  *
  * A library with no songs at all gets one card in place of the tags and the
- * search: the way to the first song, and what the page turns into once there
- * is one. "Hold a song in Library and choose Tags" over no songs was a puzzle
+ * search: where the library starts, and the button to Import. "Hold a song in
+ * Library and choose Tags" over no songs was a puzzle
  * (Xiao, 2026-09-22).
  */
 export function HomeScreen(): ReactNode {
@@ -319,39 +320,24 @@ function ToneWash({ color }: { color: string }): ReactNode {
 
 /**
  * The first thing on an empty library's Home: one card washed with the
- * accent, the way the New playlist tile is, that opens Import. It says what
- * Home becomes once a song is in, so the space is a promise rather than a gap.
+ * accent, the way the New playlist tile is, saying where the library starts,
+ * and the one button that starts it.
  */
 function FirstSong({ onPress }: { onPress: () => void }): ReactNode {
   const accent = useAccent()
-  const press = usePressScale(0.98)
   return (
-    <Animated.View style={press.style}>
-      <Pressable
-        testID="home-first-song"
-        onPress={onPress}
-        {...press.handlers}
-        accessibilityRole="button"
-        accessibilityLabel="Import a link. Silence, for now: paste a YouTube link and your library starts here."
-        style={[styles.firstCard, { backgroundColor: accent.accentPill }]}
-      >
-        <View style={styles.firstMark}>
-          <Plus size={22} color={accent.accent} />
-        </View>
-        <Text style={styles.firstTitle}>
-          Silence, for now
-          <Text style={styles.greetingDot}>.</Text>
-        </Text>
-        <Text style={styles.firstBody}>
-          Paste a YouTube link and your library starts here. The tags you play most, what you played
-          last and your week in numbers all follow from the first song.
-        </Text>
-        <View style={styles.firstAction}>
-          <Text style={[styles.firstActionLabel, { color: accent.accent }]}>Import a link</Text>
-          <ChevronRight size={16} color={accent.accent} />
-        </View>
-      </Pressable>
-    </Animated.View>
+    <View style={[styles.firstCard, { backgroundColor: accent.accentPill }]}>
+      <View style={styles.firstMark}>
+        <Plus size={22} color={accent.accent} />
+      </View>
+      <Text style={styles.firstTitle} accessibilityRole="header">
+        Your library starts with one song
+        <Text style={styles.greetingDot}>.</Text>
+      </Text>
+      <View style={styles.firstAction}>
+        <Button label="Import" variant="primary" onPress={onPress} testID="home-first-song" />
+      </View>
+    </View>
   )
 }
 
@@ -414,8 +400,8 @@ function Tiles({ tiles, loading }: { tiles: readonly HomeTile[]; loading: boolea
         compact
         style={styles.emptyTile}
         testID="home-no-tags"
-        title="Your tags will live here"
-        line="Hold a song in Library and choose Tags to give it its first one."
+        title="No tags yet"
+        line="Tag a song from its ⋯ menu."
       />
     )
   }
@@ -1054,14 +1040,7 @@ const styles = StyleSheet.create(theme => ({
     marginBottom: 6,
   },
   firstTitle: { ...serif(theme.colors, type.page), lineHeight: 36, letterSpacing: -0.3 },
-  firstBody: {
-    color: theme.colors.textSecondary,
-    fontSize: type.sub,
-    lineHeight: leading.sub,
-    maxWidth: 440,
-  },
-  firstAction: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
-  firstActionLabel: { fontSize: type.body, fontWeight: '600' },
+  firstAction: { marginTop: 6 },
   recents: { gap: 10, paddingRight: 20 },
   recentTitle: {
     color: theme.colors.textPrimary,

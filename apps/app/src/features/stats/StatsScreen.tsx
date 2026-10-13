@@ -42,6 +42,7 @@ import {
 } from './stats.model'
 import { useSvgId } from '../../ui/useSvgId'
 import { EmptyState } from '../../ui/components/EmptyState'
+import { SHOWS_WHEN_REACHABLE } from '../library/library.model'
 
 /** The line beside Listened, in its own box's units. */
 const SPARK = { width: 120, height: 56 }
@@ -67,10 +68,7 @@ export function StatsScreen({ via }: { via?: ServerConnection } = {}): ReactNode
       {isLoading && !stats ? (
         <Text style={styles.hint}>Working it out…</Text>
       ) : !stats ? (
-        <EmptyState
-          title="Stats need your library"
-          line="They’ll be here when your library is reachable again."
-        />
+        <EmptyState title="Stats need your library" line={SHOWS_WHEN_REACHABLE} />
       ) : stats.totals.plays === 0 ? (
         <EmptyState
           title="Nothing to show yet"

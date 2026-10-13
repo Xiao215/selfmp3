@@ -144,10 +144,7 @@ function Panel({
             lane(`${matches.length} of ${tags.length}`, matches)
           )
         ) : tags.length === 0 ? (
-          <Text style={styles.hint}>
-            No tags yet. Tags are how you find things later — put one on a song and it turns up
-            here.
-          </Text>
+          <Text style={styles.hint}>No tags yet.</Text>
         ) : (
           <>
             {lane(null, mostUsed)}

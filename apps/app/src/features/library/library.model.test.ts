@@ -20,6 +20,7 @@ describe('saying the library cannot be reached', () => {
     ).toEqual({
       title: 'Can’t reach your library',
       body: 'self.mp3 tried 192.168.1.20:4600. Check that this device is online and that the computer your library lives on is switched on.',
+      why: null,
     })
   })
 
@@ -47,10 +48,11 @@ describe('saying the library cannot be reached', () => {
       error: capped,
       now: evening,
     })
-    expect(copy.title).toBe('Your storage’s allowance for today is used up')
-    expect(copy.body).toContain('in about 21 hours')
-    expect(copy.body).toContain('Caps & Alerts')
-    expect(copy.body).not.toMatch(/online|reach/i)
+    expect(copy.title).toBe('Storage allowance used up')
+    // One line of what it means; the rest waits behind Why?.
+    expect(copy.body).toBe('Downloads are paused for about 21 hours.')
+    expect(copy.why).toContain('Caps & Alerts')
+    expect(`${copy.body} ${copy.why}`).not.toMatch(/online|reach/i)
     expect(unreachableLabel(capped)).toBe('Storage allowance used up for today')
   })
 

@@ -1,3 +1,4 @@
+import { importFailure } from '@selfmp3/client/core'
 import { plural } from '@selfmp3/shared'
 import type { ImportJob, ImportQueue } from '@selfmp3/shared'
 
@@ -92,7 +93,7 @@ export function noticeFor(batch: FinishedBatch): { title: string; message: strin
   else if (added.length === 1 && added[0]?.artist) parts.push(added[0].artist)
   if (added.length > 0 && failed.length > 0) parts.push(`${failed.length} couldn’t be downloaded`)
   if (added.length === 0 && failed.length > 0) {
-    parts.push(failed[0]?.error ?? 'The server did not say why.')
+    parts.push(importFailure(failed[0]?.error ?? null))
   }
   return { title, message: parts.join(' · ') }
 }

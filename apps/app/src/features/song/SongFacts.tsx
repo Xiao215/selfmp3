@@ -6,7 +6,6 @@ import {
   formatAddedDate,
   formatName,
   isDownloaded,
-  leading,
   sourceName,
   space,
   tempoMark,
@@ -22,6 +21,8 @@ import { CloudRemove } from '../../ui/components/Icons'
 import { EnergyWave } from '../../ui/components/EnergyWave'
 import { label as labelText } from '../../ui/surfaces'
 import { deviceKind } from '../../ports/device'
+import { useLayout } from '../../shell/useLayout'
+import { tip } from '../../ui/tip'
 import { devicePlace, onThisDevice } from '../settings/settings.model'
 
 /**
@@ -57,52 +58,41 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
       : null
   const queued = !downloading && downloads.queue.includes(song.id)
   const place = devicePlace(deviceKind())
+  const { finePointer } = useLayout()
 
   return (
     <View>
-      <Group title="Sound">
-        {features && (features.bpm != null || features.energy != null || features.key) ? (
-          <>
-            {features.bpm != null ? (
-              <Fact label="Tempo">
-                <Text style={styles.strong}>{tempoMark(features.bpm)}</Text>
-                <Text style={styles.note}>
-                  {Math.round(features.bpm)} beats a minute — {tempoWords(features.bpm)}.
-                </Text>
-              </Fact>
-            ) : null}
-            {features.energy != null ? (
-              <Fact label="Energy">
-                <View style={styles.inline}>
-                  <EnergyWave
-                    energy={features.energy}
-                    width={44}
-                    height={18}
-                    color={songColor.color}
-                  />
-                  <Text style={styles.strong}>{Math.round(features.energy * 100)} of 100</Text>
-                </View>
-                <Text style={styles.note}>
-                  How loud, busy and driving it feels. The wave grows with it.
-                </Text>
-              </Fact>
-            ) : null}
-            {features.key ? (
-              <Fact label="Key">
-                <Text style={styles.strong}>{features.key}</Text>
-                <Text style={styles.note}>
-                  Auto-mix uses it to pick songs that blend into this one.
-                </Text>
-              </Fact>
-            ) : null}
-          </>
-        ) : (
-          <Text style={styles.empty}>
-            Not listened to yet. self.mp3 works out tempo, energy and key for every song in the
-            background; this one hasn’t had its turn.
-          </Text>
-        )}
-      </Group>
+      {/* A song not listened to yet has no Sound at all, rather than a sentence saying so. */}
+      {features && (features.bpm != null || features.energy != null || features.key) ? (
+        <Group title="Sound">
+          {features.bpm != null ? (
+            <Fact label="Tempo">
+              <Text style={styles.strong}>{tempoMark(features.bpm)}</Text>
+              <Text style={styles.note}>
+                {Math.round(features.bpm)} beats a minute — {tempoWords(features.bpm)}.
+              </Text>
+            </Fact>
+          ) : null}
+          {features.energy != null ? (
+            <Fact label="Energy" caption={finePointer ? ENERGY_TIP : null}>
+              <View style={styles.inline}>
+                <EnergyWave
+                  energy={features.energy}
+                  width={44}
+                  height={18}
+                  color={songColor.color}
+                />
+                <Text style={styles.strong}>{Math.round(features.energy * 100)} of 100</Text>
+              </View>
+            </Fact>
+          ) : null}
+          {features.key ? (
+            <Fact label="Key" caption={finePointer ? KEY_TIP : null}>
+              <Text style={styles.strong}>{features.key}</Text>
+            </Fact>
+          ) : null}
+        </Group>
+      ) : null}
 
       {/* A browser streams; only an installed app keeps songs. */}
       {installed ? (
@@ -205,10 +195,29 @@ function Group({ title, children }: { title: string; children: ReactNode }): Rea
   )
 }
 
-function Fact({ label, children }: { label: string; children: ReactNode }): ReactNode {
+/*
+ * What Energy and Key mean, for whoever wonders: a hover caption on the label
+ * with a mouse, and nothing on a touch screen, where a note under every song's
+ * numbers was read once and then only in the way.
+ */
+const ENERGY_TIP = 'How loud, busy and driving it feels. The wave grows with it.'
+const KEY_TIP = 'Auto-mix uses it to pick songs that blend into this one.'
+
+function Fact({
+  label,
+  caption = null,
+  children,
+}: {
+  label: string
+  /** A hover caption on the label, on a computer. */
+  caption?: string | null
+  children: ReactNode
+}): ReactNode {
   return (
     <View style={styles.fact}>
-      <Text style={styles.factLabel}>{label}</Text>
+      <Text style={styles.factLabel} {...tip(caption)}>
+        {label}
+      </Text>
       <View style={styles.factValue}>{children}</View>
     </View>
   )
@@ -231,5 +240,4 @@ const styles = StyleSheet.create(theme => ({
   note: { color: theme.colors.textMuted, fontSize: type.small },
   inline: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   action: { marginTop: 6 },
-  empty: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
 }))

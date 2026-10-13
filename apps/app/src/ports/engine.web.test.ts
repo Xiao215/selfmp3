@@ -42,6 +42,9 @@ class FakeAudio {
 
 let elements: FakeAudio[] = []
 
+// The place word is the browser's own (device.web.ts); here it is a computer.
+vi.mock('./device', () => ({ deviceKind: () => 'desktop' }))
+
 beforeEach(() => {
   elements = []
   vi.stubGlobal('Audio', FakeAudio)
@@ -80,7 +83,7 @@ describe('the browser engine', () => {
 
     await expect(audio.load(3)).resolves.toBeUndefined()
 
-    expect(audio.state.error).toMatch(/cannot be played from this device/)
+    expect(audio.state.error).toBe('This song can’t be played on this computer yet.')
     expect(audio.state.playing).toBe(false)
   })
 

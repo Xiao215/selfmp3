@@ -14,6 +14,7 @@ import { sharedServerUrl } from '../ports/sharedServerUrl'
 import { useAccent } from '../ui/accent'
 import { Button } from '../ui/components/Button'
 import { Refresh } from '../ui/components/Icons'
+import { Why } from '../ui/components/Why'
 import { card } from '../ui/surfaces'
 
 /**
@@ -21,7 +22,8 @@ import { card } from '../ui/surfaces'
  * cloud library is being looked for or is away.
  *
  * One card rather than one per screen: the reason is the same every time, and
- * only the sentence about what is lost differs (`SERVER_NEEDS`). It is a card
+ * only the sentence about what is lost differs (`SERVER_NEEDS`), and that waits
+ * behind a Why? under the line saying what still works. It is a card
  * and not a page, so each screen keeps its own heading and chrome around it —
  * Stats draws it inside its tabs, Import under its title.
  *
@@ -63,6 +65,7 @@ export function ServerAway({
         {copy.title}
       </Text>
       <Text style={styles.cardBody}>{copy.body}</Text>
+      <Why text={copy.why} style={styles.cardBody} testID={`${testID}-why`} />
       <View style={styles.actions}>
         {offered ? <JoinShared joined={reach.lookAgain} testID={testID} /> : null}
         <Button

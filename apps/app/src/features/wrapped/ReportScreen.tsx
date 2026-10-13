@@ -47,6 +47,7 @@ import {
 import { emptyHint, emptyTitle, longerRanges, tryLabel, shareFileName } from './wrapped.model'
 import { isStatsPeriod, periodLabel, STATS_PERIODS, statsRangeFor } from '../stats/stats.model'
 import { ScrollView } from '../../ui/components/Scroll'
+import { SHOWS_WHEN_REACHABLE } from '../library/library.model'
 
 /** How wide a portrait look is drawn on a computer: its board's own width, near enough. */
 const PORTRAIT_ON_COMPUTER = 480
@@ -195,9 +196,7 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
     return shell(
       <View style={styles.empty}>
         <Text style={styles.emptyTitle}>The report needs your library</Text>
-        <Text style={[styles.hint, styles.center]}>
-          It’ll be here when your library is reachable again.
-        </Text>
+        <Text style={[styles.hint, styles.center]}>{SHOWS_WHEN_REACHABLE}</Text>
       </View>,
     )
   }

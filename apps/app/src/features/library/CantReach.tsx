@@ -6,6 +6,7 @@ import { leading, space, type } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
+import { Why } from '../../ui/components/Why'
 import { card } from '../../ui/surfaces'
 import { BACKBLAZE_CAPS_URL, bucketCapped, unreachableCopy } from './library.model'
 
@@ -50,6 +51,7 @@ export function CantReach({
         </Text>
       </View>
       <Text style={styles.body}>{copy.body}</Text>
+      {copy.why ? <Why text={copy.why} style={styles.body} testID="cant-reach-why" /> : null}
       <View style={styles.actions}>
         <Button label="Try again" onPress={onRetry} />
         {capped ? (

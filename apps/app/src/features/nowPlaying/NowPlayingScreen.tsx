@@ -94,6 +94,7 @@ import { StageLyrics } from './StageLyrics'
 import { TaggingLine } from './TaggingLine'
 import { useSongWords } from './useSongWords'
 import { useTagging } from './useTagging'
+import { LYRICS_WHEN_REACHABLE } from '../library/library.model'
 
 /**
  * Now Playing: the computer's stage, or the phone's own full-screen page.
@@ -994,7 +995,7 @@ function WordsView({
               ? 'No lyrics for this song.'
               : words.status === 'loading'
                 ? 'Looking for lyrics…'
-                : 'Lyrics need your library — they’ll show once it’s reachable.'}
+                : LYRICS_WHEN_REACHABLE}
           </Text>
         )}
       </View>

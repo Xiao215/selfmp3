@@ -20,8 +20,6 @@ import { Button } from './Button'
 import { Dialog, DialogHead } from './Dialog'
 import { floating } from '../surfaces'
 import { Trash } from './Icons'
-import { devicePlace } from '../../features/settings/settings.model'
-import { deviceKind } from '../../ports/device'
 import { ScrollView } from './Scroll'
 
 /**
@@ -121,7 +119,6 @@ export function ConfirmRemoveSongs({
 }): ReactNode {
   const { theme } = useUnistyles()
   const wide = useLayoutValue(layout => layout.wide)
-  const place = devicePlace(deviceKind())
 
   const count = songs.length
   const songWord = count === 1 ? 'song' : 'songs'
@@ -150,11 +147,10 @@ export function ConfirmRemoveSongs({
 
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.lede}>
-          The {count === 1 ? 'song' : `${count} songs`} and everything about{' '}
-          {count === 1 ? 'it' : 'them'} — tags, play counts, playlist places — leave your library on
-          every device, and{' '}
-          <Text style={styles.strong}>anything on this {place} is deleted from it</Text>.{' '}
-          <Text style={[styles.strong, styles.strongDestructive]}>This cannot be undone.</Text>
+          {count === 1
+            ? 'It leaves your library on every device, with its tags and plays.'
+            : 'They leave your library on every device, with their tags and plays.'}{' '}
+          <Text style={[styles.strong, styles.strongDestructive]}>This can’t be undone.</Text>
         </Text>
 
         {named.length === 0 ? null : (

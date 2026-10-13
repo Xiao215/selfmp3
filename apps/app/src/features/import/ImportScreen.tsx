@@ -112,7 +112,6 @@ export function ImportScreen({
   const { theme } = useUnistyles()
   const router = useRouter()
   const { wide } = useLayout()
-  const rowMotion = useRowMotion()
   /** "Show all" under Earlier today: the whole history is read only then. */
   const [showAll, setShowAll] = useState(false)
   const source = useImportSource(via, { history: showAll })
@@ -224,14 +223,6 @@ export function ImportScreen({
 
   const form = (
     <View style={styles.form}>
-      <Text style={styles.explain}>
-        Search for a song, or paste a link from YouTube, 网易云音乐 or Spotify, or a list of song
-        names, one per line. A playlist brings every song in it, and an artist’s page their top
-        songs.
-        {viaServer
-          ? ' Your library’s computer downloads the songs, and they turn up on every device.'
-          : ''}
-      </Text>
       {/*
        * A compose card: room for several links or song names, one per line,
        * what was pasted said under them (`describePaste`), and what happens to
@@ -239,7 +230,7 @@ export function ImportScreen({
        * the commit on the right. It grows with what is pasted, and the whole
        * card carries the focus ring, since the whole card is the control.
        */}
-      <View style={[styles.compose, linksFocused && styles.composeFocused]}>
+      <View style={[styles.compose, linksFocused && styles.composeFocused]} testID="import-box">
         <TextInput
           style={[styles.linksInput, { height: Math.max(LINKS_MIN_HEIGHT, linksHeight) }]}
           value={links}
@@ -295,6 +286,18 @@ export function ImportScreen({
             />
           )}
         </View>
+      </View>
+      {/* What the box takes, named once and quietly: not buttons, only a reminder. */}
+      <View
+        style={styles.sources}
+        accessible
+        accessibilityLabel="Takes YouTube, 网易云音乐, Spotify or a list of names"
+      >
+        {SOURCES.map(name => (
+          <Text key={name} style={styles.source}>
+            {name}
+          </Text>
+        ))}
       </View>
     </View>
   )
@@ -502,38 +505,14 @@ export function ImportScreen({
           </Text>
         </View>
 
-        {wide ? (
-          // One column, the page's width, and what arrived under it at the foot
-          // of the page: a second column beside the form was squeezed to a
-          // strip of covers wherever the window was not wide enough for both.
-          <View style={styles.stack}>
-            <View style={styles.formColumn}>
-              {form}
-              {notices}
-              <View style={styles.otherWays}>
-                <Text style={styles.otherTitle}>Other ways in</Text>
-                <Text style={styles.otherBody}>
-                  Share a link from the browser extension, or to self.mp3 from YouTube or 网易云音乐
-                  itself. It lands here.
-                </Text>
-              </View>
-            </View>
-            {jobs}
-          </View>
-        ) : (
-          <View style={styles.stack}>
-            {form}
-            {notices}
-            {jobs}
-            {/* Under the queue, so it slides as the queue's rows come and go. */}
-            <Animated.View layout={rowMotion.layout} style={styles.stack}>
-              <Text style={styles.shareHint}>
-                You can also share a link to self.mp3 from YouTube or 网易云音乐 itself. It lands
-                here.
-              </Text>
-            </Animated.View>
-          </View>
-        )}
+        {/* One column, the page's width, and what arrived under it at the foot
+            of the page: a second column beside the form was squeezed to a
+            strip of covers wherever the window was not wide enough for both. */}
+        <View style={styles.stack}>
+          {form}
+          {notices}
+          {jobs}
+        </View>
         <ChromeSpacer />
       </ScrollView>
       <Guide
@@ -543,6 +522,9 @@ export function ImportScreen({
     </SafeAreaView>
   )
 }
+
+/** Where songs can come from, under the box. */
+const SOURCES = ['YouTube', '网易云音乐', 'Spotify', 'a list of names'] as const
 
 /** Three lines of links before the box starts growing. */
 const LINKS_MIN_HEIGHT = 66
@@ -1073,10 +1055,8 @@ const styles = StyleSheet.create(theme => ({
   pressed: { opacity: 0.6 },
   head: { alignItems: 'flex-start', gap: TITLE_UNDER_BACK, marginBottom: 20 },
   heading: pageTitle(theme.colors),
-  formColumn: { gap: 22 },
   stack: { gap: 24 },
   form: { gap: 10 },
-  explain: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   // The compose card: the links' room, then its foot. Focused, the card wears the accent ring.
   compose: {
     ...card(theme.colors),
@@ -1101,6 +1081,17 @@ const styles = StyleSheet.create(theme => ({
     flexWrap: 'wrap',
     gap: 10,
     marginLeft: -4,
+  },
+  // The sources under the box: quiet words on a faint pill, wrapping on a narrow phone.
+  sources: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 4 },
+  source: {
+    color: theme.colors.textMuted,
+    fontSize: type.small,
+    paddingVertical: 3,
+    paddingHorizontal: 9,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.surface2,
+    overflow: 'hidden',
   },
   // What the box holds, said under it before it is looked up.
   pasted: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -1149,11 +1140,6 @@ const styles = StyleSheet.create(theme => ({
   linkCardText: { flex: 1, minWidth: 0, gap: 3 },
   linkCardTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   linkCardSub: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
-  // `C13`'s card: the other ways a song gets here.
-  otherWays: { ...card(theme.colors), gap: 6, paddingVertical: 16, paddingHorizontal: 18 },
-  otherTitle: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
-  otherBody: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
-  shareHint: { color: theme.colors.textMuted, fontSize: type.sub, lineHeight: leading.sub },
   jobs: { gap: 6 },
   groupApart: { marginTop: 12 },
   groupHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

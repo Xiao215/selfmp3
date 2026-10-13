@@ -1,5 +1,7 @@
 import type { EngineCapabilities, EngineState, EngineWiring, PlaybackEngine } from '@selfmp3/client'
-import { streamFailureMessage } from './streamFailure.model'
+import { cannotPlayYet, notHere, streamFailureMessage } from './streamFailure.model'
+import { devicePlace } from '../features/settings/settings.model'
+import { deviceKind } from './device'
 import { clamp, clamp01 } from '@selfmp3/shared'
 
 /**
@@ -111,7 +113,7 @@ class AudioEngine implements PlaybackEngine {
    * app's own and the service worker attaches the doorman's bearer on the way
    * out (ports/bucketMedia.web.ts). `trackMetadata`: a browser draws its own
    * now-playing UI, so there is no card for the operating system to fill in;
-   * `navigator.mediaSession` is the obvious next reader of it.
+   * only its title is read, to name a song that cannot be played.
    */
   #wiring: EngineWiring = UNWIRED
 
@@ -211,7 +213,10 @@ class AudioEngine implements PlaybackEngine {
         this.#currentId = songId
         // The words the phone's engine uses for the same case.
         this.#update({
-          error: `Song ${songId} cannot be played from this device yet.`,
+          error: cannotPlayYet(
+            this.#wiring.trackMetadata?.(songId)?.title,
+            devicePlace(deviceKind()),
+          ),
           playing: false,
           stalled: false,
         })
@@ -450,11 +455,12 @@ class AudioEngine implements PlaybackEngine {
    * has moved on to another song meanwhile.
    */
   async #explainSource(src: string): Promise<void> {
-    let message = 'This song is not available offline'
+    const place = devicePlace(deviceKind())
+    let message = notHere(place)
     try {
       const response = await fetch(src, { headers: { range: 'bytes=0-0' } })
       if (!response.ok && response.status !== 206) {
-        message = streamFailureMessage(response.status, await response.text())
+        message = streamFailureMessage(response.status, await response.text(), place)
       }
     } catch {
       // No answer at all: the plain wording stands.

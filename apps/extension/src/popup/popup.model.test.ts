@@ -142,7 +142,7 @@ describe('popupView, through the bucket', () => {
     expect(viaBucket({ request: request({ state: 'done', songIds: [7] }) }).name).toBe('requested')
     expect(
       viaBucket({ request: request({ state: 'failed', error: 'Video unavailable' }) }),
-    ).toEqual({ name: 'failed', message: 'Video unavailable', jobId: null })
+    ).toEqual({ name: 'failed', message: 'This video isn’t on YouTube any more.', jobId: null })
     // Called off: back to the link, to leave again or not.
     expect(viaBucket({ request: request({ state: 'cancelled' }) }).name).toBe('request')
   })
@@ -181,7 +181,7 @@ describe('popupView', () => {
     expect(view({ job: job({ status: 'done', step: 'finished' }) }).name).toBe('added')
     expect(view({ job: job({ status: 'error', error: 'Video unavailable' }) })).toEqual({
       name: 'failed',
-      message: 'Video unavailable',
+      message: 'This video isn’t on YouTube any more.',
       jobId: 'j1',
     })
     // A cancelled job gives the song back, to import or not.

@@ -1,4 +1,5 @@
 import { youtubeVideoId } from '@selfmp3/shared'
+import { importFailure } from '@selfmp3/client'
 import type { ImportRequestView } from '@selfmp3/replica'
 
 /**
@@ -65,7 +66,7 @@ function pendingStatus(item: Request): string {
     case 'done':
       return 'Almost ready: uploading to your library'
     case 'failed':
-      return `Couldn’t import it: ${item.error ?? 'something went wrong'}`
+      return importFailure(item.error)
     case 'cancelled':
       return 'Cancelled'
   }

@@ -288,9 +288,7 @@ export function TagsScreen(): ReactNode {
         {!library ? (
           <Text style={styles.hint}>Tags load with your library.</Text>
         ) : standings.length === 0 ? (
-          <Text style={styles.hint}>
-            No tags yet. Make one with the +, or from any song’s ⋯ › Tags.
-          </Text>
+          <Text style={styles.hint}>No tags yet.</Text>
         ) : (
           <View
             style={styles.runs}
@@ -433,9 +431,7 @@ function NewTag({
       {createTag.isError ? (
         <Text style={styles.error}>Couldn’t make that tag. Try a different name.</Text>
       ) : (
-        <Text style={styles.newHint}>
-          A tag is a word or two. Put it on songs from a song’s ⋯, or while one is playing.
-        </Text>
+        <Text style={styles.newHint}>A word or two.</Text>
       )}
       {nudge.nudge}
     </View>

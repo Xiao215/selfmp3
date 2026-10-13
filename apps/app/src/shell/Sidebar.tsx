@@ -521,9 +521,7 @@ function Tags(): ReactNode {
         {library && tags.length === 0 && !adding ? (
           <View style={styles.tagEmpty}>
             <TagIcon size={16} color={theme.colors.textMuted} />
-            <Text style={styles.hint}>
-              No tags yet. Tags are how you find things later — try “chill”.
-            </Text>
+            <Text style={styles.hint}>No tags yet.</Text>
             <Pressable onPress={() => setAdding(true)} accessibilityRole="button">
               <Text style={styles.link}>Add your first tag</Text>
             </Pressable>

@@ -228,7 +228,7 @@ export function PastRoomScreen(): ReactNode {
 
   const get = async (songs: readonly RoomSong[]): Promise<void> => {
     if (server.state !== 'reachable') {
-      showToast('Get it needs your server, and it can’t be reached from here', 'warn')
+      showToast('Get it needs your library’s computer, and it can’t be reached from here', 'warn')
       return
     }
     const keys = songs.map(song => song.sourceUrl ?? '')

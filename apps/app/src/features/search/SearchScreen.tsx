@@ -351,7 +351,11 @@ function BeforeTyping({
 }): ReactNode {
   const openTag = useOpenTag()
   return (
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.results}>
+    <ScrollView
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      contentContainerStyle={styles.results}
+    >
       {tags.length > 0 ? (
         <View style={styles.section}>
           <SectionHead title="Your tags" style={styles.sectionHead} />

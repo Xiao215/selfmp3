@@ -2,6 +2,7 @@ import {
   SONG_FIELDS,
   compareChanges,
   fromCloudRules,
+  playlistPatchProblem,
   playlistRules,
   hlcTime,
   hlcWins,
@@ -243,7 +244,11 @@ export class CloudIngest {
           if (value === undefined) continue
           if (!hlcWins(change.hlc, this.#sync.stamp('playlist', change.uid, field))) continue
           if (field === 'rules') {
-            update.rules = change.fields.rules ? this.#localRules(change.fields.rules) : null
+            // Refused as the edit would have been: a live playlist taken off
+            // its rules would read as an empty manual one here, and nowhere else.
+            const rules = change.fields.rules
+            if (playlistPatchProblem(playlist.kind, { rules }) || !rules) continue
+            update.rules = this.#localRules(rules)
           } else if (field === 'pinned') {
             update.pinned = change.fields.pinned
           } else {

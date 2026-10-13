@@ -1,6 +1,9 @@
 import {
   SmartRulesSchema,
+  inKeptOrder,
+  insertedAt,
   playlistRules,
+  reordered,
   type PlaylistRules,
   type CreatePlaylist,
   type Playlist,
@@ -266,8 +269,7 @@ export class PlaylistRepository {
     if (playlist.kind !== 'live') return
     const keep = this.songIds(playlist)
     this.#db.transaction(() => {
-      this.#clearItems.run(playlist.id)
-      keep.forEach((songId, index) => this.#insertItem.run(playlist.id, songId, index))
+      this.#replaceItems(playlist.id, keep)
       this.#makeManual.run(playlist.id)
     })()
   }
@@ -292,9 +294,14 @@ export class PlaylistRepository {
       const matched = this.#ruleStatement<{ id: number }>(sql)
         .all(...params)
         .map(row => row.id)
-      return this.#inKeptOrder(playlist.id, matched)
+      // In the order kept by hand, which the playlist's own items hold.
+      return inKeptOrder(this.#itemIds(playlist.id), matched)
     }
-    return this.#items.all(playlist.id).map(row => row.song_id)
+    return this.#itemIds(playlist.id)
+  }
+
+  #itemIds(playlistId: number): number[] {
+    return this.#items.all(playlistId).map(row => row.song_id)
   }
 
   /**
@@ -314,27 +321,6 @@ export class PlaylistRepository {
     return ids
   }
 
-  /**
-   * The rule's answer, in the order you put it in.
-   *
-   * A playlist that follows tags can still be reordered by hand (Xiao,
-   * 2026-09-21): the order you dragged it into is kept in the playlist's own
-   * items and wins, and songs the rule has matched since — which have no place
-   * in it yet — follow at the end in the rule's own order. A song that stops
-   * matching keeps its stored place silently, so tagging it again puts it back
-   * where you had it rather than at the bottom.
-   */
-  #inKeptOrder(playlistId: number, matched: readonly number[]): number[] {
-    const place = new Map<number, number>()
-    for (const row of this.#items.all(playlistId)) place.set(row.song_id, place.size)
-    if (place.size === 0) return [...matched]
-    const kept: number[] = []
-    const rest: number[] = []
-    for (const id of matched) (place.has(id) ? kept : rest).push(id)
-    kept.sort((a, b) => (place.get(a) ?? 0) - (place.get(b) ?? 0))
-    return [...kept, ...rest]
-  }
-
   /** Append or insert songs, keeping positions dense and ordered. */
   add(playlistId: number, songIds: readonly number[], position?: number): void {
     const run = this.#db.transaction(() => {
@@ -348,12 +334,7 @@ export class PlaylistRepository {
       // positions in place, which is simpler to reason about and cheap at
       // playlist scale.
       const existing = this.#items.all(playlistId).map(row => row.song_id)
-      const already = new Set(existing)
-      const incoming = songIds.filter(id => !already.has(id))
-      const clamped = Math.min(Math.max(position, 0), existing.length)
-      const merged = [...existing.slice(0, clamped), ...incoming, ...existing.slice(clamped)]
-      this.#clearItems.run(playlistId)
-      merged.forEach((songId, index) => this.#insertItem.run(playlistId, songId, index))
+      this.#replaceItems(playlistId, insertedAt(existing, songIds, position))
     })
     run()
     this.#touch.run(playlistId)
@@ -401,16 +382,15 @@ export class PlaylistRepository {
         playlist && playlist.kind === 'live'
           ? this.songIds(playlist)
           : this.#items.all(playlistId).map(row => row.song_id)
-      const existingSet = new Set(existing)
-      const ordered = songIds.filter(id => existingSet.has(id))
-      const orderedSet = new Set(ordered)
-      const leftovers = existing.filter(id => !orderedSet.has(id))
-      const merged = [...ordered, ...leftovers]
-
-      this.#clearItems.run(playlistId)
-      merged.forEach((songId, index) => this.#insertItem.run(playlistId, songId, index))
+      this.#replaceItems(playlistId, reordered(existing, songIds))
     })
     run()
     this.#touch.run(playlistId)
+  }
+
+  /** The playlist's own items, all of them, in this order. Caller wraps this in a transaction. */
+  #replaceItems(playlistId: number, songIds: readonly number[]): void {
+    this.#clearItems.run(playlistId)
+    songIds.forEach((songId, index) => this.#insertItem.run(playlistId, songId, index))
   }
 }

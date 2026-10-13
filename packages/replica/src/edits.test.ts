@@ -282,6 +282,15 @@ describe('editing playlists', () => {
       }),
     ).toThrow(/cannot have rules/)
   })
+
+  it('refuses to take a live playlist’s rules away, as the server does', () => {
+    // Recorded, it emptied the playlist on the server: a live row with no
+    // rules reads there as a manual playlist with nothing in it.
+    const d = device()
+    expect(() => edits.editPlaylist(d.ctx(), d.idOf('playlists', '8'), { rules: null })).toThrow(
+      /stop following it instead/,
+    )
+  })
 })
 
 describe('importing', () => {
@@ -330,7 +339,7 @@ describe('importing', () => {
         tagIds: [],
         playlistId: d.idOf('playlists', '8'),
       }),
-    ).toThrow(/manual playlist/)
+    ).toThrow(/live playlist builds itself/)
   })
 })
 

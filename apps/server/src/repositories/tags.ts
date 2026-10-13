@@ -1,4 +1,4 @@
-import { hueFromString, type Tag } from '@selfmp3/shared'
+import { newTagHue, type Tag } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
 import { toTag, type TagRow } from '../db/rows.js'
 
@@ -74,7 +74,7 @@ export class TagRepository {
     const existing = this.byName(name)
     if (existing) return existing
 
-    this.#insert.run(name, hue ?? hueFromString(name.toLowerCase()))
+    this.#insert.run(name, newTagHue(name, hue))
     const created = this.byName(name)
     if (!created) throw new Error(`failed to create tag ${JSON.stringify(name)}`)
     return created

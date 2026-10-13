@@ -4,6 +4,7 @@ import {
   MISSING_TAG_UID,
   applyChanges,
   formatHlc,
+  inKeptOrder,
   livePlaylistSongs,
   syncLibrary,
   type Change,
@@ -153,7 +154,11 @@ describe('CloudIngest', () => {
     })
   }
 
-  /** What a phone makes of the same changes over the snapshot it had. */
+  /**
+   * What a phone makes of the same changes over the snapshot it had: each
+   * playlist that follows tags its rule's songs, in the order kept by hand
+   * (packages/replica/src/replay.ts).
+   */
   function replayed(from: CloudSnapshot, changes: readonly Change[]): CloudSnapshot {
     const library = syncLibrary(from)
     applyChanges(library, changes)
@@ -172,17 +177,6 @@ describe('CloudIngest', () => {
       ),
       aliases: library.aliases.size > 0 ? Object.fromEntries(library.aliases) : undefined,
     }
-  }
-
-  /**
-   * The rule's songs in the order kept by hand, the rest after: as a phone
-   * shows a playlist that follows tags (packages/replica/src/replay.ts).
-   */
-  function inKeptOrder(kept: readonly string[], matched: readonly string[]): string[] {
-    const place = new Map(kept.map((uid, at) => [uid, at]))
-    const known = matched.filter(uid => place.has(uid))
-    known.sort((x, y) => (place.get(x) ?? 0) - (place.get(y) ?? 0))
-    return [...known, ...matched.filter(uid => !place.has(uid))]
   }
 
   /** Two libraries side by side, with nothing but order to tell them apart. */
@@ -349,6 +343,36 @@ describe('CloudIngest', () => {
     expect(result.removed).toEqual([{ id: a, path: 'Alpha.m4a' }])
     expect(songs.byId(a)).toBeNull()
     expect(sync.allStamps().filter(stamp => stamp.uid === A)).toEqual([])
+    expect(comparable(serverSnapshot())).toEqual(comparable(replayed(before, changes)))
+  })
+
+  it('keeps a live playlist’s rules when a change would take them away', () => {
+    const a = addSong('Alpha')
+    songs.patch(a, { loved: true })
+    const loved = playlists.create({
+      name: 'Loved',
+      description: '',
+      kind: 'live',
+      rules: {
+        match: 'all',
+        rules: [{ field: 'loved', op: 'is', value: true }],
+        orderBy: 'title',
+        order: 'asc',
+        limit: null,
+      },
+    }).id
+    const before = serverSnapshot()
+    const changes: Change[] = [
+      {
+        type: 'playlistEdited',
+        hlc: at(1),
+        uid: uidOf('playlists', loved),
+        fields: { rules: null },
+      },
+    ]
+    expect(ingest.apply(changes).applied).toBe(0)
+    // Stored, the null read here as a manual playlist with nothing in it.
+    expect(playlists.byId(loved)).toMatchObject({ kind: 'live', songCount: 1 })
     expect(comparable(serverSnapshot())).toEqual(comparable(replayed(before, changes)))
   })
 

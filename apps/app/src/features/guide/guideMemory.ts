@@ -68,11 +68,6 @@ export function releaseGuide(name: GuideName): void {
   }
 }
 
-/** Whether any guide is up, for screens that should wait their turn. */
-export function anyGuideShowing(): boolean {
-  return showing !== null
-}
-
 /**
  * A guide that something else asks for: the sidebar's, the first time a song
  * goes into a playlist from its ⋯ menu. Asking does nothing once it is seen.

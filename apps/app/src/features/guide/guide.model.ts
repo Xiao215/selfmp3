@@ -9,20 +9,17 @@
  */
 
 /** Every guide, by the name it is remembered under. */
-export const GUIDES = [
-  'playlist-move',
-  'library-select',
-  'lyrics',
-  'sidebar-drop',
-  'up-next',
-  'up-next-rail',
-  'import-rows',
-  'tag-hold',
-  'import-review',
-  'import-box',
-] as const
-
-export type GuideName = (typeof GUIDES)[number]
+export type GuideName =
+  | 'playlist-move'
+  | 'library-select'
+  | 'lyrics'
+  | 'sidebar-drop'
+  | 'up-next'
+  | 'up-next-rail'
+  | 'import-rows'
+  | 'tag-hold'
+  | 'import-review'
+  | 'import-box'
 
 /**
  * What the device keeps: the names seen, comma-separated. `*` stands for all
@@ -63,7 +60,7 @@ export interface Box {
 }
 
 /** How far the spotlight stands off what it lights, so the dashed ring clears it. */
-export const HOLE_PAD = 6
+const HOLE_PAD = 6
 
 /** The spotlight around a measured element, kept inside the screen. */
 export function holeAround(target: Box, screen: { width: number; height: number }): Box {
@@ -92,7 +89,7 @@ export function layerPath(screen: { width: number; height: number }, hole: Box, 
 }
 
 /** Where the words go: under the spotlight, over it, or beside it. */
-export type WordsPlace =
+type WordsPlace =
   | { readonly kind: 'below'; readonly top: number; readonly left: number; readonly width: number }
   | {
       readonly kind: 'above'
@@ -103,11 +100,11 @@ export type WordsPlace =
   | { readonly kind: 'beside'; readonly left: number; readonly top: number; readonly width: number }
 
 /** The widest the words run, so a line reads at a glance on a computer too. */
-export const WORDS_WIDTH = 340
+const WORDS_WIDTH = 340
 const EDGE = 16
 
 /** Room the words need: two lines of the title size and a line under them. */
-export const WORDS_HEIGHT = 84
+const WORDS_HEIGHT = 84
 const WORDS_GAP = 28
 
 /**

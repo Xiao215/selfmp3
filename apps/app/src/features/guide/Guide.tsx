@@ -25,9 +25,9 @@ import type { GuideHandle } from './useGuide'
  *
  * With a mouse the hand is a pointer, and holding is just pressing.
  */
-export type GuideGesture = 'hold-move' | 'hold' | 'tap' | 'swipe-left' | 'swipe-up' | 'drag-to'
+type GuideGesture = 'hold-move' | 'hold' | 'tap' | 'swipe-left' | 'swipe-up' | 'drag-to'
 
-export interface GuideStep {
+interface GuideStep {
   readonly gesture: GuideGesture
   readonly text: string
   readonly sub?: string

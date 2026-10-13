@@ -1,13 +1,13 @@
 import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { View } from 'react-native'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams } from 'expo-router'
 import { useBulkTag, useCreateTag, useLibrary } from '@selfmp3/client'
 import { Popover } from '../../ui/components/Popover'
 import { SheetItem } from '../../ui/components/Sheet'
 import { Tag as TagIcon } from '../../ui/components/Icons'
 import { showToast } from '../../ui/toast'
-import { tagLink } from './placeLinks'
+import { useOpenTag } from './useOpenTag'
 import { PlaceMissing } from './PlaceMissing'
 import { PlacePage } from './PlacePage'
 import { existingTag } from './tag.model'
@@ -51,7 +51,7 @@ export function ArtistScreen(): ReactNode {
  * that tag instead.
  */
 function MakeTag({ artist, onDone }: { artist: Artist; onDone: () => void }): ReactNode {
-  const router = useRouter()
+  const openTag = useOpenTag()
   const { data: library } = useLibrary()
   const createTag = useCreateTag()
   const bulkTag = useBulkTag()
@@ -61,7 +61,7 @@ function MakeTag({ artist, onDone }: { artist: Artist; onDone: () => void }): Re
     const already = existingTag(library?.tags ?? [], artist.name)
     if (already) {
       onDone()
-      router.navigate(tagLink(already.name))
+      openTag(already)
       return
     }
     setBusy(true)
@@ -71,7 +71,7 @@ function MakeTag({ artist, onDone }: { artist: Artist; onDone: () => void }): Re
       const count = artist.songIds.length
       showToast(`Made the tag “${tag.name}” from ${plural(count, 'song', 'songs')}`, 'good')
       onDone()
-      router.navigate(tagLink(tag.name))
+      openTag(tag)
     } catch {
       // The mutations say what failed themselves.
       setBusy(false)

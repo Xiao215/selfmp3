@@ -259,7 +259,7 @@ export function AnswerScreen(): ReactNode {
 
   return (
     <View style={styles.screen} testID="answer-page">
-      {bar.floating}
+      {bar.beforeList}
       <View style={[styles.listArea, edited && styles.stale]}>
         <OrderedSongList
           songs={songs}

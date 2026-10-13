@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
 import { Animated, Text, View } from 'react-native'
-import type { GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useNavigation, useRouter } from 'expo-router'
 import type { NativeStackNavigationProp } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
-import { fonts, isDownloaded, space, tagColors, type, useLibrary } from '@selfmp3/client'
-import { useDownloads } from '../../offline/DownloadsProvider'
+import { fonts, space, type, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
@@ -15,17 +13,17 @@ import { Button, PlayButton } from '../../ui/components/Button'
 import { usePageBack } from '../../ui/useBackTo'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
+import { TagDot } from '../../ui/components/TagDot'
 import { IconButton } from '../../ui/components/IconButton'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
 import { More, Play, Plus, Shuffle, User } from '../../ui/components/Icons'
 import { BackButton } from '../../ui/components/BackButton'
 import { SongList } from '../../ui/components/SongList'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
-import { useSongMenu } from '../../ui/components/useSongMenu'
-import { SongRow } from '../../ui/components/SongRow'
+import { useSongRows } from '../../ui/components/useSongRows'
 import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
 import { useSongColor } from '../../ui/useSongColor'
-import { modifiersOf, useSelection } from '../../selection/useSelection'
+import { useSelection } from '../../selection/useSelection'
 import { spring } from '../../ui/motion'
 import { takePlaceHandoff } from '../../ui/coverHandoff'
 import {
@@ -296,7 +294,7 @@ export function PlacePage({
         <>
           <View style={listHeadText.kind}>
             {place.kind === 'tag' ? (
-              <View style={[styles.kindDot, { backgroundColor: tagColors(place.tag.hue).dot }]} />
+              <TagDot hue={place.tag.hue} size={7} />
             ) : (
               <User size={12} tone="textSecondary" />
             )}
@@ -439,50 +437,24 @@ function PlaceSongs({
   const player = usePlayerCommands()
   const artFor = useArt()
   const { wide } = useLayout()
-  const { state: downloads } = useDownloads()
-  const { openId: menuSongId, onMore, menu } = useSongMenu()
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   const selection = useSelection(ids)
   // Newest first, or an artist's albums one after another: the scrollbar's bubble says which.
   const scrollLabel = useMemo(() => sortLabel(byAlbum ? 'album' : 'addedAt'), [byAlbum])
   // Always mounted, told when to show, so it rises and sinks rather than appearing.
   const bar = useListSelectionBar({ songs, selection, scope, wide })
-  const latest = useRef({ ids, playFrom: player.playFrom, selection, source })
-  useEffect(() => {
-    latest.current = { ids, playFrom: player.playFrom, selection, source }
-  }, [ids, player.playFrom, selection, source])
-
-  const onPress = useCallback((event: GestureResponderEvent, song: Song) => {
-    const { ids: now, playFrom, selection: selecting, source: named } = latest.current
-    // Shift and Cmd, and a tap in selection mode, select; a plain tap plays.
-    if (selecting.click(song.id, modifiersOf(event))) return
-    const index = now.indexOf(song.id)
-    if (index >= 0) playFrom(now, index, { source: named })
-  }, [])
-  // Holding a row selects it; the ⋯ opens the menu.
-  const onLongPress = useCallback((song: Song) => latest.current.selection.enter(song.id), [])
-  const onToggleSelect = useCallback((song: Song) => latest.current.selection.toggle(song.id), [])
-  const onDrag = useCallback((song: Song) => latest.current.selection.carried(song.id), [])
+  // A row plays the place from itself, named as the head's Play names it.
+  const rows = useSongRows({
+    songs,
+    selection,
+    onPlay: index => player.playFrom(ids, index, { source }),
+    testPrefix: 'place-song',
+  })
+  const { renderSong: renderRow } = rows
 
   const renderSong = useCallback(
     ({ item, index }: { item: Song; index: number }) => {
-      const row = (
-        <SongRow
-          testID={`place-song-${index}`}
-          song={item}
-          artUri={artFor(item)}
-          downloaded={isDownloaded(downloads.index, item.id)}
-          onPress={onPress}
-          onMore={onMore}
-          menuOpen={menuSongId === item.id}
-          onLongPress={onLongPress}
-          selecting={selection.active}
-          selected={selection.has(item.id)}
-          onToggleSelect={onToggleSelect}
-          dragSongs={onDrag}
-          index={index}
-        />
-      )
+      const row = renderRow({ item, index })
       const previous = index > 0 ? songs[index - 1] : undefined
       if (!byAlbum || (previous && previous.album.trim() === item.album.trim())) return row
       return (
@@ -492,24 +464,12 @@ function PlaceSongs({
         </View>
       )
     },
-    [
-      artFor,
-      downloads.index,
-      onPress,
-      onMore,
-      onLongPress,
-      onToggleSelect,
-      onDrag,
-      selection,
-      menuSongId,
-      byAlbum,
-      songs,
-    ],
+    [renderRow, artFor, byAlbum, songs],
   )
 
   return (
     <View style={styles.listArea}>
-      {bar.floating}
+      {bar.beforeList}
       <SongList
         songs={songs}
         label={label}
@@ -519,7 +479,7 @@ function PlaceSongs({
         scrollLabel={scrollLabel}
         contentContainerStyle={bar.listPadding}
       />
-      {menu}
+      {rows.menu}
     </View>
   )
 }
@@ -546,7 +506,6 @@ function AlbumHeading({
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   listArea: { flex: 1, minHeight: 0 },
-  kindDot: { width: 7, height: 7, borderRadius: 3.5 },
   nameSerif: {
     fontFamily: fonts.serif,
     fontSize: type.display,

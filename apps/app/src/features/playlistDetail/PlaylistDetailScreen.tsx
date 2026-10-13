@@ -429,7 +429,7 @@ export function PlaylistDetailScreen(): ReactNode {
     <View style={styles.screen}>
       <View style={styles.split}>
         <View style={styles.listArea}>
-          {playlist ? bar.floating : null}
+          {playlist ? bar.beforeList : null}
 
           <OrderedSongList
             songs={songs}

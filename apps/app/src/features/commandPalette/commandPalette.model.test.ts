@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { fuzzyRank } from '@selfmp3/shared'
 
-import { paletteCommands, paletteResults, stepIndex, untaggedCount } from './commandPalette.model'
+import {
+  paletteCommands,
+  paletteMatches,
+  paletteResults,
+  stepIndex,
+  untaggedCount,
+} from './commandPalette.model'
 
 const song = (id: number, title: string, artist = 'YOASOBI') =>
   ({ id, title, artist, album: '', tagIds: [7] }) as never
@@ -115,6 +121,21 @@ describe('the command palette', () => {
     const songs = [song(1, 'a'), { ...(song(2, 'b') as object), tagIds: [] } as never]
     expect(untaggedCount(songs)).toBe(1)
     expect(paletteResults('', { ...library, songs }).commands[5]?.hint).toBe('1 untagged')
+  })
+
+  it('counts every row a find draws, and only the lyric lines it shows', () => {
+    const found = paletteResults('monster', library)
+    const rows =
+      found.artists.length +
+      found.tags.length +
+      found.songs.length +
+      found.playlists.length +
+      found.commands.length
+    expect(rows).toBeGreaterThan(0)
+    expect(paletteMatches(found, 0)).toBe(rows)
+    // Search asks for twenty lines; the palette draws six of them.
+    expect(paletteMatches(found, 20)).toBe(rows + 6)
+    expect(paletteMatches(paletteResults('zzzz', library), 0)).toBe(0)
   })
 
   it('wraps the highlight at both ends', () => {

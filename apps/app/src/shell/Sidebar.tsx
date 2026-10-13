@@ -11,7 +11,6 @@ import {
   radius,
   railTags,
   space,
-  tagColors,
   type,
   useAddToPlaylist,
   useLibrary,
@@ -22,7 +21,7 @@ import { devicePlace } from '../features/settings/settings.model'
 import { deviceKind } from '../ports/device'
 import { library as cloudLibrary } from '../replica'
 import { useBucketHold } from '../features/profile/useBucketHold'
-import { noteTagUsed, useRecentTagIds } from '../features/library/recentTags.store'
+import { useRecentTagIds } from '../features/library/recentTags.store'
 import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { enterFromSidebar, useRecordSidebarEntry } from './sidebarEntry'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'
@@ -34,7 +33,7 @@ import { titleBarInset } from '../ports/titleBarInset'
 import { acceleratorKeys } from '../features/settings/shortcuts.model'
 import { showToast } from '../ui/toast'
 import { useDownloads } from '../offline/DownloadsProvider'
-import { tagLink } from '../features/tag/placeLinks'
+import { useOpenTag } from '../features/tag/useOpenTag'
 import { onTagPage } from '../features/tag/placePath.model'
 import { existingTag, noTagsLine } from '../features/tag/tag.model'
 import { NEW_TAG_FAILED, TagNameField, useNewTagForm } from '../features/tags/useNewTagForm'
@@ -66,6 +65,7 @@ import { EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
 import { setPaletteOpen } from './palette'
 import { label as labelText } from '../ui/surfaces'
 import { ScrollView } from '../ui/components/Scroll'
+import { TagDot } from '../ui/components/TagDot'
 
 /**
  * The desktop's left rail.
@@ -371,12 +371,11 @@ function Tags(): ReactNode {
    */
   const rail = useMemo(() => railTags(recentIds, tags), [recentIds, tags])
 
-  // A tag is a place (docs/UI-MIGRATION.md, Phase 4): choosing one opens its page.
+  // A tag is a place (docs/UI-MIGRATION.md, Phase 4): choosing one opens its
+  // page, which is already open when its row is lit.
+  const openTag = useOpenTag()
   const open = (tag: Tag): void => {
-    noteTagUsed(tag.id)
-    if (onTagPage(pathname, tag.name)) return
-    enterFromSidebar()
-    router.navigate(tagLink(tag.name))
+    if (!onTagPage(pathname, tag.name)) openTag(tag, { from: 'sidebar' })
   }
 
   // Made, or already there and opened: the form has done its job and closes.
@@ -528,7 +527,7 @@ function TagRow({
         accessibilityLabel={tag.name}
         accessibilityState={{ selected: active }}
       >
-        <View style={[styles.dot, { backgroundColor: tagColors(tag.hue).dot }]} />
+        <TagDot hue={tag.hue} />
         <Text style={[styles.tagName, active && styles.labelOn]} numberOfLines={1}>
           {tag.name}
         </Text>
@@ -821,7 +820,6 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: 6,
     paddingLeft: 10,
   },
-  dot: { width: 8, height: 8, borderRadius: 4 },
   tagName: { flex: 1, color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
   count: { color: theme.colors.textMuted, fontSize: type.tiny, fontVariant: ['tabular-nums'] },
   tagAction: { paddingVertical: 6, paddingHorizontal: 5 },

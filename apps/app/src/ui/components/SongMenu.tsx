@@ -16,7 +16,7 @@ import { playlistsToAddTo } from '../../features/playlists/playlists.model'
 import { usePlaylistRemoval } from '../../features/playlists/usePlaylistRemoval'
 import { playSimilar } from '../../features/song/playSimilar'
 import { songLink } from '../../features/song/song.model'
-import { tagLink } from '../../features/tag/placeLinks'
+import { useOpenTag } from '../../features/tag/useOpenTag'
 import { useArt } from '../../offline/useArt'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useDownloadRemoval } from '../../offline/useDownloadRemoval'
@@ -213,6 +213,7 @@ function Items({
   const { theme } = useUnistyles()
   const router = useRouter()
   const open = onOpen ?? ((href: Href) => router.navigate(href))
+  const openTag = useOpenTag()
   const player = usePlayerCommands()
   const fly = useFlyToUpNext()
   const artFor = useArt()
@@ -266,7 +267,7 @@ function Items({
                   hue={tag.hue}
                   selected={false}
                   compact
-                  onPress={then(() => open(tagLink(tag.name)))}
+                  onPress={then(() => openTag(tag, { go: onOpen }))}
                 />
               ))}
             </View>

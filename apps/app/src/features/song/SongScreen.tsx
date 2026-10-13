@@ -37,7 +37,7 @@ import { useSongColor } from '../../ui/useSongColor'
 import { ArtistLinks } from '../nowPlaying/ArtistLinks'
 import { SimilarShelf } from './SimilarShelf'
 import { useHistoryFor, useStatsSongs } from '../stats/statsSource'
-import { tagLink } from '../tag/placeLinks'
+import { useOpenTag } from '../tag/useOpenTag'
 import { SongAbout } from './SongAbout'
 import {
   bylineRest,
@@ -87,6 +87,7 @@ export function SongScreen(): ReactNode {
 
 function SongPage({ song }: { song: Song }): ReactNode {
   const router = useRouter()
+  const openTag = useOpenTag()
   const { wide } = useLayout()
   const bottom = useBottomInset()
   const { top } = useSafeAreaInsets()
@@ -170,7 +171,7 @@ function SongPage({ song }: { song: Song }): ReactNode {
                   hue={tag.hue}
                   selected={false}
                   compact
-                  onPress={() => router.navigate(tagLink(tag.name))}
+                  onPress={() => openTag(tag)}
                 />
               ))}
               <View ref={addTagRef} collapsable={false}>

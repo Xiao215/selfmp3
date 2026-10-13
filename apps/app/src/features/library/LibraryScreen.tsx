@@ -2,13 +2,8 @@ import { useOpenSearch } from '../../shell/palette'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
-import type { GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useRouter } from 'expo-router'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import type { Song } from '@selfmp3/shared'
-import { useArt } from '../../offline/useArt'
-import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { HIT_TARGET, isDownloaded, leading, radius, space, type } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -17,21 +12,20 @@ import { Chip } from '../../ui/components/Chip'
 import { Downloaded, Play, Plus, Shuffle, SortLines } from '../../ui/components/Icons'
 import { IconButton } from '../../ui/components/IconButton'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
-import { SELECTION_BAR_SPACE, SelectionBar } from '../../ui/components/SelectionBar'
-import { useSongMenu } from '../../ui/components/useSongMenu'
+import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
+import { useSongRows } from '../../ui/components/useSongRows'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { SearchField } from '../../ui/components/SearchField'
 import { Select } from '../../ui/components/Select'
 import { SongList } from '../../ui/components/SongList'
-import { SongRow, useSongRowHeight } from '../../ui/components/SongRow'
+import { useSongRowHeight } from '../../ui/components/SongRow'
 import { SyncStatus } from '../../ui/components/SyncStatus'
 import { CantReach } from './CantReach'
 import { GemsRow } from './GemsRow'
 import { PendingImports } from './PendingImports'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { ListenTags } from '../../ui/components/ListenTags'
-import { useRowTagPicker } from '../../ui/components/useRowTagPicker'
-import { modifiersOf, useSelection } from '../../selection/useSelection'
+import { useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { deviceWord } from '../../ports/device'
 import { useDragScroll } from '../../ports/dragScroll'
@@ -39,10 +33,8 @@ import { useContentWidth } from '../../shell/contentWidth'
 import { noMatchesTitle, stripTags, useLibraryModel } from './library.model'
 import { noteTagUsed, useRecentTagIds } from './recentTags.store'
 import { librarySource, playAlone } from '../lists/lists.model'
-import { tagLink } from '../tag/placeLinks'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { usePullToRefresh } from './usePullToRefresh'
-import { useSongTagLookup } from '../../ui/songTags'
 import { label, pageFrame } from '../../ui/surfaces'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { PageLoading } from '../../ui/components/PageLoading'
@@ -70,7 +62,7 @@ export function LibraryScreen(): ReactNode {
   const headWide = wide && (contentWidth === null || contentWidth >= HEAD_ROW_WIDTH)
   const shuffleIconOnly = contentWidth !== null && contentWidth < SHUFFLE_LABEL_WIDTH
   const player = usePlayerCommands()
-  const { state: downloads, installed, streamBlocked } = useDownloads()
+  const { state: downloads, installed } = useDownloads()
   const openSearch = useOpenSearch()
 
   // Everything this screen knows is in the model, which draws nothing and is
@@ -78,12 +70,9 @@ export function LibraryScreen(): ReactNode {
   const model = useLibraryModel(downloads.index)
   const pull = usePullToRefresh()
   const { filter, songs, visible, songIds } = model
-  // A song's tags, the same array for the same song, so a row's memo holds.
-  const songTags = useSongTagLookup()
   // The scrollbar's bubble names the part of the sort the list is at.
   const scrollLabel = useMemo(() => sortLabel(filter.sort), [filter.sort])
 
-  const songMenu = useSongMenu()
   // The phone's order, chosen from a sheet.
   const [sorting, setSorting] = useState(false)
   // A mouse drags the tag strip along; a finger already flicks it.
@@ -93,19 +82,21 @@ export function LibraryScreen(): ReactNode {
   const [choosingTags, setChoosingTags] = useState(false)
   const closeTagSearch = useCallback(() => setChoosingTags(false), [])
   const recentTagIds = useRecentTagIds()
-  // A row's dashed + and its "+2" open the same picker the menu does.
-  const rowTags = useRowTagPicker()
-  const router = useRouter()
 
   // Multi-select runs off the visible list, so "select all" means the songs on
   // screen and a song a search has hidden drops out of the selection rather
   // than being acted on with the rest.
   const selection = useSelection(songIds)
-  const selectedSongs = useMemo(
-    () => visible.filter(song => selection.has(song.id)),
-    [visible, selection],
-  )
   const narrowed = model.tagFiltered || filter.downloadedOnly
+  // The bar takes a lane above the list on a computer, so it covers no row.
+  const bar = useListSelectionBar({
+    songs: visible,
+    selection,
+    scope: narrowed ? 'in this view' : 'in your library',
+    narrowed,
+    wide,
+    placement: 'aboveList',
+  })
 
   const downloaded = useCallback(
     (songId: number) => isDownloaded(downloads.index, songId),
@@ -121,7 +112,6 @@ export function LibraryScreen(): ReactNode {
     [model.tags, filter.tagIds, recentTagIds],
   )
 
-  const artFor = useArt(ROW_COVER_SIZE)
   const rowHeight = useSongRowHeight()
 
   // What Up next is called when this list plays: the library, or the tags
@@ -150,117 +140,33 @@ export function LibraryScreen(): ReactNode {
   ].join('|')
 
   /*
-   * A row's handlers, one of each for the whole list.
-   *
-   * Each is made once and handed the row's song, and reads what it needs at
-   * the moment of the press from `latest`, so a row's memo holds through a
-   * song change, a pause or a new selection. Whether a row is the playing one
-   * the row asks the player itself (`useSongPlayback`).
-   */
-  const { playFrom } = player
-  const latest = useRef({ selection, songIds, playFrom, model, router })
-  useEffect(() => {
-    latest.current = { selection, songIds, playFrom, model, router }
-  })
-  /*
    * Turning a tag on or off, from anywhere on this page that filters: a chip
    * in the strip, the chooser. One function, because each of them also has to
    * leave the tag in the recent list the strip and the sidebar lead with. Only
-   * turning one *on* counts: dismissing a tag should not promote it.
+   * turning one *on* counts: dismissing a tag should not promote it. It reads
+   * the model when pressed, so the chips are not drawn again for a new one.
    */
+  const latestModel = useRef(model)
+  useEffect(() => {
+    latestModel.current = model
+  })
   const chooseTag = useCallback((tagId: number) => {
-    const { filter, toggleTag } = latest.current.model
+    const { filter, toggleTag } = latestModel.current
     if (!filter.tagIds.includes(tagId)) noteTagUsed(tagId)
     toggleTag(tagId)
   }, [])
-  /*
-   * A chip on a row opens its tag's page, as it does in every other list. A
-   * tag chosen from a row is as much a sign of interest as one chosen from
-   * the strip, so it leads the recent list too.
-   *
-   * Every row is handed this, so it reads the model and the router through
-   * `latest` like the handlers below: made over the model, it would be remade
-   * whenever the library changed, and a like would redraw every row.
-   */
-  const openTag = useCallback((tagId: number) => {
-    const { model: now, router: to } = latest.current
-    const tag = now.tags.find(each => each.id === tagId)
-    if (!tag) return
-    noteTagUsed(tag.id)
-    to.navigate(tagLink(tag.name))
-  }, [])
-  const onRowPress = useCallback((event: GestureResponderEvent, song: Song) => {
-    const now = latest.current
-    // Shift and Cmd on the web, and a tap in selection mode, select; a plain
-    // tap still plays.
-    if (now.selection.click(song.id, modifiersOf(event))) return
+  const rows = useSongRows({
+    songs: visible,
+    selection,
     // That song and nothing after it, and whatever Up next held is gone
     // (`playAlone`). The whole list plays from Shuffle, or Play with tags on;
     // the tags ticked are not what is playing, so Up next wears no name for
     // the one song.
-    playAlone(now, song.id)
-  }, [])
-  const onRowMore = songMenu.onMore
-  // Holding a row selects it; the ⋯ opens the menu.
-  const onRowLongPress = useCallback((song: Song) => latest.current.selection.enter(song.id), [])
-  const onRowToggleSelect = useCallback(
-    (song: Song) => latest.current.selection.toggle(song.id),
-    [],
-  )
-  // A drag from a ticked row carries every ticked song.
-  const onRowDrag = useCallback((song: Song) => latest.current.selection.carried(song.id), [])
-  const onRowEditTags = rowTags.onEditTags
-
-  // No server to stream from, or (from the bucket) no connection or a cap.
-  const unreachable = model.unreachable || streamBlocked
-  const menuSongId = songMenu.openId
-  const renderSong = useCallback(
-    ({ item, index }: { item: Song; index: number }) => {
-      const here = downloaded(item.id)
-      return (
-        <SongRow
-          testID={`song-row-${index}`}
-          song={item}
-          artUri={artFor(item)}
-          downloaded={here}
-          notDownloadedMark={installed && !here}
-          // Not here, and nowhere to stream it from: faded, so the list says so.
-          unavailable={unreachable && installed && !here}
-          onPress={onRowPress}
-          onMore={onRowMore}
-          menuOpen={menuSongId === item.id}
-          onLongPress={onRowLongPress}
-          selecting={selection.active}
-          selected={selection.has(item.id)}
-          onToggleSelect={onRowToggleSelect}
-          dragSongs={onRowDrag}
-          index={index}
-          tags={songTags(item)}
-          // The tags the list is filtered by are on every row: not drawn.
-          hideTagIds={filter.tagIds}
-          onOpenTag={openTag}
-          onEditTags={onRowEditTags}
-        />
-      )
-    },
-    [
-      installed,
-      artFor,
-      downloaded,
-      unreachable,
-      selection,
-      songTags,
-      filter.tagIds,
-      openTag,
-      menuSongId,
-      onRowPress,
-      onRowMore,
-      onRowLongPress,
-      onRowToggleSelect,
-      onRowDrag,
-      onRowEditTags,
-    ],
-  )
+    onPlay: (_index, song) => playAlone(player, song.id),
+    withTags: true,
+    // The tags the list is filtered by are on every row: not drawn.
+    hideTagIds: filter.tagIds,
+  })
 
   /*
    * What stands where the songs would. A server that did not answer gets the
@@ -602,18 +508,7 @@ export function LibraryScreen(): ReactNode {
 
       {/* The selection bar takes a lane above the list, so it covers no row. */}
       <View style={styles.listArea}>
-        {/* Always mounted, told when to show, so it rises and sinks rather than appearing. */}
-        <SelectionBar
-          shown={selection.active}
-          songs={selectedSongs}
-          total={visible.length}
-          narrowed={narrowed}
-          scope={narrowed ? 'in this view' : 'in your library'}
-          allSelected={selection.allSelected}
-          onSelectAll={selection.selectAll}
-          onDeselectAll={selection.clear}
-          onDone={selection.clear}
-        />
+        {bar.beforeList}
 
         {model.loading ? (
           <PageLoading />
@@ -622,25 +517,18 @@ export function LibraryScreen(): ReactNode {
             arrivalKey={arrivalKey}
             songs={visible}
             label={`${model.heading} songs`}
-            renderSong={renderSong}
+            renderSong={rows.renderSong}
             rowHeight={rowHeight}
             scrollLabel={scrollLabel}
             onRefresh={pull.onRefresh}
             refreshing={pull.refreshing}
-            contentContainerStyle={[
-              styles.list,
-              // On a phone the bar still floats over the foot of the list; the
-              // last song can scroll out from under it.
-              selection.active && !wide && { paddingBottom: SELECTION_BAR_SPACE },
-            ]}
+            contentContainerStyle={[styles.list, bar.listPadding]}
             empty={emptyState}
           />
         )}
       </View>
 
-      {rowTags.picker}
-
-      {songMenu.menu}
+      {rows.menu}
     </SafeAreaView>
   )
 }

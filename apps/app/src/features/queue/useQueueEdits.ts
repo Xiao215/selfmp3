@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { useRouter, type Href } from 'expo-router'
+import type { Href } from 'expo-router'
 import { plural } from '@selfmp3/shared'
 import { useLibrary } from '@selfmp3/client'
 import { usePlayer, type PlayerApi } from '../../player/PlayerProvider'
 import { showToast, showUndoToast, UNDO_MS } from '../../ui/toast'
-import { noteTagUsed } from '../library/recentTags.store'
-import { tagLink } from '../tag/placeLinks'
+import { useOpenTag } from '../tag/useOpenTag'
 import { closeQueueSheet } from './queueSheet.store'
 import { queueRows, removalOf, restoreMoves } from './queue.model'
 import { songsById } from '../../ui/songsById'
@@ -39,7 +38,6 @@ export function useQueueEdits(
   openTag: (tagId: number) => void
 } {
   const player = usePlayer()
-  const router = useRouter()
   const { data: library } = useLibrary()
 
   /*
@@ -95,16 +93,15 @@ export function useQueueEdits(
 
   // Up next is one of the lists that shows a song's tags (`S3`); a chip opens the tag.
   const tags = library?.tags
+  const open = useOpenTag()
   const openTag = useCallback(
     (tagId: number) => {
       const tag = tags?.find(each => each.id === tagId)
       if (!tag) return
-      noteTagUsed(tag.id)
       closeQueueSheet()
-      if (go) go(tagLink(tag.name))
-      else router.navigate(tagLink(tag.name))
+      open(tag, { go })
     },
-    [tags, router, go],
+    [tags, open, go],
   )
 
   return { player, rows, remove, clearRest, openTag }

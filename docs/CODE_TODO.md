@@ -646,9 +646,11 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
   - Every play button is `PlayPauseButton`, which reads the stall itself.
 - [x] **T-381** `VolumeSlider` announces no value on web and lets a wandering drag be stolen; `ListenBar` adds a CSS rule per tick and steps from the wrong value. → E
   - Fixed by `Scrubber`: ARIA values (volume in per cent), termination refused, the fill rounded, a screen reader's step from what is shown by `SEEK_STEP_SECONDS`.
-- [ ] **T-382** Search rows never fade songs that cannot play here; three different "unavailable" rules exist (Library, OrderedSongList, QueueSheet). → F
+- [x] **T-382** Search rows never fade songs that cannot play here; three different "unavailable" rules exist (Library, OrderedSongList, QueueSheet). → F
+  - One rule, `rowAvailability` (ui/rowAvailability.model.ts), read through `useRowAvailability` by every list's rows and by Up next's `useQueueRowFacts`: not here, and the bucket blocked or (on an installed app) the server away. Up next now fades for an away server too.
 - [ ] **T-383** "Add to Up next" on the answer page and the songs answer card calls `playNext`. → F
-- [ ] **T-384** Opening a tag from Home, Now Playing, the song menu, the song page, Stats or an artist page skips `noteTagUsed`, so the sidebar's recent tags miss it. Decision: every open counts. → F
+- [x] **T-384** Opening a tag from Home, Now Playing, the song menu, the song page, Stats or an artist page skips `noteTagUsed`, so the sidebar's recent tags miss it. Decision: every open counts. → F
+  - Every door is `useOpenTag()` (`from: 'tile' | 'sidebar'`, `go` for Now Playing's `leaveTo`). Home's tile still hands its frame over itself (`handOffPlace`) before opening. The sidebar pressing the tag already open opens nothing, so counts nothing.
 - [ ] **T-385** Sidebar tabs never announce the selected one (`aria-selected` only in BottomNav); pressing the lit sidebar item does not go back to its root page. → H
 - [x] **T-386** The sidebar's new-tag field has no `maxLength`, no focus ring, swallows create errors, and checks duplicates differently from the Tags page. → G
 - [x] **T-387** Settings → Cloud's bucket form signs out without asking; its fields stay editable while checking. → G
@@ -730,10 +732,12 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 
 ### F — Song lists and song actions
 
-- [ ] **T-419** `useSongListPage` / `useSelectableSongRows` with one availability rule, used by Library, Search, PlacePage, PlaylistDetail, Answer and OrderedSongList; `useListSelectionBar` takes `narrowed` and placement and is used by all five lists.
+- [x] **T-419** `useSongListPage` / `useSelectableSongRows` with one availability rule, used by Library, Search, PlacePage, PlaylistDetail, Answer and OrderedSongList; `useListSelectionBar` takes `narrowed` and placement and is used by all five lists.
+  - Named `useSongRows` (ui/components/useSongRows.tsx): `renderSong`, `rowProps` (the ordered list spreads them under its hold to move), `press`, `menu`. `useListSelectionBar` takes `narrowed` and `placement: 'underHead' | 'aboveList'` and returns `beforeList`/`pinned`/`listPadding`. Every row's cover is asked for at `ROW_COVER_SIZE` (the place pages asked for the kept size).
 - [ ] **T-420** `songActions(songs)` model (labels, guards, toasts) for SongMenu, SelectionBar and a shared list-page ⋯ menu (`ListMenu` + `useListActions` + `MoreButton`); one Play/Shuffle row for list heads; `SheetItem` takes a testID.
 - [ ] **T-421** SongRow's phone and computer branches share the press target, cover and title.
-- [ ] **T-422** `useOpenTag`, `TagDot`, `PlaceLine`, `useLibrarySearch` (Search + command palette).
+- [x] **T-422** `useOpenTag`, `TagDot`, `PlaceLine`, `useLibrarySearch` (Search + command palette).
+  - `PlaceLine` is a `SongLine` with a round figure for its cover, so a place reads like the song lines beside it in both (the palette's quieter label and Search's 40-point figure are gone). `useLibrarySearch` asks for 20 lyric lines in both (the palette shows 6): the two shared one query key, so the palette's six were what Search's See all found cached.
 
 ### G — Pages, forms and notices
 

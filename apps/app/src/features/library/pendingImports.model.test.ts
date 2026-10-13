@@ -49,7 +49,7 @@ describe('pending imports in a cloud library', () => {
       status: 'Downloading…',
       failed: false,
     })
-    expect(rows[2]).toMatchObject({ status: 'Couldn’t import it: Private video', failed: true })
+    expect(rows[2]).toMatchObject({ status: 'This video is private.', failed: true })
   })
 
   it('keeps a finished request until its songs are in the library, and never shows a cancelled one', () => {

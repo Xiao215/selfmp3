@@ -364,7 +364,12 @@ export class ImportQueueService {
         return
       }
 
-      this.#logger.error('import failed', { message, url: job.url })
+      const detail = error instanceof Error && typeof error.cause === 'string' ? error.cause : null
+      this.#logger.error('import failed', {
+        message,
+        url: job.url,
+        ...(detail !== null && detail !== message ? { detail } : {}),
+      })
       this.#imports.update(job.id, { status: 'error', step: 'finished', error: message })
       this.#cloud.kick()
     }

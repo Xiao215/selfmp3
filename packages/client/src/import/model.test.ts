@@ -132,11 +132,21 @@ describe('import queue', () => {
     expect(jobSubtitle(job({ status: 'done', step: 'finished' }))).toBe('Added to your library')
     expect(jobSubtitle(job({ status: 'cancelled' }))).toBe('Paused')
     expect(jobSubtitle(job({ status: 'error', error: 'Video unavailable', attempts: 1 }))).toBe(
-      'Video unavailable',
+      'This video isn’t on YouTube any more.',
     )
     expect(jobSubtitle(job({ status: 'error', error: null, attempts: 3 }))).toBe(
-      'Failed · 3 attempts',
+      'Couldn’t download it. Try again later. · 3 attempts',
     )
+    expect(
+      jobSubtitle(
+        job({
+          status: 'error',
+          step: 'uploading',
+          error: 'Saved on this server, but not uploaded yet: 503',
+          attempts: 1,
+        }),
+      ),
+    ).toBe('In your library, not in your storage yet. It uploads by itself.')
   })
 
   it('offers cancel while going, resume when paused, retry after, and nothing when done', () => {

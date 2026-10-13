@@ -21,7 +21,7 @@ import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { prefs } from '../../ports/prefs'
 import { useAccent } from '../../ui/accent'
-import { label, serif } from '../../ui/surfaces'
+import { label, pageTitle } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { BackButton } from '../../ui/components/BackButton'
 import { Button } from '../../ui/components/Button'
@@ -401,7 +401,7 @@ const styles = StyleSheet.create(theme => ({
     padding: space.gutter,
     paddingBottom: 120,
   },
-  big: { ...serif(theme.colors, type.page) },
+  big: pageTitle(theme.colors),
   label: label(theme.colors),
   text: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: 18 },
   link: { color: theme.colors.textPrimary, fontWeight: '600', textDecorationLine: 'underline' },

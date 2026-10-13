@@ -32,7 +32,7 @@ import { useSongColor } from '../../ui/useSongColor'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { session, useArrival, usePressScale } from '../../ui/motion'
 import { handOffPlace } from '../../ui/coverHandoff'
-import { artShadow, card, PAGE_TOP_WIDE, sectionTitle, serif } from '../../ui/surfaces'
+import { artShadow, card, pageFrame, sectionTitle, serif } from '../../ui/surfaces'
 import { tagFromTileLink } from '../tag/placeLinks'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import {
@@ -969,8 +969,8 @@ function useTilesRowWidth(wide: boolean): number {
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { gap: 22 },
-  contentNarrow: { paddingHorizontal: GUTTER_NARROW, paddingTop: 4 },
-  contentWide: { paddingHorizontal: GUTTER_WIDE, paddingTop: PAGE_TOP_WIDE },
+  contentNarrow: pageFrame(false),
+  contentWide: pageFrame(true),
   stack: { gap: 10 },
   cardsStacked: { gap: 12 },
   cardsAbreast: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },

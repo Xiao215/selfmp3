@@ -32,7 +32,6 @@ import {
   reviewFrom,
   searchQuery,
   sharedLinks,
-  space,
   stepFraction,
   timeLeft,
   type,
@@ -41,15 +40,8 @@ import {
 } from '@selfmp3/client'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
-import { BackButton } from '../../ui/components/BackButton'
-import {
-  card,
-  label as groupLabel,
-  PAGE_TOP_PHONE,
-  PAGE_TOP_WIDE,
-  pageTitle,
-  TITLE_UNDER_BACK,
-} from '../../ui/surfaces'
+import { PageHeader } from '../../ui/components/PageHeader'
+import { card, label as groupLabel, pageFrame } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
@@ -484,14 +476,13 @@ export function ImportScreen({
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentPhone]}
         testID="import-screen"
       >
-        <View style={styles.head}>
-          {/* On a phone Import is a page over Home or Profile, and the ‹ goes
-              back to it (`BackButton`); the name sits under it on the left (J1). */}
-          <BackButton to="/profile" testID="import-back" />
-          <Text style={styles.heading} accessibilityRole="header">
-            Import
-          </Text>
-        </View>
+        {/* On a phone Import is a page over Home or Profile, and the ‹ goes
+            back to it; the name sits under it on the left (J1). */}
+        <PageHeader
+          title="Import"
+          back={{ to: '/profile', testID: 'import-back' }}
+          style={styles.head}
+        />
 
         {wide ? (
           // One column, the page's width, and what arrived under it at the foot
@@ -1045,11 +1036,10 @@ const ON_DANGER = '#fff'
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40 },
-  contentWide: { paddingTop: PAGE_TOP_WIDE, paddingHorizontal: space.gutterWide },
-  contentPhone: { paddingTop: PAGE_TOP_PHONE, paddingHorizontal: space.gutter },
+  contentWide: pageFrame(true),
+  contentPhone: pageFrame(false),
   pressed: { opacity: 0.6 },
-  head: { alignItems: 'flex-start', gap: TITLE_UNDER_BACK, marginBottom: 20 },
-  heading: pageTitle(theme.colors),
+  head: { marginBottom: 20 },
   formColumn: { gap: 22 },
   stack: { gap: 24 },
   form: { gap: 10 },

@@ -34,10 +34,10 @@ import { Button, PlayButton } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { IconButton } from '../../ui/components/IconButton'
+import { BackButton } from '../../ui/components/BackButton'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
 import {
   CheckSquare,
-  ChevronLeft,
   CloudDownload,
   Copy,
   Downloaded,
@@ -105,7 +105,7 @@ export function PlaylistDetailScreen(): ReactNode {
   const playlistId = Number(params.id)
   const router = useRouter()
   // Back to wherever it was opened from; Playlists only after a link (J1).
-  const page = usePageBack('/playlists')
+  const pageBackShown = usePageBack('/playlists').shown
   const { mutateAsync: createPlaylist } = useCreatePlaylist()
 
   const library = useLibrary()
@@ -316,19 +316,15 @@ export function PlaylistDetailScreen(): ReactNode {
         light={light.color}
         art={leadArt}
         topBar={
+          // A computer's ⋯ is with the actions; its ‹ only for a playlist
+          // opened from inside a page, not from the sidebar.
           wide ? (
-            // A computer's ⋯ is with the actions; its ‹ only for a playlist
-            // opened from inside a page, not from the sidebar.
-            page.shown ? (
-              <IconButton label="Back" onPress={page.back} filled>
-                <ChevronLeft size={20} tone="textPrimary" />
-              </IconButton>
+            pageBackShown ? (
+              <BackButton to="/playlists" />
             ) : null
           ) : (
             <>
-              <IconButton label="Back" onPress={page.back} filled>
-                <ChevronLeft size={20} tone="textPrimary" />
-              </IconButton>
+              <BackButton to="/playlists" />
               {moreButton}
             </>
           )

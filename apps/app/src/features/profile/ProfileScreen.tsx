@@ -13,7 +13,7 @@ import { useArt } from '../../offline/useArt'
 import { Avatar } from '../../ui/components/Avatar'
 import { useAccount } from './useAccount'
 import { deviceKind } from '../../ports/device'
-import { card, label, serif } from '../../ui/surfaces'
+import { card, label, pageFrame, serif } from '../../ui/surfaces'
 import { devicePlace } from '../settings/settings.model'
 import { useStatsFor, useStatsSongs } from '../stats/statsSource'
 import {
@@ -242,8 +242,8 @@ function Row({ row }: { row: ProfileRow }): ReactNode {
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40, gap: 24 },
-  contentWide: { paddingTop: 40, paddingHorizontal: 44, maxWidth: 640 + 88 },
-  contentNarrow: { paddingTop: 16, paddingHorizontal: space.gutter },
+  contentWide: { ...pageFrame(true), maxWidth: 640 + space.gutterWide * 2 },
+  contentNarrow: pageFrame(false),
   person: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   personWords: { flex: 1, minWidth: 0, gap: 3 },
   name: { ...serif(theme.colors, type.page), lineHeight: 34 },

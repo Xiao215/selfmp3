@@ -17,7 +17,8 @@ import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
-import { ChevronLeft, More, Play, Plus, Shuffle, User } from '../../ui/components/Icons'
+import { More, Play, Plus, Shuffle, User } from '../../ui/components/Icons'
+import { BackButton } from '../../ui/components/BackButton'
 import { SongList } from '../../ui/components/SongList'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
 import { useSongMenu } from '../../ui/components/useSongMenu'
@@ -272,13 +273,7 @@ export function PlacePage({
       topBar={
         <>
           {/* None on a computer for a place the sidebar opened (J1). */}
-          {backShown ? (
-            <IconButton label="Back" onPress={back} filled>
-              <ChevronLeft size={20} tone="textPrimary" />
-            </IconButton>
-          ) : (
-            <View />
-          )}
+          {backShown ? <BackButton to="/" onPress={back} /> : <View />}
           {menu ? (
             <View ref={moreRef} collapsable={false}>
               <IconButton

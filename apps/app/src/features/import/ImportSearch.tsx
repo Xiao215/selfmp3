@@ -15,8 +15,8 @@ import {
 } from '@selfmp3/client'
 import { useFootInset } from '../../shell/bottomInset'
 import { useLayout } from '../../shell/useLayout'
-import { label as groupLabel, pageTitle, serif } from '../../ui/surfaces'
-import { BackButton } from '../../ui/components/BackButton'
+import { label as groupLabel, pageFrame } from '../../ui/surfaces'
+import { PageHeader } from '../../ui/components/PageHeader'
 import { Button } from '../../ui/components/Button'
 import { useBackTo } from '../../ui/useBackTo'
 import { IconButton } from '../../ui/components/IconButton'
@@ -138,11 +138,8 @@ export function ImportSearch({
         accessible={false}
         style={wide ? styles.headWide : styles.headPhone}
       >
-        {/* As the review's head: the round ‹ back to Import, the name under it on a phone. */}
-        {wide ? null : <BackButton to="/import" testID="import-search-back" />}
-        <Text style={wide ? styles.nameWide : styles.namePhone} accessibilityRole="header">
-          Search
-        </Text>
+        {/* As the review's head: the round ‹ back to Import, the name under it. */}
+        <PageHeader title="Search" back={{ to: '/import', testID: 'import-search-back' }} />
         <SearchField
           value={words}
           onChangeText={setWords}
@@ -278,20 +275,15 @@ const styles = StyleSheet.create(theme => ({
   headPhone: {
     alignItems: 'flex-start',
     gap: 12,
-    paddingTop: 8,
+    ...pageFrame(false),
     paddingBottom: 10,
-    paddingHorizontal: space.gutter,
   },
   headWide: {
     alignItems: 'flex-start',
     gap: 14,
-    paddingTop: 36,
-    paddingHorizontal: space.gutterWide,
+    ...pageFrame(true),
     paddingBottom: 10,
   },
-  namePhone: pageTitle(theme.colors),
-  // The serif has one weight; the name is never bolded.
-  nameWide: { ...serif(theme.colors, type.page), lineHeight: 34 },
   field: { alignSelf: 'stretch', maxWidth: 720 },
   status: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   listPhone: { paddingHorizontal: space.gutter, flexGrow: 1 },

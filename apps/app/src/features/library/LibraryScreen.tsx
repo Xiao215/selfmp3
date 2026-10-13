@@ -44,7 +44,8 @@ import { tagLink } from '../tag/placeLinks'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { usePullToRefresh } from './usePullToRefresh'
 import { useSongTagLookup } from '../../ui/songTags'
-import { label, PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageTitle } from '../../ui/surfaces'
+import { label, pageFrame } from '../../ui/surfaces'
+import { PageHeader } from '../../ui/components/PageHeader'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
 import { ScrollView } from '../../ui/components/Scroll'
 
@@ -313,22 +314,27 @@ export function LibraryScreen(): ReactNode {
           The tags picked to narrow it are the strip below, not the title: a
           tag you want as a place has its own page now.
         */}
-        <View style={headWide ? styles.titlesWide : wide ? undefined : styles.phoneTitles}>
-          <View style={wide ? undefined : styles.phoneTitleRow}>
-            <Text
-              style={[styles.heading, !wide && styles.phoneHeading]}
-              numberOfLines={1}
-              accessibilityRole="header"
-            >
-              Library
-            </Text>
-            {/*
-            A phone's order, as a round button beside the title (docs/ui-mock
-            `P12`); a computer has it in its head row. No button for choosing:
-            holding a row starts it, everywhere (Xiao, 2026-09-20).
-          */}
-            {wide ? null : (
-              <View style={styles.phoneTools}>
+        <PageHeader
+          title="Library"
+          subtitle={
+            <>
+              {model.subtitle}
+              {installed && !model.loading
+                ? ` · ${hereCount} on this ${deviceWord({ wide, finePointer })}`
+                : ''}
+              {model.matchNote ? (
+                <Text testID="library-match-note"> · {model.matchNote}</Text>
+              ) : null}
+            </>
+          }
+          subtitleTestID="library-subline"
+          style={headWide ? styles.titlesWide : undefined}
+          actions={
+            // A phone's order, as a round button beside the title (docs/ui-mock
+            // `P12`); a computer has it in its head row. No button for
+            // choosing: holding a row starts it, everywhere (Xiao, 2026-09-20).
+            wide ? undefined : (
+              <>
                 <IconButton
                   label="Sort"
                   filled
@@ -350,23 +356,10 @@ export function LibraryScreen(): ReactNode {
                     <Shuffle size={16} color={theme.colors.textPrimary} />
                   </IconButton>
                 )}
-              </View>
-            )}
-          </View>
-          <View style={styles.subRow}>
-            <Text style={styles.sub} testID="library-subline">
-              {model.subtitle}
-              {installed && !model.loading
-                ? ` · ${hereCount} on this ${deviceWord({ wide, finePointer })}`
-                : ''}
-            </Text>
-            {model.matchNote ? (
-              <Text style={styles.sub} testID="library-match-note">
-                · {model.matchNote}
-              </Text>
-            ) : null}
-          </View>
-        </View>
+              </>
+            )
+          }
+        />
 
         {/*
           A phone's library keeps Shuffle with its tools in the title row — a
@@ -663,7 +656,6 @@ const HEAD_ROW_WIDTH = 600
 const SHUFFLE_LABEL_WIDTH = 760
 
 const styles = StyleSheet.create(theme => ({
-  subRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 },
   /* Play first, the white round one: it is what picking tags was for. */
   phoneTransport: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   chooser: { paddingHorizontal: space.gutter },
@@ -671,29 +663,15 @@ const styles = StyleSheet.create(theme => ({
     flex: 1,
     backgroundColor: theme.colors.surface0,
   },
-  head: {
-    paddingHorizontal: space.gutter,
-    paddingTop: PAGE_TOP_PHONE,
-    gap: space.md,
-  },
-  // Where every page's title sits on a computer (`PAGE_TOP_WIDE`).
-  headGutterWide: { paddingHorizontal: space.gutterWide, paddingTop: PAGE_TOP_WIDE },
+  head: { ...pageFrame(false), gap: space.md },
+  // Where every page's title sits on a computer.
+  headGutterWide: pageFrame(true),
   gutterWide: { paddingHorizontal: space.gutterWide },
-  heading: pageTitle(theme.colors),
-  phoneTitles: { alignSelf: 'stretch' },
-  phoneTitleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  phoneHeading: { flex: 1 },
-  phoneTools: { flexDirection: 'row', gap: space.sm },
   orderLabel: {
     ...label(theme.colors),
     paddingHorizontal: space.gutter,
     paddingTop: space.sm,
     paddingBottom: 2,
-  },
-  sub: {
-    color: theme.colors.textMuted,
-    fontSize: type.sub,
-    marginTop: 3,
   },
   headWide: {
     flexDirection: 'row',

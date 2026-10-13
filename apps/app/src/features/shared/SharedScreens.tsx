@@ -19,7 +19,7 @@ import { roomTrack, setTrackSource } from '../../player/roomTracks'
 import { prefs } from '../../ports/prefs'
 import { appAddress, shareLink } from '../../ports/shareLink'
 import { useAccent } from '../../ui/accent'
-import { label, serif } from '../../ui/surfaces'
+import { label, pageTitle } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { BackButton } from '../../ui/components/BackButton'
 import { Button } from '../../ui/components/Button'
@@ -486,7 +486,7 @@ const styles = StyleSheet.create(theme => ({
     padding: space.xl,
   },
   head: { gap: space.sm },
-  big: { ...serif(theme.colors, type.page) },
+  big: pageTitle(theme.colors),
   label: label(theme.colors),
   text: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: 18 },
   people: { flexDirection: 'row', alignItems: 'center', gap: space.sm },

@@ -4,17 +4,17 @@ import type { StyleProp, ViewStyle } from 'react-native'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { radius, space, type } from '@selfmp3/client'
+import { radius, type } from '@selfmp3/client'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
-import { BackButton } from '../../ui/components/BackButton'
+import { PageHeader } from '../../ui/components/PageHeader'
 import { ChevronRight, Sparkles } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Segmented } from '../../ui/components/Segmented'
 import { Select } from '../../ui/components/Select'
 import { ease, timing } from '../../ui/motion'
 import { MOVE_MS } from '../../ui/motion.model'
-import { PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageTitle } from '../../ui/surfaces'
+import { pageFrame } from '../../ui/surfaces'
 import { periodLabel, REPORT_HINT, STATS_PERIODS, type StatsPeriod } from './stats.model'
 import { ScrollView } from '../../ui/components/Scroll'
 
@@ -110,16 +110,15 @@ export function StatsFrame({
       >
         {/* The way back, then the page's name on the left under it (J1); on a
             phone the window's menu sits beside the name. A computer's windows
-            and the Report follow the name instead. */}
-        <BackButton to="/profile" testID="stats-back" />
-        <View style={styles.head}>
-          <View style={[styles.titles, wide ? null : styles.titlesPhone]}>
-            {/* No caption under the name: the window's own control says which
-                window this is, and a caption would say it twice. */}
-            <Text style={styles.heading} accessibilityRole="header">
-              Stats
-            </Text>
-            {wide ? null : (
+            and the Report follow the name instead. No caption under the name:
+            the window's own control says which window this is, and a caption
+            would say it twice. */}
+        <PageHeader
+          title="Stats"
+          back={{ to: '/profile', testID: 'stats-back' }}
+          style={styles.head}
+          beside={
+            wide ? undefined : (
               <Select
                 value={period}
                 onChange={onPeriod}
@@ -127,15 +126,22 @@ export function StatsFrame({
                 options={options}
                 testID="stats-range"
               />
-            )}
-          </View>
-          {wide ? (
-            <View style={styles.controls}>
-              <Segmented value={period} onChange={onPeriod} label="Time range" options={options} />
-              <ReportLink pill />
-            </View>
-          ) : null}
-        </View>
+            )
+          }
+          actions={
+            wide ? (
+              <>
+                <Segmented
+                  value={period}
+                  onChange={onPeriod}
+                  label="Time range"
+                  options={options}
+                />
+                <ReportLink pill />
+              </>
+            ) : undefined
+          }
+        />
         <Arriving
           order={STATS_PERIODS.indexOf(period)}
           style={wide ? styles.stackWide : styles.stack}
@@ -192,25 +198,14 @@ function ReportLink({ pill }: { pill: boolean }): ReactNode {
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40, gap: 12 },
-  contentWide: { paddingTop: PAGE_TOP_WIDE, paddingHorizontal: space.gutterWide, gap: 14 },
-  contentNarrow: { paddingTop: PAGE_TOP_PHONE, paddingHorizontal: space.gutter },
+  contentWide: { ...pageFrame(true), gap: 14 },
+  contentNarrow: pageFrame(false),
   // The blocks of the page are this view's children, not the scroll content's,
   // so the page's gap has to be repeated here or the cards and the ranking sit
   // flush against each other (Xiao, 2026-09-21).
   stack: { gap: 12 },
   stackWide: { gap: 14 },
-  head: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 8,
-  },
-  titles: { gap: 2, flexShrink: 1 },
-  titlesPhone: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  heading: pageTitle(theme.colors),
-  controls: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  head: { marginBottom: 8 },
   pill: {
     height: 36,
     paddingHorizontal: 16,

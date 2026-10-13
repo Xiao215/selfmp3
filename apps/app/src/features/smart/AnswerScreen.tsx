@@ -21,7 +21,8 @@ import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { IconButton } from '../../ui/components/IconButton'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
-import { ChevronLeft, More, Play, Shuffle, Sparkle } from '../../ui/components/Icons'
+import { More, Play, Shuffle, Sparkle } from '../../ui/components/Icons'
+import { BackButton } from '../../ui/components/BackButton'
 import { OrderedSongList } from '../../ui/components/OrderedSongList'
 import { Popover } from '../../ui/components/Popover'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -39,7 +40,6 @@ import { changeAnswer, reorderAnswer, useKeptAnswer } from './answers.store'
 import { ChangeIt } from './ChangeIt'
 import { answerSongs, describeNotes, parts } from './smart.model'
 import { useSmartServer } from './useSmartServer'
-import { useGoBack } from '../../ui/useBackTo'
 
 /**
  * An answer to Ask as a page of its own, `/answer?id=…` (docs/features/lists.md,
@@ -105,8 +105,6 @@ export function AnswerScreen(): ReactNode {
     },
   })
 
-  const back = useGoBack('/search')
-
   if (!kept || !result) {
     return (
       <SafeAreaView style={styles.screen} edges={['top']}>
@@ -170,9 +168,7 @@ export function AnswerScreen(): ReactNode {
       art={null}
       topBar={
         <>
-          <IconButton label="Back" onPress={back} filled>
-            <ChevronLeft size={20} tone="textPrimary" />
-          </IconButton>
+          <BackButton to="/search" always />
           <View ref={moreRef} collapsable={false}>
             <IconButton
               label="More for this answer"

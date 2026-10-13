@@ -70,6 +70,7 @@ import {
 } from './search.model'
 import { useSongsById } from '../../ui/songsById'
 import { useGoBack } from '../../ui/useBackTo'
+import { PAGE_TOP_PHONE, PAGE_TOP_WIDE } from '../../ui/surfaces'
 import { ScrollView } from '../../ui/components/Scroll'
 
 /** What a song played from Search names Up next: the rows and the lyric hits alike. */
@@ -746,13 +747,19 @@ const styles = StyleSheet.create(theme => ({
   askSub: { color: theme.colors.textMuted, fontSize: type.small },
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   page: { flex: 1 },
-  pageWide: { maxWidth: 760, width: '100%', alignSelf: 'center', paddingTop: 24 },
+  // The field's row starts where every page's first row does (`PAGE_TOP_WIDE`).
+  pageWide: {
+    maxWidth: 760,
+    width: '100%',
+    alignSelf: 'center',
+    paddingTop: PAGE_TOP_WIDE - PAGE_TOP_PHONE,
+  },
   head: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: PAGE_TOP_PHONE,
   },
   field: { flex: 1 },
   cancel: { color: theme.colors.accent, fontSize: type.body, fontWeight: '600' },

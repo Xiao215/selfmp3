@@ -16,8 +16,8 @@ import {
 import { useFootInset } from '../../shell/bottomInset'
 import { useLayout } from '../../shell/useLayout'
 import { canListenHere } from '../../ports/listen'
-import { label as groupLabel, pageTitle, serif } from '../../ui/surfaces'
-import { BackButton } from '../../ui/components/BackButton'
+import { label as groupLabel, pageFrame, pageTitle } from '../../ui/surfaces'
+import { PageHeader } from '../../ui/components/PageHeader'
 import { Button } from '../../ui/components/Button'
 import { useBackTo } from '../../ui/useBackTo'
 import { Cover } from '../../ui/components/Cover'
@@ -183,15 +183,12 @@ export function ImportReview({
            * left as the page's title (J1), and the count under that. The draft keeps the
            * review, and the preview stops with the page.
            */}
-          <BackButton to="/import" testID="import-review-back" />
-          <View style={styles.namesPhone}>
-            <Text style={styles.namePhone} numberOfLines={1} accessibilityRole="header">
-              {reviewName(review)}
-            </Text>
-            <Text style={styles.count} testID="import-count">
-              {countLabel(review, false)}
-            </Text>
-          </View>
+          <PageHeader
+            title={reviewName(review)}
+            subtitle={countLabel(review, false)}
+            subtitleTestID="import-count"
+            back={{ to: '/import', testID: 'import-review-back' }}
+          />
         </Pressable>
       )}
 
@@ -308,22 +305,13 @@ const styles = StyleSheet.create(theme => ({
   scroll: { flex: 1 },
   pressed: { opacity: 0.6 },
   // As Import's head: the button, the words under it on the left, room above and below.
-  headPhone: {
-    alignItems: 'flex-start',
-    gap: 12,
-    paddingTop: 8,
-    paddingBottom: 14,
-    paddingHorizontal: space.gutter,
-  },
-  namesPhone: { alignSelf: 'stretch', gap: 2 },
-  namePhone: pageTitle(theme.colors),
+  headPhone: { ...pageFrame(false), paddingBottom: 14 },
   count: { color: theme.colors.textSecondary, fontSize: type.sub, fontVariant: ['tabular-nums'] },
   headWide: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-    paddingTop: 36,
-    paddingHorizontal: space.gutterWide,
+    ...pageFrame(true),
     paddingBottom: 14,
   },
   mosaic: {
@@ -337,8 +325,7 @@ const styles = StyleSheet.create(theme => ({
   },
   names: { flex: 1, minWidth: 0, gap: 2 },
   kicker: { ...groupLabel(theme.colors), fontSize: type.small, color: theme.colors.textSecondary },
-  // The serif has one weight; the name is never bolded.
-  nameWide: { ...serif(theme.colors, type.page), lineHeight: 34 },
+  nameWide: pageTitle(theme.colors),
   hint: {
     color: theme.colors.textSecondary,
     fontSize: type.sub,

@@ -23,16 +23,9 @@ import { bucketCapped } from '../library/library.model'
 import { useBucketHold } from '../profile/useBucketHold'
 import { deviceKind } from '../../ports/device'
 import { useLayout } from '../../shell/useLayout'
-import { BackButton } from '../../ui/components/BackButton'
+import { PageHeader } from '../../ui/components/PageHeader'
 import { Toggle } from '../../ui/components/Toggle'
-import {
-  label,
-  PAGE_TOP_PHONE,
-  PAGE_TOP_WIDE,
-  pageTitle,
-  sectionTitle,
-  TITLE_UNDER_BACK,
-} from '../../ui/surfaces'
+import { label, PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageFrame, sectionTitle } from '../../ui/surfaces'
 import { usePlayer } from '../../player/PlayerProvider'
 import { createValueStore, type ValueStore } from '../../state/valueStore.model'
 import { useValueStore } from '../../state/useValueStore'
@@ -319,24 +312,23 @@ export function SettingsScreen(): ReactNode {
           column ? styles.contentColumn : styles.contentNarrow,
         ]}
       >
-        {/* The way back, then the page's name under it on the left, as on every
-            page (J1). */}
         <View ref={headRef} style={styles.head}>
-          <BackButton to="/profile" testID="settings-back" />
-          <View>
-            <Text style={styles.title} accessibilityRole="header">
-              Settings
-            </Text>
-            <Text style={[styles.sub, capped && styles.subCapped]} testID="settings-health">
-              {capped ? '● ' : null}
-              {healthLine(health.data, {
-                loading: health.isPending,
-                error: health.isError ? health.error : null,
-                capped,
-                compact: !wide,
-              })}
-            </Text>
-          </View>
+          <PageHeader
+            title="Settings"
+            back={{ to: '/profile', testID: 'settings-back' }}
+            subtitle={
+              <Text style={capped ? styles.subCapped : undefined}>
+                {capped ? '● ' : null}
+                {healthLine(health.data, {
+                  loading: health.isPending,
+                  error: health.isError ? health.error : null,
+                  capped,
+                  compact: !wide,
+                })}
+              </Text>
+            }
+            subtitleTestID="settings-health"
+          />
         </View>
 
         {column ? null : (
@@ -614,10 +606,8 @@ const styles = StyleSheet.create(theme => ({
     paddingRight: INDEX_GUTTER,
   },
   // `S2`'s phone gutter.
-  contentNarrow: { paddingTop: NARROW_TOP, paddingHorizontal: space.gutter },
-  head: { marginBottom: 20, gap: TITLE_UNDER_BACK, alignItems: 'flex-start' },
-  title: pageTitle(theme.colors),
-  sub: { color: theme.colors.textMuted, fontSize: type.sub, marginTop: 4 },
+  contentNarrow: pageFrame(false),
+  head: { marginBottom: 20 },
   subCapped: { color: theme.colors.danger },
   panels: { gap: 20, maxWidth: 780 },
   advanced: { gap: 20, paddingTop: 12 },

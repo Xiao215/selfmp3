@@ -26,7 +26,6 @@ import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import {
-  ChevronLeft,
   ChevronRight,
   More,
   Plus,
@@ -40,14 +39,7 @@ import { HueSwatches, autoTagHue } from '../../ui/components/HueSwatches'
 import { TagEditor } from '../../ui/components/TagEditor'
 import { useFade, usePressScale } from '../../ui/motion'
 import { MOVE_MS } from '../../ui/motion.model'
-import {
-  card,
-  label,
-  PAGE_TOP_PHONE,
-  PAGE_TOP_WIDE,
-  pageTitle,
-  TITLE_UNDER_BACK,
-} from '../../ui/surfaces'
+import { card, label, pageFrame } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { noteTagUsed } from '../library/recentTags.store'
 import { artistLink, tagLink } from '../tag/placeLinks'
@@ -71,7 +63,7 @@ import {
   type TagEntry,
   type WaitingArtist,
 } from './tags.model'
-import { usePageBack } from '../../ui/useBackTo'
+import { PageHeader } from '../../ui/components/PageHeader'
 import { ScrollView } from '../../ui/components/Scroll'
 
 /** Tiles at least this wide on a computer, as many as fit; two across on a phone. */
@@ -81,7 +73,6 @@ const GAP = 16
 const ROW_GAP = 24
 /** The page's side margins: a phone's, and a computer's. */
 const NARROW_GUTTER = space.gutter
-const WIDE_GUTTER = space.gutterWide
 /** How many artists the untagged card names on a computer, and on a phone. */
 const WAITING_SHOWN = 3
 const PHONE_WAITING_SHOWN = 2
@@ -176,7 +167,6 @@ export function TagsScreen(): ReactNode {
     : PHONE_COLUMNS
   const tileWidth = measured > 0 ? Math.floor((measured - GAP * (columns - 1)) / columns) : 0
 
-  const page = usePageBack('/')
   // The one Search, on its Tags scope: the page on a phone, the palette over
   // this page on a computer (docs/ui-mock `P18`, `C05`).
   const openSearch = useOpenSearch()
@@ -226,28 +216,12 @@ export function TagsScreen(): ReactNode {
       <ScrollView
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
       >
-        {/* The way back and the page's buttons on one line, the name under it
-            on the left (J1); with no way back the name leads that line. */}
-        <View style={styles.heads}>
-          {page.shown ? (
-            <View style={styles.header}>
-              <IconButton label="Back" filled onPress={page.back} testID="tags-back">
-                <ChevronLeft size={18} tone="textPrimary" />
-              </IconButton>
-              <View style={styles.headerFill} />
-              {actions}
-            </View>
-          ) : null}
-          <View style={styles.header}>
-            <View style={styles.titles}>
-              <Text style={styles.heading} accessibilityRole="header">
-                Tags
-              </Text>
-              {library ? <Text style={styles.sub}>{tagsHeadline(tags.length)}</Text> : null}
-            </View>
-            {page.shown ? null : actions}
-          </View>
-        </View>
+        <PageHeader
+          title="Tags"
+          subtitle={library ? tagsHeadline(tags.length) : undefined}
+          back={{ to: '/', testID: 'tags-back' }}
+          actions={actions}
+        />
 
         {adding ? (
           <NewTag
@@ -839,14 +813,8 @@ const COMPACT_PANEL = 200
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { gap: space.lg },
-  contentNarrow: { paddingTop: PAGE_TOP_PHONE, paddingHorizontal: NARROW_GUTTER },
-  contentWide: { paddingTop: PAGE_TOP_WIDE, paddingHorizontal: WIDE_GUTTER, width: '100%' },
-  heads: { gap: TITLE_UNDER_BACK },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerFill: { flex: 1 },
-  titles: { flex: 1, minWidth: 0, gap: 2 },
-  heading: pageTitle(theme.colors),
-  sub: { color: theme.colors.textSecondary, fontSize: type.sub },
+  contentNarrow: pageFrame(false),
+  contentWide: { ...pageFrame(true), width: '100%' },
   hint: { color: theme.colors.textMuted, fontSize: type.sub, lineHeight: leading.sub },
   newCard: { gap: space.sm, padding: space.md, ...card(theme.colors) },
   newHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

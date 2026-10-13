@@ -25,12 +25,13 @@ import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
 import { CoverLight } from '../../ui/components/CoverLight'
 import { IconButton } from '../../ui/components/IconButton'
-import { ChevronLeft, Heart, Mic, More, Next, Sparkles } from '../../ui/components/Icons'
+import { Heart, Mic, More, Next, Sparkles } from '../../ui/components/Icons'
+import { BackButton } from '../../ui/components/BackButton'
 import { PlayPauseIcon } from '../../ui/components/PlayPauseIcon'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { TagPicker } from '../../ui/components/TagPicker'
-import { artShadow, card, label as labelText, pageTitle, serif } from '../../ui/surfaces'
+import { artShadow, card, label as labelText, pageFrame, pageTitle, serif } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { useSongColor } from '../../ui/useSongColor'
 import { FixMetadata } from '../metadata/FixMetadata'
@@ -47,7 +48,7 @@ import {
   soundWords,
   type PlayStrip,
 } from './song.model'
-import { goBack, useGoBack } from '../../ui/useBackTo'
+import { goBack } from '../../ui/useBackTo'
 import { useVia } from '../../connection/via'
 import { ScrollView } from '../../ui/components/Scroll'
 
@@ -109,7 +110,6 @@ function SongPage({ song }: { song: Song }): ReactNode {
   const tags = (library?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
   const isCurrent = player.current?.id === song.id
   const rest = bylineRest(song)
-  const back = useGoBack('/')
 
   return (
     <View style={styles.screen}>
@@ -122,7 +122,7 @@ function SongPage({ song }: { song: Song }): ReactNode {
           // the whole page would push the light down with everything else and
           // leave a black band above it, where a place's page runs its light
           // right up under the status bar (Xiao, 2026-09-27).
-          { paddingTop: top + space.sm, paddingBottom: bottom + space.xl },
+          { paddingTop: top + pageFrame(wide).paddingTop, paddingBottom: bottom + space.xl },
         ]}
       >
         <View style={styles.light}>
@@ -130,9 +130,7 @@ function SongPage({ song }: { song: Song }): ReactNode {
         </View>
 
         <View style={styles.topBar}>
-          <IconButton label="Back" onPress={back} filled>
-            <ChevronLeft size={20} tone="textPrimary" />
-          </IconButton>
+          <BackButton to="/" always />
           <View style={styles.topRight}>
             <IconButton
               label={song.loved ? 'Unlike' : 'Like'}

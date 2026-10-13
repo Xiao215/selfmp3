@@ -1,12 +1,12 @@
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import type { ReactNode } from 'react'
-import { Text } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLayout } from '../../shell/useLayout'
 import { ServerAway } from '../../connection/ServerAway'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { pageTitle } from '../../ui/surfaces'
+import { pageFrame } from '../../ui/surfaces'
+import { PageHeader } from '../../ui/components/PageHeader'
 import { ImportReview } from './ImportReview'
 import { ImportScreen } from './ImportScreen'
 import { ImportSearch } from './ImportSearch'
@@ -52,9 +52,9 @@ export function ImportViaServer({
       <ScrollView
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
       >
-        <Text style={styles.heading} accessibilityRole="header">
-          Import
-        </Text>
+        {/* The same head as the page it stands in for, the way back too: away
+            from the server, Import still has somewhere to go back to. */}
+        <PageHeader title="Import" back={{ to: '/profile', testID: 'import-back' }} />
         <ServerAway reach={reach} need="import" testID="import-server" />
         {reach.state === 'away' ? <QueueViaBucket /> : null}
         <ChromeSpacer />
@@ -66,7 +66,6 @@ export function ImportViaServer({
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40 },
-  contentWide: { paddingTop: 28, paddingHorizontal: 32, maxWidth: 820 },
-  contentNarrow: { paddingTop: 18, paddingHorizontal: 16 },
-  heading: pageTitle(theme.colors),
+  contentWide: { ...pageFrame(true), maxWidth: 820 },
+  contentNarrow: pageFrame(false),
 }))

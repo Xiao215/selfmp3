@@ -7,7 +7,6 @@ import type { WrappedRange } from '@selfmp3/shared'
 import {
   failureText,
   leading,
-  space,
   type,
   useLibrary,
   withAlpha,
@@ -22,7 +21,7 @@ import { canSaveLook, saveLook } from '../../ports/saveLook'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
-import { useBackTo, usePageBack } from '../../ui/useBackTo'
+import { useBackTo } from '../../ui/useBackTo'
 import { BackButton } from '../../ui/components/BackButton'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
@@ -30,7 +29,7 @@ import { Download, Play } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Segmented } from '../../ui/components/Segmented'
 import { Select } from '../../ui/components/Select'
-import { card, floating, sectionTitle } from '../../ui/surfaces'
+import { card, floating, pageFrame, sectionTitle } from '../../ui/surfaces'
 import { WrittenReport } from '../smart/WrittenReport'
 import { useStatsFor, useStatsSongs, useWrappedFor } from '../stats/statsSource'
 import { LOOK_VIEWS } from './looks'
@@ -263,7 +262,6 @@ function ReportFrame({
   const { theme } = useUnistyles()
   const { wide } = useLayout()
   const accent = useAccent()
-  const page = usePageBack('/stats')
   const picker = (
     <LookPicker
       looks={looksFor(wide)}
@@ -278,6 +276,9 @@ function ReportFrame({
     return (
       <SafeAreaView style={styles.screen} edges={['top']}>
         <ScrollView contentContainerStyle={styles.contentWide} testID="report-screen">
+          {/* Back to wherever the Report was opened from (J1): Stats, or Home's
+              week; above the bar, where every page's way back is. */}
+          <BackButton to="/stats" testID="report-back" />
           <View style={styles.bar}>
             {picker}
             <View style={styles.barEnd}>
@@ -291,10 +292,6 @@ function ReportFrame({
                 }))}
               />
               {share}
-              {/* Back to wherever the Report was opened from (J1): Stats, or Home's week. */}
-              {page.shown ? (
-                <Button variant="text" label="Back" onPress={page.back} testID="report-back" />
-              ) : null}
             </View>
           </View>
           {children}
@@ -480,8 +477,8 @@ const styles = StyleSheet.create(theme => ({
     bottom: -60,
     opacity: 0.8,
   },
-  contentWide: { paddingTop: 28, paddingHorizontal: space.gutterWide, paddingBottom: 48, gap: 20 },
-  contentNarrow: { paddingTop: 8, paddingHorizontal: space.gutter, paddingBottom: 28, gap: 16 },
+  contentWide: { ...pageFrame(true), paddingBottom: 48, gap: 20 },
+  contentNarrow: { ...pageFrame(false), paddingBottom: 28, gap: 16 },
   bar: {
     flexDirection: 'row',
     flexWrap: 'wrap',

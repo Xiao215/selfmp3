@@ -298,6 +298,7 @@ export class AnalysisService {
           // file forever; a forced re-run clears it. A curve from before the
           // file broke would describe some other audio, so it goes.
           await this.#motion.delete(song.id)
+          if (this.#stopped) break
           this.#audioFeatures.upsert(song.id, {
             bpm: null,
             energy: null,
@@ -311,6 +312,11 @@ export class AnalysisService {
 
         await sleep(BREATHER_MS)
       }
+    } catch (error) {
+      // Stopped mid-song, the database may already be closed under whatever
+      // was writing: the song is analysed again by whoever opens it next.
+      if (this.#stopped) return
+      throw error
     } finally {
       this.#running = false
       this.#current = null

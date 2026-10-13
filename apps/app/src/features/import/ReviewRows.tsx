@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native'
+import type { StyleProp, TextStyle, ViewStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useFocusEffect } from 'expo-router'
 import {
@@ -542,6 +543,137 @@ function NameField({
   )
 }
 
+/**
+ * An open row's three names as fields, Title, Artist and Album: stacked in a
+ * phone's card, or each in its own column of a computer's grid (`columns`).
+ */
+function NameFields({
+  item,
+  index,
+  onRename,
+  wide,
+  columns,
+}: {
+  item: ImportPreviewItem
+  index: number
+  onRename: (index: number, change: Rename) => void
+  wide: boolean
+  columns?: {
+    readonly title: StyleProp<ViewStyle>
+    readonly artist: StyleProp<ViewStyle>
+    readonly album: StyleProp<ViewStyle>
+  }
+}): ReactNode {
+  const field = (
+    label: 'Title' | 'Artist' | 'Album',
+    value: string,
+    change: (next: string) => Rename,
+  ): ReactNode => (
+    <NameField
+      label={label}
+      value={value}
+      onChange={next => onRename(index, change(next))}
+      index={index}
+      wide={wide}
+    />
+  )
+  const title = field('Title', item.title, next => ({ title: next }))
+  const artist = field('Artist', item.artist, next => ({ artist: next }))
+  const album = field('Album', item.album, next => ({ album: next }))
+  if (!columns) {
+    return (
+      <View style={styles.fields}>
+        {title}
+        {artist}
+        {album}
+      </View>
+    )
+  }
+  return (
+    <>
+      <View style={columns.title}>{title}</View>
+      <View style={columns.artist}>{artist}</View>
+      <View style={columns.album}>{album}</View>
+    </>
+  )
+}
+
+/** Whether a row has a box: not for a song the library has, nor one that could not be found. */
+function hasBox(state: ShownState): boolean {
+  return state !== 'yours' && state !== 'missing'
+}
+
+/** Whether a row's song can be heard here: one the library has is not offered. */
+function canHear(state: ShownState, canPlay: boolean): boolean {
+  return canPlay && state !== 'yours'
+}
+
+/** The row's box, or the room it would take, so every row's cover lines up. */
+function RowBox({
+  item,
+  index,
+  state,
+  onToggleChosen,
+  wide,
+}: {
+  item: ImportPreviewItem
+  index: number
+  state: ShownState
+  onToggleChosen: (index: number) => void
+  wide: boolean
+}): ReactNode {
+  if (!hasBox(state)) return <View style={wide ? styles.selectWide : styles.select} />
+  return (
+    <SelectBox
+      item={item}
+      checked={state === 'in'}
+      onToggle={() => onToggleChosen(index)}
+      wide={wide}
+    />
+  )
+}
+
+/**
+ * What the press that opens a row says, on a phone and a computer alike: the
+ * song, and that it opens to hear it and fix its name. A song the library has
+ * does not open.
+ */
+function rowA11y(
+  item: ImportPreviewItem,
+  state: ShownState,
+  opening: boolean,
+): {
+  accessibilityRole: 'button'
+  accessibilityLabel: string
+  accessibilityHint: string | undefined
+  accessibilityState: { disabled: boolean; busy: boolean }
+} {
+  const yours = state === 'yours'
+  return {
+    accessibilityRole: 'button',
+    accessibilityLabel: `${item.title || 'Untitled'}, ${artistOr(item.artist)}`,
+    accessibilityHint: yours ? undefined : 'Opens it to hear it and fix its name',
+    accessibilityState: { disabled: yours, busy: opening },
+  }
+}
+
+/** A row's title: "Untitled" for none, struck through when it is left out. */
+function RowTitle({
+  item,
+  state,
+  style,
+}: {
+  item: ImportPreviewItem
+  state: ShownState
+  style?: StyleProp<TextStyle>
+}): ReactNode {
+  return (
+    <Text style={[styles.title, style, state === 'out' && styles.struck]} numberOfLines={1}>
+      {item.title || 'Untitled'}
+    </Text>
+  )
+}
+
 /** "1:24" and "4:08" either side of the bar, or why it will not play. */
 function barTimes(item: ImportPreviewItem, listening: Listening | null, at: number) {
   return {
@@ -626,75 +758,47 @@ const PhoneRow = memo(function PhoneRow({
         <View style={styles.openTop}>
           {/* The row's box stays where it was, so a song liked while hearing it is ticked from here. */}
           <View style={styles.selectOpen}>
-            {state === 'missing' ? (
-              <View style={styles.select} />
-            ) : (
-              <SelectBox
-                item={item}
-                checked={state === 'in'}
-                onToggle={() => onToggleChosen(index)}
-                wide={false}
-              />
-            )}
+            <RowBox
+              item={item}
+              index={index}
+              state={state}
+              onToggleChosen={onToggleChosen}
+              wide={false}
+            />
           </View>
           <ListenCover
             item={item}
             listening={listening}
             onPress={() => onPlay(index)}
-            shown={canPlay}
+            shown={canHear(state, canPlay)}
             size={56}
           />
-          <View style={styles.fields}>
-            <NameField
-              label="Title"
-              value={item.title}
-              onChange={title => onRename(index, { title })}
-              index={index}
-              wide={false}
-            />
-            <NameField
-              label="Artist"
-              value={item.artist}
-              onChange={artist => onRename(index, { artist })}
-              index={index}
-              wide={false}
-            />
-            <NameField
-              label="Album"
-              value={item.album}
-              onChange={album => onRename(index, { album })}
-              index={index}
-              wide={false}
-            />
-          </View>
+          <NameFields item={item} index={index} onRename={onRename} wide={false} />
         </View>
         <SourceChoice item={item} index={index} onSource={onSource} onLookAgain={onLookAgain} />
         {/* Ticking only while this row's song is the one playing; before, at the start. */}
-        {!canPlay ? null : listening ? <AtPosition position={position}>{bar}</AtPosition> : bar(0)}
+        {!canHear(state, canPlay) ? null : listening ? (
+          <AtPosition position={position}>{bar}</AtPosition>
+        ) : (
+          bar(0)
+        )}
       </Pressable>
     )
   }
 
-  const out = state === 'out'
   return (
     <View style={styles.phoneRow} testID={`import-row-${index}`}>
-      {state === 'yours' || state === 'missing' ? (
-        <View style={styles.select} />
-      ) : (
-        <SelectBox
-          item={item}
-          checked={state === 'in'}
-          onToggle={() => onToggleChosen(index)}
-          wide={false}
-        />
-      )}
+      <RowBox
+        item={item}
+        index={index}
+        state={state}
+        onToggleChosen={onToggleChosen}
+        wide={false}
+      />
       <Pressable
         onPress={state === 'yours' ? undefined : () => onOpen(index)}
         disabled={state === 'yours'}
-        accessibilityRole="button"
-        accessibilityLabel={`${item.title}, ${artistOr(item.artist)}`}
-        accessibilityHint={state === 'yours' ? undefined : 'Opens it to hear it and fix its name'}
-        accessibilityState={{ disabled: state === 'yours', busy: opening }}
+        {...rowA11y(item, state, opening)}
         style={({ pressed }) => [
           styles.phoneRowBody,
           state !== 'in' && state !== 'picking' && styles.dim,
@@ -710,9 +814,7 @@ const PhoneRow = memo(function PhoneRow({
           ) : null}
         </View>
         <View style={styles.texts}>
-          <Text style={[styles.title, out && styles.struck]} numberOfLines={1}>
-            {item.title || 'Untitled'}
-          </Text>
+          <RowTitle item={item} state={state} />
           <Text style={styles.artist} numberOfLines={1}>
             {artistOr(item.artist)}
           </Text>
@@ -735,6 +837,7 @@ const GridRow = memo(function GridRow({
   index,
   state,
   open,
+  opening,
   listening,
   canPlay,
   finePointer,
@@ -754,7 +857,6 @@ const GridRow = memo(function GridRow({
   const colors = useToneColors(listening?.tone ?? null)
   // With no pointer to wait for (a tablet at this width), what hover shows is always shown.
   const reveal = hovered || !finePointer
-  const out = state === 'out'
   const lit = open || (hovered && state !== 'yours')
   const showBar = open && canPlay && listening !== null
 
@@ -769,20 +871,11 @@ const GridRow = memo(function GridRow({
       onPointerLeave={() => setHovered(false)}
     >
       <View style={[styles.grid, styles.gridRow]}>
-        {state === 'yours' || state === 'missing' ? (
-          <View style={styles.selectWide} />
-        ) : (
-          <SelectBox
-            item={item}
-            checked={state === 'in'}
-            onToggle={() => onToggleChosen(index)}
-            wide
-          />
-        )}
+        <RowBox item={item} index={index} state={state} onToggleChosen={onToggleChosen} wide />
         {/* The box keeps its full colour: dimmed, an empty ring would all but vanish. */}
         <View style={[styles.cells, state !== 'in' && state !== 'picking' && !open && styles.dim]}>
           <View style={styles.colCover}>
-            {canPlay && state !== 'yours' ? (
+            {canHear(state, canPlay) ? (
               <ListenCover
                 item={item}
                 listening={listening}
@@ -794,46 +887,21 @@ const GridRow = memo(function GridRow({
             )}
           </View>
           {open ? (
-            <>
-              <View style={styles.colTitle}>
-                <NameField
-                  label="Title"
-                  value={item.title}
-                  onChange={title => onRename(index, { title })}
-                  index={index}
-                  wide
-                />
-              </View>
-              <View style={styles.colArtist}>
-                <NameField
-                  label="Artist"
-                  value={item.artist}
-                  onChange={artist => onRename(index, { artist })}
-                  index={index}
-                  wide
-                />
-              </View>
-              <View style={styles.colAlbum}>
-                <NameField
-                  label="Album"
-                  value={item.album}
-                  onChange={album => onRename(index, { album })}
-                  index={index}
-                  wide
-                />
-              </View>
-            </>
+            <NameFields
+              item={item}
+              index={index}
+              onRename={onRename}
+              wide
+              columns={{ title: styles.colTitle, artist: styles.colArtist, album: styles.colAlbum }}
+            />
           ) : (
             <Pressable
               onPress={state === 'yours' ? undefined : () => onOpen(index)}
               disabled={state === 'yours'}
-              accessibilityRole="button"
-              accessibilityLabel={`Edit ${item.title || 'this song'}`}
+              {...rowA11y(item, state, opening)}
               style={styles.names2}
             >
-              <Text style={[styles.title, styles.colTitle, out && styles.struck]} numberOfLines={1}>
-                {item.title || 'Untitled'}
-              </Text>
+              <RowTitle item={item} state={state} style={styles.colTitle} />
               <Text style={[styles.artist, styles.colArtist]} numberOfLines={1}>
                 {artistOr(item.artist)}
               </Text>

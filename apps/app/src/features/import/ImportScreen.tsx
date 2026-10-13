@@ -14,7 +14,6 @@ import {
   type Tag,
 } from '@selfmp3/shared'
 import {
-  ApiError,
   canImportNext,
   canLookUp,
   clockIn,
@@ -61,6 +60,7 @@ import { TagItPill } from './ImportTags'
 import { draftFor, useImportDraft } from './importDraft'
 import { draftSourceFor } from './importDraft.model'
 import { reviewUrls, useRefreshReview } from './useRefreshReview'
+import { useImportFailure } from './ImportPage'
 import { useImportSource } from './importSource'
 import { comingIn, countLabel, reviewName } from './review.model'
 import { ScrollView } from '../../ui/components/Scroll'
@@ -120,27 +120,10 @@ export function ImportScreen({
   const { links, review, tagIds } = draft
   // The card offering a kept review counts songs coming in: as the library is now.
   useRefreshReview(api, key, reviewUrls(review))
-  const [error, setError] = useState<string | null>(null)
+  const { error, setError, failed } = useImportFailure(via, onUnreachable)
   const [linksFocused, setLinksFocused] = useState(false)
   /** What the pasted links take up, so the box grows with them. */
   const [linksHeight, setLinksHeight] = useState(0)
-  /*
-   * A request that never reached the server is not an import that failed. The
-   * browser's words for it are "Failed to fetch", which tell a person nothing
-   * and used to be all this screen said — while the way forward, leaving the
-   * link for the server to take when it wakes, sat on a screen it never showed
-   * because the look-out only looks every twenty seconds, and not at all in a
-   * tab that is in the background.
-   */
-  const failed = (err: Error): void => {
-    if (viaServer && err instanceof ApiError && err.isOffline) {
-      setError('Your library’s computer stopped answering. Looking for it again…')
-      onUnreachable?.()
-      return
-    }
-    setError(err.message)
-  }
-
   const tags = library?.tags ?? []
 
   const preview = useMutation({

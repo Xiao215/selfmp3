@@ -4,29 +4,21 @@ import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { Redirect } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
-import { ApiError, leading, space, type, type Review, type ServerConnection } from '@selfmp3/client'
-import { useFootInset } from '../../shell/bottomInset'
+import { leading, space, type, type Review, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { canListenHere } from '../../ports/listen'
 import { label as groupLabel, pageFrame, pageTitle } from '../../ui/surfaces'
 import { PageHeader } from '../../ui/components/PageHeader'
-import { NoticeCard } from '../../ui/components/NoticeCard'
-import { Button } from '../../ui/components/Button'
-import { useBackTo } from '../../ui/useBackTo'
 import { Cover } from '../../ui/components/Cover'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { useListen } from './ImportListen'
-import { TagThem } from './ImportTags'
-import { chooseAllIn, useImportDraft } from './importDraft'
-import { draftSourceFor } from './importDraft.model'
-import { useImportSource } from './importSource'
+import { ImportFoot, useImportPage } from './ImportPage'
+import { chooseAllIn } from './importDraft'
 import { reviewUrls, useRefreshReview } from './useRefreshReview'
 import { useFindSongs } from './useFindSongs'
 import { canListen } from './listen.model'
 import {
   comingIn,
   countLabel,
-  importLabel,
   importRequest,
   mosaicCovers,
   reviewKicker,
@@ -67,29 +59,16 @@ export function ImportReview({
   onUnreachable?: () => void
 } = {}): ReactNode {
   const { wide, finePointer } = useLayout()
-  const source = useImportSource(via)
-  const key = draftSourceFor(via)
-  const [draft, patchDraft] = useImportDraft(key)
+  const page = useImportPage(via, onUnreachable)
+  const { source, draft, patchDraft, listen, backTo, failed } = page
+  const key = page.draftKey
   const { review, tagIds } = draft
   // A kept review's "In library" is from when the link was looked up.
   useRefreshReview(source.api, key, reviewUrls(review))
   // Songs known only by name — a Spotify list, 网易云's VIP songs — are found as the review shows.
   const finder = useFindSongs(source.api, key, review)
-  const listen = useListen(via, source.api)
-  const backTo = useBackTo()
-  const footInset = useFootInset()
-  const [error, setError] = useState<string | null>(null)
   /** Imported or cancelled: the draft empties as the page leaves, which is not a review to go looking for. */
   const [leaving, setLeaving] = useState(false)
-
-  const failed = (err: Error): void => {
-    if (via && err instanceof ApiError && err.isOffline) {
-      setError('Your library’s computer stopped answering. Looking for it again…')
-      onUnreachable?.()
-      return
-    }
-    setError(err.message)
-  }
 
   /**
    * Back to Import with the review done. Imported, the draft starts afresh —
@@ -134,18 +113,6 @@ export function ImportReview({
   const finding = stillFinding(review)
   const tags = source.library?.tags ?? []
   const anyToHear = canListenHere && review.items.some(canListen)
-
-  const importButton = (
-    <Button
-      label={importLabel(count, finding)}
-      variant="primary"
-      grow={!wide}
-      disabled={count === 0 || finding > 0}
-      busy={enqueue.isPending}
-      onPress={() => enqueue.mutate(review)}
-      testID="import-commit"
-    />
-  )
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -223,44 +190,22 @@ export function ImportReview({
         </Pressable>
       </ScrollView>
 
-      {/*
-       * The foot stays put under the list, the commit always in reach however
-       * long the playlist; on a phone it stands clear of the floating chrome,
-       * or of the home indicator on this page, which has no chrome.
-       */}
-      <Pressable
-        onPress={wide || open === null ? undefined : closeRow}
-        accessible={false}
-        style={[wide ? styles.footWide : styles.footPhone, { paddingBottom: footInset + 12 }]}
-      >
-        {error ? (
-          <NoticeCard tone="error" onDismiss={() => setError(null)}>
-            {error}
-          </NoticeCard>
-        ) : null}
-        {finder.error ? (
-          <NoticeCard
-            tone="error"
-            actions={<Button label="Try again" variant="text" onPress={finder.retry} />}
-          >
-            {finder.error}
-          </NoticeCard>
-        ) : null}
-        <View style={wide ? styles.footRow : styles.footColumn}>
-          <View style={wide ? styles.tagsWide : null}>
-            <TagThem
-              tags={tags}
-              createTag={source.createTag}
-              selected={tagIds}
-              onChange={next => patchDraft({ tagIds: next })}
-            />
-          </View>
-          {wide ? (
-            <Button label="Cancel" variant="text" onPress={() => leave({ imported: false })} />
-          ) : null}
-          {importButton}
-        </View>
-      </Pressable>
+      <ImportFoot
+        error={page.error}
+        onDismissError={() => page.setError(null)}
+        finder={finder}
+        tags={tags}
+        createTag={source.createTag}
+        tagIds={tagIds}
+        onTags={next => patchDraft({ tagIds: next })}
+        onCancel={() => leave({ imported: false })}
+        count={count}
+        finding={finding}
+        busy={enqueue.isPending}
+        onImport={() => enqueue.mutate(review)}
+        onGround={open === null ? undefined : closeRow}
+        testID="import-commit"
+      />
     </SafeAreaView>
   )
 }
@@ -317,9 +262,4 @@ const styles = StyleSheet.create(theme => ({
   },
   listPhone: { paddingHorizontal: space.gutter, flexGrow: 1 },
   listWide: { paddingHorizontal: 28 },
-  footPhone: { gap: 10, paddingTop: 8, paddingHorizontal: space.gutter },
-  footWide: { gap: 10, paddingTop: 12, paddingHorizontal: space.gutterWide },
-  footColumn: { gap: 10 },
-  footRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  tagsWide: { flex: 1, minWidth: 0 },
 }))

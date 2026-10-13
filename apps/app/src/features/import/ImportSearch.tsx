@@ -4,25 +4,19 @@ import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
-import { ApiError, leading, space, type, type Review, type ServerConnection } from '@selfmp3/client'
-import { useFootInset } from '../../shell/bottomInset'
+import { leading, space, type, type Review, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { pageFrame } from '../../ui/surfaces'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { NoticeCard } from '../../ui/components/NoticeCard'
 import { Button } from '../../ui/components/Button'
-import { useBackTo } from '../../ui/useBackTo'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SearchField } from '../../ui/components/SearchField'
-import { useListen } from './ImportListen'
-import { TagThem } from './ImportTags'
-import { useImportDraft } from './importDraft'
-import { draftSourceFor } from './importDraft.model'
-import { useImportSource } from './importSource'
+import { ImportFoot, useImportPage } from './ImportPage'
 import { useFindSongs } from './useFindSongs'
 import { useSongSearch } from './useSongSearch'
-import { comingIn, importLabel, importRequest, stillFinding } from './review.model'
+import { comingIn, importRequest, stillFinding } from './review.model'
 import { ReviewGridHead, useReviewRows } from './ReviewRows'
 import { ScrollView } from '../../ui/components/Scroll'
 
@@ -54,9 +48,9 @@ export function ImportSearch({
 } = {}): ReactNode {
   const { wide, finePointer } = useLayout()
   const { theme } = useUnistyles()
-  const source = useImportSource(via)
-  const key = draftSourceFor(via)
-  const [draft, patchDraft] = useImportDraft(key)
+  const page = useImportPage(via, onUnreachable)
+  const { source, draft, patchDraft, listen, backTo, failed } = page
+  const key = page.draftKey
   const { search, tagIds } = draft
   const params = useLocalSearchParams<{ q?: string }>()
   /** The words in the field: what Import's box sent, or the search this page was left with. */
@@ -65,21 +59,8 @@ export function ImportSearch({
   const searching = useSongSearch(source.api, key, query, search?.query ?? null)
   // A 网易云 song it only previews, with no YouTube Music answer surely the same, is found as it shows.
   const finder = useFindSongs(source.api, key, search?.review ?? null, 'search')
-  const listen = useListen(via, source.api)
-  const backTo = useBackTo()
-  const footInset = useFootInset()
-  const [error, setError] = useState<string | null>(null)
   /** "Show more" pressed for these words; new words start short again. */
   const [moreFor, setMoreFor] = useState<string | null>(null)
-
-  const failed = (err: Error): void => {
-    if (via && err instanceof ApiError && err.isOffline) {
-      setError('Your library’s computer stopped answering. Looking for it again…')
-      onUnreachable?.()
-      return
-    }
-    setError(err.message)
-  }
 
   const found = useReviewRows({
     draft: key,
@@ -209,50 +190,23 @@ export function ImportSearch({
         </Pressable>
       </ScrollView>
 
-      {/*
-       * The foot stays put under the list, as the review's does: the tags the
-       * songs arrive with, and Import, in reach however far down the list is.
-       */}
-      <Pressable
-        onPress={closeOpen}
-        accessible={false}
-        style={[wide ? styles.footWide : styles.footPhone, { paddingBottom: footInset + 12 }]}
-      >
-        {error ? (
-          <NoticeCard tone="error" onDismiss={() => setError(null)}>
-            {error}
-          </NoticeCard>
-        ) : null}
-        {finder.error ? (
-          <NoticeCard
-            tone="error"
-            actions={<Button label="Try again" variant="text" onPress={finder.retry} />}
-          >
-            {finder.error}
-          </NoticeCard>
-        ) : null}
-        <View style={wide ? styles.footRow : styles.footColumn}>
-          <View style={wide ? styles.tagsWide : null}>
-            <TagThem
-              tags={tags}
-              createTag={source.createTag}
-              selected={tagIds}
-              onChange={next => patchDraft({ tagIds: next })}
-            />
-          </View>
-          <Button
-            label={importLabel(picked, finding)}
-            variant="primary"
-            grow={!wide}
-            disabled={picked === 0 || finding > 0}
-            busy={enqueue.isPending}
-            onPress={() => {
-              if (search) enqueue.mutate(search.review)
-            }}
-            testID="import-search-commit"
-          />
-        </View>
-      </Pressable>
+      <ImportFoot
+        error={page.error}
+        onDismissError={() => page.setError(null)}
+        finder={finder}
+        tags={tags}
+        createTag={source.createTag}
+        tagIds={tagIds}
+        onTags={next => patchDraft({ tagIds: next })}
+        count={picked}
+        finding={finding}
+        busy={enqueue.isPending}
+        onImport={() => {
+          if (search) enqueue.mutate(search.review)
+        }}
+        onGround={closeOpen}
+        testID="import-search-commit"
+      />
     </SafeAreaView>
   )
 }
@@ -285,10 +239,5 @@ const styles = StyleSheet.create(theme => ({
   none: { color: theme.colors.textSecondary, fontSize: type.sub, paddingVertical: 8 },
   looking: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14 },
   lookingText: { color: theme.colors.textSecondary, fontSize: type.sub },
-  footPhone: { gap: 10, paddingTop: 8, paddingHorizontal: space.gutter },
-  footWide: { gap: 10, paddingTop: 12, paddingHorizontal: space.gutterWide },
-  footColumn: { gap: 10 },
-  footRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  tagsWide: { flex: 1, minWidth: 0 },
   searchError: { marginBottom: 8 },
 }))

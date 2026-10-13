@@ -54,15 +54,15 @@ describe('the swipe-back gesture', () => {
     expect(swipeBackAllowed('now-playing')).toBe(true)
   })
 
-  it("waits for the edge on Import, where a preview's bar drags sideways", () => {
-    for (const route of ['import/index', 'import', 'import/review']) {
+  it("waits for the edge where a preview's bar drags sideways", () => {
+    for (const route of ['import/review', 'import/search']) {
       expect(swipeBackAllowed(route)).toBe(true)
       expect(fullScreenSwipeAllowed(route)).toBe(false)
     }
   })
 
   it('keeps the whole-display swipe everywhere else', () => {
-    for (const route of ['playlists/[id]', 'settings', 'stats/index', 'tags']) {
+    for (const route of ['import/index', 'playlists/[id]', 'settings', 'stats/index', 'tags']) {
       expect(fullScreenSwipeAllowed(route)).toBe(true)
     }
   })

@@ -170,7 +170,7 @@ export function PlaylistSongsAnswer({
         )
       } else {
         await removeMany.mutateAsync({ playlistId, songIds })
-        undoToast(`Took ${plural(songIds.length, 'song', 'songs')} out of ${name}`, async () => {
+        undoToast(`Removed ${plural(songIds.length, 'song', 'songs')} from ${name}`, async () => {
           await add.mutateAsync({ playlistId, songIds })
           await reorder.mutateAsync({ playlistId, songIds: before })
         })

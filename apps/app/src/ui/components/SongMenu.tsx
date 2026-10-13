@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
+import { askForGuide } from '../../features/guide/guideMemory'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter, type Href } from 'expo-router'
 import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
@@ -290,9 +291,12 @@ function Items({
               <SheetItem
                 key={list.id}
                 label={list.name}
-                onPress={then(() =>
-                  addToPlaylist.mutate({ playlistId: list.id, songIds: [song.id] }),
-                )}
+                onPress={then(() => {
+                  addToPlaylist.mutate({ playlistId: list.id, songIds: [song.id] })
+                  // A computer can drop songs on the sidebar's playlists instead,
+                  // which this is the moment to show (`sidebar-drop`).
+                  askForGuide('sidebar-drop')
+                })}
               />
             ))
           )}

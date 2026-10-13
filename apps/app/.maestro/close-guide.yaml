@@ -1,0 +1,20 @@
+# Closes a one-time guide if one comes up (docs/features/guides.md).
+#
+# A guide darkens the screen about 0.7 s after a page settles and takes the
+# next tap, which would otherwise be the tap the flow meant for a button. Run
+# after arriving somewhere a guide may show: Library, a playlist, Up next,
+# Now Playing, Tags, Import.
+appId: com.selfmp3.app
+---
+- extendedWaitUntil:
+    visible:
+      id: 'guide'
+    timeout: 2500
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'guide'
+    commands:
+      - tapOn:
+          id: 'guide'

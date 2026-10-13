@@ -37,6 +37,8 @@ import {
 } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { HueSwatches, autoTagHue } from '../../ui/components/HueSwatches'
+import { Guide } from '../guide/Guide'
+import { useGuide } from '../guide/useGuide'
 import { TagEditor } from '../../ui/components/TagEditor'
 import { useFade, usePressScale } from '../../ui/motion'
 import { MOVE_MS } from '../../ui/motion.model'
@@ -154,6 +156,15 @@ export function TagsScreen(): ReactNode {
     [library],
   )
   const layout = useMemo(() => tagsLayout(standings), [standings])
+  /*
+   * A pointer has the ⋯ and right-click; a finger has only the hold, which
+   * nothing on a tile says, so it is shown once on the first tile.
+   */
+  const firstTagId = (layout.main[0] ?? layout.justStarted[0])?.standing.tag.id
+  const [lightTile, holdGuide] = useGuide('tag-hold', !finePointer && firstTagId !== undefined)
+  useEffect(() => {
+    lightTile(firstTagId === undefined ? null : (rowRefs.current.get(firstTagId) ?? null))
+  })
   // Each tag keeps its place in the most-played order as its index, wherever
   // it is drawn, so the first tile is always the most played.
   const order = useMemo(
@@ -300,16 +311,18 @@ export function TagsScreen(): ReactNode {
                 ) : null}
               </>
             ) : null}
-            {/* A pointer has the ⋯ and right-click; a finger has only the hold, so it is told. */}
-            {finePointer ? null : (
-              <Text style={styles.footer}>Hold a tag to rename, recolour or delete it.</Text>
-            )}
           </View>
         )}
         <ChromeSpacer />
       </ScrollView>
 
       <TagEditor tag={editing} anchorRef={editorAnchor} onClose={() => setEditing(null)} />
+      <Guide
+        guide={holdGuide}
+        at={{ x: 0.5, y: 0.45 }}
+        radius={16}
+        steps={[{ gesture: 'hold', text: 'Hold a tag to rename, recolour or delete it' }]}
+      />
     </SafeAreaView>
   )
 }
@@ -969,11 +982,5 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textMuted,
     fontSize: type.small,
     lineHeight: leading.small,
-  },
-  footer: {
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    textAlign: 'center',
-    paddingTop: space.sm,
   },
 }))

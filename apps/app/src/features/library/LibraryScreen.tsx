@@ -43,6 +43,8 @@ import { librarySource, playAlone } from '../lists/lists.model'
 import { tagLink } from '../tag/placeLinks'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { usePullToRefresh } from './usePullToRefresh'
+import { Guide } from '../guide/Guide'
+import { useGuide } from '../guide/useGuide'
 import { useSongTagLookup } from '../../ui/songTags'
 import { label, PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageTitle } from '../../ui/surfaces'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
@@ -214,10 +216,20 @@ export function LibraryScreen(): ReactNode {
   // No server to stream from, or (from the bucket) no connection or a cap.
   const unreachable = model.unreachable || streamBlocked
   const menuSongId = songMenu.openId
+  /*
+   * Holding a song to select it has nothing on the row to say so. A finger
+   * is shown once, on the second visit, so the first look at a library is
+   * left alone; a pointer has Shift and ⌘ and its own ticks.
+   */
+  const [guideTarget, selectGuide] = useGuide(
+    'library-select',
+    !finePointer && !selection.active && !model.loading && visible.length > 0,
+    { afterVisits: 1 },
+  )
   const renderSong = useCallback(
     ({ item, index }: { item: Song; index: number }) => {
       const here = downloaded(item.id)
-      return (
+      const row = (
         <SongRow
           testID={`song-row-${index}`}
           song={item}
@@ -242,8 +254,16 @@ export function LibraryScreen(): ReactNode {
           onEditTags={onRowEditTags}
         />
       )
+      return index === 0 ? (
+        <View ref={guideTarget} collapsable={false}>
+          {row}
+        </View>
+      ) : (
+        row
+      )
     },
     [
+      guideTarget,
       installed,
       artFor,
       downloaded,
@@ -649,6 +669,16 @@ export function LibraryScreen(): ReactNode {
       {rowTags.picker}
 
       {songMenu.menu}
+      <Guide
+        guide={selectGuide}
+        steps={[
+          {
+            gesture: 'hold',
+            text: 'Hold a song to select several',
+            sub: 'Then add them to a playlist, or tag them',
+          },
+        ]}
+      />
     </SafeAreaView>
   )
 }

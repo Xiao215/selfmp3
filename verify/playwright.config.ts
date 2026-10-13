@@ -27,6 +27,10 @@ function storageStateFor(deviceId: string) {
         localStorage: [
           { name: 'selfmp3.baseUrl', value: appApi },
           { name: 'selfmp3.device.id', value: deviceId },
+          // Every one-time guide already seen: a guide darkens the page and
+          // takes the next tap, which would be the tap a flow meant for a
+          // button. The flow about guides clears this itself.
+          { name: 'selfmp3.guides', value: '*' },
         ],
       },
     ],

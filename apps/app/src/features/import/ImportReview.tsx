@@ -44,6 +44,8 @@ import {
 } from './review.model'
 import { AllBox, ReviewGridHead, useReviewRows } from './ReviewRows'
 import { ScrollView } from '../../ui/components/Scroll'
+import { Guide } from '../guide/Guide'
+import { useGuide } from '../guide/useGuide'
 
 /**
  * Reviewing what a link holds, before any of it downloads (`/import/review`,
@@ -136,6 +138,9 @@ export function ImportReview({
     showFrom,
   })
   const chooseAll = (on: boolean): void => chooseAllIn(key, on)
+  // What a row does on a phone, shown once on the first row rather than said
+  // above the list on every visit.
+  const [firstRow, rowsGuide] = useGuide('import-review', !wide && rows.length > 0)
 
   if (!review) return leaving ? null : <Redirect href="/import" />
 
@@ -220,17 +225,20 @@ export function ImportReview({
               showFrom={showFrom}
             />
           ) : (
-            <>
-              <Text style={styles.hint}>
-                {anyToHear
-                  ? 'Untick a song to leave it out. Tap a song to hear it and to fix its name.'
-                  : 'Untick a song to leave it out. Tap a song to fix its name.'}
-              </Text>
+            <View style={styles.allPhone}>
               <AllBox review={review} onChange={chooseAll} wide={false} />
-            </>
+            </View>
           )}
           <View accessibilityRole="list" accessibilityLabel="Songs to import">
-            {rows}
+            {rows.map((row, index) =>
+              index === 0 ? (
+                <View key="first" ref={firstRow} collapsable={false}>
+                  {row}
+                </View>
+              ) : (
+                row
+              ),
+            )}
           </View>
         </Pressable>
       </ScrollView>
@@ -281,6 +289,17 @@ export function ImportReview({
           {importButton}
         </View>
       </Pressable>
+      <Guide
+        guide={rowsGuide}
+        at={{ x: 0.55, y: 0.5 }}
+        steps={[
+          {
+            gesture: 'tap',
+            text: anyToHear ? 'Tap a song to hear it' : 'Tap a song to fix its name',
+            sub: 'Untick it to leave it out',
+          },
+        ]}
+      />
     </SafeAreaView>
   )
 }
@@ -339,13 +358,7 @@ const styles = StyleSheet.create(theme => ({
   kicker: { ...groupLabel(theme.colors), fontSize: type.small, color: theme.colors.textSecondary },
   // The serif has one weight; the name is never bolded.
   nameWide: { ...serif(theme.colors, type.page), lineHeight: 34 },
-  hint: {
-    color: theme.colors.textSecondary,
-    fontSize: type.sub,
-    lineHeight: leading.sub,
-    paddingTop: 12,
-    paddingBottom: 4,
-  },
+  allPhone: { paddingTop: 12 },
   listPhone: { paddingHorizontal: space.gutter, flexGrow: 1 },
   listWide: { paddingHorizontal: 28 },
   footPhone: { gap: 10, paddingTop: 8, paddingHorizontal: space.gutter },

@@ -68,6 +68,8 @@ import { reviewUrls, useRefreshReview } from './useRefreshReview'
 import { useImportSource } from './importSource'
 import { comingIn, countLabel, reviewName } from './review.model'
 import { ScrollView } from '../../ui/components/Scroll'
+import { Guide } from '../guide/Guide'
+import { useGuide, type GuideTarget } from '../guide/useGuide'
 
 /** How many of today's finished imports are listed before "Show all". */
 const FINISHED_SHOWN = 5
@@ -389,9 +391,16 @@ export function ImportScreen({
    * above it slid Couldn't import's own Retry all into the Retry just pressed.
    */
   const nextUp = folded?.importing.find(job => job.status === 'queued')?.id ?? null
+  // A phone's rows swipe for Next and Remove, which nothing on them says:
+  // shown once, on the first such row, when there are two or more to act on.
+  const swipeable =
+    !wide && folded ? [...folded.failed, ...folded.importing].filter(dismissable) : []
+  const [swipeTarget, swipeGuide] = useGuide('import-rows', swipeable.length >= 2)
+  const firstSwipe = swipeable[0]?.id ?? null
   const rowProps = (job: ImportJob) => ({
     job,
     tags,
+    guideTarget: job.id === firstSwipe ? swipeTarget : undefined,
     nextLine: job.id === nextUp && queue ? nextLine(queue.pacing) : null,
     onPause: () => act({ kind: 'pause', id: job.id }, () => api.cancelImport(job.id)),
     onResume: () => act({ kind: 'resume', id: job.id }, () => api.retryImport(job.id)),
@@ -527,6 +536,10 @@ export function ImportScreen({
         )}
         <ChromeSpacer />
       </ScrollView>
+      <Guide
+        guide={swipeGuide}
+        steps={[{ gesture: 'swipe-left', text: 'Swipe left for Next and Remove', distance: 120 }]}
+      />
     </SafeAreaView>
   )
 }
@@ -762,9 +775,12 @@ function JobRow({
   onRetry,
   onDismiss,
   onNext,
+  guideTarget,
 }: {
   job: ImportJob
   tags: readonly Tag[]
+  /** Where the swipe guide lights, on the first row that swipes. */
+  guideTarget?: GuideTarget
   /** For the song whose turn is next: when it starts. */
   nextLine: string | null
   onPause: () => void
@@ -866,7 +882,7 @@ function JobRow({
   )
 
   if (wide || !removable) return row
-  return (
+  const swipe = (
     <SwipeActions
       name={name}
       onRemove={onDismiss}
@@ -876,6 +892,13 @@ function JobRow({
     >
       {row}
     </SwipeActions>
+  )
+  return guideTarget ? (
+    <View ref={guideTarget} collapsable={false}>
+      {swipe}
+    </View>
+  ) : (
+    swipe
   )
 }
 

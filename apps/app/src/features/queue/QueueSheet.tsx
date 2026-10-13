@@ -1,6 +1,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View, useWindowDimensions } from 'react-native'
+import { Guide, slideWith } from '../guide/Guide'
+import { useGuide } from '../guide/useGuide'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -235,6 +237,14 @@ function SheetPanel({
   const shownNext = rows.next.slice(0, SHOWN_NEXT)
   const shownPlayed = rows.played.slice(-SHOWN_PLAYED)
   const first = rows.next[0]?.index ?? 0
+  /*
+   * Swiping a song away and holding one to move it, shown once on the first
+   * song to come, in place of a line that sat under the list for good.
+   */
+  const [firstTarget, guide] = useGuide(
+    'up-next',
+    shown && !inRoom && rows.next.length >= 2 && drag === null && !onlySongEnded(player),
+  )
   const last = rows.next[rows.next.length - 1]?.index ?? 0
 
   /*
@@ -292,7 +302,7 @@ function SheetPanel({
 
   const row = (entry: QueueRow, movable: boolean): ReactNode => {
     const here = isDownloaded(downloads.index, entry.song.id)
-    return (
+    const sheetRow = (
       <SheetRow
         key={entry.song.id}
         song={entry.song}
@@ -312,6 +322,17 @@ function SheetPanel({
         hideTagIds={fromTags}
         actions={actions}
       />
+    )
+    if (!movable || entry.index !== first) return sheetRow
+    return (
+      <Animated.View
+        key={entry.song.id}
+        ref={firstTarget}
+        collapsable={false}
+        style={guide.shown && guide.step === 0 ? slideWith(guide, 110) : null}
+      >
+        {sheetRow}
+      </Animated.View>
     )
   }
 
@@ -460,11 +481,22 @@ function SheetPanel({
                 })}
               </Text>
             </View>
-            <Text style={styles.hint}>Hold a song to move it · swipe left to remove it</Text>
           </ScrollView>
         )}
       </Animated.View>
       {tagPicker}
+      <Guide
+        inline
+        guide={guide}
+        steps={[
+          { gesture: 'swipe-left', text: 'Swipe left to remove a song', distance: 110 },
+          {
+            gesture: 'hold',
+            text: 'Hold a song to move it',
+            sub: 'Drag it up or down, then let go',
+          },
+        ]}
+      />
     </View>
   )
 }
@@ -920,11 +952,5 @@ const styles = StyleSheet.create(theme => ({
     textAlign: 'right',
     color: theme.colors.textMuted,
     fontSize: type.small,
-  },
-  hint: {
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    textAlign: 'center',
-    paddingTop: space.lg,
   },
 }))

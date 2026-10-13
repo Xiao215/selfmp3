@@ -9,6 +9,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import { Guide, riseWith } from '../guide/Guide'
+import { useGuide, type GuideHandle, type GuideTarget } from '../guide/useGuide'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -250,6 +252,15 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
   const [tagsOpen, setTagsOpen] = useState(false)
   // Play-and-tag, from All tags' untagged card: the tag editor up for each song in turn.
   const tagging = useTagging()
+  /*
+   * The lyrics have no button here (2026-10-12): the cover is the way in, by
+   * a tap or a pull up, and nothing on it says so. Shown once, the first time
+   * a song with words is up.
+   */
+  const [coverTarget, lyricsGuide] = useGuide(
+    'lyrics',
+    view === 'cover' && words.status === 'lyrics' && !tagging.on,
+  )
 
   const setView = (next: PhoneView): void => {
     router.setParams({ view: next === 'lyrics' ? 'lyrics' : undefined })
@@ -448,6 +459,8 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
             onMore={() => setMoreOpen(true)}
             opening={arrival}
             handed={handed}
+            guide={lyricsGuide}
+            guideTarget={coverTarget}
           />
         </Animated.View>
       ) : null}
@@ -489,6 +502,20 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
           setTagsOpen(false)
           if (tagging.open) tagging.close()
         }}
+      />
+      <Guide
+        inline
+        guide={lyricsGuide}
+        at={{ x: 0.5, y: 0.72 }}
+        radius={18}
+        steps={[
+          {
+            gesture: 'swipe-up',
+            text: 'Swipe up for lyrics',
+            sub: 'Or tap the cover',
+            distance: 90,
+          },
+        ]}
       />
     </Animated.View>
   )
@@ -553,10 +580,15 @@ function CoverView({
   onMore,
   opening,
   handed,
+  guide,
+  guideTarget,
 }: {
   song: Song
   uri: string | null | undefined
   color: string
+  /** The lyrics guide, which lights the cover and lifts it a little as the hand pulls. */
+  guide: GuideHandle
+  guideTarget: GuideTarget
   /** The page opening, 0 to 1; already 1 by the time the words have been and gone. */
   opening: Animated.Value
   /** Where the mini player's cover was, for the page's cover to start from. */
@@ -613,7 +645,15 @@ function CoverView({
         </IconButton>
       </View>
 
-      <BreathingCover song={song} uri={uri} onPress={onLyrics} opening={opening} handed={handed} />
+      <BreathingCover
+        song={song}
+        uri={uri}
+        onPress={onLyrics}
+        opening={opening}
+        handed={handed}
+        guide={guide}
+        guideTarget={guideTarget}
+      />
 
       <View style={styles.titleRow}>
         <View style={styles.titles}>
@@ -756,12 +796,16 @@ function BreathingCover({
   onPress,
   opening,
   handed,
+  guide,
+  guideTarget,
 }: {
   song: Song
   uri: string | null | undefined
   onPress: () => void
   opening: Animated.Value
   handed: CoverFrame | null
+  guide: GuideHandle
+  guideTarget: GuideTarget
 }): ReactNode {
   const playing = usePlayerPlaying()
   // The app's own width, not the window's (`shell/rootWidth.ts`).
@@ -839,14 +883,21 @@ function BreathingCover({
         )
       }}
     >
-      <Animated.View style={[styles.artShadow, { transform }]}>
-        <Pressable
-          onPress={onPress}
-          accessibilityRole="button"
-          accessibilityLabel="Show the lyrics"
-        >
-          <Cover uri={uri} title={song.album || song.title} size={size} />
-        </Pressable>
+      <Animated.View
+        ref={guideTarget}
+        collapsable={false}
+        // Shrunk to the cover, so the spotlight is the cover's and not the room around it.
+        style={[styles.guideFrame, guide.shown && riseWith(guide, 24)]}
+      >
+        <Animated.View style={[styles.artShadow, { transform }]}>
+          <Pressable
+            onPress={onPress}
+            accessibilityRole="button"
+            accessibilityLabel="Show the lyrics"
+          >
+            <Cover uri={uri} title={song.album || song.title} size={size} />
+          </Pressable>
+        </Animated.View>
       </Animated.View>
     </View>
   )
@@ -1047,6 +1098,7 @@ const styles = StyleSheet.create(theme => ({
     flex: 1,
     textAlign: 'center',
   },
+  guideFrame: { alignSelf: 'center' },
   art: {
     flex: 1,
     minHeight: 0,

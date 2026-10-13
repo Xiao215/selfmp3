@@ -989,6 +989,8 @@ test.describe('connects and plays', () => {
           }
         ).selfmp3Desktop
         await desktop.secrets.set('selfmp3.baseUrl', baseUrl)
+        // The one-time guides seen, so none darkens the window over the row this presses.
+        window.localStorage.setItem('selfmp3.guides', '*')
       }, String(appApi))
       await page.reload()
 

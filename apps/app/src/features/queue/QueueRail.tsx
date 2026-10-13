@@ -5,12 +5,12 @@ import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
-import { leading, motion, radius, space, type, withAlpha } from '@selfmp3/client'
+import { radius, space, type, withAlpha } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useOverlay } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
-import { ease, spring, timing, usePresence } from '../../ui/motion'
+import { ease, spring, timing } from '../../ui/motion'
 import { MOVE_MS, roomShift } from '../../ui/motion.model'
 import { label, sectionTitle } from '../../ui/surfaces'
 import { useSongColor } from '../../ui/useSongColor'
@@ -26,7 +26,8 @@ import { SheetItem } from '../../ui/components/Sheet'
 import { Toggle } from '../../ui/components/Toggle'
 import { UpNextSource } from './UpNextSource'
 import { OnlySongEnd, useOnlySongEndNotice } from './OnlySongEnd'
-import { useRailHint } from './useRailHint'
+import { Guide, slideWith } from '../guide/Guide'
+import { useGuide } from '../guide/useGuide'
 import { closeQueueSheet, useQueueSheetOpen } from './queueSheet.store'
 import {
   autoMixLine,
@@ -166,9 +167,12 @@ function Rail({
   const artFor = useArt(ROW_COVER_SIZE)
   const { player, rows, remove } = edits
   const inRoom = useRoom().state !== null
-  // Drag-out made known once (`useRailHint`); anything done in the rail puts it away.
-  const hint = useRailHint(shown && rows.next.length > 0)
-  const hintIn = usePresence(hint.shown, motion.base, motion.fast)
+  /*
+   * Dragging a song out removes it (chosen over a hover ✕, Xiao 2026-09-18),
+   * which nothing on screen says: the first time the rail is open with a song
+   * to come, a guide lights that song and drags it out once.
+   */
+  const [firstTarget, hint] = useGuide('up-next-rail', shown && rows.next.length > 0)
   const railRef = useRef<View>(null)
   const [drag, setDrag] = useState<Drag | null>(null)
   // The pointer's travel, which the copy follows without a render, and how far
@@ -204,14 +208,12 @@ function Rail({
     out: false,
     player,
     remove,
-    dismissHint: hint.dismiss,
   })
   useEffect(() => {
     latest.current.first = rows.next[0]?.index ?? 0
     latest.current.last = rows.next[rows.next.length - 1]?.index ?? 0
     latest.current.player = player
     latest.current.remove = remove
-    latest.current.dismissHint = hint.dismiss
   })
 
   const actions = useMemo<RowActions>(
@@ -219,8 +221,6 @@ function Rail({
       play: index => latest.current.player.jumpTo(index),
       remove: index => latest.current.remove(index),
       menu: (anchor, row) => {
-        // A right-click is not a press, so the rail's capture below never hears it.
-        latest.current.dismissHint()
         menuAnchor.current = anchor
         setMenuRow(row)
       },
@@ -341,15 +341,10 @@ function Rail({
   const [scrollStep, setScrollStep] = useState(0)
   const [viewport, setViewport] = useState(VIEWPORT_GUESS)
   const [playedLabel, setPlayedLabel] = useState(0)
-  const dismissHint = hint.dismiss
-  const onScroll = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (event.nativeEvent.contentOffset.y > 0) dismissHint()
-      const step = Math.floor(event.nativeEvent.contentOffset.y / SCROLL_STEP)
-      setScrollStep(now => (now === step ? now : step))
-    },
-    [dismissHint],
-  )
+  const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const step = Math.floor(event.nativeEvent.contentOffset.y / SCROLL_STEP)
+    setScrollStep(now => (now === step ? now : step))
+  }, [])
   const scrollTop = scrollStep * SCROLL_STEP
   const span = viewport + SCROLL_STEP
   const nextTop = playing ? ROW_HEIGHT : 0
@@ -462,12 +457,6 @@ function Rail({
         ]}
         testID="queue-rail"
         role="complementary"
-        // Any press in the rail — a row, a grip, the close — puts the hint
-        // away, and is left to whatever it was for.
-        onStartShouldSetResponderCapture={() => {
-          if (hint.shown) hint.dismiss()
-          return false
-        }}
       >
         <View style={styles.head}>
           <Text style={styles.title} accessibilityRole="header">
@@ -511,9 +500,14 @@ function Rail({
               <Animated.View style={slide.rows}>
                 <View style={{ height: rows.next.length * ROW_HEIGHT }}>
                   {rows.next.slice(nextAt.start, nextAt.end).map((row, at) => (
-                    <View
+                    <Animated.View
                       key={row.song.id}
-                      style={[styles.placed, { top: (nextAt.start + at) * ROW_HEIGHT }]}
+                      ref={row.index === rows.next[0]?.index ? firstTarget : undefined}
+                      style={[
+                        styles.placed,
+                        { top: (nextAt.start + at) * ROW_HEIGHT },
+                        hint.shown && row.index === rows.next[0]?.index && slideWith(hint, 120),
+                      ]}
                     >
                       <RailRow
                         song={row.song}
@@ -528,7 +522,7 @@ function Rail({
                         settling={lift.wearing === row.song.id}
                         actions={actions}
                       />
-                    </View>
+                    </Animated.View>
                   ))}
                 </View>
                 {rows.played.length > 0 ? (
@@ -562,33 +556,6 @@ function Rail({
                   </>
                 ) : null}
               </Animated.View>
-              {hintIn.mounted ? (
-                <Animated.View
-                  style={[
-                    styles.hint,
-                    // Under the first song to come, the one it is about; last, so
-                    // it is drawn over the rows.
-                    { top: (playing ? ROW_HEIGHT : 0) + ROW_HEIGHT + 6, opacity: hintIn.progress },
-                  ]}
-                  testID="queue-rail-hint"
-                >
-                  <Pressable
-                    onPress={hint.dismiss}
-                    accessibilityRole="button"
-                    accessibilityHint="Dismisses the tip"
-                    accessibilityLiveRegion="polite"
-                  >
-                    {/* "right‑click" with a hyphen that does not break, so the bubble
-                    never splits the word across its two lines. A touch has no
-                    right-click to offer. */}
-                    <Text style={styles.hintText}>
-                      {finePointer
-                        ? 'Drag a song out to remove it, or right‑click for more.'
-                        : 'Drag a song out to remove it.'}
-                    </Text>
-                  </Pressable>
-                </Animated.View>
-              ) : null}
             </ScrollView>
 
             <View style={styles.autoMix}>
@@ -635,6 +602,18 @@ function Rail({
           />
         </Popover>
       </Animated.View>
+      <Guide
+        guide={hint}
+        steps={[
+          {
+            gesture: 'swipe-left',
+            text: 'Drag a song out to remove it',
+            // A touch has no right-click to offer.
+            sub: finePointer ? 'Right-click it for more' : undefined,
+            distance: 120,
+          },
+        ]}
+      />
     </Animated.View>
   )
 }
@@ -883,17 +862,6 @@ const styles = StyleSheet.create(theme => ({
   title: sectionTitle(theme.colors),
   summary: { color: theme.colors.textSecondary, fontSize: type.small, marginTop: -6 },
   list: { flex: 1, marginHorizontal: -6 },
-  hint: {
-    position: 'absolute',
-    left: 12,
-    right: 0,
-    paddingVertical: space.sm,
-    paddingHorizontal: space.md,
-    borderRadius: radius.mini,
-    backgroundColor: theme.colors.surface3,
-    boxShadow: `0 10px 28px ${theme.colors.floatShadow}`,
-  },
-  hintText: { color: theme.colors.textPrimary, fontSize: type.small, lineHeight: leading.small },
   listContent: { paddingBottom: space.md },
   roomContent: { paddingHorizontal: 6, paddingBottom: space.md },
   label: { ...label(theme.colors), paddingTop: space.md, paddingBottom: space.xs, paddingLeft: 6 },

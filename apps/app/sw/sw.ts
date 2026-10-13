@@ -33,6 +33,7 @@ import {
   CLOUD_FILES_KEY,
   CLOUD_SESSION_KEY,
   DOORMAN_PATHS,
+  HASH_FILE_NAME,
   REFRESH_HEADER,
   parseDoormanRefusal,
   parseRange,
@@ -688,7 +689,7 @@ async function bucketFileFor(url: URL, kind: 'audio' | 'cover'): Promise<BucketF
 }
 
 /** `api/bucket/covers/<sha256>.<ext>`: the only bucket files asked for by key. */
-const BUCKET_PICTURE_PATH = /\/api\/bucket\/(covers\/[0-9a-f]{64}\.[a-z0-9]{1,5})$/
+const BUCKET_PICTURE_PATH = new RegExp(`/api/bucket/(covers/${HASH_FILE_NAME})$`)
 
 /**
  * A bucket picture no song id names — an artist's — by its key

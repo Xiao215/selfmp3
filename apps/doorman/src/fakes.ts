@@ -6,7 +6,7 @@ import type { Env } from './context.js'
 import { createDoorman, type Doorman } from './doorman.js'
 import { Room, type RoomSocket } from './room.js'
 import { Shared } from './shared.js'
-import { toBase64, toBase64Url, utf8 } from './encoding.js'
+import { secureHex, toBase64, toBase64Url, utf8 } from './encoding.js'
 import type { KvStore } from './kv.js'
 
 /**
@@ -767,9 +767,7 @@ export const ME: Profile = {
 export const SEAL_KEY = toBase64(new Uint8Array(32).map((_, index) => index * 7 + 1))
 
 export function newAttempt(): string {
-  const bytes = new Uint8Array(16)
-  crypto.getRandomValues(bytes)
-  return [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('')
+  return secureHex(16)
 }
 
 /** What Google would put in an ID token for this person and this sign-in. */

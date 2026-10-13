@@ -19,7 +19,8 @@ import {
   type SharedPlaylist,
 } from '@selfmp3/shared'
 import { z } from 'zod'
-import { keyOf, randomHex } from './room.js'
+import { secureHex } from './encoding.js'
+import { keyOf } from './room.js'
 
 /**
  * One shared playlist: a Durable Object per playlist id
@@ -117,7 +118,7 @@ export class Shared {
 
   constructor(runtime: SharedRuntime, ids: { readonly newId?: () => string } = {}) {
     this.#runtime = runtime
-    this.#newId = ids.newId ?? (() => randomHex(6))
+    this.#newId = ids.newId ?? (() => secureHex(6))
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -162,8 +163,8 @@ export class Shared {
     })
     const secrets: Secrets = {
       subs: { [member]: input.sub },
-      tokens: { [member]: randomHex(16) },
-      invite: randomHex(8),
+      tokens: { [member]: secureHex(16) },
+      invite: secureHex(8),
     }
     await this.#save(doc, secrets)
     return Response.json(this.#viewOf(doc, secrets, member))
@@ -210,8 +211,8 @@ export class Shared {
     doc = { ...doc, entries }
     const secrets: Secrets = {
       subs: Object.fromEntries([...ids].map(([sub, id]) => [id, sub])),
-      tokens: Object.fromEntries([...ids.values()].map(id => [id, randomHex(16)])),
-      invite: randomHex(8),
+      tokens: Object.fromEntries([...ids.values()].map(id => [id, secureHex(16)])),
+      invite: secureHex(8),
     }
     await this.#save(doc, secrets)
     const creator = ids.get(input.creator) ?? ''
@@ -232,7 +233,7 @@ export class Shared {
     const next: Secrets = {
       ...secrets,
       subs: { ...secrets.subs, [member]: input.sub },
-      tokens: { ...secrets.tokens, [member]: randomHex(16) },
+      tokens: { ...secrets.tokens, [member]: secureHex(16) },
     }
     await this.#save(joined, next)
     return Response.json(this.#viewOf(joined, next, member))

@@ -1,4 +1,5 @@
 import {
+  messageOf,
   CHANGES_HEADER,
   DOORMAN_ERROR,
   DoormanError,
@@ -271,7 +272,7 @@ async function counted(
     response.headers.set(CHANGES_HEADER, `${before} ${after}`)
   } catch (error) {
     ctx.log.warn('the change counter could not be moved', {
-      message: error instanceof Error ? error.message : String(error),
+      message: messageOf(error),
     })
   }
   return response

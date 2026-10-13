@@ -1,10 +1,10 @@
 import {
   CLOUD_FORMAT,
   CloudFormatSchema,
-  HASH_FILE_NAME,
   type CloudFormat,
   type CloudSmartRules,
 } from './schemas/cloud.js'
+import { HASH_FILE_NAME } from './doormanWire.js'
 import type { SmartRules } from './schemas/smart.js'
 
 /**

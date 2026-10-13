@@ -1,5 +1,6 @@
 import { DoormanChangesSchema, type DoormanChanges } from '@selfmp3/shared'
 import { z } from 'zod'
+import { secureHex } from './encoding.js'
 
 /**
  * Each account's change counter: how a device asks "has anything a look would
@@ -85,7 +86,7 @@ export class ChangesObject {
   async #current(): Promise<{ epoch: string; count: number }> {
     let epoch = await this.#storage.get<string>('epoch')
     if (!epoch) {
-      epoch = newEpoch()
+      epoch = secureHex(8)
       await this.#storage.put('epoch', epoch)
       await this.#storage.put('count', 0)
       return { epoch, count: 0 }
@@ -96,9 +97,4 @@ export class ChangesObject {
 
 function format(counter: { epoch: string; count: number }): string {
   return `${counter.epoch}.${counter.count}`
-}
-
-function newEpoch(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(8))
-  return [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('')
 }

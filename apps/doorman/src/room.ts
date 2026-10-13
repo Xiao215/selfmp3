@@ -31,7 +31,7 @@ import {
   type RoomServerMessage,
 } from '@selfmp3/shared'
 import { z } from 'zod'
-import { sha256Hex } from './encoding.js'
+import { secureHex, sha256Hex } from './encoding.js'
 
 /**
  * One room: a Durable Object per room code (docs/features/listen-together.md).
@@ -177,8 +177,8 @@ export class Room {
     ids: { readonly newId?: () => string; readonly newToken?: () => string } = {},
   ) {
     this.#runtime = runtime
-    this.#newId = ids.newId ?? (() => randomHex(6))
-    this.#newToken = ids.newToken ?? (() => randomHex(16))
+    this.#newId = ids.newId ?? (() => secureHex(6))
+    this.#newToken = ids.newToken ?? (() => secureHex(16))
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -589,12 +589,6 @@ function send(socket: RoomSocket, message: RoomServerMessage): void {
     // A socket that closed between being listed and being written to; it
     // hears the room again when it reconnects.
   }
-}
-
-export function randomHex(bytes: number): string {
-  return [...crypto.getRandomValues(new Uint8Array(bytes))]
-    .map(byte => byte.toString(16).padStart(2, '0'))
-    .join('')
 }
 
 /**

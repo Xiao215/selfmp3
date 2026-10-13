@@ -244,3 +244,10 @@ export function signInStartUrl(
  */
 export const CLOUD_SESSION_KEY = 'cloud-session'
 export const CLOUD_FILES_KEY = 'cloud-files'
+
+/**
+ * A file's name in the bucket when it is named by the SHA-256 of its bytes:
+ * the hash and its extension, `4f1c….jpg`. A pattern's source, for every
+ * pattern that matches one (a key, a kept copy's name, a worker's path).
+ */
+export const HASH_FILE_NAME = '[0-9a-f]{64}\\.[a-z0-9]{1,5}'

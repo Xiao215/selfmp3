@@ -13,7 +13,7 @@ import { Bucket } from './bucket.js'
 import { requireSession, type Context } from './context.js'
 import { relayRead } from './files.js'
 import { json, methodNotAllowed, notFound, readJson } from './http.js'
-import { randomHex } from './room.js'
+import { secureHex } from './encoding.js'
 import type { Session } from './sessions.js'
 
 /**
@@ -67,7 +67,7 @@ export function sharedObject(ctx: Context, id: string): DurableObjectStub {
 }
 
 export function newSharedId(): string {
-  return randomHex(8)
+  return secureHex(8)
 }
 
 export function post(body: unknown): RequestInit {

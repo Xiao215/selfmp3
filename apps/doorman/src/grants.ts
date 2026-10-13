@@ -10,6 +10,7 @@ import {
 import { z } from 'zod'
 import { requireSession, type Context } from './context.js'
 import { forbidden, json, methodNotAllowed, notFound, readJson } from './http.js'
+import { secureHex } from './encoding.js'
 import { getRecord, putRecord } from './kv.js'
 import type { Session } from './sessions.js'
 
@@ -81,7 +82,7 @@ async function make(ctx: Context): Promise<Response> {
     )
   }
 
-  const id = randomId()
+  const id = secureHex(8)
   const { token } = await ctx.sessions.create(session, id)
   const grant: StoredGrant = {
     id,
@@ -144,11 +145,6 @@ async function write(ctx: Context, sub: Session['sub'], list: StoredGrant[]): Pr
 /** A grant as anyone may see it: everything but the session's hash. */
 function shown(grant: StoredGrant): DoormanGrant {
   return { id: grant.id, server: grant.server, name: grant.name, createdAt: grant.createdAt }
-}
-
-function randomId(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(8))
-  return [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
 function grantsKey(sub: string): string {

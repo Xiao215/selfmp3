@@ -21,6 +21,7 @@ import { Cover } from '../../ui/components/Cover'
 import { Segmented } from '../../ui/components/Segmented'
 import { useFade } from '../../ui/motion'
 import { card, label, serif } from '../../ui/surfaces'
+import { SectionHead } from '../../ui/components/SectionHead'
 import { songLink } from '../song/song.model'
 import { artistLink, tagLink } from '../tag/placeLinks'
 import { useArtistPicture } from '../tag/useArtistPicture'
@@ -223,9 +224,7 @@ function Ranked({ stats, via }: { stats: Stats; via: ServerConnection | undefine
       <View style={[styles.card, styles.rankedWide]} testID="stats-ranked">
         {RANK_KINDS.map(option => (
           <View key={option.value} style={styles.rankedColumn}>
-            <Text style={styles.columnLabel} accessibilityRole="header">
-              {option.label}
-            </Text>
+            <SectionHead look="label" title={option.label} style={styles.columnLabel} />
             <RankedList stats={stats} kind={option.value} via={via} />
           </View>
         ))}
@@ -603,7 +602,7 @@ const styles = StyleSheet.create(theme => ({
   ranked: { paddingTop: 14, paddingBottom: 8, paddingHorizontal: 16, gap: 8 },
   rankedWide: { flexDirection: 'row', gap: 36, paddingVertical: 18, paddingHorizontal: 22 },
   rankedColumn: { flex: 1, minWidth: 0, gap: 4 },
-  columnLabel: { ...label(theme.colors), paddingBottom: 4 },
+  columnLabel: { paddingBottom: 4 },
   listEmpty: { color: theme.colors.textMuted, fontSize: type.sub, paddingVertical: 14 },
   line: {
     flexDirection: 'row',

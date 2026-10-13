@@ -22,6 +22,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { appAddress, shareLink } from '../../ports/shareLink'
 import { library as cloudLibrary } from '../../replica'
 import { label } from '../../ui/surfaces'
+import { SectionHead } from '../../ui/components/SectionHead'
 import { showToast } from '../../ui/toast'
 import { Button } from '../../ui/components/Button'
 import { TextField } from '../../ui/components/TextField'
@@ -391,12 +392,12 @@ function InTheRoom({ state }: { state: RoomState }): ReactNode {
         const owner = state.members.find(member => member.id === shelf.member)
         return (
           <View key={shelf.member} style={styles.section}>
-            <View style={styles.sectionHead}>
-              {owner ? <RoomFace name={owner.name} colour={owner.colour} size={20} /> : null}
-              <Text style={styles.label}>
-                {nameOf(state, owner)}’s shelf · {shelf.name}
-              </Text>
-            </View>
+            <SectionHead
+              look="label"
+              lead={owner ? <RoomFace name={owner.name} colour={owner.colour} size={20} /> : null}
+              title={`${nameOf(state, owner)}’s shelf · ${shelf.name}`}
+              style={styles.sectionHead}
+            />
             {shelf.songs.map((song, index) => (
               <SongPick
                 key={`${shelf.member}-${index}`}
@@ -860,12 +861,7 @@ const styles = StyleSheet.create(theme => ({
   link: { color: theme.colors.textSecondary, fontSize: type.small },
   scroll: { maxHeight: 380 },
   section: { gap: 2, paddingTop: space.sm },
-  sectionHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    paddingBottom: space.xs,
-  },
+  sectionHead: { paddingBottom: space.xs },
   shelfMine: { gap: space.sm, paddingBottom: space.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   found: { gap: space.sm },

@@ -671,8 +671,9 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
   - The server maps by code: `no_storage` and `no_such_bucket` are `missing`, `too_many_grants` says to remove a server, `bucket_unreachable` is `network`; `bucket_refused_key` stays `other` (the bucket's key, not this server's session, so nothing to sign in again for).
 - [x] **T-396** "Same link" has four rules: 网易云 and `?si=` links are not seen as queued by the extension or `isPending`. → B2
 - [x] **T-397** Two artist splitters with different separators (AI vs app); server Stats/Wrapped group raw artist strings; CarPlay/Android Auto browse groups and sorts its own way. → B2
-- [ ] **T-398** The admin page's `plural` writes "1234 songs"; Home's This week writes "2h 00" and "1234" where You writes "2h" and "1,234". → B2 / H
+- [x] **T-398** The admin page's `plural` writes "1234 songs"; Home's This week writes "2h 00" and "1234" where You writes "2h" and "1,234". → B2 / H
   - B2's half done: admin `plural` groups like shared's, parity test tries 999–1,000,000. Home's figures are H's.
+  - H's half: `statFigures` (stats.model) + `StatFigure` for Home's This week and You's month card.
 
 ### A — Server and replica answer the same API from one set of rules
 
@@ -747,10 +748,12 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 
 ### H — Grids, shelves, rooms, smart answers, navigation
 
-- [ ] **T-426** `TileGrid`/`GridTile` (Tags, Playlists, Shared, Home), `Shelf`/`SongCard` (Home recents, Gems, Similar) with drag-scroll, right-click and focus built in.
+- [x] **T-426** `TileGrid`/`GridTile` (Tags, Playlists, Shared, Home), `Shelf`/`SongCard` (Home recents, Gems, Similar) with drag-scroll, right-click and focus built in.
+  - Decisions: every grid takes its width from the page (`useTileGrid`), never `onLayout`; tiles sink on `Press` rather than fading; a playlist's Play fades in on hover or Tab as a tag's does; a past room and a shared playlist share `FacesCover` (the cover ground, faces a quarter of the side). Home's tag tiles keep their own coloured card, on `TileGrid`. Playlist tiles still have no right-click menu (F's list menus can hand one to `GridTile`'s `onMenu`). Gems' three-or-fewer cards keep lying down. Settings' chip strip keeps its own scroller (it scrolls a chip into view by ref); the tag sheet's is `SideScroll`.
 - [ ] **T-427** Room/shared rows on `SongLine` + `FaceBadge`; one library song picker for playlists and rooms.
 - [ ] **T-428** Smart answer parts, the import page foot, `showUndoToast` with async undo, `Button size="small"`, `IconButton` fills, `Segmented` small/translucent, `ToggleRow`, `Popover` sheet title.
-- [ ] **T-429** One `NAV` table for BottomNav and Sidebar; `SectionHead` everywhere; one `StatFigure` and formatter for Home and You.
+- [x] **T-429** One `NAV` table for BottomNav and Sidebar; `SectionHead` everywhere; one `StatFigure` and formatter for Home and You.
+  - `SectionHead` gained `aside`, `collapsible`, `end`, `lead` and `look="label"` (the quiet uppercase name, still a header); Gems, Sounds like, the Up next rail, Settings' Advanced, Import's lists and search groups, Stats' columns and a room's shelves use it. The metadata dialog's groups are left (not this workstream's).
 
 ### Z — Tokens and the sweep (last)
 

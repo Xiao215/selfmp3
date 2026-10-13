@@ -20,6 +20,7 @@ import {
   rankedTags,
   sparkPath,
   spanWords,
+  statFigures,
   STATS_PERIODS,
   statsRangeFor,
   streakCard,
@@ -231,5 +232,30 @@ describe('an artist with no picture', () => {
     const library = [song('YOASOBI'), song('akane', true, 'another')]
     expect(artistCoverSong('Akane', played, library)?.title).toBe('another')
     expect(artistCoverSong('Nobody', played, library)).toBeUndefined()
+  })
+})
+
+describe('the three headline numbers, on Home and You alike', () => {
+  it('writes a whole hour as "2h", not "2h 00"', () => {
+    const totals = stats().totals
+    expect(statFigures(stats({ totals: { ...totals, minutes: 120 } })).listened).toBe('2h')
+    expect(statFigures(stats({ totals: { ...totals, minutes: 185 } })).listened).toBe('3h 05')
+  })
+
+  it('sets minutes apart from their word', () => {
+    expect(statFigures(stats({ totals: { ...stats().totals, minutes: 42 } }))).toMatchObject({
+      listened: '42',
+      listenedUnit: 'min',
+    })
+  })
+
+  it('groups plays and the streak as the reader does', () => {
+    const figures = statFigures(
+      stats({ totals: { ...stats().totals, plays: 1234 }, streakDays: 1 }),
+    )
+    expect(figures.plays).toBe((1234).toLocaleString())
+    expect(figures.plays).not.toBe('1234')
+    expect(figures.streak).toBe('1')
+    expect(figures.streakUnit).toBe('day')
   })
 })

@@ -30,6 +30,7 @@ import {
 } from './profile.model'
 import { useVia } from '../../connection/via'
 import { SongLine } from '../../ui/components/SongLine'
+import { StatFigure } from '../../ui/components/StatFigure'
 import { ScrollView } from '../../ui/components/Scroll'
 
 const ICONS: Record<ProfileRowId, typeof Settings> = {
@@ -150,9 +151,9 @@ function Month({
       {month ? (
         <>
           <View style={styles.figures}>
-            <Figure value={month.listened} unit={month.listenedUnit} label="listened" />
-            <Figure value={month.plays} label="plays" />
-            <Figure value={month.streak} unit={month.streakUnit} label="streak" />
+            <StatFigure value={month.listened} unit={month.listenedUnit} caption="listened" />
+            <StatFigure value={month.plays} caption="plays" />
+            <StatFigure value={month.streak} unit={month.streakUnit} caption="streak" />
           </View>
           {month.onRepeat ? <OnRepeat month={month} via={via} /> : null}
         </>
@@ -164,26 +165,6 @@ function Month({
         </Text>
       )}
     </Pressable>
-  )
-}
-
-function Figure({
-  value,
-  unit,
-  label,
-}: {
-  value: string
-  unit?: string
-  label: string
-}): ReactNode {
-  return (
-    <View style={styles.figure}>
-      <Text style={styles.figureValue} numberOfLines={1}>
-        {value}
-        {unit ? <Text style={styles.figureUnit}> {unit}</Text> : null}
-      </Text>
-      <Text style={styles.figureLabel}>{label}</Text>
-    </View>
   )
 }
 
@@ -241,9 +222,5 @@ const styles = StyleSheet.create(theme => ({
   monthTitle: label(theme.colors),
   monthLink: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '600' },
   figures: { flexDirection: 'row', gap: 12 },
-  figure: { flex: 1, minWidth: 0, gap: 2 },
-  figureValue: { ...serif(theme.colors, type.page), lineHeight: 34 },
-  figureUnit: { fontSize: type.section },
-  figureLabel: { color: theme.colors.textSecondary, fontSize: type.small },
   repeat: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 }))

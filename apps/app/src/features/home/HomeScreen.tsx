@@ -5,15 +5,14 @@ import type { ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { useRouter } from 'expo-router'
-import { artistOr, plural } from '@selfmp3/shared'
+import { plural } from '@selfmp3/shared'
 import { useRecentRooms } from '../room/pastRooms.store'
-import { RoomFaces } from '../room/RoomFace'
+import { FacesCover } from '../room/RoomFace'
 import { useResumeSharedJoin } from '../shared/SharedScreens'
 import type { PastRoom } from '../room/room.model'
 import type { Song, Stats } from '@selfmp3/shared'
-import { fonts, leading, radius, space, tagColors, type, useLibrary } from '@selfmp3/client'
+import { fonts, leading, radius, tagColors, type, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
-import { useDragScroll } from '../../ports/dragScroll'
 import { Avatar } from '../../ui/components/Avatar'
 import { useAccount } from '../profile/useAccount'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -27,6 +26,8 @@ import { EmptyState } from '../../ui/components/EmptyState'
 import { IconButton } from '../../ui/components/IconButton'
 import { SearchField } from '../../ui/components/SearchField'
 import { SectionHead } from '../../ui/components/SectionHead'
+import { Shelf, ShelfCard, SongCard } from '../../ui/components/Shelf'
+import { TileGrid, useTileGrid } from '../../ui/components/TileGrid'
 import { ChevronRight, Download, Plus, Sparkle } from '../../ui/components/Icons'
 import { useAccent } from '../../ui/accent'
 import { useSongColor } from '../../ui/useSongColor'
@@ -46,9 +47,9 @@ import {
 import { useRecentLists } from '../lists/recentLists.store'
 import { keepAnswer, reorderAnswer } from '../smart/answers.store'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
-import { useSongMenu } from '../../ui/components/useSongMenu'
-import { rightClick } from '../../ui/rightClick'
 import { useStatsFor } from '../stats/statsSource'
+import { statFigures } from '../stats/stats.model'
+import { StatFigure } from '../../ui/components/StatFigure'
 import {
   greeting,
   HOME_TILES,
@@ -56,6 +57,7 @@ import {
   homeTiles,
   streakLine,
   sundayCard,
+  sundaySpoken,
   type HomeTile,
   type SundayCard,
 } from './home.model'
@@ -199,7 +201,7 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
                       : null
                   }
                 />
-                <Tiles tiles={tiles} loading={library === undefined} />
+                <Tiles tiles={tiles} loading={library === undefined} beside={beside} />
               </>
             )}
           </View>
@@ -254,24 +256,11 @@ function SundayLead({
         onPress={onOpen}
         {...press.handlers}
         accessibilityRole="link"
-        accessibilityLabel={
-          lead
-            ? `${card.title}. ${lead.title}, ${lead.note}. ${card.line}`
-            : `${card.title}. ${card.line}`
-        }
+        accessibilityLabel={sundaySpoken(card)}
         style={styles.sunday}
       >
         <ToneWash color={tone.color} />
-        {song ? (
-          <View style={styles.sundayCover}>
-            <Cover
-              uri={tone.uri}
-              title={song.album || song.title}
-              size={SUNDAY_COVER}
-              radius={12}
-            />
-          </View>
-        ) : null}
+        {song ? <SundaySong song={song} tone={tone} size={SUNDAY_COVER} /> : null}
         {/* Without a song, the week says itself: the title, then how long and whose. */}
         <View style={styles.sundayText}>
           {lead ? <Text style={[styles.kicker, { color: tone.tint }]}>{card.title}</Text> : null}
@@ -393,21 +382,30 @@ function PhoneHeader(): ReactNode {
  * `WIDE_TILE_MIN`, two to three, so a page narrowed by Up next drops a column
  * rather than cutting the names (M1). A tile opens its tag's page.
  */
-function Tiles({ tiles, loading }: { tiles: readonly HomeTile[]; loading: boolean }): ReactNode {
-  // The width is the layout's to answer, not something to hand down three
-  // components; `artFor` stays a prop on purpose, so the grid keeps one
-  // watcher for its covers rather than one per tile.
-  const { wide, finePointer } = useLayout()
+function Tiles({
+  tiles,
+  loading,
+  beside,
+}: {
+  tiles: readonly HomeTile[]
+  loading: boolean
+  /** Whether the card column stands beside the tiles, taking its width from theirs. */
+  beside: boolean
+}): ReactNode {
+  const { finePointer } = useLayout()
   const router = useRouter()
   const art = useArt()
-  // A tile is a column of the grid however many there are: one tag is half a
-  // row on a phone, not the whole of it. The columns share the row by flex,
-  // so a tile is as wide as the layout makes it on every frame; the number is
-  // only for how many columns and the name's size, which may follow a frame
-  // behind.
-  const rowWidth = useTilesRowWidth(wide)
-  const columns = wide ? wideColumns(rowWidth) : 2
-  const small = rowWidth > 0 && (rowWidth - TILE_GAP * (columns - 1)) / columns < SMALL_TILE
+  // As many tiles of `WIDE_TILE_MIN` as fit, two to three (`C03` draws
+  // three), so a page narrowed by Up next drops a column rather than cutting
+  // the names (M1). The number is only for how many columns and the name's
+  // size, which may follow a frame behind.
+  const { columns, tileWidth } = useTileGrid({
+    minTile: WIDE_TILE_MIN,
+    gap: TILE_GAP,
+    maxColumns: 3,
+    reserve: beside ? SIDE_COLUMN + COLUMN_GAP : 0,
+  })
+  const small = tileWidth > 0 && tileWidth < SMALL_TILE
   if (loading) return <View style={styles.tilesPlaceholder} />
   if (tiles.length === 0) {
     return (
@@ -421,7 +419,7 @@ function Tiles({ tiles, loading }: { tiles: readonly HomeTile[]; loading: boolea
     )
   }
   return (
-    <TileGrid
+    <HomeTiles
       tiles={tiles}
       columns={columns}
       small={small}
@@ -437,7 +435,7 @@ function Tiles({ tiles, loading }: { tiles: readonly HomeTile[]; loading: boolea
  * switch or coming back to Home finds them already there, so the welcome
  * never turns into a wait.
  */
-function TileGrid({
+function HomeTiles({
   tiles,
   columns,
   small,
@@ -452,39 +450,24 @@ function TileGrid({
   onOpen: (tile: HomeTile) => void
 }): ReactNode {
   const [arrive] = useState(() => session.first('home-tiles'))
-  /*
-   * Rows of `columns`, each tile a flex column of its row, and blank cells
-   * filling out the last row so a lone tile keeps a column's width. Sized by
-   * the row rather than by a number: a width worked out in JavaScript arrives
-   * a frame after the layout it was worked out from, and while a window is
-   * dragged narrower the tiles would keep the old width for that frame and
-   * lie across the card column beside them.
-   */
-  const rows: HomeTile[][] = []
-  for (let start = 0; start < tiles.length; start += columns)
-    rows.push(tiles.slice(start, start + columns))
   return (
-    <View style={styles.tiles}>
-      {rows.map((row, rowIndex) => (
-        <View key={row[0]?.tag.id ?? rowIndex} style={styles.tileRow}>
-          {row.map((tile, column) => (
-            <Tile
-              key={tile.tag.id}
-              tile={tile}
-              index={rowIndex * columns + column}
-              count={tiles.length}
-              arrive={arrive}
-              small={small}
-              artUri={artFor(tile)}
-              onPress={() => onOpen(tile)}
-            />
-          ))}
-          {Array.from({ length: columns - row.length }, (_, blank) => (
-            <View key={`blank-${blank}`} style={styles.tileCell} />
-          ))}
-        </View>
-      ))}
-    </View>
+    <TileGrid
+      items={tiles}
+      columns={columns}
+      gap={TILE_GAP}
+      keyOf={tile => tile.tag.id}
+      renderItem={(tile, index) => (
+        <Tile
+          tile={tile}
+          index={index}
+          count={tiles.length}
+          arrive={arrive}
+          small={small}
+          artUri={artFor(tile)}
+          onPress={() => onOpen(tile)}
+        />
+      )}
+    />
   )
 }
 
@@ -526,7 +509,7 @@ function Tile({
   }
   return (
     // Two views, because the arrival and the press each carry a transform.
-    <Animated.View style={[styles.tileCell, arrival]}>
+    <Animated.View style={arrival}>
       <Animated.View style={press.style}>
         <Pressable
           ref={ref}
@@ -587,10 +570,8 @@ function Recents({
 }): ReactNode {
   const player = usePlayerCommands()
   const router = useRouter()
-  const art = useArt()
   const { data: library } = useLibrary()
   const size = wide ? 132 : 92
-  const drag = useDragScroll()
   const songIds = useMemo(
     () => recents.flatMap(recent => (recent.kind === 'song' ? [recent.song.id] : [])),
     [recents],
@@ -599,16 +580,8 @@ function Recents({
   const fly = useFlyToUpNext()
   // Each list tile's covers, where a played list's covers fly from.
   const covers = useRef(new Map<string, View>())
-  // A song tile's menu, opened by a right-click as a song row's is (B1).
-  const songMenu = useSongMenu()
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.recents}
-      testID="home-recents"
-      {...drag}
-    >
+    <Shelf testID="home-recents" contentStyle={styles.recents}>
       {rooms.map(room => (
         <PastRoomTile key={`room-${room.code}`} room={room} size={size} />
       ))}
@@ -616,32 +589,23 @@ function Recents({
         if (recent.kind === 'song') {
           const song = recent.song
           return (
-            <Pressable
+            <SongCard
               key={`song-${song.id}`}
+              song={song}
+              size={size}
               testID={`home-recent-${index}`}
               onPress={() =>
                 player.playFrom(songIds, songIds.indexOf(song.id), { source: FROM_RECENTS })
               }
-              accessibilityRole="button"
-              accessibilityLabel={`Play ${song.title}`}
-              style={{ width: size }}
-              {...rightClick(at => songMenu.onMore(at, song))}
-            >
-              <Cover uri={art(song)} title={song.album || song.title} size={size} radius={14} />
-              <Text style={styles.recentTitle} numberOfLines={1}>
-                {song.title}
-              </Text>
-              <Text style={styles.recentArtist} numberOfLines={1}>
-                {artistOr(song.artist)}
-              </Text>
-            </Pressable>
+            />
           )
         }
         const { entry } = recent
         const line = describeSource(entry.source, known)
         return (
-          <Pressable
+          <ShelfCard
             key={entry.key}
+            width={size}
             testID={`home-recent-${index}`}
             onPress={() => {
               // A list opens, as any list's tile does; playing it is its page's Play.
@@ -663,38 +627,29 @@ function Recents({
               fly(covers.current.get(entry.key) ?? null, ids)
               player.playFrom(ids, 0, { source: entry.source })
             }}
-            accessibilityRole="button"
-            accessibilityLabel={
-              line.link || entry.answer ? `Open ${line.label}` : `Play ${line.label}`
+            label={line.link || entry.answer ? `Open ${line.label}` : `Play ${line.label}`}
+            cover={
+              <View
+                collapsable={false}
+                ref={node => {
+                  if (node) covers.current.set(entry.key, node)
+                  else covers.current.delete(entry.key)
+                }}
+              >
+                <PlaylistCover songIds={entry.songIds} size={size} />
+                {line.asked ? (
+                  <View style={styles.recentBadge}>
+                    <Sparkle size={11} />
+                  </View>
+                ) : null}
+              </View>
             }
-            style={{ width: size }}
-          >
-            <View
-              collapsable={false}
-              ref={node => {
-                if (node) covers.current.set(entry.key, node)
-                else covers.current.delete(entry.key)
-              }}
-            >
-              <PlaylistCover songIds={entry.songIds} size={size} />
-              {line.asked ? (
-                <View style={styles.recentBadge}>
-                  <Sparkle size={11} />
-                </View>
-              ) : null}
-            </View>
-            <Text style={styles.recentTitle} numberOfLines={1}>
-              {line.label}
-            </Text>
-            <Text style={styles.recentArtist} numberOfLines={1}>
-              {recentKind(entry.source)}
-            </Text>
-          </Pressable>
+            title={line.label}
+            lines={[recentKind(entry.source)]}
+          />
         )
       })}
-      {/* Drawn over everything by the overlay host, wherever it stands here. */}
-      {songMenu.menu}
-    </ScrollView>
+    </Shelf>
   )
 }
 
@@ -707,31 +662,16 @@ function PastRoomTile({ room, size }: { room: PastRoom; size: number }): ReactNo
   const router = useRouter()
   const others = room.people.filter(person => person.name !== 'You')
   return (
-    <Pressable
+    <ShelfCard
+      width={size}
       testID={`home-recent-room-${room.code}`}
       onPress={() => router.push({ pathname: '/past-room/[code]', params: { code: room.code } })}
-      accessibilityRole="button"
-      accessibilityLabel={`Open ${room.title}`}
-      style={{ width: size }}
-    >
-      <View style={[styles.roomTile, { width: size, height: size }]}>
-        <RoomFaces people={others.slice(0, 4)} size={Math.round(size / 3.6)} />
-      </View>
-      <Text style={styles.recentTitle} numberOfLines={1}>
-        {room.title}
-      </Text>
-      <Text style={styles.recentArtist} numberOfLines={1}>
-        Together · {plural(room.songs.length, 'song', 'songs')}
-      </Text>
-    </Pressable>
+      label={`Open ${room.title}`}
+      cover={<FacesCover people={others} size={size} />}
+      title={room.title}
+      lines={[`Together · ${plural(room.songs.length, 'song', 'songs')}`]}
+    />
   )
-}
-
-/** "2h 14": hours and minutes, the way the mock writes time listened. */
-function listened(minutes: number): { big: string; small: string } {
-  const whole = Math.round(minutes)
-  if (whole < 60) return { big: String(whole), small: 'min' }
-  return { big: `${Math.floor(whole / 60)}h ${String(whole % 60).padStart(2, '0')}`, small: '' }
 }
 
 /**
@@ -760,7 +700,7 @@ function ThisWeek({
   const tone = useSundayTone(sunday ? sundaySong : null)
   const column = beside ? styles.sideColumn : styles.stack
   if (!stats) return <View style={column} />
-  const time = listened(stats.totals.minutes)
+  const figures = statFigures(stats)
   // Under the tiles the two cards sit abreast, each half the page (`T02`).
   const cards = beside ? styles.cardsStacked : styles.cardsAbreast
   const half = beside ? null : styles.cardHalf
@@ -771,14 +711,10 @@ function ThisWeek({
         <View style={[styles.weekCard, half]} testID="home-this-week">
           {sunday ? <WeekReadyHead card={sunday} song={sundaySong} tone={tone} /> : null}
           <View style={styles.weekNumbers}>
-            <Figure value={time.big} unit={time.small} caption="listened" />
-            <Figure value={String(stats.totals.plays)} unit="" caption="plays" />
+            <StatFigure value={figures.listened} unit={figures.listenedUnit} caption="listened" />
+            <StatFigure value={figures.plays} caption="plays" />
             {/* "2 days", not "2 d": the unit is set small, so it fits (Xiao). */}
-            <Figure
-              value={String(stats.streakDays)}
-              unit={stats.streakDays === 1 ? 'day' : 'days'}
-              caption="streak"
-            />
+            <StatFigure value={figures.streak} unit={figures.streakUnit} caption="streak" />
           </View>
           {sunday ? (
             <OpenWeek card={sunday} tone={tone} onOpen={onOpenWeek} />
@@ -825,11 +761,7 @@ function WeekReadyHead({
     <>
       <ToneWash color={tone.color} />
       <View style={styles.readyHead}>
-        {song ? (
-          <View style={styles.readyCover}>
-            <Cover uri={tone.uri} title={song.album || song.title} size={READY_COVER} radius={10} />
-          </View>
-        ) : null}
+        {song ? <SundaySong song={song} tone={tone} size={READY_COVER} /> : null}
         <View style={styles.sundayText}>
           <Text style={[styles.kicker, { color: tone.tint }]}>{card.title}</Text>
           {lead ? (
@@ -843,6 +775,23 @@ function WeekReadyHead({
   )
 }
 
+/** The week's number one's cover, standing on the card: the phone's card and This week's head. */
+function SundaySong({
+  song,
+  tone,
+  size,
+}: {
+  song: Song
+  tone: SundayTone
+  size: number
+}): ReactNode {
+  return (
+    <View style={styles.sundayCover}>
+      <Cover uri={tone.uri} title={song.album || song.title} size={size} />
+    </View>
+  )
+}
+
 /** And its foot: the button that opens the week, in the song's colour. */
 function OpenWeek({
   card,
@@ -853,13 +802,13 @@ function OpenWeek({
   tone: SundayTone
   onOpen: () => void
 }): ReactNode {
-  const lead = card.song
   return (
     <Pressable
       testID="home-sunday"
       onPress={onOpen}
       accessibilityRole="link"
-      accessibilityLabel={lead ? `Open your week. ${lead.title}, ${lead.note}.` : 'Open your week'}
+      // The button's own words first, then what the card says: the phone's card says the same.
+      accessibilityLabel={`Open the report. ${sundaySpoken(card)}`}
       style={({ pressed }) => [
         styles.readyButton,
         { backgroundColor: tone.tint },
@@ -868,26 +817,6 @@ function OpenWeek({
     >
       <Text style={styles.readyButtonLabel}>Open the report</Text>
     </Pressable>
-  )
-}
-
-function Figure({
-  value,
-  unit,
-  caption,
-}: {
-  value: string
-  unit: string
-  caption: string
-}): ReactNode {
-  return (
-    <View style={styles.figure}>
-      <Text style={styles.figureValue}>
-        {value}
-        {unit ? <Text style={styles.figureUnit}> {unit}</Text> : null}
-      </Text>
-      <Text style={styles.figureCaption}>{caption}</Text>
-    </View>
   )
 }
 
@@ -925,15 +854,7 @@ const SMALL_TILE = 140
 /** The narrowest a computer's tile gets before the grid drops a column. */
 const WIDE_TILE_MIN = 190
 
-/** A computer's columns: as many tiles of `WIDE_TILE_MIN` as fit, two to three (`C03` draws three). */
-function wideColumns(rowWidth: number): number {
-  if (rowWidth <= 0) return 3
-  return Math.min(3, Math.max(2, Math.floor((rowWidth + TILE_GAP) / (WIDE_TILE_MIN + TILE_GAP))))
-}
-
-/** The page's side gutters, and the card column beside the tiles. */
-const GUTTER_NARROW = space.gutter
-const GUTTER_WIDE = space.gutterWide
+/** The card column beside the tiles. */
 const SIDE_COLUMN = 300
 const COLUMN_GAP = 30
 /**
@@ -947,24 +868,6 @@ const BESIDE_MIN = 880
 function useCardsBeside(wide: boolean): boolean {
   const column = useContentWidth()
   return wide && (column === null || column >= BESIDE_MIN)
-}
-
-/**
- * How wide the row of tiles is, worked out from the page rather than
- * measured: the window on a phone, the page column beside the sidebar on a
- * computer, less the gutters and, there, the card column. The tiles are laid
- * out by flex and never told this; it decides how many columns a computer has
- * and how large a name is set.
- */
-function useTilesRowWidth(wide: boolean): number {
-  // The app's own width, not the window's: an iPad in Split View is handed
-  // half the screen and told about the whole of it (`shell/rootWidth.ts`).
-  const { width } = useLayout()
-  const column = useContentWidth()
-  if (!wide) return Math.floor(width - GUTTER_NARROW * 2)
-  if (column === null) return 0
-  const cards = column >= BESIDE_MIN ? SIDE_COLUMN + COLUMN_GAP : 0
-  return Math.floor(column - GUTTER_WIDE * 2 - cards)
 }
 
 const styles = StyleSheet.create(theme => ({
@@ -1002,15 +905,12 @@ const styles = StyleSheet.create(theme => ({
     padding: 14,
     overflow: 'hidden',
   },
-  sundayCover: { ...artShadow(theme.colors, 'lean'), borderRadius: 12 },
+  sundayCover: { ...artShadow(theme.colors, 'lean'), borderRadius: radius.cover },
   sundayText: { flex: 1, minWidth: 0, gap: 3 },
   kicker: { fontSize: type.tiny, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
   sundayTitle: { ...sectionTitle(theme.colors), fontSize: type.title },
   sundayLine: { color: theme.colors.textSecondary, fontSize: type.sub },
   linkSmall: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '600' },
-  tiles: { gap: TILE_GAP },
-  tileRow: { flexDirection: 'row', gap: TILE_GAP },
-  tileCell: { flex: 1, minWidth: 0 },
   tile: {
     height: 104,
     borderRadius: radius.card,
@@ -1063,20 +963,7 @@ const styles = StyleSheet.create(theme => ({
   },
   firstAction: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
   firstActionLabel: { fontSize: type.body, fontWeight: '600' },
-  recents: { gap: 10, paddingRight: 20 },
-  recentTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: type.small,
-    fontWeight: '600',
-    marginTop: 6,
-  },
-  recentArtist: { color: theme.colors.textSecondary, fontSize: type.small },
-  roomTile: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-    backgroundColor: theme.colors.surface2,
-  },
+  recents: { paddingRight: 20 },
   recentBadge: {
     position: 'absolute',
     left: 6,
@@ -1090,7 +977,6 @@ const styles = StyleSheet.create(theme => ({
   },
   weekCard: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14, overflow: 'hidden' },
   readyHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  readyCover: { ...artShadow(theme.colors, 'lean'), borderRadius: 10 },
   readyTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   readyButton: {
     height: 36,
@@ -1100,15 +986,7 @@ const styles = StyleSheet.create(theme => ({
   },
   readyButtonPressed: { opacity: 0.85 },
   readyButtonLabel: { color: theme.colors.surface0, fontSize: type.sub, fontWeight: '600' },
-  weekNumbers: { flexDirection: 'row', justifyContent: 'space-between' },
-  figure: { gap: 2 },
-  figureValue: serif(theme.colors, type.page),
-  figureUnit: {
-    fontFamily: fonts.serif,
-    fontSize: type.section,
-    color: theme.colors.textSecondary,
-  },
-  figureCaption: { color: theme.colors.textSecondary, fontSize: type.small },
+  weekNumbers: { flexDirection: 'row', gap: 12 },
   importCard: {
     ...card(theme.colors),
     padding: 14,

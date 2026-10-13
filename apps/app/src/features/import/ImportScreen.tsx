@@ -44,7 +44,8 @@ import { PageHeader } from '../../ui/components/PageHeader'
 import { NavRow } from '../../ui/components/NavRow'
 import { ProgressBar } from '../../ui/components/ProgressBar'
 import { NoticeCard, NoticeText } from '../../ui/components/NoticeCard'
-import { card, label as groupLabel, pageFrame } from '../../ui/surfaces'
+import { card, pageFrame } from '../../ui/surfaces'
+import { SectionHead } from '../../ui/components/SectionHead'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
@@ -547,11 +548,13 @@ function JobGroup({
   const hidden = jobs.length - ROWS_SHOWN
   return (
     <>
-      <Animated.View {...motion} style={[styles.groupHead, !first && styles.groupApart]}>
-        <Text style={styles.groupLabel} accessibilityRole="header" testID={testID}>
-          {title}
-        </Text>
-        <View style={styles.groupActions}>{actions}</View>
+      <Animated.View {...motion} style={!first && styles.groupApart}>
+        <SectionHead
+          look="label"
+          title={title}
+          titleTestID={testID}
+          end={<View style={styles.groupActions}>{actions}</View>}
+        />
       </Animated.View>
       {lead ? <Animated.View {...motion}>{lead}</Animated.View> : null}
       {shown.map(job => (
@@ -638,11 +641,19 @@ function Finished({
   const shown = all ? jobs : jobs.slice(0, FINISHED_SHOWN)
   return (
     <>
-      <Animated.View {...motion} style={[styles.groupHead, !first && styles.groupApart]}>
-        <Text style={styles.groupLabel} accessibilityRole="header" testID="import-finished">
-          {today ? 'Earlier today' : 'Earlier'}
-        </Text>
-        <FoldAction label="Clear" accessibilityLabel="Clear finished imports" onPress={onClear} />
+      <Animated.View {...motion} style={!first && styles.groupApart}>
+        <SectionHead
+          look="label"
+          title={today ? 'Earlier today' : 'Earlier'}
+          titleTestID="import-finished"
+          end={
+            <FoldAction
+              label="Clear"
+              accessibilityLabel="Clear finished imports"
+              onPress={onClear}
+            />
+          }
+        />
       </Animated.View>
       {shown.map(job => (
         <Animated.View key={job.id} {...motion} style={styles.job}>
@@ -1052,9 +1063,7 @@ const styles = StyleSheet.create(theme => ({
   shareHint: { color: theme.colors.textMuted, fontSize: type.sub, lineHeight: leading.sub },
   jobs: { gap: 6 },
   groupApart: { marginTop: 12 },
-  groupHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   groupActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },
-  groupLabel: groupLabel(theme.colors),
   foldAction: { alignSelf: 'flex-start', paddingVertical: 4 },
   foldActionText: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '600' },
   job: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 62 },

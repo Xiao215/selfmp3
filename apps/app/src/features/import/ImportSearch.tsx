@@ -7,7 +7,8 @@ import { useMutation } from '@tanstack/react-query'
 import { ApiError, leading, space, type, type Review, type ServerConnection } from '@selfmp3/client'
 import { useFootInset } from '../../shell/bottomInset'
 import { useLayout } from '../../shell/useLayout'
-import { label as groupLabel, pageFrame } from '../../ui/surfaces'
+import { pageFrame } from '../../ui/surfaces'
+import { SectionHead } from '../../ui/components/SectionHead'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { NoticeCard } from '../../ui/components/NoticeCard'
 import { Button } from '../../ui/components/Button'
@@ -172,19 +173,16 @@ export function ImportSearch({
               {wide ? <ReviewGridHead leading={null} showFrom /> : null}
               {kept > 0 ? (
                 <>
-                  <Text style={styles.groupLabel} accessibilityRole="header">
-                    Picked
-                  </Text>
+                  <SectionHead look="label" title="Picked" style={styles.group} />
                   {rows.slice(0, kept)}
                 </>
               ) : null}
               {rows.length > kept && (kept > 0 || !wide) ? (
-                <Text
-                  style={[styles.groupLabel, kept > 0 && styles.apart]}
-                  accessibilityRole="header"
-                >
-                  Songs
-                </Text>
+                <SectionHead
+                  look="label"
+                  title="Songs"
+                  style={[styles.group, kept > 0 && styles.apart]}
+                />
               ) : null}
               {rows.slice(kept, moreFor === shownFor ? undefined : kept + FOUND_SHOWN)}
               {moreFor !== shownFor && rows.length > kept + FOUND_SHOWN ? (
@@ -281,7 +279,7 @@ const styles = StyleSheet.create(theme => ({
   status: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   listPhone: { paddingHorizontal: space.gutter, flexGrow: 1 },
   listWide: { paddingHorizontal: 28 },
-  groupLabel: { ...groupLabel(theme.colors), paddingTop: 8, paddingBottom: 4 },
+  group: { paddingTop: 8, paddingBottom: 4 },
   apart: { marginTop: 14 },
   more: { alignItems: 'flex-start' },
   none: { color: theme.colors.textSecondary, fontSize: type.sub, paddingVertical: 8 },

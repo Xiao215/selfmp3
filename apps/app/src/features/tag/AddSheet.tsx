@@ -27,7 +27,8 @@ import {
 } from './tag.model'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { SearchField } from '../../ui/components/SearchField'
-import { FlatList, ScrollView } from '../../ui/components/Scroll'
+import { FlatList } from '../../ui/components/Scroll'
+import { SideScroll } from '../../ui/components/Shelf'
 
 /**
  * Combine with… (docs/ui-mock `P09`, docs/features/lists.md): the sheet that
@@ -148,12 +149,7 @@ function AddSheetBody({
       </View>
 
       {draft.length > 0 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chosen}
-          style={styles.chosenRow}
-        >
+        <SideScroll contentStyle={styles.chosen} style={styles.chosenRow}>
           {draft.map(place => (
             <Chip
               key={placeKey(place)}
@@ -166,7 +162,7 @@ function AddSheetBody({
               onRemove={() => setDraft(current => togglePlace(current, place))}
             />
           ))}
-        </ScrollView>
+        </SideScroll>
       ) : null}
 
       <View style={styles.segment}>

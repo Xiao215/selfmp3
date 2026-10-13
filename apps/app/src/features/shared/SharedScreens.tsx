@@ -19,7 +19,6 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { roomTrack, setTrackSource } from '../../player/roomTracks'
 import { prefs } from '../../ports/prefs'
 import { appAddress, shareLink } from '../../ports/shareLink'
-import { useAccent } from '../../ui/accent'
 import { label, pageTitle } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { BackButton } from '../../ui/components/BackButton'
@@ -34,7 +33,8 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
 import { useCloudSession } from '../profile/useCloudSession'
 import { openQueueSheet } from '../queue/queueSheet.store'
-import { RoomFace, RoomFaces } from '../room/RoomFace'
+import { FacesCover, RoomFace, RoomFaces } from '../room/RoomFace'
+import { GridTile } from '../../ui/components/TileGrid'
 import { RoomQr } from '../room/RoomQr'
 import { MyLibraryPicker } from '../room/RoomSheets'
 import { sayRoomFailure } from '../room/roomFailure'
@@ -441,33 +441,22 @@ export function useResumeSharedJoin(): void {
 /** A shared playlist among your playlists: its people's faces for a cover. */
 export function SharedTile({
   playlist,
-  width,
+  size,
 }: {
   playlist: SharedSummary
-  width: number | undefined
+  /** The tile's width, for the faces; it fills its cell without one. */
+  size: number | undefined
 }): ReactNode {
   const router = useRouter()
-  const accent = useAccent()
   return (
-    <View style={[styles.tile, width ? { width } : null]}>
-      <Pressable
-        onPress={() => router.push({ pathname: '/shared/[id]', params: { id: playlist.id } })}
-        accessibilityRole="button"
-        accessibilityLabel={`Open ${playlist.name}, shared`}
-        testID={`shared-tile-${playlist.id}`}
-        style={({ pressed }) => pressed && styles.pressed}
-      >
-        <View style={[styles.tileCover, { backgroundColor: accent.accentPill }]}>
-          <RoomFaces people={playlist.people.slice(0, 4)} size={30} />
-        </View>
-        <Text style={styles.tileName} numberOfLines={1}>
-          {playlist.name}
-        </Text>
-        <Text style={styles.tileSub} numberOfLines={1}>
-          Shared · {plural(playlist.songs, 'song', 'songs')}
-        </Text>
-      </Pressable>
-    </View>
+    <GridTile
+      cover={<FacesCover people={playlist.people} size={size} />}
+      title={playlist.name}
+      sub={`Shared · ${plural(playlist.songs, 'song', 'songs')}`}
+      onPress={() => router.push({ pathname: '/shared/[id]', params: { id: playlist.id } })}
+      label={`Open ${playlist.name}, shared`}
+      testID={`shared-tile-${playlist.id}`}
+    />
   )
 }
 
@@ -521,18 +510,4 @@ const styles = StyleSheet.create(theme => ({
   },
   link: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: type.small },
   rename: { paddingBottom: space.md },
-  tile: { width: '100%' },
-  tileCover: {
-    aspectRatio: 1,
-    borderRadius: radius.card,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tileName: {
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
-    marginTop: space.sm,
-  },
-  tileSub: { color: theme.colors.textMuted, fontSize: type.small, marginTop: 1 },
 }))

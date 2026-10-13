@@ -34,7 +34,7 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { session, useArrival, usePressScale } from '../../ui/motion'
 import { handOffPlace } from '../../ui/coverHandoff'
 import { artShadow, card, pageFrame, sectionTitle, serif } from '../../ui/surfaces'
-import { tagFromTileLink } from '../tag/placeLinks'
+import { useOpenTag } from '../tag/useOpenTag'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import {
   describeSource,
@@ -398,7 +398,7 @@ function Tiles({ tiles, loading }: { tiles: readonly HomeTile[]; loading: boolea
   // components; `artFor` stays a prop on purpose, so the grid keeps one
   // watcher for its covers rather than one per tile.
   const { wide, finePointer } = useLayout()
-  const router = useRouter()
+  const openTag = useOpenTag()
   const art = useArt()
   // A tile is a column of the grid however many there are: one tag is half a
   // row on a phone, not the whole of it. The columns share the row by flex,
@@ -426,7 +426,7 @@ function Tiles({ tiles, loading }: { tiles: readonly HomeTile[]; loading: boolea
       columns={columns}
       small={small}
       artFor={tile => (tile.cover ? art(tile.cover) : null)}
-      onOpen={tile => router.navigate(tagFromTileLink(tile.tag.name))}
+      onOpen={tile => openTag(tile.tag, { from: 'tile' })}
     />
   )
 }

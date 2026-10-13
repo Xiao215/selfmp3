@@ -4,25 +4,19 @@ import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg'
-import type { Song, Stats } from '@selfmp3/shared'
-import {
-  leading,
-  motion,
-  radius,
-  tagColors,
-  type,
-  useLibrary,
-  type ServerConnection,
-} from '@selfmp3/client'
+import type { Song, Stats, Tag } from '@selfmp3/shared'
+import { leading, motion, radius, type, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { useArt } from '../../offline/useArt'
 import { Cover } from '../../ui/components/Cover'
+import { TagDot } from '../../ui/components/TagDot'
 import { Segmented } from '../../ui/components/Segmented'
 import { useFade } from '../../ui/motion'
 import { card, label, serif } from '../../ui/surfaces'
 import { songLink } from '../song/song.model'
-import { artistLink, tagLink } from '../tag/placeLinks'
+import { artistLink } from '../tag/placeLinks'
+import { useOpenTag } from '../tag/useOpenTag'
 import { useArtistPicture } from '../tag/useArtistPicture'
 import { StatsFrame } from './StatsFrame'
 import { useStatsFor, useStatsSongs } from './statsSource'
@@ -252,10 +246,7 @@ function RankedList({
   const rows = useMemo(() => rankedRows(stats, kind), [stats, kind])
   const songFor = useStatsSongs(via)
   const { data: library } = useLibrary()
-  const hueOf = useMemo(
-    () => new Map((library?.tags ?? []).map(tag => [tag.name, tag.hue])),
-    [library],
-  )
+  const tagOf = useMemo(() => new Map((library?.tags ?? []).map(tag => [tag.name, tag])), [library])
   // The cover each artist wears where the server has no picture of them.
   const coverOf = useMemo(() => {
     const covers = new Map<string, Song>()
@@ -294,7 +285,7 @@ function RankedList({
             row={row}
             song={row.kind === 'song' ? songFor(row.songId) : undefined}
             cover={coverOf.get(row.key)}
-            hue={row.kind === 'tag' ? hueOf.get(row.name) : undefined}
+            tag={row.kind === 'tag' ? tagOf.get(row.name) : undefined}
             testID={`stats-ranked-${kind}-${index}`}
           />
         ),
@@ -482,20 +473,20 @@ function RankedLine({
   row,
   song,
   cover,
-  hue,
+  tag,
   testID,
 }: {
   row: RankedRow
   song: Song | undefined
   /** An artist's stand-in cover (`RankedArtistFace`). */
   cover: Song | undefined
-  /** A tag's colour; none when the library no longer has the tag. */
-  hue: number | undefined
+  /** A tag's own; none when the library no longer has it. */
+  tag: Tag | undefined
   testID: string
 }): ReactNode {
   const router = useRouter()
+  const openTag = useOpenTag()
   const artFor = useArt()
-  const { theme } = useUnistyles()
 
   const open =
     row.kind === 'song'
@@ -506,8 +497,8 @@ function RankedLine({
         ? row.known
           ? () => router.navigate(artistLink(row.name))
           : undefined
-        : hue !== undefined
-          ? () => router.navigate(tagLink(row.name))
+        : tag
+          ? () => openTag(tag)
           : undefined
 
   const picture =
@@ -517,12 +508,7 @@ function RankedLine({
       <RankedArtistFace name={row.name} known={row.known} cover={cover} />
     ) : (
       <View style={styles.tagSquare}>
-        <View
-          style={[
-            styles.tagDot,
-            { backgroundColor: hue === undefined ? theme.colors.textMuted : tagColors(hue).dot },
-          ]}
-        />
+        <TagDot hue={tag?.hue} size={10} />
       </View>
     )
 
@@ -645,7 +631,6 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     backgroundColor: theme.colors.surface3,
   },
-  tagDot: { width: 10, height: 10, borderRadius: 5 },
   lineBody: { flex: 1, minWidth: 0, gap: 5 },
   lineTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   // The name takes what is left and ellipsises; the figure beside it never

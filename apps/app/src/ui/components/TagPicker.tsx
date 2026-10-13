@@ -7,7 +7,6 @@ import {
   failureText,
   HIT_TARGET,
   space,
-  tagColors,
   type,
   useBulkTag,
   useCreateTag,
@@ -26,6 +25,7 @@ import { Press } from './Press'
 import { tagChanges, tagsAcross, undoTagChange } from './tagPicker.model'
 import { SearchField } from './SearchField'
 import { ScrollView } from './Scroll'
+import { TagDot } from './TagDot'
 
 /**
  * Attach tags to a song.
@@ -387,7 +387,7 @@ export function TagSearchList({
               }}
             >
               <Checkbox checked={on} mixed={partly} />
-              <View style={[styles.dot, { backgroundColor: tagColors(item.hue).dot }]} />
+              <TagDot hue={item.hue} />
               <Text style={styles.itemLabel} numberOfLines={1}>
                 {item.name}
               </Text>
@@ -448,7 +448,6 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: 12,
   },
   itemPressed: { backgroundColor: theme.colors.surface3 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
   itemLabel: { flex: 1, color: theme.colors.textPrimary, fontSize: type.body },
   count: { color: theme.colors.textMuted, fontSize: type.tiny },
   // Set apart from the list by room, not a rule.

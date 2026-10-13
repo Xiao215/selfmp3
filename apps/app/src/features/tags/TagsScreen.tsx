@@ -4,7 +4,7 @@ import { Animated, Pressable, Text, View, type LayoutChangeEvent } from 'react-n
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Tag } from '@selfmp3/shared'
-import { fonts, leading, radius, space, tagColors, type, useLibrary } from '@selfmp3/client'
+import { fonts, leading, radius, space, type, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
@@ -31,7 +31,8 @@ import { MOVE_MS } from '../../ui/motion.model'
 import { card, label, pageFrame } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { noteTagUsed } from '../library/recentTags.store'
-import { artistLink, tagLink } from '../tag/placeLinks'
+import { artistLink } from '../tag/placeLinks'
+import { useOpenTag } from '../tag/useOpenTag'
 import {
   noTagsLine,
   tagLine,
@@ -55,6 +56,7 @@ import { PageHeader } from '../../ui/components/PageHeader'
 import { StatusLine } from '../../ui/components/StatusLine'
 import { NEW_TAG_FAILED, TagNameField, useNewTagForm } from './useNewTagForm'
 import { ScrollView } from '../../ui/components/Scroll'
+import { TagDot } from '../../ui/components/TagDot'
 
 /** Tiles at least this wide on a computer, as many as fit; two across on a phone. */
 const TILE_MIN_WIDTH = 220
@@ -100,19 +102,17 @@ export function TagsScreen(): ReactNode {
    * The tile handlers are made once and take the tag they act on, so a render
    * of the screen redraws no tile and no cover in one.
    */
-  const latest = useRef({ player, router })
+  const open = useOpenTag()
+  const latest = useRef({ player, router, open })
   useEffect(() => {
-    latest.current = { player, router }
+    latest.current = { player, router, open }
   })
   const rowRefs = useRef(new Map<number, View>())
   const holdRowRef = useCallback<HoldRef>((tagId, node) => {
     if (node) rowRefs.current.set(tagId, node)
     else rowRefs.current.delete(tagId)
   }, [])
-  const openTag = useCallback((standing: TagStanding) => {
-    noteTagUsed(standing.tag.id)
-    latest.current.router.navigate(tagLink(standing.tag.name))
-  }, [])
+  const openTag = useCallback((standing: TagStanding) => latest.current.open(standing.tag), [])
   const playTag = useCallback((standing: TagStanding) => {
     const ids = standing.songs.map(song => song.id)
     if (ids.length === 0) return
@@ -608,7 +608,7 @@ const TagTile = memo(function TagTile({
       >
         <TagSleeve song={lead} hue={tag.hue} name={tag.name} width={width} out={out} />
         <View style={styles.nameRow}>
-          <View style={[styles.dot, { backgroundColor: tagColors(tag.hue).dot }]} />
+          <TagDot hue={tag.hue} />
           <Text style={styles.tileName} numberOfLines={1}>
             {tag.name}
           </Text>
@@ -718,7 +718,7 @@ function InsidePanel({
                     size={compact ? 20 : INSIDE_COVER}
                     radius={compact ? 5 : 7}
                   />
-                  <View style={[styles.dot, { backgroundColor: tagColors(tag.hue).dot }]} />
+                  <TagDot hue={tag.hue} />
                   <Text
                     style={[styles.insideName, compact && styles.insideNameCompact]}
                     numberOfLines={1}
@@ -796,7 +796,6 @@ const styles = StyleSheet.create(theme => ({
   holder: { flexDirection: 'row', gap: GAP },
   pressed: { opacity: 0.75 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: 11 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
   tileName: {
     flexShrink: 1,
     color: theme.colors.textPrimary,

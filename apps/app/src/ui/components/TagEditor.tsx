@@ -3,15 +3,7 @@ import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { plural, TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
-import {
-  failureText,
-  space,
-  tagColors,
-  type,
-  useDeleteTag,
-  useRenameTag,
-  useSetTagHue,
-} from '@selfmp3/client'
+import { failureText, space, type, useDeleteTag, useRenameTag, useSetTagHue } from '@selfmp3/client'
 import { useAccent } from '../accent'
 import { Button } from './Button'
 import { TextField } from './TextField'
@@ -21,6 +13,7 @@ import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 import { label } from '../surfaces'
 import { StatusLine } from './StatusLine'
+import { TagDot } from './TagDot'
 
 /**
  * Everything you can do to a tag itself.
@@ -91,7 +84,7 @@ function Editor({
   return (
     <View>
       <View style={styles.title}>
-        <View style={[styles.dot, { backgroundColor: tagColors(tag.hue).dot }]} />
+        <TagDot hue={tag.hue} />
         <Text style={styles.titleText} numberOfLines={1}>
           Tag <Text style={styles.titleName}>{tag.name}</Text>
         </Text>
@@ -179,7 +172,6 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
   },
-  dot: { width: 8, height: 8, borderRadius: 4 },
   titleText: { color: theme.colors.textSecondary, fontSize: type.sub, flexShrink: 1 },
   titleName: { color: theme.colors.textPrimary, fontWeight: '700' },
   hint: { color: theme.colors.textMuted, fontSize: type.small },

@@ -882,28 +882,26 @@ function RowMore({
       </View>
       <Popover open={open} onClose={() => onOpen(false)} anchorRef={anchor} width={220}>
         {onNext ? (
-          <View testID={nextTestID}>
-            <SheetItem
-              label="Import next"
-              icon={<Next size={15} tone="textPrimary" />}
-              onPress={() => {
-                onOpen(false)
-                onNext()
-              }}
-            />
-          </View>
-        ) : null}
-        <View testID={removeTestID}>
           <SheetItem
-            label="Remove from imports"
-            icon={<X size={15} color={theme.colors.danger} />}
-            danger
+            label="Import next"
+            icon={<Next size={15} tone="textPrimary" />}
             onPress={() => {
               onOpen(false)
-              onRemove()
+              onNext()
             }}
+            testID={nextTestID}
           />
-        </View>
+        ) : null}
+        <SheetItem
+          label="Remove from imports"
+          icon={<X size={15} color={theme.colors.danger} />}
+          danger
+          onPress={() => {
+            onOpen(false)
+            onRemove()
+          }}
+          testID={removeTestID}
+        />
       </Popover>
     </RNAnimated.View>
   )

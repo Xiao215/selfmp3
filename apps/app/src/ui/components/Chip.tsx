@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, View } from 'react-native'
+import { Animated, Pressable, Text } from 'react-native'
 import type { LayoutChangeEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePressScale } from '../motion'
-import { radius, tagColors, type } from '@selfmp3/client'
+import { radius, type } from '@selfmp3/client'
 import { Check } from './Icons'
 import { Press } from './Press'
+import { TagDot } from './TagDot'
 import { plural } from '@selfmp3/shared'
 
 /**
@@ -63,7 +64,6 @@ export function Chip({
 }): ReactNode {
   const { theme } = useUnistyles()
   const press = usePressScale()
-  const dot = hue === undefined ? null : tagColors(hue).dot
   const text = selected ? theme.colors.onPrimary : theme.colors.textPrimary
 
   const padding = compact ? styles.labelCompact : styles.labelStrip
@@ -105,7 +105,7 @@ export function Chip({
         ]}
       >
         {icon}
-        {dot === null ? null : <View style={[styles.dot, { backgroundColor: dot }]} />}
+        {hue === undefined ? null : <TagDot hue={hue} size={7} />}
         {choice && selected ? <Check size={compact ? 11 : 12} color={text} /> : null}
         {name}
         {count === undefined ? null : <Text style={[styles.count, { color: text }]}>{count}</Text>}
@@ -148,7 +148,6 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: 6,
   },
-  dot: { width: 7, height: 7, borderRadius: 3.5 },
   labelStrip: { paddingHorizontal: 14, paddingVertical: 8 },
   labelCompact: { paddingHorizontal: 10, paddingVertical: 5 },
   beforeRemove: { paddingRight: 2 },

@@ -31,6 +31,8 @@ jest.mock('@selfmp3/client', () => ({
   ...jest.requireActual('@selfmp3/client'),
   useLibrary: () => ({ data: { songs: [], playlists: [], tags: [] } }),
   useAddToPlaylist: () => ({ mutate: jest.fn() }),
+  useBulkLoved: () => ({ mutate: jest.fn() }),
+  useCreatePlaylist: () => ({ mutateAsync: jest.fn() }),
   useBulkDeleteSongs: () => ({ mutate: mockDeleteSong, isPending: false }),
   useToggleLoved: () => ({ mutate: jest.fn() }),
   clientApi: () => ({ similar: () => Promise.resolve({ songs: [] }) }),
@@ -140,7 +142,7 @@ describe('what the menu offers', () => {
     expect(screen.getByRole('button', { name: 'Like' })).toBeTruthy()
     // From the start of the name: the › after Add to playlist is part of it.
     const order = [
-      /^Tags$/,
+      /^Tags…$/,
       /^Add to playlist/,
       /^Add to Up next$/,
       /^Play similar songs$/,

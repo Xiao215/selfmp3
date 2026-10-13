@@ -13,20 +13,15 @@ import { Animated, View } from 'react-native'
 import type { FlatListProps, GestureResponderEvent, StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
-import { isDownloaded, useLibrary } from '@selfmp3/client'
 import { dropIndex, movedTo } from './orderedSongList.model'
-import { useDownloads } from '../../offline/DownloadsProvider'
-import { ROW_COVER_SIZE } from '../../offline/coverStore'
-import { useArt } from '../../offline/useArt'
 import { useDragToReorder } from '../../ports/songDrag'
-import { modifiersOf, type Selection } from '../../selection/useSelection'
+import type { Selection } from '../../selection/useSelection'
 import { useLayoutValue } from '../../shell/useLayout'
 import { roomShift } from '../motion.model'
 import { HoldToReorder, useLiftScale, useMakeRoom } from './HoldToReorder'
 import { SongList } from './SongList'
-import { useSongMenu } from './useSongMenu'
-import type { PopoverAnchor } from '../rightClick'
 import { SongRow } from './SongRow'
+import { useSongRows } from './useSongRows'
 
 /**
  * A list of songs in an order that is yours (docs/features/lists.md): a
@@ -77,11 +72,15 @@ export function OrderedSongList({
   /** The playlist these are, for the song menu's "Remove from this playlist". */
   menuPlaylist?: { readonly id: number; readonly name: string }
 }): ReactNode {
-  const artFor = useArt(ROW_COVER_SIZE)
-  const library = useLibrary()
-  const { state: downloads, installed, streamBlocked } = useDownloads()
-  const songMenu = useSongMenu(menuPlaylist)
-  const onMore = songMenu.onMore
+  // The library's rows, wired as every list's are; a press here also has to
+  // tell a move's release from a tap (`press`, below).
+  const rows = useSongRows({
+    songs,
+    selection,
+    onPlay,
+    playlist: menuPlaylist,
+  })
+  const { press: pressRow } = rows
   // The row being moved and the row it would land on. Not how far it has
   // travelled: that is `dragY`, which moves the row without a render.
   const [drag, setDrag] = useState<{ from: number; over: number } | null>(null)
@@ -100,9 +99,9 @@ export function OrderedSongList({
 
   /*
    * What a row's handlers read at the moment they run, so the handlers are
-   * made once (`rowActions`) and a row's memo holds.
+   * made once (`moves`) and a row's memo holds.
    */
-  const latest = useRef({ songIds, rowHeight, selection, onPlay, onReorder })
+  const latest = useRef({ songIds, rowHeight, onReorder })
   /*
    * When a move last let go. Letting go of a carried row is also a press on
    * it as far as the row is concerned, and a press plays: the press that ends
@@ -110,7 +109,7 @@ export function OrderedSongList({
    */
   const moving = useRef({ carried: false, droppedAt: 0 })
   useEffect(() => {
-    latest.current = { songIds, rowHeight, selection, onPlay, onReorder }
+    latest.current = { songIds, rowHeight, onReorder }
   })
 
   /*
@@ -162,30 +161,18 @@ export function OrderedSongList({
     [dropRow],
   )
 
-  const rowActions = useMemo<RowActions>(
-    () => ({
-      dragStart,
-      dragMove,
-      dragEnd,
-      holding: holdRow,
-      press: (event, songId, index) => {
-        const now = latest.current
-        // The release of a move, not a press of its own.
-        if (moving.current.carried || Date.now() - moving.current.droppedAt < RELEASE_MS) return
-        // Cmd, Shift and selection mode select; anything else plays from here.
-        if (now.selection.click(songId, modifiersOf(event))) return
-        now.onPlay(index)
-      },
-      more: onMore,
-      toggleSelect: song => latest.current.selection.toggle(song.id),
-      // A drag from a ticked row carries every ticked song.
-      carried: song => latest.current.selection.carried(song.id),
-      // Holding a row is how it is moved, so selecting starts from the page's
-      // ⋯ (Select songs); while selecting, holding selects.
-      longPress: song => latest.current.selection.enter(song.id),
-      measure: setRowHeight,
-    }),
-    [dragStart, dragMove, dragEnd, holdRow, onMore],
+  // The release of a move is a press on its row too, and not a request to
+  // play it; anything else is the list's press.
+  const press = useCallback(
+    (event: GestureResponderEvent, song: Song) => {
+      if (moving.current.carried || Date.now() - moving.current.droppedAt < RELEASE_MS) return
+      pressRow(event, song)
+    },
+    [pressRow],
+  )
+  const moves = useMemo<MoveActions>(
+    () => ({ dragStart, dragMove, dragEnd, holding: holdRow, measure: setRowHeight }),
+    [dragStart, dragMove, dragEnd, holdRow],
   )
 
   /*
@@ -209,9 +196,6 @@ export function OrderedSongList({
     [liftedFrom, liftedOver, rowHeight, dragY, lift.lift, settling],
   )
 
-  // Not on this phone and nowhere to stream it from: faded.
-  const unreachableHere = (library.isError && installed) || streamBlocked
-  const menuSongId = songMenu.openId
   // Selection mode is not what reordering is for, so a held row selects
   // rather than lifts while it is on — and always, where the order is not
   // yours to change.
@@ -238,38 +222,18 @@ export function OrderedSongList({
       dragEnd(songId, dy)
     },
   })
+  const { rowProps } = rows
   const renderSong = useCallback(
-    ({ item, index }: { item: Song; index: number }) => {
-      const here = isDownloaded(downloads.index, item.id)
-      return (
-        <OrderedRow
-          testID={`song-row-${index}`}
-          song={item}
-          index={index}
-          artUri={artFor(item)}
-          downloaded={here}
-          notDownloadedMark={installed && !here}
-          unavailable={unreachableHere && !here}
-          reorderable={reorderable}
-          selecting={selection.active}
-          selected={selection.has(item.id)}
-          lifted={drag?.from === index}
-          menuOpen={menuSongId === item.id}
-          actions={rowActions}
-        />
-      )
-    },
-    [
-      artFor,
-      installed,
-      unreachableHere,
-      downloads.index,
-      reorderable,
-      selection,
-      drag,
-      menuSongId,
-      rowActions,
-    ],
+    ({ item, index }: { item: Song; index: number }) => (
+      <OrderedRow
+        {...rowProps(item, index)}
+        onPress={press}
+        reorderable={reorderable}
+        lifted={drag?.from === index}
+        moves={moves}
+      />
+    ),
+    [rowProps, press, reorderable, drag, moves],
   )
 
   return (
@@ -294,7 +258,7 @@ export function OrderedSongList({
           />
         </View>
       </LiftContext.Provider>
-      {songMenu.menu}
+      {rows.menu}
     </>
   )
 }
@@ -308,8 +272,8 @@ const styles = StyleSheet.create({
   frame: { flex: 1, minHeight: 0 },
 })
 
-/** What a row can ask of the screen. Made once, so a row's memo holds. */
-interface RowActions {
+/** How a row takes part in a move. Made once, so a row's memo holds. */
+interface MoveActions {
   /**
    * A move, named by the song rather than by where it sits. A row's place
    * changes when a move ends, and a gesture built around a place that has
@@ -321,11 +285,6 @@ interface RowActions {
   readonly dragEnd: (songId: number, dy: number) => void
   /** The hold has begun on a song, or it is over: the row's swell (`useLiftScale`). */
   readonly holding: (songId: number, holding: boolean) => void
-  readonly press: (event: GestureResponderEvent, songId: number, index: number) => void
-  readonly more: (anchor: PopoverAnchor | null, song: Song) => void
-  readonly toggleSelect: (song: Song) => void
-  readonly carried: (song: Song) => readonly number[]
-  readonly longPress: (song: Song) => void
   readonly measure: (height: number) => void
 }
 
@@ -342,50 +301,27 @@ interface RowActions {
  * same thing. Taking a song off the playlist is in the ⋯ menu, where everything
  * else done to a song already is.
  *
- * Only the handlers that need this row's song or place are made here — the
- * press, which plays from it, and those that carry a move. The rest are the
- * screen's own, handed down unchanged, so the memo holds.
+ * Its props are the list's rows' (`useSongRows`), spread so each is compared
+ * on its own; only the handlers that carry a move for this row's song are
+ * made here, so the memo holds.
  */
 const OrderedRow = memo(function OrderedRow({
-  testID,
-  song,
-  index,
-  artUri,
-  downloaded,
-  notDownloadedMark,
-  unavailable,
   reorderable,
-  selecting,
-  selected,
-  lifted,
-  menuOpen,
-  actions,
-}: {
-  testID: string
-  song: Song
-  index: number
-  artUri: string | null | undefined
-  downloaded: boolean
-  notDownloadedMark: boolean
-  unavailable: boolean
+  moves,
+  onLongPress,
+  ...row
+}: ComponentProps<typeof SongRow> & {
   /** This list's order is yours to change, and nothing is being selected. */
   reorderable: boolean
-  selecting: boolean
-  selected: boolean
-  lifted: boolean
-  menuOpen: boolean
-  actions: RowActions
+  moves: MoveActions
 }): ReactNode {
-  const songId = song.id
+  const songId = row.song.id
+  const index = row.index ?? 0
   const onHolding = useCallback(
-    (holding: boolean) => actions.holding(songId, holding),
-    [actions, songId],
+    (holding: boolean) => moves.holding(songId, holding),
+    [moves, songId],
   )
-  const onDragStart = useCallback(() => actions.dragStart(songId), [actions, songId])
-  const onPress = useCallback(
-    (event: GestureResponderEvent) => actions.press(event, songId, index),
-    [actions, songId, index],
-  )
+  const onDragStart = useCallback(() => moves.dragStart(songId), [moves, songId])
 
   // One gesture, everywhere: hold the row and it lifts — and with a mouse a
   // plain drag lifts it as well (`useDragToReorder`, above). There is no grip
@@ -396,28 +332,16 @@ const OrderedRow = memo(function OrderedRow({
       onHolding={onHolding}
       onStart={onDragStart}
       // An ordered list's rows only ever move up and down.
-      onMove={(_dx, dy) => actions.dragMove(songId, dy)}
-      onEnd={(_dx, dy) => actions.dragEnd(songId, dy)}
-      onLayoutHeight={index === 0 ? actions.measure : undefined}
+      onMove={(_dx, dy) => moves.dragMove(songId, dy)}
+      onEnd={(_dx, dy) => moves.dragEnd(songId, dy)}
+      onLayoutHeight={index === 0 ? moves.measure : undefined}
     >
       <SongRow
-        testID={testID}
-        song={song}
-        artUri={artUri}
-        downloaded={downloaded}
-        notDownloadedMark={notDownloadedMark}
-        unavailable={unavailable}
-        index={index}
-        selecting={selecting}
-        selected={selected}
-        menuOpen={menuOpen}
-        lifted={lifted}
-        onPress={onPress}
-        onMore={actions.more}
-        onToggleSelect={actions.toggleSelect}
-        dragSongs={actions.carried}
-        // Left out while the hold is the move's: see `SongRow`.
-        onLongPress={reorderable ? undefined : actions.longPress}
+        {...row}
+        // Left out while the hold is the move's: see `SongRow`. Holding a row
+        // is how it is moved, so selecting starts from the page's ⋯ (Select
+        // songs); while selecting, holding selects.
+        onLongPress={reorderable ? undefined : onLongPress}
       />
     </HoldToReorder>
   )

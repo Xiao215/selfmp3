@@ -4,12 +4,13 @@ import { Animated, Pressable, Text, View } from 'react-native'
 import type { NativeScrollEvent, NativeSyntheticEvent, StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { artistOr, formatDuration, type Tag } from '@selfmp3/shared'
-import { HIT_TARGET, isDownloaded, radius, space, type } from '@selfmp3/client'
-import { useDownloads } from '../../offline/DownloadsProvider'
+import { HIT_TARGET, radius, space, type } from '@selfmp3/client'
 import { usePlayer, usePlayerProgress, type PlayerApi } from '../../player/PlayerProvider'
 import { useLayoutValue } from '../../shell/useLayout'
 import { label } from '../../ui/surfaces'
 import { useSongTagLookup } from '../../ui/songTags'
+import type { RowAvailability } from '../../ui/rowAvailability.model'
+import { useRowAvailability } from '../../ui/useRowAvailability'
 import { PlayingCard } from '../../ui/components/PlayingCard'
 import { PlayPauseButton } from '../../ui/components/PlayPauseButton'
 import { ScrollView } from '../../ui/components/Scroll'
@@ -48,37 +49,24 @@ export function useUpNextShown(wide: boolean): boolean {
 }
 
 /** What a row of Up next knows of its song, beside its name. */
-interface QueueRowFacts {
-  /** Kept on this device. */
-  readonly downloaded: boolean
-  /** Not on this device, said by an installed app, where that may mean it does not play. */
-  readonly notDownloadedMark: boolean
-  /** Not here, with nothing to stream it from now: faded. */
-  readonly unavailable: boolean
+interface QueueRowFacts extends RowAvailability {
   readonly tags: readonly Tag[]
 }
 
 /**
- * The facts of each row, one rule for the sheet and the rail. The same tags
+ * The facts of each row, for the sheet and the rail: whether it can play
+ * here by every list's rule (`rowAvailability`), and its tags. The same tags
  * array for the same song (`songTagLookup`), so a row's memo holds.
  */
 export function useQueueRowFacts(): (song: {
   readonly id: number
   readonly tagIds: readonly number[]
 }) => QueueRowFacts {
-  const { state: downloads, installed, streamBlocked } = useDownloads()
+  const availability = useRowAvailability()
   const tagsOf = useSongTagLookup()
   return useCallback(
-    song => {
-      const here = isDownloaded(downloads.index, song.id)
-      return {
-        downloaded: here,
-        notDownloadedMark: installed && !here,
-        unavailable: streamBlocked && !here,
-        tags: tagsOf(song),
-      }
-    },
-    [downloads.index, installed, streamBlocked, tagsOf],
+    song => ({ ...availability(song.id), tags: tagsOf(song) }),
+    [availability, tagsOf],
   )
 }
 

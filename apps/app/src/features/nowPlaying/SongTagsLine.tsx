@@ -8,9 +8,8 @@ import { isRoomTrackId, radius, type, withAlpha } from '@selfmp3/client'
 import { useSongTagLookup } from '../../ui/songTags'
 import { Chip } from '../../ui/components/Chip'
 import { Plus, TagPlus } from '../../ui/components/Icons'
-import { noteTagUsed } from '../library/recentTags.store'
 import { RoomSongLine } from '../room/RoomSongLine'
-import { tagLink } from '../tag/placeLinks'
+import { useOpenTag } from '../tag/useOpenTag'
 
 /**
  * The song's tags on Now Playing, quietly, on a phone and a computer alike:
@@ -21,7 +20,7 @@ import { tagLink } from '../tag/placeLinks'
  * did that and the stage, built before rooms, did not: it offered "Edit tags"
  * for a song you do not have.
  *
- * Opening a tag counts as using it (`noteTagUsed`), as it does from a list, so
+ * Opening a tag counts as using it (`useOpenTag`), as it does everywhere, so
  * the sidebar's recent tags have it.
  */
 export function SongTagsLine({
@@ -51,6 +50,7 @@ export function SongTagsLine({
 }): ReactNode {
   const { theme } = useUnistyles()
   const tagsOf = useSongTagLookup()
+  const openTag = useOpenTag()
   if (isRoomTrackId(song.id)) return <RoomSongLine song={song} />
   const tags = tagsOf(song)
   const label = tags.length > 0 ? 'Edit tags' : 'Add tags'
@@ -63,10 +63,7 @@ export function SongTagsLine({
           hue={tag.hue}
           selected={false}
           compact
-          onPress={() => {
-            noteTagUsed(tag.id)
-            onOpen(tagLink(tag.name))
-          }}
+          onPress={() => openTag(tag, { go: onOpen })}
         />
       ))}
       <Pressable

@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from 'react'
 import { Pressable, Text, useWindowDimensions, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { plural, libraryArtists } from '@selfmp3/shared'
-import { tagColors, type, useLibrary } from '@selfmp3/client'
+import { type, useLibrary } from '@selfmp3/client'
 import { useRecentTagIds } from '../library/recentTags.store'
 import { songsById } from '../../ui/songsById'
 import { ArtistFace } from './ArtistFace'
@@ -28,6 +28,7 @@ import {
 import { EmptyState } from '../../ui/components/EmptyState'
 import { SearchField } from '../../ui/components/SearchField'
 import { FlatList, ScrollView } from '../../ui/components/Scroll'
+import { TagDot } from '../../ui/components/TagDot'
 
 /**
  * Combine with… (docs/ui-mock `P09`, docs/features/lists.md): the sheet that
@@ -108,7 +109,7 @@ function AddSheetBody({
       >
         {place.kind === 'tag' ? (
           <View style={styles.mark}>
-            <View style={[styles.dot, { backgroundColor: tagColors(place.tag.hue).dot }]} />
+            <TagDot hue={place.tag.hue} />
           </View>
         ) : (
           <ArtistFace
@@ -245,7 +246,6 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dot: { width: 8, height: 8, borderRadius: 4 },
   name: { flex: 1, color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '500' },
   size: { color: theme.colors.textMuted, fontSize: type.sub, fontVariant: ['tabular-nums'] },
   foot: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 6 },

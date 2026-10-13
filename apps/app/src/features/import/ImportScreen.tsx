@@ -424,6 +424,7 @@ export function ImportScreen({
       <ScrollView
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentPhone]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         testID="import-screen"
       >
         <View style={styles.head}>

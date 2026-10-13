@@ -189,6 +189,7 @@ function AddSheetBody({
         }
         renderItem={renderRow}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         initialNumToRender={20}
         style={{ height: Math.min(420, window.height * 0.45) }}
         ListEmptyComponent={

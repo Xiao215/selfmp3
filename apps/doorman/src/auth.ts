@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { isAllowed, nobodyAllowed, requireSession, type Context } from './context.js'
 import { randomToken } from './encoding.js'
 import { GoogleError, authUrl, checkIdToken, exchangeCode } from './google.js'
+import { forgetGrants } from './grants.js'
 import { page } from './html.js'
 import {
   DoormanError,
@@ -263,11 +264,13 @@ export async function signOut(ctx: Context): Promise<Response> {
 
 /**
  * `POST /v1/auth/signout-everywhere` — every session the account has ends,
- * this one included: what to do about a lost device. One KV write.
+ * this one included, and every server's grant: what to do about a lost
+ * device. One KV write, and a second for an account that had let a server in.
  */
 export async function signOutEverywhere(ctx: Context): Promise<Response> {
   const session = await requireSession(ctx)
   await ctx.accounts.signOutEverywhere(session.sub)
+  await forgetGrants(ctx, session.sub)
   return noContent()
 }
 

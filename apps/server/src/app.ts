@@ -1,6 +1,8 @@
-import express, { type Express } from 'express'
+import express, { type Express, type Router } from 'express'
 import compression from 'compression'
+import type { Config } from './config.js'
 import type { Container } from './container.js'
+import type { Logger } from './logger.js'
 import {
   bearerAuth,
   cors,
@@ -34,8 +36,24 @@ import { artistRoutes } from './routes/artists.js'
  * respond, CORS before auth (so a preflight is not rejected for having no
  * token), auth before any route, and the error handler dead last so it catches
  * everything above it.
+ *
+ * Two shapes share it. `createApp` serves one library, as a test or a laptop
+ * with a folder for a bucket wants. A server working for several accounts
+ * serves each library's `libraryApi` behind the hub's own door instead
+ * (hub/app.ts), which finds the library a request is for by its token.
  */
 export function createApp(container: Container): Express {
+  const app = frame(container.config, container.logger)
+  app.use('/api', bearerAuth(container.config))
+  app.use('/api', libraryApi(container))
+  return finish(app, container.logger)
+}
+
+/**
+ * Everything in front of the API: headers, CORS, the log, compression, JSON
+ * bodies, and refusing other sites' writes. The same for one library or many.
+ */
+export function frame(config: Config, logger: Logger): Express {
   const app = express()
 
   // Behind `tailscale serve`, so trust exactly one proxy hop for req.ip.
@@ -44,8 +62,8 @@ export function createApp(container: Container): Express {
   app.disable('x-powered-by')
 
   app.use(securityHeaders())
-  app.use(cors(container.config))
-  app.use(requestLogger(container.logger))
+  app.use(cors(config))
+  app.use(requestLogger(logger))
 
   // Compress JSON, never audio: an m4a is already compressed, and gzipping it
   // would burn CPU while breaking the byte offsets that range requests need.
@@ -61,15 +79,27 @@ export function createApp(container: Container): Express {
   )
 
   app.use(express.json({ limit: '1mb' }))
-  app.use('/api', sameOriginWrites(container.config))
-  app.use('/api', bearerAuth(container.config))
-  // The library is the bucket's: until one is connected there is none to serve.
-  app.use(
-    '/api',
-    requireCloud(() => container.cloudSync.connected),
-  )
+  app.use('/api', sameOriginWrites(config))
+  return app
+}
 
+/** The API's own 404, then the server's page, then the one error handler. */
+export function finish(app: Express, logger: Logger): Express {
+  app.use('/api', notFoundHandler)
+  mountAdminPage(app)
+  app.use(errorHandler(logger))
+  return app
+}
+
+/**
+ * One library's API, mounted at `/api`, for a request already let in.
+ *
+ * The library is the bucket's: until one is connected there is none to
+ * serve, so everything but connecting one waits for it.
+ */
+export function libraryApi(container: Container): Router {
   const api = express.Router()
+  api.use(requireCloud(() => container.cloudSync.connected))
   api.use(libraryRoutes(container))
   api.use(songRoutes(container))
   api.use(mediaRoutes(container))
@@ -85,13 +115,5 @@ export function createApp(container: Container): Express {
   api.use(gemsRoutes(container))
   api.use(cloudRoutes(container))
   api.use(artistRoutes(container))
-  app.use('/api', api)
-
-  app.use('/api', notFoundHandler)
-
-  mountAdminPage(app)
-
-  app.use(errorHandler(container.logger))
-
-  return app
+  return api
 }

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { keep, recall, remember, type BoundedCache } from './boundedCache.js'
 import type { BucketTarget } from './bucket.js'
 import type { Log } from './context.js'
+import { sha256Hex } from './encoding.js'
 import type { DoormanKeys } from './keys.js'
 import { getRecord, putRecord, type KvStore } from './kv.js'
 import { seal, unseal } from './seal.js'
@@ -142,6 +143,7 @@ export class Accounts {
   async me(session: Session): Promise<DoormanMe> {
     const target = await this.bucket(session.sub)
     return {
+      account: await accountId(session.sub),
       email: session.email,
       name: session.name,
       picture: session.picture,
@@ -172,6 +174,14 @@ export class Accounts {
   #set<Value>(cache: BoundedCache<Value>, sub: string, value: Value): void {
     remember(cache, sub, value, this.#now())
   }
+}
+
+/**
+ * The account as others may know it (`DoormanAccountSchema`): derived from the
+ * Google id, so it never changes, without being it.
+ */
+export async function accountId(sub: string): Promise<string> {
+  return (await sha256Hex(`account:${sub}`)).slice(0, 32)
 }
 
 function bucketKey(sub: string): string {

@@ -5,9 +5,12 @@ import {
   DoormanChangesSchema,
   DoormanListSchema,
   parseChangesHeader,
+  DoormanGrantMadeSchema,
   DoormanMeSchema,
   ErrorBodySchema,
   type CloudConnect,
+  type DoormanGrantMade,
+  type DoormanGrantRequest,
   type DoormanClaimResult,
   type DoormanMe,
 } from '@selfmp3/shared'
@@ -75,6 +78,24 @@ export class DoormanClient {
 
   async signOut(token: string): Promise<void> {
     await this.request('POST', '/v1/auth/signout', { token })
+  }
+
+  /**
+   * A grant for this server, made with the session a device handed it
+   * (docs/features/shared-server.md): a session of the server's own for that
+   * account, which lasts until the account takes it back.
+   */
+  async grant(token: string, request: DoormanGrantRequest): Promise<DoormanGrantMade> {
+    const response = await this.request('POST', '/v1/grants', { token, json: request })
+    return DoormanGrantMadeSchema.parse(await response.json())
+  }
+
+  /** Give a grant back: the server letting an account go. */
+  async endGrant(token: string, id: string): Promise<void> {
+    await this.request('DELETE', `/v1/grants/${encodeURIComponent(id)}`, {
+      token,
+      allowStatus: [404],
+    })
   }
 
   /** The signed-in account's bucket, as the sync sees any bucket. */

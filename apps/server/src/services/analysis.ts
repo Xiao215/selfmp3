@@ -21,6 +21,7 @@ import { ffmpegFailure, runFfmpeg } from './ffmpeg.js'
 import type { MotionStore } from './motionStore.js'
 import { ModelUnavailableError, type SoundService } from '../sound/sound.js'
 import { messageOf } from '../util/errors.js'
+import { Gate } from '../util/gate.js'
 
 /**
  * Background audio analysis.
@@ -121,6 +122,7 @@ export class AnalysisService {
   readonly #fetchAudio: (songId: number) => Promise<Buffer | null>
   readonly #sound: SoundService | null
   readonly #downloads: Pick<BucketDownloadsRepository, 'spentOn' | 'spend'>
+  readonly #gate: Gate
   readonly #analyzePcm: typeof analyzePcmInWorker
   readonly #logger: Logger
   readonly #onProgress: (done: number, finished: boolean) => void
@@ -158,6 +160,11 @@ export class AnalysisService {
     /** How many songs the loop has downloaded from the bucket today. */
     downloads: Pick<BucketDownloadsRepository, 'spentOn' | 'spend'>
     /**
+     * Whose turn it is to analyse, when other libraries on this machine are
+     * analysing too (shared.ts). This library's own turn alone when absent.
+     */
+    gate?: Gate
+    /**
      * The DSP over a decoded clip: on a worker thread unless a test says
      * otherwise — a worker started from TypeScript source cannot import the
      * rest of it, which is all a test has.
@@ -182,6 +189,7 @@ export class AnalysisService {
     this.#fetchAudio = deps.fetchAudio ?? (() => Promise.resolve(null))
     this.#sound = deps.sound ?? null
     this.#downloads = deps.downloads
+    this.#gate = deps.gate ?? new Gate(1)
     this.#analyzePcm = deps.analyzePcm ?? analyzePcmInWorker
     this.#logger = deps.logger.child('analysis')
     this.#onProgress = deps.onProgress
@@ -258,7 +266,7 @@ export class AnalysisService {
         const songId = this.#audioFeatures.nextPending(ANALYSIS_VERSION, this.#notFetched)
         if (songId === null) {
           // Every song has its tempo and key; what is left is how they sound.
-          const heardOne = await this.#hearNext()
+          const heardOne = await this.#gate.run(() => this.#hearNext())
           if (!heardOne) break
           continue
         }
@@ -268,13 +276,15 @@ export class AnalysisService {
 
         this.#current = { id: song.id, title: song.title }
         try {
-          await this.#analyze(song.id, song.path, song.duration)
+          await this.#gate.run(() => this.#analyze(song.id, song.path, song.duration))
           this.#done++
           analysed++
           this.#current = null
           this.#onProgress(this.#done, false)
         } catch (error) {
           this.#current = null
+          // Failed because it was stopped, as likely as not: nothing to record.
+          if (this.#stopped) break
           if (error instanceof DownloadsSpentError || error instanceof NotFetchedError) {
             if (this.#passOver(song, error)) continue
             break
@@ -374,6 +384,9 @@ export class AnalysisService {
       // Pure CPU for a few hundred milliseconds, off the thread that answers
       // the phone, where a seek landing during it would wait for it.
       const features = await this.#analyzePcm(pcm, ANALYSIS_SAMPLE_RATE, ANALYSE_TIMEOUT_MS)
+      // Stopped meanwhile: the database may be closed already, and the song
+      // is analysed again by whoever opens it next.
+      if (this.#stopped) return
 
       // The curve before the row: a row at this version is what says the song
       // is done, so a crash between the two re-analyses it rather than

@@ -231,7 +231,7 @@ interface ThrottleStatus {
 }
 
 /** Where the bucket's state is kept between restarts. */
-interface ThrottleStore {
+export interface ThrottleStore {
   get(now: number): ThrottleState
   save(state: ThrottleState): void
 }

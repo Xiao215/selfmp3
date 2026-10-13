@@ -1,9 +1,9 @@
 import { APP_NAME, APP_VERSION, loadConfig } from './config.js'
-import { createContainer, type Container } from './container.js'
+import { createHubApp } from './hub/app.js'
+import { Hub } from './hub/hub.js'
 import { speakHttp1 } from './http/outgoing.js'
+import { createLogger, type Logger } from './logger.js'
 import { beyondThisComputer, listenAddresses, publishedAddresses } from './services/addresses.js'
-import { romanizeLibrary } from './services/romanizedLines.js'
-import { createApp } from './app.js'
 import { messageOf } from './util/errors.js'
 
 /**
@@ -17,16 +17,11 @@ import { messageOf } from './util/errors.js'
 
 function main(): void {
   speakHttp1()
-  const configured = loadConfig()
-  // Whether the token was chosen by hand, which only this line can still tell:
-  // the container settles the rest against the database, so its config is the
-  // one to serve from and its `authToken` is never null.
-  const chosenByHand = configured.authToken !== null
-  const container = createContainer(configured)
-  const config = container.config
-  const logger = container.logger
+  const config = loadConfig()
+  const logger = createLogger(config.logLevel)
+  const hub = new Hub(config, logger)
 
-  const app = createApp(container)
+  const app = createHubApp(hub)
   let shuttingDown = false
 
   const server = app.listen(config.port, config.host, () => {
@@ -43,13 +38,13 @@ function main(): void {
     /*
      * Say plainly who else can reach this, and what stands in their way.
      *
-     * The API is the whole library — reading it, editing it, deleting from it —
-     * and the addresses below are load-bearing: a device signed in to the
-     * bucket finds this server through them to import
+     * The API is the whole of every library here — reading it, editing it,
+     * deleting from it — and the addresses below are load-bearing: a device
+     * signed in to its bucket finds this server through them
      * (`packages/client/src/connection/reach.ts`), so they cannot simply be
-     * closed to localhost. What guards them is the token, which there always is
-     * now: every one of those devices is handed it with the sync, and a request
-     * from this computer is not asked for one at all (`http/middleware.ts`).
+     * closed to localhost. What guards them is each library's token: every one
+     * of its devices is handed it with the sync, and a request from this
+     * computer is not asked for one when there is only one library to mean.
      */
     const open = beyondThisComputer(addresses)
     if (open.length === 0) {
@@ -57,23 +52,21 @@ function main(): void {
       return
     }
     logger.info(
-      `a token guards these addresses: ${open.join(', ')} — your devices are given it with ` +
-        'the sync, and requests from this computer need none',
+      `each library’s token guards these addresses: ${open.join(', ')} — its devices are ` +
+        'given it with the sync',
     )
-
-    if (chosenByHand) {
-      logger.info('the token is the one in SELFMP3_AUTH_TOKEN')
-      return
-    }
     /*
      * The token itself, for the two cases nothing hands it to: this page opened
-     * from another computer, and an extension pointed at a LAN address. It is a
-     * secret in a log, which is worth a moment's thought — but this log is on
-     * the machine whose data directory holds `selfmp3.db`, and anyone who can
-     * read one can read the other. Printing it every boot rather than only the
-     * first is what makes it findable at all without a SQLite client.
+     * from another computer, and an extension pointed at a LAN address — on a
+     * machine with one library, which is the only one these make sense on. It
+     * is a secret in a log, which is worth a moment's thought — but this log is
+     * on the machine whose data directory holds every token there is, and
+     * anyone who can read one can read the other.
      */
-    logger.info(`its token is ${config.authToken} — set SELFMP3_AUTH_TOKEN to choose your own`)
+    const only = hub.workspaces()
+    if (only.length === 1 && only[0]) {
+      logger.info(`its token is ${only[0].container.config.authToken}`)
+    }
   })
 
   /*
@@ -91,7 +84,7 @@ function main(): void {
     } else {
       logger.error('could not listen', { message: error.message, code: error.code })
     }
-    container.close()
+    hub.close()
     process.exit(1)
   })
 
@@ -101,12 +94,10 @@ function main(): void {
   server.headersTimeout = 70_000
   server.requestTimeout = 0
 
-  // Presence sweep and library-version watch for the event stream.
-  container.devices.start()
   // Lyrics+: the Japanese dictionary takes a second or two; load it now, not on first tap.
-  container.romanization.warmUp()
+  hub.shared.romanization.warmUp()
 
-  startLibrary(container)
+  hub.start()
 
   /*
    * `code` is what the process exits with once everything has closed: 0 for a
@@ -120,22 +111,22 @@ function main(): void {
 
     // Everything in the background, including the event streams: one is
     // answered and then held open for the life of the tab, so `server.close`
-    // would wait on it forever and never call back — and the database is
+    // would wait on it forever and never call back — and the databases are
     // closed in that callback. Stop first and what is left to wait for is
     // ordinary requests, which do finish.
-    container.stop()
+    hub.stop()
 
     server.close(() => {
-      container.close()
+      hub.close()
       process.exit(code)
     })
     server.closeIdleConnections()
 
-    // Do not hang forever on a stuck stream. Close the database on the way out
-    // of this path too: leaving it open strands the write-ahead log.
+    // Do not hang forever on a stuck stream. Close the databases on the way out
+    // of this path too: leaving one open strands the write-ahead log.
     setTimeout(() => {
       logger.warn('forcing shutdown')
-      container.close()
+      hub.close()
       process.exit(1)
     }, 10_000).unref()
   }
@@ -166,7 +157,7 @@ function main(): void {
  * server is away. The address a tunnel hands you is already `https://`; typing
  * the port-forward you set up by hand is how you end up with the other kind.
  */
-function sayWhatThePublicAddressIs(publicUrl: string, logger: Container['logger']): void {
+function sayWhatThePublicAddressIs(publicUrl: string, logger: Logger): void {
   logger.info(`published as reachable at ${publicUrl} (SELFMP3_PUBLIC_URL)`)
   if (!publicUrl.startsWith('https://')) {
     logger.warn(
@@ -174,61 +165,6 @@ function sayWhatThePublicAddressIs(publicUrl: string, logger: Container['logger'
         'a browser blocks an http request from an https page. Put a tunnel in front of ' +
         'this server and publish the https address it gives you.',
     )
-  }
-}
-
-/** The work that reads or writes the library folder. */
-function startLibrary(container: Container): void {
-  const { config, logger } = container
-
-  container.importQueue.start()
-  void container.covers.sweepThumbnails().catch((error: unknown) => {
-    logger.warn('could not sweep cover thumbnails', { message: messageOf(error) })
-  })
-  // Rescan on folder changes (drag-and-drop into Finder) when the setting is
-  // on, and every `autoScanMinutes` when that is set.
-  container.libraryWatcher.apply()
-  // Publishing, and any links other devices asked for while this server was off.
-  const startCloud = (): void => {
-    container.cloudSync.start()
-    void container.cloudImports.process()
-  }
-
-  // Lyrics+: the search index, then romaji for every song with words, so a
-  // phone's first request for a song's lyrics finds both already made.
-  const warmLyrics = (): void => {
-    void container.lyricsIndex
-      .backfill()
-      .then(() => romanizeLibrary(container))
-      .catch((error: unknown) => {
-        logger.warn('romanizing the library stopped early', {
-          message: messageOf(error),
-        })
-      })
-  }
-
-  if (!config.scanOnBoot) {
-    warmLyrics()
-    startCloud()
-  } else {
-    // Deliberately not awaited: the API is already serving, and a first scan of
-    // a large library should not delay that.
-    void container.scanner
-      .scan()
-      .then(result => {
-        if (result.added || result.updated) container.bumpLibraryVersion()
-      })
-      .catch((error: unknown) => {
-        logger.error('initial scan failed', {
-          message: messageOf(error),
-        })
-      })
-      // The lyrics index and publishing read what the scan found, so they wait
-      // for it — however it went.
-      .finally(() => {
-        warmLyrics()
-        startCloud()
-      })
   }
 }
 

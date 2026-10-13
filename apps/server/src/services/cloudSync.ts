@@ -294,6 +294,12 @@ interface CloudSyncDeps {
   readonly openStore?: (connection: CloudConnection) => CloudStore
   /** The doorman to sign in through; empty or absent for none. */
   readonly doormanUrl?: string
+  /**
+   * The doorman stopped taking this server's session: it was signed out, or
+   * the account took its grant back (docs/features/shared-server.md). A server
+   * working for several accounts lets that account's library go.
+   */
+  readonly sessionEnded?: () => void
   readonly openDoorman?: (url: string) => Doorman
   readonly debounceMs?: number
   /**
@@ -787,6 +793,7 @@ export class CloudSyncService {
   #sessionEnded(error: CloudError): void {
     this.#drop()
     this.#lastError = error.message
+    this.#deps.sessionEnded?.()
   }
 
   /**

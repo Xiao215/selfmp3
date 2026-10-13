@@ -15,6 +15,7 @@ import { CloudError } from './store.js'
  */
 
 const ME: DoormanMe = {
+  account: '0123456789abcdef0123456789abcdef',
   email: 'me@example.com',
   name: 'Me',
   picture: null,

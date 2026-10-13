@@ -451,6 +451,7 @@ describe('claiming', () => {
     if (result.status !== 'signed-in') throw new Error('expected a session')
     expect(result.token).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(result.me).toEqual({
+      account: expect.stringMatching(/^[0-9a-f]{32}$/),
       email: ME.email,
       name: ME.name,
       picture: ME.picture,

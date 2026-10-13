@@ -24,6 +24,17 @@ export const PROBE_TIMEOUT_MS = 3_000
 export const LOOK_AGAIN_MS = 20_000
 
 /**
+ * How long a server that was answering gets before one missed look counts.
+ *
+ * A server that answered a moment ago and misses one look is far more often
+ * the network than the server: a phone between Wi-Fi and mobile data, an app
+ * just back from the background before its network is, the server restarting
+ * into an update for two seconds. So one miss is asked again after this long,
+ * and only a second one says it is away.
+ */
+export const CONFIRM_AWAY_MS = 4_000
+
+/**
  * How often presence looks again, which is a great deal less often.
  *
  * A screen is being watched: someone has it open, waiting for their stats or
@@ -84,6 +95,24 @@ export function reachServer(
       )
     }
   })
+}
+
+/**
+ * `reachServer`, asked twice before a server that was answering is given up on
+ * (`CONFIRM_AWAY_MS`). `before` is what the last look found; with nothing found
+ * before, one miss is the answer, so a server that is off is said to be at once.
+ * `wait` is the platform's timer, which this package does not assume.
+ */
+export async function reachServerAgain(
+  connections: readonly ServerConnection[],
+  probe: (connection: ServerConnection) => Promise<boolean>,
+  before: ServerConnection | null | undefined,
+  wait: (ms: number) => Promise<void>,
+): Promise<ServerConnection | null> {
+  const found = await reachServer(connections, probe)
+  if (found || !before) return found
+  await wait(CONFIRM_AWAY_MS)
+  return reachServer(connections, probe)
 }
 
 /**

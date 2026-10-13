@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ServerConnection } from './connection.js'
-import { awayCopy, candidates, reachServer } from './reach.js'
+import { awayCopy, CONFIRM_AWAY_MS, candidates, reachServer, reachServerAgain } from './reach.js'
 
 const server = {
   addresses: ['http://localhost:4600', 'http://192.168.1.20:4600', 'http://100.101.1.2:4600'],
@@ -57,6 +57,54 @@ describe('reachServer', () => {
     })
     expect(found).toBeNull()
     expect(asked).toBe(0)
+  })
+})
+
+describe('reachServerAgain', () => {
+  const [home] = candidates(server)
+  /** Answers from a script, one look's worth of answers per entry. */
+  const looks = (...answers: boolean[]) => {
+    let look = 0
+    return {
+      probe: () => Promise.resolve(answers[Math.floor(look++ / server.addresses.length)] ?? false),
+      looked: () => look / server.addresses.length,
+    }
+  }
+  const waited: number[] = []
+  const wait = (ms: number) => {
+    waited.push(ms)
+    return Promise.resolve()
+  }
+
+  it('keeps a server that was answering through one missed look', async () => {
+    waited.length = 0
+    const { probe, looked } = looks(false, true)
+    const found = await reachServerAgain(candidates(server), probe, home, wait)
+    expect(found).not.toBeNull()
+    expect(looked()).toBe(2)
+    expect(waited).toEqual([CONFIRM_AWAY_MS])
+  })
+
+  it('gives it up after a second miss', async () => {
+    const { probe, looked } = looks(false, false)
+    expect(await reachServerAgain(candidates(server), probe, home, wait)).toBeNull()
+    expect(looked()).toBe(2)
+  })
+
+  it('says a server never found is away at the first miss, without waiting', async () => {
+    waited.length = 0
+    for (const before of [null, undefined]) {
+      const { probe, looked } = looks(false, true)
+      expect(await reachServerAgain(candidates(server), probe, before, wait)).toBeNull()
+      expect(looked()).toBe(1)
+    }
+    expect(waited).toEqual([])
+  })
+
+  it('looks once when the server answers', async () => {
+    const { probe, looked } = looks(true)
+    expect(await reachServerAgain(candidates(server), probe, home, wait)).not.toBeNull()
+    expect(looked()).toBe(1)
   })
 })
 

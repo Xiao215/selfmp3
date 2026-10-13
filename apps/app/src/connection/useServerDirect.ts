@@ -6,7 +6,7 @@ import {
   LOOK_AGAIN_MS,
   PROBE_TIMEOUT_MS,
   queryKeys,
-  reachServer,
+  reachServerAgain,
   type Reach,
   type ServerConnection,
 } from '@selfmp3/client'
@@ -28,6 +28,8 @@ async function probe(connection: ServerConnection): Promise<boolean> {
     clearTimeout(timer)
   }
 }
+
+const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
 
 interface ServerDirectOptions {
   /**
@@ -71,9 +73,19 @@ export function useServerDirect(
   const said = server.data?.server ?? null
   const addresses = said?.addresses ?? []
 
+  // A server that was answering keeps its answer through one missed look
+  // (reach.ts, CONFIRM_AWAY_MS): the query holds its last data while it asks
+  // again, so the screen does not flash away for a network blip.
+  const reachKey = [...queryKeys.cloudServer, 'reach', addresses]
   const reach = useQuery({
-    queryKey: [...queryKeys.cloudServer, 'reach', addresses],
-    queryFn: () => reachServer(candidates(said), probe),
+    queryKey: reachKey,
+    queryFn: () =>
+      reachServerAgain(
+        candidates(said),
+        probe,
+        queryClient.getQueryData<ServerConnection | null>(reachKey),
+        sleep,
+      ),
     enabled: enabled && server.isSuccess,
     refetchInterval: lookAgainMs,
     retry: false,

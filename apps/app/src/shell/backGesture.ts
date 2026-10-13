@@ -30,6 +30,22 @@ export function swipeBackAllowed(routeName: string): boolean {
   return activeTab(address) !== address
 }
 
+/**
+ * The pages where that swipe waits for the left edge instead of the whole display.
+ *
+ * Import's songs each have a seek bar for their preview, and dragging it
+ * forward is a left-to-right drag across the middle of the page — the very one
+ * iOS 26 reads as going back. The bar's own responder never sees it: the native
+ * gesture wins before JS is asked, and the page closed under the finger. On
+ * these pages back is the edge swipe every iOS version before 26 had, which a
+ * bar inside the page's gutter never starts.
+ */
+const DRAGS_ACROSS: readonly string[] = ['/import', '/import/review']
+
+export function fullScreenSwipeAllowed(routeName: string): boolean {
+  return !DRAGS_ACROSS.includes(addressOf(routeName))
+}
+
 /*
  * The way in (`GATE_ROUTES`) has nothing behind it: each replaces the screen
  * it leaves rather than pushing onto it, so there is usually nothing to pop;

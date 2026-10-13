@@ -36,7 +36,7 @@ import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
-import { ChevronRight, Sparkle, User } from '../../ui/components/Icons'
+import { ChevronLeft, ChevronRight, Sparkle, User } from '../../ui/components/Icons'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { SearchField } from '../../ui/components/SearchField'
 import { SectionHead } from '../../ui/components/SectionHead'
@@ -61,11 +61,12 @@ import {
   allResults,
   beforeTyping,
   lyricsQueryFor,
-  parseScope,
-  scopeCounts,
+  placesOf,
   searchLibrary,
-  SEARCH_SCOPES,
-  type SearchScope,
+  SECTION_TITLES,
+  sectionCounts,
+  type SearchPlace,
+  type SearchSection,
 } from './search.model'
 import { useSongsById } from '../../ui/songsById'
 import { useGoBack } from '../../ui/useBackTo'
@@ -84,21 +85,21 @@ const SearchSelection = createContext<Selection | null>(null)
 
 /**
  * Search (docs/ui-mock `P18`, `P19`): one page, whichever door it was opened
- * from. `?scope=` is the scope it starts on and `?q=` what it starts with; the
- * rest is this page's own. A computer draws the same search as the palette
+ * from. `?q=` is what it starts with; the rest is this page's own. A computer draws the same search as the palette
  * over its page (`C05`); this page is what a phone opens, and what a computer
  * shows for anyone who types the address.
  */
 export function SearchScreen(): ReactNode {
   const router = useRouter()
-  const params = useLocalSearchParams<{ scope?: string; q?: string }>()
+  const params = useLocalSearchParams<{ q?: string }>()
   const { wide } = useLayout()
   const { fromCloud } = useConnection()
   const { data: library } = useLibrary()
   const player = usePlayer()
 
   const [query, setQuery] = useState(() => (typeof params.q === 'string' ? params.q : ''))
-  const [scope, setScope] = useState<SearchScope>(() => parseScope(params.scope))
+  /** The section a "See all" opened alone, or null for All. */
+  const [section, setSection] = useState<SearchSection | null>(null)
   /** What was asked (S1), answered in place of the results until the words change. */
   const [asking, setAsking] = useState<string | null>(null)
   /** An answer is on its way, so the field offers Stop where it offers Clear. */
@@ -124,19 +125,12 @@ export function SearchScreen(): ReactNode {
     placeholderData: previous => previous,
   })
   const lyricHits = typed && lyricsQuery ? (lyrics.data?.hits ?? []) : []
-  const counts = scopeCounts(found, lyricHits.length)
+  const counts = sectionCounts(found, lyricHits.length)
   const words = shown.trim()
   const switches = useSmartSwitches()
-  const offerAsk = switches.ask && scope === 'all' && askable(words)
+  const offerAsk = switches.ask && section === null && askable(words)
   const answering = asking !== null && asking === query.trim()
   const working = answering && thinking
-  // A scope with nothing in it is not offered once something is typed (I1),
-  // except All and the one already chosen, so the row never jumps away.
-  const scopes = typed
-    ? SEARCH_SCOPES.filter(
-        option => option.value === 'all' || option.value === scope || counts[option.value] > 0,
-      )
-    : SEARCH_SCOPES
 
   const openArtist = useCallback(
     (artist: Artist) => router.navigate(artistLink(artist.name)),
@@ -146,17 +140,17 @@ export function SearchScreen(): ReactNode {
   const close = useGoBack('/')
 
   // The song rows on the page now, which are what selecting runs over: the
-  // recent few before typing, every match on Songs, All's best few.
+  // recent few before typing, every match once Songs is opened, All's best few.
   const rowSongs = useMemo(
     () =>
       !typed
         ? empty.recent
-        : scope === 'songs'
+        : section === 'songs'
           ? found.songs
-          : scope === 'all' && !answering
+          : section === null && !answering
             ? allResults(found).songs
             : NO_SONGS,
-    [typed, scope, answering, found, empty.recent],
+    [typed, section, answering, found, empty.recent],
   )
   const rowIds = useMemo(() => rowSongs.map(song => song.id), [rowSongs])
   const selection = useSelection(rowIds)
@@ -172,9 +166,11 @@ export function SearchScreen(): ReactNode {
             value={query}
             // New words leave the question behind: the answer on its way is
             // dropped with it, and the results for what is typed come back.
+            // A cleared field is a fresh search, back on All.
             onChangeText={text => {
               setQuery(text)
               setAsking(null)
+              if (text.trim() === '') setSection(null)
             }}
             // Enter asks only when nothing matches (I1); with matches it puts
             // the keyboard away and the results stay where they are.
@@ -185,7 +181,7 @@ export function SearchScreen(): ReactNode {
               const matches =
                 shown === query
                   ? counts.all
-                  : scopeCounts(searchLibrary(query, library), lyricHits.length).all
+                  : sectionCounts(searchLibrary(query, library), lyricHits.length).all
               if (switches.ask && asksOnEnter(query, matches)) setAsking(query.trim())
               else field.current?.blur()
             }}
@@ -208,27 +204,24 @@ export function SearchScreen(): ReactNode {
           </Pressable>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.scopes}
-          style={styles.scopesRow}
-          keyboardShouldPersistTaps="handled"
-        >
-          {scopes.map(option => (
-            <Chip
-              key={option.value}
-              testID={`search-scope-${option.value}`}
-              label={
-                typed && option.value !== 'all'
-                  ? `${option.label} · ${counts[option.value]}`
-                  : option.label
-              }
-              selected={scope === option.value}
-              onPress={() => setScope(option.value)}
-            />
-          ))}
-        </ScrollView>
+        {typed && section !== null ? (
+          <Pressable
+            onPress={() => setSection(null)}
+            accessibilityRole="button"
+            accessibilityLabel={`${SECTION_TITLES[section]}, ${counts[section]}. Back to all results`}
+            style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
+            hitSlop={4}
+            testID="search-back"
+          >
+            <ChevronLeft size={18} tone="textSecondary" />
+            <Text style={styles.backTitle} numberOfLines={1}>
+              {SECTION_TITLES[section]}
+            </Text>
+            <Text style={styles.backCount}>{counts[section]}</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.headGap} />
+        )}
 
         {/* Always mounted and told when to show, as Library's is. */}
         <SelectionBar
@@ -244,7 +237,7 @@ export function SearchScreen(): ReactNode {
 
         {!typed ? (
           <BeforeTyping tags={empty.tags} recent={empty.recent} />
-        ) : scope === 'songs' ? (
+        ) : section === 'songs' ? (
           <SongResults songs={found.songs} query={shown} />
         ) : (
           <ScrollView
@@ -267,26 +260,26 @@ export function SearchScreen(): ReactNode {
             {!answering && offerAsk && counts.all === 0 ? (
               <AskCard words={words} first onAsk={() => setAsking(words)} />
             ) : null}
-            {answering ? null : scope === 'all' ? (
+            {answering ? null : section === null ? (
               <AllResults
                 found={found}
                 lyricHits={lyricHits}
-                onSeeAll={setScope}
+                onSeeAll={setSection}
                 onArtist={openArtist}
               />
-            ) : scope === 'tags' ? (
-              found.tags.map(tag => <TagResult key={tag.id} tag={tag} />)
-            ) : scope === 'artists' ? (
-              found.artists.map(artist => (
-                <ArtistResult key={artist.key} artist={artist} onOpen={openArtist} />
-              ))
+            ) : section === 'places' ? (
+              <View style={styles.section}>
+                <Places places={placesOf(found)} onArtist={openArtist} />
+              </View>
             ) : (
               <LyricResults hits={lyricHits} cloud={fromCloud} />
             )}
             {!answering && offerAsk && counts.all > 0 ? (
               <AskCard words={words} first={false} onAsk={() => setAsking(words)} />
             ) : null}
-            {!answering && counts[scope] === 0 && !(scope === 'lyrics' && fromCloud) ? (
+            {!answering &&
+            counts[section ?? 'all'] === 0 &&
+            !(section === 'lyrics' && fromCloud) ? (
               <NothingMatches words={shown.trim()} />
             ) : null}
             <BarRoom />
@@ -396,7 +389,7 @@ function AllResults({
 }: {
   found: ReturnType<typeof searchLibrary>
   lyricHits: readonly LyricsSearchHit[]
-  onSeeAll: (scope: SearchScope) => void
+  onSeeAll: (section: SearchSection) => void
   onArtist: (artist: Artist) => void
 }): ReactNode {
   const { places, songs } = allResults(found)
@@ -404,29 +397,30 @@ function AllResults({
     <>
       {places.length > 0 ? (
         <View style={styles.section}>
-          {places.map(place =>
-            place.kind === 'artist' ? (
-              <ArtistResult
-                key={`artist-${place.artist.key}`}
-                artist={place.artist}
-                onOpen={onArtist}
-              />
-            ) : (
-              <TagResult key={`tag-${place.tag.id}`} tag={place.tag} />
-            ),
-          )}
+          <SectionHead
+            title={SECTION_TITLES.places}
+            style={styles.sectionHead}
+            action={
+              found.artists.length + found.tags.length > places.length
+                ? { label: 'See all', onPress: () => onSeeAll('places') }
+                : null
+            }
+            testID="search-see-all-places"
+          />
+          <Places places={places} onArtist={onArtist} />
         </View>
       ) : null}
       {songs.length > 0 ? (
         <View style={styles.section}>
           <SectionHead
-            title="Songs"
+            title={SECTION_TITLES.songs}
             style={styles.sectionHead}
             action={
               found.songs.length > songs.length
                 ? { label: 'See all', onPress: () => onSeeAll('songs') }
                 : null
             }
+            testID="search-see-all-songs"
           />
           <SongRows songs={songs} testPrefix="search-song" />
         </View>
@@ -434,18 +428,36 @@ function AllResults({
       {lyricHits.length > 0 ? (
         <View style={styles.section}>
           <SectionHead
-            title="Lyrics"
+            title={SECTION_TITLES.lyrics}
             style={styles.sectionHead}
             action={
               lyricHits.length > ALL_LIMITS.lyrics
                 ? { label: 'See all', onPress: () => onSeeAll('lyrics') }
                 : null
             }
+            testID="search-see-all-lyrics"
           />
           <LyricResults hits={lyricHits.slice(0, ALL_LIMITS.lyrics)} cloud={false} />
         </View>
       ) : null}
     </>
+  )
+}
+
+/** Artists and tags, each opening its page. */
+function Places({
+  places,
+  onArtist,
+}: {
+  places: readonly SearchPlace[]
+  onArtist: (artist: Artist) => void
+}): ReactNode {
+  return places.map(place =>
+    place.kind === 'artist' ? (
+      <ArtistResult key={`artist-${place.artist.key}`} artist={place.artist} onOpen={onArtist} />
+    ) : (
+      <TagResult key={`tag-${place.tag.id}`} tag={place.tag} />
+    ),
   )
 }
 
@@ -520,7 +532,7 @@ function ArtistResult({
   )
 }
 
-/** The Songs scope: every match, in a list that only draws what is on screen. */
+/** Songs opened alone: every match, in a list that only draws what is on screen. */
 function SongResults({ songs, query }: { songs: readonly Song[]; query: string }): ReactNode {
   const rows = useSongRows(songs, 'search-song')
   const selection = useContext(SearchSelection)
@@ -749,8 +761,22 @@ const styles = StyleSheet.create(theme => ({
   },
   field: { flex: 1 },
   cancel: { color: theme.colors.accent, fontSize: type.body, fontWeight: '600' },
-  scopesRow: { flexGrow: 0 },
-  scopes: { gap: 8, paddingHorizontal: 16, paddingVertical: 14 },
+  headGap: { height: 14 },
+  back: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginHorizontal: 8,
+    marginVertical: 6,
+    paddingVertical: 8,
+    paddingLeft: 6,
+    paddingRight: 12,
+    borderRadius: 12,
+  },
+  backPressed: { backgroundColor: theme.colors.surface1 },
+  backTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  backCount: { color: theme.colors.textMuted, fontSize: type.body },
   results: { paddingHorizontal: 8, gap: 18 },
   songList: { paddingHorizontal: 0 },
   section: { gap: 4 },

@@ -179,7 +179,7 @@ export function TagsScreen(): ReactNode {
   const page = usePageBack('/')
   // The one Search, on its Tags scope: the page on a phone, the palette over
   // this page on a computer (docs/ui-mock `P18`, `C05`).
-  const openSearch = useOpenSearch('tags')
+  const openSearch = useOpenSearch()
   // Stable, because a tile is memoised and this is the prop every one of them holds.
   const edit = useCallback<EditTag>(tag => {
     editorAnchor.current = rowRefs.current.get(tag.id) ?? null

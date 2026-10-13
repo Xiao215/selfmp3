@@ -92,7 +92,7 @@ name, its songs and time, and a round **Play**. A row opens the tag's own page
 (`/tag/<name>`); holding it opens the editor, which is all the housekeeping the page used to
 be. The header's **+** opens the new-tag card — a labelled field and a **Create** beside it,
 which stays open after each one because tags arrive in handfuls — and its search button opens
-Search on its Tags scope (the palette, on a computer). The sidebar's tag rows and a tag found
+Search (the palette, on a computer). The sidebar's tag rows and a tag found
 in the palette open the same page; the library's own tag strip is the one place a tag is
 still a filter.
 

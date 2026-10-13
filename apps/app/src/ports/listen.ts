@@ -116,10 +116,22 @@ export function createListenAudio(): ListenAudio | null {
     tell({ status: state, currentTime: status.currentTime, duration: length })
   }
 
+  /*
+   * A player let go is silenced first. expo-audio's `remove` only takes the
+   * player off the module's list; the AVPlayer under it plays on until the
+   * object is released, which `release` asks for now rather than whenever
+   * the garbage collector gets to it. Leaving the import page played the
+   * preview on over the rest of the app, and so did locking the phone when
+   * this ran before expo-audio's own pause.
+   */
   const letGo = (): void => {
     subscription?.remove()
     subscription = null
-    player?.remove()
+    if (player) {
+      player.pause()
+      player.remove()
+      player.release()
+    }
     player = null
   }
 
@@ -216,14 +228,15 @@ export function createListenAudio(): ListenAudio | null {
       startAt = seconds
       tell({ status: 'paused', currentTime: seconds, duration: length })
     },
-    // Letting go is a pause with nothing more to report; a stream still
+    // A stopped preview's player is gone, so nothing — expo-audio coming
+    // back from the background included — can play it again; a stream still
     // opening for this preview is let go when it arrives.
     stop: () => {
       asked = 'pause'
       src = null
       opening++
       silence.stop()
-      player?.pause()
+      letGo()
     },
     subscribe: listener => {
       listeners.add(listener)

@@ -17,7 +17,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { Live, Play, Plus } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Select } from '../../ui/components/Select'
-import { floating, pageTitle } from '../../ui/surfaces'
+import { floating, PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageTitle } from '../../ui/surfaces'
 import { CantReach } from '../library/CantReach'
 import { useSharedList } from '../shared/sharedPlaylists'
 import { SharedTile } from '../shared/SharedScreens'
@@ -79,7 +79,7 @@ export function PlaylistsScreen(): ReactNode {
   }
 
   const { playlists } = model
-  const measured = wide ? gridWidth : width - space.lg * 2
+  const measured = wide ? gridWidth : width - space.gutter * 2
   const columns = wide
     ? Math.max(PHONE_COLUMNS, Math.floor((measured + GAP) / (TILE_MIN_WIDTH + GAP)))
     : PHONE_COLUMNS
@@ -102,12 +102,30 @@ export function PlaylistsScreen(): ReactNode {
   const { data: shared } = useSharedList()
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.head}>
-          <View style={styles.titles}>
-            <Text style={styles.heading} accessibilityRole="header">
-              Playlists
-            </Text>
+      <ScrollView contentContainerStyle={[styles.content, wide && styles.contentWide]}>
+        <View style={[styles.head, wide && styles.headWide]}>
+          <View style={[styles.titles, !wide && styles.titlesPhone]}>
+            {/* A phone's New sits beside the name, as Library's buttons do;
+                a computer's goes at the far end with the order. */}
+            <View style={wide ? undefined : styles.phoneTitleRow}>
+              <Text
+                style={[styles.heading, !wide && styles.phoneHeading]}
+                accessibilityRole="header"
+              >
+                Playlists
+              </Text>
+              {wide ? null : (
+                <IconButton
+                  onPress={() => setNewOpen(true)}
+                  label="New playlist"
+                  filled
+                  active={newOpen}
+                  testID="playlists-new"
+                >
+                  <Plus size={20} color={theme.colors.textPrimary} />
+                </IconButton>
+              )}
+            </View>
             <Text style={styles.sub}>
               {model.loading
                 ? 'Loading…'
@@ -118,38 +136,26 @@ export function PlaylistsScreen(): ReactNode {
                     : playlistsSubline(playlists.length, sort)}
             </Text>
           </View>
-          <View style={styles.headActions}>
-            {wide ? (
-              <>
-                <Select
-                  size="small"
-                  value={sort}
-                  options={PLAYLIST_SORTS}
-                  onChange={setSort}
-                  label="Sort by"
-                  testID="playlists-sort"
-                />
-                {/* White, as `C07` draws it: `active` is the pill's white. */}
-                <Button
-                  label="New"
-                  icon={<Plus size={15} color={theme.colors.onPrimary} />}
-                  active
-                  onPress={() => setNewOpen(true)}
-                  testID="playlists-new"
-                />
-              </>
-            ) : (
-              <IconButton
+          {wide ? (
+            <View style={styles.headActions}>
+              <Select
+                size="small"
+                value={sort}
+                options={PLAYLIST_SORTS}
+                onChange={setSort}
+                label="Sort by"
+                testID="playlists-sort"
+              />
+              {/* White, as `C07` draws it: `active` is the pill's white. */}
+              <Button
+                label="New"
+                icon={<Plus size={15} color={theme.colors.onPrimary} />}
+                active
                 onPress={() => setNewOpen(true)}
-                label="New playlist"
-                filled
-                active={newOpen}
                 testID="playlists-new"
-              >
-                <Plus size={20} color={theme.colors.textPrimary} />
-              </IconButton>
-            )}
-          </View>
+              />
+            </View>
+          ) : null}
         </View>
 
         {model.loading ? (
@@ -347,16 +353,21 @@ const PlaylistTile = memo(function PlaylistTile({
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  content: { paddingHorizontal: space.lg, paddingBottom: space.xl },
+  content: { paddingHorizontal: space.gutter, paddingBottom: space.xl },
+  contentWide: { paddingHorizontal: space.gutterWide },
   head: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     gap: space.md,
-    paddingTop: 18,
+    paddingTop: PAGE_TOP_PHONE,
     paddingBottom: space.lg,
   },
+  headWide: { paddingTop: PAGE_TOP_WIDE },
   titles: { flexShrink: 1, minWidth: 0 },
+  titlesPhone: { flex: 1 },
+  phoneTitleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  phoneHeading: { flex: 1 },
   heading: pageTitle(theme.colors),
   sub: { color: theme.colors.textMuted, fontSize: type.sub, marginTop: 3 },
   headActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm },

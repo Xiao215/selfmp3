@@ -5,7 +5,7 @@ import { useUnistyles } from 'react-native-unistyles'
 import { motion, type, cssTextStyle } from '@selfmp3/client'
 import { motionMs } from '../ui/motion'
 import { EASE_IN_CSS, EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
-import { floating } from '../ui/surfaces'
+import { floating, Z } from '../ui/surfaces'
 import { KBD } from '../ui/components/Kbd'
 
 /**
@@ -29,10 +29,6 @@ import { KBD } from '../ui/components/Kbd'
  * `motionMs`.
  */
 
-/** How long the pointer rests on a control before its caption appears. */
-const OPEN_DELAY_MS = 300
-/** After one caption closes, the next opens with no delay if it comes within this. */
-const WARM_MS = 400
 const ANCHOR_GAP = 6
 const VIEWPORT_MARGIN = 8
 const TOOLTIP_ID = 'app-tooltip'
@@ -113,7 +109,7 @@ export function TooltipHost(): ReactNode {
       // Nothing up and nothing on its way: every click anywhere calls this,
       // and a fade-out of nothing would be two renders and a timer for each.
       if (current === null && !visible) return
-      if (visible) warmUntil = performance.now() + WARM_MS
+      if (visible) warmUntil = performance.now() + MOVE_MS.tooltipWarm
       observer.disconnect()
       described?.removeAttribute('aria-describedby')
       described = null
@@ -156,7 +152,7 @@ export function TooltipHost(): ReactNode {
       if (anchor === current) return
       if (current) hide()
       if (!anchor || anchor === suppressed) return
-      show(anchor, performance.now() < warmUntil ? 0 : OPEN_DELAY_MS)
+      show(anchor, performance.now() < warmUntil ? 0 : MOVE_MS.tooltipDelay)
     }
 
     const onPointerOut = (event: PointerEvent): void => {
@@ -272,7 +268,7 @@ export function TooltipHost(): ReactNode {
           position: 'fixed',
           top: at.top,
           left: at.left,
-          zIndex: 10000,
+          zIndex: Z.tooltip,
           display: 'flex',
           alignItems: 'center',
           gap: 6,

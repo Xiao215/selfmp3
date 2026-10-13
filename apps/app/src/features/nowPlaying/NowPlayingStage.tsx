@@ -3,7 +3,6 @@ import type { ReactNode } from 'react'
 import {
   ActivityIndicator,
   Animated,
-  Easing,
   Image,
   Pressable,
   Text,
@@ -407,7 +406,7 @@ function Stage({
    * strength, in its new place, before being pulled back to nothing.
    */
   const visualPresence = usePresence(showVisual, MOVE_MS.stageVisual, motion.fast, {
-    easeIn: Easing.out(Easing.quad),
+    easeIn: ease.out,
   })
   // Following the music only while the visual is there, its fade out included:
   // Details has no visual, so it neither fetches the curve nor asks to listen.
@@ -424,7 +423,7 @@ function Stage({
     if (placedFor.current === focus) return
     placedFor.current = focus
     replaced.setValue(0)
-    timing(replaced, 1, MOVE_MS.stageVisual, undefined, { easing: Easing.out(Easing.quad) })
+    timing(replaced, 1, MOVE_MS.stageVisual, undefined, { easing: ease.out })
   }, [focus, replaced])
   const [visualFade] = useState(() => Animated.multiply(visualPresence.progress, replaced))
   const tabs: readonly (readonly [StageTab, string])[] = [

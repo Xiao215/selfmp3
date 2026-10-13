@@ -23,9 +23,6 @@ import type { StageGeometry } from './nowPlaying.model'
  * shadowed that whole table wherever both were imported.
  */
 
-/** The move's curve, as the four numbers of a cubic bézier. */
-export const MOVE_EASING = [0.2, 0.8, 0.2, 1] as const
-
 /** One run of the move: from where, to where, when it began and how long it was given. */
 export interface MoveRun {
   readonly from: number

@@ -103,6 +103,14 @@ export function pageFrame(wide: boolean): typeof FRAME_WIDE | typeof FRAME_PHONE
   return wide ? FRAME_WIDE : FRAME_PHONE
 }
 
+/**
+ * The layers that stand over a page, from any component: a list's pinned
+ * head, its scrollbar and the playing song's mark on it, and a hover caption
+ * over everything. A component's own stacking (the stage's cover over its
+ * words) stays its own.
+ */
+export const Z = { pinnedHeader: 10, scrollbar: 11, scrollbarMark: 12, tooltip: 10000 } as const
+
 /** A page's title: the display face at 30, on a phone and a computer alike. */
 export function pageTitle(colors: ThemePalette) {
   return {

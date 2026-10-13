@@ -1,17 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Easing } from 'react-native'
-import { MOVE_EASING, restingRun, turnMove, type MoveRun } from './stageMove.model'
+import { Animated } from 'react-native'
+import { restingRun, turnMove, type MoveRun } from './stageMove.model'
 import type { MovingProps } from './stageMove.types'
 import { MOVE_MS } from '../../ui/motion.model'
-import { motionMs, nativeDriver } from '../../ui/motion'
+import { ease, motionMs, nativeDriver } from '../../ui/motion'
 
 /**
  * The move between the stage and Focus, on an iPad: Animated on the native
  * driver, so the frames never come back to JavaScript. The browser's is
  * `StageMove.web.tsx`, and `stageMove.model.ts` says why neither moves layout.
  */
-const ease = Easing.bezier(...MOVE_EASING)
 
 interface StageMove {
   readonly value: Animated.Value
@@ -28,7 +27,7 @@ export function useStageMove(focus: boolean): StageMove {
     // browser's is: a native-driven value reaches JavaScript late, and not at
     // all while a page holds the thread.
     const now = performance.now()
-    const turn = turnMove(run.current, target, now, ease)
+    const turn = turnMove(run.current, target, now, ease.out)
     if (!turn) return
     const ms = motionMs(MOVE_MS.stageMove * turn.share)
     run.current = { from: turn.from, to: target, start: now, ms }
@@ -36,7 +35,7 @@ export function useStageMove(focus: boolean): StageMove {
     Animated.timing(value, {
       toValue: target,
       duration: ms,
-      easing: ease,
+      easing: ease.out,
       useNativeDriver: nativeDriver,
     }).start()
   }, [target, value])

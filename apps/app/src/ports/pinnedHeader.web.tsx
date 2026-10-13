@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { FlatListProps, ViewStyle } from 'react-native'
+import { Z } from '../ui/surfaces'
 
 /**
  * Keeping what is drawn under a list's header at the top once the head has
@@ -33,7 +34,7 @@ export function pinnedHeaderProps(stayAfter: number): PinnedHeaderProps {
     ListHeaderComponentStyle: {
       position: 'sticky',
       top: -stayAfter,
-      zIndex: 10,
+      zIndex: Z.pinnedHeader,
     } as unknown as ViewStyle,
   }
 }

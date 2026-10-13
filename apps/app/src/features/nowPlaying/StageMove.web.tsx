@@ -1,10 +1,9 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
-import { Easing, View } from 'react-native'
+import { View } from 'react-native'
 import type { ViewStyle } from 'react-native'
 import {
   laidOutRadius,
-  MOVE_EASING,
   moveKeyframes,
   restingRun,
   turnMove,
@@ -12,8 +11,8 @@ import {
   type MoveRun,
 } from './stageMove.model'
 import type { MovingProps } from './stageMove.types'
-import { MOVE_MS } from '../../ui/motion.model'
-import { motionMs } from '../../ui/motion'
+import { EASE_OUT_CSS, MOVE_MS } from '../../ui/motion.model'
+import { ease, motionMs } from '../../ui/motion'
 
 /*
  * The move between the stage and Focus, in a browser and the desktop app.
@@ -24,9 +23,6 @@ import { motionMs } from '../../ui/motion'
  * where each piece ends up, once, and the browser's own animation carries it
  * there from where it was, on the compositor, with no renders in between.
  */
-
-const ease = Easing.bezier(...MOVE_EASING)
-const CSS_EASING = `cubic-bezier(${MOVE_EASING.join(', ')})`
 
 type Listener = (from: number, to: number, ms: number) => void
 
@@ -45,7 +41,7 @@ export function useStageMove(focus: boolean): StageMove {
   // for a frame before the animations pull it back to where it was.
   useLayoutEffect(() => {
     const now = performance.now()
-    const turn = turnMove(run.current, target, now, ease)
+    const turn = turnMove(run.current, target, now, ease.out)
     if (!turn) return
     const ms = motionMs(MOVE_MS.stageMove * turn.share)
     run.current = { from: turn.from, to: target, start: now, ms }
@@ -98,7 +94,7 @@ export function Moving({
       if (ms <= 0) return
       running.current = node.animate(moveKeyframes(latestPose.current, from, to), {
         duration: ms,
-        easing: CSS_EASING,
+        easing: EASE_OUT_CSS,
       })
     })
     return () => {

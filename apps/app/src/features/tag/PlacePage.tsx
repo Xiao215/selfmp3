@@ -50,6 +50,7 @@ import {
   type Place,
 } from './tag.model'
 import { nameTitle, rowTitle } from '../../ui/surfaces'
+import { MOVE_MS } from '../../ui/motion.model'
 
 /**
  * A place's page (docs/ui-mock `P08`, `P10`, `C06`): a tag, an artist, or
@@ -214,7 +215,7 @@ export function PlacePage({
     })
     // A stack with no moves — a browser's — says nothing; nor does one asked
     // for less motion, where the spring lands at once anyway.
-    const late = setTimeout(letGo, 400)
+    const late = setTimeout(letGo, MOVE_MS.placeHandOff)
     return () => {
       off()
       clearTimeout(late)

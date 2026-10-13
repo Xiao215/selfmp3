@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { SERVER_ONLY_ROUTES, createCloudRoutes } from '@selfmp3/replica'
+import { API_ERROR } from '@selfmp3/shared'
 import { createApi, type Api } from './api.js'
 import { ApiError } from './error.js'
 
@@ -178,7 +179,7 @@ describe('the routes the app calls, in a cloud library', () => {
 
   it('list nothing as needing the server that the replica answers, or the app never calls', async () => {
     const codes = await answers()
-    const serverOnly = [...codes].filter(([, code]) => code === 'needs-server')
+    const serverOnly = [...codes].filter(([, code]) => code === API_ERROR.needsServer)
     // One call for each route listed: none listed that nothing calls.
     expect(serverOnly).toHaveLength(SERVER_ONLY_ROUTES.length)
     // And the replica's own routes are the ones a signed-out device refuses to answer.

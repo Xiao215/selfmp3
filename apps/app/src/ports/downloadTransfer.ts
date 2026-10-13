@@ -1,4 +1,4 @@
-import type { Song } from '@selfmp3/shared'
+import { API_ERROR, type Song } from '@selfmp3/shared'
 import {
   ApiError,
   type DownloadTransfer,
@@ -53,7 +53,7 @@ async function keepLyrics(song: Song): Promise<void> {
   try {
     lyricsCache.write(song.id, await api.lyrics(song.id))
   } catch (error) {
-    if (error instanceof ApiError && (error.status === 404 || error.code === 'instrumental')) return
+    if (error instanceof ApiError && (error.status === 404 || error.code === API_ERROR.instrumental)) return
     throw error
   }
 }

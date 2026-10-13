@@ -114,7 +114,7 @@ function parseInput<S extends z.ZodTypeAny>(schema: S, value: unknown): z.output
  * any one segment): importing, the smart features, Stats, the devices list,
  * the server's own cloud settings, and searching the words of every song,
  * whose index only a server builds. A cloud library answers these with a 501
- * coded `needs-server`, said in so many words; a path in neither this list nor
+ * coded `needs_server`, said in so many words; a path in neither this list nor
  * the routes below is a 404, as the server's own unknown paths are. A test
  * holds every route the app calls (@selfmp3/client api.ts) to one or the other.
  */
@@ -269,7 +269,7 @@ export function createCloudRoutes(
         if (!found) {
           const song = (await peekCloudLibrary(session)).byId.songs.get(id(params))
           if (song?.instrumental) {
-            throw new CloudRouteError(404, 'this track is instrumental', 'instrumental')
+            throw new CloudRouteError(404, 'this track is instrumental', API_ERROR.instrumental)
           }
           throw new CloudRouteError(404, 'no lyrics for this track', 'not_found')
         }
@@ -671,7 +671,7 @@ export function createCloudRoutes(
     for (const route of SERVER_ONLY_ROUTES) {
       const [routeMethod = '', pattern = ''] = route.split(' ')
       if (routeMethod === method && match(pattern, url.pathname)) {
-        throw new CloudRouteError(501, 'This needs your server.', 'needs-server')
+        throw new CloudRouteError(501, 'This needs your server.', API_ERROR.needsServer)
       }
     }
     throw new CloudRouteError(404, 'no such endpoint', 'not_found')

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { CloudSnapshot } from '@selfmp3/shared'
+import { API_ERROR, type CloudSnapshot } from '@selfmp3/shared'
 import { createCloudLibrary } from './library.js'
 import type { CloudPlatform, CloudResponse, DeviceStore } from './platform.js'
 import { createCloudRoutes, parseQuery } from './routes.js'
@@ -330,7 +330,7 @@ describe('/api/cloud/uids', () => {
     const { made } = await signedIn()
     await expect(
       made.cloudRequest('GET', '/api/lyrics/search?q=rain', undefined),
-    ).rejects.toMatchObject({ status: 501, code: 'needs-server' })
+    ).rejects.toMatchObject({ status: 501, code: API_ERROR.needsServer })
     await expect(made.cloudRequest('GET', '/api/nothing', undefined)).rejects.toMatchObject({
       status: 404,
       code: 'not_found',

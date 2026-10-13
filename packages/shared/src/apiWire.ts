@@ -20,6 +20,8 @@ export const API_ERROR = {
   instrumental: 'instrumental',
   /** An answer that did not fit its schema: the server and this build disagree. */
   contractMismatch: 'contract_mismatch',
+  /** A route a cloud library cannot answer from the bucket: only the server can. */
+  needsServer: 'needs_server',
 } as const
 
 /**

@@ -735,7 +735,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 - [x] **T-419** `useSongListPage` / `useSelectableSongRows` with one availability rule, used by Library, Search, PlacePage, PlaylistDetail, Answer and OrderedSongList; `useListSelectionBar` takes `narrowed` and placement and is used by all five lists.
   - Named `useSongRows` (ui/components/useSongRows.tsx): `renderSong`, `rowProps` (the ordered list spreads them under its hold to move), `press`, `menu`. `useListSelectionBar` takes `narrowed` and `placement: 'underHead' | 'aboveList'` and returns `beforeList`/`pinned`/`listPadding`. Every row's cover is asked for at `ROW_COVER_SIZE` (the place pages asked for the kept size).
 - [ ] **T-420** `songActions(songs)` model (labels, guards, toasts) for SongMenu, SelectionBar and a shared list-page ⋯ menu (`ListMenu` + `useListActions` + `MoreButton`); one Play/Shuffle row for list heads; `SheetItem` takes a testID.
-- [ ] **T-421** SongRow's phone and computer branches share the press target, cover and title.
+- [x] **T-421** SongRow's phone and computer branches share the press target, cover and title.
+  - One press target, title, wash and equaliser, here-mark, tag chips, select circle and ⋯, made once in the row and placed by each shape. The circle now shows on a phone's picked row too (the computer's rule), and a row's chip dots are `TagDot`.
 - [x] **T-422** `useOpenTag`, `TagDot`, `PlaceLine`, `useLibrarySearch` (Search + command palette).
   - `PlaceLine` is a `SongLine` with a round figure for its cover, so a place reads like the song lines beside it in both (the palette's quieter label and Search's 40-point figure are gone). `useLibrarySearch` asks for 20 lyric lines in both (the palette shows 6): the two shared one query key, so the palette's six were what Search's See all found cached.
 

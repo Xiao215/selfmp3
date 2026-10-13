@@ -84,6 +84,17 @@ export interface TrackMetadata {
   readonly contentType?: string
 }
 
+/**
+ * How `load` puts a song on.
+ *
+ * Loading the song an engine already has carries on with it, on every engine:
+ * nothing is fetched again, the position stays where it is unless `startAt`
+ * moves it, and `autoplay` still plays it. That is what makes the join after a
+ * gapless or crossfaded handover seamless — the provider loads the song the
+ * engine moved to, and it is left playing — and why asking again for the song
+ * on screen does not send it back to 0:00. An engine forgets its song when it
+ * fails or cannot play it, so asking again after that loads it afresh.
+ */
 export interface LoadOptions {
   /** Default true. False loads a song ready to play without starting it. */
   readonly autoplay?: boolean

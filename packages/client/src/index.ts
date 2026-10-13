@@ -84,6 +84,8 @@ export type {
   PlaybackEngine,
   TrackMetadata,
 } from './ports/engine.js'
+// What both engines do the same way: state, listeners, wiring, the level and mute rule.
+export * from './ports/engineCore.js'
 export type { ServerEventStream } from './ports/events.js'
 export { DownloadQueue, type DownloadQueueState } from './downloads/queue.js'
 export type { DownloadStorage, DownloadTransfer, TransferProgress } from './ports/offline.js'

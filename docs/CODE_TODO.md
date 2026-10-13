@@ -647,7 +647,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 - [ ] **T-386** The sidebar's new-tag field has no `maxLength`, no focus ring, swallows create errors, and checks duplicates differently from the Tags page. → G
 - [ ] **T-387** Settings → Cloud's bucket form signs out without asking; its fields stay editable while checking. → G
 - [ ] **T-388** An iPad registers in the cloud as `iphone` (`ports/cloudPlatform.ts`). → D
-- [ ] **T-389** Phone engine: a song with nowhere to play from leaves the previous song sounding with `playing: true`; repeat-one likely never reports the song's end. → D
+- [x] **T-389** Phone engine: a song with nowhere to play from leaves the previous song sounding with `playing: true`; repeat-one likely never reports the song's end. → D
+  - Decision: neither engine lines up the song that is sounding behind itself, so repeat-one on a phone loops by the provider's seek back to the top (a beat of silence, as in a browser) and the end is always reported.
 - [x] **T-390** Phone `adoptRecent` moves a stale (old-hash) played copy into a download; desktop refuses it. Both sides keep playing or keep the old file when a song's audio changes. → D
   - Decision: `recentUri` takes the song, so a copy of audio the song no longer has is never played; the next play fetches the new audio and deletes the old file.
 - [ ] **T-391** Cloud mode can null a live playlist's rules (server refuses; replica allows), which empties it on the server. → A
@@ -682,7 +683,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 
 ### D — Platform twins share their rules
 
-- [ ] **T-411** Engine core shared by `engine.ts` and `engine.web.ts` (idle state, notify-if-changed, subscribe/connect, `volumeChange`, unplayable state and message), with one behaviour test suite run against both.
+- [x] **T-411** Engine core shared by `engine.ts` and `engine.web.ts` (idle state, notify-if-changed, subscribe/connect, `volumeChange`, unplayable state and message), with one behaviour test suite run against both.
+  - `EngineHub` + rules in `packages/client/src/ports/engineCore.ts`; suite `ports/engine.behaviour.test.ts`. Decision: loading the song an engine already has carries on with it on both (the phone's rule, written into `LoadOptions`); the browser's used to restart it from 0:00.
 - [x] **T-412** `createRecentCopies(files)` for phone and desktop played copies; one `transfer()` for phone and desktop downloads (desktop keeps lyrics, motion and cover too).
   - Shared as `ports/recentCopyFiles.ts` and `ports/downloadTransfer.ts`. Decision: a desktop download now fails, like a phone's, when the words cannot be asked for.
 - [ ] **T-413** `createSchemaCache(name, schema)` for the four offline caches.

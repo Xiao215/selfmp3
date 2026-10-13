@@ -214,6 +214,21 @@ describe('a search', () => {
     expect([...next.review.chosen]).toEqual([0, 1])
   })
 
+  it('knows a ticked song found again by YouTube alone, at another address of the same video', () => {
+    // 许飞's song: on 网易云 (VIP, so from YouTube), then found by a later search on YouTube alone.
+    const both = item(1, {
+      url: 'https://music.youtube.com/watch?v=I2apY_VNDes',
+      netease: { url: 'https://music.163.com/song?id=417250673', free: false },
+      youtube: { url: 'https://music.youtube.com/watch?v=I2apY_VNDes', match: 'sure' },
+    })
+    const alone = item(1, { url: 'https://www.youtube.com/watch?v=I2apY_VNDes' })
+    let search = withSearchResults(null, '父亲写的散文诗', [both])
+    search = { ...search, review: toggleChosen(search.review, 0) }
+    const next = withSearchResults(search, '母亲写的散文诗', [alone, item(2)])
+    expect(next.review.items).toEqual([both, item(2)])
+    expect([...next.review.chosen]).toEqual([0])
+  })
+
   it('lets go of a song unticked before the next search', () => {
     let search = withSearchResults(null, 'a', [item(1)])
     search = { ...search, review: toggleChosen(search.review, 0) }

@@ -13,7 +13,11 @@ const mockPush = jest.fn()
 const mockReplace = jest.fn()
 const mockParams: { q?: string } = {}
 jest.mock('expo-router', () => ({
-  useFocusEffect: () => undefined,
+  // As the stack's: the effect runs while the page is on top, its cleanup once it is not.
+  useFocusEffect: (effect: () => undefined | (() => void)) => {
+    const { useEffect } = jest.requireActual<typeof import('react')>('react')
+    useEffect(() => effect(), [effect])
+  },
   useRouter: () => ({
     push: (to: unknown) => mockPush(to),
     back: () => undefined,
@@ -32,11 +36,12 @@ jest.mock('../../shell/bottomInset', () => ({
   useBottomInset: () => 0,
 }))
 
+const mockClose = jest.fn()
 const mockListen = {
   listening: null,
   toggle: () => undefined,
   seek: () => undefined,
-  close: () => undefined,
+  close: (options?: { resume?: boolean }) => mockClose(options),
 }
 jest.mock('./ImportListen', () => ({
   ...jest.requireActual('./ImportListen'),
@@ -121,6 +126,7 @@ beforeEach(() => {
   resetImportDraft()
   delete mockParams.q
   mockPush.mockReset()
+  mockClose.mockReset()
   mockReplace.mockReset()
   mockSearch
     .mockReset()
@@ -202,6 +208,15 @@ describe('Import’s search page', () => {
     ])
     await waitFor(() => expect(draftFor('own').search).toBeNull())
     expect(mockReplace).toHaveBeenCalledWith('/import')
+  })
+
+  it('stops a song being heard when the page is left', async () => {
+    mockParams.q = '孤勇者'
+    await draw('search')
+    await fireEvent.press(await screen.findByLabelText('孤勇者, 陈奕迅'))
+    expect(mockClose).not.toHaveBeenCalledWith({ resume: false })
+    await screen.unmount()
+    expect(mockClose).toHaveBeenCalledWith({ resume: false })
   })
 
   it('says when nothing was found, and when the search failed, with a way to try again', async () => {

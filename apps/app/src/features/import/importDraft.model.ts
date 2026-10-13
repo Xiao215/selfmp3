@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import { ImportFromSchema, ImportPreviewItemSchema, type ImportPreviewItem } from '@selfmp3/shared'
+import {
+  ImportFromSchema,
+  ImportPreviewItemSchema,
+  youtubeVideoId,
+  type ImportPreviewItem,
+} from '@selfmp3/shared'
 import type { Review, ServerConnection } from '@selfmp3/client'
 
 /**
@@ -53,8 +58,10 @@ export type DraftList = 'review' | 'search'
  * A new search's songs, under the songs ticked in the searches before it.
  * Nothing found is ticked: a search is browsing, and what it found is
  * yours to pick. A song ticked before and found again is the ticked one,
- * kept above, not a second row: the same song by its 网易云 link, else by its
- * YouTube one, as either may be what it downloads from now.
+ * kept above, not a second row: the same song by any link the two rows share.
+ * One search can find a song on both 网易云 and YouTube and the next on
+ * YouTube alone, so the rows' own links (`url`) may differ while the YouTube
+ * video under both is the same.
  */
 export function withSearchResults(
   previous: DraftSearch | null,
@@ -63,8 +70,8 @@ export function withSearchResults(
 ): DraftSearch {
   const before = previous?.review
   const kept = before ? before.items.filter((_, index) => before.chosen.has(index)) : []
-  const keys = new Set(kept.map(songKey))
-  const found = items.filter(item => !keys.has(songKey(item)))
+  const keys = new Set(kept.flatMap(songLinks))
+  const found = items.filter(item => !songLinks(item).some(link => keys.has(link)))
   return {
     query,
     picked: kept.length,
@@ -77,8 +84,13 @@ export function withSearchResults(
   }
 }
 
-const songKey = (item: ImportPreviewItem): string =>
-  item.netease?.url ?? item.youtube?.url ?? item.url
+/** Every link a row's song goes by, a YouTube video by its id whatever the address. */
+const songLinks = (item: ImportPreviewItem): string[] =>
+  [item.url, item.netease?.url, item.youtube?.url].flatMap(url => {
+    if (!url) return []
+    const video = youtubeVideoId(url)
+    return [video ? `youtube:${video}` : url]
+  })
 
 export type DraftChanges = Partial<Omit<ImportDraft, 'source'>>
 

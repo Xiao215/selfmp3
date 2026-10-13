@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ScrollView, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
@@ -49,6 +49,7 @@ import {
 } from './song.model'
 import { goBack, useGoBack } from '../../ui/useBackTo'
 import { useVia } from '../../connection/via'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /**
  * A song's own page, `/song/<id>` (docs/ui-mock `P15`).

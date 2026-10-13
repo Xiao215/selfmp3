@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { blurLayer } from '../../ports/blurLayer'
 import { activeLineIndex, lyricTextLines, type ParsedLyrics } from '@selfmp3/shared'
@@ -11,6 +11,7 @@ import { glideToLine } from './lyricFollow.model'
 import { blurReach, lineTone, lyricBlur, type LineTone } from './stageLyrics.model'
 import { MOVE_MS } from '../../ui/motion.model'
 import { motionMs, useMotionReduced } from '../../ui/motion'
+import { ScrollView } from '../../ui/components/Scroll'
 
 interface LyricsProps {
   parsed: ParsedLyrics

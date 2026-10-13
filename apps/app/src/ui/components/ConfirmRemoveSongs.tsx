@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { ScrollView, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { plural, type Song } from '@selfmp3/shared'
 import {
@@ -22,6 +22,7 @@ import { floating } from '../surfaces'
 import { Trash } from './Icons'
 import { devicePlace } from '../../features/settings/settings.model'
 import { deviceKind } from '../../ports/device'
+import { ScrollView } from './Scroll'
 
 /**
  * Deleting songs from the library, from the question to the word afterwards:

@@ -1,6 +1,6 @@
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Stats } from '@selfmp3/shared'
@@ -29,6 +29,7 @@ import {
 } from './profile.model'
 import { useVia } from '../../connection/via'
 import { SongLine } from '../../ui/components/SongLine'
+import { ScrollView } from '../../ui/components/Scroll'
 
 const ICONS: Record<ProfileRowId, typeof Settings> = {
   import: Download,

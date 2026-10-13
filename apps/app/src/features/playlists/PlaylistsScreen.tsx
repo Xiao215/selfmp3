@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 import type { LayoutChangeEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
@@ -35,6 +35,7 @@ import {
   type PlaylistSort,
 } from './playlists.model'
 import { usePlaylistPlayback } from './usePlaylistPlayback'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /** Tiles at least this wide at desktop width, as many as fit; two across on a phone. */
 const TILE_MIN_WIDTH = 176

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
@@ -32,6 +32,7 @@ import { useFindSongs } from './useFindSongs'
 import { useSongSearch } from './useSongSearch'
 import { comingIn, importLabel, importRequest, stillFinding } from './review.model'
 import { ReviewGridHead, useReviewRows } from './ReviewRows'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /** How many of a search's songs show before "Show more", under the songs picked before it. */
 const FOUND_SHOWN = 12
@@ -166,7 +167,6 @@ export function ImportSearch({
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={wide ? styles.listWide : styles.listPhone}
-        keyboardShouldPersistTaps="handled"
         testID="import-search"
       >
         <Pressable onPress={closeOpen} accessible={false} style={styles.ground}>

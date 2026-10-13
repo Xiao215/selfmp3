@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { plural, fuzzyRank, type Tag } from '@selfmp3/shared'
 import { chooserTagGroups, HIT_TARGET, space, type, useLibrary } from '@selfmp3/client'
@@ -9,6 +9,7 @@ import { useAccent } from '../accent'
 import { Chip } from './Chip'
 import { card, label as labelText } from '../surfaces'
 import { SearchField } from './SearchField'
+import { ScrollView } from './Scroll'
 
 /**
  * Choosing tags to listen to.
@@ -135,11 +136,7 @@ function Panel({
         {wide ? foot({ summary, onDone, accent: accent.accent }) : null}
       </View>
 
-      <ScrollView
-        style={[styles.body, !wide && styles.bodyNarrow]}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-      >
+      <ScrollView style={[styles.body, !wide && styles.bodyNarrow]}>
         {trimmed ? (
           matches.length === 0 ? (
             <Text style={styles.hint}>No tag matches “{trimmed}”.</Text>

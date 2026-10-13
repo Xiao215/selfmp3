@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native'
+import { Animated, Pressable, Text, View, useWindowDimensions } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -56,6 +56,7 @@ import {
 import { useQueueEdits } from './useQueueEdits'
 import { RoomList, TogetherButton } from '../room/RoomList'
 import { useRoom } from '../room/room.store'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /** How far below the status bar the sheet's top edge sits (`P25`: the page's title peeks out). */
 const SHEET_TOP = 16

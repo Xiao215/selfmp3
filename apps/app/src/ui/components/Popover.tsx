@@ -1,6 +1,6 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { Animated, Pressable, ScrollView } from 'react-native'
+import { Animated, Pressable } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context'
 import { motion, radius, space } from '@selfmp3/client'
@@ -13,6 +13,7 @@ import { floating } from '../surfaces'
 import { rightClick, type PopoverAnchor } from '../rightClick'
 import { ease, motionMs, nativeDriver } from '../motion'
 import { clamp } from '@selfmp3/shared'
+import { ScrollView } from './Scroll'
 
 /**
  * A small panel attached to the control that opened it — or a sheet, when

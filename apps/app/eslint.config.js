@@ -138,6 +138,31 @@ module.exports = [
     },
   },
   {
+    // Every list takes the keyboard the same way: a tap under it lands, a drag
+    // puts it away. That is set once in ui/components/Scroll; a screen that
+    // drew React Native's own list would quietly leave it out, as Import's
+    // search did. A type (a ref's instance) is fine.
+    files: ['**/*.ts', '**/*.tsx'],
+    ignores: ['src/ui/components/Scroll.tsx'],
+    plugins: { '@typescript-eslint': typescript },
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'react-native',
+              importNames: ['ScrollView', 'FlatList', 'SectionList', 'VirtualizedList'],
+              allowTypeImports: true,
+              message:
+                'Use ScrollView/FlatList from ui/components/Scroll, which settle what an open keyboard does.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // docs/ARCHITECTURE.md foundation 2, enforced.
     //
     // Screens read a port's declared capabilities, never the platform. The two

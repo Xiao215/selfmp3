@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import {
@@ -44,6 +44,7 @@ import {
   useSharedChanged,
   useSharedPlaylist,
 } from './sharedPlaylists'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /** An invite opened before signing in, opened again once signed in (`useResumeSharedJoin`). */
 const PENDING_JOIN_KEY = 'shared.join'

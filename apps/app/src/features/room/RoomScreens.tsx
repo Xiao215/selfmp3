@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ScrollView, Text, TextInput, View } from 'react-native'
+import { Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
@@ -34,6 +34,7 @@ import { RoomFace, RoomFaces } from './RoomFace'
 import { RoomHead, RoomList } from './RoomList'
 import { sayRoomFailure } from './roomFailure'
 import { joinRoom, leaveRoom, useRoom } from './room.store'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /** The name a guest last joined with, offered again. */
 const GUEST_NAME_KEY = 'room.name'

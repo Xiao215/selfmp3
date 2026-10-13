@@ -6,7 +6,6 @@ import {
   Easing,
   Image,
   Pressable,
-  ScrollView,
   Text,
   useWindowDimensions,
   View,
@@ -82,6 +81,7 @@ import { useTagging, type Tagging } from './useTagging'
 import { tagLink } from '../tag/placeLinks'
 import { tip } from '../../ui/tip'
 import { artShadow, floating, label } from '../../ui/surfaces'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /*
  * Where the top row starts. The page covers the sidebar, which is what keeps

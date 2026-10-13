@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
-import { ScrollView, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { fonts, leading, radius, space, type, useLibrary } from '@selfmp3/client'
@@ -32,6 +32,7 @@ import {
 } from './firstSync.model'
 import { rememberFirstSyncSeen } from './firstSyncMemory'
 import { WhitePill } from './WhitePill'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /**
  * First sync (docs/ui-mock `P03`, `C02`): the page between the first Google

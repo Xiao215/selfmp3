@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
@@ -10,6 +10,7 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Cover } from '../../ui/components/Cover'
 import { label } from '../../ui/surfaces'
 import { playSimilarOrder } from './song.model'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /**
  * "Sounds like" on a song's own page (`P15`): the song's nearest neighbours by

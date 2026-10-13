@@ -1,6 +1,6 @@
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import type { ReactNode } from 'react'
-import { ScrollView, Text } from 'react-native'
+import { Text } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLayout } from '../../shell/useLayout'
 import { ServerAway } from '../../connection/ServerAway'
@@ -11,6 +11,7 @@ import { ImportReview } from './ImportReview'
 import { ImportScreen } from './ImportScreen'
 import { ImportSearch } from './ImportSearch'
 import { QueueViaBucket } from './QueueViaBucket'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /**
  * Importing into a cloud library.

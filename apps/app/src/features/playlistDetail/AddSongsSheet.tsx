@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { artistOr, formatDuration, fuzzyRank, type Song } from '@selfmp3/shared'
 import {
@@ -21,6 +21,7 @@ import { Sheet } from '../../ui/components/Sheet'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { SearchField } from '../../ui/components/SearchField'
 import { SongLine } from '../../ui/components/SongLine'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /** Enough to scroll through; a search narrows past it. */
 const SHOWN = 60
@@ -161,11 +162,7 @@ export function AddSongsSheet({
           autoFocus
         />
 
-        <ScrollView
-          style={styles.list}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-        >
+        <ScrollView style={styles.list}>
           {results.length === 0 ? (
             <EmptyState
               compact

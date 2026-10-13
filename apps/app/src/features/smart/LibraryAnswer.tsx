@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { artistOr, formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
 import { leading, space, type, useLibrary } from '@selfmp3/client'
@@ -14,6 +14,7 @@ import { songCount, SONGS_MORE, SONGS_SHOW } from './Review'
 import { parts, sortWords } from './smart.model'
 import { useSmartServer } from './useSmartServer'
 import { SongLine } from '../../ui/components/SongLine'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /**
  * A question about what is in the library ("how many YOASOBI songs do I

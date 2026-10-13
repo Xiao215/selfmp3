@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
+import { Animated, Pressable, Text, View } from 'react-native'
 import type { ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
@@ -60,6 +60,7 @@ import {
 } from './home.model'
 import { useSvgId } from '../../ui/useSvgId'
 import { useVia } from '../../connection/via'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /**
  * Home: where the app opens (docs/ui-mock `P04`, `C03`).

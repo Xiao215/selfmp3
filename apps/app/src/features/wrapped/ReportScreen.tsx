@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, Image, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import type { WrappedRange } from '@selfmp3/shared'
@@ -46,6 +46,7 @@ import {
 } from './looks.model'
 import { emptyHint, emptyTitle, longerRanges, tryLabel, shareFileName } from './wrapped.model'
 import { isStatsPeriod, periodLabel, STATS_PERIODS, statsRangeFor } from '../stats/stats.model'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /** How wide a portrait look is drawn on a computer: its board's own width, near enough. */
 const PORTRAIT_ON_COMPUTER = 480

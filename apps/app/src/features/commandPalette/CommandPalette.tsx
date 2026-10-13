@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native'
+import { Pressable, Text, TextInput, useWindowDimensions, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
@@ -60,6 +60,7 @@ import {
 import { EmptyState } from '../../ui/components/EmptyState'
 import { SearchField } from '../../ui/components/SearchField'
 import { SONG_LINE_COVER, SongLine } from '../../ui/components/SongLine'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /** One selectable row: what it is drawn as, what it is read out as, and what Enter does. */
 interface Row {
@@ -581,7 +582,6 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         // Native's Role type has no "listbox"; react-native-web renders it.
         {...({ role: 'listbox' } as object)}
         contentContainerStyle={styles.results}
-        keyboardShouldPersistTaps="handled"
       >
         {asking !== null ? (
           <AskAnswer

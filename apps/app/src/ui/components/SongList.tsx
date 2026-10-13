@@ -3,7 +3,6 @@ import { useMemo, useRef, useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
 import {
   Animated,
-  FlatList,
   View,
   type FlatListProps,
   type LayoutChangeEvent,
@@ -17,6 +16,7 @@ import { PinnedHeaderScope, pinnedHeaderProps } from '../../ports/pinnedHeader'
 import { useListScrollbar } from '../../ports/listScrollbar'
 import { useLayoutValue } from '../../shell/useLayout'
 import { positionLabel, type ScrollLabel } from './listScrollbar.model'
+import { FlatList } from './Scroll'
 
 /** Module-level, so the list is not handed a new function on every render. */
 function keyOf(song: Song): string {
@@ -62,8 +62,7 @@ export function SongList({
   header,
   style,
   scrollEnabled,
-  keyboardShouldPersistTaps,
-  keyboardDismissMode = 'on-drag',
+  keyboardDismissMode,
   CellRendererComponent,
   pinned,
   scrollLabel = positionLabel,
@@ -89,7 +88,6 @@ export function SongList({
   header?: ReactElement | null
   style?: StyleProp<ViewStyle>
   scrollEnabled?: boolean
-  keyboardShouldPersistTaps?: FlatListProps<Song>['keyboardShouldPersistTaps']
   keyboardDismissMode?: FlatListProps<Song>['keyboardDismissMode']
   /** Wraps each cell; a playlist lifts the row being moved with it. */
   CellRendererComponent?: FlatListProps<Song>['CellRendererComponent']
@@ -179,7 +177,6 @@ export function SongList({
           windowSize={11}
           removeClippedSubviews
           keyboardDismissMode={keyboardDismissMode}
-          keyboardShouldPersistTaps={keyboardShouldPersistTaps}
           scrollEnabled={scrollEnabled}
           style={pinned ? [style, styles.anchorless] : style}
           contentContainerStyle={contentContainerStyle}

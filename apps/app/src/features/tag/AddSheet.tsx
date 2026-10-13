@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
-import { FlatList, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
+import { Pressable, Text, useWindowDimensions, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { plural, libraryArtists } from '@selfmp3/shared'
 import { tagColors, type, useLibrary } from '@selfmp3/client'
@@ -27,6 +27,7 @@ import {
 } from './tag.model'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { SearchField } from '../../ui/components/SearchField'
+import { FlatList, ScrollView } from '../../ui/components/Scroll'
 
 /**
  * Combine with… (docs/ui-mock `P09`, docs/features/lists.md): the sheet that
@@ -188,8 +189,6 @@ function AddSheetBody({
           item.kind === 'heading' ? `heading-${index}` : placeKey(item.place)
         }
         renderItem={renderRow}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
         initialNumToRender={20}
         style={{ height: Math.min(420, window.height * 0.45) }}
         ListEmptyComponent={

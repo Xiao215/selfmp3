@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
+import { Animated, Pressable, Text, View } from 'react-native'
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
@@ -42,6 +42,7 @@ import { useQueueEdits } from './useQueueEdits'
 import { RoomList, TogetherButton } from '../room/RoomList'
 import { useRoom } from '../room/room.store'
 import { SONG_LINE_COVER, SongLine } from '../../ui/components/SongLine'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /** The rail's width (`S2`, "Gutters": up-next rail 288). */
 const RAIL_WIDTH = 288

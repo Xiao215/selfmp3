@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react'
 import type { ReactElement, ReactNode } from 'react'
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { Pressable, Text, TextInput, View } from 'react-native'
 import type { GestureResponderEvent } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -70,6 +70,7 @@ import {
 } from './search.model'
 import { useSongsById } from '../../ui/songsById'
 import { useGoBack } from '../../ui/useBackTo'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /** What a song played from Search names Up next: the rows and the lyric hits alike. */
 const FROM_SEARCH = { kind: 'songs', origin: 'search', name: 'Search' } as const
@@ -238,11 +239,7 @@ export function SearchScreen(): ReactNode {
         ) : section === 'songs' ? (
           <SongResults songs={found.songs} query={shown} />
         ) : (
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-            contentContainerStyle={styles.results}
-          >
+          <ScrollView contentContainerStyle={styles.results}>
             {answering ? (
               <AskAnswer
                 text={asking}
@@ -350,11 +347,7 @@ function BeforeTyping({
 }): ReactNode {
   const openTag = useOpenTag()
   return (
-    <ScrollView
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode="on-drag"
-      contentContainerStyle={styles.results}
-    >
+    <ScrollView contentContainerStyle={styles.results}>
       {tags.length > 0 ? (
         <View style={styles.section}>
           <SectionHead title="Your tags" style={styles.sectionHead} />
@@ -547,7 +540,6 @@ function SongResults({ songs, query }: { songs: readonly Song[]; query: string }
         songs={songs}
         label="Search songs"
         renderSong={rows.renderSong}
-        keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.songList, selection?.active && !wide && styles.barPadding]}
         empty={<NothingMatches words={query.trim()} />}
       />

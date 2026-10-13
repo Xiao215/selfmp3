@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
@@ -45,6 +45,7 @@ import { Checkbox } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
 import { Dialog, DialogHead } from '../../ui/components/Dialog'
 import { Check, Sparkle } from '../../ui/components/Icons'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /** A source's badge at one hue, as an OKLCH pair: ground, ink. */
 const badgeTone = (hue: number): [string, string] => [

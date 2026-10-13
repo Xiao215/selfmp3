@@ -1,7 +1,7 @@
 import { useOpenSearch } from '../../shell/palette'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 import type { GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
@@ -46,6 +46,7 @@ import { usePullToRefresh } from './usePullToRefresh'
 import { useSongTagLookup } from '../../ui/songTags'
 import { label, PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageTitle } from '../../ui/surfaces'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /**
  * The library, at every width.
@@ -500,7 +501,6 @@ export function LibraryScreen(): ReactNode {
             wide && styles.gutterWide,
             headWide && styles.tagStripWide,
           ]}
-          keyboardShouldPersistTaps="handled"
           testID="library-tag-strip"
           {...stripDrag}
         >

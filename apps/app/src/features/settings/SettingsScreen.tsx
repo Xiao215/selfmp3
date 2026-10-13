@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import {
   Pressable,
-  ScrollView,
   Text,
   View,
   type NativeScrollEvent,
@@ -67,6 +66,7 @@ import {
   type Section,
   type SectionId,
 } from './settings.model'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /** At this width the index is a column beside the panels; below it, a row of chips. */
 const INDEX_COLUMN = 1080

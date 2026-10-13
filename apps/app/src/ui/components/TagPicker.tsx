@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { ScrollView, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { fuzzyRank, plural, TAG_NAME_MAX, type Song, type Tag } from '@selfmp3/shared'
 import {
@@ -25,6 +25,7 @@ import type { PopoverAnchor } from '../rightClick'
 import { Press } from './Press'
 import { tagChanges, tagsAcross, undoTagChange } from './tagPicker.model'
 import { SearchField } from './SearchField'
+import { ScrollView } from './Scroll'
 
 /**
  * Attach tags to a song.
@@ -360,10 +361,8 @@ export function TagSearchList({
 
       <ScrollView
         style={styles.list}
-        keyboardShouldPersistTaps="handled"
         // A scroll through the list puts the keyboard away, so the rows it
         // covered are there to tap.
-        keyboardDismissMode="on-drag"
       >
         {ranked.map(({ item: offered }) => {
           const { tag: item, there } = offered

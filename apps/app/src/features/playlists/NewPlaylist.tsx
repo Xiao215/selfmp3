@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
@@ -28,6 +28,7 @@ import { AddSongsSheet } from '../playlistDetail/AddSongsSheet'
 import { SongsAnswer } from '../smart/SongsAnswer'
 import { useSmartServer } from '../smart/useSmartServer'
 import { newPlaylist } from './playlists.model'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /** Where the sheet is: the kind first, then what the kind needs, then the name. */
 type Step = 'kind' | 'tags' | 'describe' | 'name'

@@ -1,14 +1,6 @@
 import { useEffect, useCallback, memo, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  Animated,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-  type LayoutChangeEvent,
-} from 'react-native'
+import { Animated, Pressable, Text, TextInput, View, type LayoutChangeEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
@@ -80,6 +72,7 @@ import {
   type WaitingArtist,
 } from './tags.model'
 import { usePageBack } from '../../ui/useBackTo'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /** Tiles at least this wide on a computer, as many as fit; two across on a phone. */
 const TILE_MIN_WIDTH = 220
@@ -232,8 +225,6 @@ export function TagsScreen(): ReactNode {
     <SafeAreaView style={styles.screen} edges={['top']} testID="tags-screen">
       <ScrollView
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
       >
         {/* The way back and the page's buttons on one line, the name under it
             on the left (J1); with no way back the name leads that line. */}

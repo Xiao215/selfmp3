@@ -5,7 +5,6 @@ import {
   KeyboardAvoidingView,
   Linking,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
@@ -42,6 +41,7 @@ import {
   type StorageMode,
 } from './storage.model'
 import { WhitePill } from './WhitePill'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /**
  * Where it lives: the page between the first Google sign-in on an account and
@@ -332,10 +332,7 @@ export function StorageScreen(): ReactNode {
   return (
     <SafeAreaView style={styles.screen}>
       <KeyboardAvoidingView style={styles.screen} behavior={keyboardAvoidBehavior}>
-        <ScrollView
-          contentContainerStyle={[styles.page, wide && styles.pageWide]}
-          keyboardShouldPersistTaps="handled"
-        >
+        <ScrollView contentContainerStyle={[styles.page, wide && styles.pageWide]}>
           {column}
         </ScrollView>
       </KeyboardAvoidingView>

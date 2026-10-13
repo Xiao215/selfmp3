@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated as RNAnimated, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { Animated as RNAnimated, Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
@@ -67,6 +67,7 @@ import { draftSourceFor } from './importDraft.model'
 import { reviewUrls, useRefreshReview } from './useRefreshReview'
 import { useImportSource } from './importSource'
 import { comingIn, countLabel, reviewName } from './review.model'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /** How many of today's finished imports are listed before "Show all". */
 const FINISHED_SHOWN = 5
@@ -481,8 +482,6 @@ export function ImportScreen({
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentPhone]}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
         testID="import-screen"
       >
         <View style={styles.head}>

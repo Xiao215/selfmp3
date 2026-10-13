@@ -1,6 +1,6 @@
 import { memo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
+import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -14,6 +14,7 @@ import { activeTab, type TabHref } from './bottomNav.model'
 import { Home, ListMusic, Music } from './Icons'
 import { useSlidingHighlight } from './SlidingHighlight'
 import { singularPlaces } from '../../ports/singularPlaces'
+import { ScrollView } from './Scroll'
 
 /**
  * The phone's tab bar (docs/ui-mock `P04`): a capsule floating over the page
@@ -70,7 +71,6 @@ function BottomNavInner(): ReactNode {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.tabs}
-        keyboardShouldPersistTaps="handled"
       >
         {pill.highlight}
         {TABS.map(tab => {

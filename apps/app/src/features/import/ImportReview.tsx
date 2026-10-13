@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { Redirect } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
@@ -43,6 +43,7 @@ import {
   stillFinding,
 } from './review.model'
 import { AllBox, ReviewGridHead, useReviewRows } from './ReviewRows'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /**
  * Reviewing what a link holds, before any of it downloads (`/import/review`,
@@ -206,7 +207,6 @@ export function ImportReview({
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={wide ? styles.listWide : styles.listPhone}
-        keyboardShouldPersistTaps="handled"
         testID="import-review"
       >
         <Pressable

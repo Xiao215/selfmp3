@@ -1,6 +1,6 @@
 import { memo, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { Animated, Pressable, Text, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLayoutValue } from './useLayout'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -64,6 +64,7 @@ import { useFade } from '../ui/motion'
 import { EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
 import { setPaletteOpen } from './palette'
 import { label as labelText } from '../ui/surfaces'
+import { ScrollView } from '../ui/components/Scroll'
 
 /**
  * The desktop's left rail.

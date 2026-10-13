@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useMutation } from '@tanstack/react-query'
 import type { DescribeResult, Understanding } from '@selfmp3/shared'
@@ -26,6 +26,7 @@ import { newPlaylist } from '../playlists/playlists.model'
 import { describeNotes, onlyTags, parts, picksHere, tagIdsFor } from './smart.model'
 import { useSmartServer } from './useSmartServer'
 import { SongLine } from '../../ui/components/SongLine'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /**
  * Songs picked from a description (docs/features/ai.md): what it understood,

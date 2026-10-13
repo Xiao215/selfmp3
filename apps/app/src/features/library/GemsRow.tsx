@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { plural, artistOr, formatRelative } from '@selfmp3/shared'
 import { space, type, useGems } from '@selfmp3/client'
@@ -16,6 +16,7 @@ import { ChevronDown, ChevronRight, Play } from '../../ui/components/Icons'
 import { card, sectionTitle } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { GEMS_SOURCE } from '../lists/lists.model'
+import { ScrollView } from '../../ui/components/Scroll'
 
 const COLLAPSED_KEY = 'gems.collapsed'
 

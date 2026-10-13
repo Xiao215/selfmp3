@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { StyleProp, ViewStyle } from 'react-native'
-import { Animated, Pressable, ScrollView, Text, View } from 'react-native'
+import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { radius, space, type } from '@selfmp3/client'
@@ -16,6 +16,7 @@ import { ease, timing } from '../../ui/motion'
 import { MOVE_MS } from '../../ui/motion.model'
 import { PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageTitle } from '../../ui/surfaces'
 import { periodLabel, REPORT_HINT, STATS_PERIODS, type StatsPeriod } from './stats.model'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /** How far a set of numbers comes in from. */
 const SWAP_TRAVEL = 26

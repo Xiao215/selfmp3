@@ -448,7 +448,6 @@ export function PlaylistDetailScreen(): ReactNode {
             empty={empty}
             style={styles.scroll}
             contentContainerStyle={[styles.content, bar.listPadding]}
-            keyboardShouldPersistTaps="handled"
             // A name or a description being typed in the head stays open through a scroll.
             keyboardDismissMode="none"
             onRefresh={pull.onRefresh}

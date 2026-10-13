@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import {
@@ -47,6 +47,7 @@ import {
   useRoom,
 } from './room.store'
 import { sharedApi, sharedSession } from '../shared/sharedPlaylists'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /**
  * A room's sheets (docs/features/listen-together.md): Together — opening a
@@ -369,11 +370,7 @@ export function MyLibraryPicker({
           testID="room-add-search"
         />
       </View>
-      <ScrollView
-        style={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-      >
+      <ScrollView style={styles.scroll}>
         {found.map(song => (
           <SongPick
             key={song.id}

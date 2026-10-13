@@ -7,7 +7,6 @@ import {
   KeyboardAvoidingView,
   Linking,
   Pressable,
-  ScrollView,
   Text,
   View,
 } from 'react-native'
@@ -45,6 +44,7 @@ import {
   type WelcomeArt,
   type WelcomeTile,
 } from './welcome.model'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /**
  * The way in (docs/ui-mock `P01`, `P02`, `C01`): one button, Continue with
@@ -268,7 +268,6 @@ export function WelcomeScreen(): ReactNode {
           <ScrollView
             style={styles.screen}
             contentContainerStyle={[styles.textHalf, { paddingHorizontal: margin }]}
-            keyboardShouldPersistTaps="handled"
           >
             {words}
             {actions}
@@ -285,7 +284,7 @@ export function WelcomeScreen(): ReactNode {
       ) : null}
       <SafeAreaView style={styles.clear}>
         <KeyboardAvoidingView style={styles.clear} behavior={keyboardAvoidBehavior}>
-          <ScrollView contentContainerStyle={styles.narrow} keyboardShouldPersistTaps="handled">
+          <ScrollView contentContainerStyle={styles.narrow}>
             {art ? <Art art={art} ground={theme.colors.surface0} wide={false} /> : null}
             {words}
             {actions}

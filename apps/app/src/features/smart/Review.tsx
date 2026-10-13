@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
 import { clamp, plural, artistOr } from '@selfmp3/shared'
@@ -15,6 +15,7 @@ import { label as labelText } from '../../ui/surfaces'
 import type { AnswerKeys } from './answerKeys'
 import { keptSongs, leftOutKey, reviewBands, tickedAtFirst, type Reviewed } from './smart.model'
 import { SongLine } from '../../ui/components/SongLine'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /**
  * The steps the list is drawn in. A band's tick, then its title, note and

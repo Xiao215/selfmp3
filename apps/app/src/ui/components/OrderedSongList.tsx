@@ -55,7 +55,6 @@ export function OrderedSongList({
   contentContainerStyle,
   onRefresh,
   refreshing,
-  keyboardShouldPersistTaps,
   keyboardDismissMode,
   menuPlaylist,
 }: {
@@ -74,7 +73,6 @@ export function OrderedSongList({
   contentContainerStyle?: StyleProp<ViewStyle>
   onRefresh?: () => void
   refreshing?: boolean
-  keyboardShouldPersistTaps?: 'always' | 'never' | 'handled'
   keyboardDismissMode?: 'none' | 'on-drag' | 'interactive'
   /** The playlist these are, for the song menu's "Remove from this playlist". */
   menuPlaylist?: { readonly id: number; readonly name: string }
@@ -289,7 +287,6 @@ export function OrderedSongList({
             style={style}
             contentContainerStyle={contentContainerStyle}
             scrollEnabled={drag === null || byBrowser}
-            keyboardShouldPersistTaps={keyboardShouldPersistTaps}
             keyboardDismissMode={keyboardDismissMode}
             CellRendererComponent={LiftedCell}
             onRefresh={onRefresh}

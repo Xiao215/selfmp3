@@ -15,3 +15,9 @@ import { Platform } from 'react-native'
  */
 export const keyboardAvoidBehavior: 'padding' | 'height' | 'position' | undefined =
   Platform.OS === 'ios' ? 'padding' : undefined
+
+/**
+ * What dragging a list does to an open keyboard: puts it away, so the rows it
+ * was covering can be seen (as Google's search does with its history).
+ */
+export const dragKeyboard: 'on-drag' | 'none' = 'on-drag'

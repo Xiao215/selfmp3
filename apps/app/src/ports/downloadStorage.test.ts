@@ -61,8 +61,10 @@ vi.mock('../offline/covers', () => ({
   ensureServerCover: async () => undefined,
   KEPT_COVER_SIZE: 0,
 }))
-vi.mock('../offline/lyricsCache', () => ({ writeCachedLyrics: () => undefined }))
-vi.mock('../offline/motionCache', () => ({ writeCachedMotion: () => undefined }))
+vi.mock('../offline/caches', () => ({
+  lyricsCache: { write: () => undefined },
+  motionCache: { write: () => undefined },
+}))
 
 const entry = {
   songId: 7,

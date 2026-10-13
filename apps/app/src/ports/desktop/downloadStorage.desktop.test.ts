@@ -50,11 +50,9 @@ vi.mock('../../api/client', () => ({
   },
   mediaUrlFor: () => ({ stream: () => '', art: () => '' }),
 }))
-vi.mock('../../offline/lyricsCache', () => ({
-  writeCachedLyrics: (songId: number) => void keptLyrics.push(songId),
-}))
-vi.mock('../../offline/motionCache', () => ({
-  writeCachedMotion: (songId: number) => void keptMotion.push(songId),
+vi.mock('../../offline/caches', () => ({
+  lyricsCache: { write: (songId: number) => void keptLyrics.push(songId) },
+  motionCache: { write: (songId: number) => void keptMotion.push(songId) },
 }))
 vi.mock('../../offline/covers', () => ({
   ensureServerCover: async () => undefined,

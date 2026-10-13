@@ -502,7 +502,7 @@ function rangeNotSatisfiable(size: number): Response {
  * API requests: the network, and an honest "offline" when it is not there.
  *
  * Nothing is kept — not even the library, which the page already saves in
- * IndexedDB (src/offline/libraryCache.web.ts). A second copy here, served
+ * IndexedDB (src/offline/caches.ts). A second copy here, served
  * stale as a 200 when the server is away, tells the page it was answered when it
  * was not; the page's own copy does that job and shows the copy for what it is.
  */

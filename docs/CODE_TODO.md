@@ -687,7 +687,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
   - `EngineHub` + rules in `packages/client/src/ports/engineCore.ts`; suite `ports/engine.behaviour.test.ts`. Decision: loading the song an engine already has carries on with it on both (the phone's rule, written into `LoadOptions`); the browser's used to restart it from 0:00.
 - [x] **T-412** `createRecentCopies(files)` for phone and desktop played copies; one `transfer()` for phone and desktop downloads (desktop keeps lyrics, motion and cover too).
   - Shared as `ports/recentCopyFiles.ts` and `ports/downloadTransfer.ts`. Decision: a desktop download now fails, like a phone's, when the words cannot be asked for.
-- [ ] **T-413** `createSchemaCache(name, schema)` for the four offline caches.
+- [x] **T-413** `createSchemaCache(name, schema)` for the four offline caches.
+  - `offline/schemaCache.ts` over a twinned `recordStore` (`offline/caches.ts` has the four). Decisions: a record that fails its schema is deleted so it is fetched again; clears never reject. A browser's records are stored bare under `<kind>-<id>` and a phone's library snapshot moved to `library/snapshot.json`, so copies kept before this are fetched afresh once (they are caches).
 - [ ] **T-414** Smaller twins: StageMove interrupt duration + props, listen watchdog, no-op desktop ports, covers adapter, web key-ownership test, server-event parse, ripples frame maths.
 
 ### E — Now Playing, Up next and the transport are one set of pieces

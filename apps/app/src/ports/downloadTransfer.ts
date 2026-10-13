@@ -9,8 +9,7 @@ import { bucketHold } from '@selfmp3/replica'
 
 import { api, mediaUrlFor } from '../api/client'
 import { ensureServerCover, KEPT_COVER_SIZE } from '../offline/covers'
-import { writeCachedLyrics } from '../offline/lyricsCache'
-import { writeCachedMotion } from '../offline/motionCache'
+import { lyricsCache, motionCache } from '../offline/caches'
 import { askWhyRefused } from './bucketRefusal'
 import { sourceFor } from './songSource'
 
@@ -52,7 +51,7 @@ export interface TransferFiles {
 /** A song's words onto this device, or nothing when it has none. Throws when the server could not be asked. */
 async function keepLyrics(song: Song): Promise<void> {
   try {
-    writeCachedLyrics(song.id, await api.lyrics(song.id))
+    lyricsCache.write(song.id, await api.lyrics(song.id))
   } catch (error) {
     if (error instanceof ApiError && (error.status === 404 || error.code === 'instrumental')) return
     throw error
@@ -66,7 +65,7 @@ async function keepLyrics(song: Song): Promise<void> {
  */
 async function keepMotion(song: Song): Promise<void> {
   try {
-    writeCachedMotion(song.id, await api.motion(song.id))
+    motionCache.write(song.id, await api.motion(song.id))
   } catch {
     // No curve: the visual follows the tempo instead.
   }

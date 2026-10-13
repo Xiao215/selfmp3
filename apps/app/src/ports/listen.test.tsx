@@ -55,7 +55,6 @@ jest.mock('expo-audio', () => ({
   },
 }))
 
-
 /** The app going to the background and back, with expo-audio's own pause and play either side. */
 function appState(): { leave(): void; comeBack(): void } {
   const handlers: ((state: AppStateStatus) => void)[] = []

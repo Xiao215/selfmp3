@@ -1,7 +1,7 @@
 import { useOpenSearch } from '../../shell/palette'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { HIT_TARGET, isDownloaded, leading, radius, space, type } from '@selfmp3/client'
@@ -40,6 +40,7 @@ import { PageHeader } from '../../ui/components/PageHeader'
 import { PageLoading } from '../../ui/components/PageLoading'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
 import { ScrollView } from '../../ui/components/Scroll'
+import { Press } from '../../ui/components/Press'
 
 /**
  * The library, at every width.
@@ -319,7 +320,7 @@ export function LibraryScreen(): ReactNode {
                   testID="library-sort"
                 />
               </View>
-              <Pressable
+              <Press
                 style={({ pressed }) => [
                   styles.direction,
                   dense && styles.directionDense,
@@ -330,7 +331,7 @@ export function LibraryScreen(): ReactNode {
                 accessibilityLabel={filter.descending ? 'Sort ascending' : 'Sort descending'}
               >
                 <Text style={styles.directionArrow}>{filter.descending ? '↓' : '↑'}</Text>
-              </Pressable>
+              </Press>
 
               {/*
               With no tags on, Shuffle alone — a click on a row plays that song

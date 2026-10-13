@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Circle, Svg } from 'react-native-svg'
 import { artistOr, pickResumeState, type Device } from '@selfmp3/shared'
@@ -13,6 +13,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { X } from '../../ui/components/Icons'
 import { floating } from '../../ui/surfaces'
 import { useDeviceContext } from './DevicesProvider'
+import { Press } from '../../ui/components/Press'
 
 /** How long the offer stays before it goes by itself. */
 const RESUME_TOAST_MS = 12_000
@@ -95,7 +96,8 @@ export function ResumeToast(): ReactNode {
     // Never wider than the window's room for it: in an iPad's Slide Over, 320
     // wide, it would run past both edges (docs/ui-mock `T08`).
     <View style={[styles.toast, { maxWidth: Math.min(460, width - 32) }]} role="status">
-      <Pressable
+      <Press
+        feedback="wash"
         onPress={() => {
           const target = handoffTarget(candidate.state, Date.now())
           setCandidate(null)
@@ -124,7 +126,7 @@ export function ResumeToast(): ReactNode {
             from {shortDeviceName(candidate.name)}
           </Text>
         ) : null}
-      </Pressable>
+      </Press>
       <View>
         <IconButton onPress={() => setCandidate(null)} label="Dismiss" size={finePointer ? 32 : 40}>
           <X size={15} color={theme.colors.textMuted} />

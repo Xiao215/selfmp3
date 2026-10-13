@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { StyleSheet } from 'react-native-unistyles'
-import { HIT_TARGET, withAlpha } from '@selfmp3/client'
+import { HIT_TARGET, hitSlopFor, withAlpha } from '@selfmp3/client'
+import { OPACITY } from '../motion.model'
 import { useLayoutValue } from '../../shell/useLayout'
 import { tip } from '../tip'
 import { Press } from './Press'
@@ -57,7 +58,7 @@ export function IconButton({
       wrap={{ width: size, height: size }}
       onPress={onPress}
       disabled={disabled}
-      hitSlop={size < HIT_TARGET ? (HIT_TARGET - size) / 2 : 0}
+      hitSlop={hitSlopFor(size)}
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -93,12 +94,12 @@ const styles = StyleSheet.create(theme => ({
   },
   primary: { backgroundColor: theme.colors.textPrimary },
   accent: { backgroundColor: theme.colors.accent },
-  inkPressed: { opacity: 0.6 },
+  inkPressed: { opacity: OPACITY.pressed },
   /* A light veil rather than a surface: over a song-coloured page a solid box read as a dark square. */
   pressed: {
-    backgroundColor: withAlpha(theme.colors.textPrimary, 0.1),
+    backgroundColor: withAlpha(theme.colors.textPrimary, OPACITY.wash),
   },
   disabled: {
-    opacity: 0.4,
+    opacity: OPACITY.disabled,
   },
 }))

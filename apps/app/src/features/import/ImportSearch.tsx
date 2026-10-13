@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Pressable, Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { leading, space, type, type Review, type ServerConnection } from '@selfmp3/client'
@@ -19,6 +19,8 @@ import { useSongSearch } from './useSongSearch'
 import { comingIn, importRequest, stillFinding } from './review.model'
 import { ReviewGridHead, useReviewRows } from './ReviewRows'
 import { ScrollView } from '../../ui/components/Scroll'
+import { TapAway } from '../../ui/components/TapAway'
+import { Spinner } from '../../ui/components/Spinner'
 
 /** How many of a search's songs show before "Show more", under the songs picked before it. */
 const FOUND_SHOWN = 12
@@ -47,7 +49,6 @@ export function ImportSearch({
   onUnreachable?: () => void
 } = {}): ReactNode {
   const { wide, finePointer } = useLayout()
-  const { theme } = useUnistyles()
   const page = useImportPage(via, onUnreachable)
   const { source, draft, patchDraft, listen, backTo, failed } = page
   const key = page.draftKey
@@ -106,11 +107,7 @@ export function ImportSearch({
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <Pressable
-        onPress={closeOpen}
-        accessible={false}
-        style={wide ? styles.headWide : styles.headPhone}
-      >
+      <TapAway onPress={closeOpen} style={wide ? styles.headWide : styles.headPhone}>
         {/* As the review's head: the round ‹ back to Import, the name under it. */}
         <PageHeader title="Search" back={{ to: '/import', testID: 'import-search-back' }} />
         <SearchField
@@ -132,14 +129,14 @@ export function ImportSearch({
               ? 'Searching YouTube Music and 网易云…'
               : 'From YouTube Music and 网易云. Tick the songs to import.'}
         </Text>
-      </Pressable>
+      </TapAway>
 
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={wide ? styles.listWide : styles.listPhone}
         testID="import-search"
       >
-        <Pressable onPress={closeOpen} accessible={false} style={styles.ground}>
+        <TapAway onPress={closeOpen} style={styles.ground}>
           {searching.error ? (
             <NoticeCard
               tone="error"
@@ -180,14 +177,14 @@ export function ImportSearch({
           ) : null}
           {query !== null && !current && !searching.error ? (
             <View style={styles.looking} testID="import-search-looking">
-              <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+              <Spinner tone="textSecondary" />
               <Text style={styles.lookingText}>Searching for “{query}”…</Text>
             </View>
           ) : null}
           {current && !searching.searching && rows.length === kept ? (
             <Text style={styles.none}>Nothing found for “{query}”.</Text>
           ) : null}
-        </Pressable>
+        </TapAway>
       </ScrollView>
 
       <ImportFoot

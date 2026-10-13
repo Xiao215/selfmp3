@@ -40,6 +40,7 @@ import { ChangeIt } from './ChangeIt'
 import { answerSongs, describeNotes, parts } from './smart.model'
 import { useSmartServer } from './useSmartServer'
 import { StatusLine } from '../../ui/components/StatusLine'
+import { OPACITY } from '../../ui/motion.model'
 
 /**
  * An answer to Ask as a page of its own, `/answer?id=…` (docs/features/lists.md,
@@ -282,7 +283,7 @@ const WIDE = { titles: { flexBasis: 260 } } as const
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   listArea: { flex: 1, minHeight: 0 },
-  stale: { opacity: 0.55 },
+  stale: { opacity: OPACITY.dim },
   // Words asked run longer than a tag's name: smaller, so three lines still hold them.
   nameLong: { fontSize: type.page, lineHeight: leading.page, letterSpacing: -0.4 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 6 },

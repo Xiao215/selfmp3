@@ -1,13 +1,7 @@
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import {
-  Pressable,
-  Text,
-  View,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
-} from 'react-native'
+import { Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import Constants from 'expo-constants'
@@ -62,6 +56,7 @@ import {
   type SectionId,
 } from './settings.model'
 import { ScrollView } from '../../ui/components/Scroll'
+import { Press } from '../../ui/components/Press'
 
 /** At this width the index is a column beside the panels; below it, a row of chips. */
 const INDEX_COLUMN = 1080
@@ -510,20 +505,16 @@ function SectionIndex({
       )
     }
     return (
-      <Pressable
+      <Press
         key={section.id}
         onPress={() => onGo(section.id)}
         accessibilityRole="link"
         accessibilityState={{ selected: current }}
         aria-current={current ? 'page' : undefined}
-        style={({ pressed }) => [
-          styles.indexItem,
-          current && styles.indexItemOn,
-          pressed && styles.indexPressed,
-        ]}
+        style={[styles.indexItem, current && styles.indexItemOn]}
       >
         <Text style={[styles.indexText, current && styles.indexTextOn]}>{section.label}</Text>
-      </Pressable>
+      </Press>
     )
   })
 }
@@ -634,7 +625,6 @@ const styles = StyleSheet.create(theme => ({
   // The section you are on is "on" as a chosen chip is: white, with dark ink
   // (proposal P1). A grey fill a step lighter read as hovered, not chosen.
   indexItemOn: { backgroundColor: theme.colors.textPrimary },
-  indexPressed: { opacity: 0.8 },
   indexText: { color: theme.colors.textMuted, fontSize: type.sub },
   indexTextOn: { color: theme.colors.onPrimary, fontWeight: '600' },
   chipBar: {

@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { blurLayer } from '../../ports/blurLayer'
 import { activeLineIndex, lyricTextLines, type ParsedLyrics } from '@selfmp3/shared'
@@ -12,6 +12,7 @@ import { blurReach, lineTone, lyricBlur, type LineTone } from './stageLyrics.mod
 import { MOVE_MS } from '../../ui/motion.model'
 import { motionMs, useMotionReduced } from '../../ui/motion'
 import { ScrollView } from '../../ui/components/Scroll'
+import { Press } from '../../ui/components/Press'
 
 interface LyricsProps {
   parsed: ParsedLyrics
@@ -314,7 +315,8 @@ const LyricLine = memo(function LyricLine({
     )
   }
   return (
-    <Pressable
+    <Press
+      feedback="dim"
       ref={keep}
       style={lineStyle}
       onPress={() => onSeek(time)}
@@ -325,7 +327,7 @@ const LyricLine = memo(function LyricLine({
       accessibilityHint="Jump to this line"
     >
       {content}
-    </Pressable>
+    </Press>
   )
 })
 

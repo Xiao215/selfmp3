@@ -1,6 +1,6 @@
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Stats } from '@selfmp3/shared'
@@ -32,6 +32,7 @@ import { useVia } from '../../connection/via'
 import { SongLine } from '../../ui/components/SongLine'
 import { StatFigure } from '../../ui/components/StatFigure'
 import { ScrollView } from '../../ui/components/Scroll'
+import { Press } from '../../ui/components/Press'
 
 const ICONS: Record<ProfileRowId, typeof Settings> = {
   import: Download,
@@ -137,12 +138,13 @@ function Month({
 }): ReactNode {
   const router = useRouter()
   return (
-    <Pressable
+    <Press
+      depth="row"
       onPress={() => router.push('/stats')}
       accessibilityRole="link"
       accessibilityLabel={monthCardSpoken(month)}
       testID="profile-stats"
-      style={({ pressed }) => [styles.month, pressed && styles.monthPressed]}
+      style={styles.month}
     >
       <View style={styles.monthHead}>
         <Text style={styles.monthTitle}>{MONTH_CARD_TITLE}</Text>
@@ -164,7 +166,7 @@ function Month({
             : 'Your listening numbers come from your library’s computer.'}
         </Text>
       )}
-    </Pressable>
+    </Press>
   )
 }
 
@@ -217,7 +219,6 @@ const styles = StyleSheet.create(theme => ({
   line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   // A big card (`S2`: 22 round) on the ground, told apart by tone.
   month: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14 },
-  monthPressed: { opacity: 0.85 },
   monthHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   monthTitle: label(theme.colors),
   monthLink: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '600' },

@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { ActivityIndicator, Animated, Pressable, Text, TextInput, View } from 'react-native'
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- the bar is its own field, the words and the wait drawn in one place
+import { Animated, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useMutation } from '@tanstack/react-query'
 import { ApiError, failureText, motion, radius, space, type } from '@selfmp3/client'
@@ -13,6 +14,9 @@ import { changeAnswer, showAnswerStep, useKeptAnswer } from './answers.store'
 import { newTicket, useAskProgress } from './useAskProgress'
 import { useSmartServer } from './useSmartServer'
 import { StatusLine } from '../../ui/components/StatusLine'
+import { Press } from '../../ui/components/Press'
+import { Spinner } from '../../ui/components/Spinner'
+import { OPACITY } from '../../ui/motion.model'
 
 /**
  * "Change it" (docs/features/ai.md): an answer to Ask changed in your own
@@ -244,7 +248,7 @@ export function ChangeField({
         accessibilityLiveRegion="polite"
         aria-hidden={!working}
       >
-        <ActivityIndicator size="small" color={theme.colors.textMuted} />
+        <Spinner />
         <Text style={styles.doing} numberOfLines={1} testID={`${testID}-working`}>
           {working ? doing : ''}
         </Text>
@@ -288,13 +292,13 @@ export function TrailStep({
       ) : (
         <Text style={styles.arrow}>→</Text>
       )}
-      <Pressable
+      <Press
+        feedback="dim"
         onPress={onPress}
         disabled={current}
         accessibilityRole="button"
         accessibilityState={{ selected: current }}
         accessibilityLabel={current ? `${label}, showing` : `Back to ${label}`}
-        style={({ pressed }) => pressed && styles.pressed}
       >
         <Text
           style={[styles.stepText, current && styles.stepCurrent, later && styles.stepLater]}
@@ -302,7 +306,7 @@ export function TrailStep({
         >
           {label}
         </Text>
-      </Pressable>
+      </Press>
     </Animated.View>
   )
 }
@@ -316,7 +320,7 @@ const styles = StyleSheet.create(theme => ({
   arrow: { color: theme.colors.textMuted, fontSize: type.small },
   stepText: { color: theme.colors.textMuted, fontSize: type.small, maxWidth: 220 },
   stepCurrent: { color: theme.colors.textPrimary, fontWeight: '600' },
-  stepLater: { opacity: 0.55 },
+  stepLater: { opacity: OPACITY.dim },
   field: {
     height: FIELD_HEIGHT,
     borderRadius: radius.pill,
@@ -355,5 +359,4 @@ const styles = StyleSheet.create(theme => ({
   },
   doing: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '500', flexShrink: 0 },
   words: { color: theme.colors.textMuted, fontSize: type.sub, flexShrink: 1 },
-  pressed: { opacity: 0.6 },
 }))

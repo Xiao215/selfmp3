@@ -1,15 +1,16 @@
 import type { ReactNode, RefObject } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { Href } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
-import { isRoomTrackId, radius, type, withAlpha } from '@selfmp3/client'
+import { hitSlopFor, isRoomTrackId, radius, type } from '@selfmp3/client'
 import { useSongTagLookup } from '../../ui/songTags'
 import { Chip } from '../../ui/components/Chip'
 import { Plus, TagPlus } from '../../ui/components/Icons'
 import { RoomSongLine } from '../room/RoomSongLine'
 import { useOpenTag } from '../tag/useOpenTag'
+import { Press } from '../../ui/components/Press'
 
 /**
  * The song's tags on Now Playing, quietly, on a phone and a computer alike:
@@ -66,17 +67,15 @@ export function SongTagsLine({
           onPress={() => openTag(tag, { go: onOpen })}
         />
       ))}
-      <Pressable
+      <Press
+        feedback="wash"
         ref={editRef}
         onPress={onEdit}
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityState={{ expanded: editing }}
-        hitSlop={8}
-        style={({ pressed }) => [
-          labelled ? styles.addLabelled : styles.addRound,
-          pressed && styles.addPressed,
-        ]}
+        hitSlop={hitSlopFor(ADD)}
+        style={labelled ? styles.addLabelled : styles.addRound}
       >
         {/* The dashed edge is the mark itself: an add chip (`S2`). */}
         {labelled ? (
@@ -87,16 +86,19 @@ export function SongTagsLine({
         ) : (
           <Plus size={13} color={theme.colors.textSecondary} />
         )}
-      </Pressable>
+      </Press>
     </View>
   )
 }
 
+/** The add chip's side when it is round; the slop brings either shape to a finger's. */
+const ADD = 28
+
 const styles = StyleSheet.create(theme => ({
   tags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
   addRound: {
-    width: 28,
-    height: 28,
+    width: ADD,
+    height: ADD,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -115,6 +117,5 @@ const styles = StyleSheet.create(theme => ({
     borderStyle: 'dashed',
     borderColor: theme.colors.borderStrong,
   },
-  addPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.1) },
   addText: { color: theme.colors.textSecondary, fontSize: type.small },
 }))

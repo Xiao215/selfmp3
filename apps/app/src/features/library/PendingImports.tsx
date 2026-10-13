@@ -5,6 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { space, type, useCloudImports, useLibrary } from '@selfmp3/client'
 import { Cover } from '../../ui/components/Cover'
 import { pendingImports } from './pendingImports.model'
+import { OPACITY } from '../../ui/motion.model'
 
 /**
  * Songs on their way into a cloud library, above the list: the links this
@@ -53,7 +54,7 @@ export function PendingImports(): ReactNode {
 const styles = StyleSheet.create(theme => ({
   list: { paddingHorizontal: space.lg, paddingBottom: space.sm, gap: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
-  faded: { opacity: 0.55 },
+  faded: { opacity: OPACITY.dim },
   text: { flex: 1, minWidth: 0, gap: 2 },
   title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '500' },
   status: { color: theme.colors.textMuted, fontSize: type.small },

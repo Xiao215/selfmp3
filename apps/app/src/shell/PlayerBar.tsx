@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
@@ -117,7 +117,8 @@ export function PlayerBar(): ReactNode {
       <View style={[styles.left, tight && styles.leftTight]}>
         {song ? (
           <>
-            <Pressable
+            <Press
+              feedback="dim"
               style={styles.open}
               onPress={togglePage}
               accessibilityRole="button"
@@ -142,7 +143,7 @@ export function PlayerBar(): ReactNode {
                   {artistOr(song.artist)}
                 </Text>
               </View>
-            </Pressable>
+            </Press>
             {/* Under the tight width the song's name needs the room more: Like and
                 Tags are on Now Playing and in the song menu as well. A friend's
                 song in a room is not in your library to like or tag. */}

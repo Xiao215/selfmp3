@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Pressable, Text } from 'react-native'
+import { Text } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { radius, type, withAlpha } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
@@ -7,6 +7,7 @@ import { Refresh, Romanize } from '../../ui/components/Icons'
 import { tip } from '../../ui/tip'
 import { romanName } from './nowPlaying.model'
 import type { SongLyrics } from './useSongWords'
+import { Press } from '../../ui/components/Press'
 
 /*
  * The two small pills beside the words on Now Playing, on a phone and a
@@ -28,7 +29,7 @@ export function RomanizeButton({ lyrics }: { lyrics: SongLyrics }): ReactNode {
   const on = lyrics.romanizationOn
   const name = romanName(lyrics.language)
   return (
-    <Pressable
+    <Press
       role="button"
       aria-pressed={on}
       onPress={() => lyrics.setRomanization(!on)}
@@ -42,7 +43,7 @@ export function RomanizeButton({ lyrics }: { lyrics: SongLyrics }): ReactNode {
     >
       <Romanize size={14} color={on ? theme.colors.onPrimary : theme.colors.textSecondary} />
       <Text style={[styles.toolText, on && styles.toolTextOn]}>{name}</Text>
-    </Pressable>
+    </Press>
   )
 }
 
@@ -54,7 +55,7 @@ export function FindLyricsButton({ onPress }: { onPress: () => void }): ReactNod
   const { theme } = useUnistyles()
   const dense = useLayoutValue(layout => layout.dense)
   return (
-    <Pressable
+    <Press
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel="Look for lyrics again"
@@ -67,7 +68,7 @@ export function FindLyricsButton({ onPress }: { onPress: () => void }): ReactNod
     >
       <Refresh size={13} color={theme.colors.textSecondary} />
       <Text style={styles.toolText}>Find lyrics</Text>
-    </Pressable>
+    </Press>
   )
 }
 

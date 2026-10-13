@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, TextInput, View } from 'react-native'
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- the name and the description are edited in place, in the head's own type
+import { Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { plural, type Song, NameSchema } from '@selfmp3/shared'
@@ -50,6 +51,7 @@ import { usePlaylistPlayback } from '../playlists/usePlaylistPlayback'
 import { AddSongsSheet } from './AddSongsSheet'
 import { FollowsRow } from './FollowsRow'
 import { usePageBack } from '../../ui/useBackTo'
+import { Press } from '../../ui/components/Press'
 
 /**
  * One playlist (docs/ui-mock `P17`, `C08`): the same kind of page as a tag's
@@ -221,7 +223,8 @@ export function PlaylistDetailScreen(): ReactNode {
           accessibilityLabel="Playlist name"
         />
       ) : (
-        <Pressable
+        <Press
+          feedback="dim"
           onPress={() => setRenaming(true)}
           disabled={!finePointer || !playlist}
           accessibilityRole="header"
@@ -230,7 +233,7 @@ export function PlaylistDetailScreen(): ReactNode {
           <Text style={[listHeadText.name, wide && styles.nameWide]} numberOfLines={2}>
             {name}
           </Text>
-        </Pressable>
+        </Press>
       )}
       {describing ? (
         <TextInput

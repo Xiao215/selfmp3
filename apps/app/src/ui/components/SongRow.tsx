@@ -33,7 +33,7 @@ import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
 import { TagDot } from './TagDot'
 import { useFade, usePresence, usePressScale } from '../motion'
-import { EASE_OUT_CSS, MOVE_MS, PRESS } from '../motion.model'
+import { EASE_OUT_CSS, MOVE_MS, OPACITY, PRESS } from '../motion.model'
 import { floating } from '../surfaces'
 import { Downloaded, More, NotDownloaded, Play, Plus } from './Icons'
 import { useSvgId } from '../useSvgId'
@@ -831,7 +831,7 @@ const styles = StyleSheet.create(theme => ({
   // the accent picker without re-rendering a list of them.
   selected: { backgroundColor: theme.colors.accentSelected },
   unavailable: {
-    opacity: 0.55,
+    opacity: OPACITY.dim,
   },
   /* A row held and moving. The cell around it does the raising (`LiftedCell`);
      this is only what the row itself wears while it is off the page. */

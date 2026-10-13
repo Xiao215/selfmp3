@@ -1,15 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  ActivityIndicator,
-  Animated,
-  Easing,
-  Image,
-  Pressable,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native'
+import { Animated, Easing, Image, Text, useWindowDimensions, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
 import type { NativeStackNavigationProp } from 'expo-router'
@@ -31,7 +22,7 @@ import { Cover } from '../../ui/components/Cover'
 import { useCrossfade } from '../../ui/components/CoverLight'
 import { IconButton } from '../../ui/components/IconButton'
 import { Segmented } from '../../ui/components/Segmented'
-import { ChevronDown, Collapse, Expand, More, Next } from '../../ui/components/Icons'
+import { ChevronDown, Collapse, Expand, Next } from '../../ui/components/Icons'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { SongAbout } from '../song/SongAbout'
@@ -72,6 +63,9 @@ import { useTagEditor, useTagging, type Tagging } from './useTagging'
 import { tip } from '../../ui/tip'
 import { artShadow, floating, label } from '../../ui/surfaces'
 import { ScrollView } from '../../ui/components/Scroll'
+import { Press } from '../../ui/components/Press'
+import { Spinner } from '../../ui/components/Spinner'
+import { MoreButton } from '../../ui/components/MoreMenu'
 
 /**
  * The page for the song that is playing, on a computer.
@@ -635,9 +629,7 @@ function Stage({
             />
           ) : noLyrics ? null : (
             <View style={styles.status}>
-              {words.status === 'loading' ? (
-                <ActivityIndicator size="small" color={theme.colors.textMuted} />
-              ) : null}
+              {words.status === 'loading' ? <Spinner /> : null}
               <Text style={styles.statusText}>{lyricsStatusText(words)}</Text>
             </View>
           )
@@ -685,18 +677,15 @@ function Stage({
                 friend's song in a room has nothing in it here: the page
                 already says whose it is, and the bar has the rest. */}
             {isRoomTrackId(song.id) ? null : (
-              <View
-                ref={moreRef}
-                collapsable={false}
-                style={geometry.stacked ? styles.moreAlone : null}
-              >
-                <IconButton
-                  label={`More for ${song.title}`}
+              <View style={geometry.stacked ? styles.moreAlone : null}>
+                <MoreButton
+                  name={song.title}
+                  filled={false}
+                  anchorRef={moreRef}
+                  active={menuOpen}
                   onPress={() => setMenuOpen(open => !open)}
                   testID="now-playing-more"
-                >
-                  <More size={18} color={theme.colors.textSecondary} />
-                </IconButton>
+                />
               </View>
             )}
           </>
@@ -744,7 +733,7 @@ function Stage({
               : { top: tabsRow ?? top + 68, right: geometry.right },
           ]}
         >
-          <Pressable
+          <Press
             onPress={() => onMode(focus ? 'stage' : 'focus')}
             accessibilityRole="button"
             accessibilityLabel={
@@ -762,7 +751,7 @@ function Stage({
             ) : (
               <Expand size={18} color={theme.colors.textSecondary} />
             )}
-          </Pressable>
+          </Press>
         </Animated.View>
       ) : null}
 
@@ -838,29 +827,30 @@ function StageUpNext({
   if (!upNext || nextIn === null) return null
 
   return (
-    <AnimatedPressable
-      onPress={player.next}
-      accessibilityRole="button"
-      accessibilityLabel={`Skip to the next song: ${upNext.title}`}
-      style={[styles.upNext, { right, bottom }, lowered]}
-    >
-      <Cover uri={artFor(upNext)} title={upNext.album || upNext.title} size={40} />
-      <View style={styles.upNextText}>
-        <Text style={styles.upNextLabel}>NEXT · IN {nextIn} S</Text>
-        <Text style={styles.upNextTitle} numberOfLines={1}>
-          {upNext.title}
-        </Text>
-        <Text style={styles.upNextArtist} numberOfLines={1}>
-          {artistOr(upNext.artist)}
-        </Text>
-      </View>
-      <Next size={16} color={theme.colors.textSecondary} />
-    </AnimatedPressable>
+    // The ride down is the place's and the sink the card's: two transforms, two views.
+    <Animated.View style={[styles.upNextAt, { right, bottom }, lowered]}>
+      <Press
+        depth="row"
+        onPress={player.next}
+        accessibilityRole="button"
+        accessibilityLabel={`Skip to the next song: ${upNext.title}`}
+        style={styles.upNext}
+      >
+        <Cover uri={artFor(upNext)} title={upNext.album || upNext.title} size={40} />
+        <View style={styles.upNextText}>
+          <Text style={styles.upNextLabel}>NEXT · IN {nextIn} S</Text>
+          <Text style={styles.upNextTitle} numberOfLines={1}>
+            {upNext.title}
+          </Text>
+          <Text style={styles.upNextArtist} numberOfLines={1}>
+            {artistOr(upNext.artist)}
+          </Text>
+        </View>
+        <Next size={16} color={theme.colors.textSecondary} />
+      </Press>
+    </Animated.View>
   )
 }
-
-/** The card is the whole tap target, so the move goes on it rather than a view around it. */
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
 
 const styles = StyleSheet.create(theme => ({
   page: { flex: 1, overflow: 'hidden', backgroundColor: theme.colors.surface0 },
@@ -941,9 +931,8 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: withAlpha(theme.colors.textPrimary, 0.08),
   },
   expandPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.14) },
+  upNextAt: { position: 'absolute', zIndex: 5 },
   upNext: {
-    position: 'absolute',
-    zIndex: 5,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,

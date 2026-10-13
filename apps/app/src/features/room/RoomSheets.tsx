@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import {
@@ -48,6 +48,7 @@ import {
 } from './room.store'
 import { sharedApi, sharedSession } from '../shared/sharedPlaylists'
 import { ScrollView } from '../../ui/components/Scroll'
+import { Press } from '../../ui/components/Press'
 
 /**
  * A room's sheets (docs/features/listen-together.md): Together — opening a
@@ -235,20 +236,20 @@ function Choice({
 }): ReactNode {
   const accent = useAccent()
   return (
-    <Pressable
+    <Press
+      depth="row"
       onPress={onPress}
       accessibilityRole="radio"
       accessibilityState={{ checked: chosen }}
       testID={testID}
-      style={({ pressed }) => [
+      style={[
         styles.choice,
         chosen && { borderColor: accent.accent, backgroundColor: accent.accentPill },
-        pressed && styles.pressed,
       ]}
     >
       <Text style={styles.choiceTitle}>{title}</Text>
       <Text style={styles.choiceSub}>{sub}</Text>
-    </Pressable>
+    </Press>
   )
 }
 
@@ -773,7 +774,6 @@ const styles = StyleSheet.create(theme => ({
   },
   choiceTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   choiceSub: { color: theme.colors.textSecondary, fontSize: type.sub },
-  pressed: { transform: [{ scale: 0.98 }] },
   join: { gap: space.sm, paddingTop: space.md },
   codeCard: {
     flexDirection: 'row',

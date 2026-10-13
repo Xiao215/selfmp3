@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { space, type } from '@selfmp3/client'
+import { hitSlopFor, leading, space, type } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
 import { label, sectionTitle } from '../surfaces'
 import { ChevronDown, ChevronRight } from './Icons'
+import { Press } from './Press'
 
 /**
  * A section's heading inside a page: its name in the display face at 18, and
@@ -85,7 +86,8 @@ export function SectionHead({
       ]}
     >
       {collapsible ? (
-        <Pressable
+        <Press
+          feedback="dim"
           onPress={() => collapsible.onToggle()}
           accessibilityRole="button"
           accessibilityLabel={title}
@@ -98,7 +100,7 @@ export function SectionHead({
             <ChevronDown size={15} tone="textMuted" />
           )}
           {named}
-        </Pressable>
+        </Press>
       ) : (
         <View style={styles.start}>
           {lead}
@@ -107,15 +109,16 @@ export function SectionHead({
       )}
       {end ? <View style={styles.end}>{end}</View> : null}
       {action && !end ? (
-        <Pressable
+        <Press
+          feedback="dim"
           onPress={action.onPress}
           accessibilityRole="link"
           accessibilityLabel={action.accessibilityLabel ?? action.label}
-          hitSlop={8}
+          hitSlop={hitSlopFor(leading.sub)}
           testID={testID}
         >
           <Text style={styles.link}>{action.label}</Text>
-        </Pressable>
+        </Press>
       ) : null}
     </View>
   )

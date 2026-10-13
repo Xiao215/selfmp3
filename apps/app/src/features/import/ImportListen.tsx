@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Pressable, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import type { CoverTone, ImportCoverTone, ImportPreviewItem } from '@selfmp3/shared'
 import { radius, withAlpha, type ServerConnection } from '@selfmp3/client'
 import { mediaUrlFor } from '../../api/client'
@@ -22,6 +22,8 @@ import {
   type Listening,
   type ListenTrack,
 } from './listen.model'
+import { Press } from '../../ui/components/Press'
+import { Spinner } from '../../ui/components/Spinner'
 
 /** The colour of each cover the server has read this session, by the cover's address. */
 const tonesByCover = new Map<string, CoverTone | null>()
@@ -186,33 +188,28 @@ export function ListenCover({
   /** What the button says, when it does something other than play: "Close 群青". */
   label?: string
 }): ReactNode {
-  const { theme } = useUnistyles()
   const status = listening?.status ?? null
   const on = status !== null
   const glyph = size >= 56 ? 22 : 18
   const colors = useToneColors(listening?.tone ?? null)
   return (
-    <Pressable
+    <Press
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label ?? listenLabel(item.title, status)}
-      style={({ pressed }) => [
-        styles.cover,
-        { width: size, height: size },
-        pressed && styles.pressed,
-      ]}
+      style={[styles.cover, { width: size, height: size }]}
     >
       <Cover uri={item.thumbnail} title={item.title} size={size} />
       <View pointerEvents="none" style={[styles.over, !on && !shown && styles.hidden]}>
         {status === 'loading' ? (
-          <ActivityIndicator size="small" color={theme.colors.textPrimary} />
+          <Spinner tone="textPrimary" />
         ) : status === 'playing' ? (
           <Equalizer size={glyph - 2} color={colors.tint} />
         ) : (
           <Play size={glyph} tone="textPrimary" />
         )}
       </View>
-    </Pressable>
+    </Press>
   )
 }
 
@@ -257,7 +254,6 @@ export function ListenBar({
 
 const styles = StyleSheet.create(theme => ({
   cover: { borderRadius: radius.coverSm, overflow: 'hidden' },
-  pressed: { opacity: 0.85 },
   over: {
     position: 'absolute',
     top: 0,

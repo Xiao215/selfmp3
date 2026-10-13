@@ -96,6 +96,10 @@ export function createListenAudio(): ListenAudio | null {
   let opening = 0
   /** Runs out when a stream asked to play has said nothing for `SILENT_MS`. */
   let silence: ReturnType<typeof setTimeout> | null = null
+  /** Where a preview let go in the background starts again, in seconds. */
+  let startAt = 0
+  /** The song's length as last reported, kept for a preview with no player. */
+  let length = NaN
 
   const tell = (state: ListenState): void => {
     for (const listener of listeners) listener(state)
@@ -122,11 +126,8 @@ export function createListenAudio(): ListenAudio | null {
     if (status.didJustFinish) asked = 'pause'
     const state = statusOf(status, asked)
     if (state !== 'loading') clearSilence()
-    tell({
-      status: state,
-      currentTime: status.currentTime,
-      duration: status.duration > 0 ? status.duration : NaN,
-    })
+    if (status.duration > 0) length = status.duration
+    tell({ status: state, currentTime: status.currentTime, duration: length })
   }
 
   const letGo = (): void => {
@@ -136,8 +137,8 @@ export function createListenAudio(): ListenAudio | null {
     player = null
   }
 
-  /** Open the stream off the thread, then play it in a player of its own. */
-  const open = (uri: string): void => {
+  /** Open the stream off the thread, then play it in a player of its own, from `from` seconds. */
+  const open = (uri: string, from = 0): void => {
     const mine = ++opening
     preload({ uri }, { preferredForwardBufferDuration: PREVIEW_BUFFER_S })
       .then(() => {
@@ -156,6 +157,7 @@ export function createListenAudio(): ListenAudio | null {
         )
         subscription = next.addListener('playbackStatusUpdate', report)
         player = next
+        if (from > 0) void next.seekTo(from)
         if (asked === 'play') next.play()
       })
       // Whatever failed — the stream, the player, the audio session refusing
@@ -170,24 +172,36 @@ export function createListenAudio(): ListenAudio | null {
   }
 
   /*
-   * A preview pauses when the app goes to the background. The lock screen and
+   * A preview stops when the app goes to the background. The lock screen and
    * the Dynamic Island are track-player's, so they showed the library's song,
    * the one the preview had paused, as playing over a preview you could no
    * longer see or stop. Back in the app the card is where it was, paused.
+   *
+   * Stops, not pauses: its player is let go, and play opens the stream again
+   * where it was (`startAt`). expo-audio pauses every playing player itself
+   * as the app leaves, and plays each of them again as it comes back
+   * (`shouldPlayInBackground` false, AudioModule.swift) — under a card this
+   * had said was paused, so the song played on with ▶ showing, and ▶ then
+   * changed the icon and not the sound. A player that is gone is not played
+   * again by anyone.
    */
   const backgrounded = AppState.addEventListener('change', state => {
     if (state !== 'background' || src === null || asked !== 'play') return
     asked = 'pause'
     clearSilence()
-    player?.pause()
-    if (player) report(player.currentStatus)
-    else tell({ status: 'paused', currentTime: 0, duration: NaN })
+    // A stream still opening for this preview is let go when it arrives.
+    opening++
+    startAt = player?.currentTime ?? startAt
+    letGo()
+    tell({ status: 'paused', currentTime: startAt, duration: length })
   })
 
   return {
     play: uri => {
       src = uri
       asked = 'play'
+      startAt = 0
+      length = NaN
       player?.pause()
       watchSilence(uri)
       open(uri)
@@ -196,8 +210,9 @@ export function createListenAudio(): ListenAudio | null {
       if (src === null) return
       asked = 'play'
       watchSilence(src)
-      // A player that failed does not recover; its stream is opened afresh.
-      if (!player || player.currentStatus.playbackState === 'failed') open(src)
+      // A player that failed does not recover, and one let go in the
+      // background is gone; either is opened afresh, where it was.
+      if (!player || player.currentStatus.playbackState === 'failed') open(src, startAt)
       else player.play()
     },
     pause: () => {
@@ -206,7 +221,14 @@ export function createListenAudio(): ListenAudio | null {
       player?.pause()
     },
     seek: seconds => {
-      void player?.seekTo(seconds)
+      if (player) {
+        void player.seekTo(seconds)
+        return
+      }
+      // With its player let go, the place is kept for play to start from.
+      if (src === null) return
+      startAt = seconds
+      tell({ status: 'paused', currentTime: seconds, duration: length })
     },
     // Letting go is a pause with nothing more to report; a stream still
     // opening for this preview is let go when it arrives.

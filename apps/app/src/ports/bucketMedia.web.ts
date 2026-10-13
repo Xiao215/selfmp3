@@ -1,4 +1,5 @@
 import type { MediaRoutes } from '../api/mediaAddress.model'
+import type { BucketMediaSetup } from './bucketMedia.types'
 import { appPath } from './appPath'
 import { desktop } from './desktop/bridge'
 
@@ -63,6 +64,4 @@ export function bucketPictureAddress(key: string): string | null {
  * Nothing to be told: the service worker looks a song's key and the session up
  * for itself, out of IndexedDB. Here so both twins answer to the same name.
  */
-export function configureBucketMedia(
-  _setup: { pathOf: (songId: number) => string | null; bearer: string | null } | null,
-): void {}
+export function configureBucketMedia(_setup: BucketMediaSetup | null): void {}

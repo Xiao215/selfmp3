@@ -151,6 +151,42 @@ export function rippleDisc(width: number, height: number): number {
 export const RING_FROM = 0.55
 export const RING_TO = 2.3
 
+/**
+ * How Ripples looks at rest (P24), as both twins paint it: the phone's views
+ * and the browser's canvas read these rather than each writing its own, which
+ * is how the phone's ground came to stop at 70% of the box and the browser's
+ * at three quarters of the longer side. Positions are shares of the visual's
+ * width and height, reaches shares of its longer side unless said otherwise.
+ */
+export const RIPPLES_LOOK = {
+  /** The ground's gradient, from its middle colour to its edge colour. */
+  groundReach: 0.75,
+  /** The first two inks washed faintly over opposite corners. */
+  washes: [
+    { x: 0.2, y: 0.18, reach: 0.6, ink: 0, alpha: 0.2 },
+    { x: 0.82, y: 0.84, reach: 0.6, ink: 1, alpha: 0.16 },
+  ],
+  /**
+   * The halo behind the disc, in the first ink: its radius a share of the
+   * disc's width, solid to `solid` of that radius at `alpha`, then fading out.
+   */
+  halo: { reach: 0.95, solid: 0.4, alpha: 0.5, ink: 0 },
+  /**
+   * The disc's own colours, under the cover and for a song without one: a
+   * light from up and to the left, as shares of the disc's width.
+   */
+  disc: {
+    x: 0.42,
+    y: 0.38,
+    reach: 0.7,
+    stops: [
+      { at: 0, ink: 2 },
+      { at: 0.7, ink: 0 },
+      { at: 1, ink: 1 },
+    ],
+  },
+} as const
+
 /* ------------------------------------------------------------------ motion */
 
 /** What a visual moves with, with a middling stand-in for anything not analysed. */

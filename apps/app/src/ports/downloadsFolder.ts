@@ -1,3 +1,5 @@
+import { NOT_INSTALLED } from './notInstalled'
+
 /**
  * Where this device's downloaded songs are, if that is a thing a person can be
  * shown.
@@ -15,8 +17,4 @@ export interface DownloadsFolder {
   usage(): Promise<{ songs: number; covers: number; free: number } | null>
 }
 
-export const downloadsFolder: DownloadsFolder = {
-  path: null,
-  reveal: () => Promise.resolve(),
-  usage: () => Promise.resolve(null),
-}
+export const downloadsFolder: DownloadsFolder = NOT_INSTALLED.downloadsFolder

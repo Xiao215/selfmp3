@@ -1,6 +1,6 @@
 import { clamp, clamp01 } from '@selfmp3/shared'
 import type { MotionSampler, MotionSourceKind } from './motionSource.model'
-import type { VisualFeel } from './visuals.model'
+import { RING_FROM, RING_TO, type VisualFeel } from './visuals.model'
 
 /**
  * How a visual moves, frame by frame, from what its sampler hears.
@@ -197,7 +197,7 @@ export function stillMotion(
 }
 
 /** How far a ring has travelled, 0–1, easing out as it goes. */
-export function ringReach(ring: Ring, tuning: MotionTuning): number {
+function ringReach(ring: Ring, tuning: MotionTuning): number {
   const p = clamp01(ring.age / tuning.ringLife)
   return 1 - Math.pow(1 - p, 2.2)
 }
@@ -206,6 +206,37 @@ export function ringReach(ring: Ring, tuning: MotionTuning): number {
 export function ringFade(ring: Ring, tuning: MotionTuning): number {
   const p = clamp01(ring.age / tuning.ringLife)
   return Math.pow(1 - p, 1.5) * (0.2 + 0.8 * ring.strength)
+}
+
+/*
+ * What Ripples draws of a moment, as numbers: the phone's frame writer and the
+ * browser's canvas both take them from here, so a hit kicks, glows and rings
+ * the same on each.
+ */
+
+/** A ring's size, as a share of the disc, at this point of its travel. */
+export function ringScale(ring: Ring, tuning: MotionTuning): number {
+  return RING_FROM + (RING_TO - RING_FROM) * ringReach(ring, tuning)
+}
+
+/** How strongly a ring is drawn, 0–1. */
+export function ringAlpha(ring: Ring, tuning: MotionTuning): number {
+  return ringFade(ring, tuning) * 0.85
+}
+
+/** A ring's line before its scale: thicker for a harder hit. */
+export function ringWidth(ring: Ring): number {
+  return 1.5 + 1.5 * ring.strength
+}
+
+/** The halo behind the disc, 0–1: glowing with the level, flaring on a hit. */
+export function haloLevel(m: MotionState): number {
+  return Math.min(1, 0.15 + 0.45 * m.glow + 0.3 * m.kick)
+}
+
+/** The disc's size on a hit, 1 at rest. */
+export function discKick(m: MotionState): number {
+  return 1 + 0.06 * m.kick
 }
 
 /** Which ink each ring draws in, in turn: the lead, then the other two, as P24's rings take turns. */

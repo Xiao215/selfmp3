@@ -690,7 +690,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
   - Shared as `ports/recentCopyFiles.ts` and `ports/downloadTransfer.ts`. Decision: a desktop download now fails, like a phone's, when the words cannot be asked for.
 - [x] **T-413** `createSchemaCache(name, schema)` for the four offline caches.
   - `offline/schemaCache.ts` over a twinned `recordStore` (`offline/caches.ts` has the four). Decisions: a record that fails its schema is deleted so it is fetched again; clears never reject. A browser's records are stored bare under `<kind>-<id>` and a phone's library snapshot moved to `library/snapshot.json`, so copies kept before this are fetched afresh once (they are caches).
-- [ ] **T-414** Smaller twins: StageMove interrupt duration + props, listen watchdog, no-op desktop ports, covers adapter, web key-ownership test, server-event parse, ripples frame maths.
+- [x] **T-414** Smaller twins: StageMove interrupt duration + props, listen watchdog, no-op desktop ports, covers adapter, web key-ownership test, server-event parse, ripples frame maths.
+  - Done: `turnMove` + `stageMove.types.ts`, `previewStatus` + `createSilenceWatch` (a browser preview now has the 45 s watchdog), `ports/notInstalled.ts`, `shell/keyOwner.ts`, `parseServerEventData`, `RIPPLES_LOOK` + ring/halo/kick maths (the phone's ground and washes now circles of the longer side, as in a browser). Covers left as two adapters: the phone's reads its folder synchronously (`prime`, `peekCloud`) so the first draw already has kept covers, which an async `CoverFiles` over expo-file-system would lose; the policy is already one (`coverStore.ts`).
 
 ### E — Now Playing, Up next and the transport are one set of pieces
 

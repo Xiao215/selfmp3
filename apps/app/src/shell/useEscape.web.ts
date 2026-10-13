@@ -2,6 +2,7 @@ import { useEffect, useId, useRef } from 'react'
 
 import type { EscapeOptions } from './useEscape'
 import { isComposing } from './composing'
+import { focusOwnsKey } from './keyOwner'
 
 export type { EscapeOptions }
 
@@ -63,13 +64,7 @@ export function useEscape(
 
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape' || event.defaultPrevented || isComposing(event)) return
-      const target = event.target
-      if (
-        target instanceof HTMLElement &&
-        target.closest('[role="menu"], [role="dialog"], [role="listbox"], [role="combobox"]')
-      ) {
-        return
-      }
+      if (focusOwnsKey(event.target, { typing: false })) return
       latest.current()
     }
     window.addEventListener('keydown', onKeyDown)

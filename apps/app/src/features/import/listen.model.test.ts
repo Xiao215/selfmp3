@@ -1,11 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   canListen,
+  createSilenceWatch,
   followAudio,
   listenDetail,
   listenLabel,
   listeningLeftReview,
   playedRatio,
+  previewStatus,
   seekAt,
   startListening,
   waitingRowNext,
@@ -125,5 +127,40 @@ describe('listening before importing', () => {
         status: 'playing',
       }),
     ).toBe('forget')
+  })
+})
+
+describe('what a preview is doing, on a phone and in a browser alike', () => {
+  it('is loading while asked to play and still waiting, and playing once it sounds', () => {
+    expect(previewStatus('play', { failed: false, ready: false })).toBe('loading')
+    expect(previewStatus('play', { failed: false, ready: true })).toBe('playing')
+  })
+
+  it('is paused when asked to pause, whatever its buffer is doing', () => {
+    expect(previewStatus('pause', { failed: false, ready: false })).toBe('paused')
+  })
+
+  it('says it failed either way', () => {
+    expect(previewStatus('pause', { failed: true, ready: true })).toBe('error')
+  })
+
+  it('counts a stream silent for too long as failed, and not one that spoke', () => {
+    vi.useFakeTimers()
+    try {
+      const silent = vi.fn()
+      const watch = createSilenceWatch(silent)
+
+      watch.watch()
+      watch.heard('loading')
+      vi.advanceTimersByTime(45_000)
+      expect(silent).toHaveBeenCalledTimes(1)
+
+      watch.watch()
+      watch.heard('playing')
+      vi.advanceTimersByTime(60_000)
+      expect(silent).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

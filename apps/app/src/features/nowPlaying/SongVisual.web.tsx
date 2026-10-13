@@ -6,10 +6,13 @@ import { useMotionReduced } from '../../ui/motion'
 import { useVisualLook } from './useVisualLook'
 import {
   createMotionState,
+  discKick,
+  haloLevel,
   isSettled,
-  ringFade,
+  ringAlpha,
   ringInk,
-  ringReach,
+  ringScale,
+  ringWidth,
   stepMotion,
   stillMotion,
   type MotionState,
@@ -23,13 +26,7 @@ import {
   shadowSprite,
   type LayerSize,
 } from './visualLayers.model'
-import {
-  RING_FROM,
-  RING_TO,
-  rippleDisc,
-  type SongVisualProps,
-  type VisualColors,
-} from './visuals.model'
+import { RIPPLES_LOOK, rippleDisc, type SongVisualProps, type VisualColors } from './visuals.model'
 
 /**
  * A song's visual in a browser and the desktop app: a canvas, drawn once a
@@ -296,13 +293,22 @@ function paintLayers(size: LayerSize, c: VisualColors): Kept | null {
   const g = ground.ctx
   g.setTransform(dpr, 0, 0, dpr, 0, 0)
   const [middle, edge] = c.ground
-  const fill = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.75)
+  const longer = Math.max(w, h)
+  const fill = g.createRadialGradient(
+    w / 2,
+    h / 2,
+    0,
+    w / 2,
+    h / 2,
+    longer * RIPPLES_LOOK.groundReach,
+  )
   fill.addColorStop(0, rgba(middle))
   fill.addColorStop(1, rgba(edge))
   g.fillStyle = fill
   g.fillRect(0, 0, w, h)
-  wash(g, w * 0.2, h * 0.18, Math.max(w, h) * 0.6, c.inks[0], 0.2)
-  wash(g, w * 0.82, h * 0.84, Math.max(w, h) * 0.6, c.inks[1], 0.16)
+  for (const each of RIPPLES_LOOK.washes) {
+    wash(g, w * each.x, h * each.y, longer * each.reach, c.inks[each.ink], each.alpha)
+  }
 
   // P24's disc sits above the page on a deep, soft shadow.
   const s = shadow.ctx
@@ -360,35 +366,29 @@ function draw(
   if (lift > 0) wash(ctx, cx, cy, Math.max(w, h) * 0.75, [255, 255, 255], lift)
 
   const disc = rippleDisc(w, h)
-  const halo = Math.min(1, 0.15 + 0.45 * m.glow + 0.3 * m.kick)
-  wash(ctx, cx, cy, disc * 0.95, c.inks[0], 0.5 * halo, 0.4)
+  const { halo, disc: light } = RIPPLES_LOOK
+  wash(ctx, cx, cy, disc * halo.reach, c.inks[halo.ink], halo.alpha * haloLevel(m), halo.solid)
 
   for (const ring of m.rings) {
-    const scale = RING_FROM + (RING_TO - RING_FROM) * ringReach(ring, tu)
+    const scale = ringScale(ring, tu)
     ctx.beginPath()
     ctx.arc(cx, cy, (disc / 2) * scale, 0, Math.PI * 2)
-    ctx.strokeStyle = rgba(c.inks[ringInk(ring.id)], ringFade(ring, tu) * 0.85)
-    ctx.lineWidth = (1.5 + 1.5 * ring.strength) * scale
+    ctx.strokeStyle = rgba(c.inks[ringInk(ring.id)], ringAlpha(ring, tu))
+    ctx.lineWidth = ringWidth(ring) * scale
     ctx.stroke()
   }
 
-  const kick = 1 + 0.06 * m.kick
+  const kick = discKick(m)
   const r = (disc / 2) * kick
   if (kept) {
     const reach = kept.shadowHalf * kick
     ctx.drawImage(kept.shadow, cx - reach, cy - reach, reach * 2, reach * 2)
   }
-  const fill = ctx.createRadialGradient(
-    cx - r * 0.16,
-    cy - r * 0.24,
-    0,
-    cx - r * 0.16,
-    cy - r * 0.24,
-    r * 1.4,
-  )
-  fill.addColorStop(0, rgba(c.inks[2]))
-  fill.addColorStop(0.7, rgba(c.inks[0]))
-  fill.addColorStop(1, rgba(c.inks[1]))
+  // The disc's box is 2r across, from (cx - r, cy - r).
+  const lightX = cx - r + 2 * r * light.x
+  const lightY = cy - r + 2 * r * light.y
+  const fill = ctx.createRadialGradient(lightX, lightY, 0, lightX, lightY, 2 * r * light.reach)
+  for (const stop of light.stops) fill.addColorStop(stop.at, rgba(c.inks[stop.ink]))
   ctx.beginPath()
   ctx.arc(cx, cy, r, 0, Math.PI * 2)
   ctx.fillStyle = fill

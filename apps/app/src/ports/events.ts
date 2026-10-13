@@ -1,5 +1,4 @@
-import { ServerEventSchema } from '@selfmp3/shared'
-import type { ServerEventStream } from '@selfmp3/client'
+import { parseServerEventData, type ServerEventStream } from '@selfmp3/client'
 
 /**
  * The phone's half: the same HTTP stream, framed by hand.
@@ -129,15 +128,8 @@ export const serverEvents: ServerEventStream = {
           .map(line => line.slice(5).trim())
           .join('\n')
         if (!data) return
-
-        let raw: unknown
-        try {
-          raw = JSON.parse(data)
-        } catch {
-          return
-        }
-        const parsed = ServerEventSchema.safeParse(raw)
-        if (parsed.success) onEvent(parsed.data)
+        const event = parseServerEventData(data)
+        if (event) onEvent(event)
       }
 
       try {

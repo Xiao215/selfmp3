@@ -1,4 +1,5 @@
 import type { MediaRoutes } from '../api/mediaAddress.model'
+import type { BucketMediaSetup } from './bucketMedia.types'
 import { doormanAuth, doormanFileUrl } from '../replica'
 
 /**
@@ -29,13 +30,6 @@ import { doormanAuth, doormanFileUrl } from '../replica'
  * A browser has somewhere else to put the header: its own service worker. That
  * is the web twin.
  */
-
-interface BucketMediaSetup {
-  /** A song's key in the bucket, or null for one this library does not have. */
-  readonly pathOf: (songId: number) => string | null
-  /** The doorman session's token, or null while signed out. */
-  readonly bearer: string | null
-}
 
 const SIGNED_OUT: BucketMediaSetup = { pathOf: () => null, bearer: null }
 

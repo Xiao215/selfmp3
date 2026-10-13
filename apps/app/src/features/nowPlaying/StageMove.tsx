@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Easing } from 'react-native'
-import type { StyleProp, ViewStyle } from 'react-native'
-import { MOVE_EASING, type PoseAt } from './stageMove.model'
+import { MOVE_EASING, restingRun, turnMove, type MoveRun } from './stageMove.model'
+import type { MovingProps } from './stageMove.types'
 import { MOVE_MS } from '../../ui/motion.model'
 import { motionMs, nativeDriver } from '../../ui/motion'
 
@@ -11,6 +11,8 @@ import { motionMs, nativeDriver } from '../../ui/motion'
  * driver, so the frames never come back to JavaScript. The browser's is
  * `StageMove.web.tsx`, and `stageMove.model.ts` says why neither moves layout.
  */
+const ease = Easing.bezier(...MOVE_EASING)
+
 interface StageMove {
   readonly value: Animated.Value
   /** Where the move is headed: 0 the stage, 1 Focus. */
@@ -20,28 +22,35 @@ interface StageMove {
 export function useStageMove(focus: boolean): StageMove {
   const target = focus ? 1 : 0
   const [value] = useState(() => new Animated.Value(target))
+  const run = useRef<MoveRun>(restingRun(target))
   useEffect(() => {
+    // Where the run has got to is worked out from its own clock, as the
+    // browser's is: a native-driven value reaches JavaScript late, and not at
+    // all while a page holds the thread.
+    const now = performance.now()
+    const turn = turnMove(run.current, target, now, ease)
+    if (!turn) return
+    const ms = motionMs(MOVE_MS.stageMove * turn.share)
+    run.current = { from: turn.from, to: target, start: now, ms }
+    // From wherever the value is now, for the share of the length left.
     Animated.timing(value, {
       toValue: target,
-      duration: motionMs(MOVE_MS.stageMove),
-      easing: Easing.bezier(...MOVE_EASING),
+      duration: ms,
+      easing: ease,
       useNativeDriver: nativeDriver,
     }).start()
   }, [target, value])
   return useMemo(() => ({ value, target }), [value, target])
 }
 
-export interface MovingProps {
-  readonly move: StageMove
-  /** Where this piece is at each point of the move, from its own laid-out place. */
-  readonly pose: PoseAt
-  readonly style?: StyleProp<ViewStyle>
-  readonly pointerEvents?: 'none' | 'auto'
-  readonly children?: ReactNode
-}
-
 /** A view that follows the move with a transform, an opacity and its corners. */
-export function Moving({ move, pose, style, pointerEvents, children }: MovingProps): ReactNode {
+export function Moving({
+  move,
+  pose,
+  style,
+  pointerEvents,
+  children,
+}: MovingProps<StageMove>): ReactNode {
   const from = pose(0)
   const to = pose(1)
   // The interpolations are native nodes: built again only when an end moves —

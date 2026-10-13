@@ -11,7 +11,7 @@ import { RoomFaces } from '../room/RoomFace'
 import { useResumeSharedJoin } from '../shared/SharedScreens'
 import type { PastRoom } from '../room/room.model'
 import type { Song, Stats } from '@selfmp3/shared'
-import { fonts, leading, radius, tagColors, type, useLibrary } from '@selfmp3/client'
+import { fonts, leading, radius, space, tagColors, type, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { useDragScroll } from '../../ports/dragScroll'
 import { Avatar } from '../../ui/components/Avatar'
@@ -32,7 +32,7 @@ import { useSongColor } from '../../ui/useSongColor'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { session, useArrival, usePressScale } from '../../ui/motion'
 import { handOffPlace } from '../../ui/coverHandoff'
-import { artShadow, card, sectionTitle, serif } from '../../ui/surfaces'
+import { artShadow, card, PAGE_TOP_WIDE, sectionTitle, serif } from '../../ui/surfaces'
 import { tagFromTileLink } from '../tag/placeLinks'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import {
@@ -152,7 +152,7 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
       >
         {wide ? null : <PhoneHeader />}
 
-        <View style={styles.greetingBlock}>
+        <View style={[styles.greetingBlock, wide && styles.greetingBlockWide]}>
           <Text style={styles.greeting} accessibilityRole="header">
             {greeting(now.getHours())}
             <Text style={styles.greetingDot}>.</Text>
@@ -930,8 +930,8 @@ function wideColumns(rowWidth: number): number {
 }
 
 /** The page's side gutters, and the card column beside the tiles. */
-const GUTTER_NARROW = 20
-const GUTTER_WIDE = 48
+const GUTTER_NARROW = space.gutter
+const GUTTER_WIDE = space.gutterWide
 const SIDE_COLUMN = 300
 const COLUMN_GAP = 30
 /**
@@ -969,7 +969,7 @@ const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { gap: 22 },
   contentNarrow: { paddingHorizontal: GUTTER_NARROW, paddingTop: 4 },
-  contentWide: { paddingHorizontal: GUTTER_WIDE, paddingTop: 40 },
+  contentWide: { paddingHorizontal: GUTTER_WIDE, paddingTop: PAGE_TOP_WIDE },
   stack: { gap: 10 },
   cardsStacked: { gap: 12 },
   cardsAbreast: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
@@ -985,6 +985,9 @@ const styles = StyleSheet.create(theme => ({
   },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   greetingBlock: { gap: 4, paddingTop: 14 },
+  // A phone's room is under its header; a computer's greeting starts where
+  // every page's title does.
+  greetingBlockWide: { paddingTop: 0 },
   greeting: { ...serif(theme.colors, type.display), lineHeight: 50, letterSpacing: -0.5 },
   greetingDot: { fontFamily: fonts.serifItalic, color: theme.colors.accent },
   subline: { color: theme.colors.textSecondary, fontSize: type.body },

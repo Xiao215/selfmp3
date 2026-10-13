@@ -37,6 +37,23 @@ export function artShadow(colors: ThemePalette, depth: 'lean' | 'stand' = 'stand
   return { boxShadow: `${geometry} ${colors.floatShadow}` } as const
 }
 
+/**
+ * How far a page's title sits below the top of a computer's page, as its side
+ * sits `space.gutterWide` in from the sidebar: going from Library to Import to
+ * Stats, the title stays put rather than jumping between each page's own
+ * margins.
+ */
+export const PAGE_TOP_WIDE = 40
+
+/**
+ * A phone's page, under the status bar: its first row starts here, whether
+ * that is the way back, Home's buttons or a title with its buttons beside it,
+ * so they stay put when the tabs switch. A title under the way back sits
+ * `TITLE_UNDER_BACK` below it, on every page that has one.
+ */
+export const PAGE_TOP_PHONE = 6
+export const TITLE_UNDER_BACK = 12
+
 /** A page's title: the display face at 30, on a phone and a computer alike. */
 export function pageTitle(colors: ThemePalette) {
   return {

@@ -35,7 +35,14 @@ import {
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
-import { card, label as groupLabel, pageTitle } from '../../ui/surfaces'
+import {
+  card,
+  label as groupLabel,
+  PAGE_TOP_PHONE,
+  PAGE_TOP_WIDE,
+  pageTitle,
+  TITLE_UNDER_BACK,
+} from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
@@ -980,10 +987,10 @@ const ON_DANGER = '#fff'
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40 },
-  contentWide: { paddingTop: 40, paddingHorizontal: 48 },
-  contentPhone: { paddingTop: 6, paddingHorizontal: space.gutter },
+  contentWide: { paddingTop: PAGE_TOP_WIDE, paddingHorizontal: space.gutterWide },
+  contentPhone: { paddingTop: PAGE_TOP_PHONE, paddingHorizontal: space.gutter },
   pressed: { opacity: 0.6 },
-  head: { alignItems: 'flex-start', gap: 12, marginBottom: 20 },
+  head: { alignItems: 'flex-start', gap: TITLE_UNDER_BACK, marginBottom: 20 },
   heading: pageTitle(theme.colors),
   formColumn: { gap: 22 },
   stack: { gap: 24 },

@@ -1,15 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Text, TextInput, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { artistOr, formatRoomCode, plural, RoomCodeSchema, type RoomSong } from '@selfmp3/shared'
+import {
+  artistOr,
+  formatRoomCode,
+  plural,
+  RoomCodeSchema,
+  type RoomSong,
+  RoomMemberNameSchema,
+} from '@selfmp3/shared'
 import {
   failureText,
   libraryIndex,
   queryKeys,
-  radius,
   space,
   type,
   useCreatePlaylist,
@@ -20,11 +26,11 @@ import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { prefs } from '../../ports/prefs'
-import { useAccent } from '../../ui/accent'
 import { label, pageTitle } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { BackButton } from '../../ui/components/BackButton'
 import { MissingPage } from '../../ui/components/MissingPage'
+import { TextField } from '../../ui/components/TextField'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -48,8 +54,6 @@ const GUEST_NAME_KEY = 'room.name'
  * otherwise a name is all it asks.
  */
 export function JoinScreen(): ReactNode {
-  const { theme } = useUnistyles()
-  const accent = useAccent()
   const router = useRouter()
   const { code: given } = useLocalSearchParams<{ code: string }>()
   const code = RoomCodeSchema.safeParse(given ?? '')
@@ -63,7 +67,6 @@ export function JoinScreen(): ReactNode {
     prefs.get(GUEST_NAME_KEY) ?? (me ? ((me.name ?? me.email).trim().split(/\s+/)[0] ?? '') : '')
   const name = typed ?? suggested
   const [busy, setBusy] = useState(false)
-  const [focused, setFocused] = useState(false)
 
   // Already in this room: straight to it.
   const already = code.success && room.pass?.code === code.data
@@ -116,22 +119,15 @@ export function JoinScreen(): ReactNode {
         {room.pass && !already ? (
           <Text style={styles.text}>Joining leaves the room you are in now.</Text>
         ) : null}
-        <View style={[styles.field, focused && { borderColor: accent.accent }]}>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            onSubmitEditing={() => void join()}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            placeholder="Your name"
-            placeholderTextColor={theme.colors.textMuted}
-            accessibilityLabel="Your name"
-            maxLength={40}
-            autoFocus={!name}
-            testID="room-join-name"
-          />
-        </View>
+        <TextField
+          value={name}
+          onChangeText={setName}
+          onSubmitEditing={() => void join()}
+          placeholder="Your name"
+          limit={RoomMemberNameSchema}
+          autoFocus={!name}
+          testID="room-join-name"
+        />
         <Button
           label="Join"
           variant="primary"
@@ -402,16 +398,6 @@ const styles = StyleSheet.create(theme => ({
   label: label(theme.colors),
   text: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: 18 },
   link: { color: theme.colors.textPrimary, fontWeight: '600', textDecorationLine: 'underline' },
-  field: {
-    minHeight: 48,
-    justifyContent: 'center',
-    paddingHorizontal: space.md,
-    borderRadius: radius.field,
-    backgroundColor: theme.colors.surface2,
-    borderWidth: 1.5,
-    borderColor: theme.colors.surface2,
-  },
-  input: { color: theme.colors.textPrimary, fontSize: type.title, minHeight: 28 },
   pastHead: { gap: space.sm },
   people: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },

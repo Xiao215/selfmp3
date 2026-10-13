@@ -21,6 +21,7 @@ import { useOpenSearch } from '../../shell/palette'
 import { useBottomInset } from '../../shell/bottomInset'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
+import { noTagsLine } from '../tag/tag.model'
 import { Cover } from '../../ui/components/Cover'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { IconButton } from '../../ui/components/IconButton'
@@ -396,7 +397,7 @@ function Tiles({ tiles, loading }: { tiles: readonly HomeTile[]; loading: boolea
   // The width is the layout's to answer, not something to hand down three
   // components; `artFor` stays a prop on purpose, so the grid keeps one
   // watcher for its covers rather than one per tile.
-  const { wide } = useLayout()
+  const { wide, finePointer } = useLayout()
   const router = useRouter()
   const art = useArt()
   // A tile is a column of the grid however many there are: one tag is half a
@@ -415,7 +416,7 @@ function Tiles({ tiles, loading }: { tiles: readonly HomeTile[]; loading: boolea
         style={styles.emptyTile}
         testID="home-no-tags"
         title="Your tags will live here"
-        line="Hold a song in Library and choose Tags to give it its first one."
+        line={noTagsLine(finePointer)}
       />
     )
   }

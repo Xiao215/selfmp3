@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from 'react'
-import { Text, TextInput, View } from 'react-native'
+import { Text } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { space, type, useAccess, useUpdateAccess } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { Toggle } from '../../ui/components/Toggle'
 import { anyoneHint, withEmail, withoutEmail } from './access.model'
-import { Panel, partStyles, Row } from './SettingsParts'
+import { TextField } from '../../ui/components/TextField'
+import { Panel, Row } from './SettingsParts'
 
 /**
  * Who can sign in: the doorman's allow list, for its owner
@@ -68,29 +69,28 @@ export function AccessPanel(): ReactNode {
         hint="Their Google address. While Google sign-in is in Testing, add them as a test user there too."
         last
       >
-        <View style={styles.add}>
-          <TextInput
-            style={partStyles.input}
-            value={typed}
-            placeholder="name@gmail.com"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            accessibilityLabel="Google address to let in"
-            onChangeText={text => {
-              setTyped(text)
-              setProblem(null)
-            }}
-            onSubmitEditing={add}
-            testID="access-email"
-          />
-          <Button
-            label="Add"
-            disabled={update.isPending || typed.trim() === ''}
-            onPress={add}
-            testID="access-add"
-          />
-        </View>
+        <TextField
+          size="small"
+          value={typed}
+          placeholder="name@gmail.com"
+          autoCapitalize="none"
+          keyboardType="email-address"
+          accessibilityLabel="Google address to let in"
+          onChangeText={text => {
+            setTyped(text)
+            setProblem(null)
+          }}
+          onSubmitEditing={add}
+          testID="access-email"
+          action={
+            <Button
+              label="Add"
+              disabled={update.isPending || typed.trim() === ''}
+              onPress={add}
+              testID="access-add"
+            />
+          }
+        />
       </Row>
       {said ? <Text style={styles.problem}>{said}</Text> : null}
     </Panel>
@@ -98,6 +98,5 @@ export function AccessPanel(): ReactNode {
 }
 
 const styles = StyleSheet.create(theme => ({
-  add: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.sm },
   problem: { color: theme.colors.danger, fontSize: type.sub, marginTop: space.sm },
 }))

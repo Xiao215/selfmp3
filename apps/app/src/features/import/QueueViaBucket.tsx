@@ -1,18 +1,12 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Text, TextInput, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import {
-  failureText,
-  leading,
-  radius,
-  type,
-  useLibrary,
-  useRequestCloudImport,
-} from '@selfmp3/client'
+import { Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
+import { failureText, leading, type, useLibrary, useRequestCloudImport } from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
 import { card, sectionTitle } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
+import { TextField } from '../../ui/components/TextField'
 import { CloudUpload } from '../../ui/components/Icons'
 import { TagChooser } from '../../ui/components/TagChooser'
 
@@ -35,7 +29,6 @@ import { TagChooser } from '../../ui/components/TagChooser'
  * link holds, or play it first, because only the server can read it at all.
  */
 export function QueueViaBucket(): ReactNode {
-  const { theme } = useUnistyles()
   const accent = useAccent()
   const { data: library } = useLibrary()
   const queue = useRequestCloudImport()
@@ -75,17 +68,14 @@ export function QueueViaBucket(): ReactNode {
         up in your library soon after.
       </Text>
 
-      <TextInput
-        style={styles.input}
+      <TextField
         value={url}
         onChangeText={text => {
           setUrl(text)
           setAdded(false)
         }}
         placeholder="Paste a link"
-        placeholderTextColor={theme.colors.textMuted}
         autoCapitalize="none"
-        autoCorrect={false}
         inputMode="url"
         onSubmitEditing={submit}
         accessibilityLabel="Link to import"
@@ -130,15 +120,6 @@ const styles = StyleSheet.create(theme => ({
   },
   title: sectionTitle(theme.colors),
   body: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
-  // A control on the card: one step up from it, a pill, no edge.
-  input: {
-    backgroundColor: theme.colors.surface2,
-    borderRadius: radius.pill,
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
   field: { marginTop: 2 },
   error: { color: theme.colors.danger, fontSize: type.sub },
   good: { color: theme.colors.good, fontSize: type.sub },

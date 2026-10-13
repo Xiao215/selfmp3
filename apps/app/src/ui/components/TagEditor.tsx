@@ -1,12 +1,10 @@
 import { useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { Text, TextInput, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { plural, TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
 import {
   failureText,
-  HIT_TARGET,
-  radius,
   space,
   tagColors,
   type,
@@ -16,6 +14,7 @@ import {
 } from '@selfmp3/client'
 import { useAccent } from '../accent'
 import { Button } from './Button'
+import { TextField } from './TextField'
 import { Check, Trash } from './Icons'
 import { HueSwatches } from './HueSwatches'
 import { Popover } from './Popover'
@@ -100,30 +99,31 @@ function Editor({
 
       <View style={styles.section}>
         <Text style={styles.fieldLabel}>Name</Text>
-        <View style={styles.nameRow}>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={text => {
-              setName(text)
-              rename.reset()
-            }}
-            onSubmitEditing={submit}
-            autoCapitalize="none"
-            autoCorrect={false}
-            maxLength={TAG_NAME_MAX}
-            accessibilityLabel="Name"
-          />
-          <Button
-            label="Rename"
-            variant="primary"
-            disabled={!changed || rename.isPending}
-            onPress={submit}
-            icon={
-              rename.isSuccess && !changed ? <Check size={13} color={accent.onAccent} /> : undefined
-            }
-          />
-        </View>
+        <TextField
+          raised
+          value={name}
+          onChangeText={text => {
+            setName(text)
+            rename.reset()
+          }}
+          onSubmitEditing={submit}
+          autoCapitalize="none"
+          maxLength={TAG_NAME_MAX}
+          accessibilityLabel="Name"
+          action={
+            <Button
+              label="Rename"
+              variant="primary"
+              disabled={!changed || rename.isPending}
+              onPress={submit}
+              icon={
+                rename.isSuccess && !changed ? (
+                  <Check size={13} color={accent.onAccent} />
+                ) : undefined
+              }
+            />
+          }
+        />
         {rename.error ? (
           <Text style={styles.error}>{failureText('Couldn’t rename it', rename.error)}</Text>
         ) : null}
@@ -182,16 +182,6 @@ const styles = StyleSheet.create(theme => ({
   hint: { color: theme.colors.textMuted, fontSize: type.small },
   section: { paddingTop: space.xs, paddingHorizontal: space.xs, paddingBottom: space.sm },
   fieldLabel: { ...label(theme.colors), marginBottom: 5 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  input: {
-    flex: 1,
-    minHeight: HIT_TARGET,
-    paddingHorizontal: 10,
-    color: theme.colors.textPrimary,
-    fontSize: type.sub,
-    backgroundColor: theme.colors.surface3,
-    borderRadius: radius.pill,
-  },
   error: { color: theme.colors.danger, fontSize: type.small, marginTop: 5 },
   confirm: { paddingHorizontal: space.md, paddingVertical: space.sm },
 }))

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { plural, formatBytes, type Song } from '@selfmp3/shared'
+import { plural, formatBytes, type Song, NameSchema } from '@selfmp3/shared'
 import {
   bytesToDownload,
   failureText,
@@ -256,6 +256,7 @@ export function PlaylistDetailScreen(): ReactNode {
           onBlur={saveName}
           selectTextOnFocus
           autoFocus
+          maxLength={NameSchema.maxLength ?? undefined}
           accessibilityLabel="Playlist name"
         />
       ) : (

@@ -1,6 +1,6 @@
 import { memo, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, TextInput, View } from 'react-native'
+import { Animated, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLayoutValue } from './useLayout'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -15,7 +15,6 @@ import {
   tagColors,
   type,
   useAddToPlaylist,
-  useCreateTag,
   useLibrary,
 } from '@selfmp3/client'
 import { footNotice, footSummary } from '../features/library/library.model'
@@ -38,7 +37,9 @@ import { showToast } from '../ui/toast'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { tagLink } from '../features/tag/placeLinks'
 import { onTagPage } from '../features/tag/placePath.model'
-import { useArtistNudge } from '../features/tag/useArtistNudge'
+import { existingTag, noTagsLine } from '../features/tag/tag.model'
+import { NEW_TAG_FAILED, TagNameField, useNewTagForm } from '../features/tags/useNewTagForm'
+import { StatusLine } from '../ui/components/StatusLine'
 import { useConnection } from '../connection/ConnectionProvider'
 import { BrandMark } from '../ui/components/BrandMark'
 import {
@@ -52,7 +53,7 @@ import {
   Search,
   Tag as TagIcon,
 } from '../ui/components/Icons'
-import { HueSwatches, autoTagHue } from '../ui/components/HueSwatches'
+import { HueSwatches } from '../ui/components/HueSwatches'
 import { TagEditor } from '../ui/components/TagEditor'
 import { tip } from '../ui/tip'
 import { rightClick } from '../ui/rightClick'
@@ -356,12 +357,7 @@ function Tags(): ReactNode {
   const router = useRouter()
   const pathname = usePathname()
   const { data: library } = useLibrary()
-  const createTag = useCreateTag()
-  const nudge = useArtistNudge()
   const [adding, setAdding] = useState(false)
-  const [name, setName] = useState('')
-  // A colour picked for the new tag; left alone, the name chooses one.
-  const [hue, setHue] = useState<number | undefined>(undefined)
 
   const tags = useMemo<readonly Tag[]>(() => library?.tags ?? [], [library?.tags])
   const recentIds = useRecentTagIds()
@@ -374,10 +370,6 @@ function Tags(): ReactNode {
    * and the rest are one press away on All tags, which the header opens.
    */
   const rail = useMemo(() => railTags(recentIds, tags), [recentIds, tags])
-  const trimmed = name.trim()
-  const autoHue = autoTagHue(trimmed)
-  const suggestions = trimmed ? fuzzyRank(name, tags, tag => tag.name).slice(0, 3) : []
-  const exact = suggestions.find(match => match.exact)
 
   // A tag is a place (docs/UI-MIGRATION.md, Phase 4): choosing one opens its page.
   const open = (tag: Tag): void => {
@@ -387,25 +379,18 @@ function Tags(): ReactNode {
     router.navigate(tagLink(tag.name))
   }
 
-  const closeForm = (): void => {
-    setName('')
-    setHue(undefined)
-    setAdding(false)
-  }
-
-  const submit = (): void => {
-    if (!trimmed) {
+  // Made, or already there and opened: the form has done its job and closes.
+  const form = useNewTagForm({
+    tags,
+    onExisting: tag => {
+      open(tag)
       setAdding(false)
-      return
-    }
-    // Opening the tag that exists beats silently making a near-duplicate.
-    if (exact) open(exact.item)
-    else {
-      const tag = { name: trimmed, ...(hue === undefined ? {} : { hue }) }
-      nudge.check(trimmed, () => void createTag.mutateAsync(tag).catch(() => undefined))
-    }
-    closeForm()
-  }
+    },
+    onMade: () => setAdding(false),
+  })
+  const trimmed = form.name.trim()
+  const suggestions = trimmed ? fuzzyRank(trimmed, tags, tag => tag.name).slice(0, 3) : []
+  const exact = existingTag(tags, trimmed)
 
   return (
     <View style={styles.group}>
@@ -437,25 +422,21 @@ function Tags(): ReactNode {
       </View>
 
       {adding ? (
-        <View style={styles.tagForm}>
-          <TextInput
-            style={styles.tagInput}
-            value={name}
-            onChangeText={setName}
-            onSubmitEditing={submit}
-            onBlur={() => {
-              if (!name) setAdding(false)
-            }}
+        <View style={styles.tagForm} testID="sidebar-new-tag">
+          <TagNameField
+            form={form}
+            size="small"
             placeholder="tag name"
-            placeholderTextColor={theme.colors.textMuted}
             autoFocus
-            autoCapitalize="none"
-            autoCorrect={false}
-            accessibilityLabel="New tag name"
+            onBlur={() => {
+              if (!form.name) setAdding(false)
+            }}
+            testID="sidebar-new-tag-name"
           />
           <View style={styles.tagHues}>
-            <HueSwatches value={hue ?? autoHue} first={autoHue} onChange={setHue} size={16} />
+            <HueSwatches value={form.hue} first={form.autoHue} onChange={form.setHue} size={16} />
           </View>
+          {form.failed ? <StatusLine>{NEW_TAG_FAILED}</StatusLine> : null}
           {suggestions.length > 0 ? (
             <View style={styles.suggestions}>
               <Text style={styles.hint}>{exact ? 'already exists:' : 'similar:'}</Text>
@@ -465,7 +446,7 @@ function Tags(): ReactNode {
                   style={styles.suggestion}
                   onPress={() => {
                     open(item)
-                    closeForm()
+                    setAdding(false)
                   }}
                   accessibilityRole="button"
                 >
@@ -494,16 +475,14 @@ function Tags(): ReactNode {
         {library && tags.length === 0 && !adding ? (
           <View style={styles.tagEmpty}>
             <TagIcon size={16} color={theme.colors.textMuted} />
-            <Text style={styles.hint}>
-              No tags yet. Tags are how you find things later — try “chill”.
-            </Text>
+            <Text style={styles.hint}>No tags yet. {noTagsLine(true)}</Text>
             <Pressable onPress={() => setAdding(true)} accessibilityRole="button">
               <Text style={styles.link}>Add your first tag</Text>
             </Pressable>
           </View>
         ) : null}
       </ScrollView>
-      {nudge.nudge}
+      {form.nudge}
     </View>
   )
 }
@@ -805,16 +784,8 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     borderRadius: radius.pill,
   },
-  tagForm: { paddingTop: 4, paddingHorizontal: 10, paddingBottom: space.sm },
-  tagHues: { paddingTop: 6, marginHorizontal: -4 },
-  tagInput: {
-    color: theme.colors.textPrimary,
-    fontSize: ITEM_TEXT,
-    backgroundColor: theme.colors.surface2,
-    borderRadius: radius.pill,
-    paddingVertical: 6,
-    paddingHorizontal: 9,
-  },
+  tagForm: { gap: 6, paddingTop: 4, paddingHorizontal: 10, paddingBottom: space.sm },
+  tagHues: { marginHorizontal: -4 },
   suggestions: {
     flexDirection: 'row',
     flexWrap: 'wrap',

@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Text, TextInput, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { ApiError, normaliseBaseUrl, radius, space, type } from '@selfmp3/client'
+import { Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
+import { ApiError, normaliseBaseUrl, space, type } from '@selfmp3/client'
 import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
+import { TextField } from '../../ui/components/TextField'
 import { plural } from '@selfmp3/shared'
 
 /**
@@ -28,7 +29,6 @@ export function ServerAddress({
   /** Under a centred footnote on a phone; at the column's edge on a computer. */
   centred: boolean
 }): ReactNode {
-  const { theme } = useUnistyles()
   const { connect } = useConnection()
 
   const [open, setOpen] = useState(false)
@@ -99,32 +99,26 @@ export function ServerAddress({
 
   return (
     <View style={styles.form}>
-      <TextInput
+      <TextField
         testID="welcome-address"
-        style={styles.input}
         value={address}
         onChangeText={setAddress}
         placeholder="Server address, e.g. mac-mini.tail1234.ts.net"
-        placeholderTextColor={theme.colors.textMuted}
         accessibilityLabel="Server address"
         autoCapitalize="none"
-        autoCorrect={false}
         autoFocus
         keyboardType="url"
         inputMode="url"
         returnKeyType="next"
       />
-      <TextInput
+      <TextField
         testID="welcome-token"
-        style={styles.input}
         value={token}
         onChangeText={setToken}
         placeholder="Token, only if the server has one"
-        placeholderTextColor={theme.colors.textMuted}
         accessibilityLabel="Token"
         autoCapitalize="none"
-        autoCorrect={false}
-        secureTextEntry
+        secret
         returnKeyType="go"
         onSubmitEditing={save}
       />
@@ -139,15 +133,6 @@ const styles = StyleSheet.create(theme => ({
   toggle: { alignItems: 'flex-start' },
   toggleCentred: { alignItems: 'center' },
   form: { gap: space.sm },
-  // A control on the ground: a control's fill, a pill, no edge.
-  input: {
-    backgroundColor: theme.colors.surface2,
-    borderRadius: radius.pill,
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    paddingHorizontal: space.lg,
-    paddingVertical: space.md,
-  },
   error: { color: theme.colors.danger, fontSize: type.small },
   note: { color: theme.colors.good, fontSize: type.small },
 }))

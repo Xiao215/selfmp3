@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, TextInput, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import {
@@ -9,6 +9,7 @@ import {
   SharedIdSchema,
   SharedInviteSchema,
   type SharedSummary,
+  SharedNameSchema,
 } from '@selfmp3/shared'
 import { libraryIndex, radius, sharedInviteLink, space, type, useLibrary } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
@@ -23,6 +24,7 @@ import { label, pageTitle } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { BackButton } from '../../ui/components/BackButton'
 import { MissingPage } from '../../ui/components/MissingPage'
+import { TextField } from '../../ui/components/TextField'
 import { PageLoading } from '../../ui/components/PageLoading'
 import { Button } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
@@ -323,23 +325,20 @@ function SharedInvite({
 }
 
 function Rename({ name, onRename }: { name: string; onRename: (name: string) => void }): ReactNode {
-  const { theme } = useUnistyles()
   const [text, setText] = useState(name)
   return (
-    <View style={styles.rename}>
-      <View style={styles.field}>
-        <TextInput
-          style={styles.input}
-          value={text}
-          onChangeText={setText}
-          onSubmitEditing={() => text.trim() && onRename(text.trim())}
-          placeholderTextColor={theme.colors.textMuted}
-          accessibilityLabel="Playlist name"
-          maxLength={120}
-        />
-      </View>
-      <Button label="Rename" disabled={!text.trim()} onPress={() => onRename(text.trim())} />
-    </View>
+    <TextField
+      raised
+      style={styles.rename}
+      value={text}
+      onChangeText={setText}
+      onSubmitEditing={() => text.trim() && onRename(text.trim())}
+      accessibilityLabel="Playlist name"
+      limit={SharedNameSchema}
+      action={
+        <Button label="Rename" disabled={!text.trim()} onPress={() => onRename(text.trim())} />
+      }
+    />
   )
 }
 
@@ -521,16 +520,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
   },
   link: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: type.small },
-  rename: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingBottom: space.md },
-  field: {
-    flex: 1,
-    minHeight: 44,
-    justifyContent: 'center',
-    paddingHorizontal: space.md,
-    borderRadius: radius.field,
-    backgroundColor: theme.colors.surface3,
-  },
-  input: { color: theme.colors.textPrimary, fontSize: type.body, minHeight: 28 },
+  rename: { paddingBottom: space.md },
   tile: { width: '100%' },
   tileCover: {
     aspectRatio: 1,

@@ -1,16 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Linking, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Linking, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import * as Crypto from 'expo-crypto'
-import {
-  plural,
-  formatBytes,
-  formatRelative,
-  newUid,
-  type CloudConnect,
-  type CloudStatus,
-} from '@selfmp3/shared'
+import { plural, formatBytes, formatRelative, newUid, type CloudStatus } from '@selfmp3/shared'
 import {
   useCloudCancelSignIn,
   useCloudConnect,
@@ -29,7 +22,8 @@ import { IconButton } from '../../ui/components/IconButton'
 import { CloudUpload, More, Refresh, Trash, X } from '../../ui/components/Icons'
 import { Popover } from '../../ui/components/Popover'
 import { SheetItem } from '../../ui/components/Sheet'
-import { addressReady, needsRegion, type AddressFields } from '../welcome/storage.model'
+import { addressReady, cloudConnectInput, type AddressFields } from '../welcome/storage.model'
+import { BucketAddressFields } from '../welcome/BucketAddressFields'
 import { Lead, Meter, Notice, Panel, partStyles, Row } from './SettingsParts'
 
 /**
@@ -222,8 +216,7 @@ function SignInReturn(): ReactNode {
 
 function Connected({ status, onChange }: { status: CloudStatus; onChange: () => void }): ReactNode {
   const sync = useCloudSync()
-  const disconnect = useCloudDisconnect()
-  const [confirming, setConfirming] = useState(false)
+  const leave = useLeaveCloud(status)
   const target = status.target
   const syncing = status.state === 'syncing'
   const host = target?.endpoint.replace(/^https?:\/\//, '') ?? ''
@@ -280,18 +273,41 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
       >
         <Button label={account ? 'Change bucket…' : 'Change…'} onPress={onChange} />
         {account ? (
-          <AccountMenu disabled={disconnect.isPending} onSignOut={() => setConfirming(true)} />
+          <AccountMenu disabled={leave.pending} onSignOut={leave.ask} />
         ) : (
           <Button
             label="Disconnect"
             icon={<Trash size={15} tone="danger" />}
             variant="danger"
-            disabled={disconnect.isPending}
-            onPress={() => setConfirming(true)}
+            disabled={leave.pending}
+            onPress={leave.ask}
           />
         )}
       </Row>
+      {leave.dialog}
+    </>
+  )
+}
 
+/**
+ * Signing this server out of its Google account, or stopping it publishing to
+ * a bucket it reached with a key: asked first, wherever it is offered. The
+ * bucket form's Sign out did it at once while the connected view's asked.
+ */
+function useLeaveCloud(status: CloudStatus): {
+  readonly ask: () => void
+  readonly pending: boolean
+  readonly dialog: ReactNode
+} {
+  const disconnect = useCloudDisconnect()
+  const [confirming, setConfirming] = useState(false)
+  const account = status.account
+  const target = status.target
+  const folder = target ? (target.prefix ? `${target.bucket}/${target.prefix}` : target.bucket) : ''
+  return {
+    ask: () => setConfirming(true),
+    pending: disconnect.isPending,
+    dialog: (
       <ConfirmDialog
         open={confirming}
         title={
@@ -310,8 +326,8 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
         }}
         onCancel={() => setConfirming(false)}
       />
-    </>
-  )
+    ),
+  }
 }
 
 /**
@@ -377,10 +393,9 @@ function BucketForm({
   onDone: () => void
   onCancel: (() => void) | null
 }): ReactNode {
-  const { theme } = useUnistyles()
   const connect = useCloudConnect()
   const connectStorage = useCloudConnectStorage()
-  const disconnect = useCloudDisconnect()
+  const leave = useLeaveCloud(status)
   const account = status.account
   const action = account ? connectStorage : connect
   const initial = status.target
@@ -400,39 +415,8 @@ function BucketForm({
 
   const submit = (): void => {
     if (!complete || action.isPending) return
-    const input: CloudConnect = {
-      endpoint: address.endpoint,
-      bucket: address.bucket,
-      prefix: address.prefix,
-      keyId: address.keyId,
-      applicationKey: address.applicationKey,
-      ...(needsRegion(address.endpoint) ? { region: address.region } : {}),
-    }
-    action.mutate(input, { onSuccess: onDone })
+    action.mutate(cloudConnectInput(address), { onSuccess: onDone })
   }
-
-  const field = (
-    label: string,
-    hint: string,
-    value: string,
-    onChange: (text: string) => void,
-    options: { placeholder?: string; secret?: boolean } = {},
-  ): ReactNode => (
-    <Row label={label} hint={hint}>
-      <TextInput
-        style={[partStyles.input, styles.field]}
-        value={value}
-        onChangeText={onChange}
-        placeholder={options.placeholder}
-        placeholderTextColor={theme.colors.textMuted}
-        secureTextEntry={options.secret}
-        autoCapitalize="none"
-        autoCorrect={false}
-        autoComplete="off"
-        accessibilityLabel={label}
-      />
-    </Row>
-  )
 
   return (
     <>
@@ -450,45 +434,24 @@ function BucketForm({
         key once, as you make it.
       </Text>
 
-      {field(
-        'Endpoint',
-        'On the bucket’s page in B2.',
-        address.endpoint,
-        endpoint => setAddress({ ...address, endpoint }),
-        { placeholder: 's3.us-west-004.backblazeb2.com' },
-      )}
-      {needsRegion(address.endpoint)
-        ? field('Region', 'For Cloudflare R2, auto.', address.region, region =>
-            setAddress({ ...address, region }),
-          )
-        : null}
-      {field(
-        'Bucket',
-        'Its name, not its ID.',
-        address.bucket,
-        bucket => setAddress({ ...address, bucket }),
-        { placeholder: 'selfmp3-yourname' },
-      )}
-      {field('Folder', 'Everything goes under it.', address.prefix, prefix =>
-        setAddress({ ...address, prefix }),
-      )}
-      {field(
-        'Key ID',
-        initial
-          ? `Currently ${initial.keyIdHint}.`
-          : 'B2 calls it keyID, and shows it beside the key.',
-        address.keyId,
-        keyId => setAddress({ ...address, keyId }),
-      )}
-      {field(
-        'Application key',
-        account
-          ? 'Shown once by B2. Sealed for the doorman.'
-          : 'Shown once by B2. Stays on this server.',
-        address.applicationKey,
-        applicationKey => setAddress({ ...address, applicationKey }),
-        { secret: true },
-      )}
+      <BucketAddressFields
+        rows
+        value={address}
+        onChange={setAddress}
+        // Not while the key is being tried: what is tried is what was typed.
+        disabled={action.isPending}
+        keyIdHint={
+          initial
+            ? `Currently ${initial.keyIdHint}.`
+            : 'B2 calls it keyID, and shows it beside the key.'
+        }
+        keyHint={
+          account
+            ? 'Shown once by B2. Sealed for the doorman.'
+            : 'Shown once by B2. Stays on this server.'
+        }
+        testID="cloud-address"
+      />
 
       {action.error ? <Notice tone="error">{action.error.message}</Notice> : null}
 
@@ -496,8 +459,9 @@ function BucketForm({
         {account && !onCancel ? (
           <Button
             label="Sign out"
-            disabled={disconnect.isPending}
-            onPress={() => disconnect.mutate()}
+            disabled={leave.pending}
+            onPress={leave.ask}
+            testID="cloud-form-sign-out"
           />
         ) : null}
         {onCancel ? (
@@ -511,11 +475,11 @@ function BucketForm({
           onPress={submit}
         />
       </Row>
+      {leave.dialog}
     </>
   )
 }
 
 const styles = StyleSheet.create(() => ({
-  field: { minWidth: 280 },
   where: { marginBottom: 6 },
 }))

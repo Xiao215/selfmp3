@@ -132,14 +132,34 @@ export function tagLine(standing: Pick<TagStanding, 'songs' | 'seconds'>): strin
   return count === 0 ? songs : `${songs} · ${formatLongDuration(standing.seconds)}`
 }
 
-/** The tag this name already is, whatever the case, so a new tag never makes a twin. */
+/**
+ * The tag this name already is, so a new tag never makes a twin: compared as
+ * the server compares names (`TagNameSchema`), whatever the case and however
+ * many spaces.
+ */
 export function existingTag<T extends { name: string }>(
   tags: readonly T[],
   name: string,
 ): T | null {
-  const wanted = name.trim().toLowerCase()
+  const wanted = sameName(name)
   if (!wanted) return null
-  return tags.find(tag => tag.name.trim().toLowerCase() === wanted) ?? null
+  return tags.find(tag => sameName(tag.name) === wanted) ?? null
+}
+
+function sameName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+/**
+ * Where tags would be, when there are none: what they are for, and how one is
+ * made with what this device has — a song's ⋯ with a pointer, holding a song
+ * with a finger. Said the same in the sidebar, on Tags, on Home and in the
+ * player's tag strip, which said it four ways, one of them only true on a phone.
+ */
+export function noTagsLine(finePointer: boolean): string {
+  return finePointer
+    ? 'Tags are how you find things later: put one on a song from its ⋯ › Tags.'
+    : 'Tags are how you find things later: hold a song and choose Tags.'
 }
 
 /**

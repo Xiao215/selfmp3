@@ -369,7 +369,11 @@ export function MyLibraryPicker({
           testID="room-add-search"
         />
       </View>
-      <ScrollView style={styles.scroll}>
+      <ScrollView
+        style={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         {found.map(song => (
           <SongPick
             key={song.id}

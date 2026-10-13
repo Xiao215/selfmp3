@@ -138,6 +138,7 @@ function Panel({
       <ScrollView
         style={[styles.body, !wide && styles.bodyNarrow]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         {trimmed ? (
           matches.length === 0 ? (

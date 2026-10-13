@@ -233,6 +233,7 @@ export function TagsScreen(): ReactNode {
       <ScrollView
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         {/* The way back and the page's buttons on one line, the name under it
             on the left (J1); with no way back the name leads that line. */}

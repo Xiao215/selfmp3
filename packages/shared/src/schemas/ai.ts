@@ -87,6 +87,9 @@ export const DescribeRequestSchema = z.object({
 })
 export type DescribeRequest = z.infer<typeof DescribeRequestSchema>
 
+/** A smart request's own name, chosen by the device: how it asks after the request, or stops it. */
+export const AskTicketSchema = z.string().regex(/^[A-Za-z0-9_-]{8,64}$/)
+
 /**
  * An answer changed after it was given: "10 首", "不要动漫的" (docs/features/ai.md,
  * "Change it"). The filters as they stand and the songs shown come along, so
@@ -101,10 +104,7 @@ export const RefineRequestSchema = z.object({
   /** The songs shown now, by the server's ids, in their order. */
   shown: z.array(IdSchema).max(2000).default([]),
   /** Names this request, so the device can ask how it is going (`AskProgress`). */
-  ticket: z
-    .string()
-    .regex(/^[A-Za-z0-9_-]{8,64}$/)
-    .optional(),
+  ticket: AskTicketSchema.optional(),
 })
 export type RefineRequest = z.infer<typeof RefineRequestSchema>
 
@@ -175,10 +175,7 @@ export const AskRequestSchema = z.object({
   /** The song playing on the asking device, by the server's id: what "this" means (A8). */
   playing: IdSchema.nullable().default(null),
   /** Names this request, so the device can ask how it is going (`AskProgress`). */
-  ticket: z
-    .string()
-    .regex(/^[A-Za-z0-9_-]{8,64}$/)
-    .optional(),
+  ticket: AskTicketSchema.optional(),
   /**
    * What was said before this, first ask first, when `text` follows up on an
    * answer ("only the albums"): the request is all of it together.
@@ -186,12 +183,6 @@ export const AskRequestSchema = z.object({
   before: z.array(z.string().trim().min(1).max(500)).max(8).default([]),
 })
 export type AskRequest = z.infer<typeof AskRequestSchema>
-
-/** How an Ask is going: its stages so far, the last one still running unless done. */
-export const AskProgressSchema = z.object({
-  steps: z.array(z.object({ text: z.string(), done: z.boolean() })),
-})
-export type AskProgress = z.infer<typeof AskProgressSchema>
 
 /** The places an answer can send you to, when the answer is "that is over there". */
 export const AskPlaceSchema = z.enum([
@@ -253,6 +244,12 @@ export const TidyResultSchema = z.object({
   note: z.string().nullable(),
   /** What was asked for ("give the 原神音乐 songs their Chinese names"), or null for a checkup. */
   asked: z.string().nullable(),
+  /**
+   * What the model told them about what was asked, in their language: which
+   * song it took them to mean and why it stays as it is, when it changes
+   * nothing. Null for a checkup, or when it had nothing to add.
+   */
+  reply: z.string().nullable(),
 })
 export type TidyResult = z.infer<typeof TidyResultSchema>
 
@@ -402,6 +399,25 @@ export const AskAnswerSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('none'), say: z.string(), try: z.array(z.string()).default([]) }),
 ])
 export type AskAnswer = z.infer<typeof AskAnswerSchema>
+
+/**
+ * How an Ask is going: its stages so far, the last one still running unless
+ * done. Once it is done, what it came to, for a device whose connection
+ * closed while it waited (a phone sent to the background): the server goes on
+ * without it for a while and keeps the outcome under the ticket.
+ */
+export const AskProgressSchema = z.object({
+  steps: z.array(z.object({ text: z.string(), done: z.boolean() })),
+  /** False for a ticket the server has not seen or has let go of: nothing will come of it. */
+  known: z.boolean(),
+  /** Finished, one way or the other. */
+  done: z.boolean(),
+  /** The answer, when finished and asked for with `answer=1`. */
+  answer: AskAnswerSchema.nullable(),
+  /** Why it failed, said as an error response would say it. */
+  failed: z.object({ status: z.number().int(), error: z.string(), code: z.string() }).nullable(),
+})
+export type AskProgress = z.infer<typeof AskProgressSchema>
 
 /**
  * Settings › Smart features: where the server asks a model, and with which.

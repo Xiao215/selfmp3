@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -26,6 +26,7 @@ import { TagsReview } from './TagsReview'
 import { TidyReview } from './TidyReview'
 import type { AnswerKeys } from './answerKeys'
 import { Working } from './Working'
+import { askKept } from './askKept'
 import { newTicket, useAskProgress } from './useAskProgress'
 import { useSmartServer } from './useSmartServer'
 import { reachedConnection, viaKey } from '../../connection/via'
@@ -57,8 +58,12 @@ function askedFirst(key: readonly unknown[]): unknown {
  *
  * Under it, a follow-up ("only the albums", "skip the Inazuma ones"): asked
  * again with everything said before it, the new answer in place of the old,
- * and what was said a trail above the field to go back along. A song answer
- * has its own "Change it", which keeps the songs it already chose.
+ * and what was said a trail above the field to go back along. While it is
+ * worked on, the field gives way to the same steps the first question shows.
+ * A song answer has its own "Change it", which keeps the songs it already chose.
+ *
+ * One Stop, in the box that asked, for whatever is being worked on: a first
+ * question is let go of; a follow-up goes back to the answer it followed.
  */
 export function AskAnswer({
   text,
@@ -68,14 +73,18 @@ export function AskAnswer({
   onKeys,
   onAsk,
   onWorking,
+  onDrop,
 }: {
   text: string
   onDone: () => void
   /**
-   * While an answer is on its way: the box that asked offers Stop. Changing
-   * its words drops the question, which the box does by letting go of this.
+   * While an answer is on its way, what the box's Stop does; null once there
+   * is nothing to stop. Changing the box's words drops the question, which
+   * the box does by letting go of this.
    */
-  onWorking?: (working: boolean) => void
+  onWorking?: (stop: (() => void) | null) => void
+  /** Stop on the first question: the box lets go of it. */
+  onDrop?: () => void
   /** Asks something else in the same box: a dead end's suggestions. */
   onAsk?: (text: string) => void
   /**
@@ -101,16 +110,19 @@ export function AskAnswer({
   const asked = said.slice(0, at)
   const latest = asked.at(-1) ?? text
   const before = at === 0 ? [] : [text, ...asked.slice(0, -1)]
-  const saidSoFar = asked.join('\n')
-  // Names this asking, so how it is going can be asked after while it runs.
-  // What was said is why a new one is made: each new question is a new request.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const ticket = useMemo(() => newTicket(), [text, saidSoFar])
+  // Names each request, so how it is going can be asked after while it runs,
+  // and its answer collected if the response is lost (`askKept`). A new one
+  // each time: a Stop meant for one request must not reach the next.
+  const [ticket, setTicket] = useState<string | null>(null)
   const answer = useQuery({
     queryKey: askKey(via, text, playing, asked),
     // Read, so React Query drops the request when nobody watches it any more:
     // Stop, Escape, the box closed. The server stops asking the model with it.
-    queryFn: ({ signal }) => server.api!.ask(latest, playing, ticket, before, signal),
+    queryFn: ({ signal }) => {
+      const named = newTicket()
+      setTicket(named)
+      return askKept(server.api!, { text: latest, playing, ticket: named, before }, signal)
+    },
     enabled: server.api !== null,
     retry: false,
     staleTime: STALE.tenMinutes,
@@ -119,13 +131,8 @@ export function AskAnswer({
       query && askedFirst(query.queryKey) === text ? previous : undefined,
   })
   const following = answer.isPlaceholderData
-  const live = useAskProgress(ticket, answer.isPending || following)
-  const running = live ? [...live].reverse().find(step => !step.done) : undefined
   const working = answer.isPending || following
-  useEffect(() => {
-    onWorking?.(working)
-  }, [onWorking, working])
-  useEffect(() => () => onWorking?.(false), [onWorking])
+  const live = useAskProgress(ticket, working)
   const followUp = (): void => {
     const words = draft.trim()
     if (!words || following || !server.api) return
@@ -137,6 +144,17 @@ export function AskAnswer({
     setThread({ text, said: asked.slice(0, -1), at: at - 1 })
     setDraft(latest)
   }
+  // The box holds one Stop for as long as something is worked on; what it
+  // stops is read when it is pressed, so the box is told only when that starts and ends.
+  const stopNow = useRef<() => void>(() => undefined)
+  useLayoutEffect(() => {
+    stopNow.current = following ? stopFollowUp : (onDrop ?? (() => undefined))
+  })
+  const stop = useCallback(() => stopNow.current(), [])
+  useEffect(() => {
+    onWorking?.(working ? stop : null)
+  }, [onWorking, working, stop])
+  useEffect(() => () => onWorking?.(null), [onWorking])
   // The question, then each follow-up; pressing one shows its answer again.
   const trail =
     said.length > 0 ? (
@@ -161,14 +179,7 @@ export function AskAnswer({
   if (answer.isPending) {
     return (
       <View style={styles.body}>
-        <Working
-          steps={[
-            { doing: 'Reading what you asked', done: 'Read what you asked' },
-            { doing: 'Working on the answer', after: 3000 },
-          ]}
-          live={live}
-          testID="ask-waiting"
-        />
+        <Working steps={FIRST_STEPS} live={live} testID="ask-waiting" />
       </View>
     )
   }
@@ -201,23 +212,41 @@ export function AskAnswer({
       ) : (
         <View style={styles.followUp}>
           {trail}
-          <ChangeField
-            value={draft}
-            onChangeText={setDraft}
-            onSend={followUp}
-            onStop={stopFollowUp}
-            working={following}
-            doing={running?.text ?? 'Reading what you said'}
-            words={latest}
-            placeholder="Ask a follow-up…"
-            label="Follow up on this answer"
-            testID="ask-follow-up"
-          />
+          {following ? (
+            <Working
+              steps={FOLLOW_UP_STEPS}
+              live={live}
+              outline={false}
+              testID="ask-follow-up-waiting"
+            />
+          ) : (
+            <ChangeField
+              value={draft}
+              onChangeText={setDraft}
+              onSend={followUp}
+              working={false}
+              doing=""
+              words=""
+              placeholder="Ask a follow-up…"
+              label="Follow up on this answer"
+              testID="ask-follow-up"
+            />
+          )}
         </View>
       )}
     </View>
   )
 }
+
+/** The steps that stand in until the server says its own. */
+const FIRST_STEPS = [
+  { doing: 'Reading what you asked', done: 'Read what you asked' },
+  { doing: 'Working on the answer', after: 3000 },
+]
+const FOLLOW_UP_STEPS = [
+  { doing: 'Reading what you said', done: 'Read what you said' },
+  { doing: 'Working on the answer', after: 3000 },
+]
 
 function Drawn({
   answer,

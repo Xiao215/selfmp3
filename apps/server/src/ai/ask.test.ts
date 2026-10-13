@@ -287,6 +287,7 @@ describe('ask', () => {
             { n: 2, field: 'title', to: 'Liyue again', why: 'x' },
             { n: 1, field: 'title', to: 'Light Glimmers as Shadows Shift', why: 'x' },
           ],
+          say: '',
         },
       ],
     })
@@ -319,7 +320,10 @@ describe('ask', () => {
     const d = deps({
       'ask-route': [tidyRoute(2), tidyRoute(300)],
       'tidy-sort': [{ n: [1, 2, 3] }],
-      'tidy-asked': [{ edits: [] }, { edits: [] }],
+      'tidy-asked': [
+        { edits: [], say: '' },
+        { edits: [], say: '' },
+      ],
     })
     const answer = await ask(d, '原神纯音乐英文的歌名换成官方中文名，先换2首')
     if (answer.kind !== 'tidy') throw new Error(`not tidy: ${answer.kind}`)
@@ -336,7 +340,7 @@ describe('ask', () => {
   it('reads a follow-up together with what was said before it', async () => {
     const d = deps({
       'ask-route': [route({ action: 'tidy', tidy: { checkup: false, lookUp: false } })],
-      'tidy-asked': [{ edits: [] }],
+      'tidy-asked': [{ edits: [], say: '' }],
     })
     const first = 'give the 原神纯音乐 songs their official Chinese names'
     await ask(d, 'only the albums', null, undefined, undefined, [first])
@@ -356,7 +360,7 @@ describe('ask', () => {
         route({ action: 'remember', remember: { note: '  Chinese names only,  no English ' } }),
         route({ action: 'tidy', tidy: { checkup: false, lookUp: false } }),
       ],
-      'tidy-asked': [{ edits: [] }],
+      'tidy-asked': [{ edits: [], say: '' }],
     })
     expect(await ask(d, '以后都只要中文名')).toEqual({
       kind: 'remember',

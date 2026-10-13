@@ -198,8 +198,8 @@ group('describe', () => {
     const steps = progress.track('ticket-123456')
     const parts = { ...nothing, anyTags: ['jpop'] }
     await narrowAndPick(deps(scriptedLlm({})), 'jpop', parts, [], [], steps)
-    expect(progress.steps('ticket-123456')).toEqual([{ text: '3 songs fit', done: true }])
-    expect(progress.steps('someone-else')).toEqual([])
+    expect(progress.seen('ticket-123456').steps).toEqual([{ text: '3 songs fit', done: true }])
+    expect(progress.seen('someone-else').steps).toEqual([])
   })
 
   it('orders the songs by how they sound and takes the best, with no pick, when that is all it wants', async () => {

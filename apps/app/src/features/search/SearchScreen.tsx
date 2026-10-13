@@ -102,8 +102,10 @@ export function SearchScreen(): ReactNode {
   const [section, setSection] = useState<SearchSection | null>(null)
   /** What was asked (S1), answered in place of the results until the words change. */
   const [asking, setAsking] = useState<string | null>(null)
-  /** An answer is on its way, so the field offers Stop where it offers Clear. */
-  const [thinking, setThinking] = useState(false)
+  /** An answer is on its way, so the field offers Stop where it offers Clear: what it stops. */
+  const [stopping, setStopping] = useState<(() => void) | null>(null)
+  // A function kept as state is set through an updater, or React would call it.
+  const setStop = useCallback((next: (() => void) | null) => setStopping(() => next), [])
   const field = useRef<TextInput>(null)
   // The field keeps up with the fingers; the results, a search of the whole
   // library, follow when there is time.
@@ -130,7 +132,7 @@ export function SearchScreen(): ReactNode {
   const switches = useSmartSwitches()
   const offerAsk = switches.ask && section === null && askable(words)
   const answering = asking !== null && asking === query.trim()
-  const working = answering && thinking
+  const stop = answering ? stopping : null
 
   const openArtist = useCallback(
     (artist: Artist) => router.navigate(artistLink(artist.name)),
@@ -193,11 +195,7 @@ export function SearchScreen(): ReactNode {
             accessibilityLabel="Search"
             testID="search-field"
             style={styles.field}
-            trailing={
-              working ? (
-                <StopButton onPress={() => setAsking(null)} size={26} testID="ask-stop" />
-              ) : undefined
-            }
+            trailing={stop ? <StopButton onPress={stop} size={26} testID="ask-stop" /> : undefined}
           />
           <Pressable onPress={close} accessibilityRole="button" hitSlop={8}>
             <Text style={styles.cancel}>Cancel</Text>
@@ -250,7 +248,8 @@ export function SearchScreen(): ReactNode {
                 text={asking}
                 onDone={close}
                 onOpenPage={() => undefined}
-                onWorking={setThinking}
+                onWorking={setStop}
+                onDrop={() => setAsking(null)}
                 onAsk={words => {
                   setQuery(words)
                   setAsking(words)

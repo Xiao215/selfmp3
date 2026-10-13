@@ -21,14 +21,20 @@ interface WorkingStep {
  * each found — "349 songs fit", "Choosing 25 that suit it"), those are shown.
  * Until the first of them arrives, `steps` stand in: a step's start is when it usually begins, so they are kept
  * to ones that are always true.
+ *
+ * Under an answer already on screen (a follow-up), without the outline: the
+ * answer is the list that is there.
  */
 export function Working({
   steps,
   live,
+  outline = true,
   testID,
 }: {
   steps: readonly WorkingStep[]
   live?: readonly { readonly text: string; readonly done: boolean }[] | null
+  /** The faint rows of a list to come, under the steps. */
+  outline?: boolean
   testID?: string
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -83,17 +89,19 @@ export function Working({
           </View>
         )
       })}
-      <View style={styles.outline}>
-        {OUTLINE.map(({ opacity, name, meta }) => (
-          <View key={opacity} style={[styles.row, { opacity }]}>
-            <View style={styles.ring} />
-            <View style={styles.lines}>
-              <View style={[styles.bar, { width: name }]} />
-              <View style={[styles.bar, styles.thin, { width: meta }]} />
+      {outline ? (
+        <View style={styles.outline}>
+          {OUTLINE.map(({ opacity, name, meta }) => (
+            <View key={opacity} style={[styles.row, { opacity }]}>
+              <View style={styles.ring} />
+              <View style={styles.lines}>
+                <View style={[styles.bar, { width: name }]} />
+                <View style={[styles.bar, styles.thin, { width: meta }]} />
+              </View>
             </View>
-          </View>
-        ))}
-      </View>
+          ))}
+        </View>
+      ) : null}
     </View>
   )
 }

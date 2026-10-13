@@ -46,9 +46,15 @@ export function TidyReview({
     [result.changes, server.onDevice, songsById],
   )
 
+  // Nothing to change is still an answer: what the model said about it comes first.
   if (here.length === 0) {
     return (
       <View style={{ gap: 8 }}>
+        {result.reply ? (
+          <Text style={reviewText.reply} selectable testID="tidy-reply">
+            {result.reply}
+          </Text>
+        ) : null}
         <Text style={reviewText.line} testID="tidy-nothing">
           {result.asked !== null
             ? `Nothing to change in ${songCount(result.looked)}.`
@@ -116,7 +122,7 @@ export function TidyReview({
       tickedText={(approved, leftOut) =>
         `${approved.length} ticked, on ${plural(tidyEdits(approved, leftOut).length, 'song', 'songs')}.`
       }
-      notes={result.note ? [result.note] : []}
+      notes={[result.reply, result.note].filter(note => note !== null)}
       bandText={{
         rule:
           result.asked !== null

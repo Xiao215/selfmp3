@@ -574,6 +574,8 @@ export const reviewText = StyleSheet.create(theme => ({
   meta: { color: theme.colors.textMuted, fontSize: type.small },
   line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   note: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
+  /** The model's own words about what was asked. */
+  reply: { color: theme.colors.textPrimary, fontSize: type.body, lineHeight: leading.body },
 }))
 
 const styles = StyleSheet.create(theme => ({

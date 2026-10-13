@@ -29,10 +29,13 @@ describe('smart features turned off in Settings', () => {
   let model: http.Server
   let origin = ''
   let asked = 0
+  /** How long the model takes to answer. */
+  let thinkingMs = 0
 
   beforeAll(async () => {
-    model = http.createServer((_request, response) => {
+    model = http.createServer(async (_request, response) => {
       asked++
+      await new Promise(resolve => setTimeout(resolve, thinkingMs))
       response.writeHead(200, { 'Content-Type': 'application/json' })
       const content = JSON.stringify({
         action: 'tidy',
@@ -126,5 +129,48 @@ describe('smart features turned off in Settings', () => {
     })
     // The router was asked; the names pass was not.
     expect(asked).toBe(1)
+  })
+
+  it('goes on with an Ask whose connection closed, and keeps its answer under the ticket', async () => {
+    container.settings.update({ smartAsk: true, smartTidy: false })
+    thinkingMs = 300
+    const ticket = 'phone-went-away-1'
+    const hangUp = new AbortController()
+    const asking = fetch(`${origin}/api/ai/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.authToken}` },
+      // Words of its own: the router's answer to the last ones is remembered.
+      body: JSON.stringify({ text: 'check my album names', ticket }),
+      signal: hangUp.signal,
+    })
+    // The app is sent to the background and its connection goes while the model thinks.
+    await new Promise(resolve => setTimeout(resolve, 100))
+    hangUp.abort()
+    await expect(asking).rejects.toThrow()
+
+    let progress: { done: boolean; answer: unknown; failed: unknown } | undefined
+    for (let tries = 0; tries < 40 && !progress?.done; tries++) {
+      await new Promise(resolve => setTimeout(resolve, 50))
+      progress = (await (
+        await call('GET', `/api/ai/ask/progress?ticket=${ticket}&answer=1`)
+      ).json()) as typeof progress
+    }
+    thinkingMs = 0
+    expect(progress).toMatchObject({
+      done: true,
+      failed: null,
+      answer: { kind: 'none', say: 'Tidy up is turned off in Settings › Smart features.' },
+    })
+  })
+
+  it('says it does not know a ticket it never saw', async () => {
+    const response = await call('GET', '/api/ai/ask/progress?ticket=never-asked-1')
+    expect(await response.json()).toEqual({
+      steps: [],
+      known: false,
+      done: false,
+      answer: null,
+      failed: null,
+    })
   })
 })

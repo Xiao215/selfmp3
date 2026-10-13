@@ -233,6 +233,15 @@ songs". The answer itself still comes back as one response; a server without the
 leaves the device on its two always-true steps. Measured on the
 real library: a route 2.3–3.5 s; with the pick, a playlist in 10 s and a found song in 5 s.
 
+An Ask outlasts its connection (`outlast` in `ai/progress.ts`, `askKept.ts` on the device). A
+phone sent to the background loses the connection though nobody stopped asking, so a closed
+connection no longer stops the model: the work goes on for as long as the device asks after
+the ticket within a minute, and its answer or failure is kept under the ticket. The device
+collects it with `GET /api/ai/ask/progress?answer=1` when its response was lost, or when the
+server has said it is done and the response is late. Stop, new words and a closed box send
+`POST /api/ai/ask/stop`, which stops it at once. Added 2026-10-13: before it, a follow-up
+answered while the phone was away for a moment was lost with the connection.
+
 ## Playlists from the box
 
 "Delete the chill chinese hype and chill chinese playlists", "rename hi to 华语慢歌": the
@@ -358,6 +367,16 @@ answer takes the old one's place, which stays on screen until it lands; what was
 trail above the field, and pressing an earlier step shows its answer again from the cache. A
 song answer keeps Change it, which keeps the songs it already chose. Added 2026-10-04: before
 it, a tags or tidy answer that missed could only be asked again from nothing.
+
+While a follow-up is worked on, the field gives way to the same steps the first question
+shows, ticked as they finish, and the box that asked holds the one Stop: on a first question
+it lets go of it, on a follow-up it goes back to the answer followed, its words in the field
+again. Changed 2026-10-13: the field had its own Stop beside the box's, two at once.
+
+A tidy answer that changes nothing still answers: the model says which song it took them to
+mean and why it stays (`say`, kept as `reply`, two sentences at most), above "Nothing to change
+in N songs". Added 2026-10-13: before it, a request about one song the model could not name
+for certain came back as that one line, which read as no answer at all.
 
 ## L2 · New playlist, kind first
 

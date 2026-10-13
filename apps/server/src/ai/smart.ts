@@ -29,7 +29,7 @@ import type { NeteaseMusic } from '../services/netease.js'
 import { ask } from './ask.js'
 import type { AskDeps } from './askActions.js'
 import type { AskPlaylist } from './askLibrary.js'
-import { AskProgress, type Step } from './progress.js'
+import { AskProgress, type Seen } from './progress.js'
 import { describe, type DescribeInput } from './describe.js'
 import { fixSong } from './fixSong.js'
 import { refine } from './refine.js'
@@ -94,16 +94,17 @@ export class SmartFeatures {
     allowed: { tidy: boolean; tags: boolean } = { tidy: true, tags: true },
     ticket?: string,
     before: readonly string[] = [],
+    /** Fires when the device's connection closes: with a ticket, the answer goes on a while without it. */
     signal?: AbortSignal,
   ): Promise<AskAnswer> {
-    return ask(
-      this.#stoppedBy(signal),
-      text,
-      playing,
-      allowed,
-      this.#progress.track(ticket),
-      before,
+    return this.#progress.outlast(ticket, signal, (steps, stop) =>
+      ask(this.#stoppedBy(stop), text, playing, allowed, steps, before),
     )
+  }
+
+  /** Stop pressed on an Ask that may have outlasted its connection. */
+  stopAsk(ticket: string): void {
+    this.#progress.stop(ticket)
   }
 
   /** An answer changed after it was given (`refine.ts`). */
@@ -122,8 +123,8 @@ export class SmartFeatures {
   }
 
   /** How the Ask a ticket names is going (`progress.ts`). */
-  askProgress(ticket: string): readonly Step[] {
-    return this.#progress.steps(ticket)
+  askProgress(ticket: string): Seen {
+    return this.#progress.seen(ticket)
   }
 
   /** Where the server asks, for Settings: no call is made. */

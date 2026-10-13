@@ -130,7 +130,7 @@ describe('tidy, asked for something', () => {
   it('asks in batches, and says which songs a failed batch left out', async () => {
     const llm = scriptedLlm({
       'tidy-asked': [
-        { edits: [{ n: 1, field: 'title', to: '第一首', why: 'Official Chinese name' }] },
+        { edits: [{ n: 1, field: 'title', to: '第一首', why: 'Official Chinese name' }], say: '' },
         new LlmError('busy', 'slow down'),
       ],
     })
@@ -164,7 +164,7 @@ describe('tidy, asked for something', () => {
     const llm = scriptedLlm({
       'tidy-sort': [{ n: [1, 3, 5] }],
       'tidy-asked': [
-        { edits: [{ n: 2, field: 'title', to: '第三首', why: 'Official Chinese name' }] },
+        { edits: [{ n: 2, field: 'title', to: '第三首', why: 'Official Chinese name' }], say: '' },
       ],
     })
     const result = await tidy({ llm, songs: () => [] }, undefined, {
@@ -192,7 +192,7 @@ describe('tidy, asked for something', () => {
   it('keeps every song of a batch it could not sort', async () => {
     const llm = scriptedLlm({
       'tidy-sort': [new LlmError('busy', 'slow down')],
-      'tidy-asked': [{ edits: [] }],
+      'tidy-asked': [{ edits: [], say: '' }],
     })
     const result = await tidy({ llm, songs: () => [] }, undefined, {
       text,
@@ -203,6 +203,31 @@ describe('tidy, asked for something', () => {
     })
     expect(llm.asked[1]!.prompt).toContain('2 | Track 2 |')
     expect(result.note).toMatch(/^Changing the first 2 of the 3 songs/)
+  })
+
+  it('says what the model told them when it changes nothing', async () => {
+    const llm = scriptedLlm({
+      'tidy-asked': [
+        {
+          edits: [],
+          say: 'Track 1 looks like the song you mean, but I am not sure of its official name.',
+        },
+        {
+          edits: [],
+          say: 'Track 1 looks like the song you mean, but I am not sure of its official name.',
+        },
+      ],
+    })
+    const result = await tidy({ llm, songs: () => [] }, undefined, {
+      text,
+      songs: many,
+      unknown: [],
+      lookUp: false,
+    })
+    expect(result).toMatchObject({
+      changes: [],
+      reply: 'Track 1 looks like the song you mean, but I am not sure of its official name.',
+    })
   })
 
   it('stops before the model when no song needs it', async () => {
@@ -248,6 +273,7 @@ describe('tidy, with names looked up', () => {
             // Words no catalogue has: made up, so dropped.
             { n: 1, field: 'artist', to: '米哈游', why: 'Official Chinese name' },
           ],
+          say: '',
         },
       ],
     })
@@ -279,7 +305,9 @@ describe('tidy, with names looked up', () => {
 
   it('looks on the web for songs no catalogue has, when Settings allows, and leaves those unticked', async () => {
     const llm = scriptedLlm({
-      'tidy-web': [{ edits: [{ n: 1, field: 'title', to: '无处可寻', why: 'Game wiki' }] }],
+      'tidy-web': [
+        { edits: [{ n: 1, field: 'title', to: '无处可寻', why: 'Game wiki' }], say: '' },
+      ],
     })
     const result = await tidy({ llm, songs: () => [], findNames, web: () => true }, undefined, {
       text: 'official Chinese names',

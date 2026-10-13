@@ -372,13 +372,21 @@ export function createApi({ context, fetch }: ApiOptions) {
       signal?: ClientSignal,
     ) => request('POST', '/api/ai/ask', AskAnswerSchema, { text, playing, ticket, before }, signal),
 
-    /** How an Ask named by `ticket` is going, while its answer is on the way. */
-    askProgress: (ticket: string) =>
+    /**
+     * How an Ask named by `ticket` is going, while its answer is on the way;
+     * `answer` collects the answer once it is done, when the response was lost.
+     */
+    askProgress: (ticket: string, answer = false, signal?: ClientSignal) =>
       request(
         'GET',
-        `/api/ai/ask/progress?ticket=${encodeURIComponent(ticket)}`,
+        `/api/ai/ask/progress?ticket=${encodeURIComponent(ticket)}${answer ? '&answer=1' : ''}`,
         AskProgressSchema,
+        undefined,
+        signal,
       ),
+
+    /** Stop: the Ask named by `ticket` goes no further, though its connection may have closed. */
+    askStop: (ticket: string) => request('POST', '/api/ai/ask/stop', OkSchema, { ticket }),
 
     untaggedTags: () => request('GET', '/api/ai/tags/untagged', TagReviewSchema),
 

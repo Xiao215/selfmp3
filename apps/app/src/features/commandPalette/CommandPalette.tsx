@@ -113,12 +113,17 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
    * An answer is on its way: Stop sits where the count does. The box still
    * takes letters; new words drop the question and bring the results back.
    */
-  const [thinking, setThinking] = useState(false)
-  const working = asking !== null && thinking
+  const [stopping, setStopping] = useState<(() => void) | null>(null)
+  // A function kept as state is set through an updater, or React would call it.
+  const setStop = useCallback((next: (() => void) | null) => setStopping(() => next), [])
+  const working = asking !== null && stopping !== null
   const input = useRef<TextInput>(null)
-  /** Stop (or Escape) while it thinks: back to the results, the question there to change. */
+  /**
+   * Stop (or Escape) while it thinks: a question goes back to the results,
+   * its words there to change; a follow-up, to the answer it followed.
+   */
   const stop = (): void => {
-    setAsking(null)
+    stopping?.()
     input.current?.focus()
   }
 
@@ -497,8 +502,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   return (
     <Dialog
       onDismiss={onClose}
-      // Escape from an answer goes back to the results; from the results, closes.
-      onEscape={() => (asking === null ? onClose() : setAsking(null))}
+      // Escape stops what is being worked on; from an answer it goes back to the
+      // results; from the results, closes.
+      onEscape={() => (asking === null ? onClose() : working ? stop() : setAsking(null))}
       label="Command palette"
       frameStyle={[styles.frame, { paddingTop: window.height * (finePointer ? 0.14 : 0.06) }]}
       // An answer that takes keys has them first, Enter included, wherever
@@ -583,7 +589,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
             onDone={onClose}
             listHeight={Math.max(240, window.height * ANSWER_HEIGHT - ANSWER_AROUND_LIST)}
             onKeys={setAnswerKeys}
-            onWorking={setThinking}
+            onWorking={setStop}
+            onDrop={() => setAsking(null)}
             onAsk={words => {
               setQuery(words)
               setAsking(words)

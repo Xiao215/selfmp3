@@ -8,11 +8,13 @@ import {
   BooleanQuerySchema,
   WrappedRangeSchema,
   AskRequestSchema,
+  AskTicketSchema,
   DescribeRequestSchema,
   RefineRequestSchema,
   type AskAnswer,
   type AskProgress,
   type DescribeResult,
+  type Ok,
   type MetadataSuggestion,
   type TagReview,
 } from '@selfmp3/shared'
@@ -90,12 +92,35 @@ export function aiRoutes(container: Container): Router {
     }),
   )
 
-  /** How an Ask is going, while the device waits for its answer. */
+  /**
+   * How an Ask is going, while the device waits for its answer; asking keeps
+   * it going after the device's connection closed. `answer=1` collects the
+   * answer once it is done, for a device that lost the response.
+   */
   router.get(
     '/ai/ask/progress',
-    route({ query: z.object({ ticket: z.string().max(64) }) }, ({ query }): AskProgress => ({
-      steps: [...container.smart.askProgress(query.ticket)],
-    })),
+    route(
+      { query: z.object({ ticket: z.string().max(64), answer: BooleanQuerySchema }) },
+      ({ query }): AskProgress => {
+        const { steps, known, outcome } = container.smart.askProgress(query.ticket)
+        return {
+          steps: [...steps],
+          known,
+          done: outcome !== null,
+          answer: query.answer && outcome && 'answer' in outcome ? outcome.answer : null,
+          failed: outcome && 'failed' in outcome ? failureOf(outcome.failed) : null,
+        }
+      },
+    ),
+  )
+
+  /** Stop: the Ask goes no further, though its connection may already have closed. */
+  router.post(
+    '/ai/ask/stop',
+    route({ body: z.object({ ticket: AskTicketSchema }) }, ({ body }): Ok => {
+      container.smart.stopAsk(body.ticket)
+      return { ok: true }
+    }),
   )
 
   router.get(
@@ -171,12 +196,24 @@ async function answering<T>(work: Promise<T>): Promise<T> {
   try {
     return await work
   } catch (caught) {
-    if (!(caught instanceof LlmError)) throw caught
-    throw new HttpError(
-      FAILURE_STATUS[caught.kind],
-      llmFailureWords[caught.kind],
-      `ai_${caught.kind}`,
-      caught.kind === 'unreachable' ? caught.message : undefined,
-    )
+    throw caught instanceof LlmError ? modelFailure(caught) : caught
   }
+}
+
+function modelFailure(caught: LlmError): HttpError {
+  return new HttpError(
+    FAILURE_STATUS[caught.kind],
+    llmFailureWords[caught.kind],
+    `ai_${caught.kind}`,
+    caught.kind === 'unreachable' ? caught.message : undefined,
+  )
+}
+
+/** An Ask's failure kept under its ticket, as the response that lost it would have said it. */
+function failureOf(caught: unknown): AskProgress['failed'] {
+  const failure = caught instanceof LlmError ? modelFailure(caught) : caught
+  if (failure instanceof HttpError) {
+    return { status: failure.status, error: failure.message, code: failure.code }
+  }
+  return { status: 500, error: 'Something went wrong answering that.', code: 'internal' }
 }

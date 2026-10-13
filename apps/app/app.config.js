@@ -12,13 +12,15 @@
  * launcher icon's backdrop — has to be this exact colour, or the first frame
  * shifts tone the moment React takes over.
  */
-const { NATIVE_BACKGROUND } = require('@selfmp3/shared')
+const { NATIVE_BACKGROUND, DEEP_LINK_SCHEME } = require('@selfmp3/shared')
 
 /** @type {import('@expo/config-types').ExpoConfig} */
 const config = {
   name: 'self.mp3',
   slug: 'selfmp3',
-  scheme: 'selfmp3',
+  // The links the app answers to: a sign-in coming back, a widget's tag. The
+  // doorman, the desktop shell and the widget spell it from the same constant.
+  scheme: DEEP_LINK_SCHEME,
   version: '1.0.0',
   orientation: 'portrait',
   userInterfaceStyle: 'dark',

@@ -1,18 +1,24 @@
 import { Readable } from 'node:stream'
 import {
-  DoormanClaimResultSchema,
   CHANGES_HEADER,
+  DOORMAN_ERROR,
+  DOORMAN_PATHS,
   DoormanChangesSchema,
-  DoormanListSchema,
-  parseChangesHeader,
+  DoormanClaimResultSchema,
+  DoormanError,
   DoormanGrantMadeSchema,
+  DoormanListSchema,
   DoormanMeSchema,
-  ErrorBodySchema,
+  doormanRequest,
+  parseChangesHeader,
   type CloudConnect,
+  type DoormanCall,
+  type DoormanClaimResult,
+  type DoormanErrorCode,
   type DoormanGrantMade,
   type DoormanGrantRequest,
-  type DoormanClaimResult,
   type DoormanMe,
+  type DoormanRequest,
 } from '@selfmp3/shared'
 import {
   CloudError,
@@ -21,7 +27,6 @@ import {
   type CloudPutOptions,
   type CloudStore,
 } from './store.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * Talking to the doorman (docs/SYNC.md; the Worker is apps/doorman).
@@ -30,28 +35,50 @@ import { messageOf } from '../util/errors.js'
  * that belongs to it. Once signed in, the server holds only a session — never the
  * bucket's key — and every read and write goes through the doorman, which
  * checks the session and passes it on to the bucket.
+ *
+ * The requests themselves are packages/shared's `doormanRequest`, the one every
+ * device uses too; what is this server's own is turning a refusal into a
+ * `CloudError` the sync knows what to do with.
  */
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 
-interface RequestOptions {
-  readonly token?: string
-  readonly json?: unknown
+interface RequestOptions extends Omit<DoormanCall<AbortSignal>, 'method' | 'body'> {
   readonly body?: Buffer
-  readonly headers?: Record<string, string>
-  /** Answers besides 2xx that are the caller's to read, not failures: 404 is "no such file". */
-  readonly allowStatus?: readonly number[]
-  /** Call the request off: the player that asked for a range has moved on. */
-  readonly signal?: AbortSignal
+}
+
+/**
+ * What the sync does about each refusal it can act on. Everything else is
+ * `other`, in the doorman's own words. A bucket that refused its key is not
+ * this server's session to end, so `bucket_refused_key` is not `auth`.
+ */
+const KIND_OF: Partial<Record<DoormanErrorCode, CloudError['kind']>> = {
+  [DOORMAN_ERROR.unauthorized]: 'auth',
+  [DOORMAN_ERROR.noStorage]: 'missing',
+  [DOORMAN_ERROR.noSuchBucket]: 'missing',
+  [DOORMAN_ERROR.bucketUnreachable]: 'network',
+  // The doorman's own word for a used-up cap, so a pass stops at the first
+  // refusal rather than trying every song against it.
+  [DOORMAN_ERROR.bucketCapExceeded]: 'cap',
+}
+
+/** The few refusals said here in words of this server's, because what to do is done here. */
+const WORDS: Partial<Record<DoormanErrorCode, string>> = {
+  [DOORMAN_ERROR.unauthorized]:
+    'Your Google sign-in has expired or was signed out. Sign in again in Settings → Cloud.',
+  [DOORMAN_ERROR.noStorage]: 'No bucket is connected to this Google account yet.',
+  [DOORMAN_ERROR.tooManyGrants]:
+    'This Google account already lets as many servers in as it can. Remove one under ' +
+    'Settings → Cloud on one of your devices, then try again.',
 }
 
 export class DoormanClient {
   readonly url: string
-  readonly #fetch: FetchLike
+  readonly #send: DoormanRequest<Response, AbortSignal>
 
   constructor(url: string, fetchImpl: FetchLike = (input, init) => fetch(input, init)) {
     this.url = url.replace(/\/+$/, '')
-    this.#fetch = fetchImpl
+    this.#send = doormanRequest<Response, AbortSignal>(this.url, fetchImpl)
   }
 
   /**
@@ -59,25 +86,25 @@ export class DoormanClient {
    * A wrong code throws, and the doorman forgets the attempt.
    */
   async claim(attempt: string, code?: string): Promise<DoormanClaimResult> {
-    const response = await this.request('POST', '/v1/auth/claim', {
+    const response = await this.request('POST', DOORMAN_PATHS.claim, {
       json: code === undefined ? { attempt } : { attempt, code },
     })
     return DoormanClaimResultSchema.parse(await response.json())
   }
 
   async me(token: string): Promise<DoormanMe> {
-    const response = await this.request('GET', '/v1/me', { token })
+    const response = await this.request('GET', DOORMAN_PATHS.me, { token })
     return DoormanMeSchema.parse(await response.json())
   }
 
   /** Connect a bucket to the signed-in Google account. The doorman tests it first. */
   async connectStorage(token: string, input: CloudConnect): Promise<DoormanMe> {
-    const response = await this.request('PUT', '/v1/storage', { token, json: input })
+    const response = await this.request('PUT', DOORMAN_PATHS.storage, { token, json: input })
     return DoormanMeSchema.parse(await response.json())
   }
 
   async signOut(token: string): Promise<void> {
-    await this.request('POST', '/v1/auth/signout', { token })
+    await this.request('POST', DOORMAN_PATHS.signOut, { token })
   }
 
   /**
@@ -86,16 +113,13 @@ export class DoormanClient {
    * account, which lasts until the account takes it back.
    */
   async grant(token: string, request: DoormanGrantRequest): Promise<DoormanGrantMade> {
-    const response = await this.request('POST', '/v1/grants', { token, json: request })
+    const response = await this.request('POST', DOORMAN_PATHS.grants, { token, json: request })
     return DoormanGrantMadeSchema.parse(await response.json())
   }
 
   /** Give a grant back: the server letting an account go. */
   async endGrant(token: string, id: string): Promise<void> {
-    await this.request('DELETE', `/v1/grants/${encodeURIComponent(id)}`, {
-      token,
-      allowStatus: [404],
-    })
+    await this.request('DELETE', DOORMAN_PATHS.grant(id), { token, allowStatus: [404] })
   }
 
   /** The signed-in account's bucket, as the sync sees any bucket. */
@@ -108,80 +132,26 @@ export class DoormanClient {
    * to do: sign in again, connect a bucket, or check the connection.
    */
   async request(method: string, path: string, options: RequestOptions = {}): Promise<Response> {
-    const headers: Record<string, string> = { ...options.headers }
-    if (options.token) headers['Authorization'] = `Bearer ${options.token}`
-    let body: string | Uint8Array | undefined
-    if (options.json !== undefined) {
-      headers['Content-Type'] = 'application/json'
-      body = JSON.stringify(options.json)
-    } else if (options.body) {
-      // No Content-Length of our own: fetch sends one for a byte body, and on
-      // Node 22 its copy and ours reach undici's Agent as two, which it
-      // refuses outright ("invalid content-length header").
-      body = new Uint8Array(options.body.buffer, options.body.byteOffset, options.body.length)
-    }
-
-    let response: Response
+    const { body, ...call } = options
     try {
-      response = await this.#fetch(`${this.url}${path}`, {
+      return await this.#send(path, {
+        ...call,
         method,
-        headers,
-        body,
-        signal: options.signal,
+        ...(body ? { body: new Uint8Array(body.buffer, body.byteOffset, body.length) } : {}),
       })
     } catch (error) {
-      throw new CloudError(
+      throw error instanceof DoormanError ? this.#cloudError(error) : error
+    }
+  }
+
+  #cloudError(error: DoormanError): CloudError {
+    if (error.code === DOORMAN_ERROR.unreachable) {
+      return new CloudError(
         'network',
-        `Could not reach the doorman at ${hostOf(this.url)} (${whyFetchFailed(error)}).`,
+        `Could not reach the doorman at ${hostOf(this.url)} (${error.message}).`,
       )
     }
-
-    if (response.ok || options.allowStatus?.includes(response.status)) return response
-
-    const { message, code } = await explain(response)
-    if (response.status === 401) {
-      throw new CloudError(
-        'auth',
-        'Your Google sign-in has expired or was signed out. Sign in again in Settings → Cloud.',
-      )
-    }
-    if (response.status === 409) {
-      throw new CloudError('missing', 'No bucket is connected to this Google account yet.')
-    }
-    // The doorman's own word for a used-up cap, so a pass stops at the first
-    // refusal rather than trying every song against it.
-    if (code === 'bucket_cap_exceeded') throw new CloudError('cap', message)
-    throw new CloudError('other', message)
-  }
-}
-
-/** How much of an answer that is not the doorman's is worth repeating. */
-const QUOTED_BYTES = 200
-
-/**
- * The doorman's own words, when the answer is the doorman's. When it is not —
- * Cloudflare's page for a Worker past its day's quota, say — the status alone
- * said nothing about why, so whatever text the page holds is quoted instead,
- * tags stripped: "error code: 1027" is the whole diagnosis.
- */
-async function explain(response: Response): Promise<{ message: string; code: string | null }> {
-  const text = await response.text().catch(() => '')
-  try {
-    const parsed = ErrorBodySchema.safeParse(JSON.parse(text))
-    if (parsed.success) return { message: parsed.data.error, code: parsed.data.code }
-  } catch {
-    // Not JSON: not the doorman's answer.
-  }
-  const words = text
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, QUOTED_BYTES)
-  return {
-    message: words
-      ? `the doorman answered ${response.status}: ${words}`
-      : `the doorman answered ${response.status}`,
-    code: null,
+    return new CloudError(KIND_OF[error.code] ?? 'other', WORDS[error.code] ?? error.message)
   }
 }
 
@@ -204,7 +174,7 @@ class DoormanCloudStore implements CloudStore {
   }
 
   async head(key: string): Promise<CloudObject | null> {
-    const response = await this.#doorman.request('HEAD', filePath(key), {
+    const response = await this.#doorman.request('HEAD', DOORMAN_PATHS.file(key), {
       token: this.#token,
       allowStatus: [404],
     })
@@ -213,7 +183,7 @@ class DoormanCloudStore implements CloudStore {
   }
 
   async get(key: string): Promise<Buffer | null> {
-    const response = await this.#doorman.request('GET', filePath(key), {
+    const response = await this.#doorman.request('GET', DOORMAN_PATHS.file(key), {
       token: this.#token,
       allowStatus: [404],
     })
@@ -229,7 +199,7 @@ class DoormanCloudStore implements CloudStore {
   ): Promise<NodeJS.ReadableStream | null> {
     // The doorman passes `Range` straight to the bucket and its 206 straight
     // back (docs/SYNC.md), which is how every browser tab streams already.
-    const response = await this.#doorman.request('GET', filePath(key), {
+    const response = await this.#doorman.request('GET', DOORMAN_PATHS.file(key), {
       token: this.#token,
       allowStatus: [404],
       headers: { Range: `bytes=${start}-${end}` },
@@ -241,7 +211,7 @@ class DoormanCloudStore implements CloudStore {
   }
 
   async put(key: string, body: Buffer, options: CloudPutOptions): Promise<void> {
-    const response = await this.#doorman.request('PUT', filePath(key), {
+    const response = await this.#doorman.request('PUT', DOORMAN_PATHS.file(key), {
       token: this.#token,
       body,
       headers: {
@@ -256,9 +226,7 @@ class DoormanCloudStore implements CloudStore {
     const objects: CloudObject[] = []
     let cursor: string | null = null
     do {
-      const params = new URLSearchParams({ prefix })
-      if (cursor) params.set('cursor', cursor)
-      const response = await this.#doorman.request('GET', `/v1/list?${params.toString()}`, {
+      const response = await this.#doorman.request('GET', DOORMAN_PATHS.listing(prefix, cursor), {
         token: this.#token,
       })
       const page = DoormanListSchema.parse(await response.json())
@@ -269,7 +237,7 @@ class DoormanCloudStore implements CloudStore {
   }
 
   async delete(key: string): Promise<void> {
-    const response = await this.#doorman.request('DELETE', filePath(key), {
+    const response = await this.#doorman.request('DELETE', DOORMAN_PATHS.file(key), {
       token: this.#token,
       allowStatus: [404],
     })
@@ -278,7 +246,7 @@ class DoormanCloudStore implements CloudStore {
 
   async changes(): Promise<string | null> {
     // A 404 is a doorman deployed without a counter: list, then.
-    const response = await this.#doorman.request('GET', '/v1/changes', {
+    const response = await this.#doorman.request('GET', DOORMAN_PATHS.changes, {
       token: this.#token,
       allowStatus: [404],
     })
@@ -309,18 +277,3 @@ class DoormanCloudStore implements CloudStore {
 
 /** How many of its own counter moves the doorman store remembers. */
 const OWN_MOVES_KEPT = 64
-
-/** Each part of the key encoded on its own, so the slashes stay slashes. */
-function filePath(key: string): string {
-  return `/v1/files/${key.split('/').map(encodeURIComponent).join('/')}`
-}
-
-/**
- * fetch's own word is "fetch failed"; why is one level down. A doorman that
- * answered everyone else once looked unreachable because nothing said "The
- * session has been destroyed" (http/outgoing.ts).
- */
-function whyFetchFailed(error: unknown): string {
-  const reason = error instanceof Error && error.cause instanceof Error ? error.cause : error
-  return messageOf(reason)
-}

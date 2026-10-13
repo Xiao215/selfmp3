@@ -63,19 +63,12 @@ export const APP_SCHEME = 'app'
  * navigation guard uses it to decide what still counts as the app.
  *
  * Shared's `DESKTOP_APP_ORIGIN` is the same origin, for the server and the
- * doorman, which let it through. This package does not depend on shared — the
- * preload is bundled from it, and should not carry shared's schemas — so the
- * two are held equal by a test in apps/desktop (`origins.test.ts`).
+ * doorman, which let it through. This package takes only shared's part with
+ * no schemas in it (`@selfmp3/shared/wire`) — the preload is bundled from it,
+ * and should not carry the rest — and the two are held equal by a test in
+ * apps/desktop (`origins.test.ts`).
  */
 export const APP_ORIGIN = `${APP_SCHEME}://selfmp3`
 
 /** Under `APP_ORIGIN`: songs and covers on disk, served with a real 206. */
 export const MEDIA_PREFIX = '/_media/'
-
-/**
- * The scheme the operating system hands back — `selfmp3://welcome#signin-code=…`.
- *
- * The shell claims it, `deepLinks.ts` picks it out of argv, and the schema the
- * page parses arrivals with is built from it, so all three move together.
- */
-export const DEEP_LINK_SCHEME = 'selfmp3'

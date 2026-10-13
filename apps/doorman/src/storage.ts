@@ -1,6 +1,8 @@
 import {
   CLOUD_FORMAT_UNREADABLE,
   CloudConnectSchema,
+  DOORMAN_ERROR,
+  DoormanError,
   DoormanBackblazeConnectSchema,
   FORMAT_KEY,
   cloudFormatProblem,
@@ -15,7 +17,7 @@ import { Bucket, BucketError, type BucketTarget } from './bucket.js'
 import { requireSession, type Context } from './context.js'
 import type { Session } from './sessions.js'
 import { fromUtf8, toBase64, utf8 } from './encoding.js'
-import { DoormanError, badRequest, isLoopbackHost, json, readJson, unprocessable } from './http.js'
+import { badRequest, isLoopbackHost, json, readJson, unprocessable } from './http.js'
 
 /**
  * Who is signed in, and connecting the one bucket that belongs to them.
@@ -154,7 +156,7 @@ async function askBackblaze(
   } catch {
     throw new DoormanError(
       502,
-      'bucket_unreachable',
+      DOORMAN_ERROR.bucketUnreachable,
       'Backblaze could not be reached. Try again in a moment.',
     )
   }
@@ -241,7 +243,7 @@ async function checkLifecycle(ctx: Context, key: BackblazeKey, prefix: string): 
   } catch {
     throw new DoormanError(
       502,
-      'bucket_unreachable',
+      DOORMAN_ERROR.bucketUnreachable,
       'Backblaze could not be reached. Try again in a moment.',
     )
   }

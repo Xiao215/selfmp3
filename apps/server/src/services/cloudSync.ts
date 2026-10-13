@@ -37,6 +37,7 @@ import {
   type CloudStatus,
   type DoormanMe,
   type CloudServer,
+  SIGN_IN_TTL_MS,
 } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
@@ -184,9 +185,8 @@ const PLAYS_UPLOAD_EVERY_MS = 60 * 60_000
 /** A month's file in the bucket that would not read: kept as it is, never written over. */
 const UNREADABLE_PLAYS = 'unreadable'
 
-/** How often to ask the doorman whether Google has finished, and for how long. */
+/** How often to ask the doorman whether Google has finished: for as long as a sign-in lasts (`SIGN_IN_TTL_MS`). */
 const SIGN_IN_POLL_MS = 2_000
-const SIGN_IN_TIMEOUT_MS = 10 * 60_000
 
 /** The part of the doorman the sync uses. Tests hand in a fake. */
 export type Doorman = Pick<
@@ -701,7 +701,7 @@ export class CloudSyncService {
     this.#stopSignIn()
     this.#signIn = {
       attempt,
-      until: this.#now().getTime() + SIGN_IN_TIMEOUT_MS,
+      until: this.#now().getTime() + SIGN_IN_TTL_MS,
       needsCode: false,
     }
     this.#scheduleSignInPoll(0)

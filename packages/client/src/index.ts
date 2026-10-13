@@ -5,7 +5,7 @@
  * compiled without the DOM so the same code runs in a browser, on a phone and
  * in a test. Everything platform-shaped is an interface in `platform.ts`.
  */
-export type { ApiTransport, ClientFetch, ClientRequestInit } from './platform.js'
+export type { ApiTransport, ClientRequestInit } from './platform.js'
 
 export { ApiError, failureText } from './api/error.js'
 export { createApi, type Api } from './api/api.js'

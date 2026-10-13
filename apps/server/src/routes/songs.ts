@@ -18,6 +18,7 @@ import {
   type SimilarSongs,
   type Song,
   type SongFields,
+  API_ERROR,
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
@@ -71,7 +72,7 @@ export function songRoutes(container: Container): Router {
       container.songs.setInstrumental(song.id, true)
       container.bumpLibraryVersion()
     }
-    return new HttpError(404, 'this track is instrumental', 'instrumental')
+    return new HttpError(404, 'this track is instrumental', API_ERROR.instrumental)
   }
 
   /*

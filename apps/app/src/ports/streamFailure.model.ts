@@ -1,3 +1,5 @@
+import { parseDoormanRefusal } from '@selfmp3/shared'
+
 /**
  * Why a song would not play, from what its stream address answers.
  *
@@ -14,15 +16,8 @@ export function streamFailureMessage(status: number, body: string): string {
     status === 404 || status === 503
       ? 'This song is not available offline'
       : 'Could not play this song'
-  if (text.startsWith('{')) {
-    try {
-      const parsed: unknown = JSON.parse(text)
-      const error = (parsed as { error?: unknown } | null)?.error
-      return typeof error === 'string' && error.trim() ? error.trim() : plain
-    } catch {
-      // Not JSON after all: read as words below.
-    }
-  }
+  // JSON is the doorman's, or nothing worth repeating.
+  if (text.startsWith('{')) return parseDoormanRefusal(text)?.error.trim() || plain
   if (text && text.length <= 300 && !text.startsWith('<')) return text.replace(/\.$/, '')
   return plain
 }

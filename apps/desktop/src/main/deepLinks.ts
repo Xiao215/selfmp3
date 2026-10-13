@@ -11,7 +11,7 @@
  * rarely the first argument and never in the same position twice.
  */
 
-import { DEEP_LINK_SCHEME } from '@selfmp3/desktop-bridge'
+import { DEEP_LINK_SCHEME } from '@selfmp3/shared'
 
 export function deepLinkFromArgv(argv: readonly string[]): string | null {
   return argv.find(one => one.startsWith(`${DEEP_LINK_SCHEME}://`)) ?? null

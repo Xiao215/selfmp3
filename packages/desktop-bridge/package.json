@@ -17,6 +17,7 @@
     "clean": "rm -rf dist tsconfig.tsbuildinfo"
   },
   "dependencies": {
+    "@selfmp3/shared": "*",
     "zod": "^3.24.1"
   }
 }

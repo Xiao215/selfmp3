@@ -1,4 +1,9 @@
-import { DESKTOP_APP_ORIGIN, EXTENSION_ORIGIN, EXTENSION_SIGNIN_ORIGIN } from '@selfmp3/shared'
+import {
+  CHANGES_HEADER,
+  DESKTOP_APP_ORIGIN,
+  EXTENSION_ORIGIN,
+  EXTENSION_SIGNIN_ORIGIN,
+} from '@selfmp3/shared'
 import type { Log } from './context.js'
 import { errorResponse, forbidden } from './http.js'
 
@@ -18,8 +23,15 @@ import { errorResponse, forbidden } from './http.js'
 
 const ALLOW_METHODS = 'GET, HEAD, PUT, POST, DELETE, OPTIONS'
 const ALLOW_HEADERS = 'Authorization, Content-Type, Content-Encoding, Range, If-None-Match'
-const EXPOSE_HEADERS =
-  'Content-Length, Content-Range, Content-Encoding, ETag, Accept-Ranges, Selfmp3-Changes'
+/** The change counter's own header among them, by its name in packages/shared. */
+const EXPOSE_HEADERS = [
+  'Content-Length',
+  'Content-Range',
+  'Content-Encoding',
+  'ETag',
+  'Accept-Ranges',
+  CHANGES_HEADER,
+].join(', ')
 const MAX_AGE_SECONDS = '86400'
 
 let parsed: { from: string; origins: ReadonlySet<string> } | null = null

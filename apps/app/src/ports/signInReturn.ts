@@ -1,4 +1,5 @@
 import * as Linking from 'expo-linking'
+import { DEEP_LINK_SCHEME } from '@selfmp3/shared'
 
 import { createSignInInbox, type SignInTarget } from './signInCodes'
 
@@ -24,7 +25,7 @@ Linking.addEventListener('url', event => {
 
 /** Where the doorman should send Google back to, for a sign-in started from `target`. */
 export function signInReturnUrl(target: SignInTarget): string {
-  return `selfmp3://${target}`
+  return `${DEEP_LINK_SCHEME}://${target}`
 }
 
 /** Codes coming back to `target`: any that already arrived, then each as it comes. */

@@ -1,7 +1,12 @@
 import { z } from 'zod'
 import {
+  BUCKET_CAP_CODE,
   CHANGES_HEADER,
+  CLOUD_FILES_KEY,
   CLOUD_FORMAT,
+  DOORMAN_ERROR,
+  DOORMAN_PATHS,
+  DoormanError,
   ChangeSchema,
   CloudDeviceIdSchema,
   CloudSnapshotSchema,
@@ -32,7 +37,7 @@ import {
   decodeSoundPack,
 } from '@selfmp3/shared'
 import type { EditContext } from './edits.js'
-import { bucketHold, BUCKET_CAP_CODE } from './hold.js'
+import { bucketHold } from './hold.js'
 import { upgradeKeptBase } from './keptBase.js'
 import { roomSongOf } from './roomSong.js'
 import { foldedOwnLogs, latestStamp, replay, replayedSnapshot } from './replay.js'
@@ -45,7 +50,7 @@ import {
   type SongFiles,
 } from './snapshotLibrary.js'
 import type { CloudPlatform, CloudResponse } from './platform.js'
-import { DoormanError, type CloudSession, type CloudSessionApi } from './session.js'
+import type { CloudSession, CloudSessionApi } from './session.js'
 
 /**
  * This device's copy of the library (docs/SYNC.md).
@@ -63,8 +68,6 @@ import { DoormanError, type CloudSession, type CloudSessionApi } from './session
  */
 
 const IDS_KEY = 'cloud-ids'
-/** Read by the service worker (apps/app/sw/sw.ts) by this name — keep the two in step. */
-const FILES_KEY = 'cloud-files'
 const PLAYLISTS_KEY = 'cloud-playlist-songs'
 const STATE_KEY = 'cloud-state'
 const BASE_KEY = 'cloud-base'
@@ -320,7 +323,7 @@ export function createCloudLibrary(
   /** Bumped on signing out, so a look at the bucket that began before it writes nothing after. */
   let generation = 0
   /**
-   * What this device last put under IDS_KEY, FILES_KEY, PLAYLISTS_KEY and
+   * What this device last put under IDS_KEY, CLOUD_FILES_KEY, PLAYLISTS_KEY and
    * STATE_KEY, or null before it has looked. Most edits change none of the
    * first three — a love, a tag, a rename — and each is the size of the
    * library, so it is written only when it is different.
@@ -465,7 +468,7 @@ export function createCloudLibrary(
         // every screen asking again listed the bucket again first, spending
         // the listings' allowance on an answer known before asking.
         const held = bucketHold('read')
-        if (held) throw new DoormanError(502, held.message, BUCKET_CAP_CODE)
+        if (held) throw new DoormanError(502, BUCKET_CAP_CODE, held.message)
         await refresh(r, session, { list: true })
       }
       if (began !== generation) throw signedOut()
@@ -548,7 +551,7 @@ export function createCloudLibrary(
     r.view = snapshotToLibrary(replayedSnapshot(r.library, r.base.snapshot), previous, version)
     // Ids are only ever added, and every one added moves `next` on.
     if (before.ids.next !== r.view.ids.next) await store.write(IDS_KEY, r.view.ids)
-    if (!sameValue(before.files, r.view.files)) await store.write(FILES_KEY, r.view.files)
+    if (!sameValue(before.files, r.view.files)) await store.write(CLOUD_FILES_KEY, r.view.files)
     if (!sameValue(before.playlistSongs, r.view.playlistSongs)) {
       await store.write(PLAYLISTS_KEY, r.view.playlistSongs)
     }
@@ -561,7 +564,7 @@ export function createCloudLibrary(
     const state = (await store.read(STATE_KEY)) as { version?: unknown } | null
     return {
       ids: asLocalIds(await store.read(IDS_KEY)),
-      files: await store.read(FILES_KEY),
+      files: await store.read(CLOUD_FILES_KEY),
       playlistSongs: await store.read(PLAYLISTS_KEY),
       version: typeof state?.version === 'number' ? state.version : 0,
     }
@@ -573,9 +576,7 @@ export function createCloudLibrary(
     const keys: string[] = []
     let cursor: string | null = null
     do {
-      const query = [`prefix=${encodeURIComponent(prefix)}`]
-      if (cursor) query.push(`cursor=${encodeURIComponent(cursor)}`)
-      const response = await sessionApi.doormanFetch(session, `/v1/list?${query.join('&')}`)
+      const response = await sessionApi.doormanFetch(session, DOORMAN_PATHS.listing(prefix, cursor))
       const page = DoormanListSchema.parse(await response.json())
       keys.push(...page.objects.map(object => object.key))
       cursor = page.cursor
@@ -587,14 +588,14 @@ export function createCloudLibrary(
     session: CloudSession,
     key: string,
   ): Promise<CloudSnapshot | 'gone'> {
-    const response = await sessionApi.doormanFetch(session, `/v1/files/${key}`)
+    const response = await sessionApi.doormanFetch(session, DOORMAN_PATHS.file(key))
     if (response.status === 404) return 'gone'
     return CloudSnapshotSchema.parse(JSON.parse(await readText(response)))
   }
 
   /** A log file, or `gone` when it went after the listing; one that cannot be read counts as empty. */
   async function fetchLog(session: CloudSession, key: string): Promise<LogFile | 'gone' | null> {
-    const response = await sessionApi.doormanFetch(session, `/v1/files/${key}`)
+    const response = await sessionApi.doormanFetch(session, DOORMAN_PATHS.file(key))
     if (response.status === 404) return 'gone'
     let json: unknown = null
     try {
@@ -620,7 +621,7 @@ export function createCloudLibrary(
    */
   async function readCounter(session: CloudSession): Promise<string | null> {
     try {
-      const response = await sessionApi.doormanFetch(session, '/v1/changes')
+      const response = await sessionApi.doormanFetch(session, DOORMAN_PATHS.changes)
       return DoormanChangesSchema.parse(await response.json()).changes
     } catch {
       return null
@@ -794,7 +795,7 @@ export function createCloudLibrary(
     if (!snapshot || Date.now() - Date.parse(snapshot.writtenAt) < PRUNE_AFTER_MS) return
     for (const key of foldedOwnLogs(keys, r.outbox.device, snapshot.upTo).slice(0, 50)) {
       try {
-        const response = await sessionApi.doormanFetch(session, `/v1/files/${key}`, {
+        const response = await sessionApi.doormanFetch(session, DOORMAN_PATHS.file(key), {
           method: 'DELETE',
         })
         if (replica === r) await followOwnChange(r, response)
@@ -1013,11 +1014,17 @@ export function createCloudLibrary(
             inflight.changes,
             new Date(inflight.writtenAt),
           )
-          const response = await sessionApi.doormanFetch(session, `/v1/files/${key}`, {
+          const response = await sessionApi.doormanFetch(session, DOORMAN_PATHS.file(key), {
             method: 'PUT',
             json: file,
           })
-          if (!response.ok) throw new DoormanError(response.status, 'the file could not be written')
+          if (!response.ok) {
+            throw new DoormanError(
+              response.status,
+              DOORMAN_ERROR.notFound,
+              'the file could not be written',
+            )
+          }
           // Inside the lock: a look at the bucket swapping `r.logs` in between
           // would otherwise lose this file from both the logs and the outbox.
           const kept = await exclusive(async () => {
@@ -1038,7 +1045,12 @@ export function createCloudLibrary(
         retries = 0
       } catch (error) {
         // Signed out, or the account has no bucket: signing in again is what fixes it.
-        if (error instanceof DoormanError && (error.status === 401 || error.status === 409)) return
+        if (
+          error instanceof DoormanError &&
+          (error.code === DOORMAN_ERROR.unauthorized || error.code === DOORMAN_ERROR.noStorage)
+        ) {
+          return
+        }
         const delay = FLUSH_RETRY_MS[Math.min(retries, FLUSH_RETRY_MS.length - 1)] ?? 60_000
         retries++
         scheduleFlush(delay)
@@ -1062,7 +1074,8 @@ export function createCloudLibrary(
 
   async function filesOf(songId: number): Promise<SongFiles | null> {
     const files =
-      replica?.view.files ?? ((await store.read(FILES_KEY)) as Record<number, SongFiles> | null)
+      replica?.view.files ??
+      ((await store.read(CLOUD_FILES_KEY)) as Record<number, SongFiles> | null)
     return files?.[songId] ?? null
   }
 
@@ -1117,8 +1130,8 @@ export function createCloudLibrary(
     })
     if (cached !== null && cached !== undefined) return cached
 
-    if (!session) throw new DoormanError(0, 'Not signed in.')
-    const response = await sessionApi.doormanFetch(session, `/v1/files/${key}`)
+    if (!session) throw new DoormanError(0, DOORMAN_ERROR.unauthorized, 'Not signed in.')
+    const response = await sessionApi.doormanFetch(session, DOORMAN_PATHS.file(key))
     if (response.status === 404) return null
     const text = await readText(response)
     await platform.textCache?.write(key, text).catch((error: unknown) => {
@@ -1194,7 +1207,7 @@ export function createCloudLibrary(
     if (!sound) return Promise.resolve(null)
     if (soundRead?.key !== sound.key) {
       const pack = (async () => {
-        const response = await sessionApi.doormanFetch(session, `/v1/files/${sound.key}`)
+        const response = await sessionApi.doormanFetch(session, DOORMAN_PATHS.file(sound.key))
         if (!response.ok) return null
         return decodeSoundPack(new Uint8Array(await response.arrayBuffer()))
       })()
@@ -1247,7 +1260,7 @@ export function createCloudLibrary(
       await Promise.all(
         [
           IDS_KEY,
-          FILES_KEY,
+          CLOUD_FILES_KEY,
           PLAYLISTS_KEY,
           STATE_KEY,
           BASE_KEY,
@@ -1270,7 +1283,7 @@ export function createCloudLibrary(
   }
 
   function signedOut(): DoormanError {
-    return new DoormanError(401, 'Signed out.', 'unauthorized')
+    return new DoormanError(401, DOORMAN_ERROR.unauthorized, 'Signed out.')
   }
 
   function asLocalIds(value: unknown): LocalIds {

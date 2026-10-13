@@ -491,6 +491,18 @@ function attemptId() {
   return [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
+/**
+ * The doorman's sign-in page for an attempt: packages/shared's `signInStartUrl`,
+ * spelled out again because this page has no build step, and held to it by
+ * src/http/admin.signin.test.ts.
+ */
+function signInStartUrl(doormanUrl, attempt, returnUrl) {
+  const query = [`attempt=${encodeURIComponent(attempt)}`]
+  if (returnUrl !== null) query.push(`return=${encodeURIComponent(returnUrl)}`)
+  return `${doormanUrl.replace(/\/+$/, '')}/v1/auth/start?${query.join('&')}`
+}
+/** End of signInStartUrl. */
+
 async function act(action, form) {
   state.notice = null
   try {
@@ -500,8 +512,8 @@ async function act(action, form) {
         // The window is opened from the press itself: one opened after an
         // await is a popup, and a browser blocks it.
         const attempt = attemptId()
-        const params = new URLSearchParams({ attempt, return: `${location.origin}/` })
-        window.open(`${state.cloud.doormanUrl}/v1/auth/start?${params}`, '_blank', 'noopener')
+        const start = signInStartUrl(state.cloud.doormanUrl, attempt, `${location.origin}/`)
+        window.open(start, '_blank', 'noopener')
         await run(() => request('/api/cloud/signin', { method: 'POST', body: { attempt } }))
         state.waitingSince = Date.now()
         break

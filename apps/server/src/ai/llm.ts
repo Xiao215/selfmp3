@@ -1,3 +1,4 @@
+import type { AI_ERROR } from '@selfmp3/shared'
 import { z } from 'zod/v4'
 import type { Logger } from '../logger.js'
 import { messageOf } from '../util/errors.js'
@@ -96,9 +97,10 @@ export interface Llm {
  * `off`: nothing is set up. `unreachable`: the endpoint did not answer.
  * `busy`: it answered with a rate or usage limit. `refused`: the key was not
  * accepted. `invalid`: it answered, twice, with something the schema rejects.
- * `stopped`: whoever asked stopped waiting.
+ * `stopped`: whoever asked stopped waiting. Each is sent with its own code,
+ * from packages/shared's `AI_ERROR`, which is what a client tells them apart by.
  */
-type LlmFailure = 'off' | 'unreachable' | 'busy' | 'refused' | 'invalid' | 'stopped'
+type LlmFailure = keyof typeof AI_ERROR
 
 export class LlmError extends Error {
   readonly kind: LlmFailure

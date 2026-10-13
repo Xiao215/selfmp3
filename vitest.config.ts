@@ -20,6 +20,7 @@ export default defineConfig({
         replacement: here('./packages/client/src/theme/tokens.ts'),
       },
       { find: '@selfmp3/client', replacement: here('./packages/client/src/index.ts') },
+      { find: '@selfmp3/shared/wire', replacement: here('./packages/shared/src/wire.ts') },
       { find: '@selfmp3/shared', replacement: here('./packages/shared/src/index.ts') },
       { find: '@selfmp3/replica', replacement: here('./packages/replica/src/index.ts') },
       {

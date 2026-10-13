@@ -1,16 +1,18 @@
 import {
   CloudServerSchema,
+  DOORMAN_PATHS,
   DoormanAccessSchema,
   DoormanGrantsSchema,
   type CloudServer,
   type DoormanAccess,
   type DoormanAccessUpdate,
   type DoormanGrants,
+  refusalOf,
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { CloudRouteError } from './errors.js'
 import type { CloudPlatform } from './platform.js'
-import { DoormanError, type CloudSession, type CloudSessionApi } from './session.js'
+import type { CloudSession, CloudSessionApi } from './session.js'
 
 /**
  * The server that works for anyone signed in (docs/features/shared-server.md),
@@ -125,19 +127,15 @@ export function createSharedServer(
   }
 
   async function grants(session: CloudSession): Promise<DoormanGrants> {
-    const response = await sessionApi.doormanFetch(session, '/v1/grants')
-    if (!response.ok) throw new DoormanError(response.status, await errorOf(response))
+    const response = await sessionApi.doormanFetch(session, DOORMAN_PATHS.grants)
+    if (!response.ok) throw await refusalOf(response)
     return DoormanGrantsSchema.parse(await response.json())
   }
 
   async function removeGrant(session: CloudSession, id: string): Promise<void> {
     const removed = (await grants(session)).grants.find(grant => grant.id === id)
-    const response = await sessionApi.doormanFetch(session, `/v1/grants/${id}`, {
-      method: 'DELETE',
-    })
-    if (!response.ok && response.status !== 404) {
-      throw new DoormanError(response.status, await errorOf(response))
-    }
+    // A grant already gone is gone: `doormanFetch` answers its 404 rather than throwing.
+    await sessionApi.doormanFetch(session, DOORMAN_PATHS.grant(id), { method: 'DELETE' })
     // The shared one, taken back: not joined again by itself from here.
     if (removed && base && removed.server.replace(/\/+$/, '') === base) {
       await platform.store.write(LEFT_KEY, { email: session.me.email })
@@ -146,8 +144,8 @@ export function createSharedServer(
   }
 
   async function access(session: CloudSession): Promise<DoormanAccess> {
-    const response = await sessionApi.doormanFetch(session, '/v1/access')
-    if (!response.ok) throw new DoormanError(response.status, await errorOf(response))
+    const response = await sessionApi.doormanFetch(session, DOORMAN_PATHS.access)
+    if (!response.ok) throw await refusalOf(response)
     return DoormanAccessSchema.parse(await response.json())
   }
 
@@ -155,11 +153,11 @@ export function createSharedServer(
     session: CloudSession,
     update: DoormanAccessUpdate,
   ): Promise<DoormanAccess> {
-    const response = await sessionApi.doormanFetch(session, '/v1/access', {
+    const response = await sessionApi.doormanFetch(session, DOORMAN_PATHS.access, {
       method: 'PUT',
       json: update,
     })
-    if (!response.ok) throw new DoormanError(response.status, await errorOf(response))
+    if (!response.ok) throw await refusalOf(response)
     return DoormanAccessSchema.parse(await response.json())
   }
 

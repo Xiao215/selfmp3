@@ -9,6 +9,7 @@
     // compile and then break in the main process.
     "lib": ["ES2023"]
   },
+  "references": [{ "path": "../shared" }],
   "include": ["src/**/*"],
   "exclude": ["src/**/*.test.ts"]
 }

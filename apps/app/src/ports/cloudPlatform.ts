@@ -1,3 +1,4 @@
+import { DEEP_LINK_SCHEME } from '@selfmp3/shared'
 import type { CloudPlatform, DeviceStore, TextCache } from '@selfmp3/replica'
 import * as Crypto from 'expo-crypto'
 import { Directory, File, Paths } from 'expo-file-system'
@@ -135,7 +136,7 @@ export const cloudPlatform: CloudPlatform = {
    * That is the whole reason the code exists, and why this is safe on a phone
    * where iOS lets any app register any scheme.
    */
-  returnUrl: 'selfmp3://welcome',
+  returnUrl: `${DEEP_LINK_SCHEME}://welcome`,
   // The promise is returned, not dropped. `openSignIn` may fail — no browser,
   // a refusal from the OS — and a floating promise turns that into an uncaught
   // rejection nobody sees, leaving the screen saying "Waiting for Google…"

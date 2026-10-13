@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
-import { bucketHold, onBucketHold, type BucketCall, type BucketHold } from '@selfmp3/replica'
+import type { BucketCall } from '@selfmp3/shared'
+import { bucketHold, onBucketHold, type BucketHold } from '@selfmp3/replica'
 
 /**
  * The bucket refusing for the day, for a screen to say so

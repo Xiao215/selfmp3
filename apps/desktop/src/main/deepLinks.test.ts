@@ -1,3 +1,7 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+
+import { DEEP_LINK_SCHEME } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 
 import { DeepLinks, deepLinkFromArgv, followPage, type LinkPage } from './deepLinks.js'
@@ -113,5 +117,21 @@ describe('followPage', () => {
     second.fire('did-finish-load')
     expect(first.sent).toEqual([])
     expect(second.sent).toEqual(['selfmp3://one'])
+  })
+})
+
+describe('the scheme the app is built to answer to', () => {
+  /*
+   * Declared in electron-builder.yml so the packaged app's Info.plist names it.
+   * Without the declaration, a sign-in finished in the browser could not open
+   * an app that had never been launched to claim the scheme for itself.
+   */
+  it('is the one the shell claims and the doorman sends sign-ins back to', () => {
+    const config = readFileSync(
+      fileURLToPath(new URL('../../electron-builder.yml', import.meta.url)),
+      'utf8',
+    )
+    const declared = /^protocols:\n(?:\s+.*\n)*?\s+schemes:\n\s+- (\S+)$/m.exec(config)?.[1]
+    expect(declared).toBe(DEEP_LINK_SCHEME)
   })
 })

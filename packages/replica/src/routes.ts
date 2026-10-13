@@ -1,4 +1,5 @@
 import {
+  API_ERROR,
   AddToPlaylistSchema,
   BulkDeleteSongsSchema,
   BulkEditSongsSchema,
@@ -7,7 +8,10 @@ import {
   CreatePlaylistSchema,
   CreateTagSchema,
   DEFAULT_SETTINGS,
+  DOORMAN_ERROR,
+  DOORMAN_PATHS,
   DoormanAccessUpdateSchema,
+  DoormanError,
   DoormanHealthSchema,
   GemsQuerySchema,
   PlayEventSchema,
@@ -33,7 +37,7 @@ import { CloudRouteError, notFound } from './errors.js'
 import type { CloudLibraryApi } from './library.js'
 import type { CloudPlatform } from './platform.js'
 import { CloudImportRequestSchema } from './schemas.js'
-import { DoormanError, type CloudSession, type CloudSessionApi } from './session.js'
+import type { CloudSession, CloudSessionApi } from './session.js'
 import { createSharedServer } from './sharedServer.js'
 import type { CloudLibrary } from './snapshotLibrary.js'
 
@@ -547,14 +551,14 @@ export function createCloudRoutes(
         throw new CloudRouteError(
           502,
           `Unexpected answer from the bucket: ${why}`,
-          'contract_mismatch',
+          API_ERROR.contractMismatch,
         )
       }
       if (error instanceof DoormanError) {
         throw new CloudRouteError(
           error.status,
           error.message,
-          error.status === 0 ? 'offline' : error.code,
+          error.status === 0 ? API_ERROR.offline : error.code,
         )
       }
       throw error
@@ -610,14 +614,20 @@ export function createCloudRoutes(
 
   /** "Reachable" means the doorman answers: a cloud library's only server. */
   async function health(): Promise<unknown> {
-    const response = await sessionApi.doormanFetch(null, '/v1/health')
-    if (!response.ok) throw new DoormanError(response.status, 'the doorman is not answering')
+    const response = await sessionApi.doormanFetch(null, DOORMAN_PATHS.health)
+    if (!response.ok) {
+      throw new DoormanError(
+        response.status,
+        DOORMAN_ERROR.notFound,
+        'the doorman is not answering',
+      )
+    }
     // A 200 is not yet an answer: a captive portal or a proxy's login page
     // returns one too, and this route's whole job is to say the doorman is
     // really there. Status 0, as for no answer at all: a 200 from something
     // else is the doorman being out of reach, which the app calls offline.
     if (!DoormanHealthSchema.safeParse(await response.json().catch(() => null)).success) {
-      throw new DoormanError(0, 'the doorman is not answering')
+      throw new DoormanError(0, DOORMAN_ERROR.unexpected, 'the doorman is not answering')
     }
     // No song count: the library's is on screen beside it, and a made-up 0 read
     // "self.mp3 web · 0 songs" over a library of thirty.

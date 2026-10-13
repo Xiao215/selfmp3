@@ -2,7 +2,8 @@ import type { Access } from './access.js'
 import type { Accounts } from './accounts.js'
 import { Bucket, type BucketDeps, type Fetch } from './bucket.js'
 import { changeCounter, type ChangeCounter } from './changes.js'
-import { DoormanError, unauthorized } from './http.js'
+import { DOORMAN_ERROR, DoormanError } from '@selfmp3/shared'
+import { unauthorized } from './http.js'
 import type { DoormanKeys } from './keys.js'
 import type { KvStore } from './kv.js'
 import { bearerToken, type Session, type Sessions } from './sessions.js'
@@ -105,7 +106,7 @@ export async function requireSession(ctx: Context): Promise<Session> {
 /** The signed-in account's bucket, ready to use. */
 export async function requireBucket(ctx: Context, session: Session): Promise<Bucket> {
   const target = await ctx.accounts.bucket(session.sub)
-  if (!target) throw new DoormanError(409, 'no_storage', 'connect your bucket first')
+  if (!target) throw new DoormanError(409, DOORMAN_ERROR.noStorage, 'connect your bucket first')
   return new Bucket(target, ctx.bucketDeps)
 }
 

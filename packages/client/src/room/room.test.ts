@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { RoomEntry, RoomSong, Song } from '@selfmp3/shared'
-import { createRoomApi, publicServerBase, RoomError } from './roomApi.js'
+import { DoormanError, type RoomEntry, type RoomSong, type Song } from '@selfmp3/shared'
+import { DOORMAN_ORIGIN, harness } from '../../../../apps/doorman/src/fakes.js'
+import { createRoomApi, publicServerBase } from './roomApi.js'
 import { clockOffset, shouldResync, withClockSample, CLOCK_SAMPLES } from './roomClock.js'
 import { isRoomTrackId, libraryIndex, roomTrackId, roomTrackSong, yoursOf } from './roomTracks.js'
 
@@ -56,17 +57,34 @@ describe('a room’s addresses', () => {
       return Promise.resolve({
         ok: false,
         status: 403,
-        json: () =>
-          Promise.resolve({ error: 'the host has not allowed that', code: 'room_forbidden' }),
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({ error: 'the host has not allowed that', code: 'room_forbidden' }),
+          ),
       })
     })
     const refused = await refusing
       .act(PASS, { type: 'add', song: SONG }, 'session-token')
       .catch(e => e)
-    expect(refused).toBeInstanceOf(RoomError)
+    expect(refused).toBeInstanceOf(DoormanError)
     expect(refused).toMatchObject({ status: 403, code: 'room_forbidden', gone: false })
     expect(seen[0]?.headers?.['authorization']).toBe('Bearer session-token')
-    expect(new RoomError(410, 'room_ended', 'ended').gone).toBe(true)
+    expect(new DoormanError(410, 'room_ended', 'ended').gone).toBe(true)
+  })
+
+  it('opens and joins a room on the real doorman, and hears that a code is not one', async () => {
+    const h = harness()
+    const session = await h.signIn()
+    const api = createRoomApi(DOORMAN_ORIGIN, (url, init) =>
+      h.doorman.fetch(new Request(url, init), h.env),
+    )
+    const opened = await api.create(session, { name: 'Xiao', mode: 'speaker' })
+    const joined = await api.join(opened.code, 'Ana', null)
+    expect((await api.state(joined)).members.length).toBe(2)
+
+    const missing = await api.join('ZZZZZZ', 'Ana', null).catch((e: unknown) => e)
+    expect(missing).toBeInstanceOf(DoormanError)
+    expect(missing).toMatchObject({ status: 404, code: 'room_missing', gone: true })
   })
 })
 

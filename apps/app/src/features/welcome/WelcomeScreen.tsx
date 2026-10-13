@@ -11,8 +11,7 @@ import {
   View,
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { PRIVACY_POLICY_URL } from '@selfmp3/shared'
-import { DoormanError } from '@selfmp3/replica'
+import { DOORMAN_ERROR, DoormanError, PRIVACY_POLICY_URL } from '@selfmp3/shared'
 import { fonts, leading, radius, space, tagColors, type } from '@selfmp3/client'
 import { session as cloud } from '../../replica'
 import { keptCovers } from '../../offline/covers'
@@ -161,7 +160,7 @@ export function WelcomeScreen(): ReactNode {
         setStage({
           kind: 'idle',
           message:
-            error instanceof DoormanError && error.code === 'wrong_code'
+            error instanceof DoormanError && error.code === DOORMAN_ERROR.wrongCode
               ? 'That sign-in didn’t go through. Try again.'
               : signInFailure(error, pageOrigin()),
         })

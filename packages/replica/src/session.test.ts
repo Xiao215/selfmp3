@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { BUCKET_HOLD_MS, bucketHold, holdBucket, releaseBucket } from './hold.js'
-import { DoormanError, createCloudSession } from './session.js'
+import {
+  BUCKET_HOLD_MS,
+  CLOUD_SESSION_KEY as SESSION_KEY,
+  DOORMAN_PATHS,
+  DoormanError,
+  DoormanMeSchema,
+} from '@selfmp3/shared'
+import { DOORMAN_ORIGIN, harness } from '../../../apps/doorman/src/fakes.js'
+import { bucketHold, holdBucket, releaseBucket } from './hold.js'
+import { createCloudSession } from './session.js'
 import type { CloudPlatform, CloudRequestInit, CloudResponse, DeviceStore } from './platform.js'
-
-/** The key the service worker reads the session under (apps/app/sw/sw.ts). */
-const SESSION_KEY = 'cloud-session'
 
 /**
  * These are the first tests this code has ever had: it could not be tested
@@ -243,9 +248,9 @@ describe('talking to the doorman', () => {
     await session.doormanFetch(signedIn, '/v1/me')
     await session.doormanFetch(null, '/v1/auth/claim', { method: 'POST', json: { a: 1 } })
 
-    expect(p.calls[0]?.init?.headers?.['Authorization']).toBe(`Bearer ${TOKEN}`)
-    expect(p.calls[1]?.init?.headers?.['Authorization']).toBeUndefined()
-    expect(p.calls[1]?.init?.headers?.['Content-Type']).toBe('application/json')
+    expect(p.calls[0]?.init?.headers?.['authorization']).toBe(`Bearer ${TOKEN}`)
+    expect(p.calls[1]?.init?.headers?.['authorization']).toBeUndefined()
+    expect(p.calls[1]?.init?.headers?.['content-type']).toBe('application/json')
   })
 
   it('turns no answer at all into status 0, which the app reads as offline', async () => {
@@ -257,12 +262,14 @@ describe('talking to the doorman', () => {
   })
 
   it("carries the doorman's own words rather than inventing any", async () => {
-    const p = platform(() => reply(403, { error: 'that address is not on the list', code: 'nope' }))
+    const p = platform(() =>
+      reply(403, { error: 'that address is not on the list', code: 'forbidden' }),
+    )
     const session = createCloudSession(p)
     await expect(session.doormanFetch(null, '/v1/me')).rejects.toMatchObject({
       status: 403,
       message: 'that address is not on the list',
-      code: 'nope',
+      code: 'forbidden',
     })
   })
 
@@ -275,7 +282,7 @@ describe('talking to the doorman', () => {
   it('refuses to reach a doorman that was never configured', async () => {
     const p = platform(() => reply(200, {}), { doormanUrl: '' })
     const session = createCloudSession(p)
-    await expect(session.doormanFetch(null, '/v1/me')).rejects.toMatchObject({ code: 'no-doorman' })
+    await expect(session.doormanFetch(null, '/v1/me')).rejects.toMatchObject({ code: 'no_doorman' })
     expect(p.calls).toHaveLength(0)
   })
 
@@ -370,5 +377,73 @@ describe('the bucket refusing for the day', () => {
     const session = createCloudSession(p)
     await session.doormanFetch(signedIn, '/v1/files/x').catch(() => undefined)
     expect(bucketHold()).toBeNull()
+  })
+})
+
+/*
+ * The same session, against the real doorman (apps/doorman's `harness()`) in
+ * front of its look-alike of a Backblaze bucket: the stand-in above answers
+ * the way the doorman was believed to, and this holds the belief to the
+ * Worker itself — a write's 204, a listing's own filtering, a cap's code.
+ */
+describe('against the real doorman', () => {
+  beforeEach(() => releaseBucket())
+
+  async function signedInTo() {
+    const h = harness()
+    const token = await h.signIn()
+    const me = DoormanMeSchema.parse(await (await h.connect(token)).json())
+    const p = platform(() => reply(500, {}), {
+      doormanUrl: DOORMAN_ORIGIN,
+      // As a browser sends it: a body goes with its length, which the Worker requires.
+      fetch: (url, init) => {
+        const headers = new Headers(init?.headers)
+        if (init?.body !== undefined) {
+          const bytes =
+            typeof init.body === 'string' ? new TextEncoder().encode(init.body) : init.body
+          headers.set('content-length', String(bytes.byteLength))
+        }
+        return h.doorman.fetch(new Request(url, { ...init, headers }), h.env)
+      },
+    })
+    return {
+      h,
+      session: createCloudSession(p),
+      signedIn: { doormanUrl: DOORMAN_ORIGIN, token, me },
+    }
+  }
+
+  it('writes, lists and reads a file the way the Worker answers them', async () => {
+    const { session, signedIn } = await signedInTo()
+    const key = 'log/mac-3f9a1c2e/000000000001.json'
+    const written = await session.doormanFetch(signedIn, DOORMAN_PATHS.file(key), {
+      method: 'PUT',
+      json: { hello: 'there' },
+    })
+    expect(written.status).toBe(204)
+    const listed = await session.doormanFetch(signedIn, DOORMAN_PATHS.listing('log/'))
+    expect(await listed.json()).toEqual({ objects: [{ key, size: 17 }], cursor: null })
+    const read = await session.doormanFetch(signedIn, DOORMAN_PATHS.file(key))
+    expect(await read.json()).toEqual({ hello: 'there' })
+    const missing = await session.doormanFetch(
+      signedIn,
+      DOORMAN_PATHS.file('log/mac-3f9a1c2e/000000000002.json'),
+    )
+    expect(missing.status).toBe(404)
+  })
+
+  it('holds reads once the bucket’s cap is used up, by the code the doorman sends', async () => {
+    const { h, session, signedIn } = await signedInTo()
+    h.bucket.capped = true
+    const asked = h.bucket.requests.length
+    const key = DOORMAN_PATHS.file('snapshots/20260911T142205123Z-mac-3f9a1c2e.json')
+    await expect(session.doormanFetch(signedIn, key)).rejects.toMatchObject({
+      status: 502,
+      code: 'bucket_cap_exceeded',
+    })
+    await expect(session.doormanFetch(signedIn, key)).rejects.toBeInstanceOf(DoormanError)
+    // The second was refused here, without reaching the bucket.
+    expect(h.bucket.requests.length - asked).toBe(1)
+    expect(bucketHold('read')?.message).toMatch(/allowance for today is used up/)
   })
 })

@@ -28,6 +28,7 @@ import {
   type ImportsRetriedSchema,
   type ImportsRemovedSchema,
   type ImportsClearedSchema,
+  STREAM_RELAYED_HEADERS,
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
@@ -53,9 +54,6 @@ const ListenQuery = z.object({ url: z.string().url().max(2_000) })
 /** How many of a review's rows have their stream looked up before anyone taps (services/listen.ts). */
 const WARMED_ROWS = 3
 const CoverToneQuery = z.object({ url: z.string().url().max(2_000) })
-
-/** What a range response from YouTube has to say that the browser needs to hear. */
-const FORWARDED_HEADERS = ['content-type', 'content-length', 'content-range', 'accept-ranges']
 
 /**
  * Importing.
@@ -259,7 +257,7 @@ export function importRoutes(container: Container): Router {
 
       const whole = asked === undefined && upstream.status === 206
       res.status(whole ? 200 : upstream.status)
-      for (const name of FORWARDED_HEADERS) {
+      for (const name of STREAM_RELAYED_HEADERS) {
         if (whole && name === 'content-range') continue
         const value = upstream.headers.get(name)
         if (value) res.setHeader(name, value)

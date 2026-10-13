@@ -653,7 +653,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 - [ ] **T-392** Deleting a tag rewrites live rules on devices but leaves the dead id on the server, and `tags.id` can be reused. → A
 - [ ] **T-393** Removing songs prunes empty tags on the server only (and also prunes a tag another device just made). → A
 - [ ] **T-394** Cloud mode answers 501 for `stop-following`, `/played` and `lyrics/search`; lyrics 404 codes and `/played`'s duplicate flag differ. → A
-- [ ] **T-395** Every doorman 409 reads as "No bucket is connected" (the 20-grant limit too); `bucket_refused_key`/`no_such_bucket` fall to `other`. → B1
+- [x] **T-395** Every doorman 409 reads as "No bucket is connected" (the 20-grant limit too); `bucket_refused_key`/`no_such_bucket` fall to `other`. → B1
+  - The server maps by code: `no_storage` and `no_such_bucket` are `missing`, `too_many_grants` says to remove a server, `bucket_unreachable` is `network`; `bucket_refused_key` stays `other` (the bucket's key, not this server's session, so nothing to sign in again for).
 - [ ] **T-396** "Same link" has four rules: 网易云 and `?si=` links are not seen as queued by the extension or `isPending`. → B2
 - [ ] **T-397** Two artist splitters with different separators (AI vs app); server Stats/Wrapped group raw artist strings; CarPlay/Android Auto browse groups and sorts its own way. → B2
 - [ ] **T-398** The admin page's `plural` writes "1234 songs"; Home's This week writes "2h 00" and "1234" where You writes "2h" and "1,234". → B2 / H
@@ -666,11 +667,16 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 
 ### B1 — The doorman wire is one module
 
-- [ ] **T-402** `DoormanErrorCode` in shared; callers map by code (server `bucket/doorman.ts`, replica, app). Error codes compared as strings (`instrumental`, `ai_off`, `wrong_code`, `room_left`) come from shared constants.
-- [ ] **T-403** A zod-free `doormanWire` module the service worker imports: `BUCKET_CAP_CODE`, the hold, `parseDoormanRefusal()`, storage keys, SW message types, `/v1` path builders; the replica's hold keys off the builders.
-- [ ] **T-404** One fetch-injected doorman client and one `DoormanError` (argument order); room/shared `send` merged; replica tests use the real doorman harness.
-- [ ] **T-405** Sign-in contract: `APP_SCHEME`, `signInStartUrl()`, `SIGN_IN_TTL_MS`; `electron-builder.yml` declares the protocol.
-- [ ] **T-406** The service worker uses shared `range.ts`; the doorman's two range parsers agree; bucket refusal classification is one pure function; CORS header lists use the constants.
+- [x] **T-402** `DoormanErrorCode` in shared; callers map by code (server `bucket/doorman.ts`, replica, app). Error codes compared as strings (`instrumental`, `ai_off`, `wrong_code`, `room_left`) come from shared constants.
+  - `DOORMAN_ERROR` (doormanWire.ts) is every code the doorman sends plus `unreachable`/`no_doorman`/`unexpected` for what it never said; `API_ERROR` and `AI_ERROR` (apiWire.ts) are the server's codes a client compares. The app's `new ApiError(0, …, 'offline')` constructions in features/ were left for the UI workstreams.
+- [x] **T-403** A zod-free `doormanWire` module the service worker imports: `BUCKET_CAP_CODE`, the hold, `parseDoormanRefusal()`, storage keys, SW message types, `/v1` path builders; the replica's hold keys off the builders.
+  - Imported as `@selfmp3/shared/wire` (a schema-free barrel: doormanWire, apiWire, origins, range). The SW's message types went to `sw/names.ts` (`SW_MESSAGE`) instead, being the page's and the worker's alone; `REFRESH_HEADER` moved to shared because the server names it in CORS. The doorman's router is keyed by `DOORMAN_PATHS`.
+- [x] **T-404** One fetch-injected doorman client and one `DoormanError` (argument order); room/shared `send` merged; replica tests use the real doorman harness.
+  - `doormanRequest()` + `DoormanError(status, code, message)` in shared/doormanClient.ts; the doorman throws the same class. `RoomError` is gone (`DoormanError.gone`). session.test.ts runs against `harness()`; library.test.ts's fake now answers a write with 204 and filters listings as the doorman does.
+- [x] **T-405** Sign-in contract: `APP_SCHEME`, `signInStartUrl()`, `SIGN_IN_TTL_MS`; `electron-builder.yml` declares the protocol.
+  - Named `DEEP_LINK_SCHEME` (origins.ts), not `APP_SCHEME`: the desktop bridge already has an `APP_SCHEME` (`app`, the page's own origin). The bridge now takes it from `@selfmp3/shared/wire`. admin.js keeps its own `signInStartUrl`, held equal by admin.signin.test.ts.
+- [x] **T-406** The service worker uses shared `range.ts`; the doorman's two range parsers agree; bucket refusal classification is one pure function; CORS header lists use the constants.
+  - The doorman relays one range only (`relayedRange`), as `parseRange` reads; `bytes=-` is now the whole file in the SW too. `classifyBucketRefusal()` takes the doorman's redaction of the key and its "Backblaze said" for both sides.
 
 ### B2 — Small shared helpers and tooling
 

@@ -8,6 +8,7 @@ import {
   formatBytes,
   formatRelative,
   newUid,
+  signInStartUrl,
   type CloudConnect,
   type CloudStatus,
 } from '@selfmp3/shared'
@@ -116,8 +117,7 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
   const start = (): void => {
     if (!status.doormanUrl) return
     const attempt = attemptId()
-    const params = new URLSearchParams({ attempt, return: signInReturnUrl('settings') })
-    void Linking.openURL(`${status.doormanUrl}/v1/auth/start?${params.toString()}`)
+    void Linking.openURL(signInStartUrl(status.doormanUrl, attempt, signInReturnUrl('settings')))
     signIn.mutate(attempt)
   }
 

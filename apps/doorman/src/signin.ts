@@ -1,4 +1,4 @@
-import { SIGN_IN_CODE_ALPHABET, SignInAttemptSchema } from '@selfmp3/shared'
+import { SIGN_IN_CODE_ALPHABET, SIGN_IN_TTL_MS, SignInAttemptSchema } from '@selfmp3/shared'
 import { z } from 'zod'
 import {
   TOKEN_PATTERN,
@@ -23,9 +23,6 @@ import {
  * The code shown at the end of a sign-in is kept only as a MAC, tied to its
  * attempt, and compared in constant time by WebCrypto's own verify.
  */
-
-/** How long a sign-in may take between starting and Google coming back. */
-export const SIGN_IN_TTL_MS = 10 * 60_000
 
 const MINUTES_IN_WORDS = [
   'no',

@@ -111,6 +111,6 @@ describe('the change counter', () => {
       body: '{}',
       headers: { 'content-type': 'application/json', 'content-length': '2' },
     })
-    expect(response.headers.get('access-control-expose-headers')).toMatch(/Selfmp3-Changes/)
+    expect(response.headers.get('access-control-expose-headers')).toMatch(/selfmp3-changes/i)
   })
 })

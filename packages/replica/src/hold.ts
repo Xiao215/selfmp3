@@ -1,3 +1,5 @@
+import { BUCKET_HOLD_MS, type BucketCall } from '@selfmp3/shared'
+
 /**
  * The bucket refusing for the day (docs/SYNC.md, "Caps").
  *
@@ -16,9 +18,6 @@
  * why the words and the covers are not coming.
  */
 
-export const BUCKET_HOLD_MS = 10 * 60_000
-export const BUCKET_CAP_CODE = 'bucket_cap_exceeded'
-
 export interface BucketHold {
   /** The doorman's words: what happened and what to do about it. */
   readonly message: string
@@ -26,15 +25,13 @@ export interface BucketHold {
   readonly until: number
 }
 
-/**
- * What Backblaze counts against a day's allowance, each under a cap of its
- * own: reading a file (Class B) and listing a folder (Class C). One can be
- * spent while the other is not — every read refused while every listing still
- * answers — so each is held, and let go, by itself: a listing that answers
- * says nothing about whether a read would.
+/*
+ * What Backblaze counts against a day's allowance (shared's `BucketCall`),
+ * each under a cap of its own: reading a file (Class B) and listing a folder
+ * (Class C). One can be spent while the other is not — every read refused
+ * while every listing still answers — so each is held, and let go, by itself:
+ * a listing that answers says nothing about whether a read would.
  */
-export type BucketCall = 'read' | 'list'
-
 const holds: Record<BucketCall, BucketHold | null> = { read: null, list: null }
 const listeners = new Set<(hold: BucketHold | null) => void>()
 

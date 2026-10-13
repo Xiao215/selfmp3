@@ -1,4 +1,4 @@
-import { DoormanError } from '@selfmp3/replica'
+import { DOORMAN_ERROR, DoormanError } from '@selfmp3/shared'
 
 /**
  * Signing in, without the screen: what it says at each point, and when a
@@ -60,7 +60,9 @@ export function signInFailure(error: unknown, pageOrigin: string | null): string
  */
 function unanswered(error: unknown): boolean {
   if (error instanceof TypeError) return true
-  return error instanceof DoormanError && error.status === 0 && error.code !== 'no-doorman'
+  return (
+    error instanceof DoormanError && error.status === 0 && error.code !== DOORMAN_ERROR.noDoorman
+  )
 }
 
 /** The stage after asking the doorman how the attempt stands. Only a wait is moved on. */

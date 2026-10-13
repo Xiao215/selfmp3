@@ -215,7 +215,12 @@ export function SearchScreen(): ReactNode {
             listPadding={bar.listPadding}
           />
         ) : (
-          <ScrollView contentContainerStyle={[styles.results, bar.listPadding]}>
+          <ScrollView
+            contentContainerStyle={[styles.results, bar.listPadding]}
+            // An answer's follow-up field is at its foot: the keyboard it
+            // opens pads the list by its height and scrolls the field above it.
+            automaticallyAdjustKeyboardInsets
+          >
             {answering ? (
               <AskAnswer
                 text={asking}

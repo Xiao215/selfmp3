@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 import { NATIVE_ACCENT } from '@selfmp3/shared'
+import { withAlpha } from '../art/coverColor.js'
 import { oklchToHex, oklchToHexAlpha } from './oklch.js'
 import {
   buildAccent,
@@ -199,6 +200,21 @@ describe('the dim behind a dialog', () => {
   it('is the accent-tinted near-black at 0.6, in both themes', () => {
     expect(darkPalette(150).backdrop).toBe(oklchToHexAlpha(0.1, 0.02, 150, 0.6))
     expect(lightPalette(150).backdrop).toBe(darkPalette(150).backdrop)
+  })
+})
+
+describe('the washes and the veil', () => {
+  // Written as an alpha at each site they drifted: a danger wash at 0.12 and
+  // 0.14, a good one at 0.14 and 0.18, a veil at 0.07, 0.08 and 0.1.
+  it.each([
+    ['dark', darkPalette(150)],
+    ['light', lightPalette(150)],
+  ] as const)("are the %s palette's own inks at one strength each", (_scheme, palette) => {
+    expect(palette.veil).toBe(withAlpha(palette.textPrimary, 0.08))
+    expect(palette.veilPressed).toBe(withAlpha(palette.textPrimary, 0.14))
+    expect(palette.dangerWash).toBe(withAlpha(palette.danger, 0.14))
+    expect(palette.goodWash).toBe(withAlpha(palette.good, 0.14))
+    expect(palette.warningWash).toBe(withAlpha(palette.warning, 0.14))
   })
 })
 

@@ -34,7 +34,7 @@ import {
   Sparkle,
   Tag,
 } from '../../ui/components/Icons'
-import { floating, label as labelText } from '../../ui/surfaces'
+import { label as labelText, dialogPanel } from '../../ui/surfaces'
 import { AskAnswer } from '../smart/AskAnswer'
 import type { AnswerKeys } from '../smart/answerKeys'
 import { ASK_SUB, askable } from '../smart/smart.model'
@@ -615,12 +615,7 @@ const ANSWER_AROUND_LIST = 250
 const styles = StyleSheet.create(theme => ({
   // Near the top rather than the middle, where the eye already is.
   frame: { padding: 0, justifyContent: 'flex-start' },
-  panel: {
-    backgroundColor: theme.colors.surface1,
-    borderRadius: radius.sheet,
-    overflow: 'hidden',
-    ...floating(theme.colors),
-  },
+  panel: dialogPanel(theme.colors),
   inputRow: { padding: space.md, paddingBottom: space.sm },
   count: { color: theme.colors.textMuted, fontSize: type.tiny, fontVariant: ['tabular-nums'] },
   results: { padding: 6 },

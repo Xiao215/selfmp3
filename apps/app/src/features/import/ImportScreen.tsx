@@ -985,12 +985,6 @@ function SwipeActions({
   )
 }
 
-/**
- * The swipe's "Remove", white on the danger red in either theme. Neither
- * `onAccent` nor any other palette ink is white in both, so it is its own.
- */
-const ON_DANGER = '#fff'
-
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40 },
@@ -1069,8 +1063,9 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.cover,
   },
   swipeNext: { backgroundColor: theme.colors.accent },
-  swipeRemove: { backgroundColor: theme.colors.danger },
-  swipeActionText: { color: ON_DANGER, fontSize: type.body, fontWeight: '600' },
+  // The ground Up next's rows are swiped off onto, with its ink.
+  swipeRemove: { backgroundColor: theme.colors.remove },
+  swipeActionText: rowTitle(theme.colors),
   swipeNextText: { color: theme.colors.onAccent },
   run: { gap: 8, marginTop: 6, marginBottom: 6 },
   runLine: {

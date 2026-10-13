@@ -5,7 +5,7 @@ import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import { HIT_TARGET, iconSize, motion, radius, space, type, withAlpha } from '@selfmp3/client'
+import { HIT_TARGET, iconSize, motion, radius, space, type } from '@selfmp3/client'
 import { sizedIcon } from './Icons'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
@@ -486,7 +486,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface3,
   },
   itemDangerDense: {
-    backgroundColor: withAlpha(theme.colors.danger, 0.12),
+    backgroundColor: theme.colors.dangerWash,
   },
   itemLabelDense: {
     fontSize: type.sub,

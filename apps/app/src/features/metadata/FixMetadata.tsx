@@ -2,13 +2,13 @@ import type { ReactNode } from 'react'
 import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
-import { radius, space } from '@selfmp3/client'
+import { space } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { NoticeCard } from '../../ui/components/NoticeCard'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { useServerSongIds } from '../../connection/useServerSongIds'
-import { floating } from '../../ui/surfaces'
+import { dialogPanel } from '../../ui/surfaces'
 import { Dialog, DialogHead } from '../../ui/components/Dialog'
 import { MetadataDialog } from './MetadataDialog'
 import { reachedConnection } from '../../connection/via'
@@ -96,14 +96,7 @@ function Shell({
 }
 
 const styles = StyleSheet.create(theme => ({
-  dialog: {
-    width: '100%',
-    maxWidth: 460,
-    backgroundColor: theme.colors.surface1,
-    borderRadius: radius.sheet,
-    overflow: 'hidden',
-    ...floating(theme.colors),
-  },
+  dialog: dialogPanel(theme.colors, 'form'),
   head: {
     paddingTop: 16,
     paddingRight: 14,

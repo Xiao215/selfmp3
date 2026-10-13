@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { iconSize, radius, space, type, withAlpha, textStyle } from '@selfmp3/client'
+import { iconSize, radius, space, type, textStyle } from '@selfmp3/client'
 import { card, rowTitle, lineSub } from '../surfaces'
 import { IconButton } from './IconButton'
 import { X } from './Icons'
@@ -143,9 +143,9 @@ const styles = StyleSheet.create(theme => ({
 /** Each tone's wash: its own colour, faint, as a review's removed and added names are. */
 const washes = StyleSheet.create(theme => ({
   plain: { backgroundColor: theme.colors.surface2 },
-  warn: { backgroundColor: withAlpha(theme.colors.warning, 0.14) },
-  error: { backgroundColor: withAlpha(theme.colors.danger, 0.14) },
-  good: { backgroundColor: withAlpha(theme.colors.good, 0.14) },
+  warn: { backgroundColor: theme.colors.warningWash },
+  error: { backgroundColor: theme.colors.dangerWash },
+  good: { backgroundColor: theme.colors.goodWash },
 }))
 
 /** Each tone's dot, beside a title. */

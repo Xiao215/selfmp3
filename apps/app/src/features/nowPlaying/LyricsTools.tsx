@@ -83,7 +83,7 @@ const styles = StyleSheet.create(theme => ({
     minHeight: 32,
     paddingHorizontal: 12,
     borderRadius: radius.pill,
-    backgroundColor: withAlpha(theme.colors.textPrimary, 0.1),
+    backgroundColor: theme.colors.veil,
   },
   toolDense: { minHeight: 0, paddingVertical: 5, paddingHorizontal: 11 },
   toolPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.16) },

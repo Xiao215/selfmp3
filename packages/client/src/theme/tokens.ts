@@ -191,13 +191,39 @@ const DARK = {
   borderStrong: '#3e424d',
 }
 
+/**
+ * The light fills a palette's inks make: washes and veils at fixed strengths,
+ * written once rather than as an alpha at each site (a danger wash was 0.12 in
+ * one menu and 0.14 in the next, a good one 0.14 and 0.18).
+ *
+ * - `veil`: a light fill of the ink, for a control over a song's colour, where
+ *   a surface reads as a dark box; `veilPressed` the same, pressed.
+ * - `dangerWash`, `goodWash`, `warningWash`: a notice's ground, a removed
+ *   or added word, a danger item under the pointer.
+ * - `onArt`: ink on artwork under `coverShade`, white in both themes,
+ *   since what it sits on is the picture, not the page.
+ */
+function withTints<
+  P extends { textPrimary: string; danger: string; good: string; warning: string },
+>(palette: P) {
+  return {
+    ...palette,
+    veil: `${palette.textPrimary}14`,
+    veilPressed: `${palette.textPrimary}24`,
+    dangerWash: `${palette.danger}24`,
+    goodWash: `${palette.good}24`,
+    warningWash: `${palette.warning}24`,
+    onArt: '#ffffff',
+  }
+}
+
 /** `backdrop`, at an accent hue. */
 function backdropFor(hue: number): string {
   return oklchToHexAlpha(0.1, 0.02, hue, 0.6)
 }
 
 export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
-  return {
+  return withTints({
     ...DARK,
     ...buildAccent(hue, 'dark'),
     /** Ink on the white primary fill: the round Play, a chosen chip, the active tab. */
@@ -233,7 +259,7 @@ export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
     // and recessive gridlines tinted by the hue.
     chartSeries: oklchToHex(0.62, 0.15, hue),
     chartGrid: oklchToHex(0.29, 0.014, hue),
-  }
+  })
 }
 
 export type ThemePalette = ReturnType<typeof darkPalette>
@@ -245,7 +271,7 @@ export type ThemePalette = ReturnType<typeof darkPalette>
  * is. Danger is the same in both; warning and good get darker inks.
  */
 export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
-  return {
+  return withTints({
     surface0: '#f6f2ea',
     surface1: '#ffffff',
     surface2: '#ebe5d9',
@@ -274,7 +300,7 @@ export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
     backdrop: backdropFor(hue),
     chartSeries: oklchToHex(0.55, 0.16, hue),
     chartGrid: '#ebe5d9',
-  }
+  })
 }
 
 /**

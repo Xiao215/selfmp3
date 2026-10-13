@@ -40,7 +40,7 @@ import {
 import { useArt } from '../../offline/useArt'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
-import { floating, label as groupLabel, hint, textColumn } from '../../ui/surfaces'
+import { label as groupLabel, hint, textColumn, dialogPanel } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
@@ -528,14 +528,7 @@ function Pill({ text }: { text: string }): ReactNode {
 const styles = StyleSheet.create(theme => ({
   frameNarrow: { padding: 0, alignItems: 'stretch' },
   dialog: { backgroundColor: theme.colors.surface1, overflow: 'hidden' },
-  dialogWide: {
-    width: '100%',
-    maxWidth: 880,
-    maxHeight: 760,
-    height: '86%',
-    borderRadius: radius.sheet,
-    ...floating(theme.colors),
-  },
+  dialogWide: { ...dialogPanel(theme.colors, 'wide'), maxHeight: 760, height: '86%' },
   dialogNarrow: { flex: 1 },
   head: {
     paddingTop: 14,

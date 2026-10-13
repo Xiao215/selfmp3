@@ -170,7 +170,7 @@ const styles = StyleSheet.create(theme => ({
    * a layer laid over it.
    */
   // Over a song's colour, a veil of the ink: a surface read as a dark box there.
-  groupTranslucent: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.07) },
+  groupTranslucent: { backgroundColor: theme.colors.veil },
   item: { borderRadius: radius.pill },
   pad: { paddingVertical: 6, paddingHorizontal: 14 },
   padSmall: { paddingHorizontal: 12 },

@@ -2,6 +2,9 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { RefObject } from 'react'
 import type { View } from 'react-native'
 import { plural } from '@selfmp3/shared'
+import { darkPalette, type } from '@selfmp3/client'
+
+const DRAG_BADGE = darkPalette()
 
 /**
  * The browser's drag and drop, for dragging songs onto a sidebar playlist.
@@ -87,10 +90,10 @@ function showDragImage(event: DragEvent, label: string): void {
     maxWidth: '280px',
     padding: '6px 12px',
     borderRadius: '999px',
-    // Neutral in both themes, as the platform's own drag badges are.
-    background: 'rgba(28, 30, 38, 0.94)',
-    color: '#fff',
-    font: '600 13px system-ui, -apple-system, sans-serif',
+    // The dark theme's glass in both themes, as the platform's own drag badges are.
+    background: DRAG_BADGE.glass,
+    color: DRAG_BADGE.textPrimary,
+    font: `600 ${type.sub}px system-ui, -apple-system, sans-serif`,
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',

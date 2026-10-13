@@ -948,7 +948,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: withAlpha(theme.colors.textPrimary, 0.08),
+    backgroundColor: theme.colors.veil,
   },
   expandPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.14) },
   upNext: {

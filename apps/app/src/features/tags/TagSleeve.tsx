@@ -4,7 +4,7 @@ import { Animated, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import Svg, { Circle, Path } from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
-import { radius, tagColors } from '@selfmp3/client'
+import { darkPalette, radius, tagColors } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { Cover } from '../../ui/components/Cover'
 import { Play } from '../../ui/components/Icons'
@@ -42,9 +42,17 @@ const SHEEN = [
 ]
 
 /**
+ * A record's black, in both themes as records are: the dark theme's own card
+ * and ground for the vinyl and the rim round its label, and the light that
+ * plays on art.
+ */
+const DARK = darkPalette()
+const RECORD = { vinyl: DARK.surface1, rim: DARK.surface0, shine: DARK.onArt } as const
+
+/**
  * A record, drawn: black vinyl, its grooves, two arcs of light that show it
- * turning, and a label in the tag's colour. Black in both themes, as records
- * are; only the hole is the page showing through.
+ * turning, and a label in the tag's colour, its Play in the dot's own ink. Only
+ * the hole is the page showing through.
  */
 const RecordDisc = memo(function RecordDisc({
   size,
@@ -56,7 +64,7 @@ const RecordDisc = memo(function RecordDisc({
   const { theme } = useUnistyles()
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100">
-      <Circle cx={50} cy={50} r={50} fill="#121318" />
+      <Circle cx={50} cy={50} r={50} fill={RECORD.vinyl} />
       {GROOVES.map(r => (
         <Circle
           key={r}
@@ -64,15 +72,15 @@ const RecordDisc = memo(function RecordDisc({
           cy={50}
           r={r}
           fill="none"
-          stroke="#ffffff"
+          stroke={RECORD.shine}
           strokeOpacity={0.05}
           strokeWidth={0.7}
         />
       ))}
       {SHEEN.map(slice => (
-        <Path key={slice.d} d={slice.d} fill="#ffffff" fillOpacity={slice.opacity} />
+        <Path key={slice.d} d={slice.d} fill={RECORD.shine} fillOpacity={slice.opacity} />
       ))}
-      <Circle cx={50} cy={50} r={18} fill="#0b0c0f" />
+      <Circle cx={50} cy={50} r={18} fill={RECORD.rim} />
       <Circle cx={50} cy={50} r={16.5} fill={label} />
       <Circle cx={50} cy={50} r={2.2} fill={theme.colors.surface0} />
     </Svg>
@@ -138,7 +146,7 @@ export const TagSleeve = memo(function TagSleeve({
           <RecordDisc size={disc} label={tagColors(hue).dot} />
         </Animated.View>
         <Animated.View style={[styles.glyph, glyph]}>
-          <Play size={Math.max(12, Math.round(disc * 0.12))} color="#0b0d13" />
+          <Play size={Math.max(12, Math.round(disc * 0.12))} color={tagColors(hue).onDot} />
         </Animated.View>
       </Animated.View>
       <View style={[styles.sleeve, { width: height, height }]}>

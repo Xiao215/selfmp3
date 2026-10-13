@@ -6,7 +6,6 @@ import { plural, type Song } from '@selfmp3/shared'
 import {
   failureText,
   HIT_TARGET,
-  radius,
   space,
   type,
   useBulkDeleteSongs,
@@ -18,7 +17,7 @@ import { useLayoutValue } from '../../shell/useLayout'
 import { showToast } from '../toast'
 import { Button } from './Button'
 import { Dialog, DialogHead } from './Dialog'
-import { floating, lineSub } from '../surfaces'
+import { lineSub, dialogPanel } from '../surfaces'
 import { Trash } from './Icons'
 import { devicePlace } from '../../features/settings/settings.model'
 import { deviceKind } from '../../ports/device'
@@ -191,15 +190,7 @@ export function ConfirmRemoveSongs({
 }
 
 const styles = StyleSheet.create(theme => ({
-  dialog: {
-    width: '100%',
-    maxWidth: 460,
-    maxHeight: 620,
-    backgroundColor: theme.colors.surface1,
-    borderRadius: radius.sheet,
-    overflow: 'hidden',
-    ...floating(theme.colors),
-  },
+  dialog: { ...dialogPanel(theme.colors, 'form'), maxHeight: 620 },
   head: {
     alignItems: 'flex-start',
     gap: space.md,

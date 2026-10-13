@@ -251,7 +251,7 @@ const styles = StyleSheet.create(theme => ({
   textSmall: { backgroundColor: 'transparent', paddingHorizontal: 4 },
   contentSmall: { gap: 4 },
   labelSmall: { fontSize: type.small },
-  translucent: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.08) },
+  translucent: { backgroundColor: theme.colors.veil },
   translucentPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.14) },
   text: {
     backgroundColor: 'transparent',

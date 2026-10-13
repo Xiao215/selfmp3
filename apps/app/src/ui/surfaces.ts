@@ -35,6 +35,31 @@ export function floating(colors: ThemePalette) {
 }
 
 /**
+ * A dialog's widest: a question and its two buttons (`confirm`), a form or a
+ * list to check (`form`), a dialog with columns (`wide`).
+ */
+const DIALOG_WIDTH = { confirm: 400, form: 460, wide: 880 } as const
+
+/**
+ * A dialog's panel: a card's tone at the sheet's corners, floating, clipping
+ * what scrolls inside it, and as wide as the room up to its size. Left
+ * without a size, the look alone, for a panel whose width is its own (the
+ * command palette's grows with an answer). Each dialog drew its own and
+ * they differed in nothing but their widths.
+ */
+export function dialogPanel(colors: ThemePalette, size?: keyof typeof DIALOG_WIDTH) {
+  const look = {
+    backgroundColor: colors.surface1,
+    borderRadius: radius.sheet,
+    overflow: 'hidden',
+    ...floating(colors),
+  } as const
+  return size === undefined
+    ? look
+    : ({ ...look, width: '100%', maxWidth: DIALOG_WIDTH[size] } as const)
+}
+
+/**
  * What a piece of artwork casts: a cover, a mosaic, the card leaning out of a
  * tag's tile. Deeper than `floating`, because a picture sits on the page
  * rather than over it — and from the palette, which is the point: written out

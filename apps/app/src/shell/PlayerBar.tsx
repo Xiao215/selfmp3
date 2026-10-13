@@ -126,7 +126,7 @@ export function PlayerBar(): ReactNode {
                 <Cover uri={art} title={song.album || song.title} size={54} />
                 {onPage ? (
                   <View style={styles.openChevron} pointerEvents="none">
-                    <ChevronDown size={iconSize.large} color={CHEVRON_INK} />
+                    <ChevronDown size={iconSize.large} tone="onArt" />
                   </View>
                 ) : null}
               </View>
@@ -378,16 +378,11 @@ function VolumeSlider({
   )
 }
 
-/**
- * The chevron over the cover while Now Playing is open, and the dim under it:
- * white on darkened artwork in either theme, since what it sits on is the
- * picture, not the page.
- */
-const CHEVRON_INK = '#fff'
-const COVER_DIM = 'rgba(0, 0, 0, 0.45)'
-
 const styles = StyleSheet.create(theme => ({
-  /* Open, the cover says the same button now closes the page. */
+  /*
+   * Open, the cover says the same button now closes the page: `onArt` on the
+   * cover's shade in either theme, since what it sits on is the picture.
+   */
   openChevron: {
     position: 'absolute',
     top: 0,
@@ -397,7 +392,7 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.cover,
-    backgroundColor: COVER_DIM,
+    backgroundColor: theme.colors.coverShade,
   },
   bar: {
     height: PLAYER_BAR_HEIGHT,

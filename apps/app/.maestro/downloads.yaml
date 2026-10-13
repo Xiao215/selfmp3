@@ -24,6 +24,7 @@ appId: com.selfmp3.app
     visible:
       id: 'song-row-0'
     timeout: 60000
+- runFlow: close-guide.yaml
 
 # --- both settings off ---------------------------------------------------------
 # Settings is under Profile, which is the avatar on Home.
@@ -45,6 +46,7 @@ appId: com.selfmp3.app
 # --- a song that is not here -------------------------------------------------------
 - tapOn:
     id: 'tab-library'
+- runFlow: close-guide.yaml
 - tapOn: 'More actions for .*'
 - extendedWaitUntil:
     visible: 'Add to Up next'

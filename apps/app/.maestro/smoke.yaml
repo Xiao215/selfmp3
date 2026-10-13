@@ -29,6 +29,7 @@ appId: com.selfmp3.app
     visible:
       id: 'library-screen'
     timeout: 60000
+- runFlow: close-guide.yaml
 
 # The order is a sheet from the round button beside the title, and the list is
 # headed by it (docs/ui-mock `P12`).
@@ -85,6 +86,7 @@ appId: com.selfmp3.app
 - extendedWaitUntil:
     visible: 'Clear Up next'
     timeout: 5000
+- runFlow: close-guide.yaml
 - tapOn:
     id: 'queue-sheet-close'
 - assertVisible:
@@ -118,6 +120,7 @@ appId: com.selfmp3.app
     id: 'tab-playlists'
 - tapOn:
     id: 'playlist-row-0'
+- runFlow: close-guide.yaml
 - tapOn:
     id: 'playlist-more'
 # Download only what is not already here. A phone that has had this playlist

@@ -1,6 +1,9 @@
 import { memo, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Text, View } from 'react-native'
+import { Guide } from '../features/guide/Guide'
+import { useGuideAsked } from '../features/guide/guideMemory'
+import { useGuide } from '../features/guide/useGuide'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLayoutValue } from './useLayout'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -222,6 +225,17 @@ function Playlists(): ReactNode {
   const recent = listed.slice(0, RAIL_PLAYLISTS)
   // Lit on a playlist's own page too: that page is inside this section.
   const onPage = activeDestination(pathname) === '/playlists'
+  /*
+   * Songs drop onto these from any list, which nothing says until a song is
+   * already being dragged. Shown once, after a song first goes into a
+   * playlist from its ⋯ menu: the slow way, just used.
+   */
+  const dense = useLayoutValue(layout => layout.dense)
+  const asked = useGuideAsked('sidebar-drop')
+  const [dropTarget, dropGuide] = useGuide(
+    'sidebar-drop',
+    asked && dense && recent.some(p => p.kind === 'manual'),
+  )
 
   return (
     <View style={styles.section} testID="sidebar-playlists">
@@ -255,19 +269,32 @@ function Playlists(): ReactNode {
         </IconButton>
       </View>
 
-      {recent.map(playlist => (
-        <RailPlaylist
-          key={playlist.id}
-          playlist={playlist}
-          active={pathname === `/playlists/${playlist.id}`}
-          onOpen={() => {
-            enterFromSidebar()
-            router.navigate({ pathname: '/playlists/[id]', params: { id: String(playlist.id) } })
-          }}
-        />
-      ))}
+      <View ref={dropTarget} collapsable={false}>
+        {recent.map(playlist => (
+          <RailPlaylist
+            key={playlist.id}
+            playlist={playlist}
+            active={pathname === `/playlists/${playlist.id}`}
+            onOpen={() => {
+              enterFromSidebar()
+              router.navigate({ pathname: '/playlists/[id]', params: { id: String(playlist.id) } })
+            }}
+          />
+        ))}
+      </View>
 
       <NewPlaylist open={newOpen} onClose={() => setNewOpen(false)} />
+      <Guide
+        guide={dropGuide}
+        radius={10}
+        steps={[
+          {
+            gesture: 'drag-to',
+            text: 'Drag songs onto a playlist to add them',
+            sub: 'Several at once, if you’ve selected them',
+          },
+        ]}
+      />
     </View>
   )
 }
@@ -442,7 +469,7 @@ function Tags(): ReactNode {
         {library && tags.length === 0 && !adding ? (
           <View style={styles.tagEmpty}>
             <TagIcon size={iconSize.item} color={theme.colors.textMuted} />
-            <Text style={styles.hint}>No tags yet. {noTagsLine(true)}</Text>
+            <Text style={styles.hint}>{noTagsLine()}</Text>
             <Press feedback="dim" onPress={() => setAdding(true)} accessibilityRole="button">
               <Text style={styles.link}>Add your first tag</Text>
             </Press>

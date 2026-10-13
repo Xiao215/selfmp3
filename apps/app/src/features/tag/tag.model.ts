@@ -151,15 +151,13 @@ function sameName(name: string): string {
 }
 
 /**
- * Where tags would be, when there are none: what they are for, and how one is
- * made with what this device has — a song's ⋯ with a pointer, holding a song
- * with a finger. Said the same in the sidebar, on Tags, on Home and in the
- * player's tag strip, which said it four ways, one of them only true on a phone.
+ * Where tags would be, when there are none: said one way everywhere — the
+ * sidebar, Tags and the player's tag strip — which had said it four ways, one
+ * of them only true on a phone. Only that: how a tag is made is each place's
+ * own door (the sidebar's Add your first tag, Tags' +, a song's ⋯).
  */
-export function noTagsLine(finePointer: boolean): string {
-  return finePointer
-    ? 'Tags are how you find things later: put one on a song from its ⋯ › Tags.'
-    : 'Tags are how you find things later: hold a song and choose Tags.'
+export function noTagsLine(): string {
+  return 'No tags yet.'
 }
 
 /**

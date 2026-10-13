@@ -4,12 +4,12 @@ import { Animated, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
-import { motion, radius, space, type, textStyle, iconSize } from '@selfmp3/client'
+import { radius, space, type, iconSize } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useOverlay } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
-import { ease, spring, timing, usePresence } from '../../ui/motion'
+import { ease, spring, timing } from '../../ui/motion'
 import { MOVE_MS, OPACITY, roomShift } from '../../ui/motion.model'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { IconButton } from '../../ui/components/IconButton'
@@ -18,7 +18,8 @@ import { HoldToReorder, useLiftScale, useMakeRoom } from '../../ui/components/Ho
 import { useSongDropTarget } from '../../ports/songDrag'
 import { UpNextSource } from './UpNextSource'
 import { OnlySongEnd, useOnlySongEndNotice } from './OnlySongEnd'
-import { useRailHint } from './useRailHint'
+import { Guide, slideWith } from '../guide/Guide'
+import { useGuide } from '../guide/useGuide'
 import { closeQueueSheet } from './queueSheet.store'
 import {
   dragOutcome,
@@ -140,9 +141,12 @@ function Rail({
   const factsOf = useQueueRowFacts()
   const { player, rows, remove, clearRest } = edits
   const inRoom = useRoom().state !== null
-  // Drag-out made known once (`useRailHint`); anything done in the rail puts it away.
-  const hint = useRailHint(shown && rows.next.length > 0)
-  const hintIn = usePresence(hint.shown, motion.base, motion.fast)
+  /*
+   * Dragging a song out removes it (chosen over a hover ✕, Xiao 2026-09-18),
+   * which nothing on screen says: the first time the rail is open with a song
+   * to come, a guide lights that song and drags it out once.
+   */
+  const [firstTarget, hint] = useGuide('up-next-rail', shown && rows.next.length > 0)
   const railRef = useRef<View>(null)
   const [drag, setDrag] = useState<Drag | null>(null)
   // The pointer's travel, which the copy follows without a render, and how far
@@ -178,14 +182,12 @@ function Rail({
     out: false,
     player,
     remove,
-    dismissHint: hint.dismiss,
   })
   useEffect(() => {
     latest.current.first = rows.next[0]?.index ?? 0
     latest.current.last = rows.next[rows.next.length - 1]?.index ?? 0
     latest.current.player = player
     latest.current.remove = remove
-    latest.current.dismissHint = hint.dismiss
   })
 
   const actions = useMemo<RowActions>(
@@ -193,8 +195,6 @@ function Rail({
       play: index => latest.current.player.jumpTo(index),
       remove: index => latest.current.remove(index),
       menu: (anchor, row) => {
-        // A right-click is not a press, so the rail's capture below never hears it.
-        latest.current.dismissHint()
         menuAnchor.current = anchor
         setMenuRow(row)
       },
@@ -303,7 +303,6 @@ function Rail({
   const ended = onlySongEnded(player)
   // Something besides the song playing, to come or played, for Clear the rest to take.
   const clearable = player.queue.items.length > 1
-  const dismissHint = hint.dismiss
 
   /*
    * Open and shut (docs/ui-mock `M3`, 6): 0 is away past the right edge, 1 is
@@ -399,12 +398,6 @@ function Rail({
         ]}
         testID="queue-rail"
         role="complementary"
-        // Any press in the rail — a row, a grip, the close — puts the hint
-        // away, and is left to whatever it was for.
-        onStartShouldSetResponderCapture={() => {
-          if (hint.shown) hint.dismiss()
-          return false
-        }}
       >
         <SectionHead
           title="Up next"
@@ -436,7 +429,6 @@ function Rail({
               contentContainerStyle={styles.listContent}
               // A held row is being moved, not the list under it.
               scrollEnabled={drag === null}
-              onScrolled={dismissHint}
               next={rows.next}
               played={rows.played}
               rowHeight={ROW_HEIGHT}
@@ -458,7 +450,7 @@ function Rail({
               }
               renderRow={(row, kind) => {
                 const facts = factsOf(row.song)
-                return (
+                const railRow = (
                   <RailRow
                     song={row.song}
                     index={row.index}
@@ -480,37 +472,18 @@ function Rail({
                     actions={actions}
                   />
                 )
-              }}
-              overlay={songsTop =>
-                hintIn.mounted ? (
+                // The first song to come is the one the guide lights and drags out.
+                if (kind !== 'next' || row.index !== rows.next[0]?.index) return railRow
+                return (
                   <Animated.View
-                    style={[
-                      styles.hint,
-                      // Under the first song to come, the one it is about; last,
-                      // so it is drawn over the rows.
-                      { top: songsTop + ROW_HEIGHT + 6, opacity: hintIn.progress },
-                    ]}
-                    testID="queue-rail-hint"
+                    ref={firstTarget}
+                    collapsable={false}
+                    style={hint.shown ? slideWith(hint, 120) : null}
                   >
-                    <Press
-                      feedback="dim"
-                      onPress={hint.dismiss}
-                      accessibilityRole="button"
-                      accessibilityHint="Dismisses the tip"
-                      accessibilityLiveRegion="polite"
-                    >
-                      {/* "right‑click" with a hyphen that does not break, so the
-                        bubble never splits the word across its two lines. A
-                        touch has no right-click to offer. */}
-                      <Text style={styles.hintText}>
-                        {finePointer
-                          ? 'Drag a song out to remove it, or right‑click for more.'
-                          : 'Drag a song out to remove it.'}
-                      </Text>
-                    </Press>
+                    {railRow}
                   </Animated.View>
-                ) : null
-              }
+                )
+              }}
             />
 
             <AutoMixRow player={player} upcoming={rows.next.length} />
@@ -541,6 +514,18 @@ function Rail({
           testID="queue-menu"
         />
       </Animated.View>
+      <Guide
+        guide={hint}
+        steps={[
+          {
+            gesture: 'swipe-left',
+            text: 'Drag a song out to remove it',
+            // A touch has no right-click to offer.
+            sub: finePointer ? 'Right-click it for more' : undefined,
+            distance: 120,
+          },
+        ]}
+      />
     </Animated.View>
   )
 }
@@ -786,17 +771,6 @@ const styles = StyleSheet.create(theme => ({
   summaryRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: -6 },
   summary: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: type.small },
   list: { flex: 1, marginHorizontal: -6 },
-  hint: {
-    position: 'absolute',
-    left: 12,
-    right: 0,
-    paddingVertical: space.sm,
-    paddingHorizontal: space.md,
-    borderRadius: radius.mini,
-    backgroundColor: theme.colors.surface3,
-    boxShadow: `0 10px 28px ${theme.colors.floatShadow}`,
-  },
-  hintText: { color: theme.colors.textPrimary, ...textStyle('small') },
   listContent: { paddingBottom: space.md },
   roomContent: { paddingHorizontal: space.tight, paddingBottom: space.md },
   labelInset: { paddingLeft: space.tight },

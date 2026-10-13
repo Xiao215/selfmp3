@@ -6,6 +6,7 @@ import { iconSize, radius, space, type, textStyle } from '@selfmp3/client'
 import { card, rowTitle, lineSub } from '../surfaces'
 import { IconButton } from './IconButton'
 import { X } from './Icons'
+import { Why } from './Why'
 
 /** What a notice is about: news, a warning, a failure, or something that worked. */
 type NoticeTone = 'plain' | 'warn' | 'error' | 'good'
@@ -19,8 +20,8 @@ type NoticeTone = 'plain' | 'warn' | 'error' | 'good'
  * fills it with the tone instead, for a notice inside a card already (a
  * Settings panel's), where a card on a card would be lost. `title` is said
  * first, in the body's ink at its weight; `children` are the line or two
- * under it, and `actions` the buttons under those. `onDismiss` puts a × at
- * its end.
+ * under it, `why` the rest of the explanation kept behind a Why? under them,
+ * and `actions` the buttons under those. `onDismiss` puts a × at its end.
  *
  * Read out as it arrives: a failure interrupts (`role="alert"`), anything
  * else waits its turn (`live`). Each screen drew its own: three title sizes,
@@ -36,6 +37,8 @@ export function NoticeCard({
   compact = false,
   title,
   children,
+  why,
+  whyTestID,
   actions,
   onDismiss,
   live = false,
@@ -48,6 +51,10 @@ export function NoticeCard({
   compact?: boolean
   title?: string
   children?: ReactNode
+  /** What the notice means in full, one Why? away under its line. */
+  why?: string | null
+  /** The Why?'s own testID; `<testID>-why` when left out. */
+  whyTestID?: string
   actions?: ReactNode
   onDismiss?: () => void
   /** Read out when it appears or changes; a failure always is. */
@@ -91,6 +98,13 @@ export function NoticeCard({
         ) : (
           children
         )}
+        {why ? (
+          <Why
+            text={why}
+            style={[styles.body, compact && styles.bodyCompact]}
+            testID={whyTestID ?? (testID ? `${testID}-why` : undefined)}
+          />
+        ) : null}
         {actions ? <View style={styles.actions}>{actions}</View> : null}
       </View>
       {onDismiss ? (

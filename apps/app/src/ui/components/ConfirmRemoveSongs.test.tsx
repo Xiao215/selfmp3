@@ -44,14 +44,16 @@ const draw = (props: Partial<Parameters<typeof ConfirmRemoveSongs>[0]> = {}) =>
   )
 
 describe('ConfirmRemoveSongs', () => {
-  it('asks once, with no file to keep, and says the download here goes too', async () => {
+  it('asks once, with no file to keep, and says it goes everywhere for good', async () => {
     const onConfirm = jest.fn()
     await draw({ onConfirm })
 
     expect(screen.queryByRole('checkbox')).toBeNull()
     expect(screen.getByText('Delete 2 songs from your library?')).toBeTruthy()
-    expect(screen.getByText(/anything on this phone is deleted from it/)).toBeTruthy()
-    expect(screen.getByText(/on every device/)).toBeTruthy()
+    expect(
+      screen.getByText(/They leave your library on every device, with their tags and plays/),
+    ).toBeTruthy()
+    expect(screen.getByText('This can’t be undone.')).toBeTruthy()
 
     await fireEvent.press(screen.getByRole('button', { name: 'Delete 2 songs' }))
     expect(onConfirm).toHaveBeenCalledTimes(1)
@@ -69,6 +71,7 @@ describe('ConfirmRemoveSongs', () => {
     await draw({ songs: [song(7)] })
 
     expect(screen.getByText('Delete “Song 7” from your library?')).toBeTruthy()
+    expect(screen.getByText(/It leaves your library on every device, with its tags/)).toBeTruthy()
     expect(screen.queryByText('Song 7')).toBeNull()
     expect(screen.getByRole('button', { name: 'Delete song' })).toBeTruthy()
   })

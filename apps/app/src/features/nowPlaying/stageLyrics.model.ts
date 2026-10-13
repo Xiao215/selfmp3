@@ -1,3 +1,4 @@
+import { LYRICS_WHEN_REACHABLE } from '../library/library.model'
 import type { SongWords } from './nowPlaying.model'
 
 /**
@@ -61,7 +62,5 @@ export function lyricBlur(index: number, active: number, reach: number): number 
 export function lyricsStatusText(words: SongWords): string | null {
   if (words.status === 'lyrics') return null
   if (words.status === 'loading') return 'Looking for lyrics…'
-  return words.offline
-    ? 'Lyrics need your library — they’ll show once it’s reachable.'
-    : 'No lyrics for this song.'
+  return words.offline ? LYRICS_WHEN_REACHABLE : 'No lyrics for this song.'
 }

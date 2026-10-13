@@ -134,40 +134,52 @@ export async function reachServerAgain(
  * (SYNC.md, rule 6), and a screen with a way forward should not be telling
  * anyone to come back later. Stats and metadata have none: the history and the
  * lookups exist only where the server is, so waiting really is the answer.
+ * `still` is the one line the card leads with, under its title: what still
+ * works, with everything else behind its Why?.
  */
+const SONGS_STILL_PLAY = 'Your songs still play.'
+
 export const SERVER_NEEDS = {
   import: {
     needs:
       'Importing goes through your library’s computer: it reads the link, plays a song before it is added, and downloads it.',
     meanwhile:
       'You can still add a link below — it’s downloaded the next time that computer is on, and turns up here soon after.',
+    still: 'You can still add a link below.',
   },
   stats: {
     needs:
       'Stats come from your library’s computer: it keeps every play any of your devices has ever recorded, and your storage holds only the songs.',
     meanwhile: null,
+    still: SONGS_STILL_PLAY,
   },
   metadata: {
     needs:
       'Looking a song up goes through your library’s computer: it asks iTunes and MusicBrainz, and writes the corrections you pick.',
     meanwhile: null,
+    still: SONGS_STILL_PLAY,
   },
   ai: {
     needs:
       'Smart features go through your library’s computer: it holds the whole library together and does the asking.',
     meanwhile: null,
+    still: SONGS_STILL_PLAY,
   },
   devices: {
     needs:
       'Your devices find each other through your library’s computer: it carries a handoff from one to the other, which your storage can’t do.',
     meanwhile: null,
+    still: SONGS_STILL_PLAY,
   },
 } as const
 
 export type ServerNeed = keyof typeof SERVER_NEEDS
 
 /**
- * What the screen says when there is no server behind what it came to show.
+ * What the screen says when there is no server behind what it came to show:
+ * a short title, the one line of what still works (`still`), and the rest —
+ * what the computer does for this screen, and how to get it back — as `why`,
+ * which the card keeps behind a Why?.
  *
  * `offered` is the server that works for anyone signed in
  * (docs/features/shared-server.md), when this build offers one: a library
@@ -178,12 +190,13 @@ export function awayCopy(
   said: boolean,
   need: ServerNeed,
   offered = false,
-): { title: string; body: string } {
-  const { needs, meanwhile } = SERVER_NEEDS[need]
+): { title: string; body: string; why: string } {
+  const { needs, meanwhile, still } = SERVER_NEEDS[need]
   if (!said && offered) {
     return {
       title: 'No computer works for your library yet',
-      body: `${needs} The shared computer can, working in your own storage — your library stays yours.`,
+      body: still,
+      why: `${needs} The shared computer can, working in your own storage — your library stays yours.`,
     }
   }
   const waiting = said
@@ -193,6 +206,7 @@ export function awayCopy(
     title: said
       ? 'Your library’s computer isn’t answering'
       : 'Your library’s computer hasn’t said where it is',
-    body: `${needs} ${meanwhile ?? waiting}`,
+    body: still,
+    why: `${needs} ${meanwhile ?? waiting}`,
   }
 }

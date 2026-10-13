@@ -33,6 +33,7 @@ appId: com.selfmp3.app
     visible:
       id: 'library-screen'
     timeout: 30000
+- runFlow: close-guide.yaml
 # A finger has no circle waiting in each row (docs/ui-mock `T09`): holding a
 # row starts choosing, as on a phone.
 - longPressOn:

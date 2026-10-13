@@ -10,7 +10,9 @@ import {
   type LoadOptions,
   type PlaybackEngine,
 } from '@selfmp3/client'
-import { streamFailureMessage } from './streamFailure.model'
+import { cannotPlayYet, notHere, streamFailureMessage } from './streamFailure.model'
+import { devicePlace } from '../features/settings/settings.model'
+import { deviceKind } from './device'
 import { clamp } from '@selfmp3/shared'
 
 /**
@@ -60,12 +62,12 @@ class AudioEngine implements PlaybackEngine {
    * State, listeners and wiring, as the phone's engine keeps them
    * (`@selfmp3/client`).
    *
-   * Two of the wiring's answers go unread here. `streamHeaders`: an `<audio>`
+   * Two of the wiring's answers are little read here. `streamHeaders`: an `<audio>`
    * element sends no headers of anyone's choosing, so a bucket song's address
    * is the app's own and the service worker attaches the doorman's bearer on
    * the way out (ports/bucketMedia.web.ts). `trackMetadata`: a browser draws
    * its own now-playing UI, so there is no card for the operating system to
-   * fill in; `navigator.mediaSession` is the obvious next reader of it.
+   * fill in; only its title is read, to name a song that cannot be played.
    */
   readonly #hub = new EngineHub()
 
@@ -181,7 +183,14 @@ class AudioEngine implements PlaybackEngine {
         // the queue has moved on from it.
         this.#primary.pause()
         this.#currentId = null
-        this.#hub.patch(unplayableState(songId))
+        this.#hub.patch(
+          unplayableState(
+            cannotPlayYet(
+              this.#hub.wiring.trackMetadata?.(songId)?.title,
+              devicePlace(deviceKind()),
+            ),
+          ),
+        )
         return
       }
       // Paused: nothing is fetched until play (`#startWhenPlayed`).
@@ -411,11 +420,12 @@ class AudioEngine implements PlaybackEngine {
    * has moved on to another song meanwhile.
    */
   async #explainSource(src: string): Promise<void> {
-    let message = 'This song is not available offline'
+    const place = devicePlace(deviceKind())
+    let message = notHere(place)
     try {
       const response = await fetch(src, { headers: { range: 'bytes=0-0' } })
       if (!response.ok && response.status !== 206) {
-        message = streamFailureMessage(response.status, await response.text())
+        message = streamFailureMessage(response.status, await response.text(), place)
       }
     } catch {
       // No answer at all: the plain wording stands.

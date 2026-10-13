@@ -47,7 +47,7 @@ import { PageHeader } from '../../ui/components/PageHeader'
 import { NavRow } from '../../ui/components/NavRow'
 import { ProgressBar } from '../../ui/components/ProgressBar'
 import { NoticeCard, NoticeText } from '../../ui/components/NoticeCard'
-import { card, pageFrame, rowTitle, lineSub } from '../../ui/surfaces'
+import { card, pageFrame, rowTitle } from '../../ui/surfaces'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
@@ -67,6 +67,9 @@ import { comingIn, countLabel, reviewName } from './review.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
 import { MoreMenu, type MenuItem } from '../../ui/components/MoreMenu'
+import { Guide } from '../guide/Guide'
+import { guideSeen } from '../guide/guideMemory'
+import { useGuide, type GuideTarget } from '../guide/useGuide'
 
 /** How many of today's finished imports are listed before "Show all". */
 const FINISHED_SHOWN = 5
@@ -109,12 +112,16 @@ export function ImportScreen({
   const { theme } = useUnistyles()
   const router = useRouter()
   const { wide } = useLayout()
-  const rowMotion = useRowMotion()
+  /*
+   * What the paragraph over the box used to say, shown once on the first
+   * visit, pointing at the box (D1, 2026-10-13); the sources row under the
+   * box says the rest every time.
+   */
+  const [boxTarget, boxGuide] = useGuide('import-box', true)
   /** "Show all" under Earlier today: the whole history is read only then. */
   const [showAll, setShowAll] = useState(false)
   const source = useImportSource(via, { history: showAll })
   const { api, library, tools, refetchTools, queue, history } = source
-  const viaServer = via !== undefined
   const params = useLocalSearchParams<{ url?: string; text?: string; title?: string }>()
 
   // The draft outlives this screen (importDraft.store.ts); only the error is the screen's.
@@ -204,14 +211,6 @@ export function ImportScreen({
 
   const form = (
     <View style={styles.form}>
-      <Text style={styles.explain}>
-        Search for a song, or paste a link from YouTube, 网易云音乐 or Spotify, or a list of song
-        names, one per line. A playlist brings every song in it, and an artist’s page their top
-        songs.
-        {viaServer
-          ? ' Your library’s computer downloads the songs, and they turn up on every device.'
-          : ''}
-      </Text>
       {/*
        * A compose card: room for several links or song names, one per line,
        * what was pasted said under them (`describePaste`), and what happens to
@@ -219,7 +218,12 @@ export function ImportScreen({
        * the commit on the right. It grows with what is pasted, and the whole
        * card carries the focus ring, since the whole card is the control.
        */}
-      <View style={[styles.compose, linksFocused && styles.composeFocused]}>
+      <View
+        ref={boxTarget}
+        collapsable={false}
+        style={[styles.compose, linksFocused && styles.composeFocused]}
+        testID="import-box"
+      >
         <TextInput
           style={[styles.linksInput, { height: Math.max(LINKS_MIN_HEIGHT, linksHeight) }]}
           value={links}
@@ -275,6 +279,18 @@ export function ImportScreen({
             />
           )}
         </View>
+      </View>
+      {/* What the box takes, named once and quietly: not buttons, only a reminder. */}
+      <View
+        style={styles.sources}
+        accessible
+        accessibilityLabel="Takes YouTube, 网易云音乐, Spotify or a list of names"
+      >
+        {SOURCES.map(name => (
+          <Text key={name} style={styles.source}>
+            {name}
+          </Text>
+        ))}
       </View>
     </View>
   )
@@ -352,9 +368,18 @@ export function ImportScreen({
    * above it slid Couldn't import's own Retry all into the Retry just pressed.
    */
   const nextUp = folded?.importing.find(job => job.status === 'queued')?.id ?? null
+  // A phone's rows swipe for Next and Remove, which nothing on them says:
+  // shown once, on the first such row, when there are two or more to act on.
+  const swipeable =
+    !wide && folded ? [...folded.failed, ...folded.importing].filter(dismissable) : []
+  // On a later visit than the box's guide: one guide a visit.
+  const [boxSeenBefore] = useState(() => guideSeen('import-box'))
+  const [swipeTarget, swipeGuide] = useGuide('import-rows', swipeable.length >= 2 && boxSeenBefore)
+  const firstSwipe = swipeable[0]?.id ?? null
   const rowProps = (job: ImportJob) => ({
     job,
     tags,
+    guideTarget: job.id === firstSwipe ? swipeTarget : undefined,
     nextLine: job.id === nextUp && queue ? nextLine(queue.pacing) : null,
     onPause: () => act({ kind: 'pause', id: job.id }, () => api.cancelImport(job.id)),
     onResume: () => act({ kind: 'resume', id: job.id }, () => api.retryImport(job.id)),
@@ -455,40 +480,40 @@ export function ImportScreen({
           style={styles.head}
         />
 
-        {wide ? (
-          // One column, the page's width, and what arrived under it at the foot
-          // of the page: a second column beside the form was squeezed to a
-          // strip of covers wherever the window was not wide enough for both.
-          <View style={styles.stack}>
-            <View style={styles.formColumn}>
-              {form}
-              {notices}
-              <NoticeCard title="Other ways in">
-                Share a link from the browser extension, or to self.mp3 from YouTube or 网易云音乐
-                itself. It lands here.
-              </NoticeCard>
-            </View>
-            {jobs}
-          </View>
-        ) : (
-          <View style={styles.stack}>
-            {form}
-            {notices}
-            {jobs}
-            {/* Under the queue, so it slides as the queue's rows come and go. */}
-            <Animated.View layout={rowMotion.layout} style={styles.stack}>
-              <Text style={styles.shareHint}>
-                You can also share a link to self.mp3 from YouTube or 网易云音乐 itself. It lands
-                here.
-              </Text>
-            </Animated.View>
-          </View>
-        )}
+        {/* One column, the page's width, and what arrived under it at the foot
+            of the page: a second column beside the form was squeezed to a
+            strip of covers wherever the window was not wide enough for both. */}
+        <View style={styles.stack}>
+          {form}
+          {notices}
+          {jobs}
+        </View>
         <ChromeSpacer />
       </ScrollView>
+      <Guide
+        guide={boxGuide}
+        at={{ x: 0.3, y: 0.4 }}
+        radius={18}
+        steps={[
+          {
+            gesture: 'tap',
+            text: 'Search for a song, or paste a link',
+            sub: wide
+              ? 'A playlist link brings every song in it. The browser extension sends links here too.'
+              : 'A playlist link brings every song in it. You can also share a link to self.mp3 from YouTube or 网易云音乐.',
+          },
+        ]}
+      />
+      <Guide
+        guide={swipeGuide}
+        steps={[{ gesture: 'swipe-left', text: 'Swipe left for Next and Remove', distance: 120 }]}
+      />
     </SafeAreaView>
   )
 }
+
+/** Where songs can come from, under the box. */
+const SOURCES = ['YouTube', '网易云音乐', 'Spotify', 'a list of names'] as const
 
 /** Three lines of links before the box starts growing. */
 const LINKS_MIN_HEIGHT = 66
@@ -714,9 +739,12 @@ function JobRow({
   onRetry,
   onDismiss,
   onNext,
+  guideTarget,
 }: {
   job: ImportJob
   tags: readonly Tag[]
+  /** Where the swipe guide lights, on the first row that swipes. */
+  guideTarget?: GuideTarget
   /** For the song whose turn is next: when it starts. */
   nextLine: string | null
   onPause: () => void
@@ -818,7 +846,7 @@ function JobRow({
   )
 
   if (wide || !removable) return row
-  return (
+  const swipe = (
     <SwipeActions
       name={name}
       onRemove={onDismiss}
@@ -828,6 +856,13 @@ function JobRow({
     >
       {row}
     </SwipeActions>
+  )
+  return guideTarget ? (
+    <View ref={guideTarget} collapsable={false}>
+      {swipe}
+    </View>
+  ) : (
+    swipe
   )
 }
 
@@ -981,10 +1016,8 @@ const styles = StyleSheet.create(theme => ({
   contentWide: pageFrame(true),
   contentPhone: pageFrame(false),
   head: { marginBottom: 20 },
-  formColumn: { gap: 22 },
   stack: { gap: space.xl },
   form: { gap: space.snug },
-  explain: lineSub(theme.colors),
   // The compose card: the links' room, then its foot. Focused, the card wears the accent ring.
   compose: {
     ...card(theme.colors),
@@ -1009,6 +1042,22 @@ const styles = StyleSheet.create(theme => ({
     gap: space.snug,
     marginLeft: -4,
   },
+  // The sources under the box: quiet words on a faint pill, wrapping on a narrow phone.
+  sources: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space.tight,
+    paddingHorizontal: space.xs,
+  },
+  source: {
+    color: theme.colors.textMuted,
+    ...textStyle('small'),
+    paddingVertical: 3,
+    paddingHorizontal: 9,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.surface2,
+    overflow: 'hidden',
+  },
   // What the box holds, said under it before it is looked up.
   pasted: { flexDirection: 'row', alignItems: 'center', gap: space.tight },
   pastedText: { color: theme.colors.good, fontSize: type.small, fontWeight: '600' },
@@ -1023,7 +1072,6 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
     borderRadius: radius.coverSm,
   },
-  shareHint: { color: theme.colors.textMuted, ...textStyle('sub') },
   jobs: { gap: space.tight },
   groupApart: { marginTop: space.md },
   groupActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },

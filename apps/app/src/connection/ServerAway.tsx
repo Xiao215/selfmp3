@@ -22,12 +22,13 @@ import { StatusLine } from '../ui/components/StatusLine'
  * cloud library is being looked for or is away.
  *
  * One notice rather than one per screen: the reason is the same every time,
- * and only the sentence about what is lost differs (`SERVER_NEEDS`). It is a
- * card and not a page, so each screen keeps its own heading and chrome around
- * it — Stats draws it inside its tabs, Import under its title. In a Settings
- * panel it is a row instead (`row`), with the same words and the same buttons:
- * the smart features' panel had its own sentence, and never offered the
- * shared computer.
+ * and only the sentence about what is lost differs (`SERVER_NEEDS`), and that
+ * waits behind a Why? under the line saying what still works. It is a card and
+ * not a page, so each screen keeps its own heading and chrome around it —
+ * Stats draws it inside its tabs, Import under its title. In a Settings panel
+ * it is a row instead (`row`), with the same title and the same buttons: the
+ * smart features' panel had its own sentence, and never offered the shared
+ * computer.
  *
  * Saying this is the whole point of the exercise. A feature that is simply not
  * drawn is indistinguishable, from where the user sits, from one that does not
@@ -92,6 +93,8 @@ export function ServerAway({
     <NoticeCard
       title={copy.title}
       live
+      why={copy.why}
+      whyTestID={`${testID}-why`}
       actions={buttons}
       style={styles.card}
       testID={`${testID}-away`}

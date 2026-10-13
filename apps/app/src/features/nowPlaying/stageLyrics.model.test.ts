@@ -50,7 +50,9 @@ describe('lyricsStatusText', () => {
   it('says what stands in for the words, and nothing once there are some', () => {
     expect(lyricsStatusText({ status: 'loading' })).toBe('Looking for lyrics…')
     expect(lyricsStatusText({ status: 'missing', offline: false })).toBe('No lyrics for this song.')
-    expect(lyricsStatusText({ status: 'missing', offline: true })).toMatch(/once it’s reachable/)
+    expect(lyricsStatusText({ status: 'missing', offline: true })).toBe(
+      'Lyrics show when your library is reachable again.',
+    )
     expect(
       lyricsStatusText({ status: 'lyrics', parsed: { synced: false, lines: [] }, roman: null }),
     ).toBeNull()

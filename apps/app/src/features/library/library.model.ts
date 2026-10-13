@@ -209,6 +209,16 @@ export function unreachableLabel(error: unknown): string {
 }
 
 /**
+ * What a page whose numbers come from the library says while the library is
+ * out of reach — Stats, the Report, Profile's month — in one line, so the
+ * three say it the same way.
+ */
+export const SHOWS_WHEN_REACHABLE = 'This shows when your library is reachable again.'
+
+/** The same for lyrics, on a phone's Now Playing and a computer's. */
+export const LYRICS_WHEN_REACHABLE = 'Lyrics show when your library is reachable again.'
+
+/**
  * What the "can't reach" card says: that the library did not answer, and
  * what to check.
  *
@@ -217,9 +227,10 @@ export function unreachableLabel(error: unknown): string {
  * no address to show. On a phone there is room for one short line, and the
  * address is in Settings, one press away.
  *
- * A used-up storage allowance is not "can't reach" at all: it says so, when
- * it comes back, and where to raise it — the one place outside its setup
- * where Backblaze is named, because that is where the reader has to go.
+ * A used-up storage allowance is not "can't reach" at all: it says so, and
+ * for how long, in a title and one line; when it comes back and where to raise
+ * it are behind Why? (`why`) — the one place outside its setup where Backblaze
+ * is named, because that is where the reader has to go.
  */
 export function unreachableCopy({
   fromCloud,
@@ -233,23 +244,23 @@ export function unreachableCopy({
   compact: boolean
   error?: unknown
   now?: Date
-}): { title: string; body: string } {
+}): { title: string; body: string; why: string | null } {
   if (bucketCapped(error)) {
     const until = untilCapResets(now)
     return {
-      title: 'Your storage’s allowance for today is used up',
-      body: compact
-        ? `It resets in about ${until}, or raise it at backblaze.com.`
-        : `Your storage stopped downloads until its daily allowance resets, in about ${until}. Nothing is wrong with your connection. To get your library back now, raise the cap under Caps & Alerts at backblaze.com.`,
+      title: 'Storage allowance used up',
+      body: `Downloads are paused for about ${until}.`,
+      why: `Your storage stopped downloads until its daily allowance resets. Nothing is wrong with your connection. To get your library back now, raise the cap under Caps & Alerts at backblaze.com.`,
     }
   }
   const title = 'Can’t reach your library'
-  if (compact) return { title, body: 'Check that you’re online, then try again.' }
-  if (fromCloud) return { title, body: 'Check that this device is online.' }
+  if (compact) return { title, body: 'Check that you’re online, then try again.', why: null }
+  if (fromCloud) return { title, body: 'Check that this device is online.', why: null }
   const host = address ? address.replace(/^[a-z]+:\/\//i, '').replace(/\/+$/, '') : null
   return {
     title,
     body: `${host ? `self.mp3 tried ${host}. ` : ''}Check that this device is online and that the computer your library lives on is switched on.`,
+    why: null,
   }
 }
 

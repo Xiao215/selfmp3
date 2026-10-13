@@ -22,6 +22,8 @@ import { HoldToReorder, useLiftScale, useMakeRoom } from './HoldToReorder'
 import { SongList } from './SongList'
 import { SongRow } from './SongRow'
 import { useSongRows } from './useSongRows'
+import { Guide, liftWith, makeRoomWith } from '../../features/guide/Guide'
+import { useGuide, type GuideHandle, type GuideTarget } from '../../features/guide/useGuide'
 
 /**
  * A list of songs in an order that is yours (docs/features/lists.md): a
@@ -192,6 +194,8 @@ export function OrderedSongList({
       dragY,
       lift: lift.lift,
       settling,
+      guide: null as GuideHandle | null,
+      target: null as GuideTarget | null,
     }),
     [liftedFrom, liftedOver, rowHeight, dragY, lift.lift, settling],
   )
@@ -222,6 +226,20 @@ export function OrderedSongList({
       dragEnd(songId, dy)
     },
   })
+  /*
+   * Nothing on a row says it can be moved, so the first list of yours with
+   * two songs in it shows how once (`useGuide`): the first row lifts with the
+   * hand, goes one place down and comes back, and the order is untouched.
+   */
+  const [firstTarget, guide] = useGuide(
+    'playlist-move',
+    reorderable && songs.length >= 2 && rowHeight > 0 && drag === null,
+  )
+  const demoing = guide.shown
+  const lit = useMemo(
+    () => ({ ...carry, guide: guide.shown ? guide : null, target: firstTarget }),
+    [carry, guide, firstTarget],
+  )
   const { rowProps } = rows
   const renderSong = useCallback(
     ({ item, index }: { item: Song; index: number }) => (
@@ -229,16 +247,17 @@ export function OrderedSongList({
         {...rowProps(item, index)}
         onPress={press}
         reorderable={reorderable}
-        lifted={drag?.from === index}
+        // The move guide's row wears the lifted look as it acts the move out.
+        lifted={drag?.from === index || (demoing && index === 0)}
         moves={moves}
       />
     ),
-    [rowProps, press, reorderable, drag, moves],
+    [rowProps, press, reorderable, drag, demoing, moves],
   )
 
   return (
     <>
-      <LiftContext.Provider value={carry}>
+      <LiftContext.Provider value={lit}>
         {/* The frame a drag over the list is read on. */}
         <View ref={frameRef} collapsable={false} style={styles.frame}>
           <SongList
@@ -259,6 +278,20 @@ export function OrderedSongList({
         </View>
       </LiftContext.Provider>
       {rows.menu}
+      <Guide
+        guide={guide}
+        reach={rowHeight}
+        steps={[
+          dense
+            ? { gesture: 'hold-move', text: 'Drag a song to move it', distance: rowHeight }
+            : {
+                gesture: 'hold-move',
+                text: 'Hold a song to move it',
+                sub: 'Drag it up or down, then let go',
+                distance: rowHeight,
+              },
+        ]}
+      />
     </>
   )
 }
@@ -361,6 +394,10 @@ interface Carry {
   readonly lift: Animated.Value | null
   /** Which row is wearing that scale: held, carried, or settling after the drop. */
   readonly settling: number | null
+  /** The move guide, while it is up: the first row acts it out, the second makes room. */
+  readonly guide: GuideHandle | null
+  /** What the guide measures to light: the first row's cell. */
+  readonly target: GuideTarget | null
 }
 
 const LiftContext = createContext<Carry>({
@@ -370,6 +407,8 @@ const LiftContext = createContext<Carry>({
   dragY: null,
   lift: null,
   settling: null,
+  guide: null,
+  target: null,
 })
 
 type CellProps = ComponentProps<NonNullable<FlatListProps<Song>['CellRendererComponent']>>
@@ -392,7 +431,7 @@ type CellProps = ComponentProps<NonNullable<FlatListProps<Song>['CellRendererCom
  * works its step out again.
  */
 function LiftedCell({ index, style, onLayout, onFocusCapture, children }: CellProps): ReactNode {
-  const { from, over, step, dragY, lift, settling } = useContext(LiftContext)
+  const { from, over, step, dragY, lift, settling, guide, target } = useContext(LiftContext)
   const carried = dragY !== null && from === index
   const room = useMakeRoom(
     from === null || over === null || carried ? 0 : roomShift(index, from, over),
@@ -410,8 +449,13 @@ function LiftedCell({ index, style, onLayout, onFocusCapture, children }: CellPr
             // lands, so a row reading it now would settle in the wrong place.
             settling === index && lift !== null
             ? { zIndex: 2, transform: [{ scale: lift }] }
-            : room,
+            : guide !== null && index === 0
+              ? liftWith(guide, step)
+              : guide !== null && index === 1
+                ? makeRoomWith(guide, step)
+                : room,
       ]}
+      ref={index === 0 && target !== null ? target : undefined}
       onLayout={onLayout}
       // The list's own cell passes this on to a View, which takes it on both
       // platforms; the types of Animated.View just do not name it.

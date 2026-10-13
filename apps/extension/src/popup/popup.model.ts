@@ -1,4 +1,10 @@
-import { enqueueRequest, jobSubtitle, type Review, taken } from '@selfmp3/client/core'
+import {
+  enqueueRequest,
+  importFailure,
+  jobSubtitle,
+  type Review,
+  taken,
+} from '@selfmp3/client/core'
 import { isPendingRequest, type ImportRequestView } from '@selfmp3/replica'
 import {
   plural,
@@ -161,7 +167,7 @@ function bucketView(input: PopupInputs): PopupView {
     if (request.state === 'failed') {
       return {
         name: 'failed',
-        message: request.error ?? 'Your server could not fetch that link.',
+        message: importFailure(request.error),
         jobId: null,
       }
     }

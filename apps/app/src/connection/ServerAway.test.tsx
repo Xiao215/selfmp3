@@ -69,6 +69,10 @@ describe('ServerAway', () => {
         testID="metadata-server"
       />,
     )
+    // Under the title, what still works; what this screen needed waits behind Why?.
+    expect(screen.getByText('Your songs still play.')).toBeTruthy()
+    expect(screen.queryByText(/Looking a song up goes through/)).toBeNull()
+    await fireEvent.press(screen.getByTestId('metadata-server-why'))
     expect(screen.getByText(/Looking a song up goes through your library’s computer/)).toBeTruthy()
 
     await fireEvent.press(screen.getByTestId('metadata-server-look-again'))

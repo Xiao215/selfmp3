@@ -28,6 +28,9 @@ import { createValueStore, type ValueStore } from '../../state/valueStore.model'
 import { useValueStore } from '../../state/useValueStore'
 import { menuCommands } from '../../ports/menuKeys'
 import { finePointer } from '../../ports/pointer'
+import { Button } from '../../ui/components/Button'
+import { showToast } from '../../ui/toast'
+import { forgetGuides } from '../guide/guideMemory'
 import { Panel, partStyles, Row, SliderSetting, StackedRows } from './SettingsParts'
 import { AccessPanel } from './AccessPanel'
 import { AppearancePanel } from './AppearancePanel'
@@ -405,10 +408,21 @@ export function SettingsScreen(): ReactNode {
             {shortcuts ? <ShortcutsPanel items={shortcuts} anchor={anchorAt('shortcuts')} /> : null}
 
             <Panel title="About" anchor={anchorAt('about')}>
-              <Row label="Version" last>
+              <Row label="Version">
                 <Text style={partStyles.valueText}>
                   {String(Constants.expoConfig?.version ?? '1.0.0')}
                 </Text>
+              </Row>
+              {/* Each guide shows once on a device; this brings them all back, once each. */}
+              <Row label="Tips" last>
+                <Button
+                  label="Show tips again"
+                  onPress={() => {
+                    forgetGuides()
+                    showToast('Tips will show again.', 'good')
+                  }}
+                  testID="settings-show-tips"
+                />
               </Row>
             </Panel>
 

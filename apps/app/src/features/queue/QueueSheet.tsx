@@ -1,6 +1,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Text, View, useWindowDimensions } from 'react-native'
+import { Guide, slideWith } from '../guide/Guide'
+import { useGuide } from '../guide/useGuide'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -196,6 +198,14 @@ function SheetPanel({
   const [measured, setMeasured] = useState(0)
   const rowHeight = promised ?? (measured || ROW_HEIGHT_GUESS)
   const first = rows.next[0]?.index ?? 0
+  /*
+   * Swiping a song away and holding one to move it, shown once on the first
+   * song to come, in place of a line that sat under the list for good.
+   */
+  const [firstTarget, guide] = useGuide(
+    'up-next',
+    shown && !inRoom && rows.next.length >= 2 && drag === null && !onlySongEnded(player),
+  )
   const last = rows.next[rows.next.length - 1]?.index ?? 0
 
   /*
@@ -254,7 +264,7 @@ function SheetPanel({
   const row = (entry: QueueRow, kind: 'next' | 'played'): ReactNode => {
     const movable = kind === 'next'
     const facts = factsOf(entry.song)
-    return (
+    const sheetRow = (
       <SheetRow
         song={entry.song}
         index={entry.index}
@@ -273,6 +283,17 @@ function SheetPanel({
         hideTagIds={fromTags}
         actions={actions}
       />
+    )
+    if (!movable || entry.index !== first) return sheetRow
+    return (
+      <Animated.View
+        key={entry.song.id}
+        ref={firstTarget}
+        collapsable={false}
+        style={guide.shown && guide.step === 0 ? slideWith(guide, 110) : null}
+      >
+        {sheetRow}
+      </Animated.View>
     )
   }
 
@@ -371,16 +392,23 @@ function SheetPanel({
                 <Text style={[styles.label, styles.labelInset]}>{nextLabel(rows.next)}</Text>
               )
             }
-            foot={
-              <>
-                <AutoMixRow player={player} upcoming={rows.next.length} style={styles.autoMix} />
-                <Text style={styles.hint}>Hold a song to move it · swipe left to remove it</Text>
-              </>
-            }
+            foot={<AutoMixRow player={player} upcoming={rows.next.length} style={styles.autoMix} />}
           />
         )}
       </Animated.View>
       {tagPicker}
+      <Guide
+        inline
+        guide={guide}
+        steps={[
+          { gesture: 'swipe-left', text: 'Swipe left to remove a song', distance: 110 },
+          {
+            gesture: 'hold',
+            text: 'Hold a song to move it',
+            sub: 'Drag it up or down, then let go',
+          },
+        ]}
+      />
     </View>
   )
 }
@@ -684,10 +712,4 @@ const styles = StyleSheet.create(theme => ({
   // Opaque, so the ground shows only where the row has been swiped off it.
   swipeRow: { backgroundColor: theme.colors.surface1 },
   autoMix: { paddingTop: space.lg, paddingHorizontal: 18 },
-  hint: {
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    textAlign: 'center',
-    paddingTop: space.lg,
-  },
 }))

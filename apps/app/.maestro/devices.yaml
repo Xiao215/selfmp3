@@ -30,6 +30,7 @@ appId: com.selfmp3.app
     visible:
       id: 'library-screen'
     timeout: 30000
+- runFlow: close-guide.yaml
 
 - tapOn:
     id: 'song-row-0'
@@ -50,6 +51,7 @@ appId: com.selfmp3.app
 # Devices is under Now Playing's ⋯, and the mini player opens Now Playing.
 - tapOn:
     id: 'mini-player'
+- runFlow: close-guide.yaml
 - tapOn:
     id: 'now-playing-more'
 - tapOn: 'Devices'

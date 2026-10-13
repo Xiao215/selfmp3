@@ -119,10 +119,12 @@ export function audibleLevel(state: Pick<EngineState, 'volume' | 'muted'>): numb
  * nor a server answering here. Said as an error the provider recovers from,
  * and not playing — the song before it has been stopped, or it would sound on
  * under the next song's name while the provider retries from its position.
+ * The words are the app's (they name the song and this device), so each
+ * engine hands them in.
  */
-export function unplayableState(songId: number): Partial<EngineState> {
+export function unplayableState(error: string): Partial<EngineState> {
   return {
-    error: `Song ${songId} cannot be played from this device yet.`,
+    error,
     playing: false,
     stalled: false,
   }

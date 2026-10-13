@@ -30,7 +30,7 @@ export function Confirmations({
   > = {
     'remove-downloads': {
       title: `Remove all songs from this ${place}?`,
-      body: 'The library itself is not touched. Downloading automatically is turned off too, or they would just come back.',
+      body: 'The library itself is not touched. Downloading automatically is turned off too.',
       label: `Remove all from this ${place}`,
       run: () => void removeAll(),
     },

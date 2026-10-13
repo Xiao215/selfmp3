@@ -36,6 +36,7 @@ appId: com.selfmp3.app
     visible:
       id: 'song-row-0'
     timeout: 90000
+- runFlow: close-guide.yaml
 
 - tapOn:
     id: 'library-on-this-phone'

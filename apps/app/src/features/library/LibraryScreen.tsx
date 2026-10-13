@@ -1,6 +1,7 @@
 import { useOpenSearch } from '../../shell/palette'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import type { Song } from '@selfmp3/shared'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -38,6 +39,8 @@ import { usePullToRefresh } from './usePullToRefresh'
 import { label, pageFrame } from '../../ui/surfaces'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { PageLoading } from '../../ui/components/PageLoading'
+import { Guide } from '../guide/Guide'
+import { useGuide } from '../guide/useGuide'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
@@ -169,6 +172,30 @@ export function LibraryScreen(): ReactNode {
     // The tags the list is filtered by are on every row: not drawn.
     hideTagIds: filter.tagIds,
   })
+  /*
+   * Holding a song to select it has nothing on the row to say so. A finger
+   * is shown once, on the second visit, so the first look at a library is
+   * left alone; a pointer has Shift and ⌘ and its own ticks.
+   */
+  const [guideTarget, selectGuide] = useGuide(
+    'library-select',
+    !finePointer && !selection.active && !model.loading && visible.length > 0,
+    { afterVisits: 1 },
+  )
+  const { renderSong: drawRow } = rows
+  const renderSong = useCallback(
+    (info: { item: Song; index: number }) => {
+      const row = drawRow(info)
+      return info.index === 0 ? (
+        <View ref={guideTarget} collapsable={false}>
+          {row}
+        </View>
+      ) : (
+        row
+      )
+    },
+    [drawRow, guideTarget],
+  )
 
   /*
    * What stands where the songs would. A server that did not answer gets the
@@ -518,7 +545,7 @@ export function LibraryScreen(): ReactNode {
             arrivalKey={arrivalKey}
             songs={visible}
             label={`${model.heading} songs`}
-            renderSong={rows.renderSong}
+            renderSong={renderSong}
             rowHeight={rowHeight}
             scrollLabel={scrollLabel}
             onRefresh={pull.onRefresh}
@@ -530,6 +557,16 @@ export function LibraryScreen(): ReactNode {
       </View>
 
       {rows.menu}
+      <Guide
+        guide={selectGuide}
+        steps={[
+          {
+            gesture: 'hold',
+            text: 'Hold a song to select several',
+            sub: 'Then add them to a playlist, or tag them',
+          },
+        ]}
+      />
     </SafeAreaView>
   )
 }

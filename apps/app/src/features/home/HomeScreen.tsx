@@ -30,10 +30,10 @@ import { useOpenSearch } from '../../shell/palette'
 import { useBottomInset } from '../../shell/bottomInset'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
-import { noTagsLine } from '../tag/tag.model'
 import { Cover } from '../../ui/components/Cover'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { Press } from '../../ui/components/Press'
+import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { SearchField } from '../../ui/components/SearchField'
 import { SectionHead } from '../../ui/components/SectionHead'
@@ -54,7 +54,6 @@ import {
   rowTitle,
   nameTitle,
   label,
-  lineSub,
 } from '../../ui/surfaces'
 import { useOpenTag } from '../tag/useOpenTag'
 import { PlaylistCover } from '../playlists/PlaylistCover'
@@ -101,8 +100,8 @@ import { COLUMN_WIDTH } from '../../shell/widths'
  * otherwise rather than a zero.
  *
  * A library with no songs at all gets one card in place of the tags and the
- * search: the way to the first song, and what the page turns into once there
- * is one. "Hold a song in Library and choose Tags" over no songs was a puzzle
+ * search: where the library starts, and the button to Import. "Hold a song in
+ * Library and choose Tags" over no songs was a puzzle
  * (Xiao, 2026-09-22).
  */
 export function HomeScreen(): ReactNode {
@@ -328,36 +327,24 @@ function ToneWash({ color }: { color: string }): ReactNode {
 
 /**
  * The first thing on an empty library's Home: one card washed with the
- * accent, the way the New playlist tile is, that opens Import. It says what
- * Home becomes once a song is in, so the space is a promise rather than a gap.
+ * accent, the way the New playlist tile is, saying where the library starts,
+ * and the one button that starts it.
  */
 function FirstSong({ onPress }: { onPress: () => void }): ReactNode {
   const accent = useAccent()
   return (
-    <Press
-      depth="row"
-      testID="home-first-song"
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel="Import a link. Silence, for now: paste a YouTube link and your library starts here."
-      style={[styles.firstCard, { backgroundColor: accent.accentPill }]}
-    >
+    <View style={[styles.firstCard, { backgroundColor: accent.accentPill }]}>
       <View style={styles.firstMark}>
         <Plus size={iconSize.large} color={accent.accent} />
       </View>
-      <Text style={styles.firstTitle}>
-        Silence, for now
+      <Text style={styles.firstTitle} accessibilityRole="header">
+        Your library starts with one song
         <Text style={styles.greetingDot}>.</Text>
       </Text>
-      <Text style={styles.firstBody}>
-        Paste a YouTube link and your library starts here. The tags you play most, what you played
-        last and your week in numbers all follow from the first song.
-      </Text>
       <View style={styles.firstAction}>
-        <Text style={[styles.firstActionLabel, { color: accent.accent }]}>Import a link</Text>
-        <ChevronRight size={iconSize.item} color={accent.accent} />
+        <Button label="Import" variant="primary" onPress={onPress} testID="home-first-song" />
       </View>
-    </Press>
+    </View>
   )
 }
 
@@ -408,7 +395,6 @@ function Tiles({
   /** Whether the card column stands beside the tiles, taking its width from theirs. */
   beside: boolean
 }): ReactNode {
-  const { finePointer } = useLayout()
   const openTag = useOpenTag()
   const art = useArt()
   // As many tiles of `WIDE_TILE_MIN` as fit, two to three (`C03` draws
@@ -429,8 +415,8 @@ function Tiles({
         compact
         style={styles.emptyTile}
         testID="home-no-tags"
-        title="Your tags will live here"
-        line={noTagsLine(finePointer)}
+        title="No tags yet"
+        line="Tag a song from its ⋯ menu."
       />
     )
   }
@@ -960,17 +946,7 @@ const styles = StyleSheet.create(theme => ({
     marginBottom: space.tight,
   },
   firstTitle: serif(theme.colors, 'page'),
-  firstBody: {
-    ...lineSub(theme.colors),
-    maxWidth: 440,
-  },
-  firstAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.xs,
-    marginTop: space.tight,
-  },
-  firstActionLabel: { fontSize: type.body, fontWeight: '600' },
+  firstAction: { marginTop: space.tight },
   recents: { paddingRight: 20 },
   recentBadge: {
     position: 'absolute',

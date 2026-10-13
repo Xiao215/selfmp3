@@ -74,7 +74,6 @@ function Panel({
   summary?: string
 }): ReactNode {
   const wide = useLayoutValue(layout => layout.wide)
-  const finePointer = useLayoutValue(layout => layout.finePointer)
   const accent = useAccent()
   const [query, setQuery] = useState('')
   const { data: library } = useLibrary()
@@ -146,7 +145,7 @@ function Panel({
             lane(`${matches.length} of ${tags.length}`, matches)
           )
         ) : tags.length === 0 ? (
-          <Text style={styles.hint}>No tags yet. {noTagsLine(finePointer)}</Text>
+          <Text style={styles.hint}>{noTagsLine()}</Text>
         ) : (
           <>
             {lane(null, mostUsed)}

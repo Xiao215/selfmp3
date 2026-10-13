@@ -16,6 +16,9 @@ import {
 
 import { ensurePlayer } from '../player/setup'
 import { askWhyRefused } from './bucketRefusal'
+import { deviceKind } from './device'
+import { cannotPlayYet } from './streamFailure.model'
+import { devicePlace } from '../features/settings/settings.model'
 
 /**
  * The phone's engine: react-native-track-player behind `PlaybackEngine`.
@@ -173,7 +176,14 @@ class NativeEngine implements PlaybackEngine {
         this.#queuedNext = null
         await TrackPlayer.pause()
         if (overtaken()) return
-        this.#hub.patch(unplayableState(songId))
+        this.#hub.patch(
+          unplayableState(
+            cannotPlayYet(
+              this.#hub.wiring.trackMetadata?.(songId)?.title,
+              devicePlace(deviceKind()),
+            ),
+          ),
+        )
         return
       }
 

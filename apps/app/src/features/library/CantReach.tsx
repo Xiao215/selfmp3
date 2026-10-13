@@ -47,6 +47,7 @@ export function CantReach({
       tone="error"
       title={copy.title}
       live
+      why={copy.why}
       style={[styles.card, !wide && styles.cardCompact]}
       testID="cant-reach"
       actions={

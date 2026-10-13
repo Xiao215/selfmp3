@@ -79,6 +79,11 @@ vi.mock('react-native-track-player', () => {
 })
 vi.mock('../player/setup', () => ({ ensurePlayer: () => Promise.resolve() }))
 
+// Who this device is reads React Native, which a node test cannot load. Each
+// rig says which it is: a phone, or a computer for the browser.
+const device = vi.hoisted(() => ({ kind: 'phone' as 'phone' | 'desktop' }))
+vi.mock('./device', () => ({ deviceKind: () => device.kind }))
+
 // --- the browser's element ---------------------------------------------------
 
 class FakeAudio extends EventTarget {
@@ -125,16 +130,20 @@ interface Rig {
   nearEnd(): void
   /** The song runs out on its own. */
   end(): void
+  /** What this device is called in the app's words. */
+  readonly place: 'phone' | 'computer'
 }
 
 const rigs: Record<string, () => Promise<Rig>> = {
   phone: async () => {
+    device.kind = 'phone'
     const { createEngine } = await import('./engine')
     const engine = createEngine()
     // The player's listeners are attached after its setup resolves.
     await vi.waitFor(() => expect(player.handlers.size).toBeGreaterThan(0))
     return {
       engine,
+      place: 'phone',
       sounding: () => player.playing,
       level: () => player.volume,
       fresh: () => player.resets,
@@ -153,11 +162,13 @@ const rigs: Record<string, () => Promise<Rig>> = {
   },
 
   browser: async () => {
+    device.kind = 'desktop'
     const { createEngine } = await import('./engine.web')
     const engine = createEngine()
     const playing = (): FakeAudio | undefined => elements.find(element => !element.paused)
     return {
       engine,
+      place: 'computer',
       sounding: () => playing() !== undefined,
       level: () => elements.find(element => element.src !== '')?.volume ?? elements[0]?.volume ?? 1,
       fresh: () => elements.reduce((sum, element) => sum + element.loads, 0),
@@ -209,16 +220,29 @@ describe.each(Object.keys(rigs))('the %s engine', name => {
   const rig = (): Promise<Rig> => (rigs[name] as () => Promise<Rig>)()
 
   it('stops the song before one it has nowhere to play from, and says so', async () => {
-    const { engine, sounding } = await rig()
+    const { engine, sounding, place } = await rig()
     engine.connect({ streamUrl: songId => (songId === 2 ? '' : address(songId)) })
     await engine.load(1)
     expect(sounding()).toBe(true)
 
     await engine.load(2)
 
-    expect(engine.state.error).toMatch(/cannot be played from this device/)
+    expect(engine.state.error).toBe(`This song can’t be played on this ${place} yet.`)
     expect(engine.state.playing).toBe(false)
     expect(sounding()).toBe(false)
+  })
+
+  it('names a song it has nowhere to play from, when it knows the title', async () => {
+    const { engine, place } = await rig()
+    engine.connect({
+      streamUrl: () => '',
+      trackMetadata: songId => ({ title: `Evening ${songId}` }),
+    })
+
+    await expect(engine.load(3)).resolves.toBeUndefined()
+
+    expect(engine.state.error).toBe(`“Evening 3” can’t be played on this ${place} yet.`)
+    expect(engine.state.playing).toBe(false)
   })
 
   it('says a song repeated on its own has ended, each time round', async () => {

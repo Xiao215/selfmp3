@@ -99,23 +99,32 @@ test.describe('up next on a computer', () => {
     await expect(rail).toBeHidden()
   })
 
-  test('says once how a song comes out, and never again on this device', async ({ page }, info) => {
+  test('shows once how a song comes out, and never again on this device', async ({
+    page,
+  }, info) => {
     test.skip(info.project.name === 'phone', RAIL)
+    // Every flow starts with the guides seen (playwright.config.ts); this one
+    // is about the guide, so this device forgets them first.
+    await page.goto('/')
+    await page.evaluate(() => window.localStorage.setItem('selfmp3.guides', ''))
     await startPlaying(page)
     await page.getByTestId('player-bar-queue').click()
     const rail = page.getByTestId('queue-rail')
-    const hint = page.getByTestId('queue-rail-hint')
-    await expect(hint).toHaveText(/Drag a song out to remove it/)
+    const guide = page.getByTestId('guide-up-next-rail')
+    await expect(guide).toBeVisible()
+    await expect(guide).toHaveAccessibleName(/Drag a song out to remove it/)
 
-    // Anything done in the rail puts it away.
-    await rail.getByTestId('queue-row-1').click()
-    await expect(hint).toBeHidden()
+    // A tap anywhere puts it away, and does nothing else.
+    await guide.click()
+    await expect(guide).toBeHidden()
+    await expect(rail).toBeVisible()
 
     // Remembered on this device: a fresh start does not show it again.
     await startPlaying(page)
     await page.getByTestId('player-bar-queue').click()
     await expect(rail.getByTestId('queue-row-1')).toBeVisible()
-    await expect(hint).toHaveCount(0)
+    await page.waitForTimeout(1500)
+    await expect(guide).toHaveCount(0)
   })
 
   test('a row held and moved lands where it was let go, far down a long queue', async ({

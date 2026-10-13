@@ -40,6 +40,7 @@ import { EmptyState } from '../../ui/components/EmptyState'
 import { PageLoading } from '../../ui/components/PageLoading'
 import { Press } from '../../ui/components/Press'
 import { COLUMN_WIDTH } from '../../shell/widths'
+import { SHOWS_WHEN_REACHABLE } from '../library/library.model'
 
 /** The line beside Listened, in its own box's units. */
 const SPARK = { width: 120, height: 56 }
@@ -62,10 +63,7 @@ export function StatsScreen({ via }: { via?: ServerConnection } = {}): ReactNode
       {isLoading && !stats ? (
         <PageLoading line="Working it out…" />
       ) : !stats ? (
-        <EmptyState
-          title="Stats need your library"
-          line="They’ll be here when your library is reachable again."
-        />
+        <EmptyState title="Stats need your library" line={SHOWS_WHEN_REACHABLE} />
       ) : stats.totals.plays === 0 ? (
         <EmptyState
           title="Nothing to show yet"

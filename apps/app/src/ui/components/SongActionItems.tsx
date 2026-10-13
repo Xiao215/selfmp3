@@ -17,6 +17,7 @@ import {
   iconSize,
 } from '@selfmp3/client'
 import { playlistsToAddTo } from '../../features/playlists/playlists.model'
+import { askForGuide } from '../../features/guide/guideMemory'
 import { usePlaylistRemoval } from '../../features/playlists/usePlaylistRemoval'
 import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
 import { devicePlace } from '../../features/settings/settings.model'
@@ -237,6 +238,9 @@ export function SongActionItems({
                   { playlistId: list.id, songIds: ids },
                   saidOnSuccess(`Added ${these} to ${list.name}`),
                 )
+                // A computer can drop songs on the sidebar's playlists instead,
+                // which this is the moment to show (`sidebar-drop`).
+                askForGuide('sidebar-drop')
                 onClose()
               }}
             />

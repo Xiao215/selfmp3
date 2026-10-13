@@ -1,3 +1,4 @@
+import { importFailure } from '@selfmp3/client/core'
 import { isPendingRequest, type ImportRequestView } from '@selfmp3/replica'
 import { sameLink, youtubeVideoId, youtubeWatchUrl, type ImportJob } from '@selfmp3/shared'
 import type { Handlers, PageRequest, PillState } from '../bridge.js'
@@ -42,7 +43,7 @@ export function stateOfJob(job: ImportJob): PillState {
   }
   if (job.status === 'done') return bare('added')
   if (job.status === 'error') {
-    return { state: 'failed', progress: null, jobId: null, message: job.error ?? 'Failed' }
+    return { state: 'failed', progress: null, jobId: null, message: importFailure(job.error) }
   }
   return idle
 }
@@ -58,7 +59,7 @@ export function stateOfRequest(request: ImportRequestView): PillState {
   if (isPendingRequest(request)) return bare('waiting')
   if (request.state === 'done') return bare('added')
   if (request.state === 'failed') {
-    return { state: 'failed', progress: null, jobId: null, message: request.error ?? 'Failed' }
+    return { state: 'failed', progress: null, jobId: null, message: importFailure(request.error) }
   }
   return idle
 }

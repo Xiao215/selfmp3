@@ -325,7 +325,7 @@ export function MyLibraryPicker({
   const add = async (song: Song): Promise<void> => {
     const roomSong = cloudLibrary.cloudRoomSongNow(song.id)
     if (!roomSong) {
-      showToast('That song is not in your bucket yet', 'warn')
+      showToast('That song isn’t in your storage yet', 'warn')
       return
     }
     if (await onAdd(roomSong)) setAdded(before => new Set([...before, song.id]))
@@ -421,7 +421,7 @@ function ShelfPicker({ state }: { state: RoomState }): ReactNode {
       .map(id => cloudLibrary.cloudRoomSongNow(id))
       .filter((song): song is RoomSong => song !== null)
     if (songs.length === 0) {
-      showToast('None of those songs are in your bucket yet', 'warn')
+      showToast('None of those songs are in your storage yet', 'warn')
       return
     }
     setPicking(false)
@@ -491,7 +491,6 @@ function ALink({ state }: { state: RoomState }): ReactNode {
   const [found, setFound] = useState<RoomSong | null>(null)
   const [busy, setBusy] = useState(false)
   const url = playableLink(text)
-  const host = state.members.find(member => member.kind === 'host')
 
   const look = async (): Promise<void> => {
     if (!url) return
@@ -537,8 +536,7 @@ function ALink({ state }: { state: RoomState }): ReactNode {
             onAdd={() => void add()}
           />
           <Text style={styles.text}>
-            Plays through {host ? `${nameOf(state, host)}’s` : 'the host’s'} server, straight from
-            the link. Nothing is saved to anyone’s library.
+            Plays straight from the link. Nothing is saved to anyone’s library.
           </Text>
         </View>
       ) : (
@@ -552,8 +550,8 @@ function ALink({ state }: { state: RoomState }): ReactNode {
       )}
       {state.mode === 'everyone' && !state.linkRelay ? (
         <Text style={styles.text}>
-          Everyone else hears a link when the host’s server can be reached from the internet;
-          otherwise it plays on the host’s device alone.
+          Everyone else hears a link when the host’s library’s computer can be reached from the
+          internet; otherwise it plays on the host’s device alone.
         </Text>
       ) : null}
     </View>
@@ -664,7 +662,7 @@ function PeopleSheet({ open, state }: { open: boolean; state: RoomState }): Reac
               />
               <Right
                 label="Add links"
-                hint="Plays through your server; nothing is kept"
+                hint="Plays straight from the link; nothing is kept"
                 value={state.rights.links}
                 onChange={v => setRight('links', v)}
               />

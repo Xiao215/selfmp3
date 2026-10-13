@@ -20,6 +20,7 @@ import {
   type ImportPreviewItem,
   type ImportSource,
 } from '@selfmp3/shared'
+import { importFailure } from './failure.js'
 
 /**
  * Importing, without the screen.
@@ -42,7 +43,10 @@ export function jobSubtitle(
   job: Pick<ImportJob, 'status' | 'step' | 'error' | 'attempts'>,
 ): string {
   if (job.status === 'error') {
-    const reason = job.error ?? 'Failed'
+    // A song waiting on its upload is not a failure, and says what it is waiting for.
+    const reason = waitingToUpload(job)
+      ? 'In your library, not in your storage yet. It uploads by itself.'
+      : importFailure(job.error)
     return job.attempts > 1 ? `${reason} · ${job.attempts} attempts` : reason
   }
   // Pause and Pause all call a job off; it waits for Resume, so it is paused.

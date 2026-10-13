@@ -52,6 +52,7 @@ import { isStatsPeriod, periodLabel, STATS_PERIODS, statsRangeFor } from '../sta
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
 import { Spinner } from '../../ui/components/Spinner'
+import { SHOWS_WHEN_REACHABLE } from '../library/library.model'
 
 /** How wide a portrait look is drawn on a computer: its board's own width, near enough. */
 const PORTRAIT_ON_COMPUTER = 480
@@ -193,12 +194,7 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
   if (isLoading && !wrapped) return shell(<PageLoading line="Working it out…" />)
 
   if (!wrapped) {
-    return shell(
-      <EmptyState
-        title="The report needs your library"
-        line="It’ll be here when your library is reachable again."
-      />,
-    )
+    return shell(<EmptyState title="The report needs your library" line={SHOWS_WHEN_REACHABLE} />)
   }
 
   if (wrapped.totals.plays === 0) {

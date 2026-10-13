@@ -108,6 +108,7 @@ describe('DevicesSheet from a cloud library', () => {
 
     expect(screen.getByTestId('devices-server-away')).toBeTruthy()
     expect(screen.getByText('Your library’s computer isn’t answering')).toBeTruthy()
+    await fireEvent.press(screen.getByTestId('devices-server-why'))
     expect(
       screen.getByText(/Your devices find each other through your library’s computer/),
     ).toBeTruthy()

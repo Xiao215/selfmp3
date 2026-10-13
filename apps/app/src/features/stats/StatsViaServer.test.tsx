@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native'
+import { fireEvent, render, screen } from '@testing-library/react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 
 import { StatsViaServer } from './StatsViaServer'
@@ -45,6 +45,9 @@ describe('Stats from a cloud library with no server in reach', () => {
     expect(screen.getByText('Your library’s computer isn’t answering')).toBeTruthy()
     // The Report is a page of its own, and still one step away.
     expect(screen.getByTestId('stats-report')).toBeTruthy()
+    // Why the page is empty is one Why? away, under what still works.
+    expect(screen.getByText('Your songs still play.')).toBeTruthy()
+    await fireEvent.press(screen.getByTestId('stats-server-why'))
     expect(screen.getByText(/Stats come from your library’s computer/)).toBeTruthy()
   })
 })

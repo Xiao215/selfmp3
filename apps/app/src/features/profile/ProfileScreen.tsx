@@ -33,6 +33,7 @@ import { SongLine } from '../../ui/components/SongLine'
 import { StatFigure } from '../../ui/components/StatFigure'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
+import { SHOWS_WHEN_REACHABLE } from '../library/library.model'
 
 const ICONS: Record<ProfileRowId, typeof Settings> = {
   import: Download,
@@ -160,11 +161,7 @@ function Month({
           {month.onRepeat ? <OnRepeat month={month} via={via} /> : null}
         </>
       ) : (
-        <Text style={styles.line}>
-          {loading
-            ? 'Working it out…'
-            : 'Your listening numbers come from your library’s computer.'}
-        </Text>
+        <Text style={styles.line}>{loading ? 'Working it out…' : SHOWS_WHEN_REACHABLE}</Text>
       )}
     </Press>
   )

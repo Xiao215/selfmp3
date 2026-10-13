@@ -7,7 +7,7 @@ import { useMutation } from '@tanstack/react-query'
 import { space, type, type Review, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { canListenHere } from '../../ports/listen'
-import { label as groupLabel, pageFrame, pageTitle, textColumn, lineSub } from '../../ui/surfaces'
+import { label as groupLabel, pageFrame, pageTitle, textColumn } from '../../ui/surfaces'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { Cover } from '../../ui/components/Cover'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -28,6 +28,8 @@ import {
 import { AllBox, ReviewGridHead, useReviewRows } from './ReviewRows'
 import { ScrollView } from '../../ui/components/Scroll'
 import { TapAway } from '../../ui/components/TapAway'
+import { Guide } from '../guide/Guide'
+import { useGuide } from '../guide/useGuide'
 
 /**
  * Reviewing what a link holds, before any of it downloads (`/import/review`,
@@ -107,6 +109,9 @@ export function ImportReview({
     showFrom,
   })
   const chooseAll = (on: boolean): void => chooseAllIn(key, on)
+  // What a row does on a phone, shown once on the first row rather than said
+  // above the list on every visit.
+  const [firstRow, rowsGuide] = useGuide('import-review', !wide && rows.length > 0)
 
   if (!review) return leaving ? null : <Redirect href="/import" />
 
@@ -168,17 +173,20 @@ export function ImportReview({
               showFrom={showFrom}
             />
           ) : (
-            <>
-              <Text style={styles.hint}>
-                {anyToHear
-                  ? 'Untick a song to leave it out. Tap a song to hear it and to fix its name.'
-                  : 'Untick a song to leave it out. Tap a song to fix its name.'}
-              </Text>
+            <View style={styles.allPhone}>
               <AllBox review={review} onChange={chooseAll} wide={false} />
-            </>
+            </View>
           )}
           <View accessibilityRole="list" accessibilityLabel="Songs to import">
-            {rows}
+            {rows.map((row, index) =>
+              index === 0 ? (
+                <View key="first" ref={firstRow} collapsable={false}>
+                  {row}
+                </View>
+              ) : (
+                row
+              ),
+            )}
           </View>
         </TapAway>
       </ScrollView>
@@ -198,6 +206,17 @@ export function ImportReview({
         onImport={() => enqueue.mutate(review)}
         onGround={open === null ? undefined : closeRow}
         testID="import-commit"
+      />
+      <Guide
+        guide={rowsGuide}
+        at={{ x: 0.55, y: 0.5 }}
+        steps={[
+          {
+            gesture: 'tap',
+            text: anyToHear ? 'Tap a song to hear it' : 'Tap a song to fix its name',
+            sub: 'Untick it to leave it out',
+          },
+        ]}
       />
     </SafeAreaView>
   )
@@ -246,11 +265,7 @@ const styles = StyleSheet.create(theme => ({
   names: textColumn,
   kicker: { ...groupLabel(theme.colors), fontSize: type.small, color: theme.colors.textSecondary },
   nameWide: pageTitle(theme.colors),
-  hint: {
-    ...lineSub(theme.colors),
-    paddingTop: space.md,
-    paddingBottom: space.xs,
-  },
+  allPhone: { paddingTop: space.md },
   listPhone: { paddingHorizontal: space.gutter, flexGrow: 1 },
   listWide: { paddingHorizontal: 28 },
 }))

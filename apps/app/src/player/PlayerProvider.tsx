@@ -845,9 +845,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       const failed = state.error !== null && state.error !== recovery.lastError
       recovery.lastError = state.error
       if (!failed || songId === undefined) return
-      // The engine's words ("Song 1234 cannot be played from this device
-      // yet", a media error's code) are for whoever is debugging; the toast
-      // says which song, and what happened to it.
+      // The engine's words ("“Evening” can’t be played on this phone yet",
+      // a media error's code) are for whoever is debugging; the toast says
+      // which song, and what happened to it.
       console.warn(`Playback failed for song ${songId}:`, state.error)
 
       const title =

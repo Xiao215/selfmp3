@@ -82,7 +82,7 @@ describe('a batch that has finished', () => {
     const none = finished(queue([job('a', failedStep)]), [batch(['a'])])[0]
     expect(none && noticeFor(none)).toEqual({
       title: '1 song couldn’t be downloaded',
-      message: 'Video unavailable',
+      message: 'This video isn’t on YouTube any more.',
     })
   })
 

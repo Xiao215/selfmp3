@@ -448,7 +448,9 @@ export class YtDlpService {
    * the download queue: YouTube does not care which of them asked.
    */
   #failure(raw: string): Error {
-    if (!isRateLimited(raw)) return new Error(this.#explain(raw))
+    // yt-dlp's own words ride along as the cause, for the log: the app's row
+    // says the reason in a few plain words, and whoever runs the server reads both.
+    if (!isRateLimited(raw)) return new Error(this.#explain(raw), { cause: raw })
     this.#throttle.penalize()
     this.#logger.warn('YouTube is rate-limiting this address; pausing requests', { raw })
     return new RateLimitedError(this.#explain(raw))

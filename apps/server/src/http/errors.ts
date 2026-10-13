@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express'
+import { messageOf, type EditRefusal } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * One error type for the whole server.
@@ -20,6 +20,11 @@ export class HttpError extends Error {
     this.status = status
     this.code = code
     this.details = details
+  }
+
+  /** An edit refused by the rules every answerer shares (shared editRules.ts). */
+  static refused(refusal: EditRefusal): HttpError {
+    return new HttpError(refusal.status, refusal.message, refusal.code)
   }
 
   static badRequest(message: string, details?: unknown): HttpError {

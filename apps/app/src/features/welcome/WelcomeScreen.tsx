@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  ActivityIndicator,
-  AppState,
-  Image,
-  KeyboardAvoidingView,
-  Linking,
-  Pressable,
-  Text,
-  View,
-} from 'react-native'
+import { AppState, Image, KeyboardAvoidingView, Linking, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { PRIVACY_POLICY_URL } from '@selfmp3/shared'
-import { DoormanError } from '@selfmp3/replica'
-import { fonts, leading, radius, space, tagColors, type } from '@selfmp3/client'
+import { DOORMAN_ERROR, DoormanError, PRIVACY_POLICY_URL } from '@selfmp3/shared'
+import {
+  fonts,
+  hitSlopFor,
+  leading,
+  radius,
+  space,
+  tagColors,
+  type,
+  tracking,
+  textStyle,
+} from '@selfmp3/client'
 import { session as cloud } from '../../replica'
 import { keptCovers } from '../../offline/covers'
 import { deviceWord } from '../../ports/device'
@@ -26,7 +26,7 @@ import { BrandMark } from '../../ui/components/BrandMark'
 import { Button } from '../../ui/components/Button'
 import { CoverLight } from '../../ui/components/CoverLight'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { floating, sectionTitle, serif } from '../../ui/surfaces'
+import { floating, sectionTitle, bodyText } from '../../ui/surfaces'
 import {
   afterCheck,
   copyFor,
@@ -36,6 +36,7 @@ import {
 } from '../signIn/signIn.model'
 import { ServerAddress } from './ServerAddress'
 import { WhitePill } from './WhitePill'
+import { ONBOARDING_GUTTER, OnboardingFootnote, OnboardingTitle } from './OnboardingPage'
 import {
   FAN_POSES,
   WELCOME_FAN,
@@ -45,6 +46,10 @@ import {
   type WelcomeTile,
 } from './welcome.model'
 import { ScrollView } from '../../ui/components/Scroll'
+import { StatusLine } from '../../ui/components/StatusLine'
+import { Press } from '../../ui/components/Press'
+import { Spinner } from '../../ui/components/Spinner'
+import { WINDOW_WIDTH } from '../../shell/widths'
 
 /**
  * The way in (docs/ui-mock `P01`, `P02`, `C01`): one button, Continue with
@@ -73,9 +78,6 @@ function pageOrigin(): string | null {
 
 /** How often to ask the doorman whether Google has finished. */
 const POLL_MS = 2_000
-
-/** A window wide enough for the text half's full margin. */
-const ROOMY = 1100
 
 export function WelcomeScreen(): ReactNode {
   const { theme } = useUnistyles()
@@ -161,7 +163,7 @@ export function WelcomeScreen(): ReactNode {
         setStage({
           kind: 'idle',
           message:
-            error instanceof DoormanError && error.code === 'wrong_code'
+            error instanceof DoormanError && error.code === DOORMAN_ERROR.wrongCode
               ? 'That sign-in didn’t go through. Try again.'
               : signInFailure(error, pageOrigin()),
         })
@@ -195,7 +197,7 @@ export function WelcomeScreen(): ReactNode {
   const device = deviceWord({ wide, finePointer })
   // Two halves on a wide screen. An iPad in portrait is barely past the
   // breakpoint, so the text half's margin and the button give way there.
-  const margin = width >= ROOMY ? 96 : 48
+  const margin = width >= WINDOW_WIDTH.welcomeRoomy ? 96 : 48
   const pill = Math.min(320, width / 2 - margin * 2)
 
   const words = (
@@ -204,23 +206,20 @@ export function WelcomeScreen(): ReactNode {
         <BrandMark size={22} />
         <Text style={styles.brandName}>self.mp3</Text>
       </View>
-      <Text style={[styles.headline, wide && styles.headlineWide]} accessibilityRole="header">
+      <OnboardingTitle mark={copy.mark}>
         {copy.lead}
         {'\n'}
         {copy.rest}
-        <Text style={styles.mark}>{copy.mark}</Text>
-      </Text>
+      </OnboardingTitle>
       {copy.body ? <Text style={[styles.body, wide && styles.bodyWide]}>{copy.body}</Text> : null}
-      {busy ? <ActivityIndicator color={theme.colors.accent} style={styles.spinner} /> : null}
+      {busy ? <Spinner tone="accent" style={styles.spinner} /> : null}
     </View>
   )
 
   const actions =
     stage.kind === 'claiming' ? null : (
       <View style={styles.actions}>
-        {stage.kind === 'idle' && stage.message ? (
-          <Text style={styles.error}>{stage.message}</Text>
-        ) : null}
+        {stage.kind === 'idle' && stage.message ? <StatusLine>{stage.message}</StatusLine> : null}
         {stage.kind === 'idle' || stage.kind === 'lost' ? (
           <WhitePill
             testID="welcome-google"
@@ -234,21 +233,17 @@ export function WelcomeScreen(): ReactNode {
         )}
         {stage.kind === 'idle' ? (
           <View style={[styles.footnotes, wide && styles.footnotesWide]}>
-            <Text style={[styles.footnote, wide && styles.footnoteWide]}>
-              {welcomeFootnote(device)}
-            </Text>
+            <OnboardingFootnote>{welcomeFootnote(device)}</OnboardingFootnote>
             {/* What signing in with Google keeps, on the page the app is published from. */}
-            <Pressable
+            <Press
+              feedback="dim"
               onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
               accessibilityRole="link"
               accessibilityLabel="Privacy policy"
-              hitSlop={8}
-              style={({ pressed }) => pressed && styles.pressed}
+              hitSlop={hitSlopFor(leading.small)}
             >
-              <Text style={[styles.footnote, styles.privacy, wide && styles.footnoteWide]}>
-                Privacy policy
-              </Text>
-            </Pressable>
+              <OnboardingFootnote link>Privacy policy</OnboardingFootnote>
+            </Press>
           </View>
         ) : (
           <Button label="Cancel" onPress={() => setStage({ kind: 'idle', message: null })} />
@@ -392,7 +387,7 @@ const styles = StyleSheet.create(theme => ({
   narrow: {
     flexGrow: 1,
     justifyContent: 'flex-end',
-    paddingHorizontal: 28,
+    paddingHorizontal: ONBOARDING_GUTTER,
     paddingTop: space.xl + titleBarInset,
     paddingBottom: 60,
     gap: 22,
@@ -405,35 +400,21 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: 60,
     gap: 26,
   },
-  words: { gap: 10 },
+  words: { gap: space.snug },
   brand: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   brandName: sectionTitle(theme.colors),
-  // A welcome, so the serif: one weight, never bolded.
-  headline: { ...serif(theme.colors, type.display), lineHeight: 46, letterSpacing: -0.6 },
-  headlineWide: { fontSize: type.display, lineHeight: leading.display, letterSpacing: -1 },
-  mark: { fontFamily: fonts.serifItalic, color: theme.colors.accent },
-  body: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
-  bodyWide: { fontSize: type.title, lineHeight: leading.title, maxWidth: 420 },
+  body: bodyText(theme.colors),
+  bodyWide: { ...textStyle('title'), maxWidth: 420 },
   spinner: { alignSelf: 'flex-start', marginTop: space.sm },
   actions: { gap: space.lg },
-  error: { color: theme.colors.danger, fontSize: type.body },
-  footnotes: { gap: 4, alignItems: 'center' },
+  footnotes: { gap: space.xs, alignItems: 'center' },
   footnotesWide: { alignItems: 'flex-start' },
-  footnote: {
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    lineHeight: leading.small,
-    textAlign: 'center',
-  },
-  footnoteWide: { fontSize: type.sub, lineHeight: leading.sub, maxWidth: 420, textAlign: 'left' },
-  privacy: { color: theme.colors.textSecondary, textDecorationLine: 'underline' },
-  pressed: { opacity: 0.6 },
   tiles: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    columnGap: 8,
-    rowGap: 10,
+    columnGap: space.sm,
+    rowGap: space.snug,
     marginHorizontal: -20,
     marginBottom: 18,
   },
@@ -441,25 +422,25 @@ const styles = StyleSheet.create(theme => ({
   tilesWide: {
     flex: 1,
     alignContent: 'center',
-    columnGap: 14,
+    columnGap: space.roomy,
     rowGap: 18,
     // Narrow enough that an iPad's half still takes two tiles abreast.
-    marginHorizontal: 24,
+    marginHorizontal: space.xl,
     marginBottom: 0,
   },
   tile: {
     width: 118,
     height: 84,
     borderRadius: radius.card,
-    padding: 12,
+    padding: space.md,
     justifyContent: 'space-between',
     ...floating(theme.colors),
   },
-  tileWide: { width: 170, height: 120, padding: 16 },
-  tileName: { fontFamily: fonts.display, fontSize: type.section, letterSpacing: -0.2 },
+  tileWide: { width: 170, height: 120, padding: space.lg },
+  tileName: { fontFamily: fonts.display, fontSize: type.section, letterSpacing: tracking.heading },
   tileSquares: { flexDirection: 'row', gap: 3 },
   tileSquare: { width: 16, height: 16, borderRadius: 4 },
-  fan: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  fan: { flexDirection: 'row', gap: space.snug, marginBottom: space.snug },
   fanWide: { gap: 18, marginBottom: 0 },
   fanCover: floating(theme.colors),
   coversHalf: { flex: 1, alignItems: 'center', justifyContent: 'center' },

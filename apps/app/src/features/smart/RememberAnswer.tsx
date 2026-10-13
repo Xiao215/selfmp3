@@ -2,9 +2,10 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { SMART_NOTES_MAX } from '@selfmp3/shared'
-import { leading, space, type, useSettings, useUpdateSettings } from '@selfmp3/client'
+import { space, useSettings, useUpdateSettings, textStyle } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { showToast } from '../../ui/toast'
+import { AnswerActions, AnswerHead, AnswerLine } from './AnswerParts'
 
 /**
  * "From now on, Chinese names only" (docs/features/ai.md, "Remembered
@@ -33,16 +34,16 @@ export function RememberAnswer({ note, onDone }: { note: string; onDone: () => v
 
   return (
     <View style={styles.body} testID="ask-remember">
-      <Text style={styles.head}>Remember this for every Ask?</Text>
+      <AnswerHead>Remember this for every Ask?</AnswerHead>
       <Text style={styles.note}>“{note}”</Text>
-      <Text style={styles.line}>
+      <AnswerLine>
         {saved
           ? 'Ask remembers this already.'
           : full
             ? `Ask remembers ${SMART_NOTES_MAX} things already: take one away in Settings › Smart features first.`
             : 'Sent with each request from now on. Settings › Smart features lists what Ask remembers, to take any of it away.'}
-      </Text>
-      <View style={styles.actions}>
+      </AnswerLine>
+      <AnswerActions>
         <Button label="Not now" onPress={onDone} />
         <Button
           label="Remember"
@@ -52,15 +53,12 @@ export function RememberAnswer({ note, onDone }: { note: string; onDone: () => v
           onPress={save}
           testID="ask-remember-save"
         />
-      </View>
+      </AnswerActions>
     </View>
   )
 }
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm },
-  head: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  note: { color: theme.colors.textPrimary, fontSize: type.body, lineHeight: leading.body },
-  line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
+  note: { color: theme.colors.textPrimary, ...textStyle('body') },
 }))

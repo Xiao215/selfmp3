@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native'
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- the song's values are edited in place, drawn as the text they are
+import { Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
@@ -11,11 +12,13 @@ import {
 } from '@selfmp3/shared'
 import {
   failureText,
-  leading,
   oklchToHexAlpha,
   radius,
   type,
   type ServerConnection,
+  textStyle,
+  iconSize,
+  space,
 } from '@selfmp3/client'
 import { useMetadataSource } from './metadataSource'
 import { useMetadataSuggestion } from './useMetadataSuggestion'
@@ -39,13 +42,16 @@ import {
 import { useArt } from '../../offline/useArt'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
-import { floating, label as groupLabel } from '../../ui/surfaces'
+import { label as groupLabel, hint, textColumn, dialogPanel } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
-import { Checkbox } from '../../ui/components/Checkbox'
+import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
+import { Press } from '../../ui/components/Press'
+import { Spinner } from '../../ui/components/Spinner'
 import { Dialog, DialogHead } from '../../ui/components/Dialog'
 import { Check, Sparkle } from '../../ui/components/Icons'
 import { ScrollView } from '../../ui/components/Scroll'
+import { StatusLine } from '../../ui/components/StatusLine'
 
 /** A source's badge at one hue, as an OKLCH pair: ground, ink. */
 const badgeTone = (hue: number): [string, string] => [
@@ -195,14 +201,10 @@ export function MetadataDialog({
       <View style={styles.sectionHead}>
         <Text style={styles.groupTitle}>SUGGESTIONS</Text>
         {candidates.length > 0 ? <Pill text={String(candidates.length)} /> : null}
-        {lookup.isPending ? <ActivityIndicator size="small" color={accent.accent} /> : null}
+        {lookup.isPending ? <Spinner tone="accent" /> : null}
       </View>
 
-      {lookup.isError ? (
-        <Text style={[styles.hint, { color: theme.colors.danger }]}>
-          Couldn’t reach the lookup services.
-        </Text>
-      ) : null}
+      {lookup.isError ? <StatusLine>Couldn’t reach the lookup services.</StatusLine> : null}
       {lookup.isSuccess && candidates.length === 0 ? (
         <Text style={styles.hint}>
           Nothing matched on iTunes or MusicBrainz.{' '}
@@ -229,17 +231,14 @@ export function MetadataDialog({
           const active = index === selectedKey
           const [ground, ink] = SOURCE_TONE[candidate.source]
           return (
-            <Pressable
+            <Press
+              feedback="wash"
               key={`${candidate.source}-${index}`}
               onPress={() => setSelectedKey(index)}
               accessibilityRole="radio"
               accessibilityState={{ checked: active }}
               accessibilityLabel={`${candidate.title}, ${candidateLine(candidate)}, ${SOURCE_LABELS[candidate.source]}, ${scorePercent(candidate.score)}`}
-              style={({ pressed }) => [
-                styles.candidate,
-                pressed && styles.candidatePressed,
-                active && styles.candidateActive,
-              ]}
+              style={[styles.candidate, active && styles.candidateActive]}
             >
               <Cover
                 uri={candidate.artworkUrl ?? null}
@@ -262,7 +261,7 @@ export function MetadataDialog({
                 </View>
                 <Text style={styles.score}>{scorePercent(candidate.score)}</Text>
               </View>
-            </Pressable>
+            </Press>
           )
         })}
       </View>
@@ -296,17 +295,13 @@ export function MetadataDialog({
                 </View>
               </View>
               {diffs.map(diff => (
-                <Pressable
+                <CheckRow
                   key={diff.field}
+                  checked={ticked.has(diff.field)}
+                  label={diffLabel(diff, song.hasArt)}
                   onPress={() => toggle(diff.field)}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: ticked.has(diff.field) }}
-                  accessibilityLabel={diffLabel(diff, song.hasArt)}
-                  style={({ pressed }) => [
-                    styles.diffRow,
-                    !wide && styles.diffRowNarrow,
-                    pressed && styles.diffPressed,
-                  ]}
+                  feedback="wash"
+                  style={[styles.diffRow, !wide && styles.diffRowNarrow]}
                 >
                   <Checkbox checked={ticked.has(diff.field)} />
                   <View style={wide ? styles.diffBodyWide : styles.diffBodyNarrow}>
@@ -345,7 +340,7 @@ export function MetadataDialog({
                       </Text>
                     )}
                   </View>
-                </Pressable>
+                </CheckRow>
               ))}
             </>
           )}
@@ -366,7 +361,7 @@ export function MetadataDialog({
       <DialogHead
         title="Fix song info"
         onClose={onClose}
-        style={[styles.head, !wide && { paddingTop: 14 + insets.top }]}
+        style={[styles.head, !wide && { paddingTop: space.roomy + insets.top }]}
       />
 
       {wide ? (
@@ -382,7 +377,10 @@ export function MetadataDialog({
       )}
 
       <View
-        style={[styles.foot, !wide && [styles.footNarrow, { paddingBottom: 12 + insets.bottom }]]}
+        style={[
+          styles.foot,
+          !wide && [styles.footNarrow, { paddingBottom: space.md + insets.bottom }],
+        ]}
       >
         {apply.isError ? (
           <Text style={[styles.hint, styles.footLead, { color: theme.colors.warning }]}>
@@ -399,7 +397,7 @@ export function MetadataDialog({
         <Button
           label={applyLabel(count, apply.isPending)}
           variant="primary"
-          icon={<Check size={15} color={accent.onAccent} />}
+          icon={<Check color={accent.onAccent} />}
           disabled={count === 0 || apply.isPending}
           onPress={submit}
         />
@@ -428,15 +426,14 @@ function SuggestedCard({
   onAgain: () => void
   onPick: () => void
 }): ReactNode {
-  const { theme } = useUnistyles()
   const accent = useAccent()
   const answer = state.data
-  const sparkle = <Sparkle size={14} color={accent.accent} />
+  const sparkle = <Sparkle size={iconSize.field} color={accent.accent} />
 
   if (state.isPending) {
     return (
       <View style={[styles.suggested, styles.suggestedAsk]} testID="metadata-suggest-pending">
-        <ActivityIndicator size="small" color={accent.accent} />
+        <Spinner tone="accent" />
         <Text style={styles.candidateSub}>Reading the listings and the song’s file…</Text>
       </View>
     )
@@ -444,16 +441,13 @@ function SuggestedCard({
   if (!answer) {
     return (
       <View style={styles.suggestedWrap}>
-        <Pressable
+        <Press
+          feedback="wash"
           onPress={onAsk}
           accessibilityRole="button"
           accessibilityLabel="Suggest names"
           testID="metadata-suggest"
-          style={({ pressed }) => [
-            styles.suggested,
-            styles.suggestedAsk,
-            pressed && styles.candidatePressed,
-          ]}
+          style={[styles.suggested, styles.suggestedAsk]}
         >
           {sparkle}
           <View style={styles.candidateMain}>
@@ -462,11 +456,9 @@ function SuggestedCard({
               Reads this song’s names, file and link with the listings, 网易云’s too
             </Text>
           </View>
-        </Pressable>
+        </Press>
         {state.error ? (
-          <Text style={[styles.hint, { color: theme.colors.danger }]}>
-            {failureText('Couldn’t suggest', state.error)}
-          </Text>
+          <StatusLine>{failureText('Couldn’t suggest', state.error)}</StatusLine>
         ) : null}
       </View>
     )
@@ -482,18 +474,15 @@ function SuggestedCard({
   ].filter(Boolean)
   return (
     <View style={styles.suggestedWrap}>
-      <Pressable
+      <Press
+        feedback="wash"
         onPress={pick ? onPick : undefined}
         disabled={!pick}
         accessibilityRole={pick ? 'radio' : undefined}
         accessibilityState={pick ? { checked: active } : undefined}
         accessibilityLabel={pick ? `Suggested: ${pick.title}, ${candidateLine(pick)}` : answer.why}
         testID="metadata-suggested"
-        style={({ pressed }) => [
-          styles.suggested,
-          pressed && pick && styles.candidatePressed,
-          active && styles.candidateActive,
-        ]}
+        style={[styles.suggested, active && styles.candidateActive]}
       >
         {sparkle}
         <View style={styles.candidateMain}>
@@ -511,7 +500,7 @@ function SuggestedCard({
         <View style={[styles.badge, { backgroundColor: SOURCE_TONE.ai[0] }]}>
           <Text style={[styles.badgeText, { color: SOURCE_TONE.ai[1] }]}>SUGGESTED</Text>
         </View>
-      </Pressable>
+      </Press>
       <Text
         style={[styles.link, styles.suggestedAgain, { color: accent.accent }]}
         onPress={onAgain}
@@ -534,19 +523,12 @@ function Pill({ text }: { text: string }): ReactNode {
 const styles = StyleSheet.create(theme => ({
   frameNarrow: { padding: 0, alignItems: 'stretch' },
   dialog: { backgroundColor: theme.colors.surface1, overflow: 'hidden' },
-  dialogWide: {
-    width: '100%',
-    maxWidth: 880,
-    maxHeight: 760,
-    height: '86%',
-    borderRadius: radius.sheet,
-    ...floating(theme.colors),
-  },
+  dialogWide: { ...dialogPanel(theme.colors, 'wide'), maxHeight: 760, height: '86%' },
   dialogNarrow: { flex: 1 },
   head: {
-    paddingTop: 14,
-    paddingRight: 14,
-    paddingBottom: 12,
+    paddingTop: space.roomy,
+    paddingRight: space.roomy,
+    paddingBottom: space.md,
     paddingLeft: 22,
   },
   bodyWide: { flex: 1, minHeight: 0, flexDirection: 'row' },
@@ -555,23 +537,23 @@ const styles = StyleSheet.create(theme => ({
   currentScroll: {
     width: 240,
     flexGrow: 0,
-    marginLeft: 12,
-    marginBottom: 4,
+    marginLeft: space.md,
+    marginBottom: space.xs,
     borderRadius: radius.card,
     backgroundColor: theme.colors.surface2,
   },
   candidatesScroll: { flex: 1 },
-  current: { paddingVertical: 18, paddingHorizontal: 20, gap: 14 },
+  current: { paddingVertical: 18, paddingHorizontal: 20, gap: space.roomy },
   currentNarrow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    columnGap: 16,
+    columnGap: space.lg,
     rowGap: 0,
   },
-  fullRow: { width: '100%', marginBottom: 12 },
+  fullRow: { width: '100%', marginBottom: space.md },
   fields: { flex: 1, minWidth: 0, gap: 7 },
   fieldsWide: { flex: 0 },
-  fieldRow: { flexDirection: 'row', gap: 12 },
+  fieldRow: { flexDirection: 'row', gap: space.md },
   fieldLabel: { width: 84, color: theme.colors.textMuted, fontSize: type.sub, paddingTop: 2 },
   fieldValue: { flex: 1, color: theme.colors.textPrimary, fontSize: type.sub },
   // A box only by its underline, so the panel still reads as the song's card.
@@ -583,75 +565,78 @@ const styles = StyleSheet.create(theme => ({
     _web: { outlineStyle: 'none' },
   },
   fieldEdited: { borderBottomColor: theme.colors.accent },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   groupTitle: groupLabel(theme.colors),
-  candidates: { paddingVertical: 18, paddingHorizontal: 20, gap: 12 },
-  hint: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
+  candidates: { paddingVertical: 18, paddingHorizontal: 20, gap: space.md },
+  hint: hint(theme.colors),
   strong: { color: theme.colors.textPrimary },
   link: { fontSize: type.small, textDecorationLine: 'underline' },
-  list: { gap: 4 },
+  list: { gap: space.xs },
   candidate: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    gap: space.md,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.snug,
     borderRadius: radius.row,
   },
-  candidatePressed: { backgroundColor: theme.colors.surface2 },
   // What a model offers is dashed until it is taken (docs/features/ai.md, rule 2).
-  suggestedWrap: { gap: 4 },
+  suggestedWrap: { gap: space.xs },
   suggested: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    gap: space.md,
+    paddingVertical: space.snug,
+    paddingHorizontal: space.md,
     borderRadius: radius.row,
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: theme.colors.surface3,
   },
-  suggestedAsk: { paddingVertical: 12 },
+  suggestedAsk: { paddingVertical: space.md },
   suggestedWhy: {
     color: theme.colors.textSecondary,
-    fontSize: type.small,
-    lineHeight: leading.small,
+    ...textStyle('small'),
     marginTop: 2,
   },
-  suggestedAgain: { alignSelf: 'flex-end', marginRight: 4 },
+  suggestedAgain: { alignSelf: 'flex-end', marginRight: space.xs },
   // The picked suggestion wears the palette's selected-row colour, not an accent edge.
   candidateActive: { backgroundColor: theme.colors.accentSelected },
-  candidateMain: { flex: 1, minWidth: 0, gap: 2 },
+  candidateMain: textColumn,
   candidateTitle: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '500' },
   candidateSub: { color: theme.colors.textMuted, fontSize: type.small },
-  candidateMeta: { alignItems: 'flex-end', gap: 4 },
+  candidateMeta: { alignItems: 'flex-end', gap: space.xs },
   badge: { paddingVertical: 2, paddingHorizontal: 7, borderRadius: radius.pill },
   badgeText: { fontSize: type.tiny, fontWeight: '700', letterSpacing: 0.5 },
   score: { color: theme.colors.textMuted, fontSize: type.small, fontVariant: ['tabular-nums'] },
   // Space, not a rule, sets the changes apart from the suggestions.
-  diff: { marginTop: 16, gap: 2 },
+  diff: { marginTop: space.lg, gap: 2 },
   diffHead: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 8,
+    gap: space.md,
+    marginBottom: space.sm,
   },
-  diffActions: { flexDirection: 'row', gap: 12 },
+  diffActions: { flexDirection: 'row', gap: space.md },
   diffRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: space.snug,
     paddingVertical: 7,
-    paddingHorizontal: 8,
+    paddingHorizontal: space.sm,
     borderRadius: radius.row,
   },
   diffRowNarrow: { alignItems: 'flex-start', paddingVertical: 9 },
-  diffPressed: { backgroundColor: theme.colors.surface2 },
-  diffBodyWide: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  diffBodyNarrow: { flex: 1, minWidth: 0, gap: 2 },
+  diffBodyWide: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.snug,
+  },
+  diffBodyNarrow: textColumn,
   diffLabel: { color: theme.colors.textMuted },
   diffLabelWide: { width: 92, fontSize: type.sub },
   diffLabelNarrow: { fontSize: type.tiny, fontWeight: '600', letterSpacing: 0.55 },
@@ -660,7 +645,7 @@ const styles = StyleSheet.create(theme => ({
   old: { color: theme.colors.textMuted, textDecorationLine: 'line-through' },
   arrow: { color: theme.colors.textMuted, fontSize: type.small },
   new: { color: theme.colors.textPrimary },
-  coverChange: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
+  coverChange: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.snug },
   pill: {
     paddingVertical: 1,
     paddingHorizontal: 7,
@@ -677,8 +662,8 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: 8,
-    paddingVertical: 12,
+    gap: space.sm,
+    paddingVertical: space.md,
     paddingHorizontal: 20,
   },
   footNarrow: { flexWrap: 'wrap' },

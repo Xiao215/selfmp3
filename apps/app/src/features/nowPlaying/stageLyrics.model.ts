@@ -1,3 +1,6 @@
+import { LYRICS_WHEN_REACHABLE } from '../library/library.model'
+import type { SongWords } from './nowPlaying.model'
+
 /**
  * How each lyric line is drawn, with nothing drawn: its tone against the line
  * being sung, and in Focus how blurred it is.
@@ -48,4 +51,16 @@ export function lyricBlur(index: number, active: number, reach: number): number 
   const distance = Math.abs(index - active)
   if (distance === 0 || distance > reach) return 0
   return Math.min(BLUR_LINES, distance) * BLUR_PER_LINE
+}
+
+/**
+ * What stands where the words would be while there are none to draw, on a
+ * phone and a computer alike; null once there are words. Offline, the words
+ * may well exist: the line says why they are not here rather than that there
+ * are none. The two pages had said that two ways.
+ */
+export function lyricsStatusText(words: SongWords): string | null {
+  if (words.status === 'lyrics') return null
+  if (words.status === 'loading') return 'Looking for lyrics…'
+  return words.offline ? LYRICS_WHEN_REACHABLE : 'No lyrics for this song.'
 }

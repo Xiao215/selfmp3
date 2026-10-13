@@ -1,4 +1,4 @@
-import { DAY_MS } from '@selfmp3/shared'
+import { artistKey, DAY_MS, splitArtists, UNKNOWN_ARTIST, type TopEntry } from '@selfmp3/shared'
 
 /**
  * The arithmetic the listening pages share: Stats (`stats.ts`) and Wrapped
@@ -9,6 +9,39 @@ import { DAY_MS } from '@selfmp3/shared'
 /** Milliseconds as minutes, to one decimal. */
 export function toMinutes(ms: number | null): number {
   return Math.round(((ms ?? 0) / 60_000) * 10) / 10
+}
+
+/** Plays of one artist string, as SQL groups them. */
+export interface ArtistPlaysRow {
+  artist: string
+  plays: number
+  ms: number | null
+}
+
+/**
+ * The artists played most, from plays grouped by the artist string as
+ * written. Not ranked in SQL: "ヨルシカ feat. suis" counts for ヨルシカ and for
+ * suis, as everywhere else in the app (`splitArtists`), and two spellings
+ * that compare equal are one artist, under the spelling played most. A song
+ * with no artist counts for `UNKNOWN_ARTIST`. Rows come most played first.
+ */
+export function topArtists(rows: readonly ArtistPlaysRow[], limit: number): TopEntry[] {
+  const byKey = new Map<string, { key: string; plays: number; ms: number }>()
+  for (const row of rows) {
+    const names = splitArtists(row.artist)
+    for (const name of names.length > 0 ? names : [UNKNOWN_ARTIST]) {
+      const key = artistKey(name)
+      const had = byKey.get(key)
+      if (had) {
+        had.plays += row.plays
+        had.ms += row.ms ?? 0
+      } else byKey.set(key, { key: name, plays: row.plays, ms: row.ms ?? 0 })
+    }
+  }
+  return [...byKey.values()]
+    .sort((a, b) => b.plays - a.plays || a.key.localeCompare(b.key))
+    .slice(0, limit)
+    .map(entry => ({ key: entry.key, plays: entry.plays, minutes: toMinutes(entry.ms) }))
 }
 
 /** Whole days between two YYYY-MM-DD strings, ignoring time zones and DST. */

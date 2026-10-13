@@ -1,4 +1,10 @@
-import { NATIVE_BACKGROUND, NATIVE_CARD } from '@selfmp3/shared'
+import {
+  NATIVE_BACKGROUND,
+  NATIVE_CARD,
+  NATIVE_RAISED,
+  NATIVE_TEXT_PRIMARY,
+  NATIVE_TEXT_SECONDARY,
+} from '@selfmp3/shared'
 import { oklchToHex, oklchToHexAlpha } from './oklch.js'
 
 /**
@@ -170,15 +176,16 @@ export type Accent = ReturnType<typeof buildAccent>
  */
 const DARK = {
   // The one colour a window, a splash and a launcher icon are filled with
-  // before any of this is running, so it is written down where they can read it.
+  // before any of this is running, so it is written down where they can read
+  // it; the widget reads the card, the inks and the raised tone from there too.
   surface0: NATIVE_BACKGROUND,
   surface1: NATIVE_CARD,
   surface2: '#1a1d25',
-  surface3: '#1f2330',
+  surface3: NATIVE_RAISED,
   surfaceSelected: '#2c3140',
 
-  textPrimary: '#f4f5f9',
-  textSecondary: '#aeb1b9',
+  textPrimary: NATIVE_TEXT_PRIMARY,
+  textSecondary: NATIVE_TEXT_SECONDARY,
   textMuted: '#7c8089',
 
   danger: '#f0555b',
@@ -191,13 +198,39 @@ const DARK = {
   borderStrong: '#3e424d',
 }
 
+/**
+ * The light fills a palette's inks make: washes and veils at fixed strengths,
+ * written once rather than as an alpha at each site (a danger wash was 0.12 in
+ * one menu and 0.14 in the next, a good one 0.14 and 0.18).
+ *
+ * - `veil`: a light fill of the ink, for a control over a song's colour, where
+ *   a surface reads as a dark box; `veilPressed` the same, pressed.
+ * - `dangerWash`, `goodWash`, `warningWash`: a notice's ground, a removed
+ *   or added word, a danger item under the pointer.
+ * - `onArt`: ink on artwork under `coverShade`, white in both themes,
+ *   since what it sits on is the picture, not the page.
+ */
+function withTints<
+  P extends { textPrimary: string; danger: string; good: string; warning: string },
+>(palette: P) {
+  return {
+    ...palette,
+    veil: `${palette.textPrimary}14`,
+    veilPressed: `${palette.textPrimary}24`,
+    dangerWash: `${palette.danger}24`,
+    goodWash: `${palette.good}24`,
+    warningWash: `${palette.warning}24`,
+    onArt: '#ffffff',
+  }
+}
+
 /** `backdrop`, at an accent hue. */
 function backdropFor(hue: number): string {
   return oklchToHexAlpha(0.1, 0.02, hue, 0.6)
 }
 
 export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
-  return {
+  return withTints({
     ...DARK,
     ...buildAccent(hue, 'dark'),
     /** Ink on the white primary fill: the round Play, a chosen chip, the active tab. */
@@ -233,7 +266,7 @@ export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
     // and recessive gridlines tinted by the hue.
     chartSeries: oklchToHex(0.62, 0.15, hue),
     chartGrid: oklchToHex(0.29, 0.014, hue),
-  }
+  })
 }
 
 export type ThemePalette = ReturnType<typeof darkPalette>
@@ -245,7 +278,7 @@ export type ThemePalette = ReturnType<typeof darkPalette>
  * is. Danger is the same in both; warning and good get darker inks.
  */
 export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
-  return {
+  return withTints({
     surface0: '#f6f2ea',
     surface1: '#ffffff',
     surface2: '#ebe5d9',
@@ -274,7 +307,7 @@ export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
     backdrop: backdropFor(hue),
     chartSeries: oklchToHex(0.55, 0.16, hue),
     chartGrid: '#ebe5d9',
-  }
+  })
 }
 
 /**
@@ -307,23 +340,40 @@ export const radius = {
   row: 14,
   /** A text field that is not a search: a name, a tag's name, a song's details. */
   field: 12,
+  /** A menu's line, a result in a list of them, a hover caption, an icon's tile. */
+  item: 12,
   cover: 10,
   coverSm: 8,
 } as const
 
 /**
- * Room, on a four-point grid. `gutter` is a phone page's side margin and
+ * Room, on a two-point grid. `gutter` is a phone page's side margin and
  * `gutterWide` a computer's: every page lines its content up on one of the
  * two, so they are named rather than written as 20 and 40 at each site.
+ * `card` is a card's own padding. The in-between steps (`tight` 6, `snug` 10,
+ * `roomy` 14) are the ones the screens use most after the grid's own: a
+ * chip row's gap, a list's, a card's.
  */
-export const space = { xs: 4, sm: 8, md: 12, lg: 16, gutter: 20, xl: 24, gutterWide: 40 } as const
+export const space = {
+  xs: 4,
+  tight: 6,
+  sm: 8,
+  snug: 10,
+  md: 12,
+  roomy: 14,
+  lg: 16,
+  card: 18,
+  gutter: 20,
+  xl: 24,
+  gutterWide: 40,
+} as const
 
 /**
  * The type scale: nine sizes and no others. Two sizes a point apart read as a
  * mistake rather than as a step.
  *
  * - `tiny` 11: counts, times, the small uppercase heading (`label()`, tracked
- *   `labelTracking`).
+ *   `tracking.label`).
  * - `small` 12: captions and hints.
  * - `sub` 13: the line under a title, a chip, secondary words.
  * - `body` 15: body text, a song row's title, a button, a field.
@@ -365,13 +415,77 @@ export const leading: { readonly [step in keyof typeof type]: number } = {
 }
 
 /**
- * Icon sizes, for the shared parts: a small one beside a hint or in a chip, the
- * one in a field or a row's action, and a large one at the head of an empty state.
+ * Icon sizes. A glyph beside words is the size of those words, and named for
+ * their step (`tiny` beside a count, `small` in a chip, `sub` beside a
+ * row's second line); the rest are named for what holds them. A button, a
+ * menu's item, a chip and an icon button size the glyph they are given, so
+ * their callers pass none; sixteen sizes written at each site had drifted
+ * apart, the same menu slot drawn 15 in one menu and 16 in the next.
  */
-export const iconSize = { small: 14, medium: 18, large: 22 } as const
+export const iconSize = {
+  tiny: 11,
+  small: 12,
+  sub: 13,
+  /** In a field, or a hint's. */
+  field: 14,
+  /** On a button. */
+  button: 15,
+  /** A menu's item, a row's action. */
+  item: 16,
+  /** An icon button's, a header's controls. */
+  medium: 18,
+  /** The way back, the mini player's controls. */
+  nav: 20,
+  /** Closing Now Playing, the head of an empty state. */
+  large: 22,
+  /** The round white Play. */
+  hero: 24,
+} as const
 
-/** The letter-spacing of the small uppercase heading (`type.tiny`), which is always uppercase. */
-export const labelTracking = 0.9
+/**
+ * A cover's side beside a song's words: a list's row on a phone (`row`), on a
+ * computer (`rowDense`, beside a 34–44 ⋯), and the compact song line in a
+ * search result, a room or a shelf (`line`). Rows that sit beside a song list
+ * — an import, a song on its way — take the list's, so the two line up; they
+ * had drifted to 44 and 46 beside rows of 48.
+ */
+export const coverSize = { row: 48, rowDense: 40, line: 36 } as const
+
+/** A step of the type scale, by name. */
+export type TypeStep = keyof typeof type
+
+/**
+ * A size and its line height together, for words that may wrap. Written as two
+ * keys at each site they drifted apart — the same step set 18 in one room
+ * sheet and 19 everywhere else — so a step is asked for once and comes with
+ * both.
+ */
+export function textStyle(step: TypeStep): { fontSize: number; lineHeight: number } {
+  return { fontSize: type[step], lineHeight: leading[step] }
+}
+
+/**
+ * `textStyle` for a style a browser reads itself (an inline DOM style rather
+ * than react-native-web's): there a bare line height is a multiple of the font
+ * size, and the scale's 17 drew a hover caption 200 pixels tall (3a7c006d). Both
+ * are pixels here.
+ */
+export function cssTextStyle(step: TypeStep): { fontSize: string; lineHeight: string } {
+  return { fontSize: `${type[step]}px`, lineHeight: `${leading[step]}px` }
+}
+
+/**
+ * Letter-spacing, by what wears it. The small uppercase heading opens up; the
+ * display face closes in as it grows (a heading, a page's title, the name at
+ * the top of a page), and the serif closes in a little at display size.
+ */
+export const tracking = {
+  label: 0.9,
+  heading: -0.2,
+  page: -0.4,
+  hero: -0.8,
+  serif: -0.5,
+} as const
 
 /**
  * The two faces the design adds to the system font (`S2`, "Type"). They are
@@ -391,6 +505,15 @@ export const fonts = {
 
 /** `tokens.reference.css`'s `--hit-target`: the smallest comfortable touch target. */
 export const HIT_TARGET = 44
+
+/**
+ * The slop that brings a target `size` points high (or across) up to
+ * `HIT_TARGET` without changing what is drawn: half the difference each way,
+ * and none for anything already that big.
+ */
+export function hitSlopFor(size: number): number {
+  return Math.max(0, (HIT_TARGET - size) / 2)
+}
 
 /** The phone's floating tab bar (`P04`): 60 high, floating over the page. */
 export const NAV_HEIGHT = 60

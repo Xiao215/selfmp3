@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react'
 import { StyleSheet } from 'react-native-unistyles'
-import { HIT_TARGET, withAlpha } from '@selfmp3/client'
+import { HIT_TARGET, hitSlopFor, iconSize } from '@selfmp3/client'
+import { OPACITY } from '../motion.model'
 import { useLayoutValue } from '../../shell/useLayout'
 import { tip } from '../tip'
 import { Press } from './Press'
+import { sizedIcon } from './Icons'
 
 /**
  * A round target for an icon (docs/ui-mock `S2`).
@@ -11,9 +13,11 @@ import { Press } from './Press'
  * Bare by default — the transport, a row's ⋯ — and a veil while pressed.
  * `filled` puts it on the control surface, 40 across on a phone and 36 with a
  * mouse: the + and the sort in a page's header, anything that sits on its own.
+ * `filled="primary"` is the white round of the one thing to do now (Ask's
+ * Stop), and `filled="accent"` the accent's (a field's send).
  * Either way it is round and sinks to 0.96 on the spring while pressed. The
- * icon inside is the caller's, because every icon already takes its own size
- * and colour.
+ * icon inside is the caller's, with its colour; it is drawn at
+ * `iconSize.medium` unless the caller sizes it (the transport, a ring).
  */
 export function IconButton({
   children,
@@ -37,8 +41,8 @@ export function IconButton({
   disabled?: boolean
   /** Toggled on, for anything that stays lit — shuffle, repeat, a loved heart. */
   active?: boolean
-  /** On the control surface, for a button standing on its own in a header. */
-  filled?: boolean
+  /** On the control surface, for a button standing on its own in a header; or white, or the accent. */
+  filled?: boolean | 'primary' | 'accent'
 }): ReactNode {
   const dense = useLayoutValue(layout => layout.dense)
   const size = sizeProp ?? (dense ? (filled ? 36 : 34) : filled ? 40 : HIT_TARGET)
@@ -55,7 +59,7 @@ export function IconButton({
       wrap={{ width: size, height: size }}
       onPress={onPress}
       disabled={disabled}
-      hitSlop={size < HIT_TARGET ? (HIT_TARGET - size) / 2 : 0}
+      hitSlop={hitSlopFor(size)}
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -64,12 +68,16 @@ export function IconButton({
       style={({ pressed }) => [
         styles.button,
         { width: size, height: size, borderRadius: size / 2 },
-        filled && styles.filled,
-        pressed && !disabled && (filled ? styles.filledPressed : styles.pressed),
+        filled === true && styles.filled,
+        filled === 'primary' && styles.primary,
+        filled === 'accent' && styles.accent,
+        pressed &&
+          !disabled &&
+          (filled === true ? styles.filledPressed : filled ? styles.inkPressed : styles.pressed),
         disabled && styles.disabled,
       ]}
     >
-      {children}
+      {sizedIcon(children, iconSize.medium, 'fill')}
     </Press>
   )
 }
@@ -85,11 +93,14 @@ const styles = StyleSheet.create(theme => ({
   filledPressed: {
     backgroundColor: theme.colors.surface3,
   },
+  primary: { backgroundColor: theme.colors.textPrimary },
+  accent: { backgroundColor: theme.colors.accent },
+  inkPressed: { opacity: OPACITY.pressed },
   /* A light veil rather than a surface: over a song-coloured page a solid box read as a dark square. */
   pressed: {
-    backgroundColor: withAlpha(theme.colors.textPrimary, 0.1),
+    backgroundColor: theme.colors.veilPressed,
   },
   disabled: {
-    opacity: 0.4,
+    opacity: OPACITY.disabled,
   },
 }))

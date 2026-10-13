@@ -1,5 +1,5 @@
 import type { Song, Tag } from '@selfmp3/shared'
-import { artistOr } from '@selfmp3/shared'
+import { DEEP_LINK_SCHEME, artistOr } from '@selfmp3/shared'
 import { tagColors } from '@selfmp3/client'
 
 /**
@@ -56,10 +56,10 @@ export interface WidgetSnapshot {
 
 /** `selfmp3://tag/<name>?play=1`: the app opens the tag and starts it. */
 export function tagPlayLink(name: string): string {
-  return `selfmp3://tag/${encodeURIComponent(name)}?play=1`
+  return `${DEEP_LINK_SCHEME}://tag/${encodeURIComponent(name)}?play=1`
 }
 
-const NOW_PLAYING_LINK = 'selfmp3://now-playing'
+const NOW_PLAYING_LINK = `${DEEP_LINK_SCHEME}://now-playing`
 
 /**
  * The snapshot for this moment. `tiles` are the tags Home shows first

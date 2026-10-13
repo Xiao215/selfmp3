@@ -229,6 +229,46 @@ export function neteaseAlbumUrl(id: string): string {
   return `https://music.163.com/album?id=${id}`
 }
 
+// --- The same link -----------------------------------------------------------
+
+/** What a share button adds to a link without changing what it opens. */
+const SHARE_NOISE = /^(si|feature|utm_[\w-]+)$/
+
+/**
+ * What a link stands for, so two spellings of one song compare equal: a
+ * YouTube video by its id (`yt:…`) on any host or form, a 网易云 song by its
+ * id (`ne:…`), and anything else whole, minus the noise a share button adds
+ * (`?si=`, `feature=`, `utm_*`). Null for nothing.
+ *
+ * Every "is this the same link?" — the library's already-have, the import
+ * queue, the extension's pill, a room song you own — asks this one rule, so a
+ * 网易云 or `?si=` link is the same song everywhere or nowhere.
+ */
+export function linkIdentity(raw: string | null | undefined): string | null {
+  const trimmed = raw?.trim()
+  if (!trimmed) return null
+  const netease = neteaseLink(trimmed)
+  if (netease?.kind === 'song') return `ne:${netease.id}`
+  const video = youtubeVideoId(trimmed)
+  if (video) return `yt:${video}`
+  let parsed: URL
+  try {
+    parsed = new URL(trimmed)
+  } catch {
+    return trimmed
+  }
+  for (const key of [...parsed.searchParams.keys()]) {
+    if (SHARE_NOISE.test(key)) parsed.searchParams.delete(key)
+  }
+  return parsed.toString()
+}
+
+/** Whether two links are the same thing to import, by `linkIdentity`. */
+export function sameLink(a: string | null | undefined, b: string | null | undefined): boolean {
+  const identity = linkIdentity(a)
+  return identity !== null && identity === linkIdentity(b)
+}
+
 // --- Spotify ---------------------------------------------------------------
 
 /**

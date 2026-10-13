@@ -79,6 +79,8 @@ export function snapshotToLibrary(
   snapshot: CloudSnapshot,
   previous: LocalIds,
   version: number,
+  /** When each playlist was last started on this device, by uid. */
+  played: Readonly<Record<string, string>> = {},
 ): CloudLibrary {
   const songs = { ...previous.songs }
   const tags = { ...previous.tags }
@@ -173,8 +175,9 @@ export function snapshotToLibrary(
       pinned: playlist.pinned,
       createdAt: playlist.createdAt,
       updatedAt: playlist.updatedAt,
-      // Plays of a playlist stay on the server that heard them; the bucket has none.
-      lastPlayedAt: null,
+      // Starting a playlist is not a change in the log: it moves on every play,
+      // and the bucket keeps none. So this device's own, as a server keeps its own.
+      lastPlayedAt: played[playlist.uid] ?? null,
     }
   })
 

@@ -129,9 +129,9 @@ function formatRelative(at, now = new Date()) {
   return then.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 }
 
-/** "1 song", "13 songs" — a count with the word that goes with it. */
+/** "1 song", "1,234 songs" — a count, grouped as English writes it, with the word that goes with it. */
 function plural(count, one, many) {
-  return `${count} ${count === 1 ? one : many}`
+  return `${count.toLocaleString('en')} ${count === 1 ? one : many}`
 }
 
 /** Text into markup. Every value below is the server's or the person's, never trusted raw. */
@@ -360,10 +360,17 @@ function waitingForGoogle(cloud) {
     ${cloud.lastError ? `<p class="notice error">${escape(cloud.lastError)}</p>` : ''}`
 }
 
+/** `@selfmp3/shared`'s `bucketPlace`, held to it by admin.format.test.ts. */
+function bucketPlace(target) {
+  return {
+    host: target.endpoint.replace(/^https?:\/\//, ''),
+    folder: target.prefix ? `${target.bucket}/${target.prefix}` : target.bucket,
+  }
+}
+
 function connected(cloud) {
   const target = cloud.target
-  const host = target ? target.endpoint.replace(/^https?:\/\//, '') : ''
-  const folder = target ? (target.prefix ? `${target.bucket}/${target.prefix}` : target.bucket) : ''
+  const { host, folder } = target ? bucketPlace(target) : { host: '', folder: '' }
   const syncing = cloud.state === 'syncing'
   const progress = cloud.progress
 
@@ -491,6 +498,18 @@ function attemptId() {
   return [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
+/**
+ * The doorman's sign-in page for an attempt: packages/shared's `signInStartUrl`,
+ * spelled out again because this page has no build step, and held to it by
+ * src/http/admin.signin.test.ts.
+ */
+function signInStartUrl(doormanUrl, attempt, returnUrl) {
+  const query = [`attempt=${encodeURIComponent(attempt)}`]
+  if (returnUrl !== null) query.push(`return=${encodeURIComponent(returnUrl)}`)
+  return `${doormanUrl.replace(/\/+$/, '')}/v1/auth/start?${query.join('&')}`
+}
+/** End of signInStartUrl. */
+
 async function act(action, form) {
   state.notice = null
   try {
@@ -500,8 +519,8 @@ async function act(action, form) {
         // The window is opened from the press itself: one opened after an
         // await is a popup, and a browser blocks it.
         const attempt = attemptId()
-        const params = new URLSearchParams({ attempt, return: `${location.origin}/` })
-        window.open(`${state.cloud.doormanUrl}/v1/auth/start?${params}`, '_blank', 'noopener')
+        const start = signInStartUrl(state.cloud.doormanUrl, attempt, `${location.origin}/`)
+        window.open(start, '_blank', 'noopener')
         await run(() => request('/api/cloud/signin', { method: 'POST', body: { attempt } }))
         state.waitingSince = Date.now()
         break

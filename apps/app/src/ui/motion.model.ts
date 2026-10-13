@@ -70,6 +70,24 @@ export const MOVE_MS = {
   idleIn: 100,
   /** A hover caption fading up, and away. */
   tooltip: 120,
+  /** How long the pointer rests on a control before its caption appears. */
+  tooltipDelay: 300,
+  /** After one caption closes, the next opens at once if it comes within this. */
+  tooltipWarm: 400,
+  /** A list's scrollbar staying after the list stops or the pointer leaves it. */
+  scrollbarLinger: 1100,
+  /** The scrollbar fading away once it is no longer wanted, slower than it came. */
+  scrollbarOut: 350,
+  /** The playing song's mark on the scrollbar's track, fading in and out. */
+  scrollbarMark: 250,
+  /**
+   * How soon a cover has to arrive to be simply there rather than fade in: one
+   * already cached answers within a frame or two, and fading that in was a
+   * cover visibly turning up every time a row did.
+   */
+  coverQuick: 120,
+  /** A place page taking its tile's frame over by itself where the stack says nothing. */
+  placeHandOff: 400,
   /** How long a finger or a pointer rests on a row before the row lifts to be moved. */
   hold: 350,
   /**
@@ -136,6 +154,15 @@ export const EASE_IN_CSS = css(EASE_IN_POINTS)
 
 /** How far a pressed thing sinks (`M1`, "Press"): a control, and a row, which is wide enough that 0.96 would walk its ends. */
 export const PRESS = { control: 0.96, row: 0.985 } as const
+
+/**
+ * The opacities a press and a state are drawn with, one set for the app:
+ * `pressed`, bare ink under the finger (`Press` `feedback="dim"`);
+ * `disabled`, anything that cannot be pressed now; `dim`, what is there but
+ * not live — a song that cannot play here, a step still to come. A pressed
+ * veil (`feedback="wash"`) is a colour, the palette's `veilPressed`.
+ */
+export const OPACITY = { pressed: 0.6, disabled: 0.4, dim: 0.55 } as const
 
 /**
  * A curve that runs a little past its end and settles back: Penner's "back

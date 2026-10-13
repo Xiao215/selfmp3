@@ -1,5 +1,4 @@
-import { ServerEventSchema } from '@selfmp3/shared'
-import type { ServerEventStream } from '@selfmp3/client'
+import { parseServerEventData, type ServerEventStream } from '@selfmp3/client'
 
 /**
  * The browser's half: `EventSource`, which is what this is for.
@@ -17,14 +16,8 @@ export const serverEvents: ServerEventStream = {
     source.onopen = onOpen
     source.onerror = onClose
     source.onmessage = message => {
-      let raw: unknown
-      try {
-        raw = JSON.parse(String(message.data))
-      } catch {
-        return
-      }
-      const parsed = ServerEventSchema.safeParse(raw)
-      if (parsed.success) onEvent(parsed.data)
+      const event = parseServerEventData(String(message.data))
+      if (event) onEvent(event)
     }
 
     return () => {

@@ -1,4 +1,6 @@
 import {
+  formatListenTime,
+  localDayKey,
   DAY_MS,
   hourBand,
   plural,
@@ -158,12 +160,6 @@ function minutesPhrase(minutes: number): string {
   return plural(whole, 'minute', 'minutes')
 }
 
-/** "3h 01": an artist's or a tag's time, as a chart column prints it. */
-export function hoursMinutes(minutes: number): string {
-  const whole = Math.round(minutes)
-  return `${Math.floor(whole / 60)}h ${String(whole % 60).padStart(2, '0')}`
-}
-
 /** "23:00": the receipt prints the clock, not "11pm". */
 export function clockHour(hour: number): string {
   return `${String(hour).padStart(2, '0')}:00`
@@ -210,19 +206,13 @@ export function weekdayOf(date: string): number {
   return new Date(toUtc(date)).getUTCDay()
 }
 
-/** The day an ISO timestamp falls on, here. */
-function localDay(iso: string): string {
-  const at = new Date(iso)
-  return `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`
-}
-
 /**
  * The window's first and last day. Counted back from the last by the range's
  * length rather than read off `from`, so the window has exactly the days its
  * label says; all time starts at the first day anything was played.
  */
 export function windowDays(input: LookInput): { first: string; last: string; count: number } {
-  const last = localDay(input.wrapped.to)
+  const last = localDayKey(new Date(input.wrapped.to))
   const length = WRAPPED_RANGE_DAYS[input.wrapped.range]
   const earliest = input.daily.reduce<string | null>(
     (min, day) => (min === null || day.date < min ? day.date : min),
@@ -686,13 +676,13 @@ export function frontPageLook(input: LookInput): FrontPageLook {
         title: 'By artist',
         rows: wrapped.topArtists
           .slice(0, 3)
-          .map(entry => ({ name: entry.key, value: hoursMinutes(entry.minutes) })),
+          .map(entry => ({ name: entry.key, value: formatListenTime(entry.minutes) })),
       },
       {
         title: 'By tag',
         rows: wrapped.topTags
           .slice(0, 3)
-          .map(entry => ({ name: entry.key, value: hoursMinutes(entry.minutes) })),
+          .map(entry => ({ name: entry.key, value: formatListenTime(entry.minutes) })),
       },
     ].filter(chart => chart.rows.length > 0),
     grid,

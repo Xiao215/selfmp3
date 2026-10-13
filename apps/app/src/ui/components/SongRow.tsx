@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import type { GestureResponderEvent, StyleProp, ViewStyle } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { plural, artistOr, formatDuration, type Song, type Tag } from '@selfmp3/shared'
-import { HIT_TARGET, motion, radius, space, tagColors, type } from '@selfmp3/client'
+import { HIT_TARGET, motion, radius, space, type, iconSize, coverSize } from '@selfmp3/client'
 import {
   chipBudget,
   CHIP_DOT,
@@ -23,7 +23,6 @@ import {
 import { useSongPlayback } from '../../player/PlayerProvider'
 import { useSongDragSource } from '../../ports/songDrag'
 import { useContentWidthValue } from '../../shell/contentWidth'
-import { SIDEBAR_WIDTH } from '../../shell/Sidebar'
 import { useLayoutValue, useWindowValue } from '../../shell/useLayout'
 import { tip } from '../tip'
 import { rightClick, type PopoverAnchor } from '../rightClick'
@@ -31,26 +30,13 @@ import { useSongColor } from '../useSongColor'
 import { Checkbox } from './Checkbox'
 import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
+import { TagDot } from './TagDot'
 import { useFade, usePresence, usePressScale } from '../motion'
-import { EASE_OUT_CSS, MOVE_MS, PRESS } from '../motion.model'
-import { useShownScheme } from '../theme/unistyles'
-import { floating } from '../surfaces'
+import { EASE_OUT_CSS, MOVE_MS, OPACITY, PRESS } from '../motion.model'
+import { floating, rowTitle } from '../surfaces'
 import { Downloaded, More, NotDownloaded, Play, Plus } from './Icons'
 import { useSvgId } from '../useSvgId'
-
-/**
- * Past this width of page the album leaves the second line for a column of its
- * own. Measured against the page itself rather than the window, so it stays
- * right when Up next's rail narrows the page.
- */
-const ALBUM_COLUMN_CONTENT_WIDTH = 916
-/**
- * And past this much, a row has room for its tags as chips — well below the
- * album's column, because an iPad in portrait has 590 points of page and a
- * tag added to a song there should still appear on its row. `RowTags` fits
- * what it can into the room and counts the rest.
- */
-const TAG_CHIPS_CONTENT_WIDTH = 520
+import { COLUMN_WIDTH, SIDEBAR_WIDTH } from '../../shell/widths'
 
 /**
  * One song in a list: one row everywhere (docs/ui-mock `S3`) — cover, title,
@@ -258,6 +244,69 @@ export const SongRow = memo(function SongRow({
     lifted && styles.lifted,
   ]
 
+  /*
+   * What both shapes draw, made once and placed by each: the press target,
+   * the title, the playing song's wash and equaliser, whether it is here, its
+   * tags, and the circle that picks it. The two had been written out side by
+   * side, and a fix to one (the press's spring) reached the other later.
+   */
+  const target = (style: StyleProp<ViewStyle>, children?: ReactNode): ReactNode => (
+    <Pressable
+      onPress={event => onPress(event, song)}
+      // A row whose hold belongs to something else — a playlist row being
+      // moved — leaves it to that.
+      onLongPress={onHold}
+      {...press.handlers}
+      delayLongPress={MOVE_MS.longPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
+      accessibilityState={{ selected: active }}
+      style={style}
+    >
+      {children}
+    </Pressable>
+  )
+  const title = (
+    <Text
+      style={[wide ? styles.titleWide : styles.title, active && { color: songColor.tint }]}
+      numberOfLines={1}
+    >
+      {song.title}
+    </Text>
+  )
+  const washLayer = wash.mounted ? (
+    <RowWash color={songColor.color} progress={wash.progress} />
+  ) : null
+  const equalizer = (size: number, style?: StyleProp<ViewStyle>): ReactNode =>
+    wash.mounted ? (
+      <Waking progress={wash.progress} style={style}>
+        <Equalizer paused={!playing} size={size} color={songColor.tint} />
+      </Waking>
+    ) : null
+  const hereMark = <HereMark downloaded={downloaded} notDownloadedMark={notDownloadedMark} />
+  const chips = (budget: number): ReactNode =>
+    tags && tags.length > 0 ? (
+      <RowTags
+        tags={tags}
+        budget={budget}
+        onOpenTag={onOpenTag}
+        onShowAll={anchor => onEditTags?.(anchor, song)}
+      />
+    ) : null
+  // The circle is there while choosing, and on a row already picked.
+  const picking = onToggleSelect !== undefined && (selecting || selected)
+  const selectBox = (phone: boolean): ReactNode =>
+    onToggleSelect ? (
+      <SelectBox
+        song={song}
+        selected={selected}
+        onToggle={() => onToggleSelect(song)}
+        phone={phone}
+      />
+    ) : null
+  const more = (style: StyleProp<ViewStyle>): ReactNode =>
+    onMore ? <MoreButton moreRef={moreRef} song={song} onMore={onMore} style={style} /> : null
+
   if (!wide) {
     return (
       <Animated.View style={press.style}>
@@ -268,15 +317,8 @@ export const SongRow = memo(function SongRow({
           the row is a role="row" with its buttons as siblings.
         */}
         <View testID={testID} role="row" style={[styles.row, ...states]} {...onRightClick}>
-          {wash.mounted ? <RowWash color={songColor.color} progress={wash.progress} /> : null}
-          {selecting && onToggleSelect ? (
-            <SelectBox
-              song={song}
-              selected={selected}
-              onToggle={() => onToggleSelect(song)}
-              phone
-            />
-          ) : null}
+          {washLayer}
+          {picking ? selectBox(true) : null}
 
           {/*
             The press target lies under the cover and the words rather than
@@ -288,63 +330,36 @@ export const SongRow = memo(function SongRow({
             label instead, as it did when the words were inside it.
           */}
           <View style={styles.body}>
-            <Pressable
-              onPress={event => onPress(event, song)}
-              onLongPress={onHold}
-              {...press.handlers}
-              delayLongPress={MOVE_MS.longPress}
-              accessibilityRole="button"
-              accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
-              accessibilityState={{ selected: active }}
-              // No pressed background: the row already gives under the finger, and a
-              // filled box over the cover and title flashed white in the light theme.
-              style={StyleSheet.absoluteFill}
-            />
+            {/* No pressed background: the row already gives under the finger, and a
+                filled box over the cover and title flashed white in the light theme. */}
+            {target(StyleSheet.absoluteFill)}
             <View style={styles.main} pointerEvents="box-none">
               <View style={styles.art} pointerEvents="none" {...UNREAD}>
-                <Cover uri={artUri} title={song.album || song.title} size={48} />
-                {wash.mounted ? (
-                  <Waking progress={wash.progress} style={styles.playingOverlay}>
-                    <Equalizer paused={!playing} size={12} color={songColor.tint} />
-                  </Waking>
-                ) : null}
+                <Cover uri={artUri} title={song.album || song.title} size={coverSize.row} />
+                {equalizer(12, styles.playingOverlay)}
               </View>
 
               <View style={styles.text} pointerEvents="box-none">
                 <View pointerEvents="none" {...UNREAD}>
-                  <Text
-                    style={[styles.title, active && { color: songColor.tint }]}
-                    numberOfLines={1}
-                  >
-                    {song.title}
-                  </Text>
+                  {title}
                 </View>
                 <View style={styles.subtitleRow} pointerEvents="box-none">
                   <View style={styles.subtitleWords} pointerEvents="none" {...UNREAD}>
-                    <HereMark downloaded={downloaded} notDownloadedMark={notDownloadedMark} />
+                    {hereMark}
                     <Text style={styles.subtitle} numberOfLines={1}>
                       {artistOr(song.artist)} · {formatDuration(song.duration)}
                     </Text>
                   </View>
                   {/* Two and a count, where a list shows tags at all (`S3`): Library, Search, Up next. */}
                   {tags && tags.length > 0 ? (
-                    <View style={styles.tagsUnder}>
-                      <RowTags
-                        tags={tags}
-                        budget={underLane}
-                        onOpenTag={onOpenTag}
-                        onShowAll={anchor => onEditTags?.(anchor, song)}
-                      />
-                    </View>
+                    <View style={styles.tagsUnder}>{chips(underLane)}</View>
                   ) : null}
                 </View>
               </View>
             </View>
           </View>
 
-          {onMore ? (
-            <MoreButton moreRef={moreRef} song={song} onMore={onMore} style={styles.control} />
-          ) : null}
+          {more(styles.control)}
         </View>
       </Animated.View>
     )
@@ -369,23 +384,20 @@ export const SongRow = memo(function SongRow({
         onPointerLeave={dense ? () => setHovered(false) : undefined}
         {...onRightClick}
       >
-        {wash.mounted ? <RowWash color={songColor.color} progress={wash.progress} /> : null}
-        {onToggleSelect && (dense || selecting || selected) ? (
-          // A finger gets no circle waiting in every row (docs/ui-mock `T09`): it
-          // holds a row to start choosing, as on a phone, and the circles come
-          // then. Nor does it get the lane one would sit in — a hidden circle
-          // still takes its width, which on a touch screen is a gap down the
-          // left of every row that nothing ever fills.
-          <Reveal shown={selecting || selected || (dense && revealed)}>
-            <SelectBox song={song} selected={selected} onToggle={() => onToggleSelect(song)} />
-          </Reveal>
+        {washLayer}
+        {picking || (dense && onToggleSelect) ? (
+          // With a mouse the circle waits in every row for the pointer. A
+          // finger gets none waiting (docs/ui-mock `T09`): it holds a row to
+          // start choosing, as on a phone, and the circles come then. Nor does
+          // it get the lane one would sit in — a hidden circle still takes its
+          // width, which on a touch screen is a gap down the left of every row
+          // that nothing ever fills.
+          <Reveal shown={picking || (dense && revealed)}>{selectBox(false)}</Reveal>
         ) : null}
 
         <View style={styles.index}>
           {wash.mounted ? (
-            <Waking progress={wash.progress}>
-              <Equalizer paused={!playing} size={14} color={songColor.tint} />
-            </Waking>
+            equalizer(14)
           ) : revealed && dense ? (
             <Pressable
               onPress={event => onPress(event, song)}
@@ -394,45 +406,35 @@ export const SongRow = memo(function SongRow({
               {...tip('Play')}
               style={styles.indexPlay}
             >
-              <Play size={16} tone="textPrimary" />
+              <Play size={iconSize.item} tone="textPrimary" />
             </Pressable>
           ) : (
             <Text style={styles.indexNumber}>{index === undefined ? '' : index + 1}</Text>
           )}
         </View>
 
-        <Pressable
-          onPress={event => onPress(event, song)}
-          // The phone's answer: a row whose hold belongs to something else — a
-          // playlist row being moved — leaves it to that.
-          onLongPress={onHold}
-          {...press.handlers}
-          delayLongPress={MOVE_MS.longPress}
-          accessibilityRole="button"
-          accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
-          accessibilityState={{ selected: active }}
-          style={styles.mainWide}
-        >
-          <Cover uri={artUri} title={song.album || song.title} size={40} />
-          <View style={styles.text}>
-            <Text style={[styles.titleWide, active && { color: songColor.tint }]} numberOfLines={1}>
-              {song.title}
-            </Text>
-            <View style={styles.subtitleRow}>
-              <HereMark downloaded={downloaded} notDownloadedMark={notDownloadedMark} />
-              <Text style={styles.artist} numberOfLines={1}>
-                {artistOr(song.artist)}
-              </Text>
-              {/* With a finger the second line is the artist alone (`T03`). */}
-              {song.album && !albumColumn && dense ? (
-                <Text style={styles.albumInline} numberOfLines={1}>
-                  {' · '}
-                  {song.album}
+        {target(
+          styles.mainWide,
+          <>
+            <Cover uri={artUri} title={song.album || song.title} size={coverSize.rowDense} />
+            <View style={styles.text}>
+              {title}
+              <View style={styles.subtitleRow}>
+                {hereMark}
+                <Text style={styles.artist} numberOfLines={1}>
+                  {artistOr(song.artist)}
                 </Text>
-              ) : null}
+                {/* With a finger the second line is the artist alone (`T03`). */}
+                {song.album && !albumColumn && dense ? (
+                  <Text style={styles.albumInline} numberOfLines={1}>
+                    {' · '}
+                    {song.album}
+                  </Text>
+                ) : null}
+              </View>
             </View>
-          </View>
-        </Pressable>
+          </>,
+        )}
 
         {albumColumn ? (
           <Text style={styles.albumColumn} numberOfLines={1}>
@@ -442,14 +444,7 @@ export const SongRow = memo(function SongRow({
 
         <View style={[styles.tags, albumColumn && styles.tagsColumn]}>
           {/* Below the width for chips they go; the button stays. */}
-          {tagChips && tags ? (
-            <RowTags
-              tags={tags}
-              budget={chipBudget({ hasAddButton: onEditTags !== undefined })}
-              onOpenTag={onOpenTag}
-              onShowAll={anchor => onEditTags?.(anchor, song)}
-            />
-          ) : null}
+          {tagChips ? chips(chipBudget({ hasAddButton: onEditTags !== undefined })) : null}
           {onEditTags ? (
             <Reveal shown={revealed}>
               <Pressable
@@ -460,7 +455,7 @@ export const SongRow = memo(function SongRow({
                 {...tip('Edit tags')}
                 style={styles.tagAdd}
               >
-                <Plus size={13} tone="textMuted" />
+                <Plus size={iconSize.sub} tone="textMuted" />
               </Pressable>
             </Reveal>
           ) : null}
@@ -470,12 +465,7 @@ export const SongRow = memo(function SongRow({
           <Text style={styles.durationWide}>{formatDuration(song.duration)}</Text>
           {onMore ? (
             <Reveal shown={revealed}>
-              <MoreButton
-                moreRef={moreRef}
-                song={song}
-                onMore={onMore}
-                style={[styles.controlWide, { width: controlSize, height: controlSize }]}
-              />
+              {more([styles.controlWide, { width: controlSize, height: controlSize }])}
             </Reveal>
           ) : null}
         </View>
@@ -494,9 +484,9 @@ export const SongRow = memo(function SongRow({
  * 48-point cover. Desktop: 7 above and below, and the ⋯ at 44 with a
  * finger or 34 with a mouse, beside a 40-point cover.
  */
-const PHONE_ROW_HEIGHT = 5 * 2 + 3 * 2 + 48
+const PHONE_ROW_HEIGHT = 5 * 2 + 3 * 2 + coverSize.row
 const TOUCH_WIDE_ROW_HEIGHT = 7 * 2 + HIT_TARGET
-const DENSE_ROW_HEIGHT = 7 * 2 + 40
+const DENSE_ROW_HEIGHT = 7 * 2 + coverSize.rowDense
 
 /**
  * The row height for this layout, or null when it cannot be promised: text
@@ -520,7 +510,7 @@ const isDense = (layout: { dense: boolean }): boolean => layout.dense
  * margins and padding, the cover and the gap after it; the ⋯ and the gap
  * before it; the checkbox's column while selecting, and its gap.
  */
-const PHONE_ROW_CHROME = space.xs * 2 + space.lg + space.sm + 48 + 12
+const PHONE_ROW_CHROME = space.xs * 2 + space.lg + space.sm + coverSize.row + 12
 const PHONE_MORE = HIT_TARGET + 10
 const PHONE_SELECT = 34 - 6 + 10
 
@@ -543,8 +533,8 @@ const ROOM_FOR_CHIPS = 2
 
 function roomFor(page: number): number {
   return (
-    (page >= ALBUM_COLUMN_CONTENT_WIDTH ? ROOM_FOR_ALBUM : 0) |
-    (page >= TAG_CHIPS_CONTENT_WIDTH ? ROOM_FOR_CHIPS : 0)
+    (page >= COLUMN_WIDTH.rowAlbum ? ROOM_FOR_ALBUM : 0) |
+    (page >= COLUMN_WIDTH.rowTagChips ? ROOM_FOR_CHIPS : 0)
   )
 }
 
@@ -570,8 +560,8 @@ function HereMark({
   downloaded: boolean
   notDownloadedMark: boolean
 }): ReactNode {
-  if (downloaded) return <Downloaded size={13} tone="good" />
-  if (notDownloadedMark) return <NotDownloaded size={13} tone="textMuted" />
+  if (downloaded) return <Downloaded size={iconSize.sub} tone="good" />
+  if (notDownloadedMark) return <NotDownloaded size={iconSize.sub} tone="textMuted" />
   return null
 }
 
@@ -596,7 +586,7 @@ function MoreButton({
         {...tip('More')}
         style={({ pressed }) => [style, pressed && styles.controlPressed]}
       >
-        <More size={16} tone="textMuted" />
+        <More size={iconSize.item} tone="textMuted" />
       </Pressable>
     </View>
   )
@@ -614,15 +604,12 @@ function SelectBox({
   phone?: boolean
 }): ReactNode {
   return (
-    <Pressable
-      onPress={onToggle}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked: selected }}
-      accessibilityLabel={selected ? `Deselect ${song.title}` : `Select ${song.title}`}
+    <Checkbox
+      checked={selected}
+      onChange={onToggle}
+      label={selected ? `Deselect ${song.title}` : `Select ${song.title}`}
       style={phone ? styles.select : styles.selectWide}
-    >
-      <Checkbox checked={selected} />
-    </Pressable>
+    />
   )
 }
 
@@ -650,20 +637,11 @@ function RowTags({
 }): ReactNode {
   const moreRef = useRef<View>(null)
   const { shown, hidden } = useFittedTags(tags, budget)
-  // The dots are worked out here rather than read from a stylesheet, so they
-  // follow the theme by asking for it: a row is memoised, and nothing else
-  // re-renders it when light turns to dark.
-  const scheme = useShownScheme()
 
   return (
     <>
       {shown.map(tag => (
-        <RowTag
-          key={tag.id}
-          tag={tag}
-          dot={tagColors(tag.hue, scheme).dot}
-          onPress={() => onOpenTag?.(tag.id)}
-        />
+        <RowTag key={tag.id} tag={tag} onPress={() => onOpenTag?.(tag.id)} />
       ))}
       {hidden > 0 ? (
         <View ref={moreRef} collapsable={false}>
@@ -692,17 +670,10 @@ function RowTags({
  *
  * It reports the width it drew at, once: a name is the same width on every
  * row, so one measurement is what tells every other row whether this tag fits.
+ * The dot follows the theme by asking for it (`TagDot`): a row is memoised,
+ * and nothing else re-renders it when light turns to dark.
  */
-function RowTag({
-  tag,
-  dot,
-  onPress,
-}: {
-  tag: Tag
-  /** The tag's hue as a dot, in the scheme on screen. */
-  dot: string
-  onPress: () => void
-}): ReactNode {
+function RowTag({ tag, onPress }: { tag: Tag; onPress: () => void }): ReactNode {
   return (
     <Pressable
       onPress={onPress}
@@ -711,7 +682,7 @@ function RowTag({
       accessibilityLabel={tag.name}
       style={styles.rowTag}
     >
-      <View style={[styles.rowTagDot, { backgroundColor: dot }]} />
+      <TagDot hue={tag.hue} size={CHIP_DOT} />
       <Text style={styles.rowTagText} numberOfLines={1}>
         {tag.name}
       </Text>
@@ -792,7 +763,7 @@ const styles = StyleSheet.create(theme => ({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: space.snug,
     paddingVertical: 5,
     paddingLeft: space.lg,
     paddingRight: space.sm,
@@ -806,7 +777,7 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: space.md,
     paddingVertical: 7,
-    paddingHorizontal: 10,
+    paddingHorizontal: space.snug,
     marginHorizontal: space.sm,
     borderRadius: radius.row,
     overflow: 'hidden',
@@ -832,7 +803,7 @@ const styles = StyleSheet.create(theme => ({
   main: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: space.md,
     paddingVertical: 3,
   },
   mainWide: {
@@ -846,7 +817,7 @@ const styles = StyleSheet.create(theme => ({
   // the accent picker without re-rendering a list of them.
   selected: { backgroundColor: theme.colors.accentSelected },
   unavailable: {
-    opacity: 0.55,
+    opacity: OPACITY.dim,
   },
   /* A row held and moving. The cell around it does the raising (`LiftedCell`);
      this is only what the row itself wears while it is off the page. */
@@ -865,27 +836,21 @@ const styles = StyleSheet.create(theme => ({
     minWidth: 0,
     gap: 1,
   },
-  title: {
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
-  },
+  title: rowTitle(theme.colors),
   titleWide: {
     flexShrink: 1,
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
+    ...rowTitle(theme.colors),
   },
   subtitle: {
     color: theme.colors.textSecondary,
     fontSize: type.sub,
     flexShrink: 1,
   },
-  subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
+  subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: space.tight, minWidth: 0 },
   subtitleWords: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: space.tight,
     flexShrink: 1,
     minWidth: 0,
   },
@@ -971,16 +936,15 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: TAG_GAP,
     borderRadius: radius.pill,
-    paddingVertical: 4,
+    paddingVertical: space.xs,
     paddingHorizontal: CHIP_PADDING_X,
     backgroundColor: theme.colors.surface2,
     // No one name may take the slot: past this it ends in an ellipsis.
     maxWidth: TAG_CHIP_MAX_WIDTH,
   },
   rowTagMoreText: { color: theme.colors.textSecondary },
-  rowTagDot: { width: CHIP_DOT, height: CHIP_DOT, borderRadius: CHIP_DOT / 2 },
   rowTagText: { fontSize: CHIP_FONT_SIZE, color: theme.colors.textPrimary, flexShrink: 1 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   control: {
     width: HIT_TARGET,
     height: HIT_TARGET,

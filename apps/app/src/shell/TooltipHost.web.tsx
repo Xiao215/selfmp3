@@ -2,10 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useUnistyles } from 'react-native-unistyles'
-import { leading, motion, type } from '@selfmp3/client'
+import { motion, type, cssTextStyle, space, radius } from '@selfmp3/client'
 import { motionMs } from '../ui/motion'
 import { EASE_IN_CSS, EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
-import { floating } from '../ui/surfaces'
+import { floating, Z } from '../ui/surfaces'
+import { KBD } from '../ui/components/Kbd'
 
 /**
  * Hover captions for the whole app, from one `data-tip` attribute.
@@ -28,10 +29,6 @@ import { floating } from '../ui/surfaces'
  * `motionMs`.
  */
 
-/** How long the pointer rests on a control before its caption appears. */
-const OPEN_DELAY_MS = 300
-/** After one caption closes, the next opens with no delay if it comes within this. */
-const WARM_MS = 400
 const ANCHOR_GAP = 6
 const VIEWPORT_MARGIN = 8
 const TOOLTIP_ID = 'app-tooltip'
@@ -112,7 +109,7 @@ export function TooltipHost(): ReactNode {
       // Nothing up and nothing on its way: every click anywhere calls this,
       // and a fade-out of nothing would be two renders and a timer for each.
       if (current === null && !visible) return
-      if (visible) warmUntil = performance.now() + WARM_MS
+      if (visible) warmUntil = performance.now() + MOVE_MS.tooltipWarm
       observer.disconnect()
       described?.removeAttribute('aria-describedby')
       described = null
@@ -155,7 +152,7 @@ export function TooltipHost(): ReactNode {
       if (anchor === current) return
       if (current) hide()
       if (!anchor || anchor === suppressed) return
-      show(anchor, performance.now() < warmUntil ? 0 : OPEN_DELAY_MS)
+      show(anchor, performance.now() < warmUntil ? 0 : MOVE_MS.tooltipDelay)
     }
 
     const onPointerOut = (event: PointerEvent): void => {
@@ -271,23 +268,22 @@ export function TooltipHost(): ReactNode {
           position: 'fixed',
           top: at.top,
           left: at.left,
-          zIndex: 10000,
+          zIndex: Z.tooltip,
           display: 'flex',
           alignItems: 'center',
-          gap: 6,
+          gap: space.tight,
           maxWidth: 'min(320px, calc(100vw - 16px))',
           padding: '4px 8px',
           // A raised control's tone and the floating shadow; no edge.
           background: colors.surface3,
-          borderRadius: 12,
+          borderRadius: radius.item,
           ...floating(colors),
           color: colors.textSecondary,
           fontFamily: FONT_STACK,
-          fontSize: type.small,
+          // In pixels: a bare line height is a multiple of the font size in
+          // the DOM, where react-native-web would have read it as points.
+          ...cssTextStyle('small'),
           fontWeight: 500,
-          // In pixels: a bare number is a multiple of the font size in the DOM,
-          // where react-native-web would have read it as points.
-          lineHeight: `${leading.small}px`,
           pointerEvents: 'none',
           animation: leaving
             ? `selfmp3-tooltip-out ${motion.fast}ms ${EASE_IN_CSS} forwards`
@@ -302,10 +298,10 @@ export function TooltipHost(): ReactNode {
                 flexShrink: 0,
                 background: colors.surface2,
                 color: colors.textSecondary,
-                padding: '0 5px',
+                padding: `0 ${KBD.paddingHorizontal}px`,
                 fontSize: type.tiny,
                 lineHeight: '16px',
-                borderRadius: 4,
+                borderRadius: KBD.radius,
                 fontFamily: FONT_STACK,
               }}
             >

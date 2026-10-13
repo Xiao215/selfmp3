@@ -3,8 +3,10 @@ import {
   extractUrls,
   isNeteaseUrl,
   isYouTubeUrl,
+  linkIdentity,
   neteaseLink,
   neteaseSongUrl,
+  sameLink,
   spotifyLink,
   youtubeChannel,
   youtubeMusicAlbum,
@@ -228,5 +230,70 @@ describe('spotifyLink', () => {
   it('reads nothing else', () => {
     expect(spotifyLink('https://open.spotify.com/artist/4tZwfgrHOc3mvqYlEYSvVi')).toBeNull()
     expect(spotifyLink('Daft Punk - Get Lucky')).toBeNull()
+  })
+})
+
+describe('linkIdentity', () => {
+  it('sees one video behind every way YouTube spells it', () => {
+    const forms = [
+      'https://www.youtube.com/watch?v=by4SYYWlhEs',
+      'https://music.youtube.com/watch?v=by4SYYWlhEs',
+      'https://youtu.be/by4SYYWlhEs?si=Xy12',
+      'https://www.youtube.com/watch?v=by4SYYWlhEs&list=RDAMVM&index=1',
+      'https://www.youtube.com/shorts/by4SYYWlhEs',
+      'https://www.youtube.com/embed/by4SYYWlhEs',
+    ]
+    expect(new Set(forms.map(linkIdentity))).toEqual(new Set(['yt:by4SYYWlhEs']))
+  })
+
+  it('sees one 网易云 song behind every way 网易云 spells it', () => {
+    const forms = [
+      'https://music.163.com/song?id=186016',
+      'https://music.163.com/#/song?id=186016',
+      'https://y.music.163.com/m/song?id=186016&userid=7',
+    ]
+    expect(new Set(forms.map(linkIdentity))).toEqual(new Set(['ne:186016']))
+  })
+
+  it('strips the noise a share button adds to anything else, wherever it sits', () => {
+    expect(linkIdentity('https://example.com/a.mp3?si=abc')).toBe('https://example.com/a.mp3')
+    expect(linkIdentity('https://example.com/a.mp3?si=abc&x=1')).toBe(
+      linkIdentity('https://example.com/a.mp3?x=1&utm_source=share'),
+    )
+  })
+
+  it('has nothing to say about nothing', () => {
+    expect(linkIdentity(null)).toBeNull()
+    expect(linkIdentity('  ')).toBeNull()
+  })
+})
+
+describe('sameLink', () => {
+  it('matches one video whatever form each link takes', () => {
+    expect(
+      sameLink(
+        'https://youtu.be/ZRtdQ81jPUQ',
+        'https://music.youtube.com/watch?v=ZRtdQ81jPUQ&list=RDAMVM',
+      ),
+    ).toBe(true)
+    expect(
+      sameLink('https://youtu.be/ZRtdQ81jPUQ', 'https://www.youtube.com/watch?v=jNQXAC9IVRw'),
+    ).toBe(false)
+  })
+
+  it('matches a 网易云 song and a shared link as the queue knows them', () => {
+    expect(
+      sameLink(
+        'https://y.music.163.com/m/song?id=186016&userid=7',
+        'https://music.163.com/#/song?id=186016',
+      ),
+    ).toBe(true)
+    expect(sameLink('https://example.com/a?si=1', 'https://example.com/a')).toBe(true)
+  })
+
+  it('compares any other link as it is, and nothing as nothing', () => {
+    expect(sameLink('https://example.com/a', 'https://example.com/a')).toBe(true)
+    expect(sameLink('https://example.com/a', 'https://example.com/b')).toBe(false)
+    expect(sameLink('', '')).toBe(false)
   })
 })

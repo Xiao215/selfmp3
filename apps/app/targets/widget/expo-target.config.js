@@ -10,7 +10,14 @@
  * @type {import('@bacons/apple-targets/app.plugin').Config}
  */
 // The colours from @selfmp3/shared, as app.config.js takes the window's.
-const { NATIVE_ACCENT, NATIVE_CARD } = require('@selfmp3/shared')
+const {
+  NATIVE_ACCENT,
+  NATIVE_BACKGROUND,
+  NATIVE_CARD,
+  NATIVE_RAISED,
+  NATIVE_TEXT_PRIMARY,
+  NATIVE_TEXT_SECONDARY,
+} = require('@selfmp3/shared')
 
 module.exports = {
   type: 'widget',
@@ -26,5 +33,10 @@ module.exports = {
     // `S2`: the accent at its default hue, and a card's tone.
     $accent: NATIVE_ACCENT,
     $widgetBackground: NATIVE_CARD,
+    // The words, the Play glyph on its white round, and a missing cover's square.
+    inkPrimary: NATIVE_TEXT_PRIMARY,
+    inkSecondary: NATIVE_TEXT_SECONDARY,
+    ground: NATIVE_BACKGROUND,
+    raised: NATIVE_RAISED,
   },
 }

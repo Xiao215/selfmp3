@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, TextInput, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
-import { plural, formatLongDuration, type Tag } from '@selfmp3/shared'
+import { plural, formatLongDuration, type Tag, NameSchema } from '@selfmp3/shared'
 import {
   ApiError,
   failureText,
@@ -14,10 +14,12 @@ import {
   uniqueName,
   useCreatePlaylist,
   useLibrary,
+  iconSize,
 } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
-import { useAccent } from '../../ui/accent'
+import { TextField } from '../../ui/components/TextField'
 import { Button } from '../../ui/components/Button'
+import { StatusLine } from '../../ui/components/StatusLine'
 import { Chip } from '../../ui/components/Chip'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { ListMusic, Sparkle, Tag as TagIcon } from '../../ui/components/Icons'
@@ -29,6 +31,9 @@ import { SongsAnswer } from '../smart/SongsAnswer'
 import { useSmartServer } from '../smart/useSmartServer'
 import { newPlaylist } from './playlists.model'
 import { ScrollView } from '../../ui/components/Scroll'
+import { AnswerActions } from '../smart/AnswerParts'
+import { Press } from '../../ui/components/Press'
+import { smallTitle } from '../../ui/surfaces'
 
 /** Where the sheet is: the kind first, then what the kind needs, then the name. */
 type Step = 'kind' | 'tags' | 'describe' | 'name'
@@ -54,7 +59,6 @@ type Kind = 'pick' | 'follow' | 'describe'
  */
 export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => void }): ReactNode {
   const { theme } = useUnistyles()
-  const accent = useAccent()
   const router = useRouter()
   const { mutateAsync: createPlaylist } = useCreatePlaylist()
   const server = useSmartServer()
@@ -66,7 +70,6 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   const [tagIds, setTagIds] = useState<readonly number[]>([])
   const [words, setWords] = useState('')
   const [name, setName] = useState('')
-  const [focused, setFocused] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   /** Named, and picking its songs: the playlist does not exist yet. */
@@ -193,30 +196,26 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
     onSubmit: () => void
     placeholder: string
     label: string
+    limit?: { readonly maxLength: number | null }
     testID: string
   }): ReactNode => (
-    <View style={[styles.field, focused && { borderColor: accent.accent }]}>
-      <TextInput
-        // One field per step: a new key starts the next one focused, with its own text.
-        key={props.testID}
-        style={styles.input}
-        value={props.value}
-        onChangeText={props.onChangeText}
-        onSubmitEditing={props.onSubmit}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        placeholder={props.placeholder}
-        placeholderTextColor={theme.colors.textMuted}
-        accessibilityLabel={props.label}
-        autoFocus
-        // A name that starts as a suggestion is replaced by the first letter typed.
-        selectTextOnFocus
-        autoCorrect={false}
-        returnKeyType="done"
-        submitBehavior="submit"
-        testID={props.testID}
-      />
-    </View>
+    <TextField
+      // One field per step: a new key starts the next one focused, with its own text.
+      key={props.testID}
+      raised
+      value={props.value}
+      onChangeText={props.onChangeText}
+      onSubmitEditing={props.onSubmit}
+      placeholder={props.placeholder}
+      accessibilityLabel={props.label}
+      limit={props.limit}
+      autoFocus
+      // A name that starts as a suggestion is replaced by the first letter typed.
+      selectTextOnFocus
+      returnKeyType="done"
+      submitBehavior="submit"
+      testID={props.testID}
+    />
   )
 
   return (
@@ -225,14 +224,14 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
         {step === 'kind' ? (
           <>
             <Option
-              icon={<ListMusic size={16} color={theme.colors.textSecondary} />}
+              icon={<ListMusic size={iconSize.item} color={theme.colors.textSecondary} />}
               title="Pick songs"
               sub="Start empty and add songs"
               onPress={() => choose('pick')}
               testID="new-playlist-pick"
             />
             <Option
-              icon={<TagIcon size={16} color={theme.colors.textSecondary} />}
+              icon={<TagIcon size={iconSize.item} color={theme.colors.textSecondary} />}
               title="Fills from tags"
               sub="Grows as you tag songs"
               onPress={() => choose('follow')}
@@ -240,7 +239,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
             />
             {switches.ask ? (
               <Option
-                icon={<Sparkle size={16} />}
+                icon={<Sparkle size={iconSize.item} />}
                 title="Describe it"
                 sub="Ask picks songs from your library"
                 onPress={() => choose('describe')}
@@ -299,6 +298,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
             onSubmit: make,
             placeholder: 'Name',
             label: 'Playlist name',
+            limit: NameSchema,
             testID: 'new-playlist-field',
           })
         )}
@@ -311,12 +311,12 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
         {describe.error && server.reach.state !== 'reachable' ? (
           <ServerAway reach={server.reach} need="ai" testID="new-playlist-server" />
         ) : describe.error ? (
-          <Text style={styles.error}>{failureText('Couldn’t pick songs', describe.error)}</Text>
+          <StatusLine>{failureText('Couldn’t pick songs', describe.error)}</StatusLine>
         ) : null}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <StatusLine>{error}</StatusLine> : null}
 
         {answer ? null : (
-          <View style={styles.actions}>
+          <AnswerActions>
             {step === 'kind' ? (
               <Button label="Cancel" onPress={cancel} />
             ) : (
@@ -348,7 +348,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
                 testID="new-playlist-next"
               />
             ) : null}
-          </View>
+          </AnswerActions>
         )}
       </View>
     </Sheet>
@@ -369,16 +369,13 @@ function Option({
   onPress: () => void
   testID: string
 }): ReactNode {
-  const { theme } = useUnistyles()
   return (
-    <Pressable
+    <Press
+      feedback="wash"
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={title}
-      style={({ pressed }) => [
-        styles.option,
-        pressed && { backgroundColor: theme.colors.surface3 },
-      ]}
+      style={styles.option}
       testID={testID}
     >
       <View style={styles.optionIcon}>{icon}</View>
@@ -390,51 +387,25 @@ function Option({
           {sub}
         </Text>
       </View>
-    </Pressable>
+    </Press>
   )
 }
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm, padding: space.sm },
-  // The one text field a step shows: the words asked for, or the name.
-  field: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 6,
-    minHeight: 40,
-    paddingHorizontal: space.sm,
-    paddingVertical: 5,
-    // A control on the sheet, which is a card on a phone and the control
-    // surface as a dialog, so the field is raised above both. The edge only
-    // carries the focus ring: at rest it is the fill's own colour.
-    backgroundColor: theme.colors.surface3,
-    borderWidth: 1,
-    borderColor: theme.colors.surface3,
-    borderRadius: radius.card,
-  },
-  input: {
-    flexGrow: 1,
-    flexBasis: 160,
-    minHeight: 28,
-    paddingHorizontal: 4,
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-  },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.tight },
   // A long tag list scrolls inside the sheet rather than pushing its buttons off.
   tagScroll: { maxHeight: 260 },
   hint: {
     color: theme.colors.textMuted,
     fontSize: type.small,
     flexShrink: 1,
-    paddingHorizontal: 4,
+    paddingHorizontal: space.xs,
   },
-  error: { color: theme.colors.danger, fontSize: type.small },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: space.snug,
     paddingVertical: 7,
     paddingHorizontal: space.sm,
     borderRadius: radius.coverSm + 4,
@@ -448,12 +419,6 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
   },
   optionText: { flex: 1, minWidth: 0 },
-  optionTitle: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
+  optionTitle: smallTitle(theme.colors),
   optionSub: { color: theme.colors.textMuted, fontSize: type.small },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: space.sm,
-    marginTop: space.xs,
-  },
 }))

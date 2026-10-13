@@ -2,56 +2,27 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { artistOr, plural } from '@selfmp3/shared'
+import { artistOr } from '@selfmp3/shared'
 import type { Song } from '@selfmp3/shared'
-import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import {
-  failureText,
-  isDownloaded,
-  motion,
-  radius,
-  space,
-  type,
-  uniqueName,
-  useAddToPlaylist,
-  useBulkLoved,
-  useCreatePlaylist,
-  useLibrary,
-} from '@selfmp3/client'
-import { playlistsToAddTo } from '../../features/playlists/playlists.model'
+import { motion, radius, space, type, iconSize } from '@selfmp3/client'
 import { usePlaylistRemoval } from '../../features/playlists/usePlaylistRemoval'
-import { useDownloads } from '../../offline/DownloadsProvider'
-import { useDownloadRemoval } from '../../offline/useDownloadRemoval'
+import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayoutValue } from '../../shell/useLayout'
 import { ease, timing, usePresence } from '../motion'
 import { MOVE_MS, overshootRange } from '../motion.model'
-import { showToast } from '../toast'
+import { SONG_ACTION_LABELS } from '../songActions.model'
 import { Button } from './Button'
 import { Checkbox } from './Checkbox'
 import { RemoveSongs } from './ConfirmRemoveSongs'
 import { IconButton } from './IconButton'
-import {
-  CheckSquare,
-  CloudDownload,
-  CloudRemove,
-  Heart,
-  ListMusic,
-  More,
-  Play,
-  Plus,
-  QueueAdd,
-  Tag as TagIcon,
-  Trash,
-  X,
-} from './Icons'
+import { CheckSquare, More, Play, QueueAdd, X } from './Icons'
 import { Popover } from './Popover'
 import { SelectionTagPicker } from './TagPicker'
 import { SheetItem } from './Sheet'
-import { floating } from '../surfaces'
-import { devicePlace } from '../../features/settings/settings.model'
-import { deviceKind } from '../../ports/device'
+import { SongActionItems } from './SongActionItems'
+import { floating, smallTitle } from '../surfaces'
 import { useFloatingChrome } from '../../shell/bottomInset'
 
 /** What Up next is called when the ticked songs are played: they can be saved from there. */
@@ -137,9 +108,11 @@ const setFloating = (change: 1 | -1): void => {
  * than as an answer to what was just ticked.
  *
  * Play and Add to Up next are in the bar because they are harmless and
- * frequent. Everything that edits the library sits behind More — a popover at
- * desktop width, a sheet on a phone — with "Delete from library" last and in red, and
- * behind a confirmation.
+ * frequent: one list of them, drawn as labelled buttons on a computer and as
+ * icons on a phone. Everything that edits the library sits behind More — a
+ * popover at desktop width, a sheet on a phone — and is the song menu's own
+ * items for many songs (`SongActionItems`), with "Delete from library" last
+ * and in red, and behind a confirmation.
  */
 export function SelectionBar({
   songs,
@@ -192,17 +165,11 @@ export function SelectionBar({
    * through behind it. A browser has none.
    */
   const { top: statusBar } = useSafeAreaInsets()
-  const { data: library } = useLibrary()
   const player = usePlayerCommands()
-  const { state: downloads, requestDownload } = useDownloads()
-  const removeDownloads = useDownloadRemoval()
-
-  const bulkLoved = useBulkLoved()
-  const addToPlaylist = useAddToPlaylist()
+  const fly = useFlyToUpNext()
   const removeFromPlaylist = usePlaylistRemoval()
 
   const [menuOpen, setMenuOpen] = useState(false)
-  const [playlistsOpen, setPlaylistsOpen] = useState(false)
   // The tag picker, opened from More as a song's is from its menu.
   const [tagging, setTagging] = useState(false)
   const [confirming, setConfirming] = useState(false)
@@ -282,59 +249,83 @@ export function SelectionBar({
   // just untagged — takes the picker with it, rather than leave it over none.
   if (tagging && count === 0) setTagging(false)
   const ids = useMemo(() => songs.map(song => song.id), [songs])
-  // The one played last first; not the playlist this is, and never a live one.
-  const manualPlaylists = playlistsToAddTo(library?.playlists ?? [], playlist?.id)
-  const router = useRouter()
-  const { mutateAsync: createPlaylist } = useCreatePlaylist()
-
-  /** A playlist of exactly these songs, opened with its name ready to type. */
-  const newPlaylistWithSelection = async (): Promise<void> => {
-    const name = uniqueName(
-      'New playlist',
-      (library?.playlists ?? []).map(list => list.name),
-    )
-    try {
-      const created = await createPlaylist({
-        input: { name, description: '', kind: 'manual', rules: null },
-        songIds: ids,
-      })
-      onDone()
-      router.push({ pathname: '/playlists/[id]', params: { id: String(created.id), rename: '1' } })
-    } catch (caught) {
-      showToast(failureText('Couldn’t make the playlist', caught), 'error')
-    }
-  }
-
-  const lovedCount = songs.filter(song => song.loved).length
-  const held = songs.filter(song => isDownloaded(downloads.index, song.id))
-  const place = devicePlace(deviceKind())
   const songWord = count === 1 ? 'song' : 'songs'
   const totalWord = total === 1 ? 'song' : 'songs'
+  // What ticking every row does, in words: the checkbox on a computer, the
+  // first item of a phone's More, which has no room for a checkbox.
+  const selectAllLabel = `${allSelected ? 'Deselect' : 'Select'} all ${total} ${totalWord} ${scope}`
 
-  const closeMenu = (): void => {
-    setMenuOpen(false)
-    setPlaylistsOpen(false)
-  }
-  /** Run a menu action and close the menu. */
-  const act = (run: () => void) => (): void => {
-    run()
-    closeMenu()
-  }
-  /**
-   * Said once the server has taken the edit, not as it is sent: a failure is
-   * said by the app's own error toast (`meta.failure`), and a "Liked 3 songs"
-   * ahead of it would contradict it.
-   */
-  const saidOnSuccess = (message: string) => ({
-    onSuccess: () => showToast(message, 'good'),
-  })
+  const closeMenu = (): void => setMenuOpen(false)
   const removeSelectedFromPlaylist = (): void => {
     if (playlist) removeFromPlaylist(playlist, songs)
   }
 
+  /*
+   * The bar's own actions, drawn as labelled buttons on a computer and as
+   * icons on a phone. A computer has room for a playlist's Remove beside
+   * them; a phone keeps it in More, with the song menu's other items.
+   */
+  const actions: readonly BarAction[] = [
+    {
+      key: 'play',
+      label: 'Play',
+      Glyph: Play,
+      onPress: () => player.playFrom(ids, 0, { source: PICKED }),
+    },
+    {
+      key: 'queue',
+      label: SONG_ACTION_LABELS.addToUpNext,
+      Glyph: QueueAdd,
+      onPress: from => {
+        fly(from, ids)
+        player.addToQueue(ids)
+      },
+    },
+    ...(playlist && wide
+      ? [
+          {
+            key: 'remove',
+            label: SONG_ACTION_LABELS.removeFromPlaylist,
+            Glyph: X,
+            onPress: removeSelectedFromPlaylist,
+          },
+        ]
+      : []),
+  ]
+  const drawAction = (action: BarAction): ReactNode => (
+    <BarButton key={action.key} action={action} wide={wide} disabled={count === 0} />
+  )
+
+  // More, at either width. A phone's opens with nothing ticked, since all is
+  // chosen from it there; a computer's has its checkbox, and nothing to offer
+  // none.
+  const more = (
+    <View ref={moreRef} collapsable={false}>
+      {wide ? (
+        <Button
+          label="More"
+          icon={<More color={theme.colors.textPrimary} />}
+          onPress={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
+          disabled={count === 0}
+          active={menuOpen}
+          testID="selection-more"
+        />
+      ) : (
+        <IconButton
+          onPress={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
+          label="More"
+          active={menuOpen}
+          testID="selection-more"
+        >
+          <More color={theme.colors.textPrimary} />
+        </IconButton>
+      )}
+    </View>
+  )
+
   const done = (
     <IconButton onPress={onDone} label="Done selecting" testID="selection-done">
-      <X size={16} color={theme.colors.textSecondary} />
+      <X size={iconSize.item} color={theme.colors.textSecondary} />
     </IconButton>
   )
   const countWords = count === 0 ? 'None selected' : `${count} selected`
@@ -400,16 +391,13 @@ export function SelectionBar({
           testID="selection-bar"
         >
           <View style={styles.anchor}>
-            <Pressable
+            <Checkbox
+              checked={allSelected}
+              mixed={!allSelected && count > 0}
+              onChange={() => (allSelected ? onDeselectAll() : onSelectAll())}
+              label={selectAllLabel}
               style={styles.all}
-              onPress={() => (allSelected ? onDeselectAll() : onSelectAll())}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: allSelected ? true : count > 0 ? 'mixed' : false }}
-              aria-checked={allSelected ? true : count > 0 ? 'mixed' : false}
-              accessibilityLabel={`${allSelected ? 'Deselect' : 'Select'} all ${total} ${totalWord} ${scope}`}
-            >
-              <Checkbox checked={allSelected} mixed={!allSelected && count > 0} />
-            </Pressable>
+            />
             <View style={styles.counts}>
               {countText}
               {allSelected ? (
@@ -427,35 +415,8 @@ export function SelectionBar({
           </View>
 
           <View style={styles.actions}>
-            <Button
-              label="Play"
-              icon={<Play size={13} color={theme.colors.textPrimary} />}
-              onPress={() => player.playFrom(ids, 0, { source: PICKED })}
-              disabled={count === 0}
-            />
-            <Button
-              label="Add to Up next"
-              icon={<QueueAdd size={13} color={theme.colors.textPrimary} />}
-              onPress={() => player.addToQueue(ids)}
-              disabled={count === 0}
-            />
-            {playlist ? (
-              <Button
-                label="Remove from this playlist"
-                icon={<X size={13} color={theme.colors.textPrimary} />}
-                onPress={removeSelectedFromPlaylist}
-                disabled={count === 0}
-              />
-            ) : null}
-            <View ref={moreRef} collapsable={false}>
-              <Button
-                label="More"
-                icon={<More size={13} color={theme.colors.textPrimary} />}
-                onPress={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
-                disabled={count === 0}
-                testID="selection-more"
-              />
-            </View>
+            {actions.map(drawAction)}
+            {more}
           </View>
 
           <View style={styles.doneWide}>{done}</View>
@@ -488,31 +449,8 @@ export function SelectionBar({
         onLayout={event => setMeasured(event.nativeEvent.layout.height)}
       >
         <View style={styles.countCompact}>{countBadge}</View>
-        <IconButton
-          onPress={() => player.playFrom(ids, 0, { source: PICKED })}
-          label="Play"
-          disabled={count === 0}
-          filled
-        >
-          <Play size={18} color={theme.colors.textPrimary} />
-        </IconButton>
-        <IconButton
-          onPress={() => player.addToQueue(ids)}
-          label="Add to Up next"
-          disabled={count === 0}
-        >
-          <QueueAdd size={18} color={theme.colors.textPrimary} />
-        </IconButton>
-        <View ref={moreRef} collapsable={false}>
-          <IconButton
-            onPress={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
-            label="More"
-            active={menuOpen}
-            testID="selection-more"
-          >
-            <More size={18} color={theme.colors.textPrimary} />
-          </IconButton>
-        </View>
+        {actions.map(drawAction)}
+        {more}
         {/* Done is leaving, not another thing to do to the songs. */}
         <View style={styles.leave} />
         {done}
@@ -552,124 +490,30 @@ export function SelectionBar({
         {wide ? null : (
           <>
             <SheetItem
-              icon={<CheckSquare size={15} color={theme.colors.textSecondary} />}
-              label={
-                allSelected
-                  ? `Deselect all ${total} ${totalWord}`
-                  : `Select all ${total} ${totalWord} ${scope}`
-              }
-              onPress={act(allSelected ? onDeselectAll : onSelectAll)}
+              icon={<CheckSquare tone="textSecondary" />}
+              label={selectAllLabel}
+              onPress={() => {
+                if (allSelected) onDeselectAll()
+                else onSelectAll()
+                closeMenu()
+              }}
             />
-            {playlist && count > 0 ? (
-              <SheetItem
-                icon={<X size={15} color={theme.colors.textSecondary} />}
-                label="Remove from this playlist"
-                onPress={act(removeSelectedFromPlaylist)}
-              />
-            ) : null}
             {count > 0 ? <View style={styles.groupGap} /> : null}
           </>
         )}
 
-        {count === 0 ? null : (
-          <>
-            {lovedCount < count ? (
-              <SheetItem
-                icon={<Heart size={15} color={theme.colors.textSecondary} />}
-                label={`Like ${count - lovedCount === count ? 'all' : 'the rest'}`}
-                onPress={act(() =>
-                  bulkLoved.mutate(
-                    { songIds: ids, loved: true },
-                    saidOnSuccess(`Liked ${plural(count - lovedCount, 'song', 'songs')}`),
-                  ),
-                )}
-              />
-            ) : null}
-            {lovedCount > 0 ? (
-              <SheetItem
-                icon={<Heart size={15} filled color={theme.colors.danger} />}
-                label={`Unlike ${lovedCount === count ? 'all' : lovedCount}`}
-                onPress={act(() =>
-                  bulkLoved.mutate(
-                    { songIds: ids, loved: false },
-                    saidOnSuccess(`Unliked ${plural(lovedCount, 'song', 'songs')}`),
-                  ),
-                )}
-              />
-            ) : null}
-
-            <View style={styles.groupGap} />
-
-            <SheetItem
-              icon={<ListMusic size={15} color={theme.colors.textSecondary} />}
-              label="Add to playlist…"
-              active={playlistsOpen}
-              onPress={() => setPlaylistsOpen(open => !open)}
-            />
-            {playlistsOpen ? (
-              <View style={styles.nested}>
-                <SheetItem
-                  icon={<Plus size={15} color={theme.colors.textSecondary} />}
-                  label={`New playlist with ${count} ${songWord}`}
-                  onPress={() => {
-                    closeMenu()
-                    void newPlaylistWithSelection()
-                  }}
-                />
-                {manualPlaylists.map(list => (
-                  <SheetItem
-                    key={list.id}
-                    label={list.name}
-                    onPress={act(() =>
-                      addToPlaylist.mutate(
-                        { playlistId: list.id, songIds: ids },
-                        saidOnSuccess(`Added ${count} ${songWord} to ${list.name}`),
-                      ),
-                    )}
-                  />
-                ))}
-              </View>
-            ) : null}
-
-            <SheetItem
-              icon={<TagIcon size={15} color={theme.colors.textSecondary} />}
-              label="Tags…"
-              onPress={act(() => setTagging(true))}
-            />
-
-            <View style={styles.groupGap} />
-
-            {held.length < count ? (
-              <SheetItem
-                icon={<CloudDownload size={15} color={theme.colors.textSecondary} />}
-                label={`Download ${held.length > 0 ? 'the rest' : 'all'}`}
-                // By hand, as a song's menu downloads: picked songs stay, a song
-                // removed by hand comes back, and mobile data or a large total
-                // is asked about first.
-                onPress={act(() => requestDownload(ids))}
-              />
-            ) : null}
-            {held.length > 0 ? (
-              <SheetItem
-                icon={<CloudRemove size={15} color={theme.colors.textSecondary} />}
-                label={`Remove ${held.length === count ? '' : `${held.length} `}from this ${place}`}
-                onPress={act(() => removeDownloads(held.map(song => song.id)))}
-              />
-            ) : null}
-
-            <View style={styles.groupGap} />
-
-            <SheetItem
-              icon={<Trash size={15} color={theme.colors.danger} />}
-              label={`Delete ${count} ${songWord} from library…`}
-              danger
-              onPress={() => {
-                closeMenu()
-                setConfirming(true)
-              }}
-            />
-          </>
-        )}
+        {/* The song menu's items, for every song ticked: what the bar has
+            already is left out of them. */}
+        <SongActionItems
+          songs={songs}
+          playlist={playlist}
+          leave={wide ? ['addToUpNext', 'removeFromPlaylist'] : ['addToUpNext']}
+          flyFrom={moreRef}
+          onClose={closeMenu}
+          onTags={() => setTagging(true)}
+          onDelete={() => setConfirming(true)}
+          onNewPlaylist={onDone}
+        />
       </Popover>
 
       <SelectionTagPicker
@@ -742,17 +586,17 @@ const styles = StyleSheet.create(theme => ({
   // Room between the icons, and a tone of its own: at `surface2` the bar and
   // the mini player under it were two identical slabs.
   barCompact: {
-    gap: 6,
+    gap: space.tight,
     paddingVertical: 7,
     paddingLeft: space.sm,
-    paddingRight: 6,
+    paddingRight: space.tight,
     backgroundColor: theme.colors.surface3,
   },
   countRow: { flexDirection: 'row', alignItems: 'center', gap: 7, minWidth: 0 },
   countPill: {
     minWidth: 22,
     height: 22,
-    paddingHorizontal: 6,
+    paddingHorizontal: space.tight,
     borderRadius: radius.pill,
     backgroundColor: theme.colors.accent,
     alignItems: 'center',
@@ -766,24 +610,32 @@ const styles = StyleSheet.create(theme => ({
   },
   countWord: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '500' },
   leave: { width: 1, height: 20, backgroundColor: theme.colors.border, marginHorizontal: 1 },
-  anchor: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0, flexShrink: 1 },
+  anchor: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.snug,
+    minWidth: 0,
+    flexShrink: 1,
+  },
   all: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   counts: { minWidth: 0 },
   countCompact: { flex: 1, minWidth: 0 },
   count: {
-    color: theme.colors.textPrimary,
-    fontSize: type.sub,
-    fontWeight: '600',
+    ...smallTitle(theme.colors),
     fontVariant: ['tabular-nums'],
   },
   scope: { color: theme.colors.textMuted, fontSize: type.tiny },
   scopeLink: { textDecorationLine: 'underline' },
-  actions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, minWidth: 0 },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: space.tight,
+    minWidth: 0,
+  },
   doneWide: { marginLeft: 'auto' },
   menuTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: type.sub,
-    fontWeight: '600',
+    ...smallTitle(theme.colors),
     paddingHorizontal: space.md,
     paddingTop: space.xs,
   },
@@ -795,5 +647,49 @@ const styles = StyleSheet.create(theme => ({
   },
   // The menu's groups are set apart by room, not a rule.
   groupGap: { height: space.sm },
-  nested: { paddingLeft: space.lg },
 }))
+
+/** One of the bar's own actions, by name and mark. */
+interface BarAction {
+  readonly key: string
+  readonly label: string
+  readonly Glyph: typeof Play
+  /** Handed the button, which Up next's covers fly from. */
+  readonly onPress: (from: View | null) => void
+}
+
+/** One of the bar's own actions: a labelled button on a computer, an icon on a phone. */
+function BarButton({
+  action,
+  wide,
+  disabled,
+}: {
+  action: BarAction
+  wide: boolean
+  disabled: boolean
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const ref = useRef<View>(null)
+  const press = (): void => action.onPress(ref.current)
+  return (
+    <View ref={ref} collapsable={false}>
+      {wide ? (
+        <Button
+          label={action.label}
+          icon={<action.Glyph color={theme.colors.textPrimary} />}
+          onPress={press}
+          disabled={disabled}
+        />
+      ) : (
+        <IconButton
+          onPress={press}
+          label={action.label}
+          disabled={disabled}
+          filled={action.key === 'play'}
+        >
+          <action.Glyph color={theme.colors.textPrimary} />
+        </IconButton>
+      )}
+    </View>
+  )
+}

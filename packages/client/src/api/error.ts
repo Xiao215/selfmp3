@@ -1,4 +1,4 @@
-import { BUCKET_CAP_CODE } from '@selfmp3/replica'
+import { BUCKET_CAP_CODE } from '@selfmp3/shared'
 
 /**
  * The one error type every screen already knows how to read.

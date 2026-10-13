@@ -1,4 +1,5 @@
-import { AUDIO_CACHE, REFRESH_HEADER } from '../../sw/names'
+import { REFRESH_HEADER } from '@selfmp3/shared'
+import { AUDIO_CACHE } from '../../sw/names'
 
 /**
  * The browser's audio cache: keeping, listing, sizing and removing songs.

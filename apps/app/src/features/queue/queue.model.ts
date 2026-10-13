@@ -45,24 +45,16 @@ export function queueRows(
   return { playing, next: resolve(sections.next), played: resolve(sections.played) }
 }
 
-/** "6 songs" and "24 min": how many are still to come, and for how long. */
-function nextTotals(next: readonly QueueRow[]): { songs: string; time: string } {
-  const seconds = next.reduce((sum, row) => sum + row.song.duration, 0)
-  return { songs: plural(next.length, 'song', 'songs'), time: formatLongDuration(seconds) }
-}
-
-/** "6 songs · 24 min": what is still to come, under the rail's title. */
-export function nextSummary(next: readonly QueueRow[]): string {
-  if (next.length === 0) return 'Nothing after this one'
-  const { songs, time } = nextTotals(next)
-  return `${songs} · ${time}`
-}
-
-/** "Next · 6 songs, 24 min": the label over the sheet's next rows. */
+/**
+ * "Next · 6 songs · 24 min": what is still to come, over Up next's songs on a
+ * phone's sheet and a computer's rail alike. The two had said it two ways
+ * ("Next · 6 songs, 24 min" and "6 songs · 24 min"), and an empty queue as
+ * "Nothing next" and "Nothing after this one".
+ */
 export function nextLabel(next: readonly QueueRow[]): string {
-  if (next.length === 0) return 'Nothing next'
-  const { songs, time } = nextTotals(next)
-  return `Next · ${songs}, ${time}`
+  if (next.length === 0) return 'Nothing after this one'
+  const seconds = next.reduce((sum, row) => sum + row.song.duration, 0)
+  return `Next · ${plural(next.length, 'song', 'songs')} · ${formatLongDuration(seconds)}`
 }
 
 /**
@@ -173,21 +165,22 @@ export function dragTarget(
  * Rows drawn either side of what is in view, so a scroll that outruns a render
  * still finds rows there rather than a blank stretch.
  */
-export const RAIL_OVERSCAN = 10
+export const WINDOW_OVERSCAN = 10
 
 /**
- * Which rows of one run of the rail to draw: those a viewport of `span` points
- * starting at `scrollTop` can show, and `RAIL_OVERSCAN` either side. A run is
+ * Which rows of one run of Up next to draw: those a viewport of `span` points
+ * starting at `scrollTop` can show, and `WINDOW_OVERSCAN` either side. A run is
  * the songs still to come or the songs played, `count` rows of `rowHeight`
  * starting `runTop` points into the list. `end` is exclusive; an empty window
  * is `start === end`.
  *
- * The rail is the whole queue — a shuffled library is thousands of rows — and
- * drawing every one of them took seconds to open (3,000 rows, ~30,000 nodes).
- * A drag never needs a row out of view: the list does not scroll while a row is
- * carried, so the rows a move can land among are already drawn.
+ * Up next is the whole queue — a shuffled library is thousands of rows — and
+ * drawing every one of them took the rail seconds to open (3,000 rows, ~30,000
+ * nodes); the phone's sheet stopped at 60 instead, and the rest could not be
+ * reached. A drag never needs a row out of view: the list does not scroll
+ * while a row is carried, so the rows a move can land among are already drawn.
  */
-export function railWindow({
+export function upNextWindow({
   count,
   runTop,
   scrollTop,
@@ -201,8 +194,8 @@ export function railWindow({
   rowHeight: number
 }): { start: number; end: number } {
   if (count === 0 || rowHeight <= 0) return { start: 0, end: 0 }
-  const from = Math.floor((scrollTop - runTop) / rowHeight) - RAIL_OVERSCAN
-  const to = Math.ceil((scrollTop + span - runTop) / rowHeight) + RAIL_OVERSCAN
+  const from = Math.floor((scrollTop - runTop) / rowHeight) - WINDOW_OVERSCAN
+  const to = Math.ceil((scrollTop + span - runTop) / rowHeight) + WINDOW_OVERSCAN
   const start = clamp(from, 0, count)
   const end = clamp(to, start, count)
   return { start, end }

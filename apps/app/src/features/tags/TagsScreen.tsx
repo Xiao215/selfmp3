@@ -1,32 +1,19 @@
 import { useEffect, useCallback, memo, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, TextInput, View, type LayoutChangeEvent } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
-import {
-  fonts,
-  HIT_TARGET,
-  leading,
-  radius,
-  space,
-  tagColors,
-  type,
-  useCreateTag,
-  useLibrary,
-} from '@selfmp3/client'
+import type { Tag } from '@selfmp3/shared'
+import { hitSlopFor, radius, space, type, useLibrary, iconSize, textStyle } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { tabbing } from '../../shell/FocusStyle'
 import { useOpenSearch } from '../../shell/palette'
 import { useLayout } from '../../shell/useLayout'
-import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import {
-  ChevronLeft,
   ChevronRight,
   More,
   Plus,
@@ -36,31 +23,26 @@ import {
   X,
 } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { HueSwatches, autoTagHue } from '../../ui/components/HueSwatches'
+import { HueSwatches } from '../../ui/components/HueSwatches'
 import { Guide } from '../guide/Guide'
 import { useGuide } from '../guide/useGuide'
 import { TagEditor } from '../../ui/components/TagEditor'
-import { useFade, usePressScale } from '../../ui/motion'
+import { Press } from '../../ui/components/Press'
 import { MOVE_MS } from '../../ui/motion.model'
-import {
-  card,
-  label,
-  PAGE_TOP_PHONE,
-  PAGE_TOP_WIDE,
-  pageTitle,
-  TITLE_UNDER_BACK,
-} from '../../ui/surfaces'
+import { rightClick } from '../../ui/rightClick'
+import { GridTile, TileGrid, useTileGrid, type TileFocus } from '../../ui/components/TileGrid'
+import { card, label, pageFrame, rowTitle, hint, textColumn } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { noteTagUsed } from '../library/recentTags.store'
-import { artistLink, tagLink } from '../tag/placeLinks'
+import { artistLink } from '../tag/placeLinks'
+import { useOpenTag } from '../tag/useOpenTag'
 import {
-  existingTag,
+  noTagsLine,
   tagLine,
   tagsMostPlayed,
   untaggedCardTitle,
   type TagStanding,
 } from '../tag/tag.model'
-import { useArtistNudge } from '../tag/useArtistNudge'
 import { usePlayAndTag } from '../tag/usePlayAndTag'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { SuggestTagsSheet } from '../smart/SuggestTagsSheet'
@@ -69,21 +51,22 @@ import {
   leadSong,
   tagsHeadline,
   tagsLayout,
+  UNTAGGED_HINT,
   waitingArtists,
+  waitingLine,
   type TagEntry,
   type WaitingArtist,
 } from './tags.model'
-import { usePageBack } from '../../ui/useBackTo'
+import { PageHeader } from '../../ui/components/PageHeader'
+import { StatusLine } from '../../ui/components/StatusLine'
+import { NEW_TAG_FAILED, TagNameField, useNewTagForm } from './useNewTagForm'
 import { ScrollView } from '../../ui/components/Scroll'
+import { TagDot } from '../../ui/components/TagDot'
 
 /** Tiles at least this wide on a computer, as many as fit; two across on a phone. */
 const TILE_MIN_WIDTH = 220
-const PHONE_COLUMNS = 2
 const GAP = 16
 const ROW_GAP = 24
-/** The page's side margins: a phone's, and a computer's. */
-const NARROW_GUTTER = space.gutter
-const WIDE_GUTTER = space.gutterWide
 /** How many artists the untagged card names on a computer, and on a phone. */
 const WAITING_SHOWN = 3
 const PHONE_WAITING_SHOWN = 2
@@ -108,7 +91,7 @@ type HoldRef = (tagId: number, node: View | null) => void
  * are by and tags them one at a time while they play (K2).
  */
 export function TagsScreen(): ReactNode {
-  const { wide, width, finePointer } = useLayout()
+  const { wide, finePointer } = useLayout()
   const router = useRouter()
   const player = usePlayerCommands()
   const { data: library } = useLibrary()
@@ -116,24 +99,22 @@ export function TagsScreen(): ReactNode {
   const [adding, setAdding] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const switches = useSmartSwitches()
-  const [gridWidth, setGridWidth] = useState(0)
+  const { columns, tileWidth } = useTileGrid({ minTile: TILE_MIN_WIDTH, gap: GAP })
   /*
    * The tile handlers are made once and take the tag they act on, so a render
    * of the screen redraws no tile and no cover in one.
    */
-  const latest = useRef({ player, router })
+  const open = useOpenTag()
+  const latest = useRef({ player, router, open })
   useEffect(() => {
-    latest.current = { player, router }
+    latest.current = { player, router, open }
   })
   const rowRefs = useRef(new Map<number, View>())
   const holdRowRef = useCallback<HoldRef>((tagId, node) => {
     if (node) rowRefs.current.set(tagId, node)
     else rowRefs.current.delete(tagId)
   }, [])
-  const openTag = useCallback((standing: TagStanding) => {
-    noteTagUsed(standing.tag.id)
-    latest.current.router.navigate(tagLink(standing.tag.name))
-  }, [])
+  const openTag = useCallback((standing: TagStanding) => latest.current.open(standing.tag), [])
   const playTag = useCallback((standing: TagStanding) => {
     const ids = standing.songs.map(song => song.id)
     if (ids.length === 0) return
@@ -181,13 +162,6 @@ export function TagsScreen(): ReactNode {
     [library, wide],
   )
 
-  const measured = wide ? gridWidth : width - NARROW_GUTTER * 2
-  const columns = wide
-    ? Math.max(PHONE_COLUMNS, Math.floor((measured + GAP) / (TILE_MIN_WIDTH + GAP)))
-    : PHONE_COLUMNS
-  const tileWidth = measured > 0 ? Math.floor((measured - GAP * (columns - 1)) / columns) : 0
-
-  const page = usePageBack('/')
   // The one Search, on its Tags scope: the page on a phone, the palette over
   // this page on a computer (docs/ui-mock `P18`, `C05`).
   const openSearch = useOpenSearch()
@@ -198,10 +172,16 @@ export function TagsScreen(): ReactNode {
   }, [])
 
   const grid = (entries: readonly TagEntry[]): ReactNode => (
-    <View style={styles.grid}>
-      {entries.map(entry => (
+    <TileGrid
+      items={entries}
+      columns={columns}
+      gap={GAP}
+      rowGap={ROW_GAP}
+      keyOf={entry => entry.standing.tag.id}
+      // A tag that holds others stands with its panel beside it, a tile wide.
+      spanOf={entry => (entry.inside.length > 0 ? 2 : 1)}
+      renderItem={entry => (
         <Entry
-          key={entry.standing.tag.id}
           entry={entry}
           order={order}
           width={tileWidth}
@@ -211,8 +191,8 @@ export function TagsScreen(): ReactNode {
           onPlay={playTag}
           onEdit={edit}
         />
-      ))}
-    </View>
+      )}
+    />
   )
 
   const actions = (
@@ -224,10 +204,10 @@ export function TagsScreen(): ReactNode {
         onPress={() => setAdding(open => !open)}
         testID="tags-new"
       >
-        <Plus size={18} tone="textPrimary" />
+        <Plus tone="textPrimary" />
       </IconButton>
       <IconButton label="Search tags" filled onPress={openSearch} testID="tags-search">
-        <Search size={18} tone="textPrimary" />
+        <Search tone="textPrimary" />
       </IconButton>
     </>
   )
@@ -237,28 +217,12 @@ export function TagsScreen(): ReactNode {
       <ScrollView
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
       >
-        {/* The way back and the page's buttons on one line, the name under it
-            on the left (J1); with no way back the name leads that line. */}
-        <View style={styles.heads}>
-          {page.shown ? (
-            <View style={styles.header}>
-              <IconButton label="Back" filled onPress={page.back} testID="tags-back">
-                <ChevronLeft size={18} tone="textPrimary" />
-              </IconButton>
-              <View style={styles.headerFill} />
-              {actions}
-            </View>
-          ) : null}
-          <View style={styles.header}>
-            <View style={styles.titles}>
-              <Text style={styles.heading} accessibilityRole="header">
-                Tags
-              </Text>
-              {library ? <Text style={styles.sub}>{tagsHeadline(tags.length)}</Text> : null}
-            </View>
-            {page.shown ? null : actions}
-          </View>
-        </View>
+        <PageHeader
+          title="Tags"
+          subtitle={library ? tagsHeadline(tags.length) : undefined}
+          back={{ to: '/', testID: 'tags-back' }}
+          actions={actions}
+        />
 
         {adding ? (
           <NewTag
@@ -288,12 +252,9 @@ export function TagsScreen(): ReactNode {
         {!library ? (
           <Text style={styles.hint}>Tags load with your library.</Text>
         ) : standings.length === 0 ? (
-          <Text style={styles.hint}>No tags yet.</Text>
+          <Text style={styles.hint}>{noTagsLine()}</Text>
         ) : (
-          <View
-            style={styles.runs}
-            onLayout={(event: LayoutChangeEvent) => setGridWidth(event.nativeEvent.layout.width)}
-          >
+          <View style={styles.runs}>
             {tileWidth > 0 ? (
               <>
                 {grid(layout.main)}
@@ -341,99 +302,50 @@ function NewTag({
   onClose: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  const accent = useAccent()
-  const createTag = useCreateTag()
-  const nudge = useArtistNudge()
-  const [name, setName] = useState('')
-  // A colour picked for the new tag; left alone, the name chooses one.
-  const [hue, setHue] = useState<number | undefined>(undefined)
-  const [focused, setFocused] = useState(false)
-  const trimmed = name.trim()
-  const autoHue = autoTagHue(trimmed)
-
-  const make = async (wanted: string): Promise<void> => {
-    const tag = { name: wanted, ...(hue === undefined ? {} : { hue }) }
-    if (!(await createTag.mutateAsync(tag).catch(() => null))) return
-    // The field stays open and empty: tags arrive in handfuls, and a second
-    // one should not cost another trip to the +. The colour goes too: the
-    // next tag is its own, not a twin of this one.
-    setName('')
-    setHue(undefined)
-  }
-
-  const submit = (): void => {
-    if (!trimmed) return
-    const already = existingTag(tags, trimmed)
-    if (already) {
-      setName('')
-      onExisting(already)
-      return
-    }
-    nudge.check(trimmed, () => void make(trimmed))
-  }
-
-  const close = (): void => {
-    createTag.reset()
-    onClose()
-  }
+  // The field stays open and empty once a tag is made: tags arrive in
+  // handfuls, and a second one should not cost another trip to the +.
+  const form = useNewTagForm({ tags, onExisting })
 
   return (
     <View style={styles.newCard} testID="tags-new-form">
       <View style={styles.newHeadRow}>
         <Text style={styles.fieldLabel}>New tag</Text>
-        <Pressable
-          onPress={close}
-          hitSlop={10}
+        <Press
+          feedback="dim"
+          onPress={onClose}
+          hitSlop={hitSlopFor(14)}
           accessibilityRole="button"
           accessibilityLabel="Close new tag"
         >
-          <X size={14} color={theme.colors.textMuted} />
-        </Pressable>
+          <X size={iconSize.field} color={theme.colors.textMuted} />
+        </Press>
       </View>
-      <View style={styles.newRow}>
-        <TextInput
-          style={[styles.input, focused && { borderColor: accent.accent }]}
-          value={name}
-          onChangeText={text => {
-            setName(text)
-            createTag.reset()
-          }}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          onSubmitEditing={submit}
-          placeholder="chill, 中文, gym…"
-          placeholderTextColor={theme.colors.textMuted}
-          autoFocus
-          autoCapitalize="none"
-          autoCorrect={false}
-          // Enter makes the tag and stays in the field: tags arrive in
-          // handfuls, and dismissing the keyboard after each one costs a tap
-          // to get it back.
-          submitBehavior="submit"
-          returnKeyType="done"
-          maxLength={TAG_NAME_MAX}
-          accessibilityLabel="New tag name"
-          testID="tags-new-name"
-        />
-        <Button
-          label="Create"
-          variant="primary"
-          disabled={trimmed.length === 0}
-          busy={createTag.isPending}
-          onPress={submit}
-          testID="tags-create"
-        />
-      </View>
+      <TagNameField
+        form={form}
+        placeholder="chill, 中文, gym…"
+        autoFocus
+        testID="tags-new-name"
+        action={
+          <Button
+            label="Create"
+            variant="primary"
+            disabled={!form.ready}
+            busy={form.busy}
+            onPress={form.submit}
+            testID="tags-create"
+          />
+        }
+      />
       <View style={styles.newColour}>
         <Text style={styles.fieldLabel}>Colour</Text>
-        <HueSwatches value={hue ?? autoHue} first={autoHue} onChange={setHue} />
+        <HueSwatches value={form.hue} first={form.autoHue} onChange={form.setHue} />
       </View>
-      {createTag.isError ? (
-        <Text style={styles.error}>Couldn’t make that tag. Try a different name.</Text>
+      {form.failed ? (
+        <StatusLine>{NEW_TAG_FAILED}</StatusLine>
       ) : (
         <Text style={styles.newHint}>A word or two.</Text>
       )}
-      {nudge.nudge}
+      {form.nudge}
     </View>
   )
 }
@@ -468,7 +380,6 @@ function UntaggedCard({
   onArtist: (name: string) => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  const press = usePressScale(0.98)
   const art = useArt(COVER_STACK)
   const named = wide ? artists : artists.slice(0, PHONE_WAITING_SHOWN)
   const title = untaggedCardTitle(count)
@@ -489,60 +400,64 @@ function UntaggedCard({
       </View>
     ) : (
       <View style={styles.untaggedIcon}>
-        <TagIcon size={17} tone="textPrimary" />
+        <TagIcon size={iconSize.medium} tone="textPrimary" />
       </View>
     )
 
+  // The same words a screen reader is given; a computer draws the names as links.
+  const line = waitingLine(named, rest, wide ? 'count' : 'others')
   const who =
-    named.length === 0 ? (
-      'Tag them one at a time, while they play'
+    named.length === 0 || !wide ? (
+      line
     ) : (
       <>
         {named.map((artist, index) => (
           <Text key={artist.name}>
             {index > 0 ? ' · ' : ''}
             {artist.count.toLocaleString()} by{' '}
-            {wide ? (
-              <Text
-                style={styles.artistLink}
-                onPress={() => onArtist(artist.name)}
-                accessibilityRole="link"
-                {...tip(`Open ${artist.name}`)}
-              >
-                {artist.name}
-              </Text>
-            ) : (
-              artist.name
-            )}
+            <Text
+              style={styles.artistLink}
+              onPress={() => onArtist(artist.name)}
+              accessibilityRole="link"
+              {...tip(`Open ${artist.name}`)}
+            >
+              {artist.name}
+            </Text>
           </Text>
         ))}
-        {rest > 0 ? (wide ? ` · and ${rest.toLocaleString()} more` : ' · and others') : ''}
+        {rest > 0 ? ` · and ${rest.toLocaleString()} more` : ''}
       </>
     )
+  const words = (
+    <View style={styles.untaggedText}>
+      <Text style={styles.untaggedTitle} numberOfLines={1}>
+        {title}
+      </Text>
+      <Text style={styles.untaggedSub} numberOfLines={1}>
+        {who}
+      </Text>
+    </View>
+  )
+  const suggest = (variant: 'secondary' | 'text'): ReactNode =>
+    onSuggest ? (
+      <Button
+        label="Suggest tags"
+        icon={<Sparkle />}
+        variant={variant}
+        onPress={onSuggest}
+        testID="tags-untagged-suggest"
+      />
+    ) : null
 
   if (wide) {
     return (
       <View style={styles.untagged} testID="tags-untagged">
         {covers}
-        <View style={styles.untaggedText}>
-          <Text style={styles.untaggedTitle} numberOfLines={1}>
-            {title}
-          </Text>
-          <Text style={styles.untaggedSub} numberOfLines={1}>
-            {who}
-          </Text>
-        </View>
-        {onSuggest ? (
-          <Button
-            label="Suggest tags"
-            icon={<Sparkle size={15} />}
-            onPress={onSuggest}
-            testID="tags-untagged-suggest"
-          />
-        ) : null}
+        {words}
+        {suggest('secondary')}
         <Button
           label="Tag while they play"
-          icon={<TagIcon size={15} color={theme.colors.textPrimary} />}
+          icon={<TagIcon color={theme.colors.textPrimary} />}
           onPress={onStart}
           testID="tags-untagged-start"
         />
@@ -550,38 +465,22 @@ function UntaggedCard({
     )
   }
   return (
-    <Animated.View style={press.style}>
-      <Pressable
-        {...press.handlers}
+    <View>
+      <Press
+        depth="row"
         onPress={onStart}
         accessibilityRole="button"
-        accessibilityLabel={`${title}. Tag them one at a time, while they play`}
+        accessibilityLabel={`${title}. ${line}`}
+        accessibilityHint={UNTAGGED_HINT}
         testID="tags-untagged"
         style={styles.untagged}
       >
         {covers}
-        <View style={styles.untaggedText}>
-          <Text style={styles.untaggedTitle} numberOfLines={1}>
-            {title}
-          </Text>
-          <Text style={styles.untaggedSub} numberOfLines={1}>
-            {who}
-          </Text>
-        </View>
-        <ChevronRight size={16} tone="textMuted" />
-      </Pressable>
-      {onSuggest ? (
-        <View style={styles.untaggedSuggest}>
-          <Button
-            label="Suggest tags"
-            icon={<Sparkle size={15} />}
-            variant="text"
-            onPress={onSuggest}
-            testID="tags-untagged-suggest"
-          />
-        </View>
-      ) : null}
-    </Animated.View>
+        {words}
+        <ChevronRight size={iconSize.item} tone="textMuted" />
+      </Press>
+      {onSuggest ? <View style={styles.untaggedSuggest}>{suggest('text')}</View> : null}
+    </View>
   )
 }
 
@@ -661,67 +560,35 @@ const TagTile = memo(function TagTile({
   onEdit: EditTag
 }): ReactNode {
   const { tag } = standing
-  const [hovered, setHovered] = useState(false)
-  const [focused, setFocused] = useState(false)
   const lead = useMemo(() => leadSong(standing.songs), [standing.songs])
-  const out = finePointer && (hovered || focused)
-  const controls = useFade(out, MOVE_MS.hoverIn, MOVE_MS.hoverOut)
-  const controlsStyle = useMemo(() => ({ opacity: controls }), [controls])
   const line = tagLine(standing)
   const height = Math.round(width / SLEEVE_ASPECT)
-  const web = {
-    onContextMenu: (event: { preventDefault: () => void }) => {
-      event.preventDefault()
-      onEdit(tag)
-    },
-  }
   return (
-    <View
-      ref={node => rowRef(tag.id, node)}
-      collapsable={false}
-      style={{ width }}
-      onPointerEnter={finePointer ? () => setHovered(true) : undefined}
-      onPointerLeave={finePointer ? () => setHovered(false) : undefined}
-    >
-      <Pressable
-        onPress={() => onOpen(standing)}
-        onLongPress={() => onEdit(tag)}
-        // The app's one hold, as a song row's is (`HoldToReorder`): a page
-        // where holding takes half again as long as it does on the next page
-        // is two gestures wearing one name.
-        delayLongPress={MOVE_MS.hold}
-        onFocus={() => setFocused(tabbing())}
-        onBlur={() => setFocused(false)}
-        accessibilityRole="link"
-        accessibilityLabel={`${tag.name}, ${line}`}
-        accessibilityHint={
-          finePointer
-            ? 'Right-click to rename, recolour or delete'
-            : 'Hold to rename, recolour or delete'
-        }
-        testID={`tags-row-${index}`}
-        style={({ pressed }) => pressed && styles.pressed}
-        {...web}
-      >
-        <TagSleeve song={lead} hue={tag.hue} name={tag.name} width={width} out={out} />
-        <View style={styles.nameRow}>
-          <View style={[styles.dot, { backgroundColor: tagColors(tag.hue).dot }]} />
-          <Text style={styles.tileName} numberOfLines={1}>
-            {tag.name}
-          </Text>
-        </View>
-        <Text style={styles.tileSub} numberOfLines={1}>
-          {line}
-        </Text>
-      </Pressable>
-
-      {finePointer ? (
+    <GridTile
+      tileRef={node => rowRef(tag.id, node)}
+      cover={out => <TagSleeve song={lead} hue={tag.hue} name={tag.name} width={width} out={out} />}
+      look="display"
+      titleLead={<TagDot hue={tag.hue} />}
+      title={tag.name}
+      sub={line}
+      onPress={() => onOpen(standing)}
+      onMenu={() => onEdit(tag)}
+      role="link"
+      label={`${tag.name}, ${line}`}
+      hint={
+        finePointer
+          ? 'Right-click to rename, recolour or delete'
+          : 'Hold to rename, recolour or delete'
+      }
+      testID={`tags-row-${index}`}
+      overlay={(focus: TileFocus) => (
         <>
-          {/* The record itself is Play: what is out of the sleeve, right of it. */}
-          <Pressable
+          {/* The record itself is Play: what is out of the sleeve, right of it.
+            Laid over the record and drawing nothing itself, so no sink. */}
+          <Press
+            feedback="dim"
             onPress={() => onPlay(standing)}
-            onFocus={() => setFocused(tabbing())}
-            onBlur={() => setFocused(false)}
+            {...focus}
             disabled={standing.songs.length === 0}
             accessibilityRole="button"
             accessibilityLabel={`Play ${tag.name}`}
@@ -729,27 +596,23 @@ const TagTile = memo(function TagTile({
             testID={`tags-play-${index}`}
             style={[styles.playZone, { left: height, width: width - height, height }]}
           />
-          <Animated.View
-            style={[styles.more, controlsStyle]}
-            pointerEvents={out ? 'box-none' : 'none'}
-          >
-            <Pressable
+          <View style={styles.more}>
+            <Press
               onPress={() => onEdit(tag)}
-              onFocus={() => setFocused(tabbing())}
-              onBlur={() => setFocused(false)}
+              {...focus}
               accessibilityRole="button"
               accessibilityLabel={`Rename, recolour or delete ${tag.name}`}
               {...tip('Edit tag')}
               testID={`tags-more-${index}`}
-              hitSlop={6}
-              style={({ pressed }) => [styles.moreButton, pressed && styles.pressed]}
+              hitSlop={hitSlopFor(MORE_BUTTON)}
+              style={styles.moreButton}
             >
-              <More size={16} tone="textPrimary" />
-            </Pressable>
-          </Animated.View>
+              <More size={iconSize.item} tone="textPrimary" />
+            </Press>
+          </View>
         </>
-      ) : null}
-    </View>
+      )}
+    />
   )
 })
 
@@ -790,24 +653,20 @@ function InsidePanel({
             const index = order.get(tag.id) ?? 0
             return (
               <View key={tag.id} ref={node => rowRef(tag.id, node)} collapsable={false}>
-                <Pressable
+                <Press
+                  feedback="wash"
                   onPress={() => onOpen(standing)}
                   onLongPress={() => onEdit(tag)}
                   delayLongPress={MOVE_MS.hold}
                   accessibilityRole="link"
                   accessibilityLabel={`${tag.name}, ${tagLine(standing)}`}
                   testID={`tags-row-${index}`}
-                  style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+                  style={({ hovered }: { pressed: boolean; hovered?: boolean }) => [
                     styles.insideRow,
                     compact && styles.insideRowCompact,
-                    (pressed || hovered) && styles.insideRowOn,
+                    hovered && styles.insideRowOn,
                   ]}
-                  {...{
-                    onContextMenu: (event: { preventDefault: () => void }) => {
-                      event.preventDefault()
-                      onEdit(tag)
-                    },
-                  }}
+                  {...rightClick(() => onEdit(tag))}
                 >
                   <Cover
                     uri={lead ? art(lead) : null}
@@ -815,7 +674,7 @@ function InsidePanel({
                     size={compact ? 20 : INSIDE_COVER}
                     radius={compact ? 5 : 7}
                   />
-                  <View style={[styles.dot, { backgroundColor: tagColors(tag.hue).dot }]} />
+                  <TagDot hue={tag.hue} />
                   <Text
                     style={[styles.insideName, compact && styles.insideNameCompact]}
                     numberOfLines={1}
@@ -825,7 +684,7 @@ function InsidePanel({
                   <Text style={[styles.insideCount, compact && styles.insideCountCompact]}>
                     {standing.songs.length.toLocaleString()}
                   </Text>
-                </Pressable>
+                </Press>
               </View>
             )
           })}
@@ -840,6 +699,8 @@ function InsidePanel({
 
 /** The side of each cover in the untagged card's stack. */
 const COVER_STACK = 40
+/** A tile's ⋯, round on its glass. */
+const MORE_BUTTON = 30
 /** The side of an inside tag's cover in a holder's panel. */
 const INSIDE_COVER = 30
 /** A holder's panel narrower than this (a phone's) drops its label and tightens its rows. */
@@ -848,44 +709,20 @@ const COMPACT_PANEL = 200
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { gap: space.lg },
-  contentNarrow: { paddingTop: PAGE_TOP_PHONE, paddingHorizontal: NARROW_GUTTER },
-  contentWide: { paddingTop: PAGE_TOP_WIDE, paddingHorizontal: WIDE_GUTTER, width: '100%' },
-  heads: { gap: TITLE_UNDER_BACK },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerFill: { flex: 1 },
-  titles: { flex: 1, minWidth: 0, gap: 2 },
-  heading: pageTitle(theme.colors),
-  sub: { color: theme.colors.textSecondary, fontSize: type.sub },
-  hint: { color: theme.colors.textMuted, fontSize: type.sub, lineHeight: leading.sub },
+  contentNarrow: pageFrame(false),
+  contentWide: { ...pageFrame(true), width: '100%' },
+  hint: { color: theme.colors.textMuted, ...textStyle('sub') },
   newCard: { gap: space.sm, padding: space.md, ...card(theme.colors) },
   newHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   fieldLabel: label(theme.colors),
-  newRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  newColour: { gap: 6 },
-  newHint: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
-  error: { color: theme.colors.danger, fontSize: type.small },
-  input: {
-    flex: 1,
-    minWidth: 0,
-    minHeight: HIT_TARGET,
-    paddingHorizontal: space.md,
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    // A control on a card, one step up from it. The edge is there only to
-    // carry the focus ring: at rest it is the fill's own colour, so nothing
-    // outlines the field until it has focus.
-    backgroundColor: theme.colors.surface2,
-    borderWidth: 1,
-    borderColor: theme.colors.surface2,
-    borderRadius: radius.pill,
-    _web: { outlineStyle: 'none' },
-  },
+  newColour: { gap: space.tight },
+  newHint: hint(theme.colors),
   untagged: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    gap: space.md,
+    paddingVertical: space.md,
+    paddingHorizontal: space.roomy,
     ...card(theme.colors, 16),
   },
   untaggedIcon: {
@@ -900,9 +737,9 @@ const styles = StyleSheet.create(theme => ({
   // A ring of the card's own colour, so each cover sits on top of the one before.
   stackCover: { borderRadius: 11, borderWidth: 2, borderColor: theme.colors.surface1 },
   stackOverlap: { marginLeft: -16 },
-  untaggedText: { flex: 1, minWidth: 0, gap: 2 },
+  untaggedText: textColumn,
   untaggedSuggest: { flexDirection: 'row', justifyContent: 'flex-end' },
-  untaggedTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  untaggedTitle: rowTitle(theme.colors),
   untaggedSub: { color: theme.colors.textSecondary, fontSize: type.sub },
   artistLink: {
     color: theme.colors.textPrimary,
@@ -913,29 +750,12 @@ const styles = StyleSheet.create(theme => ({
   runs: { gap: ROW_GAP },
   runLabel: { ...label(theme.colors), marginBottom: -space.sm },
   runLabelSub: { fontSize: type.small, fontWeight: '400', letterSpacing: 0, textTransform: 'none' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: GAP, rowGap: ROW_GAP },
   holder: { flexDirection: 'row', gap: GAP },
-  pressed: { opacity: 0.75 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: 11 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  tileName: {
-    flexShrink: 1,
-    color: theme.colors.textPrimary,
-    fontFamily: fonts.display,
-    fontSize: type.title,
-    letterSpacing: -0.2,
-  },
-  tileSub: {
-    marginTop: 3,
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    fontVariant: ['tabular-nums'],
-  },
   playZone: { position: 'absolute', top: 0, borderRadius: radius.pill },
   more: { position: 'absolute', top: 8, right: 8 },
   moreButton: {
-    width: 30,
-    height: 30,
+    width: MORE_BUTTON,
+    height: MORE_BUTTON,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -944,17 +764,17 @@ const styles = StyleSheet.create(theme => ({
   inside: {
     borderRadius: radius.card,
     backgroundColor: theme.colors.surface1,
-    padding: 12,
-    gap: 4,
+    padding: space.md,
+    gap: space.xs,
   },
-  insideCompact: { padding: 6, gap: 0, justifyContent: 'center' },
-  insideLabel: { ...label(theme.colors), paddingHorizontal: 4, paddingBottom: 2 },
+  insideCompact: { padding: space.tight, gap: 0, justifyContent: 'center' },
+  insideLabel: { ...label(theme.colors), paddingHorizontal: space.xs, paddingBottom: 2 },
   insideRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 9,
-    paddingVertical: 4,
-    paddingHorizontal: 4,
+    paddingVertical: space.xs,
+    paddingHorizontal: space.xs,
     borderRadius: 10,
   },
   insideRowCompact: { gap: 7, paddingVertical: 2 },
@@ -962,9 +782,7 @@ const styles = StyleSheet.create(theme => ({
   insideName: {
     flex: 1,
     minWidth: 0,
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
+    ...rowTitle(theme.colors),
   },
   insideNameCompact: { fontSize: type.sub },
   insideCount: {
@@ -975,8 +793,6 @@ const styles = StyleSheet.create(theme => ({
   insideCountCompact: { fontSize: type.tiny },
   insideNote: {
     marginTop: 11,
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    lineHeight: leading.small,
+    ...hint(theme.colors),
   },
 }))

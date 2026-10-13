@@ -31,6 +31,44 @@ export function playlistRules<R>(
   return kind === 'live' && rules ? { kind: 'live', rules } : { kind: 'manual', rules: null }
 }
 
+/**
+ * Why an edit is refused, in the words and status both answerers send: a
+ * server, and this device's copy of a cloud library (shared editRules.ts).
+ */
+export interface EditRefusal {
+  readonly status: 400 | 409
+  readonly code: 'bad_request' | 'conflict'
+  readonly message: string
+}
+
+/**
+ * Why a patch cannot be made to a playlist of this kind, or null when it can.
+ *
+ * The kind is not a field of the patch: a manual playlist has no rules to
+ * set, and a live one is made manual by stopping it following its tags, which
+ * keeps its songs — not by taking its rules away, which would leave a live
+ * playlist with nothing to build itself from. The replay of the change log
+ * holds a change to the same rule: one that breaks it is ignored there, as the
+ * edit that made it would have been refused here.
+ */
+export function playlistPatchProblem(
+  kind: PlaylistKind,
+  patch: { readonly rules?: unknown },
+): EditRefusal | null {
+  if (patch.rules === undefined) return null
+  if (kind === 'manual' && patch.rules !== null) {
+    return { status: 400, code: 'bad_request', message: 'a manual playlist cannot have rules' }
+  }
+  if (kind === 'live' && patch.rules === null) {
+    return {
+      status: 400,
+      code: 'bad_request',
+      message: 'a live playlist needs a rule set; stop following it instead',
+    }
+  }
+  return null
+}
+
 const PlaylistBaseSchema = z.object({
   id: IdSchema,
   name: z.string(),

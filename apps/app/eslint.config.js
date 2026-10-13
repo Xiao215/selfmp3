@@ -7,8 +7,19 @@
 // uses that instead and the root config ignores apps/app.
 
 const expoConfig = require('eslint-config-expo/flat')
+const base = require('../../eslint.base.cjs')
 const typescript = require('@typescript-eslint/eslint-plugin')
 const typescriptParser = require('@typescript-eslint/parser')
+
+// React Native's own lists, which ui/components/Scroll wraps. A type (a ref's
+// instance) is fine.
+const SCROLL_FROM_RN = {
+  name: 'react-native',
+  importNames: ['ScrollView', 'FlatList', 'SectionList', 'VirtualizedList'],
+  allowTypeImports: true,
+  message:
+    'Use ScrollView/FlatList from ui/components/Scroll, which settle what an open keyboard does.',
+}
 
 module.exports = [
   ...expoConfig,
@@ -28,8 +39,8 @@ module.exports = [
   },
   {
     rules: {
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
-      eqeqeq: ['error', 'always', { null: 'ignore' }],
+      'no-console': base.rules['no-console'],
+      eqeqeq: base.rules.eqeqeq,
     },
   },
   {
@@ -49,15 +60,16 @@ module.exports = [
     },
   },
   {
-    // Same unused-variable convention as the root config: an error, with a
-    // leading underscore as the explicit opt-out.
+    // The root config's TypeScript rules (eslint.base.cjs): unused variables
+    // with the underscore opt-out, and `import type` for what is only a type.
     files: ['**/*.ts', '**/*.tsx'],
     plugins: { '@typescript-eslint': typescript },
     rules: {
-      '@typescript-eslint/no-unused-vars': [
-        'error',
-        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
-      ],
+      '@typescript-eslint/no-unused-vars': base.rules['@typescript-eslint/no-unused-vars'],
+      '@typescript-eslint/consistent-type-imports':
+        base.rules['@typescript-eslint/consistent-type-imports'],
+      '@typescript-eslint/no-import-type-side-effects':
+        base.rules['@typescript-eslint/no-import-type-side-effects'],
     },
   },
   {
@@ -77,13 +89,12 @@ module.exports = [
       parser: typescriptParser,
       parserOptions: { projectService: true, tsconfigRootDir: __dirname },
     },
-    rules: {
-      '@typescript-eslint/no-floating-promises': 'error',
-      '@typescript-eslint/no-misused-promises': [
-        'error',
-        { checksVoidReturn: { attributes: false } },
-      ],
-    },
+    rules: base.typeAwareRules,
+  },
+  {
+    // What a test may do that the code under test may not, as at the root.
+    files: base.testFiles,
+    rules: base.testRules,
   },
   {
     // Jest's globals, for the component tests and their setup. The model tests
@@ -141,21 +152,59 @@ module.exports = [
     // Every list takes the keyboard the same way: a tap under it lands, a drag
     // puts it away. That is set once in ui/components/Scroll; a screen that
     // drew React Native's own list would quietly leave it out, as Import's
-    // search did. A type (a ref's instance) is fine.
+    // search did.
     files: ['**/*.ts', '**/*.tsx'],
     ignores: ['src/ui/components/Scroll.tsx'],
+    plugins: { '@typescript-eslint': typescript },
+    rules: {
+      '@typescript-eslint/no-restricted-imports': ['error', { paths: [SCROLL_FROM_RN] }],
+    },
+  },
+  {
+    /*
+     * A screen draws with the app's parts, not React Native's raw ones. Each
+     * of these came back screen by screen with its own look — a press that
+     * faded to 0.6 here, 0.85 there, sank to 0.95 somewhere else; a field
+     * with no focus ring; a spinner in whichever colour was to hand — and a
+     * fix to one was a fix to one.
+     *
+     * A field edited in place, drawn as the text it edits (a playlist's name
+     * in its head), is a real exception: it says so, and why, on its import.
+     * The rule replaces the one above for these files, so it carries the
+     * lists' rule along. Tests may draw whatever they like.
+     */
+    files: [
+      'src/features/**/*.ts',
+      'src/features/**/*.tsx',
+      'src/shell/**/*.ts',
+      'src/shell/**/*.tsx',
+    ],
+    ignores: ['**/*.test.ts', '**/*.test.tsx'],
     plugins: { '@typescript-eslint': typescript },
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {
           paths: [
+            SCROLL_FROM_RN,
             {
               name: 'react-native',
-              importNames: ['ScrollView', 'FlatList', 'SectionList', 'VirtualizedList'],
+              importNames: ['Pressable'],
+              message:
+                'Use Press (ui/components/Press) — feedback "sink", "wash" or "dim" — or a part built on it: Button, IconButton, Chip, CheckRow, NavRow. A ground that only closes what is open is TapAway.',
+            },
+            {
+              name: 'react-native',
+              importNames: ['TextInput'],
               allowTypeImports: true,
               message:
-                'Use ScrollView/FlatList from ui/components/Scroll, which settle what an open keyboard does.',
+                'Use TextField or SearchField (ui/components), which carry the focus ring and the limits.',
+            },
+            {
+              name: 'react-native',
+              importNames: ['ActivityIndicator'],
+              message:
+                'Use PageLoading for a page, Button busy for a button, or Spinner (ui/components/Spinner) in place.',
             },
           ],
         },

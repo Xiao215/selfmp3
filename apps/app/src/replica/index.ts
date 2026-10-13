@@ -1,3 +1,4 @@
+import { DOORMAN_PATHS } from '@selfmp3/shared'
 import { createCloudLibrary, createCloudRoutes, createCloudSession } from '@selfmp3/replica'
 import { cloudPlatform } from '../ports/cloudPlatform'
 
@@ -15,7 +16,7 @@ export const { cloudRequest } = createCloudRoutes(cloudPlatform, session, librar
 
 /** A file in the bucket, as the doorman serves it: `key` is where the bucket keeps it. */
 export function doormanFileUrl(key: string): string {
-  return `${cloudPlatform.doormanUrl}/v1/files/${key}`
+  return `${cloudPlatform.doormanUrl}${DOORMAN_PATHS.file(key)}`
 }
 
 /** The header the doorman reads, and the only thing it reads, to let a request through. */

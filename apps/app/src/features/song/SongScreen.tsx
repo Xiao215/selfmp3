@@ -1,44 +1,44 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
-import {
-  fonts,
-  leading,
-  radius,
-  space,
-  type,
-  useLibrary,
-  useSimilar,
-  useToggleLoved,
-  withAlpha,
-} from '@selfmp3/client'
+import { radius, space, type, useLibrary, useSimilar, withAlpha, iconSize } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
-import { usePlayer, usePlayerStalled } from '../../player/PlayerProvider'
+import { usePlayer } from '../../player/PlayerProvider'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useBottomInset } from '../../shell/bottomInset'
 import { useLayout } from '../../shell/useLayout'
-import { Button, PlayButton } from '../../ui/components/Button'
+import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
 import { CoverLight } from '../../ui/components/CoverLight'
-import { IconButton } from '../../ui/components/IconButton'
-import { ChevronLeft, Heart, Mic, More, Next, Sparkles } from '../../ui/components/Icons'
-import { PlayPauseIcon } from '../../ui/components/PlayPauseIcon'
-import { SafeAreaView } from '../../ui/components/SafeAreaView'
+import { Mic, Next } from '../../ui/components/Icons'
+import { MoreButton } from '../../ui/components/MoreMenu'
+import { LikeButton } from '../../ui/components/LikeButton'
+import { PlayPauseButton } from '../../ui/components/PlayPauseButton'
+import { BackButton } from '../../ui/components/BackButton'
+import { MissingPage } from '../../ui/components/MissingPage'
 import { SongMenu } from '../../ui/components/SongMenu'
+import { SONG_ACTION_LABELS } from '../../ui/songActions.model'
 import { TagPicker } from '../../ui/components/TagPicker'
-import { artShadow, card, label as labelText, pageTitle, serif } from '../../ui/surfaces'
+import {
+  artShadow,
+  card,
+  label as labelText,
+  pageFrame,
+  serif,
+  bodyText,
+  heroTitle,
+} from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { useSongColor } from '../../ui/useSongColor'
-import { FixMetadata } from '../metadata/FixMetadata'
 import { ArtistLinks } from '../nowPlaying/ArtistLinks'
 import { SimilarShelf } from './SimilarShelf'
 import { useHistoryFor, useStatsSongs } from '../stats/statsSource'
-import { tagLink } from '../tag/placeLinks'
-import { SongFacts } from './SongFacts'
+import { useOpenTag } from '../tag/useOpenTag'
+import { SongAbout } from './SongAbout'
 import {
   bylineRest,
   playStrip,
@@ -47,7 +47,7 @@ import {
   soundWords,
   type PlayStrip,
 } from './song.model'
-import { goBack, useGoBack } from '../../ui/useBackTo'
+import { goBack } from '../../ui/useBackTo'
 import { useVia } from '../../connection/via'
 import { ScrollView } from '../../ui/components/Scroll'
 
@@ -86,13 +86,12 @@ export function SongScreen(): ReactNode {
 }
 
 function SongPage({ song }: { song: Song }): ReactNode {
-  const { theme } = useUnistyles()
   const router = useRouter()
+  const openTag = useOpenTag()
   const { wide } = useLayout()
   const bottom = useBottomInset()
   const { top } = useSafeAreaInsets()
   const player = usePlayer()
-  const stalled = usePlayerStalled()
   const artFor = useArt()
   const { data: library } = useLibrary()
   const art = artFor(song)
@@ -101,15 +100,12 @@ function SongPage({ song }: { song: Song }): ReactNode {
   const similarSongs = similar.isPlaceholderData ? [] : (similar.data?.songs ?? [])
   const [menuOpen, setMenuOpen] = useState(false)
   const [tagging, setTagging] = useState(false)
-  const [fixing, setFixing] = useState(false)
   const moreRef = useRef<View>(null)
   const addTagRef = useRef<View>(null)
-  const toggleLoved = useToggleLoved()
 
   const tags = (library?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
   const isCurrent = player.current?.id === song.id
   const rest = bylineRest(song)
-  const back = useGoBack('/')
 
   return (
     <View style={styles.screen}>
@@ -122,7 +118,7 @@ function SongPage({ song }: { song: Song }): ReactNode {
           // the whole page would push the light down with everything else and
           // leave a black band above it, where a place's page runs its light
           // right up under the status bar (Xiao, 2026-09-27).
-          { paddingTop: top + space.sm, paddingBottom: bottom + space.xl },
+          { paddingTop: top + pageFrame(wide).paddingTop, paddingBottom: bottom + space.xl },
         ]}
       >
         <View style={styles.light}>
@@ -130,32 +126,16 @@ function SongPage({ song }: { song: Song }): ReactNode {
         </View>
 
         <View style={styles.topBar}>
-          <IconButton label="Back" onPress={back} filled>
-            <ChevronLeft size={20} tone="textPrimary" />
-          </IconButton>
+          <BackButton to="/" always />
           <View style={styles.topRight}>
-            <IconButton
-              label={song.loved ? 'Unlike' : 'Like'}
-              active={song.loved}
-              filled
-              onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
-            >
-              <Heart
-                size={18}
-                filled={song.loved}
-                color={song.loved ? theme.colors.danger : theme.colors.textPrimary}
-              />
-            </IconButton>
-            <View ref={moreRef} collapsable={false}>
-              <IconButton
-                label={`More for ${song.title}`}
-                onPress={() => setMenuOpen(true)}
-                filled
-                testID="song-more"
-              >
-                <More size={18} tone="textPrimary" />
-              </IconButton>
-            </View>
+            <LikeButton song={song} filled />
+            <MoreButton
+              name={song.title}
+              anchorRef={moreRef}
+              onPress={() => setMenuOpen(open => !open)}
+              active={menuOpen}
+              testID="song-more"
+            />
           </View>
         </View>
 
@@ -188,7 +168,7 @@ function SongPage({ song }: { song: Song }): ReactNode {
                   hue={tag.hue}
                   selected={false}
                   compact
-                  onPress={() => router.navigate(tagLink(tag.name))}
+                  onPress={() => openTag(tag)}
                 />
               ))}
               <View ref={addTagRef} collapsable={false}>
@@ -207,24 +187,18 @@ function SongPage({ song }: { song: Song }): ReactNode {
         </View>
 
         <View style={styles.actions}>
-          <PlayButton
+          <PlayPauseButton
             testID="song-play"
-            label={isCurrent && player.isPlaying ? 'Pause' : `Play ${song.title}`}
-            icon={
-              <PlayPauseIcon
-                playing={isCurrent && player.isPlaying}
-                busy={isCurrent && stalled}
-                size={24}
-                color={theme.colors.onPrimary}
-              />
-            }
+            songId={song.id}
+            playLabel={`Play ${song.title}`}
+            glyph={iconSize.hero}
             // The song already loaded pauses and resumes; any other starts from the top.
             onPress={() => (isCurrent ? player.toggle() : player.playFrom([song.id], 0))}
           />
           <Button
             testID="song-lyrics"
             label="Lyrics"
-            icon={<Mic size={16} tone="textPrimary" />}
+            icon={<Mic tone="textPrimary" />}
             onPress={() => {
               // The words follow the song that is playing, so it has to be this one.
               if (!isCurrent) player.playFrom([song.id], 0)
@@ -236,8 +210,8 @@ function SongPage({ song }: { song: Song }): ReactNode {
           {isCurrent ? null : (
             <Button
               testID="song-play-next"
-              label="Play next"
-              icon={<Next size={16} tone="textPrimary" />}
+              label={SONG_ACTION_LABELS.playNext}
+              icon={<Next tone="textPrimary" />}
               onPress={() => {
                 player.playNext([song.id])
                 showToast('Plays next', 'good')
@@ -256,16 +230,7 @@ function SongPage({ song }: { song: Song }): ReactNode {
           />
         ) : null}
 
-        <View style={styles.facts}>
-          <SongFacts song={song} plays={false} />
-          <View style={styles.fix}>
-            <Button
-              label="Fix song info…"
-              icon={<Sparkles size={15} tone="textSecondary" />}
-              onPress={() => setFixing(true)}
-            />
-          </View>
-        </View>
+        <SongAbout song={song} plays={false} style={styles.facts} />
       </ScrollView>
 
       <SongMenu
@@ -278,7 +243,6 @@ function SongPage({ song }: { song: Song }): ReactNode {
         anchorRef={addTagRef}
         onClose={() => setTagging(false)}
       />
-      {fixing ? <FixMetadata song={song} onClose={() => setFixing(false)} /> : null}
     </View>
   )
 }
@@ -351,15 +315,13 @@ function Strip({ strip }: { strip: PlayStrip }): ReactNode {
 function SongMissing(): ReactNode {
   const router = useRouter()
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <View style={styles.missing} testID="song-missing">
-        <Text style={styles.missingTitle} accessibilityRole="header">
-          No such song
-        </Text>
-        <Text style={styles.missingText}>It may have been removed from your library.</Text>
-        <Button label="Library" onPress={() => router.replace('/library')} />
-      </View>
-    </SafeAreaView>
+    <MissingPage
+      testID="song-missing"
+      title="No such song"
+      line="It may have been removed from your library."
+      back="/library"
+      action={{ label: 'Library', onPress: () => router.replace('/library') }}
+    />
   )
 }
 
@@ -377,32 +339,26 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 8,
+    paddingTop: space.sm,
   },
   topRight: { flexDirection: 'row', gap: space.sm },
-  hero: { flexDirection: 'row', alignItems: 'flex-end', gap: 16 },
+  hero: { flexDirection: 'row', alignItems: 'flex-end', gap: space.lg },
   heroWide: { gap: 28 },
   cover: {
     borderRadius: radius.card,
     ...artShadow(theme.colors),
   },
-  titles: { flex: 1, minWidth: 0, gap: 6 },
-  title: {
-    color: theme.colors.textPrimary,
-    fontFamily: fonts.display,
-    fontSize: type.page,
-    lineHeight: leading.page,
-    letterSpacing: -0.4,
-  },
-  titleWide: { fontSize: type.display, lineHeight: leading.display, letterSpacing: -0.8 },
+  titles: { flex: 1, minWidth: 0, gap: space.tight },
+  title: heroTitle(theme.colors, 'page'),
+  titleWide: heroTitle(theme.colors),
   byline: { color: theme.colors.textSecondary, fontSize: type.body },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space.tight, alignItems: 'center' },
   plus: { color: theme.colors.textSecondary, fontSize: type.sub },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: space.snug, flexWrap: 'wrap' },
   card: { ...card(theme.colors), padding: space.lg, gap: space.md },
   cardLabel: labelText(theme.colors),
-  story: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
-  count: serif(theme.colors, type.large),
+  story: bodyText(theme.colors),
+  count: serif(theme.colors, 'large'),
   bright: { color: theme.colors.textPrimary },
   strip: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 28 },
   bar: {
@@ -413,8 +369,4 @@ const styles = StyleSheet.create(theme => ({
   },
   barPeak: { backgroundColor: theme.colors.accent },
   facts: { maxWidth: 600, paddingTop: space.sm },
-  fix: { alignItems: 'flex-start' },
-  missing: { padding: 24, gap: 12, alignItems: 'flex-start' },
-  missingTitle: pageTitle(theme.colors),
-  missingText: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
 }))

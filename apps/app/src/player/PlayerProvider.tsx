@@ -555,15 +555,19 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
 
   // Everywhere a song's bytes might come from, on this device, right now.
   const sourcesFor = useCallback(
-    (songId: number): MediaSources => ({
-      // A file here wins whenever there is one — a download first, then a copy
-      // kept because it was played. It is the only thing that plays with no
-      // signal, and it is the same song either way.
-      // With the song's own rev, so a file kept under a reused id is not
-      // played as the song that id now names (`entryIsCurrent`).
-      local: downloadQueue.localUri(songId, songsRef.current.get(songId)?.rev) ?? recentUri(songId),
-      ...mediaSourcesFor(connectionRef.current, fromCloudRef.current, KEPT_COVER_SIZE),
-    }),
+    (songId: number): MediaSources => {
+      const song = songsRef.current.get(songId)
+      return {
+        // A file here wins whenever there is one — a download first, then a copy
+        // kept because it was played. It is the only thing that plays with no
+        // signal, and it is the same song either way.
+        // With the song's own rev and audio, so a file kept under a reused id,
+        // or of audio the song has since replaced, is not played as the song
+        // (`entryIsCurrent`, and the played copy's name).
+        local: downloadQueue.localUri(songId, song?.rev) ?? recentUri(song),
+        ...mediaSourcesFor(connectionRef.current, fromCloudRef.current, KEPT_COVER_SIZE),
+      }
+    },
     [downloadQueue],
   )
 
@@ -841,9 +845,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       const failed = state.error !== null && state.error !== recovery.lastError
       recovery.lastError = state.error
       if (!failed || songId === undefined) return
-      // The engine's words ("Song 1234 cannot be played from this device
-      // yet", a media error's code) are for whoever is debugging; the toast
-      // says which song, and what happened to it.
+      // The engine's words ("“Evening” can’t be played on this phone yet",
+      // a media error's code) are for whoever is debugging; the toast says
+      // which song, and what happened to it.
       console.warn(`Playback failed for song ${songId}:`, state.error)
 
       const title =

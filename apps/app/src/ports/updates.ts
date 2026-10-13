@@ -1,3 +1,5 @@
+import { NOT_INSTALLED } from './notInstalled'
+
 /**
  * Whether there is a newer self.mp3, for an app that can be replaced.
  *
@@ -26,18 +28,4 @@ export interface UpdatesPort {
   on(listener: (status: UpdateState) => void): () => void
 }
 
-const IDLE: UpdateState = {
-  state: 'idle',
-  version: null,
-  releaseUrl: null,
-  canInstall: false,
-  message: null,
-}
-
-export const updates: UpdatesPort = {
-  available: false,
-  version: null,
-  check: () => Promise.resolve(IDLE),
-  install: () => Promise.resolve(),
-  on: () => () => {},
-}
+export const updates: UpdatesPort = NOT_INSTALLED.updates

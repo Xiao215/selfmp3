@@ -22,6 +22,16 @@ export const NATIVE_BACKGROUND = '#0b0d13'
 export const NATIVE_CARD = '#151821'
 
 /**
+ * The dark theme's ink, its quieter ink and a raised control's tone
+ * (`textPrimary`, `textSecondary`, `surface3`): the widget's words and the
+ * square standing in for a missing cover, coloured at prebuild as the card
+ * is. The widget's Swift used to carry its own copies of them.
+ */
+export const NATIVE_TEXT_PRIMARY = '#f4f5f9'
+export const NATIVE_TEXT_SECONDARY = '#aeb1b9'
+export const NATIVE_RAISED = '#1f2330'
+
+/**
  * The accent at its default hue in the dark theme, for the widget's tint.
  * packages/client works the accent out from the hue; its tests hold the two
  * to the same colour.

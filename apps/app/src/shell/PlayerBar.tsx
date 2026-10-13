@@ -1,26 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { PanResponder, Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import type { LayoutChangeEvent } from 'react-native'
 import { usePathname, useRouter } from 'expo-router'
-import { artistOr, clamp01 } from '@selfmp3/shared'
+import { artistOr } from '@selfmp3/shared'
 import { warmCoverPalette } from '../features/nowPlaying/useCoverPalette'
-import { isRoomTrackId } from '@selfmp3/client'
-import { radius, space, type, useToggleLoved, withAlpha, type SongColors } from '@selfmp3/client'
+import { isRoomTrackId, iconSize } from '@selfmp3/client'
+import { radius, space, type, withAlpha, type SongColors } from '@selfmp3/client'
 import { DevicesSheet } from '../features/devices/DevicesSheet'
 import { TogetherButton } from '../features/room/Together'
 import { UpNextTarget } from '../ui/components/CoverFlight'
 import { toggleQueueSheet, useQueueSheetOpen } from '../features/queue/queueSheet.store'
 import { useArt } from '../offline/useArt'
-import {
-  usePlayer,
-  usePlayerCommands,
-  usePlayerProgress,
-  usePlayerStalled,
-  usePlayerVolume,
-} from '../player/PlayerProvider'
+import { usePlayer, usePlayerCommands, usePlayerVolume } from '../player/PlayerProvider'
 import { VOLUME_STEP } from '../player/progress.model'
 import { useSongColor } from '../ui/useSongColor'
 import { Cover } from '../ui/components/Cover'
@@ -30,29 +23,26 @@ import { IconButton } from '../ui/components/IconButton'
 import {
   ChevronDown,
   Devices,
-  Heart,
   Moon,
-  Next,
-  Prev,
-  Repeat,
-  RepeatOne,
-  Shuffle,
   TagPlus,
   UpNext,
   Volume,
   VolumeMute,
 } from '../ui/components/Icons'
 import { Popover } from '../ui/components/Popover'
-import { SleepMenu, useSleepMinutesLeft } from '../ui/components/SleepMenu'
+import { SleepMenu, useSleepTimerStatus } from '../ui/components/SleepMenu'
+import { Scrubber } from '../ui/components/Scrubber'
 import { SeekBar } from '../ui/components/SeekBar'
 import { TagPicker } from '../ui/components/TagPicker'
 import { leaveStage } from './stageExit'
-import { handOffCover } from '../ui/coverHandoff'
+import { useOpenNowPlaying } from '../ui/useOpenNowPlaying'
 import { Press } from '../ui/components/Press'
 import { useLayoutValue } from './useLayout'
-import { floating } from '../ui/surfaces'
-import { PlayPauseIcon } from '../ui/components/PlayPauseIcon'
+import { floating, rowTitle } from '../ui/surfaces'
+import { LikeButton } from '../ui/components/LikeButton'
+import { TransportControls } from '../ui/components/TransportControls'
 import { goBack } from '../ui/useBackTo'
+import { WINDOW_WIDTH } from './widths'
 
 /**
  * The transport across the foot of the desktop layout.
@@ -70,32 +60,20 @@ import { goBack } from '../ui/useBackTo'
  */
 export const PLAYER_BAR_HEIGHT = 84
 
-/** Below this the volume slider folds into a popover on the speaker. */
-const COMPACT_WIDTH = 1160
-/** Below this the song and the transport shrink, so the tools on the right still fit. */
-const TIGHT_WIDTH = 900
-
-const REPEAT_LABEL = {
-  off: 'Repeat off',
-  all: 'Repeat all',
-  one: 'Repeat this song',
-} as const
-
 export function PlayerBar(): ReactNode {
   const { theme } = useUnistyles()
-  // Not the position: that is `PlayedWash` and `BarSeek`'s, so a tick redraws
-  // those two and not the rest of the bar.
+  // Not the position: that is the wash's and the scrubber's own, so a tick
+  // redraws those two and not the rest of the bar.
   const player = usePlayer()
   const artFor = useArt()
   const router = useRouter()
-  const toggleLoved = useToggleLoved()
   const insets = useSafeAreaInsets()
   // An iPad at 834 points has less room than any desktop window the bar was
   // drawn for: the song and the transport give up width before the tools go.
   // Asked as answers, so a window being dragged redraws the bar only as it
   // crosses one of these lines.
-  const tight = useLayoutValue(layout => layout.width < TIGHT_WIDTH)
-  const compact = useLayoutValue(layout => layout.width < COMPACT_WIDTH)
+  const tight = useLayoutValue(layout => layout.width < WINDOW_WIDTH.barTight)
+  const compact = useLayoutValue(layout => layout.width < WINDOW_WIDTH.barCompact)
   const song = player.current
   // Asked once here and handed to every control that draws in it, rather than
   // each asking the player and the covers again for the same colour.
@@ -114,19 +92,7 @@ export function PlayerBar(): ReactNode {
   const pathname = usePathname()
   const onPage = pathname === '/now-playing'
   const closePage = (): void => leaveStage(() => goBack(router, '/'))
-  const coverRef = useRef<View>(null)
-  const openPage = (): void => {
-    // Where the cover is, for the stage's cover to grow from (`M3`, 2).
-    const node = coverRef.current
-    if (!node) {
-      router.push('/now-playing')
-      return
-    }
-    node.measureInWindow((x, y, width) => {
-      handOffCover({ x, y, size: width })
-      router.push('/now-playing')
-    })
-  }
+  const { coverRef, open: openPage } = useOpenNowPlaying()
   const togglePage = (): void => (onPage ? closePage() : openPage())
   // Up next is the rail beside whatever page is open, Now Playing included
   // (docs/ui-mock `C11`), so the button toggles the rail and goes nowhere.
@@ -143,12 +109,13 @@ export function PlayerBar(): ReactNode {
       ]}
       testID="player-bar"
     >
-      {song ? <PlayedWash color={songColor.color} /> : null}
+      {song ? <ProgressWash color={songColor.color} fade={40} line="top" /> : null}
 
       <View style={[styles.left, tight && styles.leftTight]}>
         {song ? (
           <>
-            <Pressable
+            <Press
+              feedback="dim"
               style={styles.open}
               onPress={togglePage}
               accessibilityRole="button"
@@ -161,7 +128,7 @@ export function PlayerBar(): ReactNode {
                 <Cover uri={art} title={song.album || song.title} size={54} />
                 {onPage ? (
                   <View style={styles.openChevron} pointerEvents="none">
-                    <ChevronDown size={22} color={CHEVRON_INK} />
+                    <ChevronDown size={iconSize.large} tone="onArt" />
                   </View>
                 ) : null}
               </View>
@@ -173,23 +140,13 @@ export function PlayerBar(): ReactNode {
                   {artistOr(song.artist)}
                 </Text>
               </View>
-            </Pressable>
+            </Press>
             {/* Under the tight width the song's name needs the room more: Like and
                 Tags are on Now Playing and in the song menu as well. A friend's
                 song in a room is not in your library to like or tag. */}
             {tight || isRoomTrackId(song.id) ? null : (
               <>
-                <IconButton
-                  onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
-                  label={song.loved ? 'Unlike' : 'Like'}
-                  active={song.loved}
-                >
-                  <Heart
-                    size={17}
-                    filled={song.loved}
-                    color={song.loved ? theme.colors.danger : theme.colors.textSecondary}
-                  />
-                </IconButton>
+                <LikeButton song={song} />
                 <View ref={tagsRef} collapsable={false}>
                   <IconButton
                     onPress={() => setTagsOpen(open => !open)}
@@ -198,7 +155,7 @@ export function PlayerBar(): ReactNode {
                     active={tagsOpen}
                   >
                     <TagPlus
-                      size={17}
+                      size={iconSize.medium}
                       color={tagsOpen ? songColor.color : theme.colors.textSecondary}
                     />
                   </IconButton>
@@ -212,37 +169,9 @@ export function PlayerBar(): ReactNode {
       </View>
 
       <View style={[styles.centre, tight && styles.centreTight]}>
-        <View style={styles.buttons}>
-          <IconButton onPress={player.toggleShuffle} label="Shuffle" active={player.queue.shuffle}>
-            <Shuffle
-              size={17}
-              color={player.queue.shuffle ? songColor.color : theme.colors.textSecondary}
-            />
-          </IconButton>
-          <IconButton onPress={player.previous} label="Previous" disabled={!song}>
-            <Prev size={20} color={theme.colors.textSecondary} />
-          </IconButton>
-          <PlayButton enabled={song !== null} playing={player.isPlaying} onPress={player.toggle} />
-          <IconButton onPress={player.next} label="Next" disabled={!song}>
-            <Next size={20} color={theme.colors.textSecondary} />
-          </IconButton>
-          <IconButton
-            onPress={player.cycleRepeatMode}
-            label={REPEAT_LABEL[player.queue.repeat]}
-            active={player.queue.repeat !== 'off'}
-          >
-            {player.queue.repeat === 'one' ? (
-              <RepeatOne size={17} color={songColor.color} />
-            ) : (
-              <Repeat
-                size={17}
-                color={player.queue.repeat === 'off' ? theme.colors.textSecondary : songColor.color}
-              />
-            )}
-          </IconButton>
-        </View>
+        <TransportControls size="bar" tint={songColor.color} />
         <View style={styles.progress}>
-          <BarSeek onSeek={player.seekTo} color={songColor.color} />
+          <SeekBar inline color={songColor.color} />
         </View>
       </View>
 
@@ -261,16 +190,19 @@ export function PlayerBar(): ReactNode {
               label="Up next"
               active={queueOpen}
             >
-              <UpNext size={17} color={queueOpen ? songColor.color : theme.colors.textSecondary} />
+              <UpNext
+                size={iconSize.medium}
+                color={queueOpen ? songColor.color : theme.colors.textSecondary}
+              />
             </IconButton>
           </UpNextTarget>
           <View ref={devicesRef} collapsable={false}>
             <IconButton onPress={() => setDevicesOpen(true)} label="Devices">
-              <Devices size={17} color={theme.colors.textSecondary} />
+              <Devices size={iconSize.medium} color={theme.colors.textSecondary} />
             </IconButton>
           </View>
           {/* Listen together, or the room's faces while you are in one. */}
-          <TogetherButton iconSize={17} color={theme.colors.textSecondary} />
+          <TogetherButton iconSize={iconSize.medium} color={theme.colors.textSecondary} />
         </View>
       </View>
 
@@ -286,68 +218,6 @@ export function PlayerBar(): ReactNode {
         anchorRef={devicesRef}
       />
     </View>
-  )
-}
-
-/** The bar filling with the song's colour, and the bright line along its top. */
-function PlayedWash({ color }: { color: string }): ReactNode {
-  const { position, duration } = usePlayerProgress()
-  // Not rounded or clamped here: the wash does both, once, and rounding twice
-  // would make its steps coarser than the ones it settles on.
-  const fraction = duration > 0 ? position / duration : 0
-  return <ProgressWash fraction={fraction} color={color} alpha={0.2} fade={40} line="top" />
-}
-
-/** The scrubber with its two times, the other part of the bar that moves each tick. */
-function BarSeek({
-  onSeek,
-  color,
-}: {
-  onSeek: (seconds: number) => void
-  color: string
-}): ReactNode {
-  const { position, duration } = usePlayerProgress()
-  return <SeekBar inline position={position} duration={duration} onSeek={onSeek} color={color} />
-}
-
-/**
- * Play and pause. Its own component for the stall: waiting on the network and
- * recovering is a pair of events a few times a song on a bad link, and each
- * redraws this button rather than the bar.
- */
-function PlayButton({
-  enabled,
-  playing,
-  onPress,
-}: {
-  enabled: boolean
-  playing: boolean
-  onPress: () => void
-}): ReactNode {
-  const { theme } = useUnistyles()
-  const stalled = usePlayerStalled()
-  return (
-    <Press
-      onPress={onPress}
-      disabled={!enabled}
-      accessibilityRole="button"
-      accessibilityLabel={playing ? 'Pause' : 'Play'}
-      {...tip(playing ? 'Pause' : 'Play')}
-      accessibilityState={{ disabled: !enabled, busy: stalled }}
-      style={[
-        styles.playButton,
-        { backgroundColor: enabled ? theme.colors.textPrimary : theme.colors.surface3 },
-      ]}
-    >
-      {/* Streaming, the first second is silence, and a pause glyph through it
-          reads as "already playing" — so the button says it is working. */}
-      <PlayPauseIcon
-        playing={playing}
-        busy={stalled}
-        size={20}
-        color={enabled ? theme.colors.onPrimary : theme.colors.textMuted}
-      />
-    </Press>
   )
 }
 
@@ -380,7 +250,7 @@ function ValuePill({
       {...tip(caption)}
       style={[styles.pill, { backgroundColor: withAlpha(tone.color, 0.18) }]}
     >
-      <Icon size={14} color={tone.tint} />
+      <Icon size={iconSize.field} color={tone.tint} />
       <Text style={[styles.pillText, { color: tone.tint }]}>{value}</Text>
     </Press>
   )
@@ -388,10 +258,9 @@ function ValuePill({
 
 function SleepButton({ tone }: { tone: SongColors }): ReactNode {
   const { theme } = useUnistyles()
-  const player = usePlayer()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<View>(null)
-  const left = useSleepMinutesLeft()
+  const { left, line } = useSleepTimerStatus()
   const toggle = (): void => setOpen(value => !value)
 
   return (
@@ -401,17 +270,13 @@ function SleepButton({ tone }: { tone: SongColors }): ReactNode {
           tone={tone}
           Icon={Moon}
           value={left}
-          label={
-            player.sleepAtSongEnd
-              ? 'Sleep timer: at the end of this song'
-              : `Sleep timer: ${left} left`
-          }
+          label={`Sleep timer: ${line}`}
           caption="Sleep timer"
           onPress={toggle}
         />
       ) : (
         <IconButton onPress={toggle} label="Sleep timer">
-          <Moon size={17} color={theme.colors.textSecondary} />
+          <Moon size={iconSize.medium} color={theme.colors.textSecondary} />
         </IconButton>
       )}
       <SleepMenu open={open} onClose={() => setOpen(false)} anchorRef={anchorRef} />
@@ -436,7 +301,7 @@ function VolumeControl({ compact, tone }: { compact: boolean; tone: SongColors }
       label={level.muted ? 'Unmute' : 'Mute'}
       active={level.muted}
     >
-      <Icon size={17} color={theme.colors.textSecondary} />
+      <Icon size={iconSize.medium} color={theme.colors.textSecondary} />
     </IconButton>
   )
   const slider = <VolumeSlider value={level.volume} onChange={player.setVolume} color={lit} />
@@ -457,7 +322,7 @@ function VolumeControl({ compact, tone }: { compact: boolean; tone: SongColors }
         label={`Volume: ${percent}%`}
         active={level.muted}
       >
-        <Icon size={17} color={level.muted ? lit : theme.colors.textSecondary} />
+        <Icon size={iconSize.medium} color={level.muted ? lit : theme.colors.textSecondary} />
       </IconButton>
       <Popover
         open={open}
@@ -480,13 +345,11 @@ function VolumeControl({ compact, tone }: { compact: boolean; tone: SongColors }
   )
 }
 
-/** What a screen reader can do to the fader; each swipe is one `VOLUME_STEP`. */
-const VOLUME_ACTIONS = [{ name: 'increment' }, { name: 'decrement' }] as const
-
 /**
  * A thin track that fills with the playing song's colour. Flat beside the
  * speaker when the bar has room; upright in the volume pop-up, a fader that
- * fills from the bottom with a handle on top.
+ * fills from the bottom with a handle on top. It follows the finger: each step
+ * of a drag sets the level.
  */
 function VolumeSlider({
   value,
@@ -500,84 +363,30 @@ function VolumeSlider({
   color: string
   vertical?: boolean
 }): ReactNode {
-  // The track's length along the way it slides: its width, or its height upright.
-  const [length, setLength] = useState(0)
-  // Not built from the level: a drag moves it every frame, and the responder
-  // would be built again every frame. A track not measured yet has no
-  // position to give, and a press on it changes nothing.
-  const responder = useMemo(() => {
-    // The track and its fill take no touches, so the position is always the
-    // slider's own (see SeekBar).
-    const moveTo = (x: number, y: number): void => {
-      if (length <= 0) return
-      onChange(clamp01(vertical ? 1 - y / length : x / length))
-    }
-    return PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: event =>
-        moveTo(event.nativeEvent.locationX, event.nativeEvent.locationY),
-      onPanResponderMove: event => moveTo(event.nativeEvent.locationX, event.nativeEvent.locationY),
-    })
-  }, [length, onChange, vertical])
-
   return (
-    <View
+    <Scrubber
+      value={value}
+      max={1}
+      onChange={onChange}
+      onCommit={onChange}
+      label="Volume"
+      step={VOLUME_STEP}
+      spokenScale={100}
+      vertical={vertical}
+      size={vertical ? 'large' : 'small'}
+      thumb={vertical}
+      color={color}
+      caption={vertical ? undefined : `Volume: ${Math.round(value * 100)}%`}
       style={vertical ? styles.sliderUpright : styles.slider}
-      onLayout={(event: LayoutChangeEvent) =>
-        setLength(vertical ? event.nativeEvent.layout.height : event.nativeEvent.layout.width)
-      }
-      accessibilityRole="adjustable"
-      accessibilityLabel="Volume"
-      accessibilityValue={{ min: 0, max: 100, now: Math.round(value * 100) }}
-      accessibilityActions={VOLUME_ACTIONS}
-      onAccessibilityAction={event =>
-        onChange(
-          clamp01(
-            value + (event.nativeEvent.actionName === 'increment' ? VOLUME_STEP : -VOLUME_STEP),
-          ),
-        )
-      }
-      {...tip(vertical ? undefined : `Volume: ${Math.round(value * 100)}%`)}
-      {...responder.panHandlers}
-    >
-      {vertical ? (
-        <View pointerEvents="none" style={styles.sliderTrackUpright}>
-          <View
-            style={[
-              styles.sliderFillUpright,
-              { height: `${value * 100}%`, backgroundColor: color },
-            ]}
-          />
-          <View
-            style={[
-              styles.sliderHandle,
-              { bottom: Math.max(-HANDLE / 2, value * length - HANDLE / 2) },
-            ]}
-          />
-        </View>
-      ) : (
-        <View pointerEvents="none" style={styles.sliderTrack}>
-          <View style={[styles.sliderFill, { width: `${value * 100}%`, backgroundColor: color }]} />
-        </View>
-      )}
-    </View>
+    />
   )
 }
 
-/** The upright fader's handle. */
-const HANDLE = 14
-
-/**
- * The chevron over the cover while Now Playing is open, and the dim under it:
- * white on darkened artwork in either theme, since what it sits on is the
- * picture, not the page.
- */
-const CHEVRON_INK = '#fff'
-const COVER_DIM = 'rgba(0, 0, 0, 0.45)'
-
 const styles = StyleSheet.create(theme => ({
-  /* Open, the cover says the same button now closes the page. */
+  /*
+   * Open, the cover says the same button now closes the page: `onArt` on the
+   * cover's shade in either theme, since what it sits on is the picture.
+   */
   openChevron: {
     position: 'absolute',
     top: 0,
@@ -587,7 +396,7 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.cover,
-    backgroundColor: COVER_DIM,
+    backgroundColor: theme.colors.coverShade,
   },
   bar: {
     height: PLAYER_BAR_HEIGHT,
@@ -613,8 +422,9 @@ const styles = StyleSheet.create(theme => ({
   },
   open: { flexDirection: 'row', alignItems: 'center', gap: space.md, flexShrink: 1, minWidth: 0 },
   meta: { flexShrink: 1, minWidth: 0 },
-  title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  artist: { color: theme.colors.textMuted, fontSize: type.small },
+  title: rowTitle(theme.colors),
+  // The mini player's ink: muted, the artist all but went on a song-coloured wash.
+  artist: { color: theme.colors.textSecondary, fontSize: type.small },
   /* A lit control with its value in it: 24 min. */
   pill: {
     flexDirection: 'row',
@@ -634,15 +444,6 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: 2,
   },
-  buttons: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  playButton: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 4,
-  },
   progress: { alignSelf: 'stretch' },
   centreTight: { minWidth: 250 },
   leftTight: { minWidth: 220 },
@@ -651,43 +452,25 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: 6,
+    gap: space.tight,
   },
   group: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   // The groups are set apart by room, not a rule.
   groupDivided: { paddingLeft: space.md },
   volume: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  volumePopover: { alignItems: 'center', gap: 10, paddingTop: 10, paddingBottom: 2 },
+  volumePopover: {
+    alignItems: 'center',
+    gap: space.snug,
+    paddingTop: space.snug,
+    paddingBottom: 2,
+  },
   readout: {
     color: theme.colors.textSecondary,
     fontSize: type.tiny,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
-  slider: { width: 88, height: 24, justifyContent: 'center', cursor: 'pointer' },
-  sliderTrack: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: theme.colors.surface3,
-    overflow: 'hidden',
-  },
-  sliderFill: { height: 4, borderRadius: 2 },
+  slider: { width: 88, height: 24, paddingVertical: 0 },
   /* Wider than the track, so the handle is easy to catch. */
-  sliderUpright: { width: 32, height: 128, alignItems: 'center', cursor: 'pointer' },
-  sliderTrackUpright: {
-    width: 6,
-    height: '100%',
-    borderRadius: 3,
-    backgroundColor: theme.colors.surface3,
-    justifyContent: 'flex-end',
-  },
-  sliderFillUpright: { width: 6, borderRadius: 3 },
-  sliderHandle: {
-    position: 'absolute',
-    left: 3 - HANDLE / 2,
-    width: HANDLE,
-    height: HANDLE,
-    borderRadius: HANDLE / 2,
-    backgroundColor: theme.colors.textPrimary,
-  },
+  sliderUpright: { width: 32, height: 128 },
 }))

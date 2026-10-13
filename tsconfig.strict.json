@@ -1,12 +1,13 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   /*
-   * The strictness every workspace shares, and nothing else.
+   * The strictness every workspace shares, and the three module flags that go
+   * with it, and nothing else.
    *
    * On its own so that a project which cannot extend `tsconfig.base.json` —
    * the universal app, whose module system and libraries are Expo's — can
-   * still take the strictness from here as the second entry of its `extends`,
-   * rather than spelling the flags out again and missing the next one added.
+   * still take these from here as the second entry of its `extends`, rather
+   * than spelling the flags out again and missing the next one added.
    */
   "compilerOptions": {
     /* Every one of these has caught a real bug at some point. */
@@ -17,7 +18,12 @@
     "noFallthroughCasesInSwitch": true,
     "noPropertyAccessFromIndexSignature": true,
     "useUnknownInCatchVariables": true,
-    "allowUnusedLabels": false
+    "allowUnusedLabels": false,
+
+    /* Every import says whether it is a type, and every file compiles alone. */
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true
 
     /*
      * Two strict flags are deliberately NOT enabled:

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { artistOr, plural, type AskAnswer as Answer } from '@selfmp3/shared'
-import { failureText, leading, radius, space, STALE, type } from '@selfmp3/client'
+import { failureText, radius, space, STALE, type, textStyle, iconSize } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -31,6 +31,9 @@ import { newTicket, useAskProgress } from './useAskProgress'
 import { useSmartServer } from './useSmartServer'
 import { reachedConnection, viaKey } from '../../connection/via'
 import { SongLine } from '../../ui/components/SongLine'
+import { StatusLine } from '../../ui/components/StatusLine'
+import { AnswerActions, AnswerHead, AnswerLine } from './AnswerParts'
+import { Press } from '../../ui/components/Press'
 
 /**
  * An ask's query key: the server it went to, the words first asked, the song
@@ -187,10 +190,10 @@ export function AskAnswer({
     return (
       <View style={styles.body}>
         {trail}
-        <Text style={styles.error}>{failureText('Couldn’t answer that', answer.error)}</Text>
-        <View style={styles.actions}>
+        <StatusLine>{failureText('Couldn’t answer that', answer.error)}</StatusLine>
+        <AnswerActions>
           <Button label="Try again" onPress={() => void answer.refetch()} />
-        </View>
+        </AnswerActions>
       </View>
     )
   }
@@ -308,17 +311,17 @@ function Drawn({
     case 'stats':
       return (
         <>
-          <Text style={styles.head}>
+          <AnswerHead>
             {plural(answer.plays, 'play', 'plays')} · {Math.round(answer.minutes)} min in{' '}
             {rangeWords(answer.range)}
-          </Text>
+          </AnswerHead>
           {answer.items.map((item, index) => (
-            <Text key={item.label} style={styles.line} numberOfLines={1}>
+            <AnswerLine key={item.label} numberOfLines={1}>
               {index + 1}. {item.label}
               <Text style={styles.muted}> · {plural(item.plays, 'play', 'plays')}</Text>
-            </Text>
+            </AnswerLine>
           ))}
-          <View style={styles.actions}>
+          <AnswerActions>
             <Button
               label="Open Stats"
               onPress={() => {
@@ -326,14 +329,14 @@ function Drawn({
                 router.navigate('/stats')
               }}
             />
-          </View>
+          </AnswerActions>
         </>
       )
     case 'open':
       return (
         <>
-          <Text style={styles.line}>{answer.say}</Text>
-          <View style={styles.actions}>
+          <AnswerLine>{answer.say}</AnswerLine>
+          <AnswerActions>
             <Button
               label={`Open ${answer.place[0]!.toUpperCase()}${answer.place.slice(1)}`}
               onPress={() => {
@@ -341,30 +344,31 @@ function Drawn({
                 router.navigate(`/${answer.place}`)
               }}
             />
-          </View>
+          </AnswerActions>
         </>
       )
     case 'none':
       return (
         <>
-          <Text style={styles.line}>{answer.say}</Text>
+          <AnswerLine>{answer.say}</AnswerLine>
           {onAsk && answer.try.length > 0 ? (
             <View style={styles.tries}>
               <Text style={styles.muted}>Try</Text>
               {answer.try.map(each => (
-                <Pressable
+                <Press
                   key={each}
                   onPress={() => onAsk(each)}
                   accessibilityRole="button"
                   accessibilityLabel={`Ask: ${each}`}
-                  style={({ pressed }) => [styles.try, pressed && styles.pressed]}
+                  wrap={styles.tryPlace}
+                  style={styles.try}
                   testID="ask-try"
                 >
-                  <Sparkle size={13} />
+                  <Sparkle size={iconSize.sub} />
                   <Text style={styles.tryText} numberOfLines={2}>
                     {each}
                   </Text>
-                </Pressable>
+                </Press>
               ))}
             </View>
           ) : null}
@@ -388,11 +392,11 @@ function Found({
     return id !== undefined && songsById.has(id)
   })
   if (here.length === 0) {
-    return <Text style={styles.line}>No song of yours fits that. Try other words for it.</Text>
+    return <AnswerLine>No song of yours fits that. Try other words for it.</AnswerLine>
   }
   return (
     <>
-      <Text style={styles.head}>{here.length === 1 ? 'Found one' : `Found ${here.length}`}</Text>
+      <AnswerHead>{here.length === 1 ? 'Found one' : `Found ${here.length}`}</AnswerHead>
       <SongPicks picks={here} onDone={onDone} />
     </>
   )
@@ -434,7 +438,7 @@ function SongPicks({
           coverTitle={song.album || song.title}
           title={song.title}
           sub={why ? `${artistOr(song.artist)} · ${why}` : artistOr(song.artist)}
-          trailing={<Play size={14} color={theme.colors.textSecondary} />}
+          trailing={<Play size={iconSize.field} color={theme.colors.textSecondary} />}
         />
       ))}
     </>
@@ -443,26 +447,26 @@ function SongPicks({
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.sm },
-  head: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
-  answer: { color: theme.colors.textPrimary, fontSize: type.body, lineHeight: leading.body },
+  answer: { color: theme.colors.textPrimary, ...textStyle('body') },
   muted: { color: theme.colors.textMuted, fontSize: type.small, fontWeight: '400' },
-  error: { color: theme.colors.danger, fontSize: type.sub },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
-  tries: { gap: 6, marginTop: space.xs },
+  tries: { gap: space.tight, marginTop: space.xs },
   followUp: { gap: space.sm, marginTop: space.xs },
-  trail: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 4 },
+  trail: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: space.tight,
+    rowGap: space.xs,
+  },
+  tryPlace: { alignSelf: 'flex-start', maxWidth: '100%' },
   try: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
-    alignSelf: 'flex-start',
-    maxWidth: '100%',
     paddingVertical: 7,
-    paddingHorizontal: 12,
+    paddingHorizontal: space.md,
     borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,
   },
   tryText: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: type.sub },
-  pressed: { opacity: 0.6 },
 }))

@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
-import type { ReactNode } from 'react'
+import { forwardRef, useMemo } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { View } from 'react-native'
+import type { StyleProp, ViewStyle } from 'react-native'
 import Animated, {
   Easing,
   FadeIn,
@@ -9,10 +10,11 @@ import Animated, {
   ZoomIn,
 } from 'react-native-reanimated'
 import { StyleSheet } from 'react-native-unistyles'
-import { motion } from '@selfmp3/client'
+import { motion, iconSize } from '@selfmp3/client'
 import { EASE_IN_POINTS, EASE_OUT_POINTS } from '../motion.model'
 import { useMotionReduced } from '../motion'
 import { Check, Minus } from './Icons'
+import { Press } from './Press'
 
 /** How small the mark starts before the spring brings it up to size. */
 const MARK_FROM = 0.6
@@ -21,9 +23,10 @@ const MARK_FROM = 0.6
  * A round 18-point mark (docs/ui-mock `C04`) that fills with the accent when on, with a dim fill and a
  * dash when only some of what it stands for is on.
  *
- * Only the mark. The thing you press, and what it is called, belong to the
- * caller — a row's checkbox, the selection bar's select-all and a tag
- * picker's row are different controls that happen to draw the same circle.
+ * Given `onChange` and a `label`, it is the control too: a press target round
+ * the mark that says it is a checkbox, whether it is ticked, and what it is
+ * called. A row that is a checkbox as a whole — a tag in the picker, a change
+ * in a review — is a `CheckRow`, with the mark wherever the row puts it.
  *
  * What it shows is React's: the fill and the mark are there when it is on and
  * gone when it is off, and only their coming and going moves — the fill
@@ -37,10 +40,74 @@ const MARK_FROM = 0.6
 export function Checkbox({
   checked,
   mixed = false,
+  onChange,
+  label,
+  style,
+  testID,
 }: {
   checked: boolean
   mixed?: boolean
+  /** Makes it the control: pressed, it asks to be the other way. */
+  onChange?: (checked: boolean) => void
+  /** What it ticks, read with its state: "Select Evening". */
+  label?: string
+  /** The press target's own room round the mark. */
+  style?: StyleProp<ViewStyle>
+  testID?: string
 }): ReactNode {
+  if (onChange) {
+    return (
+      <CheckRow
+        checked={checked}
+        mixed={mixed}
+        label={label ?? ''}
+        depth="control"
+        onPress={() => onChange(!checked)}
+        style={style}
+        testID={testID}
+      >
+        <Mark checked={checked} mixed={mixed} />
+      </CheckRow>
+    )
+  }
+  return <Mark checked={checked} mixed={mixed} />
+}
+
+/**
+ * Something pressed to tick or untick it, as a checkbox to assistive
+ * technology: its role, its state — `mixed` when only some of what it
+ * stands for is on — and its name. The state is said as `aria-checked` as
+ * well, because react-native-web turns `accessibilityState` into nothing a
+ * browser reads; half the hand-made checkboxes had remembered that.
+ *
+ * On `Press`, so it sinks and lets go as everything pressable does; `depth`
+ * is a row's by default. Its children are the row: the mark (`Checkbox`)
+ * goes wherever the row draws it.
+ */
+export const CheckRow = forwardRef<
+  View,
+  Omit<ComponentProps<typeof Press>, 'accessibilityRole' | 'accessibilityState' | 'role'> & {
+    checked: boolean
+    mixed?: boolean
+    label: string
+  }
+>(function CheckRow({ checked, mixed = false, label, depth = 'row', ...press }, ref): ReactNode {
+  const state = checked ? true : mixed ? 'mixed' : false
+  return (
+    <Press
+      ref={ref}
+      depth={depth}
+      {...press}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: state }}
+      aria-checked={state}
+      accessibilityLabel={label}
+    />
+  )
+})
+
+/** The circle itself. */
+function Mark({ checked, mixed }: { checked: boolean; mixed: boolean }): ReactNode {
   const on = checked || mixed
   const moves = useCheckMoves()
 
@@ -62,9 +129,9 @@ export function Checkbox({
           <Animated.View entering={moves.markIn} exiting={moves.markOut} pointerEvents="none">
             <Animated.View entering={moves.markGrow}>
               {checked ? (
-                <Check size={12} tone="onAccent" />
+                <Check size={iconSize.small} tone="onAccent" />
               ) : (
-                <Minus size={12} tone="textPrimary" />
+                <Minus size={iconSize.small} tone="textPrimary" />
               )}
             </Animated.View>
           </Animated.View>

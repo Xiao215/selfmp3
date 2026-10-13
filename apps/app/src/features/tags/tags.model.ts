@@ -170,3 +170,28 @@ function mostUsed(spellings: ReadonlyMap<string, number>): string {
   }
   return name
 }
+
+/** The untagged card's line with nobody to name. */
+export const UNTAGGED_HINT = 'Tag them one at a time, while they play'
+
+/**
+ * The untagged card's line as words: "73 by 周杰倫 · 10 by 薛之谦 · and 24
+ * more", or "· and others" where the card names fewer than it could. What a
+ * screen reader says on a phone, where the card is one button, and the same
+ * names a computer draws as links.
+ */
+export function waitingLine(
+  named: readonly WaitingArtist[],
+  rest: number,
+  restWords: 'count' | 'others',
+): string {
+  if (named.length === 0) return UNTAGGED_HINT
+  const names = named.map(artist => `${artist.count.toLocaleString()} by ${artist.name}`)
+  const tail =
+    rest <= 0
+      ? ''
+      : restWords === 'count'
+        ? ` · and ${rest.toLocaleString()} more`
+        : ' · and others'
+  return names.join(' · ') + tail
+}

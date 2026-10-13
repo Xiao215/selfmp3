@@ -1,6 +1,6 @@
+import { messageOf } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { FetchLike } from './fetching.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * The private API the YouTube Music apps speak, shared by everything here that

@@ -1,41 +1,24 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { Redirect } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
-import {
-  ApiError,
-  leading,
-  radius,
-  space,
-  type,
-  type Review,
-  type ServerConnection,
-} from '@selfmp3/client'
-import { useFootInset } from '../../shell/bottomInset'
+import { space, type, type Review, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { canListenHere } from '../../ports/listen'
-import { label as groupLabel, pageTitle, serif } from '../../ui/surfaces'
-import { BackButton } from '../../ui/components/BackButton'
-import { Button } from '../../ui/components/Button'
-import { useBackTo } from '../../ui/useBackTo'
+import { label as groupLabel, pageFrame, pageTitle, textColumn } from '../../ui/surfaces'
+import { PageHeader } from '../../ui/components/PageHeader'
 import { Cover } from '../../ui/components/Cover'
-import { IconButton } from '../../ui/components/IconButton'
-import { X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { useListen } from './ImportListen'
-import { TagThem } from './ImportTags'
-import { chooseAllIn, useImportDraft } from './importDraft'
-import { draftSourceFor } from './importDraft.model'
-import { useImportSource } from './importSource'
+import { ImportFoot, useImportPage } from './ImportPage'
+import { chooseAllIn } from './importDraft'
 import { reviewUrls, useRefreshReview } from './useRefreshReview'
 import { useFindSongs } from './useFindSongs'
 import { canListen } from './listen.model'
 import {
   comingIn,
   countLabel,
-  importLabel,
   importRequest,
   mosaicCovers,
   reviewKicker,
@@ -44,6 +27,7 @@ import {
 } from './review.model'
 import { AllBox, ReviewGridHead, useReviewRows } from './ReviewRows'
 import { ScrollView } from '../../ui/components/Scroll'
+import { TapAway } from '../../ui/components/TapAway'
 import { Guide } from '../guide/Guide'
 import { useGuide } from '../guide/useGuide'
 
@@ -78,29 +62,16 @@ export function ImportReview({
   onUnreachable?: () => void
 } = {}): ReactNode {
   const { wide, finePointer } = useLayout()
-  const source = useImportSource(via)
-  const key = draftSourceFor(via)
-  const [draft, patchDraft] = useImportDraft(key)
+  const page = useImportPage(via, onUnreachable)
+  const { source, draft, patchDraft, listen, backTo, failed } = page
+  const key = page.draftKey
   const { review, tagIds } = draft
   // A kept review's "In library" is from when the link was looked up.
   useRefreshReview(source.api, key, reviewUrls(review))
   // Songs known only by name — a Spotify list, 网易云's VIP songs — are found as the review shows.
   const finder = useFindSongs(source.api, key, review)
-  const listen = useListen(via, source.api)
-  const backTo = useBackTo()
-  const footInset = useFootInset()
-  const [error, setError] = useState<string | null>(null)
   /** Imported or cancelled: the draft empties as the page leaves, which is not a review to go looking for. */
   const [leaving, setLeaving] = useState(false)
-
-  const failed = (err: Error): void => {
-    if (via && err instanceof ApiError && err.isOffline) {
-      setError('Your library’s computer stopped answering. Looking for it again…')
-      onUnreachable?.()
-      return
-    }
-    setError(err.message)
-  }
 
   /**
    * Back to Import with the review done. Imported, the draft starts afresh —
@@ -149,18 +120,6 @@ export function ImportReview({
   const tags = source.library?.tags ?? []
   const anyToHear = canListenHere && review.items.some(canListen)
 
-  const importButton = (
-    <Button
-      label={importLabel(count, finding)}
-      variant="primary"
-      grow={!wide}
-      disabled={count === 0 || finding > 0}
-      busy={enqueue.isPending}
-      onPress={() => enqueue.mutate(review)}
-      testID="import-commit"
-    />
-  )
-
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       {wide ? (
@@ -177,27 +136,20 @@ export function ImportReview({
           </Text>
         </View>
       ) : (
-        <Pressable
-          onPress={open === null ? undefined : closeRow}
-          accessible={false}
-          style={styles.headPhone}
-        >
+        <TapAway onPress={open === null ? undefined : closeRow} style={styles.headPhone}>
           {/*
            * The head every page opened from another has on a phone: the round
            * ‹ (`BackButton`, as Import's own head), the name under it on the
            * left as the page's title (J1), and the count under that. The draft keeps the
            * review, and the preview stops with the page.
            */}
-          <BackButton to="/import" testID="import-review-back" />
-          <View style={styles.namesPhone}>
-            <Text style={styles.namePhone} numberOfLines={1} accessibilityRole="header">
-              {reviewName(review)}
-            </Text>
-            <Text style={styles.count} testID="import-count">
-              {countLabel(review, false)}
-            </Text>
-          </View>
-        </Pressable>
+          <PageHeader
+            title={reviewName(review)}
+            subtitle={countLabel(review, false)}
+            subtitleTestID="import-count"
+            back={{ to: '/import', testID: 'import-review-back' }}
+          />
+        </TapAway>
       )}
 
       {/*
@@ -214,11 +166,7 @@ export function ImportReview({
         contentContainerStyle={wide ? styles.listWide : styles.listPhone}
         testID="import-review"
       >
-        <Pressable
-          onPress={wide || open === null ? undefined : closeRow}
-          accessible={false}
-          style={styles.ground}
-        >
+        <TapAway onPress={wide || open === null ? undefined : closeRow} style={styles.ground}>
           {wide ? (
             <ReviewGridHead
               leading={<AllBox review={review} onChange={chooseAll} wide />}
@@ -240,55 +188,25 @@ export function ImportReview({
               ),
             )}
           </View>
-        </Pressable>
+        </TapAway>
       </ScrollView>
 
-      {/*
-       * The foot stays put under the list, the commit always in reach however
-       * long the playlist; on a phone it stands clear of the floating chrome,
-       * or of the home indicator on this page, which has no chrome.
-       */}
-      <Pressable
-        onPress={wide || open === null ? undefined : closeRow}
-        accessible={false}
-        style={[wide ? styles.footWide : styles.footPhone, { paddingBottom: footInset + 12 }]}
-      >
-        {error ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{error}</Text>
-            <IconButton onPress={() => setError(null)} label="Dismiss">
-              <X size={15} tone="textMuted" />
-            </IconButton>
-          </View>
-        ) : null}
-        {finder.error ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{finder.error}</Text>
-            <Button label="Try again" variant="text" onPress={finder.retry} />
-          </View>
-        ) : null}
-        <View style={wide ? styles.footRow : styles.footColumn}>
-          <View style={wide ? styles.tagsWide : null}>
-            <TagThem
-              tags={tags}
-              createTag={source.createTag}
-              selected={tagIds}
-              onChange={next => patchDraft({ tagIds: next })}
-            />
-          </View>
-          {wide ? (
-            <Pressable
-              onPress={() => leave({ imported: false })}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel"
-              style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}
-            >
-              <Text style={styles.cancelText}>Cancel</Text>
-            </Pressable>
-          ) : null}
-          {importButton}
-        </View>
-      </Pressable>
+      <ImportFoot
+        error={page.error}
+        onDismissError={() => page.setError(null)}
+        finder={finder}
+        tags={tags}
+        createTag={source.createTag}
+        tagIds={tagIds}
+        onTags={next => patchDraft({ tagIds: next })}
+        onCancel={() => leave({ imported: false })}
+        count={count}
+        finding={finding}
+        busy={enqueue.isPending}
+        onImport={() => enqueue.mutate(review)}
+        onGround={open === null ? undefined : closeRow}
+        testID="import-commit"
+      />
       <Guide
         guide={rowsGuide}
         at={{ x: 0.55, y: 0.5 }}
@@ -325,25 +243,15 @@ const styles = StyleSheet.create(theme => ({
   ground: { flexGrow: 1 },
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   scroll: { flex: 1 },
-  pressed: { opacity: 0.6 },
   // As Import's head: the button, the words under it on the left, room above and below.
-  headPhone: {
-    alignItems: 'flex-start',
-    gap: 12,
-    paddingTop: 8,
-    paddingBottom: 14,
-    paddingHorizontal: space.gutter,
-  },
-  namesPhone: { alignSelf: 'stretch', gap: 2 },
-  namePhone: pageTitle(theme.colors),
+  headPhone: { ...pageFrame(false), paddingBottom: space.roomy },
   count: { color: theme.colors.textSecondary, fontSize: type.sub, fontVariant: ['tabular-nums'] },
   headWide: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-    paddingTop: 36,
-    paddingHorizontal: space.gutterWide,
-    paddingBottom: 14,
+    gap: space.lg,
+    ...pageFrame(true),
+    paddingBottom: space.roomy,
   },
   mosaic: {
     width: 64,
@@ -354,28 +262,10 @@ const styles = StyleSheet.create(theme => ({
     overflow: 'hidden',
     backgroundColor: theme.colors.surface2,
   },
-  names: { flex: 1, minWidth: 0, gap: 2 },
+  names: textColumn,
   kicker: { ...groupLabel(theme.colors), fontSize: type.small, color: theme.colors.textSecondary },
-  // The serif has one weight; the name is never bolded.
-  nameWide: { ...serif(theme.colors, type.page), lineHeight: 34 },
-  allPhone: { paddingTop: 12 },
+  nameWide: pageTitle(theme.colors),
+  allPhone: { paddingTop: space.md },
   listPhone: { paddingHorizontal: space.gutter, flexGrow: 1 },
   listWide: { paddingHorizontal: 28 },
-  footPhone: { gap: 10, paddingTop: 8, paddingHorizontal: space.gutter },
-  footWide: { gap: 10, paddingTop: 12, paddingHorizontal: space.gutterWide },
-  footColumn: { gap: 10 },
-  footRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  tagsWide: { flex: 1, minWidth: 0 },
-  cancel: { paddingHorizontal: 8, paddingVertical: 8 },
-  cancelText: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '600' },
-  error: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingLeft: 14,
-    paddingRight: 4,
-    borderRadius: radius.card,
-    backgroundColor: theme.colors.surface1,
-  },
-  errorText: { flex: 1, color: theme.colors.danger, fontSize: type.sub, lineHeight: leading.sub },
 }))

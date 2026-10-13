@@ -11,7 +11,7 @@ import type {
   CloudSong,
   CloudTag,
 } from './schemas/cloud.js'
-import { playlistRules } from './schemas/playlist.js'
+import { playlistPatchProblem, playlistRules } from './schemas/playlist.js'
 import { SONG_FIELDS } from './schemas/song.js'
 import {
   ChangeSchema,
@@ -280,9 +280,9 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
         if (value === undefined || !hlcWins(change.hlc, stamps[field])) continue
         if (field === 'rules') {
           // Only a live playlist has rules to edit, and it always has a set:
-          // there is nothing for a null to say to either kind.
+          // a change the edit's own rule would have refused changes nothing.
           const rules = change.fields.rules
-          if (playlist.kind !== 'live' || !rules) continue
+          if (playlistPatchProblem(playlist.kind, { rules }) || !rules) continue
           next['rules'] = resolveRules(library, rules)
         } else {
           next[field] = value
@@ -356,7 +356,7 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
       if (!hlcWins(change.hlc, playlist.stamps?.['order'])) return false
       // A playlist that follows tags takes a hand order too, as the server's
       // does. Its rules say which songs are in it, worked out as it is shown
-      // (the replica's `inKeptOrder`), so what it keeps here is only the order
+      // (`inKeptOrder`, in editRules.ts), so what it keeps here is only the order
       // to lay over them — and a song its rules matched since the snapshot,
       // not in `songUids` yet, can still be put in place.
       const current =
@@ -376,24 +376,43 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
       })
       return true
     }
+
+    case 'playlistUnfollowed': {
+      // A change to its rules made later wins over stopping, as any later
+      // edit of a field does; a playlist already manual has nothing to stop.
+      const playlist = library.playlists.get(change.uid)
+      if (!playlist || playlist.kind !== 'live') return false
+      if (!hlcWins(change.hlc, playlist.stamps?.['rules'])) return false
+      library.playlists.set(playlist.uid, {
+        ...playlist,
+        kind: 'manual',
+        rules: null,
+        songUids: [...new Set(change.songUids)].filter(uid => library.songs.has(uid)),
+        stamps: { ...playlist.stamps, rules: change.hlc, order: change.hlc },
+        updatedAt: laterTime(playlist.updatedAt, change.hlc),
+      })
+      return true
+    }
   }
 }
 
 /**
  * A new order for a playlist: the songs named, in that order, then any it has
  * that were not named, in the order they were in. Songs named that it does
- * not have are ignored, and so is a song named twice after the first time.
+ * not have are ignored, and so is a song named twice after the first time —
+ * so reordering a stale view never drops a song added since. By uid here,
+ * and by id on a server (`PlaylistRepository.reorder`).
  */
-export function reordered(current: readonly string[], order: readonly string[]): string[] {
+export function reordered<T>(current: readonly T[], order: readonly T[]): T[] {
   const present = new Set(current)
-  const placed = new Set<string>()
-  const first: string[] = []
-  for (const uid of order) {
-    if (!present.has(uid) || placed.has(uid)) continue
-    placed.add(uid)
-    first.push(uid)
+  const placed = new Set<T>()
+  const first: T[] = []
+  for (const item of order) {
+    if (!present.has(item) || placed.has(item)) continue
+    placed.add(item)
+    first.push(item)
   }
-  return [...first, ...current.filter(uid => !placed.has(uid))]
+  return [...first, ...current.filter(item => !placed.has(item))]
 }
 
 /** The tag a uid means now: itself, or the tag it was folded into. */

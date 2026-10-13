@@ -1,6 +1,7 @@
 import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import prettier from 'eslint-config-prettier'
+import base from './eslint.base.cjs'
 
 export default tseslint.config(
   {
@@ -31,33 +32,15 @@ export default tseslint.config(
         tsconfigRootDir: import.meta.dirname,
       },
     },
-    rules: {
-      // Unused vars are errors, but a leading underscore is an explicit opt-out.
-      '@typescript-eslint/no-unused-vars': [
-        'error',
-        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
-      ],
-      // Prefer `import type` so type-only imports are erased at build time.
-      '@typescript-eslint/consistent-type-imports': [
-        'error',
-        { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
-      ],
-      '@typescript-eslint/no-import-type-side-effects': 'error',
-      // Floating promises are the #1 source of silent failures in async servers.
-      '@typescript-eslint/no-floating-promises': 'error',
-      '@typescript-eslint/no-misused-promises': [
-        'error',
-        { checksVoidReturn: { attributes: false } },
-      ],
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
-      eqeqeq: ['error', 'always', { null: 'ignore' }],
-    },
+    // Shared with the app's config (eslint.base.cjs).
+    rules: { ...base.rules, ...base.typeAwareRules },
   },
   {
     // Config files and scripts run outside the type-checked project graph.
     files: [
       '**/*.config.js',
       '**/*.config.ts',
+      'eslint.base.cjs',
       'scripts/**/*.js',
       'scripts/**/*.mjs',
       // The shell's esbuild build and its development launcher: plain node,
@@ -72,6 +55,11 @@ export default tseslint.config(
       globals: { console: 'readonly', process: 'readonly', fetch: 'readonly', URL: 'readonly' },
     },
     rules: { 'no-console': 'off' },
+  },
+  {
+    // The rules shared with the app's config, in CommonJS because that config is.
+    files: ['eslint.base.cjs'],
+    languageOptions: { sourceType: 'commonjs', globals: { module: 'writable' } },
   },
   {
     /*
@@ -115,12 +103,9 @@ export default tseslint.config(
      * they cannot share one, for the same reason the workspaces cannot (see
      * the note in the root tsconfig.json).
      */
-    files: ['**/*.test.ts', '**/*.test.tsx', '**/src/**/fixtures/**/*.ts'],
+    files: base.testFiles,
     extends: [tseslint.configs.disableTypeChecked],
-    rules: {
-      '@typescript-eslint/no-non-null-assertion': 'off',
-      'no-console': 'off',
-    },
+    rules: base.testRules,
   },
   prettier,
 )

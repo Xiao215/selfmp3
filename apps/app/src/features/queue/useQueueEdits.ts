@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { useRouter, type Href } from 'expo-router'
-import { plural, type Tag } from '@selfmp3/shared'
+import type { Href } from 'expo-router'
+import { plural } from '@selfmp3/shared'
 import { useLibrary } from '@selfmp3/client'
 import { usePlayer, type PlayerApi } from '../../player/PlayerProvider'
-import { useSongTagLookup } from '../../ui/songTags'
-import { showToast, showUndoToast, UNDO_MS } from '../../ui/toast'
-import { noteTagUsed } from '../library/recentTags.store'
-import { tagLink } from '../tag/placeLinks'
+import { showUndoToast } from '../../ui/toast'
+import { useOpenTag } from '../tag/useOpenTag'
 import { closeQueueSheet } from './queueSheet.store'
 import { queueRows, removalOf, restoreMoves } from './queue.model'
 import { songsById } from '../../ui/songsById'
@@ -37,12 +35,9 @@ export function useQueueEdits(
   remove: (index: number) => void
   /** Every song but the one playing out, with an Undo for five seconds. */
   clearRest: () => void
-  /** A song's tags, the same array for the same song (`songTagLookup`), so a row's memo holds. */
-  tagsOf: (song: { readonly tagIds: readonly number[] }) => readonly Tag[]
   openTag: (tagId: number) => void
 } {
   const player = usePlayer()
-  const router = useRouter()
   const { data: library } = useLibrary()
 
   /*
@@ -67,22 +62,14 @@ export function useQueueEdits(
     if (!removal) return
     const song = now.songs.find(entry => entry.id === removal.id)
     now.removeFromQueue(index)
-    showToast(song ? `Removed ${song.title}` : 'Removed from Up next', 'info', {
-      autoDismissMs: UNDO_MS,
-      actions: [
-        {
-          label: 'Undo',
-          onPress: () => {
-            const live = latest.current
-            const moves = restoreMoves(live.queue, removal)
-            if (!moves) return
-            // Both go through the player's own queue edits, which read and write
-            // its queue synchronously, so the move sees the song just put back.
-            live.playNext([removal.id])
-            if (moves.from !== moves.to) live.reorderQueue(moves.from, moves.to)
-          },
-        },
-      ],
+    showUndoToast(song ? `Removed ${song.title}` : 'Removed from Up next', () => {
+      const live = latest.current
+      const moves = restoreMoves(live.queue, removal)
+      if (!moves) return
+      // Both go through the player's own queue edits, which read and write
+      // its queue synchronously, so the move sees the song just put back.
+      live.playNext([removal.id])
+      if (moves.from !== moves.to) live.reorderQueue(moves.from, moves.to)
     })
   }, [])
 
@@ -97,19 +84,17 @@ export function useQueueEdits(
   }, [])
 
   // Up next is one of the lists that shows a song's tags (`S3`); a chip opens the tag.
-  const tagsOf = useSongTagLookup()
   const tags = library?.tags
+  const open = useOpenTag()
   const openTag = useCallback(
     (tagId: number) => {
       const tag = tags?.find(each => each.id === tagId)
       if (!tag) return
-      noteTagUsed(tag.id)
       closeQueueSheet()
-      if (go) go(tagLink(tag.name))
-      else router.navigate(tagLink(tag.name))
+      open(tag, { go })
     },
-    [tags, router, go],
+    [tags, open, go],
   )
 
-  return { player, rows, remove, clearRest, tagsOf, openTag }
+  return { player, rows, remove, clearRest, openTag }
 }

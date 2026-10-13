@@ -2,6 +2,9 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { gzipSync } from 'node:zlib'
 import {
+  bucketPlace,
+  HASH_NAMED_FOLDERS,
+  messageOf,
   CLOUD_FORMAT_UNREADABLE,
   cloudFormatProblem,
   isCloudFormat,
@@ -37,6 +40,7 @@ import {
   type CloudStatus,
   type DoormanMe,
   type CloudServer,
+  SIGN_IN_TTL_MS,
 } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
@@ -82,7 +86,6 @@ import {
   storedSnapshotCoreHash,
 } from './cloudSnapshot.js'
 import type { AdoptionResult, CloudAdopt } from './cloudAdopt.js'
-import { messageOf } from '../util/errors.js'
 import { sha256 } from '../util/hash.js'
 
 /**
@@ -184,9 +187,8 @@ const PLAYS_UPLOAD_EVERY_MS = 60 * 60_000
 /** A month's file in the bucket that would not read: kept as it is, never written over. */
 const UNREADABLE_PLAYS = 'unreadable'
 
-/** How often to ask the doorman whether Google has finished, and for how long. */
+/** How often to ask the doorman whether Google has finished: for as long as a sign-in lasts (`SIGN_IN_TTL_MS`). */
 const SIGN_IN_POLL_MS = 2_000
-const SIGN_IN_TIMEOUT_MS = 10 * 60_000
 
 /** The part of the doorman the sync uses. Tests hand in a fake. */
 export type Doorman = Pick<
@@ -701,7 +703,7 @@ export class CloudSyncService {
     this.#stopSignIn()
     this.#signIn = {
       attempt,
-      until: this.#now().getTime() + SIGN_IN_TIMEOUT_MS,
+      until: this.#now().getTime() + SIGN_IN_TTL_MS,
       needsCode: false,
     }
     this.#scheduleSignInPoll(0)
@@ -1456,8 +1458,8 @@ export class CloudSyncService {
    */
   async #verify(store: CloudStore): Promise<void> {
     const present = new Map<string, number>()
-    for (const folder of ['audio/', 'covers/', 'lyrics/']) {
-      for (const object of await store.list(folder)) present.set(object.key, object.size)
+    for (const folder of HASH_NAMED_FOLDERS) {
+      for (const object of await store.list(`${folder}/`)) present.set(object.key, object.size)
     }
     const again = this.#deps.cloud.reconcileFiles(present)
     if (again > 0) {
@@ -2247,8 +2249,7 @@ export class CloudSyncService {
     const storage = session.storage
     if (!storage || !this.#doorman) return
     this.#deps.cloud.adoptTarget(storage)
-    const host = storage.endpoint.replace(/^https?:\/\//, '')
-    const folder = storage.prefix ? `${storage.bucket}/${storage.prefix}` : storage.bucket
+    const { host, folder } = bucketPlace(storage)
     this.#use(this.#doorman.store(session.token, `${host} · ${folder} (via the doorman)`), {
       ...storage,
     })

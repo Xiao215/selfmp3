@@ -31,6 +31,8 @@ jest.mock('@selfmp3/client', () => ({
   ...jest.requireActual('@selfmp3/client'),
   useLibrary: () => ({ data: { songs: [], playlists: [], tags: [] } }),
   useAddToPlaylist: () => ({ mutate: jest.fn() }),
+  useBulkLoved: () => ({ mutate: jest.fn() }),
+  useCreatePlaylist: () => ({ mutateAsync: jest.fn() }),
   useBulkDeleteSongs: () => ({ mutate: mockDeleteSong, isPending: false }),
   useToggleLoved: () => ({ mutate: jest.fn() }),
   clientApi: () => ({ similar: () => Promise.resolve({ songs: [] }) }),
@@ -85,12 +87,20 @@ const METRICS = {
 
 const draw = (
   onClose: () => void = () => undefined,
-  nowPlaying?: { onSleep: () => void; onDevices: () => void },
+  {
+    song = SONG,
+    context,
+    extras,
+  }: {
+    song?: Song
+    context?: 'nowPlaying'
+    extras?: { onSleep: () => void; onDevices: () => void }
+  } = {},
 ) =>
   render(
     <SafeAreaProvider initialMetrics={METRICS}>
       <OverlayProvider>
-        <SongMenu song={SONG} onClose={onClose} nowPlaying={nowPlaying} />
+        <SongMenu song={song} onClose={onClose} context={context} extras={extras} />
       </OverlayProvider>
     </SafeAreaProvider>,
   )
@@ -132,7 +142,7 @@ describe('what the menu offers', () => {
     expect(screen.getByRole('button', { name: 'Like' })).toBeTruthy()
     // From the start of the name: the › after Add to playlist is part of it.
     const order = [
-      /^Tags$/,
+      /^Tags…$/,
       /^Add to playlist/,
       /^Add to Up next$/,
       /^Play similar songs$/,
@@ -150,7 +160,7 @@ describe('what the menu offers', () => {
   it('on Now Playing, leaves out what the page shows and ends with the sleep timer and Devices', async () => {
     const onSleep = jest.fn()
     const onDevices = jest.fn()
-    await draw(undefined, { onSleep, onDevices })
+    await draw(undefined, { context: 'nowPlaying', extras: { onSleep, onDevices } })
 
     // The page has the heart, the tags and ⓘ, and the song is already playing.
     expect(screen.queryByRole('button', { name: 'Like' })).toBeNull()
@@ -172,9 +182,48 @@ describe('what the menu offers', () => {
     expect(onSleep).toHaveBeenCalled()
   })
 
+  it('on a computer’s Now Playing, trims the same items and has no player group', async () => {
+    // The stage passed nothing, and its ⋯ offered the heart, Tags, Add to Up
+    // next and Song details for the song it was already showing and playing.
+    await draw(undefined, { context: 'nowPlaying' })
+
+    expect(screen.queryByRole('button', { name: 'Like' })).toBeNull()
+    const order = [
+      /^Add to playlist/,
+      /^Play similar songs$/,
+      /^Download$/,
+      /^Delete from library…$/,
+    ]
+    const names = itemNames()
+    expect(names).toHaveLength(order.length)
+    order.forEach((name, at) => expect(names[at]).toMatch(name))
+    expect(screen.queryByText('This player')).toBeNull()
+  })
+
+  it('offers nothing of the library for a friend’s song in a room', async () => {
+    await draw(undefined, {
+      song: { ...SONG, id: -42 },
+      context: 'nowPlaying',
+      extras: { onSleep: jest.fn(), onDevices: jest.fn() },
+    })
+
+    expect(screen.queryByRole('button', { name: 'Like' })).toBeNull()
+    expect(itemNames()).toEqual([expect.stringMatching(/^Sleep timer/), 'Devices'])
+  })
+
+  it('leaves a room’s song out of the library from a row’s menu too', async () => {
+    await draw(undefined, { song: { ...SONG, id: -42 } })
+
+    expect(screen.queryByRole('button', { name: 'Like' })).toBeNull()
+    expect(screen.queryAllByRole('menuitem')).toHaveLength(0)
+  })
+
   it('opens Devices from Now Playing’s menu', async () => {
     const onDevices = jest.fn()
-    await draw(undefined, { onSleep: jest.fn(), onDevices })
+    await draw(undefined, {
+      context: 'nowPlaying',
+      extras: { onSleep: jest.fn(), onDevices },
+    })
 
     await fireEvent.press(screen.getByRole('menuitem', { name: 'Devices' }))
     expect(onDevices).toHaveBeenCalled()

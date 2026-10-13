@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Linking, Pressable, Text, View } from 'react-native'
+import { Linking, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { plural, formatBytes, formatDuration, formatRelative, type Song } from '@selfmp3/shared'
 import {
@@ -24,6 +24,7 @@ import { deviceKind } from '../../ports/device'
 import { useLayout } from '../../shell/useLayout'
 import { tip } from '../../ui/tip'
 import { devicePlace, onThisDevice } from '../settings/settings.model'
+import { Press } from '../../ui/components/Press'
 
 /**
  * Everything the app knows about one song, in plain words: the quiet end of
@@ -115,7 +116,7 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
                       the icon says which of the two it is at a glance. */}
                   <Button
                     label={`Remove from this ${place}`}
-                    icon={<CloudRemove size={15} tone="textPrimary" />}
+                    icon={<CloudRemove tone="textPrimary" />}
                     onPress={() => removeDownloads([song.id])}
                   />
                 </View>
@@ -162,14 +163,15 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
         </Fact>
         <Fact label="Source">
           {song.sourceUrl ? (
-            <Pressable
+            <Press
+              feedback="dim"
               accessibilityRole="link"
               onPress={() => void Linking.openURL(song.sourceUrl ?? '')}
             >
               <Text style={[styles.strong, { color: songColor.color }]}>
                 {sourceName(song.sourceUrl)}
               </Text>
-            </Pressable>
+            </Press>
           ) : (
             <Text style={styles.strong}>Your library folder</Text>
           )}
@@ -225,7 +227,7 @@ function Fact({
 
 const styles = StyleSheet.create(theme => ({
   // No side padding: the page it sits in has its own gutter.
-  group: { gap: 10, paddingTop: space.md, paddingBottom: space.lg },
+  group: { gap: space.snug, paddingTop: space.md, paddingBottom: space.lg },
   // The groups are told apart by their labels and the room between them.
   groupTitle: labelText(theme.colors),
   fact: { flexDirection: 'row', gap: space.md },
@@ -238,6 +240,6 @@ const styles = StyleSheet.create(theme => ({
     fontVariant: ['tabular-nums'],
   },
   note: { color: theme.colors.textMuted, fontSize: type.small },
-  inline: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  action: { marginTop: 6 },
+  inline: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
+  action: { marginTop: space.tight },
 }))

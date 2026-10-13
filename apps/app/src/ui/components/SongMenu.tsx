@@ -1,61 +1,30 @@
 import { useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
-import { askForGuide } from '../../features/guide/guideMemory'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useRouter, type Href } from 'expo-router'
+import { StyleSheet } from 'react-native-unistyles'
+import type { Href } from 'expo-router'
 import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
-import {
-  isDownloaded,
-  space,
-  type,
-  useAddToPlaylist,
-  useLibrary,
-  useToggleLoved,
-} from '@selfmp3/client'
-import { playlistsToAddTo } from '../../features/playlists/playlists.model'
-import { usePlaylistRemoval } from '../../features/playlists/usePlaylistRemoval'
-import { playSimilar } from '../../features/song/playSimilar'
-import { songLink } from '../../features/song/song.model'
-import { tagLink } from '../../features/tag/placeLinks'
+import { isRoomTrackId, space, type, useLibrary, iconSize } from '@selfmp3/client'
+import { useOpenTag } from '../../features/tag/useOpenTag'
 import { useArt } from '../../offline/useArt'
-import { useDownloads } from '../../offline/DownloadsProvider'
-import { useDownloadRemoval } from '../../offline/useDownloadRemoval'
-import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
-import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Chip } from './Chip'
 import { RemoveSongs } from './ConfirmRemoveSongs'
 import { Cover } from './Cover'
-import { IconButton } from './IconButton'
-import {
-  CloudDownload,
-  CloudRemove,
-  Devices,
-  Heart,
-  Info,
-  ListMusic,
-  Moon,
-  QueueAdd,
-  Sparkles,
-  Tag as TagIcon,
-  Trash,
-  X,
-} from './Icons'
-import { devicePlace } from '../../features/settings/settings.model'
-import { deviceKind } from '../../ports/device'
+import { LikeButton } from './LikeButton'
+import { Devices, Moon } from './Icons'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
-import { useSleepMinutesLeft } from './SleepMenu'
+import { SongActionItems } from './SongActionItems'
+import { useSleepTimerStatus } from './SleepMenu'
 import { TagPicker } from './TagPicker'
 import type { PopoverAnchor } from '../rightClick'
 
 /**
- * Opened from the phone's Now Playing, which shows the song's heart, tags and
- * ⓘ itself, and is playing it: the menu leaves those out, and Add to Up next,
- * and ends with a short "This player" group — the sleep timer and the
- * devices, which the page has no other door to.
+ * The phone's Now Playing ends its menu with a short "This player" group — the
+ * sleep timer and the devices — because the page has no other door to them. A
+ * computer has both on the player bar, so its stage passes none.
  */
-interface NowPlayingDoors {
+interface PlayerDoors {
   readonly onSleep: () => void
   readonly onDevices: () => void
 }
@@ -65,6 +34,14 @@ interface NowPlayingDoors {
  * items in the same order wherever a song is — a row's ⋯, a held row, a
  * right-click, Now Playing's ⋯ on a phone or a computer. People learn one
  * menu and find it everywhere.
+ *
+ * Opened on Now Playing (`context="nowPlaying"`), on a phone or a computer
+ * alike, it leaves out what that page already shows — the heart, the tags,
+ * Tags and Song details — and Add to Up next, since the song is playing.
+ *
+ * A friend's song in a room (`isRoomTrackId`) is not in your library: it
+ * cannot be liked, tagged, listed, kept, looked up or deleted, so the menu
+ * offers none of that, only the page's own doors when it has them.
  *
  * At phone width this is a row's only set of actions, so everything a row can
  * do has to be reachable from here, tagging included. The song heads it —
@@ -95,7 +72,8 @@ export function SongMenu({
   onClose,
   anchorRef,
   playlist,
-  nowPlaying,
+  context,
+  extras,
   onRemove,
   onOpen,
 }: {
@@ -111,7 +89,10 @@ export function SongMenu({
    * width the menu hangs off it; without one it is a sheet.
    */
   anchorRef?: RefObject<PopoverAnchor | null>
-  nowPlaying?: NowPlayingDoors
+  /** Opened on Now Playing, which shows the song's heart, tags and details itself. */
+  context?: 'nowPlaying'
+  /** The phone's Now Playing: its sleep timer and devices, last. */
+  extras?: PlayerDoors
   /**
    * Who asks about removing, when the question has to outlive the page the
    * menu is on: removing the song playing takes the phone's Now Playing away
@@ -138,16 +119,13 @@ export function SongMenu({
       onClose={onClose}
       playlist={playlist}
       anchorRef={anchorRef}
-      nowPlaying={nowPlaying}
+      onNowPlaying={context === 'nowPlaying'}
+      extras={extras}
       onOpen={onOpen}
-      onTags={() => {
-        setTagging(song.id)
-        onClose()
-      }}
+      onTags={() => setTagging(song.id)}
       onRemove={() => {
         if (onRemove) onRemove(song)
         else setRemoving(song)
-        onClose()
       }}
     />
   ) : null
@@ -184,7 +162,8 @@ function Items({
   onRemove,
   playlist,
   anchorRef,
-  nowPlaying,
+  onNowPlaying,
+  extras,
   onOpen,
 }: {
   song: Song
@@ -195,40 +174,28 @@ function Items({
   playlist?: { readonly id: number; readonly name: string }
   /** The ⋯ that opened the menu, where a song sent to Up next flies from. */
   anchorRef?: RefObject<PopoverAnchor | null>
-  nowPlaying?: NowPlayingDoors
+  onNowPlaying: boolean
+  extras?: PlayerDoors
   onOpen?: (href: Href) => void
 }): ReactNode {
-  const { theme } = useUnistyles()
-  const router = useRouter()
-  const open = onOpen ?? ((href: Href) => router.navigate(href))
-  const player = usePlayerCommands()
-  const fly = useFlyToUpNext()
+  const openTag = useOpenTag()
   const artFor = useArt()
   const { data: library } = useLibrary()
-  const addToPlaylist = useAddToPlaylist()
-  const removeFromPlaylist = usePlaylistRemoval()
-  const removeDownloads = useDownloadRemoval()
-  const toggleLoved = useToggleLoved()
-  const { state: downloads, installed, requestDownload } = useDownloads()
-  const [playlistsOpen, setPlaylistsOpen] = useState(false)
 
   // The heart and the tags as they are now, not as they were when the menu opened.
   const song = library?.songs.find(item => item.id === given.id) ?? given
   const tags = (library?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
-  const held = isDownloaded(downloads.index, song.id)
-  // A live playlist's rules decide its songs, so it is not offered; nor is the
-  // playlist this menu was opened from.
-  const manualPlaylists = playlistsToAddTo(library?.playlists ?? [], playlist?.id)
   const byline = [artistOr(song.artist), song.duration > 0 ? formatDuration(song.duration) : '']
     .filter(Boolean)
     .join(' · ')
+
+  // What the page it was opened on already shows, or what a room's song cannot have.
+  const showsOwn = onNowPlaying || isRoomTrackId(song.id)
 
   const then = (run: () => void) => (): void => {
     run()
     onClose()
   }
-
-  const icon = (Glyph: typeof QueueAdd) => <Glyph size={16} color={theme.colors.textSecondary} />
 
   return (
     <>
@@ -241,7 +208,7 @@ function Items({
           <Text style={styles.byline} numberOfLines={1}>
             {byline}
           </Text>
-          {tags.length > 0 && !nowPlaying ? (
+          {tags.length > 0 && !showsOwn ? (
             <View style={styles.tags}>
               {tags.map(tag => (
                 <Chip
@@ -250,124 +217,43 @@ function Items({
                   hue={tag.hue}
                   selected={false}
                   compact
-                  onPress={then(() => open(tagLink(tag.name)))}
+                  onPress={then(() => openTag(tag, { go: onOpen }))}
                 />
               ))}
             </View>
           ) : null}
         </View>
-        {nowPlaying ? null : (
-          <IconButton
-            label={song.loved ? 'Unlike' : 'Like'}
-            active={song.loved}
-            filled
-            size={44}
-            onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
-          >
-            <Heart
-              size={20}
-              filled={song.loved}
-              color={song.loved ? theme.colors.danger : theme.colors.textPrimary}
-            />
-          </IconButton>
-        )}
+        {showsOwn ? null : <LikeButton song={song} filled size={44} />}
       </View>
 
-      {nowPlaying ? null : <SheetItem icon={icon(TagIcon)} label="Tags" onPress={onTags} />}
-      {/* Opens in place rather than over the menu, so the song stays named above it. */}
-      <SheetItem
-        icon={icon(ListMusic)}
-        label="Add to playlist"
-        detail={playlistsOpen ? '⌄' : '›'}
-        active={playlistsOpen}
-        onPress={() => setPlaylistsOpen(open => !open)}
-      />
-      {playlistsOpen ? (
-        <View style={styles.nested}>
-          {manualPlaylists.length === 0 ? (
-            <Text style={styles.hint}>No playlists yet.</Text>
-          ) : (
-            manualPlaylists.map(list => (
-              <SheetItem
-                key={list.id}
-                label={list.name}
-                onPress={then(() => {
-                  addToPlaylist.mutate({ playlistId: list.id, songIds: [song.id] })
-                  // A computer can drop songs on the sidebar's playlists instead,
-                  // which this is the moment to show (`sidebar-drop`).
-                  askForGuide('sidebar-drop')
-                })}
+      {/* What is done to the song, what it is to the list it was opened
+          from, and last, removing it: the same items the selection bar's
+          More offers for many songs. */}
+      <SongActionItems
+        songs={[song]}
+        playlist={playlist}
+        nowPlaying={onNowPlaying}
+        flyFrom={anchorRef}
+        onClose={onClose}
+        onTags={onTags}
+        onDelete={onRemove}
+        onOpen={onOpen}
+        beforeRemove={
+          extras ? (
+            <>
+              <Text style={styles.group}>This player</Text>
+              <SleepItem
+                icon={<Moon size={iconSize.item} tone="textSecondary" />}
+                onPress={then(extras.onSleep)}
               />
-            ))
-          )}
-        </View>
-      ) : null}
-      {/* The song playing is already in Up next. */}
-      {nowPlaying ? null : (
-        <SheetItem
-          icon={icon(QueueAdd)}
-          label="Add to Up next"
-          onPress={() => {
-            fly(anchorRef?.current ?? null, [song.id])
-            player.addToQueue([song.id])
-            onClose()
-          }}
-        />
-      )}
-      <SheetItem
-        icon={icon(Sparkles)}
-        label="Play similar songs"
-        onPress={then(() => playSimilar(player, song))}
-      />
-      {/* A browser streams; only an installed app keeps songs. */}
-      {!installed ? null : held ? (
-        <SheetItem
-          icon={icon(CloudRemove)}
-          label={`Remove from this ${devicePlace(deviceKind())}`}
-          onPress={then(() => removeDownloads([song.id]))}
-        />
-      ) : (
-        <SheetItem
-          icon={icon(CloudDownload)}
-          label="Download"
-          // By hand, so a song removed by hand comes back, and mobile data is asked about.
-          onPress={then(() => requestDownload([song.id]))}
-        />
-      )}
-      {nowPlaying ? null : (
-        <SheetItem
-          icon={icon(Info)}
-          label="Song details"
-          onPress={then(() => open(songLink(song.id)))}
-        />
-      )}
-
-      {/* What the song is to where the menu was opened. The groups are told
-          apart by the room between them, not a line. */}
-      {playlist ? (
-        <>
-          <View style={styles.gap} />
-          <SheetItem
-            icon={icon(X)}
-            label="Remove from this playlist"
-            onPress={then(() => removeFromPlaylist(playlist, [song]))}
-          />
-        </>
-      ) : null}
-      {nowPlaying ? (
-        <>
-          <Text style={styles.group}>This player</Text>
-          <SleepItem icon={icon(Moon)} onPress={then(nowPlaying.onSleep)} />
-          <SheetItem icon={icon(Devices)} label="Devices" onPress={then(nowPlaying.onDevices)} />
-        </>
-      ) : null}
-
-      <View style={styles.gap} />
-      <SheetItem
-        icon={<Trash size={16} color={theme.colors.danger} />}
-        label="Delete from library…"
-        danger
-        onPress={onRemove}
+              <SheetItem
+                icon={<Devices tone="textSecondary" />}
+                label="Devices"
+                onPress={then(extras.onDevices)}
+              />
+            </>
+          ) : undefined
+        }
       />
     </>
   )
@@ -378,7 +264,7 @@ function Items({
  * a menu that shows it ticks with the timer.
  */
 function SleepItem({ icon, onPress }: { icon: ReactNode; onPress: () => void }): ReactNode {
-  const left = useSleepMinutesLeft()
+  const { left } = useSleepTimerStatus()
   return (
     <SheetItem
       icon={icon}
@@ -394,7 +280,7 @@ const styles = StyleSheet.create(theme => ({
   head: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: space.roomy,
     paddingHorizontal: space.xs,
     paddingTop: space.xs,
     paddingBottom: space.md,
@@ -403,7 +289,6 @@ const styles = StyleSheet.create(theme => ({
   title: { color: theme.colors.textPrimary, fontSize: type.title, fontWeight: '600' },
   byline: { color: theme.colors.textSecondary, fontSize: type.sub },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginTop: space.xs },
-  gap: { height: space.sm },
   /* A group's name, quiet, as a sheet's label title is. */
   group: {
     color: theme.colors.textMuted,
@@ -411,12 +296,5 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.md,
     paddingTop: space.md,
     paddingBottom: space.xs,
-  },
-  nested: { paddingLeft: space.lg },
-  hint: {
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
   },
 }))

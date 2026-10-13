@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { CoverToneSchema } from './song.js'
 import { HLC_PATTERN } from '../hlc.js'
+import { HASH_FILE_NAME } from '../doormanWire.js'
 import { HueSchema, IdSchema } from './common.js'
 import { DoormanStorageSchema, SignInAttemptSchema, SignInCodeSchema } from './doorman.js'
 import { AudioFeaturesSchema } from './audioFeatures.js'
@@ -60,7 +61,7 @@ export type CloudFormat = z.infer<typeof CloudFormatSchema>
  * snapshot from anywhere can never point a device at some other path.
  */
 const fileKey = (folder: string) =>
-  z.string().regex(new RegExp(`^${folder}/[0-9a-f]{64}\\.[a-z0-9]{1,5}$`), `not a ${folder} key`)
+  z.string().regex(new RegExp(`^${folder}/${HASH_FILE_NAME}$`), `not a ${folder} key`)
 
 export const CloudAudioSchema = z.object({
   key: fileKey('audio'),

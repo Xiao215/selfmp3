@@ -1,11 +1,6 @@
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
-import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { Button } from '../../ui/components/Button'
-import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { pageTitle } from '../../ui/surfaces'
-import { leading, type } from '@selfmp3/client'
+import { MissingPage } from '../../ui/components/MissingPage'
 
 /**
  * A tag or an artist the address names and the library does not hold: a tag
@@ -20,30 +15,21 @@ export function PlaceMissing({
 }): ReactNode {
   const router = useRouter()
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <View style={styles.body} testID="place-missing">
-        <Text style={styles.title} accessibilityRole="header">
-          {kind === 'tag' ? 'No such tag' : kind === 'artist' ? 'No such artist' : 'Nothing here'}
-        </Text>
-        <Text style={styles.text}>
-          {kind === 'tag'
-            ? `Nothing here is tagged “${name}”. It may have been renamed or deleted.`
-            : kind === 'artist'
-              ? `No song here is by “${name}”.`
-              : 'The tags and artists this was made of have been renamed or deleted.'}
-        </Text>
-        <Button
-          label={kind === 'artist' ? 'Home' : 'All tags'}
-          onPress={() => router.replace(kind === 'artist' ? '/' : '/tags')}
-        />
-      </View>
-    </SafeAreaView>
+    <MissingPage
+      testID="place-missing"
+      title={kind === 'tag' ? 'No such tag' : kind === 'artist' ? 'No such artist' : 'Nothing here'}
+      line={
+        kind === 'tag'
+          ? `Nothing here is tagged “${name}”. It may have been renamed or deleted.`
+          : kind === 'artist'
+            ? `No song here is by “${name}”.`
+            : 'The tags and artists this was made of have been renamed or deleted.'
+      }
+      back="/"
+      action={{
+        label: kind === 'artist' ? 'Home' : 'All tags',
+        onPress: () => router.replace(kind === 'artist' ? '/' : '/tags'),
+      }}
+    />
   )
 }
-
-const styles = StyleSheet.create(theme => ({
-  screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  body: { padding: 24, gap: 12, alignItems: 'flex-start' },
-  title: pageTitle(theme.colors),
-  text: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
-}))

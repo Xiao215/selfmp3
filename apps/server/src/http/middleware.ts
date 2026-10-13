@@ -1,6 +1,6 @@
 import crypto from 'node:crypto'
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
-import { DESKTOP_APP_ORIGIN, EXTENSION_ORIGIN } from '@selfmp3/shared'
+import { DESKTOP_APP_ORIGIN, EXTENSION_ORIGIN, REFRESH_HEADER } from '@selfmp3/shared'
 import type { Config, ServingConfig } from '../config.js'
 import type { Logger } from '../logger.js'
 import { HttpError } from './errors.js'
@@ -253,7 +253,7 @@ export function cors(config: OriginConfig): RequestHandler {
        */
       res.setHeader(
         'Access-Control-Allow-Headers',
-        'Content-Type, Authorization, X-Selfmp3-Refresh',
+        ['Content-Type', 'Authorization', REFRESH_HEADER].join(', '),
       )
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
       res.setHeader('Access-Control-Max-Age', '86400')

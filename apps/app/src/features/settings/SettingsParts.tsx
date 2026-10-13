@@ -1,12 +1,12 @@
 import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { leading, radius, type, withAlpha } from '@selfmp3/client'
+import { radius, type, space, iconSize } from '@selfmp3/client'
 import { ChevronDown, ChevronRight } from '../../ui/components/Icons'
 import { Slider } from '../../ui/components/Slider'
-import { card, label as labelText, serif } from '../../ui/surfaces'
-import { clamp01 } from '@selfmp3/shared'
+import { card, label as labelText, serif, lineSub, hint } from '../../ui/surfaces'
+import { Press } from '../../ui/components/Press'
 
 /**
  * The pieces every Settings section is made of: one row anatomy — name, a
@@ -137,58 +137,8 @@ export function Stats({
   )
 }
 
-export function Meter({ fraction, label }: { fraction: number; label?: string }): ReactNode {
-  return (
-    <View
-      style={styles.meter}
-      role="progressbar"
-      aria-label={label}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(fraction * 100)}
-    >
-      <View style={[styles.meterFill, { width: `${clamp01(fraction) * 100}%` }]} />
-    </View>
-  )
-}
-
-export function Notice({
-  tone,
-  children,
-}: {
-  tone: 'warn' | 'error' | 'good'
-  children: ReactNode
-}): ReactNode {
-  return (
-    <View
-      style={[
-        styles.notice,
-        tone === 'warn'
-          ? styles.noticeWarnWash
-          : tone === 'error'
-            ? styles.noticeErrorWash
-            : styles.noticeGoodWash,
-      ]}
-    >
-      <Text
-        style={[
-          styles.noticeText,
-          tone === 'error' && styles.noticeError,
-          tone === 'good' && styles.noticeGood,
-        ]}
-      >
-        {children}
-      </Text>
-    </View>
-  )
-}
-
 export function ButtonRow({ children }: { children: ReactNode }): ReactNode {
   return <View style={styles.buttons}>{children}</View>
-}
-
-export function Kbd({ children }: { children: string }): ReactNode {
-  return <Text style={styles.kbd}>{children}</Text>
 }
 
 /** Rows that are there when asked for: shut until "Details" is pressed. */
@@ -197,34 +147,39 @@ export function Details({ children }: { children: ReactNode }): ReactNode {
   const Chevron = open ? ChevronDown : ChevronRight
   return (
     <>
-      <Pressable
+      <Press
+        feedback="dim"
         onPress={() => setOpen(value => !value)}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
-        style={({ pressed }) => [styles.detailsRow, pressed && styles.detailsRowPressed]}
+        style={styles.detailsRow}
       >
-        <Chevron size={14} tone="textMuted" />
+        <Chevron size={iconSize.field} tone="textMuted" />
         <Text style={styles.detailsRowText}>Details</Text>
-      </Pressable>
+      </Press>
       {open ? children : null}
     </>
   )
 }
 
 export const partStyles = StyleSheet.create(theme => ({
-  progress: { marginVertical: 14, gap: 8 },
+  // A notice in a panel (`NoticeCard`, washed): room above and below it, as a row has.
+  notice: { marginVertical: space.sm },
+  // A field beside a row's words: wide enough for an address or a name.
+  field: { minWidth: 220 },
+  progress: { marginVertical: space.roomy, gap: space.sm },
   progressText: { color: theme.colors.textSecondary, fontSize: type.sub },
   valueText: { color: theme.colors.textPrimary, fontSize: type.sub },
   input: {
     minWidth: 220,
     paddingVertical: 7,
-    paddingHorizontal: 14,
+    paddingHorizontal: space.roomy,
     fontSize: type.sub,
     color: theme.colors.textPrimary,
     backgroundColor: theme.colors.surface2,
     borderRadius: radius.pill,
   },
-  hint: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
+  hint: hint(theme.colors),
   code: {
     fontSize: type.small,
     color: theme.colors.textPrimary,
@@ -237,19 +192,18 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    gap: 6,
-    paddingVertical: 8,
-    paddingRight: 8,
+    gap: space.tight,
+    paddingVertical: space.sm,
+    paddingRight: space.sm,
     borderRadius: radius.pill,
   },
-  detailsRowPressed: { opacity: 0.7 },
   detailsRowText: { color: theme.colors.textMuted, fontSize: type.sub },
-  group: { gap: 8 },
+  group: { gap: space.sm },
   groupHead: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 10,
-    paddingHorizontal: 4,
+    gap: space.snug,
+    paddingHorizontal: space.xs,
   },
   groupMark: { alignSelf: 'center', marginRight: -4 },
   groupLabel: labelText(theme.colors),
@@ -257,36 +211,37 @@ const styles = StyleSheet.create(theme => ({
   panel: {
     ...card(theme.colors),
     paddingTop: 5,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
+    paddingBottom: space.lg,
+    paddingHorizontal: space.lg,
   },
   hint: { color: theme.colors.textMuted, fontSize: type.small },
   lead: {
-    color: theme.colors.textSecondary,
-    fontSize: type.sub,
-    lineHeight: leading.sub,
-    marginBottom: 12,
+    ...lineSub(theme.colors),
+    marginBottom: space.md,
     maxWidth: 520,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 24,
+    gap: space.xl,
     minHeight: 54,
     paddingVertical: 11,
   },
-  rowStacked: { flexDirection: 'column', alignItems: 'stretch', gap: 10 },
+  rowStacked: { flexDirection: 'column', alignItems: 'stretch', gap: space.snug },
   // The card's own padding is below the last row, so it needs none of its own.
   rowLast: { paddingBottom: 0 },
   label: { flex: 1, minWidth: 0, gap: 3 },
   name: { color: theme.colors.textPrimary, fontSize: type.body },
   rowHint: {
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    lineHeight: leading.small,
+    ...hint(theme.colors),
     maxWidth: 400,
   },
-  control: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10 },
+  control: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: space.snug,
+  },
   controlStacked: { justifyContent: 'flex-start', flexWrap: 'wrap' },
   value: {
     minWidth: 34,
@@ -295,38 +250,8 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.small,
     fontVariant: ['tabular-nums'],
   },
-  stats: { flexDirection: 'row', gap: 32, marginTop: 16, marginBottom: 12 },
-  statValue: serif(theme.colors, type.page),
+  stats: { flexDirection: 'row', gap: 32, marginTop: space.lg, marginBottom: space.md },
+  statValue: serif(theme.colors, 'page'),
   statLabel: { color: theme.colors.textMuted, fontSize: type.small },
-  meter: { height: 6, borderRadius: 3, backgroundColor: theme.colors.surface3, overflow: 'hidden' },
-  meterFill: {
-    height: '100%',
-    borderTopRightRadius: 3,
-    borderBottomRightRadius: 3,
-    backgroundColor: theme.colors.accent,
-  },
-  // Its tone is a wash of the palette's own warning, danger or good, as a
-  // review's removed and added names are (`smart/Review.tsx`); no edge.
-  notice: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: radius.card,
-    marginVertical: 8,
-  },
-  noticeWarnWash: { backgroundColor: withAlpha(theme.colors.warning, 0.14) },
-  noticeErrorWash: { backgroundColor: withAlpha(theme.colors.danger, 0.14) },
-  noticeGoodWash: { backgroundColor: withAlpha(theme.colors.good, 0.14) },
-  noticeText: { color: theme.colors.textPrimary, fontSize: type.sub, lineHeight: leading.sub },
-  noticeError: { color: theme.colors.danger },
-  noticeGood: { color: theme.colors.good },
-  buttons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
-  kbd: {
-    color: theme.colors.textPrimary,
-    fontSize: type.tiny,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 5,
-    backgroundColor: theme.colors.surface3,
-    overflow: 'hidden',
-  },
+  buttons: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.roomy },
 }))

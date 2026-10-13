@@ -1,13 +1,14 @@
 import { z } from 'zod/v4'
 import {
   CJK,
+  mainArtist,
   TAG_NAME_MAX,
   type Song,
   type Tag,
   type TagChange,
   type TagReview,
 } from '@selfmp3/shared'
-import { mainArtist, tagCatalog } from './library.js'
+import { tagCatalog } from './library.js'
 import { LlmError, llmFailureWords, Remembered, type Llm } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
 import { bare, chunks, tally } from './text.js'

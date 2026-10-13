@@ -4,6 +4,7 @@ import { mkdir, readdir, rename, rm, stat, statfs, writeFile } from 'node:fs/pro
 import { join } from 'node:path'
 
 import { app, net, shell } from 'electron'
+import { createThrottle } from '@selfmp3/shared'
 import {
   fileNameSchema,
   type DownloadRequest,
@@ -12,6 +13,7 @@ import {
   type FileStat,
   type Usage,
 } from '@selfmp3/desktop-bridge'
+import { refusalWords } from '@selfmp3/shared'
 
 import { resolveWithinRoot } from './paths.js'
 
@@ -57,28 +59,6 @@ async function writablePathFor(kind: FileKind, name: string): Promise<string> {
  * shows downloads. The last is always sent, so the bar finishes where the file did.
  */
 const PROGRESS_INTERVAL_MS = 250
-
-/** Whether a report is due now, and whether one is owed for the bytes since the last. */
-export function progressGate(
-  intervalMs: number,
-  now: () => number = Date.now,
-): { due(): boolean; owed(): boolean } {
-  let last = Number.NEGATIVE_INFINITY
-  let owed = false
-  return {
-    due() {
-      const at = now()
-      if (at - last >= intervalMs) {
-        last = at
-        owed = false
-        return true
-      }
-      owed = true
-      return false
-    },
-    owed: () => owed,
-  }
-}
 
 /** Downloads in flight, so `cancel` has something to abort. */
 const running = new Map<string, AbortController>()
@@ -161,7 +141,7 @@ export async function download(
     // Only the race below wants this rejection; on its own it is not "unhandled".
     failed.catch(() => {})
 
-    const report = progressGate(PROGRESS_INTERVAL_MS)
+    const report = createThrottle(() => onProgress(written, totalBytes), PROGRESS_INTERVAL_MS)
     try {
       for (;;) {
         const { done, value } = await Promise.race([reader.read(), failed])
@@ -174,11 +154,11 @@ export async function download(
          */
         if (!sink.write(Buffer.from(value))) await Promise.race([once(sink, 'drain'), failed])
         written += value.byteLength
-        if (report.due()) onProgress(written, totalBytes)
+        report.request()
       }
     } finally {
       // Where it really stopped — finished, paused or failed — not where the last report happened to be.
-      if (report.owed()) onProgress(written, totalBytes)
+      report.flush()
       await new Promise<void>(resolve => sink.end(resolve))
     }
 
@@ -345,13 +325,14 @@ async function sizeOf(path: string): Promise<number> {
 }
 
 /** How much of a refusal's body is worth repeating. */
-const QUOTED_BYTES = 240
+const QUOTED_CHARACTERS = 240
 
 /**
  * A refusal in words: the status and host, and what the answer said — the
  * doorman's `error` for a bucket that would not give the file, or the text
- * of a page. "502 from the doorman" told nobody that the bucket's allowance
- * for the day was used up, which is what the doorman had said.
+ * of a page (packages/shared's `refusalWords`, as the server reads one).
+ * "502 from the doorman" told nobody that the bucket's allowance for the day
+ * was used up, which is what the doorman had said.
  */
 async function refusal(response: Response, url: string): Promise<string> {
   const head = `${response.status} from ${hostOf(url)}`
@@ -361,18 +342,7 @@ async function refusal(response: Response, url: string): Promise<string> {
   } catch {
     return head
   }
-  try {
-    const parsed: unknown = JSON.parse(text)
-    const error = (parsed as { error?: unknown } | null)?.error
-    if (typeof error === 'string' && error.trim()) return `${head}: ${error.trim()}`
-  } catch {
-    // Not JSON: a page, or nothing.
-  }
-  const words = text
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, QUOTED_BYTES)
+  const words = refusalWords(text, QUOTED_CHARACTERS)
   return words ? `${head}: ${words}` : head
 }
 

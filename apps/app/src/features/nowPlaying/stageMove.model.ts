@@ -23,8 +23,49 @@ import type { StageGeometry } from './nowPlaying.model'
  * shadowed that whole table wherever both were imported.
  */
 
-/** The move's curve, as the four numbers of a cubic bézier. */
-export const MOVE_EASING = [0.2, 0.8, 0.2, 1] as const
+/** One run of the move: from where, to where, when it began and how long it was given. */
+export interface MoveRun {
+  readonly from: number
+  readonly to: number
+  readonly start: number
+  /** How long this run was given, so a run cut short is read at the right point of its curve. */
+  readonly ms: number
+}
+
+/** Settled wherever the page opened: no move until the mode changes. */
+export function restingRun(at: number): MoveRun {
+  return { from: at, to: at, start: Number.NEGATIVE_INFINITY, ms: 0 }
+}
+
+/**
+ * Where a run has got to at `now`, and what share of the whole move the rest
+ * of the way to `target` is — or null when it is already there. Both twins
+ * turn the move with this, so a reversal is the same length on an iPad as in
+ * a browser.
+ *
+ * Where it has got to is eased: `m` is not the share of the time gone but the
+ * curve of it, so a turn half a second in leaves from the pose that is on
+ * screen and no frame repeats it.
+ *
+ * And it is given only the time the rest of the way is worth. The whole
+ * distance is 1 — the stage to Focus — so a run of `|to - at|` of it takes
+ * that share of `MOVE_MS.stageMove` (the caller's to multiply): a reversal a
+ * tenth of the way along is a tenth-and-a-bit of the length, not another
+ * 520 ms of it. Without that the cover left an eased midpoint at full speed,
+ * slowed into a new ease-in, and read as two moves rather than one that
+ * changed its mind.
+ */
+export function turnMove(
+  run: MoveRun,
+  target: number,
+  now: number,
+  ease: (t: number) => number,
+): { readonly from: number; readonly share: number } | null {
+  const progress = run.ms > 0 ? ease(Math.min(1, (now - run.start) / run.ms)) : 1
+  const at = run.from + (run.to - run.from) * progress
+  if (at === target && run.to === target) return null
+  return { from: at, share: Math.abs(target - at) }
+}
 
 /** Where the stage puts the top of its cover. */
 export const COVER_TOP = 84

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useMutation } from '@tanstack/react-query'
 import type { DescribeResult, Understanding } from '@selfmp3/shared'
@@ -8,16 +8,16 @@ import { artistOr } from '@selfmp3/shared'
 import {
   ApiError,
   failureText,
-  radius,
   space,
   type,
   useCreatePlaylist,
   useLibrary,
+  iconSize,
 } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { Button } from '../../ui/components/Button'
-import { Checkbox } from '../../ui/components/Checkbox'
+import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { Chip } from '../../ui/components/Chip'
 import { X } from '../../ui/components/Icons'
 import { useSongsById } from '../../ui/songsById'
@@ -27,6 +27,10 @@ import { describeNotes, onlyTags, parts, picksHere, tagIdsFor } from './smart.mo
 import { useSmartServer } from './useSmartServer'
 import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
+import { StatusLine } from '../../ui/components/StatusLine'
+import { label } from '../../ui/surfaces'
+import { AnswerActions } from './AnswerParts'
+import { IconButton } from '../../ui/components/IconButton'
 
 /**
  * Songs picked from a description (docs/features/ai.md): what it understood,
@@ -163,14 +167,13 @@ export function SongsAnswer({
                 title={song.title}
                 sub={each.why ?? artistOr(song.artist)}
                 trailing={
-                  <Pressable
+                  <IconButton
+                    size={LEAVE}
                     onPress={() => setLeft(current => new Set([...current, song.id]))}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Leave out ${song.title}`}
-                    style={({ pressed }) => [styles.leave, pressed && styles.pressed]}
+                    label={`Leave out ${song.title}`}
                   >
-                    <X size={14} color={theme.colors.textMuted} />
-                  </Pressable>
+                    <X size={iconSize.field} color={theme.colors.textMuted} />
+                  </IconButton>
                 }
               />
             )
@@ -179,16 +182,15 @@ export function SongsAnswer({
       ) : null}
 
       {!edited && onlyTags(understanding) ? (
-        <Pressable
+        <CheckRow
+          checked={keepFilled}
           onPress={() => setKeepFilled(on => !on)}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: keepFilled }}
-          accessibilityLabel="Fill it from these tags as they grow"
+          label="Fill it from these tags as they grow"
           style={styles.checkRow}
         >
           <Checkbox checked={keepFilled} />
           <Text style={styles.checkLabel}>Fill it from these tags as they grow</Text>
-        </Pressable>
+        </CheckRow>
       ) : null}
 
       {again.isPending ? (
@@ -197,11 +199,11 @@ export function SongsAnswer({
         </Text>
       ) : null}
       {again.error ? (
-        <Text style={styles.error}>{failureText('Couldn’t pick again', again.error)}</Text>
+        <StatusLine>{failureText('Couldn’t pick again', again.error)}</StatusLine>
       ) : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <StatusLine>{error}</StatusLine> : null}
 
-      <View style={styles.actions}>
+      <AnswerActions>
         {onCancel ? <Button label="Cancel" onPress={onCancel} /> : null}
         {edited ? (
           <Button
@@ -222,37 +224,29 @@ export function SongsAnswer({
             testID="songs-answer-save"
           />
         )}
-      </View>
+      </AnswerActions>
     </View>
   )
 }
 
+/** The × that leaves a song out of the answer. */
+const LEAVE = 30
+
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm },
-  understood: { gap: 6 },
-  label: {
-    color: theme.colors.textMuted,
-    fontSize: type.tiny,
-    fontWeight: '600',
-    letterSpacing: 0.9,
-    textTransform: 'uppercase',
-  },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  understood: { gap: space.tight },
+  label: label(theme.colors),
+  chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.tight },
   brief: { color: theme.colors.textSecondary, fontSize: type.small, fontStyle: 'italic' },
   hint: { color: theme.colors.textMuted, fontSize: type.small, flexShrink: 1 },
   // Short enough that the buttons under it stay on a laptop's screen.
   list: { maxHeight: 220 },
   row: { paddingHorizontal: 0 },
-  leave: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.pill,
+  checkRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: space.sm,
+    paddingVertical: space.xs,
   },
-  pressed: { opacity: 0.6 },
-  checkRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: 4 },
   checkLabel: { color: theme.colors.textPrimary, fontSize: type.sub, flexShrink: 1 },
-  error: { color: theme.colors.danger, fontSize: type.small },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
 }))

@@ -34,7 +34,7 @@ body {
   gap: 5px;
   min-width: 0;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: var(--type-tiny);
   white-space: nowrap;
 }
 
@@ -160,7 +160,7 @@ body {
   gap: 8px;
   height: 40px;
   padding: 0 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-item);
   background: var(--surface-2);
 }
 
@@ -173,7 +173,7 @@ body {
   width: 44px;
   font-size: var(--type-tiny);
   font-weight: 600;
-  letter-spacing: 0.6px;
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--text-muted);
 }
@@ -184,7 +184,7 @@ body {
   border: 0;
   padding: 0;
   background: transparent;
-  font-size: 14px;
+  font-size: var(--type-body);
   font-weight: 600;
   outline: none;
 }
@@ -202,7 +202,7 @@ body {
 }
 
 .tags-inline {
-  font-size: 12px;
+  font-size: var(--type-small);
   color: var(--text-secondary);
 }
 
@@ -215,15 +215,15 @@ body {
 
 .state h1 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--type-body);
   font-weight: 600;
-  line-height: 19px;
+  line-height: var(--leading-body);
 }
 
 .state p {
   margin: 0;
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--type-small);
+  line-height: var(--leading-small);
   color: var(--text-secondary);
 }
 
@@ -252,7 +252,7 @@ body {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--type-small);
   color: var(--text-secondary);
 }
 
@@ -315,12 +315,12 @@ body {
   white-space: nowrap;
   text-overflow: ellipsis;
   font-family: var(--font-display);
-  font-size: 17px;
+  font-size: var(--type-title);
 }
 
 .list-count {
   flex: none;
-  font-size: 12px;
+  font-size: var(--type-small);
   color: var(--text-secondary);
 }
 
@@ -370,19 +370,19 @@ body {
 }
 
 .row-title {
-  font-size: 13px;
+  font-size: var(--type-sub);
   font-weight: 600;
 }
 
 .row-sub {
-  font-size: 11px;
+  font-size: var(--type-tiny);
   color: var(--text-secondary);
 }
 
 .row-name.editing input {
   min-width: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-cover-sm);
   padding: 0 6px;
   background: var(--surface-0);
   outline: none;
@@ -394,13 +394,13 @@ body {
 
 .edit-title {
   height: 24px;
-  font-size: 13px;
+  font-size: var(--type-sub);
   font-weight: 600;
 }
 
 .edit-artist {
   height: 22px;
-  font-size: 11px;
+  font-size: var(--type-tiny);
 }
 
 /* The far end of a row: the length while the song is coming in, "Left out" once it is not. */
@@ -411,7 +411,7 @@ body {
   align-items: center;
   justify-content: flex-end;
   min-width: 64px;
-  font-size: 11px;
+  font-size: var(--type-tiny);
   color: var(--text-secondary);
 }
 
@@ -435,7 +435,7 @@ body {
  */
 .skeleton {
   height: 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-pill);
   background: var(--surface-2);
   background-image: linear-gradient(90deg, transparent, var(--surface-3), transparent);
   background-repeat: no-repeat;
@@ -459,7 +459,7 @@ body {
   margin-top: auto;
   padding: 10px 16px 14px;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 
 .foot .dot {

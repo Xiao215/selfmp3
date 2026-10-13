@@ -1,7 +1,9 @@
 import {
+  messageOf,
   SONG_FIELDS,
   compareChanges,
   fromCloudRules,
+  playlistPatchProblem,
   playlistRules,
   hlcTime,
   hlcWins,
@@ -23,7 +25,6 @@ import type { SyncRepository } from '../repositories/sync.js'
 import type { TagRepository } from '../repositories/tags.js'
 import { sqliteTime } from '../repositories/stats.js'
 import type { SyncClock } from './localEdits.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * Other devices' changes, applied to this server's database (docs/SYNC.md).
@@ -117,9 +118,9 @@ export class CloudIngest {
           })
         }
       }
-      // A tag whose last song another device removed goes too, as it would
-      // had the song been removed here.
-      if (removed.length > 0) this.#tags.pruneEmpty()
+      // A tag whose last song another device removed is not pruned here: that
+      // device sent its own `tagRemoved` for it (shared `tagsEmptiedBy`), and
+      // a sweep would also take a tag another device has only just made.
       alongside()
     })()
     return { applied, removed, requested }
@@ -243,7 +244,11 @@ export class CloudIngest {
           if (value === undefined) continue
           if (!hlcWins(change.hlc, this.#sync.stamp('playlist', change.uid, field))) continue
           if (field === 'rules') {
-            update.rules = change.fields.rules ? this.#localRules(change.fields.rules) : null
+            // Refused as the edit would have been: a live playlist taken off
+            // its rules would read as an empty manual one here, and nowhere else.
+            const rules = change.fields.rules
+            if (playlistPatchProblem(playlist.kind, { rules }) || !rules) continue
+            update.rules = this.#localRules(rules)
           } else if (field === 'pinned') {
             update.pinned = change.fields.pinned
           } else {
@@ -303,6 +308,23 @@ export class CloudIngest {
           return id === null ? [] : [id]
         })
         this.#playlists.reorder(playlist.id, songIds)
+        this.#sync.setStamp('playlist', change.uid, 'order', change.hlc)
+        this.#dated(playlist, change.hlc)
+        return true
+      }
+
+      case 'playlistUnfollowed': {
+        // Its songs are the ones the device that stopped it showed, not
+        // whatever the rule answers here now.
+        const playlist = this.#sync.playlist(change.uid)
+        if (!playlist || playlist.kind !== 'live') return false
+        if (!hlcWins(change.hlc, this.#sync.stamp('playlist', change.uid, 'rules'))) return false
+        const songIds = [...new Set(change.songUids)].flatMap(uid => {
+          const id = this.#sync.songId(uid)
+          return id === null ? [] : [id]
+        })
+        this.#playlists.stopFollowing(playlist, songIds)
+        this.#sync.setStamp('playlist', change.uid, 'rules', change.hlc)
         this.#sync.setStamp('playlist', change.uid, 'order', change.hlc)
         this.#dated(playlist, change.hlc)
         return true

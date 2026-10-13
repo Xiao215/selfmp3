@@ -53,14 +53,19 @@
   --radius-mini: 16px;
   --radius-row: 14px;
   --radius-field: 12px;
+  --radius-item: 12px;
   --radius-cover: 10px;
   --radius-cover-sm: 8px;
 
   /* Room, on a four-point grid; a phone page's gutter and a computer's. */
   --space-xs: 4px;
+  --space-tight: 6px;
   --space-sm: 8px;
+  --space-snug: 10px;
   --space-md: 12px;
+  --space-roomy: 14px;
   --space-lg: 16px;
+  --space-card: 18px;
   --space-gutter: 20px;
   --space-xl: 24px;
   --space-gutter-wide: 40px;

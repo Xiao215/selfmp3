@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { CloudSnapshot } from '@selfmp3/shared'
+import { API_ERROR, type CloudSnapshot } from '@selfmp3/shared'
 import { createCloudLibrary } from './library.js'
 import type { CloudPlatform, CloudResponse, DeviceStore } from './platform.js'
 import { createCloudRoutes, parseQuery } from './routes.js'
@@ -85,9 +85,21 @@ describe('/api/cloud/uids', () => {
     writtenAt: '2026-09-11T10:00:00.000Z',
     writtenBy: 'mac-3f9a1c2e',
     upTo: {},
-    songs: [song('a', 'Song a'), song('b', 'Song b')],
+    songs: [song('a', 'Song a'), { ...song('b', 'Song b'), instrumental: true }],
     tags: [],
-    playlists: [],
+    playlists: [
+      {
+        uid: uid('7'),
+        name: 'Mix',
+        description: '',
+        kind: 'manual',
+        rules: null,
+        pinned: false,
+        songUids: [uid('a')],
+        createdAt: '2026-09-01 10:00:00',
+        updatedAt: '2026-09-01 10:00:00',
+      },
+    ],
     artists: [],
     sound: null,
   }
@@ -264,5 +276,64 @@ describe('/api/cloud/uids', () => {
     )
     expect(health).toMatchObject({ ok: true, version: 'web' })
     expect(health).not.toHaveProperty('songCount')
+  })
+
+  /** A signed-in device, and the id it gave each song and the playlist. */
+  async function signedIn() {
+    const made = device()
+    await made.session.saveSession(SESSION)
+    const library = (await made.cloudRequest('GET', '/api/library', undefined)) as {
+      songs: { id: number; title: string }[]
+      playlists: { id: number; lastPlayedAt: string | null }[]
+    }
+    const songId = (title: string) => library.songs.find(row => row.title === title)?.id ?? 0
+    return { made, a: songId('Song a'), b: songId('Song b'), mix: library.playlists[0]?.id ?? 0 }
+  }
+
+  it('says a song with no words is instrumental the way the server does', async () => {
+    const { made, a, b } = await signedIn()
+    await expect(
+      made.cloudRequest('GET', `/api/songs/${a}/lyrics`, undefined),
+    ).rejects.toMatchObject({ status: 404, code: 'not_found' })
+    await expect(
+      made.cloudRequest('GET', `/api/songs/${b}/lyrics`, undefined),
+    ).rejects.toMatchObject({ status: 404, code: 'instrumental' })
+  })
+
+  it('answers a play sent again as the duplicate it is', async () => {
+    const { made, a } = await signedIn()
+    const play = { msPlayed: 90_000, completed: true, clientId: 'outbox-0001' }
+    const path = `/api/songs/${a}/played`
+    expect(await made.cloudRequest('POST', path, play)).toEqual({ ok: true, duplicate: false })
+    expect(await made.cloudRequest('POST', path, play)).toEqual({ ok: true, duplicate: true })
+    const library = (await made.cloudRequest('GET', '/api/library', undefined)) as {
+      songs: { id: number; playCount: number }[]
+    }
+    expect(library.songs.find(row => row.id === a)?.playCount).toBe(1)
+  })
+
+  it('keeps when a playlist was last started, on this device', async () => {
+    const { made, mix } = await signedIn()
+    expect(await made.cloudRequest('POST', `/api/playlists/${mix}/played`, undefined)).toEqual({
+      ok: true,
+    })
+    const library = (await made.cloudRequest('GET', '/api/library', undefined)) as {
+      playlists: { id: number; lastPlayedAt: string | null }[]
+    }
+    expect(library.playlists[0]?.lastPlayedAt).toMatch(/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/)
+    await expect(
+      made.cloudRequest('POST', '/api/playlists/424242/played', undefined),
+    ).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('says what needs the server, and that a path it has never heard of is not there', async () => {
+    const { made } = await signedIn()
+    await expect(
+      made.cloudRequest('GET', '/api/lyrics/search?q=rain', undefined),
+    ).rejects.toMatchObject({ status: 501, code: API_ERROR.needsServer })
+    await expect(made.cloudRequest('GET', '/api/nothing', undefined)).rejects.toMatchObject({
+      status: 404,
+      code: 'not_found',
+    })
   })
 })

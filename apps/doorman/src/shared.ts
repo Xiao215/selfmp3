@@ -1,4 +1,6 @@
 import {
+  DOORMAN_ERROR,
+  type DoormanErrorCode,
   RoomMemberNameSchema,
   RoomSongSchema,
   SharedActionSchema,
@@ -17,7 +19,8 @@ import {
   type SharedPlaylist,
 } from '@selfmp3/shared'
 import { z } from 'zod'
-import { keyOf, randomHex } from './room.js'
+import { secureHex } from './encoding.js'
+import { keyOf } from './room.js'
 
 /**
  * One shared playlist: a Durable Object per playlist id
@@ -88,6 +91,15 @@ export const LentSongsSchema = z.object({
 })
 type LentSongs = z.infer<typeof LentSongsSchema>
 
+/** A refusal's code, by what was refused. */
+const SHARED_REFUSED: Readonly<Record<RoomRefusal['refused'], DoormanErrorCode>> = {
+  forbidden: DOORMAN_ERROR.sharedForbidden,
+  missing: DOORMAN_ERROR.sharedMissing,
+  full: DOORMAN_ERROR.sharedFull,
+  ended: DOORMAN_ERROR.sharedEnded,
+  invalid: DOORMAN_ERROR.sharedInvalid,
+}
+
 const STATUS: Readonly<Record<RoomRefusal['refused'], number>> = {
   forbidden: 403,
   missing: 404,
@@ -96,7 +108,7 @@ const STATUS: Readonly<Record<RoomRefusal['refused'], number>> = {
   invalid: 400,
 }
 
-function answer(status: number, code: string, error: string): Response {
+function answer(status: number, code: DoormanErrorCode, error: string): Response {
   return Response.json({ error, code }, { status })
 }
 
@@ -106,7 +118,7 @@ export class Shared {
 
   constructor(runtime: SharedRuntime, ids: { readonly newId?: () => string } = {}) {
     this.#runtime = runtime
-    this.#newId = ids.newId ?? (() => randomHex(6))
+    this.#newId = ids.newId ?? (() => secureHex(6))
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -130,17 +142,17 @@ export class Shared {
         case 'GET /file':
           return await this.#file(url)
         default:
-          return answer(404, 'not_found', 'no such endpoint')
+          return answer(404, DOORMAN_ERROR.notFound, 'no such endpoint')
       }
     } catch (error) {
       if (error instanceof z.ZodError)
-        return answer(400, 'bad_request', 'that is not a playlist request')
+        return answer(400, DOORMAN_ERROR.badRequest, 'that is not a playlist request')
       throw error
     }
   }
 
   async #create(input: z.infer<typeof CreateSchema>): Promise<Response> {
-    if (await this.#doc()) return answer(409, 'shared_taken', 'that playlist exists')
+    if (await this.#doc()) return answer(409, DOORMAN_ERROR.sharedTaken, 'that playlist exists')
     const member = this.#newId()
     const doc = newSharedDoc({
       id: input.id,
@@ -151,15 +163,15 @@ export class Shared {
     })
     const secrets: Secrets = {
       subs: { [member]: input.sub },
-      tokens: { [member]: randomHex(16) },
-      invite: randomHex(8),
+      tokens: { [member]: secureHex(16) },
+      invite: secureHex(8),
     }
     await this.#save(doc, secrets)
     return Response.json(this.#viewOf(doc, secrets, member))
   }
 
   async #createFrom(input: CreateFrom): Promise<Response> {
-    if (await this.#doc()) return answer(409, 'shared_taken', 'that playlist exists')
+    if (await this.#doc()) return answer(409, DOORMAN_ERROR.sharedTaken, 'that playlist exists')
     const now = this.#runtime.now()
     // The one who kept it first, so they are the one who made it.
     const people = [...input.members].sort((a, b) =>
@@ -185,7 +197,7 @@ export class Shared {
         doc = joined
       }
     }
-    if (!doc) return answer(400, 'bad_request', 'nobody to keep it')
+    if (!doc) return answer(400, DOORMAN_ERROR.badRequest, 'nobody to keep it')
     const seen = new Set<string>()
     const entries = input.items.flatMap(item => {
       const owner = ids.get(item.sub)
@@ -199,8 +211,8 @@ export class Shared {
     doc = { ...doc, entries }
     const secrets: Secrets = {
       subs: Object.fromEntries([...ids].map(([sub, id]) => [id, sub])),
-      tokens: Object.fromEntries([...ids.values()].map(id => [id, randomHex(16)])),
-      invite: randomHex(8),
+      tokens: Object.fromEntries([...ids.values()].map(id => [id, secureHex(16)])),
+      invite: secureHex(8),
     }
     await this.#save(doc, secrets)
     const creator = ids.get(input.creator) ?? ''
@@ -210,9 +222,9 @@ export class Shared {
   async #join(input: z.infer<typeof JoinSchema>): Promise<Response> {
     const doc = await this.#doc()
     const secrets = await this.#secrets()
-    if (!doc || !secrets) return answer(404, 'shared_missing', 'no such playlist')
+    if (!doc || !secrets) return answer(404, DOORMAN_ERROR.sharedMissing, 'no such playlist')
     if (input.invite !== secrets.invite)
-      return answer(403, 'shared_forbidden', 'that invite is not this playlist’s')
+      return answer(403, DOORMAN_ERROR.sharedForbidden, 'that invite is not this playlist’s')
     const already = this.#memberOf(secrets, input.sub)
     if (already) return Response.json(this.#viewOf(doc, secrets, already))
     const member = this.#newId()
@@ -221,7 +233,7 @@ export class Shared {
     const next: Secrets = {
       ...secrets,
       subs: { ...secrets.subs, [member]: input.sub },
-      tokens: { ...secrets.tokens, [member]: randomHex(16) },
+      tokens: { ...secrets.tokens, [member]: secureHex(16) },
     }
     await this.#save(joined, next)
     return Response.json(this.#viewOf(joined, next, member))
@@ -283,17 +295,18 @@ export class Shared {
   async #file(url: URL): Promise<Response> {
     const doc = await this.#doc()
     const secrets = await this.#secrets()
-    if (!doc || !secrets) return answer(404, 'shared_missing', 'no such playlist')
+    if (!doc || !secrets) return answer(404, DOORMAN_ERROR.sharedMissing, 'no such playlist')
     const token = url.searchParams.get('t') ?? ''
     const member = Object.entries(secrets.tokens).find(([, held]) => held === token)?.[0]
     if (!member || !/^[0-9a-f]{32}$/.test(token)) {
-      return answer(401, 'shared_unauthorized', 'that is not a way into this playlist')
+      return answer(401, DOORMAN_ERROR.sharedUnauthorized, 'that is not a way into this playlist')
     }
     const part = url.searchParams.get('part') as RoomFilePart | null
     const entry = canReadSharedEntry(doc, member, url.searchParams.get('entry') ?? '')
     const key = entry && part ? keyOf(entry.song, part) : null
     const sub = entry ? secrets.subs[entry.owner] : undefined
-    if (!key || !sub) return answer(404, 'shared_missing', 'that song is not in the playlist')
+    if (!key || !sub)
+      return answer(404, DOORMAN_ERROR.sharedMissing, 'that song is not in the playlist')
     return Response.json({ sub, key })
   }
 
@@ -302,10 +315,10 @@ export class Shared {
   ): Promise<{ doc: SharedDoc; secrets: Secrets; member: string } | Response> {
     const doc = await this.#doc()
     const secrets = await this.#secrets()
-    if (!doc || !secrets) return answer(404, 'shared_missing', 'no such playlist')
+    if (!doc || !secrets) return answer(404, DOORMAN_ERROR.sharedMissing, 'no such playlist')
     const member = this.#memberOf(secrets, sub)
     if (!member || !doc.members.some(other => other.id === member)) {
-      return answer(403, 'shared_forbidden', 'you are not in this playlist')
+      return answer(403, DOORMAN_ERROR.sharedForbidden, 'you are not in this playlist')
     }
     return { doc, secrets, member }
   }
@@ -319,7 +332,7 @@ export class Shared {
   }
 
   #refusal(refused: RoomRefusal): Response {
-    return answer(STATUS[refused.refused], `shared_${refused.refused}`, refused.message)
+    return answer(STATUS[refused.refused], SHARED_REFUSED[refused.refused], refused.message)
   }
 
   async #doc(): Promise<SharedDoc | null> {

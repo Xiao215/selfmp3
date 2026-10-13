@@ -5,19 +5,18 @@ import { StyleSheet } from 'react-native-unistyles'
 import { fuzzyRank, plural, TAG_NAME_MAX, type Song, type Tag } from '@selfmp3/shared'
 import {
   failureText,
-  HIT_TARGET,
   space,
-  tagColors,
   type,
   useBulkTag,
   useCreateTag,
   useLibrary,
   useSetSongTags,
+  iconSize,
 } from '@selfmp3/client'
 import { useArtistNudge } from '../../features/tag/useArtistNudge'
 import { useLayoutValue } from '../../shell/useLayout'
 import { useAccent } from '../accent'
-import { Checkbox } from './Checkbox'
+import { Checkbox, CheckRow } from './Checkbox'
 import { Plus } from './Icons'
 import { usePanelDense } from './panel'
 import { Popover } from './Popover'
@@ -26,6 +25,8 @@ import { Press } from './Press'
 import { tagChanges, tagsAcross, undoTagChange } from './tagPicker.model'
 import { SearchField } from './SearchField'
 import { ScrollView } from './Scroll'
+import { TagDot } from './TagDot'
+import { menuItem } from '../surfaces'
 
 /**
  * Attach tags to a song.
@@ -371,9 +372,11 @@ export function TagSearchList({
           return (
             // A row the width of the panel, so it sinks to a row's depth rather
             // than a control's (`M1`, 1).
-            <Press
+            <CheckRow
               key={there ? item.id : `here:${item.id}`}
-              depth="row"
+              checked={on}
+              mixed={partly}
+              label={item.name}
               style={({ pressed }) => [
                 styles.item,
                 dense && styles.itemDense,
@@ -383,19 +386,14 @@ export function TagSearchList({
                 pick(offered)
                 setQuery('')
               }}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: on ? true : partly ? 'mixed' : false }}
-              // react-native-web does not turn `accessibilityState` into aria-checked.
-              aria-checked={on ? true : partly ? 'mixed' : false}
-              accessibilityLabel={item.name}
             >
               <Checkbox checked={on} mixed={partly} />
-              <View style={[styles.dot, { backgroundColor: tagColors(item.hue).dot }]} />
+              <TagDot hue={item.hue} />
               <Text style={styles.itemLabel} numberOfLines={1}>
                 {item.name}
               </Text>
               <Text style={styles.count}>{item.songCount}</Text>
-            </Press>
+            </CheckRow>
           )
         })}
         {ranked.length === 0 && !trimmed ? (
@@ -411,7 +409,7 @@ export function TagSearchList({
           accessibilityRole="button"
           accessibilityLabel={`Create ${trimmed}`}
         >
-          <Plus size={14} color={accent.accent} />
+          <Plus size={iconSize.field} color={accent.accent} />
           <Text style={[styles.itemLabel, { color: accent.accent }]} numberOfLines={1}>
             Create <Text style={styles.createName}>{trimmed}</Text>
           </Text>
@@ -442,16 +440,8 @@ const styles = StyleSheet.create(theme => ({
   // Gives way, with the list, when a sheet is held above the keyboard.
   root: { flexShrink: 1 },
   list: { maxHeight: 320, flexShrink: 1 },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    minHeight: HIT_TARGET,
-    paddingHorizontal: space.md,
-    borderRadius: 12,
-  },
+  item: menuItem,
   itemPressed: { backgroundColor: theme.colors.surface3 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
   itemLabel: { flex: 1, color: theme.colors.textPrimary, fontSize: type.body },
   count: { color: theme.colors.textMuted, fontSize: type.tiny },
   // Set apart from the list by room, not a rule.

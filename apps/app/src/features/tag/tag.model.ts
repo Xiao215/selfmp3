@@ -132,14 +132,32 @@ export function tagLine(standing: Pick<TagStanding, 'songs' | 'seconds'>): strin
   return count === 0 ? songs : `${songs} · ${formatLongDuration(standing.seconds)}`
 }
 
-/** The tag this name already is, whatever the case, so a new tag never makes a twin. */
+/**
+ * The tag this name already is, so a new tag never makes a twin: compared as
+ * the server compares names (`TagNameSchema`), whatever the case and however
+ * many spaces.
+ */
 export function existingTag<T extends { name: string }>(
   tags: readonly T[],
   name: string,
 ): T | null {
-  const wanted = name.trim().toLowerCase()
+  const wanted = sameName(name)
   if (!wanted) return null
-  return tags.find(tag => tag.name.trim().toLowerCase() === wanted) ?? null
+  return tags.find(tag => sameName(tag.name) === wanted) ?? null
+}
+
+function sameName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+/**
+ * Where tags would be, when there are none: said one way everywhere — the
+ * sidebar, Tags and the player's tag strip — which had said it four ways, one
+ * of them only true on a phone. Only that: how a tag is made is each place's
+ * own door (the sidebar's Add your first tag, Tags' +, a song's ⋯).
+ */
+export function noTagsLine(): string {
+  return 'No tags yet.'
 }
 
 /**

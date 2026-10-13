@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, type StyleProp, type TextStyle } from 'react-native'
+import { Text, type StyleProp, type TextStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { type } from '@selfmp3/client'
+import { hitSlopFor, leading, textStyle } from '@selfmp3/client'
+import { Press } from './Press'
 
 /**
  * "Why?", and the rest of a status card's explanation once it is pressed.
@@ -32,21 +33,21 @@ export function Why({
     )
   }
   return (
-    <Pressable
+    <Press
+      feedback="dim"
       onPress={() => setOpen(true)}
       accessibilityRole="button"
       accessibilityState={{ expanded: false }}
-      hitSlop={8}
-      style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+      hitSlop={hitSlopFor(leading.sub)}
+      style={styles.button}
       testID={testID}
     >
       <Text style={styles.label}>Why?</Text>
-    </Pressable>
+    </Press>
   )
 }
 
 const styles = StyleSheet.create(theme => ({
   button: { alignSelf: 'flex-start' },
-  pressed: { opacity: 0.6 },
-  label: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '600' },
+  label: { color: theme.colors.accent, fontWeight: '600', ...textStyle('sub') },
 }))

@@ -1,8 +1,7 @@
-import { cleanArtist, cleanTitle, type SpotifyLink } from '@selfmp3/shared'
+import { messageOf, cleanArtist, cleanTitle, type SpotifyLink } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import { BROWSER_USER_AGENT, type FetchLike } from './fetching.js'
 import { parseDurationValue, type ListedTrack } from './trackLists.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * A Spotify playlist, album or track, read from its public embed page.

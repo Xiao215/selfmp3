@@ -1,4 +1,5 @@
 import {
+  DOORMAN_PATHS,
   SharedActionSchema,
   SharedCreateSchema,
   SharedIdSchema,
@@ -12,7 +13,7 @@ import { Bucket } from './bucket.js'
 import { requireSession, type Context } from './context.js'
 import { relayRead } from './files.js'
 import { json, methodNotAllowed, notFound, readJson } from './http.js'
-import { randomHex } from './room.js'
+import { secureHex } from './encoding.js'
 import type { Session } from './sessions.js'
 
 /**
@@ -27,7 +28,7 @@ import type { Session } from './sessions.js'
  * before it is shown.
  */
 
-const SHARED = '/v1/shared'
+const SHARED = DOORMAN_PATHS.shared
 
 /** The playlists an account is in, as KV keeps them. */
 const IndexSchema = z.array(SharedIdSchema)
@@ -66,7 +67,7 @@ export function sharedObject(ctx: Context, id: string): DurableObjectStub {
 }
 
 export function newSharedId(): string {
-  return randomHex(8)
+  return secureHex(8)
 }
 
 export function post(body: unknown): RequestInit {

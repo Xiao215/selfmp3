@@ -2,13 +2,14 @@ import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { artistOr, plural, type Song, type TidyField, type TidyResult } from '@selfmp3/shared'
-import { useBulkEditSongs } from '@selfmp3/client'
+import { useBulkEditSongs, space } from '@selfmp3/client'
 import { useSongsById } from '../../ui/songsById'
-import { showToast } from '../../ui/toast'
+import { showUndoToast } from '../../ui/toast'
 import type { AnswerKeys } from './answerKeys'
 import { Review, reviewText, songCount, type ReviewRowState } from './Review'
 import { tidyEdits, tidyHere, tidyParts, type TidyHere } from './smart.model'
 import { useSmartServer } from './useSmartServer'
+import { AnswerLine, AnswerNote } from './AnswerParts'
 
 const FIELD: Record<TidyField, string> = {
   title: 'Title',
@@ -49,18 +50,18 @@ export function TidyReview({
   // Nothing to change is still an answer: what the model said about it comes first.
   if (here.length === 0) {
     return (
-      <View style={{ gap: 8 }}>
+      <View style={{ gap: space.sm }}>
         {result.reply ? (
           <Text style={reviewText.reply} selectable testID="tidy-reply">
             {result.reply}
           </Text>
         ) : null}
-        <Text style={reviewText.line} testID="tidy-nothing">
+        <AnswerLine testID="tidy-nothing">
           {result.asked !== null
             ? `Nothing to change in ${songCount(result.looked)}.`
             : `Nothing looks wrong in the names of your ${songCount(result.looked)}.`}
-        </Text>
-        {result.note ? <Text style={reviewText.note}>{result.note}</Text> : null}
+        </AnswerLine>
+        {result.note ? <AnswerNote>{result.note}</AnswerNote> : null}
       </View>
     )
   }
@@ -78,20 +79,12 @@ export function TidyReview({
       // The mutation says what failed itself.
       return false
     }
-    showToast(`Fixed ${plural(edits.length, 'song', 'songs')}`, 'good', {
-      actions: [
-        {
-          label: 'Undo',
-          onPress: () => {
-            save.mutateAsync({ edits: undo }).then(
-              () => showToast(`Put back ${plural(undo.length, 'song', 'songs')}`, 'info'),
-              // The mutation says what failed itself.
-              () => undefined,
-            )
-          },
-        },
-      ],
-    })
+    // The mutation says what failed itself.
+    showUndoToast(
+      `Fixed ${plural(edits.length, 'song', 'songs')}`,
+      () => save.mutateAsync({ edits: undo }),
+      { tone: 'good', after: `Put back ${plural(undo.length, 'song', 'songs')}` },
+    )
     return true
   }
 

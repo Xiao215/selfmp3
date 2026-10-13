@@ -1,22 +1,24 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { StyleProp, ViewStyle } from 'react-native'
-import { Animated, Pressable, Text, View } from 'react-native'
+import { Animated } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { radius, space, type } from '@selfmp3/client'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
-import { BackButton } from '../../ui/components/BackButton'
-import { ChevronRight, Sparkles } from '../../ui/components/Icons'
+import { PageHeader } from '../../ui/components/PageHeader'
+import { Button } from '../../ui/components/Button'
+import { NavRow } from '../../ui/components/NavRow'
+import { Sparkles } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Segmented } from '../../ui/components/Segmented'
 import { Select } from '../../ui/components/Select'
 import { ease, timing } from '../../ui/motion'
 import { MOVE_MS } from '../../ui/motion.model'
-import { PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageTitle } from '../../ui/surfaces'
+import { pageFrame } from '../../ui/surfaces'
 import { periodLabel, REPORT_HINT, STATS_PERIODS, type StatsPeriod } from './stats.model'
 import { ScrollView } from '../../ui/components/Scroll'
+import { space } from '@selfmp3/client'
 
 /** How far a set of numbers comes in from. */
 const SWAP_TRAVEL = 26
@@ -110,16 +112,15 @@ export function StatsFrame({
       >
         {/* The way back, then the page's name on the left under it (J1); on a
             phone the window's menu sits beside the name. A computer's windows
-            and the Report follow the name instead. */}
-        <BackButton to="/profile" testID="stats-back" />
-        <View style={styles.head}>
-          <View style={[styles.titles, wide ? null : styles.titlesPhone]}>
-            {/* No caption under the name: the window's own control says which
-                window this is, and a caption would say it twice. */}
-            <Text style={styles.heading} accessibilityRole="header">
-              Stats
-            </Text>
-            {wide ? null : (
+            and the Report follow the name instead. No caption under the name:
+            the window's own control says which window this is, and a caption
+            would say it twice. */}
+        <PageHeader
+          title="Stats"
+          back={{ to: '/profile', testID: 'stats-back' }}
+          style={styles.head}
+          beside={
+            wide ? undefined : (
               <Select
                 value={period}
                 onChange={onPeriod}
@@ -127,15 +128,22 @@ export function StatsFrame({
                 options={options}
                 testID="stats-range"
               />
-            )}
-          </View>
-          {wide ? (
-            <View style={styles.controls}>
-              <Segmented value={period} onChange={onPeriod} label="Time range" options={options} />
-              <ReportLink pill />
-            </View>
-          ) : null}
-        </View>
+            )
+          }
+          actions={
+            wide ? (
+              <>
+                <Segmented
+                  value={period}
+                  onChange={onPeriod}
+                  label="Time range"
+                  options={options}
+                />
+                <ReportLink pill />
+              </>
+            ) : undefined
+          }
+        />
         <Arriving
           order={STATS_PERIODS.indexOf(period)}
           style={wide ? styles.stackWide : styles.stack}
@@ -150,88 +158,37 @@ export function StatsFrame({
 }
 
 /**
- * "Report": a pill in the computer's header, the page's last row on a phone.
- * The row is drawn as You draws it, with its icon and what is behind it: the
- * bare word under the cards would read as a heading whose section never came.
+ * "Report": a button in the computer's header, the page's last row on a phone.
+ * The row is You's (`NavRow`), with its icon and what is behind it: the bare
+ * word under the cards would read as a heading whose section never came.
  */
 function ReportLink({ pill }: { pill: boolean }): ReactNode {
   const router = useRouter()
-  return (
-    <Pressable
-      onPress={() => router.push(REPORT_HREF)}
-      accessibilityRole="link"
-      accessibilityLabel={pill ? 'Report' : `Report, ${REPORT_HINT}`}
+  const open = (): void => router.push(REPORT_HREF)
+  return pill ? (
+    <Button label="Report" onPress={open} testID="stats-report" />
+  ) : (
+    <NavRow
+      icon={<Sparkles tone="textPrimary" />}
+      title="Report"
+      hint={REPORT_HINT}
+      onPress={open}
+      style={styles.line}
       testID="stats-report"
-      style={({ pressed }) => [
-        pill ? styles.pill : styles.line,
-        pressed && (pill ? styles.pillPressed : styles.linePressed),
-      ]}
-    >
-      {pill ? (
-        <Text style={styles.pillText}>Report</Text>
-      ) : (
-        <>
-          <View style={styles.lineIcon}>
-            <Sparkles size={19} tone="textPrimary" />
-          </View>
-          <View style={styles.lineWords}>
-            <Text style={styles.linkText} numberOfLines={1}>
-              Report
-            </Text>
-            <Text style={styles.linkHint} numberOfLines={1}>
-              {REPORT_HINT}
-            </Text>
-          </View>
-          <ChevronRight size={16} tone="textMuted" />
-        </>
-      )}
-    </Pressable>
+    />
   )
 }
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  content: { paddingBottom: 40, gap: 12 },
-  contentWide: { paddingTop: PAGE_TOP_WIDE, paddingHorizontal: space.gutterWide, gap: 14 },
-  contentNarrow: { paddingTop: PAGE_TOP_PHONE, paddingHorizontal: space.gutter },
+  content: { paddingBottom: 40, gap: space.md },
+  contentWide: { ...pageFrame(true), gap: space.roomy },
+  contentNarrow: pageFrame(false),
   // The blocks of the page are this view's children, not the scroll content's,
   // so the page's gap has to be repeated here or the cards and the ranking sit
   // flush against each other (Xiao, 2026-09-21).
-  stack: { gap: 12 },
-  stackWide: { gap: 14 },
-  head: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 8,
-  },
-  titles: { gap: 2, flexShrink: 1 },
-  titlesPhone: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  heading: pageTitle(theme.colors),
-  controls: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
-  pill: {
-    height: 36,
-    paddingHorizontal: 16,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface2,
-    justifyContent: 'center',
-  },
-  pillPressed: { backgroundColor: theme.colors.surface3 },
-  // You's rows (ProfileScreen.tsx), so the two pages' Report look alike.
-  line: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 60, marginTop: 4 },
-  linePressed: { opacity: 0.6 },
-  lineIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surface2,
-  },
-  lineWords: { flex: 1, minWidth: 0, gap: 2 },
-  pillText: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
-  linkText: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  linkHint: { color: theme.colors.textSecondary, fontSize: type.small },
+  stack: { gap: space.md },
+  stackWide: { gap: space.roomy },
+  head: { marginBottom: space.sm },
+  line: { marginTop: space.xs },
 }))

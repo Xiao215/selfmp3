@@ -1,4 +1,5 @@
-import { BUCKET_CAP_CODE, bucketHold, holdBucket } from '@selfmp3/replica'
+import { BUCKET_CAP_CODE, parseDoormanRefusal } from '@selfmp3/shared'
+import { bucketHold, holdBucket } from '@selfmp3/replica'
 import { streamFailureMessage } from './streamFailure.model'
 import { deviceKind } from './device'
 import { devicePlace } from '../features/settings/settings.model'
@@ -28,20 +29,10 @@ export async function askWhyRefused(
     if (response.ok || response.status === 206) return null
     const body = await response.text()
     const message = streamFailureMessage(response.status, body, devicePlace(deviceKind()))
-    if (refusedForTheDay(body)) holdBucket(message, 'read')
+    if (parseDoormanRefusal(body)?.code === BUCKET_CAP_CODE) holdBucket(message, 'read')
     return message
   } catch {
     // No answer at all: nothing to add to what failed.
     return null
-  }
-}
-
-/** The doorman's word for a bucket past its day's allowance (packages/replica/src/hold.ts). */
-function refusedForTheDay(body: string): boolean {
-  try {
-    const parsed: unknown = JSON.parse(body)
-    return (parsed as { code?: unknown } | null)?.code === BUCKET_CAP_CODE
-  } catch {
-    return false
   }
 }

@@ -2,10 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useLibrary } from '@selfmp3/client'
+import { useLibrary, iconSize } from '@selfmp3/client'
 import { Pencil, TagPlus } from '../../ui/components/Icons'
-import { Popover } from '../../ui/components/Popover'
-import { SheetItem } from '../../ui/components/Sheet'
 import { TagEditor } from '../../ui/components/TagEditor'
 import { AddSongsSheet } from '../playlistDetail/AddSongsSheet'
 import { PlaceMissing } from './PlaceMissing'
@@ -16,9 +14,9 @@ import { goBack } from '../../ui/useBackTo'
 
 /**
  * A tag's page, `/tag/<name>` (docs/ui-mock `P08`, `C06`). The name is found
- * whatever its case. Its ⋯ offers Tag songs… — adding a song to a tag is
- * tagging it (docs/features/lists.md) — and the editor that renames,
- * recolours or deletes it. Renamed, the address follows the new name;
+ * whatever its case. Its ⋯ offers what every list's does, then Tag songs… —
+ * adding a song to a tag is tagging it (docs/features/lists.md) — and the
+ * editor that renames, recolours or deletes it. Renamed, the address follows the new name;
  * deleted, the page goes back.
  */
 export function TagScreen(): ReactNode {
@@ -26,10 +24,9 @@ export function TagScreen(): ReactNode {
   const { name, play } = useLocalSearchParams<{ name: string; play?: string }>()
   const player = usePlayerCommands()
   const { data: library } = useLibrary()
-  const [menuOpen, setMenuOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [tagging, setTagging] = useState(false)
-  const anchor = useRef<View | null>(null)
+  const anchor = useRef<View>(null)
   // The tag this page is about, held by id once found, so a rename is followed.
   // A name in the address that is another tag's moves the page to that tag.
   const [tagId, setTagId] = useState<number | null>(null)
@@ -71,35 +68,24 @@ export function TagScreen(): ReactNode {
       <PlacePage
         key={tag.id}
         places={[{ kind: 'tag', tag }]}
-        menu={node => {
-          anchor.current = node
-          setMenuOpen(true)
-        }}
+        // The editor opens over the same ⋯.
+        menuAnchor={anchor}
+        menuItems={[
+          {
+            key: 'tag-songs',
+            label: 'Tag songs…',
+            icon: <TagPlus size={iconSize.item} tone="textSecondary" />,
+            apart: true,
+            onPress: () => setTagging(true),
+          },
+          {
+            key: 'edit',
+            label: 'Rename, colour or delete',
+            icon: <Pencil size={iconSize.item} tone="textSecondary" />,
+            onPress: () => setEditing(true),
+          },
+        ]}
       />
-      <Popover
-        open={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        anchorRef={anchor}
-        width={240}
-        testID="tag-menu"
-      >
-        <SheetItem
-          icon={<TagPlus size={16} tone="textSecondary" />}
-          label="Tag songs…"
-          onPress={() => {
-            setMenuOpen(false)
-            setTagging(true)
-          }}
-        />
-        <SheetItem
-          icon={<Pencil size={16} tone="textSecondary" />}
-          label="Rename, colour or delete"
-          onPress={() => {
-            setMenuOpen(false)
-            setEditing(true)
-          }}
-        />
-      </Popover>
       <AddSongsSheet
         open={tagging}
         onClose={() => setTagging(false)}

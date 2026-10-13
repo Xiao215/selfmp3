@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { artistOr, plural, type AskAnswer } from '@selfmp3/shared'
-import { leading, space, type } from '@selfmp3/client'
+import { space } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { SongLine } from '../../ui/components/SongLine'
+import { AnswerHead, AnswerNote } from './AnswerParts'
 
 /**
  * Music to import (docs/features/ai.md, "Getting music"): what 网易云 lists
@@ -29,9 +30,9 @@ export function GetMusicAnswer({
 
   return (
     <View style={styles.body} testID="ask-get-music">
-      <Text style={styles.head}>
+      <AnswerHead>
         {albums ? 'Albums on 网易云' : 'Songs on 网易云'} for “{answer.words}”
-      </Text>
+      </AnswerHead>
       {answer.items.map(item => (
         <SongLine
           key={item.url}
@@ -49,9 +50,7 @@ export function GetMusicAnswer({
           }
         />
       ))}
-      <Text style={styles.note}>
-        Import shows what each one holds before anything is downloaded.
-      </Text>
+      <AnswerNote>Import shows what each one holds before anything is downloaded.</AnswerNote>
     </View>
   )
 }
@@ -63,9 +62,7 @@ function haveText(item: { kind: 'album' | 'song'; tracks: number; have: number }
   return `${plural(item.tracks, 'song', 'songs')} · you have ${item.have}`
 }
 
-const styles = StyleSheet.create(theme => ({
+const styles = StyleSheet.create({
   body: { gap: space.sm },
-  head: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   row: { paddingHorizontal: 0 },
-  note: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
-}))
+})

@@ -4,6 +4,7 @@ import { afterWelcome, FIRST_SYNC_SEEN } from './firstSync.model'
 import {
   addressReady,
   backblazeReady,
+  cloudConnectInput,
   needsRegion,
   STORAGE_ROUTE,
   storageDue,
@@ -92,5 +93,26 @@ describe('where the bucket is, in words', () => {
         region: 'auto',
       }),
     ).toBe('selfmp3-xiao at abc123.r2.cloudflarestorage.com')
+  })
+})
+
+describe('the address as it is sent', () => {
+  const typed = {
+    endpoint: 's3.us-west-004.backblazeb2.com',
+    region: 'auto',
+    bucket: 'selfmp3-xiao',
+    prefix: 'selfmp3',
+    keyId: 'key',
+    applicationKey: 'secret',
+  }
+
+  it('leaves a typed region out when the address names its own', () => {
+    expect(cloudConnectInput(typed)).not.toHaveProperty('region')
+  })
+
+  it('sends the region for an address that does not name one', () => {
+    expect(
+      cloudConnectInput({ ...typed, endpoint: 'abc123.r2.cloudflarestorage.com' }).region,
+    ).toBe('auto')
   })
 })

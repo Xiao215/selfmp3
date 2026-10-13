@@ -1,34 +1,37 @@
 import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { formatLongDuration, plural, type Understanding } from '@selfmp3/shared'
 import {
   ApiError,
   failureText,
-  leading,
   type,
   useCreatePlaylist,
   useLibrary,
+  textStyle,
+  tracking,
+  iconSize,
+  space,
 } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
-import { Button, PlayButton } from '../../ui/components/Button'
+import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
-import { IconButton } from '../../ui/components/IconButton'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
-import { ChevronLeft, More, Play, Shuffle, Sparkle } from '../../ui/components/Icons'
+import { ListMusic, Sparkle } from '../../ui/components/Icons'
+import { MoreMenu } from '../../ui/components/MoreMenu'
+import { PlayShuffle } from '../../ui/components/PlayShuffle'
+import { BackButton } from '../../ui/components/BackButton'
+import { MissingPage } from '../../ui/components/MissingPage'
 import { OrderedSongList } from '../../ui/components/OrderedSongList'
-import { Popover } from '../../ui/components/Popover'
-import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { SheetItem } from '../../ui/components/Sheet'
+import { useListActions } from '../../ui/components/useListActions'
 import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
 import { showToast } from '../../ui/toast'
-import { serif } from '../../ui/surfaces'
 import { useSongsById } from '../../ui/songsById'
 import { useSongColor } from '../../ui/useSongColor'
 import type { ListSource } from '../lists/lists.model'
@@ -39,7 +42,8 @@ import { changeAnswer, reorderAnswer, useKeptAnswer } from './answers.store'
 import { ChangeIt } from './ChangeIt'
 import { answerSongs, describeNotes, parts } from './smart.model'
 import { useSmartServer } from './useSmartServer'
-import { useGoBack } from '../../ui/useBackTo'
+import { StatusLine } from '../../ui/components/StatusLine'
+import { OPACITY } from '../../ui/motion.model'
 
 /**
  * An answer to Ask as a page of its own, `/answer?id=…` (docs/features/lists.md,
@@ -48,8 +52,9 @@ import { useGoBack } from '../../ui/useBackTo'
  * (`OrderedSongList`) — select them, hold one to move it, its ⋯ for the song.
  * Nothing here is a row of its own.
  *
- * The head is Play, Shuffle and Different songs; the ⋯ holds Select songs,
- * and Add to Up next and Save as playlist for an answer you already trust.
+ * The head is Play, Shuffle and Different songs; the ⋯ holds what every
+ * list's does — Select songs, Play next, Add to Up next — and Save as playlist
+ * for an answer you already trust.
  * Otherwise nothing asks you to keep it before you have heard it: played, it
  * is Up next by the name of your question, and Save is there. The order you
  * put it in is the order it plays and saves in, for as long as the app is open.
@@ -58,7 +63,6 @@ import { useGoBack } from '../../ui/useBackTo'
  * Different songs picks again from what is left.
  */
 export function AnswerScreen(): ReactNode {
-  const { theme } = useUnistyles()
   const router = useRouter()
   const { wide } = useLayout()
   const { id } = useLocalSearchParams<{ id?: string }>()
@@ -70,9 +74,7 @@ export function AnswerScreen(): ReactNode {
   const byId = useSongsById()
   const artFor = useArt()
   const [edited, setEdited] = useState<Understanding | null>(null)
-  const [menuOpen, setMenuOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const moreRef = useRef<View>(null)
   const heroRef = useRef<View>(null)
   const fly = useFlyToUpNext()
 
@@ -84,6 +86,8 @@ export function AnswerScreen(): ReactNode {
   )
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   const selection = useSelection(ids)
+  // Add to Up next adds, as everywhere: it had played the answer next (T-383).
+  const listActions = useListActions(ids, { heroRef, selection })
   // Always mounted, told when to show (as on a tag's page).
   const bar = useListSelectionBar({ songs, selection, scope: 'in this answer', wide })
   const lead = useMemo(() => songs.find(song => song.hasArt) ?? songs[0] ?? null, [songs])
@@ -105,21 +109,15 @@ export function AnswerScreen(): ReactNode {
     },
   })
 
-  const back = useGoBack('/search')
-
   if (!kept || !result) {
     return (
-      <SafeAreaView style={styles.screen} edges={['top']}>
-        <View style={styles.gone} testID="answer-gone">
-          <Text style={styles.goneTitle} accessibilityRole="header">
-            This answer is gone
-          </Text>
-          <Text style={styles.goneText}>
-            Answers are kept while the app is open. Ask again and it will pick again.
-          </Text>
-          <Button label="Search" onPress={() => router.replace('/search')} />
-        </View>
-      </SafeAreaView>
+      <MissingPage
+        testID="answer-gone"
+        title="This answer is gone"
+        line="Answers are kept while the app is open. Ask again and it will pick again."
+        back="/search"
+        action={{ label: 'Search', onPress: () => router.replace('/search') }}
+      />
     )
   }
 
@@ -141,7 +139,6 @@ export function AnswerScreen(): ReactNode {
     : describeNotes(result, ids.length).slice(1)
 
   const save = async (): Promise<void> => {
-    setMenuOpen(false)
     const input = newPlaylist('manual', result.understanding.name)
     if (!input || ids.length === 0 || saving) return
     setSaving(true)
@@ -170,19 +167,24 @@ export function AnswerScreen(): ReactNode {
       art={null}
       topBar={
         <>
-          <IconButton label="Back" onPress={back} filled>
-            <ChevronLeft size={20} tone="textPrimary" />
-          </IconButton>
-          <View ref={moreRef} collapsable={false}>
-            <IconButton
-              label="More for this answer"
-              onPress={() => setMenuOpen(true)}
-              filled
-              testID="answer-more"
-            >
-              <More size={18} tone="textPrimary" />
-            </IconButton>
-          </View>
+          <BackButton to="/search" always />
+          <MoreMenu
+            name={result.understanding.name}
+            title={result.understanding.name}
+            testID="answer-more"
+            menuTestID="answer-menu"
+            items={[
+              ...listActions,
+              {
+                key: 'save',
+                label: saving ? 'Saving…' : 'Save as playlist',
+                icon: <ListMusic tone="textSecondary" />,
+                disabled: ids.length === 0 || saving,
+                apart: true,
+                onPress: () => void save(),
+              },
+            ]}
+          />
         </>
       }
       heroRef={heroRef}
@@ -190,7 +192,7 @@ export function AnswerScreen(): ReactNode {
       titles={
         <>
           <View style={listHeadText.kind}>
-            <Sparkle size={11} />
+            <Sparkle size={iconSize.tiny} />
             <Text style={listHeadText.kindText}>Picked for you</Text>
           </View>
           <Text
@@ -228,27 +230,21 @@ export function AnswerScreen(): ReactNode {
             </Text>
           ))}
           {again.error ? (
-            <Text style={styles.error}>{failureText('Couldn’t pick again', again.error)}</Text>
+            <StatusLine>{failureText('Couldn’t pick again', again.error)}</StatusLine>
           ) : null}
         </>
       }
       actions={
         <>
-          <PlayButton
-            label={`Play the songs picked for “${kept.text}”`}
-            icon={<Play size={24} color={theme.colors.onPrimary} />}
-            disabled={ids.length === 0 || edited !== null}
-            onPress={() => play(0)}
-            testID="answer-play"
-          />
-          <Button
-            accessibilityLabel="Shuffle"
-            icon={<Shuffle size={16} tone="textPrimary" />}
-            disabled={ids.length === 0 || edited !== null}
-            onPress={() => {
-              fly(heroRef.current, ids)
-              player.playShuffled(ids, source)
-            }}
+          <PlayShuffle
+            name={`the songs picked for “${kept.text}”`}
+            songIds={ids}
+            // Changed and not yet picked again: what is shown is not the answer.
+            disabled={edited !== null}
+            heroRef={heroRef}
+            onPlay={() => player.playFrom(ids, 0, { source })}
+            onShuffle={() => player.playShuffled(ids, source)}
+            testPrefix="answer"
           />
           <Button
             label="Different songs"
@@ -267,7 +263,7 @@ export function AnswerScreen(): ReactNode {
 
   return (
     <View style={styles.screen} testID="answer-page">
-      {bar.floating}
+      {bar.beforeList}
       <View style={[styles.listArea, edited && styles.stale]}>
         <OrderedSongList
           songs={songs}
@@ -280,38 +276,6 @@ export function AnswerScreen(): ReactNode {
           contentContainerStyle={bar.listPadding}
         />
       </View>
-
-      <Popover
-        open={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        anchorRef={moreRef}
-        width={220}
-        testID="answer-menu"
-      >
-        {/* Holding a row moves it here (D1), so selecting starts from this menu. */}
-        <SheetItem
-          label="Select songs"
-          disabled={ids.length === 0}
-          onPress={() => {
-            setMenuOpen(false)
-            selection.enter()
-          }}
-        />
-        <SheetItem
-          label="Add to Up next"
-          disabled={ids.length === 0}
-          onPress={() => {
-            setMenuOpen(false)
-            fly(heroRef.current, ids)
-            player.playNext(ids)
-          }}
-        />
-        <SheetItem
-          label={saving ? 'Saving…' : 'Save as playlist'}
-          disabled={ids.length === 0 || saving}
-          onPress={() => void save()}
-        />
-      </Popover>
     </View>
   )
 }
@@ -322,13 +286,9 @@ const WIDE = { titles: { flexBasis: 260 } } as const
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   listArea: { flex: 1, minHeight: 0 },
-  stale: { opacity: 0.55 },
+  stale: { opacity: OPACITY.dim },
   // Words asked run longer than a tag's name: smaller, so three lines still hold them.
-  nameLong: { fontSize: type.page, lineHeight: leading.page, letterSpacing: -0.4 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 6 },
+  nameLong: { ...textStyle('page'), letterSpacing: tracking.page },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, paddingTop: space.tight },
   note: { color: theme.colors.textMuted, fontSize: type.small },
-  error: { color: theme.colors.danger, fontSize: type.sub },
-  gone: { padding: 24, gap: 12, alignItems: 'flex-start' },
-  goneTitle: { ...serif(theme.colors, type.page) },
-  goneText: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
 }))

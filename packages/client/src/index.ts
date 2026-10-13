@@ -5,7 +5,7 @@
  * compiled without the DOM so the same code runs in a browser, on a phone and
  * in a test. Everything platform-shaped is an interface in `platform.ts`.
  */
-export type { ApiTransport, ClientFetch, ClientRequestInit } from './platform.js'
+export type { ApiTransport, ClientRequestInit } from './platform.js'
 
 export { ApiError, failureText } from './api/error.js'
 export { createApi, type Api } from './api/api.js'
@@ -37,7 +37,6 @@ export * from './downloads/syncPolicy.js'
 // Songs kept because they were played: the budget, and the kept list as stored.
 export * from './downloads/recentCopies.js'
 // Progress at a pace a screen can draw, and background work a few at a time.
-export * from './downloads/throttle.js'
 export * from './downloads/limited.js'
 export * from './queue/playable.js'
 export * from './queue/recovery.js'
@@ -85,7 +84,9 @@ export type {
   PlaybackEngine,
   TrackMetadata,
 } from './ports/engine.js'
-export type { ServerEventStream } from './ports/events.js'
+// What both engines do the same way: state, listeners, wiring, the level and mute rule.
+export * from './ports/engineCore.js'
+export { parseServerEventData, type ServerEventStream } from './ports/events.js'
 export { DownloadQueue, type DownloadQueueState } from './downloads/queue.js'
 export type { DownloadStorage, DownloadTransfer, TransferProgress } from './ports/offline.js'
 export {

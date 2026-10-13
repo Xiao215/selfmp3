@@ -1,6 +1,6 @@
 import type { Database } from 'better-sqlite3'
+import { messageOf } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * The database schema, and how a database comes to have it.
@@ -845,6 +845,53 @@ const MIGRATIONS: readonly Migration[] = [
         count       INTEGER NOT NULL,
         sig         TEXT    NOT NULL,
         uploaded_at TEXT    NOT NULL
+      );
+    `,
+  },
+  {
+    // 41. A tag's id is never given out twice. Without AUTOINCREMENT, SQLite
+    // hands a new row the highest id there is plus one, so deleting the
+    // newest tag and making another gave the new one the old id — and a live
+    // playlist whose rules still named the old tag silently followed the new
+    // one, where every device (which names it by uid, `MISSING_TAG_UID` once
+    // it is gone) went on matching nothing. Made again under a new name, as 35
+    // made it, and the sequence starts past every id anything still names: a
+    // tag a rule or a waiting import kept after it was deleted.
+    name: 'a tag’s id is never given out twice',
+    foreignKeysOff: true,
+    sql: `
+      CREATE TABLE tags_new (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        name       TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+        hue        INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+        uid        TEXT    NOT NULL DEFAULT (lower(hex(randomblob(16))))
+      );
+      INSERT INTO tags_new (id, name, hue, created_at, uid)
+      SELECT id, name, hue, created_at, uid FROM tags;
+      DROP TABLE tags;
+      ALTER TABLE tags_new RENAME TO tags;
+      CREATE UNIQUE INDEX idx_tags_uid ON tags(uid);
+      CREATE TRIGGER sync_stamps_tag_delete AFTER DELETE ON tags BEGIN
+        DELETE FROM sync_stamps WHERE kind = 'tag' AND uid = old.uid;
+        DELETE FROM sync_stamps WHERE kind = 'songTag' AND field = old.uid;
+      END;
+
+      DELETE FROM sqlite_sequence WHERE name = 'tags';
+      INSERT INTO sqlite_sequence (name, seq)
+      SELECT 'tags', max(
+        coalesce((SELECT max(id) FROM tags), 0),
+        coalesce((
+          SELECT max(CAST(json_extract(rule.value, '$.tagId') AS INTEGER))
+            FROM playlists p,
+                 json_each(CASE WHEN json_valid(p.rules) THEN p.rules ELSE '{}' END, '$.rules') rule
+           WHERE json_extract(rule.value, '$.field') = 'tag'
+        ), 0),
+        coalesce((
+          SELECT max(CAST(tag.value AS INTEGER))
+            FROM import_jobs j,
+                 json_each(CASE WHEN json_valid(j.tag_ids) THEN j.tag_ids ELSE '[]' END) tag
+        ), 0)
       );
     `,
   },

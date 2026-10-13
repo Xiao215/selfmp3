@@ -3,6 +3,7 @@ import {
   BulkTagSchema,
   CreateTagSchema,
   RenameTagSchema,
+  tagRenameProblem,
   type Affected,
   type Ok,
 } from '@selfmp3/shared'
@@ -33,12 +34,8 @@ export function tagRoutes(container: Container): Router {
     route({ params: ParamsWithId, body: RenameTagSchema }, ({ params, body }) => {
       if (!container.tags.byId(params.id)) throw HttpError.notFound('no such tag')
 
-      if (body.name !== undefined) {
-        const clash = container.tags.byName(body.name)
-        if (clash && clash.id !== params.id) {
-          throw HttpError.conflict(`a tag called "${body.name}" already exists`)
-        }
-      }
+      const clash = tagRenameProblem(container.tags.all(), params.id, body.name)
+      if (clash) throw HttpError.refused(clash)
 
       const updated = container.tags.update(params.id, {
         ...(body.name !== undefined ? { name: body.name } : {}),

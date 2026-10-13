@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { DEEP_LINK_SCHEME } from './channels.js'
+import { DEEP_LINK_SCHEME } from '@selfmp3/shared/wire'
 
 /**
  * Everything that crosses the preload boundary, as a zod schema.
@@ -77,7 +77,11 @@ export const externalUrlSchema = z
     message: 'only http and https URLs may be opened outside the app',
   })
 
-/** A `selfmp3://` URL the operating system handed the app. */
+/**
+ * A `selfmp3://` URL the operating system handed the app: shared's
+ * `DEEP_LINK_SCHEME`, which the shell claims, `deepLinks.ts` picks out of
+ * argv, and the phone and the doorman name too.
+ */
 export const deepLinkSchema = z.string().startsWith(`${DEEP_LINK_SCHEME}://`)
 
 /**

@@ -1,10 +1,10 @@
+import { messageOf } from '@selfmp3/shared'
 import { APP_NAME, APP_VERSION, loadConfig } from './config.js'
 import { createHubApp } from './hub/app.js'
 import { Hub } from './hub/hub.js'
 import { speakHttp1 } from './http/outgoing.js'
 import { createLogger, type Logger } from './logger.js'
 import { beyondThisComputer, listenAddresses, publishedAddresses } from './services/addresses.js'
-import { messageOf } from './util/errors.js'
 
 /**
  * Entry point.

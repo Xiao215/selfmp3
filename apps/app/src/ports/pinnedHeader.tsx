@@ -1,6 +1,7 @@
 import { createContext, useContext, useImperativeHandle, useMemo } from 'react'
 import type { ReactNode, Ref } from 'react'
 import { Animated, type FlatListProps, type LayoutChangeEvent } from 'react-native'
+import { Z } from '../ui/surfaces'
 
 /**
  * Keeping what is drawn under a list's header at the top once the head has
@@ -60,7 +61,7 @@ function PinnedHeader({
   const stay = useMemo(
     () => ({
       // Over the songs it pins above.
-      zIndex: 10,
+      zIndex: Z.pinnedHeader,
       transform: [
         {
           translateY: scrollAnimatedValue.interpolate({

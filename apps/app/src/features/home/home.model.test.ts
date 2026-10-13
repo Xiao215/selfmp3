@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Song, Tag } from '@selfmp3/shared'
-import { greeting, homeTiles, streakLine, sundayCard } from './home.model'
+import { greeting, homeTiles, streakLine, sundayCard, sundaySpoken } from './home.model'
 
 const song = (id: number, extra: Partial<Song> = {}): Song => ({
   id,
@@ -144,5 +144,25 @@ describe('the Sunday card', () => {
 
   it('leaves out a streak of one day, and an artist it does not know', () => {
     expect(sundayCard(sunday, { ...week, streakDays: 1, topArtists: [] })?.line).toBe('2 hr 14 min')
+  })
+})
+
+describe('the Sunday card, read out', () => {
+  const card = {
+    title: 'Your week is ready',
+    line: '2 hr 14 min · Yorushika, mostly',
+    song: { songId: 3, title: 'ただ君に晴れ', note: 'Song of the week · 14 plays' },
+  }
+
+  it('says the song and the line, on a phone and a computer alike', () => {
+    expect(sundaySpoken(card)).toBe(
+      'Your week is ready. ただ君に晴れ, Song of the week · 14 plays. 2 hr 14 min · Yorushika, mostly',
+    )
+  })
+
+  it('says the week alone without a song', () => {
+    expect(sundaySpoken({ ...card, song: null })).toBe(
+      'Your week is ready. 2 hr 14 min · Yorushika, mostly',
+    )
   })
 })

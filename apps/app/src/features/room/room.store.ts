@@ -1,6 +1,9 @@
 import { useSyncExternalStore } from 'react'
 import {
+  DOORMAN_ERROR,
+  DoormanError,
   RoomServerMessageSchema,
+  type DoormanFetch,
   type RoomAction,
   type RoomCreate,
   type RoomState,
@@ -8,10 +11,8 @@ import {
 import {
   clockOffset,
   createRoomApi,
-  RoomError,
   withClockSample,
   type ClockSample,
-  type ClientFetch,
   type RoomPass,
 } from '@selfmp3/client'
 import { doormanUrl } from '../../ports/doormanUrl'
@@ -47,13 +48,12 @@ const PING_MS = 10_000
 /** The longest wait between tries at reconnecting. */
 const MAX_BACKOFF_MS = 15_000
 
-/** The global fetch, as the client package's rooms ask for one. */
-export const plainFetch: ClientFetch = (url, init) =>
-  fetch(url, {
-    ...(init?.method ? { method: init.method } : {}),
-    ...(init?.headers ? { headers: init.headers } : {}),
-    ...(init?.body ? { body: init.body } : {}),
-  })
+/**
+ * The global fetch, as packages/shared's doorman client asks for one. Its
+ * shapes are structural and have no DOM in them, so the body's type is the
+ * platform's to vouch for, as `cloudPlatform` does.
+ */
+export const plainFetch: DoormanFetch = (url, init) => fetch(url, init as RequestInit)
 
 export const roomApi = createRoomApi(doormanUrl, plainFetch)
 
@@ -223,7 +223,7 @@ export function connectRoom(): void {
           connectRoom()
         },
         (error: unknown) => {
-          if (error instanceof RoomError && error.gone) finish()
+          if (error instanceof DoormanError && error.gone) finish()
           else connectRoom()
         },
       )
@@ -287,7 +287,7 @@ async function sessionToken(): Promise<string | null> {
 /** Open a room: needs this device signed in. */
 export async function startRoom(input: RoomCreate): Promise<RoomState> {
   const token = await sessionToken()
-  if (!token) throw new RoomError(401, 'unauthorized', 'sign in to open a room')
+  if (!token) throw new DoormanError(401, DOORMAN_ERROR.unauthorized, 'sign in to open a room')
   const joined = await roomApi.create(token, input)
   enter({ code: joined.code, member: joined.member, token: joined.token }, joined.state)
   return joined.state
@@ -303,7 +303,7 @@ export async function joinRoom(code: string, name: string): Promise<RoomState> {
 /** Do something in the room; the answer is the room as it now is. */
 export async function roomAct(action: RoomAction): Promise<RoomState> {
   const pass = view.pass
-  if (!pass) throw new RoomError(404, 'room_missing', 'you are not in a room')
+  if (!pass) throw new DoormanError(404, DOORMAN_ERROR.roomMissing, 'you are not in a room')
   try {
     const state = await roomApi.act(
       pass,
@@ -313,7 +313,7 @@ export async function roomAct(action: RoomAction): Promise<RoomState> {
     if (view.pass === pass) set({ state })
     return state
   } catch (error) {
-    if (error instanceof RoomError && error.gone) finish()
+    if (error instanceof DoormanError && error.gone) finish()
     throw error
   }
 }

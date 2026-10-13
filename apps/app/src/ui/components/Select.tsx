@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
+import { HIT_TARGET, motion, radius, space, type, iconSize } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
 import { useFade } from '../motion'
 import { Popover } from './Popover'
@@ -76,7 +76,7 @@ export function Select<T extends string | number>({
       disabled={option.disabled}
       icon={
         <View style={styles.checkSlot}>
-          {option.value === value ? <Check size={14} tone="accent" /> : null}
+          {option.value === value ? <Check size={iconSize.field} tone="accent" /> : null}
         </View>
       }
       active={option.value === value}
@@ -125,7 +125,10 @@ export function Select<T extends string | number>({
           {current?.label ?? label}
         </Text>
         <Animated.View style={chevron}>
-          <ChevronDown size={size === 'normal' ? 15 : 12} tone="textMuted" />
+          <ChevronDown
+            size={size === 'normal' ? iconSize.button : iconSize.small}
+            tone="textMuted"
+          />
         </Animated.View>
       </Press>
 
@@ -158,23 +161,23 @@ const styles = StyleSheet.create(theme => ({
   /* With a mouse: 7 by 10, 13-point type. */
   controlDense: {
     minHeight: 36,
-    paddingLeft: 10,
+    paddingLeft: space.snug,
     paddingRight: 9,
   },
   /* `small`: 5 by 8, 12-point type. */
   controlSmall: {
     minHeight: 30,
-    gap: 6,
+    gap: space.tight,
     paddingLeft: space.sm,
     paddingRight: 7,
   },
   /* `inline`: part of a sentence, on a lighter ground. */
   controlInline: {
     minHeight: 0,
-    gap: 4,
+    gap: space.xs,
     paddingVertical: 2,
-    paddingLeft: 6,
-    paddingRight: 4,
+    paddingLeft: space.tight,
+    paddingRight: space.xs,
     backgroundColor: theme.colors.surface3,
   },
   valueDense: {

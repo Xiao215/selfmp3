@@ -20,7 +20,7 @@ import {
 } from '../ui/components/listScrollbar.model'
 import { useMotionReduced } from '../ui/motion'
 import { EASE_IN_CSS, EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
-import { floating } from '../ui/surfaces'
+import { floating, Z } from '../ui/surfaces'
 import { useSongColor } from '../ui/useSongColor'
 
 /**
@@ -63,14 +63,8 @@ interface Box {
 const INSET = 6
 /** How near the right edge the pointer brings the bar out. */
 const EDGE = 28
-/** How long the bar stays after the list stops or the pointer leaves it. */
-const LINGER_MS = 1100
 const BUBBLE_HEIGHT = 36
 const MARK_SIZE = 10
-/** The bar fading away once it is no longer wanted, slower than it came. */
-const BAR_OUT_MS = 350
-/** The playing song's mark on the track, fading in and out. */
-const MARK_IN_MS = 250
 /** react-native-web's own `System` stack: these are DOM elements, not `Text`. */
 const FONT_STACK =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
@@ -233,7 +227,7 @@ function Scrollbar({
   const reveal = (): void => {
     setShown(true)
     window.clearTimeout(hideTimer.current)
-    hideTimer.current = window.setTimeout(() => setShown(false), LINGER_MS)
+    hideTimer.current = window.setTimeout(() => setShown(false), MOVE_MS.scrollbarLinger)
   }
 
   // The list's own scroll moves everything; a size change does too.
@@ -350,13 +344,15 @@ function Scrollbar({
           right: 2,
           width: 16,
           height: Math.max(0, box.height - INSET * 2),
-          zIndex: 11,
+          zIndex: Z.scrollbar,
           borderRadius: radius.pill,
           touchAction: 'none',
           backgroundColor: wide ? withAlpha(theme.colors.textPrimary, 0.06) : 'transparent',
           opacity: out ? 1 : 0,
           pointerEvents: out ? 'auto' : 'none',
-          transition: out ? fade(MOVE_MS.hoverIn, EASE_OUT_CSS) : fade(BAR_OUT_MS, EASE_IN_CSS),
+          transition: out
+            ? fade(MOVE_MS.hoverIn, EASE_OUT_CSS)
+            : fade(MOVE_MS.scrollbarOut, EASE_IN_CSS),
         }}
       >
         <div
@@ -384,7 +380,7 @@ function Scrollbar({
             maxWidth: 240,
             boxSizing: 'border-box',
             padding: '0 14px',
-            borderRadius: 12,
+            borderRadius: radius.item,
             lineHeight: `${BUBBLE_HEIGHT}px`,
             textAlign: 'center',
             whiteSpace: 'nowrap',
@@ -424,10 +420,10 @@ function Scrollbar({
             backgroundColor: tint,
             boxShadow: `0 0 0 2px ${theme.colors.surface0}`,
             cursor: 'pointer',
-            zIndex: 12,
+            zIndex: Z.scrollbarMark,
             opacity: 0,
             pointerEvents: 'none',
-            transition: fade(MARK_IN_MS, EASE_OUT_CSS),
+            transition: fade(MOVE_MS.scrollbarMark, EASE_OUT_CSS),
           }}
         />
       ) : null}

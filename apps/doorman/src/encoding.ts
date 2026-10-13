@@ -4,6 +4,8 @@
  * code is exactly the code the tests run.
  */
 
+import { randomHex } from '@selfmp3/shared'
+
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 
@@ -60,6 +62,17 @@ function toHex(bytes: ArrayBuffer | Uint8Array): string {
   let out = ''
   for (const byte of new Uint8Array(bytes)) out += byte.toString(16).padStart(2, '0')
   return out
+}
+
+/**
+ * `bytes` random bytes as lowercase hex, drawn from the platform's
+ * cryptographic source: every id and token the doorman hands out must not be
+ * guessed, so it never takes shared `randomHex`'s fallback.
+ */
+export function secureHex(bytes: number): string {
+  return randomHex(bytes, into => {
+    crypto.getRandomValues(into)
+  })
 }
 
 export function randomBytes(length: number): Uint8Array {

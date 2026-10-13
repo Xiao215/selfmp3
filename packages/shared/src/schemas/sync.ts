@@ -119,6 +119,18 @@ export const PlaylistOrderedSchema = z.object({
 })
 
 /**
+ * A playlist that followed tags stops: it keeps the songs it had then, in
+ * that order, as its own, and is a manual playlist from now on. The songs
+ * travel with it because they are the rule's answer on the device that
+ * stopped it, and that answer is what the person saw and chose to keep.
+ */
+export const PlaylistUnfollowedSchema = z.object({
+  type: z.literal('playlistUnfollowed'),
+  ...at,
+  songUids: z.array(UidSchema).max(5000),
+})
+
+/**
  * A link to import, from a device that cannot fetch it itself — an iPhone,
  * a browser. The server picks it up, downloads it with yt-dlp, and says how it
  * went in its next snapshot's `imports`.
@@ -153,6 +165,7 @@ export const ChangeSchema = z.discriminatedUnion('type', [
   PlaylistRemovedSchema,
   PlaylistSongSchema,
   PlaylistOrderedSchema,
+  PlaylistUnfollowedSchema,
   ImportRequestedSchema,
   ImportCancelledSchema,
 ])

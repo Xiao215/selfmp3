@@ -4,9 +4,9 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
+import { messageOf } from '@selfmp3/shared'
 import { USER_AGENT, type Config } from '../config.js'
 import type { Logger } from '../logger.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * The listening model's files, and getting them onto this machine.

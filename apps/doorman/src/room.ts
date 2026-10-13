@@ -1,4 +1,6 @@
 import {
+  DOORMAN_ERROR,
+  type DoormanErrorCode,
   ROOM_IDLE_MS,
   RoomActionSchema,
   RoomClientMessageSchema,
@@ -29,7 +31,7 @@ import {
   type RoomServerMessage,
 } from '@selfmp3/shared'
 import { z } from 'zod'
-import { sha256Hex } from './encoding.js'
+import { secureHex, sha256Hex } from './encoding.js'
 
 /**
  * One room: a Durable Object per room code (docs/features/listen-together.md).
@@ -140,6 +142,15 @@ export const LentFileSchema = z.union([
 ])
 type LentFile = z.infer<typeof LentFileSchema>
 
+/** A refusal's code, by what was refused. */
+const ROOM_REFUSED: Readonly<Record<RoomRefusal['refused'], DoormanErrorCode>> = {
+  forbidden: DOORMAN_ERROR.roomForbidden,
+  missing: DOORMAN_ERROR.roomMissing,
+  full: DOORMAN_ERROR.roomFull,
+  ended: DOORMAN_ERROR.roomEnded,
+  invalid: DOORMAN_ERROR.roomInvalid,
+}
+
 const STATUS: Readonly<Record<RoomRefusal['refused'], number>> = {
   forbidden: 403,
   missing: 404,
@@ -148,12 +159,12 @@ const STATUS: Readonly<Record<RoomRefusal['refused'], number>> = {
   invalid: 400,
 }
 
-function answer(status: number, code: string, error: string): Response {
+function answer(status: number, code: DoormanErrorCode, error: string): Response {
   return Response.json({ error, code }, { status })
 }
 
 function refusal(refused: RoomRefusal): Response {
-  return answer(STATUS[refused.refused], `room_${refused.refused}`, refused.message)
+  return answer(STATUS[refused.refused], ROOM_REFUSED[refused.refused], refused.message)
 }
 
 export class Room {
@@ -166,8 +177,8 @@ export class Room {
     ids: { readonly newId?: () => string; readonly newToken?: () => string } = {},
   ) {
     this.#runtime = runtime
-    this.#newId = ids.newId ?? (() => randomHex(6))
-    this.#newToken = ids.newToken ?? (() => randomHex(16))
+    this.#newId = ids.newId ?? (() => secureHex(6))
+    this.#newToken = ids.newToken ?? (() => secureHex(16))
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -197,11 +208,11 @@ export class Room {
         case 'POST /link-server':
           return await this.#linkServer(url, LinkServerRequestSchema.parse(await request.json()))
         default:
-          return answer(404, 'not_found', 'no such endpoint')
+          return answer(404, DOORMAN_ERROR.notFound, 'no such endpoint')
       }
     } catch (error) {
       if (error instanceof z.ZodError)
-        return answer(400, 'bad_request', 'that is not a room request')
+        return answer(400, DOORMAN_ERROR.badRequest, 'that is not a room request')
       throw error
     }
   }
@@ -241,7 +252,7 @@ export class Room {
   }
 
   async #create(input: CreateRequest): Promise<Response> {
-    if (await this.#doc()) return answer(409, 'room_taken', 'that code is in use')
+    if (await this.#doc()) return answer(409, DOORMAN_ERROR.roomTaken, 'that code is in use')
     const now = this.#runtime.now()
     const member = this.#newId()
     const token = this.#newToken()
@@ -264,7 +275,7 @@ export class Room {
 
   async #join(input: JoinRequest): Promise<Response> {
     const doc = await this.#doc()
-    if (!doc) return answer(404, 'room_missing', 'no room has that code')
+    if (!doc) return answer(404, DOORMAN_ERROR.roomMissing, 'no room has that code')
     const secrets = await this.#secrets()
     const now = this.#runtime.now()
     const member = this.#newId()
@@ -298,7 +309,7 @@ export class Room {
       // the Worker must have seen them signed in as the member who joined.
       const secrets = await this.#secrets()
       if (!input.sub || secrets.subs[member] !== input.sub) {
-        return answer(403, 'room_forbidden', 'sign in as yourself to bring your songs')
+        return answer(403, DOORMAN_ERROR.roomForbidden, 'sign in as yourself to bring your songs')
       }
     }
     const next = applyRoomAction(doc, member, input.action, this.#runtime.now(), this.#newId)
@@ -309,7 +320,7 @@ export class Room {
 
   async #socket(request: Request, url: URL): Promise<Response> {
     if (request.headers.get('upgrade')?.toLowerCase() !== 'websocket') {
-      return answer(426, 'upgrade_required', 'open this as a WebSocket')
+      return answer(426, DOORMAN_ERROR.upgradeRequired, 'open this as a WebSocket')
     }
     const found = await this.#member(url)
     if (found instanceof Response) return found
@@ -326,13 +337,13 @@ export class Room {
     const part = RoomFilePartSchema.safeParse(url.searchParams.get('part'))
     const entry = canReadEntry(found.doc, found.member, url.searchParams.get('entry') ?? '')
     if (!part.success || !entry) {
-      return answer(404, 'room_missing', 'that song is not in the room')
+      return answer(404, DOORMAN_ERROR.roomMissing, 'that song is not in the room')
     }
     const secrets = await this.#secrets()
     const lentFrom = secrets.entrySubs?.[entry.id]
     if (entry.owner === null && lentFrom) {
       const key = keyOf(entry.song, part.data)
-      if (!key) return answer(404, 'room_missing', 'that song has no such file')
+      if (!key) return answer(404, DOORMAN_ERROR.roomMissing, 'that song has no such file')
       const body: LentFile = { sub: lentFrom, key }
       return Response.json(body)
     }
@@ -340,7 +351,7 @@ export class Room {
       // A link: played through the host's server, when it said where that is.
       const server = secrets.linkServer
       if (!entry.song.link || part.data !== 'audio' || !server) {
-        return answer(404, 'room_missing', 'that link plays on the host’s device only')
+        return answer(404, DOORMAN_ERROR.roomMissing, 'that link plays on the host’s device only')
       }
       const query = new URLSearchParams({ url: entry.song.link })
       if (server.token) query.set('token', server.token)
@@ -349,7 +360,7 @@ export class Room {
     }
     const key = keyOf(entry.song, part.data)
     const sub = secrets.subs[entry.owner]
-    if (!key || !sub) return answer(404, 'room_missing', 'that song has no such file')
+    if (!key || !sub) return answer(404, DOORMAN_ERROR.roomMissing, 'that song has no such file')
     const body: LentFile = { sub, key }
     return Response.json(body)
   }
@@ -364,7 +375,7 @@ export class Room {
     if (found instanceof Response) return found
     const { doc, member } = found
     if (doc.members.find(other => other.id === member)?.kind !== 'host') {
-      return answer(403, 'room_forbidden', 'only the host keeps the room')
+      return answer(403, DOORMAN_ERROR.roomForbidden, 'only the host keeps the room')
     }
     const secrets = await this.#secrets()
     const body: Keepable = {
@@ -390,7 +401,7 @@ export class Room {
     if (found instanceof Response) return found
     const { doc, member } = found
     if (doc.members.find(other => other.id === member)?.kind !== 'host') {
-      return answer(403, 'room_forbidden', 'only the host plays a shared playlist here')
+      return answer(403, DOORMAN_ERROR.roomForbidden, 'only the host plays a shared playlist here')
     }
     const now = this.#runtime.now()
     const room = Math.max(0, ROOM_MAX_WAITING - waitingEntries(doc).length)
@@ -444,7 +455,7 @@ export class Room {
     }
     const offered = Object.entries(input.vectors)
     if (offered.length > ROOM_VECTORS_AT_ONCE) {
-      return answer(413, 'too_large', 'send fewer vectors at once')
+      return answer(413, DOORMAN_ERROR.tooLarge, 'send fewer vectors at once')
     }
     const kept = (await this.#runtime.storage.get<RoomVectors>('vectors')) ?? {
       model: input.model,
@@ -468,7 +479,8 @@ export class Room {
     const found = await this.#member(url)
     if (found instanceof Response) return found
     const host = found.doc.members.find(member => member.id === found.member)
-    if (host?.kind !== 'host') return answer(403, 'room_forbidden', 'only the host plays links')
+    if (host?.kind !== 'host')
+      return answer(403, DOORMAN_ERROR.roomForbidden, 'only the host plays links')
     const secrets = await this.#secrets()
     await this.#runtime.storage.put<Secrets>('secrets', {
       ...secrets,
@@ -485,16 +497,17 @@ export class Room {
     options: { ended?: boolean } = {},
   ): Promise<{ doc: RoomDoc; member: string } | Response> {
     const doc = await this.#doc()
-    if (!doc) return answer(404, 'room_missing', 'no room has that code')
+    if (!doc) return answer(404, DOORMAN_ERROR.roomMissing, 'no room has that code')
     const token = url.searchParams.get('t') ?? ''
     const member = /^[0-9a-f]{32}$/.test(token)
       ? (await this.#secrets()).tokens[await sha256Hex(token)]
       : undefined
     const who = doc.members.find(candidate => candidate.id === member)
-    if (!member || !who) return answer(401, 'room_unauthorized', 'that is not a way into this room')
-    if (who.left) return answer(403, 'room_left', 'you are no longer in this room')
+    if (!member || !who)
+      return answer(401, DOORMAN_ERROR.roomUnauthorized, 'that is not a way into this room')
+    if (who.left) return answer(403, DOORMAN_ERROR.roomLeft, 'you are no longer in this room')
     if (doc.endedAt !== null && !options.ended)
-      return answer(410, 'room_ended', 'this room has ended')
+      return answer(410, DOORMAN_ERROR.roomEnded, 'this room has ended')
     return { doc, member }
   }
 
@@ -576,12 +589,6 @@ function send(socket: RoomSocket, message: RoomServerMessage): void {
     // A socket that closed between being listed and being written to; it
     // hears the room again when it reconnects.
   }
-}
-
-export function randomHex(bytes: number): string {
-  return [...crypto.getRandomValues(new Uint8Array(bytes))]
-    .map(byte => byte.toString(16).padStart(2, '0'))
-    .join('')
 }
 
 /**

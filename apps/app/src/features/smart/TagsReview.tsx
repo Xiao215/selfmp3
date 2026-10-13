@@ -2,15 +2,16 @@ import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { artistOr, plural, type TagReview } from '@selfmp3/shared'
-import { useLibrary } from '@selfmp3/client'
+import { useLibrary, space } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { useSongsById } from '../../ui/songsById'
-import { showToast } from '../../ui/toast'
+import { showUndoToast } from '../../ui/toast'
 import type { AnswerKeys } from './answerKeys'
 import { Review, reviewText, songCount, type ReviewRowState } from './Review'
 import { tagChangesHere, tagSection, tagSteps, type TagHere } from './smart.model'
 import { useSmartServer } from './useSmartServer'
 import { useTagChanges } from './useTagChanges'
+import { AnswerLine, AnswerNote } from './AnswerParts'
 
 /**
  * Tags (docs/features/ai.md): changes to your tags, for a yes or no each —
@@ -57,14 +58,10 @@ export function TagsReview({
           ? 'Every song here has a tag.'
           : `Nothing to suggest for your ${songCount(review.looked)} without a tag.`
     return (
-      <View style={{ gap: 8 }}>
-        <Text style={reviewText.line} testID="tags-nothing">
-          {line}
-        </Text>
+      <View style={{ gap: space.sm }}>
+        <AnswerLine testID="tags-nothing">{line}</AnswerLine>
         {notes.map(note => (
-          <Text key={note} style={reviewText.note}>
-            {note}
-          </Text>
+          <AnswerNote key={note}>{note}</AnswerNote>
         ))}
         {onClose ? (
           <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
@@ -82,22 +79,15 @@ export function TagsReview({
     const steps = tagSteps(approved, leftOut, library?.songs ?? [], library?.playlists ?? [])
     if (steps.length === 0) return false
     const done = await change(steps)
-    const undo = {
-      label: 'Undo',
-      onPress: () => {
-        done.undo().then(
-          () => showToast('Put your tags back', 'info'),
-          // The edit that failed said so.
-          () => undefined,
-        )
-      },
-    }
+    // The edit that failed says so itself.
+    const after = 'Put your tags back'
     if (!done.ok) {
-      showToast('Some of the changes were made', 'warn', { actions: [undo] })
+      showUndoToast('Some of the changes were made', done.undo, { tone: 'warn', after })
       return false
     }
-    showToast(`Made ${plural(approved.length, 'change', 'changes')} to your tags`, 'good', {
-      actions: [undo],
+    showUndoToast(`Made ${plural(approved.length, 'change', 'changes')} to your tags`, done.undo, {
+      tone: 'good',
+      after,
     })
     return true
   }

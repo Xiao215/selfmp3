@@ -90,8 +90,9 @@ private func coverImage(_ base64: String) -> UIImage? {
   return UIImage(data: data)
 }
 
-private let inkPrimary = Color(hex: "#f4f5f9")
-private let inkSecond = Color(hex: "#aeb1b9")
+// The app's own inks, from the asset catalogue `expo-target.config.js` writes.
+private let inkPrimary = Color("inkPrimary")
+private let inkSecond = Color("inkSecondary")
 
 // Clear and Tinted home screens draw a widget in the accented mode: every
 // colour becomes white at its own opacity, and only what is marked accentable
@@ -270,7 +271,7 @@ struct NowPlayingView: View {
             Circle().fill(accented ? accentedPane : inkPrimary).frame(width: 40, height: 40)
             Image(systemName: now.playing ? "pause.fill" : "play.fill")
               .font(.system(size: 16, weight: .bold))
-              .foregroundStyle(accented ? Color.white : Color(hex: "#0b0d13"))
+              .foregroundStyle(accented ? Color.white : Color("ground"))
           }
         }
         .widgetURL(URL(string: now.link))
@@ -292,7 +293,7 @@ struct NowPlayingView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     } else {
       RoundedRectangle(cornerRadius: 10, style: .continuous)
-        .fill(accented ? accentedPane : Color(hex: "#1f2330"))
+        .fill(accented ? accentedPane : Color("raised"))
         .frame(width: 52, height: 52)
         .overlay(Image(systemName: "music.note").foregroundStyle(inkSecond))
     }

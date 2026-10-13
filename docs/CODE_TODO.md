@@ -625,3 +625,149 @@ The owner's rule from here on: migrate rather than accommodate an older shape. A
 Every migration was run against a copy of the live database (29 → 35: integrity ok, no foreign-key rows, every table identical apart from the intended columns).
 
 The cloud snapshot schema is exact as well (main, 2026-10-07): the live bucket's newest snapshot was checked first and carried every field. The queue rail now draws only the rows in view (3,000 queued: 5.9 s → 0.15 s to open), with a flow that drags a row at the end of a scrolled rail.
+
+## One copy of each thing (2026-10-13)
+
+The owner's complaint: "when I fix one thing, the other doesn't get fixed." Six read-only audits (UI components, style tokens, cross-package logic and config, platform twins, phone vs computer layouts, and 1,045 commits of history) found the same shape everywhere: a shared piece exists, and screens build their own beside it, or a phone and a computer surface were built as two trees. The history shows the cost: 6c72cde0, d1cb3f22, e8a4c43e, 2968bc1d, 86e00c50 and others each had to repeat a fix by hand, and several repeats were missed (the bugs below).
+
+Rule for this pass: one primitive per job, a lint rule where a raw building block keeps coming back, and a test that holds two answerers (server and replica, phone and web engine) to one set of cases.
+
+### Bugs the duplication caused (fix with the merge that removes the copy)
+
+- [x] **T-376** Computer Now Playing shows tags and "Edit tags" for a friend's room song (`NowPlayingStage` has no `isRoomTrackId`). → E
+  - The stage's tags are `SongTagsLine`, which draws `RoomSongLine` for a room's song; its ⋯ is left out for one (the menu would be empty there), and `SongAbout` has no Fix for it.
+- [x] **T-377** Computer Now Playing's ⋯ menu offers Add to Up next, Like, Tags, Song details for the playing song (`nowPlaying` prop not passed); the song menu has no room-track guard on either layout. → E
+  - `SongMenu` takes `context="nowPlaying"` (trims on every layout) apart from `extras` (the phone's Sleep and Devices). A room's song gets none of the library's items — no Like, Tags, playlist, similar, Download, details or Delete — only the page's own doors.
+- [x] **T-378** Removing the playing song on a computer unmounts the stage mid-request: the toast and errors are lost and the page sits on "Nothing playing". → E
+  - `useNowPlayingSong()` holds the remove dialog above both layouts and puts the page away once the song has gone and the dialog has closed.
+- [x] **T-379** Computer Up next (`QueueRail`) has no "Clear the rest", no unavailable/offline marks, no tag chips, no "Played" end state; the phone sheet stops at 60 upcoming songs. → E
+  - The rail has Clear the rest (beside the count), its rows' offline marks and the unavailable fade, the "Played" card, and puts itself away when empty; the sheet draws the whole queue windowed. Decision: tag chips stay off the rail's 44-point rows (no room beside the title); the sheet keeps them.
+- [x] **T-380** The stall spinner (`busy`) is missing on phone Now Playing's Play (cover and words views), the queue sheet's card and the room card. → E
+  - Every play button is `PlayPauseButton`, which reads the stall itself.
+- [x] **T-381** `VolumeSlider` announces no value on web and lets a wandering drag be stolen; `ListenBar` adds a CSS rule per tick and steps from the wrong value. → E
+  - Fixed by `Scrubber`: ARIA values (volume in per cent), termination refused, the fill rounded, a screen reader's step from what is shown by `SEEK_STEP_SECONDS`.
+- [x] **T-382** Search rows never fade songs that cannot play here; three different "unavailable" rules exist (Library, OrderedSongList, QueueSheet). → F
+  - One rule, `rowAvailability` (ui/rowAvailability.model.ts), read through `useRowAvailability` by every list's rows and by Up next's `useQueueRowFacts`: not here, and the bucket blocked or (on an installed app) the server away. Up next now fades for an away server too.
+- [x] **T-383** "Add to Up next" on the answer page and the songs answer card calls `playNext`. → F
+  - The answer page's ⋯ is `useListActions` (Add to Up next adds; Play next is its own item). Decision: the songs card's A8 lead ("what plays after this song") keeps playing them next and is now labelled Play next.
+- [x] **T-384** Opening a tag from Home, Now Playing, the song menu, the song page, Stats or an artist page skips `noteTagUsed`, so the sidebar's recent tags miss it. Decision: every open counts. → F
+  - Every door is `useOpenTag()` (`from: 'tile' | 'sidebar'`, `go` for Now Playing's `leaveTo`). Home's tile still hands its frame over itself (`handOffPlace`) before opening. The sidebar pressing the tag already open opens nothing, so counts nothing.
+- [x] **T-385** Sidebar tabs never announce the selected one (`aria-selected` only in BottomNav); pressing the lit sidebar item does not go back to its root page. → H
+  - `shell/nav.model.ts`: one `NAV` table, `navItemProps(active)` (role, state and `aria-selected`) and `navGoes` (a lit place still goes to its first page) for the tab bar, the rail's rows and its Playlists header. The command palette's own "Go to" list is F's and left as it is.
+- [x] **T-386** The sidebar's new-tag field has no `maxLength`, no focus ring, swallows create errors, and checks duplicates differently from the Tags page. → G
+- [x] **T-387** Settings → Cloud's bucket form signs out without asking; its fields stay editable while checking. → G
+- [x] **T-388** An iPad registers in the cloud as `iphone` (`ports/cloudPlatform.ts`). → D
+  - `deviceModel()` in the device port names the kind on both twins; `returnUrl` is `signInReturnUrl('welcome')`.
+- [x] **T-389** Phone engine: a song with nowhere to play from leaves the previous song sounding with `playing: true`; repeat-one likely never reports the song's end. → D
+  - Decision: neither engine lines up the song that is sounding behind itself, so repeat-one on a phone loops by the provider's seek back to the top (a beat of silence, as in a browser) and the end is always reported.
+- [x] **T-390** Phone `adoptRecent` moves a stale (old-hash) played copy into a download; desktop refuses it. Both sides keep playing or keep the old file when a song's audio changes. → D
+  - Decision: `recentUri` takes the song, so a copy of audio the song no longer has is never played; the next play fetches the new audio and deletes the old file.
+- [x] **T-391** Cloud mode can null a live playlist's rules (server refuses; replica allows), which empties it on the server. → A
+  - Shared `playlistPatchProblem` used by the route, the replica, the replay and the ingest; a change breaking it is ignored on both sides.
+- [x] **T-392** Deleting a tag rewrites live rules on devices but leaves the dead id on the server, and `tags.id` can be reused. → A
+  - Decision: migration 41 (AUTOINCREMENT, sequence past every id a rule or import names) instead of rewriting rules; a dead id on the server now means what `MISSING_TAG_UID` means on a device.
+- [x] **T-393** Removing songs prunes empty tags on the server only (and also prunes a tag another device just made). → A
+  - Decision: tags emptied by a removal still go (shared `tagsEmptiedBy`), as explicit `tagRemoved` changes from a device; the ingest no longer sweeps.
+- [x] **T-394** Cloud mode answers 501 for `stop-following`, `/played` and `lyrics/search`; lyrics 404 codes and `/played`'s duplicate flag differ. → A
+  - Stop following is a new `playlistUnfollowed` change; a playlist's last-played time is kept per device; lyrics search is listed server-only (the UI already skips it in the cloud).
+- [x] **T-395** Every doorman 409 reads as "No bucket is connected" (the 20-grant limit too); `bucket_refused_key`/`no_such_bucket` fall to `other`. → B1
+  - The server maps by code: `no_storage` and `no_such_bucket` are `missing`, `too_many_grants` says to remove a server, `bucket_unreachable` is `network`; `bucket_refused_key` stays `other` (the bucket's key, not this server's session, so nothing to sign in again for).
+- [x] **T-396** "Same link" has four rules: 网易云 and `?si=` links are not seen as queued by the extension or `isPending`. → B2
+- [x] **T-397** Two artist splitters with different separators (AI vs app); server Stats/Wrapped group raw artist strings; CarPlay/Android Auto browse groups and sorts its own way. → B2
+- [x] **T-398** The admin page's `plural` writes "1234 songs"; Home's This week writes "2h 00" and "1234" where You writes "2h" and "1,234". → B2 / H
+  - B2's half done: admin `plural` groups like shared's, parity test tries 999–1,000,000. Home's figures are H's.
+  - H's half: `statFigures` (stats.model) + `StatFigure` for Home's This week and You's month card.
+
+### A — Server and replica answer the same API from one set of rules
+
+- [x] **T-399** Move the edit change builders from `packages/replica/src/edits.ts` into `packages/shared` with the guards (`playlistPatchProblem`, live-playlist add guards, rename clash, create-or-return tag, insert-at-position, kept order, reorder via `reordered`); server routes call the same guards. Delete the private copy in `cloudIngest.test.ts`.
+  - Decision: the guards and pure pieces moved (shared `editRules.ts`, `playlistPatchProblem`, generic `reordered`); the change builders stay in the replica, the only side that records changes.
+- [x] **T-400** One contract test: every client route is handled by the replica or marked server-only; the same cases run against both answerers.
+  - `packages/client/src/api/contract.test.ts` over `SERVER_ONLY_ROUTES`; the shared cases are the server-vs-phone parity tests in `cloudIngest.test.ts` (extended for each fix here).
+- [x] **T-401** Smart rules: one evaluator (`shared/smartRules.ts`); hasLyrics/hasArt read the same facts on both sides.
+  - The SQL compiler is gone; the server evaluates over facts read once per database change. Decision: "has lyrics/art" means the bucket has them, as the snapshot says.
+
+### B1 — The doorman wire is one module
+
+- [x] **T-402** `DoormanErrorCode` in shared; callers map by code (server `bucket/doorman.ts`, replica, app). Error codes compared as strings (`instrumental`, `ai_off`, `wrong_code`, `room_left`) come from shared constants.
+  - `DOORMAN_ERROR` (doormanWire.ts) is every code the doorman sends plus `unreachable`/`no_doorman`/`unexpected` for what it never said; `API_ERROR` and `AI_ERROR` (apiWire.ts) are the server's codes a client compares. The app's `new ApiError(0, …, 'offline')` constructions in features/ were left for the UI workstreams.
+- [x] **T-403** A zod-free `doormanWire` module the service worker imports: `BUCKET_CAP_CODE`, the hold, `parseDoormanRefusal()`, storage keys, SW message types, `/v1` path builders; the replica's hold keys off the builders.
+  - Imported as `@selfmp3/shared/wire` (a schema-free barrel: doormanWire, apiWire, origins, range). The SW's message types went to `sw/names.ts` (`SW_MESSAGE`) instead, being the page's and the worker's alone; `REFRESH_HEADER` moved to shared because the server names it in CORS. The doorman's router is keyed by `DOORMAN_PATHS`.
+- [x] **T-404** One fetch-injected doorman client and one `DoormanError` (argument order); room/shared `send` merged; replica tests use the real doorman harness.
+  - `doormanRequest()` + `DoormanError(status, code, message)` in shared/doormanClient.ts; the doorman throws the same class. `RoomError` is gone (`DoormanError.gone`). session.test.ts runs against `harness()`; library.test.ts's fake now answers a write with 204 and filters listings as the doorman does.
+- [x] **T-405** Sign-in contract: `APP_SCHEME`, `signInStartUrl()`, `SIGN_IN_TTL_MS`; `electron-builder.yml` declares the protocol.
+  - Named `DEEP_LINK_SCHEME` (origins.ts), not `APP_SCHEME`: the desktop bridge already has an `APP_SCHEME` (`app`, the page's own origin). The bridge now takes it from `@selfmp3/shared/wire`. admin.js keeps its own `signInStartUrl`, held equal by admin.signin.test.ts.
+- [x] **T-406** The service worker uses shared `range.ts`; the doorman's two range parsers agree; bucket refusal classification is one pure function; CORS header lists use the constants.
+  - The doorman relays one range only (`relayedRange`), as `parseRange` reads; `bytes=-` is now the whole file in the SW too. `classifyBucketRefusal()` takes the doorman's redaction of the key and its "Backblaze said" for both sides.
+
+### B2 — Small shared helpers and tooling
+
+- [x] **T-407** `linkIdentity()` in `shared/links.ts` for every "same link" check.
+  - `isPending` compares in JS over the few open jobs rather than storing a normalised column (no migration). Room "is this song yours" uses it too.
+- [x] **T-408** One `splitArtists` (merged separators); server Stats/Wrapped aggregate with it; `browseTree` uses the app's artist/album/playlist orderings.
+  - `splitArtists(credit, 'list')` keeps the tidy's list-only split (a credit rewritten name by name); `creditNames`/`creditList` are gone and `mainArtist`/`withoutRepeats` live beside it. `/` splits only spaced or beside CJK, so AC/DC stays whole. browseTree imports `listedPlaylists` and `albumsOf` from the app's own models rather than moving them to packages/client: both callers are in apps/app, and moving them would churn E/G's screens.
+- [x] **T-409** `messageOf`, `shuffleArray`, ETag, progress throttle, `WEEKDAYS`, day key, durations ("Xh MM", m:ss), bucket place label, hex ids, hash-key regex, timed fetch, `decodeText`, latest-release fetch: one home each.
+  - Homes: shared `messageOf` (errors.ts), `fileEtag` (range.ts), `createThrottle` with `flush()` (throttle.ts), `localDayKey` (dates.ts), `formatListenTime` (format.ts), `randomHex`/`bucketPlace`/`decodeBucketText`/`HASH_NAMED_FOLDERS` (cloud.ts), `HASH_FILE_NAME` (schemas/cloud.ts), `fetchLatestRelease` (releases.ts; a 404 is null on both); client `REQUEST_TIMEOUT_MS`; the app's `fetchWithin` for the health probe. Left to others: the doorman's `messageOf`/hex/hash copies and `sw.ts`'s cover path (B1); HomeScreen's `listened` should use `formatListenTime` (H). The admin page's `bucketPlace`/`attemptId` copies stay (no build step) under parity tests.
+- [x] **T-410** Tooling: one ESLint base for root and app; Dockerfile copies every workspace manifest; vitest resolves packages the way Jest and Metro do; release tags checked against versions; port 4600 from `DEFAULT_SERVER_PORT`; root overrides match the app's ranges.
+  - `eslint.base.cjs` holds the shared rules (tests may write `typeof import('…')`, which a hoisted `jest.mock` needs). Vitest reads each package's `source` export condition instead of an alias list. 4600/4601 stay literal only where nothing can import (Dockerfile, compose, shell scripts, package.json's `dev:web`). `.nvmrc` and the Dockerfile's Node 22 left as they are.
+
+### D — Platform twins share their rules
+
+- [x] **T-411** Engine core shared by `engine.ts` and `engine.web.ts` (idle state, notify-if-changed, subscribe/connect, `volumeChange`, unplayable state and message), with one behaviour test suite run against both.
+  - `EngineHub` + rules in `packages/client/src/ports/engineCore.ts`; suite `ports/engine.behaviour.test.ts`. Decision: loading the song an engine already has carries on with it on both (the phone's rule, written into `LoadOptions`); the browser's used to restart it from 0:00.
+- [x] **T-412** `createRecentCopies(files)` for phone and desktop played copies; one `transfer()` for phone and desktop downloads (desktop keeps lyrics, motion and cover too).
+  - Shared as `ports/recentCopyFiles.ts` and `ports/downloadTransfer.ts`. Decision: a desktop download now fails, like a phone's, when the words cannot be asked for.
+- [x] **T-413** `createSchemaCache(name, schema)` for the four offline caches.
+  - `offline/schemaCache.ts` over a twinned `recordStore` (`offline/caches.ts` has the four). Decisions: a record that fails its schema is deleted so it is fetched again; clears never reject. A browser's records are stored bare under `<kind>-<id>` and a phone's library snapshot moved to `library/snapshot.json`, so copies kept before this are fetched afresh once (they are caches).
+- [x] **T-414** Smaller twins: StageMove interrupt duration + props, listen watchdog, no-op desktop ports, covers adapter, web key-ownership test, server-event parse, ripples frame maths.
+  - Done: `turnMove` + `stageMove.types.ts`, `previewStatus` + `createSilenceWatch` (a browser preview now has the 45 s watchdog), `ports/notInstalled.ts`, `shell/keyOwner.ts`, `parseServerEventData`, `RIPPLES_LOOK` + ring/halo/kick maths (the phone's ground and washes now circles of the longer side, as in a browser). Covers left as two adapters: the phone's reads its folder synchronously (`prime`, `peekCloud`) so the first draw already has kept covers, which an async `CoverFiles` over expo-file-system would lose; the policy is already one (`coverStore.ts`).
+
+### E — Now Playing, Up next and the transport are one set of pieces
+
+- [x] **T-415** Shared Now Playing pieces for phone and stage: song tags line (room guard, `noteTagUsed`, one label), lyrics tools (romanize, Find lyrics, status text), About block, remove-the-playing-song hook, one empty state; `SongMenu` gets `context: 'nowPlaying'` (trims on every layout) separate from the phone's extras.
+  - `SongTagsLine` (labels "Add tags"/"Edit tags" on both; the phone keeps the round + chip, the stage the labelled one; `noteTagUsed` on open), `useTagEditor` (the add chip toggles on both), `RomanizeButton`/`FindLyricsButton` + `lyricsStatusText` (the phone's offline wording, the stage's hint and pressed state, one ink), `SongAbout` (also the song page's), `EmptyNowPlaying` ("Close now playing", Escape on both).
+- [x] **T-416** `PlayPauseButton` (reads stall itself), `TransportControls` (one `REPEAT_LABEL`), `LikeButton` (room guard), `useOpenNowPlaying`, `useSleepTimerStatus`; MiniPlayer and PlayerBar share the wash.
+  - Decisions: Shuffle is "Shuffle" with its lit state (not "Shuffle on/off"); previous/next/play grey with nothing loaded everywhere; the sleep line is "Stops when this song ends" / "Stops in N min"; the bar's wash uses the theme's `washAlpha` (was 0.2) and its artist ink `textSecondary` (was muted), as the mini player's. `ProgressWash` and `SeekBar` read the player themselves. `warmCoverPalette` stays the bar's alone: only the computer's stage glows.
+- [x] **T-417** Up next: one list body (rows with facts, virtualised, head, auto-mix row) inside the sheet and the rail; `QueueSheet` built on `Sheet`; one `PlayingCard` for the queue and the room.
+  - `UpNextParts.tsx`: `useUpNextShown`, `useQueueRowFacts`, `PlayingNow`, `ClearRestButton`, `AutoMixRow`, `UpNextList` (windowed by `upNextWindow`, renamed from `railWindow`); one `nextLabel` ("Next · 6 songs · 24 min" / "Nothing after this one"). `QueueSheet` takes `Sheet`'s pull, backdrop and grabber (`useSheetPull`, `SheetBackdrop`, `SheetGrabber`) but stays out of the overlay host on purpose: song menus and the Undo toast land above it, and the phone's Now Playing modal draws its own. Rows keep their own gestures (swipe on the sheet, drag-out and right-click on the rail). `PlayingCard` (ui/components) is the queue's and the room's card.
+- [x] **T-418** One `Scrubber` for SeekBar, ListenBar and the volume slider.
+  - `Scrubber` (+ `scrubber.model.ts`) owns the responder, the hold, rounding, ARIA and a11y actions; `SeekBar`, `ListenBar` and the bar's `VolumeSlider` are thin wrappers. One look: the preview's knob ring and its own track tone are gone, and every thumb swells on the spring. `Slider(.web)` (the hue slider's native range input) is left as it is.
+
+### F — Song lists and song actions
+
+- [x] **T-419** `useSongListPage` / `useSelectableSongRows` with one availability rule, used by Library, Search, PlacePage, PlaylistDetail, Answer and OrderedSongList; `useListSelectionBar` takes `narrowed` and placement and is used by all five lists.
+  - Named `useSongRows` (ui/components/useSongRows.tsx): `renderSong`, `rowProps` (the ordered list spreads them under its hold to move), `press`, `menu`. `useListSelectionBar` takes `narrowed` and `placement: 'underHead' | 'aboveList'` and returns `beforeList`/`pinned`/`listPadding`. Every row's cover is asked for at `ROW_COVER_SIZE` (the place pages asked for the kept size).
+- [x] **T-420** `songActions(songs)` model (labels, guards, toasts) for SongMenu, SelectionBar and a shared list-page ⋯ menu (`ListMenu` + `useListActions` + `MoreButton`); one Play/Shuffle row for list heads; `SheetItem` takes a testID.
+  - `songActions` + `SONG_ACTION_LABELS` (ui/songActions.model.ts) drawn by `SongActionItems` in the song menu and the bar's More (one order, "Tags…", success toasts, New playlist from one song too); the bar's own Play / Add to Up next / Remove are one list drawn as buttons or icons. List pages: `MoreMenu` (+ `MoreButton`, "More actions for X", width 250) over `useListActions` (Select songs, Play next, Add to Up next, Download/Remove) on tag, artist, combined, playlist and answer pages; `PlayShuffle` in their heads (hidden when known empty, flies covers everywhere). Left for the sweep: QueueRail's and CloudPanel's ⋯ menus, ImportScreen's RowMore (its open state is the screen's), NowPlayingStage's ⋯ label, GemsRow's and RoomList's literal labels.
+- [x] **T-421** SongRow's phone and computer branches share the press target, cover and title.
+  - One press target, title, wash and equaliser, here-mark, tag chips, select circle and ⋯, made once in the row and placed by each shape. The circle now shows on a phone's picked row too (the computer's rule), and a row's chip dots are `TagDot`.
+- [x] **T-422** `useOpenTag`, `TagDot`, `PlaceLine`, `useLibrarySearch` (Search + command palette).
+  - `PlaceLine` is a `SongLine` with a round figure for its cover, so a place reads like the song lines beside it in both (the palette's quieter label and Search's 40-point figure are gone). `useLibrarySearch` asks for 20 lyric lines in both (the palette shows 6): the two shared one query key, so the palette's six were what Search's See all found cached.
+
+### G — Pages, forms and notices
+
+- [x] **T-423** `PageHeader`/`Page` (back, title, top and gutter tokens); `BackButton` takes `onPress`; `MissingPage`; `PageLoading`; one onboarding page shell; `WhitePill` on `Press` with busy/disabled.
+  - Done as `PageHeader` + `pageFrame(wide)` (no `Page` wrapper: Settings, Library and Search own their scroll views). Every page title is the display face; the serif is for a person's name and numbers. Search's "‹ Songs 12" is a crumb, not a page's way back, and keeps its look.
+- [x] **T-424** `TextField` (+ action slot, focus ring, schema limits); one bucket address form for Settings and Storage; `useNewTagForm` for the sidebar and Tags; sign-out confirm in one place.
+  - Fields that edit text in place, drawn as the text they edit (a playlist's name in its head, Ask's Change it bar, an import row's title, the song-info dialog's values), stay `TextInput`s: they are not form fields. The duplicate check is `existingTag` (the server's comparison); the sidebar opens the tag, Tags opens its editor.
+- [x] **T-425** `Checkbox` with `onChange` and `aria-checked` everywhere; `NoticeCard`, `StatusLine`, `ServerAway` variants and one `JoinSharedButton`; `ProgressBar`; `Kbd`; `NavRow`; `HueSwatches` with options; Settings chips on `Chip`.
+  - `ServerAway` has `row` (Settings) beside the card; Devices' "showing the last list" line and You's month card keep their own words (they are about what they show, not the server). Tags' untagged card stays its own (its line holds links to artists). `ToggleRow` is left to T-428. The DOM tooltip's key cap shares `KBD`'s shape but keeps its colours, which sit on the tooltip's own ground.
+
+### H — Grids, shelves, rooms, smart answers, navigation
+
+- [x] **T-426** `TileGrid`/`GridTile` (Tags, Playlists, Shared, Home), `Shelf`/`SongCard` (Home recents, Gems, Similar) with drag-scroll, right-click and focus built in.
+  - Decisions: every grid takes its width from the page (`useTileGrid`), never `onLayout`; tiles sink on `Press` rather than fading; a playlist's Play fades in on hover or Tab as a tag's does; a past room and a shared playlist share `FacesCover` (the cover ground, faces a quarter of the side). Home's tag tiles keep their own coloured card, on `TileGrid`. Playlist tiles still have no right-click menu (F's list menus can hand one to `GridTile`'s `onMenu`). Gems' three-or-fewer cards keep lying down. Settings' chip strip keeps its own scroller (it scrolls a chip into view by ref); the tag sheet's is `SideScroll`.
+- [x] **T-427** Room/shared rows on `SongLine` + `FaceBadge`; one library song picker for playlists and rooms.
+  - `room/RoomEntryLine.tsx` (`RoomEntryLine`, `FaceBadge`) for a room's list, a past room and a shared playlist, with a Take out `IconButton` and the cover drawn from the album; a shared playlist's rows name "You"/"Someone" from `sharedRows` as a room's do. `ui/components/LibrarySongPicker.tsx` (`LibrarySongPicker`, `PickMark`) for Add songs (playlist, new playlist, tag) and a room's or shared playlist's Mine: fuzzy search, 60 shown, `order` newest or played last. Left: the shared playlist's page keeps its own head and Play (it is not a library list for `ListHead`/`SongList`).
+- [x] **T-428** Smart answer parts, the import page foot, `showUndoToast` with async undo, `Button size="small"`, `IconButton` fills, `Segmented` small/translucent, `ToggleRow`, `Popover` sheet title.
+  - `smart/AnswerParts.tsx`; `import/ImportPage.tsx` (`useImportFailure`, `useImportPage`, `ImportFoot`) and ReviewRows' `RowBox`/`canHear`/`NameFields`/`RowTitle`/`rowA11y`; `showUndoToast(text, undo, { tone, after, failed, also })`; `Button` `size="small"`, `ground="translucent"`, `expanded`; `IconButton` `filled="primary" | "accent"`; `TagChipRow` (TagChooser.tsx) and `Chip` `removeLabel`/`accessibilityLabel`; `Segmented` `size`, `ground`, `tabs`, `style`; `ToggleRow` (Toggle.tsx, `at` start or end); `Popover` `subtitle` and `panelTitle`. Decisions: every undo lasts `UNDO_MS`; a chosen tag chip's press takes it off everywhere (TagChooser's used to open the picker), with an ×; the add chip is "+ tag" everywhere. Left: Settings keeps `Row` + `Toggle` (its rows put every kind of control at the end); Now Playing's song tags keep their own add chip (it is an anchor by ref, and round on a phone).
+- [x] **T-429** One `NAV` table for BottomNav and Sidebar; `SectionHead` everywhere; one `StatFigure` and formatter for Home and You.
+  - `SectionHead` gained `aside`, `collapsible`, `end`, `lead` and `look="label"` (the quiet uppercase name, still a header); Gems, Sounds like, the Up next rail, Settings' Advanced, Import's lists and search groups, Stats' columns and a room's shelves use it. The metadata dialog's groups are left (not this workstream's).
+
+### Z — Tokens and the sweep (last)
+
+- [x] **T-430** `Press` with `feedback` and opacity tokens; ESLint refuses raw `Pressable`, `TextInput` and `ActivityIndicator` in `features/` and `shell/`.
+  - `Press` `feedback`: `sink` (default, `PRESS` depths), `wash` (the ink's veil, no wrapper) or `dim` (`OPACITY.pressed`, no wrapper); `OPACITY = { pressed, disabled, dim }` beside `PRESS` (the wash is the palette's `veilPressed`, T-431); `hitSlopFor(size)` beside `HIT_TARGET`. Every raw `Pressable` in `features/` and `shell/` (85) is `Press`, a part on it, or `TapAway` (ui/components: the tap-away grounds of Import's pages, which are not controls); every spinner is `Spinner` (tone by name, as icons) or `PageLoading`. Decisions: a card or pill sinks, a bare row washes, bare ink dims; disabled is 0.4 everywhere (was 0.38–0.45); a tonal pill keeps its surface3 under the finger as `Button` does. Left as `TextInput`, each saying why on its import: the in-place editors G kept (playlist name and description, Ask's Change it bar, import NameFields, the song-info values) and Import's compose box. The ⋯ menus of Up next's rail, Settings → Cloud and an import's row are `MoreMenu`/`Menu` (one width, controlled `open` where the row holds it); Now Playing's ⋯ is `MoreButton` ("More actions for …"). Gems and a room's Play next read `SONG_ACTION_LABELS`.
+- [x] **T-431** Text presets that return size and line height together; `pageFrame(wide)`; icon and cover size scales; named breakpoints; `veil`/`*Wash`/`onArt` tokens; one song-action label map; the widget and extension read the theme.
+  - Done (Z2): `textStyle`/`cssTextStyle`, `tracking`, `serif(step)`, `heroTitle`, `nameTitle`, `rowTitle`/`smallTitle`/`lineSub`/`bodyText`/`hint`/`textColumn`; `iconSize` steps with `sizedIcon` (Button, SheetItem, Chip, NavRow, IconButton, PlayButton size their glyph); `coverSize`; `COLUMN_WIDTH`/`WINDOW_WIDTH` in shell/widths.ts; `veil`, `veilPressed`, `*Wash`, `onArt`; `dialogPanel`; `space` steps and `radius.item`; `menuItem`/`menuItemDense`; motion lengths in `MOVE_MS`, `Z` layers; the widget's colours from @selfmp3/shared, the extension's CSS and the doorman's page on the tokens. Decision: swipe-to-remove is the `remove` ground with a row title's ink everywhere (no `onDanger`).
+  - After Z1: every pressed veil (`Press` `wash`, an icon button's, the translucent pill's, Segmented's, the lyrics tools', the stage's expand) is `veilPressed` (0.14; `OPACITY.wash`, 0.1, is gone), and the ⋯ glyphs in `MoreMenu`/`MoreButton` are sized by `IconButton` (`iconSize.medium`).

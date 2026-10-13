@@ -17,6 +17,7 @@ import {
   type Ok,
   type MetadataSuggestion,
   type TagReview,
+  AI_ERROR,
 } from '@selfmp3/shared'
 import { LlmError, llmFailureWords } from '../ai/llm.js'
 import type { Container } from '../container.js'
@@ -204,7 +205,7 @@ function modelFailure(caught: LlmError): HttpError {
   return new HttpError(
     FAILURE_STATUS[caught.kind],
     llmFailureWords[caught.kind],
-    `ai_${caught.kind}`,
+    AI_ERROR[caught.kind],
     caught.kind === 'unreachable' ? caught.message : undefined,
   )
 }

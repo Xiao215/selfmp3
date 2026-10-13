@@ -21,7 +21,7 @@ export const REPOSITORY = { owner: 'Xiao215', name: 'selfmp3' } as const
 /** The repository itself: the desktop app's Help menu, and the server's User-Agent. */
 export const REPOSITORY_URL = `https://github.com/${REPOSITORY.owner}/${REPOSITORY.name}`
 export const RELEASES_URL = `${REPOSITORY_URL}/releases`
-export const LATEST_RELEASE_API = `https://api.github.com/repos/${REPOSITORY.owner}/${REPOSITORY.name}/releases/latest`
+const LATEST_RELEASE_API = `https://api.github.com/repos/${REPOSITORY.owner}/${REPOSITORY.name}/releases/latest`
 
 /** `desktop-v1.2.3` or `v1.2.3` or `1.2.3` — whatever the tag was called. */
 export function versionFromTag(tag: string): string | null {
@@ -101,4 +101,24 @@ export function macInstallers(body: unknown): MacInstallers | null {
     page: html_url,
     dmg: { arm64: dmgFor('arm64'), x64: dmgFor('x64') },
   }
+}
+
+/**
+ * The latest release's installers, from GitHub's public API with no token:
+ * sixty asks an hour from one address. Asked by the installed app (is there a
+ * newer one of me?) and by a browser tab on a Mac (which dmg to offer), so a
+ * 404 means the same to both: no release yet, which is an answer and not a
+ * failure, and is null — as is an answer that is not a release at all.
+ * Anything else unanswered is thrown, for the asker to say.
+ */
+export async function fetchLatestRelease(
+  fetchImpl: typeof fetch = fetch,
+): Promise<MacInstallers | null> {
+  const response = await fetchImpl(LATEST_RELEASE_API, {
+    headers: { Accept: 'application/vnd.github+json' },
+    signal: AbortSignal.timeout(10_000),
+  })
+  if (response.status === 404) return null
+  if (!response.ok) throw new Error(`GitHub answered ${response.status}`)
+  return macInstallers(await response.json())
 }

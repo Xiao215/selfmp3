@@ -42,6 +42,7 @@ COPY apps/server/package.json apps/server/
 COPY apps/doorman/package.json apps/doorman/
 COPY apps/app/package.json apps/app/
 COPY apps/extension/package.json apps/extension/
+COPY apps/desktop/package.json apps/desktop/
 # Only the server's workspaces, with their own development dependencies: the
 # server declares the TypeScript and the Node types its build needs, so the
 # root's tooling (ESLint, Prettier, Vitest, Playwright) stays out, and Expo and

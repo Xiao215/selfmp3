@@ -1,9 +1,8 @@
 import path from 'node:path'
 import { parseFile, type IAudioMetadata } from 'music-metadata'
-import { cleanArtist } from '@selfmp3/shared'
+import { messageOf, cleanArtist } from '@selfmp3/shared'
 import type { StorageDriver } from '../storage/index.js'
 import type { Logger } from '../logger.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * Reading tags and cover art out of audio files.

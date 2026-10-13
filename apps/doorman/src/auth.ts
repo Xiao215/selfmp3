@@ -1,5 +1,10 @@
 import {
+  DEEP_LINK_SCHEME,
+  DOORMAN_ERROR,
+  DOORMAN_PATHS,
   DoormanClaimRequestSchema,
+  DoormanError,
+  SIGN_IN_TTL_MS,
   SIGN_IN_CODE_FRAGMENT,
   SignInAttemptSchema,
   formatSignInCode,
@@ -11,20 +16,11 @@ import { randomToken } from './encoding.js'
 import { GoogleError, authUrl, checkIdToken, exchangeCode } from './google.js'
 import { forgetGrants } from './grants.js'
 import { page } from './html.js'
-import {
-  DoormanError,
-  forbidden,
-  isLoopbackHost,
-  json,
-  noContent,
-  readJson,
-  unauthorized,
-} from './http.js'
+import { forbidden, isLoopbackHost, json, noContent, readJson, unauthorized } from './http.js'
 import type { DoormanKeys } from './keys.js'
 import { getRecord, putRecord } from './kv.js'
 import { IdentitySchema, bearerToken, type Identity } from './sessions.js'
 import {
-  SIGN_IN_TTL_MS,
   codeMatches,
   codeTag,
   newSignInCode,
@@ -80,7 +76,11 @@ type AttemptRecord = z.infer<typeof AttemptRecordSchema>
 
 /** The one answer to a code that is not the right one, or has nothing to be right for. */
 const wrongCode = (): DoormanError =>
-  new DoormanError(403, 'wrong_code', 'That isn’t the code shown after signing in. Start again.')
+  new DoormanError(
+    403,
+    DOORMAN_ERROR.wrongCode,
+    'That isn’t the code shown after signing in. Start again.',
+  )
 
 /** `GET /v1/auth/start?attempt=<id>&return=<url>` — off to Google, writing nothing. */
 export async function start(ctx: Context): Promise<Response> {
@@ -294,7 +294,7 @@ function googleClient(ctx: Context): { clientId: string; clientSecret: string } 
 
 /** Google must be told the same address when the code is traded as when it was asked for. */
 function redirectUri(ctx: Context): string {
-  return `${ctx.url.origin}/v1/auth/callback`
+  return `${ctx.url.origin}${DOORMAN_PATHS.signInCallback}`
 }
 
 /**
@@ -336,9 +336,9 @@ function safeReturn(
   return (web && (origins.has(url.origin) || loopback)) || native ? url.toString() : null
 }
 
-/** `selfmp3` or `selfmp3://` in the setting, `selfmp3:` as `URL` reports it. */
+/** `selfmp3` or `selfmp3://` in the setting, `selfmp3:` as `URL` reports it; `DEEP_LINK_SCHEME` unless set. */
 export function appSchemes(value: string | undefined): ReadonlySet<string> {
-  const listed = (value ?? 'selfmp3')
+  const listed = (value ?? DEEP_LINK_SCHEME)
     .split(',')
     .map(each => each.trim().toLowerCase().replace(/:\/*$/, ''))
     .filter(each => /^[a-z][a-z0-9+.-]*$/.test(each))

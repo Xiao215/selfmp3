@@ -1,30 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactElement, ReactNode } from 'react'
+import type { ReactElement, ReactNode, RefObject } from 'react'
 import { Animated, Text, View } from 'react-native'
-import type { GestureResponderEvent } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import { useNavigation, useRouter } from 'expo-router'
 import type { NativeStackNavigationProp } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
-import { fonts, isDownloaded, space, tagColors, type, useLibrary } from '@selfmp3/client'
-import { useDownloads } from '../../offline/DownloadsProvider'
+import { space, type, useLibrary, iconSize } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
-import { Button, PlayButton } from '../../ui/components/Button'
+import { Button } from '../../ui/components/Button'
 import { usePageBack } from '../../ui/useBackTo'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
-import { IconButton } from '../../ui/components/IconButton'
+import { TagDot } from '../../ui/components/TagDot'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
-import { ChevronLeft, More, Play, Plus, Shuffle, User } from '../../ui/components/Icons'
+import { Plus, User } from '../../ui/components/Icons'
+import { MoreMenu, type MenuItem } from '../../ui/components/MoreMenu'
+import { PlayShuffle } from '../../ui/components/PlayShuffle'
+import { useListActions } from '../../ui/components/useListActions'
+import { BackButton } from '../../ui/components/BackButton'
 import { SongList } from '../../ui/components/SongList'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
-import { useSongMenu } from '../../ui/components/useSongMenu'
-import { SongRow } from '../../ui/components/SongRow'
+import { useSongRows } from '../../ui/components/useSongRows'
 import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
 import { useSongColor } from '../../ui/useSongColor'
-import { modifiersOf, useSelection } from '../../selection/useSelection'
+import { useSelection, type Selection } from '../../selection/useSelection'
 import { spring } from '../../ui/motion'
 import { takePlaceHandoff } from '../../ui/coverHandoff'
 import {
@@ -35,7 +36,6 @@ import {
   type ListSource,
 } from '../lists/lists.model'
 import { PlaylistCover } from '../playlists/PlaylistCover'
-import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { AddSheet } from './AddSheet'
 import { useArtistPicture } from './useArtistPicture'
 import {
@@ -49,6 +49,8 @@ import {
   togglePlace,
   type Place,
 } from './tag.model'
+import { nameTitle, rowTitle } from '../../ui/surfaces'
+import { MOVE_MS } from '../../ui/motion.model'
 
 /**
  * A place's page (docs/ui-mock `P08`, `P10`, `C06`): a tag, an artist, or
@@ -71,20 +73,22 @@ import {
  */
 export function PlacePage({
   places,
-  menu,
+  menuItems = [],
+  menuAnchor,
   onChange,
 }: {
   /** One tag or artist; or, on `/combined`, the several put together. */
   places: readonly Place[]
-  /** The ⋯ in the corner: what this kind of place offers. */
-  menu?: (anchor: View | null) => void
+  /** What this kind of place offers in its ⋯, after what every list offers. */
+  menuItems?: readonly MenuItem[]
+  /** The ⋯'s box, for a window of the place's own to hang from (a tag's editor). */
+  menuAnchor?: RefObject<View | null>
   /**
    * Given on a combination's own page: its chips can be taken off and added
    * to there. Without it the page is one place, and combining opens a new one.
    */
   onChange?: (places: readonly Place[]) => void
 }): ReactNode {
-  const { theme } = useUnistyles()
   const router = useRouter()
   const { wide } = useLayout()
   const player = usePlayerCommands()
@@ -99,8 +103,6 @@ export function PlacePage({
   const place = chosen[0] ?? places[0]!
   const combining = onChange !== undefined
   const [adding, setAdding] = useState(false)
-  const moreRef = useRef<View>(null)
-  const fly = useFlyToUpNext()
 
   const only = !combining && chosen.length === 1 ? chosen[0] : undefined
   const artistAlone = only?.kind === 'artist'
@@ -110,6 +112,7 @@ export function PlacePage({
     return artistAlone ? albumsOf(found).flatMap(group => group.songs) : found
   }, [chosen, library, artistAlone])
   const ids = useMemo(() => songs.map(song => song.id), [songs])
+  const selection = useSelection(ids)
   const lead = useMemo(() => songs.find(song => song.hasArt) ?? songs[0] ?? null, [songs])
   const leadArt = lead ? artFor(lead) : null
   const light = useSongColor(lead, leadArt)
@@ -176,6 +179,7 @@ export function PlacePage({
   })
   const heroRef = useRef<View>(null)
   const heroPlaced = useRef(false)
+  const listActions = useListActions(ids, { heroRef, selection })
   /** The hero's way between the tile and where it is laid out now. */
   const aimAtTile = (
     tile: NonNullable<typeof handed>,
@@ -211,7 +215,7 @@ export function PlacePage({
     })
     // A stack with no moves — a browser's — says nothing; nor does one asked
     // for less motion, where the spring lands at once anyway.
-    const late = setTimeout(letGo, 400)
+    const late = setTimeout(letGo, MOVE_MS.placeHandOff)
     return () => {
       off()
       clearTimeout(late)
@@ -272,25 +276,15 @@ export function PlacePage({
       topBar={
         <>
           {/* None on a computer for a place the sidebar opened (J1). */}
-          {backShown ? (
-            <IconButton label="Back" onPress={back} filled>
-              <ChevronLeft size={20} tone="textPrimary" />
-            </IconButton>
-          ) : (
-            <View />
-          )}
-          {menu ? (
-            <View ref={moreRef} collapsable={false}>
-              <IconButton
-                label={`More for ${placeName(place)}`}
-                onPress={() => menu(moreRef.current)}
-                filled
-                testID="place-more"
-              >
-                <More size={18} tone="textPrimary" />
-              </IconButton>
-            </View>
-          ) : null}
+          {backShown ? <BackButton to="/" onPress={back} /> : <View />}
+          <MoreMenu
+            name={title}
+            items={[...listActions, ...menuItems]}
+            title={title}
+            anchorRef={menuAnchor}
+            testID="place-more"
+            menuTestID="place-menu"
+          />
         </>
       }
       heroRef={heroRef}
@@ -301,9 +295,9 @@ export function PlacePage({
         <>
           <View style={listHeadText.kind}>
             {place.kind === 'tag' ? (
-              <View style={[styles.kindDot, { backgroundColor: tagColors(place.tag.hue).dot }]} />
+              <TagDot hue={place.tag.hue} size={7} />
             ) : (
-              <User size={12} tone="textSecondary" />
+              <User size={iconSize.small} tone="textSecondary" />
             )}
             <Text style={listHeadText.kindText}>{kindLabel}</Text>
           </View>
@@ -327,33 +321,20 @@ export function PlacePage({
       }
       actions={
         <>
-          <PlayButton
-            testID="place-play"
-            label={`Play ${title}`}
-            icon={<Play size={24} color={theme.colors.onPrimary} />}
-            disabled={ids.length === 0}
-            onPress={() => {
-              fly(heroRef.current, ids)
-              player.playFrom(ids, 0, { source })
-            }}
-          />
-          <Button
-            testID="place-shuffle"
-            label="Shuffle"
-            accessibilityLabel={`Shuffle ${title}`}
-            icon={<Shuffle size={16} tone="textPrimary" />}
-            disabled={ids.length === 0}
-            onPress={() => {
-              fly(heroRef.current, ids)
-              player.playShuffled(ids, source)
-            }}
+          <PlayShuffle
+            name={title}
+            songIds={ids}
+            heroRef={heroRef}
+            onPlay={() => player.playFrom(ids, 0, { source })}
+            onShuffle={() => player.playShuffled(ids, source)}
+            testPrefix="place"
           />
           {combining ? null : (
             <Button
               testID="place-combine"
               label="Combine with…"
               accessibilityLabel={`Combine ${title} with another tag or artist`}
-              icon={<Plus size={15} tone="textPrimary" />}
+              icon={<Plus tone="textPrimary" />}
               onPress={() => setAdding(true)}
             />
           )}
@@ -366,6 +347,7 @@ export function PlacePage({
     <View style={styles.screen}>
       <PlaceSongs
         songs={songs}
+        selection={selection}
         source={source}
         byAlbum={artistAlone}
         head={head}
@@ -396,7 +378,7 @@ function Chips({
           key={placeKey(entry)}
           label={placeName(entry)}
           hue={entry.kind === 'tag' ? entry.tag.hue : undefined}
-          icon={entry.kind === 'artist' ? <User size={12} tone="onPrimary" /> : undefined}
+          icon={entry.kind === 'artist' ? <User tone="onPrimary" /> : undefined}
           selected
           compact
           onPress={() => undefined}
@@ -426,6 +408,7 @@ function Chips({
  */
 function PlaceSongs({
   songs,
+  selection,
   source,
   byAlbum,
   head,
@@ -433,6 +416,8 @@ function PlaceSongs({
   scope,
 }: {
   songs: readonly Song[]
+  /** The page's selection, which its ⋯ can start. */
+  selection: Selection
   /** What Up next is called when a row plays the list, as the head's Play names it. */
   source: ListSource | null
   byAlbum: boolean
@@ -444,50 +429,23 @@ function PlaceSongs({
   const player = usePlayerCommands()
   const artFor = useArt()
   const { wide } = useLayout()
-  const { state: downloads } = useDownloads()
-  const { openId: menuSongId, onMore, menu } = useSongMenu()
   const ids = useMemo(() => songs.map(song => song.id), [songs])
-  const selection = useSelection(ids)
   // Newest first, or an artist's albums one after another: the scrollbar's bubble says which.
   const scrollLabel = useMemo(() => sortLabel(byAlbum ? 'album' : 'addedAt'), [byAlbum])
   // Always mounted, told when to show, so it rises and sinks rather than appearing.
   const bar = useListSelectionBar({ songs, selection, scope, wide })
-  const latest = useRef({ ids, playFrom: player.playFrom, selection, source })
-  useEffect(() => {
-    latest.current = { ids, playFrom: player.playFrom, selection, source }
-  }, [ids, player.playFrom, selection, source])
-
-  const onPress = useCallback((event: GestureResponderEvent, song: Song) => {
-    const { ids: now, playFrom, selection: selecting, source: named } = latest.current
-    // Shift and Cmd, and a tap in selection mode, select; a plain tap plays.
-    if (selecting.click(song.id, modifiersOf(event))) return
-    const index = now.indexOf(song.id)
-    if (index >= 0) playFrom(now, index, { source: named })
-  }, [])
-  // Holding a row selects it; the ⋯ opens the menu.
-  const onLongPress = useCallback((song: Song) => latest.current.selection.enter(song.id), [])
-  const onToggleSelect = useCallback((song: Song) => latest.current.selection.toggle(song.id), [])
-  const onDrag = useCallback((song: Song) => latest.current.selection.carried(song.id), [])
+  // A row plays the place from itself, named as the head's Play names it.
+  const rows = useSongRows({
+    songs,
+    selection,
+    onPlay: index => player.playFrom(ids, index, { source }),
+    testPrefix: 'place-song',
+  })
+  const { renderSong: renderRow } = rows
 
   const renderSong = useCallback(
     ({ item, index }: { item: Song; index: number }) => {
-      const row = (
-        <SongRow
-          testID={`place-song-${index}`}
-          song={item}
-          artUri={artFor(item)}
-          downloaded={isDownloaded(downloads.index, item.id)}
-          onPress={onPress}
-          onMore={onMore}
-          menuOpen={menuSongId === item.id}
-          onLongPress={onLongPress}
-          selecting={selection.active}
-          selected={selection.has(item.id)}
-          onToggleSelect={onToggleSelect}
-          dragSongs={onDrag}
-          index={index}
-        />
-      )
+      const row = renderRow({ item, index })
       const previous = index > 0 ? songs[index - 1] : undefined
       if (!byAlbum || (previous && previous.album.trim() === item.album.trim())) return row
       return (
@@ -497,24 +455,12 @@ function PlaceSongs({
         </View>
       )
     },
-    [
-      artFor,
-      downloads.index,
-      onPress,
-      onMore,
-      onLongPress,
-      onToggleSelect,
-      onDrag,
-      selection,
-      menuSongId,
-      byAlbum,
-      songs,
-    ],
+    [renderRow, artFor, byAlbum, songs],
   )
 
   return (
     <View style={styles.listArea}>
-      {bar.floating}
+      {bar.beforeList}
       <SongList
         songs={songs}
         label={label}
@@ -524,7 +470,7 @@ function PlaceSongs({
         scrollLabel={scrollLabel}
         contentContainerStyle={bar.listPadding}
       />
-      {menu}
+      {rows.menu}
     </View>
   )
 }
@@ -551,27 +497,19 @@ function AlbumHeading({
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   listArea: { flex: 1, minHeight: 0 },
-  kindDot: { width: 7, height: 7, borderRadius: 3.5 },
-  nameSerif: {
-    fontFamily: fonts.serif,
-    fontSize: type.display,
-    lineHeight: 53,
-    letterSpacing: -0.5,
-  },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 6 },
+  nameSerif: nameTitle(theme.colors),
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, paddingTop: space.tight },
   plus: { color: theme.colors.textSecondary, fontSize: type.sub },
   album: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: space.snug,
     paddingHorizontal: space.gutter,
-    paddingTop: 14,
-    paddingBottom: 6,
+    paddingTop: space.roomy,
+    paddingBottom: space.tight,
   },
   albumName: {
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
+    ...rowTitle(theme.colors),
     flexShrink: 1,
   },
   albumYear: { color: theme.colors.textMuted, fontSize: type.sub },

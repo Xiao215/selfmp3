@@ -1,7 +1,13 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
-import { isSquareCoverUrl, sanitizeFilename, type ImportJob, type Settings } from '@selfmp3/shared'
+import {
+  messageOf,
+  isSquareCoverUrl,
+  sanitizeFilename,
+  type ImportJob,
+  type Settings,
+} from '@selfmp3/shared'
 import { stagingDir, type Config } from '../config.js'
 import type { KeepAwakeService } from './keepAwake.js'
 import type { Logger } from '../logger.js'
@@ -17,7 +23,6 @@ import type { CoverService } from './covers.js'
 import { asksYouTube, type YtDlpService } from './ytdlp.js'
 import { RateLimitedError, type YtThrottleService } from './ytThrottle.js'
 import { isFreeOnDisk, songKeyCandidates } from './libraryLayout.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * The download worker.

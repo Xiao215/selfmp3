@@ -13,12 +13,15 @@ import { useMotionReduced } from '../../ui/motion'
 import { useVisualLook } from './useVisualLook'
 import {
   createMotionState,
+  discKick,
+  haloLevel,
   isSettled,
   MAX_RINGS,
   PlayheadClock,
-  ringFade,
+  ringAlpha,
   ringInk,
-  ringReach,
+  ringScale,
+  ringWidth,
   stepMotion,
   stillMotion,
   type MotionState,
@@ -26,7 +29,7 @@ import {
 } from './visualMotion.model'
 import {
   RING_FROM,
-  RING_TO,
+  RIPPLES_LOOK,
   rippleDisc,
   type SongVisualProps,
   type VisualColors,
@@ -249,15 +252,15 @@ function write(
     }
     if (drawn.ringIds[slot] !== ring.id) {
       drawn.ringIds[slot] = ring.id
-      drawn.widths[slot] = 1.5 + 1.5 * ring.strength
+      drawn.widths[slot] = ringWidth(ring)
       widthsChanged = true
     }
-    out[at] = RING_FROM + (RING_TO - RING_FROM) * ringReach(ring, tu)
-    out[at + 1] = ringFade(ring, tu) * 0.85
+    out[at] = ringScale(ring, tu)
+    out[at + 1] = ringAlpha(ring, tu)
   }
   if (widthsChanged || force) ringWidths.value = drawn.widths.slice()
-  out[DISC_AT] = 1 + 0.06 * m.kick
-  out[HALO_AT] = Math.min(1, 0.15 + 0.45 * m.glow + 0.3 * m.kick)
+  out[DISC_AT] = discKick(m)
+  out[HALO_AT] = haloLevel(m)
   // A copy: the shared value is handed to the UI thread after this frame's
   // work, and `out` is filled in again on the next.
   frame.value = out.slice()
@@ -282,10 +285,13 @@ function Ripples({
   ringWidths: Frame
   cover: string | null
 }): ReactNode {
-  const disc = rippleDisc(size.width, size.height)
-  const halo = disc * 1.9
+  const { width: w, height: h } = size
+  const disc = rippleDisc(w, h)
+  const look = RIPPLES_LOOK
+  const halo = disc * look.halo.reach * 2
+  const longer = Math.max(w, h)
   const [middle, edge] = colors.ground
-  const haloInk = rgba(colors.inks[0])
+  const haloInk = rgba(colors.inks[look.halo.ink])
   const haloStyle = useAnimatedStyle(() => ({ opacity: frame.value[HALO_AT] ?? 0 }))
   const discStyle = useAnimatedStyle(() => ({
     transform: [{ scale: frame.value[DISC_AT] ?? 1 }],
@@ -294,29 +300,50 @@ function Ripples({
     <>
       <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
         <Defs>
-          <RadialGradient id="ripples-ground" cx="50%" cy="50%" r="70%">
+          {/* In the visual's own units, so each is a circle of the longer
+              side, as the browser's canvas draws them, not an ellipse of the box. */}
+          <RadialGradient
+            id="ripples-ground"
+            gradientUnits="userSpaceOnUse"
+            cx={w / 2}
+            cy={h / 2}
+            r={longer * look.groundReach}
+          >
             <Stop offset="0" stopColor={rgba(middle)} stopOpacity={1} />
             <Stop offset="1" stopColor={rgba(edge)} stopOpacity={1} />
           </RadialGradient>
-          <RadialGradient id="ripples-wash-a" cx="20%" cy="18%" r="60%">
-            <Stop offset="0" stopColor={rgba(colors.inks[0])} stopOpacity={0.2} />
-            <Stop offset="1" stopColor={rgba(colors.inks[0])} stopOpacity={0} />
-          </RadialGradient>
-          <RadialGradient id="ripples-wash-b" cx="82%" cy="84%" r="60%">
-            <Stop offset="0" stopColor={rgba(colors.inks[1])} stopOpacity={0.16} />
-            <Stop offset="1" stopColor={rgba(colors.inks[1])} stopOpacity={0} />
-          </RadialGradient>
+          {look.washes.map((wash, index) => (
+            <RadialGradient
+              key={index}
+              id={`ripples-wash-${index}`}
+              gradientUnits="userSpaceOnUse"
+              cx={w * wash.x}
+              cy={h * wash.y}
+              r={longer * wash.reach}
+            >
+              <Stop offset="0" stopColor={rgba(colors.inks[wash.ink])} stopOpacity={wash.alpha} />
+              <Stop offset="1" stopColor={rgba(colors.inks[wash.ink])} stopOpacity={0} />
+            </RadialGradient>
+          ))}
         </Defs>
         <Rect x="0" y="0" width="100%" height="100%" fill="url(#ripples-ground)" />
-        <Rect x="0" y="0" width="100%" height="100%" fill="url(#ripples-wash-a)" />
-        <Rect x="0" y="0" width="100%" height="100%" fill="url(#ripples-wash-b)" />
+        {look.washes.map((_, index) => (
+          <Rect
+            key={index}
+            x="0"
+            y="0"
+            width="100%"
+            height="100%"
+            fill={`url(#ripples-wash-${index})`}
+          />
+        ))}
       </Svg>
       <View style={styles.centre}>
         <Animated.View style={[styles.at, { width: halo, height: halo }, haloStyle]}>
           <Svg width="100%" height="100%">
             <Defs>
               <RadialGradient id="ripples-halo" cx="50%" cy="50%" r="50%">
-                <Stop offset="0.4" stopColor={haloInk} stopOpacity={0.5} />
+                <Stop offset={look.halo.solid} stopColor={haloInk} stopOpacity={look.halo.alpha} />
                 <Stop offset="1" stopColor={haloInk} stopOpacity={0} />
               </RadialGradient>
             </Defs>
@@ -338,10 +365,20 @@ function Ripples({
               for a song that has no cover. */}
           <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
             <Defs>
-              <RadialGradient id="ripples-disc" cx="42%" cy="38%" r="70%">
-                <Stop offset="0" stopColor={rgba(colors.inks[2])} stopOpacity={1} />
-                <Stop offset="0.7" stopColor={rgba(colors.inks[0])} stopOpacity={1} />
-                <Stop offset="1" stopColor={rgba(colors.inks[1])} stopOpacity={1} />
+              <RadialGradient
+                id="ripples-disc"
+                cx={`${look.disc.x * 100}%`}
+                cy={`${look.disc.y * 100}%`}
+                r={`${look.disc.reach * 100}%`}
+              >
+                {look.disc.stops.map(stop => (
+                  <Stop
+                    key={stop.at}
+                    offset={stop.at}
+                    stopColor={rgba(colors.inks[stop.ink])}
+                    stopOpacity={1}
+                  />
+                ))}
               </RadialGradient>
             </Defs>
             <Circle cx="50%" cy="50%" r="50%" fill="url(#ripples-disc)" />

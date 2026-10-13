@@ -15,14 +15,16 @@
  * to the middle of it, and iOS Safari refuses to play at all.
  */
 
+const BYTE_RANGE = /^bytes=(\d*)-(\d*)$/
+
 /** Parse a single-range `Range: bytes=...` header. Multi-range is not supported. */
 export function parseRange(
-  header: string | undefined,
+  header: string | null | undefined,
   size: number,
 ): { start: number; end: number } | 'unsatisfiable' | null {
   if (!header) return null
 
-  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim())
+  const match = BYTE_RANGE.exec(header.trim())
   if (!match) return null
 
   const [, rawStart = '', rawEnd = ''] = match
@@ -50,6 +52,31 @@ export function parseRange(
   if (start > end) return 'unsatisfiable'
   return { start, end }
 }
+
+/**
+ * A `Range:` header worth passing on to whoever holds the bytes — a bucket, a
+ * server's stream — or null for one that is not a range `parseRange` reads,
+ * which is then left off and the whole file asked for, as HTTP lets a server
+ * do. One range only: a player never asks for more, and the doorman's two
+ * relays used to disagree, one passing several on and the other none.
+ */
+export function relayedRange(header: string | null | undefined): string | null {
+  const range = header?.trim()
+  const match = range ? BYTE_RANGE.exec(range) : null
+  return match && (match[1] !== '' || match[2] !== '') ? (range ?? null) : null
+}
+
+/**
+ * What a stream's answer says about itself that a player needs to hear,
+ * passed back from a relayed range: a link's preview through the server, and
+ * a room's link through the doorman.
+ */
+export const STREAM_RELAYED_HEADERS = [
+  'content-type',
+  'content-length',
+  'content-range',
+  'accept-ranges',
+] as const
 
 /**
  * The whole answer to a request for a file, as numbers and headers.
@@ -128,4 +155,14 @@ export function answerRange({
         length,
         headers: { ...common, 'Content-Length': String(length) },
       }
+}
+
+/**
+ * A file's ETag from its size and modification time: a new file under the
+ * same name is a new tag. The one formula for every file a server or the
+ * desktop shell sends — the audio, a stored image, the sync manifest's
+ * entries — so a tag one of them hands out is the tag the other would.
+ */
+export function fileEtag(sizeBytes: number, mtimeMs: number): string {
+  return `"${sizeBytes.toString(16)}-${Math.floor(mtimeMs).toString(16)}"`
 }

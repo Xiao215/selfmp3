@@ -35,6 +35,18 @@ files:
 npmRebuild: false
 asar: true
 
+# The links the app answers to — a Google sign-in coming back as
+# `selfmp3://welcome#signin-code=…`, a widget's tag — declared in the bundle, so
+# macOS knows they are this app's before it has ever been opened, and a sign-in
+# finished in the browser can launch it. `main.ts` claims the scheme again at
+# every launch (`setAsDefaultProtocolClient`), which is all a development run
+# has. packages/shared's DEEP_LINK_SCHEME; src/main/deepLinks.test.ts holds the
+# two equal.
+protocols:
+  - name: self.mp3
+    schemes:
+      - selfmp3
+
 # `resources/icon.png` at 1024, rendered from the SVG the tab and the phone wear
 # by `scripts/icon.mjs`. electron-builder makes the .icns and the .ico from it.
 icon: resources/icon.png

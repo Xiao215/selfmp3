@@ -1,12 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   canListen,
+  createSilenceWatch,
   followAudio,
   listenDetail,
   listenLabel,
   listeningLeftReview,
-  playedRatio,
-  seekAt,
+  previewStatus,
   startListening,
   waitingRowNext,
 } from './listen.model'
@@ -98,21 +98,6 @@ describe('listening before importing', () => {
     )
   })
 
-  it('fills the bar to where the song is, and nothing before its length is known', () => {
-    expect(playedRatio(62, 248)).toBeCloseTo(0.25)
-    expect(playedRatio(300, 248)).toBe(1)
-    expect(playedRatio(-1, 248)).toBe(0)
-    expect(playedRatio(10, 0)).toBe(0)
-    expect(playedRatio(10, NaN)).toBe(0)
-  })
-
-  it('seeks to where the bar is dragged, kept within the song', () => {
-    expect(seekAt(50, 200, 248)).toBe(62)
-    expect(seekAt(-20, 200, 248)).toBe(0)
-    expect(seekAt(260, 200, 248)).toBe(248)
-    expect(seekAt(50, 0, 248)).toBe(0)
-  })
-
   it('opens a waiting row once its song plays, waits while it loads, and forgets it when another song takes the player', () => {
     const loading = startListening(track)
     expect(waitingRowNext(track.url, loading)).toBe('wait')
@@ -125,5 +110,40 @@ describe('listening before importing', () => {
         status: 'playing',
       }),
     ).toBe('forget')
+  })
+})
+
+describe('what a preview is doing, on a phone and in a browser alike', () => {
+  it('is loading while asked to play and still waiting, and playing once it sounds', () => {
+    expect(previewStatus('play', { failed: false, ready: false })).toBe('loading')
+    expect(previewStatus('play', { failed: false, ready: true })).toBe('playing')
+  })
+
+  it('is paused when asked to pause, whatever its buffer is doing', () => {
+    expect(previewStatus('pause', { failed: false, ready: false })).toBe('paused')
+  })
+
+  it('says it failed either way', () => {
+    expect(previewStatus('pause', { failed: true, ready: true })).toBe('error')
+  })
+
+  it('counts a stream silent for too long as failed, and not one that spoke', () => {
+    vi.useFakeTimers()
+    try {
+      const silent = vi.fn()
+      const watch = createSilenceWatch(silent)
+
+      watch.watch()
+      watch.heard('loading')
+      vi.advanceTimersByTime(45_000)
+      expect(silent).toHaveBeenCalledTimes(1)
+
+      watch.watch()
+      watch.heard('playing')
+      vi.advanceTimersByTime(60_000)
+      expect(silent).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

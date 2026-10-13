@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { space, type, withAlpha } from '@selfmp3/client'
+import { space, type, iconSize } from '@selfmp3/client'
 import { Check } from '../../ui/components/Icons'
+import { Spinner } from '../../ui/components/Spinner'
 
 /** One step of a wait: what it says while it runs, once it is done, and from when. */
 interface WorkingStep {
@@ -74,12 +75,12 @@ export function Working({
         return (
           <View key={step.key} style={styles.step}>
             {done ? (
-              <View style={[styles.mark, { backgroundColor: withAlpha(theme.colors.good, 0.18) }]}>
-                <Check size={11} tone="good" />
+              <View style={[styles.mark, { backgroundColor: theme.colors.goodWash }]}>
+                <Check size={iconSize.tiny} tone="good" />
               </View>
             ) : (
               <View style={styles.mark}>
-                <ActivityIndicator size="small" color={theme.colors.textMuted} />
+                <Spinner />
               </View>
             )}
             <Text style={[styles.label, !done && styles.now]} numberOfLines={1}>
@@ -114,8 +115,8 @@ const OUTLINE = [
 ] as const
 
 const styles = StyleSheet.create(theme => ({
-  body: { gap: 10, paddingVertical: space.xs },
-  step: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  body: { gap: space.snug, paddingVertical: space.xs },
+  step: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   mark: {
     width: 18,
     height: 18,
@@ -131,8 +132,14 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.small,
     fontVariant: ['tabular-nums'],
   },
-  outline: { gap: 4, marginTop: space.xs },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6, paddingLeft: 28 },
+  outline: { gap: space.xs, marginTop: space.xs },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingVertical: space.tight,
+    paddingLeft: 28,
+  },
   ring: {
     width: 18,
     height: 18,
@@ -140,7 +147,7 @@ const styles = StyleSheet.create(theme => ({
     borderWidth: 1.5,
     borderColor: theme.colors.borderStrong,
   },
-  lines: { flex: 1, gap: 6 },
+  lines: { flex: 1, gap: space.tight },
   bar: { height: 12, borderRadius: 6, backgroundColor: theme.colors.surface3 },
   thin: { height: 9 },
 }))

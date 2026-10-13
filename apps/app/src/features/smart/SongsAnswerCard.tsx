@@ -1,13 +1,14 @@
 import { useRef } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
-import { leading, radius, space, type } from '@selfmp3/client'
+import { radius, space, type, iconSize } from '@selfmp3/client'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { ChevronRight, Play } from '../../ui/components/Icons'
+import { SONG_ACTION_LABELS } from '../../ui/songActions.model'
 import { useSongsById } from '../../ui/songsById'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import type { ListSource } from '../lists/lists.model'
@@ -16,13 +17,15 @@ import { keepAnswer, useKeptAnswer } from './answers.store'
 import { ChangeIt } from './ChangeIt'
 import { answerSongs } from './smart.model'
 import { useSmartServer } from './useSmartServer'
+import { Press } from '../../ui/components/Press'
+import { rowTitle, textColumn, lineSub } from '../../ui/surfaces'
 
 /**
  * Ask's answer when it is songs, as it sits in Search (docs/features/lists.md,
  * C1): one card. ▶ plays it straight away — Up next wears the question as its
  * name, and Save is there once you know you like it. The card itself opens the
  * answer as a page, to look before listening. An answer about what plays
- * after this song (A8) leads with Add to Up next instead.
+ * after this song (A8) leads with Play next instead.
  */
 export function SongsAnswerCard({
   answer,
@@ -32,7 +35,7 @@ export function SongsAnswerCard({
 }: {
   answer: Extract<AskAnswer, { kind: 'songs' }>
   text: string
-  /** After Play or Add to Up next: Search has done its job. */
+  /** After Play or Play next: Search has done its job. */
   onPlayed: () => void
   /** Before the answer's page opens. */
   onOpen: () => void
@@ -73,11 +76,12 @@ export function SongsAnswerCard({
   return (
     <View style={styles.stack}>
       <View style={styles.card}>
-        <Pressable
+        <Press
+          feedback="dim"
           onPress={open}
           accessibilityRole="button"
           accessibilityLabel={`Open the ${plural(ids.length, 'song', 'songs')} picked for “${text}”`}
-          style={({ pressed }) => [styles.opens, pressed && styles.pressed]}
+          style={styles.opens}
           testID="songs-answer-card"
         >
           <View ref={coverRef} collapsable={false}>
@@ -91,11 +95,13 @@ export function SongsAnswerCard({
               {plural(ids.length, 'song', 'songs')} · {formatLongDuration(seconds)}
             </Text>
           </View>
-          <ChevronRight size={14} color={theme.colors.textMuted} />
-        </Pressable>
+          <ChevronRight size={iconSize.field} color={theme.colors.textMuted} />
+        </Press>
         {next ? (
+          // Asked what plays after this song, it plays them next, and says so:
+          // "Add to Up next" puts songs at the end everywhere else (T-383).
           <Button
-            label="Add to Up next"
+            label={SONG_ACTION_LABELS.playNext}
             variant="primary"
             onPress={() => {
               fly(coverRef.current, ids)
@@ -108,7 +114,7 @@ export function SongsAnswerCard({
           <PlayButton
             label={`Play the songs picked for “${text}”`}
             size={40}
-            icon={<Play size={16} color={theme.colors.onPrimary} />}
+            icon={<Play color={theme.colors.onPrimary} />}
             onPress={() => {
               fly(coverRef.current, ids)
               player.playFrom(ids, 0, { source })
@@ -134,9 +140,8 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
   },
   opens: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: space.md },
-  pressed: { opacity: 0.8 },
-  text: { flex: 1, minWidth: 0, gap: 2 },
-  title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  text: textColumn,
+  title: rowTitle(theme.colors),
   meta: { color: theme.colors.textMuted, fontSize: type.small },
-  line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  line: lineSub(theme.colors),
 }))

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- the dark layer is the whole tip and any tap closes it: a pressed look would light the screen it darkens
 import { Animated, Easing, Pressable, Text, View, useWindowDimensions } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { Defs, LinearGradient, Path, Rect, Stop, Svg } from 'react-native-svg'

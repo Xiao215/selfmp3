@@ -1,6 +1,6 @@
 import { memo, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, TextInput, View } from 'react-native'
+import { Animated, Text, View } from 'react-native'
 import { Guide } from '../features/guide/Guide'
 import { useGuideAsked } from '../features/guide/guideMemory'
 import { useGuide } from '../features/guide/useGuide'
@@ -11,15 +11,13 @@ import { usePathname, useRouter } from 'expo-router'
 import { plural, fuzzyRank, type Playlist, type Tag } from '@selfmp3/shared'
 import {
   downloadTally,
-  leading,
   radius,
   railTags,
   space,
-  tagColors,
   type,
   useAddToPlaylist,
-  useCreateTag,
   useLibrary,
+  iconSize,
 } from '@selfmp3/client'
 import { footNotice, footSummary } from '../features/library/library.model'
 import { profileName } from '../features/profile/profile.model'
@@ -27,7 +25,7 @@ import { devicePlace } from '../features/settings/settings.model'
 import { deviceKind } from '../ports/device'
 import { library as cloudLibrary } from '../replica'
 import { useBucketHold } from '../features/profile/useBucketHold'
-import { noteTagUsed, useRecentTagIds } from '../features/library/recentTags.store'
+import { useRecentTagIds } from '../features/library/recentTags.store'
 import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { enterFromSidebar, useRecordSidebarEntry } from './sidebarEntry'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'
@@ -39,43 +37,41 @@ import { titleBarInset } from '../ports/titleBarInset'
 import { acceleratorKeys } from '../features/settings/shortcuts.model'
 import { showToast } from '../ui/toast'
 import { useDownloads } from '../offline/DownloadsProvider'
-import { tagLink } from '../features/tag/placeLinks'
+import { useOpenTag } from '../features/tag/useOpenTag'
 import { onTagPage } from '../features/tag/placePath.model'
-import { useArtistNudge } from '../features/tag/useArtistNudge'
+import { existingTag, noTagsLine } from '../features/tag/tag.model'
+import { NEW_TAG_FAILED, TagNameField, useNewTagForm } from '../features/tags/useNewTagForm'
+import { StatusLine } from '../ui/components/StatusLine'
+import { NoticeCard } from '../ui/components/NoticeCard'
 import { useConnection } from '../connection/ConnectionProvider'
 import { BrandMark } from '../ui/components/BrandMark'
-import {
-  BarChart,
-  Download,
-  Home,
-  Live,
-  More,
-  Music,
-  Plus,
-  Search,
-  Tag as TagIcon,
-} from '../ui/components/Icons'
-import { HueSwatches, autoTagHue } from '../ui/components/HueSwatches'
+import { Live, More, Plus, Search, Tag as TagIcon } from '../ui/components/Icons'
+import { HueSwatches } from '../ui/components/HueSwatches'
 import { TagEditor } from '../ui/components/TagEditor'
 import { tip } from '../ui/tip'
 import { rightClick } from '../ui/rightClick'
 import { Avatar } from '../ui/components/Avatar'
 import { useAccount } from '../features/profile/useAccount'
-import { activeDestination } from '../ui/components/bottomNav.model'
+import { activeDestination, NAV, navGoes, navItemProps } from './nav.model'
+import { NAV_ICON } from './navIcons'
 import { useSlidingHighlight } from '../ui/components/SlidingHighlight'
 import { useFade } from '../ui/motion'
 import { EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
 import { setPaletteOpen } from './palette'
 import { label as labelText } from '../ui/surfaces'
 import { ScrollView } from '../ui/components/Scroll'
+import { TagDot } from '../ui/components/TagDot'
+import { Press } from '../ui/components/Press'
+import { IconButton } from '../ui/components/IconButton'
+import { SIDEBAR_WIDTH } from './widths'
 
 /**
  * The desktop's left rail.
  *
- * The tab bar's destinations and two more: a computer reaches Import and Stats
- * from the rail, where a phone reaches them through Profile (docs/UI-MIGRATION.md,
- * Open question 7). Which one a page belongs to is `activeDestination`, the
- * same tested function the tab bar asks.
+ * The tab bar's places and two more (`NAV`): a computer reaches Import and
+ * Stats from the rail, where a phone reaches them through Profile. Which one a
+ * page belongs to is `activeDestination`, and a lit one pressed goes back to
+ * its first page, as a tab does (`navGoes`).
  *
  * At the top, under the brand, a Search row that opens the command palette —
  * the one way to it in a browser tab, which has no ⌘K of its own.
@@ -90,26 +86,10 @@ import { ScrollView } from '../ui/components/Scroll'
  * edits it, and the TAGS header opens all of them. At the foot, you, and a
  * card only when something needs you.
  */
-const DESTINATIONS: {
-  href: '/' | '/library' | '/import' | '/stats'
-  label: string
-  Icon: typeof Music
-}[] = [
-  { href: '/', label: 'Home', Icon: Home },
-  { href: '/library', label: 'Library', Icon: Music },
-  // Import and Stats both need the server itself. A cloud library reaches it by
-  // the addresses in its last sync and says so when it cannot, which is the
-  // page's business — leaving the row out would say the feature did not exist.
-  // Stats keeps a row of its own on a computer; on a phone it is under Profile
-  // (docs/UI-MIGRATION.md, Open question 7).
-  { href: '/import', label: 'Import', Icon: Download },
-  { href: '/stats', label: 'Stats', Icon: BarChart },
-]
+const ROWS = NAV.filter(place => place.rail === 'row')
 
 /** How many playlists the rail lists: the ones played last. The header opens them all. */
 const RAIL_PLAYLISTS = 4
-
-export const SIDEBAR_WIDTH = 244
 
 function SidebarInner(): ReactNode {
   // On an iPad the rail runs up under the status bar, which a phone's tab bar never did.
@@ -118,11 +98,9 @@ function SidebarInner(): ReactNode {
   const pathname = usePathname()
   // The lit destination's fill slides to the next one, on the spring, as the
   // page changes beside it (docs/ui-mock `M3`, 5). Within these four rows
-  // only: a playlist or a tag further down is lit in place.
-  const lit = activeDestination(
-    pathname,
-    DESTINATIONS.map(destination => destination.href),
-  )
+  // only: Playlists' header, a playlist or a tag further down is lit in place.
+  const destination = activeDestination(pathname)
+  const lit = ROWS.some(row => row.href === destination) ? destination : null
   const slide = useSlidingHighlight(lit, styles.itemOn)
   // What a press here opens is a place of its own, with no ‹ (J1).
   useRecordSidebarEntry()
@@ -152,28 +130,29 @@ function SidebarInner(): ReactNode {
 
       <View accessibilityRole="tablist" style={styles.nav}>
         {slide.highlight}
-        {DESTINATIONS.map(destination => {
-          const active = destination.href === lit
+        {ROWS.map(row => {
+          const active = row.href === lit
+          const Icon = NAV_ICON[row.id]
           return (
-            <Pressable
-              key={destination.href}
-              onLayout={slide.measure(destination.href)}
+            <Press
+              key={row.href}
+              feedback="wash"
+              onLayout={slide.measure(row.href)}
               style={[styles.item, active && !slide.placed && styles.itemOn]}
               onPress={() => {
-                if (active) return
+                if (!navGoes(pathname, row.href)) return
                 enterFromSidebar()
-                router.navigate(destination.href)
+                router.navigate(row.href)
               }}
-              accessibilityRole="tab"
-              accessibilityLabel={destination.label}
-              accessibilityState={{ selected: active }}
-              testID={`nav-${destination.label.toLowerCase()}`}
+              accessibilityLabel={row.label}
+              {...navItemProps(active)}
+              testID={`nav-${row.id}`}
             >
-              <destination.Icon size={18} tone={active ? 'textPrimary' : 'textMuted'} />
+              <Icon size={iconSize.medium} tone={active ? 'textPrimary' : 'textMuted'} />
               <Text style={[styles.label, active && styles.labelOn]} numberOfLines={1}>
-                {destination.label}
+                {row.label}
               </Text>
-            </Pressable>
+            </Press>
           )
         })}
       </View>
@@ -209,16 +188,17 @@ function SearchRow(): ReactNode {
   const { theme } = useUnistyles()
   const [hovered, setHovered] = useState(false)
   return (
-    <Pressable
+    <Press
+      feedback="wash"
       onPress={() => setPaletteOpen(true)}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
       accessibilityRole="button"
       accessibilityLabel="Search"
       testID="nav-search"
-      style={({ pressed }) => [styles.search, (pressed || hovered) && styles.searchHovered]}
+      style={[styles.search, hovered && styles.searchHovered]}
     >
-      <Search size={15} color={theme.colors.textMuted} />
+      <Search size={iconSize.button} color={theme.colors.textMuted} />
       <Text style={styles.searchText}>Search</Text>
       {SEARCH_KEYS ? (
         <View style={styles.searchKeys}>
@@ -229,7 +209,7 @@ function SearchRow(): ReactNode {
           ))}
         </View>
       ) : null}
-    </Pressable>
+    </Press>
   )
 }
 
@@ -244,7 +224,7 @@ function Playlists(): ReactNode {
   const listed = useMemo(() => listedPlaylists(all ?? [], 'recent'), [all])
   const recent = listed.slice(0, RAIL_PLAYLISTS)
   // Lit on a playlist's own page too: that page is inside this section.
-  const onPage = pathname === '/playlists' || pathname.startsWith('/playlists/')
+  const onPage = activeDestination(pathname) === '/playlists'
   /*
    * Songs drop onto these from any list, which nothing says until a song is
    * already being dragged. Shown once, after a song first goes into a
@@ -265,30 +245,28 @@ function Playlists(): ReactNode {
         any of the three kinds.
       */}
       <View style={styles.groupTitle}>
-        <Pressable
+        <Press
+          feedback="dim"
           onPress={() => {
-            if (pathname === '/playlists') return
+            if (!navGoes(pathname, '/playlists')) return
             enterFromSidebar()
             router.navigate('/playlists')
           }}
-          accessibilityRole="tab"
           accessibilityLabel="Playlists"
-          accessibilityState={{ selected: onPage }}
+          {...navItemProps(onPage)}
           testID="nav-playlists"
           style={styles.groupTitleMain}
         >
           <Text style={[styles.groupTitleText, onPage && styles.groupTitleOn]}>PLAYLISTS</Text>
           {listed.length > 0 ? <Text style={styles.groupAll}>All {listed.length}</Text> : null}
-        </Pressable>
-        <Pressable
-          style={styles.tinyButton}
+        </Press>
+        <IconButton
+          size={TINY_BUTTON}
           onPress={() => setNewOpen(open => !open)}
-          accessibilityRole="button"
-          accessibilityLabel="New playlist"
-          {...tip('New playlist')}
+          label="New playlist"
         >
-          <Plus size={14} tone="textMuted" />
-        </Pressable>
+          <Plus size={iconSize.field} tone="textMuted" />
+        </IconButton>
       </View>
 
       <View ref={dropTarget} collapsable={false}>
@@ -355,24 +333,20 @@ function RailPlaylist({
 
   return (
     <Animated.View ref={ref} collapsable={false} style={dim}>
-      <Pressable
+      <Press
+        feedback="wash"
         onPress={onOpen}
         accessibilityRole="link"
         accessibilityLabel={playlist.name}
         accessibilityState={{ selected: active }}
-        style={({ pressed }) => [
-          styles.playlistRow,
-          active && styles.itemOn,
-          pressed && !active && styles.rowPressed,
-          over && styles.dropping,
-        ]}
+        style={[styles.playlistRow, active && styles.itemOn, over && styles.dropping]}
       >
         <PlaylistCover playlist={playlist} size={22} />
         <Text style={[styles.playlistName, active && styles.labelOn]} numberOfLines={1}>
           {playlist.name}
         </Text>
-        {live ? <Live size={13} tone="textMuted" /> : null}
-      </Pressable>
+        {live ? <Live size={iconSize.sub} tone="textMuted" /> : null}
+      </Press>
       {over ? <Text style={[styles.dropHint, styles.labelOn]}>Drop to add</Text> : null}
     </Animated.View>
   )
@@ -383,12 +357,7 @@ function Tags(): ReactNode {
   const router = useRouter()
   const pathname = usePathname()
   const { data: library } = useLibrary()
-  const createTag = useCreateTag()
-  const nudge = useArtistNudge()
   const [adding, setAdding] = useState(false)
-  const [name, setName] = useState('')
-  // A colour picked for the new tag; left alone, the name chooses one.
-  const [hue, setHue] = useState<number | undefined>(undefined)
 
   const tags = useMemo<readonly Tag[]>(() => library?.tags ?? [], [library?.tags])
   const recentIds = useRecentTagIds()
@@ -401,43 +370,32 @@ function Tags(): ReactNode {
    * and the rest are one press away on All tags, which the header opens.
    */
   const rail = useMemo(() => railTags(recentIds, tags), [recentIds, tags])
-  const trimmed = name.trim()
-  const autoHue = autoTagHue(trimmed)
-  const suggestions = trimmed ? fuzzyRank(name, tags, tag => tag.name).slice(0, 3) : []
-  const exact = suggestions.find(match => match.exact)
 
-  // A tag is a place (docs/UI-MIGRATION.md, Phase 4): choosing one opens its page.
+  // A tag is a place (docs/UI-MIGRATION.md, Phase 4): choosing one opens its
+  // page, which is already open when its row is lit.
+  const openTag = useOpenTag()
   const open = (tag: Tag): void => {
-    noteTagUsed(tag.id)
-    if (onTagPage(pathname, tag.name)) return
-    enterFromSidebar()
-    router.navigate(tagLink(tag.name))
+    if (!onTagPage(pathname, tag.name)) openTag(tag, { from: 'sidebar' })
   }
 
-  const closeForm = (): void => {
-    setName('')
-    setHue(undefined)
-    setAdding(false)
-  }
-
-  const submit = (): void => {
-    if (!trimmed) {
+  // Made, or already there and opened: the form has done its job and closes.
+  const form = useNewTagForm({
+    tags,
+    onExisting: tag => {
+      open(tag)
       setAdding(false)
-      return
-    }
-    // Opening the tag that exists beats silently making a near-duplicate.
-    if (exact) open(exact.item)
-    else {
-      const tag = { name: trimmed, ...(hue === undefined ? {} : { hue }) }
-      nudge.check(trimmed, () => void createTag.mutateAsync(tag).catch(() => undefined))
-    }
-    closeForm()
-  }
+    },
+    onMade: () => setAdding(false),
+  })
+  const trimmed = form.name.trim()
+  const suggestions = trimmed ? fuzzyRank(trimmed, tags, tag => tag.name).slice(0, 3) : []
+  const exact = existingTag(tags, trimmed)
 
   return (
     <View style={styles.group}>
       <View style={styles.groupTitle}>
-        <Pressable
+        <Press
+          feedback="dim"
           onPress={() => {
             enterFromSidebar()
             router.navigate('/tags')
@@ -451,53 +409,43 @@ function Tags(): ReactNode {
             TAGS
           </Text>
           {tags.length > 0 ? <Text style={styles.groupAll}>All {tags.length}</Text> : null}
-        </Pressable>
-        <Pressable
-          style={styles.tinyButton}
-          onPress={() => setAdding(isOpen => !isOpen)}
-          accessibilityRole="button"
-          accessibilityLabel="New tag"
-          {...tip('New tag')}
-        >
-          <Plus size={14} color={theme.colors.textMuted} />
-        </Pressable>
+        </Press>
+        <IconButton size={TINY_BUTTON} onPress={() => setAdding(isOpen => !isOpen)} label="New tag">
+          <Plus size={iconSize.field} color={theme.colors.textMuted} />
+        </IconButton>
       </View>
 
       {adding ? (
-        <View style={styles.tagForm}>
-          <TextInput
-            style={styles.tagInput}
-            value={name}
-            onChangeText={setName}
-            onSubmitEditing={submit}
-            onBlur={() => {
-              if (!name) setAdding(false)
-            }}
+        <View style={styles.tagForm} testID="sidebar-new-tag">
+          <TagNameField
+            form={form}
+            size="small"
             placeholder="tag name"
-            placeholderTextColor={theme.colors.textMuted}
             autoFocus
-            autoCapitalize="none"
-            autoCorrect={false}
-            accessibilityLabel="New tag name"
+            onBlur={() => {
+              if (!form.name) setAdding(false)
+            }}
+            testID="sidebar-new-tag-name"
           />
           <View style={styles.tagHues}>
-            <HueSwatches value={hue ?? autoHue} first={autoHue} onChange={setHue} size={16} />
+            <HueSwatches value={form.hue} first={form.autoHue} onChange={form.setHue} size={16} />
           </View>
+          {form.failed ? <StatusLine>{NEW_TAG_FAILED}</StatusLine> : null}
           {suggestions.length > 0 ? (
             <View style={styles.suggestions}>
               <Text style={styles.hint}>{exact ? 'already exists:' : 'similar:'}</Text>
               {suggestions.map(({ item }) => (
-                <Pressable
+                <Press
                   key={item.id}
                   style={styles.suggestion}
                   onPress={() => {
                     open(item)
-                    closeForm()
+                    setAdding(false)
                   }}
                   accessibilityRole="button"
                 >
                   <Text style={styles.suggestionText}>{item.name}</Text>
-                </Pressable>
+                </Press>
               ))}
             </View>
           ) : null}
@@ -520,15 +468,15 @@ function Tags(): ReactNode {
         ) : null}
         {library && tags.length === 0 && !adding ? (
           <View style={styles.tagEmpty}>
-            <TagIcon size={16} color={theme.colors.textMuted} />
-            <Text style={styles.hint}>No tags yet.</Text>
-            <Pressable onPress={() => setAdding(true)} accessibilityRole="button">
+            <TagIcon size={iconSize.item} color={theme.colors.textMuted} />
+            <Text style={styles.hint}>{noTagsLine()}</Text>
+            <Press feedback="dim" onPress={() => setAdding(true)} accessibilityRole="button">
               <Text style={styles.link}>Add your first tag</Text>
-            </Pressable>
+            </Press>
           </View>
         ) : null}
       </ScrollView>
-      {nudge.nudge}
+      {form.nudge}
     </View>
   )
 }
@@ -567,22 +515,24 @@ function TagRow({
       // A right-click opens the same editor, from the row's ⋯ (B1).
       {...rightClick(() => setEditing(true))}
     >
-      <Pressable
+      <Press
+        feedback="dim"
         style={styles.tagMain}
         onPress={onOpen}
         accessibilityRole="link"
         accessibilityLabel={tag.name}
         accessibilityState={{ selected: active }}
       >
-        <View style={[styles.dot, { backgroundColor: tagColors(tag.hue).dot }]} />
+        <TagDot hue={tag.hue} />
         <Text style={[styles.tagName, active && styles.labelOn]} numberOfLines={1}>
           {tag.name}
         </Text>
         <Text style={styles.count}>{tag.songCount}</Text>
-      </Pressable>
+      </Press>
 
       <Animated.View ref={moreRef} collapsable={false} style={{ opacity: reveal }}>
-        <Pressable
+        <Press
+          feedback="dim"
           style={[styles.tagAction, styles.tagActionLast]}
           onPress={() => setEditing(isOpen => !isOpen)}
           accessibilityRole="button"
@@ -590,8 +540,8 @@ function TagRow({
           {...tip('Rename, recolour or delete')}
           accessibilityState={{ expanded: editing }}
         >
-          <More size={13} color={theme.colors.textMuted} />
-        </Pressable>
+          <More size={iconSize.sub} color={theme.colors.textMuted} />
+        </Press>
       </Animated.View>
 
       <TagEditor tag={editing ? tag : null} anchorRef={moreRef} onClose={() => setEditing(false)} />
@@ -653,17 +603,21 @@ function Foot(): ReactNode {
   return (
     <View style={styles.foot}>
       {notice ? (
-        <View style={styles.notice} accessibilityLiveRegion="polite" testID="sidebar-notice">
-          <Text style={styles.noticeTitle}>{notice.title}</Text>
-          <Text style={styles.noticeBody}>{notice.body}</Text>
-        </View>
+        <NoticeCard
+          tone="warn"
+          wash
+          compact
+          live
+          title={notice.title}
+          style={styles.notice}
+          testID="sidebar-notice"
+        >
+          {notice.body}
+        </NoticeCard>
       ) : null}
-      <Pressable
-        style={({ pressed }) => [
-          styles.status,
-          pathname === '/profile' && styles.itemOn,
-          pressed && styles.rowPressed,
-        ]}
+      <Press
+        feedback="wash"
+        style={[styles.status, pathname === '/profile' && styles.itemOn]}
         onPress={() => {
           enterFromSidebar()
           router.navigate('/profile')
@@ -679,16 +633,17 @@ function Foot(): ReactNode {
         <Text style={styles.footLabel} numberOfLines={1}>
           {name}
         </Text>
-      </Pressable>
+      </Press>
     </View>
   )
 }
 
+/** The ＋ beside a section's header. */
+const TINY_BUTTON = 24
+
 /** The round mark on the rail's own row. */
 const AVATAR = 30
 
-/** The corners of a row in the rail: a destination, a playlist, a tag, the status. */
-const ITEM_RADIUS = 12
 /** The type of a row's name in the rail, and of its search and new-tag fields. */
 const ITEM_TEXT = type.sub
 
@@ -738,7 +693,7 @@ const styles = StyleSheet.create(theme => ({
     gap: space.md,
     paddingHorizontal: space.sm,
     paddingVertical: space.sm,
-    borderRadius: ITEM_RADIUS,
+    borderRadius: radius.item,
   },
   label: {
     color: theme.colors.textSecondary,
@@ -764,7 +719,7 @@ const styles = StyleSheet.create(theme => ({
   searchKeys: { flexDirection: 'row', gap: 3 },
   searchKey: {
     minWidth: 18,
-    paddingHorizontal: 4,
+    paddingHorizontal: space.xs,
     textAlign: 'center',
     fontSize: type.tiny,
     fontWeight: '600',
@@ -780,15 +735,15 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: space.sm,
     minHeight: 32,
-    paddingHorizontal: 6,
-    borderRadius: ITEM_RADIUS,
+    paddingHorizontal: space.tight,
+    borderRadius: radius.item,
     // Clear until a song is dragged over: then the dashed edge is the drop
     // target itself.
     borderWidth: 1,
     borderColor: 'transparent',
   },
   playlistName: { flex: 1, color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
-  loadingHint: { paddingHorizontal: 10, paddingVertical: 4 },
+  loadingHint: { paddingHorizontal: space.snug, paddingVertical: space.xs },
   dropping: {
     borderStyle: 'dashed',
     backgroundColor: theme.colors.surface2,
@@ -800,18 +755,17 @@ const styles = StyleSheet.create(theme => ({
   // The radius is the highlight's own: the sliding fill is a view behind the
   // rows, not the row itself, so without it the lit destination would have
   // square corners while every row it slid between was rounded.
-  itemOn: { backgroundColor: theme.colors.surface3, borderRadius: ITEM_RADIUS },
+  itemOn: { backgroundColor: theme.colors.surface3, borderRadius: radius.item },
   labelOn: { color: theme.colors.textPrimary, fontWeight: '600' },
-  rowPressed: { backgroundColor: theme.colors.surface2 },
-  dropHint: { fontSize: type.tiny, paddingHorizontal: 10, paddingBottom: 2 },
+  dropHint: { fontSize: type.tiny, paddingHorizontal: space.snug, paddingBottom: 2 },
   /* `.nav-group-grow`: the tag list takes what is left, and scrolls in it. */
   group: { flex: 1, minHeight: 0, gap: 1 },
   groupTitle: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: space.tight,
+    paddingHorizontal: space.snug,
   },
   groupTitleMain: {
     flex: 1,
@@ -823,29 +777,19 @@ const styles = StyleSheet.create(theme => ({
   groupTitleText: labelText(theme.colors),
   groupTitleOn: { color: theme.colors.textPrimary },
   groupAll: { color: theme.colors.textMuted, fontSize: type.tiny, fontWeight: '600' },
-  tinyButton: {
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
+  tagForm: {
+    gap: space.tight,
+    paddingTop: space.xs,
+    paddingHorizontal: space.snug,
+    paddingBottom: space.sm,
   },
-  tagForm: { paddingTop: 4, paddingHorizontal: 10, paddingBottom: space.sm },
-  tagHues: { paddingTop: 6, marginHorizontal: -4 },
-  tagInput: {
-    color: theme.colors.textPrimary,
-    fontSize: ITEM_TEXT,
-    backgroundColor: theme.colors.surface2,
-    borderRadius: radius.pill,
-    paddingVertical: 6,
-    paddingHorizontal: 9,
-  },
+  tagHues: { marginHorizontal: -4 },
   suggestions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
     gap: 5,
-    marginTop: 6,
+    marginTop: space.tight,
   },
   suggestion: {
     backgroundColor: theme.colors.surface3,
@@ -856,22 +800,21 @@ const styles = StyleSheet.create(theme => ({
   suggestionText: { color: theme.colors.textSecondary, fontSize: type.tiny },
   tagList: { flex: 1 },
   tagListContent: { gap: 1 },
-  tagRow: { flexDirection: 'row', alignItems: 'center', borderRadius: ITEM_RADIUS },
+  tagRow: { flexDirection: 'row', alignItems: 'center', borderRadius: radius.item },
   tagMain: {
     flex: 1,
     minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
-    paddingTop: 6,
-    paddingRight: 4,
-    paddingBottom: 6,
-    paddingLeft: 10,
+    paddingTop: space.tight,
+    paddingRight: space.xs,
+    paddingBottom: space.tight,
+    paddingLeft: space.snug,
   },
-  dot: { width: 8, height: 8, borderRadius: 4 },
   tagName: { flex: 1, color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
   count: { color: theme.colors.textMuted, fontSize: type.tiny, fontVariant: ['tabular-nums'] },
-  tagAction: { paddingVertical: 6, paddingHorizontal: 5 },
+  tagAction: { paddingVertical: space.tight, paddingHorizontal: 5 },
   tagRowHovered: {
     backgroundColor: theme.colors.surface2,
     _web: { transitionDuration: `${MOVE_MS.hoverIn}ms` },
@@ -879,9 +822,9 @@ const styles = StyleSheet.create(theme => ({
   tagActionLast: { paddingRight: space.sm },
   tagEmpty: {
     alignItems: 'flex-start',
-    gap: 6,
-    paddingVertical: 14,
-    paddingHorizontal: 10,
+    gap: space.tight,
+    paddingVertical: space.roomy,
+    paddingHorizontal: space.snug,
     marginTop: 2,
     borderWidth: 1,
     borderStyle: 'dashed',
@@ -894,14 +837,14 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.small,
     textDecorationLine: 'underline',
   },
-  foot: { paddingTop: 10, gap: 1 },
+  foot: { paddingTop: space.snug, gap: 1 },
   status: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: ITEM_RADIUS,
+    gap: space.snug,
+    paddingVertical: space.tight,
+    paddingHorizontal: space.snug,
+    borderRadius: radius.item,
   },
   // Whether the library can be reached, as a dot on the avatar's shoulder.
   statusDot: {
@@ -916,17 +859,7 @@ const styles = StyleSheet.create(theme => ({
   },
   // Something needs you: what still works, and what to do. The warning's own
   // tone on a quiet ground, the way a toast says "warn".
-  notice: {
-    gap: 2,
-    marginHorizontal: 2,
-    marginBottom: space.sm,
-    paddingHorizontal: 10,
-    paddingVertical: space.sm,
-    borderRadius: radius.card,
-    backgroundColor: theme.colors.surface2,
-  },
-  noticeTitle: { color: theme.colors.warning, fontSize: type.small, fontWeight: '600' },
-  noticeBody: { color: theme.colors.textSecondary, fontSize: type.tiny, lineHeight: leading.tiny },
+  notice: { marginHorizontal: 2, marginBottom: space.sm },
   footLabel: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
 }))
 

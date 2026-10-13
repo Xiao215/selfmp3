@@ -1,4 +1,4 @@
-import { hueFromString, type Tag } from '@selfmp3/shared'
+import { newTagHue, type Tag } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
 import { toTag, type TagRow } from '../db/rows.js'
 
@@ -14,7 +14,6 @@ export class TagRepository {
   readonly #linkSongTag
   readonly #unlinkSongTag
   readonly #insertSynced
-  readonly #pruneEmpty
 
   constructor(db: Db) {
     this.#db = db
@@ -45,9 +44,6 @@ export class TagRepository {
     )
     this.#unlinkSongTag = db.prepare('DELETE FROM song_tags WHERE song_id = ? AND tag_id = ?')
     this.#insertSynced = db.prepare('INSERT INTO tags (uid, name, hue) VALUES (?, ?, ?)')
-    this.#pruneEmpty = db.prepare(
-      'DELETE FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM song_tags)',
-    )
   }
 
   all(): Tag[] {
@@ -74,7 +70,7 @@ export class TagRepository {
     const existing = this.byName(name)
     if (existing) return existing
 
-    this.#insert.run(name, hue ?? hueFromString(name.toLowerCase()))
+    this.#insert.run(name, newTagHue(name, hue))
     const created = this.byName(name)
     if (!created) throw new Error(`failed to create tag ${JSON.stringify(name)}`)
     return created
@@ -108,18 +104,6 @@ export class TagRepository {
   /** Deleting a tag cascades to `song_tags` but never touches the songs. */
   delete(id: number): void {
     this.#delete.run(id)
-  }
-
-  /**
-   * Delete every tag with no songs left; how many went.
-   *
-   * Called where songs go — deleted here, purged, removed by another device —
-   * so a tag whose last song went goes with it, rather than lingering at 0 in
-   * every sidebar. Not called when a tag is made or a song untagged: a tag you
-   * just created has no songs yet, and is yours to fill.
-   */
-  pruneEmpty(): number {
-    return this.#pruneEmpty.run().changes
   }
 
   /** Replace a song's tags wholesale. Caller wraps this in a transaction. */

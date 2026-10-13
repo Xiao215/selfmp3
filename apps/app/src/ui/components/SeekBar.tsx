@@ -1,237 +1,71 @@
-import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, PanResponder, Text, View, type LayoutChangeEvent } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { clamp, clamp01, formatDuration } from '@selfmp3/shared'
-import { useAccent } from '../accent'
-import { space, type } from '@selfmp3/client'
-import { spring } from '../motion'
+import { formatDuration } from '@selfmp3/shared'
+import { type, space } from '@selfmp3/client'
+import { usePlayerCommands, usePlayerProgress } from '../../player/PlayerProvider'
 import { SEEK_STEP_SECONDS } from '../../player/progress.model'
-import { ADJUST_ACTIONS } from './slider.model'
+import { Scrubber } from './Scrubber'
 
 /**
- * Closer than this to a seek, the player is taken to be there. Wide enough for
- * a second of play at twice the speed, so a seek that landed is not pulled back.
- */
-const SEEK_LANDED_SECONDS = 2.1
-/** How long a let-go position is held against an engine still reporting the old one. */
-const SEEK_SETTLE_MS = 1000
-
-/**
- * Where a seek let go, until the player says it is there: `held` while it is
- * still somewhere else, null once it reports the new time (or a second on).
- * A phone's engine reports the pre-seek time for a tick or two, and without
- * this a bar's thumb jumps back to it and forward again. Both scrubbers use
- * it: this one, and the import preview's (ImportListen.tsx).
- */
-export function useSeekHold(position: number): {
-  held: number | null
-  hold: (seconds: number) => void
-} {
-  const [pending, setPending] = useState<number | null>(null)
-  // Held only while the player is still somewhere else: once it reports the
-  // new time, the bar follows it again.
-  const held =
-    pending !== null && Math.abs(position - pending) >= SEEK_LANDED_SECONDS ? pending : null
-  /*
-   * The hold lets go on its own, a second after the finger did. The timer is
-   * the effect's rather than the gesture's so that it goes when the bar does:
-   * a scrubbed song closed before it woke had it setting state on a bar that
-   * is no longer there.
-   */
-  useEffect(() => {
-    if (pending === null) return undefined
-    const timer = setTimeout(
-      // This seek only: a later one, made meanwhile, starts its own hold.
-      () => setPending(current => (current === pending ? null : current)),
-      SEEK_SETTLE_MS,
-    )
-    return () => clearTimeout(timer)
-  }, [pending])
-  return { held, hold: setPending }
-}
-
-/**
- * Scrubber: a 6px track with a 16px thumb that is always there, in a hit area
- * big enough to grab while walking.
+ * The playing song's scrubber, with its times: Now Playing's thick track
+ * with elapsed and what is left beneath it, or the player bar's thin one
+ * between elapsed and the length (`inline`). A thumb that is always there, in
+ * a hit area big enough to grab while walking.
  *
- * Hand-built on PanResponder rather than a slider package: it is thirty lines,
- * it avoids a dependency, and it lets the bar keep showing the dragged
- * position while the finger is down instead of fighting the player's own
- * progress updates.
- *
- * The responder is rebuilt when the width or the track changes rather than
- * reading refs — PanResponder objects are cheap, and the alternative is a
- * handler that quietly seeks using the previous track's duration.
+ * It reads the position itself, so each tick redraws the scrubber and not the
+ * page or the bar around it. Let go, it holds where the finger left it until
+ * the engine says it is there (`Scrubber`'s `hold`).
  */
 export function SeekBar({
-  position,
-  duration,
-  onSeek,
   inline = false,
   color,
 }: {
-  position: number
-  duration: number
-  onSeek: (seconds: number) => void
-  /**
-   * The player bar's scrubber: elapsed, a thin track, and the length on
-   * one line, rather than the Now Playing page's thick track with the times
-   * beneath it.
-   */
+  /** The player bar's: elapsed, a thin track, and the length on one line. */
   inline?: boolean
   /** The playing song's colour, for the played part. The accent when not given. */
   color?: string
 }): ReactNode {
-  const accent = useAccent()
-  const fill = color ?? accent.accent
-  const [width, setWidth] = useState(0)
-  const [dragging, setDragging] = useState<number | null>(null)
-  const { held, hold } = useSeekHold(position)
-
-  const responder = useMemo(() => {
-    // locationX is relative to the view the finger is on. On iOS that is the
-    // innermost one, so the track, fill and thumb take no touches: a drag that
-    // began on the thumb read positions from the thumb's own edge, and the thumb
-    // flickered between two places as it moved. With them out of the way it is
-    // always the bar, and stays correct as the bar moves around the screen.
-    const secondsAt = (x: number): number => {
-      if (width <= 0 || duration <= 0) return 0
-      return clamp01(x / width) * duration
-    }
-
-    return PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      // A scrub that wanders downward is still a scrub, not the page's swipe to close.
-      onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: event => setDragging(secondsAt(event.nativeEvent.locationX)),
-      onPanResponderMove: event => setDragging(secondsAt(event.nativeEvent.locationX)),
-      onPanResponderRelease: event => {
-        const target = secondsAt(event.nativeEvent.locationX)
-        hold(target)
-        setDragging(null)
-        onSeek(target)
-      },
-      onPanResponderTerminate: () => setDragging(null),
-    })
-  }, [width, duration, onSeek, hold])
-
-  const shown = dragging ?? held ?? position
-  const ratio = duration > 0 ? clamp01(shown / duration) : 0
-  /*
-   * How far along, rounded to a tenth of a per cent. `ProgressWash.tsx`
-   * explains this at length and the reason is the same one: on the web every
-   * distinct value written into a style becomes its own atomic CSS rule, and an
-   * unrounded width from a position that ticks several times a second is a new
-   * rule every tick, for the length of every song. A tenth still moves the fill
-   * about a point and a half a tick — as often as the thumb itself moves, so
-   * nothing looks like it is lagging its song — and there are only a thousand
-   * such values, reused by every song, so the sheet stops growing.
-   */
-  const tenths = Math.round(ratio * 1000)
-  const at = tenths / 1000
-  /** The fill as a share of the track, so the rounded values repeat whatever the width. */
-  const fillWidth = `${tenths / 10}%` as const
-
-  /*
-   * The thumb swells under the finger, on the spring, as every press in the
-   * app does (`M1`, "Press").
-   */
-  const grabbing = dragging !== null
-  const [grabbed] = useState(() => new Animated.Value(1))
-  useEffect(() => {
-    spring(grabbed, grabbing ? THUMB_GRABBED : 1)
-  }, [grabbing, grabbed])
-  const [thumbScale] = useState(() => ({ transform: [{ scale: grabbed }] }))
-
-  /** A screen reader's swipe up or down: a step along, as the keyboard seeks. */
-  const onAccessibilityAction = (event: { nativeEvent: { actionName: string } }): void => {
-    const step =
-      event.nativeEvent.actionName === 'increment' ? SEEK_STEP_SECONDS : -SEEK_STEP_SECONDS
-    const target = clamp(shown + step, 0, duration)
-    hold(target)
-    onSeek(target)
-  }
-
-  const onLayout = (event: LayoutChangeEvent): void => {
-    setWidth(event.nativeEvent.layout.width)
-  }
-
-  // Whole points, for the reason the fill is rounded: an unrounded position
-  // is a new CSS rule for every tick of every song.
-  const thumbLeft = Math.max(0, Math.round(width * at - (inline ? THUMB_INLINE : THUMB) / 2))
-
-  const bar = (
-    <View
-      style={[styles.hit, inline && styles.hitInline]}
-      onLayout={onLayout}
-      accessibilityRole="adjustable"
-      accessibilityLabel="Seek"
-      accessibilityValue={{ min: 0, max: Math.round(duration), now: Math.round(shown) }}
-      /*
-       * The same numbers again as ARIA props: `react-native-web` renders
-       * `accessibilityRole="adjustable"` as `role="slider"` and then drops
-       * `accessibilityValue`, leaving a slider that announces no position.
-       * React Native maps these to the same place, so it is the one spelling
-       * that works on both.
-       */
-      aria-valuemin={0}
-      aria-valuemax={Math.round(duration)}
-      aria-valuenow={Math.round(shown)}
-      accessibilityActions={ADJUST_ACTIONS}
-      onAccessibilityAction={onAccessibilityAction}
-      {...responder.panHandlers}
-    >
-      {/* Draws only: a touch on the thumb must reach the bar, see the responder. */}
-      <View pointerEvents="none" style={[styles.track, inline && styles.trackInline]}>
-        <View
-          style={[
-            styles.fill,
-            inline && styles.fillInline,
-            { width: fillWidth, backgroundColor: fill },
-          ]}
-        />
-        <Animated.View
-          style={[styles.thumb, inline && styles.thumbInline, { left: thumbLeft }, thumbScale]}
-        />
-      </View>
-    </View>
-  )
-
-  if (inline) {
-    return (
-      <View style={styles.inline}>
-        <Text style={styles.timeInline}>{formatDuration(shown)}</Text>
-        <View style={styles.inlineTrack}>{bar}</View>
-        <Text style={styles.timeInline}>{formatDuration(duration)}</Text>
-      </View>
-    )
-  }
-
+  const { position, duration } = usePlayerProgress()
+  const onSeek = usePlayerCommands().seekTo
   return (
-    <View style={styles.wrapper}>
-      {bar}
-      {/* Elapsed on the left, what is left on the right. */}
-      <View style={styles.times}>
-        <Text style={styles.time}>{formatDuration(shown)}</Text>
-        <Text style={styles.time}>-{formatDuration(Math.max(0, duration - shown))}</Text>
-      </View>
-    </View>
+    <Scrubber
+      value={position}
+      max={duration}
+      onCommit={onSeek}
+      hold
+      label="Seek"
+      step={SEEK_STEP_SECONDS}
+      size={inline ? 'small' : 'large'}
+      color={color}
+      around={(bar, shown) =>
+        inline ? (
+          <View style={styles.inline}>
+            <Text style={styles.timeInline}>{formatDuration(shown)}</Text>
+            <View style={styles.inlineTrack}>{bar}</View>
+            <Text style={styles.timeInline}>{formatDuration(duration)}</Text>
+          </View>
+        ) : (
+          <View style={styles.wrapper}>
+            {bar}
+            {/* Elapsed on the left, what is left on the right. */}
+            <View style={styles.times}>
+              <Text style={styles.time}>{formatDuration(shown)}</Text>
+              <Text style={styles.time}>-{formatDuration(Math.max(0, duration - shown))}</Text>
+            </View>
+          </View>
+        )
+      }
+    />
   )
 }
-
-const THUMB = 16
-const THUMB_INLINE = 12
-/** How far the thumb swells while it is held. */
-const THUMB_GRABBED = 1.2
 
 const styles = StyleSheet.create(theme => ({
   /* The player bar's: the times either side, 11-point and tabular. */
   inline: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: space.snug,
     width: '100%',
   },
   inlineTrack: { flex: 1, minWidth: 0 },
@@ -243,38 +77,7 @@ const styles = StyleSheet.create(theme => ({
     minWidth: 36,
     textAlign: 'center',
   },
-  hitInline: { paddingVertical: space.sm },
-  trackInline: { height: 4, borderRadius: 2 },
-  fillInline: { height: 4, borderRadius: 2 },
-  thumbInline: { width: THUMB_INLINE, height: THUMB_INLINE, borderRadius: THUMB_INLINE / 2 },
-  wrapper: {
-    width: '100%',
-  },
-  hit: {
-    paddingVertical: space.md,
-    justifyContent: 'center',
-    // A pointing hand where there is a mouse: the bar is a control, not a
-    // picture. React Native types `cursor` as `auto | pointer`, so this needs
-    // no port.
-    cursor: 'pointer',
-  },
-  track: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: theme.colors.surface3,
-    justifyContent: 'center',
-  },
-  fill: {
-    height: 6,
-    borderRadius: 3,
-  },
-  thumb: {
-    position: 'absolute',
-    width: THUMB,
-    height: THUMB,
-    borderRadius: THUMB / 2,
-    backgroundColor: theme.colors.textPrimary,
-  },
+  wrapper: { width: '100%' },
   times: {
     flexDirection: 'row',
     justifyContent: 'space-between',

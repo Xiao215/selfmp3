@@ -27,13 +27,26 @@
  */
 
 import {
+  API_ERROR,
+  BUCKET_CAP_CODE,
+  BUCKET_HOLD_MS,
+  CLOUD_FILES_KEY,
+  CLOUD_SESSION_KEY,
+  DOORMAN_PATHS,
+  HASH_FILE_NAME,
+  REFRESH_HEADER,
+  parseDoormanRefusal,
+  parseRange,
+  relayedRange,
+} from '@selfmp3/shared/wire'
+import {
   AUDIO_CACHE,
   CLOUD_FILES_CACHE,
   DB_NAME,
   DB_STORE,
   DB_VERSION,
   PLAYED_CACHE,
-  REFRESH_HEADER,
+  SW_MESSAGE,
 } from './names'
 
 declare const self: ServiceWorkerGlobalScope
@@ -106,7 +119,7 @@ self.addEventListener('message', event => {
     const { type } = data as { type: string }
     // A page loaded around this worker, by a hard reload, asking to be answered
     // for after all (src/ports/serviceWorker.web.ts).
-    if (type === 'CLAIM') event.waitUntil(self.clients.claim())
+    if (type === SW_MESSAGE.claim) event.waitUntil(self.clients.claim())
   }
 })
 
@@ -261,9 +274,9 @@ async function playFromBucket(
   const head = await download.head
   if (head.kind === 'refused') return download.refusal()
 
-  if (!range || !isByteRange(range)) return download.whole()
-  const wanted = byteRange(range, head.size)
-  if (!wanted) return rangeNotSatisfiable(head.size)
+  const wanted = parseRange(range, head.size)
+  if (wanted === null) return download.whole()
+  if (wanted === 'unsatisfiable') return rangeNotSatisfiable(head.size)
   if (wanted.start > download.received + WAIT_AHEAD_BYTES) return fetchFromBucket(file, range)
   return download.slice(wanted.start, wanted.end)
 }
@@ -432,35 +445,12 @@ function playedName(key: string): string {
   return new URL(`played/${key}`, self.registration.scope).href
 }
 
-const BYTE_RANGE = /^bytes=(\d*)-(\d*)$/
-
-/** Whether a `Range` header is one byte range; any other is answered with the whole file. */
-function isByteRange(range: string): boolean {
-  return BYTE_RANGE.test(range.trim())
-}
-
-/** A byte range of a file this big, inclusive at both ends; null for none that fits. */
-function byteRange(range: string, size: number): { start: number; end: number } | null {
-  const match = BYTE_RANGE.exec(range.trim())
-  if (!match) return null
-  const [, rawStart = '', rawEnd = ''] = match
-  let start: number
-  let end: number
-  if (rawStart === '') {
-    const suffix = Number(rawEnd)
-    if (!Number.isFinite(suffix) || suffix <= 0) return null
-    start = Math.max(0, size - suffix)
-    end = size - 1
-  } else {
-    start = Number(rawStart)
-    end = rawEnd === '' ? size - 1 : Math.min(Number(rawEnd), size - 1)
-  }
-  // `end` is at most the last byte, so this also keeps `start` inside the file.
-  return start <= end ? { start, end } : null
-}
-
 /**
  * Build a 206 Partial Content response from a complete cached one.
+ *
+ * Which bytes is packages/shared's `parseRange`, the rule the server and the
+ * desktop shell answer `Range:` by: a header that is not one byte range —
+ * `bytes=-` among them — is answered with the whole file, as they answer it.
  *
  * Through a blob, not an array buffer: a player asks for a song a range at a
  * time, and reading the whole file into this worker's memory for each range
@@ -469,11 +459,13 @@ function byteRange(range: string, size: number): { start: number; end: number } 
  * are read.
  */
 async function sliceResponse(response: Response, rangeHeader: string): Promise<Response> {
-  if (!isByteRange(rangeHeader)) return response
+  // Not a range at all: the whole file, without reading it here.
+  if (relayedRange(rangeHeader) === null) return response
   const blob = await response.blob()
   const size = blob.size
-  const wanted = byteRange(rangeHeader, size)
-  if (!wanted) return rangeNotSatisfiable(size)
+  const wanted = parseRange(rangeHeader, size)
+  if (wanted === null) return new Response(blob, response)
+  if (wanted === 'unsatisfiable') return rangeNotSatisfiable(size)
   const { start, end } = wanted
 
   const headers = new Headers()
@@ -502,7 +494,7 @@ function rangeNotSatisfiable(size: number): Response {
  * API requests: the network, and an honest "offline" when it is not there.
  *
  * Nothing is kept — not even the library, which the page already saves in
- * IndexedDB (src/offline/libraryCache.web.ts). A second copy here, served
+ * IndexedDB (src/offline/caches.ts). A second copy here, served
  * stale as a 200 when the server is away, tells the page it was answered when it
  * was not; the page's own copy does that job and shows the copy for what it is.
  */
@@ -510,7 +502,7 @@ async function networkFirst(request: Request): Promise<Response> {
   try {
     return await fetch(request)
   } catch {
-    return new Response(JSON.stringify({ error: 'offline', code: 'offline' }), {
+    return new Response(JSON.stringify({ error: 'offline', code: API_ERROR.offline }), {
       status: 503,
       headers: { 'Content-Type': 'application/json' },
     })
@@ -633,8 +625,8 @@ async function handleShell(request: Request, url: URL): Promise<Response> {
 
 /*
  * Where the app keeps the doorman session and each song's files: IndexedDB
- * (`DB_NAME` in ./names.ts), under packages/replica's keys — session.ts
- * (`cloud-session`) and library.ts (`cloud-files`).
+ * (`DB_NAME` in ./names.ts), under the keys packages/replica writes them with
+ * (`CLOUD_SESSION_KEY`, `CLOUD_FILES_KEY` in packages/shared).
  */
 
 interface BucketFile {
@@ -686,14 +678,18 @@ async function bucketFileFor(url: URL, kind: 'audio' | 'cover'): Promise<BucketF
       key = read.files?.[songId]?.[kind]
     }
     if (!read.session || typeof key !== 'string') return null
-    return { key, url: `${read.session.doormanUrl}/v1/files/${key}`, token: read.session.token }
+    return {
+      key,
+      url: `${read.session.doormanUrl}${DOORMAN_PATHS.file(key)}`,
+      token: read.session.token,
+    }
   } catch {
     return null
   }
 }
 
 /** `api/bucket/covers/<sha256>.<ext>`: the only bucket files asked for by key. */
-const BUCKET_PICTURE_PATH = /\/api\/bucket\/(covers\/[0-9a-f]{64}\.[a-z0-9]{1,5})$/
+const BUCKET_PICTURE_PATH = new RegExp(`/api/bucket/(covers/${HASH_FILE_NAME})$`)
 
 /**
  * A bucket picture no song id names — an artist's — by its key
@@ -712,7 +708,7 @@ async function bucketPicture(request: Request, url: URL): Promise<Response> {
     if (!read.session) return new Response(null, { status: 404 })
     const response = await fetchFromBucket({
       key,
-      url: `${read.session.doormanUrl}/v1/files/${key}`,
+      url: `${read.session.doormanUrl}${DOORMAN_PATHS.file(key)}`,
       token: read.session.token,
     })
     if (response.ok) await (await caches.open(API_CACHE)).put(request, response.clone())
@@ -767,7 +763,7 @@ let lastBucketRead: BucketRead | null = null
 async function bucketRead(force: boolean): Promise<BucketRead & { fresh: boolean }> {
   const kept = lastBucketRead
   if (!force && kept && Date.now() - kept.at < BUCKET_READ_MS) return { ...kept, fresh: false }
-  const [session, files] = await readStored(['cloud-session', 'cloud-files'])
+  const [session, files] = await readStored([CLOUD_SESSION_KEY, CLOUD_FILES_KEY])
   const stored = session as { doormanUrl?: unknown; token?: unknown } | null
   lastBucketRead = {
     session:
@@ -787,29 +783,22 @@ async function bucketRead(force: boolean): Promise<BucketRead & { fresh: boolean
  * doorman says so as a 502 with this code. Nothing this worker is asked for
  * will be answered until the cap is raised or the day turns, so for a while
  * the bucket is not asked: every cover a row draws and every range a player
- * wants is answered with the doorman's own refusal, from here. Ten minutes,
- * then one more real request finds out whether it is over — a cap raised at
- * backblaze.com should not have to wait for midnight to be noticed. The page
- * is told (`BUCKET_CAPPED`, src/ports/serviceWorker.web.ts), so its own reads
- * — the snapshot, the words — stop too, and it can say why.
+ * wants is answered with the doorman's own refusal, from here. For as long as
+ * the page's own hold lasts (`BUCKET_HOLD_MS`), then one more real request
+ * finds out whether it is over — a cap raised at backblaze.com should not
+ * have to wait for midnight to be noticed. The page is told
+ * (`SW_MESSAGE.bucketCapped`, src/ports/serviceWorker.web.ts), so its own
+ * reads — the snapshot, the words — stop too, and it can say why.
  *
  * In memory only: this worker is stopped when idle, and a wake costs one
  * refused request to learn it again, which is fine.
  */
-const CAP_CODE = 'bucket_cap_exceeded'
-const CAP_HOLD_MS = 10 * 60_000
-
 let capped: { readonly until: number; readonly body: string } | null = null
 
 /** The doorman's refusal, as the message the page shows and the body a player is answered with. */
 function capMessage(body: string): string | null {
-  try {
-    const parsed: unknown = JSON.parse(body)
-    const { code, error } = (parsed ?? {}) as { code?: unknown; error?: unknown }
-    return code === CAP_CODE && typeof error === 'string' ? error : null
-  } catch {
-    return null
-  }
+  const refusal = parseDoormanRefusal(body)
+  return refusal?.code === BUCKET_CAP_CODE ? refusal.error : null
 }
 
 function refused(body: string): Response {
@@ -821,9 +810,9 @@ function refused(body: string): Response {
 }
 
 async function holdBucket(body: string, message: string): Promise<void> {
-  capped = { until: Date.now() + CAP_HOLD_MS, body }
+  capped = { until: Date.now() + BUCKET_HOLD_MS, body }
   const clients = await self.clients.matchAll({ type: 'window' })
-  for (const client of clients) client.postMessage({ type: 'BUCKET_CAPPED', message })
+  for (const client of clients) client.postMessage({ type: SW_MESSAGE.bucketCapped, message })
 }
 
 /**

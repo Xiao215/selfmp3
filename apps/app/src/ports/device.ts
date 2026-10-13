@@ -34,6 +34,15 @@ export function deviceKind(): DeviceKind {
   return Platform.OS === 'ios' || Platform.OS === 'android' ? 'phone' : 'desktop'
 }
 
+/**
+ * What this device is, as one plain word for its name in the bucket
+ * (`cloudPlatform.deviceKind`): an iPad is an `ipad`, not an `iphone`.
+ */
+export function deviceModel(): string {
+  if (Platform.OS === 'ios') return Platform.isPad ? 'ipad' : 'iphone'
+  return Platform.OS === 'android' ? 'android' : 'browser'
+}
+
 /** "iPhone" rather than a user agent: this app knows what it is running on. */
 function defaultName(): string {
   // In another device's list an iPad is an iPad (docs/ui-mock `T09`: "except the words").

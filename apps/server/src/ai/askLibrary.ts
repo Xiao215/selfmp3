@@ -1,5 +1,12 @@
 import type { z } from 'zod/v4'
-import type { AskAnswer, AskOrder, AskSort, Song, Understanding } from '@selfmp3/shared'
+import {
+  mainArtist,
+  type AskAnswer,
+  type AskOrder,
+  type AskSort,
+  type Song,
+  type Understanding,
+} from '@selfmp3/shared'
 import {
   groundPlan,
   narrowAndPick,
@@ -7,7 +14,6 @@ import {
   type DescribeDeps,
   type PlanOut,
 } from './describe.js'
-import { mainArtist } from './library.js'
 import { LlmError } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
 import { tally } from './text.js'

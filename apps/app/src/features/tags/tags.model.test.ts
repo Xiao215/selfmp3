@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest'
 import type { Song, Tag } from '@selfmp3/shared'
 
 import { tagsMostPlayed } from '../tag/tag.model'
-import { leadSong, tagsHeadline, tagsLayout, waitingArtists } from './tags.model'
+import {
+  leadSong,
+  tagsHeadline,
+  tagsLayout,
+  UNTAGGED_HINT,
+  waitingArtists,
+  waitingLine,
+} from './tags.model'
 
 const song = (id: number, extra: Partial<Song> = {}): Song =>
   ({
@@ -135,5 +142,28 @@ describe('who the untagged songs are by', () => {
 
   it('is empty when every song has a tag', () => {
     expect(waitingArtists([song(1, { tagIds: [1] })], 3)).toEqual({ artists: [], rest: 0 })
+  })
+})
+
+describe('the untagged card’s line', () => {
+  const named = [
+    { name: '周杰倫', count: 73, song: {} as never },
+    { name: 'HOYO-MiX', count: 1204, song: {} as never },
+  ]
+
+  it('names who the songs are by, and the rest', () => {
+    expect(waitingLine(named, 24, 'count')).toBe(
+      `73 by 周杰倫 · ${(1204).toLocaleString()} by HOYO-MiX · and 24 more`,
+    )
+    expect(waitingLine(named, 24, 'others')).toBe(
+      `73 by 周杰倫 · ${(1204).toLocaleString()} by HOYO-MiX · and others`,
+    )
+    expect(waitingLine(named, 0, 'others')).toBe(
+      `73 by 周杰倫 · ${(1204).toLocaleString()} by HOYO-MiX`,
+    )
+  })
+
+  it('says what to do with nobody to name', () => {
+    expect(waitingLine([], 5, 'count')).toBe(UNTAGGED_HINT)
   })
 })

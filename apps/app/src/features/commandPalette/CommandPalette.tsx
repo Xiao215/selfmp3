@@ -1,20 +1,17 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, TextInput, useWindowDimensions, View } from 'react-native'
+import { Text, type TextInput, useWindowDimensions, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
-import { useQuery } from '@tanstack/react-query'
 import { artistOr, formatDuration, plural } from '@selfmp3/shared'
 import {
-  clientApi,
-  queryKeys,
   radius,
   space,
-  STALE,
-  tagColors,
   type,
   useLibrary,
   useScanLibrary,
+  iconSize,
+  coverSize,
 } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -36,21 +33,21 @@ import {
   Shuffle,
   Sparkle,
   Tag,
-  User,
 } from '../../ui/components/Icons'
-import { useDebounced } from '../../ui/useDebounced'
-import { floating, label as labelText } from '../../ui/surfaces'
+import { label as labelText, dialogPanel, menuItem, menuItemDense } from '../../ui/surfaces'
 import { AskAnswer } from '../smart/AskAnswer'
 import type { AnswerKeys } from '../smart/answerKeys'
 import { ASK_SUB, askable } from '../smart/smart.model'
 import { StopButton } from '../smart/StopButton'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
-import { noteTagUsed } from '../library/recentTags.store'
 import { playAlone } from '../lists/lists.model'
-import { lyricsQueryFor } from '../search/search.model'
-import { artistLink, tagLink } from '../tag/placeLinks'
+import { useLibrarySearch } from '../search/useLibrarySearch'
+import { artistLink } from '../tag/placeLinks'
+import { useOpenTag } from '../tag/useOpenTag'
 import { usePlayAndTag } from '../tag/usePlayAndTag'
 import {
+  PALETTE_LYRICS,
+  paletteMatches,
   paletteResults,
   stepIndex,
   type PaletteCommandId,
@@ -59,8 +56,11 @@ import {
 } from './commandPalette.model'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { SearchField } from '../../ui/components/SearchField'
-import { SONG_LINE_COVER, SongLine } from '../../ui/components/SongLine'
+import { PlaceLine } from '../../ui/components/PlaceLine'
+import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
+import { Kbd } from '../../ui/components/Kbd'
+import { Press } from '../../ui/components/Press'
 
 /** One selectable row: what it is drawn as, what it is read out as, and what Enter does. */
 interface Row {
@@ -128,31 +128,21 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     input.current?.focus()
   }
 
+  const openTag = useOpenTag()
   const songs = useMemo(() => library.data?.songs ?? [], [library.data])
   const songIds = useMemo(() => songs.map(song => song.id), [songs])
-  // The box keeps up with the fingers; the results, a search of the whole
-  // library, follow when there is time, and are skipped for letters typed
-  // faster than they can be drawn.
-  const shownQuery = useDeferredValue(query)
   const currentSongId = player.current?.id ?? null
-  const resultsFor = useCallback(
-    (text: string): PaletteResults =>
-      paletteResults(text, library.data, fromCloud, { pathname, currentSongId }),
-    [library.data, fromCloud, pathname, currentSongId],
-  )
-  const results = useMemo(() => resultsFor(shownQuery), [resultsFor, shownQuery])
-
-  const lyricsQuery = lyricsQueryFor(useDebounced(query, 180))
-  const lyrics = useQuery({
-    queryKey: queryKeys.lyricsSearch(lyricsQuery),
-    queryFn: () => clientApi().lyricsSearch(lyricsQuery, 6),
-    // The lyrics index is the server's; a library in the cloud has no words to search.
-    enabled: lyricsQuery !== '' && !fromCloud,
-    retry: false,
-    staleTime: STALE.minute,
-    placeholderData: previous => previous,
+  // Search's search, with the palette's commands and playlists beside it.
+  const search = useLibrarySearch(query, {
+    search: useCallback(
+      (text: string): PaletteResults =>
+        paletteResults(text, library.data, fromCloud, { pathname, currentSongId }),
+      [library.data, fromCloud, pathname, currentSongId],
+    ),
+    matches: paletteMatches,
   })
-  const lyricHits = lyricsQuery ? (lyrics.data?.hits ?? []) : []
+  const shownQuery = search.shown
+  const lyricHits = search.lyricHits.slice(0, PALETTE_LYRICS)
 
   const runCommand = (id: PaletteCommandId): void => {
     // Go to Library, Stats…: the sidebar's places, opened as the sidebar opens them (J1).
@@ -229,7 +219,6 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
    */
   const groupsFor = (found: PaletteResults, text: string): RowGroup[] => {
     const groups = matchedGroups(found)
-    const matches = groups.reduce((sum, group) => sum + group.rows.length, 0)
     const words = text.trim()
     if (!switches.ask || !askable(words)) return groups
     const ask: RowGroup = {
@@ -243,7 +232,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           node: (
             <>
               <View style={styles.figure}>
-                <Sparkle size={16} />
+                <Sparkle size={iconSize.item} />
               </View>
               <View style={styles.labelBox}>
                 <Text style={styles.label} numberOfLines={1}>
@@ -261,7 +250,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     }
     // First when nothing on the device matches, so ↵ asks; after the matches
     // otherwise, so ↵ still opens the song or tag that was typed.
-    return matches === 0 ? [ask, ...groups] : [...groups, ask]
+    return search.asks(found, text) ? [ask, ...groups] : [...groups, ask]
   }
 
   const matchedGroups = (found: PaletteResults): RowGroup[] => [
@@ -311,38 +300,14 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           key: `artist-${artist.key}`,
           label: `${artist.name}, artist`,
           run: () => router.navigate(artistLink(artist.name)),
-          node: (
-            <>
-              <View style={styles.figure}>{icon(User)}</View>
-              <Text style={styles.label} numberOfLines={1}>
-                {artist.name}
-              </Text>
-              <Text style={styles.hint}>
-                {plural(artist.songIds.length, 'song', 'songs')} · artist
-              </Text>
-            </>
-          ),
+          node: <PlaceLine place={{ kind: 'artist', artist }} style={styles.songLine} />,
         })),
         ...found.tags.map(tag => ({
           key: `tag-${tag.id}`,
           label: `${tag.name}, tag`,
-          // A tag is a place (docs/UI-MIGRATION.md, Phase 4): the hit opens its
-          // page, and counts as a use so the rail keeps it near the top.
-          run: () => {
-            noteTagUsed(tag.id)
-            router.navigate(tagLink(tag.name))
-          },
-          node: (
-            <>
-              <View style={styles.figure}>
-                <View style={[styles.dot, { backgroundColor: tagColors(tag.hue).dot }]} />
-              </View>
-              <Text style={styles.label} numberOfLines={1}>
-                {tag.name}
-              </Text>
-              <Text style={styles.hint}>{plural(tag.songCount, 'song', 'songs')} · tag</Text>
-            </>
-          ),
+          // A tag is a place (docs/UI-MIGRATION.md, Phase 4): the hit opens its page.
+          run: () => openTag(tag),
+          node: <PlaceLine place={{ kind: 'tag', tag }} style={styles.songLine} />,
         })),
       ],
     },
@@ -426,7 +391,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
       })),
     },
   ]
-  const groups = groupsFor(results, shownQuery)
+  const groups = groupsFor(search.found, shownQuery)
   const rows = groups.flatMap(group => group.rows)
   const active = Math.min(highlighted, Math.max(0, rows.length - 1))
   // Keep the highlighted row in view as the arrow keys move through a long list.
@@ -446,7 +411,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const drawRow = (row: Row, index: number): ReactNode => {
     const on = index === active
     return (
-      <Pressable
+      <Press
+        feedback="wash"
         key={row.key}
         ref={node => {
           rowNodes.current.set(index, node)
@@ -459,7 +425,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         style={[styles.item, on && styles.itemOn]}
       >
         {row.node}
-      </Pressable>
+      </Press>
     )
   }
   // Each group's rows are numbered on from the last group's, so a row's index
@@ -548,7 +514,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
             // of that — the highlight is back at the top after any letter.
             if (shownQuery === query) activate(active)
             else {
-              const first = groupsFor(resultsFor(query), query).flatMap(group => group.rows)[0]
+              const first = groupsFor(search.foundNow(), query).flatMap(group => group.rows)[0]
               first?.run()
               if (!first?.keepsOpen) onClose()
             }
@@ -617,7 +583,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
                   {caps.map((cap, index) => (
                     <Text key={cap}>
                       {index > 0 ? ' ' : ''}
-                      <Text style={styles.kbd}> {cap} </Text>
+                      <Kbd>{cap}</Kbd>
                     </Text>
                   ))}{' '}
                   {word}
@@ -626,17 +592,16 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
             : null}
           {asking === null || !answerKeys ? (
             <Text style={styles.footText}>
-              <Text style={styles.kbd}> ↑ </Text> <Text style={styles.kbd}> ↓ </Text> move
+              <Kbd>↑</Kbd> <Kbd>↓</Kbd> move
             </Text>
           ) : null}
           {asking === null ? (
             <Text style={styles.footText}>
-              <Text style={styles.kbd}> ↵ </Text> open
+              <Kbd>↵</Kbd> open
             </Text>
           ) : null}
           <Text style={styles.footText}>
-            <Text style={styles.kbd}> esc </Text>{' '}
-            {asking === null ? 'close' : working ? 'stop' : 'back to results'}
+            <Kbd>esc</Kbd> {asking === null ? 'close' : working ? 'stop' : 'back to results'}
           </Text>
         </View>
       ) : null}
@@ -652,50 +617,36 @@ const ANSWER_AROUND_LIST = 250
 const styles = StyleSheet.create(theme => ({
   // Near the top rather than the middle, where the eye already is.
   frame: { padding: 0, justifyContent: 'flex-start' },
-  panel: {
-    backgroundColor: theme.colors.surface1,
-    borderRadius: radius.sheet,
-    overflow: 'hidden',
-    ...floating(theme.colors),
-  },
+  panel: dialogPanel(theme.colors),
   inputRow: { padding: space.md, paddingBottom: space.sm },
   count: { color: theme.colors.textMuted, fontSize: type.tiny, fontVariant: ['tabular-nums'] },
-  results: { padding: 6 },
-  group: { marginBottom: 6 },
+  results: { padding: space.tight },
+  group: { marginBottom: space.tight },
   groupTitle: {
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'space-between',
-    paddingTop: 8,
-    paddingHorizontal: 10,
+    paddingTop: space.sm,
+    paddingHorizontal: space.snug,
     paddingBottom: 5,
   },
   groupText: labelText(theme.colors),
   groupCount: { opacity: 0.75, letterSpacing: 0 },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-    minHeight: 40,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-  },
+  item: { ...menuItem, ...menuItemDense, minHeight: 40 },
   // The highlighted row is a lighter surface; it no longer has an accent bar.
   itemOn: { backgroundColor: theme.colors.surface3 },
   labelBox: { flex: 1, minWidth: 0 },
   // The row around it has the room; the line brings none of its own.
   songLine: { flex: 1, minWidth: 0, paddingVertical: 0, paddingHorizontal: 0 },
-  // An artist's figure or a tag's dot, in a round the size of a row's cover.
+  // The Ask's sparkle, in a round the size of a row's cover, as a place's figure is.
   figure: {
-    width: SONG_LINE_COVER,
-    height: SONG_LINE_COVER,
+    width: coverSize.line,
+    height: coverSize.line,
     borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dot: { width: 8, height: 8, borderRadius: 4 },
   label: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: type.sub },
   mark: { fontWeight: '700' },
   sub: { color: theme.colors.textMuted, fontSize: type.tiny },
@@ -703,17 +654,11 @@ const styles = StyleSheet.create(theme => ({
   foot: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    gap: space.lg,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.lg,
     // Set down a step from the panel: tone, not a rule.
     backgroundColor: theme.colors.surface0,
   },
   footText: { color: theme.colors.textMuted, fontSize: type.tiny },
-  kbd: {
-    fontSize: type.tiny,
-    color: theme.colors.textPrimary,
-    backgroundColor: theme.colors.surface2,
-    borderRadius: 5,
-  },
 }))

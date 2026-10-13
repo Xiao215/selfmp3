@@ -3,8 +3,17 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import type { WrappedRange } from '@selfmp3/shared'
-import { ApiError, failureText, leading, radius, space, STALE, type } from '@selfmp3/client'
+import { AI_ERROR, type WrappedRange } from '@selfmp3/shared'
+import {
+  ApiError,
+  failureText,
+  radius,
+  space,
+  STALE,
+  type,
+  textStyle,
+  iconSize,
+} from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { Refresh, Sparkle } from '../../ui/components/Icons'
 import { card, label } from '../../ui/surfaces'
@@ -17,7 +26,7 @@ import { reachedConnection, viaKey } from '../../connection/via'
  * A5 · the Report in a few sentences (docs/features/ai.md), under the page.
  * Every number in them is one of the report's: the server drops a sentence
  * that says one it was not given. Quiet when the server is away, and when it
- * has no model set up (`ai_off`) — the report above is the page, and this is a
+ * has no model set up (`AI_ERROR.off`) — the report above is the page, and this is a
  * note on it, not a place to be told what the server lacks.
  */
 export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
@@ -50,12 +59,12 @@ export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
 
   if (!written || server.reach.state !== 'reachable') return null
   if (answer.data && answer.data.sentences.length === 0) return null
-  if (answer.error instanceof ApiError && answer.error.code === 'ai_off') return null
+  if (answer.error instanceof ApiError && answer.error.code === AI_ERROR.off) return null
 
   return (
     <View style={styles.card} testID="report-written">
       <View style={styles.head}>
-        <Sparkle size={12} />
+        <Sparkle size={iconSize.small} />
         <Text style={styles.label} accessibilityRole="header">
           In words
         </Text>
@@ -73,7 +82,7 @@ export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
         <Button
           label="Write it again"
           variant="text"
-          icon={<Refresh size={13} tone="textSecondary" />}
+          icon={<Refresh tone="textSecondary" />}
           busy={again}
           disabled={answer.isPending || !server.api}
           onPress={() => void writeAgain()}
@@ -94,9 +103,9 @@ const styles = StyleSheet.create(theme => ({
     gap: space.sm,
     borderRadius: radius.card,
   },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: space.tight },
   label: label(theme.colors),
-  body: { color: theme.colors.textPrimary, fontSize: type.body, lineHeight: leading.body },
+  body: { color: theme.colors.textPrimary, ...textStyle('body') },
   muted: { color: theme.colors.textMuted, fontSize: type.sub },
   actions: { flexDirection: 'row', justifyContent: 'flex-end' },
 }))

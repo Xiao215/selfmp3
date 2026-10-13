@@ -1,3 +1,4 @@
+import { DEEP_LINK_SCHEME } from '@selfmp3/shared'
 import { appPath } from './appPath'
 import { onSignInLink } from './deepLinks'
 import { desktop } from './desktop/bridge'
@@ -32,7 +33,7 @@ if (desktop) {
 
 /** Where the doorman should send Google back to, for a sign-in started from `target`. */
 export function signInReturnUrl(target: SignInTarget): string {
-  if (desktop) return `selfmp3://${target}`
+  if (desktop) return `${DEEP_LINK_SCHEME}://${target}`
   return `${window.location.origin}${appPath(target)}`
 }
 

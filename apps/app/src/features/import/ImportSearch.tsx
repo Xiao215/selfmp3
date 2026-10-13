@@ -1,38 +1,26 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Pressable, Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
-import {
-  ApiError,
-  leading,
-  radius,
-  space,
-  type,
-  type Review,
-  type ServerConnection,
-} from '@selfmp3/client'
-import { useFootInset } from '../../shell/bottomInset'
+import { space, type, type Review, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
-import { label as groupLabel, pageTitle, serif } from '../../ui/surfaces'
-import { BackButton } from '../../ui/components/BackButton'
+import { pageFrame, lineSub } from '../../ui/surfaces'
+import { SectionHead } from '../../ui/components/SectionHead'
+import { PageHeader } from '../../ui/components/PageHeader'
+import { NoticeCard } from '../../ui/components/NoticeCard'
 import { Button } from '../../ui/components/Button'
-import { useBackTo } from '../../ui/useBackTo'
-import { IconButton } from '../../ui/components/IconButton'
-import { X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SearchField } from '../../ui/components/SearchField'
-import { useListen } from './ImportListen'
-import { TagThem } from './ImportTags'
-import { useImportDraft } from './importDraft'
-import { draftSourceFor } from './importDraft.model'
-import { useImportSource } from './importSource'
+import { ImportFoot, useImportPage } from './ImportPage'
 import { useFindSongs } from './useFindSongs'
 import { useSongSearch } from './useSongSearch'
-import { comingIn, importLabel, importRequest, stillFinding } from './review.model'
+import { comingIn, importRequest, stillFinding } from './review.model'
 import { ReviewGridHead, useReviewRows } from './ReviewRows'
 import { ScrollView } from '../../ui/components/Scroll'
+import { TapAway } from '../../ui/components/TapAway'
+import { Spinner } from '../../ui/components/Spinner'
 
 /** How many of a search's songs show before "Show more", under the songs picked before it. */
 const FOUND_SHOWN = 12
@@ -61,10 +49,9 @@ export function ImportSearch({
   onUnreachable?: () => void
 } = {}): ReactNode {
   const { wide, finePointer } = useLayout()
-  const { theme } = useUnistyles()
-  const source = useImportSource(via)
-  const key = draftSourceFor(via)
-  const [draft, patchDraft] = useImportDraft(key)
+  const page = useImportPage(via, onUnreachable)
+  const { source, draft, patchDraft, listen, backTo, failed } = page
+  const key = page.draftKey
   const { search, tagIds } = draft
   const params = useLocalSearchParams<{ q?: string }>()
   /** The words in the field: what Import's box sent, or the search this page was left with. */
@@ -73,21 +60,8 @@ export function ImportSearch({
   const searching = useSongSearch(source.api, key, query, search?.query ?? null)
   // A 网易云 song it only previews, with no YouTube Music answer surely the same, is found as it shows.
   const finder = useFindSongs(source.api, key, search?.review ?? null, 'search')
-  const listen = useListen(via, source.api)
-  const backTo = useBackTo()
-  const footInset = useFootInset()
-  const [error, setError] = useState<string | null>(null)
   /** "Show more" pressed for these words; new words start short again. */
   const [moreFor, setMoreFor] = useState<string | null>(null)
-
-  const failed = (err: Error): void => {
-    if (via && err instanceof ApiError && err.isOffline) {
-      setError('Your library’s computer stopped answering. Looking for it again…')
-      onUnreachable?.()
-      return
-    }
-    setError(err.message)
-  }
 
   const found = useReviewRows({
     draft: key,
@@ -133,16 +107,9 @@ export function ImportSearch({
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <Pressable
-        onPress={closeOpen}
-        accessible={false}
-        style={wide ? styles.headWide : styles.headPhone}
-      >
-        {/* As the review's head: the round ‹ back to Import, the name under it on a phone. */}
-        {wide ? null : <BackButton to="/import" testID="import-search-back" />}
-        <Text style={wide ? styles.nameWide : styles.namePhone} accessibilityRole="header">
-          Search
-        </Text>
+      <TapAway onPress={closeOpen} style={wide ? styles.headWide : styles.headPhone}>
+        {/* As the review's head: the round ‹ back to Import, the name under it. */}
+        <PageHeader title="Search" back={{ to: '/import', testID: 'import-search-back' }} />
         <SearchField
           value={words}
           onChangeText={setWords}
@@ -162,38 +129,38 @@ export function ImportSearch({
               ? 'Searching YouTube Music and 网易云…'
               : 'From YouTube Music and 网易云. Tick the songs to import.'}
         </Text>
-      </Pressable>
+      </TapAway>
 
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={wide ? styles.listWide : styles.listPhone}
         testID="import-search"
       >
-        <Pressable onPress={closeOpen} accessible={false} style={styles.ground}>
+        <TapAway onPress={closeOpen} style={styles.ground}>
           {searching.error ? (
-            <View style={styles.error} accessibilityRole="alert">
-              <Text style={styles.errorText}>{searching.error}</Text>
-              <Button label="Try again" variant="text" onPress={searching.retry} />
-            </View>
+            <NoticeCard
+              tone="error"
+              style={styles.searchError}
+              actions={<Button label="Try again" variant="text" onPress={searching.retry} />}
+            >
+              {searching.error}
+            </NoticeCard>
           ) : null}
           {search && rows.length > 0 ? (
             <View accessibilityRole="list" accessibilityLabel="Songs found">
               {wide ? <ReviewGridHead leading={null} showFrom /> : null}
               {kept > 0 ? (
                 <>
-                  <Text style={styles.groupLabel} accessibilityRole="header">
-                    Picked
-                  </Text>
+                  <SectionHead look="label" title="Picked" style={styles.group} />
                   {rows.slice(0, kept)}
                 </>
               ) : null}
               {rows.length > kept && (kept > 0 || !wide) ? (
-                <Text
-                  style={[styles.groupLabel, kept > 0 && styles.apart]}
-                  accessibilityRole="header"
-                >
-                  Songs
-                </Text>
+                <SectionHead
+                  look="label"
+                  title="Songs"
+                  style={[styles.group, kept > 0 && styles.apart]}
+                />
               ) : null}
               {rows.slice(kept, moreFor === shownFor ? undefined : kept + FOUND_SHOWN)}
               {moreFor !== shownFor && rows.length > kept + FOUND_SHOWN ? (
@@ -210,61 +177,33 @@ export function ImportSearch({
           ) : null}
           {query !== null && !current && !searching.error ? (
             <View style={styles.looking} testID="import-search-looking">
-              <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+              <Spinner tone="textSecondary" />
               <Text style={styles.lookingText}>Searching for “{query}”…</Text>
             </View>
           ) : null}
           {current && !searching.searching && rows.length === kept ? (
             <Text style={styles.none}>Nothing found for “{query}”.</Text>
           ) : null}
-        </Pressable>
+        </TapAway>
       </ScrollView>
 
-      {/*
-       * The foot stays put under the list, as the review's does: the tags the
-       * songs arrive with, and Import, in reach however far down the list is.
-       */}
-      <Pressable
-        onPress={closeOpen}
-        accessible={false}
-        style={[wide ? styles.footWide : styles.footPhone, { paddingBottom: footInset + 12 }]}
-      >
-        {error ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{error}</Text>
-            <IconButton onPress={() => setError(null)} label="Dismiss">
-              <X size={15} tone="textMuted" />
-            </IconButton>
-          </View>
-        ) : null}
-        {finder.error ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{finder.error}</Text>
-            <Button label="Try again" variant="text" onPress={finder.retry} />
-          </View>
-        ) : null}
-        <View style={wide ? styles.footRow : styles.footColumn}>
-          <View style={wide ? styles.tagsWide : null}>
-            <TagThem
-              tags={tags}
-              createTag={source.createTag}
-              selected={tagIds}
-              onChange={next => patchDraft({ tagIds: next })}
-            />
-          </View>
-          <Button
-            label={importLabel(picked, finding)}
-            variant="primary"
-            grow={!wide}
-            disabled={picked === 0 || finding > 0}
-            busy={enqueue.isPending}
-            onPress={() => {
-              if (search) enqueue.mutate(search.review)
-            }}
-            testID="import-search-commit"
-          />
-        </View>
-      </Pressable>
+      <ImportFoot
+        error={page.error}
+        onDismissError={() => page.setError(null)}
+        finder={finder}
+        tags={tags}
+        createTag={source.createTag}
+        tagIds={tagIds}
+        onTags={next => patchDraft({ tagIds: next })}
+        count={picked}
+        finding={finding}
+        busy={enqueue.isPending}
+        onImport={() => {
+          if (search) enqueue.mutate(search.review)
+        }}
+        onGround={closeOpen}
+        testID="import-search-commit"
+      />
     </SafeAreaView>
   )
 }
@@ -277,45 +216,30 @@ const styles = StyleSheet.create(theme => ({
   // As the review's head: the button, the name under it on the left, the field under that.
   headPhone: {
     alignItems: 'flex-start',
-    gap: 12,
-    paddingTop: 8,
-    paddingBottom: 10,
-    paddingHorizontal: space.gutter,
+    gap: space.md,
+    ...pageFrame(false),
+    paddingBottom: space.snug,
   },
   headWide: {
     alignItems: 'flex-start',
-    gap: 14,
-    paddingTop: 36,
-    paddingHorizontal: space.gutterWide,
-    paddingBottom: 10,
+    gap: space.roomy,
+    ...pageFrame(true),
+    paddingBottom: space.snug,
   },
-  namePhone: pageTitle(theme.colors),
-  // The serif has one weight; the name is never bolded.
-  nameWide: { ...serif(theme.colors, type.page), lineHeight: 34 },
   field: { alignSelf: 'stretch', maxWidth: 720 },
-  status: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  status: lineSub(theme.colors),
   listPhone: { paddingHorizontal: space.gutter, flexGrow: 1 },
   listWide: { paddingHorizontal: 28 },
-  groupLabel: { ...groupLabel(theme.colors), paddingTop: 8, paddingBottom: 4 },
-  apart: { marginTop: 14 },
+  group: { paddingTop: space.sm, paddingBottom: space.xs },
+  apart: { marginTop: space.roomy },
   more: { alignItems: 'flex-start' },
-  none: { color: theme.colors.textSecondary, fontSize: type.sub, paddingVertical: 8 },
-  looking: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14 },
-  lookingText: { color: theme.colors.textSecondary, fontSize: type.sub },
-  footPhone: { gap: 10, paddingTop: 8, paddingHorizontal: space.gutter },
-  footWide: { gap: 10, paddingTop: 12, paddingHorizontal: space.gutterWide },
-  footColumn: { gap: 10 },
-  footRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  tagsWide: { flex: 1, minWidth: 0 },
-  error: {
+  none: { color: theme.colors.textSecondary, fontSize: type.sub, paddingVertical: space.sm },
+  looking: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingLeft: 14,
-    paddingRight: 4,
-    marginBottom: 8,
-    borderRadius: radius.card,
-    backgroundColor: theme.colors.surface1,
+    gap: space.snug,
+    paddingVertical: space.roomy,
   },
-  errorText: { flex: 1, color: theme.colors.danger, fontSize: type.sub, lineHeight: leading.sub },
+  lookingText: { color: theme.colors.textSecondary, fontSize: type.sub },
+  searchError: { marginBottom: space.sm },
 }))

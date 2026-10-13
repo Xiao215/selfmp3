@@ -5,13 +5,7 @@ import type { ReactNode } from 'react'
 import { hueFromString } from '@selfmp3/shared'
 import { motion, radius, tagColors } from '@selfmp3/client'
 import { ease, timing } from '../motion'
-
-/**
- * How soon a picture has to arrive to be simply there rather than fade in: one
- * already in the cache answers within a frame or two, and fading that in over
- * the empty tile was a cover visibly turning up every time a row did.
- */
-const QUICK_MS = 120
+import { MOVE_MS } from '../motion.model'
 
 /**
  * Cover art, and what stands in for it.
@@ -71,7 +65,7 @@ export function Cover({
   const onLoad = (): void => {
     if (!uri) return
     // At once when it was already to hand, or when the last picture is under it.
-    if (under || Date.now() - askedAt.current < QUICK_MS) shown.setValue(1)
+    if (under || Date.now() - askedAt.current < MOVE_MS.coverQuick) shown.setValue(1)
     else timing(shown, 1, motion.base, undefined, { easing: ease.out })
     setLoadedUri(uri)
   }

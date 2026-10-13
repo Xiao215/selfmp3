@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Tag } from '@selfmp3/shared'
-import { radius, type } from '@selfmp3/client'
-import { Chip } from '../../ui/components/Chip'
+import { radius, type, space } from '@selfmp3/client'
+import { TagChipRow } from '../../ui/components/TagChooser'
 import { Sheet } from '../../ui/components/Sheet'
 import { TagSearchList } from '../../ui/components/TagPicker'
+import { Press } from '../../ui/components/Press'
+import { smallTitle } from '../../ui/surfaces'
 
 /**
  * The tags an import arrives with, which is all an import can add: it never
@@ -70,7 +72,7 @@ export function TagItPill({
   return (
     <View style={styles.sentence}>
       <Text style={styles.words}>Tag it</Text>
-      <Pressable
+      <Press
         onPress={() => setOpen(true)}
         accessibilityRole="button"
         accessibilityLabel={`Tag it: ${shown}. Change`}
@@ -81,7 +83,7 @@ export function TagItPill({
           {shown}
         </Text>
         <Text style={styles.caret}>▾</Text>
-      </Pressable>
+      </Press>
       <Text style={styles.words}>as it arrives</Text>
       <TagSheet
         open={open}
@@ -97,8 +99,9 @@ export function TagItPill({
 
 /**
  * `P30`, `C14`: "Tag them", each chosen tag a white chip, then the dashed
- * "+ tag". A tag turned off here leaves the row: it used to stay on, unlit,
- * as a one-tap undo, and read instead as a tag that would not go away.
+ * "+ tag" (`TagChipRow`). A tag turned off here leaves the row: it used to
+ * stay on, unlit, as a one-tap undo, and read instead as a tag that would
+ * not go away.
  */
 export function TagThem({
   tags,
@@ -114,35 +117,23 @@ export function TagThem({
   const [open, setOpen] = useState(false)
   const shown = tags.filter(tag => selected.has(tag.id))
 
-  const toggle = (id: number): void => {
+  const remove = (tag: Tag): void => {
     const next = new Set(selected)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
+    next.delete(tag.id)
     onChange(next)
   }
 
   return (
-    <View style={styles.row}>
-      <Text style={styles.words}>Tag them</Text>
-      {shown.map(tag => (
-        <Chip
-          key={tag.id}
-          label={tag.name}
-          hue={tag.hue}
-          // Only the chosen tags are drawn here, so every chip is on.
-          selected
-          compact
-          onPress={() => toggle(tag.id)}
-        />
-      ))}
-      <Chip
-        label="+ tag"
-        selected={false}
-        dashed
-        compact
-        onPress={() => setOpen(true)}
-        testID="import-add-tag"
-      />
+    <TagChipRow
+      lead="Tag them"
+      tags={shown}
+      onRemove={remove}
+      add={{
+        onPress: () => setOpen(true),
+        accessibilityLabel: 'Tag these songs',
+        testID: 'import-add-tag',
+      }}
+    >
       <TagSheet
         open={open}
         onClose={() => setOpen(false)}
@@ -151,31 +142,28 @@ export function TagThem({
         selected={selected}
         onChange={onChange}
       />
-    </View>
+    </TagChipRow>
   )
 }
 
 const styles = StyleSheet.create(theme => ({
-  sentence: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  sentence: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.sm },
   words: { color: theme.colors.textSecondary, fontSize: type.sub },
   // A control on the ground: the control's fill, no edge.
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: space.tight,
     maxWidth: 240,
     minHeight: 30,
-    paddingHorizontal: 10,
+    paddingHorizontal: space.snug,
     borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,
   },
   pressed: { backgroundColor: theme.colors.surface3 },
   pillText: {
     flexShrink: 1,
-    color: theme.colors.textPrimary,
-    fontSize: type.sub,
-    fontWeight: '600',
+    ...smallTitle(theme.colors),
   },
   caret: { color: theme.colors.textMuted, fontSize: type.small },
 }))

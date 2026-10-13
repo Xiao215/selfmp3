@@ -6,11 +6,11 @@ import { plural, type Song } from '@selfmp3/shared'
 import {
   failureText,
   HIT_TARGET,
-  leading,
-  radius,
   space,
   type,
   useBulkDeleteSongs,
+  textStyle,
+  radius,
 } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -18,7 +18,7 @@ import { useLayoutValue } from '../../shell/useLayout'
 import { showToast } from '../toast'
 import { Button } from './Button'
 import { Dialog, DialogHead } from './Dialog'
-import { floating } from '../surfaces'
+import { lineSub, dialogPanel } from '../surfaces'
 import { Trash } from './Icons'
 import { ScrollView } from './Scroll'
 
@@ -175,7 +175,7 @@ export function ConfirmRemoveSongs({
         <Button label="Cancel" onPress={cancel} disabled={pending} grow={!wide} />
         <Button
           label={pending ? 'Working…' : only ? 'Delete song' : `Delete ${count} ${songWord}`}
-          icon={<Trash size={15} color={theme.colors.danger} />}
+          icon={<Trash color={theme.colors.danger} />}
           variant="danger"
           onPress={onConfirm}
           disabled={pending}
@@ -187,15 +187,7 @@ export function ConfirmRemoveSongs({
 }
 
 const styles = StyleSheet.create(theme => ({
-  dialog: {
-    width: '100%',
-    maxWidth: 460,
-    maxHeight: 620,
-    backgroundColor: theme.colors.surface1,
-    borderRadius: radius.sheet,
-    overflow: 'hidden',
-    ...floating(theme.colors),
-  },
+  dialog: { ...dialogPanel(theme.colors, 'form'), maxHeight: 620 },
   head: {
     alignItems: 'flex-start',
     gap: space.md,
@@ -207,25 +199,24 @@ const styles = StyleSheet.create(theme => ({
   title: {
     flex: 1,
     color: theme.colors.textPrimary,
-    fontSize: type.title,
-    lineHeight: leading.title,
+    ...textStyle('title'),
     fontWeight: '700',
     paddingTop: space.sm,
   },
   body: { paddingVertical: space.lg, paddingHorizontal: 18, gap: space.md },
-  lede: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  lede: lineSub(theme.colors),
   strong: { color: theme.colors.textPrimary, fontWeight: '600' },
   strongDestructive: { color: theme.colors.danger },
   list: {
     paddingVertical: space.sm,
-    paddingHorizontal: 10,
+    paddingHorizontal: space.snug,
     backgroundColor: theme.colors.surface0,
-    borderRadius: 12,
+    borderRadius: radius.item,
     gap: 2,
   },
   listItem: { color: theme.colors.textSecondary, fontSize: type.small },
   listRest: { color: theme.colors.textMuted, fontStyle: 'italic' },
-  error: { color: theme.colors.danger, fontSize: type.small, lineHeight: leading.small },
+  error: { color: theme.colors.danger, ...textStyle('small') },
   actions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',

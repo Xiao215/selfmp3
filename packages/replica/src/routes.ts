@@ -1,4 +1,5 @@
 import {
+  API_ERROR,
   AddToPlaylistSchema,
   BulkDeleteSongsSchema,
   BulkEditSongsSchema,
@@ -7,7 +8,10 @@ import {
   CreatePlaylistSchema,
   CreateTagSchema,
   DEFAULT_SETTINGS,
+  DOORMAN_ERROR,
+  DOORMAN_PATHS,
   DoormanAccessUpdateSchema,
+  DoormanError,
   DoormanHealthSchema,
   GemsQuerySchema,
   PlayEventSchema,
@@ -33,7 +37,7 @@ import { CloudRouteError, notFound } from './errors.js'
 import type { CloudLibraryApi } from './library.js'
 import type { CloudPlatform } from './platform.js'
 import { CloudImportRequestSchema } from './schemas.js'
-import { DoormanError, type CloudSession, type CloudSessionApi } from './session.js'
+import type { CloudSession, CloudSessionApi } from './session.js'
 import { createSharedServer } from './sharedServer.js'
 import type { CloudLibrary } from './snapshotLibrary.js'
 
@@ -105,6 +109,79 @@ function parseInput<S extends z.ZodTypeAny>(schema: S, value: unknown): z.output
   return parsed.data as z.output<S>
 }
 
+/**
+ * What only a server can answer, as `METHOD /path` (`:id` a number, `:any`
+ * any one segment): importing, the smart features, Stats, the devices list,
+ * the server's own cloud settings, and searching the words of every song,
+ * whose index only a server builds. A cloud library answers these with a 501
+ * coded `needs_server`, said in so many words; a path in neither this list nor
+ * the routes below is a 404, as the server's own unknown paths are. A test
+ * holds every route the app calls (@selfmp3/client api.ts) to one or the other.
+ */
+export const SERVER_ONLY_ROUTES: readonly string[] = [
+  'POST /api/library/scan',
+  'GET /api/library/analyze',
+  'POST /api/library/analyze',
+  'GET /api/library/fix-covers',
+  'POST /api/library/fix-covers',
+  'POST /api/library/fix-covers/cancel',
+  'GET /api/lyrics/search',
+  'GET /api/songs/:id/lookup',
+  'POST /api/songs/:id/apply-metadata',
+  'GET /api/ai',
+  'POST /api/ai/check',
+  'POST /api/ai/describe',
+  'POST /api/ai/refine',
+  'POST /api/ai/ask',
+  'GET /api/ai/ask/progress',
+  'POST /api/ai/ask/stop',
+  'GET /api/ai/tags/untagged',
+  'GET /api/ai/songs/:id/metadata',
+  'GET /api/ai/written',
+  'GET /api/ai/tidy',
+  'GET /api/import/tools',
+  'POST /api/import/preview',
+  'POST /api/import/search',
+  'POST /api/import/find',
+  'GET /api/import/cover-tone',
+  'POST /api/import/already-have',
+  'POST /api/import/enqueue',
+  'GET /api/import/queue',
+  'POST /api/import/jobs/:any/cancel',
+  'POST /api/import/jobs/:any/retry',
+  'POST /api/import/jobs/:any/next',
+  'DELETE /api/import/jobs/:any',
+  'POST /api/import/pause',
+  'POST /api/import/resume',
+  'POST /api/import/retry-failed',
+  'POST /api/import/remove-failed',
+  'POST /api/import/clear',
+  'GET /api/devices',
+  'POST /api/devices/heartbeat',
+  'POST /api/devices/:any/command',
+  'DELETE /api/devices/:any',
+  'GET /api/cloud',
+  'PUT /api/cloud',
+  'DELETE /api/cloud',
+  'POST /api/cloud/sync',
+  'POST /api/cloud/signin',
+  'DELETE /api/cloud/signin',
+  'POST /api/cloud/signin/code',
+  'PUT /api/cloud/storage',
+  'GET /api/stats',
+  'GET /api/stats/wrapped',
+  'GET /api/stats/history',
+  'GET /api/artists/backdrop',
+]
+
+/** What each kind of path segment a route names may be. */
+const SEGMENTS: Readonly<Record<string, RegExp>> = {
+  ':id': /^\d+$/,
+  ':uid': /^[0-9a-f]{32}$/,
+  ':grant': /^[0-9a-f]{16}$/,
+  ':any': /^[^/]+$/,
+}
+
 type Handler = (input: {
   session: CloudSession
   params: readonly string[]
@@ -131,6 +208,7 @@ export function createCloudRoutes(
     cloudMotion,
     cloudPlaylistSongs,
     loadCloudLibrary,
+    markPlaylistPlayed,
     peekCloudLibrary,
     recordChanges,
   } = library
@@ -186,8 +264,17 @@ export function createCloudRoutes(
       '/api/songs/:id/lyrics',
       async ({ session, params }) => {
         const found = await cloudLyrics(session, id(params))
-        if (!found) throw new CloudRouteError(404, 'No lyrics for this song.', 'not_found')
-        return { source: 'sidecar', kind: found.kind, text: found.text, romanized: found.romanized }
+        // As the server answers: words win over the flag, and a song known to
+        // have none says so with its own code, so the app can say "instrumental".
+        if (!found) {
+          const song = (await peekCloudLibrary(session)).byId.songs.get(id(params))
+          if (song?.instrumental) {
+            throw new CloudRouteError(404, 'this track is instrumental', API_ERROR.instrumental)
+          }
+          throw new CloudRouteError(404, 'no lyrics for this track', 'not_found')
+        }
+        // The bucket's copy: what a server that keeps none of its own answers with.
+        return { source: 'cloud', kind: found.kind, text: found.text, romanized: found.romanized }
       },
     ],
     [
@@ -275,10 +362,13 @@ export function createCloudRoutes(
         const event = parseInput(PlayEventSchema, body)
         return recordChanges(
           session,
-          ctx => ({
-            changes: edits.playSong(ctx, id(params), event),
-            answer: (): PlayRecorded => ({ ok: true, duplicate: false }),
-          }),
+          ctx => {
+            const changes = edits.playSong(ctx, id(params), event)
+            return {
+              changes,
+              answer: (): PlayRecorded => ({ ok: true, duplicate: changes.length === 0 }),
+            }
+          },
           // The outbox sends a phone's waiting plays one after another.
           { deferView: true },
         )
@@ -290,13 +380,14 @@ export function createCloudRoutes(
       ({ session, body }) => {
         const input = parseInput(BulkDeleteSongsSchema, body)
         return recordChanges(session, ctx => {
-          const changes = edits.removeSongs(ctx, input.songIds)
-          const failed = [...new Set(input.songIds)]
+          const asked = [...new Set(input.songIds)]
+          const removed = asked.filter(songId => ctx.view.uids.songs.has(songId)).length
+          const failed = asked
             .filter(songId => !ctx.view.uids.songs.has(songId))
             .map(songId => ({ songId, reason: `no song with id ${songId}`, removed: false }))
           return {
-            changes,
-            answer: () => ({ removed: changes.length, failed }),
+            changes: edits.removeSongs(ctx, input.songIds),
+            answer: () => ({ removed, failed }),
           }
         })
       },
@@ -379,6 +470,23 @@ export function createCloudRoutes(
           changes: edits.editPlaylist(ctx, id(params), patch),
           answer: view => playlistOf(view, view.uids.playlists.get(id(params))),
         }))
+      },
+    ],
+    [
+      'POST',
+      '/api/playlists/:id/stop-following',
+      ({ session, params }) =>
+        recordChanges(session, ctx => ({
+          changes: edits.stopFollowing(ctx, id(params)),
+          answer: view => playlistOf(view, view.uids.playlists.get(id(params))),
+        })),
+    ],
+    [
+      'POST',
+      '/api/playlists/:id/played',
+      async ({ session, params }) => {
+        if (!(await markPlaylistPlayed(session, id(params)))) throw notFound('playlist')
+        return { ok: true }
       },
     ],
     [
@@ -547,36 +655,37 @@ export function createCloudRoutes(
         throw new CloudRouteError(
           502,
           `Unexpected answer from the bucket: ${why}`,
-          'contract_mismatch',
+          API_ERROR.contractMismatch,
         )
       }
       if (error instanceof DoormanError) {
         throw new CloudRouteError(
           error.status,
           error.message,
-          error.status === 0 ? 'offline' : error.code,
+          error.status === 0 ? API_ERROR.offline : error.code,
         )
       }
       throw error
     }
 
-    throw new CloudRouteError(
-      501,
-      'Not in a cloud library yet — this still needs your server.',
-      'needs-server',
-    )
+    for (const route of SERVER_ONLY_ROUTES) {
+      const [routeMethod = '', pattern = ''] = route.split(' ')
+      if (routeMethod === method && match(pattern, url.pathname)) {
+        throw new CloudRouteError(501, 'This needs your server.', API_ERROR.needsServer)
+      }
+    }
+    throw new CloudRouteError(404, 'no such endpoint', 'not_found')
   }
 
-  /** The `:id` and `:uid` segments a path filled in, or null when it is not this route. */
+  /** The `:id`, `:uid`, `:grant` and `:any` segments a path filled in, or null when it is not this route. */
   function match(pattern: string, pathname: string): string[] | null {
     const want = pattern.split('/')
     const have = pathname.split('/')
     if (want.length !== have.length) return null
     const params: string[] = []
     for (let i = 0; i < want.length; i++) {
-      if (want[i] === ':id' || want[i] === ':uid' || want[i] === ':grant') {
-        const shape =
-          want[i] === ':id' ? /^\d+$/ : want[i] === ':uid' ? /^[0-9a-f]{32}$/ : /^[0-9a-f]{16}$/
+      const shape = SEGMENTS[want[i] ?? '']
+      if (shape) {
         if (!shape.test(have[i] ?? '')) return null
         params.push(have[i] ?? '')
       } else if (want[i] !== have[i]) {
@@ -610,14 +719,20 @@ export function createCloudRoutes(
 
   /** "Reachable" means the doorman answers: a cloud library's only server. */
   async function health(): Promise<unknown> {
-    const response = await sessionApi.doormanFetch(null, '/v1/health')
-    if (!response.ok) throw new DoormanError(response.status, 'the doorman is not answering')
+    const response = await sessionApi.doormanFetch(null, DOORMAN_PATHS.health)
+    if (!response.ok) {
+      throw new DoormanError(
+        response.status,
+        DOORMAN_ERROR.notFound,
+        'the doorman is not answering',
+      )
+    }
     // A 200 is not yet an answer: a captive portal or a proxy's login page
     // returns one too, and this route's whole job is to say the doorman is
     // really there. Status 0, as for no answer at all: a 200 from something
     // else is the doorman being out of reach, which the app calls offline.
     if (!DoormanHealthSchema.safeParse(await response.json().catch(() => null)).success) {
-      throw new DoormanError(0, 'the doorman is not answering')
+      throw new DoormanError(0, DOORMAN_ERROR.unexpected, 'the doorman is not answering')
     }
     // No song count: the library's is on screen beside it, and a made-up 0 read
     // "self.mp3 web · 0 songs" over a library of thirty.

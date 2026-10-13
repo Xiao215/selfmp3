@@ -1,10 +1,10 @@
 import type { FixCoversStatus, Song } from '@selfmp3/shared'
+import { messageOf } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { CoverService } from './covers.js'
 import type { MetadataLookupService } from './lookup.js'
 import { CONFIDENT_SCORE } from './lookupScore.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * The background "find missing cover art" pass.

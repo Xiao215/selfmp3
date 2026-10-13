@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Circle, Svg } from 'react-native-svg'
 import { artistOr, pickResumeState, type Device } from '@selfmp3/shared'
-import { handoffTarget, radius, shortDeviceName, type, useLibrary } from '@selfmp3/client'
+import {
+  handoffTarget,
+  radius,
+  shortDeviceName,
+  type,
+  useLibrary,
+  space,
+  iconSize,
+} from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { usePlaybackMemoryState } from '../../player/usePlaybackMemory'
 import { useLayout } from '../../shell/useLayout'
@@ -13,6 +21,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { X } from '../../ui/components/Icons'
 import { floating } from '../../ui/surfaces'
 import { useDeviceContext } from './DevicesProvider'
+import { Press } from '../../ui/components/Press'
 
 /** How long the offer stays before it goes by itself. */
 const RESUME_TOAST_MS = 12_000
@@ -95,7 +104,8 @@ export function ResumeToast(): ReactNode {
     // Never wider than the window's room for it: in an iPad's Slide Over, 320
     // wide, it would run past both edges (docs/ui-mock `T08`).
     <View style={[styles.toast, { maxWidth: Math.min(460, width - 32) }]} role="status">
-      <Pressable
+      <Press
+        feedback="wash"
         onPress={() => {
           const target = handoffTarget(candidate.state, Date.now())
           setCandidate(null)
@@ -124,10 +134,10 @@ export function ResumeToast(): ReactNode {
             from {shortDeviceName(candidate.name)}
           </Text>
         ) : null}
-      </Pressable>
+      </Press>
       <View>
         <IconButton onPress={() => setCandidate(null)} label="Dismiss" size={finePointer ? 32 : 40}>
-          <X size={15} color={theme.colors.textMuted} />
+          <X size={iconSize.button} color={theme.colors.textMuted} />
         </IconButton>
         <CountdownRing size={finePointer ? 32 : 40} color={theme.colors.textMuted} />
       </View>
@@ -175,7 +185,7 @@ const styles = StyleSheet.create(theme => ({
   toast: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: space.tight,
     paddingVertical: 5,
     paddingLeft: 5,
     paddingRight: 7,
@@ -186,14 +196,14 @@ const styles = StyleSheet.create(theme => ({
   main: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 8,
+    gap: space.sm,
     minWidth: 0,
     flexShrink: 1,
     paddingVertical: 7,
-    paddingHorizontal: 12,
+    paddingHorizontal: space.md,
     borderRadius: radius.pill,
   },
-  mainTouch: { paddingVertical: 10 },
+  mainTouch: { paddingVertical: space.snug },
   mainHovered: { backgroundColor: theme.colors.surface3 },
   label: { fontSize: type.sub, fontWeight: '600' },
   song: { color: theme.colors.textPrimary, fontSize: type.sub, flexShrink: 1 },

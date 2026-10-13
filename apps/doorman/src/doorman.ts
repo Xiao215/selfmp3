@@ -1,4 +1,10 @@
-import type { DoormanHealth } from '@selfmp3/shared'
+import {
+  DOORMAN_ERROR,
+  DOORMAN_PATHS,
+  DoormanError,
+  type DoormanErrorCode,
+  type DoormanHealth,
+} from '@selfmp3/shared'
 import { version as DOORMAN_VERSION } from '../package.json'
 import { Access, access, type AccessCache } from './access.js'
 import { Accounts, newAccountCache } from './accounts.js'
@@ -11,7 +17,6 @@ import { grants } from './grants.js'
 import { rooms } from './rooms.js'
 import { shared } from './sharedRoutes.js'
 import {
-  DoormanError,
   errorResponse,
   forbidden,
   json,
@@ -58,33 +63,31 @@ export interface Doorman {
 
 type Route = (ctx: Context) => Promise<Response>
 
+/** Keyed by packages/shared's `DOORMAN_PATHS`, the names every client asks by. */
 const ROUTES: Readonly<Record<string, Readonly<Record<string, Route>>>> = {
-  '/v1/health': { GET: health },
-  '/v1/auth/start': { GET: auth.start },
-  '/v1/auth/callback': { GET: auth.callback },
-  '/v1/auth/claim': { POST: auth.claim },
-  '/v1/auth/signout': { POST: auth.signOut },
-  '/v1/auth/signout-everywhere': { POST: auth.signOutEverywhere },
-  '/v1/me': { GET: storage.me },
-  '/v1/access': { GET: access, PUT: access },
-  '/v1/storage': { PUT: storage.connect, DELETE: storage.disconnect },
-  '/v1/storage/backblaze': { POST: storage.connectBackblaze },
-  '/v1/list': { GET: files.list },
-  '/v1/changes': { GET: files.changes },
+  [DOORMAN_PATHS.health]: { GET: health },
+  [DOORMAN_PATHS.signInStart]: { GET: auth.start },
+  [DOORMAN_PATHS.signInCallback]: { GET: auth.callback },
+  [DOORMAN_PATHS.claim]: { POST: auth.claim },
+  [DOORMAN_PATHS.signOut]: { POST: auth.signOut },
+  [DOORMAN_PATHS.signOutEverywhere]: { POST: auth.signOutEverywhere },
+  [DOORMAN_PATHS.me]: { GET: storage.me },
+  [DOORMAN_PATHS.access]: { GET: access, PUT: access },
+  [DOORMAN_PATHS.storage]: { PUT: storage.connect, DELETE: storage.disconnect },
+  [DOORMAN_PATHS.backblaze]: { POST: storage.connectBackblaze },
+  [DOORMAN_PATHS.list]: { GET: files.list },
+  [DOORMAN_PATHS.changes]: { GET: files.changes },
 }
 
-const FILES = '/v1/files/'
-const GRANTS = '/v1/grants'
-const ROOMS = '/v1/rooms'
-const SHARED = '/v1/shared'
+const { files: FILES, grants: GRANTS, rooms: ROOMS, shared: SHARED } = DOORMAN_PATHS
 
 /** Errors from the bucket, as a device sees them: the doorman's own upstream failed. */
-const BUCKET_CODES: Readonly<Record<BucketErrorKind, string>> = {
-  auth: 'bucket_refused_key',
-  missing: 'no_such_bucket',
-  network: 'bucket_unreachable',
-  cap: 'bucket_cap_exceeded',
-  other: 'bucket_error',
+const BUCKET_CODES: Readonly<Record<BucketErrorKind, DoormanErrorCode>> = {
+  auth: DOORMAN_ERROR.bucketRefusedKey,
+  missing: DOORMAN_ERROR.noSuchBucket,
+  network: DOORMAN_ERROR.bucketUnreachable,
+  cap: DOORMAN_ERROR.bucketCapExceeded,
+  other: DOORMAN_ERROR.bucketError,
 }
 
 export function createDoorman(deps: DoormanDeps = {}): Doorman {
@@ -180,5 +183,5 @@ function asDoormanError(error: unknown, log: Log): DoormanError {
   // a credential taken out: an error can quote the header it choked on.
   const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
   log.error('unexpected error', { message: redact(message).slice(0, 500) })
-  return new DoormanError(500, 'internal', 'internal error')
+  return new DoormanError(500, DOORMAN_ERROR.internal, 'internal error')
 }

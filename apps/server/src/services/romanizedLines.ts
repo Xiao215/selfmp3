@@ -1,10 +1,10 @@
 import type { RomanizedLyrics, Song } from '@selfmp3/shared'
+import { messageOf } from '@selfmp3/shared'
 import { CloudError } from '../bucket/store.js'
 import type { Logger } from '../logger.js'
 import { LyricsCache } from './lyricsCache.js'
 import { unattendedLyricText } from './lyrics.js'
 import type { RomanizationService } from './romanization.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * The romanized lines that belong to a lyric text, made once per text.

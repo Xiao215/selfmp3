@@ -1,9 +1,12 @@
+import { decodeBucketText } from '@selfmp3/shared'
 import type { CloudPlatform, DeviceStore, TextCache } from '@selfmp3/replica'
 import { CLOUD_FILES_CACHE, PLAYED_CACHE } from '../../sw/names'
 import { appPath } from './appPath'
 import { desktop } from './desktop/bridge'
+import { deviceModel } from './device'
 import { doormanUrl } from './doormanUrl'
 import { sharedServerUrl } from './sharedServerUrl'
+import { signInReturnUrl } from './signInReturn'
 import {
   deleteStored,
   deleteStoredPrefix,
@@ -102,17 +105,10 @@ export const cloudPlatform: CloudPlatform = {
    * the person's own browser, because Google refuses an embedded window and
    * because a browser that already knows them is one fewer password typed.
    */
-  returnUrl: desktop ? 'selfmp3://welcome' : `${window.location.origin}${appPath('welcome')}`,
+  returnUrl: signInReturnUrl('welcome'),
   openSignIn: url => (desktop ? desktop.openExternal(url) : window.location.assign(url)),
 
-  deviceKind: (() => {
-    if (desktop) return 'browser'
-    const agent = typeof navigator === 'undefined' ? '' : navigator.userAgent
-    if (/iPhone/.test(agent)) return 'iphone'
-    if (/iPad/.test(agent)) return 'ipad'
-    if (/Android/.test(agent)) return 'android'
-    return 'browser'
-  })(),
+  deviceKind: deviceModel(),
 
   onWake: run => {
     window.addEventListener('online', run)
@@ -121,19 +117,7 @@ export const cloudPlatform: CloudPlatform = {
     })
   },
 
-  /**
-   * Snapshots are stored gzip-compressed. The browser undoes that itself when
-   * the doorman passes the encoding on, and this does it when it does not.
-   */
-  decodeText: async bytes => {
-    if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
-      // A copy, because a Uint8Array may be backed by a SharedArrayBuffer,
-      // which BlobPart does not accept.
-      const stream = new Blob([bytes.slice()]).stream().pipeThrough(new DecompressionStream('gzip'))
-      return new Response(stream).text()
-    }
-    return new TextDecoder().decode(bytes)
-  },
+  decodeText: decodeBucketText,
 
   textCache,
   warn: message => console.warn(`self.mp3: ${message}`),

@@ -1,17 +1,17 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { ActivityIndicator, Image, Pressable, Text, View } from 'react-native'
+import { Image, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import type { WrappedRange } from '@selfmp3/shared'
 import {
   failureText,
-  leading,
-  space,
   type,
   useLibrary,
   withAlpha,
   type ServerConnection,
+  iconSize,
+  space,
 } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { useConnection } from '../../connection/ConnectionProvider'
@@ -22,15 +22,18 @@ import { canSaveLook, saveLook } from '../../ports/saveLook'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
-import { useBackTo, usePageBack } from '../../ui/useBackTo'
+import { useBackTo } from '../../ui/useBackTo'
 import { BackButton } from '../../ui/components/BackButton'
+import { EmptyState } from '../../ui/components/EmptyState'
+import { PageLoading } from '../../ui/components/PageLoading'
+import { NoticeCard } from '../../ui/components/NoticeCard'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { Download, Play } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Segmented } from '../../ui/components/Segmented'
 import { Select } from '../../ui/components/Select'
-import { card, floating, sectionTitle } from '../../ui/surfaces'
+import { floating, pageFrame } from '../../ui/surfaces'
 import { WrittenReport } from '../smart/WrittenReport'
 import { useStatsFor, useStatsSongs, useWrappedFor } from '../stats/statsSource'
 import { LOOK_VIEWS } from './looks'
@@ -47,6 +50,8 @@ import {
 import { emptyHint, emptyTitle, longerRanges, tryLabel, shareFileName } from './wrapped.model'
 import { isStatsPeriod, periodLabel, STATS_PERIODS, statsRangeFor } from '../stats/stats.model'
 import { ScrollView } from '../../ui/components/Scroll'
+import { Press } from '../../ui/components/Press'
+import { Spinner } from '../../ui/components/Spinner'
 import { SHOWS_WHEN_REACHABLE } from '../library/library.model'
 
 /** How wide a portrait look is drawn on a computer: its board's own width, near enough. */
@@ -162,7 +167,7 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
   const shareControl = !canSaveLook ? null : wide ? (
     <Button
       label={shareLabel}
-      icon={<Download size={15} color={theme.colors.textPrimary} />}
+      icon={<Download color={theme.colors.textPrimary} />}
       busy={sharing}
       disabled={!canShare}
       onPress={() => void share()}
@@ -176,11 +181,7 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
       onPress={() => void share()}
       testID="report-share"
     >
-      {sharing ? (
-        <ActivityIndicator size="small" color={theme.colors.textMuted} />
-      ) : (
-        <Download size={18} color={theme.colors.textPrimary} />
-      )}
+      {sharing ? <Spinner /> : <Download size={iconSize.medium} color={theme.colors.textPrimary} />}
     </IconButton>
   )
 
@@ -190,43 +191,30 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
     </ReportFrame>
   )
 
-  if (isLoading && !wrapped) return shell(<Text style={styles.hint}>Working it out…</Text>)
+  if (isLoading && !wrapped) return shell(<PageLoading line="Working it out…" />)
 
   if (!wrapped) {
-    return shell(
-      <View style={styles.empty}>
-        <Text style={styles.emptyTitle}>The report needs your library</Text>
-        <Text style={[styles.hint, styles.center]}>{SHOWS_WHEN_REACHABLE}</Text>
-      </View>,
-    )
+    return shell(<EmptyState title="The report needs your library" line={SHOWS_WHEN_REACHABLE} />)
   }
 
   if (wrapped.totals.plays === 0) {
     return shell(
-      <View style={styles.empty}>
-        <Text style={styles.emptyTitle}>{emptyTitle(frame.range)}</Text>
-        <Text style={[styles.hint, styles.center]}>{emptyHint(frame.range)}</Text>
-        <View style={styles.emptyActions}>
-          {longerRanges(frame.range).map(option => (
-            <Button key={option} label={tryLabel(option)} onPress={() => frame.onRange(option)} />
-          ))}
-          <Button
-            label="Go to the library"
-            icon={<Play size={15} color={theme.colors.textPrimary} />}
-            onPress={() => backTo('/library')}
-          />
-        </View>
-      </View>,
+      <EmptyState title={emptyTitle(frame.range)} line={emptyHint(frame.range)}>
+        {longerRanges(frame.range).map(option => (
+          <Button key={option} label={tryLabel(option)} onPress={() => frame.onRange(option)} />
+        ))}
+        <Button
+          label="Go to the library"
+          icon={<Play color={theme.colors.textPrimary} />}
+          onPress={() => backTo('/library')}
+        />
+      </EmptyState>,
     )
   }
 
   return shell(
     <>
-      {shareError ? (
-        <View style={styles.notice} accessibilityRole="alert">
-          <Text style={styles.noticeText}>{shareError}</Text>
-        </View>
-      ) : null}
+      {shareError ? <NoticeCard tone="error">{shareError}</NoticeCard> : null}
       <LookStage
         pageRef={page}
         look={frame.look}
@@ -262,7 +250,6 @@ function ReportFrame({
   const { theme } = useUnistyles()
   const { wide } = useLayout()
   const accent = useAccent()
-  const page = usePageBack('/stats')
   const picker = (
     <LookPicker
       looks={looksFor(wide)}
@@ -277,6 +264,9 @@ function ReportFrame({
     return (
       <SafeAreaView style={styles.screen} edges={['top']}>
         <ScrollView contentContainerStyle={styles.contentWide} testID="report-screen">
+          {/* Back to wherever the Report was opened from (J1): Stats, or Home's
+              week; above the bar, where every page's way back is. */}
+          <BackButton to="/stats" testID="report-back" />
           <View style={styles.bar}>
             {picker}
             <View style={styles.barEnd}>
@@ -290,10 +280,6 @@ function ReportFrame({
                 }))}
               />
               {share}
-              {/* Back to wherever the Report was opened from (J1): Stats, or Home's week. */}
-              {page.shown ? (
-                <Button variant="text" label="Back" onPress={page.back} testID="report-back" />
-              ) : null}
             </View>
           </View>
           {children}
@@ -420,7 +406,8 @@ function LookPicker({
       {looks.map(id => {
         const active = id === value
         return (
-          <Pressable
+          <Press
+            feedback="dim"
             key={id}
             onPress={() => onChange(id)}
             accessibilityRole="button"
@@ -428,7 +415,7 @@ function LookPicker({
             accessibilityState={{ selected: active }}
             aria-pressed={active}
             testID={`report-look-${id}`}
-            style={({ pressed }) => [styles.pick, pressed && styles.pressed]}
+            style={styles.pick}
           >
             <View
               style={[
@@ -448,7 +435,7 @@ function LookPicker({
             <Text style={[styles.pickLabel, active && styles.pickLabelActive]}>
               {LOOK_LABELS[id]}
             </Text>
-          </Pressable>
+          </Press>
         )
       })}
     </View>
@@ -479,31 +466,30 @@ const styles = StyleSheet.create(theme => ({
     bottom: -60,
     opacity: 0.8,
   },
-  contentWide: { paddingTop: 28, paddingHorizontal: space.gutterWide, paddingBottom: 48, gap: 20 },
-  contentNarrow: { paddingTop: 8, paddingHorizontal: space.gutter, paddingBottom: 28, gap: 16 },
+  contentWide: { ...pageFrame(true), paddingBottom: 48, gap: 20 },
+  contentNarrow: { ...pageFrame(false), paddingBottom: 28, gap: space.lg },
   bar: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    gap: 16,
+    gap: space.lg,
   },
-  barEnd: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  barEnd: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     minHeight: 44,
   },
-  headerEnd: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerEnd: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   stage: { width: '100%', alignItems: 'center' },
   // The picture floats over the page: the one shadow here.
   object: floating(theme.colors),
   clip: { overflow: 'hidden' },
-  picker: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 14 },
-  pickerNarrow: { justifyContent: 'center', paddingTop: 4 },
+  picker: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: space.roomy },
+  pickerNarrow: { justifyContent: 'center', paddingTop: space.xs },
   pick: { alignItems: 'center', gap: 5 },
-  pressed: { opacity: 0.7 },
   // Lifted off the page like the paper it is; firmer than a card's, which
   // white on cream needs at this size. The dark theme's card shadow is none.
   swatch: {
@@ -519,18 +505,4 @@ const styles = StyleSheet.create(theme => ({
   swatchArt: { width: '100%', height: '100%' },
   pickLabel: { fontSize: type.tiny, fontWeight: '600', color: theme.colors.textSecondary },
   pickLabelActive: { color: theme.colors.textPrimary },
-  hint: { color: theme.colors.textMuted, fontSize: type.sub, lineHeight: leading.sub },
-  center: { textAlign: 'center', maxWidth: 420 },
-  empty: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emptyTitle: sectionTitle(theme.colors),
-  emptyActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 10,
-    marginTop: 8,
-  },
-  // A card, with the danger in its ink rather than an edge.
-  notice: { ...card(theme.colors), paddingVertical: 10, paddingHorizontal: 14 },
-  noticeText: { color: theme.colors.danger, fontSize: type.sub },
 }))

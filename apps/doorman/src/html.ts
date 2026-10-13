@@ -1,7 +1,10 @@
 import {
   darkPalette,
   DEFAULT_ACCENT_HUE,
+  leading,
   lightPalette,
+  radius,
+  type,
   type ThemePalette,
 } from '@selfmp3/client/tokens'
 import { sha256Base64 } from './encoding.js'
@@ -57,18 +60,18 @@ body {
   padding: 24px;
   background: var(--surface);
   color: var(--text);
-  font: 16px/1.5 -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+  font: ${type.body}px/${leading.body}px -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 main {
   width: 100%;
   max-width: 420px;
   padding: 32px;
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: ${radius.card}px;
   background: var(--card);
 }
 .brand { margin: 0 0 20px; color: var(--accent); font-weight: 700; letter-spacing: 0.02em; }
-h1 { margin: 0 0 12px; font-size: 22px; line-height: 1.3; }
+h1 { margin: 0 0 12px; font-size: ${type.large}px; line-height: ${leading.large}px; }
 p { margin: 0 0 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
 .code {
   margin: 20px 0;

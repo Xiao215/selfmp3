@@ -8,7 +8,7 @@ import {
   DEFAULT_ACCENT_HUE,
   darkPalette,
   fonts,
-  labelTracking,
+  tracking,
   leading,
   lightPalette,
   motion,
@@ -30,7 +30,7 @@ const tokens = {
   space,
   type,
   leading,
-  labelTracking,
+  tracking,
   fonts,
   motion,
 }
@@ -76,7 +76,7 @@ describe('the generated theme', () => {
     expect(dark.get('type-tiny')).toBe('11px')
     expect(dark.get('leading-body')).toBe('21px')
     expect(dark.get('space-gutter-wide')).toBe('40px')
-    expect(dark.get('label-tracking')).toBe('0.9px')
+    expect(dark.get('tracking-label')).toBe('0.9px')
     expect(dark.get('font-serif')).toMatch(/^'InstrumentSerif_400Regular', /)
     expect(dark.get('font-display')).toMatch(/^'BricolageGrotesque_600SemiBold', /)
     expect(dark.get('motion-base')).toBe('140ms')
@@ -123,6 +123,18 @@ describe('the generated theme', () => {
     expect(used.size).toBeGreaterThan(10)
     for (const name of used) {
       if (!ownNames.has(name)) expect(names.has(name), `--${name}`).toBe(true)
+    }
+  })
+
+  it('takes its type, line heights, corners and tracking from the tokens, never its own', () => {
+    // Written in pixels they drifted off the scale: 14px five times, an 11.5px
+    // hint, a 44px title on a 46px line beside the app's 46 on 50.
+    for (const path of ['ui/base.css', 'popup/popup.css', 'options/options.css']) {
+      const text = readFileSync(join(src, path), 'utf8')
+      expect(
+        text.match(/(font-size|line-height|border-radius|letter-spacing):\s*-?[\d.]+px/g),
+        path,
+      ).toBeNull()
     }
   })
 

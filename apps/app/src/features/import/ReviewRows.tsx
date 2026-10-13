@@ -1,6 +1,8 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native'
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- a name edited in place, drawn as the text it is
+import { Text, TextInput, View } from 'react-native'
+import type { StyleProp, TextStyle, ViewStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useFocusEffect } from 'expo-router'
 import {
@@ -9,12 +11,15 @@ import {
   type ImportPreviewItem,
   type ImportSource,
 } from '@selfmp3/shared'
-import { HIT_TARGET, radius, type, withAlpha, type Review } from '@selfmp3/client'
+import { HIT_TARGET, radius, type, withAlpha, type Review, coverSize, space } from '@selfmp3/client'
 import { canListenHere } from '../../ports/listen'
-import { label as groupLabel } from '../../ui/surfaces'
+import { label as groupLabel, rowTitle, textColumn } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
+import { Press } from '../../ui/components/Press'
+import { Spinner } from '../../ui/components/Spinner'
+import { OPACITY } from '../../ui/motion.model'
 import type { ValueStore } from '../../state/valueStore.model'
 import { useValueStore } from '../../state/useValueStore'
 import { useToneColors } from '../../ui/useSongColor'
@@ -29,6 +34,7 @@ import {
   type Listening,
 } from './listen.model'
 import { chosenState, rowState, sourceWords, type Rename, type RowState } from './review.model'
+import { TapAway } from '../../ui/components/TapAway'
 
 /**
  * A review's rows (docs/ui-mock `P30` and `C14`): the review's own page
@@ -259,17 +265,12 @@ function SelectBox({
   wide: boolean
 }): ReactNode {
   return (
-    <Pressable
-      onPress={onToggle}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked }}
-      // As ListenBar's value: react-native-web drops `accessibilityState` from the web.
-      aria-checked={checked}
-      accessibilityLabel={checked ? `Deselect ${item.title}` : `Select ${item.title}`}
+    <Checkbox
+      checked={checked}
+      onChange={onToggle}
+      label={checked ? `Deselect ${item.title}` : `Select ${item.title}`}
       style={wide ? styles.selectWide : styles.select}
-    >
-      <Checkbox checked={checked} />
-    </Pressable>
+    />
   )
 }
 
@@ -291,22 +292,20 @@ export function AllBox({
   const state = chosenState(review)
   const all = state === 'all'
   return (
-    <Pressable
+    <Press
+      feedback="dim"
       onPress={() => onChange(!all)}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: all ? true : state === 'some' ? 'mixed' : false }}
       aria-checked={all ? true : state === 'some' ? 'mixed' : false}
       accessibilityLabel={all ? 'Deselect all' : 'Select all'}
-      style={({ pressed }) => [
-        wide ? styles.selectWide : styles.allPhone,
-        pressed && styles.pressed,
-      ]}
+      style={wide ? styles.selectWide : styles.allPhone}
     >
       <View style={wide ? null : styles.select}>
         <Checkbox checked={all} mixed={state === 'some'} />
       </View>
       {wide ? null : <Text style={styles.allWords}>All songs</Text>}
-    </Pressable>
+    </Press>
   )
 }
 
@@ -477,24 +476,20 @@ function SourceOption({
   onPress: () => void
 }): ReactNode {
   return (
-    <Pressable
+    <Press
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="radio"
       accessibilityState={{ checked: on, disabled }}
       accessibilityLabel={`${name}: ${words}`}
-      style={({ pressed }) => [
-        styles.option,
-        on && styles.optionOn,
-        disabled && styles.dim,
-        pressed && styles.pressed,
-      ]}
+      wrap={styles.optionPlace}
+      style={[styles.option, on && styles.optionOn, disabled && styles.dim]}
     >
       <Text style={[styles.optionName, on && styles.optionNameOn]}>{name}</Text>
       <Text style={[styles.optionWords, on && styles.optionWordsOn]} numberOfLines={1}>
         {words}
       </Text>
-    </Pressable>
+    </Press>
   )
 }
 
@@ -544,6 +539,137 @@ function NameField({
       </Text>
       {input}
     </View>
+  )
+}
+
+/**
+ * An open row's three names as fields, Title, Artist and Album: stacked in a
+ * phone's card, or each in its own column of a computer's grid (`columns`).
+ */
+function NameFields({
+  item,
+  index,
+  onRename,
+  wide,
+  columns,
+}: {
+  item: ImportPreviewItem
+  index: number
+  onRename: (index: number, change: Rename) => void
+  wide: boolean
+  columns?: {
+    readonly title: StyleProp<ViewStyle>
+    readonly artist: StyleProp<ViewStyle>
+    readonly album: StyleProp<ViewStyle>
+  }
+}): ReactNode {
+  const field = (
+    label: 'Title' | 'Artist' | 'Album',
+    value: string,
+    change: (next: string) => Rename,
+  ): ReactNode => (
+    <NameField
+      label={label}
+      value={value}
+      onChange={next => onRename(index, change(next))}
+      index={index}
+      wide={wide}
+    />
+  )
+  const title = field('Title', item.title, next => ({ title: next }))
+  const artist = field('Artist', item.artist, next => ({ artist: next }))
+  const album = field('Album', item.album, next => ({ album: next }))
+  if (!columns) {
+    return (
+      <View style={styles.fields}>
+        {title}
+        {artist}
+        {album}
+      </View>
+    )
+  }
+  return (
+    <>
+      <View style={columns.title}>{title}</View>
+      <View style={columns.artist}>{artist}</View>
+      <View style={columns.album}>{album}</View>
+    </>
+  )
+}
+
+/** Whether a row has a box: not for a song the library has, nor one that could not be found. */
+function hasBox(state: ShownState): boolean {
+  return state !== 'yours' && state !== 'missing'
+}
+
+/** Whether a row's song can be heard here: one the library has is not offered. */
+function canHear(state: ShownState, canPlay: boolean): boolean {
+  return canPlay && state !== 'yours'
+}
+
+/** The row's box, or the room it would take, so every row's cover lines up. */
+function RowBox({
+  item,
+  index,
+  state,
+  onToggleChosen,
+  wide,
+}: {
+  item: ImportPreviewItem
+  index: number
+  state: ShownState
+  onToggleChosen: (index: number) => void
+  wide: boolean
+}): ReactNode {
+  if (!hasBox(state)) return <View style={wide ? styles.selectWide : styles.select} />
+  return (
+    <SelectBox
+      item={item}
+      checked={state === 'in'}
+      onToggle={() => onToggleChosen(index)}
+      wide={wide}
+    />
+  )
+}
+
+/**
+ * What the press that opens a row says, on a phone and a computer alike: the
+ * song, and that it opens to hear it and fix its name. A song the library has
+ * does not open.
+ */
+function rowA11y(
+  item: ImportPreviewItem,
+  state: ShownState,
+  opening: boolean,
+): {
+  accessibilityRole: 'button'
+  accessibilityLabel: string
+  accessibilityHint: string | undefined
+  accessibilityState: { disabled: boolean; busy: boolean }
+} {
+  const yours = state === 'yours'
+  return {
+    accessibilityRole: 'button',
+    accessibilityLabel: `${item.title || 'Untitled'}, ${artistOr(item.artist)}`,
+    accessibilityHint: yours ? undefined : 'Opens it to hear it and fix its name',
+    accessibilityState: { disabled: yours, busy: opening },
+  }
+}
+
+/** A row's title: "Untitled" for none, struck through when it is left out. */
+function RowTitle({
+  item,
+  state,
+  style,
+}: {
+  item: ImportPreviewItem
+  state: ShownState
+  style?: StyleProp<TextStyle>
+}): ReactNode {
+  return (
+    <Text style={[styles.title, style, state === 'out' && styles.struck]} numberOfLines={1}>
+      {item.title || 'Untitled'}
+    </Text>
   )
 }
 
@@ -598,7 +724,6 @@ const PhoneRow = memo(function PhoneRow({
   onSource,
   onLookAgain,
 }: RowProps): ReactNode {
-  const { theme } = useUnistyles()
   const colors = useToneColors(listening?.tone ?? null)
   if (open) {
     const bar = (at: number): ReactNode => {
@@ -622,108 +747,71 @@ const PhoneRow = memo(function PhoneRow({
       )
     }
     return (
-      <Pressable
-        onPress={() => undefined}
-        accessible={false}
-        style={styles.openCard}
-        testID={`import-row-${index}`}
-      >
+      // Keeps a tap on the open card from reaching the list's tap-away, which would close it.
+      <TapAway onPress={() => undefined} style={styles.openCard} testID={`import-row-${index}`}>
         <View style={styles.openTop}>
           {/* The row's box stays where it was, so a song liked while hearing it is ticked from here. */}
           <View style={styles.selectOpen}>
-            {state === 'missing' ? (
-              <View style={styles.select} />
-            ) : (
-              <SelectBox
-                item={item}
-                checked={state === 'in'}
-                onToggle={() => onToggleChosen(index)}
-                wide={false}
-              />
-            )}
+            <RowBox
+              item={item}
+              index={index}
+              state={state}
+              onToggleChosen={onToggleChosen}
+              wide={false}
+            />
           </View>
           <ListenCover
             item={item}
             listening={listening}
             onPress={() => onPlay(index)}
-            shown={canPlay}
+            shown={canHear(state, canPlay)}
             size={56}
           />
-          <View style={styles.fields}>
-            <NameField
-              label="Title"
-              value={item.title}
-              onChange={title => onRename(index, { title })}
-              index={index}
-              wide={false}
-            />
-            <NameField
-              label="Artist"
-              value={item.artist}
-              onChange={artist => onRename(index, { artist })}
-              index={index}
-              wide={false}
-            />
-            <NameField
-              label="Album"
-              value={item.album}
-              onChange={album => onRename(index, { album })}
-              index={index}
-              wide={false}
-            />
-          </View>
+          <NameFields item={item} index={index} onRename={onRename} wide={false} />
         </View>
         <SourceChoice item={item} index={index} onSource={onSource} onLookAgain={onLookAgain} />
         {/* Ticking only while this row's song is the one playing; before, at the start. */}
-        {!canPlay ? null : listening ? <AtPosition position={position}>{bar}</AtPosition> : bar(0)}
-      </Pressable>
+        {!canHear(state, canPlay) ? null : listening ? (
+          <AtPosition position={position}>{bar}</AtPosition>
+        ) : (
+          bar(0)
+        )}
+      </TapAway>
     )
   }
 
-  const out = state === 'out'
   return (
     <View style={styles.phoneRow} testID={`import-row-${index}`}>
-      {state === 'yours' || state === 'missing' ? (
-        <View style={styles.select} />
-      ) : (
-        <SelectBox
-          item={item}
-          checked={state === 'in'}
-          onToggle={() => onToggleChosen(index)}
-          wide={false}
-        />
-      )}
-      <Pressable
+      <RowBox
+        item={item}
+        index={index}
+        state={state}
+        onToggleChosen={onToggleChosen}
+        wide={false}
+      />
+      <Press
+        feedback="dim"
         onPress={state === 'yours' ? undefined : () => onOpen(index)}
         disabled={state === 'yours'}
-        accessibilityRole="button"
-        accessibilityLabel={`${item.title}, ${artistOr(item.artist)}`}
-        accessibilityHint={state === 'yours' ? undefined : 'Opens it to hear it and fix its name'}
-        accessibilityState={{ disabled: state === 'yours', busy: opening }}
-        style={({ pressed }) => [
-          styles.phoneRowBody,
-          state !== 'in' && state !== 'picking' && styles.dim,
-          pressed && styles.pressed,
-        ]}
+        {...rowA11y(item, state, opening)}
+        style={[styles.phoneRowBody, state !== 'in' && state !== 'picking' && styles.dim]}
       >
         <View style={styles.coverWrap}>
-          <Cover uri={item.thumbnail} title={item.title} size={44} />
+          <Cover uri={item.thumbnail} title={item.title} size={coverSize.row} />
           {opening ? (
             <View style={styles.coverWait} pointerEvents="none">
-              <ActivityIndicator size="small" color={theme.colors.textPrimary} />
+              <Spinner tone="textPrimary" />
             </View>
           ) : null}
         </View>
         <View style={styles.texts}>
-          <Text style={[styles.title, out && styles.struck]} numberOfLines={1}>
-            {item.title || 'Untitled'}
-          </Text>
+          <RowTitle item={item} state={state} />
           <Text style={styles.artist} numberOfLines={1}>
             {artistOr(item.artist)}
           </Text>
         </View>
         <EndWords item={item} state={state} words={words} wordsWarn={wordsWarn} />
-      </Pressable>
+      </Press>
     </View>
   )
 })
@@ -740,6 +828,7 @@ const GridRow = memo(function GridRow({
   index,
   state,
   open,
+  opening,
   listening,
   canPlay,
   finePointer,
@@ -759,7 +848,6 @@ const GridRow = memo(function GridRow({
   const colors = useToneColors(listening?.tone ?? null)
   // With no pointer to wait for (a tablet at this width), what hover shows is always shown.
   const reveal = hovered || !finePointer
-  const out = state === 'out'
   const lit = open || (hovered && state !== 'yours')
   const showBar = open && canPlay && listening !== null
 
@@ -774,20 +862,11 @@ const GridRow = memo(function GridRow({
       onPointerLeave={() => setHovered(false)}
     >
       <View style={[styles.grid, styles.gridRow]}>
-        {state === 'yours' || state === 'missing' ? (
-          <View style={styles.selectWide} />
-        ) : (
-          <SelectBox
-            item={item}
-            checked={state === 'in'}
-            onToggle={() => onToggleChosen(index)}
-            wide
-          />
-        )}
+        <RowBox item={item} index={index} state={state} onToggleChosen={onToggleChosen} wide />
         {/* The box keeps its full colour: dimmed, an empty ring would all but vanish. */}
         <View style={[styles.cells, state !== 'in' && state !== 'picking' && !open && styles.dim]}>
           <View style={styles.colCover}>
-            {canPlay && state !== 'yours' ? (
+            {canHear(state, canPlay) ? (
               <ListenCover
                 item={item}
                 listening={listening}
@@ -795,57 +874,33 @@ const GridRow = memo(function GridRow({
                 shown={reveal}
               />
             ) : (
-              <Cover uri={item.thumbnail} title={item.title} size={40} />
+              <Cover uri={item.thumbnail} title={item.title} size={coverSize.rowDense} />
             )}
           </View>
           {open ? (
-            <>
-              <View style={styles.colTitle}>
-                <NameField
-                  label="Title"
-                  value={item.title}
-                  onChange={title => onRename(index, { title })}
-                  index={index}
-                  wide
-                />
-              </View>
-              <View style={styles.colArtist}>
-                <NameField
-                  label="Artist"
-                  value={item.artist}
-                  onChange={artist => onRename(index, { artist })}
-                  index={index}
-                  wide
-                />
-              </View>
-              <View style={styles.colAlbum}>
-                <NameField
-                  label="Album"
-                  value={item.album}
-                  onChange={album => onRename(index, { album })}
-                  index={index}
-                  wide
-                />
-              </View>
-            </>
+            <NameFields
+              item={item}
+              index={index}
+              onRename={onRename}
+              wide
+              columns={{ title: styles.colTitle, artist: styles.colArtist, album: styles.colAlbum }}
+            />
           ) : (
-            <Pressable
+            <Press
+              feedback="dim"
               onPress={state === 'yours' ? undefined : () => onOpen(index)}
               disabled={state === 'yours'}
-              accessibilityRole="button"
-              accessibilityLabel={`Edit ${item.title || 'this song'}`}
+              {...rowA11y(item, state, opening)}
               style={styles.names2}
             >
-              <Text style={[styles.title, styles.colTitle, out && styles.struck]} numberOfLines={1}>
-                {item.title || 'Untitled'}
-              </Text>
+              <RowTitle item={item} state={state} style={styles.colTitle} />
               <Text style={[styles.artist, styles.colArtist]} numberOfLines={1}>
                 {artistOr(item.artist)}
               </Text>
               <Text style={[styles.album, styles.colAlbum]} numberOfLines={1}>
                 {item.album}
               </Text>
-            </Pressable>
+            </Press>
           )}
           {showFrom ? <FromWords words={words} warn={wordsWarn} /> : null}
           <View style={styles.colEnd}>
@@ -913,7 +968,12 @@ const GAP = 14
 
 const styles = StyleSheet.create(theme => ({
   // A closed row's cover, and the wait drawn over it while its song is fetched (as ListenCover's).
-  coverWrap: { width: 44, height: 44, borderRadius: radius.coverSm, overflow: 'hidden' },
+  coverWrap: {
+    width: coverSize.row,
+    height: coverSize.row,
+    borderRadius: radius.coverSm,
+    overflow: 'hidden',
+  },
   coverWait: {
     position: 'absolute',
     top: 0,
@@ -924,13 +984,12 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     backgroundColor: withAlpha(theme.colors.surface0, 0.55),
   },
-  pressed: { opacity: 0.6 },
   // The box, then the cells: the cells dim together when the song is not coming in.
-  grid: { flexDirection: 'row', alignItems: 'center', gap: GAP, paddingHorizontal: 12 },
+  grid: { flexDirection: 'row', alignItems: 'center', gap: GAP, paddingHorizontal: space.md },
   cells: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: GAP },
-  gridHead: { paddingBottom: 6 },
+  gridHead: { paddingBottom: space.tight },
   headLabel: groupLabel(theme.colors),
-  colCover: { width: 40 },
+  colCover: { width: coverSize.rowDense },
   colTitle: { flex: 1.2, minWidth: 0 },
   colArtist: { flex: 1, minWidth: 0 },
   colAlbum: { flex: 1, minWidth: 0 },
@@ -942,16 +1001,13 @@ const styles = StyleSheet.create(theme => ({
   endWords: { color: theme.colors.textMuted, fontSize: type.tiny, fontWeight: '600' },
   warn: { color: theme.colors.warning },
   // The open row's choice of where the song comes from: two options side by side.
-  choice: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  choice: { flexDirection: 'row', alignItems: 'center', gap: space.tight, flexWrap: 'wrap' },
+  optionPlace: { flexGrow: 1, flexBasis: 0, minWidth: 120, maxWidth: 260 },
   option: {
-    flexGrow: 1,
-    flexBasis: 0,
-    minWidth: 120,
-    maxWidth: 260,
     gap: 1,
-    paddingHorizontal: 12,
+    paddingHorizontal: space.md,
     paddingVertical: 7,
-    borderRadius: 12,
+    borderRadius: radius.item,
     backgroundColor: theme.colors.surface0,
   },
   optionOn: { backgroundColor: theme.colors.textPrimary },
@@ -959,15 +1015,15 @@ const styles = StyleSheet.create(theme => ({
   optionNameOn: { color: theme.colors.surface0 },
   optionWords: { color: theme.colors.textSecondary, fontSize: type.tiny },
   optionWordsOn: { color: withAlpha(theme.colors.surface0, 0.7) },
-  found: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  found: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   foundWords: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: type.small },
   endText: { textAlign: 'right' },
   names2: { flex: 3.2, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: GAP },
   gridRowWrap: { borderRadius: 10, marginBottom: 2 },
   gridRow: { height: 52 },
   lit: { backgroundColor: theme.colors.surface1 },
-  barRow: { paddingTop: 4, paddingBottom: 14 },
-  dim: { opacity: 0.38 },
+  barRow: { paddingTop: space.xs, paddingBottom: space.roomy },
+  dim: { opacity: OPACITY.disabled },
   // The boxes, sized as the library's rows size theirs (`SongRow`).
   select: {
     width: 34,
@@ -983,9 +1039,9 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  allPhone: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start' },
+  allPhone: { flexDirection: 'row', alignItems: 'center', gap: space.sm, alignSelf: 'flex-start' },
   allWords: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '600' },
-  title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  title: rowTitle(theme.colors),
   artist: { color: theme.colors.textSecondary, fontSize: type.sub },
   album: { color: theme.colors.textMuted, fontSize: type.small },
   struck: { textDecorationLine: 'line-through' },
@@ -997,29 +1053,29 @@ const styles = StyleSheet.create(theme => ({
   },
   endQuiet: { color: theme.colors.textSecondary, fontSize: type.small, textAlign: 'right' },
   trouble: { color: theme.colors.danger },
-  texts: { flex: 1, minWidth: 0, gap: 2 },
-  phoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 60 },
-  phoneRowBody: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  texts: textColumn,
+  phoneRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, height: 60 },
+  phoneRowBody: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: space.md },
   // The open row: a card a step up, reaching a little past the list's edges.
   openCard: {
-    gap: 10,
-    padding: 12,
-    marginVertical: 4,
+    gap: space.snug,
+    padding: space.md,
+    marginVertical: space.xs,
     marginHorizontal: -8,
     borderRadius: radius.card,
     backgroundColor: theme.colors.surface1,
   },
-  openTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  openTop: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   // The card's padding less its reach past the list: the box lines up with the closed rows' boxes.
   selectOpen: { marginLeft: -4, marginRight: -4 },
-  fields: { flex: 1, minWidth: 0, gap: 6 },
+  fields: { flex: 1, minWidth: 0, gap: space.tight },
   // A field on the card is sunk to the ground's tone; the focused one carries the accent ring.
   field: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: space.sm,
     height: 38,
-    paddingHorizontal: 10,
+    paddingHorizontal: space.snug,
     borderRadius: 10,
     backgroundColor: theme.colors.surface0,
   },
@@ -1029,7 +1085,7 @@ const styles = StyleSheet.create(theme => ({
   fieldWide: {
     height: 32,
     marginLeft: -8,
-    paddingHorizontal: 8,
+    paddingHorizontal: space.sm,
     borderRadius: 8,
     backgroundColor: theme.colors.surface0,
   },
@@ -1041,7 +1097,7 @@ const styles = StyleSheet.create(theme => ({
   inputTitle: { fontSize: type.body, fontWeight: '600' },
   inputArtist: { fontSize: type.body },
   inputAlbum: { fontSize: type.body },
-  barBlock: { gap: 4 },
-  times: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  barBlock: { gap: space.xs },
+  times: { flexDirection: 'row', justifyContent: 'space-between', gap: space.sm },
   time: { color: theme.colors.textSecondary, fontSize: type.tiny, fontVariant: ['tabular-nums'] },
 }))

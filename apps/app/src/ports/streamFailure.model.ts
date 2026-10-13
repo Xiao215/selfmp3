@@ -1,3 +1,4 @@
+import { parseDoormanRefusal } from '@selfmp3/shared'
 import type { DevicePlace } from '../features/settings/settings.model'
 
 /**
@@ -17,15 +18,8 @@ import type { DevicePlace } from '../features/settings/settings.model'
 export function streamFailureMessage(status: number, body: string, place: DevicePlace): string {
   const text = body.trim()
   const plain = status === 404 || status === 503 ? notHere(place) : 'Could not play this song'
-  if (text.startsWith('{')) {
-    try {
-      const parsed: unknown = JSON.parse(text)
-      const error = (parsed as { error?: unknown } | null)?.error
-      return typeof error === 'string' && error.trim() ? error.trim() : plain
-    } catch {
-      // Not JSON after all: read as words below.
-    }
-  }
+  // JSON is the doorman's, or nothing worth repeating.
+  if (text.startsWith('{')) return parseDoormanRefusal(text)?.error.trim() || plain
   if (status === 503) return plain
   if (text && text.length <= 300 && !text.startsWith('<')) return text.replace(/\.$/, '')
   return plain

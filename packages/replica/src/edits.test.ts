@@ -154,6 +154,20 @@ describe('editing songs', () => {
     expect(view.playlistSongs[d.idOf('playlists', '7')]).toEqual([d.idOf('songs', 'b')])
   })
 
+  it('takes the tags only those songs had with them, as the server does, and no others', () => {
+    // "chill" was on song a alone; "rain" was on nothing, and stays to be filled.
+    const d = device()
+    const changes = edits.removeSongs(d.ctx(), [d.idOf('songs', 'a')])
+    expect(changes.map(change => [change.type, change.uid])).toEqual([
+      ['songRemoved', uid('a')],
+      ['tagRemoved', uid('1')],
+    ])
+    expect(d.apply(changes).library.tags.map(tag => tag.name)).toEqual(['rain'])
+    expect(edits.removeSongs(d.ctx(), [d.idOf('songs', 'b')]).map(c => c.type)).toEqual([
+      'songRemoved',
+    ])
+  })
+
   it('counts a play under the play outbox’s own id, so a resend counts once', () => {
     const d = device()
     const play = { msPlayed: 1000, completed: true, clientId: 'outbox-123456' }
@@ -282,6 +296,32 @@ describe('editing playlists', () => {
       }),
     ).toThrow(/cannot have rules/)
   })
+
+  it('stops a playlist following its tags, keeping the songs it shows', () => {
+    const d = device()
+    const live = d.idOf('playlists', '8')
+    d.apply(edits.editSong(d.ctx(), d.idOf('songs', 'b'), { loved: true }))
+    const changes = edits.stopFollowing(d.ctx(), live)
+    expect(changes).toEqual([
+      { type: 'playlistUnfollowed', hlc: expect.any(String), uid: uid('8'), songUids: [uid('b')] },
+    ])
+    let view = d.apply(changes)
+    expect(view.byId.playlists.get(live)).toMatchObject({ kind: 'manual', rules: null })
+    // Loving another song no longer reaches it: that is the point.
+    view = d.apply(edits.editSong(d.ctx(), d.idOf('songs', 'c'), { loved: true }))
+    expect(view.playlistSongs[live]).toEqual([d.idOf('songs', 'b')])
+    // And a playlist that follows nothing is left as it is.
+    expect(edits.stopFollowing(d.ctx(), live)).toEqual([])
+  })
+
+  it('refuses to take a live playlist’s rules away, as the server does', () => {
+    // Recorded, it emptied the playlist on the server: a live row with no
+    // rules reads there as a manual playlist with nothing in it.
+    const d = device()
+    expect(() => edits.editPlaylist(d.ctx(), d.idOf('playlists', '8'), { rules: null })).toThrow(
+      /stop following it instead/,
+    )
+  })
 })
 
 describe('importing', () => {
@@ -330,7 +370,7 @@ describe('importing', () => {
         tagIds: [],
         playlistId: d.idOf('playlists', '8'),
       }),
-    ).toThrow(/manual playlist/)
+    ).toThrow(/live playlist builds itself/)
   })
 })
 

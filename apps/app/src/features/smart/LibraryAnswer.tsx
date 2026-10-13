@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { artistOr, formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
-import { leading, space, type, useLibrary } from '@selfmp3/client'
+import { space, type, useLibrary, iconSize } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -15,6 +15,8 @@ import { parts, sortWords } from './smart.model'
 import { useSmartServer } from './useSmartServer'
 import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
+import { AnswerActions, AnswerHead, AnswerLine } from './AnswerParts'
+import { Press } from '../../ui/components/Press'
 
 /**
  * A question about what is in the library ("how many YOASOBI songs do I
@@ -52,10 +54,10 @@ export function LibraryAnswer({
 
   if (answer.count === 0) {
     return (
-      <Text style={styles.line} testID="ask-library-none">
+      <AnswerLine testID="ask-library-none">
         None of your songs {chosen.length > 0 ? `are ${chosen.join(' · ')}` : 'fit that'}.
         {answer.unknown.length > 0 ? ` Your library has no ${answer.unknown.join(', ')}.` : ''}
-      </Text>
+      </AnswerLine>
     )
   }
 
@@ -70,11 +72,11 @@ export function LibraryAnswer({
   const shown = songs.slice(0, shows)
   return (
     <>
-      <Text style={styles.head}>
+      <AnswerHead>
         {answer.understanding.size !== null && answer.understanding.size < answer.count
           ? `${songs.length.toLocaleString('en')} of ${songCount(answer.count)}`
           : `${songCount(answer.count)} · ${formatLongDuration(answer.seconds)}`}
-      </Text>
+      </AnswerHead>
       <Text style={styles.muted}>
         {chosen.length > 0 ? chosen.join(' · ') : 'Your whole library'}
         {answer.sortBy ? ` · ${sortWords(answer.sortBy, answer.order)}` : ''}
@@ -114,11 +116,12 @@ export function LibraryAnswer({
               coverTitle={song.album || song.title}
               title={song.title}
               sub={artistOr(song.artist)}
-              trailing={<Play size={14} color={theme.colors.textSecondary} />}
+              trailing={<Play size={iconSize.field} color={theme.colors.textSecondary} />}
             />
           ))}
           {shown.length < songs.length ? (
-            <Pressable
+            <Press
+              feedback="dim"
               onPress={() => setShows(shown.length + SONGS_MORE)}
               accessibilityRole="button"
               style={styles.more}
@@ -126,11 +129,11 @@ export function LibraryAnswer({
               <Text style={styles.moreText}>
                 Show {Math.min(SONGS_MORE, songs.length - shown.length)} more
               </Text>
-            </Pressable>
+            </Press>
           ) : null}
         </ScrollView>
       )}
-      <View style={styles.actions}>
+      <AnswerActions>
         <Button
           label={songs.length === 1 ? 'Play it' : 'Play these'}
           variant="primary"
@@ -138,19 +141,16 @@ export function LibraryAnswer({
           onPress={() => play(0)}
           testID="ask-library-play"
         />
-      </View>
+      </AnswerActions>
     </>
   )
 }
 
 const styles = StyleSheet.create(theme => ({
-  head: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   muted: { color: theme.colors.textMuted, fontSize: type.small, fontWeight: '400' },
-  counts: { gap: 4, paddingTop: space.xs },
+  counts: { gap: space.xs, paddingTop: space.xs },
   countRow: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
   title: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '500' },
   more: { alignSelf: 'flex-start', paddingVertical: 5, paddingHorizontal: space.xs },
   moreText: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '500' },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
 }))

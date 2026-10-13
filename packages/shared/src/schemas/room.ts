@@ -313,10 +313,7 @@ export type RoomLinkServer = z.infer<typeof RoomLinkServerSchema>
  */
 export const RoomVectorsSchema = z.object({
   model: z.string().min(1).max(100),
-  vectors: z.record(
-    z.string().regex(/^audio\/[0-9a-f]{64}\.[a-z0-9]{1,5}$/, 'not an audio key'),
-    z.string().length(1024),
-  ),
+  vectors: z.record(CloudAudioSchema.shape.key, z.string().length(1024)),
 })
 export type RoomVectors = z.infer<typeof RoomVectorsSchema>
 

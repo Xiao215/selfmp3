@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-import { formatBytes, formatRelative, plural } from '@selfmp3/shared'
+import { bucketPlace, formatBytes, formatRelative, newUid, plural } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 
 /**
@@ -89,8 +89,44 @@ describe('admin.js formatRelative', () => {
 
 describe('admin.js plural', () => {
   it('agrees with @selfmp3/shared', () => {
-    for (const count of [0, 1, 2, 13]) {
+    for (const count of [0, 1, 2, 13, 999, 1000, 1234, 1_000_000]) {
       expect(admin.plural(count, 'song', 'songs')).toBe(plural(count, 'song', 'songs'))
     }
+  })
+})
+
+describe('admin.js attemptId', () => {
+  it('draws the same id from the same bytes as newUid', () => {
+    const text = readFileSync(ADMIN_JS, 'utf8')
+    const start = text.indexOf('function attemptId()')
+    const end = text.indexOf('\n}\n', start)
+    if (start < 0 || end < start) throw new Error('admin.js has moved attemptId')
+    // Every byte a different value, so an id that dropped a leading zero shows.
+    const fill = (into: Uint8Array): void => {
+      for (let i = 0; i < into.length; i++) into[i] = i * 17
+    }
+    const crypto = { getRandomValues: (into: Uint8Array) => (fill(into), into) }
+    const attemptId = new Function('crypto', `${text.slice(start, end + 2)}\nreturn attemptId`)(
+      crypto,
+    ) as () => string
+    expect(attemptId()).toBe(newUid(fill))
+  })
+})
+
+describe('admin.js bucketPlace', () => {
+  it('agrees with @selfmp3/shared', () => {
+    const text = readFileSync(ADMIN_JS, 'utf8')
+    const start = text.indexOf('function bucketPlace(')
+    const end = text.indexOf('\n}\n', start)
+    if (start < 0 || end < start) throw new Error('admin.js has moved bucketPlace')
+    const place = new Function(`${text.slice(start, end + 2)}\nreturn bucketPlace`)() as (
+      target: Parameters<typeof bucketPlace>[0],
+    ) => ReturnType<typeof bucketPlace>
+    const targets = [
+      { endpoint: 'https://s3.us-west-004.backblazeb2.com', bucket: 'music', prefix: 'selfmp3' },
+      { endpoint: 'http://localhost:9000', bucket: 'music', prefix: '' },
+      { endpoint: 'r2.example.com', bucket: 'b', prefix: 'a/b' },
+    ]
+    for (const target of targets) expect(place(target)).toEqual(bucketPlace(target))
   })
 })

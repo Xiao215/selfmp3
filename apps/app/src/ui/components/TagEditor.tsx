@@ -1,26 +1,27 @@
 import { useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { Text, TextInput, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { plural, TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
 import {
   failureText,
-  HIT_TARGET,
-  radius,
   space,
-  tagColors,
   type,
   useDeleteTag,
   useRenameTag,
   useSetTagHue,
+  iconSize,
 } from '@selfmp3/client'
 import { useAccent } from '../accent'
 import { Button } from './Button'
+import { TextField } from './TextField'
 import { Check, Trash } from './Icons'
 import { HueSwatches } from './HueSwatches'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 import { label } from '../surfaces'
+import { StatusLine } from './StatusLine'
+import { TagDot } from './TagDot'
 
 /**
  * Everything you can do to a tag itself.
@@ -91,7 +92,7 @@ function Editor({
   return (
     <View>
       <View style={styles.title}>
-        <View style={[styles.dot, { backgroundColor: tagColors(tag.hue).dot }]} />
+        <TagDot hue={tag.hue} />
         <Text style={styles.titleText} numberOfLines={1}>
           Tag <Text style={styles.titleName}>{tag.name}</Text>
         </Text>
@@ -100,32 +101,35 @@ function Editor({
 
       <View style={styles.section}>
         <Text style={styles.fieldLabel}>Name</Text>
-        <View style={styles.nameRow}>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={text => {
-              setName(text)
-              rename.reset()
-            }}
-            onSubmitEditing={submit}
-            autoCapitalize="none"
-            autoCorrect={false}
-            maxLength={TAG_NAME_MAX}
-            accessibilityLabel="Name"
-          />
-          <Button
-            label="Rename"
-            variant="primary"
-            disabled={!changed || rename.isPending}
-            onPress={submit}
-            icon={
-              rename.isSuccess && !changed ? <Check size={13} color={accent.onAccent} /> : undefined
-            }
-          />
-        </View>
+        <TextField
+          raised
+          value={name}
+          onChangeText={text => {
+            setName(text)
+            rename.reset()
+          }}
+          onSubmitEditing={submit}
+          autoCapitalize="none"
+          maxLength={TAG_NAME_MAX}
+          accessibilityLabel="Name"
+          action={
+            <Button
+              label="Rename"
+              variant="primary"
+              disabled={!changed || rename.isPending}
+              onPress={submit}
+              icon={
+                rename.isSuccess && !changed ? (
+                  <Check size={iconSize.sub} color={accent.onAccent} />
+                ) : undefined
+              }
+            />
+          }
+        />
         {rename.error ? (
-          <Text style={styles.error}>{failureText('Couldn’t rename it', rename.error)}</Text>
+          <StatusLine style={styles.error}>
+            {failureText('Couldn’t rename it', rename.error)}
+          </StatusLine>
         ) : null}
       </View>
 
@@ -140,7 +144,7 @@ function Editor({
 
       {!confirmingDelete ? (
         <SheetItem
-          icon={<Trash size={15} color={theme.colors.danger} />}
+          icon={<Trash color={theme.colors.danger} />}
           label="Delete tag…"
           danger
           onPress={() => setConfirmingDelete(true)}
@@ -152,7 +156,7 @@ function Editor({
             library.
           </Text>
           <SheetItem
-            icon={<Trash size={15} color={theme.colors.danger} />}
+            icon={<Trash color={theme.colors.danger} />}
             label="Delete tag"
             danger
             onPress={() => {
@@ -176,22 +180,11 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
   },
-  dot: { width: 8, height: 8, borderRadius: 4 },
   titleText: { color: theme.colors.textSecondary, fontSize: type.sub, flexShrink: 1 },
   titleName: { color: theme.colors.textPrimary, fontWeight: '700' },
   hint: { color: theme.colors.textMuted, fontSize: type.small },
   section: { paddingTop: space.xs, paddingHorizontal: space.xs, paddingBottom: space.sm },
   fieldLabel: { ...label(theme.colors), marginBottom: 5 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  input: {
-    flex: 1,
-    minHeight: HIT_TARGET,
-    paddingHorizontal: 10,
-    color: theme.colors.textPrimary,
-    fontSize: type.sub,
-    backgroundColor: theme.colors.surface3,
-    borderRadius: radius.pill,
-  },
-  error: { color: theme.colors.danger, fontSize: type.small, marginTop: 5 },
+  error: { marginTop: 5 },
   confirm: { paddingHorizontal: space.md, paddingVertical: space.sm },
 }))

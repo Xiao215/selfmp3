@@ -1,5 +1,11 @@
-import { DAY_MS, type MetadataCandidate, type Song, type TidyField } from '@selfmp3/shared'
-import { creditNames, mainArtist } from './library.js'
+import {
+  DAY_MS,
+  mainArtist,
+  splitArtists,
+  type MetadataCandidate,
+  type Song,
+  type TidyField,
+} from '@selfmp3/shared'
 import { foldedBare as bare } from './text.js'
 
 /**
@@ -50,7 +56,7 @@ export const sameTitle = (song: Song, listed: { title: string }): boolean =>
 
 /** Whether a catalogue's entry has one of the song's artists. */
 const sameArtist = (song: Song, listed: Listed): boolean =>
-  creditNames(song.artist).some(name => within(name, listed.artist) || within(listed.artist, name))
+  splitArtists(song.artist).some(name => within(name, listed.artist) || within(listed.artist, name))
 
 /**
  * Whether a catalogue's entry is this song's recording, not another of the

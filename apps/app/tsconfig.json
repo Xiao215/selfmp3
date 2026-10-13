@@ -3,9 +3,6 @@
   // strictness on top of it, from the one file every workspace takes it from.
   "extends": ["expo/tsconfig.base", "../../tsconfig.strict.json"],
   "compilerOptions": {
-    "verbatimModuleSyntax": true,
-    "isolatedModules": true,
-    "forceConsistentCasingInFileNames": true,
     "paths": {
       "@/*": ["./src/*"]
     },

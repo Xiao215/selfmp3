@@ -10,7 +10,6 @@ import {
   defaultLook,
   forecast,
   frontPageLook,
-  hoursMinutes,
   lookInk,
   looksFor,
   lookToDraw,
@@ -132,8 +131,6 @@ describe('words', () => {
     expect(timesWord(1)).toBe('once')
     expect(timesWord(6)).toBe('six times')
     expect(timesWord(14)).toBe('14 times')
-    expect(hoursMinutes(181)).toBe('3h 01')
-    expect(hoursMinutes(42)).toBe('0h 42')
     expect(clockHour(9)).toBe('09:00')
   })
 

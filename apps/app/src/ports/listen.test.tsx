@@ -5,11 +5,13 @@ import type { ListenState } from './listen.types'
 /**
  * expo-audio's players, as its AudioModule treats them: one playing as the
  * app leaves is paused, and played again as the app comes back
- * (`shouldPlayInBackground` false) — unless it has been removed.
+ * (`shouldPlayInBackground` false) — unless it has been removed. Removing
+ * only takes a player off that list: the sound stops when it is released.
  */
 interface FakePlayer {
   playing: boolean
   removed: boolean
+  released: boolean
   currentTime: number
   wasPlaying: boolean
   seekedTo: number | null
@@ -19,6 +21,7 @@ interface FakePlayer {
   pause(): void
   seekTo(seconds: number): Promise<void>
   remove(): void
+  release(): void
 }
 const mockPlayers: FakePlayer[] = []
 jest.mock('expo-audio', () => ({
@@ -29,6 +32,7 @@ jest.mock('expo-audio', () => ({
     const player: FakePlayer = {
       playing: false,
       removed: false,
+      released: false,
       currentTime: 0,
       wasPlaying: false,
       seekedTo: null,
@@ -47,6 +51,10 @@ jest.mock('expo-audio', () => ({
       },
       remove() {
         this.removed = true
+      },
+      release() {
+        this.removed = true
+        this.released = true
         this.playing = false
       },
     }
@@ -55,20 +63,25 @@ jest.mock('expo-audio', () => ({
   },
 }))
 
-/** The app going to the background and back, with expo-audio's own pause and play either side. */
-function appState(): { leave(): void; comeBack(): void } {
+/**
+ * The app going to the background and back, with expo-audio's own pause and
+ * play either side. `leave({ appFirst })` has the app hear of it before
+ * expo-audio pauses: the two are told separately and either can be first.
+ */
+function appState(): { leave(options?: { appFirst?: boolean }): void; comeBack(): void } {
   const handlers: ((state: AppStateStatus) => void)[] = []
   jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, handler) => {
     handlers.push(handler as (state: AppStateStatus) => void)
     return { remove: () => undefined } as ReturnType<typeof AppState.addEventListener>
   })
   return {
-    leave: () => {
+    leave: ({ appFirst = false } = {}) => {
+      if (appFirst) for (const handler of handlers) handler('background')
       for (const player of mockPlayers.filter(each => !each.removed && each.playing)) {
         player.wasPlaying = true
         player.pause()
       }
-      for (const handler of handlers) handler('background')
+      if (!appFirst) for (const handler of handlers) handler('background')
     },
     comeBack: () => {
       for (const player of mockPlayers.filter(each => !each.removed && each.wasPlaying)) {
@@ -125,6 +138,49 @@ describe('a preview on a phone, when the app goes to the background', () => {
     app.comeBack()
     expect(mockPlayers[0]?.removed).toBe(false)
     expect(mockPlayers[0]?.playing).toBe(false)
+    audio.dispose()
+  })
+
+  it('is silent when the app hears of it before expo-audio does', async () => {
+    const app = appState()
+    const audio = createListenAudio()!
+    audio.play('https://server.test/api/import/listen?url=a')
+    await settle()
+    app.leave({ appFirst: true })
+    expect(mockPlayers.some(player => player.playing)).toBe(false)
+    app.comeBack()
+    expect(mockPlayers.some(player => player.playing)).toBe(false)
+    audio.dispose()
+  })
+})
+
+describe('a preview on a phone, when its page goes', () => {
+  beforeEach(() => {
+    mockPlayers.splice(0)
+    jest.restoreAllMocks()
+  })
+
+  it('falls silent when the page is put away while it plays', async () => {
+    const audio = createListenAudio()!
+    audio.play('https://server.test/api/import/listen?url=a')
+    await settle()
+    expect(mockPlayers[0]?.playing).toBe(true)
+    audio.dispose()
+    expect(mockPlayers[0]?.playing).toBe(false)
+    expect(mockPlayers[0]?.released).toBe(true)
+  })
+
+  it('lets its player go when stopped, so nothing plays it again', async () => {
+    const app = appState()
+    const audio = createListenAudio()!
+    audio.play('https://server.test/api/import/listen?url=a')
+    await settle()
+    audio.stop()
+    expect(mockPlayers[0]?.playing).toBe(false)
+    expect(mockPlayers[0]?.released).toBe(true)
+    app.leave()
+    app.comeBack()
+    expect(mockPlayers.some(player => player.playing)).toBe(false)
     audio.dispose()
   })
 })

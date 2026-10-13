@@ -51,6 +51,8 @@ const playlist = (id: number, patch: Partial<Omit<Playlist, 'kind' | 'rules'>> =
   ...patch,
 })
 
+const nodeId = (artist: string): string => `artist.${encodeURIComponent(artist)}`
+
 const input = (patch: Partial<BrowseInput> = {}): BrowseInput => ({
   songs: [],
   playlists: [],
@@ -93,17 +95,34 @@ describe('buildBrowseTree', () => {
     expect(nodeById(tree, 'album.Album')?.songIds).toEqual([2, 1])
   })
 
-  it('prefers the album artist when grouping artists', () => {
+  it('lists artists as the library does: a collaboration under each, most songs first', () => {
     const tree = buildBrowseTree(
       input({
         songs: [
-          song(1, { artist: 'Guest', albumArtist: 'Main' }),
-          song(2, { artist: 'Main', albumArtist: '' }),
+          song(1, { artist: 'ヨルシカ feat. suis', album: 'Old', year: 2019 }),
+          song(2, { artist: 'ヨルシカ', album: 'New', year: 2023 }),
+          song(3, { artist: 'suis', album: 'Solo' }),
+          song(4, { artist: 'ヨルシカ', album: 'New', year: 2023, trackNo: 1 }),
         ],
       }),
     )
-    expect(nodeById(tree, 'artists')?.items.map(item => item.title)).toEqual(['Main'])
-    expect(nodeById(tree, 'artist.Main')?.songIds).toEqual([1, 2])
+    expect(nodeById(tree, 'artists')?.items.map(item => item.title)).toEqual(['ヨルシカ', 'suis'])
+    // Newest album first, its tracks in order, as an artist page shows them.
+    expect(nodeById(tree, nodeId('ヨルシカ'))?.songIds).toEqual([4, 2, 1])
+  })
+
+  it('lists albums newest first and trims their names, as an artist page does', () => {
+    const tree = buildBrowseTree(
+      input({
+        songs: [
+          song(1, { album: 'Amber', year: 2001 }),
+          song(2, { album: 'Blue ', year: 2020 }),
+          song(3, { album: 'Blue', year: 2020 }),
+        ],
+      }),
+    )
+    expect(nodeById(tree, 'albums')?.items.map(item => item.title)).toEqual(['Blue', 'Amber'])
+    expect(nodeById(tree, 'album.Blue')?.songIds).toEqual([2, 3])
   })
 
   it('skips blank album and artist names instead of showing an empty row', () => {
@@ -126,11 +145,16 @@ describe('buildBrowseTree', () => {
     expect(nodeById(tree, 'recent')?.songIds).toEqual([2, 3])
   })
 
-  it('puts pinned playlists first and resolves their contents in order', () => {
+  it('lists playlists as the Playlists page does, and resolves their contents in order', () => {
     const tree = buildBrowseTree(
       input({
         songs: [song(1), song(2), song(3)],
-        playlists: [playlist(1, { name: 'Zeta' }), playlist(2, { name: 'Alpha', pinned: true })],
+        playlists: [
+          playlist(1, { name: 'Zeta', songCount: 2, lastPlayedAt: '2025-03-01 09:00:00' }),
+          // An ISO stamp from a bucket and a server's stamp compare as times, not as text.
+          playlist(2, { name: 'Alpha', songCount: 1, lastPlayedAt: '2025-03-01T10:00:00.000Z' }),
+          playlist(3, { name: 'Empty' }),
+        ],
         playlistSongIds: { 1: [3, 1], 2: [2] },
       }),
     )
@@ -142,7 +166,7 @@ describe('buildBrowseTree', () => {
     const tree = buildBrowseTree(
       input({
         songs: [song(1)],
-        playlists: [playlist(1)],
+        playlists: [playlist(1, { songCount: 2 })],
         playlistSongIds: { 1: [1, 99] },
       }),
     )

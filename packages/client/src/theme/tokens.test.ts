@@ -2,12 +2,14 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 import { NATIVE_ACCENT } from '@selfmp3/shared'
+import { withAlpha } from '../art/coverColor.js'
 import { oklchToHex, oklchToHexAlpha } from './oklch.js'
 import {
   buildAccent,
   colors,
   darkPalette,
   DEFAULT_ACCENT_HUE,
+  hitSlopFor,
   leading,
   lightPalette,
   radius,
@@ -202,9 +204,33 @@ describe('the dim behind a dialog', () => {
   })
 })
 
+describe('the washes and the veil', () => {
+  // Written as an alpha at each site they drifted: a danger wash at 0.12 and
+  // 0.14, a good one at 0.14 and 0.18, a veil at 0.07, 0.08 and 0.1.
+  it.each([
+    ['dark', darkPalette(150)],
+    ['light', lightPalette(150)],
+  ] as const)("are the %s palette's own inks at one strength each", (_scheme, palette) => {
+    expect(palette.veil).toBe(withAlpha(palette.textPrimary, 0.08))
+    expect(palette.veilPressed).toBe(withAlpha(palette.textPrimary, 0.14))
+    expect(palette.dangerWash).toBe(withAlpha(palette.danger, 0.14))
+    expect(palette.goodWash).toBe(withAlpha(palette.good, 0.14))
+    expect(palette.warningWash).toBe(withAlpha(palette.warning, 0.14))
+  })
+})
+
 describe('the widget', () => {
   // Its Xcode target is coloured at prebuild time from @selfmp3/shared.
   it('is tinted with the accent the app starts on', () => {
     expect(buildAccent(DEFAULT_ACCENT_HUE, 'dark').accent).toBe(NATIVE_ACCENT)
+  })
+})
+
+describe('hitSlopFor', () => {
+  it('pads a small target out to the 44-point minimum, and a big one not at all', () => {
+    expect(hitSlopFor(28)).toBe(8)
+    expect(hitSlopFor(20)).toBe(12)
+    expect(hitSlopFor(44)).toBe(0)
+    expect(hitSlopFor(56)).toBe(0)
   })
 })

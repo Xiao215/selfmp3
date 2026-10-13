@@ -1,13 +1,14 @@
 import { memo } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, View } from 'react-native'
+import { Animated, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter, type Href } from 'expo-router'
-import { motion, radius, space, type } from '@selfmp3/client'
+import { motion, radius, space, type, iconSize } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { Check, ChevronRight, Sparkle } from '../../ui/components/Icons'
 import { useFade } from '../../ui/motion'
 import { useSaveUpNext } from '../lists/useSaveUpNext'
+import { Press } from '../../ui/components/Press'
 
 /**
  * The line over Up next's songs (docs/features/lists.md, D1): what they came
@@ -43,22 +44,23 @@ export const UpNextSource = memo(function UpNextSource({
 
   return (
     <View style={styles.row} testID="up-next-source">
-      <Pressable
+      <Press
+        feedback="dim"
         onPress={open}
         disabled={!open}
         accessibilityRole={open ? 'link' : 'text'}
         accessibilityLabel={open ? `Open ${line.label}` : `Playing from ${line.label}`}
-        style={({ pressed }) => [styles.name, pressed && styles.pressed]}
+        style={styles.name}
       >
-        {line.asked ? <Sparkle size={12} /> : null}
+        {line.asked ? <Sparkle size={iconSize.small} /> : null}
         <Text style={styles.label} numberOfLines={1} testID="up-next-source-name">
           {line.label}
         </Text>
-        {open ? <ChevronRight size={12} color={theme.colors.textMuted} /> : null}
-      </Pressable>
+        {open ? <ChevronRight size={iconSize.small} color={theme.colors.textMuted} /> : null}
+      </Press>
       {saved ? (
         <Animated.View style={[styles.saved, { opacity: savedIn }]} testID="up-next-saved">
-          <Check size={13} color={theme.colors.good} />
+          <Check size={iconSize.sub} color={theme.colors.good} />
           <Text style={styles.savedText}>Saved</Text>
         </Animated.View>
       ) : plan ? (
@@ -89,7 +91,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 5,
     flexShrink: 1,
     minWidth: 0,
-    paddingVertical: 4,
+    paddingVertical: space.xs,
     borderRadius: radius.pill,
   },
   label: {
@@ -98,12 +100,11 @@ const styles = StyleSheet.create(theme => ({
     fontWeight: '500',
     flexShrink: 1,
   },
-  pressed: { opacity: 0.6 },
   saved: {
     marginLeft: 'auto',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: space.xs,
     paddingHorizontal: space.sm,
   },
   end: { marginLeft: 'auto' },

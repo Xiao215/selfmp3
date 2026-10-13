@@ -69,11 +69,7 @@ test.describe('importing', () => {
     await expect(count).toBeVisible()
 
     // Opening the song plays it and turns its name into fields, the album with them.
-    await page
-      .getByRole('button', {
-        name: onPhone(page) ? new RegExp(`^${TITLE}, `) : `Edit ${TITLE}`,
-      })
-      .click()
+    await page.getByRole('button', { name: new RegExp(`^${TITLE}, `) }).click()
     // The bar under it, not the player bar's own Seek, which a computer may show too.
     const bar = page.getByTestId('listen-bar')
     await expect(bar).toBeVisible()

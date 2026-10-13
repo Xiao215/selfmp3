@@ -3,8 +3,8 @@ import { Animated, View } from 'react-native'
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { fonts, leading, radius, space, type } from '@selfmp3/client'
-import { artShadow, label as labelText } from '../surfaces'
+import { radius, space, type } from '@selfmp3/client'
+import { artShadow, label as labelText, pageFrame, heroTitle } from '../surfaces'
 import { CoverLight } from './CoverLight'
 
 /** What a page may change of the head's computer layout; a tag's page is the default. */
@@ -61,7 +61,13 @@ export function ListHead({
 }): ReactNode {
   const { top } = useSafeAreaInsets()
   return (
-    <View style={[styles.head, wide && styles.headWide, { paddingTop: top + space.sm }]}>
+    <View
+      style={[
+        styles.head,
+        wide && styles.headWide,
+        { paddingTop: top + pageFrame(wide).paddingTop },
+      ]}
+    >
       <CoverLight color={light} art={art} />
       {topBar ? <View style={styles.topBar}>{topBar}</View> : null}
       <Animated.View
@@ -85,21 +91,16 @@ export function ListHead({
 
 /** The words in a head, as all three pages set them. */
 export const listHeadText = StyleSheet.create(theme => ({
-  kind: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  kind: { flexDirection: 'row', alignItems: 'center', gap: space.tight },
   kindText: labelText(theme.colors),
-  name: {
-    color: theme.colors.textPrimary,
-    fontFamily: fonts.display,
-    fontSize: type.display,
-    lineHeight: leading.display,
-    letterSpacing: -0.8,
-  },
+  name: heroTitle(theme.colors),
   summary: { color: theme.colors.textSecondary, fontSize: type.sub },
 }))
 
 const styles = StyleSheet.create(theme => ({
   head: { paddingHorizontal: space.gutter, paddingBottom: space.lg, gap: 18, overflow: 'hidden' },
-  // No paddingTop here: the head's own, under the status bar, is set inline.
+  // No paddingTop here: the head's own, under the status bar, is set inline:
+  // the page's top (`pageFrame`) below the inset, as every page's first row.
   headWide: { paddingHorizontal: space.gutterWide },
   // No glass here. The bar scrolls with the head rather than floating over
   // the page, and it carries no fill, so `backdrop-filter` would only blur the
@@ -109,7 +110,6 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: space.sm,
   },
   hero: { gap: space.lg },
   // The buttons go under the name when the page cannot hold all three abreast
@@ -120,8 +120,8 @@ const styles = StyleSheet.create(theme => ({
     ...artShadow(theme.colors),
     borderRadius: radius.card,
   },
-  titles: { gap: 6, flexShrink: 1, minWidth: 0 },
+  titles: { gap: space.tight, flexShrink: 1, minWidth: 0 },
   titlesWide: { flexGrow: 1, flexBasis: 220 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  actionsWide: { marginLeft: 'auto', paddingBottom: 6 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
+  actionsWide: { marginLeft: 'auto', paddingBottom: space.tight },
 }))

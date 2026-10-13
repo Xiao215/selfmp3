@@ -1,4 +1,5 @@
 import {
+  formatDuration,
   extractUrls,
   fromSqliteTime,
   isNeteaseUrl,
@@ -400,8 +401,7 @@ export function stepFraction(job: Pick<ImportJob, 'status' | 'step' | 'progress'
 
 /** "0:38", "12:04": how long until something starts, rounded up to the second. */
 export function clockIn(ms: number): string {
-  const seconds = Math.max(0, Math.ceil(ms / 1000))
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+  return formatDuration(Math.max(0, Math.ceil(ms / 1000)))
 }
 
 /**

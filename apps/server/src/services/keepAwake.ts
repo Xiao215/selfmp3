@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
+import { messageOf } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * Keeps the server awake while it is actually doing something for somebody.

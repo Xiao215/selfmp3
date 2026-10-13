@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Linking, View } from 'react-native'
+import { Linking, type View } from 'react-native'
 import { useQuery } from '@tanstack/react-query'
 import { MAC_CHIP_NAMES, MAC_CHIPS, RELEASES_URL, type MacChip } from '@selfmp3/shared'
 import { macApp } from '../../ports/macApp'

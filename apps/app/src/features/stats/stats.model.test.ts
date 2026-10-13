@@ -5,7 +5,6 @@ import {
   artistCoverSong,
   bestStreakHint,
   daysLabel,
-  durationWords,
   formatHour,
   isStatsPeriod,
   listenedCard,
@@ -21,6 +20,7 @@ import {
   rankedTags,
   sparkPath,
   spanWords,
+  statFigures,
   STATS_PERIODS,
   statsRangeFor,
   streakCard,
@@ -74,14 +74,6 @@ describe('stats windows and words', () => {
     expect(playsLabel(1)).toBe('1 play')
     expect(bestStreakHint(4)).toBe('best: 4 days')
     expect(bestStreakHint(0)).toBeUndefined()
-  })
-
-  it('says time listened the short way, minutes after hours with no unit', () => {
-    expect(durationWords(372)).toBe('6h 12')
-    expect(durationWords(185)).toBe('3h 05')
-    expect(durationWords(180)).toBe('3h')
-    expect(durationWords(42.4)).toBe('42 min')
-    expect(durationWords(Number.NaN)).toBe('0 min')
   })
 })
 
@@ -187,11 +179,11 @@ describe('the ranked module', () => {
     expect(rows[0]).toMatchObject({ kind: 'song', songId: 7, artist: 'ヨルシカ' })
   })
 
-  it('splits collaborations so an artist counts for every song naming them', () => {
+  it('ranks artists by time, and marks the unknown artist as no place to open', () => {
     const rows = rankedArtists([
+      { key: 'Yorushika', plays: 10, minutes: 181 },
+      { key: 'suis', plays: 4, minutes: 100 },
       { key: 'YOASOBI', plays: 5, minutes: 108 },
-      { key: 'Yorushika feat. suis', plays: 4, minutes: 100 },
-      { key: 'yorushika', plays: 6, minutes: 81 },
       { key: 'Unknown artist', plays: 1, minutes: 3 },
     ])
     expect(rows.map(row => [row.name, row.trailing])).toEqual([
@@ -240,5 +232,30 @@ describe('an artist with no picture', () => {
     const library = [song('YOASOBI'), song('akane', true, 'another')]
     expect(artistCoverSong('Akane', played, library)?.title).toBe('another')
     expect(artistCoverSong('Nobody', played, library)).toBeUndefined()
+  })
+})
+
+describe('the three headline numbers, on Home and You alike', () => {
+  it('writes a whole hour as "2h", not "2h 00"', () => {
+    const totals = stats().totals
+    expect(statFigures(stats({ totals: { ...totals, minutes: 120 } })).listened).toBe('2h')
+    expect(statFigures(stats({ totals: { ...totals, minutes: 185 } })).listened).toBe('3h 05')
+  })
+
+  it('sets minutes apart from their word', () => {
+    expect(statFigures(stats({ totals: { ...stats().totals, minutes: 42 } }))).toMatchObject({
+      listened: '42',
+      listenedUnit: 'min',
+    })
+  })
+
+  it('groups plays and the streak as the reader does', () => {
+    const figures = statFigures(
+      stats({ totals: { ...stats().totals, plays: 1234 }, streakDays: 1 }),
+    )
+    expect(figures.plays).toBe((1234).toLocaleString())
+    expect(figures.plays).not.toBe('1234')
+    expect(figures.streak).toBe('1')
+    expect(figures.streakUnit).toBe('day')
   })
 })

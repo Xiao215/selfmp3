@@ -2,9 +2,11 @@ import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { type MenuCommand } from '../../ports/menuKeys'
-import { Kbd, Panel, partStyles } from './SettingsParts'
+import type { MenuCommand } from '../../ports/menuKeys'
+import { Kbd } from '../../ui/components/Kbd'
+import { Panel, partStyles } from './SettingsParts'
 import { shortcutRows } from './shortcuts.model'
+import { space } from '@selfmp3/client'
 
 /**
  * The installed app's menu keys, read from the menu itself (`menuKeys` port),
@@ -36,6 +38,6 @@ export function ShortcutsPanel({
 }
 
 const styles = StyleSheet.create(() => ({
-  shortcut: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 5 },
+  shortcut: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: 5 },
   keys: { flexDirection: 'row', gap: 3, minWidth: 116 },
 }))

@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter, type Href } from 'expo-router'
-import { leading, radius, space, type } from '@selfmp3/client'
+import { radius, space, type, textStyle } from '@selfmp3/client'
 import { shownAddress } from '../../ports/pageAddress'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
@@ -10,6 +10,7 @@ import { Button } from '../../ui/components/Button'
 import { ChevronLeft } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { pageTitle } from '../../ui/surfaces'
+import { Press } from '../../ui/components/Press'
 
 /**
  * The waveform's bars, left to right: a height each, and 0 for the one that
@@ -96,7 +97,7 @@ export function NotFoundScreen(): ReactNode {
           {wide && canGoBack ? (
             <Button
               label="Back"
-              icon={<ChevronLeft size={15} color={theme.colors.textPrimary} />}
+              icon={<ChevronLeft color={theme.colors.textPrimary} />}
               onPress={() => router.back()}
             />
           ) : null}
@@ -105,14 +106,15 @@ export function NotFoundScreen(): ReactNode {
         {wide ? (
           <View style={styles.places}>
             {PLACES.map(place => (
-              <Pressable
+              <Press
+                feedback="wash"
                 key={place.label}
                 onPress={() => router.replace(place.href)}
                 accessibilityRole="link"
-                style={({ pressed }) => [styles.place, pressed && styles.placePressed]}
+                style={styles.place}
               >
                 <Text style={styles.placeText}>{place.label}</Text>
-              </Pressable>
+              </Press>
             ))}
           </View>
         ) : null}
@@ -128,7 +130,7 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
     gap: space.md,
-    paddingHorizontal: 24,
+    paddingHorizontal: space.xl,
     paddingBottom: 40,
   },
   wave: {
@@ -143,15 +145,14 @@ const styles = StyleSheet.create(theme => ({
   barMissing: {
     height: 2,
     width: 6,
-    marginHorizontal: 8,
+    marginHorizontal: space.sm,
     borderRadius: 1,
     backgroundColor: theme.colors.surface3,
   },
   title: { ...pageTitle(theme.colors), textAlign: 'center' },
   line: {
     color: theme.colors.textMuted,
-    fontSize: type.sub,
-    lineHeight: leading.sub,
+    ...textStyle('sub'),
     textAlign: 'center',
     maxWidth: 460,
   },
@@ -167,10 +168,9 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 4,
+    gap: space.xs,
     marginTop: space.xs,
   },
-  place: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: radius.pill },
-  placePressed: { backgroundColor: theme.colors.surface2 },
+  place: { paddingVertical: space.xs, paddingHorizontal: space.sm, borderRadius: radius.pill },
   placeText: { color: theme.colors.textMuted, fontSize: type.sub },
 }))

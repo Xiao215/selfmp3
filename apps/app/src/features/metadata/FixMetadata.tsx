@@ -1,13 +1,14 @@
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
-import { leading, radius, type } from '@selfmp3/client'
+import { space } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
+import { NoticeCard } from '../../ui/components/NoticeCard'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { useServerSongIds } from '../../connection/useServerSongIds'
-import { floating } from '../../ui/surfaces'
+import { dialogPanel } from '../../ui/surfaces'
 import { Dialog, DialogHead } from '../../ui/components/Dialog'
 import { MetadataDialog } from './MetadataDialog'
 import { reachedConnection } from '../../connection/via'
@@ -54,13 +55,10 @@ function CloudFix({ song, onClose }: { song: Song; onClose: () => void }): React
 function NotOnServer({ onClose }: { onClose: () => void }): ReactNode {
   return (
     <Shell onClose={onClose} testID="metadata-not-on-server">
-      <Text style={styles.cardTitle} accessibilityRole="header">
-        Not ready to look up yet
-      </Text>
-      <Text style={styles.cardBody}>
+      <NoticeCard title="Not ready to look up yet" live style={styles.notice}>
         The lookup reads the song’s file on your library’s computer. This one came from another
         device and that computer hasn’t fetched it yet — it will, and then this works.
-      </Text>
+      </NoticeCard>
     </Shell>
   )
 }
@@ -98,26 +96,13 @@ function Shell({
 }
 
 const styles = StyleSheet.create(theme => ({
-  dialog: {
-    width: '100%',
-    maxWidth: 460,
-    backgroundColor: theme.colors.surface1,
-    borderRadius: radius.sheet,
-    overflow: 'hidden',
-    ...floating(theme.colors),
-  },
+  dialog: dialogPanel(theme.colors, 'form'),
   head: {
-    paddingTop: 16,
-    paddingRight: 14,
-    paddingBottom: 4,
+    paddingTop: space.lg,
+    paddingRight: space.roomy,
+    paddingBottom: space.xs,
     paddingLeft: 22,
   },
-  body: { paddingTop: 4, paddingHorizontal: 22, paddingBottom: 22, gap: 8 },
-  cardTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
-    marginTop: 16,
-  },
-  cardBody: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  body: { paddingTop: space.xs, paddingHorizontal: 22, paddingBottom: 22, gap: space.sm },
+  notice: { marginTop: space.lg },
 }))

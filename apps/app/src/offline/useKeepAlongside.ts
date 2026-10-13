@@ -12,9 +12,7 @@ import {
   sweepPictures,
 } from './covers'
 import { useDownloads } from './DownloadsProvider'
-import { hasCachedLyrics, writeCachedLyrics } from './lyricsCache'
-import { hasCachedMotion, writeCachedMotion } from './motionCache'
-import { writeCachedPlaylist } from './playlistCache'
+import { lyricsCache, motionCache, playlistCache } from './caches'
 
 /**
  * What the library snapshot does not carry, kept on this device anyway.
@@ -191,16 +189,16 @@ export function useKeepAlongside(): void {
           // Words go with a kept file, which only an installed app has: a
           // browser tab streams, and asks for the words when it plays.
           if (!installed || !isDownloaded(latest.current.index, song.id)) return
-          if (!cancelled && !(await hasCachedLyrics(song.id))) {
+          if (!cancelled && !(await lyricsCache.has(song.id))) {
             try {
-              writeCachedLyrics(song.id, await api.lyrics(song.id))
+              lyricsCache.write(song.id, await api.lyrics(song.id))
             } catch {
               // No words, or the server went away mid-pass: the next pass asks again.
             }
           }
-          if (!cancelled && !(await hasCachedMotion(song.id))) {
+          if (!cancelled && !(await motionCache.has(song.id))) {
             try {
-              writeCachedMotion(song.id, await api.motion(song.id))
+              motionCache.write(song.id, await api.motion(song.id))
             } catch {
               // Not analysed yet, or the server went away: likewise.
             }
@@ -259,7 +257,8 @@ export function useKeepAlongside(): void {
       for (const playlist of library.playlists) {
         if (cancelled) return
         try {
-          writeCachedPlaylist(await api.playlistSongs(playlist.id))
+          const songs = await api.playlistSongs(playlist.id)
+          playlistCache.write(songs.playlistId, songs)
         } catch {
           // No answer, or the server went away mid-pass: the next pass asks again.
         }

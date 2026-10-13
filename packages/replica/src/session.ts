@@ -1,13 +1,20 @@
 import {
+  BUCKET_CAP_CODE,
+  CLOUD_SESSION_KEY,
+  DOORMAN_PATHS,
   DoormanClaimResultSchema,
+  DoormanError,
   DoormanMeSchema,
-  ErrorBodySchema,
+  SIGN_IN_TTL_MS,
+  bucketCallOf,
+  doormanRequest,
   newUid,
+  signInStartUrl,
   type CloudConnect,
   type DoormanBackblazeConnect,
   type DoormanMe,
 } from '@selfmp3/shared'
-import { BUCKET_CAP_CODE, bucketHold, holdBucket, releaseBucket, type BucketCall } from './hold.js'
+import { bucketHold, holdBucket, releaseBucket } from './hold.js'
 import type { CloudPlatform, CloudResponse } from './platform.js'
 
 /**
@@ -27,29 +34,17 @@ import type { CloudPlatform, CloudResponse } from './platform.js'
  * the bucket when the player asks for one this device does not have yet.
  */
 
-/** Also read by apps/app/sw/sw.ts, straight out of IndexedDB. Keep in step. */
-const SESSION_KEY = 'cloud-session'
+/**
+ * Where an attempt is kept while Google has the browser. The session's own key
+ * is shared's `CLOUD_SESSION_KEY`, because apps/app/sw/sw.ts reads it too,
+ * straight out of IndexedDB.
+ */
 const PENDING_KEY = 'cloud-pending-sign-in'
-/** As long as the doorman keeps an attempt. */
-const ATTEMPT_LIFETIME_MS = 10 * 60_000
 
 export interface CloudSession {
   readonly doormanUrl: string
   readonly token: string
   readonly me: DoormanMe
-}
-
-/** A doorman request that failed: 0 for no answer at all, else its status. */
-export class DoormanError extends Error {
-  readonly status: number
-  readonly code: string
-
-  constructor(status: number, message: string, code = 'error') {
-    super(message)
-    this.name = 'DoormanError'
-    this.status = status
-    this.code = code
-  }
 }
 
 interface PendingSignIn {
@@ -101,63 +96,50 @@ export function createCloudSession(
    */
   const spending = new Map<string, Promise<ClaimOutcome>>()
 
+  /** Every request goes through packages/shared's one doorman client. */
+  const send = doormanRequest(doormanUrl, platform.fetch)
+
+  /**
+   * A request to the doorman, with the session when there is one. A 404 is
+   * answered rather than thrown — "no such file" is the caller's to read —
+   * and every other refusal throws packages/shared's `DoormanError`.
+   */
   async function doormanFetch(
     session: CloudSession | null,
     path: string,
     options: { method?: string; json?: unknown; headers?: Record<string, string> } = {},
   ): Promise<CloudResponse> {
-    if (!doormanUrl) {
-      throw new DoormanError(0, 'This app is not connected to a doorman yet.', 'no-doorman')
-    }
     const method = options.method ?? 'GET'
     // Refused for the day: a read of the bucket inside the hold is refused
     // here (packages/replica/src/hold.ts). Writes go — an upload is free of
     // the cap, and the outbox should empty — and so does anything the doorman
-    // answers by itself.
-    // A listing and a read are held apart: Backblaze caps each by itself.
-    const call: BucketCall | null =
-      method !== 'GET'
-        ? null
-        : path.startsWith('/v1/list')
-          ? 'list'
-          : path.startsWith('/v1/files/')
-            ? 'read'
-            : null
+    // answers by itself. A listing and a read are held apart: Backblaze caps
+    // each by itself. Which a request is, is shared's `bucketCallOf`, read off
+    // the same paths the requests are built with.
+    const call = bucketCallOf(method, path)
     const held = call ? bucketHold(call) : null
-    if (held) throw new DoormanError(502, held.message, BUCKET_CAP_CODE)
+    if (held) throw new DoormanError(502, BUCKET_CAP_CODE, held.message)
 
-    const headers: Record<string, string> = { ...options.headers }
-    if (session) headers['Authorization'] = `Bearer ${session.token}`
-    if (options.json !== undefined) headers['Content-Type'] = 'application/json'
-
-    let response: CloudResponse
     try {
-      response = await platform.fetch(`${doormanUrl}${path}`, {
+      const response = await send(path, {
         method,
-        headers,
-        ...(options.json === undefined ? {} : { body: JSON.stringify(options.json) }),
+        token: session?.token ?? null,
+        ...(options.json === undefined ? {} : { json: options.json }),
+        ...(options.headers ? { headers: options.headers } : {}),
+        allowStatus: [404],
       })
-    } catch (error) {
-      throw new DoormanError(0, error instanceof Error ? error.message : 'network unavailable')
-    }
-
-    if (response.ok || response.status === 404) {
       if (call) releaseBucket(call)
       return response
+    } catch (error) {
+      if (call && error instanceof DoormanError && error.code === BUCKET_CAP_CODE) {
+        holdBucket(error.message, call)
+      }
+      throw error
     }
-    const parsed = ErrorBodySchema.safeParse(await response.json().catch(() => null))
-    if (call && parsed.success && parsed.data.code === BUCKET_CAP_CODE) {
-      holdBucket(parsed.data.error, call)
-    }
-    throw new DoormanError(
-      response.status,
-      parsed.success ? parsed.data.error : `the doorman answered ${response.status}`,
-      parsed.success ? parsed.data.code : 'error',
-    )
   }
 
   async function saveSession(session: CloudSession): Promise<void> {
-    await store.write(SESSION_KEY, session)
+    await store.write(CLOUD_SESSION_KEY, session)
   }
 
   /** The doorman answers every change to the bucket with `/v1/me`; the stored session follows. */
@@ -179,14 +161,14 @@ export function createCloudSession(
     // A hold is the bucket's; the next sign-in may be to another.
     releaseBucket()
     try {
-      await store.remove(SESSION_KEY)
+      await store.remove(CLOUD_SESSION_KEY)
     } catch {
       // Nothing stored.
     }
   }
 
   async function claim(attempt: string, code?: string): Promise<ClaimOutcome> {
-    const response = await doormanFetch(null, '/v1/auth/claim', {
+    const response = await doormanFetch(null, DOORMAN_PATHS.claim, {
       method: 'POST',
       json: code === undefined ? { attempt } : { attempt, code },
     })
@@ -206,7 +188,7 @@ export function createCloudSession(
 
     async loadSession(): Promise<CloudSession | null> {
       try {
-        const stored = (await store.read(SESSION_KEY)) as Partial<CloudSession> | null
+        const stored = (await store.read(CLOUD_SESSION_KEY)) as Partial<CloudSession> | null
         // A session is the doorman's, and means nothing to any other — so a
         // build pointed somewhere new starts signed out rather than confused.
         if (!stored || typeof stored.token !== 'string' || stored.doormanUrl !== doormanUrl) {
@@ -240,19 +222,13 @@ export function createCloudSession(
      */
     async beginSignIn(): Promise<void> {
       const attempt = newUid(bytes => platform.randomBytes(bytes))
-      const pending: PendingSignIn = { attempt, until: now() + ATTEMPT_LIFETIME_MS }
+      const pending: PendingSignIn = { attempt, until: now() + SIGN_IN_TTL_MS }
       try {
         await store.write(PENDING_KEY, pending)
       } catch {
         // Without storage the app claims straight from the page it lands on.
       }
-      // Built by hand rather than with URLSearchParams, which React Native's
-      // URL does not carry. Both values are ours — a uid and a configured
-      // address — but they are encoded anyway, because the day one of them
-      // grows a character that matters is not the day to discover this.
-      const query = [`attempt=${encodeURIComponent(attempt)}`]
-      if (platform.returnUrl) query.push(`return=${encodeURIComponent(platform.returnUrl)}`)
-      await platform.openSignIn(`${doormanUrl}/v1/auth/start?${query.join('&')}`)
+      await platform.openSignIn(signInStartUrl(doormanUrl, attempt, platform.returnUrl || null))
     },
 
     /**
@@ -277,12 +253,15 @@ export function createCloudSession(
 
     /** What the doorman says about the account now; the stored session follows. */
     async refreshSession(session: CloudSession): Promise<CloudSession> {
-      return keepAnswer(session, await doormanFetch(session, '/v1/me'))
+      return keepAnswer(session, await doormanFetch(session, DOORMAN_PATHS.me))
     },
 
     /** Connect a bucket to the account. The doorman tries the key, then keeps it. */
     async connectStorage(session: CloudSession, input: CloudConnect): Promise<CloudSession> {
-      const response = await doormanFetch(session, '/v1/storage', { method: 'PUT', json: input })
+      const response = await doormanFetch(session, DOORMAN_PATHS.storage, {
+        method: 'PUT',
+        json: input,
+      })
       return keepAnswer(session, response)
     },
 
@@ -290,7 +269,7 @@ export function createCloudSession(
       session: CloudSession,
       input: DoormanBackblazeConnect,
     ): Promise<CloudSession> {
-      const response = await doormanFetch(session, '/v1/storage/backblaze', {
+      const response = await doormanFetch(session, DOORMAN_PATHS.backblaze, {
         method: 'POST',
         json: input,
       })
@@ -298,13 +277,13 @@ export function createCloudSession(
     },
 
     async disconnectStorage(session: CloudSession): Promise<CloudSession> {
-      const response = await doormanFetch(session, '/v1/storage', { method: 'DELETE' })
+      const response = await doormanFetch(session, DOORMAN_PATHS.storage, { method: 'DELETE' })
       return keepAnswer(session, response)
     },
 
     async signOut(session: CloudSession): Promise<void> {
       try {
-        await doormanFetch(session, '/v1/auth/signout', { method: 'POST' })
+        await doormanFetch(session, DOORMAN_PATHS.signOut, { method: 'POST' })
       } catch {
         // Forgotten here either way; the doorman lets the session lapse.
       }

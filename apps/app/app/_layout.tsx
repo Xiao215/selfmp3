@@ -40,7 +40,6 @@ import { useLayout } from '../src/shell/useLayout'
 import { setRootWidth } from '../src/shell/rootWidth'
 import { opensSignedOut } from '../src/shell/fullScreen.model'
 import { pageOwnsScreen, setPageChrome } from '../src/shell/pageChrome'
-import { SIDEBAR_WIDTH } from '../src/shell/Sidebar'
 import { useStageArriving } from '../src/shell/stageArrival'
 import { modalCoversScreen } from '../src/ports/modalCoversScreen'
 import { listenForAppFocus } from '../src/ports/appFocus'
@@ -51,6 +50,7 @@ import { AccentProvider } from '../src/ui/accent'
 import { WidgetSync } from '../src/features/widget/WidgetSync'
 import { BucketHoldNotice } from '../src/features/profile/BucketHoldNotice'
 import { showToast } from '../src/ui/toast'
+import { SIDEBAR_WIDTH } from '../src/shell/widths'
 
 /**
  * The app shell.

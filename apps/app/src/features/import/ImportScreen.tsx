@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated as RNAnimated, Pressable, Text, TextInput, View } from 'react-native'
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- the compose box grows with what is pasted, drawn as the page's own words
+import { Animated as RNAnimated, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
@@ -16,7 +17,6 @@ import {
   type Tag,
 } from '@selfmp3/shared'
 import {
-  ApiError,
   canImportNext,
   canLookUp,
   clockIn,
@@ -27,39 +27,35 @@ import {
   jobAction,
   jobSubtitle,
   jobTone,
-  leading,
   matchingTag,
   queueControls,
   radius,
   reviewFrom,
   searchQuery,
   sharedLinks,
-  space,
   stepFraction,
   timeLeft,
   type,
   type QueueChange,
   type ServerConnection,
+  textStyle,
+  iconSize,
+  coverSize,
+  space,
 } from '@selfmp3/client'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
-import { BackButton } from '../../ui/components/BackButton'
-import {
-  card,
-  label as groupLabel,
-  PAGE_TOP_PHONE,
-  PAGE_TOP_WIDE,
-  pageTitle,
-  TITLE_UNDER_BACK,
-} from '../../ui/surfaces'
+import { PageHeader } from '../../ui/components/PageHeader'
+import { NavRow } from '../../ui/components/NavRow'
+import { ProgressBar } from '../../ui/components/ProgressBar'
+import { NoticeCard, NoticeText } from '../../ui/components/NoticeCard'
+import { card, pageFrame, rowTitle } from '../../ui/surfaces'
+import { SectionHead } from '../../ui/components/SectionHead'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
-import { IconButton } from '../../ui/components/IconButton'
-import { Check, ChevronRight, More, Next, Refresh, Search, X } from '../../ui/components/Icons'
-import { Popover } from '../../ui/components/Popover'
+import { Check, Next, Refresh, Search, X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { SheetItem } from '../../ui/components/Sheet'
-import { ease, timing, useFade } from '../../ui/motion'
+import { useFade } from '../../ui/motion'
 import { MOVE_MS } from '../../ui/motion.model'
 import { useRowMotion } from '../../ui/rowMotion'
 import { QueueRing } from './QueueRing'
@@ -67,9 +63,12 @@ import { TagItPill } from './ImportTags'
 import { draftFor, useImportDraft } from './importDraft'
 import { draftSourceFor } from './importDraft.model'
 import { reviewUrls, useRefreshReview } from './useRefreshReview'
+import { useImportFailure } from './ImportPage'
 import { useImportSource } from './importSource'
 import { comingIn, countLabel, reviewName } from './review.model'
 import { ScrollView } from '../../ui/components/Scroll'
+import { Press } from '../../ui/components/Press'
+import { MoreMenu, type MenuItem } from '../../ui/components/MoreMenu'
 import { Guide, useOpenWith } from '../guide/Guide'
 import { guideSeen } from '../guide/guideMemory'
 import { useGuide, type GuideHandle, type GuideTarget } from '../guide/useGuide'
@@ -125,7 +124,6 @@ export function ImportScreen({
   const [showAll, setShowAll] = useState(false)
   const source = useImportSource(via, { history: showAll })
   const { api, library, tools, refetchTools, queue, history } = source
-  const viaServer = via !== undefined
   const params = useLocalSearchParams<{ url?: string; text?: string; title?: string }>()
 
   // The draft outlives this screen (importDraft.store.ts); only the error is the screen's.
@@ -134,27 +132,10 @@ export function ImportScreen({
   const { links, review, tagIds } = draft
   // The card offering a kept review counts songs coming in: as the library is now.
   useRefreshReview(api, key, reviewUrls(review))
-  const [error, setError] = useState<string | null>(null)
+  const { error, setError, failed } = useImportFailure(via, onUnreachable)
   const [linksFocused, setLinksFocused] = useState(false)
   /** What the pasted links take up, so the box grows with them. */
   const [linksHeight, setLinksHeight] = useState(0)
-  /*
-   * A request that never reached the server is not an import that failed. The
-   * browser's words for it are "Failed to fetch", which tell a person nothing
-   * and used to be all this screen said — while the way forward, leaving the
-   * link for the server to take when it wakes, sat on a screen it never showed
-   * because the look-out only looks every twenty seconds, and not at all in a
-   * tab that is in the background.
-   */
-  const failed = (err: Error): void => {
-    if (viaServer && err instanceof ApiError && err.isOffline) {
-      setError('Your library’s computer stopped answering. Looking for it again…')
-      onUnreachable?.()
-      return
-    }
-    setError(err.message)
-  }
-
   const tags = library?.tags ?? []
 
   const preview = useMutation({
@@ -262,14 +243,14 @@ export function ImportScreen({
         />
         {query !== null ? (
           <View style={styles.pasted} testID="import-pasted">
-            <Search size={13} tone="accent" />
+            <Search size={iconSize.sub} tone="accent" />
             <Text style={[styles.pastedText, styles.searchText]}>
               Search YouTube Music and 网易云
             </Text>
           </View>
         ) : pasted ? (
           <View style={styles.pasted} testID="import-pasted">
-            <Check size={13} tone="good" />
+            <Check size={iconSize.sub} tone="good" />
             <Text style={styles.pastedText}>{pasted}</Text>
           </View>
         ) : null}
@@ -319,76 +300,57 @@ export function ImportScreen({
   const notices = (
     <>
       {tools && !tools.ytdlp ? (
-        <View style={styles.notice}>
-          <View style={styles.noticeBody}>
-            <Text style={styles.noticeText}>
-              <Text style={[styles.strong, styles.strongWarn]}>yt-dlp isn’t installed.</Text>{' '}
-              Importing needs it. Install both tools with:
-            </Text>
-            <Text style={styles.code} selectable>
-              brew install yt-dlp ffmpeg
-            </Text>
-          </View>
-          <Button
-            label="Check again"
-            icon={<Refresh size={13} color={theme.colors.textPrimary} />}
-            onPress={() => void refetchTools()}
-          />
-        </View>
+        <NoticeCard
+          tone="warn"
+          title="yt-dlp isn’t installed"
+          actions={
+            <Button
+              label="Check again"
+              icon={<Refresh color={theme.colors.textPrimary} />}
+              onPress={() => void refetchTools()}
+            />
+          }
+        >
+          <NoticeText>Importing needs it. Install both tools with:</NoticeText>
+          <Text style={styles.code} selectable>
+            brew install yt-dlp ffmpeg
+          </Text>
+        </NoticeCard>
       ) : null}
       {tools?.ytdlp && !tools.ffmpeg ? (
-        <View style={styles.notice}>
-          <Text style={styles.noticeText}>
-            <Text style={styles.strong}>ffmpeg isn’t installed.</Text> Downloads still work, but
-            cover art and tags won’t be embedded. brew install ffmpeg
+        <NoticeCard tone="warn" title="ffmpeg isn’t installed">
+          <NoticeText>Downloads still work, but cover art and tags won’t be embedded.</NoticeText>
+          <Text style={styles.code} selectable>
+            brew install ffmpeg
           </Text>
-        </View>
+        </NoticeCard>
       ) : null}
       {error ? (
-        <View style={[styles.notice, styles.noticeError]} accessibilityRole="alert">
-          <Text style={[styles.noticeText, styles.noticeTextError]}>{error}</Text>
-          <IconButton onPress={() => setError(null)} label="Dismiss">
-            <X size={15} color={theme.colors.textMuted} />
-          </IconButton>
-        </View>
+        <NoticeCard tone="error" onDismiss={() => setError(null)}>
+          {error}
+        </NoticeCard>
       ) : null}
       {/* Songs picked in a search and not imported yet: the search is in the draft, one tap away. */}
       {search && picked > 0 ? (
-        <Pressable
-          style={({ pressed }) => [styles.linkCard, pressed && styles.linkCardPressed]}
-          onPress={() => router.push('/import/search')}
-          accessibilityRole="link"
+        <NavRow
+          card
+          title={`Search · ${search.query}`}
+          hint={`${plural(picked, 'song', 'songs')} picked · not imported yet`}
           accessibilityLabel="Go on picking songs"
+          onPress={() => router.push('/import/search')}
           testID="import-resume-search"
-        >
-          <View style={styles.linkCardText}>
-            <Text style={styles.linkCardTitle} numberOfLines={1}>
-              Search · {search.query}
-            </Text>
-            <Text style={styles.linkCardSub}>
-              {plural(picked, 'song', 'songs')} picked · not imported yet
-            </Text>
-          </View>
-          <ChevronRight size={16} color={theme.colors.textMuted} />
-        </Pressable>
+        />
       ) : null}
       {/* A review left with Back is still in the draft, one tap from where it was. */}
       {review && review.items.length > 0 && !preview.isPending ? (
-        <Pressable
-          style={({ pressed }) => [styles.linkCard, pressed && styles.linkCardPressed]}
-          onPress={() => router.push('/import/review')}
-          accessibilityRole="link"
+        <NavRow
+          card
+          title={reviewName(review)}
+          hint={`${countLabel(review, true)} · not imported yet`}
           accessibilityLabel={`Go on reviewing ${reviewName(review)}`}
+          onPress={() => router.push('/import/review')}
           testID="import-resume-review"
-        >
-          <View style={styles.linkCardText}>
-            <Text style={styles.linkCardTitle} numberOfLines={1}>
-              {reviewName(review)}
-            </Text>
-            <Text style={styles.linkCardSub}>{countLabel(review, true)} · not imported yet</Text>
-          </View>
-          <ChevronRight size={16} color={theme.colors.textMuted} />
-        </Pressable>
+        />
       ) : null}
     </>
   )
@@ -513,14 +475,13 @@ export function ImportScreen({
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentPhone]}
         testID="import-screen"
       >
-        <View style={styles.head}>
-          {/* On a phone Import is a page over Home or Profile, and the ‹ goes
-              back to it (`BackButton`); the name sits under it on the left (J1). */}
-          <BackButton to="/profile" testID="import-back" />
-          <Text style={styles.heading} accessibilityRole="header">
-            Import
-          </Text>
-        </View>
+        {/* On a phone Import is a page over Home or Profile, and the ‹ goes
+            back to it; the name sits under it on the left (J1). */}
+        <PageHeader
+          title="Import"
+          back={{ to: '/profile', testID: 'import-back' }}
+          style={styles.head}
+        />
 
         {/* One column, the page's width, and what arrived under it at the foot
             of the page: a second column beside the form was squeezed to a
@@ -601,11 +562,13 @@ function JobGroup({
   const hidden = jobs.length - ROWS_SHOWN
   return (
     <>
-      <Animated.View {...motion} style={[styles.groupHead, !first && styles.groupApart]}>
-        <Text style={styles.groupLabel} accessibilityRole="header" testID={testID}>
-          {title}
-        </Text>
-        <View style={styles.groupActions}>{actions}</View>
+      <Animated.View {...motion} style={!first && styles.groupApart}>
+        <SectionHead
+          look="label"
+          title={title}
+          titleTestID={testID}
+          end={<View style={styles.groupActions}>{actions}</View>}
+        />
       </Animated.View>
       {lead ? <Animated.View {...motion}>{lead}</Animated.View> : null}
       {shown.map(job => (
@@ -648,32 +611,17 @@ function nextLine(pacing: ImportPacing): string {
  * per song sat at 0 % through the wait for its turn and then jumped to full.
  */
 function RunProgress({ run }: { run: ImportRun }): ReactNode {
-  const fraction = run.total > 0 ? run.done / run.total : 0
-  const [drawn] = useState(() => new RNAnimated.Value(fraction))
-  const sent = useRef(fraction)
-  useEffect(() => {
-    if (sent.current === fraction) return
-    sent.current = fraction
-    // A width is no transform: the native driver cannot move it.
-    timing(drawn, fraction, MOVE_MS.ringFill, undefined, { easing: ease.out, native: false })
-  }, [fraction, drawn])
-  const [width] = useState(() =>
-    drawn.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'], extrapolate: 'clamp' }),
-  )
   return (
     <View style={styles.run} testID="import-run">
       <View style={styles.runLine}>
         <Text style={styles.runCount}>{`${run.done} of ${run.total} in`}</Text>
         <Text style={styles.runLeft}>{run.leftMs === null ? 'Paused' : timeLeft(run.leftMs)}</Text>
       </View>
-      <View
-        style={styles.runTrack}
-        accessibilityRole="progressbar"
-        accessibilityLabel="Songs imported"
-        accessibilityValue={{ min: 0, max: run.total, now: run.done }}
-      >
-        <RNAnimated.View style={[styles.runFill, { width }]} />
-      </View>
+      <ProgressBar
+        fraction={run.total > 0 ? run.done / run.total : 0}
+        label="Songs imported"
+        animated
+      />
     </View>
   )
 }
@@ -707,15 +655,23 @@ function Finished({
   const shown = all ? jobs : jobs.slice(0, FINISHED_SHOWN)
   return (
     <>
-      <Animated.View {...motion} style={[styles.groupHead, !first && styles.groupApart]}>
-        <Text style={styles.groupLabel} accessibilityRole="header" testID="import-finished">
-          {today ? 'Earlier today' : 'Earlier'}
-        </Text>
-        <FoldAction label="Clear" accessibilityLabel="Clear finished imports" onPress={onClear} />
+      <Animated.View {...motion} style={!first && styles.groupApart}>
+        <SectionHead
+          look="label"
+          title={today ? 'Earlier today' : 'Earlier'}
+          titleTestID="import-finished"
+          end={
+            <FoldAction
+              label="Clear"
+              accessibilityLabel="Clear finished imports"
+              onPress={onClear}
+            />
+          }
+        />
       </Animated.View>
       {shown.map(job => (
         <Animated.View key={job.id} {...motion} style={styles.job}>
-          <Cover uri={job.thumbnail} title={job.title || job.url} size={46} />
+          <Cover uri={job.thumbnail} title={job.title || job.url} size={coverSize.row} />
           <View style={styles.jobMeta}>
             <Text style={styles.jobTitle} numberOfLines={1}>
               {job.title || job.url}
@@ -756,17 +712,15 @@ function FoldAction({
   testID?: string
 }): ReactNode {
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
+    <Button
+      size="small"
+      variant="text"
+      label={label}
       accessibilityLabel={accessibilityLabel}
-      accessibilityState={expanded === undefined ? undefined : { expanded }}
-      hitSlop={{ top: 8, bottom: 8 }}
-      style={({ pressed }) => [styles.foldAction, pressed && styles.pressed]}
+      expanded={expanded}
+      onPress={onPress}
       testID={testID}
-    >
-      <Text style={styles.foldActionText}>{label}</Text>
-    </Pressable>
+    />
   )
 }
 
@@ -869,7 +823,7 @@ function JobRow({
       onPointerEnter={wide && dense ? () => setHovered(true) : undefined}
       onPointerLeave={wide && dense ? () => setHovered(false) : undefined}
     >
-      <Cover uri={job.thumbnail} title={job.title || job.url} size={46} />
+      <Cover uri={job.thumbnail} title={job.title || job.url} size={coverSize.row} />
       <View style={styles.jobMeta}>
         <Text style={[styles.jobTitle, tone === 'cancelled' && styles.mutedText]} numberOfLines={1}>
           {job.title || job.url}
@@ -947,47 +901,40 @@ function RowMore({
   removeTestID: string
   nextTestID: string
 }): ReactNode {
-  const { theme } = useUnistyles()
-  const anchor = useRef<View>(null)
   const opacity = useFade(shown, MOVE_MS.hoverIn, MOVE_MS.hoverOut)
+  const items: MenuItem[] = [
+    ...(onNext
+      ? [
+          {
+            key: 'next',
+            label: 'Import next',
+            icon: <Next size={iconSize.button} tone="textPrimary" />,
+            onPress: onNext,
+            testID: nextTestID,
+          },
+        ]
+      : []),
+    {
+      key: 'remove',
+      label: 'Remove from imports',
+      icon: <X size={iconSize.button} tone="danger" />,
+      danger: true,
+      onPress: onRemove,
+      testID: removeTestID,
+    },
+  ]
   return (
     <RNAnimated.View style={{ opacity }} pointerEvents={enabled ? 'auto' : 'none'}>
-      <View ref={anchor} collapsable={false}>
-        <IconButton
-          onPress={() => onOpen(true)}
-          label={`More for ${name}`}
-          caption="More"
-          disabled={!enabled}
-          testID={testID}
-        >
-          <More size={17} color={theme.colors.textMuted} />
-        </IconButton>
-      </View>
-      <Popover open={open} onClose={() => onOpen(false)} anchorRef={anchor} width={220}>
-        {onNext ? (
-          <View testID={nextTestID}>
-            <SheetItem
-              label="Import next"
-              icon={<Next size={15} tone="textPrimary" />}
-              onPress={() => {
-                onOpen(false)
-                onNext()
-              }}
-            />
-          </View>
-        ) : null}
-        <View testID={removeTestID}>
-          <SheetItem
-            label="Remove from imports"
-            icon={<X size={15} color={theme.colors.danger} />}
-            danger
-            onPress={() => {
-              onOpen(false)
-              onRemove()
-            }}
-          />
-        </View>
-      </Popover>
+      <MoreMenu
+        name={name}
+        filled={false}
+        disabled={!enabled}
+        caption="More"
+        open={open}
+        onOpenChange={onOpen}
+        items={items}
+        testID={testID}
+      />
     </RNAnimated.View>
   )
 }
@@ -1033,39 +980,33 @@ function SwipeActions({
       renderRightActions={(_progress, _translation, swipeable) => (
         <View style={styles.swipeActions}>
           {onNext ? (
-            <Pressable
+            <Press
+              feedback="dim"
               onPress={() => {
                 swipeable.close()
                 onNext()
               }}
               accessibilityRole="button"
               accessibilityLabel={`Import ${name} next`}
-              style={({ pressed }) => [
-                styles.swipeAction,
-                styles.swipeNext,
-                pressed && styles.pressed,
-              ]}
+              style={[styles.swipeAction, styles.swipeNext]}
               testID={nextTestID}
             >
               <Text style={[styles.swipeActionText, styles.swipeNextText]}>Next</Text>
-            </Pressable>
+            </Press>
           ) : null}
-          <Pressable
+          <Press
+            feedback="dim"
             onPress={() => {
               swipeable.close()
               onRemove()
             }}
             accessibilityRole="button"
             accessibilityLabel={`Remove ${name} from imports`}
-            style={({ pressed }) => [
-              styles.swipeAction,
-              styles.swipeRemove,
-              pressed && styles.pressed,
-            ]}
+            style={[styles.swipeAction, styles.swipeRemove]}
             testID={testID}
           >
             <Text style={styles.swipeActionText}>Remove</Text>
-          </Pressable>
+          </Press>
         </View>
       )}
     >
@@ -1085,28 +1026,20 @@ function SwipeActions({
   )
 }
 
-/**
- * The swipe's "Remove", white on the danger red in either theme. Neither
- * `onAccent` nor any other palette ink is white in both, so it is its own.
- */
-const ON_DANGER = '#fff'
-
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40 },
-  contentWide: { paddingTop: PAGE_TOP_WIDE, paddingHorizontal: space.gutterWide },
-  contentPhone: { paddingTop: PAGE_TOP_PHONE, paddingHorizontal: space.gutter },
-  pressed: { opacity: 0.6 },
-  head: { alignItems: 'flex-start', gap: TITLE_UNDER_BACK, marginBottom: 20 },
-  heading: pageTitle(theme.colors),
-  stack: { gap: 24 },
-  form: { gap: 10 },
+  contentWide: pageFrame(true),
+  contentPhone: pageFrame(false),
+  head: { marginBottom: 20 },
+  stack: { gap: space.xl },
+  form: { gap: space.snug },
   // The compose card: the links' room, then its foot. Focused, the card wears the accent ring.
   compose: {
     ...card(theme.colors),
-    gap: 8,
-    paddingTop: 14,
-    paddingBottom: 10,
+    gap: space.sm,
+    paddingTop: space.roomy,
+    paddingBottom: space.snug,
     paddingHorizontal: 18,
   },
   composeFocused: {
@@ -1114,8 +1047,7 @@ const styles = StyleSheet.create(theme => ({
   },
   linksInput: {
     color: theme.colors.textPrimary,
-    fontSize: type.body,
-    lineHeight: leading.body,
+    ...textStyle('body'),
     _web: { outlineStyle: 'none' },
   },
   composeFoot: {
@@ -1123,14 +1055,19 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'space-between',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: space.snug,
     marginLeft: -4,
   },
   // The sources under the box: quiet words on a faint pill, wrapping on a narrow phone.
-  sources: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 4 },
+  sources: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space.tight,
+    paddingHorizontal: space.xs,
+  },
   source: {
     color: theme.colors.textMuted,
-    fontSize: type.small,
+    ...textStyle('small'),
     paddingVertical: 3,
     paddingHorizontal: 9,
     borderRadius: radius.pill,
@@ -1138,62 +1075,25 @@ const styles = StyleSheet.create(theme => ({
     overflow: 'hidden',
   },
   // What the box holds, said under it before it is looked up.
-  pasted: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pasted: { flexDirection: 'row', alignItems: 'center', gap: space.tight },
   pastedText: { color: theme.colors.good, fontSize: type.small, fontWeight: '600' },
   searchText: { color: theme.colors.accent },
-  strong: { color: theme.colors.textPrimary, fontWeight: '600' },
-  // With no edge around the notice, its first words carry the warning's colour.
-  strongWarn: { color: theme.colors.warning },
   // On the notice's card, so one step up from it.
   code: {
-    marginTop: 6,
+    marginTop: space.tight,
     color: theme.colors.textPrimary,
     fontSize: type.small,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: space.tight,
+    paddingHorizontal: space.snug,
     backgroundColor: theme.colors.surface2,
     borderRadius: radius.coverSm,
   },
-  // A notice is a card; a warning or an error is told by its words, not an edge.
-  notice: {
-    ...card(theme.colors),
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  noticeError: { paddingRight: 4 },
-  noticeBody: { flex: 1 },
-  noticeText: {
-    flex: 1,
-    color: theme.colors.textSecondary,
-    fontSize: type.sub,
-    lineHeight: leading.sub,
-  },
-  noticeTextError: { color: theme.colors.danger },
-  linkCard: {
-    ...card(theme.colors),
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  linkCardPressed: { backgroundColor: theme.colors.surface2 },
-  linkCardText: { flex: 1, minWidth: 0, gap: 3 },
-  linkCardTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  linkCardSub: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
-  jobs: { gap: 6 },
-  groupApart: { marginTop: 12 },
-  groupHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  jobs: { gap: space.tight },
+  groupApart: { marginTop: space.md },
   groupActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },
-  groupLabel: groupLabel(theme.colors),
-  foldAction: { alignSelf: 'flex-start', paddingVertical: 4 },
-  foldActionText: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '600' },
-  job: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 62 },
+  job: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 62 },
   jobMeta: { flex: 1, minWidth: 0, gap: 3 },
-  jobTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  jobTitle: rowTitle(theme.colors),
   mutedText: { color: theme.colors.textMuted },
   jobSub: { color: theme.colors.textSecondary, fontSize: type.sub },
   running: { color: theme.colors.accent },
@@ -1206,9 +1106,9 @@ const styles = StyleSheet.create(theme => ({
   jobHovered: {
     backgroundColor: theme.colors.surface1,
     marginHorizontal: -10,
-    paddingHorizontal: 10,
+    paddingHorizontal: space.snug,
   },
-  swipeActions: { flexDirection: 'row', gap: 8, paddingLeft: 8 },
+  swipeActions: { flexDirection: 'row', gap: space.sm, paddingLeft: space.sm },
   swipeAction: {
     width: 84,
     alignItems: 'center',
@@ -1216,23 +1116,17 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.cover,
   },
   swipeNext: { backgroundColor: theme.colors.accent },
-  swipeRemove: { backgroundColor: theme.colors.danger },
-  swipeActionText: { color: ON_DANGER, fontSize: type.body, fontWeight: '600' },
+  // The ground Up next's rows are swiped off onto, with its ink.
+  swipeRemove: { backgroundColor: theme.colors.remove },
+  swipeActionText: rowTitle(theme.colors),
   swipeNextText: { color: theme.colors.onAccent },
-  run: { gap: 8, marginTop: 6, marginBottom: 6 },
+  run: { gap: space.sm, marginTop: space.tight, marginBottom: space.tight },
   runLine: {
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: space.md,
   },
   runCount: { color: theme.colors.textPrimary, fontSize: type.section, fontWeight: '700' },
   runLeft: { color: theme.colors.textSecondary, fontSize: type.sub },
-  runTrack: {
-    height: 5,
-    borderRadius: radius.pill,
-    overflow: 'hidden',
-    backgroundColor: theme.colors.surface2,
-  },
-  runFill: { height: 5, borderRadius: radius.pill, backgroundColor: theme.colors.accent },
 }))

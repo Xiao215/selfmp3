@@ -1,15 +1,14 @@
 import { useMemo, useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
-import { Pressable, Text, useWindowDimensions, View } from 'react-native'
+import { Text, useWindowDimensions, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { plural, libraryArtists } from '@selfmp3/shared'
-import { tagColors, type, useLibrary } from '@selfmp3/client'
+import { type, useLibrary, space } from '@selfmp3/client'
 import { useRecentTagIds } from '../library/recentTags.store'
 import { songsById } from '../../ui/songsById'
 import { ArtistFace } from './ArtistFace'
-import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
-import { Checkbox } from '../../ui/components/Checkbox'
+import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { Chip } from '../../ui/components/Chip'
 import { User } from '../../ui/components/Icons'
 import { Segmented } from '../../ui/components/Segmented'
@@ -27,7 +26,9 @@ import {
 } from './tag.model'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { SearchField } from '../../ui/components/SearchField'
-import { FlatList, ScrollView } from '../../ui/components/Scroll'
+import { FlatList } from '../../ui/components/Scroll'
+import { SideScroll } from '../../ui/components/Shelf'
+import { TagDot } from '../../ui/components/TagDot'
 
 /**
  * Combine with… (docs/ui-mock `P09`, docs/features/lists.md): the sheet that
@@ -67,7 +68,6 @@ function AddSheetBody({
   chosen: readonly Place[]
   onShow: (places: readonly Place[]) => void
 }): ReactNode {
-  const accent = useAccent()
   const window = useWindowDimensions()
   const { data: library } = useLibrary()
   const recentTagIds = useRecentTagIds()
@@ -100,17 +100,15 @@ function AddSheetBody({
     const place = item.place
     const on = onKeys.has(placeKey(place))
     return (
-      <Pressable
+      <CheckRow
+        checked={on}
         onPress={() => setDraft(current => togglePlace(current, place))}
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: on }}
-        aria-checked={on}
-        accessibilityLabel={`${placeName(place)}, ${plural(placeSize(place), 'song', 'songs')}`}
+        label={`${placeName(place)}, ${plural(placeSize(place), 'song', 'songs')}`}
         style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       >
         {place.kind === 'tag' ? (
           <View style={styles.mark}>
-            <View style={[styles.dot, { backgroundColor: tagColors(place.tag.hue).dot }]} />
+            <TagDot hue={place.tag.hue} />
           </View>
         ) : (
           <ArtistFace
@@ -124,7 +122,7 @@ function AddSheetBody({
         </Text>
         <Text style={styles.size}>{placeSize(place)}</Text>
         <Checkbox checked={on} />
-      </Pressable>
+      </CheckRow>
     )
   }
 
@@ -143,32 +141,26 @@ function AddSheetBody({
           style={styles.search}
         />
         {draft.length > 0 ? (
-          <Pressable onPress={() => setDraft([])} accessibilityRole="button" hitSlop={8}>
-            <Text style={[styles.clear, { color: accent.accent }]}>Clear all</Text>
-          </Pressable>
+          <Button size="small" variant="text" label="Clear all" onPress={() => setDraft([])} />
         ) : null}
       </View>
 
       {draft.length > 0 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chosen}
-          style={styles.chosenRow}
-        >
+        <SideScroll contentStyle={styles.chosen} style={styles.chosenRow}>
           {draft.map(place => (
             <Chip
               key={placeKey(place)}
               label={placeName(place)}
               hue={place.kind === 'tag' ? place.tag.hue : undefined}
-              icon={place.kind === 'artist' ? <User size={12} tone="onPrimary" /> : undefined}
+              icon={place.kind === 'artist' ? <User tone="onPrimary" /> : undefined}
               selected
               compact
               onPress={() => setDraft(current => togglePlace(current, place))}
               onRemove={() => setDraft(current => togglePlace(current, place))}
+              removeLabel={place.kind === 'artist' ? `Remove ${placeName(place)}` : undefined}
             />
           ))}
-        </ScrollView>
+        </SideScroll>
       ) : null}
 
       <View style={styles.segment}>
@@ -223,20 +215,29 @@ function AddSheetBody({
 const FACE = 32
 
 const styles = StyleSheet.create(theme => ({
-  body: { gap: 10, paddingBottom: 8 },
-  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 },
+  body: { gap: space.snug, paddingBottom: space.sm },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingHorizontal: space.lg,
+  },
   search: { flex: 1 },
-  clear: { fontSize: type.body, fontWeight: '600' },
   chosenRow: { flexGrow: 0 },
-  chosen: { gap: 8, paddingHorizontal: 16 },
-  segment: { paddingHorizontal: 16 },
-  heading: { ...labelText(theme.colors), paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4 },
+  chosen: { gap: space.sm, paddingHorizontal: space.lg },
+  segment: { paddingHorizontal: space.lg },
+  heading: {
+    ...labelText(theme.colors),
+    paddingHorizontal: space.lg,
+    paddingTop: space.snug,
+    paddingBottom: space.xs,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: space.md,
     minHeight: 48,
-    paddingHorizontal: 16,
+    paddingHorizontal: space.lg,
   },
   rowPressed: { backgroundColor: theme.colors.surface2 },
   mark: {
@@ -247,8 +248,7 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dot: { width: 8, height: 8, borderRadius: 4 },
   name: { flex: 1, color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '500' },
   size: { color: theme.colors.textMuted, fontSize: type.sub, fontVariant: ['tabular-nums'] },
-  foot: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 6 },
+  foot: { flexDirection: 'row', paddingHorizontal: space.lg, paddingTop: space.tight },
 }))

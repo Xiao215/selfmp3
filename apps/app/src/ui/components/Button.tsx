@@ -1,12 +1,15 @@
 import { useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Animated, Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { Animated, Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import { useLayoutValue } from '../../shell/useLayout'
 import { useMinimumBusy, usePresence } from '../motion'
 import { tip } from '../tip'
 import { Press } from './Press'
-import { HIT_TARGET, motion, radius, type } from '@selfmp3/client'
+import { Spinner } from './Spinner'
+import { HIT_TARGET, hitSlopFor, motion, radius, type, space, iconSize } from '@selfmp3/client'
+import { OPACITY } from '../motion.model'
+import { sizedIcon } from './Icons'
 
 /**
  * A button, in one of the design's shapes and no others (docs/ui-mock `S2`,
@@ -22,9 +25,13 @@ import { HIT_TARGET, motion, radius, type } from '@selfmp3/client'
  * The fourth shape, the round white Play, is `PlayButton` below; a page has at
  * most one.
  *
- * 44 high with a finger, 36 where there is a mouse (`useLayoutValue`, `dense`). An
- * icon goes before the label; with no label at all it is round. Everything
- * sinks to 0.96 on the spring while pressed.
+ * 44 high with a finger, 36 where there is a mouse (`useLayoutValue`, `dense`).
+ * `size="small"` is the quiet one in a line of words: 28 high, its label a
+ * size down — Import's "Show 4 more", the tag sheet's "Clear all", Now
+ * Playing's Stop. `ground="translucent"` gives a pill a veil of the ink
+ * rather than a surface, for a pill over a song-coloured page, where a solid
+ * one reads as a dark box. An icon goes before the label; with no label at
+ * all it is round. Everything sinks to 0.96 on the spring while pressed.
  *
  * Busy, the spinner crossfades with the icon over `motion.fast` rather than
  * cutting it out, and once shown it stays for at least `MOVE_MS.busyHold`
@@ -41,6 +48,9 @@ export function Button({
   busy = false,
   grow = false,
   active = false,
+  size = 'regular',
+  ground = 'solid',
+  expanded,
   accessibilityLabel,
 }: {
   testID?: string
@@ -54,10 +64,17 @@ export function Button({
   grow?: boolean
   /** On: white, as a chosen chip is, for a button that toggles a mode. */
   active?: boolean
+  /** The quiet one in a line of words: 28 high, a size down. */
+  size?: 'regular' | 'small'
+  /** A veil of the ink instead of the control surface, over a song's colour. */
+  ground?: 'solid' | 'translucent'
+  /** For a button that shows or hides more: whether it is showing it. */
+  expanded?: boolean
   /** What a screen reader says when there is no label, or a fuller one: a square icon button. */
   accessibilityLabel?: string
 }): ReactNode {
   const dense = useLayoutValue(layout => layout.dense)
+  const small = size === 'small'
   // What the button *does* follows `busy`; what it *shows* follows the held
   // spinner, so the extra moment a spinner is kept never blocks a second press.
   const inactive = disabled || busy
@@ -93,20 +110,26 @@ export function Button({
       accessibilityLabel={accessibilityLabel ?? label}
       // An icon-only button has nothing on it to read; one with a label has said it.
       {...tip(label === undefined ? accessibilityLabel : undefined)}
-      accessibilityState={{ disabled: inactive, selected: active }}
+      accessibilityState={{ disabled: inactive, selected: active, expanded }}
+      hitSlop={small ? { top: hitSlopFor(SMALL), bottom: hitSlopFor(SMALL) } : undefined}
       style={({ pressed }) => [
         styles.button,
         dense && styles.buttonDense,
-        label === undefined && (dense ? styles.squareDense : styles.square),
+        small && styles.small,
+        label === undefined &&
+          (small ? styles.squareSmall : dense ? styles.squareDense : styles.square),
         grow && styles.grow,
+        ground === 'translucent' && styles.translucent,
         variant === 'primary' && styles.primary,
-        variant === 'text' && styles.text,
+        variant === 'text' && (small ? styles.textSmall : styles.text),
         active && styles.active,
-        pressed && !inactive && styles.pressed,
+        pressed &&
+          !inactive &&
+          (ground === 'translucent' ? styles.translucentPressed : styles.pressed),
         inactive && styles.disabled,
       ]}
     >
-      <View style={styles.content}>
+      <View style={[styles.content, small && styles.contentSmall]}>
         {/* Busy takes the icon's place and leaves the label, so a button can
           say what it is doing — "Removing…" — while it spins. With no label
           there is nothing to say and the spinner is the whole button.
@@ -115,16 +138,28 @@ export function Button({
           with no icon it takes its own room. */}
         {icon || spinner.mounted ? (
           <View style={styles.badge}>
-            {icon ? <Animated.View style={iconFade}>{icon}</Animated.View> : null}
+            {icon ? (
+              <Animated.View style={iconFade}>
+                {sizedIcon(icon, small ? iconSize.sub : iconSize.button)}
+              </Animated.View>
+            ) : null}
             {spinner.mounted ? (
               <Animated.View style={[icon ? styles.overIcon : undefined, spinnerFade]}>
-                <Spinner variant={variant} />
+                <Spinner
+                  tone={
+                    variant === 'primary'
+                      ? 'onAccent'
+                      : variant === 'danger'
+                        ? 'danger'
+                        : 'textPrimary'
+                  }
+                />
               </Animated.View>
             ) : null}
           </View>
         ) : null}
         {label !== undefined ? (
-          <Text style={[styles.label, ink]} numberOfLines={1}>
+          <Text style={[styles.label, small && styles.labelSmall, ink]} numberOfLines={1}>
             {label}
           </Text>
         ) : null}
@@ -133,9 +168,15 @@ export function Button({
   )
 }
 
+/** The round Play's glyph, for a round `size` across: 24 in the 56. */
+export function playGlyph(size: number): number {
+  return Math.round(size * 0.43)
+}
+
 /**
  * The round white Play (`S2`): 56 across, the one primary on a page. Its icon
- * is the caller's, so it can be Play or Pause.
+ * is the caller's, so it can be Play or Pause, drawn at `playGlyph` unless
+ * the caller sizes it.
  */
 export function PlayButton({
   testID,
@@ -144,6 +185,7 @@ export function PlayButton({
   onPress,
   size = 56,
   disabled = false,
+  busy = false,
 }: {
   testID?: string
   /** What a screen reader says: "Play", "Pause", "Play Evening". */
@@ -152,6 +194,8 @@ export function PlayButton({
   onPress: () => void
   size?: number
   disabled?: boolean
+  /** Waiting on the track: said to a screen reader; the icon draws it (`PlayPauseButton`). */
+  busy?: boolean
 }): ReactNode {
   return (
     <Press
@@ -162,38 +206,20 @@ export function PlayButton({
       accessibilityRole="button"
       accessibilityLabel={label}
       {...tip(label)}
-      accessibilityState={{ disabled }}
+      accessibilityState={{ disabled, busy }}
       style={[
         styles.play,
         { width: size, height: size, borderRadius: size / 2 },
         disabled && styles.disabled,
       ]}
     >
-      {icon}
+      {sizedIcon(icon, playGlyph(size), 'fill')}
     </Press>
   )
 }
 
-/**
- * The busy spinner, which is the one thing on a button whose colour has to be
- * a prop rather than a style. Kept apart so that reading the theme for it
- * re-renders a spinner nobody can see standing still, rather than every button
- * on the screen, on every step of a drag on the accent picker.
- */
-function Spinner({ variant }: { variant: 'primary' | 'secondary' | 'danger' | 'text' }): ReactNode {
-  const { theme } = useUnistyles()
-  return (
-    <ActivityIndicator
-      color={
-        variant === 'primary'
-          ? theme.colors.onAccent
-          : variant === 'danger'
-            ? theme.colors.danger
-            : theme.colors.textPrimary
-      }
-    />
-  )
-}
+/** `size="small"`'s height, which the slop brings up to a finger's. */
+const SMALL = 28
 
 const styles = StyleSheet.create(theme => ({
   button: {
@@ -212,9 +238,16 @@ const styles = StyleSheet.create(theme => ({
     width: 36,
     paddingHorizontal: 0,
   },
+  small: { minHeight: SMALL, paddingHorizontal: space.snug },
+  squareSmall: { width: SMALL, paddingHorizontal: 0 },
+  textSmall: { backgroundColor: 'transparent', paddingHorizontal: space.xs },
+  contentSmall: { gap: space.xs },
+  labelSmall: { fontSize: type.small },
+  translucent: { backgroundColor: theme.colors.veil },
+  translucentPressed: { backgroundColor: theme.colors.veilPressed },
   text: {
     backgroundColor: 'transparent',
-    paddingHorizontal: 8,
+    paddingHorizontal: space.sm,
   },
   square: {
     width: HIT_TARGET,
@@ -251,7 +284,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface3,
   },
   disabled: {
-    opacity: 0.45,
+    opacity: OPACITY.disabled,
   },
   label: {
     fontSize: type.body,

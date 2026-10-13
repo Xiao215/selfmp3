@@ -7,7 +7,13 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "source": "./src/index.ts",
       "default": "./dist/index.js"
+    },
+    "./wire": {
+      "types": "./dist/wire.d.ts",
+      "source": "./src/wire.ts",
+      "default": "./dist/wire.js"
     }
   },
   "main": "./dist/index.js",

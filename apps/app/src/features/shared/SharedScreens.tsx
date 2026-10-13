@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, TextInput, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import {
-  artistOr,
   plural,
   SharedIdSchema,
   SharedInviteSchema,
   type SharedSummary,
+  SharedNameSchema,
 } from '@selfmp3/shared'
 import { libraryIndex, radius, sharedInviteLink, space, type, useLibrary } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
@@ -18,19 +18,22 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { roomTrack, setTrackSource } from '../../player/roomTracks'
 import { prefs } from '../../ports/prefs'
 import { appAddress, shareLink } from '../../ports/shareLink'
-import { useAccent } from '../../ui/accent'
-import { label, serif } from '../../ui/surfaces'
+import { label, pageTitle, lineSub } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { BackButton } from '../../ui/components/BackButton'
+import { MissingPage } from '../../ui/components/MissingPage'
+import { TextField } from '../../ui/components/TextField'
+import { PageLoading } from '../../ui/components/PageLoading'
 import { Button } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
-import { Cover } from '../../ui/components/Cover'
-import { People, Play, Plus, X } from '../../ui/components/Icons'
+import { People, Play, Plus } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
 import { useCloudSession } from '../profile/useCloudSession'
 import { openQueueSheet } from '../queue/queueSheet.store'
-import { RoomFace, RoomFaces } from '../room/RoomFace'
+import { FacesCover, RoomFaces } from '../room/RoomFace'
+import { RoomEntryLine } from '../room/RoomEntryLine'
+import { GridTile } from '../../ui/components/TileGrid'
 import { RoomQr } from '../room/RoomQr'
 import { MyLibraryPicker } from '../room/RoomSheets'
 import { sayRoomFailure } from '../room/roomFailure'
@@ -84,19 +87,23 @@ export function SharedPlaylistScreen(): ReactNode {
   }, [playlist, index])
 
   if (!playlist) {
+    if (isLoading) {
+      return (
+        <SafeAreaView style={styles.screen} edges={['top']}>
+          <PageLoading />
+        </SafeAreaView>
+      )
+    }
     return (
-      <SafeAreaView style={styles.screen} edges={['top']}>
-        <View style={styles.page}>
-          <BackButton to="/playlists" />
-          <Text style={styles.big}>
-            {isLoading
-              ? 'Loading…'
-              : error
-                ? 'This playlist is not one of yours'
-                : 'No such playlist'}
-          </Text>
-        </View>
-      </SafeAreaView>
+      <MissingPage
+        title={error ? 'This playlist is not one of yours' : 'No such playlist'}
+        line={
+          error
+            ? 'A shared playlist opens for the people in it.'
+            : 'It may have been deleted by whoever made it.'
+        }
+        back="/playlists"
+      />
     )
   }
 
@@ -143,14 +150,14 @@ export function SharedPlaylistScreen(): ReactNode {
           <Button
             label="Play"
             variant="primary"
-            icon={<Play size={15} color={theme.colors.onPrimary} />}
+            icon={<Play color={theme.colors.onPrimary} />}
             disabled={ids.length === 0}
             onPress={() => playHere()}
             testID="shared-play"
           />
           <Button
             label={room.state && isHost(room.state) ? 'Add to the room' : 'Play together'}
-            icon={<People size={16} color={theme.colors.textPrimary} />}
+            icon={<People color={theme.colors.textPrimary} />}
             busy={busy}
             disabled={ids.length === 0}
             onPress={() => void playTogether()}
@@ -158,7 +165,7 @@ export function SharedPlaylistScreen(): ReactNode {
           />
           <Button
             label="Add songs"
-            icon={<Plus size={15} color={theme.colors.textPrimary} />}
+            icon={<Plus color={theme.colors.textPrimary} />}
             onPress={() => setSheet('add')}
             testID="shared-add"
           />
@@ -178,45 +185,20 @@ export function SharedPlaylistScreen(): ReactNode {
         {rows.map((row, at) => {
           const song = roomTrack(row.trackId)?.song
           return (
-            <View key={row.entry.id} style={styles.row} testID={`shared-row-${row.entry.id}`}>
-              <Pressable
-                onPress={() => playHere(at)}
-                accessibilityRole="button"
-                accessibilityLabel={`Play ${row.entry.song.title}`}
-                style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
-              >
-                <View>
-                  <Cover uri={song ? artFor(song) : null} title={row.entry.song.title} size={44} />
-                  {row.owner ? (
-                    <View style={styles.badge}>
-                      <RoomFace name={row.owner.name} colour={row.owner.colour} size={20} ring />
-                    </View>
-                  ) : null}
-                </View>
-                <View style={styles.rowText}>
-                  <Text style={styles.rowTitle} numberOfLines={1}>
-                    {row.entry.song.title}
-                  </Text>
-                  <Text style={styles.text} numberOfLines={1}>
-                    {artistOr(row.entry.song.artist)} ·{' '}
-                    {row.owner?.id === playlist.you ? 'You' : (row.owner?.name ?? 'Someone')}
-                  </Text>
-                </View>
-              </Pressable>
-              {row.removable ? (
-                <Pressable
-                  onPress={() =>
-                    void act({ type: 'remove', entryId: row.entry.id }).catch(sayRoomFailure)
-                  }
-                  accessibilityRole="button"
-                  accessibilityLabel={`Take ${row.entry.song.title} out`}
-                  hitSlop={6}
-                  style={({ pressed }) => [styles.small, pressed && styles.pressed]}
-                >
-                  <X size={16} color={theme.colors.textSecondary} />
-                </Pressable>
-              ) : null}
-            </View>
+            <RoomEntryLine
+              key={row.entry.id}
+              song={row.entry.song}
+              uri={song ? artFor(song) : null}
+              face={row.face}
+              who={row.who}
+              onPress={() => playHere(at)}
+              onRemove={
+                row.removable
+                  ? () => void act({ type: 'remove', entryId: row.entry.id }).catch(sayRoomFailure)
+                  : undefined
+              }
+              testID={`shared-row-${row.entry.id}`}
+            />
           )
         })}
       </ScrollView>
@@ -317,23 +299,20 @@ function SharedInvite({
 }
 
 function Rename({ name, onRename }: { name: string; onRename: (name: string) => void }): ReactNode {
-  const { theme } = useUnistyles()
   const [text, setText] = useState(name)
   return (
-    <View style={styles.rename}>
-      <View style={styles.field}>
-        <TextInput
-          style={styles.input}
-          value={text}
-          onChangeText={setText}
-          onSubmitEditing={() => text.trim() && onRename(text.trim())}
-          placeholderTextColor={theme.colors.textMuted}
-          accessibilityLabel="Playlist name"
-          maxLength={120}
-        />
-      </View>
-      <Button label="Rename" disabled={!text.trim()} onPress={() => onRename(text.trim())} />
-    </View>
+    <TextField
+      raised
+      style={styles.rename}
+      value={text}
+      onChangeText={setText}
+      onSubmitEditing={() => text.trim() && onRename(text.trim())}
+      accessibilityLabel="Playlist name"
+      limit={SharedNameSchema}
+      action={
+        <Button label="Rename" disabled={!text.trim()} onPress={() => onRename(text.trim())} />
+      }
+    />
   )
 }
 
@@ -436,33 +415,22 @@ export function useResumeSharedJoin(): void {
 /** A shared playlist among your playlists: its people's faces for a cover. */
 export function SharedTile({
   playlist,
-  width,
+  size,
 }: {
   playlist: SharedSummary
-  width: number | undefined
+  /** The tile's width, for the faces; it fills its cell without one. */
+  size: number | undefined
 }): ReactNode {
   const router = useRouter()
-  const accent = useAccent()
   return (
-    <View style={[styles.tile, width ? { width } : null]}>
-      <Pressable
-        onPress={() => router.push({ pathname: '/shared/[id]', params: { id: playlist.id } })}
-        accessibilityRole="button"
-        accessibilityLabel={`Open ${playlist.name}, shared`}
-        testID={`shared-tile-${playlist.id}`}
-        style={({ pressed }) => pressed && styles.pressed}
-      >
-        <View style={[styles.tileCover, { backgroundColor: accent.accentPill }]}>
-          <RoomFaces people={playlist.people.slice(0, 4)} size={30} />
-        </View>
-        <Text style={styles.tileName} numberOfLines={1}>
-          {playlist.name}
-        </Text>
-        <Text style={styles.tileSub} numberOfLines={1}>
-          Shared · {plural(playlist.songs, 'song', 'songs')}
-        </Text>
-      </Pressable>
-    </View>
+    <GridTile
+      cover={<FacesCover people={playlist.people} size={size} />}
+      title={playlist.name}
+      sub={`Shared · ${plural(playlist.songs, 'song', 'songs')}`}
+      onPress={() => router.push({ pathname: '/shared/[id]', params: { id: playlist.id } })}
+      label={`Open ${playlist.name}, shared`}
+      testID={`shared-tile-${playlist.id}`}
+    />
   )
 }
 
@@ -486,25 +454,11 @@ const styles = StyleSheet.create(theme => ({
     padding: space.xl,
   },
   head: { gap: space.sm },
-  big: { ...serif(theme.colors, type.page) },
+  big: pageTitle(theme.colors),
   label: label(theme.colors),
-  text: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: 18 },
+  text: lineSub(theme.colors),
   people: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 60 },
-  rowMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: space.md },
-  pressed: { opacity: 0.7 },
-  badge: { position: 'absolute', right: -5, bottom: -5 },
-  rowText: { flex: 1, minWidth: 0, gap: 2 },
-  rowTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  small: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surface2,
-  },
   sheetBody: { gap: space.md, paddingBottom: space.sm },
   inviteCard: {
     flexDirection: 'row',
@@ -515,28 +469,5 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
   },
   link: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: type.small },
-  rename: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingBottom: space.md },
-  field: {
-    flex: 1,
-    minHeight: 44,
-    justifyContent: 'center',
-    paddingHorizontal: space.md,
-    borderRadius: radius.field,
-    backgroundColor: theme.colors.surface3,
-  },
-  input: { color: theme.colors.textPrimary, fontSize: type.body, minHeight: 28 },
-  tile: { width: '100%' },
-  tileCover: {
-    aspectRatio: 1,
-    borderRadius: radius.card,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tileName: {
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
-    marginTop: space.sm,
-  },
-  tileSub: { color: theme.colors.textMuted, fontSize: type.small, marginTop: 1 },
+  rename: { paddingBottom: space.md },
 }))

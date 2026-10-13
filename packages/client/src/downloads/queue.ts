@@ -1,4 +1,4 @@
-import type { Song, SyncManifest } from '@selfmp3/shared'
+import { createThrottle, type Song, type SyncManifest, type Throttle } from '@selfmp3/shared'
 
 import type { ServerConnection } from '../connection/connection.js'
 import type { DownloadStorage, DownloadTransfer, TransferProgress } from '../ports/offline.js'
@@ -12,11 +12,10 @@ import {
   removeEntry,
   type DownloadIndex,
 } from './downloadIndex.js'
-import { createThrottle, type Throttle } from './throttle.js'
 
 /**
  * How often byte progress alone reaches listeners: four times a second. See
- * `throttle.ts`; anything else about the queue is told at once.
+ * shared's `throttle.ts`; anything else about the queue is told at once.
  */
 const PROGRESS_INTERVAL_MS = 250
 

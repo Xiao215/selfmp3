@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
-import { space, type, useLibrary } from '@selfmp3/client'
+import { space, useLibrary } from '@selfmp3/client'
 import type { PlayerApi } from '../../player/PlayerProvider'
 import { Button } from '../../ui/components/Button'
 import { Shuffle, Sparkles } from '../../ui/components/Icons'
@@ -11,6 +11,7 @@ import { dismissToast, showToast } from '../../ui/toast'
 import { playSimilar } from '../song/playSimilar'
 import { onlySongEnded } from './queue.model'
 import { isQueueSheetOpen, openQueueSheet, useQueueSheetOpen } from './queueSheet.store'
+import { rowTitle } from '../../ui/surfaces'
 
 /**
  * What Up next shows once a song played on its own has ended
@@ -40,13 +41,13 @@ export function OnlySongEnd({
       <View style={styles.buttons}>
         <Button
           label="Songs like this"
-          icon={<Sparkles size={15} tone="textPrimary" />}
+          icon={<Sparkles tone="textPrimary" />}
           onPress={() => playSimilar(player, song)}
           testID="only-song-similar"
         />
         <Button
           label="Shuffle library"
-          icon={<Shuffle size={15} tone="textPrimary" />}
+          icon={<Shuffle tone="textPrimary" />}
           onPress={shuffleLibrary}
           testID="only-song-shuffle"
         />
@@ -94,9 +95,7 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.md,
   },
   title: {
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
+    ...rowTitle(theme.colors),
     textAlign: 'center',
   },
   // Side by side where they fit; a narrow rail stacks them.

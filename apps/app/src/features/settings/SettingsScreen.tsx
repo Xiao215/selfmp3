@@ -1,18 +1,12 @@
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import {
-  Pressable,
-  Text,
-  View,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
-} from 'react-native'
+import { Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import Constants from 'expo-constants'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { type Settings } from '@selfmp3/shared'
+import type { Settings } from '@selfmp3/shared'
 import { radius, space, type, useHealth, useSettings, useUpdateSettings } from '@selfmp3/client'
 import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanizationPref'
 import { loginItem } from '../../ports/loginItem'
@@ -23,16 +17,12 @@ import { bucketCapped } from '../library/library.model'
 import { useBucketHold } from '../profile/useBucketHold'
 import { deviceKind } from '../../ports/device'
 import { useLayout } from '../../shell/useLayout'
-import { BackButton } from '../../ui/components/BackButton'
+import { useContentWidthValue } from '../../shell/contentWidth'
+import { PageHeader } from '../../ui/components/PageHeader'
+import { Chip } from '../../ui/components/Chip'
 import { Toggle } from '../../ui/components/Toggle'
-import {
-  label,
-  PAGE_TOP_PHONE,
-  PAGE_TOP_WIDE,
-  pageTitle,
-  sectionTitle,
-  TITLE_UNDER_BACK,
-} from '../../ui/surfaces'
+import { label, PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageFrame } from '../../ui/surfaces'
+import { SectionHead } from '../../ui/components/SectionHead'
 import { usePlayer } from '../../player/PlayerProvider'
 import { createValueStore, type ValueStore } from '../../state/valueStore.model'
 import { useValueStore } from '../../state/useValueStore'
@@ -70,9 +60,8 @@ import {
   type SectionId,
 } from './settings.model'
 import { ScrollView } from '../../ui/components/Scroll'
-
-/** At this width the index is a column beside the panels; below it, a row of chips. */
-const INDEX_COLUMN = 1080
+import { Press } from '../../ui/components/Press'
+import { COLUMN_WIDTH } from '../../shell/widths'
 
 /** The index column itself, and the gutter on either side of it. */
 const INDEX_WIDTH = 172
@@ -109,7 +98,7 @@ export function SettingsScreen(): ReactNode {
   const { fromCloud } = useConnection()
   const pinyinOn = useRomanizationOn('zh')
   const romajiOn = useRomanizationOn('ja')
-  const { width, wide } = useLayout()
+  const { wide } = useLayout()
   const settings = useSettings()
   const updateSettings = useUpdateSettings()
   const health = useHealth()
@@ -132,7 +121,8 @@ export function SettingsScreen(): ReactNode {
   const shortcuts = sections.some(section => section.id === 'shortcuts') ? menuCommands : null
   const indexed = settingsIndex(sections)
   const shown = (id: SectionId): boolean => sections.some(section => section.id === id)
-  const column = width >= INDEX_COLUMN
+  // The index is a column beside the panels where the page has room; a row of chips below.
+  const column = useContentWidthValue(page => page !== null && page >= COLUMN_WIDTH.settingsIndex)
   const scrollRef = useRef<ScrollView>(null)
   // Each shown panel's view, kept by `anchorAt`, and where it was last measured
   // in the scroll content.
@@ -322,24 +312,23 @@ export function SettingsScreen(): ReactNode {
           column ? styles.contentColumn : styles.contentNarrow,
         ]}
       >
-        {/* The way back, then the page's name under it on the left, as on every
-            page (J1). */}
         <View ref={headRef} style={styles.head}>
-          <BackButton to="/profile" testID="settings-back" />
-          <View>
-            <Text style={styles.title} accessibilityRole="header">
-              Settings
-            </Text>
-            <Text style={[styles.sub, capped && styles.subCapped]} testID="settings-health">
-              {capped ? '● ' : null}
-              {healthLine(health.data, {
-                loading: health.isPending,
-                error: health.isError ? health.error : null,
-                capped,
-                compact: !wide,
-              })}
-            </Text>
-          </View>
+          <PageHeader
+            title="Settings"
+            back={{ to: '/profile', testID: 'settings-back' }}
+            subtitle={
+              <Text style={capped ? styles.subCapped : undefined}>
+                {capped ? '● ' : null}
+                {healthLine(health.data, {
+                  loading: health.isPending,
+                  error: health.isError ? health.error : null,
+                  capped,
+                  compact: !wide,
+                })}
+              </Text>
+            }
+            subtitleTestID="settings-health"
+          />
         </View>
 
         {column ? null : (
@@ -439,9 +428,7 @@ export function SettingsScreen(): ReactNode {
 
             {indexed.some(section => section.id === 'advanced') ? (
               <View ref={anchorAt('advanced')} style={styles.advanced}>
-                <Text style={styles.advancedTitle} accessibilityRole="header">
-                  Advanced
-                </Text>
+                <SectionHead title="Advanced" />
                 {shown('library') ? (
                   <LibraryPanel
                     libraryPath={health.data?.libraryPath}
@@ -515,35 +502,33 @@ function SectionIndex({
 
   return sections.map(section => {
     const current = on === section.id
+    if (!column) {
+      // A phone's index is a row of chips, the lit one the section on screen.
+      return (
+        <Chip
+          key={section.id}
+          label={section.label}
+          selected={current}
+          role="link"
+          onPress={() => onGo(section.id)}
+          onLayout={event => {
+            const { x, width: chipWidth } = event.nativeEvent.layout
+            chipAt.current.set(section.id, { x, width: chipWidth })
+          }}
+        />
+      )
+    }
     return (
-      <Pressable
+      <Press
         key={section.id}
         onPress={() => onGo(section.id)}
-        onLayout={
-          column
-            ? undefined
-            : event => {
-                const { x, width: chipWidth } = event.nativeEvent.layout
-                chipAt.current.set(section.id, { x, width: chipWidth })
-              }
-        }
         accessibilityRole="link"
         accessibilityState={{ selected: current }}
-        style={({ pressed }) => [
-          column ? styles.indexItem : styles.chip,
-          current && (column ? styles.indexItemOn : styles.chipOn),
-          pressed && styles.indexPressed,
-        ]}
+        aria-current={current ? 'page' : undefined}
+        style={[styles.indexItem, current && styles.indexItemOn]}
       >
-        <Text
-          style={[
-            column ? styles.indexText : styles.chipText,
-            current && (column ? styles.indexTextOn : styles.chipTextOn),
-          ]}
-        >
-          {section.label}
-        </Text>
-      </Pressable>
+        <Text style={[styles.indexText, current && styles.indexTextOn]}>{section.label}</Text>
+      </Press>
     )
   })
 }
@@ -628,14 +613,11 @@ const styles = StyleSheet.create(theme => ({
     paddingRight: INDEX_GUTTER,
   },
   // `S2`'s phone gutter.
-  contentNarrow: { paddingTop: NARROW_TOP, paddingHorizontal: space.gutter },
-  head: { marginBottom: 20, gap: TITLE_UNDER_BACK, alignItems: 'flex-start' },
-  title: pageTitle(theme.colors),
-  sub: { color: theme.colors.textMuted, fontSize: type.sub, marginTop: 4 },
+  contentNarrow: pageFrame(false),
+  head: { marginBottom: 20 },
   subCapped: { color: theme.colors.danger },
   panels: { gap: 20, maxWidth: 780 },
-  advanced: { gap: 20, paddingTop: 12 },
-  advancedTitle: sectionTitle(theme.colors),
+  advanced: { gap: 20, paddingTop: space.md },
   indexColumn: {
     position: 'absolute',
     top: COLUMN_TOP,
@@ -645,36 +627,25 @@ const styles = StyleSheet.create(theme => ({
   },
   indexTitle: {
     ...label(theme.colors),
-    paddingTop: 4,
-    paddingHorizontal: 10,
-    paddingBottom: 6,
+    paddingTop: space.xs,
+    paddingHorizontal: space.snug,
+    paddingBottom: space.tight,
   },
   indexItem: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: space.tight,
+    paddingHorizontal: space.snug,
     borderRadius: radius.pill,
   },
   // The section you are on is "on" as a chosen chip is: white, with dark ink
   // (proposal P1). A grey fill a step lighter read as hovered, not chosen.
   indexItemOn: { backgroundColor: theme.colors.textPrimary },
-  chipOn: { backgroundColor: theme.colors.textPrimary },
-  indexPressed: { opacity: 0.8 },
   indexText: { color: theme.colors.textMuted, fontSize: type.sub },
   indexTextOn: { color: theme.colors.onPrimary, fontWeight: '600' },
-  // The phone's row of chips is `Chip`'s filter pill: its padding, its type.
-  chipText: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '500' },
-  chipTextOn: { color: theme.colors.onPrimary },
   chipBar: {
     marginHorizontal: -20,
-    paddingVertical: 10,
+    paddingVertical: space.snug,
     marginBottom: CHIPS_GAP,
     backgroundColor: theme.colors.surface0,
   },
-  chips: { gap: 6, paddingHorizontal: space.gutter },
-  chip: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface2,
-  },
+  chips: { gap: space.tight, paddingHorizontal: space.gutter },
 }))

@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { plural, fuzzyRank, type Tag } from '@selfmp3/shared'
 import { chooserTagGroups, HIT_TARGET, space, type, useLibrary } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
+import { noTagsLine } from '../../features/tag/tag.model'
 import { useAccent } from '../accent'
 import { Chip } from './Chip'
 import { card, label as labelText } from '../surfaces'
@@ -144,7 +145,7 @@ function Panel({
             lane(`${matches.length} of ${tags.length}`, matches)
           )
         ) : tags.length === 0 ? (
-          <Text style={styles.hint}>No tags yet.</Text>
+          <Text style={styles.hint}>{noTagsLine()}</Text>
         ) : (
           <>
             {lane(null, mostUsed)}
@@ -222,6 +223,6 @@ const styles = StyleSheet.create(theme => ({
   laneStacked: { gap: space.xs, paddingBottom: space.md },
   laneLabel: labelText(theme.colors),
   laneLabelBeside: { width: 74, paddingTop: 5 },
-  cloud: { flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  cloud: { flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', gap: space.tight },
   hint: { color: theme.colors.textMuted, fontSize: type.small, padding: space.xs },
 }))

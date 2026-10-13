@@ -9,7 +9,7 @@ import {
   type WrappedRange,
 } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
-import { runs, toMinutes } from './listening.js'
+import { runs, toMinutes, topArtists, type ArtistPlaysRow } from './listening.js'
 
 /**
  * "Wrapped, anytime" — a summary of a listening window.
@@ -84,18 +84,14 @@ export class WrappedRepository {
       .all(...params)
       .map(toTopSong)
 
-    // 'Unknown artist' is `UNKNOWN_ARTIST` from @selfmp3/shared, which the app
-    // compares this key with: change the two together.
-    const topArtists: TopEntry[] = this.#db
-      .prepare<unknown[], { key: string; plays: number; ms: number | null }>(
-        `SELECT COALESCE(NULLIF(s.artist, ''), 'Unknown artist') AS key,
-                COUNT(*) AS plays, COALESCE(SUM(e.ms_played), 0) AS ms
+    const artistRows = this.#db
+      .prepare<unknown[], ArtistPlaysRow>(
+        `SELECT s.artist, COUNT(*) AS plays, COALESCE(SUM(e.ms_played), 0) AS ms
            FROM play_events e JOIN songs s ON s.id = e.song_id
           WHERE ${clause}
-          GROUP BY key ORDER BY plays DESC, key LIMIT 5`,
+          GROUP BY s.artist ORDER BY plays DESC`,
       )
       .all(...params)
-      .map(row => ({ key: row.key, plays: row.plays, minutes: toMinutes(row.ms) }))
 
     const topTags: TopEntry[] = this.#db
       .prepare<unknown[], { key: string; plays: number; ms: number | null }>(
@@ -196,7 +192,7 @@ export class WrappedRepository {
         activeDays: totals?.days ?? 0,
       },
       topSongs,
-      topArtists,
+      topArtists: topArtists(artistRows, 5),
       topTags,
       peakHour: peak(hourly, 'hour'),
       peakWeekday: peak(weekday, 'weekday'),

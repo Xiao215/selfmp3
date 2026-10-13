@@ -1,7 +1,6 @@
 import type { DownloadsFolder } from './downloadsFolder'
 import { desktop } from './desktop/bridge'
-
-export type { DownloadsFolder }
+import { NOT_INSTALLED } from './notInstalled'
 
 /**
  * Where this device's downloaded songs are.
@@ -26,8 +25,4 @@ function folderFor(bridge: NonNullable<typeof desktop>): DownloadsFolder {
 
 export const downloadsFolder: DownloadsFolder = desktop
   ? folderFor(desktop)
-  : {
-      path: null,
-      reveal: () => Promise.resolve(),
-      usage: () => Promise.resolve(null),
-    }
+  : NOT_INSTALLED.downloadsFolder

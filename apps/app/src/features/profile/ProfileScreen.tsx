@@ -1,19 +1,20 @@
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Stats } from '@selfmp3/shared'
-import { leading, radius, space, type, useLibrary, type ServerConnection } from '@selfmp3/client'
+import { radius, space, type, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
-import { ChevronRight, Download, Settings, Sparkles } from '../../ui/components/Icons'
+import { Download, Settings, Sparkles } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useArt } from '../../offline/useArt'
 import { Avatar } from '../../ui/components/Avatar'
+import { NavRow } from '../../ui/components/NavRow'
 import { useAccount } from './useAccount'
 import { deviceKind } from '../../ports/device'
-import { card, label, serif } from '../../ui/surfaces'
+import { card, label, pageFrame, serif, lineSub } from '../../ui/surfaces'
 import { devicePlace } from '../settings/settings.model'
 import { useStatsFor, useStatsSongs } from '../stats/statsSource'
 import {
@@ -29,7 +30,9 @@ import {
 } from './profile.model'
 import { useVia } from '../../connection/via'
 import { SongLine } from '../../ui/components/SongLine'
+import { StatFigure } from '../../ui/components/StatFigure'
 import { ScrollView } from '../../ui/components/Scroll'
+import { Press } from '../../ui/components/Press'
 import { SHOWS_WHEN_REACHABLE } from '../library/library.model'
 
 const ICONS: Record<ProfileRowId, typeof Settings> = {
@@ -136,12 +139,13 @@ function Month({
 }): ReactNode {
   const router = useRouter()
   return (
-    <Pressable
+    <Press
+      depth="row"
       onPress={() => router.push('/stats')}
       accessibilityRole="link"
       accessibilityLabel={monthCardSpoken(month)}
       testID="profile-stats"
-      style={({ pressed }) => [styles.month, pressed && styles.monthPressed]}
+      style={styles.month}
     >
       <View style={styles.monthHead}>
         <Text style={styles.monthTitle}>{MONTH_CARD_TITLE}</Text>
@@ -150,36 +154,16 @@ function Month({
       {month ? (
         <>
           <View style={styles.figures}>
-            <Figure value={month.listened} unit={month.listenedUnit} label="listened" />
-            <Figure value={month.plays} label="plays" />
-            <Figure value={month.streak} unit={month.streakUnit} label="streak" />
+            <StatFigure value={month.listened} unit={month.listenedUnit} caption="listened" />
+            <StatFigure value={month.plays} caption="plays" />
+            <StatFigure value={month.streak} unit={month.streakUnit} caption="streak" />
           </View>
           {month.onRepeat ? <OnRepeat month={month} via={via} /> : null}
         </>
       ) : (
         <Text style={styles.line}>{loading ? 'Working it out…' : SHOWS_WHEN_REACHABLE}</Text>
       )}
-    </Pressable>
-  )
-}
-
-function Figure({
-  value,
-  unit,
-  label,
-}: {
-  value: string
-  unit?: string
-  label: string
-}): ReactNode {
-  return (
-    <View style={styles.figure}>
-      <Text style={styles.figureValue} numberOfLines={1}>
-        {value}
-        {unit ? <Text style={styles.figureUnit}> {unit}</Text> : null}
-      </Text>
-      <Text style={styles.figureLabel}>{label}</Text>
-    </View>
+    </Press>
   )
 }
 
@@ -208,66 +192,33 @@ function OnRepeat({
 }
 
 function Row({ row }: { row: ProfileRow }): ReactNode {
-  const { theme } = useUnistyles()
   const router = useRouter()
   const Icon = ICONS[row.id]
-
   return (
-    <Pressable
+    <NavRow
+      icon={<Icon tone="textPrimary" />}
+      title={row.label}
+      hint={row.hint}
       onPress={() => router.push(row.href)}
-      accessibilityRole="link"
-      accessibilityLabel={`${row.label}, ${row.hint}`}
       testID={`profile-${row.id}`}
-      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-    >
-      <View style={styles.rowIcon}>
-        <Icon size={19} tone="textPrimary" />
-      </View>
-      <View style={styles.rowWords}>
-        <Text style={styles.rowLabel} numberOfLines={1}>
-          {row.label}
-        </Text>
-        <Text style={styles.rowHint} numberOfLines={1}>
-          {row.hint}
-        </Text>
-      </View>
-      <ChevronRight size={16} color={theme.colors.textMuted} />
-    </Pressable>
+    />
   )
 }
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  content: { paddingBottom: 40, gap: 24 },
-  contentWide: { paddingTop: 40, paddingHorizontal: 44, maxWidth: 640 + 88 },
-  contentNarrow: { paddingTop: 16, paddingHorizontal: space.gutter },
-  person: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  content: { paddingBottom: 40, gap: space.xl },
+  contentWide: { ...pageFrame(true), maxWidth: 640 + space.gutterWide * 2 },
+  contentNarrow: pageFrame(false),
+  person: { flexDirection: 'row', alignItems: 'center', gap: space.roomy },
   personWords: { flex: 1, minWidth: 0, gap: 3 },
-  name: { ...serif(theme.colors, type.page), lineHeight: 34 },
-  line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  name: serif(theme.colors, 'page'),
+  line: lineSub(theme.colors),
   // A big card (`S2`: 22 round) on the ground, told apart by tone.
-  month: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14 },
-  monthPressed: { opacity: 0.85 },
+  month: { ...card(theme.colors, radius.cardLg), padding: space.card, gap: space.roomy },
   monthHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   monthTitle: label(theme.colors),
   monthLink: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '600' },
-  figures: { flexDirection: 'row', gap: 12 },
-  figure: { flex: 1, minWidth: 0, gap: 2 },
-  figureValue: { ...serif(theme.colors, type.page), lineHeight: 34 },
-  figureUnit: { fontSize: type.section },
-  figureLabel: { color: theme.colors.textSecondary, fontSize: type.small },
-  repeat: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 60 },
-  rowPressed: { opacity: 0.6 },
-  rowIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surface2,
-  },
-  rowWords: { flex: 1, minWidth: 0, gap: 2 },
-  rowLabel: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  rowHint: { color: theme.colors.textSecondary, fontSize: type.small },
+  figures: { flexDirection: 'row', gap: space.md },
+  repeat: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
 }))

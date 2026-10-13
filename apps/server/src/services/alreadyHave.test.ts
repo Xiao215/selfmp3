@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { alreadyHave, libraryIndex, normaliseUrl, type LibrarySong } from './alreadyHave.js'
+import { alreadyHave, libraryIndex, type LibrarySong } from './alreadyHave.js'
 
 /**
  * The duplicate guard, against the cases that actually got through.
@@ -15,39 +15,6 @@ const song = (title: string, artist: string, extra: Partial<LibrarySong> = {}): 
   title,
   artist,
   ...extra,
-})
-
-describe('reducing a link to what identifies it', () => {
-  it('sees one video behind every way YouTube spells it', () => {
-    const forms = [
-      'https://www.youtube.com/watch?v=by4SYYWlhEs',
-      'https://music.youtube.com/watch?v=by4SYYWlhEs',
-      'https://youtu.be/by4SYYWlhEs',
-      'https://www.youtube.com/watch?v=by4SYYWlhEs&list=RDAMVM&index=1',
-      'https://www.youtube.com/shorts/by4SYYWlhEs',
-      'https://www.youtube.com/embed/by4SYYWlhEs',
-    ]
-    const ids = new Set(forms.map(normaliseUrl))
-    expect(ids).toEqual(new Set(['yt:by4SYYWlhEs']))
-  })
-
-  it('sees one 网易云 song behind every way 网易云 spells it', () => {
-    const forms = [
-      'https://music.163.com/song?id=186016',
-      'https://music.163.com/#/song?id=186016',
-      'https://y.music.163.com/m/song?id=186016&userid=7',
-    ]
-    expect(new Set(forms.map(normaliseUrl))).toEqual(new Set(['ne:186016']))
-  })
-
-  it('strips the noise a share button adds to anything else', () => {
-    expect(normaliseUrl('https://example.com/a.mp3?si=abc')).toBe('https://example.com/a.mp3')
-  })
-
-  it('has nothing to say about nothing', () => {
-    expect(normaliseUrl(null)).toBeNull()
-    expect(normaliseUrl('  ')).toBeNull()
-  })
 })
 
 describe('recognising a track the library already holds', () => {

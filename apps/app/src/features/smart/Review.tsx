@@ -1,21 +1,32 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
 import { clamp, plural, artistOr } from '@selfmp3/shared'
-import { leading, onMac, radius, space, type, withAlpha } from '@selfmp3/client'
+import {
+  hitSlopFor,
+  onMac,
+  radius,
+  space,
+  type,
+  withAlpha,
+  textStyle,
+  iconSize,
+} from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { Button } from '../../ui/components/Button'
-import { Checkbox } from '../../ui/components/Checkbox'
+import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { ChevronDown, ChevronRight, Sparkle } from '../../ui/components/Icons'
 import { useSongsById } from '../../ui/songsById'
-import { label as labelText } from '../../ui/surfaces'
+import { label as labelText, textColumn, rowTitle, hint } from '../../ui/surfaces'
 import type { AnswerKeys } from './answerKeys'
 import { keptSongs, leftOutKey, reviewBands, tickedAtFirst, type Reviewed } from './smart.model'
 import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
+import { AnswerActions, AnswerNote } from './AnswerParts'
+import { Press } from '../../ui/components/Press'
 
 /**
  * The steps the list is drawn in. A band's tick, then its title, note and
@@ -24,6 +35,9 @@ import { ScrollView } from '../../ui/components/Scroll'
  */
 const BAND_TEXT = 32
 const CHANGE_TEXT = BAND_TEXT + 18 + 12
+
+/** The round that opens a change's songs. */
+const OPEN = 26
 
 /** How many changes a heading shows before "N more". */
 const SECTION_SHOWS = 3
@@ -324,20 +338,17 @@ export function Review<T extends Reviewed>({
     const songs = shownOf(each)
     return (
       <View key={change.key}>
-        <Pressable
+        <CheckRow
           ref={place(id)}
+          checked={full}
+          mixed={on}
+          label={labelOf(each)}
           onPress={() => {
             setAt(null)
             flip([each], !full)
           }}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: full ? true : on ? 'mixed' : false }}
-          accessibilityLabel={labelOf(each)}
-          style={({ pressed }) => [
-            styles.change,
-            at === id && styles.at,
-            pressed && styles.pressed,
-          ]}
+          feedback="dim"
+          style={[styles.change, at === id && styles.at]}
           testID={`${testID}-change`}
         >
           <Checkbox checked={full} mixed={on && !full} />
@@ -345,7 +356,8 @@ export function Review<T extends Reviewed>({
             {drawChange(each, { on, full, kept: keptSongs(each, leftOut) })}
           </View>
           {many ? (
-            <Pressable
+            <Press
+              feedback="dim"
               onPress={() => {
                 setAt(null)
                 setOpen(toggle(open, change.key))
@@ -356,18 +368,18 @@ export function Review<T extends Reviewed>({
                   ? 'Hide the songs'
                   : `Show the ${plural(each.songIds.length, 'song', 'songs')}`
               }
-              hitSlop={8}
-              style={({ pressed }) => [styles.open, pressed && styles.pressed]}
+              hitSlop={hitSlopFor(OPEN)}
+              style={styles.open}
               testID={`${testID}-open`}
             >
               {opened ? (
-                <ChevronDown size={15} tone="textMuted" />
+                <ChevronDown size={iconSize.button} tone="textMuted" />
               ) : (
-                <ChevronRight size={15} tone="textMuted" />
+                <ChevronRight size={iconSize.button} tone="textMuted" />
               )}
-            </Pressable>
+            </Press>
           ) : null}
-        </Pressable>
+        </CheckRow>
         {opened ? (
           <View style={styles.songs}>
             {songs.map(songId => {
@@ -376,21 +388,17 @@ export function Review<T extends Reviewed>({
               const songStop = `song:${change.key}:${songId}`
               const kept = on && !leftOut.has(leftOutKey(change.key, songId))
               return (
-                <Pressable
+                <CheckRow
                   key={songId}
                   ref={place(songStop)}
+                  checked={kept}
+                  label={`${song.title}, ${artistOr(song.artist)}`}
                   onPress={() => {
                     setAt(null)
                     flipSong(each, songId)
                   }}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: kept }}
-                  accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
-                  style={({ pressed }) => [
-                    styles.song,
-                    at === songStop && styles.at,
-                    pressed && styles.pressed,
-                  ]}
+                  feedback="dim"
+                  style={[styles.song, at === songStop && styles.at]}
                   testID={`${testID}-song`}
                 >
                   <SongLine
@@ -401,7 +409,7 @@ export function Review<T extends Reviewed>({
                     title={song.title}
                     sub={songLine(song, each)}
                   />
-                </Pressable>
+                </CheckRow>
               )
             })}
             {songs.length < each.songIds.length ? (
@@ -424,14 +432,12 @@ export function Review<T extends Reviewed>({
     <View style={styles.body} testID={`${testID}-review`}>
       <View style={styles.top}>
         <Text style={styles.head}>{head}</Text>
-        <Text style={styles.note}>
+        <AnswerNote>
           {approved.length === 0 ? 'Nothing ticked yet.' : tickedText(approved, leftOut)}
           {waiting ? ' The ✦ ones wait for you.' : ''}
-        </Text>
+        </AnswerNote>
         {(notes ?? []).map(note => (
-          <Text key={note} style={styles.note}>
-            {note}
-          </Text>
+          <AnswerNote key={note}>{note}</AnswerNote>
         ))}
       </View>
       <ScrollView
@@ -448,29 +454,26 @@ export function Review<T extends Reviewed>({
           const text = bandText[band.by]
           return (
             <View key={band.by} style={styles.band} testID={`${testID}-band-${band.by}`}>
-              <Pressable
+              <CheckRow
                 ref={place(id)}
+                checked={all}
+                mixed={on > 0}
+                label={`${text.title}, ${on} of ${list.length} ticked`}
                 onPress={() => {
                   setAt(null)
                   flip(list, !all)
                 }}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: all ? true : on ? 'mixed' : false }}
-                accessibilityLabel={`${text.title}, ${on} of ${list.length} ticked`}
-                style={({ pressed }) => [
-                  styles.bandHead,
-                  at === id && styles.at,
-                  pressed && styles.pressed,
-                ]}
+                feedback="dim"
+                style={[styles.bandHead, at === id && styles.at]}
                 testID={`${testID}-section`}
               >
                 <Checkbox checked={all} mixed={on > 0 && !all} />
-                {model ? <Sparkle size={14} /> : null}
+                {model ? <Sparkle size={iconSize.field} /> : null}
                 <Text style={styles.bandTitle}>{text.title}</Text>
                 <Text style={styles.count}>
                   {on} of {list.length} ticked
                 </Text>
-              </Pressable>
+              </CheckRow>
               <Text style={styles.bandNote}>{text.note}</Text>
               {band.sections.map(section => {
                 const shown = allOf.has(section.title)
@@ -504,7 +507,7 @@ export function Review<T extends Reviewed>({
           )
         })}
       </ScrollView>
-      <View style={styles.actions}>
+      <AnswerActions>
         {onClose ? <Button label="Close" onPress={onClose} /> : null}
         <Button
           label={applyLabel(approved, leftOut)}
@@ -514,7 +517,7 @@ export function Review<T extends Reviewed>({
           onPress={() => void apply()}
           testID={`${testID}-apply`}
         />
-      </View>
+      </AnswerActions>
     </View>
   )
 }
@@ -541,49 +544,42 @@ function More({
   onPress: () => void
 }): ReactNode {
   return (
-    <Pressable
+    <Press
+      feedback="dim"
       ref={place(stop)}
       onPress={onPress}
       accessibilityRole="button"
-      style={({ pressed }) => [
-        styles.more,
-        { marginLeft: indent - space.sm },
-        at === stop && styles.at,
-        pressed && styles.pressed,
-      ]}
+      style={[styles.more, { marginLeft: indent - space.sm }, at === stop && styles.at]}
     >
       <Text style={styles.moreText}>{text}</Text>
-    </Pressable>
+    </Press>
   )
 }
 
 /** The words of a change: a name line and a quiet line under it, as both reviews draw them. */
 export const reviewText = StyleSheet.create(theme => ({
-  name: { color: theme.colors.textPrimary, fontSize: type.sub, lineHeight: leading.sub },
+  name: { color: theme.colors.textPrimary, ...textStyle('sub') },
   gone: {
     color: theme.colors.danger,
     textDecorationLine: 'line-through',
     borderRadius: 3,
-    backgroundColor: withAlpha(theme.colors.danger, 0.14),
+    backgroundColor: theme.colors.dangerWash,
   },
   new: {
     color: theme.colors.good,
     borderRadius: 3,
-    backgroundColor: withAlpha(theme.colors.good, 0.14),
+    backgroundColor: theme.colors.goodWash,
   },
   arrow: { color: theme.colors.textMuted },
   meta: { color: theme.colors.textMuted, fontSize: type.small },
-  line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
-  note: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
   /** The model's own words about what was asked. */
-  reply: { color: theme.colors.textPrimary, fontSize: type.body, lineHeight: leading.body },
+  reply: { color: theme.colors.textPrimary, ...textStyle('body') },
 }))
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm },
   top: { gap: 2 },
   head: { color: theme.colors.textPrimary, fontSize: type.title, fontWeight: '600' },
-  note: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
   list: { gap: space.sm },
   // Tints rather than surfaces: the palette is surface1 and the sheet surface2.
   band: {
@@ -596,17 +592,15 @@ const styles = StyleSheet.create(theme => ({
   bandHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 8,
+    gap: space.snug,
+    paddingVertical: space.sm,
     paddingHorizontal: space.xs,
     borderRadius: radius.coverSm,
   },
-  bandTitle: { flex: 1, color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  bandTitle: { flex: 1, ...rowTitle(theme.colors) },
   count: { color: theme.colors.textMuted, fontSize: type.small, fontVariant: ['tabular-nums'] },
   bandNote: {
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    lineHeight: leading.small,
+    ...hint(theme.colors),
     paddingLeft: BAND_TEXT,
     paddingBottom: space.xs,
   },
@@ -624,17 +618,17 @@ const styles = StyleSheet.create(theme => ({
   change: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: space.md,
     paddingVertical: 7,
     paddingLeft: BAND_TEXT,
     paddingRight: space.xs,
     borderRadius: radius.coverSm,
   },
   at: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.07) },
-  words: { flex: 1, minWidth: 0, gap: 2 },
+  words: textColumn,
   open: {
-    width: 26,
-    height: 26,
+    width: OPEN,
+    height: OPEN,
     marginTop: -3,
     borderRadius: radius.pill,
     alignItems: 'center',
@@ -644,8 +638,8 @@ const styles = StyleSheet.create(theme => ({
   song: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 4,
+    gap: space.snug,
+    paddingVertical: space.xs,
     paddingHorizontal: space.xs,
     borderRadius: radius.coverSm,
   },
@@ -658,6 +652,4 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.coverSm,
   },
   moreText: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '500' },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
-  pressed: { opacity: 0.7 },
 }))

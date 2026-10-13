@@ -13,11 +13,10 @@ import {
   dragTarget,
   draggedOut,
   nextLabel,
-  nextSummary,
   onlySongEnded,
   queueRows,
-  RAIL_OVERSCAN,
-  railWindow,
+  upNextWindow,
+  WINDOW_OVERSCAN,
   removalOf,
   restoreIndex,
   restoreMoves,
@@ -69,18 +68,16 @@ describe('queueRows', () => {
 describe('the counts', () => {
   const rows = queueRows(state([1, 2, 3], 0), byId([1, 2, 3]))
 
-  it('says how many are next and for how long', () => {
-    expect(nextSummary(rows.next)).toBe('2 songs · 8 min')
-    expect(nextLabel(rows.next)).toBe('Next · 2 songs, 8 min')
+  it('says how many are next and for how long, the same on a phone and a computer', () => {
+    expect(nextLabel(rows.next)).toBe('Next · 2 songs · 8 min')
   })
 
   it('says one song, not one songs', () => {
-    expect(nextSummary(rows.next.slice(0, 1))).toBe('1 song · 4 min')
+    expect(nextLabel(rows.next.slice(0, 1))).toBe('Next · 1 song · 4 min')
   })
 
   it('says when nothing is next', () => {
-    expect(nextSummary([])).toBe('Nothing after this one')
-    expect(nextLabel([])).toBe('Nothing next')
+    expect(nextLabel([])).toBe('Nothing after this one')
   })
 })
 
@@ -142,27 +139,28 @@ describe('the drag', () => {
   })
 })
 
-describe('the rows the rail draws', () => {
+describe('the rows Up next draws', () => {
   const row = 44
   it('draws what is in view and a margin either side, nothing past the run', () => {
     // 3,000 songs, scrolled to row 100 with ten rows of room.
-    const at = railWindow({
+    const at = upNextWindow({
       count: 3000,
       runTop: 0,
       scrollTop: 100 * row,
       span: 10 * row,
       rowHeight: row,
     })
-    expect(at).toEqual({ start: 100 - RAIL_OVERSCAN, end: 110 + RAIL_OVERSCAN })
+    expect(at).toEqual({ start: 100 - WINDOW_OVERSCAN, end: 110 + WINDOW_OVERSCAN })
   })
 
   it('starts at the first row and stops at the last', () => {
-    expect(railWindow({ count: 5, runTop: 0, scrollTop: 0, span: 800, rowHeight: row })).toEqual({
+    expect(upNextWindow({ count: 5, runTop: 0, scrollTop: 0, span: 800, rowHeight: row })).toEqual({
       start: 0,
       end: 5,
     })
     expect(
-      railWindow({ count: 3000, runTop: 0, scrollTop: 2995 * row, span: 800, rowHeight: row }).end,
+      upNextWindow({ count: 3000, runTop: 0, scrollTop: 2995 * row, span: 800, rowHeight: row })
+        .end,
     ).toBe(3000)
   })
 
@@ -170,18 +168,18 @@ describe('the rows the rail draws', () => {
     // The played rows begin after 50 to come and a label: a viewport at the
     // top of the list reaches none of them.
     const runTop = 44 + 50 * row + 30
-    expect(railWindow({ count: 20, runTop, scrollTop: 0, span: 600, rowHeight: row })).toEqual({
+    expect(upNextWindow({ count: 20, runTop, scrollTop: 0, span: 600, rowHeight: row })).toEqual({
       start: 0,
       end: 0,
     })
     // Scrolled to just past the label, the first of them are drawn.
-    const there = railWindow({ count: 20, runTop, scrollTop: runTop, span: 600, rowHeight: row })
+    const there = upNextWindow({ count: 20, runTop, scrollTop: runTop, span: 600, rowHeight: row })
     expect(there.start).toBe(0)
-    expect(there.end).toBe(Math.min(20, Math.ceil(600 / row) + RAIL_OVERSCAN))
+    expect(there.end).toBe(Math.min(20, Math.ceil(600 / row) + WINDOW_OVERSCAN))
   })
 
   it('draws nothing for an empty run', () => {
-    expect(railWindow({ count: 0, runTop: 0, scrollTop: 0, span: 800, rowHeight: row })).toEqual({
+    expect(upNextWindow({ count: 0, runTop: 0, scrollTop: 0, span: 800, rowHeight: row })).toEqual({
       start: 0,
       end: 0,
     })

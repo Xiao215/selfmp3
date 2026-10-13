@@ -1,4 +1,4 @@
-import { activeTab } from '../ui/components/bottomNav.model'
+import { activeTab } from './nav.model'
 import { GATE_ROUTES } from './fullScreen.model'
 
 /**

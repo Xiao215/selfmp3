@@ -1,4 +1,5 @@
 import {
+  localDayKey,
   toSqliteTime,
   type DailyPlays,
   type HourlyPlays,
@@ -8,7 +9,7 @@ import {
   type TopSong,
 } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
-import { dayGap, runs, toMinutes } from './listening.js'
+import { dayGap, runs, toMinutes, topArtists, type ArtistPlaysRow } from './listening.js'
 
 /**
  * Listening statistics, derived from the `play_events` table.
@@ -241,18 +242,14 @@ export class StatsRepository {
       if (slot) hourly[hour] = { hour, plays: row.plays }
     }
 
-    // 'Unknown artist' is `UNKNOWN_ARTIST` from @selfmp3/shared, which the app
-    // compares this key with: change the two together.
-    const topArtists: TopEntry[] = this.#db
-      .prepare<unknown[], { key: string; plays: number; ms: number | null }>(
-        `SELECT COALESCE(NULLIF(s.artist, ''), 'Unknown artist') AS key,
-                COUNT(*) AS plays, COALESCE(SUM(e.ms_played), 0) AS ms
+    const artistRows = this.#db
+      .prepare<unknown[], ArtistPlaysRow>(
+        `SELECT s.artist, COUNT(*) AS plays, COALESCE(SUM(e.ms_played), 0) AS ms
            FROM play_events e JOIN songs s ON s.id = e.song_id
           WHERE ${joined.clause}
-          GROUP BY key ORDER BY plays DESC, key LIMIT 10`,
+          GROUP BY s.artist ORDER BY plays DESC`,
       )
       .all(...params)
-      .map(row => ({ key: row.key, plays: row.plays, minutes: toMinutes(row.ms) }))
 
     const topTags: TopEntry[] = this.#db
       .prepare<unknown[], { key: string; plays: number; ms: number | null }>(
@@ -310,7 +307,7 @@ export class StatsRepository {
       longestStreakDays: streaks.longest,
       daily: filledDaily,
       hourly,
-      topArtists,
+      topArtists: topArtists(artistRows, 10),
       topTags,
       topSongs,
     }
@@ -327,7 +324,7 @@ export class StatsRepository {
     const { longest, last } = runs(dates)
     const lastDate = dates.at(-1)
     if (lastDate === undefined) return { current: 0, longest }
-    return { current: dayGap(lastDate, localDate(new Date())) <= 1 ? last : 0, longest }
+    return { current: dayGap(lastDate, localDayKey(new Date())) <= 1 ? last : 0, longest }
   }
 
   /** Recent plays, newest first. Powers the history list. */
@@ -345,13 +342,6 @@ export class StatsRepository {
   }
 }
 
-function localDate(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
 /** Insert zero rows for days with no plays, so charts show a continuous axis. */
 function zeroFill(rows: readonly DailyPlays[], days: number): DailyPlays[] {
   const byDate = new Map(rows.map(row => [row.date, row]))
@@ -360,7 +350,7 @@ function zeroFill(rows: readonly DailyPlays[], days: number): DailyPlays[] {
   for (let offset = days - 1; offset >= 0; offset--) {
     const day = new Date(today)
     day.setDate(day.getDate() - offset)
-    const key = localDate(day)
+    const key = localDayKey(day)
     out.push(byDate.get(key) ?? { date: key, plays: 0, minutes: 0 })
   }
   return out

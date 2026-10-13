@@ -1,8 +1,7 @@
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import { isCloudFileKey, isHashNamedCloudKey } from '@selfmp3/shared'
+import { messageOf, isCloudFileKey, isHashNamedCloudKey } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * Small files from the bucket, kept on this disk once read or sent: a song's

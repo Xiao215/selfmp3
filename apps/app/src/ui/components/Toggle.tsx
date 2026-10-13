@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated } from 'react-native'
+import { Animated, Text, View } from 'react-native'
+import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
+import { hitSlopFor, space } from '@selfmp3/client'
 import { spring } from '../motion'
+import { OPACITY } from '../motion.model'
 import { Press } from './Press'
+import { rowTitle, lineSub, textColumn } from '../surfaces'
 
 /**
  * On or off.
@@ -58,7 +62,12 @@ export function Toggle({
       disabled={disabled}
       // The track is 42 by 24; the slop brings the target up to the 44-point
       // minimum without changing what is drawn.
-      hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+      hitSlop={{
+        top: hitSlopFor(TRACK.height),
+        bottom: hitSlopFor(TRACK.height),
+        left: hitSlopFor(TRACK.width),
+        right: hitSlopFor(TRACK.width),
+      }}
       role="switch"
       aria-checked={value}
       accessibilityState={{ checked: value, disabled }}
@@ -78,6 +87,55 @@ export function Toggle({
       <Animated.View pointerEvents="none" style={[styles.knobOff, slide]} />
       <Animated.View pointerEvents="none" style={[styles.knobOn, slide, lit]} />
     </Press>
+  )
+}
+
+/**
+ * A switch with its words: the name, and a line on what it does. The switch
+ * stands before them on a card of its own — Keep it going, a first sync's
+ * keep this device in step — or at the end of a list of them (`at="end"`), as
+ * a room's "Friends can" does. Settings' rows have their own table
+ * (`SettingsParts`' `Row`), where every kind of control sits at the end.
+ */
+export function ToggleRow({
+  label,
+  hint,
+  value,
+  onChange,
+  at = 'start',
+  hintLines,
+  disabled,
+  testID,
+  style,
+}: {
+  label: string
+  hint?: string
+  value: boolean
+  onChange: (value: boolean) => void
+  at?: 'start' | 'end'
+  /** How many lines the hint may take before it is cut. */
+  hintLines?: number
+  disabled?: boolean
+  /** The switch's. */
+  testID?: string
+  style?: StyleProp<ViewStyle>
+}): ReactNode {
+  const toggle = (
+    <Toggle value={value} onChange={onChange} label={label} disabled={disabled} testID={testID} />
+  )
+  return (
+    <View style={[styles.row, style]}>
+      {at === 'start' ? toggle : null}
+      <View style={styles.words}>
+        <Text style={styles.name}>{label}</Text>
+        {hint ? (
+          <Text style={styles.hint} numberOfLines={hintLines}>
+            {hint}
+          </Text>
+        ) : null}
+      </View>
+      {at === 'end' ? toggle : null}
+    </View>
   )
 }
 
@@ -126,5 +184,9 @@ const styles = StyleSheet.create(theme => ({
   },
   knobOn: { ...KNOB, backgroundColor: theme.colors.onAccent },
   knobOff: { ...KNOB, backgroundColor: theme.colors.textPrimary },
-  disabled: { opacity: 0.45 },
+  disabled: { opacity: OPACITY.disabled },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 48 },
+  words: textColumn,
+  name: rowTitle(theme.colors),
+  hint: lineSub(theme.colors),
 }))

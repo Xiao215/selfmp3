@@ -155,6 +155,25 @@ export function paletteResults(
   }
 }
 
+/** How many lines of lyrics the palette shows, of the ones Search asks for. */
+export const PALETTE_LYRICS = 6
+
+/**
+ * How many rows a find draws, its lines of lyrics with them: what tells Enter
+ * whether anything matched, so whether it asks (`useLibrarySearch`).
+ */
+export function paletteMatches(found: PaletteResults, lyricHits: number): number {
+  return (
+    found.recent.length +
+    found.artists.length +
+    found.tags.length +
+    found.songs.length +
+    Math.min(lyricHits, PALETTE_LYRICS) +
+    found.playlists.length +
+    found.commands.length
+  )
+}
+
 /** The highlight after an arrow key, wrapping at both ends. */
 export function stepIndex(current: number, delta: number, count: number): number {
   if (count <= 0) return 0

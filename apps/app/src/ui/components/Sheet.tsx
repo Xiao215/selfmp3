@@ -1,18 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
+import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import { HIT_TARGET, motion, radius, space, type, withAlpha } from '@selfmp3/client'
+import { iconSize, motion, radius, space, type } from '@selfmp3/client'
+import { sizedIcon } from './Icons'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { useLayoutValue, useWindowValue } from '../../shell/useLayout'
 import { PanelDenseContext, usePanelDense } from './panel'
 import { Press } from './Press'
-import { floating } from '../surfaces'
+import { floating, rowTitle, menuItem, menuItemDense } from '../surfaces'
 import { ease, spring, timing } from '../motion'
-import { MOVE_MS, overshootRange, PULL } from '../motion.model'
+import { MOVE_MS, OPACITY, overshootRange, PULL } from '../motion.model'
 import { useKeyboardLift } from '../../ports/keyboardLift'
 
 /**
@@ -99,8 +101,9 @@ export function Sheet({
   // State rather than a ref: it is read while rendering, and a ref read
   // during render is what the React Compiler objects to (see Equalizer).
   const [progress] = useState(() => new Animated.Value(0))
-  // How far a finger has pulled the panel down, added to its rise.
-  const [pull] = useState(() => new Animated.Value(0))
+  // Every sheet — menus, the tag picker, sleep — can be pulled away by its
+  // head; `pull` is how far a finger has pulled it, added to its rise.
+  const { pull, gesture: pullDown } = useSheetPull(onClose)
   // Whether this opening's rise has already been sent. A sheet's height changes
   // while it is up — the tag picker's list shortens as you type — and without
   // this the rise would play again every time it did.
@@ -136,29 +139,6 @@ export function Sheet({
     if (wide) timing(progress, 1, motion.slow, undefined, { easing: ease.out })
     else timing(progress, 1, MOVE_MS.sheetUp, undefined, { easing: ease.overshoot })
   }, [open, progress, pull, wide, measured])
-
-  /*
-   * Pulled down by its head: the panel follows the finger, and far enough or
-   * fast enough puts it away. Only the head, not the items, so a pull on a long
-   * list of tags is still a scroll. Every sheet — menus, the tag picker, sleep
-   * — can be pulled away.
-   */
-  const pullDown = useMemo(
-    () =>
-      Gesture.Pan()
-        .activeOffsetY(8)
-        .failOffsetX([-20, 20])
-        .runOnJS(true)
-        .onUpdate(event => pull.setValue(Math.max(0, event.translationY)))
-        .onEnd((event, success) => {
-          if (success && (event.translationY > PULL.close || event.velocityY > PULL.flick)) {
-            onClose()
-          } else {
-            spring(pull, 0)
-          }
-        }),
-    [pull, onClose],
-  )
 
   // The curve runs past 1 on the way up; nothing that fades goes past opaque.
   const shown = useMemo(
@@ -219,9 +199,7 @@ export function Sheet({
   // (src/shell/Overlay.tsx says why).
   useOverlay(
     <>
-      <Animated.View style={[styles.backdrop, { opacity: shown }]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
-      </Animated.View>
+      <SheetBackdrop opacity={shown} onClose={onClose} />
       {wide ? (
         <View pointerEvents="box-none" style={styles.dialogFrame}>
           <Animated.View
@@ -256,7 +234,7 @@ export function Sheet({
           {/* The grabber and the title are the handle the sheet is pulled by. */}
           <GestureDetector gesture={pullDown}>
             <View style={styles.handle}>
-              <View style={styles.grabber} />
+              <SheetGrabber style={styles.grabberGap} />
               {head}
             </View>
           </GestureDetector>
@@ -275,6 +253,59 @@ export function Sheet({
   return null
 }
 
+/**
+ * A sheet pulled down by its head: the panel follows the finger (`pull`, to
+ * add to its rise), and far enough or fast enough puts it away. Only the head
+ * holds the gesture, not the items, so a pull on a long list is still a
+ * scroll. Every sheet and Up next's (`QueueSheet`) pull the same way.
+ */
+export function useSheetPull(onClose: () => void): {
+  pull: Animated.Value
+  gesture: ReturnType<typeof Gesture.Pan>
+} {
+  const [pull] = useState(() => new Animated.Value(0))
+  const gesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetY(8)
+        .failOffsetX([-20, 20])
+        .runOnJS(true)
+        .onUpdate(event => pull.setValue(Math.max(0, event.translationY)))
+        .onEnd((event, success) => {
+          if (success && (event.translationY > PULL.close || event.velocityY > PULL.flick)) {
+            onClose()
+          } else {
+            spring(pull, 0)
+          }
+        }),
+    [pull, onClose],
+  )
+  return { pull, gesture }
+}
+
+/** The dim behind a sheet, which closes it when pressed. */
+export function SheetBackdrop({
+  opacity,
+  onClose,
+  label = 'Close',
+}: {
+  opacity: Animated.Value | Animated.AnimatedInterpolation<number>
+  onClose: () => void
+  /** What a screen reader calls it: "Close Up next". */
+  label?: string
+}): ReactNode {
+  return (
+    <Animated.View style={[styles.backdrop, { opacity }]}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel={label} />
+    </Animated.View>
+  )
+}
+
+/** The bar at a sheet's head that says it can be pulled. */
+export function SheetGrabber({ style }: { style?: StyleProp<ViewStyle> }): ReactNode {
+  return <View style={[styles.grabber, style]} />
+}
+
 /** One line of a sheet: an icon, a label, and what it does. */
 export function SheetItem({
   icon,
@@ -285,6 +316,7 @@ export function SheetItem({
   danger = false,
   disabled = false,
   role = 'menuitem',
+  testID,
 }: {
   icon?: ReactNode
   label: string
@@ -295,6 +327,7 @@ export function SheetItem({
   disabled?: boolean
   /** A menu's action, or one of a list's choices (a `Select`'s options). */
   role?: 'menuitem' | 'option'
+  testID?: string
 }): ReactNode {
   const { theme } = useUnistyles()
   const dense = usePanelDense()
@@ -319,6 +352,7 @@ export function SheetItem({
       onHoverIn={dense ? () => setHovered(true) : undefined}
       onHoverOut={dense ? () => setHovered(false) : undefined}
       role={role}
+      testID={testID}
       aria-selected={role === 'option' ? active : undefined}
       accessibilityState={{ selected: active, disabled }}
       style={({ pressed }) => [
@@ -331,7 +365,7 @@ export function SheetItem({
         disabled && styles.itemDisabled,
       ]}
     >
-      {icon ? <View style={styles.itemIcon}>{icon}</View> : null}
+      {icon ? <View style={styles.itemIcon}>{sizedIcon(icon, iconSize.item)}</View> : null}
       <Text
         style={[styles.itemLabel, dense && styles.itemLabelDense, { color: ink }]}
         numberOfLines={1}
@@ -409,8 +443,8 @@ const styles = StyleSheet.create(theme => ({
     height: 4,
     borderRadius: 2,
     backgroundColor: theme.colors.surface3,
-    marginBottom: space.sm,
   },
+  grabberGap: { marginBottom: space.sm },
   head: {
     paddingHorizontal: space.md,
     paddingTop: space.xs,
@@ -423,40 +457,24 @@ const styles = StyleSheet.create(theme => ({
     fontWeight: '400',
     color: theme.colors.textMuted,
   },
-  title: {
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
-  },
+  title: rowTitle(theme.colors),
   subtitle: {
     color: theme.colors.textMuted,
     fontSize: type.small,
   },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    minHeight: HIT_TARGET + 4,
-    paddingHorizontal: space.md,
-    borderRadius: 12,
-  },
+  item: menuItem,
   // The chosen line is a lighter surface, not accent ink: the accent is kept
   // for the one button that commits something (`S2`).
   itemActive: {
     backgroundColor: theme.colors.surface2,
   },
   /* In a panel with a mouse: 8 by 10, 13-point type. */
-  itemDense: {
-    minHeight: 0,
-    gap: 9,
-    paddingVertical: space.sm,
-    paddingHorizontal: 10,
-  },
+  itemDense: menuItemDense,
   itemActiveDense: {
     backgroundColor: theme.colors.surface3,
   },
   itemDangerDense: {
-    backgroundColor: withAlpha(theme.colors.danger, 0.12),
+    backgroundColor: theme.colors.dangerWash,
   },
   itemLabelDense: {
     fontSize: type.sub,
@@ -465,7 +483,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
   },
   itemDisabled: {
-    opacity: 0.45,
+    opacity: OPACITY.disabled,
   },
   itemIcon: {
     width: 18,

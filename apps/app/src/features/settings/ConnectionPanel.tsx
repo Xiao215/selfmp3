@@ -2,12 +2,7 @@ import type { ReactNode } from 'react'
 import { Linking, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import {
-  useJoinSharedServer,
-  useLibrary,
-  useRemoveServerGrant,
-  useServerGrants,
-} from '@selfmp3/client'
+import { useLibrary, useRemoveServerGrant, useServerGrants, space } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { sharedServerUrl } from '../../ports/sharedServerUrl'
 import { Button } from '../../ui/components/Button'
@@ -17,9 +12,10 @@ import { BACKBLAZE_CAPS_URL, untilCapResets } from '../library/library.model'
 import { useBucketHold } from '../profile/useBucketHold'
 import { useCloudSession } from '../profile/useCloudSession'
 import { STORAGE_ROUTE, whereItIs } from '../welcome/storage.model'
+import { JoinSharedButton } from '../../connection/ServerAway'
 import { ButtonRow, Details, Panel, partStyles, Row } from './SettingsParts'
 import { computerRow, noComputersHint } from './computers.model'
-import { type Confirming } from './settings.model'
+import type { Confirming } from './settings.model'
 import { plural } from '@selfmp3/shared'
 
 /**
@@ -156,7 +152,7 @@ export function ConnectionPanel({
       <ButtonRow>
         <Button
           label="Refresh"
-          icon={<Refresh size={15} tone="textPrimary" />}
+          icon={<Refresh tone="textPrimary" />}
           onPress={() => void library.refetch()}
         />
       </ButtonRow>
@@ -167,9 +163,8 @@ export function ConnectionPanel({
 /** The servers this account has let in, each with Remove; the shared one offered when there are none. */
 function Computers(): ReactNode {
   const grants = useServerGrants()
-  const join = useJoinSharedServer()
   const remove = useRemoveServerGrant()
-  const failed = join.error ?? remove.error
+  const failed = remove.error
   const list = grants.data?.grants
   if (!list || list.length === 0) {
     return (
@@ -180,19 +175,10 @@ function Computers(): ReactNode {
             ? 'Loading…'
             : grants.isError
               ? 'Can’t say right now.'
-              : failed
-                ? failed.message
-                : noComputersHint(sharedServerUrl)
+              : noComputersHint(sharedServerUrl)
         }
       >
-        {list && sharedServerUrl ? (
-          <Button
-            label={join.isPending ? 'Joining…' : 'Use the shared computer'}
-            disabled={join.isPending}
-            onPress={() => join.mutate()}
-            testID="cloud-computer-join"
-          />
-        ) : null}
+        {list && sharedServerUrl ? <JoinSharedButton testID="cloud-computer-join" /> : null}
       </Row>
     )
   }
@@ -217,6 +203,6 @@ function Computers(): ReactNode {
 }
 
 const styles = StyleSheet.create(theme => ({
-  pair: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  pair: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   capped: { color: theme.colors.danger },
 }))

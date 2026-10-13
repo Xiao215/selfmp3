@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, View } from 'react-native'
+import { Animated, Pressable, Text } from 'react-native'
+import type { LayoutChangeEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePressScale } from '../motion'
-import { radius, tagColors, type } from '@selfmp3/client'
-import { Check } from './Icons'
+import { hitSlopFor, leading, radius, type, iconSize, space } from '@selfmp3/client'
+import { Check, sizedIcon } from './Icons'
 import { Press } from './Press'
+import { TagDot } from './TagDot'
 import { plural } from '@selfmp3/shared'
 
 /**
@@ -23,8 +25,15 @@ import { plural } from '@selfmp3/shared'
  * `count` puts the tag's song count on the pill, dimmed.
  *
  * A finger's target on a phone: 8 by 14 around 13-point text. `compact` is
- * the smaller chip for a row with a mouse. `onRemove` adds the ×. `dashed` is
- * the add chip: an outline and no fill, for "+ tag".
+ * the smaller chip for a row with a mouse. `onRemove` adds the ×, which says
+ * "Remove tag <name>" unless `removeLabel` says better (an artist's chip).
+ * `dashed` is the add chip: an outline and no fill, for "+ tag", whose
+ * `accessibilityLabel` can say more than its two words.
+ *
+ * A chip is a toggle; `role="link"` makes it a way to a place instead — the
+ * Settings index on a phone, whose lit chip is the section on screen.
+ * `onLayout` reports where it sits in its row, for a row that scrolls the lit
+ * one into view.
  */
 export function Chip({
   testID,
@@ -38,6 +47,10 @@ export function Chip({
   dashed = false,
   onPress,
   onRemove,
+  removeLabel,
+  accessibilityLabel,
+  onLayout,
+  role = 'button',
 }: {
   testID?: string
   label: string
@@ -50,10 +63,15 @@ export function Chip({
   dashed?: boolean
   onPress: () => void
   onRemove?: () => void
+  /** What the × says: "Remove tag <name>" by default. */
+  removeLabel?: string
+  /** What the chip says, when its label is too short to: "Add a tag it fills from". */
+  accessibilityLabel?: string
+  onLayout?: (event: LayoutChangeEvent) => void
+  role?: 'button' | 'link'
 }): ReactNode {
   const { theme } = useUnistyles()
   const press = usePressScale()
-  const dot = hue === undefined ? null : tagColors(hue).dot
   const text = selected ? theme.colors.onPrimary : theme.colors.textPrimary
 
   const padding = compact ? styles.labelCompact : styles.labelStrip
@@ -67,6 +85,7 @@ export function Chip({
   return (
     <Animated.View
       testID={testID}
+      onLayout={onLayout}
       style={[
         styles.chip,
         selected ? styles.chipSelected : dashed ? styles.chipDashed : styles.chipOff,
@@ -76,14 +95,17 @@ export function Chip({
       <Pressable
         {...press.handlers}
         onPress={onPress}
-        accessibilityRole="button"
+        accessibilityRole={role}
         accessibilityLabel={
-          count === undefined ? label : `${label}, ${plural(count, 'song', 'songs')}`
+          accessibilityLabel ??
+          (count === undefined ? label : `${label}, ${plural(count, 'song', 'songs')}`)
         }
         accessibilityState={{ selected }}
-        // A chip is a toggle; react-native-web does not turn `accessibilityState`
-        // into anything a browser reads, so the state is said here too.
-        aria-pressed={selected}
+        // react-native-web does not turn `accessibilityState` into anything a
+        // browser reads, so the state is said here too: pressed for a toggle,
+        // the current place for a link.
+        aria-pressed={role === 'button' ? selected : undefined}
+        aria-current={role === 'link' && selected ? 'page' : undefined}
         style={({ pressed }) => [
           styles.press,
           padding,
@@ -91,22 +113,23 @@ export function Chip({
           pressed && styles.pressed,
         ]}
       >
-        {icon}
-        {dot === null ? null : <View style={[styles.dot, { backgroundColor: dot }]} />}
-        {choice && selected ? <Check size={compact ? 11 : 12} color={text} /> : null}
+        {sizedIcon(icon, iconSize.small)}
+        {hue === undefined ? null : <TagDot hue={hue} size={7} />}
+        {choice && selected ? (
+          <Check size={compact ? iconSize.tiny : iconSize.small} color={text} />
+        ) : null}
         {name}
         {count === undefined ? null : <Text style={[styles.count, { color: text }]}>{count}</Text>}
       </Pressable>
       {onRemove ? (
-        // Its own press, sinking on the spring like everything else pressable:
-        // the chip around it is a separate target with a separate answer.
+        // Its own press: the chip around it is a separate target with a separate answer.
         <Press
-          depth="control"
+          feedback="dim"
           onPress={onRemove}
           accessibilityRole="button"
-          accessibilityLabel={`Remove tag ${label}`}
-          hitSlop={6}
-          style={({ pressed }) => [styles.remove, pressed && styles.pressed]}
+          accessibilityLabel={removeLabel ?? `Remove tag ${label}`}
+          hitSlop={hitSlopFor(leading.body)}
+          style={styles.remove}
         >
           <Text style={[styles.removeGlyph, { color: text }]}>×</Text>
         </Press>
@@ -133,11 +156,10 @@ const styles = StyleSheet.create(theme => ({
   press: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: space.tight,
   },
-  dot: { width: 7, height: 7, borderRadius: 3.5 },
-  labelStrip: { paddingHorizontal: 14, paddingVertical: 8 },
-  labelCompact: { paddingHorizontal: 10, paddingVertical: 5 },
+  labelStrip: { paddingHorizontal: space.roomy, paddingVertical: space.sm },
+  labelCompact: { paddingHorizontal: space.snug, paddingVertical: 5 },
   beforeRemove: { paddingRight: 2 },
   pressed: {
     opacity: 0.8,
@@ -147,6 +169,6 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.sub,
     fontWeight: '500',
   },
-  remove: { paddingLeft: 2, paddingRight: 10 },
+  remove: { paddingLeft: 2, paddingRight: space.snug },
   removeGlyph: { fontSize: type.body, opacity: 0.6 },
 }))

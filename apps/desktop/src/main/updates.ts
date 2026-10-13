@@ -1,9 +1,7 @@
 import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { EVENTS, type UpdateStatus } from '@selfmp3/desktop-bridge'
-import { z } from 'zod'
-
-import { isNewer, LATEST_RELEASE_API, RELEASES_URL, versionFromTag } from '@selfmp3/shared'
+import { fetchLatestRelease, isNewer, messageOf } from '@selfmp3/shared'
 
 /**
  * Whether there is a newer self.mp3, and what can be done about it.
@@ -50,16 +48,6 @@ function canInstall(): boolean {
   return app.isPackaged && __SELFMP3_SIGNED__
 }
 
-/**
- * The two fields of GitHub's latest-release answer this reads. Either one
- * missing or odd falls back rather than failing: no tag is "nothing to compare
- * with", no page is the releases list.
- */
-const LatestReleaseSchema = z.object({
-  tag_name: z.string().catch(''),
-  html_url: z.string().catch(RELEASES_URL),
-})
-
 function publish(window_: BrowserWindow | null, next: Partial<UpdateStatus>): void {
   status = { ...status, ...next }
   window_?.webContents.send(EVENTS.update, status)
@@ -103,22 +91,18 @@ export async function check(window_: BrowserWindow | null): Promise<UpdateStatus
   }
 
   try {
-    const response = await fetch(LATEST_RELEASE_API, {
-      headers: { Accept: 'application/vnd.github+json' },
-      signal: AbortSignal.timeout(10_000),
-    })
-    if (!response.ok) throw new Error(`GitHub answered ${response.status}`)
-    const { tag_name: tag, html_url: url } = LatestReleaseSchema.parse(await response.json())
-    const found = versionFromTag(tag)
-    if (found === null) {
+    // No release yet (GitHub's 404) is nothing to compare with, as it is for the web's offer.
+    const release = await fetchLatestRelease(fetch)
+    const found = release?.version ?? null
+    if (release === null || found === null) {
       publish(window_, { state: 'none', message: 'no release to compare with' })
       return status
     }
     publish(
       window_,
       isNewer(found, app.getVersion())
-        ? { state: 'available', version: found, releaseUrl: url }
-        : { state: 'none', version: found, releaseUrl: url },
+        ? { state: 'available', version: found, releaseUrl: release.page }
+        : { state: 'none', version: found, releaseUrl: release.page },
     )
     return status
   } catch (error) {
@@ -132,8 +116,4 @@ export async function install(): Promise<void> {
   if (!canInstall() || status.state !== 'ready') return
   const { autoUpdater } = await import('electron-updater')
   autoUpdater.quitAndInstall()
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

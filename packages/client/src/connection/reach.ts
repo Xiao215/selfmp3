@@ -20,6 +20,13 @@ import type { ServerConnection } from './connection.js'
 /** How long one address gets to answer. A server that is on answers in a few ms. */
 export const PROBE_TIMEOUT_MS = 3_000
 
+/**
+ * How long an ordinary request waits before the server is called asleep: a
+ * slow request is almost always a sleeping server, so the app and the
+ * extension both give up here rather than hang.
+ */
+export const REQUEST_TIMEOUT_MS = 15_000
+
 /** How often the screen looks again, whether the server was found or not. */
 export const LOOK_AGAIN_MS = 20_000
 

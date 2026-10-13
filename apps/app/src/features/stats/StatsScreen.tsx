@@ -1,28 +1,23 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, View } from 'react-native'
+import { Animated, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg'
-import type { Song, Stats } from '@selfmp3/shared'
-import {
-  leading,
-  motion,
-  radius,
-  tagColors,
-  type,
-  useLibrary,
-  type ServerConnection,
-} from '@selfmp3/client'
+import type { Song, Stats, Tag } from '@selfmp3/shared'
+import { motion, radius, type, useLibrary, type ServerConnection, space } from '@selfmp3/client'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { useArt } from '../../offline/useArt'
 import { Cover } from '../../ui/components/Cover'
+import { TagDot } from '../../ui/components/TagDot'
 import { Segmented } from '../../ui/components/Segmented'
 import { useFade } from '../../ui/motion'
-import { card, label, serif } from '../../ui/surfaces'
+import { card, label, serif, rowTitle } from '../../ui/surfaces'
+import { SectionHead } from '../../ui/components/SectionHead'
 import { songLink } from '../song/song.model'
-import { artistLink, tagLink } from '../tag/placeLinks'
+import { artistLink } from '../tag/placeLinks'
+import { useOpenTag } from '../tag/useOpenTag'
 import { useArtistPicture } from '../tag/useArtistPicture'
 import { StatsFrame } from './StatsFrame'
 import { useStatsFor, useStatsSongs } from './statsSource'
@@ -42,13 +37,13 @@ import {
 } from './stats.model'
 import { useSvgId } from '../../ui/useSvgId'
 import { EmptyState } from '../../ui/components/EmptyState'
+import { PageLoading } from '../../ui/components/PageLoading'
+import { Press } from '../../ui/components/Press'
+import { COLUMN_WIDTH } from '../../shell/widths'
 import { SHOWS_WHEN_REACHABLE } from '../library/library.model'
 
 /** The line beside Listened, in its own box's units. */
 const SPARK = { width: 120, height: 56 }
-
-/** The page column's width from which the three lists fit side by side. */
-const THREE_LISTS = 860
 
 /**
  * Stats (`P32`, `C15`): Listened, Peak hour and Streak as cards, each one big
@@ -66,7 +61,7 @@ export function StatsScreen({ via }: { via?: ServerConnection } = {}): ReactNode
   return (
     <StatsFrame period={period} onPeriod={setPeriod} testID="stats-screen">
       {isLoading && !stats ? (
-        <Text style={styles.hint}>Working it out…</Text>
+        <PageLoading line="Working it out…" />
       ) : !stats ? (
         <EmptyState title="Stats need your library" line={SHOWS_WHEN_REACHABLE} />
       ) : stats.totals.plays === 0 ? (
@@ -99,7 +94,7 @@ function Cards({ stats }: { stats: Stats }): ReactNode {
     <View style={[styles.card, styles.listened, wide && styles.cardWide]} testID="stats-listened">
       <View style={styles.listenedWords}>
         <Text style={styles.cardLabel}>Listened</Text>
-        <Text style={[styles.bigNumber, wide && styles.bigNumberWide]} numberOfLines={1}>
+        <Text style={styles.bigNumber} numberOfLines={1}>
           {listened.value}
         </Text>
         <Text style={styles.cardLine}>{listened.line}</Text>
@@ -215,14 +210,12 @@ function Ranked({ stats, via }: { stats: Stats; via: ServerConnection | undefine
   const column = useContentWidth()
   const [kind, setKind] = useState<RankKind>('songs')
 
-  if (column !== null && column >= THREE_LISTS) {
+  if (column !== null && column >= COLUMN_WIDTH.statsLists) {
     return (
       <View style={[styles.card, styles.rankedWide]} testID="stats-ranked">
         {RANK_KINDS.map(option => (
           <View key={option.value} style={styles.rankedColumn}>
-            <Text style={styles.columnLabel} accessibilityRole="header">
-              {option.label}
-            </Text>
+            <SectionHead look="label" title={option.label} style={styles.columnLabel} />
             <RankedList stats={stats} kind={option.value} via={via} />
           </View>
         ))}
@@ -249,10 +242,7 @@ function RankedList({
   const rows = useMemo(() => rankedRows(stats, kind), [stats, kind])
   const songFor = useStatsSongs(via)
   const { data: library } = useLibrary()
-  const hueOf = useMemo(
-    () => new Map((library?.tags ?? []).map(tag => [tag.name, tag.hue])),
-    [library],
-  )
+  const tagOf = useMemo(() => new Map((library?.tags ?? []).map(tag => [tag.name, tag])), [library])
   // The cover each artist wears where the server has no picture of them.
   const coverOf = useMemo(() => {
     const covers = new Map<string, Song>()
@@ -291,7 +281,7 @@ function RankedList({
             row={row}
             song={row.kind === 'song' ? songFor(row.songId) : undefined}
             cover={coverOf.get(row.key)}
-            hue={row.kind === 'tag' ? hueOf.get(row.name) : undefined}
+            tag={row.kind === 'tag' ? tagOf.get(row.name) : undefined}
             testID={`stats-ranked-${kind}-${index}`}
           />
         ),
@@ -391,13 +381,14 @@ function LeadCard({
   const shade = useSvgId('statslead')
 
   return (
-    <Pressable
+    <Press
+      depth="row"
       disabled={!open}
       onPress={open}
       accessibilityRole={open ? 'link' : undefined}
       accessibilityLabel={spoken}
       testID={testID}
-      style={({ pressed }) => [styles.lead, pressed && styles.linePressed]}
+      style={styles.lead}
     >
       {/*
        * The picture keeps to the right and fades into the card under the
@@ -441,7 +432,7 @@ function LeadCard({
           </Text>
         </View>
       </View>
-    </Pressable>
+    </Press>
   )
 }
 
@@ -479,20 +470,20 @@ function RankedLine({
   row,
   song,
   cover,
-  hue,
+  tag,
   testID,
 }: {
   row: RankedRow
   song: Song | undefined
   /** An artist's stand-in cover (`RankedArtistFace`). */
   cover: Song | undefined
-  /** A tag's colour; none when the library no longer has the tag. */
-  hue: number | undefined
+  /** A tag's own; none when the library no longer has it. */
+  tag: Tag | undefined
   testID: string
 }): ReactNode {
   const router = useRouter()
+  const openTag = useOpenTag()
   const artFor = useArt()
-  const { theme } = useUnistyles()
 
   const open =
     row.kind === 'song'
@@ -503,8 +494,8 @@ function RankedLine({
         ? row.known
           ? () => router.navigate(artistLink(row.name))
           : undefined
-        : hue !== undefined
-          ? () => router.navigate(tagLink(row.name))
+        : tag
+          ? () => openTag(tag)
           : undefined
 
   const picture =
@@ -514,17 +505,13 @@ function RankedLine({
       <RankedArtistFace name={row.name} known={row.known} cover={cover} />
     ) : (
       <View style={styles.tagSquare}>
-        <View
-          style={[
-            styles.tagDot,
-            { backgroundColor: hue === undefined ? theme.colors.textMuted : tagColors(hue).dot },
-          ]}
-        />
+        <TagDot hue={tag?.hue} size={10} />
       </View>
     )
 
   return (
-    <Pressable
+    <Press
+      feedback="dim"
       disabled={!open}
       onPress={open}
       accessibilityRole={open ? 'link' : undefined}
@@ -532,7 +519,7 @@ function RankedLine({
         row.kind === 'song' && row.artist ? `, ${row.artist}` : ''
       }, ${row.trailing}`}
       testID={testID}
-      style={({ pressed }) => [styles.line, pressed && styles.linePressed]}
+      style={styles.line}
     >
       <Text style={styles.rank}>{row.rank}</Text>
       {picture}
@@ -555,66 +542,65 @@ function RankedLine({
           />
         </View>
       </View>
-    </Pressable>
+    </Press>
   )
 }
 
 const styles = StyleSheet.create(theme => ({
-  hint: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
   // A big card on the ground (`S2`: 22 round), told apart by tone, not an edge.
-  card: { ...card(theme.colors, radius.cardLg), padding: 18 },
+  card: { ...card(theme.colors, radius.cardLg), padding: space.card },
   cardWide: { height: 190, paddingHorizontal: 20 },
-  cardRow: { flexDirection: 'row', gap: 12 },
+  cardRow: { flexDirection: 'row', gap: space.md },
   twoCols: { flex: 2, minWidth: 0 },
   oneCol: { flex: 1, minWidth: 0 },
   listened: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: space.md,
   },
   // The words take the card's room before the spark does: squeezed, the number
   // was ellipsised to "2…", which is not a number.
-  listenedWords: { gap: 4, flex: 1, minWidth: 0 },
+  listenedWords: { gap: space.xs, flex: 1, minWidth: 0 },
   cardLabel: label(theme.colors),
-  // Big numbers are the serif, which has one weight (`S2`).
-  /*
-   * The serif's figures stand taller than their own line, so a line box the
-   * size of the type cut the top off "20". A fifth again is room for the ink.
-   */
-  bigNumber: { ...serif(theme.colors, type.display), lineHeight: 55 },
-  bigNumberWide: { fontSize: type.display, lineHeight: leading.display },
+  // Big numbers are the serif, which has one weight (`S2`), on the scale's
+  // line height, which has room for its tall figures.
+  bigNumber: serif(theme.colors),
   cardLine: { color: theme.colors.textSecondary, fontSize: type.sub },
-  small: { height: 150, padding: 16, justifyContent: 'space-between' },
+  small: { height: 150, padding: space.lg, justifyContent: 'space-between' },
   hours: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 44 },
   hoursWide: { height: 60 },
   // An hour with plays is the raised tone; the busiest is the accent.
   hour: { flex: 1, borderRadius: 2, backgroundColor: theme.colors.surface3 },
   hourPeak: { backgroundColor: theme.colors.accent },
-  dots: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  dots: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.surface3 },
   dotPlayed: { backgroundColor: theme.colors.accent },
   dotToday: { backgroundColor: theme.colors.textPrimary },
-  cardFoot: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 8 },
-  midNumber: { ...serif(theme.colors, type.page), lineHeight: 32 },
+  cardFoot: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: space.sm },
+  midNumber: serif(theme.colors, 'page'),
   cardNote: { color: theme.colors.textSecondary, fontSize: type.small },
-  ranked: { paddingTop: 14, paddingBottom: 8, paddingHorizontal: 16, gap: 8 },
+  ranked: {
+    paddingTop: space.roomy,
+    paddingBottom: space.sm,
+    paddingHorizontal: space.lg,
+    gap: space.sm,
+  },
   rankedWide: { flexDirection: 'row', gap: 36, paddingVertical: 18, paddingHorizontal: 22 },
-  rankedColumn: { flex: 1, minWidth: 0, gap: 4 },
-  columnLabel: { ...label(theme.colors), paddingBottom: 4 },
-  listEmpty: { color: theme.colors.textMuted, fontSize: type.sub, paddingVertical: 14 },
+  rankedColumn: { flex: 1, minWidth: 0, gap: space.xs },
+  columnLabel: { paddingBottom: space.xs },
+  listEmpty: { color: theme.colors.textMuted, fontSize: type.sub, paddingVertical: space.roomy },
   line: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: space.snug,
     minHeight: 48,
     borderRadius: radius.cover,
   },
-  linePressed: { opacity: 0.7 },
-  rank: { ...serif(theme.colors, type.section), width: 18, color: theme.colors.textMuted },
+  rank: { ...serif(theme.colors, 'section'), width: 18, color: theme.colors.textMuted },
   lead: {
     height: 112,
-    marginBottom: 6,
+    marginBottom: space.tight,
     borderRadius: radius.card,
     overflow: 'hidden',
     justifyContent: 'flex-end',
@@ -626,13 +612,13 @@ const styles = StyleSheet.create(theme => ({
   leadWords: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingBottom: 12,
+    gap: space.snug,
+    paddingHorizontal: space.roomy,
+    paddingBottom: space.md,
   },
   // The serif's figures stand taller than their own size (bigNumber above).
-  leadRank: { ...serif(theme.colors, type.display), lineHeight: 50, color: theme.colors.accent },
-  leadNames: { flex: 1, minWidth: 0, paddingBottom: 4 },
+  leadRank: { ...serif(theme.colors), color: theme.colors.accent },
+  leadNames: { flex: 1, minWidth: 0, paddingBottom: space.xs },
   leadName: { color: theme.colors.textPrimary, fontSize: type.section, fontWeight: '700' },
   leadNote: { color: theme.colors.textSecondary, fontSize: type.small, marginTop: 2 },
   tagSquare: {
@@ -643,18 +629,15 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     backgroundColor: theme.colors.surface3,
   },
-  tagDot: { width: 10, height: 10, borderRadius: 5 },
   lineBody: { flex: 1, minWidth: 0, gap: 5 },
-  lineTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  lineTop: { flexDirection: 'row', justifyContent: 'space-between', gap: space.sm },
   // The name takes what is left and ellipsises; the figure beside it never
   // gives up room, or a long title squeezes "3 plays" down to "3" and then
   // past the column's edge (Xiao, 2026-09-21).
   lineName: {
     flexShrink: 1,
     minWidth: 0,
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
+    ...rowTitle(theme.colors),
   },
   lineTrailing: { flexShrink: 0, color: theme.colors.textSecondary, fontSize: type.small },
   track: {

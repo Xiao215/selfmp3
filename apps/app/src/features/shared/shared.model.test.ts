@@ -52,6 +52,17 @@ describe('a shared playlist here', () => {
     expect(sharedRows(playlist(X, X)).map(row => row.removable)).toEqual([true, true])
   })
 
+  it('names whose each song is as a room does: You, or their name and face', () => {
+    const rows = sharedRows(playlist(X, X))
+    expect(rows.map(row => row.who)).toEqual(['You', 'Mia'])
+    expect(rows[1]?.face).toEqual({ name: 'Mia', colour: 1 })
+    const gone = { ...playlist(X, X), members: [] }
+    expect(sharedRows(gone).map(row => [row.who, row.face])).toEqual([
+      ['Someone', null],
+      ['Someone', null],
+    ])
+  })
+
   it('plays each song lent by the doorman, or your own copy', () => {
     const yours = { id: 7, path: song(2).audio?.key ?? '', sourceUrl: null } as Song
     const tracks = sharedTracks(

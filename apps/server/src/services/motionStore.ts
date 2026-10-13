@@ -1,11 +1,10 @@
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import { MOTION_VERSION, type Motion } from '@selfmp3/shared'
+import { messageOf, MOTION_VERSION, type Motion } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { MotionCurveData } from './dsp.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * Each song's motion curve (packages/shared/src/schemas/motion.ts), one JSON file per song under

@@ -1,4 +1,4 @@
-import { DEFAULT_DOORMAN_URL, DEFAULT_SERVER_URL } from '@selfmp3/shared'
+import { decodeBucketText, DEFAULT_DOORMAN_URL, DEFAULT_SERVER_URL } from '@selfmp3/shared'
 import type { CloudPlatform, DeviceStore } from '@selfmp3/replica'
 import type { KeyValueStore } from './store.js'
 
@@ -70,20 +70,8 @@ export function extensionCloudPlatform({
       self.addEventListener('online', () => run())
     },
 
-    /**
-     * Snapshots are stored gzip-compressed, and the browser undoes that itself
-     * when the doorman passes the encoding on. This is the case where it does
-     * not, and it is the browser app's code because it is the same browser.
-     */
-    decodeText: async bytes => {
-      if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
-        const stream = new Blob([bytes.slice()])
-          .stream()
-          .pipeThrough(new DecompressionStream('gzip'))
-        return new Response(stream).text()
-      }
-      return new TextDecoder().decode(bytes)
-    },
+    // The same browser as the web app's, so the same decoding.
+    decodeText: decodeBucketText,
 
     warn: message => console.warn(`self.mp3: ${message}`),
   }

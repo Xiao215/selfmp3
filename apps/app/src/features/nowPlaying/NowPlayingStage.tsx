@@ -1,15 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  ActivityIndicator,
-  Animated,
-  Easing,
-  Image,
-  Pressable,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native'
+import { Animated, Image, Text, useWindowDimensions, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
 import type { NativeStackNavigationProp } from 'expo-router'
@@ -17,43 +8,40 @@ import Svg, { Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from '
 import type { Song } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
 import type { Rgb } from '@selfmp3/client'
-import { fonts, motion, radius, rgba, type, useLibrary, withAlpha } from '@selfmp3/client'
+import {
+  fonts,
+  isRoomTrackId,
+  motion,
+  radius,
+  rgba,
+  type,
+  withAlpha,
+  iconSize,
+  coverSize,
+  space,
+} from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerCommands, usePlayerProgress } from '../../player/PlayerProvider'
 import { setStageExit } from '../../shell/stageExit'
 import { setStageArriving } from '../../shell/stageArrival'
 import { stackMoves } from '../../ports/stackMoves'
-import { titleBarInset } from '../../ports/titleBarInset'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { setStageIdle } from '../../shell/stageIdle'
 import { useEscape } from '../../shell/useEscape'
 import { Cover } from '../../ui/components/Cover'
 import { useCrossfade } from '../../ui/components/CoverLight'
-import { Chip } from '../../ui/components/Chip'
-import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
-import {
-  ChevronDown,
-  Collapse,
-  Expand,
-  More,
-  Next,
-  Refresh,
-  Romanize,
-  Sparkles,
-  TagPlus,
-} from '../../ui/components/Icons'
-import { FixMetadata } from '../metadata/FixMetadata'
+import { Segmented } from '../../ui/components/Segmented'
+import { ChevronDown, Collapse, Expand, Next } from '../../ui/components/Icons'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { TagPicker } from '../../ui/components/TagPicker'
-import { SongFacts } from '../song/SongFacts'
+import { SongAbout } from '../song/SongAbout'
 import { songLink } from '../song/song.model'
 import {
   contextLine,
   parseMode,
   parseTab,
-  romanName,
   stageGeometry,
   upNextSeconds,
   type PageMode,
@@ -74,23 +62,21 @@ import { useIdle } from './useIdle'
 import { useSongWords } from './useSongWords'
 import { ArtistLinks } from './ArtistLinks'
 import { putAway } from './leaveNowPlaying'
-import { NothingPlaying } from './NothingPlaying'
+import { EmptyNowPlaying } from './EmptyNowPlaying'
+import { canRomanize, FindLyricsButton, RomanizeButton } from './LyricsTools'
+import { SongTagsLine } from './SongTagsLine'
+import { HEAD_LEFT } from './stageHead'
+import { lyricsStatusText } from './stageLyrics.model'
+import { useNowPlayingSong } from './useNowPlayingSong'
 import { TaggingLine } from './TaggingLine'
 import { useSvgId } from '../../ui/useSvgId'
-import { useTagging, type Tagging } from './useTagging'
-import { tagLink } from '../tag/placeLinks'
+import { useTagEditor, useTagging, type Tagging } from './useTagging'
 import { tip } from '../../ui/tip'
-import { artShadow, floating, label } from '../../ui/surfaces'
+import { artShadow, floating, label, smallTitle } from '../../ui/surfaces'
 import { ScrollView } from '../../ui/components/Scroll'
-import { LYRICS_WHEN_REACHABLE } from '../library/library.model'
-
-/*
- * Where the top row starts. The page covers the sidebar, which is what keeps
- * everything else clear of the Mac's traffic lights, and they sit on this
- * row's own line — so on the installed desktop app the row starts to their right
- * rather than under them. Twenty everywhere without an inset title bar.
- */
-const HEAD_LEFT = titleBarInset > 0 ? 84 : 20
+import { Press } from '../../ui/components/Press'
+import { Spinner } from '../../ui/components/Spinner'
+import { MoreButton } from '../../ui/components/MoreMenu'
 
 /**
  * The page for the song that is playing, on a computer.
@@ -112,45 +98,34 @@ const HEAD_LEFT = titleBarInset > 0 ? 84 : 20
  * move under your hand. Which tab and mode are showing live in the address.
  */
 export function NowPlayingStage(): ReactNode {
-  const player = usePlayer()
   const router = useRouter()
   const params = useLocalSearchParams<{ tab?: string; mode?: string }>()
   const tab = parseTab(params.tab)
   const mode = parseMode(params.mode)
-  const song = player.current
+  const { song, onRemove, removeDialog } = useNowPlayingSong()
   // Asked here rather than on the stage, so a queue that runs out ends it too.
   const tagging = useTagging()
 
   const close = (): void => putAway(router)
 
-  if (!song) return <EmptyStage onClose={close} />
-
   return (
-    <Stage
-      song={song}
-      tab={tab}
-      mode={mode}
-      tagging={tagging}
-      onClose={close}
-      onTab={next => router.setParams({ tab: next })}
-      onMode={next => router.setParams({ mode: next })}
-    />
-  )
-}
-
-function EmptyStage({ onClose }: { onClose: () => void }): ReactNode {
-  const { theme } = useUnistyles()
-  const { top } = useSafeAreaInsets()
-  useEscape(true, onClose)
-  return (
-    <View style={styles.page} accessibilityLabel="Now playing">
-      <View style={[styles.head, { top }]}>
-        <IconButton onPress={onClose} label="Close">
-          <ChevronDown size={22} color={theme.colors.textSecondary} />
-        </IconButton>
-      </View>
-      <NothingPlaying />
-    </View>
+    <>
+      {song ? (
+        <Stage
+          song={song}
+          tab={tab}
+          mode={mode}
+          tagging={tagging}
+          onClose={close}
+          onRemove={onRemove}
+          onTab={next => router.setParams({ tab: next })}
+          onMode={next => router.setParams({ mode: next })}
+        />
+      ) : (
+        <EmptyNowPlaying onClose={close} />
+      )}
+      {removeDialog}
+    </>
   )
 }
 
@@ -277,6 +252,7 @@ function Stage({
   mode,
   tagging,
   onClose,
+  onRemove,
   onTab,
   onMode,
 }: {
@@ -285,6 +261,7 @@ function Stage({
   mode: PageMode
   tagging: Tagging
   onClose: () => void
+  onRemove: (song: Song) => void
   onTab: (tab: StageTab) => void
   onMode: (mode: PageMode) => void
 }): ReactNode {
@@ -295,15 +272,11 @@ function Stage({
   const player = usePlayer()
   const router = useRouter()
   const artFor = useArt()
-  const library = useLibrary()
   const lyrics = useSongWords(song)
   const uri = artFor(song)
   const palette = useCoverPalette(song, uri)
   const window = useWindowDimensions()
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
-  const [tagsOpen, setTagsOpen] = useState(false)
-  /** "Fix song info…" under Details: the same dialog the song's page opens. */
-  const [fixing, setFixing] = useState(false)
   // The song's ⋯ menu, the one its rows and its page have: without it the page
   // playing a song was the one place that song could not be removed or listed.
   const [menuOpen, setMenuOpen] = useState(false)
@@ -313,6 +286,8 @@ function Stage({
   // The tag window hangs from its button, so play-and-tag raises it only once
   // the page has come to rest: measured mid-rise, it sat below its button.
   const [entered, setEntered] = useState(false)
+  // Focus has no tag button to hang it from: play-and-tag waits for the full page.
+  const tagEditor = useTagEditor(tagging, entered && mode !== 'focus')
 
   const focus = mode === 'focus'
   const shownTab: StageTab = focus ? 'lyrics' : tab
@@ -409,7 +384,6 @@ function Stage({
   useEscape(true, onEscape)
 
   const words = lyrics.words
-  const hasLyrics = words.status === 'lyrics'
   // Not while offline: the words may exist, and there is text to say why they are not here.
   const noLyrics = words.status === 'missing' && !words.offline
   // Only on its own tab: Details is text, and wants the calm ground.
@@ -428,7 +402,7 @@ function Stage({
    * strength, in its new place, before being pulled back to nothing.
    */
   const visualPresence = usePresence(showVisual, MOVE_MS.stageVisual, motion.fast, {
-    easeIn: Easing.out(Easing.quad),
+    easeIn: ease.out,
   })
   // Following the music only while the visual is there, its fade out included:
   // Details has no visual, so it neither fetches the curve nor asks to listen.
@@ -445,14 +419,13 @@ function Stage({
     if (placedFor.current === focus) return
     placedFor.current = focus
     replaced.setValue(0)
-    timing(replaced, 1, MOVE_MS.stageVisual, undefined, { easing: Easing.out(Easing.quad) })
+    timing(replaced, 1, MOVE_MS.stageVisual, undefined, { easing: ease.out })
   }, [focus, replaced])
   const [visualFade] = useState(() => Animated.multiply(visualPresence.progress, replaced))
   const tabs: readonly (readonly [StageTab, string])[] = [
     ['lyrics', noLyrics ? 'Visual' : 'Lyrics'],
     ['about', 'Details'],
   ]
-  const tags = (library.data?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
   /*
    * The chrome while nothing moves. One value for all of it — the head, the
    * cover, the tool rows, the expand button and the lift of the Up next card —
@@ -475,37 +448,19 @@ function Stage({
   // saved that the song has none. Beside Visual and Details on the stage; in
   // Focus, where the tabs are put away, at the top right where the romaji
   // switch sits for a song with words.
-  const lookAgainPill = showVisual ? (
-    <Pressable
-      onPress={lyrics.lookAgain}
-      accessibilityRole="button"
-      accessibilityLabel="Look for lyrics again"
-      {...tip('Look for lyrics again')}
-      style={({ pressed }) => [styles.tool, pressed && styles.toolPressed]}
-    >
-      <Refresh size={13} color={theme.colors.textSecondary} />
-      <Text style={styles.toolText}>Find lyrics</Text>
-    </Pressable>
-  ) : null
+  const lookAgainPill = showVisual ? <FindLyricsButton onPress={lyrics.lookAgain} /> : null
 
   const tabList = (
-    <View style={styles.tabs} role="tablist" aria-label="Show">
-      {tabs.map(([value, label]) => (
-        <Pressable
-          key={value}
-          role="tab"
-          aria-selected={shownTab === value}
-          onPress={() => onTab(value)}
-          style={({ pressed }) => [
-            styles.tab,
-            pressed && styles.tabPressed,
-            shownTab === value && styles.tabActive,
-          ]}
-        >
-          <Text style={[styles.tabText, shownTab === value && styles.tabTextActive]}>{label}</Text>
-        </Pressable>
-      ))}
-    </View>
+    <Segmented
+      tabs
+      size="small"
+      ground="translucent"
+      label="Show"
+      value={shownTab}
+      options={tabs.map(([value, label]) => ({ value, label }))}
+      onChange={onTab}
+      style={styles.tabs}
+    />
   )
   // Stacked (`T05`), the tabs leave the head for a row under the cover, with
   // Romaji and expand at its other end.
@@ -621,35 +576,15 @@ function Stage({
               .map(part => ` · ${part}`)
               .join('')}
           </Text>
-          <View style={styles.tags}>
-            {/* Each tag is a place of its own: its chip opens its page. */}
-            {tags.map(tag => (
-              <Chip
-                key={tag.id}
-                label={tag.name}
-                hue={tag.hue}
-                selected={false}
-                compact
-                onPress={() => router.navigate(tagLink(tag.name))}
-              />
-            ))}
-            <Pressable
-              ref={tagsButtonRef}
-              // In play-and-tag the button is the mode's editor, raised again or put away.
-              onPress={() =>
-                tagging.on
-                  ? tagging.open
-                    ? tagging.close()
-                    : tagging.raise()
-                  : setTagsOpen(open => !open)
-              }
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.tagButton, pressed && styles.tagButtonPressed]}
-            >
-              <TagPlus size={14} color={theme.colors.textSecondary} />
-              <Text style={styles.tagButtonText}>{tags.length > 0 ? 'Edit tags' : 'Add tags'}</Text>
-            </Pressable>
-          </View>
+          {/* Each tag is a place of its own: its chip opens its page. */}
+          <SongTagsLine
+            song={song}
+            onOpen={href => router.navigate(href)}
+            onEdit={tagEditor.toggle}
+            editing={tagEditor.shown}
+            editRef={tagsButtonRef}
+            labelled
+          />
           {tagging.on ? <TaggingLine line={tagging.line} onStop={tagging.stop} /> : null}
         </View>
       )}
@@ -696,12 +631,7 @@ function Stage({
         ]}
       >
         {shownTab === 'lyrics' ? (
-          words.status === 'loading' ? (
-            <View style={styles.status}>
-              <ActivityIndicator size="small" color={theme.colors.textMuted} />
-              <Text style={styles.statusText}>Looking for lyrics…</Text>
-            </View>
-          ) : words.status === 'lyrics' ? (
+          words.status === 'lyrics' ? (
             <StageLyrics
               parsed={words.parsed}
               roman={words.roman}
@@ -710,22 +640,18 @@ function Stage({
             />
           ) : noLyrics ? null : (
             <View style={styles.status}>
-              <Text style={styles.statusText}>{LYRICS_WHEN_REACHABLE}</Text>
+              {words.status === 'loading' ? <Spinner /> : null}
+              <Text style={styles.statusText}>{lyricsStatusText(words)}</Text>
             </View>
           )
         ) : (
           <ScrollView contentContainerStyle={styles.about}>
-            <View style={styles.aboutBody}>
-              <SongFacts song={song} />
-              <View style={styles.fix}>
-                <Button
-                  label="Fix song info…"
-                  icon={<Sparkles size={15} tone="textSecondary" />}
-                  onPress={() => setFixing(true)}
-                  testID="now-playing-fix-metadata"
-                />
-              </View>
-            </View>
+            <SongAbout
+              song={song}
+              plays
+              testID="now-playing-fix-metadata"
+              style={styles.aboutBody}
+            />
           </ScrollView>
         )}
       </Moving>
@@ -736,7 +662,7 @@ function Stage({
           label={focus ? 'Back to the full page' : 'Close now playing'}
           caption={focus ? 'Back to the full page' : 'Close'}
         >
-          <ChevronDown size={22} color={theme.colors.textSecondary} />
+          <ChevronDown size={iconSize.large} color={theme.colors.textSecondary} />
         </IconButton>
         {focus ? (
           <View style={styles.headSong} pointerEvents="none">
@@ -758,20 +684,21 @@ function Stage({
                 {lookAgainPill}
               </>
             )}
-            {/* Last at the top right, where the song's page keeps its ⋯. */}
-            <View
-              ref={moreRef}
-              collapsable={false}
-              style={geometry.stacked ? styles.moreAlone : null}
-            >
-              <IconButton
-                label={`More for ${song.title}`}
-                onPress={() => setMenuOpen(open => !open)}
-                testID="now-playing-more"
-              >
-                <More size={18} color={theme.colors.textSecondary} />
-              </IconButton>
-            </View>
+            {/* Last at the top right, where the song's page keeps its ⋯. A
+                friend's song in a room has nothing in it here: the page
+                already says whose it is, and the bar has the rest. */}
+            {isRoomTrackId(song.id) ? null : (
+              <View style={geometry.stacked ? styles.moreAlone : null}>
+                <MoreButton
+                  name={song.title}
+                  filled={false}
+                  anchorRef={moreRef}
+                  active={menuOpen}
+                  onPress={() => setMenuOpen(open => !open)}
+                  testID="now-playing-more"
+                />
+              </View>
+            )}
           </>
         )}
       </Animated.View>
@@ -789,7 +716,7 @@ function Stage({
         </Animated.View>
       ) : null}
 
-      {shownTab === 'lyrics' && hasLyrics && lyrics.language !== 'none' ? (
+      {shownTab === 'lyrics' && canRomanize(lyrics) ? (
         <Animated.View
           style={[
             styles.tools,
@@ -801,21 +728,7 @@ function Stage({
                 : { top: height - 48, right: geometry.right },
           ]}
         >
-          <Pressable
-            role="button"
-            aria-pressed={lyrics.romanizationOn}
-            onPress={() => lyrics.setRomanization(!lyrics.romanizationOn)}
-            accessibilityHint={`${lyrics.romanizationOn ? 'Hide' : 'Show'} ${romanName(lyrics.language).toLowerCase()} under each line`}
-            style={[styles.tool, lyrics.romanizationOn && styles.toolOn]}
-          >
-            <Romanize
-              size={14}
-              color={lyrics.romanizationOn ? theme.colors.onPrimary : theme.colors.textSecondary}
-            />
-            <Text style={[styles.toolText, lyrics.romanizationOn && styles.toolTextOn]}>
-              {romanName(lyrics.language)}
-            </Text>
-          </Pressable>
+          <RomanizeButton lyrics={lyrics} />
         </Animated.View>
       ) : null}
 
@@ -831,7 +744,7 @@ function Stage({
               : { top: tabsRow ?? top + 68, right: geometry.right },
           ]}
         >
-          <Pressable
+          <Press
             onPress={() => onMode(focus ? 'stage' : 'focus')}
             accessibilityRole="button"
             accessibilityLabel={
@@ -845,11 +758,11 @@ function Stage({
             style={({ pressed }) => [styles.expand, pressed && styles.expandPressed]}
           >
             {focus ? (
-              <Collapse size={18} color={theme.colors.textSecondary} />
+              <Collapse size={iconSize.medium} color={theme.colors.textSecondary} />
             ) : (
-              <Expand size={18} color={theme.colors.textSecondary} />
+              <Expand size={iconSize.medium} color={theme.colors.textSecondary} />
             )}
-          </Pressable>
+          </Press>
         </Animated.View>
       ) : null}
 
@@ -861,20 +774,17 @@ function Stage({
         chromeShown={chromeShown}
       />
 
-      {/* Focus has no tag button to hang it from: play-and-tag waits for the full page. */}
       <TagPicker
-        song={tagsOpen || (tagging.open && entered && !focus) ? song : null}
-        onClose={() => {
-          setTagsOpen(false)
-          if (tagging.open) tagging.close()
-        }}
+        song={tagEditor.shown ? song : null}
+        onClose={tagEditor.close}
         anchorRef={tagsButtonRef}
       />
-      {fixing ? <FixMetadata song={song} onClose={() => setFixing(false)} /> : null}
       <SongMenu
         song={menuOpen ? song : null}
         anchorRef={moreRef}
         onClose={() => setMenuOpen(false)}
+        context="nowPlaying"
+        onRemove={onRemove}
       />
     </Animated.View>
   )
@@ -928,29 +838,34 @@ function StageUpNext({
   if (!upNext || nextIn === null) return null
 
   return (
-    <AnimatedPressable
-      onPress={player.next}
-      accessibilityRole="button"
-      accessibilityLabel={`Skip to the next song: ${upNext.title}`}
-      style={[styles.upNext, { right, bottom }, lowered]}
-    >
-      <Cover uri={artFor(upNext)} title={upNext.album || upNext.title} size={40} />
-      <View style={styles.upNextText}>
-        <Text style={styles.upNextLabel}>NEXT · IN {nextIn} S</Text>
-        <Text style={styles.upNextTitle} numberOfLines={1}>
-          {upNext.title}
-        </Text>
-        <Text style={styles.upNextArtist} numberOfLines={1}>
-          {artistOr(upNext.artist)}
-        </Text>
-      </View>
-      <Next size={16} color={theme.colors.textSecondary} />
-    </AnimatedPressable>
+    // The ride down is the place's and the sink the card's: two transforms, two views.
+    <Animated.View style={[styles.upNextAt, { right, bottom }, lowered]}>
+      <Press
+        depth="row"
+        onPress={player.next}
+        accessibilityRole="button"
+        accessibilityLabel={`Skip to the next song: ${upNext.title}`}
+        style={styles.upNext}
+      >
+        <Cover
+          uri={artFor(upNext)}
+          title={upNext.album || upNext.title}
+          size={coverSize.rowDense}
+        />
+        <View style={styles.upNextText}>
+          <Text style={styles.upNextLabel}>NEXT · IN {nextIn} S</Text>
+          <Text style={styles.upNextTitle} numberOfLines={1}>
+            {upNext.title}
+          </Text>
+          <Text style={styles.upNextArtist} numberOfLines={1}>
+            {artistOr(upNext.artist)}
+          </Text>
+        </View>
+        <Next size={iconSize.item} color={theme.colors.textSecondary} />
+      </Press>
+    </Animated.View>
   )
 }
-
-/** The card is the whole tap target, so the move goes on it rather than a view around it. */
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
 
 const styles = StyleSheet.create(theme => ({
   page: { flex: 1, overflow: 'hidden', backgroundColor: theme.colors.surface0 },
@@ -972,7 +887,7 @@ const styles = StyleSheet.create(theme => ({
     height: 60,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: space.md,
     paddingLeft: HEAD_LEFT,
     paddingRight: 20,
     zIndex: 4,
@@ -989,22 +904,9 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textMuted,
     fontSize: type.small,
   },
-  tabs: {
-    marginLeft: 'auto',
-    flexDirection: 'row',
-    gap: 2,
-    padding: 3,
-    borderRadius: radius.pill,
-    backgroundColor: withAlpha(theme.colors.textPrimary, 0.07),
-  },
-  tab: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: radius.pill },
+  tabs: { marginLeft: 'auto' },
   // Stacked, the tabs have gone down under the cover and nothing pushes it right.
   moreAlone: { marginLeft: 'auto' },
-  // The chosen tab is white, as a chosen segment and a chosen chip are (P1).
-  tabActive: { backgroundColor: theme.colors.textPrimary },
-  tabPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.1) },
-  tabText: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '600' },
-  tabTextActive: { color: theme.colors.onPrimary },
   // The box the cover is laid out in: where the stage puts it, and where its
   // travel from the player bar and the idle fade are applied.
   coverLift: { position: 'absolute', zIndex: 3 },
@@ -1015,25 +917,10 @@ const styles = StyleSheet.create(theme => ({
     ...artShadow(theme.colors),
   },
   coverImage: { width: '100%', height: '100%' },
-  meta: { position: 'absolute', zIndex: 2, gap: 10 },
+  meta: { position: 'absolute', zIndex: 2, gap: space.snug },
   // The display face, which carries its own weight: never bold it.
   title: { color: theme.colors.textPrimary, fontFamily: fonts.display },
   byline: { color: theme.colors.textSecondary, fontSize: type.sub, marginTop: -4 },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
-  tagButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: radius.pill,
-    // The dashed edge is the mark itself: an add chip (`S2`).
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: theme.colors.borderStrong,
-  },
-  tagButtonPressed: { backgroundColor: theme.colors.surface2 },
-  tagButtonText: { color: theme.colors.textSecondary, fontSize: type.small },
   words: { position: 'absolute', zIndex: 1 },
   status: {
     flex: 1,
@@ -1046,23 +933,9 @@ const styles = StyleSheet.create(theme => ({
   statusText: { color: theme.colors.textMuted, fontSize: type.sub },
   visual: { position: 'absolute', overflow: 'hidden', zIndex: 1 },
   visualFull: { left: 0, right: 0, top: 0, bottom: 0 },
-  about: { paddingTop: 12, paddingHorizontal: 4, paddingBottom: 40 },
-  aboutBody: { maxWidth: 600, paddingHorizontal: 18, gap: 18 },
-  fix: { alignItems: 'flex-start' },
-  tools: { position: 'absolute', zIndex: 4, flexDirection: 'row', gap: 6 },
-  tool: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 5,
-    paddingHorizontal: 11,
-    borderRadius: radius.pill,
-    backgroundColor: withAlpha(theme.colors.textPrimary, 0.08),
-  },
-  toolOn: { backgroundColor: theme.colors.textPrimary },
-  toolPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.14) },
-  toolText: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '600' },
-  toolTextOn: { color: theme.colors.onPrimary },
+  about: { paddingTop: space.md, paddingHorizontal: space.xs, paddingBottom: 40 },
+  aboutBody: { maxWidth: 600, paddingHorizontal: 18 },
+  tools: { position: 'absolute', zIndex: 4, flexDirection: 'row', gap: space.tight },
   expandAt: { position: 'absolute', zIndex: 4 },
   expand: {
     width: 36,
@@ -1070,18 +943,17 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: withAlpha(theme.colors.textPrimary, 0.08),
+    backgroundColor: theme.colors.veil,
   },
-  expandPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.14) },
+  expandPressed: { backgroundColor: theme.colors.veilPressed },
+  upNextAt: { position: 'absolute', zIndex: 5 },
   upNext: {
-    position: 'absolute',
-    zIndex: 5,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 8,
-    paddingLeft: 8,
-    paddingRight: 12,
+    gap: space.snug,
+    paddingVertical: space.sm,
+    paddingLeft: space.sm,
+    paddingRight: space.md,
     borderRadius: radius.card,
     // It floats over the stage, so it is glass and casts the one shadow.
     backgroundColor: theme.colors.glass,
@@ -1092,6 +964,6 @@ const styles = StyleSheet.create(theme => ({
     ...label(theme.colors),
     fontVariant: ['tabular-nums'],
   },
-  upNextTitle: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
+  upNextTitle: smallTitle(theme.colors),
   upNextArtist: { color: theme.colors.textMuted, fontSize: type.small },
 }))

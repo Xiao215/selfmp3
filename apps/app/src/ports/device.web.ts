@@ -43,6 +43,20 @@ export function deviceKind(): DeviceKind {
 }
 
 /**
+ * What this device is, as one plain word for its name in the bucket
+ * (`cloudPlatform.deviceKind`). A phone's or a tablet's browser says which;
+ * a computer's, and the installed app, are a `browser`.
+ */
+export function deviceModel(): string {
+  if (desktop) return 'browser'
+  const agent = typeof navigator === 'undefined' ? '' : navigator.userAgent
+  if (/iPhone/.test(agent)) return 'iphone'
+  if (/iPad/.test(agent)) return 'ipad'
+  if (/Android/.test(agent)) return 'android'
+  return 'browser'
+}
+
+/**
  * What to call this device in a sentence. A browser cannot tell a tablet from
  * a computer by name, so the layout and the pointer say it: wide with a mouse
  * is a computer, wide with a finger a tablet, and narrow a phone.

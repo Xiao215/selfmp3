@@ -11,6 +11,7 @@ import {
   SimilarQuerySchema,
   similarSongs,
   SongPatchSchema,
+  tagFlips,
   type Affected,
   type BulkDeleteResult,
   type LyricsResponse,
@@ -18,6 +19,7 @@ import {
   type SimilarSongs,
   type Song,
   type SongFields,
+  API_ERROR,
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
@@ -71,7 +73,7 @@ export function songRoutes(container: Container): Router {
       container.songs.setInstrumental(song.id, true)
       container.bumpLibraryVersion()
     }
-    return new HttpError(404, 'this track is instrumental', 'instrumental')
+    return new HttpError(404, 'this track is instrumental', API_ERROR.instrumental)
   }
 
   /*
@@ -154,12 +156,8 @@ export function songRoutes(container: Container): Router {
       const valid = container.tags.exists(body.tagIds)
       transact(container.db, () => container.tags.setSongTags(params.id, valid))
       // Stamped: the tags that went on, and the ones that came off.
-      const before = new Set(song.tagIds)
-      const after = new Set(valid)
-      container.edits.songTags(params.id, [
-        ...valid.filter(id => !before.has(id)),
-        ...song.tagIds.filter(id => !after.has(id)),
-      ])
+      const { on, off } = tagFlips(song.tagIds, valid)
+      container.edits.songTags(params.id, [...on, ...off])
       container.bumpLibraryVersion()
       return container.songs.byId(params.id)
     }),

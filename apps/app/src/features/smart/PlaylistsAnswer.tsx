@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQueryClient } from '@tanstack/react-query'
 import { plural, type AskAnswer, type Playlist } from '@selfmp3/shared'
 import {
   clientApi,
   failureText,
-  leading,
   queryKeys,
   radius,
   space,
@@ -16,10 +15,13 @@ import {
   useLibrary,
 } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
-import { Checkbox } from '../../ui/components/Checkbox'
-import { showToast } from '../../ui/toast'
+import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
+import { showToast, showUndoToast } from '../../ui/toast'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { FOLLOWS_LABEL, isLive, newPlaylist } from '../playlists/playlists.model'
+import { StatusLine } from '../../ui/components/StatusLine'
+import { AnswerActions, AnswerHead, AnswerLine, AnswerNote } from './AnswerParts'
+import { textColumn } from '../../ui/surfaces'
 
 /** A playlist as it was, so a delete can be undone: its songs in their order, its rules. */
 interface Kept {
@@ -59,7 +61,7 @@ export function PlaylistsAnswer({
     queryClient.invalidateQueries({ queryKey: queryKeys.library })
 
   if (found.length === 0) {
-    return <Text style={styles.line}>Those playlists are gone already.</Text>
+    return <AnswerLine>Those playlists are gone already.</AnswerLine>
   }
 
   const remove = async (): Promise<void> => {
@@ -75,12 +77,13 @@ export function PlaylistsAnswer({
       }
       for (const { playlist } of kept) await api.deletePlaylist(playlist.id)
       await refresh()
-      showToast(
+      // `restore` says how it went itself.
+      showUndoToast(
         kept.length === 1
           ? `Deleted “${kept[0]!.playlist.name}”`
           : `Deleted ${plural(kept.length, 'playlist', 'playlists')}`,
-        'good',
-        { actions: [{ label: 'Undo', onPress: () => void restore(kept) }] },
+        () => restore(kept),
+        { tone: 'good' },
       )
       onDone()
     } catch (caught) {
@@ -117,20 +120,11 @@ export function PlaylistsAnswer({
     try {
       await clientApi().updatePlaylist(playlist.id, { name: to })
       await refresh()
-      showToast(`Renamed to “${to}”`, 'good', {
-        actions: [
-          {
-            label: 'Undo',
-            onPress: () =>
-              void clientApi()
-                .updatePlaylist(playlist.id, { name: playlist.name })
-                .then(refresh)
-                .catch((caught: unknown) =>
-                  showToast(failureText('Couldn’t undo that', caught), 'error'),
-                ),
-          },
-        ],
-      })
+      showUndoToast(
+        `Renamed to “${to}”`,
+        () => clientApi().updatePlaylist(playlist.id, { name: playlist.name }).then(refresh),
+        { tone: 'good', failed: 'Couldn’t undo that' },
+      )
       onDone()
     } catch (caught) {
       setError(failureText('Couldn’t rename it', caught))
@@ -149,13 +143,13 @@ export function PlaylistsAnswer({
 
   return (
     <View style={styles.body} testID="playlists-answer">
-      <Text style={styles.head}>
+      <AnswerHead>
         {renaming
           ? 'Rename this playlist?'
           : found.length === 1
             ? 'Delete this playlist?'
             : 'Delete these playlists?'}
-      </Text>
+      </AnswerHead>
       {(renaming ? found.slice(0, 1) : found).map(playlist => {
         const on = ticked.has(playlist.id)
         const meta = [
@@ -188,26 +182,25 @@ export function PlaylistsAnswer({
             {row}
           </View>
         ) : (
-          <Pressable
+          <CheckRow
             key={playlist.id}
+            checked={on}
+            label={playlist.name}
             onPress={() => toggle(playlist.id)}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: on }}
-            accessibilityLabel={playlist.name}
             style={({ pressed }) => [styles.row, pressed && styles.pressed]}
           >
             {row}
             <Checkbox checked={on} />
-          </Pressable>
+          </CheckRow>
         )
       })}
       {answer.unknown.length > 0 ? (
-        <Text style={styles.note}>
+        <AnswerNote>
           No playlist here is called {answer.unknown.map(name => `“${name}”`).join(' or ')}.
-        </Text>
+        </AnswerNote>
       ) : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <View style={styles.actions}>
+      {error ? <StatusLine>{error}</StatusLine> : null}
+      <AnswerActions>
         <Button label="Cancel" onPress={onDone} />
         {renaming ? (
           <Button
@@ -231,30 +224,25 @@ export function PlaylistsAnswer({
             testID="playlists-answer-delete"
           />
         )}
-      </View>
+      </AnswerActions>
     </View>
   )
 }
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm },
-  head: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
-    paddingVertical: 6,
+    paddingVertical: space.tight,
     paddingHorizontal: space.xs,
     borderRadius: radius.coverSm,
   },
   pressed: { opacity: 0.7 },
-  text: { flex: 1, minWidth: 0, gap: 2 },
+  text: textColumn,
   name: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '500' },
   old: { color: theme.colors.textMuted, fontWeight: '400' },
   arrow: { color: theme.colors.textMuted },
   meta: { color: theme.colors.textMuted, fontSize: type.small },
-  note: { color: theme.colors.textMuted, fontSize: type.small },
-  error: { color: theme.colors.danger, fontSize: type.sub },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
 }))

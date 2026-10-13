@@ -2,9 +2,12 @@ import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { space, type, useCloudImports, useLibrary } from '@selfmp3/client'
+import { space, type, useCloudImports, useLibrary, coverSize } from '@selfmp3/client'
 import { Cover } from '../../ui/components/Cover'
+import { useLayoutValue } from '../../shell/useLayout'
 import { pendingImports } from './pendingImports.model'
+import { OPACITY } from '../../ui/motion.model'
+import { textColumn } from '../../ui/surfaces'
 
 /**
  * Songs on their way into a cloud library, above the list: the links this
@@ -16,6 +19,8 @@ export function PendingImports(): ReactNode {
   const { theme } = useUnistyles()
   const { data } = useCloudImports()
   const library = useLibrary()
+  // The size of the library's own rows below, so the two line up.
+  const wide = useLayoutValue(layout => layout.wide)
   const rows = useMemo(
     () =>
       pendingImports(
@@ -31,7 +36,11 @@ export function PendingImports(): ReactNode {
       {rows.map(row => (
         <View key={row.uid} style={styles.row} testID={`pending-import-${row.uid}`}>
           <View style={styles.faded}>
-            <Cover uri={row.thumbnail} title={row.title} size={44} />
+            <Cover
+              uri={row.thumbnail}
+              title={row.title}
+              size={wide ? coverSize.rowDense : coverSize.row}
+            />
           </View>
           <View style={[styles.text, styles.faded]}>
             <Text style={styles.title} numberOfLines={1}>
@@ -52,9 +61,9 @@ export function PendingImports(): ReactNode {
 
 const styles = StyleSheet.create(theme => ({
   list: { paddingHorizontal: space.lg, paddingBottom: space.sm, gap: 2 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
-  faded: { opacity: 0.55 },
-  text: { flex: 1, minWidth: 0, gap: 2 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.tight },
+  faded: { opacity: OPACITY.dim },
+  text: textColumn,
   title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '500' },
   status: { color: theme.colors.textMuted, fontSize: type.small },
 }))

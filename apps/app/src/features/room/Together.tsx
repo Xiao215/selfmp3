@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { HIT_TARGET, leading, radius, space, type } from '@selfmp3/client'
+import { HIT_TARGET, iconSize, leading, radius, space, type } from '@selfmp3/client'
 import { card } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
+import { Press } from '../../ui/components/Press'
 import { People } from '../../ui/components/Icons'
 import { guideSeen, markGuideSeen, useGuideMemory } from '../guide/guideMemory'
 import { RoomFaces } from './RoomFace'
@@ -26,7 +27,7 @@ const FACES = 3
  */
 export function TogetherButton({
   filled = false,
-  iconSize = 20,
+  iconSize: size = iconSize.nav,
   color,
 }: {
   /** On the control surface: Now Playing's head. Bare in the player bar. */
@@ -44,23 +45,24 @@ export function TogetherButton({
         onPress={() => openRoomSheet('together')}
         testID="together"
       >
-        <People size={iconSize} color={color ?? theme.colors.textPrimary} />
+        <People size={size} color={color ?? theme.colors.textPrimary} />
       </IconButton>
     )
   }
   const people = peopleHere(state)
   return (
-    <Pressable
+    <Press
+      feedback="dim"
       onPress={() => openRoomSheet('together')}
       accessibilityRole="button"
       accessibilityLabel={`${roomTitle(state)}, ${people.length} here. Invite friends`}
       {...tip('Invite friends')}
       hitSlop={6}
       testID="together"
-      style={({ pressed }) => [styles.faces, pressed && styles.pressed]}
+      style={styles.faces}
     >
       <RoomFaces people={people.slice(0, FACES)} size={22} />
-    </Pressable>
+    </Press>
   )
 }
 
@@ -74,7 +76,7 @@ export function RoomPill(): ReactNode {
   const people = peopleHere(state)
   const title = roomTitle(state)
   return (
-    <Pressable
+    <Press
       onPress={() => openRoomSheet('together')}
       accessibilityRole="button"
       accessibilityLabel={`${title}, ${people.length} here. Invite friends`}
@@ -85,7 +87,7 @@ export function RoomPill(): ReactNode {
       <Text style={styles.pillText} numberOfLines={1}>
         {title}
       </Text>
-    </Pressable>
+    </Press>
   )
 }
 
@@ -103,7 +105,7 @@ export function TogetherCard(): ReactNode {
   return (
     <View style={styles.card} testID="home-together">
       <View style={styles.cardMark}>
-        <People size={20} color={theme.colors.textPrimary} />
+        <People size={iconSize.nav} color={theme.colors.textPrimary} />
       </View>
       <View style={styles.cardText}>
         <Text style={styles.cardTitle}>Listen together</Text>
@@ -148,7 +150,6 @@ const styles = StyleSheet.create(theme => ({
   cardLine: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   cardActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.sm },
   faces: { minHeight: HIT_TARGET, justifyContent: 'center', paddingHorizontal: 4 },
-  pressed: { opacity: 0.7 },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',

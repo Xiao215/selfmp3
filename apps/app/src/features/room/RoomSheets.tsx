@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import {
   artistOr,
@@ -16,8 +16,6 @@ import {
 } from '@selfmp3/shared'
 import { radius, space, type, useLibrary } from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
-import { ROW_COVER_SIZE } from '../../offline/coverStore'
-import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { appAddress, shareLink } from '../../ports/shareLink'
 import { library as cloudLibrary } from '../../replica'
@@ -26,10 +24,9 @@ import { SectionHead } from '../../ui/components/SectionHead'
 import { showToast } from '../../ui/toast'
 import { Button } from '../../ui/components/Button'
 import { TextField } from '../../ui/components/TextField'
-import { SearchField } from '../../ui/components/SearchField'
+import { LibrarySongPicker, PickMark } from '../../ui/components/LibrarySongPicker'
+import { SongLine } from '../../ui/components/SongLine'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
-import { Cover } from '../../ui/components/Cover'
-import { Check, Plus } from '../../ui/components/Icons'
 import { Segmented } from '../../ui/components/Segmented'
 import { Sheet } from '../../ui/components/Sheet'
 import { Toggle } from '../../ui/components/Toggle'
@@ -322,21 +319,7 @@ export function MyLibraryPicker({
 }: {
   onAdd: (song: RoomSong) => Promise<boolean>
 }): ReactNode {
-  const accent = useAccent()
-  const { data: library } = useLibrary()
-  const artFor = useArt(ROW_COVER_SIZE)
-  const [query, setQuery] = useState('')
   const [added, setAdded] = useState<ReadonlySet<number>>(new Set())
-  const found = useMemo(() => {
-    const words = query.trim().toLocaleLowerCase()
-    const songs = library?.songs ?? []
-    const matches = words
-      ? songs.filter(song =>
-          `${song.title} ${song.artist} ${song.album}`.toLocaleLowerCase().includes(words),
-        )
-      : [...songs].sort((a, b) => (b.lastPlayedAt ?? '').localeCompare(a.lastPlayedAt ?? ''))
-    return matches.slice(0, 40)
-  }, [library?.songs, query])
 
   const add = async (song: Song): Promise<void> => {
     const roomSong = cloudLibrary.cloudRoomSongNow(song.id)
@@ -349,35 +332,18 @@ export function MyLibraryPicker({
 
   return (
     <View style={styles.tab}>
-      <SearchField
-        raised
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Search your songs"
-        autoCorrect={false}
+      <LibrarySongPicker
+        order="played"
+        stateOf={song => (added.has(song.id) ? 'added' : 'add')}
+        onAdd={song => void add(song)}
         testID="room-add-search"
       />
-      <ScrollView style={styles.scroll}>
-        {found.map(song => (
-          <SongPick
-            key={song.id}
-            title={song.title}
-            sub={artistOr(song.artist)}
-            art={artFor(song)}
-            done={added.has(song.id)}
-            onAdd={() => void add(song)}
-            accentColor={accent.accent}
-          />
-        ))}
-        {found.length === 0 ? <Text style={styles.text}>Nothing by that name.</Text> : null}
-      </ScrollView>
     </View>
   )
 }
 
 /** What is already in the room: friends' shelves, and songs that played. */
 function InTheRoom({ state }: { state: RoomState }): ReactNode {
-  const accent = useAccent()
   const [added, setAdded] = useState<ReadonlySet<string>>(new Set())
   const mayAdd = youMay(state, 'again')
   const played = playedRows(state)
@@ -413,7 +379,6 @@ function InTheRoom({ state }: { state: RoomState }): ReactNode {
                     index,
                   })
                 }
-                accentColor={accent.accent}
               />
             ))}
           </View>
@@ -431,7 +396,6 @@ function InTheRoom({ state }: { state: RoomState }): ReactNode {
               done={added.has(row.entry.id)}
               disabled={!mayAdd}
               onAdd={() => act(row.entry.id, { type: 'again', entryId: row.entry.id })}
-              accentColor={accent.accent}
             />
           ))}
         </View>
@@ -522,7 +486,6 @@ function ShelfPicker({ state }: { state: RoomState }): ReactNode {
 
 /** A link from YouTube or 网易云: played through the host's server, kept by nobody. */
 function ALink({ state }: { state: RoomState }): ReactNode {
-  const accent = useAccent()
   const [text, setText] = useState('')
   const [found, setFound] = useState<RoomSong | null>(null)
   const [busy, setBusy] = useState(false)
@@ -571,7 +534,6 @@ function ALink({ state }: { state: RoomState }): ReactNode {
             art={found.artwork}
             done={false}
             onAdd={() => void add()}
-            accentColor={accent.accent}
           />
           <Text style={styles.text}>
             Plays through {host ? `${nameOf(state, host)}’s` : 'the host’s'} server, straight from
@@ -597,6 +559,7 @@ function ALink({ state }: { state: RoomState }): ReactNode {
   )
 }
 
+/** A song not in your library — on a friend's shelf, played tonight, behind a link — one + away. */
 function SongPick({
   title,
   sub,
@@ -604,7 +567,6 @@ function SongPick({
   done,
   disabled = false,
   onAdd,
-  accentColor,
 }: {
   title: string
   sub: string
@@ -612,34 +574,16 @@ function SongPick({
   done: boolean
   disabled?: boolean
   onAdd: () => void
-  accentColor: string
 }): ReactNode {
-  const { theme } = useUnistyles()
   return (
-    <View style={styles.pick}>
-      <Cover uri={art} title={title} size={40} />
-      <View style={styles.pickText}>
-        <Text style={styles.pickTitle} numberOfLines={1}>
-          {title}
-        </Text>
-        <Text style={styles.pickSub} numberOfLines={1}>
-          {sub}
-        </Text>
-      </View>
-      {done ? (
-        <Check size={18} color={accentColor} />
-      ) : disabled ? null : (
-        <Pressable
-          onPress={onAdd}
-          accessibilityRole="button"
-          accessibilityLabel={`Add ${title}`}
-          hitSlop={6}
-          style={({ pressed }) => [styles.add, pressed && styles.pressed]}
-        >
-          <Plus size={16} color={theme.colors.textPrimary} />
-        </Pressable>
-      )}
-    </View>
+    <SongLine
+      artUri={art}
+      title={title}
+      sub={sub}
+      trailing={
+        <PickMark state={done ? 'added' : 'add'} title={title} onAdd={onAdd} disabled={disabled} />
+      }
+    />
   )
 }
 
@@ -865,18 +809,9 @@ const styles = StyleSheet.create(theme => ({
   shelfMine: { gap: space.sm, paddingBottom: space.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   found: { gap: space.sm },
-  pick: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 56 },
   pickText: { flex: 1, minWidth: 0, gap: 2 },
   pickTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   pickSub: { color: theme.colors.textSecondary, fontSize: type.sub },
-  add: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surface3,
-  },
   person: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 56 },
   rights: {
     gap: 2,

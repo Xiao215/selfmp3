@@ -1,30 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { artistOr, formatDuration, fuzzyRank, type Song } from '@selfmp3/shared'
-import {
-  failureText,
-  radius,
-  space,
-  type,
-  useAddToPlaylist,
-  useBulkTag,
-  useLibrary,
-} from '@selfmp3/client'
-import { useArt } from '../../offline/useArt'
-import { ROW_COVER_SIZE } from '../../offline/coverStore'
-import { useAccent } from '../../ui/accent'
+import { Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
+import type { Song } from '@selfmp3/shared'
+import { failureText, space, type, useAddToPlaylist, useBulkTag } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
-import { Check, Plus } from '../../ui/components/Icons'
+import { LibrarySongPicker } from '../../ui/components/LibrarySongPicker'
 import { Sheet } from '../../ui/components/Sheet'
-import { EmptyState } from '../../ui/components/EmptyState'
-import { SearchField } from '../../ui/components/SearchField'
-import { SongLine } from '../../ui/components/SongLine'
-import { ScrollView } from '../../ui/components/Scroll'
-
-/** Enough to scroll through; a search narrows past it. */
-const SHOWN = 60
 
 /**
  * Who the picked songs go to: a playlist that exists, which takes each song
@@ -69,13 +51,8 @@ export function AddSongsSheet({
   targetName: string
   target: AddSongsTarget
 }): ReactNode {
-  const { theme } = useUnistyles()
-  const accent = useAccent()
-  const artFor = useArt(ROW_COVER_SIZE)
-  const { data: library } = useLibrary()
   const addToPlaylist = useAddToPlaylist()
   const bulkTag = useBulkTag()
-  const [query, setQuery] = useState('')
   const [added, setAdded] = useState<ReadonlySet<number>>(new Set())
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -84,19 +61,8 @@ export function AddSongsSheet({
   const inPlaylist =
     target.kind === 'existing' ? target.inPlaylist : target.kind === 'tag' ? target.inTag : NOTHING
 
-  const results = useMemo(() => {
-    const songs = library?.songs ?? []
-    if (!query.trim()) {
-      return [...songs].sort((a, b) => b.addedAt.localeCompare(a.addedAt)).slice(0, SHOWN)
-    }
-    return fuzzyRank(query, songs, song => `${song.title} ${song.artist} ${song.album}`)
-      .slice(0, SHOWN)
-      .map(match => match.item)
-  }, [library?.songs, query])
-
   const close = (): void => {
     onClose()
-    setQuery('')
     setAdded(new Set())
     setError(null)
   }
@@ -133,7 +99,6 @@ export function AddSongsSheet({
     try {
       // In the order they were picked, which is the order a person means.
       await target.create([...added])
-      setQuery('')
       setAdded(new Set())
     } catch (caught) {
       // The picks stay, so trying again is one press.
@@ -152,72 +117,19 @@ export function AddSongsSheet({
       testID="add-songs"
     >
       <View style={styles.body}>
-        <SearchField
-          raised
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search your library"
-          autoCorrect={false}
-          autoCapitalize="none"
+        <LibrarySongPicker
           autoFocus
+          stateOf={song => (added.has(song.id) ? 'added' : inPlaylist.has(song.id) ? 'has' : 'add')}
+          onAdd={add}
+          onUnpick={making || tagging ? unpick : undefined}
+          labels={{
+            added: tagging ? 'Tagged' : 'Added',
+            has: tagging ? 'Has it' : 'In this list',
+            add: song => (tagging ? `Tag ${song.title}` : `Add ${song.title}`),
+            unpick: song =>
+              tagging ? `Take the tag off ${song.title}` : `Take ${song.title} back out`,
+          }}
         />
-
-        <ScrollView style={styles.list}>
-          {results.length === 0 ? (
-            <EmptyState
-              compact
-              title={query.trim() ? `Nothing matches “${query.trim()}”` : 'No songs yet'}
-            />
-          ) : (
-            results.map(song => {
-              const justAdded = added.has(song.id)
-              const already = !justAdded && inPlaylist.has(song.id)
-              return (
-                <SongLine
-                  key={song.id}
-                  style={[styles.row, already && styles.already]}
-                  artUri={artFor(song)}
-                  coverTitle={song.album || song.title}
-                  title={song.title}
-                  sub={`${artistOr(song.artist)} · ${formatDuration(song.duration)}`}
-                  trailing={
-                    already ? (
-                      <Text style={styles.state}>{tagging ? 'Has it' : 'In this list'}</Text>
-                    ) : justAdded ? (
-                      <Pressable
-                        onPress={() => unpick(song)}
-                        disabled={!making && !tagging}
-                        accessibilityRole={making || tagging ? 'button' : undefined}
-                        accessibilityLabel={
-                          tagging
-                            ? `Take the tag off ${song.title}`
-                            : making
-                              ? `Take ${song.title} back out`
-                              : `${song.title} added`
-                        }
-                        style={styles.addedMark}
-                      >
-                        <Check size={14} color={accent.accent} />
-                        <Text style={[styles.state, { color: accent.accent }]}>
-                          {tagging ? 'Tagged' : 'Added'}
-                        </Text>
-                      </Pressable>
-                    ) : (
-                      <Pressable
-                        onPress={() => add(song)}
-                        accessibilityRole="button"
-                        accessibilityLabel={tagging ? `Tag ${song.title}` : `Add ${song.title}`}
-                        style={({ pressed }) => [styles.add, pressed && styles.pressed]}
-                      >
-                        <Plus size={15} color={theme.colors.textPrimary} />
-                      </Pressable>
-                    )
-                  }
-                />
-              )
-            })
-          )}
-        </ScrollView>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <View style={styles.foot}>
@@ -251,28 +163,6 @@ export function AddSongsSheet({
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm, padding: space.xs },
-  list: { maxHeight: 380 },
-  row: { paddingHorizontal: space.xs },
-  already: { opacity: 0.55 },
-  state: { color: theme.colors.textMuted, fontSize: type.small, fontWeight: '600' },
-  addedMark: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    minWidth: 64,
-    justifyContent: 'flex-end',
-  },
-  // Each + adds at once, and there is one on every row, so it is a quiet round
-  // control rather than the accent: forty accent buttons would be a wall.
-  add: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface3,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pressed: { opacity: 0.7 },
   foot: {
     flexDirection: 'row',
     alignItems: 'center',

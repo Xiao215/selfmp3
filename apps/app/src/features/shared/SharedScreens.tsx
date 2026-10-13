@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import {
-  artistOr,
   plural,
   SharedIdSchema,
   SharedInviteSchema,
@@ -27,13 +26,13 @@ import { TextField } from '../../ui/components/TextField'
 import { PageLoading } from '../../ui/components/PageLoading'
 import { Button } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
-import { Cover } from '../../ui/components/Cover'
-import { People, Play, Plus, X } from '../../ui/components/Icons'
+import { People, Play, Plus } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
 import { useCloudSession } from '../profile/useCloudSession'
 import { openQueueSheet } from '../queue/queueSheet.store'
-import { FacesCover, RoomFace, RoomFaces } from '../room/RoomFace'
+import { FacesCover, RoomFaces } from '../room/RoomFace'
+import { RoomEntryLine } from '../room/RoomEntryLine'
 import { GridTile } from '../../ui/components/TileGrid'
 import { RoomQr } from '../room/RoomQr'
 import { MyLibraryPicker } from '../room/RoomSheets'
@@ -186,45 +185,20 @@ export function SharedPlaylistScreen(): ReactNode {
         {rows.map((row, at) => {
           const song = roomTrack(row.trackId)?.song
           return (
-            <View key={row.entry.id} style={styles.row} testID={`shared-row-${row.entry.id}`}>
-              <Pressable
-                onPress={() => playHere(at)}
-                accessibilityRole="button"
-                accessibilityLabel={`Play ${row.entry.song.title}`}
-                style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
-              >
-                <View>
-                  <Cover uri={song ? artFor(song) : null} title={row.entry.song.title} size={44} />
-                  {row.owner ? (
-                    <View style={styles.badge}>
-                      <RoomFace name={row.owner.name} colour={row.owner.colour} size={20} ring />
-                    </View>
-                  ) : null}
-                </View>
-                <View style={styles.rowText}>
-                  <Text style={styles.rowTitle} numberOfLines={1}>
-                    {row.entry.song.title}
-                  </Text>
-                  <Text style={styles.text} numberOfLines={1}>
-                    {artistOr(row.entry.song.artist)} ·{' '}
-                    {row.owner?.id === playlist.you ? 'You' : (row.owner?.name ?? 'Someone')}
-                  </Text>
-                </View>
-              </Pressable>
-              {row.removable ? (
-                <Pressable
-                  onPress={() =>
-                    void act({ type: 'remove', entryId: row.entry.id }).catch(sayRoomFailure)
-                  }
-                  accessibilityRole="button"
-                  accessibilityLabel={`Take ${row.entry.song.title} out`}
-                  hitSlop={6}
-                  style={({ pressed }) => [styles.small, pressed && styles.pressed]}
-                >
-                  <X size={16} color={theme.colors.textSecondary} />
-                </Pressable>
-              ) : null}
-            </View>
+            <RoomEntryLine
+              key={row.entry.id}
+              song={row.entry.song}
+              uri={song ? artFor(song) : null}
+              face={row.face}
+              who={row.who}
+              onPress={() => playHere(at)}
+              onRemove={
+                row.removable
+                  ? () => void act({ type: 'remove', entryId: row.entry.id }).catch(sayRoomFailure)
+                  : undefined
+              }
+              testID={`shared-row-${row.entry.id}`}
+            />
           )
         })}
       </ScrollView>
@@ -485,20 +459,6 @@ const styles = StyleSheet.create(theme => ({
   text: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: 18 },
   people: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 60 },
-  rowMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: space.md },
-  pressed: { opacity: 0.7 },
-  badge: { position: 'absolute', right: -5, bottom: -5 },
-  rowText: { flex: 1, minWidth: 0, gap: 2 },
-  rowTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  small: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surface2,
-  },
   sheetBody: { gap: space.md, paddingBottom: space.sm },
   inviteCard: {
     flexDirection: 'row',

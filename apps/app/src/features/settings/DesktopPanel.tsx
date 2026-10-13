@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Linking, View } from 'react-native'
+import { Linking, type View } from 'react-native'
 import { failureText } from '@selfmp3/client'
 import { loginItem } from '../../ports/loginItem'
 import { updates, type UpdateState } from '../../ports/updates'

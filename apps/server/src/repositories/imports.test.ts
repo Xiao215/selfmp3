@@ -35,6 +35,37 @@ describe('ImportRepository', () => {
       )
       .map(job => job.id)
 
+  describe('isPending', () => {
+    it('knows a queued song under any spelling of its link', () => {
+      imports.enqueue(
+        [
+          {
+            url: 'https://music.163.com/song?id=186016',
+            title: '晴天',
+            artist: '周杰伦',
+            album: '',
+            thumbnail: null,
+            duration: 0,
+          },
+          {
+            url: 'https://example.com/a.mp3',
+            title: 'Sunrise',
+            artist: 'Aurora Lane',
+            album: '',
+            thumbnail: null,
+            duration: 0,
+          },
+        ],
+        [],
+        null,
+      )
+
+      expect(imports.isPending('https://y.music.163.com/m/song?id=186016&userid=7')).toBe(true)
+      expect(imports.isPending('https://example.com/a.mp3?si=share')).toBe(true)
+      expect(imports.isPending('https://example.com/b.mp3')).toBe(false)
+    })
+  })
+
   describe('claimNext', () => {
     it('takes jobs in the order they were asked for, and none twice', () => {
       const [first = '', second = ''] = enqueue('Sunrise', 'Moonrise')

@@ -7,6 +7,7 @@
  */
 import { normalize, sep } from 'node:path'
 
+import { mimeForExtension } from '@selfmp3/shared'
 /**
  * A path inside `root`, or null.
  *
@@ -64,9 +65,9 @@ export function isRoute(pathname: string, fetchMode: string | null): boolean {
  */
 export function contentTypeFor(path: string): string {
   const extension = /\.([A-Za-z0-9]+)$/.exec(path)?.[1]?.toLowerCase()
-  return extension !== undefined && extension in CONTENT_TYPES
-    ? (CONTENT_TYPES[extension] as string)
-    : 'application/octet-stream'
+  if (extension === undefined) return 'application/octet-stream'
+  // Audio is the library's, typed as the server types it.
+  return CONTENT_TYPES[extension] ?? mimeForExtension(`.${extension}`)
 }
 
 const CONTENT_TYPES: Readonly<Record<string, string>> = {
@@ -89,9 +90,4 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   otf: 'font/otf',
   woff: 'font/woff',
   woff2: 'font/woff2',
-  m4a: 'audio/mp4',
-  mp3: 'audio/mpeg',
-  wav: 'audio/wav',
-  flac: 'audio/flac',
-  opus: 'audio/ogg',
 }

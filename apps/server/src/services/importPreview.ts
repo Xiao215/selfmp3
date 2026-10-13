@@ -1,4 +1,5 @@
 import {
+  messageOf,
   extractUrls,
   isNeteaseUrl,
   spotifyLink,
@@ -11,9 +12,10 @@ import {
   type ImportPreview,
   type ImportPreviewItem,
   type Playlist,
+  linkIdentity,
 } from '@selfmp3/shared'
 import { HttpError } from '../http/errors.js'
-import { alreadyHave, libraryIndex, normaliseUrl } from './alreadyHave.js'
+import { alreadyHave, libraryIndex } from './alreadyHave.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
 import type { CloudRepository } from '../repositories/cloud.js'
@@ -26,7 +28,6 @@ import type { NeteaseMusic, NeteaseTrack } from './netease.js'
 import type { SpotifyLists } from './spotify.js'
 import { parseTrackList, type ListedTrack } from './trackLists.js'
 import type { YouTubeMatcher } from './youtubeMatch.js'
-import { messageOf } from '../util/errors.js'
 
 type PreviewDeps = {
   ytdlp: Pick<YtDlpService, 'status' | 'probe'>
@@ -232,11 +233,11 @@ export function inQueue(deps: Pick<PreviewDeps, 'imports'>): (url: string) => bo
   const pending = new Set(
     deps.imports
       .pendingUrls()
-      .map(url => normaliseUrl(url))
+      .map(url => linkIdentity(url))
       .filter((url): url is string => url !== null),
   )
   return url => {
-    const key = normaliseUrl(url)
+    const key = linkIdentity(url)
     return key !== null && pending.has(key)
   }
 }

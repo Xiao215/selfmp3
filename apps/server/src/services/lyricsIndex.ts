@@ -1,11 +1,10 @@
-import { lyricTextLines, parseLyrics, type LyricsSearchHit } from '@selfmp3/shared'
+import { messageOf, lyricTextLines, parseLyrics, type LyricsSearchHit } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
 import { highlightMatch, type LyricsSearchRepository } from '../repositories/lyricsSearch.js'
 import { unattendedLyricText, type LyricsService } from './lyrics.js'
 import type { MetadataService } from './metadata.js'
 import { LyricsCache } from './lyricsCache.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * Keeps the lyric search index in step with the lyrics the server holds.

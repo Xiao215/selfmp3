@@ -1,4 +1,4 @@
-import { parseEndpoint, type DoormanStorage } from '@selfmp3/shared'
+import { bucketPlace, parseEndpoint, type DoormanStorage } from '@selfmp3/shared'
 
 /**
  * Where it lives, without the screen: the page after the first Google sign-in
@@ -64,7 +64,7 @@ export function addressReady(fields: AddressFields): boolean {
 
 /** "selfmp3-xiao on Backblaze, us-west-004", or "my-music at r2.cloudflarestorage.com". */
 export function whereItIs(storage: DoormanStorage): string {
-  const host = storage.endpoint.replace(/^https?:\/\//, '')
+  const { host } = bucketPlace(storage)
   return /\.backblazeb2\.com$/i.test(host)
     ? `${storage.bucket} on Backblaze, ${storage.region}`
     : `${storage.bucket} at ${host}`

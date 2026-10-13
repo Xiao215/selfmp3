@@ -1,6 +1,6 @@
 import type { ServerEvent } from '@selfmp3/shared'
+import { messageOf } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * The live event stream.

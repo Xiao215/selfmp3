@@ -1,3 +1,4 @@
+import { newUid } from '@selfmp3/shared'
 import { prefs } from './prefs'
 
 /**
@@ -22,7 +23,7 @@ export type DeviceWord = 'phone' | 'iPad' | 'tablet' | 'computer'
 export function storedDeviceId(randomBytes: (length: number) => Uint8Array): string {
   const stored = prefs.get(ID_KEY)
   if (stored && /^[A-Za-z0-9_-]{8,64}$/.test(stored)) return stored
-  const fresh = Array.from(randomBytes(16), byte => byte.toString(16).padStart(2, '0')).join('')
+  const fresh = newUid(into => into.set(randomBytes(into.length)))
   prefs.set(ID_KEY, fresh)
   return fresh
 }

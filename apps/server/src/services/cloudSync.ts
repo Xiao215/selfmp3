@@ -2,6 +2,9 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { gzipSync } from 'node:zlib'
 import {
+  bucketPlace,
+  HASH_NAMED_FOLDERS,
+  messageOf,
   CLOUD_FORMAT_UNREADABLE,
   cloudFormatProblem,
   isCloudFormat,
@@ -83,7 +86,6 @@ import {
   storedSnapshotCoreHash,
 } from './cloudSnapshot.js'
 import type { AdoptionResult, CloudAdopt } from './cloudAdopt.js'
-import { messageOf } from '../util/errors.js'
 import { sha256 } from '../util/hash.js'
 
 /**
@@ -1456,8 +1458,8 @@ export class CloudSyncService {
    */
   async #verify(store: CloudStore): Promise<void> {
     const present = new Map<string, number>()
-    for (const folder of ['audio/', 'covers/', 'lyrics/']) {
-      for (const object of await store.list(folder)) present.set(object.key, object.size)
+    for (const folder of HASH_NAMED_FOLDERS) {
+      for (const object of await store.list(`${folder}/`)) present.set(object.key, object.size)
     }
     const again = this.#deps.cloud.reconcileFiles(present)
     if (again > 0) {
@@ -2247,8 +2249,7 @@ export class CloudSyncService {
     const storage = session.storage
     if (!storage || !this.#doorman) return
     this.#deps.cloud.adoptTarget(storage)
-    const host = storage.endpoint.replace(/^https?:\/\//, '')
-    const folder = storage.prefix ? `${storage.bucket}/${storage.prefix}` : storage.bucket
+    const { host, folder } = bucketPlace(storage)
     this.#use(this.#doorman.store(session.token, `${host} · ${folder} (via the doorman)`), {
       ...storage,
     })

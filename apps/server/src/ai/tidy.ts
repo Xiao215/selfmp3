@@ -4,7 +4,7 @@ import {
   editDistance,
   SongFieldsSchema,
   TidyFieldSchema,
-  creditList as listed,
+  splitArtists,
   plural,
   withoutRepeats,
   withoutTranslation,
@@ -66,7 +66,7 @@ export function withoutVideoWords(title: string): string {
 
 /** "YOASOBI - 夜に駆ける" by YOASOBI → "夜に駆ける". */
 export function withoutArtistPrefix(title: string, credit: string): string {
-  for (const name of [credit, ...listed(credit)]) {
+  for (const name of [credit, ...splitArtists(credit, 'list')]) {
     if (!name) continue
     const prefix = `${name.toLowerCase()} - `
     if (title.toLowerCase().startsWith(prefix) && title.length > prefix.length) {
@@ -155,17 +155,22 @@ function counted(values: Iterable<{ name: string; by?: string }>): Count[] {
 
 /** The prompt: names, credits and albums, never a title or anything else about a song. */
 export function namesPrompt(songs: readonly Song[]): string {
-  const names = counted(songs.flatMap(song => listed(song.artist).map(name => ({ name }))))
+  const names = counted(
+    songs.flatMap(song => splitArtists(song.artist, 'list').map(name => ({ name }))),
+  )
   const credits = counted(
     songs
       .map(song => withoutRepeats(song.artist))
-      .filter(credit => listed(credit).length > 1)
+      .filter(credit => splitArtists(credit, 'list').length > 1)
       .map(name => ({ name })),
   )
   const albums = counted(
     songs
       .filter(song => song.album)
-      .map(song => ({ name: song.album, by: listed(song.albumArtist || song.artist)[0] })),
+      .map(song => ({
+        name: song.album,
+        by: splitArtists(song.albumArtist || song.artist, 'list')[0],
+      })),
   )
   return [
     'Artist names:',
@@ -248,7 +253,7 @@ export async function tidy(
 /** Rules and the model's names, applied to every song, grouped into changes. */
 function changesFor(songs: readonly Song[], names: Names): TidyChange[] {
   // What the model said, kept to names it was shown and changes that change something.
-  const artistNames = new Set(songs.flatMap(song => listed(song.artist)))
+  const artistNames = new Set(songs.flatMap(song => splitArtists(song.artist, 'list')))
   const credits = new Set(songs.map(song => withoutRepeats(song.artist)))
   const albums = new Set(songs.map(song => song.album).filter(Boolean))
   const real = (from: string, to: string, known: Set<string>): boolean =>
@@ -288,10 +293,14 @@ function changesFor(songs: readonly Song[], names: Names): TidyChange[] {
     const once = withoutRepeats(artist.value)
     if (once !== artist.value) artist.whys.push('The same name twice')
     artist.value = once
-    const spelled = listed(artist.value).map(name => spelling.get(name)?.to.trim() ?? name)
+    const spelled = splitArtists(artist.value, 'list').map(
+      name => spelling.get(name)?.to.trim() ?? name,
+    )
     const respelled = withoutRepeats(join(spelled))
-    if (listed(artist.value).some(name => spelling.has(name))) {
-      artist.whys.push(...new Set(listed(artist.value).flatMap(n => spelling.get(n)?.why ?? [])))
+    if (splitArtists(artist.value, 'list').some(name => spelling.has(name))) {
+      artist.whys.push(
+        ...new Set(splitArtists(artist.value, 'list').flatMap(n => spelling.get(n)?.why ?? [])),
+      )
       artist.value = respelled
       byModel = true
     }

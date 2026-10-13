@@ -1,34 +1,30 @@
-import { fileURLToPath } from 'node:url'
+import { defaultServerConditions } from 'vite'
 import { configDefaults, defineConfig } from 'vitest/config'
 
-const here = (path: string) => fileURLToPath(new URL(path, import.meta.url))
+/**
+ * Vitest's own conditions — Vite's server ones without `module`, whose ESM
+ * builds (the AWS SDK's) Node cannot load — with `source` first.
+ */
+const conditions = [
+  'source',
+  ...defaultServerConditions.filter(condition => condition !== 'module'),
+]
 
 export default defineConfig({
-  resolve: {
-    // The workspace packages, read from their source rather than their `dist`.
-    //
-    // Each package's `exports` points at `dist/`, which is what Node and tsc
-    // want. Left to that, a test that imports `@selfmp3/shared` ran whatever
-    // was compiled last, so `test:watch` checked stale code and `npm test` had
-    // to build the packages first. Vite resolves the packages' NodeNext
-    // `./foo.js` specifiers back to `./foo.ts` on its own. The longer, deeper
-    // entry comes before the bare package name, so it is matched first.
-    alias: [
-      { find: '@selfmp3/client/core', replacement: here('./packages/client/src/core.ts') },
-      {
-        find: '@selfmp3/client/tokens',
-        replacement: here('./packages/client/src/theme/tokens.ts'),
-      },
-      { find: '@selfmp3/client', replacement: here('./packages/client/src/index.ts') },
-      { find: '@selfmp3/shared/wire', replacement: here('./packages/shared/src/wire.ts') },
-      { find: '@selfmp3/shared', replacement: here('./packages/shared/src/index.ts') },
-      { find: '@selfmp3/replica', replacement: here('./packages/replica/src/index.ts') },
-      {
-        find: '@selfmp3/desktop-bridge',
-        replacement: here('./packages/desktop-bridge/src/index.ts'),
-      },
-    ],
-  },
+  /*
+   * The workspace packages, read from their source rather than their `dist`.
+   *
+   * Each package's `exports` points at `dist/`, which is what Node, tsc, Jest,
+   * Metro, esbuild and wrangler read. Left to that, a test that imports
+   * `@selfmp3/shared` ran whatever was compiled last, so `test:watch` checked
+   * stale code and `npm test` had to build the packages first. Each entry also
+   * names its source under a `source` condition, which only this asks for, so
+   * every subpath resolves the way the others do without a list kept here.
+   * Vite resolves the packages' NodeNext `./foo.js` specifiers back to
+   * `./foo.ts` on its own.
+   */
+  resolve: { conditions },
+  ssr: { resolve: { conditions } },
   test: {
     // Each workspace keeps its own tests next to the code they cover.
     include: [

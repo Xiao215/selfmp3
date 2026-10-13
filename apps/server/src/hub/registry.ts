@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { z } from 'zod'
-import { DoormanAccountSchema } from '@selfmp3/shared'
+import { DoormanAccountSchema, randomHex } from '@selfmp3/shared'
 
 /**
  * Who this server works for: `<data>/hub.json` (docs/features/shared-server.md).
@@ -76,7 +76,7 @@ export class HubRegistry {
   /** A new entry, kept at once. */
   add(fields: Omit<HubEntry, 'id' | 'joinedAt' | 'token'> & { token?: string }): HubEntry {
     const entry: HubEntry = {
-      id: crypto.randomBytes(8).toString('hex'),
+      id: randomHex(8),
       joinedAt: new Date().toISOString(),
       ...fields,
       token: fields.token ?? newToken(),

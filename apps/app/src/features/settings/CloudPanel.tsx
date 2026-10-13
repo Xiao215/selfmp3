@@ -4,6 +4,7 @@ import { ActivityIndicator, Linking, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import * as Crypto from 'expo-crypto'
 import {
+  bucketPlace,
   plural,
   formatBytes,
   formatRelative,
@@ -226,8 +227,7 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
   const [confirming, setConfirming] = useState(false)
   const target = status.target
   const syncing = status.state === 'syncing'
-  const host = target?.endpoint.replace(/^https?:\/\//, '') ?? ''
-  const folder = target ? (target.prefix ? `${target.bucket}/${target.prefix}` : target.bucket) : ''
+  const { host, folder } = target ? bucketPlace(target) : { host: '', folder: '' }
   const account = status.account
   const progress = status.progress
 

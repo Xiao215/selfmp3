@@ -52,3 +52,10 @@ export const DEFAULT_LOCAL_SERVER_URL = `http://localhost:${DEFAULT_SERVER_PORT}
  * finished sign-in to it unless APP_SCHEMES names another.
  */
 export const DEEP_LINK_SCHEME = 'selfmp3'
+
+/**
+ * Where `npm run dev` serves the app for a browser (Metro's web server, on the
+ * port after the server's): what the desktop shell's development window and
+ * the browser flows open unless told otherwise.
+ */
+export const DEFAULT_LOCAL_WEB_URL = `http://localhost:${DEFAULT_SERVER_PORT + 1}`

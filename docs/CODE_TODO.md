@@ -662,9 +662,10 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
   - Stop following is a new `playlistUnfollowed` change; a playlist's last-played time is kept per device; lyrics search is listed server-only (the UI already skips it in the cloud).
 - [x] **T-395** Every doorman 409 reads as "No bucket is connected" (the 20-grant limit too); `bucket_refused_key`/`no_such_bucket` fall to `other`. → B1
   - The server maps by code: `no_storage` and `no_such_bucket` are `missing`, `too_many_grants` says to remove a server, `bucket_unreachable` is `network`; `bucket_refused_key` stays `other` (the bucket's key, not this server's session, so nothing to sign in again for).
-- [ ] **T-396** "Same link" has four rules: 网易云 and `?si=` links are not seen as queued by the extension or `isPending`. → B2
-- [ ] **T-397** Two artist splitters with different separators (AI vs app); server Stats/Wrapped group raw artist strings; CarPlay/Android Auto browse groups and sorts its own way. → B2
+- [x] **T-396** "Same link" has four rules: 网易云 and `?si=` links are not seen as queued by the extension or `isPending`. → B2
+- [x] **T-397** Two artist splitters with different separators (AI vs app); server Stats/Wrapped group raw artist strings; CarPlay/Android Auto browse groups and sorts its own way. → B2
 - [ ] **T-398** The admin page's `plural` writes "1234 songs"; Home's This week writes "2h 00" and "1234" where You writes "2h" and "1,234". → B2 / H
+  - B2's half done: admin `plural` groups like shared's, parity test tries 999–1,000,000. Home's figures are H's.
 
 ### A — Server and replica answer the same API from one set of rules
 
@@ -690,10 +691,14 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 
 ### B2 — Small shared helpers and tooling
 
-- [ ] **T-407** `linkIdentity()` in `shared/links.ts` for every "same link" check.
-- [ ] **T-408** One `splitArtists` (merged separators); server Stats/Wrapped aggregate with it; `browseTree` uses the app's artist/album/playlist orderings.
-- [ ] **T-409** `messageOf`, `shuffleArray`, ETag, progress throttle, `WEEKDAYS`, day key, durations ("Xh MM", m:ss), bucket place label, hex ids, hash-key regex, timed fetch, `decodeText`, latest-release fetch: one home each.
-- [ ] **T-410** Tooling: one ESLint base for root and app; Dockerfile copies every workspace manifest; vitest resolves packages the way Jest and Metro do; release tags checked against versions; port 4600 from `DEFAULT_SERVER_PORT`; root overrides match the app's ranges.
+- [x] **T-407** `linkIdentity()` in `shared/links.ts` for every "same link" check.
+  - `isPending` compares in JS over the few open jobs rather than storing a normalised column (no migration). Room "is this song yours" uses it too.
+- [x] **T-408** One `splitArtists` (merged separators); server Stats/Wrapped aggregate with it; `browseTree` uses the app's artist/album/playlist orderings.
+  - `splitArtists(credit, 'list')` keeps the tidy's list-only split (a credit rewritten name by name); `creditNames`/`creditList` are gone and `mainArtist`/`withoutRepeats` live beside it. `/` splits only spaced or beside CJK, so AC/DC stays whole. browseTree imports `listedPlaylists` and `albumsOf` from the app's own models rather than moving them to packages/client: both callers are in apps/app, and moving them would churn E/G's screens.
+- [x] **T-409** `messageOf`, `shuffleArray`, ETag, progress throttle, `WEEKDAYS`, day key, durations ("Xh MM", m:ss), bucket place label, hex ids, hash-key regex, timed fetch, `decodeText`, latest-release fetch: one home each.
+  - Homes: shared `messageOf` (errors.ts), `fileEtag` (range.ts), `createThrottle` with `flush()` (throttle.ts), `localDayKey` (dates.ts), `formatListenTime` (format.ts), `randomHex`/`bucketPlace`/`decodeBucketText`/`HASH_NAMED_FOLDERS` (cloud.ts), `HASH_FILE_NAME` (schemas/cloud.ts), `fetchLatestRelease` (releases.ts; a 404 is null on both); client `REQUEST_TIMEOUT_MS`; the app's `fetchWithin` for the health probe. Left to others: the doorman's `messageOf`/hex/hash copies and `sw.ts`'s cover path (B1); HomeScreen's `listened` should use `formatListenTime` (H). The admin page's `bucketPlace`/`attemptId` copies stay (no build step) under parity tests.
+- [x] **T-410** Tooling: one ESLint base for root and app; Dockerfile copies every workspace manifest; vitest resolves packages the way Jest and Metro do; release tags checked against versions; port 4600 from `DEFAULT_SERVER_PORT`; root overrides match the app's ranges.
+  - `eslint.base.cjs` holds the shared rules (tests may write `typeof import('…')`, which a hoisted `jest.mock` needs). Vitest reads each package's `source` export condition instead of an alias list. 4600/4601 stay literal only where nothing can import (Dockerfile, compose, shell scripts, package.json's `dev:web`). `.nvmrc` and the Dockerfile's Node 22 left as they are.
 
 ### D — Platform twins share their rules
 

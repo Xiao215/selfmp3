@@ -5,7 +5,7 @@ import {
   type Api,
   type ServerConnection,
 } from '@selfmp3/client/core'
-import { DEFAULT_LOCAL_SERVER_URL, youtubeVideoId, type ImportJob } from '@selfmp3/shared'
+import { DEFAULT_LOCAL_SERVER_URL, linkIdentity, type ImportJob } from '@selfmp3/shared'
 import { z } from 'zod'
 import { BridgeError, type Handlers, type Status } from '../bridge.js'
 import type { Cloud } from './cloud.js'
@@ -306,10 +306,10 @@ export function createHandlers({
     },
 
     async songFor({ url }) {
-      const videoId = youtubeVideoId(url)
-      if (!videoId) return null
+      const key = linkIdentity(url)
+      if (!key) return null
       const { api, identity } = await answering()
-      return (await library.get(identity, api)).links[videoId] ?? null
+      return (await library.get(identity, api)).links[key] ?? null
     },
 
     async enqueue({ request, label }) {

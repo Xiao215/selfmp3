@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 import path from 'node:path'
 import type { ImportShareResult, ScanResult } from '@selfmp3/shared'
-import { formatBytes } from '@selfmp3/shared'
+import { messageOf, formatBytes } from '@selfmp3/shared'
 import { APP_NAME, APP_VERSION, resolveDirs } from './config.js'
 import { ApiError, createClient, defaultBaseUrl } from './cli/api.js'
 import { CliUsageError, USAGE, parseCli, type Command } from './cli/args.js'
 import { backupTree } from './cli/backup.js'
 import { runDoctor } from './cli/doctor.js'
 import { loadDotEnv } from './dotenv.js'
-import { messageOf } from './util/errors.js'
 
 /**
  * `selfmp3` — the command-line front door.

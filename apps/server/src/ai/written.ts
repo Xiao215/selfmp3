@@ -1,5 +1,6 @@
 import { z } from 'zod/v4'
 import {
+  WEEKDAYS,
   WRAPPED_RANGE_LABELS,
   type Wrapped,
   type WrappedRange,
@@ -29,7 +30,6 @@ Use only the facts given. Every number you write must appear in the facts exactl
 
 const HOURS = ['12 am', ...Array.from({ length: 11 }, (_, i) => `${i + 1} am`), '12 pm']
 for (let i = 1; i < 12; i++) HOURS.push(`${i} pm`)
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 /** The report as the lines the model reads, with hours beside minutes so it need not divide. */
 export function factsOf(wrapped: Wrapped): string {

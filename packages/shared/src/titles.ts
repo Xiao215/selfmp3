@@ -211,23 +211,6 @@ export function tidyVideoTitle(raw: string, channel: string): TidiedTitle {
 /** Chinese, Japanese or Korean letters. */
 export const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
 
-/** A credit as the names it lists, split only where a list is: "A, B", "A、B". */
-export function creditList(credit: string): string[] {
-  return credit
-    .split(/\s*[,，、]\s*/)
-    .map(name => name.trim())
-    .filter(Boolean)
-}
-
-/** "薛之谦, 薛之谦, 薛之谦" → "薛之谦": each name once, the first spelling kept. */
-export function withoutRepeats(credit: string): string {
-  const names: string[] = []
-  for (const name of creditList(credit)) {
-    if (!names.some(other => other.toLowerCase() === name.toLowerCase())) names.push(name)
-  }
-  return names.length === creditList(credit).length ? credit : names.join(', ')
-}
-
 /**
  * "オリオン - Orion" → "オリオン": a name in Chinese, Japanese or Korean, then
  * its English after a dash. Only that shape: "Love - Live" and "夜 - 朝" stay.

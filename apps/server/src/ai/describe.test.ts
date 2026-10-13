@@ -3,7 +3,7 @@ import type { Understanding } from '@selfmp3/shared'
 import { describe, groundPicks, narrowAndPick, songsFitting } from './describe.js'
 import { AskProgress } from './progress.js'
 import { SONGS, TAGS, scriptedLlm } from './fixtures/library.js'
-import { creditNames, libraryShape, songTable } from './library.js'
+import { libraryShape, songTable } from './library.js'
 
 const NOW = Date.parse('2026-10-03T12:00:00Z')
 
@@ -318,12 +318,6 @@ group('groundPicks', () => {
 })
 
 group('library', () => {
-  it('reads one name per person from a credit', () => {
-    expect(creditNames('薛之谦, 薛之谦, 薛之谦')).toEqual(['薛之谦'])
-    expect(creditNames('Yu-Peng Chen, HOYO-MiX')).toEqual(['Yu-Peng Chen', 'HOYO-MiX'])
-    expect(creditNames('A feat. B')).toEqual(['A', 'B'])
-  })
-
   it('describes each tag by what it holds', () => {
     const shape = libraryShape(SONGS, TAGS)
     expect(shape).toContain(

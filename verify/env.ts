@@ -16,16 +16,18 @@
  *   SELFMP3_APP_API=http://localhost:4610 npm run verify:flows
  */
 
+import { DEFAULT_LOCAL_SERVER_URL, DEFAULT_LOCAL_WEB_URL } from '@selfmp3/shared'
+
 /** An address as a base: no trailing slash, so `${base}/api/...` is one path. */
 function address(value: string): string {
   return value.replace(/\/+$/, '')
 }
 
 /** The app: the config's `baseURL`, and the origin the device id is seeded into. */
-export const webUrl = address(process.env.SELFMP3_WEB_URL ?? 'http://localhost:4601')
+export const webUrl = address(process.env.SELFMP3_WEB_URL ?? DEFAULT_LOCAL_WEB_URL)
 
 /** The server, for the app (through `localStorage`) and for the specs' own `fetch`es. */
-export const appApi = address(process.env.SELFMP3_APP_API ?? 'http://localhost:4600')
+export const appApi = address(process.env.SELFMP3_APP_API ?? DEFAULT_LOCAL_SERVER_URL)
 
 /**
  * A production build of the app, for `flows/pwa.spec.ts`.

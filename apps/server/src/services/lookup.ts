@@ -1,11 +1,10 @@
-import { DAY_MS, type MetadataCandidate } from '@selfmp3/shared'
+import { messageOf, DAY_MS, type MetadataCandidate } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import { USER_AGENT } from '../config.js'
 import type { FetchLike } from './fetching.js'
 import { RateLimiter } from './rateLimiter.js'
 import { rankCandidates, type LookupQuery } from './lookupScore.js'
 import { coverArtArchiveUrl, parseItunes, parseMusicBrainz } from './lookupParsers.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * Metadata lookup against free public databases.

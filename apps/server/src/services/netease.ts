@@ -1,4 +1,5 @@
 import {
+  messageOf,
   cleanArtist,
   neteaseAlbumUrl,
   neteaseLink,
@@ -8,7 +9,6 @@ import {
 } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import { BROWSER_USER_AGENT, type FetchLike } from './fetching.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * 网易云音乐: its songs, albums, playlists and artists, and its lyrics.

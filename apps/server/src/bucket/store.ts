@@ -3,13 +3,13 @@ import { Readable } from 'node:stream'
 import type { S3Client } from '@aws-sdk/client-s3'
 import {
   bucketUnreachable,
+  messageOf,
   classifyBucketRefusal,
   type BucketRefusal,
   type BucketRefusalKind,
 } from '@selfmp3/shared'
 import type { CloudConnection } from '../repositories/cloud.js'
 import { errorName, errorStatus, isNotFound, loadS3, streamToBuffer, type S3Module } from './s3.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * The cloud bucket, as the sync sees it: a handful of operations on keys

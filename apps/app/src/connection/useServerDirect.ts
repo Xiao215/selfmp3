@@ -10,22 +10,21 @@ import {
   type Reach,
   type ServerConnection,
 } from '@selfmp3/client'
+import { fetchWithin } from '../api/client'
 import { library as cloudLibrary } from '../replica'
+
+/** The app's fetch with a deadline, at the probe's. */
+const probeFetch = fetchWithin(PROBE_TIMEOUT_MS)
 
 /**
  * `/api/health` at one address, within the deadline. It needs no token, and
  * an answer is all that is asked: what it says is the server's business.
  */
 async function probe(connection: ServerConnection): Promise<boolean> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)
   try {
-    const response = await fetch(`${connection.baseUrl}/api/health`, { signal: controller.signal })
-    return response.ok
+    return (await probeFetch(`${connection.baseUrl}/api/health`)).ok
   } catch {
     return false
-  } finally {
-    clearTimeout(timer)
   }
 }
 

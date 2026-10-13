@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import {
+  messageOf,
   DAY_MS,
   artistKey,
   libraryArtists,
@@ -18,7 +19,6 @@ import { readCapped, type FetchLike } from './fetching.js'
 import { YouTubeMusicApi } from './youtubeMusicApi.js'
 import { pictureAt, type YouTubeMusicArtists } from './youtubeMusicArtist.js'
 import { fits, isSameSong, searchSongs } from './youtubeMusicSongs.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * An artist's picture, from their page on YouTube Music: the banner over the

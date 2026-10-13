@@ -1,8 +1,9 @@
 import {
   artistOr,
   DAY_MS,
+  formatDuration,
   fromSqliteTime,
-  UNKNOWN_ARTIST,
+  mainArtist,
   type Song,
   type Tag,
 } from '@selfmp3/shared'
@@ -16,25 +17,6 @@ import { tally } from './text.js'
  * Everything here is plain text built the same way every time, so the same
  * library gives the same prompt and a cached answer can be found again.
  */
-
-/**
- * The people a credit names, once each, in order.
- *
- * Credits arrive as "薛之谦, 薛之谦, 薛之谦", "Yu-Peng Chen, HOYO-MiX" or
- * "A feat. B"; the first name is who the song is mostly by.
- */
-export function creditNames(artist: string): string[] {
-  const names: string[] = []
-  for (const part of artist.split(/\s*(?:,|、|;|\/|\s&\s|\sfeat\.?\s|\sft\.?\s)\s*/i)) {
-    const name = part.trim()
-    if (name && !names.some(other => other.toLowerCase() === name.toLowerCase())) names.push(name)
-  }
-  return names
-}
-
-export function mainArtist(artist: string): string {
-  return creditNames(artist)[0] ?? UNKNOWN_ARTIST
-}
 
 /** With words: lyrics were found and nobody said it has none. */
 export function hasWords(song: Song): boolean {
@@ -111,11 +93,6 @@ export function libraryShape(songs: readonly Song[], tags: readonly Tag[]): stri
   ].join('\n')
 }
 
-function minutes(seconds: number): string {
-  const s = Math.round(seconds)
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
-}
-
 function daysAgo(iso: string | null, now: number): string {
   if (!iso) return 'never played'
   const days = Math.floor((now - fromSqliteTime(iso)) / DAY_MS)
@@ -151,7 +128,7 @@ export function songTable(
           .join(', ') || 'no tags',
         features?.energy != null ? `energy ${features.energy.toFixed(2)}` : 'energy ?',
         features?.bpm != null ? `${Math.round(features.bpm)} bpm` : 'bpm ?',
-        minutes(song.duration),
+        formatDuration(song.duration),
         hasWords(song) ? 'words' : 'no words',
         `${song.playCount} plays, ${daysAgo(song.lastPlayedAt, now)}`,
         ...(extra ? [extra(song)] : []),

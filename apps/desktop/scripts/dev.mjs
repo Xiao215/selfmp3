@@ -11,12 +11,14 @@ import { spawn } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { DEFAULT_LOCAL_WEB_URL } from '@selfmp3/shared'
+
 import { electronBinary } from './electronPath.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '..')
 
-const devUrl = process.env.SELFMP3_DESKTOP_DEV_URL ?? 'http://localhost:4601'
+const devUrl = process.env.SELFMP3_DESKTOP_DEV_URL ?? DEFAULT_LOCAL_WEB_URL
 
 // The build wants a web export to copy even in development, where the window
 // will not look at it; an export that is merely stale is fine here.

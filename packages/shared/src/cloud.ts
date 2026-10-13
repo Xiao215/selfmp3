@@ -1,6 +1,7 @@
 import {
   CLOUD_FORMAT,
   CloudFormatSchema,
+  HASH_FILE_NAME,
   type CloudFormat,
   type CloudSmartRules,
 } from './schemas/cloud.js'
@@ -14,19 +15,31 @@ import type { SmartRules } from './schemas/smart.js'
  */
 
 /**
- * A new uid: 32 random hex characters, the same shape SQLite's
- * `lower(hex(randomblob(16)))` gives an existing row in the migration.
+ * `bytes` random bytes as lowercase hex: every random id a device or the
+ * server draws (a uid, a device id, a hub entry, a sign-in attempt).
  *
  * Uses the platform's cryptographic random source when there is one. React
- * Native's engine may not have it, and there `Math.random` is enough: a uid
- * only has to be unique among the things one person makes.
+ * Native's engine may not have it, and there `Math.random` is enough for an
+ * id that only has to be unique among the things one person makes; one that
+ * must not be guessed passes its platform's source as `random`.
  */
-export function newUid(random: (bytes: Uint8Array<ArrayBuffer>) => void = fillRandom): string {
-  const bytes = new Uint8Array(16)
-  random(bytes)
+export function randomHex(
+  bytes: number,
+  random: (into: Uint8Array<ArrayBuffer>) => void = fillRandom,
+): string {
+  const drawn = new Uint8Array(bytes)
+  random(drawn)
   let out = ''
-  for (const byte of bytes) out += byte.toString(16).padStart(2, '0')
+  for (const byte of drawn) out += byte.toString(16).padStart(2, '0')
   return out
+}
+
+/**
+ * A new uid: 32 random hex characters, the same shape SQLite's
+ * `lower(hex(randomblob(16)))` gives an existing row in the migration.
+ */
+export function newUid(random?: (bytes: Uint8Array<ArrayBuffer>) => void): string {
+  return randomHex(16, random)
 }
 
 function fillRandom(bytes: Uint8Array<ArrayBuffer>): void {
@@ -247,7 +260,7 @@ export function foldedLogKeys(
  * `coverKey`, `lyricsKey` and the rest above): the same key is the same bytes,
  * forever, so such a file is never replaced and may be cached for good.
  */
-const HASH_NAMED_FOLDERS = ['audio', 'covers', 'lyrics'] as const
+export const HASH_NAMED_FOLDERS = ['audio', 'covers', 'lyrics'] as const
 const HASH_NAMED = new RegExp(`^(?:${HASH_NAMED_FOLDERS.join('|')})/`)
 
 /** Whether a key is a file named by its own hash, in one of `HASH_NAMED_FOLDERS`. */
@@ -270,7 +283,7 @@ const FILE_KEY = new RegExp(
       'format\\.json',
       'snapshots/\\d{8}T\\d{9}Z-[a-z0-9][a-z0-9-]{2,62}\\.json',
       'log/[a-z0-9][a-z0-9-]{2,62}/[A-Za-z0-9][A-Za-z0-9._-]{0,99}',
-      `(?:${HASH_NAMED_FOLDERS.join('|')})/[0-9a-f]{64}\\.[a-z0-9]{1,5}`,
+      `(?:${HASH_NAMED_FOLDERS.join('|')})/${HASH_FILE_NAME}`,
     ].join('|') +
     ')$',
 )
@@ -399,5 +412,36 @@ export function fromCloudRules(
         ? { field: 'tag', op: rule.op, tagId: tagId(rule.tagUid) ?? UNKNOWN_TAG_ID }
         : rule,
     ),
+  }
+}
+
+/**
+ * A file's text from the bucket, in a browser or a worker. Snapshots are
+ * stored gzip-compressed, and the browser undoes that itself when the doorman
+ * passes the encoding on; this does it when it does not. A phone's network
+ * stack always inflates, so its platform decodes plainly.
+ */
+export async function decodeBucketText(bytes: Uint8Array): Promise<string> {
+  if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
+    // A copy, because a Uint8Array may be backed by a SharedArrayBuffer,
+    // which BlobPart does not accept.
+    const stream = new Blob([bytes.slice()]).stream().pipeThrough(new DecompressionStream('gzip'))
+    return new Response(stream).text()
+  }
+  return new TextDecoder().decode(bytes)
+}
+
+/**
+ * Where a bucket is, in two parts a line can set apart: the host without its
+ * scheme, and the bucket with its folder ("selfmp3-xiao/selfmp3").
+ */
+export function bucketPlace(target: {
+  readonly endpoint: string
+  readonly bucket: string
+  readonly prefix: string
+}): { readonly host: string; readonly folder: string } {
+  return {
+    host: target.endpoint.replace(/^https?:\/\//, ''),
+    folder: target.prefix ? `${target.bucket}/${target.prefix}` : target.bucket,
   }
 }

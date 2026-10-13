@@ -17,6 +17,7 @@
  * a DOM and so cannot name an `AbortController`.
  */
 import {
+  REQUEST_TIMEOUT_MS,
   configureClient,
   createApi,
   createMediaUrl,
@@ -28,9 +29,6 @@ import {
 
 import { cloudRequest, library as cloudLibrary } from '../replica'
 import { libraryCache, lyricsCache, motionCache, playlistCache } from '../offline/caches'
-
-/** A slow request is almost always a sleeping server; do not hang forever. */
-const REQUEST_TIMEOUT_MS = 15_000
 
 /**
  * Which server answers, and whether the bucket does instead.
@@ -87,7 +85,7 @@ const transport = (): ApiTransport | null =>
  * `ApiError` with status 0 — the same "offline" the UI already knows how to
  * show for an unreachable server, which is exactly what a timeout means here.
  */
-const fetchWithin = (timeoutMs: number) => async (url: string, init?: ClientRequestInit) => {
+export const fetchWithin = (timeoutMs: number) => async (url: string, init?: ClientRequestInit) => {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   // The caller's own stop (Stop pressed, nobody watching) aborts it too.

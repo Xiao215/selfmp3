@@ -1,7 +1,6 @@
 import type { NextFunction, Request, Response } from 'express'
-import type { EditRefusal } from '@selfmp3/shared'
+import { messageOf, type EditRefusal } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * One error type for the whole server.

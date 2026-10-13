@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { z } from 'zod/v4'
 import {
-  creditList,
+  splitArtists,
   type MetadataCandidate,
   type MetadataSuggestion,
   type Song,
@@ -166,7 +166,8 @@ function checked(
   ].filter(Boolean)
   const foundSomewhere = (value: string, field: Named): boolean => {
     // A credit is checked name by name: "Ayase, ikura" from two listings.
-    const parts = field === 'artist' || field === 'albumArtist' ? creditList(value) : [value]
+    const parts =
+      field === 'artist' || field === 'albumArtist' ? splitArtists(value, 'list') : [value]
     return parts.every(part => sources.some(source => within(part, source)))
   }
 

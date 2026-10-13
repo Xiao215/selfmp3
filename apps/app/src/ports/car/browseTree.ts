@@ -1,5 +1,6 @@
-import type { Playlist, Song } from '@selfmp3/shared'
-import { plural } from '@selfmp3/shared'
+import { libraryArtists, plural, type Playlist, type Song } from '@selfmp3/shared'
+import { listedPlaylists } from '../../features/playlists/playlists.model'
+import { albumsOf } from '../../features/tag/tag.model'
 
 /**
  * The library as a browsable hierarchy, for the car.
@@ -12,7 +13,10 @@ import { plural } from '@selfmp3/shared'
  * it is used for now is voice and media-id playback (`androidAuto.ts`).
  *
  * Every id is a plain string so it can survive a round trip through a native
- * media-id field.
+ * media-id field. The lists come in the app's own orders, from the app's own
+ * models: playlists as the Playlists page lists them, artists as the library
+ * names them (a collaboration under each artist in it), an album's songs and
+ * an artist's albums as an artist page shows them.
  */
 
 export const ROOT_ID = 'root'
@@ -68,31 +72,6 @@ interface BrowseOptions {
 const DEFAULT_MAX_ITEMS = 200
 const DEFAULT_RECENT_LIMIT = 100
 
-/** Groups whose key is empty are dropped rather than shown as a blank row. */
-function groupBy(songs: readonly Song[], key: (song: Song) => string): Map<string, Song[]> {
-  const groups = new Map<string, Song[]>()
-  for (const song of songs) {
-    const value = key(song).trim()
-    if (value.length === 0) continue
-    const existing = groups.get(value)
-    if (existing) existing.push(song)
-    else groups.set(value, [song])
-  }
-  return groups
-}
-
-function byTrackNumber(a: Song, b: Song): number {
-  const left = a.trackNo ?? Number.MAX_SAFE_INTEGER
-  const right = b.trackNo ?? Number.MAX_SAFE_INTEGER
-  if (left !== right) return left - right
-  return a.title.localeCompare(b.title)
-}
-
-function byAlbumThenTrack(a: Song, b: Song): number {
-  const album = a.album.localeCompare(b.album)
-  return album !== 0 ? album : byTrackNumber(a, b)
-}
-
 /** `album.Abbey%20Road` — encoded so a name with a separator in it is safe. */
 function nodeId(kind: string, key: string): string {
   return `${kind}.${encodeURIComponent(key)}`
@@ -134,7 +113,7 @@ export function buildBrowseTree(input: BrowseInput, options: BrowseOptions = {})
   // --- playlists ----------------------------------------------------------
 
   const playlistItems: BrowseItem[] = []
-  for (const playlist of [...input.playlists].sort(sortPlaylists).slice(0, limit)) {
+  for (const playlist of listedPlaylists(input.playlists, 'recent').slice(0, limit)) {
     const id = nodeId('playlist', String(playlist.id))
     const contents = (input.playlistSongIds[playlist.id] ?? [])
       .map(songId => byId.get(songId))
@@ -153,18 +132,17 @@ export function buildBrowseTree(input: BrowseInput, options: BrowseOptions = {})
 
   // --- albums -------------------------------------------------------------
 
-  const albums = groupBy(songs, song => song.album)
   const albumItems: BrowseItem[] = []
-  for (const [album, tracks] of [...albums.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+  // Songs with no album are no album: they are not shown as a blank row.
+  for (const { album, songs: tracks } of albumsOf(songs).filter(group => group.album !== '')) {
     const id = nodeId('album', album)
-    const sorted = [...tracks].sort(byTrackNumber)
-    nodes[id] = songNode(id, album, sorted, limit)
+    nodes[id] = songNode(id, album, tracks, limit)
     albumItems.push({
       id,
       title: album,
-      subtitle: sorted[0]?.albumArtist || (sorted[0]?.artist ?? ''),
+      subtitle: tracks[0]?.albumArtist || (tracks[0]?.artist ?? ''),
       browsable: true,
-      artSongId: sorted.find(song => song.hasArt)?.id ?? null,
+      artSongId: tracks.find(song => song.hasArt)?.id ?? null,
     })
   }
   nodes['albums'] = {
@@ -176,16 +154,16 @@ export function buildBrowseTree(input: BrowseInput, options: BrowseOptions = {})
 
   // --- artists ------------------------------------------------------------
 
-  const artists = groupBy(songs, song => song.albumArtist || song.artist)
   const artistItems: BrowseItem[] = []
-  for (const [artist, tracks] of [...artists.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-    const id = nodeId('artist', artist)
-    const sorted = [...tracks].sort(byAlbumThenTrack)
-    nodes[id] = songNode(id, artist, sorted, limit)
+  for (const artist of libraryArtists(songs)) {
+    const id = nodeId('artist', artist.name)
+    const theirs = artist.songIds.flatMap(songId => byId.get(songId) ?? [])
+    const sorted = albumsOf(theirs).flatMap(group => group.songs)
+    nodes[id] = songNode(id, artist.name, sorted, limit)
     artistItems.push({
       id,
-      title: artist,
-      subtitle: plural(tracks.length, 'song', 'songs'),
+      title: artist.name,
+      subtitle: plural(sorted.length, 'song', 'songs'),
       browsable: true,
       artSongId: sorted.find(song => song.hasArt)?.id ?? null,
     })
@@ -222,15 +200,6 @@ export function buildBrowseTree(input: BrowseInput, options: BrowseOptions = {})
 
 function browsableItem(id: string, title: string, subtitle: string): BrowseItem {
   return { id, title, subtitle, browsable: true, artSongId: null }
-}
-
-/**
- * Played last first, then the never-played by name: the order the app lists
- * playlists in (docs/UI-MIGRATION.md, Phase 5), where there are no pins.
- */
-function sortPlaylists(a: Playlist, b: Playlist): number {
-  const played = (b.lastPlayedAt ?? '').localeCompare(a.lastPlayedAt ?? '')
-  return played || a.name.localeCompare(b.name)
 }
 
 export function nodeById(tree: BrowseTree, id: string): BrowseNode | null {

@@ -1,12 +1,11 @@
 import path from 'node:path'
-import { mimeForExtension, type ScanResult } from '@selfmp3/shared'
+import { messageOf, mimeForExtension, type ScanResult } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { MetadataService } from './metadata.js'
 import type { LyricsService } from './lyrics.js'
 import type { CoverService } from './covers.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * Sweeping the inbox folder.

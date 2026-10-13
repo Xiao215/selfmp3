@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import {
   ImportStatusSchema,
   ImportStepSchema,
+  sameLink,
   type ImportEnqueueItem,
   type ImportJob,
   type ImportStatus,
@@ -110,7 +111,6 @@ export class ImportRepository {
   readonly #dismiss
   readonly #finishUploaded
   readonly #pendingUrls
-  readonly #pending
 
   constructor(db: Db) {
     this.#db = db
@@ -240,9 +240,6 @@ export class ImportRepository {
     )
     this.#pendingUrls = db.prepare<[], { url: string }>(
       "SELECT url FROM import_jobs WHERE status IN ('queued','running')",
-    )
-    this.#pending = db.prepare<[string], { n: number }>(
-      "SELECT COUNT(*) AS n FROM import_jobs WHERE url = ? AND status IN ('queued','running')",
     )
   }
 
@@ -480,8 +477,13 @@ export class ImportRepository {
     return this.#pendingUrls.all().map(row => row.url)
   }
 
-  /** True when this URL is already queued or running, to avoid duplicates. */
+  /**
+   * True when this link is already queued or running, under any spelling of
+   * it (`sameLink`), to avoid duplicates. Compared here rather than in SQL:
+   * the queue holds a handful of open jobs, and the rule is the one every
+   * other "same link" asks.
+   */
   isPending(url: string): boolean {
-    return (this.#pending.get(url)?.n ?? 0) > 0
+    return this.pendingUrls().some(pending => sameLink(pending, url))
   }
 }

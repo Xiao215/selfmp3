@@ -140,6 +140,12 @@ describe('a room’s song as a track', () => {
     expect(yoursOf(SONG, sameFile)).toBe(7)
     const sameLink = libraryIndex([mine(9, `audio/${'cd'.repeat(32)}.m4a`, SONG.sourceUrl)])
     expect(yoursOf(SONG, sameLink)).toBe(9)
+    // The same video under another spelling of its link is still yours.
+    const otherSpelling = libraryIndex([
+      mine(11, 'Music/a.m4a', 'https://youtu.be/by4SYYWlhEs?si=x'),
+    ])
+    const video = { ...SONG, sourceUrl: 'https://music.youtube.com/watch?v=by4SYYWlhEs' }
+    expect(yoursOf(video, otherSpelling)).toBe(11)
     expect(yoursOf(SONG, libraryIndex([]))).toBeNull()
   })
 })

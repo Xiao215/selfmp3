@@ -1,6 +1,6 @@
 import type { Database } from 'better-sqlite3'
+import { messageOf } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * The database schema, and how a database comes to have it.

@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { messageOf } from '@selfmp3/shared'
 import type { Config } from './config.js'
 import type { Logger } from './logger.js'
 import { createKeepAwake, type KeepAwakeService } from './services/keepAwake.js'
@@ -13,7 +14,6 @@ import {
 } from './services/ytThrottle.js'
 import { SoundModelHost } from './sound/sound.js'
 import { Gate } from './util/gate.js'
-import { messageOf } from './util/errors.js'
 
 /**
  * What every library on one machine shares (docs/features/shared-server.md).

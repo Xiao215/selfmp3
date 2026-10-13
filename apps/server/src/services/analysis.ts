@@ -1,7 +1,7 @@
 import path from 'node:path'
 import fsp from 'node:fs/promises'
 import { setTimeout as sleep } from 'node:timers/promises'
-import { ANALYSIS_VERSION, type AnalysisStatus } from '@selfmp3/shared'
+import { messageOf, ANALYSIS_VERSION, type AnalysisStatus } from '@selfmp3/shared'
 import { stagingDir, type Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
@@ -20,7 +20,6 @@ import { analyzePcmInWorker } from './analysisWorker.js'
 import { ffmpegFailure, runFfmpeg } from './ffmpeg.js'
 import type { MotionStore } from './motionStore.js'
 import { ModelUnavailableError, type SoundService } from '../sound/sound.js'
-import { messageOf } from '../util/errors.js'
 import { Gate } from '../util/gate.js'
 
 /**

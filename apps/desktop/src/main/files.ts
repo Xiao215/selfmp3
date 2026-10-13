@@ -4,6 +4,7 @@ import { mkdir, readdir, rename, rm, stat, statfs, writeFile } from 'node:fs/pro
 import { join } from 'node:path'
 
 import { app, net, shell } from 'electron'
+import { createThrottle } from '@selfmp3/shared'
 import {
   fileNameSchema,
   type DownloadRequest,
@@ -58,28 +59,6 @@ async function writablePathFor(kind: FileKind, name: string): Promise<string> {
  * shows downloads. The last is always sent, so the bar finishes where the file did.
  */
 const PROGRESS_INTERVAL_MS = 250
-
-/** Whether a report is due now, and whether one is owed for the bytes since the last. */
-export function progressGate(
-  intervalMs: number,
-  now: () => number = Date.now,
-): { due(): boolean; owed(): boolean } {
-  let last = Number.NEGATIVE_INFINITY
-  let owed = false
-  return {
-    due() {
-      const at = now()
-      if (at - last >= intervalMs) {
-        last = at
-        owed = false
-        return true
-      }
-      owed = true
-      return false
-    },
-    owed: () => owed,
-  }
-}
 
 /** Downloads in flight, so `cancel` has something to abort. */
 const running = new Map<string, AbortController>()
@@ -162,7 +141,7 @@ export async function download(
     // Only the race below wants this rejection; on its own it is not "unhandled".
     failed.catch(() => {})
 
-    const report = progressGate(PROGRESS_INTERVAL_MS)
+    const report = createThrottle(() => onProgress(written, totalBytes), PROGRESS_INTERVAL_MS)
     try {
       for (;;) {
         const { done, value } = await Promise.race([reader.read(), failed])
@@ -175,11 +154,11 @@ export async function download(
          */
         if (!sink.write(Buffer.from(value))) await Promise.race([once(sink, 'drain'), failed])
         written += value.byteLength
-        if (report.due()) onProgress(written, totalBytes)
+        report.request()
       }
     } finally {
       // Where it really stopped — finished, paused or failed — not where the last report happened to be.
-      if (report.owed()) onProgress(written, totalBytes)
+      report.flush()
       await new Promise<void>(resolve => sink.end(resolve))
     }
 

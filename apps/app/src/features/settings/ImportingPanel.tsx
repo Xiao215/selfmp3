@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { View } from 'react-native'
-import { type Settings } from '@selfmp3/shared'
+import type { View } from 'react-native'
+import type { Settings } from '@selfmp3/shared'
 import { Select } from '../../ui/components/Select'
 import { Toggle } from '../../ui/components/Toggle'
 import { Panel, Row } from './SettingsParts'

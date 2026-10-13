@@ -3,6 +3,7 @@ import {
   plural,
   formatBytes,
   formatDuration,
+  formatListenTime,
   formatLongDuration,
   formatRelative,
   hueFromString,
@@ -101,6 +102,16 @@ describe('hueFromString', () => {
     expect(hue).toBe(hueFromString('chill'))
     expect(hue).toBeGreaterThanOrEqual(0)
     expect(hue).toBeLessThan(360)
+  })
+})
+
+describe('formatListenTime', () => {
+  it('says time listened the short way, minutes after hours with no unit', () => {
+    expect(formatListenTime(372)).toBe('6h 12')
+    expect(formatListenTime(181)).toBe('3h 01')
+    expect(formatListenTime(180)).toBe('3h')
+    expect(formatListenTime(42.4)).toBe('42 min')
+    expect(formatListenTime(Number.NaN)).toBe('0 min')
   })
 })
 

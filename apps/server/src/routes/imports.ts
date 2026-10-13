@@ -3,6 +3,7 @@ import { pipeline } from 'node:stream/promises'
 import { Router } from 'express'
 import { z } from 'zod'
 import {
+  messageOf,
   AlreadyHaveRequestSchema,
   BooleanQuerySchema,
   ImportFindRequestSchema,
@@ -28,6 +29,7 @@ import {
   type ImportsRetriedSchema,
   type ImportsRemovedSchema,
   type ImportsClearedSchema,
+  linkIdentity,
   STREAM_RELAYED_HEADERS,
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
@@ -42,11 +44,10 @@ import {
   resolveImportPlaylist,
   waitingToUpload,
 } from '../services/importPreview.js'
-import { alreadyHave, libraryIndex, normaliseUrl } from '../services/alreadyHave.js'
+import { alreadyHave, libraryIndex } from '../services/alreadyHave.js'
 import { importRun } from '../services/importRun.js'
 import { searchSongs } from '../services/importSearch.js'
 import { isCoverUrl } from '../services/previewCoverTone.js'
-import { messageOf } from '../util/errors.js'
 
 const ParamsWithJobId = z.object({ id: z.string().uuid() })
 const ListenQuery = z.object({ url: z.string().url().max(2_000) })
@@ -95,13 +96,13 @@ export function importRoutes(container: Container): Router {
     const downloaded = new Set(
       container.songs
         .withSourceUrls()
-        .map(song => normaliseUrl(song.sourceUrl))
+        .map(song => linkIdentity(song.sourceUrl))
         .filter((url): url is string => url !== null),
     )
     const queued = inQueue(container)
     const fresh = items.filter(item => {
       if (queued(item.url)) return false
-      const url = normaliseUrl(item.url)
+      const url = linkIdentity(item.url)
       return !(url && downloaded.has(url))
     })
     if (fresh.length === 0) {

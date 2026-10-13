@@ -1,13 +1,11 @@
 import {
+  REQUEST_TIMEOUT_MS,
   createApi,
   serverTransport,
   type Api,
   type ClientFetch,
   type ServerConnection,
 } from '@selfmp3/client/core'
-
-/** How long an ordinary request waits before the server is called asleep. */
-const REQUEST_TIMEOUT_MS = 15_000
 
 /**
  * A fetch that gives up. An address nothing answers at — a Wi-Fi address from

@@ -1,7 +1,7 @@
 import type fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import type { Request, Response } from 'express'
-import { fileEtag } from '../storage/driver.js'
+import { fileEtag } from '@selfmp3/shared'
 import { HttpError } from './errors.js'
 import { isFresh } from './range.js'
 

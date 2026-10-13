@@ -1,3 +1,5 @@
+import { messageOf } from '@selfmp3/shared'
+
 /**
  * Signing in with Google, from the options page (I3).
  *
@@ -19,7 +21,7 @@
  * it does not read like one.
  */
 export function signInFailure(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error)
+  const message = messageOf(error)
   if (/closed|canceled|cancelled|did not approve/i.test(message)) {
     return 'That sign-in window was closed before Google finished.'
   }

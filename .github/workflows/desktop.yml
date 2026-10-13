@@ -44,6 +44,13 @@ jobs:
         with:
           persist-credentials: false
 
+      # electron-updater compares the installed app's package.json version with
+      # the release's: a `desktop-v1.2.0` tag on a 1.1.0 package would ship an
+      # app that offers itself as an update forever.
+      - name: The tag names the version being released
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        run: node scripts/check-release-tag.mjs apps/desktop desktop-v "$GITHUB_REF_NAME"
+
       - uses: actions/setup-node@v7
         with:
           # One Node version for the whole repository, in .nvmrc; `engines` in

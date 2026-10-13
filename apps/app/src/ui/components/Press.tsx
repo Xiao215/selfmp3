@@ -1,7 +1,14 @@
 import { forwardRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, View } from 'react-native'
-import type { PressableProps, PressableStateCallbackType, StyleProp, ViewStyle } from 'react-native'
+import {
+  Animated,
+  Pressable,
+  type View,
+  type PressableProps,
+  type PressableStateCallbackType,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native'
 import { PRESS } from '../motion.model'
 import { usePressScale } from '../motion'
 

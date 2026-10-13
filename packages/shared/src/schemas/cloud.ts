@@ -55,12 +55,19 @@ export const CloudFormatSchema = z.object({
 export type CloudFormat = z.infer<typeof CloudFormatSchema>
 
 /**
+ * A file's name in the bucket when it is named by the SHA-256 of its bytes:
+ * the hash and its extension, `4f1c….jpg`. A pattern's source, for every
+ * pattern that matches one (a key, a kept copy's name, a worker's path).
+ */
+export const HASH_FILE_NAME = '[0-9a-f]{64}\\.[a-z0-9]{1,5}'
+
+/**
  * A file in the bucket, named by the SHA-256 of its bytes. Keys are relative
  * to the bucket's prefix. The pattern is the whole of what a key may be, so a
  * snapshot from anywhere can never point a device at some other path.
  */
 const fileKey = (folder: string) =>
-  z.string().regex(new RegExp(`^${folder}/[0-9a-f]{64}\\.[a-z0-9]{1,5}$`), `not a ${folder} key`)
+  z.string().regex(new RegExp(`^${folder}/${HASH_FILE_NAME}$`), `not a ${folder} key`)
 
 export const CloudAudioSchema = z.object({
   key: fileKey('audio'),

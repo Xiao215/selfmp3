@@ -7,7 +7,15 @@ import type {
   TopSong,
   WrappedRange,
 } from '@selfmp3/shared'
-import { plural, artistKey, hourBand, splitArtists, UNKNOWN_ARTIST } from '@selfmp3/shared'
+import {
+  plural,
+  artistKey,
+  formatListenTime,
+  hourBand,
+  localDayKey,
+  splitArtists,
+  UNKNOWN_ARTIST,
+} from '@selfmp3/shared'
 
 /**
  * Listening stats, without the screen.
@@ -60,13 +68,6 @@ export function statsRangeFor(period: StatsPeriod): StatsRange {
   return STATS_RANGE_OF[period]
 }
 
-/** A local date as the server writes one: `2026-09-14`. */
-function isoDay(date: Date): string {
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${date.getFullYear()}-${month}-${day}`
-}
-
 function daysBefore(date: Date, days: number): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() - days)
 }
@@ -115,18 +116,6 @@ export function bestStreakHint(longest: number): string | undefined {
   return longest > 0 ? `best: ${daysLabel(longest)}` : undefined
 }
 
-/**
- * Time listened, short enough to be a big number: "6h 12", "3h", "42 min".
- * The minutes after the hours carry no unit, as a clock's do (`P32`).
- */
-export function durationWords(minutes: number): string {
-  const total = Number.isFinite(minutes) ? Math.max(0, Math.round(minutes)) : 0
-  if (total < 60) return `${total} min`
-  const hours = Math.floor(total / 60)
-  const rest = total % 60
-  return rest === 0 ? `${hours}h` : `${hours}h ${String(rest).padStart(2, '0')}`
-}
-
 // ------------------------------------------------------------------ the cards
 
 interface ListenedCard {
@@ -145,7 +134,7 @@ interface ListenedCard {
 export function listenedCard(stats: Stats): ListenedCard {
   const active = stats.daily.filter(day => day.plays > 0).length
   return {
-    value: durationWords(stats.totals.minutes),
+    value: formatListenTime(stats.totals.minutes),
     line: `${playsLabel(stats.totals.plays)} · ${plural(active, 'day', 'days')} with music`,
     trend: stats.daily.map(day => day.minutes),
   }
@@ -209,11 +198,11 @@ export function streakCard(
   today: Date,
 ): StreakCard {
   const played = new Set(stats.daily.filter(day => day.plays > 0).map(day => day.date))
-  const todayIso = isoDay(today)
+  const todayIso = localDayKey(today)
   // All time lists only the days with plays; every other window has a day for each day.
   const count = stats.range === 'all' ? STREAK_DOTS : Math.min(STREAK_DOTS, stats.daily.length)
   const dots = Array.from({ length: count }, (_, index) => {
-    const date = isoDay(daysBefore(today, count - 1 - index))
+    const date = localDayKey(daysBefore(today, count - 1 - index))
     return { date, played: played.has(date), today: date === todayIso }
   })
   if (stats.streakDays === 0) {
@@ -227,7 +216,7 @@ export function streakCard(
 /** "Sep 6 to 14", "Aug 30 to Sep 3", or one day alone: "Sep 14". */
 export function spanWords(start: Date, end: Date): string {
   const month = (date: Date): string => date.toLocaleDateString(undefined, { month: 'short' })
-  if (isoDay(start) === isoDay(end)) return `${month(end)} ${end.getDate()}`
+  if (localDayKey(start) === localDayKey(end)) return `${month(end)} ${end.getDate()}`
   const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
   return `${month(start)} ${start.getDate()} to ${sameMonth ? '' : `${month(end)} `}${end.getDate()}`
 }
@@ -301,27 +290,13 @@ export function rankedSongs(top: readonly TopSong[], limit = RANKED_ROWS): Ranke
 }
 
 /**
- * Artists by time listened.
- *
- * The server groups plays by the artist string as written, so "ヨルシカ feat.
- * suis" is one line of its own. Artists here are split the way the rest of the
- * app splits them (Open question 3): a collaboration counts for everyone it
- * names, and two spellings that differ only in case are one artist.
+ * Artists by time listened. The server has already split each credit into
+ * the artists it names (a collaboration counts for everyone in it), the way
+ * the rest of the app splits them.
  */
 export function rankedArtists(top: readonly TopEntry[], limit = RANKED_ROWS): RankedRow[] {
-  const folded = new Map<string, { name: string; minutes: number; plays: number }>()
-  for (const entry of top) {
-    const names = entry.key === UNKNOWN_ARTIST ? [entry.key] : splitArtists(entry.key)
-    for (const name of names) {
-      const key = artistKey(name)
-      const had = folded.get(key)
-      if (had) {
-        had.minutes += entry.minutes
-        had.plays += entry.plays
-      } else folded.set(key, { name, minutes: entry.minutes, plays: entry.plays })
-    }
-  }
-  const rows = [...folded.values()]
+  const rows = top
+    .map(entry => ({ name: entry.key, minutes: entry.minutes, plays: entry.plays }))
     .sort((a, b) => b.minutes - a.minutes || b.plays - a.plays || a.name.localeCompare(b.name))
     .slice(0, limit)
   const most = Math.max(1, rows[0]?.minutes ?? 0)
@@ -331,7 +306,7 @@ export function rankedArtists(top: readonly TopEntry[], limit = RANKED_ROWS): Ra
     rank: index + 1,
     name: artist.name,
     known: artist.name !== UNKNOWN_ARTIST,
-    trailing: durationWords(artist.minutes),
+    trailing: formatListenTime(artist.minutes),
     share: artist.minutes / most,
   }))
 }
@@ -361,7 +336,7 @@ export function rankedTags(top: readonly TopEntry[], limit = RANKED_ROWS): Ranke
     key: `tag-${tag.key}`,
     rank: index + 1,
     name: tag.key,
-    trailing: durationWords(tag.minutes),
+    trailing: formatListenTime(tag.minutes),
     share: tag.minutes / most,
   }))
 }

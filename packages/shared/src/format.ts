@@ -29,6 +29,19 @@ export function formatLongDuration(seconds: number): string {
   return `${h} hr ${m} min`
 }
 
+/**
+ * Time listened, short enough to be a big number: "6h 12", "3h", "42 min".
+ * The minutes after the hours carry no unit, as a clock's do, and a whole
+ * hour has none: Stats, You, Wrapped and Home all write it this way.
+ */
+export function formatListenTime(minutes: number): string {
+  const total = Number.isFinite(minutes) ? Math.max(0, Math.round(minutes)) : 0
+  if (total < 60) return `${total} min`
+  const hours = Math.floor(total / 60)
+  const rest = total % 60
+  return rest === 0 ? `${hours}h` : `${hours}h ${String(rest).padStart(2, '0')}`
+}
+
 /** `1536000` -> `1.5 MB`. Binary units, one decimal, no trailing `.0`. */
 export function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'

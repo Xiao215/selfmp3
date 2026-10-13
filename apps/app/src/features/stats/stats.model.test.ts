@@ -5,7 +5,6 @@ import {
   artistCoverSong,
   bestStreakHint,
   daysLabel,
-  durationWords,
   formatHour,
   isStatsPeriod,
   listenedCard,
@@ -74,14 +73,6 @@ describe('stats windows and words', () => {
     expect(playsLabel(1)).toBe('1 play')
     expect(bestStreakHint(4)).toBe('best: 4 days')
     expect(bestStreakHint(0)).toBeUndefined()
-  })
-
-  it('says time listened the short way, minutes after hours with no unit', () => {
-    expect(durationWords(372)).toBe('6h 12')
-    expect(durationWords(185)).toBe('3h 05')
-    expect(durationWords(180)).toBe('3h')
-    expect(durationWords(42.4)).toBe('42 min')
-    expect(durationWords(Number.NaN)).toBe('0 min')
   })
 })
 
@@ -187,11 +178,11 @@ describe('the ranked module', () => {
     expect(rows[0]).toMatchObject({ kind: 'song', songId: 7, artist: 'ヨルシカ' })
   })
 
-  it('splits collaborations so an artist counts for every song naming them', () => {
+  it('ranks artists by time, and marks the unknown artist as no place to open', () => {
     const rows = rankedArtists([
+      { key: 'Yorushika', plays: 10, minutes: 181 },
+      { key: 'suis', plays: 4, minutes: 100 },
       { key: 'YOASOBI', plays: 5, minutes: 108 },
-      { key: 'Yorushika feat. suis', plays: 4, minutes: 100 },
-      { key: 'yorushika', plays: 6, minutes: 81 },
       { key: 'Unknown artist', plays: 1, minutes: 3 },
     ])
     expect(rows.map(row => [row.name, row.trailing])).toEqual([

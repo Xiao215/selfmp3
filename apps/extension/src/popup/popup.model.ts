@@ -1,9 +1,10 @@
 import { enqueueRequest, jobSubtitle, type Review, taken } from '@selfmp3/client/core'
-import { isPendingRequest, sameLink, type ImportRequestView } from '@selfmp3/replica'
+import { isPendingRequest, type ImportRequestView } from '@selfmp3/replica'
 import {
   plural,
   formatDuration,
   fromSqliteTime,
+  sameLink,
   type ImportEnqueue,
   type ImportJob,
   type ImportPreview,

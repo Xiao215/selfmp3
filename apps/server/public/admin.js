@@ -129,9 +129,9 @@ function formatRelative(at, now = new Date()) {
   return then.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 }
 
-/** "1 song", "13 songs" — a count with the word that goes with it. */
+/** "1 song", "1,234 songs" — a count, grouped as English writes it, with the word that goes with it. */
 function plural(count, one, many) {
-  return `${count} ${count === 1 ? one : many}`
+  return `${count.toLocaleString('en')} ${count === 1 ? one : many}`
 }
 
 /** Text into markup. Every value below is the server's or the person's, never trusted raw. */
@@ -360,10 +360,17 @@ function waitingForGoogle(cloud) {
     ${cloud.lastError ? `<p class="notice error">${escape(cloud.lastError)}</p>` : ''}`
 }
 
+/** `@selfmp3/shared`'s `bucketPlace`, held to it by admin.format.test.ts. */
+function bucketPlace(target) {
+  return {
+    host: target.endpoint.replace(/^https?:\/\//, ''),
+    folder: target.prefix ? `${target.bucket}/${target.prefix}` : target.bucket,
+  }
+}
+
 function connected(cloud) {
   const target = cloud.target
-  const host = target ? target.endpoint.replace(/^https?:\/\//, '') : ''
-  const folder = target ? (target.prefix ? `${target.bucket}/${target.prefix}` : target.bucket) : ''
+  const { host, folder } = target ? bucketPlace(target) : { host: '', folder: '' }
   const syncing = cloud.state === 'syncing'
   const progress = cloud.progress
 

@@ -1,5 +1,5 @@
 import { parentPort, workerData } from 'node:worker_threads'
-import { messageOf } from '../util/errors.js'
+import { messageOf } from '@selfmp3/shared'
 import { Clamp3 } from './clamp3.js'
 import type { Clamp3Reply, Clamp3Request, Clamp3WorkerData } from './clamp3Worker.js'
 

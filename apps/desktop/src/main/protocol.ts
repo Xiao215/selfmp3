@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { Readable } from 'node:stream'
 
 import { protocol } from 'electron'
-import { answerRange } from '@selfmp3/shared'
+import { fileEtag, answerRange } from '@selfmp3/shared'
 import { APP_ORIGIN, APP_SCHEME, MEDIA_PREFIX, fileKindSchema } from '@selfmp3/desktop-bridge'
 
 import { directoryFor } from './files.js'
@@ -137,8 +137,8 @@ async function serveMedia(
     sizeBytes: stats.size,
     mime: contentTypeFor(file),
     // The file never changes once written — the name carries the song's rev —
-    // so size and mtime are an honest strong validator.
-    etag: `"${stats.size.toString(16)}-${Math.floor(stats.mtimeMs).toString(16)}"`,
+    // so size and mtime are an honest strong validator, as the server's are.
+    etag: fileEtag(stats.size, stats.mtimeMs),
     lastModified: stats.mtime,
   })
 

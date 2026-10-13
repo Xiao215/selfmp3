@@ -117,7 +117,8 @@ describe('tidy', () => {
     const prompt = namesPrompt(songs)
     expect(prompt).toContain('- Vitaly Margulis, Frédéric Chopin (1)')
     expect(prompt).not.toContain('薛之谦, 薛之谦')
-    expect(prompt).toContain('- 薛之谦 (6)')
+    // Counted by the songs that name them, a repeat within one credit once.
+    expect(prompt).toContain('- 薛之谦 (2)')
   })
 })
 

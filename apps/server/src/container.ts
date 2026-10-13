@@ -141,6 +141,9 @@ export interface Container {
   libraryVersion(): number
   bumpLibraryVersion(): void
 
+  /** Whether `stop()` has been called: work started before it lets go when it next looks. */
+  stopped(): boolean
+
   /**
    * Stop every background worker: timers, watchers, downloads in flight, the
    * event streams held open for each connected tab. The database stays open,
@@ -314,6 +317,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   })
 
   let version = 1
+  let stopped = false
   let closed = false
   const bump = (): void => {
     version++
@@ -550,9 +554,11 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     cloudImports,
     libraryVersion: () => version,
     bumpLibraryVersion: bump,
+    stopped: () => stopped,
     // Every background worker in one place: a shutdown that forgot one would
     // leave a timer or a download holding the process open.
     stop: () => {
+      stopped = true
       libraryWatcher.stop()
       devices.stop()
       analysis.stop()

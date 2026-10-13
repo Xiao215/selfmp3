@@ -64,9 +64,12 @@ export async function romanizeLibrary(deps: {
   readonly lyricsCache: LyricsCache
   readonly romanization: RomanizationService
   readonly logger: Logger
+  /** The library was closed meanwhile (hub/hub.ts reopens one on a new grant): stop quietly. */
+  readonly stopped?: () => boolean
 }): Promise<number> {
   let made = 0
   for (const song of deps.songs.all()) {
+    if (deps.stopped?.()) break
     if (song.lyricsKind === 'none') continue
     try {
       const text = await unattendedLyricText(deps, song)

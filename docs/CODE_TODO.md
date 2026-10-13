@@ -654,7 +654,7 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 - [ ] **T-393** Removing songs prunes empty tags on the server only (and also prunes a tag another device just made). → A
 - [ ] **T-394** Cloud mode answers 501 for `stop-following`, `/played` and `lyrics/search`; lyrics 404 codes and `/played`'s duplicate flag differ. → A
 - [ ] **T-395** Every doorman 409 reads as "No bucket is connected" (the 20-grant limit too); `bucket_refused_key`/`no_such_bucket` fall to `other`. → B1
-- [ ] **T-396** "Same link" has four rules: 网易云 and `?si=` links are not seen as queued by the extension or `isPending`. → B2
+- [x] **T-396** "Same link" has four rules: 网易云 and `?si=` links are not seen as queued by the extension or `isPending`. → B2
 - [ ] **T-397** Two artist splitters with different separators (AI vs app); server Stats/Wrapped group raw artist strings; CarPlay/Android Auto browse groups and sorts its own way. → B2
 - [ ] **T-398** The admin page's `plural` writes "1234 songs"; Home's This week writes "2h 00" and "1234" where You writes "2h" and "1,234". → B2 / H
 
@@ -674,7 +674,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 
 ### B2 — Small shared helpers and tooling
 
-- [ ] **T-407** `linkIdentity()` in `shared/links.ts` for every "same link" check.
+- [x] **T-407** `linkIdentity()` in `shared/links.ts` for every "same link" check.
+  - `isPending` compares in JS over the few open jobs rather than storing a normalised column (no migration). Room "is this song yours" uses it too.
 - [ ] **T-408** One `splitArtists` (merged separators); server Stats/Wrapped aggregate with it; `browseTree` uses the app's artist/album/playlist orderings.
 - [ ] **T-409** `messageOf`, `shuffleArray`, ETag, progress throttle, `WEEKDAYS`, day key, durations ("Xh MM", m:ss), bucket place label, hex ids, hash-key regex, timed fetch, `decodeText`, latest-release fetch: one home each.
 - [ ] **T-410** Tooling: one ESLint base for root and app; Dockerfile copies every workspace manifest; vitest resolves packages the way Jest and Metro do; release tags checked against versions; port 4600 from `DEFAULT_SERVER_PORT`; root overrides match the app's ranges.

@@ -1,20 +1,21 @@
 import type { Api, ServerConnection } from '@selfmp3/client/core'
-import { TagSchema, youtubeVideoId, type Song } from '@selfmp3/shared'
+import { TagSchema, linkIdentity, type Song } from '@selfmp3/shared'
 import { z } from 'zod'
 import { SongHitSchema, type SongHit } from '../bridge.js'
 import type { KeyValueStore } from './store.js'
 
 /**
- * The songs you already have, by the video they came from.
+ * The songs you already have, by the link they came from.
  *
  * "Is this one mine?" is answered from the link alone, before yt-dlp is asked
- * anything: each song's `sourceUrl`, keyed by video id, so a youtu.be link, a
- * music.youtube.com one and a watch page with a playlist on it are one song.
+ * anything: each song's `sourceUrl`, keyed by `linkIdentity`, so a youtu.be
+ * link, a music.youtube.com one and a watch page with a playlist on it are
+ * one song, as the server's already-have sees them.
  */
 export function linkIndex(songs: readonly Song[]): Record<string, SongHit> {
   const links: Record<string, SongHit> = {}
   for (const song of songs) {
-    const id = youtubeVideoId(song.sourceUrl)
+    const id = linkIdentity(song.sourceUrl)
     if (!id || links[id]) continue
     links[id] = {
       id: song.id,
@@ -31,7 +32,12 @@ const SnapshotSchema = z.object({
   baseUrl: z.string(),
   version: z.number(),
   songCount: z.number(),
-  links: z.record(SongHitSchema),
+  // Every `linkIdentity` has a colon (`yt:…`, `ne:…`, a whole address); a
+  // snapshot kept from when songs were keyed by bare video id is read again.
+  links: z.record(
+    z.string().refine(key => key.includes(':')),
+    SongHitSchema,
+  ),
   tags: z.array(TagSchema),
 })
 type LibrarySnapshot = z.infer<typeof SnapshotSchema>

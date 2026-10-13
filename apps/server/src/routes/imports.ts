@@ -28,6 +28,7 @@ import {
   type ImportsRetriedSchema,
   type ImportsRemovedSchema,
   type ImportsClearedSchema,
+  linkIdentity,
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
@@ -41,7 +42,7 @@ import {
   resolveImportPlaylist,
   waitingToUpload,
 } from '../services/importPreview.js'
-import { alreadyHave, libraryIndex, normaliseUrl } from '../services/alreadyHave.js'
+import { alreadyHave, libraryIndex } from '../services/alreadyHave.js'
 import { importRun } from '../services/importRun.js'
 import { searchSongs } from '../services/importSearch.js'
 import { isCoverUrl } from '../services/previewCoverTone.js'
@@ -97,13 +98,13 @@ export function importRoutes(container: Container): Router {
     const downloaded = new Set(
       container.songs
         .withSourceUrls()
-        .map(song => normaliseUrl(song.sourceUrl))
+        .map(song => linkIdentity(song.sourceUrl))
         .filter((url): url is string => url !== null),
     )
     const queued = inQueue(container)
     const fresh = items.filter(item => {
       if (queued(item.url)) return false
-      const url = normaliseUrl(item.url)
+      const url = linkIdentity(item.url)
       return !(url && downloaded.has(url))
     })
     if (fresh.length === 0) {

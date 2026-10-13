@@ -1,4 +1,4 @@
-import type { RoomEntry, RoomSong, Song } from '@selfmp3/shared'
+import { linkIdentity, type RoomEntry, type RoomSong, type Song } from '@selfmp3/shared'
 
 /**
  * A room's songs as the player knows songs (docs/features/listen-together.md).
@@ -57,7 +57,7 @@ export function roomTrackSong(entry: Pick<RoomEntry, 'id' | 'song' | 'addedAt'>)
 export interface LibraryIndex {
   /** By audio key: the same file, since files are named by their hash. */
   readonly byAudio: ReadonlyMap<string, number>
-  /** By the link it came from. */
+  /** By the link it came from, as `linkIdentity` reads it. */
   readonly bySource: ReadonlyMap<string, number>
 }
 
@@ -70,7 +70,8 @@ export function libraryIndex(songs: readonly Song[]): LibraryIndex {
   const bySource = new Map<string, number>()
   for (const song of songs) {
     if (song.path.startsWith('audio/')) byAudio.set(song.path, song.id)
-    if (song.sourceUrl) bySource.set(song.sourceUrl, song.id)
+    const source = linkIdentity(song.sourceUrl)
+    if (source) bySource.set(source, song.id)
   }
   return { byAudio, bySource }
 }
@@ -79,6 +80,6 @@ export function libraryIndex(songs: readonly Song[]): LibraryIndex {
 export function yoursOf(song: RoomSong, index: LibraryIndex): number | null {
   const byAudio = song.audio ? index.byAudio.get(song.audio.key) : undefined
   if (byAudio !== undefined) return byAudio
-  const source = song.sourceUrl ?? song.link
+  const source = linkIdentity(song.sourceUrl ?? song.link)
   return (source ? index.bySource.get(source) : undefined) ?? null
 }

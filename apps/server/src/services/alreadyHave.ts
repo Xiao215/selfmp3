@@ -1,4 +1,4 @@
-import { cleanArtist, cleanTitle, neteaseLink, youtubeVideoId } from '@selfmp3/shared'
+import { cleanArtist, cleanTitle, linkIdentity } from '@selfmp3/shared'
 import { foldForMatch, similarAtLeast, type Folded } from './youtubeMatch.js'
 
 /**
@@ -77,7 +77,7 @@ interface LibraryIndex<T extends LibrarySong> {
 export function libraryIndex<T extends LibrarySong>(songs: readonly T[]): LibraryIndex<T> {
   const urls = new Map<string, T>()
   for (const song of songs) {
-    const url = normaliseUrl(song.sourceUrl)
+    const url = linkIdentity(song.sourceUrl)
     if (url && !urls.has(url)) urls.set(url, song)
   }
   return {
@@ -91,22 +91,6 @@ export function libraryIndex<T extends LibrarySong>(songs: readonly T[]): Librar
 }
 
 /**
- * The same video on `youtube.com`, `music.youtube.com`, `youtu.be`, as a Short
- * or as an embed is the same file, so a link is reduced to what identifies it
- * (`youtubeVideoId`), as is a 网易云 song in any of its spellings. Anything
- * else is compared whole, minus the noise a share button adds.
- */
-export function normaliseUrl(raw: string | null | undefined): string | null {
-  const trimmed = raw?.trim()
-  if (!trimmed) return null
-  const netease = neteaseLink(trimmed)
-  if (netease?.kind === 'song') return `ne:${netease.id}`
-  const video = youtubeVideoId(trimmed)
-  if (video) return `yt:${video}`
-  return trimmed.replace(/[?&](si|feature|utm_[\w-]+)=[^&]*/g, '').replace(/[?&]$/, '')
-}
-
-/**
  * The song the library already holds for this track, or null. The song
  * itself rather than a yes: which one it is says where it is — on this
  * server only, or in the bucket every device reads.
@@ -115,7 +99,7 @@ export function alreadyHave<T extends LibrarySong>(
   track: IncomingTrack,
   library: LibraryIndex<T>,
 ): T | null {
-  const url = normaliseUrl(track.url)
+  const url = linkIdentity(track.url)
   const linked = url ? library.urls.get(url) : undefined
   if (linked) return linked
 

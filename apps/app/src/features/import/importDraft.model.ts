@@ -2,7 +2,7 @@ import { z } from 'zod'
 import {
   ImportFromSchema,
   ImportPreviewItemSchema,
-  youtubeVideoId,
+  linkIdentity,
   type ImportPreviewItem,
 } from '@selfmp3/shared'
 import type { Review, ServerConnection } from '@selfmp3/client'
@@ -84,12 +84,11 @@ export function withSearchResults(
   }
 }
 
-/** Every link a row's song goes by, a YouTube video by its id whatever the address. */
+/** Every link a row's song goes by, each as `linkIdentity` reads it. */
 const songLinks = (item: ImportPreviewItem): string[] =>
   [item.url, item.netease?.url, item.youtube?.url].flatMap(url => {
-    if (!url) return []
-    const video = youtubeVideoId(url)
-    return [video ? `youtube:${video}` : url]
+    const identity = linkIdentity(url)
+    return identity ? [identity] : []
   })
 
 export type DraftChanges = Partial<Omit<ImportDraft, 'source'>>

@@ -3,7 +3,7 @@ import { fixtureLibrary, memoryStore, song } from '../../verify/fixtures.js'
 import { LibraryCache, linkIndex } from './library.js'
 
 describe('linkIndex', () => {
-  it('keys each song by the video it came from, and skips what it cannot', () => {
+  it('keys each song by the link it came from, and skips what it cannot', () => {
     const links = linkIndex([
       song({
         id: 1,
@@ -19,8 +19,8 @@ describe('linkIndex', () => {
         sourceUrl: 'https://youtu.be/YQHsXMglC9A',
       }),
     ])
-    expect(Object.keys(links)).toEqual(['YQHsXMglC9A'])
-    expect(links['YQHsXMglC9A']).toEqual({
+    expect(Object.keys(links)).toEqual(['yt:YQHsXMglC9A'])
+    expect(links['yt:YQHsXMglC9A']).toEqual({
       id: 1,
       title: 'Hello',
       artist: 'Adele',

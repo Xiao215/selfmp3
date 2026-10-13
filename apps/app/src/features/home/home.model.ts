@@ -123,3 +123,14 @@ export function sundayCard(
     : null
   return { title: 'Your week is ready', line: parts.join(' · '), song }
 }
+
+/**
+ * What the Sunday card says to a screen reader, on a phone's card and a
+ * computer's This week alike: the title, the week's number one and the line.
+ */
+export function sundaySpoken(card: SundayCard): string {
+  const lead = card.song
+  return lead
+    ? `${card.title}. ${lead.title}, ${lead.note}. ${card.line}`
+    : `${card.title}. ${card.line}`
+}

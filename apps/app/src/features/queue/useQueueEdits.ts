@@ -3,7 +3,7 @@ import type { Href } from 'expo-router'
 import { plural } from '@selfmp3/shared'
 import { useLibrary } from '@selfmp3/client'
 import { usePlayer, type PlayerApi } from '../../player/PlayerProvider'
-import { showToast, showUndoToast, UNDO_MS } from '../../ui/toast'
+import { showUndoToast } from '../../ui/toast'
 import { useOpenTag } from '../tag/useOpenTag'
 import { closeQueueSheet } from './queueSheet.store'
 import { queueRows, removalOf, restoreMoves } from './queue.model'
@@ -62,22 +62,14 @@ export function useQueueEdits(
     if (!removal) return
     const song = now.songs.find(entry => entry.id === removal.id)
     now.removeFromQueue(index)
-    showToast(song ? `Removed ${song.title}` : 'Removed from Up next', 'info', {
-      autoDismissMs: UNDO_MS,
-      actions: [
-        {
-          label: 'Undo',
-          onPress: () => {
-            const live = latest.current
-            const moves = restoreMoves(live.queue, removal)
-            if (!moves) return
-            // Both go through the player's own queue edits, which read and write
-            // its queue synchronously, so the move sees the song just put back.
-            live.playNext([removal.id])
-            if (moves.from !== moves.to) live.reorderQueue(moves.from, moves.to)
-          },
-        },
-      ],
+    showUndoToast(song ? `Removed ${song.title}` : 'Removed from Up next', () => {
+      const live = latest.current
+      const moves = restoreMoves(live.queue, removal)
+      if (!moves) return
+      // Both go through the player's own queue edits, which read and write
+      // its queue synchronously, so the move sees the song just put back.
+      live.playNext([removal.id])
+      if (moves.from !== moves.to) live.reorderQueue(moves.from, moves.to)
     })
   }, [])
 

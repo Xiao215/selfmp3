@@ -26,7 +26,8 @@ import { useLayout } from '../../shell/useLayout'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { Chip } from '../../ui/components/Chip'
 import { Toggle } from '../../ui/components/Toggle'
-import { label, PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageFrame, sectionTitle } from '../../ui/surfaces'
+import { label, PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageFrame } from '../../ui/surfaces'
+import { SectionHead } from '../../ui/components/SectionHead'
 import { usePlayer } from '../../player/PlayerProvider'
 import { createValueStore, type ValueStore } from '../../state/valueStore.model'
 import { useValueStore } from '../../state/useValueStore'
@@ -418,9 +419,7 @@ export function SettingsScreen(): ReactNode {
 
             {indexed.some(section => section.id === 'advanced') ? (
               <View ref={anchorAt('advanced')} style={styles.advanced}>
-                <Text style={styles.advancedTitle} accessibilityRole="header">
-                  Advanced
-                </Text>
+                <SectionHead title="Advanced" />
                 {shown('library') ? (
                   <LibraryPanel
                     libraryPath={health.data?.libraryPath}
@@ -614,7 +613,6 @@ const styles = StyleSheet.create(theme => ({
   subCapped: { color: theme.colors.danger },
   panels: { gap: 20, maxWidth: 780 },
   advanced: { gap: 20, paddingTop: 12 },
-  advancedTitle: sectionTitle(theme.colors),
   indexColumn: {
     position: 'absolute',
     top: COLUMN_TOP,

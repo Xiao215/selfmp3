@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { leading, radius, space, type, useLibrary } from '@selfmp3/client'
+import { radius, space, type, useLibrary } from '@selfmp3/client'
 import type { Song } from '@selfmp3/shared'
 import {
   coverFor,
@@ -18,7 +18,7 @@ import { useArt } from '../../offline/useArt'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { Cover } from '../../ui/components/Cover'
-import { Toggle } from '../../ui/components/Toggle'
+import { ToggleRow } from '../../ui/components/Toggle'
 import {
   arrival,
   helloLine,
@@ -133,18 +133,14 @@ export function FirstSyncScreen(): ReactNode {
         <ProgressBar fraction={now.fraction} label="Your library arriving" />
       </OnboardingCard>
 
-      <View style={styles.keep}>
-        <Toggle
-          testID="first-sync-keep"
-          value={prefs.autoOnWifi}
-          onChange={autoOnWifi => setPrefs({ autoOnWifi })}
-          label={keep.label}
-        />
-        <View style={styles.keepWords}>
-          <Text style={styles.keepLabel}>{keep.label}</Text>
-          <Text style={styles.keepHint}>{keep.hint}</Text>
-        </View>
-      </View>
+      <ToggleRow
+        label={keep.label}
+        hint={keep.hint}
+        value={prefs.autoOnWifi}
+        onChange={autoOnWifi => setPrefs({ autoOnWifi })}
+        testID="first-sync-keep"
+        style={styles.keep}
+      />
 
       <View style={[styles.continue, wide && styles.continueWide]}>
         <WhitePill
@@ -211,16 +207,7 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
   },
   moreText: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '600' },
-  keep: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-  },
-  keepWords: { flex: 1, gap: 2 },
-  keepLabel: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  keepHint: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  keep: { paddingHorizontal: 6, paddingVertical: 4 },
   // At the foot of a phone, where a thumb is; under the switch on a computer.
   continue: { marginTop: 'auto', marginBottom: 60 },
   continueWide: { marginTop: 0, marginBottom: 0 },

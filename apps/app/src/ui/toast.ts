@@ -1,3 +1,5 @@
+import { failureText } from '@selfmp3/client'
+
 /**
  * Short messages about what just happened.
  *
@@ -66,18 +68,45 @@ export function showToast(
 }
 
 /** How long a removal can be taken back: five seconds, wherever it was made (`C12`). */
-export const UNDO_MS = 5000
+const UNDO_MS = 5000
 
 /**
- * A removal said, with an Undo for `UNDO_MS`: Up next's rows and its Clear the
- * rest, a playlist's songs, downloads. Removals that would have to be put back
- * on every device — a song from the library, a whole playlist or tag — ask
- * first instead.
+ * Something done, said with an Undo for `UNDO_MS`: Up next's rows and its
+ * Clear the rest, a playlist's songs, downloads, an Ask's changes. Removals
+ * that would have to be put back on every device — a song from the library, a
+ * whole playlist or tag — ask first instead.
+ *
+ * `undo` may be work that takes a while: once it has finished, `after` says
+ * so ("Put your tags back"); if it fails, `failed` says that ("Couldn't undo
+ * that, …"), or nothing does when the edit that failed has said so itself.
+ * `also` goes before Undo: Open, beside a playlist just saved.
  */
-export function showUndoToast(text: string, undo: () => void): void {
-  showToast(text, 'info', {
+export function showUndoToast(
+  text: string,
+  undo: () => unknown,
+  options: {
+    tone?: ToastTone
+    after?: string
+    failed?: string
+    also?: readonly ToastAction[]
+  } = {},
+): void {
+  const { tone = 'info', after, failed, also = [] } = options
+  const run = (): void => {
+    Promise.resolve()
+      .then(undo)
+      .then(
+        () => {
+          if (after) showToast(after, 'info')
+        },
+        (caught: unknown) => {
+          if (failed) showToast(failureText(failed, caught), 'error')
+        },
+      )
+  }
+  showToast(text, tone, {
     autoDismissMs: UNDO_MS,
-    actions: [{ label: 'Undo', onPress: undo }],
+    actions: [...also, { label: 'Undo', onPress: run }],
   })
 }
 

@@ -18,13 +18,13 @@ import { roomTrack } from '../../player/roomTracks'
 import { label } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { Button } from '../../ui/components/Button'
-import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
-import { More, Next, People, Plus, ToTop, X } from '../../ui/components/Icons'
+import { More, Next, People, Plus, ToTop } from '../../ui/components/Icons'
 import { PlayingCard } from '../../ui/components/PlayingCard'
 import { PlayPauseButton } from '../../ui/components/PlayPauseButton'
-import { Toggle } from '../../ui/components/Toggle'
+import { ToggleRow } from '../../ui/components/Toggle'
 import { RoomFace, RoomFaces } from './RoomFace'
+import { RoomEntryLine } from './RoomEntryLine'
 import {
   isHost,
   peopleHere,
@@ -214,13 +214,14 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
           row={row}
           action={
             host && index > 0 ? (
-              <RowButton
+              <IconButton
                 label={`Play ${row.entry.song.title} next`}
-                tipText="Play next"
+                caption="Play next"
+                filled
                 onPress={() => act({ type: 'move', entryId: row.entry.id, to: 0 })}
               >
                 <ToTop size={16} color={theme.colors.textSecondary} />
-              </RowButton>
+              </IconButton>
             ) : null
           }
           remove={row.removable}
@@ -261,13 +262,14 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
               dim
               action={
                 youMay(state, 'again') ? (
-                  <RowButton
+                  <IconButton
                     label={`Play ${row.entry.song.title} again later`}
-                    tipText="Again"
+                    caption="Again"
+                    filled
                     onPress={() => act({ type: 'again', entryId: row.entry.id })}
                   >
                     <Plus size={16} color={theme.colors.textSecondary} />
-                  </RowButton>
+                  </IconButton>
                 ) : null
               }
             />
@@ -276,20 +278,15 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
       ) : null}
 
       {host ? (
-        <View style={styles.keepGoing}>
-          <Toggle
-            value={state.keepGoing}
-            onChange={keepGoing => act({ type: 'settings', keepGoing })}
-            label="Keep it going"
-            testID="room-keep-going"
-          />
-          <View style={styles.keepGoingText}>
-            <Text style={styles.keepGoingTitle}>Keep it going</Text>
-            <Text style={styles.keepGoingHint} numberOfLines={3}>
-              Near the end, adds songs from what people brought, taking turns
-            </Text>
-          </View>
-        </View>
+        <ToggleRow
+          label="Keep it going"
+          hint="Near the end, adds songs from what people brought, taking turns"
+          hintLines={3}
+          value={state.keepGoing}
+          onChange={keepGoing => act({ type: 'settings', keepGoing })}
+          testID="room-keep-going"
+          style={styles.keepGoing}
+        />
       ) : null}
     </View>
   )
@@ -306,66 +303,22 @@ const EntryRow = memo(function EntryRow({
   remove?: boolean
   dim?: boolean
 }): ReactNode {
-  const { theme } = useUnistyles()
   const artFor = useArt(ROW_COVER_SIZE)
   const song = roomTrack(row.trackId)?.song ?? roomTrackSong(row.entry)
   return (
-    <View style={[styles.row, dim && styles.dim]} testID={`room-row-${row.entry.id}`}>
-      <View>
-        <Cover uri={artFor(song)} title={song.title} size={44} />
-        {row.face ? (
-          <View style={styles.badge}>
-            <RoomFace name={row.face.name} colour={row.face.colour} size={20} ring />
-          </View>
-        ) : null}
-      </View>
-      <View style={styles.rowText}>
-        <Text style={styles.rowTitle} numberOfLines={1}>
-          {song.title}
-        </Text>
-        <Text style={styles.rowSub} numberOfLines={1}>
-          {artistOr(song.artist)} · {row.who}
-          {row.entry.song.link ? ' · from a link' : ''}
-        </Text>
-      </View>
-      {action}
-      {remove ? (
-        <RowButton
-          label={`Take ${song.title} out`}
-          tipText="Take out"
-          onPress={() => act({ type: 'remove', entryId: row.entry.id })}
-        >
-          <X size={16} color={theme.colors.textSecondary} />
-        </RowButton>
-      ) : null}
-    </View>
+    <RoomEntryLine
+      song={song}
+      uri={artFor(song)}
+      face={row.face}
+      who={row.who}
+      note={row.entry.song.link ? 'from a link' : undefined}
+      trailing={action}
+      onRemove={remove ? () => act({ type: 'remove', entryId: row.entry.id }) : undefined}
+      dim={dim}
+      testID={`room-row-${row.entry.id}`}
+    />
   )
 })
-
-function RowButton({
-  label: spoken,
-  tipText,
-  onPress,
-  children,
-}: {
-  label: string
-  tipText: string
-  onPress: () => void
-  children: ReactNode
-}): ReactNode {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={spoken}
-      {...tip(tipText)}
-      hitSlop={6}
-      style={({ pressed }) => [styles.rowButton, pressed && styles.roundPressed]}
-    >
-      {children}
-    </Pressable>
-  )
-}
 
 /**
  * Together, in Up next's head (E1): opens a room from what is playing, or its
@@ -428,35 +381,15 @@ const styles = StyleSheet.create(theme => ({
   },
   emptyTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   emptyText: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: 18 },
-  badge: { position: 'absolute', right: -5, bottom: -5 },
   list: { gap: 2 },
   actions: { flexDirection: 'row', gap: space.sm, paddingTop: space.sm },
   label: { ...label(theme.colors), paddingBottom: space.xs },
   playedLabel: { paddingTop: space.lg },
   more: { color: theme.colors.textMuted, fontSize: type.sub, paddingVertical: 10 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 60 },
-  dim: { opacity: 0.55 },
-  rowText: { flex: 1, minWidth: 0, gap: 2 },
-  rowTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  rowSub: { color: theme.colors.textSecondary, fontSize: type.sub },
-  rowButton: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surface2,
-  },
   keepGoing: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
     marginTop: space.lg,
     padding: space.md,
     borderRadius: radius.mini,
     backgroundColor: theme.colors.surface2,
   },
-  keepGoingText: { flex: 1, minWidth: 0, gap: 2 },
-  keepGoingTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  keepGoingHint: { color: theme.colors.textSecondary, fontSize: type.small },
 }))

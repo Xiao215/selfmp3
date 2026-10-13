@@ -14,7 +14,6 @@ import {
   type Tag,
 } from '@selfmp3/shared'
 import {
-  ApiError,
   canImportNext,
   canLookUp,
   clockIn,
@@ -44,7 +43,8 @@ import { PageHeader } from '../../ui/components/PageHeader'
 import { NavRow } from '../../ui/components/NavRow'
 import { ProgressBar } from '../../ui/components/ProgressBar'
 import { NoticeCard, NoticeText } from '../../ui/components/NoticeCard'
-import { card, label as groupLabel, pageFrame } from '../../ui/surfaces'
+import { card, pageFrame } from '../../ui/surfaces'
+import { SectionHead } from '../../ui/components/SectionHead'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
@@ -60,6 +60,7 @@ import { TagItPill } from './ImportTags'
 import { draftFor, useImportDraft } from './importDraft'
 import { draftSourceFor } from './importDraft.model'
 import { reviewUrls, useRefreshReview } from './useRefreshReview'
+import { useImportFailure } from './ImportPage'
 import { useImportSource } from './importSource'
 import { comingIn, countLabel, reviewName } from './review.model'
 import { ScrollView } from '../../ui/components/Scroll'
@@ -119,27 +120,10 @@ export function ImportScreen({
   const { links, review, tagIds } = draft
   // The card offering a kept review counts songs coming in: as the library is now.
   useRefreshReview(api, key, reviewUrls(review))
-  const [error, setError] = useState<string | null>(null)
+  const { error, setError, failed } = useImportFailure(via, onUnreachable)
   const [linksFocused, setLinksFocused] = useState(false)
   /** What the pasted links take up, so the box grows with them. */
   const [linksHeight, setLinksHeight] = useState(0)
-  /*
-   * A request that never reached the server is not an import that failed. The
-   * browser's words for it are "Failed to fetch", which tell a person nothing
-   * and used to be all this screen said — while the way forward, leaving the
-   * link for the server to take when it wakes, sat on a screen it never showed
-   * because the look-out only looks every twenty seconds, and not at all in a
-   * tab that is in the background.
-   */
-  const failed = (err: Error): void => {
-    if (viaServer && err instanceof ApiError && err.isOffline) {
-      setError('Your library’s computer stopped answering. Looking for it again…')
-      onUnreachable?.()
-      return
-    }
-    setError(err.message)
-  }
-
   const tags = library?.tags ?? []
 
   const preview = useMutation({
@@ -547,11 +531,13 @@ function JobGroup({
   const hidden = jobs.length - ROWS_SHOWN
   return (
     <>
-      <Animated.View {...motion} style={[styles.groupHead, !first && styles.groupApart]}>
-        <Text style={styles.groupLabel} accessibilityRole="header" testID={testID}>
-          {title}
-        </Text>
-        <View style={styles.groupActions}>{actions}</View>
+      <Animated.View {...motion} style={!first && styles.groupApart}>
+        <SectionHead
+          look="label"
+          title={title}
+          titleTestID={testID}
+          end={<View style={styles.groupActions}>{actions}</View>}
+        />
       </Animated.View>
       {lead ? <Animated.View {...motion}>{lead}</Animated.View> : null}
       {shown.map(job => (
@@ -638,11 +624,19 @@ function Finished({
   const shown = all ? jobs : jobs.slice(0, FINISHED_SHOWN)
   return (
     <>
-      <Animated.View {...motion} style={[styles.groupHead, !first && styles.groupApart]}>
-        <Text style={styles.groupLabel} accessibilityRole="header" testID="import-finished">
-          {today ? 'Earlier today' : 'Earlier'}
-        </Text>
-        <FoldAction label="Clear" accessibilityLabel="Clear finished imports" onPress={onClear} />
+      <Animated.View {...motion} style={!first && styles.groupApart}>
+        <SectionHead
+          look="label"
+          title={today ? 'Earlier today' : 'Earlier'}
+          titleTestID="import-finished"
+          end={
+            <FoldAction
+              label="Clear"
+              accessibilityLabel="Clear finished imports"
+              onPress={onClear}
+            />
+          }
+        />
       </Animated.View>
       {shown.map(job => (
         <Animated.View key={job.id} {...motion} style={styles.job}>
@@ -687,17 +681,15 @@ function FoldAction({
   testID?: string
 }): ReactNode {
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
+    <Button
+      size="small"
+      variant="text"
+      label={label}
       accessibilityLabel={accessibilityLabel}
-      accessibilityState={expanded === undefined ? undefined : { expanded }}
-      hitSlop={{ top: 8, bottom: 8 }}
-      style={({ pressed }) => [styles.foldAction, pressed && styles.pressed]}
+      expanded={expanded}
+      onPress={onPress}
       testID={testID}
-    >
-      <Text style={styles.foldActionText}>{label}</Text>
-    </Pressable>
+    />
   )
 }
 
@@ -1050,11 +1042,7 @@ const styles = StyleSheet.create(theme => ({
   shareHint: { color: theme.colors.textMuted, fontSize: type.sub, lineHeight: leading.sub },
   jobs: { gap: 6 },
   groupApart: { marginTop: 12 },
-  groupHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   groupActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },
-  groupLabel: groupLabel(theme.colors),
-  foldAction: { alignSelf: 'flex-start', paddingVertical: 4 },
-  foldActionText: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '600' },
   job: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 62 },
   jobMeta: { flex: 1, minWidth: 0, gap: 3 },
   jobTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },

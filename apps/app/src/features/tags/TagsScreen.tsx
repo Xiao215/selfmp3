@@ -1,14 +1,13 @@
 import { useEffect, useCallback, memo, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, View, type LayoutChangeEvent } from 'react-native'
+import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Tag } from '@selfmp3/shared'
-import { fonts, leading, radius, space, type, useLibrary } from '@selfmp3/client'
+import { leading, radius, space, type, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { tabbing } from '../../shell/FocusStyle'
 import { useOpenSearch } from '../../shell/palette'
 import { useLayout } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
@@ -26,8 +25,10 @@ import {
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { HueSwatches } from '../../ui/components/HueSwatches'
 import { TagEditor } from '../../ui/components/TagEditor'
-import { useFade, usePressScale } from '../../ui/motion'
+import { usePressScale } from '../../ui/motion'
 import { MOVE_MS } from '../../ui/motion.model'
+import { rightClick } from '../../ui/rightClick'
+import { GridTile, TileGrid, useTileGrid, type TileFocus } from '../../ui/components/TileGrid'
 import { card, label, pageFrame } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { noteTagUsed } from '../library/recentTags.store'
@@ -48,7 +49,9 @@ import {
   leadSong,
   tagsHeadline,
   tagsLayout,
+  UNTAGGED_HINT,
   waitingArtists,
+  waitingLine,
   type TagEntry,
   type WaitingArtist,
 } from './tags.model'
@@ -60,11 +63,8 @@ import { TagDot } from '../../ui/components/TagDot'
 
 /** Tiles at least this wide on a computer, as many as fit; two across on a phone. */
 const TILE_MIN_WIDTH = 220
-const PHONE_COLUMNS = 2
 const GAP = 16
 const ROW_GAP = 24
-/** The page's side margins: a phone's, and a computer's. */
-const NARROW_GUTTER = space.gutter
 /** How many artists the untagged card names on a computer, and on a phone. */
 const WAITING_SHOWN = 3
 const PHONE_WAITING_SHOWN = 2
@@ -89,7 +89,7 @@ type HoldRef = (tagId: number, node: View | null) => void
  * are by and tags them one at a time while they play (K2).
  */
 export function TagsScreen(): ReactNode {
-  const { wide, width, finePointer } = useLayout()
+  const { wide, finePointer } = useLayout()
   const router = useRouter()
   const player = usePlayerCommands()
   const { data: library } = useLibrary()
@@ -97,7 +97,7 @@ export function TagsScreen(): ReactNode {
   const [adding, setAdding] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const switches = useSmartSwitches()
-  const [gridWidth, setGridWidth] = useState(0)
+  const { columns, tileWidth } = useTileGrid({ minTile: TILE_MIN_WIDTH, gap: GAP })
   /*
    * The tile handlers are made once and take the tag they act on, so a render
    * of the screen redraws no tile and no cover in one.
@@ -151,12 +151,6 @@ export function TagsScreen(): ReactNode {
     [library, wide],
   )
 
-  const measured = wide ? gridWidth : width - NARROW_GUTTER * 2
-  const columns = wide
-    ? Math.max(PHONE_COLUMNS, Math.floor((measured + GAP) / (TILE_MIN_WIDTH + GAP)))
-    : PHONE_COLUMNS
-  const tileWidth = measured > 0 ? Math.floor((measured - GAP * (columns - 1)) / columns) : 0
-
   // The one Search, on its Tags scope: the page on a phone, the palette over
   // this page on a computer (docs/ui-mock `P18`, `C05`).
   const openSearch = useOpenSearch()
@@ -167,10 +161,16 @@ export function TagsScreen(): ReactNode {
   }, [])
 
   const grid = (entries: readonly TagEntry[]): ReactNode => (
-    <View style={styles.grid}>
-      {entries.map(entry => (
+    <TileGrid
+      items={entries}
+      columns={columns}
+      gap={GAP}
+      rowGap={ROW_GAP}
+      keyOf={entry => entry.standing.tag.id}
+      // A tag that holds others stands with its panel beside it, a tile wide.
+      spanOf={entry => (entry.inside.length > 0 ? 2 : 1)}
+      renderItem={entry => (
         <Entry
-          key={entry.standing.tag.id}
           entry={entry}
           order={order}
           width={tileWidth}
@@ -180,8 +180,8 @@ export function TagsScreen(): ReactNode {
           onPlay={playTag}
           onEdit={edit}
         />
-      ))}
-    </View>
+      )}
+    />
   )
 
   const actions = (
@@ -243,10 +243,7 @@ export function TagsScreen(): ReactNode {
         ) : standings.length === 0 ? (
           <Text style={styles.hint}>No tags yet. {noTagsLine(finePointer)}</Text>
         ) : (
-          <View
-            style={styles.runs}
-            onLayout={(event: LayoutChangeEvent) => setGridWidth(event.nativeEvent.layout.width)}
-          >
+          <View style={styles.runs}>
             {tileWidth > 0 ? (
               <>
                 {grid(layout.main)}
@@ -396,53 +393,57 @@ function UntaggedCard({
       </View>
     )
 
+  // The same words a screen reader is given; a computer draws the names as links.
+  const line = waitingLine(named, rest, wide ? 'count' : 'others')
   const who =
-    named.length === 0 ? (
-      'Tag them one at a time, while they play'
+    named.length === 0 || !wide ? (
+      line
     ) : (
       <>
         {named.map((artist, index) => (
           <Text key={artist.name}>
             {index > 0 ? ' · ' : ''}
             {artist.count.toLocaleString()} by{' '}
-            {wide ? (
-              <Text
-                style={styles.artistLink}
-                onPress={() => onArtist(artist.name)}
-                accessibilityRole="link"
-                {...tip(`Open ${artist.name}`)}
-              >
-                {artist.name}
-              </Text>
-            ) : (
-              artist.name
-            )}
+            <Text
+              style={styles.artistLink}
+              onPress={() => onArtist(artist.name)}
+              accessibilityRole="link"
+              {...tip(`Open ${artist.name}`)}
+            >
+              {artist.name}
+            </Text>
           </Text>
         ))}
-        {rest > 0 ? (wide ? ` · and ${rest.toLocaleString()} more` : ' · and others') : ''}
+        {rest > 0 ? ` · and ${rest.toLocaleString()} more` : ''}
       </>
     )
+  const words = (
+    <View style={styles.untaggedText}>
+      <Text style={styles.untaggedTitle} numberOfLines={1}>
+        {title}
+      </Text>
+      <Text style={styles.untaggedSub} numberOfLines={1}>
+        {who}
+      </Text>
+    </View>
+  )
+  const suggest = (variant: 'secondary' | 'text'): ReactNode =>
+    onSuggest ? (
+      <Button
+        label="Suggest tags"
+        icon={<Sparkle size={15} />}
+        variant={variant}
+        onPress={onSuggest}
+        testID="tags-untagged-suggest"
+      />
+    ) : null
 
   if (wide) {
     return (
       <View style={styles.untagged} testID="tags-untagged">
         {covers}
-        <View style={styles.untaggedText}>
-          <Text style={styles.untaggedTitle} numberOfLines={1}>
-            {title}
-          </Text>
-          <Text style={styles.untaggedSub} numberOfLines={1}>
-            {who}
-          </Text>
-        </View>
-        {onSuggest ? (
-          <Button
-            label="Suggest tags"
-            icon={<Sparkle size={15} />}
-            onPress={onSuggest}
-            testID="tags-untagged-suggest"
-          />
-        ) : null}
+        {words}
+        {suggest('secondary')}
         <Button
           label="Tag while they play"
           icon={<TagIcon size={15} color={theme.colors.textPrimary} />}
@@ -458,32 +459,16 @@ function UntaggedCard({
         {...press.handlers}
         onPress={onStart}
         accessibilityRole="button"
-        accessibilityLabel={`${title}. Tag them one at a time, while they play`}
+        accessibilityLabel={`${title}. ${line}`}
+        accessibilityHint={UNTAGGED_HINT}
         testID="tags-untagged"
         style={styles.untagged}
       >
         {covers}
-        <View style={styles.untaggedText}>
-          <Text style={styles.untaggedTitle} numberOfLines={1}>
-            {title}
-          </Text>
-          <Text style={styles.untaggedSub} numberOfLines={1}>
-            {who}
-          </Text>
-        </View>
+        {words}
         <ChevronRight size={16} tone="textMuted" />
       </Pressable>
-      {onSuggest ? (
-        <View style={styles.untaggedSuggest}>
-          <Button
-            label="Suggest tags"
-            icon={<Sparkle size={15} />}
-            variant="text"
-            onPress={onSuggest}
-            testID="tags-untagged-suggest"
-          />
-        </View>
-      ) : null}
+      {onSuggest ? <View style={styles.untaggedSuggest}>{suggest('text')}</View> : null}
     </Animated.View>
   )
 }
@@ -564,67 +549,33 @@ const TagTile = memo(function TagTile({
   onEdit: EditTag
 }): ReactNode {
   const { tag } = standing
-  const [hovered, setHovered] = useState(false)
-  const [focused, setFocused] = useState(false)
   const lead = useMemo(() => leadSong(standing.songs), [standing.songs])
-  const out = finePointer && (hovered || focused)
-  const controls = useFade(out, MOVE_MS.hoverIn, MOVE_MS.hoverOut)
-  const controlsStyle = useMemo(() => ({ opacity: controls }), [controls])
   const line = tagLine(standing)
   const height = Math.round(width / SLEEVE_ASPECT)
-  const web = {
-    onContextMenu: (event: { preventDefault: () => void }) => {
-      event.preventDefault()
-      onEdit(tag)
-    },
-  }
   return (
-    <View
-      ref={node => rowRef(tag.id, node)}
-      collapsable={false}
-      style={{ width }}
-      onPointerEnter={finePointer ? () => setHovered(true) : undefined}
-      onPointerLeave={finePointer ? () => setHovered(false) : undefined}
-    >
-      <Pressable
-        onPress={() => onOpen(standing)}
-        onLongPress={() => onEdit(tag)}
-        // The app's one hold, as a song row's is (`HoldToReorder`): a page
-        // where holding takes half again as long as it does on the next page
-        // is two gestures wearing one name.
-        delayLongPress={MOVE_MS.hold}
-        onFocus={() => setFocused(tabbing())}
-        onBlur={() => setFocused(false)}
-        accessibilityRole="link"
-        accessibilityLabel={`${tag.name}, ${line}`}
-        accessibilityHint={
-          finePointer
-            ? 'Right-click to rename, recolour or delete'
-            : 'Hold to rename, recolour or delete'
-        }
-        testID={`tags-row-${index}`}
-        style={({ pressed }) => pressed && styles.pressed}
-        {...web}
-      >
-        <TagSleeve song={lead} hue={tag.hue} name={tag.name} width={width} out={out} />
-        <View style={styles.nameRow}>
-          <TagDot hue={tag.hue} />
-          <Text style={styles.tileName} numberOfLines={1}>
-            {tag.name}
-          </Text>
-        </View>
-        <Text style={styles.tileSub} numberOfLines={1}>
-          {line}
-        </Text>
-      </Pressable>
-
-      {finePointer ? (
+    <GridTile
+      tileRef={node => rowRef(tag.id, node)}
+      cover={out => <TagSleeve song={lead} hue={tag.hue} name={tag.name} width={width} out={out} />}
+      look="display"
+      titleLead={<TagDot hue={tag.hue} />}
+      title={tag.name}
+      sub={line}
+      onPress={() => onOpen(standing)}
+      onMenu={() => onEdit(tag)}
+      role="link"
+      label={`${tag.name}, ${line}`}
+      hint={
+        finePointer
+          ? 'Right-click to rename, recolour or delete'
+          : 'Hold to rename, recolour or delete'
+      }
+      testID={`tags-row-${index}`}
+      overlay={(focus: TileFocus) => (
         <>
           {/* The record itself is Play: what is out of the sleeve, right of it. */}
           <Pressable
             onPress={() => onPlay(standing)}
-            onFocus={() => setFocused(tabbing())}
-            onBlur={() => setFocused(false)}
+            {...focus}
             disabled={standing.songs.length === 0}
             accessibilityRole="button"
             accessibilityLabel={`Play ${tag.name}`}
@@ -632,14 +583,10 @@ const TagTile = memo(function TagTile({
             testID={`tags-play-${index}`}
             style={[styles.playZone, { left: height, width: width - height, height }]}
           />
-          <Animated.View
-            style={[styles.more, controlsStyle]}
-            pointerEvents={out ? 'box-none' : 'none'}
-          >
+          <View style={styles.more}>
             <Pressable
               onPress={() => onEdit(tag)}
-              onFocus={() => setFocused(tabbing())}
-              onBlur={() => setFocused(false)}
+              {...focus}
               accessibilityRole="button"
               accessibilityLabel={`Rename, recolour or delete ${tag.name}`}
               {...tip('Edit tag')}
@@ -649,10 +596,10 @@ const TagTile = memo(function TagTile({
             >
               <More size={16} tone="textPrimary" />
             </Pressable>
-          </Animated.View>
+          </View>
         </>
-      ) : null}
-    </View>
+      )}
+    />
   )
 })
 
@@ -705,12 +652,7 @@ function InsidePanel({
                     compact && styles.insideRowCompact,
                     (pressed || hovered) && styles.insideRowOn,
                   ]}
-                  {...{
-                    onContextMenu: (event: { preventDefault: () => void }) => {
-                      event.preventDefault()
-                      onEdit(tag)
-                    },
-                  }}
+                  {...rightClick(() => onEdit(tag))}
                 >
                   <Cover
                     uri={lead ? art(lead) : null}
@@ -792,23 +734,8 @@ const styles = StyleSheet.create(theme => ({
   runs: { gap: ROW_GAP },
   runLabel: { ...label(theme.colors), marginBottom: -space.sm },
   runLabelSub: { fontSize: type.small, fontWeight: '400', letterSpacing: 0, textTransform: 'none' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: GAP, rowGap: ROW_GAP },
   holder: { flexDirection: 'row', gap: GAP },
   pressed: { opacity: 0.75 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: 11 },
-  tileName: {
-    flexShrink: 1,
-    color: theme.colors.textPrimary,
-    fontFamily: fonts.display,
-    fontSize: type.title,
-    letterSpacing: -0.2,
-  },
-  tileSub: {
-    marginTop: 3,
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    fontVariant: ['tabular-nums'],
-  },
   playZone: { position: 'absolute', top: 0, borderRadius: radius.pill },
   more: { position: 'absolute', top: 8, right: 8 },
   moreButton: {

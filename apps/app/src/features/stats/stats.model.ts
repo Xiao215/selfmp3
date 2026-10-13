@@ -356,3 +356,37 @@ export function rankedEmpty(kind: RankKind): string {
   if (kind === 'tags') return 'No tagged songs played in this window'
   return 'Nothing played in this window'
 }
+
+/**
+ * A window's three headline numbers, as Home's This week and You's month card
+ * both draw them: time listened ("2h", "3h 05", "42" and "min"), plays and
+ * the streak, each grouped as the reader's locale groups ("1,234"). One
+ * reading, so the same week does not say "2h 00" on Home and "2h" on You.
+ */
+export interface StatFigures {
+  readonly listened: string
+  /**
+   * "min", where the time is minutes — drawn smaller beside the number, as the
+   * streak's "days" is. Baked into the number it would be the only figure on
+   * the card whose unit shouted. Hours stay whole: "3h 05" has no word to
+   * take off the end.
+   */
+  readonly listenedUnit?: string
+  readonly plays: string
+  readonly streak: string
+  /** "day" or "days", drawn smaller beside the streak's number. */
+  readonly streakUnit: string
+}
+
+export function statFigures(stats: Pick<Stats, 'totals' | 'streakDays'>): StatFigures {
+  const whole = formatListenTime(stats.totals.minutes)
+  const minutes = /^(\d+) (min)$/.exec(whole)
+  return {
+    ...(minutes
+      ? { listened: minutes[1] ?? whole, listenedUnit: minutes[2] }
+      : { listened: whole }),
+    plays: stats.totals.plays.toLocaleString(),
+    streak: stats.streakDays.toLocaleString(),
+    streakUnit: stats.streakDays === 1 ? 'day' : 'days',
+  }
+}

@@ -28,6 +28,8 @@ import { useSmartServer } from './useSmartServer'
 import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
 import { StatusLine } from '../../ui/components/StatusLine'
+import { label } from '../../ui/surfaces'
+import { AnswerActions } from './AnswerParts'
 
 /**
  * Songs picked from a description (docs/features/ai.md): what it understood,
@@ -201,7 +203,7 @@ export function SongsAnswer({
       ) : null}
       {error ? <StatusLine>{error}</StatusLine> : null}
 
-      <View style={styles.actions}>
+      <AnswerActions>
         {onCancel ? <Button label="Cancel" onPress={onCancel} /> : null}
         {edited ? (
           <Button
@@ -222,7 +224,7 @@ export function SongsAnswer({
             testID="songs-answer-save"
           />
         )}
-      </View>
+      </AnswerActions>
     </View>
   )
 }
@@ -230,13 +232,7 @@ export function SongsAnswer({
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm },
   understood: { gap: 6 },
-  label: {
-    color: theme.colors.textMuted,
-    fontSize: type.tiny,
-    fontWeight: '600',
-    letterSpacing: 0.9,
-    textTransform: 'uppercase',
-  },
+  label: label(theme.colors),
   chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
   brief: { color: theme.colors.textSecondary, fontSize: type.small, fontStyle: 'italic' },
   hint: { color: theme.colors.textMuted, fontSize: type.small, flexShrink: 1 },
@@ -253,5 +249,4 @@ const styles = StyleSheet.create(theme => ({
   pressed: { opacity: 0.6 },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: 4 },
   checkLabel: { color: theme.colors.textPrimary, fontSize: type.sub, flexShrink: 1 },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
 }))

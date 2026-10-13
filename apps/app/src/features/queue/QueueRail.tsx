@@ -11,7 +11,7 @@ import { useOverlay } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
 import { ease, spring, timing, usePresence } from '../../ui/motion'
 import { MOVE_MS, roomShift } from '../../ui/motion.model'
-import { sectionTitle } from '../../ui/surfaces'
+import { SectionHead } from '../../ui/components/SectionHead'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronRight, Downloaded, Grip, NotDownloaded } from '../../ui/components/Icons'
 import { HoldToReorder, useLiftScale, useMakeRoom } from '../../ui/components/HoldToReorder'
@@ -413,17 +413,17 @@ function Rail({
           return false
         }}
       >
-        <View style={styles.head}>
-          <Text style={styles.title} accessibilityRole="header">
-            Up next
-          </Text>
-          <View style={styles.headButtons}>
-            {inRoom ? null : <TogetherButton />}
-            <IconButton onPress={closeQueueSheet} label="Hide Up next" size={28} filled>
-              <ChevronRight size={15} color={theme.colors.textSecondary} />
-            </IconButton>
-          </View>
-        </View>
+        <SectionHead
+          title="Up next"
+          end={
+            <>
+              {inRoom ? null : <TogetherButton />}
+              <IconButton onPress={closeQueueSheet} label="Hide Up next" size={28} filled>
+                <ChevronRight size={15} color={theme.colors.textSecondary} />
+              </IconButton>
+            </>
+          }
+        />
         {inRoom ? (
           <ScrollView style={styles.list} contentContainerStyle={styles.roomContent}>
             <RoomList />
@@ -788,9 +788,6 @@ const styles = StyleSheet.create(theme => ({
     // Thrown sideways, onto the page the rail slides over, so not `artShadow`'s.
     boxShadow: `-18px 0 40px ${theme.colors.floatShadow}`,
   },
-  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headButtons: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  title: sectionTitle(theme.colors),
   summaryRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: -6 },
   summary: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: type.small },
   list: { flex: 1, marginHorizontal: -6 },

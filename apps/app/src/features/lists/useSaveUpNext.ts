@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { clientApi, failureText, queryKeys, useCreatePlaylist, useLibrary } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
-import { showToast } from '../../ui/toast'
+import { showToast, showUndoToast } from '../../ui/toast'
 import { followRules } from './followRules'
 import { newPlaylist } from '../playlists/playlists.model'
 import {
@@ -90,31 +90,29 @@ export function useSaveUpNext(): {
           playlistId: created.id,
           name: created.name,
         })
-        showToast(`Saved “${created.name}”`, 'good', {
-          actions: [
-            {
-              label: 'Open',
-              onPress: () =>
-                router.navigate({
-                  pathname: '/playlists/[id]',
-                  params: { id: String(created.id) },
-                }),
-            },
-            {
-              label: 'Undo',
-              onPress: () => {
-                undoRecent()
-                setSource(before)
-                void clientApi()
-                  .deletePlaylist(created.id)
-                  .then(() => queryClient.invalidateQueries({ queryKey: queryKeys.library }))
-                  .catch((caught: unknown) =>
-                    showToast(failureText('Couldn’t undo that', caught), 'error'),
-                  )
+        showUndoToast(
+          `Saved “${created.name}”`,
+          async () => {
+            undoRecent()
+            setSource(before)
+            await clientApi().deletePlaylist(created.id)
+            await queryClient.invalidateQueries({ queryKey: queryKeys.library })
+          },
+          {
+            tone: 'good',
+            failed: 'Couldn’t undo that',
+            also: [
+              {
+                label: 'Open',
+                onPress: () =>
+                  router.navigate({
+                    pathname: '/playlists/[id]',
+                    params: { id: String(created.id) },
+                  }),
               },
-            },
-          ],
-        })
+            ],
+          },
+        )
       } catch (caught) {
         showToast(failureText(`Couldn’t save “${plan.name}”`, caught), 'error')
       } finally {

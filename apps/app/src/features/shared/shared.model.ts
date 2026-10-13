@@ -13,17 +13,26 @@ interface SharedRow {
   readonly owner: SharedMember | undefined
   /** Yours, or anyone's when you made the playlist. */
   readonly removable: boolean
+  /** Whose song it is, as its face and name, as a room's row says it. */
+  readonly face: { readonly name: string; readonly colour: number } | null
+  /** "You", their name, or "Someone" for an owner who has left. */
+  readonly who: string
 }
 
 export function sharedRows(playlist: SharedPlaylist): SharedRow[] {
   const members = new Map(playlist.members.map(member => [member.id, member]))
   const creator = members.get(playlist.you)?.creator ?? false
-  return playlist.entries.map(entry => ({
-    entry,
-    trackId: roomTrackId(entry.id),
-    owner: members.get(entry.owner),
-    removable: creator || entry.owner === playlist.you,
-  }))
+  return playlist.entries.map(entry => {
+    const owner = members.get(entry.owner)
+    return {
+      entry,
+      trackId: roomTrackId(entry.id),
+      owner,
+      removable: creator || entry.owner === playlist.you,
+      face: owner ? { name: owner.name, colour: owner.colour } : null,
+      who: !owner ? 'Someone' : owner.id === playlist.you ? 'You' : owner.name,
+    }
+  })
 }
 
 /** Its songs as tracks the player can play here: from your own copy when you have one. */

@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { radius, type, withAlpha } from '@selfmp3/client'
+import { type } from '@selfmp3/client'
+import { Button } from '../../ui/components/Button'
 
 /**
  * "Tagging · 3 to go", with Stop beside it: the quiet mark that the page is
@@ -23,15 +24,13 @@ export function TaggingLine({
       <Text style={styles.text} numberOfLines={1}>
         {line}
       </Text>
-      <Pressable
-        onPress={onStop}
-        accessibilityRole="button"
+      <Button
+        size="small"
+        ground="translucent"
+        label="Stop"
         accessibilityLabel="Stop tagging"
-        hitSlop={8}
-        style={({ pressed }) => [styles.stop, pressed && styles.stopPressed]}
-      >
-        <Text style={styles.stopText}>Stop</Text>
-      </Pressable>
+        onPress={onStop}
+      />
     </View>
   )
 }
@@ -40,12 +39,4 @@ const styles = StyleSheet.create(theme => ({
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
   rowCenter: { flex: 1, justifyContent: 'center' },
   text: { flexShrink: 1, color: theme.colors.textSecondary, fontSize: type.small },
-  stop: {
-    paddingVertical: 3,
-    paddingHorizontal: 9,
-    borderRadius: radius.pill,
-    backgroundColor: withAlpha(theme.colors.textPrimary, 0.08),
-  },
-  stopPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.14) },
-  stopText: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '600' },
 }))

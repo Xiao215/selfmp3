@@ -24,6 +24,24 @@ describe('Chip', () => {
     })
   })
 
+  it('says what its × takes away: a tag by default, an artist when told', async () => {
+    await render(
+      <>
+        <Chip label="chill" selected onPress={() => undefined} onRemove={() => undefined} />
+        <Chip
+          label="YOASOBI"
+          selected
+          onPress={() => undefined}
+          onRemove={() => undefined}
+          removeLabel="Remove YOASOBI"
+        />
+      </>,
+    )
+    expect(screen.getByRole('button', { name: 'Remove tag chill' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Remove YOASOBI' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Remove tag YOASOBI' })).toBeNull()
+  })
+
   it('is not selected by default', async () => {
     await render(<Chip label="reference" selected={false} onPress={() => undefined} />)
     expect(

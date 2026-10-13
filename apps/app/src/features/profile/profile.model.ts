@@ -1,7 +1,14 @@
-import { formatListenTime, plural, type Stats } from '@selfmp3/shared'
+import { plural, type Stats } from '@selfmp3/shared'
 import { unreachableLabel } from '../library/library.model'
 import type { DevicePlace } from '../settings/settings.model'
-import { formatHour, peakHour, peakHourWords, REPORT_HINT } from '../stats/stats.model'
+import {
+  formatHour,
+  peakHour,
+  peakHourWords,
+  REPORT_HINT,
+  statFigures,
+  type StatFigures,
+} from '../stats/stats.model'
 
 /**
  * The Profile page, without the screen (`P31`): who you are and how big your
@@ -93,19 +100,7 @@ export function profileLine({
   return parts.join(' · ')
 }
 
-export interface MonthCard {
-  readonly listened: string
-  /**
-   * "min", where the time is minutes — drawn smaller beside the number, as the
-   * streak's "days" is. Baked into the number it would be the only figure on
-   * the card whose unit shouted. Hours stay whole: "3h 05" has
-   * no word to take off the end.
-   */
-  readonly listenedUnit?: string
-  readonly plays: string
-  readonly streak: string
-  /** "day" or "days", drawn smaller beside the streak's number. */
-  readonly streakUnit: string
+export interface MonthCard extends StatFigures {
   /** The most played song, which the card shows with its cover. */
   readonly onRepeat: { readonly songId: number; readonly title: string } | null
   /**
@@ -127,20 +122,10 @@ export function monthCard(stats: Stats | undefined): MonthCard | null {
   const top = stats.topSongs[0]
   const peak = peakHour(stats.hourly)
   return {
-    ...listenedFigure(stats.totals.minutes),
-    plays: stats.totals.plays.toLocaleString(),
-    streak: stats.streakDays.toLocaleString(),
-    streakUnit: stats.streakDays === 1 ? 'day' : 'days',
+    ...statFigures(stats),
     onRepeat: top ? { songId: top.songId, title: top.title } : null,
     when: peak ? `${peakHourWords(peak.hour)} · most at ${formatHour(peak.hour)}` : null,
   }
-}
-
-/** The time listened, split into the number and the word after it where there is one. */
-function listenedFigure(minutes: number): { listened: string; listenedUnit?: string } {
-  const whole = formatListenTime(minutes)
-  const split = /^(\d+) (min)$/.exec(whole)
-  return split ? { listened: split[1] ?? whole, listenedUnit: split[2] } : { listened: whole }
 }
 
 /** What the card is called: the window it counts, said plainly. */

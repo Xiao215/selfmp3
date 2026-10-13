@@ -5,7 +5,6 @@ import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
 import {
-  artistOr,
   formatRoomCode,
   plural,
   RoomCodeSchema,
@@ -32,12 +31,12 @@ import { BackButton } from '../../ui/components/BackButton'
 import { MissingPage } from '../../ui/components/MissingPage'
 import { TextField } from '../../ui/components/TextField'
 import { Button } from '../../ui/components/Button'
-import { Cover } from '../../ui/components/Cover'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useCloudSession } from '../profile/useCloudSession'
 import { newPlaylist } from '../playlists/playlists.model'
 import { forgetPastRoom, usePastRooms } from './pastRooms.store'
-import { RoomFace, RoomFaces } from './RoomFace'
+import { RoomFaces } from './RoomFace'
+import { RoomEntryLine } from './RoomEntryLine'
 import { RoomHead, RoomList } from './RoomList'
 import { sayRoomFailure } from './roomFailure'
 import { joinRoom, leaveRoom, useRoom } from './room.store'
@@ -342,32 +341,25 @@ export function PastRoomScreen(): ReactNode {
           const mine = yours[at] !== null
           const source = entry.song.sourceUrl
           return (
-            <View key={`${at}-${entry.song.title}`} style={styles.row}>
-              <View>
-                <Cover uri={entry.song.artwork} title={entry.song.title} size={44} />
-                <View style={styles.badge}>
-                  <RoomFace name={entry.by} colour={entry.colour} size={20} ring />
-                </View>
-              </View>
-              <View style={styles.rowText}>
-                <Text style={styles.rowTitle} numberOfLines={1}>
-                  {entry.song.title}
-                </Text>
-                <Text style={styles.text} numberOfLines={1}>
-                  {artistOr(entry.song.artist)} · {entry.by}
-                  {mine ? ' · yours' : ''}
-                </Text>
-              </View>
-              {mine ? null : source ? (
-                getting.has(source) ? (
-                  <Text style={styles.text}>Getting…</Text>
+            <RoomEntryLine
+              key={`${at}-${entry.song.title}`}
+              song={entry.song}
+              uri={entry.song.artwork}
+              face={{ name: entry.by, colour: entry.colour }}
+              who={entry.by}
+              note={mine ? 'yours' : undefined}
+              trailing={
+                mine ? null : source ? (
+                  getting.has(source) ? (
+                    <Text style={styles.text}>Getting…</Text>
+                  ) : (
+                    <Button label="Get it" onPress={() => void get([entry.song])} />
+                  )
                 ) : (
-                  <Button label="Get it" onPress={() => void get([entry.song])} />
+                  <Text style={styles.text}>{entry.by}’s only</Text>
                 )
-              ) : (
-                <Text style={styles.text}>{entry.by}’s only</Text>
-              )}
-            </View>
+              }
+            />
           )
         })}
       </ScrollView>
@@ -401,8 +393,4 @@ const styles = StyleSheet.create(theme => ({
   pastHead: { gap: space.sm },
   people: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 60 },
-  badge: { position: 'absolute', right: -5, bottom: -5 },
-  rowText: { flex: 1, minWidth: 0, gap: 2 },
-  rowTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
 }))

@@ -1,9 +1,9 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { Animated, Pressable } from 'react-native'
+import { Animated, Pressable, Text } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context'
-import { motion, radius, space } from '@selfmp3/client'
+import { motion, radius, space, type } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
 import { useLayoutValue, useWindowValue } from '../../shell/useLayout'
 import { useEscape } from '../../shell/useEscape'
@@ -38,6 +38,8 @@ export function Popover({
   anchorRef,
   title,
   titleTone,
+  subtitle,
+  panelTitle,
   children,
   width = 240,
   placement = 'auto',
@@ -54,6 +56,10 @@ export function Popover({
   /** Shown when it falls back to a sheet, where a panel has room for a heading. */
   title?: string
   titleTone?: 'heading' | 'label'
+  /** The sheet's line under its title: what a running sleep timer has left. */
+  subtitle?: string
+  /** A quiet line at the top of the panel beside its control, where the sheet has its title. */
+  panelTitle?: string
   children: ReactNode
   width?: number
   /**
@@ -75,7 +81,14 @@ export function Popover({
 
   if (!wide || !anchorRef) {
     return (
-      <Sheet open={open} onClose={onClose} title={title} titleTone={titleTone} testID={testID}>
+      <Sheet
+        open={open}
+        onClose={onClose}
+        title={title}
+        titleTone={titleTone}
+        subtitle={subtitle}
+        testID={testID}
+      >
         {children}
       </Sheet>
     )
@@ -91,6 +104,11 @@ export function Popover({
       width={width}
       testID={testID}
     >
+      {panelTitle ? (
+        <Text style={styles.panelTitle} numberOfLines={1}>
+          {panelTitle}
+        </Text>
+      ) : null}
       {children}
     </AnchoredPopover>
   )
@@ -315,6 +333,13 @@ function AnchoredPopover({
 }
 
 const styles = StyleSheet.create(theme => ({
+  panelTitle: {
+    color: theme.colors.textMuted,
+    fontSize: type.small,
+    paddingHorizontal: 10,
+    paddingTop: space.sm,
+    paddingBottom: 6,
+  },
   catcher: { position: 'absolute' },
   // A control-toned panel with no edge: it floats, so its shadow and its tone
   // tell it from the page (`S2`, "Depth").

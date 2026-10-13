@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import { plural } from '@selfmp3/shared'
 import type { Playlist, Tag } from '@selfmp3/shared'
-import { radius, space, type, useStopFollowing, useUpdatePlaylist } from '@selfmp3/client'
-import { useAccent } from '../../ui/accent'
-import { Chip } from '../../ui/components/Chip'
-import { Plus } from '../../ui/components/Icons'
+import { space, useStopFollowing, useUpdatePlaylist } from '@selfmp3/client'
+import { Button } from '../../ui/components/Button'
+import { StatusLine } from '../../ui/components/StatusLine'
+import { TagChipRow } from '../../ui/components/TagChooser'
 import { ListenTags } from '../../ui/components/ListenTags'
 import { card } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
@@ -37,8 +37,6 @@ export function FollowsRow({
   playlist: Extract<Playlist, { kind: 'live' }>
   tags: readonly Tag[]
 }): ReactNode {
-  const { theme } = useUnistyles()
-  const accent = useAccent()
   const update = useUpdatePlaylist()
   const stop = useStopFollowing()
   const [choosing, setChoosing] = useState(false)
@@ -57,57 +55,35 @@ export function FollowsRow({
     setTags(tagIds.includes(tagId) ? tagIds.filter(id => id !== tagId) : [...tagIds, tagId])
 
   return (
-    <View style={styles.row} testID="follows-row">
-      <Text style={styles.word}>Fills from</Text>
-      {chosen.map(tag => (
-        <Chip
-          key={tag.id}
-          compact
-          label={tag.name}
-          hue={tag.hue}
-          selected
-          onPress={() => toggle(tag.id)}
-          onRemove={chosen.length > 1 ? () => toggle(tag.id) : undefined}
-        />
-      ))}
-      <View collapsable={false}>
-        <Pressable
-          onPress={() => setChoosing(open => !open)}
-          accessibilityRole="button"
-          accessibilityLabel="Add a tag it fills from"
-          style={({ pressed }) => [
-            styles.add,
-            pressed && { backgroundColor: theme.colors.surface2 },
-          ]}
-          testID="follows-add-tag"
-        >
-          <Plus size={13} color={theme.colors.textMuted} />
-          <Text style={styles.addLabel}>tag</Text>
-        </Pressable>
-      </View>
-
+    <TagChipRow
+      lead="Fills from"
+      tags={chosen}
+      // The last tag stays: following nothing, it would empty (`setTags`).
+      onRemove={chosen.length > 1 ? tag => toggle(tag.id) : undefined}
+      add={{
+        onPress: () => setChoosing(open => !open),
+        accessibilityLabel: 'Add a tag it fills from',
+        testID: 'follows-add-tag',
+      }}
+      style={styles.row}
+      testID="follows-row"
+    >
       <View style={styles.spacer} />
 
-      <Pressable
+      <Button
+        size="small"
+        variant="text"
+        label={stop.isPending ? 'Stopping…' : 'Stop filling'}
+        accessibilityLabel="Stop filling from these tags, keeping every song"
+        busy={stop.isPending}
         onPress={() => {
           stop.mutate(playlist.id, {
             onSuccess: () =>
               showToast(`“${playlist.name}” keeps its songs and stops adding more`, 'good'),
           })
         }}
-        disabled={stop.isPending}
-        accessibilityRole="button"
-        accessibilityLabel="Stop filling from these tags, keeping every song"
-        style={({ pressed }) => [
-          styles.stop,
-          pressed && { backgroundColor: theme.colors.surface2 },
-        ]}
         testID="stop-following"
-      >
-        <Text style={[styles.stopLabel, stop.isPending && { color: theme.colors.textMuted }]}>
-          {stop.isPending ? 'Stopping…' : 'Stop filling'}
-        </Text>
-      </Pressable>
+      />
 
       {choosing ? (
         <View style={styles.panel}>
@@ -120,38 +96,18 @@ export function FollowsRow({
           />
         </View>
       ) : null}
-      {update.isError ? (
-        <Text style={[styles.stopLabel, { color: accent.accent }]}>Couldn’t save that</Text>
-      ) : null}
-    </View>
+      {update.isError ? <StatusLine>Couldn’t save that</StatusLine> : null}
+    </TagChipRow>
   )
 }
 
 const styles = StyleSheet.create(theme => ({
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
     gap: space.xs + 2,
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
     ...card(theme.colors),
   },
-  word: { color: theme.colors.textSecondary, fontSize: type.small },
   spacer: { flex: 1, minWidth: 0 },
-  add: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: theme.colors.borderStrong,
-  },
-  addLabel: { color: theme.colors.textMuted, fontSize: type.tiny },
-  stop: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill },
-  stopLabel: { color: theme.colors.textSecondary, fontSize: type.small },
   panel: { width: '100%' },
 }))

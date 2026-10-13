@@ -43,19 +43,16 @@ export function usePlaylistRemoval(): (
           : `Removed ${plural(songs.length, 'song', 'songs')} from ${playlist.name}`
       removeMany({ playlistId: playlist.id, songIds }).then(
         () =>
-          showUndoToast(text, () => {
-            void (async () => {
-              await add({ playlistId: playlist.id, songIds })
-              // Without the order from before there is no place to put them
-              // back in, and the end is where adding leaves them.
-              if (!before) return
-              const now = await clientApi().playlistSongs(playlist.id)
-              await reorder({
-                playlistId: playlist.id,
-                songIds: restoredOrder(before, now.songIds),
-              })
-            })().catch(() => {
-              // Each edit that failed has said so (its `meta.failure`).
+          // Each edit that failed has said so (its `meta.failure`).
+          showUndoToast(text, async () => {
+            await add({ playlistId: playlist.id, songIds })
+            // Without the order from before there is no place to put them
+            // back in, and the end is where adding leaves them.
+            if (!before) return
+            const now = await clientApi().playlistSongs(playlist.id)
+            await reorder({
+              playlistId: playlist.id,
+              songIds: restoredOrder(before, now.songIds),
             })
           }),
         // The removal that failed has said so.

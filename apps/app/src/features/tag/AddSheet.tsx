@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
-import { Pressable, Text, useWindowDimensions, View } from 'react-native'
+import { Text, useWindowDimensions, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { plural, libraryArtists } from '@selfmp3/shared'
 import { type, useLibrary } from '@selfmp3/client'
 import { useRecentTagIds } from '../library/recentTags.store'
 import { songsById } from '../../ui/songsById'
 import { ArtistFace } from './ArtistFace'
-import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { Chip } from '../../ui/components/Chip'
@@ -27,7 +26,8 @@ import {
 } from './tag.model'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { SearchField } from '../../ui/components/SearchField'
-import { FlatList, ScrollView } from '../../ui/components/Scroll'
+import { FlatList } from '../../ui/components/Scroll'
+import { SideScroll } from '../../ui/components/Shelf'
 import { TagDot } from '../../ui/components/TagDot'
 
 /**
@@ -68,7 +68,6 @@ function AddSheetBody({
   chosen: readonly Place[]
   onShow: (places: readonly Place[]) => void
 }): ReactNode {
-  const accent = useAccent()
   const window = useWindowDimensions()
   const { data: library } = useLibrary()
   const recentTagIds = useRecentTagIds()
@@ -142,19 +141,12 @@ function AddSheetBody({
           style={styles.search}
         />
         {draft.length > 0 ? (
-          <Pressable onPress={() => setDraft([])} accessibilityRole="button" hitSlop={8}>
-            <Text style={[styles.clear, { color: accent.accent }]}>Clear all</Text>
-          </Pressable>
+          <Button size="small" variant="text" label="Clear all" onPress={() => setDraft([])} />
         ) : null}
       </View>
 
       {draft.length > 0 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chosen}
-          style={styles.chosenRow}
-        >
+        <SideScroll contentStyle={styles.chosen} style={styles.chosenRow}>
           {draft.map(place => (
             <Chip
               key={placeKey(place)}
@@ -165,9 +157,10 @@ function AddSheetBody({
               compact
               onPress={() => setDraft(current => togglePlace(current, place))}
               onRemove={() => setDraft(current => togglePlace(current, place))}
+              removeLabel={place.kind === 'artist' ? `Remove ${placeName(place)}` : undefined}
             />
           ))}
-        </ScrollView>
+        </SideScroll>
       ) : null}
 
       <View style={styles.segment}>
@@ -225,7 +218,6 @@ const styles = StyleSheet.create(theme => ({
   body: { gap: 10, paddingBottom: 8 },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 },
   search: { flex: 1 },
-  clear: { fontSize: type.body, fontWeight: '600' },
   chosenRow: { flexGrow: 0 },
   chosen: { gap: 8, paddingHorizontal: 16 },
   segment: { paddingHorizontal: 16 },

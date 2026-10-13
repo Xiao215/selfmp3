@@ -2,14 +2,20 @@ import { memo, useCallback, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { Pressable, Text, View } from 'react-native'
-import type { LayoutChangeEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { plural, formatLongDuration, type Playlist } from '@selfmp3/shared'
+import {
+  plural,
+  formatLongDuration,
+  type ForgottenGems,
+  type Playlist,
+  type SharedSummary,
+} from '@selfmp3/shared'
 import { radius, space, type, useGems } from '@selfmp3/client'
 import { prefs } from '../../ports/prefs'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
+import { GridTile, TileGrid, useTileGrid, type TileFocus } from '../../ui/components/TileGrid'
 import { useAccent } from '../../ui/accent'
 import { tip } from '../../ui/tip'
 import { Button } from '../../ui/components/Button'
@@ -41,7 +47,6 @@ import { ScrollView } from '../../ui/components/Scroll'
 
 /** Tiles at least this wide at desktop width, as many as fit; two across on a phone. */
 const TILE_MIN_WIDTH = 176
-const PHONE_COLUMNS = 2
 const GAP = 14
 /** The round play button over a tile's cover. */
 const FAB = 38
@@ -63,9 +68,7 @@ const SORT_PREF = 'playlists.sort'
 export function PlaylistsScreen(): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
-  // The app's own width, not the window's: an iPad in Split View is handed
-  // half the screen and told about the whole of it (`shell/rootWidth.ts`).
-  const { wide, width } = useLayout()
+  const { wide } = useLayout()
   const [chosenSort, setSortState] = useState<PlaylistSort>(() => {
     const stored = prefs.get(SORT_PREF)
     return isPlaylistSort(stored) ? stored : 'recent'
@@ -73,7 +76,7 @@ export function PlaylistsScreen(): ReactNode {
   const sort = wide ? chosenSort : 'recent'
   const model = usePlaylistsModel(sort)
   const [newOpen, setNewOpen] = useState(false)
-  const [gridWidth, setGridWidth] = useState(0)
+  const { columns, tileWidth } = useTileGrid({ minTile: TILE_MIN_WIDTH, gap: GAP })
 
   const setSort = (next: PlaylistSort): void => {
     setSortState(next)
@@ -81,12 +84,6 @@ export function PlaylistsScreen(): ReactNode {
   }
 
   const { playlists } = model
-  const measured = wide ? gridWidth : width - space.gutter * 2
-  const columns = wide
-    ? Math.max(PHONE_COLUMNS, Math.floor((measured + GAP) / (TILE_MIN_WIDTH + GAP)))
-    : PHONE_COLUMNS
-  const tileWidth =
-    measured > 0 ? Math.floor((measured - GAP * (columns - 1)) / columns) : undefined
   /*
    * One reading of the clock and one playback hook for the whole page, handed
    * to every tile: a tile that subscribed to the player itself would redraw
@@ -102,6 +99,17 @@ export function PlaylistsScreen(): ReactNode {
   )
 
   const { data: shared } = useSharedList()
+  const gems = useGems(30)
+  // One grid, in this order: the way in, the built-in list, the shared ones, then yours.
+  const tiles: GridItem[] = [
+    { kind: 'new' },
+    // Hidden when there are none, or the server cannot say.
+    ...(gems.data && !gems.isError && gems.data.songs.length > 0
+      ? [{ kind: 'gems' as const, gems: gems.data }]
+      : []),
+    ...(shared ?? []).map(item => ({ kind: 'shared' as const, item })),
+    ...playlists.map(playlist => ({ kind: 'playlist' as const, playlist })),
+  ]
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView contentContainerStyle={[styles.content, wide && styles.contentWide]}>
@@ -159,29 +167,32 @@ export function PlaylistsScreen(): ReactNode {
           // Not "nothing of your own yet": nothing is known about them at all.
           <CantReach error={model.failure} onRetry={model.retry} />
         ) : (
-          <View
-            style={styles.grid}
-            onLayout={(event: LayoutChangeEvent) => setGridWidth(event.nativeEvent.layout.width)}
-          >
-            <NewTile width={tileWidth} onPress={() => setNewOpen(true)} />
-            {/* Built in, and not a playlist: nothing to delete or rename. */}
-            <GemsTile width={tileWidth} />
-            {/* Shared with friends (features/shared): kept by the doorman, not this library. */}
-            {(shared ?? []).map(item => (
-              <SharedTile key={item.id} playlist={item} width={tileWidth} />
-            ))}
-            {playlists.map((playlist, index) => (
-              <PlaylistTile
-                key={playlist.id}
-                playlist={playlist}
-                line={playlistTileLine(playlist, now)}
-                index={index}
-                width={tileWidth}
-                onOpen={openPlaylist}
-                onPlay={playback.playById}
-              />
-            ))}
-          </View>
+          <TileGrid
+            items={tiles}
+            columns={columns}
+            gap={GAP}
+            keyOf={gridKey}
+            renderItem={tile =>
+              tile.kind === 'new' ? (
+                <NewTile onPress={() => setNewOpen(true)} />
+              ) : tile.kind === 'gems' ? (
+                // Built in, and not a playlist: nothing to delete or rename.
+                <GemsTile gems={tile.gems} />
+              ) : tile.kind === 'shared' ? (
+                // Shared with friends (features/shared): kept by the doorman, not this library.
+                <SharedTile playlist={tile.item} size={tileWidth || undefined} />
+              ) : (
+                <PlaylistTile
+                  playlist={tile.playlist}
+                  line={playlistTileLine(tile.playlist, now)}
+                  index={playlists.indexOf(tile.playlist)}
+                  width={tileWidth}
+                  onOpen={openPlaylist}
+                  onPlay={playback.playById}
+                />
+              )
+            }
+          />
         )}
         <ChromeSpacer />
       </ScrollView>
@@ -189,6 +200,19 @@ export function PlaylistsScreen(): ReactNode {
       <NewPlaylist open={newOpen} onClose={() => setNewOpen(false)} />
     </SafeAreaView>
   )
+}
+
+/** What the grid holds: the way in, the built-in list, a shared playlist, or one of yours. */
+type GridItem =
+  | { kind: 'new' }
+  | { kind: 'gems'; gems: ForgottenGems }
+  | { kind: 'shared'; item: SharedSummary }
+  | { kind: 'playlist'; playlist: Playlist }
+
+function gridKey(tile: GridItem): string {
+  if (tile.kind === 'shared') return `shared-${tile.item.id}`
+  if (tile.kind === 'playlist') return `playlist-${tile.playlist.id}`
+  return tile.kind
 }
 
 /**
@@ -200,72 +224,48 @@ export function PlaylistsScreen(): ReactNode {
  * way in rather than as one more playlist with nothing in it yet, whose cover
  * is a plain tone.
  */
-function NewTile({
-  width,
-  onPress,
-}: {
-  width: number | undefined
-  onPress: () => void
-}): ReactNode {
+function NewTile({ onPress }: { onPress: () => void }): ReactNode {
   const accent = useAccent()
-
   return (
-    <View style={[styles.tile, width ? { width } : null]}>
-      <Pressable
-        onPress={onPress}
-        accessibilityRole="button"
-        accessibilityLabel="New playlist"
-        testID="playlists-new-tile"
-        style={({ pressed }) => pressed && styles.pressed}
-      >
+    <GridTile
+      cover={
         <View style={[styles.newCover, { backgroundColor: accent.accentPill }]}>
           <Plus size={26} color={accent.accent} />
         </View>
-        <Text style={styles.tileName} numberOfLines={1}>
-          New playlist
-        </Text>
-      </Pressable>
-    </View>
+      }
+      title="New playlist"
+      onPress={onPress}
+      label="New playlist"
+      testID="playlists-new-tile"
+    />
   )
 }
 
 /**
  * Forgotten gems, as a built-in tile among the playlists. Pressing it starts
  * the list rather than opening a page: the list is different every time it is
- * asked for. Hidden when there are none.
+ * asked for. The page leaves it out when there are none.
  */
-function GemsTile({ width }: { width: number | undefined }): ReactNode {
-  const gems = useGems(30)
+function GemsTile({ gems }: { gems: ForgottenGems }): ReactNode {
   const player = usePlayerCommands()
-
-  const data = gems.data
-  if (gems.isError || !data || data.songs.length === 0) return null
-  const ids = data.songs.map(song => song.id)
-  const duration = data.songs.reduce((sum, song) => sum + song.duration, 0)
-
+  const ids = gems.songs.map(song => song.id)
+  const duration = gems.songs.reduce((sum, song) => sum + song.duration, 0)
   return (
-    <View style={[styles.tile, width ? { width } : null]}>
-      <Pressable
-        onPress={() => player.playFrom(ids, 0, { source: GEMS_SOURCE })}
-        accessibilityRole="button"
-        accessibilityLabel="Play forgotten gems"
-        {...tip(`Liked or well played, quiet for ${data.minDays}+ days`)}
-        style={({ pressed }) => pressed && styles.pressed}
-      >
+    <GridTile
+      cover={
         <View>
           <PlaylistCover songIds={ids} />
           <View style={styles.badge}>
             <Text style={styles.badgeText}>Built in</Text>
           </View>
         </View>
-        <Text style={styles.tileName} numberOfLines={1}>
-          Forgotten gems
-        </Text>
-        <Text style={styles.tileSub} numberOfLines={1}>
-          {plural(data.songs.length, 'song', 'songs')} · {formatLongDuration(duration)}
-        </Text>
-      </Pressable>
-    </View>
+      }
+      title="Forgotten gems"
+      sub={`${plural(gems.songs.length, 'song', 'songs')} · ${formatLongDuration(duration)}`}
+      onPress={() => player.playFrom(ids, 0, { source: GEMS_SOURCE })}
+      label="Play forgotten gems"
+      caption={`Liked or well played, quiet for ${gems.minDays}+ days`}
+    />
   )
 }
 
@@ -273,6 +273,9 @@ function GemsTile({ width }: { width: number | undefined }): ReactNode {
  * One playlist's tile. Memoised, and handed the page's own playback rather
  * than subscribing to the player itself: a tile that reads the player redraws
  * on every pause, and it draws a four-cover mosaic.
+ *
+ * With a mouse, Play waits on the cover for the pointer or Tab; a finger
+ * opens the page.
  */
 const PlaylistTile = memo(function PlaylistTile({
   playlist,
@@ -286,30 +289,16 @@ const PlaylistTile = memo(function PlaylistTile({
   /** "5 songs · yesterday". */
   line: string
   index: number
-  width: number | undefined
+  /** The tile's width, where Play sits on its cover; 0 until the page's width is known. */
+  width: number
   onOpen: (playlist: Playlist) => void
   onPlay: (playlistId: number) => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  const { finePointer } = useLayout()
-  const [hovered, setHovered] = useState(false)
   const live = isLive(playlist)
-  // With a mouse the play button waits for the pointer; a finger opens the page.
-  const showPlay = finePointer && hovered && width !== undefined
-
   return (
-    <View
-      style={[styles.tile, width ? { width } : null]}
-      onPointerEnter={finePointer ? () => setHovered(true) : undefined}
-      onPointerLeave={finePointer ? () => setHovered(false) : undefined}
-    >
-      <Pressable
-        testID={`playlist-row-${index}`}
-        onPress={() => onOpen(playlist)}
-        accessibilityRole="button"
-        accessibilityLabel={playlist.name}
-        style={({ pressed }) => pressed && styles.pressed}
-      >
+    <GridTile
+      cover={
         <View>
           <PlaylistCover playlist={playlist} />
           {live ? (
@@ -319,30 +308,33 @@ const PlaylistTile = memo(function PlaylistTile({
             </View>
           ) : null}
         </View>
-        <Text style={styles.tileName} numberOfLines={1}>
-          {playlist.name}
-        </Text>
-        <Text style={styles.tileSub} numberOfLines={1}>
-          {line}
-        </Text>
-      </Pressable>
-
-      {showPlay ? (
-        <Pressable
-          onPress={() => onPlay(playlist.id)}
-          accessibilityRole="button"
-          accessibilityLabel={`Play ${playlist.name}`}
-          {...tip('Play')}
-          style={({ pressed }) => [
-            styles.fab,
-            { top: width - FAB - 8 },
-            pressed && styles.fabPressed,
-          ]}
-        >
-          <Play size={15} color={theme.colors.onPrimary} />
-        </Pressable>
-      ) : null}
-    </View>
+      }
+      title={playlist.name}
+      sub={line}
+      onPress={() => onOpen(playlist)}
+      label={playlist.name}
+      testID={`playlist-row-${index}`}
+      overlay={
+        width > 0
+          ? (focus: TileFocus) => (
+              <Pressable
+                onPress={() => onPlay(playlist.id)}
+                {...focus}
+                accessibilityRole="button"
+                accessibilityLabel={`Play ${playlist.name}`}
+                {...tip('Play')}
+                style={({ pressed }) => [
+                  styles.fab,
+                  { top: width - FAB - 8 },
+                  pressed && styles.fabPressed,
+                ]}
+              >
+                <Play size={15} color={theme.colors.onPrimary} />
+              </Pressable>
+            )
+          : undefined
+      }
+    />
   )
 })
 
@@ -351,22 +343,12 @@ const styles = StyleSheet.create(theme => ({
   content: { ...pageFrame(false), paddingBottom: space.xl },
   contentWide: pageFrame(true),
   head: { paddingBottom: space.lg },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
-  tile: { width: '100%' },
   newCover: {
     aspectRatio: 1,
     borderRadius: radius.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pressed: { opacity: 0.75 },
-  tileName: {
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
-    marginTop: space.sm,
-  },
-  tileSub: { color: theme.colors.textMuted, fontSize: type.small, marginTop: 1 },
   badge: {
     position: 'absolute',
     top: 7,

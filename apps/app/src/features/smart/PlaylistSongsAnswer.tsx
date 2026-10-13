@@ -5,7 +5,6 @@ import { StyleSheet } from 'react-native-unistyles'
 import { artistOr, plural, type AskAnswer } from '@selfmp3/shared'
 import {
   space,
-  type,
   useAddToPlaylist,
   useLibrary,
   usePlaylistSongIds,
@@ -14,11 +13,12 @@ import {
 } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { useSongsById } from '../../ui/songsById'
-import { showToast } from '../../ui/toast'
+import { showUndoToast } from '../../ui/toast'
 import type { AnswerKeys } from './answerKeys'
 import { Review, reviewText } from './Review'
 import { keptSongs, parts, playlistEditHere, sortWords, type Reviewed } from './smart.model'
 import { useSmartServer } from './useSmartServer'
+import { AnswerActions, AnswerHead, AnswerLine, AnswerNote } from './AnswerParts'
 
 type Answer = Extract<AskAnswer, { kind: 'playlistSongs' }>
 
@@ -58,27 +58,14 @@ export function PlaylistSongsAnswer({
   )
   const songsById = useSongsById()
 
-  if (!playlist) return <Text style={reviewText.line}>That playlist is gone.</Text>
-  if (!members) return <Text style={reviewText.note}>Reading {playlist.name}…</Text>
+  if (!playlist) return <AnswerLine>That playlist is gone.</AnswerLine>
+  if (!members) return <AnswerNote>Reading {playlist.name}…</AnswerNote>
   const playlistId = playlist.id
   const name = playlist.name
 
-  const undoToast = (text: string, undo: () => Promise<unknown>): void => {
-    showToast(text, 'good', {
-      actions: [
-        {
-          label: 'Undo',
-          onPress: () => {
-            undo().then(
-              () => showToast(`Put ${name} back`, 'info'),
-              // The edit that failed said so.
-              () => undefined,
-            )
-          },
-        },
-      ],
-    })
-  }
+  // The edit that failed says so itself.
+  const undoToast = (text: string, undo: () => Promise<unknown>): void =>
+    showUndoToast(text, undo, { tone: 'good', after: `Put ${name} back` })
 
   if (answer.op === 'sort') {
     const before = [...current]
@@ -96,11 +83,11 @@ export function PlaylistSongsAnswer({
     }
     return (
       <>
-        <Text style={styles.head}>
+        <AnswerHead>
           Sort {name} {answer.sortBy ? sortWords(answer.sortBy, answer.order) : ''}
-        </Text>
+        </AnswerHead>
         {same ? (
-          <Text style={reviewText.note}>It is in that order already.</Text>
+          <AnswerNote>It is in that order already.</AnswerNote>
         ) : (
           <View style={styles.preview}>
             {here.songIds.slice(0, 6).map((id, index) => {
@@ -118,7 +105,7 @@ export function PlaylistSongsAnswer({
             ) : null}
           </View>
         )}
-        <View style={styles.actions}>
+        <AnswerActions>
           <Button label="Close" onPress={onDone} />
           <Button
             label="Sort"
@@ -128,7 +115,7 @@ export function PlaylistSongsAnswer({
             onPress={() => void sort()}
             testID="ask-playlist-sort"
           />
-        </View>
+        </AnswerActions>
       </>
     )
   }
@@ -143,12 +130,12 @@ export function PlaylistSongsAnswer({
   if (here.songIds.length === 0) {
     return (
       <View style={{ gap: 4 }}>
-        <Text style={reviewText.line} testID="ask-playlist-nothing">
+        <AnswerLine testID="ask-playlist-nothing">
           {adding
             ? `Every song that fits is in ${name} already.`
             : `None of ${name}’s songs fit that.`}
-        </Text>
-        {unknown ? <Text style={reviewText.note}>{unknown}</Text> : null}
+        </AnswerLine>
+        {unknown ? <AnswerNote>{unknown}</AnswerNote> : null}
       </View>
     )
   }
@@ -241,8 +228,6 @@ export function PlaylistSongsAnswer({
   )
 }
 
-const styles = StyleSheet.create(theme => ({
-  head: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+const styles = StyleSheet.create({
   preview: { gap: 3, paddingVertical: space.xs },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
-}))
+})

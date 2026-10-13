@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { roomFace } from '@selfmp3/client'
+import { radius, roomFace } from '@selfmp3/client'
 import { initialOf } from './room.model'
 
 /**
@@ -68,7 +68,39 @@ export function RoomFaces({
   )
 }
 
+/**
+ * A cover made of people: a room listened in together, on Home's recents, and
+ * a shared playlist among your playlists. Up to four faces on the cover's
+ * ground, each a quarter of its side, at a cover's corner for its size.
+ * Without a size it fills the width it is given, as a grid's tile does, and
+ * the faces are a tile's.
+ */
+export function FacesCover({
+  people,
+  size,
+}: {
+  people: readonly { readonly id?: string; readonly name: string; readonly colour: number }[]
+  size?: number
+}): ReactNode {
+  const frame =
+    size === undefined
+      ? styles.fill
+      : { width: size, height: size, borderRadius: size >= 96 ? radius.card : radius.cover }
+  const face = size === undefined ? 30 : Math.max(16, Math.round(size / 4))
+  return (
+    <View style={[styles.cover, frame]}>
+      <RoomFaces people={people.slice(0, 4)} size={face} />
+    </View>
+  )
+}
+
 const styles = StyleSheet.create(theme => ({
+  cover: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.surface2,
+  },
+  fill: { width: '100%', aspectRatio: 1, borderRadius: radius.card },
   face: { borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   ring: { borderWidth: 2, borderColor: theme.colors.surface1 },
   letter: { fontWeight: '700' },

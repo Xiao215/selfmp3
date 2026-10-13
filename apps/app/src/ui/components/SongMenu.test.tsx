@@ -56,6 +56,7 @@ jest.mock('../../player/PlayerProvider', () => ({
     playFrom: jest.fn(),
     forgetSongs: mockForgetSongs,
   }),
+  usePlayer: () => ({ sleepAtSongEnd: false, sleepTimerEndsAt: null }),
 }))
 jest.mock('../../shell/useLayout', () => {
   const layout = { wide: false, dense: false, compact: true, finePointer: false, width: 390 }
@@ -82,11 +83,14 @@ const METRICS = {
   insets: { top: 47, left: 0, right: 0, bottom: 34 },
 }
 
-const draw = (onClose: () => void = () => undefined, onDevices?: () => void) =>
+const draw = (
+  onClose: () => void = () => undefined,
+  nowPlaying?: { onSleep: () => void; onDevices: () => void },
+) =>
   render(
     <SafeAreaProvider initialMetrics={METRICS}>
       <OverlayProvider>
-        <SongMenu song={SONG} onClose={onClose} onDevices={onDevices} />
+        <SongMenu song={SONG} onClose={onClose} nowPlaying={nowPlaying} />
       </OverlayProvider>
     </SafeAreaProvider>,
   )
@@ -143,13 +147,35 @@ describe('what the menu offers', () => {
     expect(screen.queryByRole('menuitem', { name: 'Select' })).toBeNull()
   })
 
-  it('ends with Devices, before removing, when Now Playing asks for them', async () => {
+  it('on Now Playing, leaves out what the page shows and ends with the sleep timer and Devices', async () => {
+    const onSleep = jest.fn()
     const onDevices = jest.fn()
-    await draw(undefined, onDevices)
+    await draw(undefined, { onSleep, onDevices })
 
+    // The page has the heart, the tags and ⓘ, and the song is already playing.
+    expect(screen.queryByRole('button', { name: 'Like' })).toBeNull()
+    const order = [
+      /^Add to playlist/,
+      /^Play similar songs$/,
+      /^Download$/,
+      /^Sleep timer/,
+      /^Devices$/,
+      /^Delete from library…$/,
+    ]
+    const names = itemNames()
+    expect(names).toHaveLength(order.length)
+    order.forEach((name, at) => expect(names[at]).toMatch(name))
     expect(screen.getByText('This player')).toBeTruthy()
-    expect(itemNames().slice(-2)).toEqual(['Devices', 'Delete from library…'])
-    expect(screen.queryByRole('menuitem', { name: /Sleep/ })).toBeNull()
+    expect(screen.getByText('Off')).toBeTruthy()
+
+    await fireEvent.press(screen.getByRole('menuitem', { name: /^Sleep timer/ }))
+    expect(onSleep).toHaveBeenCalled()
+  })
+
+  it('opens Devices from Now Playing’s menu', async () => {
+    const onDevices = jest.fn()
+    await draw(undefined, { onSleep: jest.fn(), onDevices })
+
     await fireEvent.press(screen.getByRole('menuitem', { name: 'Devices' }))
     expect(onDevices).toHaveBeenCalled()
   })

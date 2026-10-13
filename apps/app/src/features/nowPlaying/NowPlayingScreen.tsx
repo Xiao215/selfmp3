@@ -39,7 +39,7 @@ import { ease, motionMs, nativeDriver, spring, timing, useEntrance } from '../..
 import { MOVE_MS, PULL } from '../../ui/motion.model'
 import { takeCoverHandoff, type CoverFrame } from '../../ui/coverHandoff'
 import { setStageExit } from '../../shell/stageExit'
-import { Button, PlayButton } from '../../ui/components/Button'
+import { PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { RemoveSongs } from '../../ui/components/ConfirmRemoveSongs'
 import { Cover } from '../../ui/components/Cover'
@@ -48,6 +48,7 @@ import {
   ChevronDown,
   Heart,
   Info,
+  Moon,
   More,
   Next,
   Plus,
@@ -212,9 +213,10 @@ function PhoneNowPlaying(): ReactNode {
  * The full-screen phone player (docs/ui-mock `P21`, `P22`).
  *
  * Two views of one route. The cover: a header with the way down and ⓘ, the
- * cover that breathes with play and pause, the song and its tags, the
- * scrubber and the transport, and a foot of three — Lyrics, Sleep and the
- * queue. The words (`?view=lyrics`): the lyrics fill the page under a small
+ * cover that breathes with play and pause, the song with its heart, Up next
+ * and ⋯ beside it, its tags, then the scrubber and the transport, low where a
+ * thumb is. The sleep timer is under ⋯, and while one runs the header says
+ * so in place of "Now playing". The words (`?view=lyrics`): the lyrics fill the page under a small
  * header, with the scrubber and the transport kept, so reading along never
  * costs the skip. A song with no lyrics says so there; a phone has no visual.
  *
@@ -465,13 +467,13 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
         </Animated.View>
       ) : null}
 
-      {/* The song menu every other screen has, with Devices after it: this page
-          has no other door to them (proposal B1). Removing asks above the page,
-          and a link puts the page away first. */}
+      {/* The song menu every other screen has, less what the page shows itself,
+          with the sleep timer and Devices after it: this page has no other door
+          to them. Removing asks above the page, and a link puts the page away first. */}
       <SongMenu
         song={moreOpen ? song : null}
         onClose={() => setMoreOpen(false)}
-        onDevices={() => setDevicesOpen(true)}
+        nowPlaying={{ onSleep: () => setSleepOpen(true), onDevices: () => setDevicesOpen(true) }}
         onRemove={onRemove}
         onOpen={href => leaveTo(router, href)}
       />
@@ -572,8 +574,9 @@ function CoverView({
   const router = useRouter()
   const library = useLibrary()
   const toggleLoved = useToggleLoved()
-  // While the timer runs the Sleep pill says how long is left, not just "Sleep".
+  // While a timer runs the header says how long is left, and is the way to change it.
   const sleepLeft = useSleepMinutesLeft()
+  const sleepLine = player.sleepAtSongEnd ? 'Stops after this song' : `Stops in ${sleepLeft}`
   const tags = (library.data?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
 
   return (
@@ -585,6 +588,21 @@ function CoverView({
         {/* Play-and-tag takes the head's line: at the top, it stays clear of the editor's sheet. */}
         {tagging ? (
           <TaggingLine line={tagging.line} onStop={tagging.stop} center />
+        ) : sleepLeft !== null ? (
+          <View style={styles.headMiddle}>
+            <Pressable
+              onPress={onSleep}
+              accessibilityRole="button"
+              accessibilityLabel={`Sleep timer: ${sleepLine}`}
+              testID="now-playing-sleep"
+              style={({ pressed }) => [styles.sleepPill, pressed && styles.sleepPillPressed]}
+            >
+              <Moon size={14} color={theme.colors.accent} />
+              <Text style={styles.sleepText} numberOfLines={1}>
+                {sleepLine}
+              </Text>
+            </Pressable>
+          </View>
         ) : (
           <Text style={styles.headLabel} numberOfLines={1}>
             Now playing
@@ -606,21 +624,29 @@ function CoverView({
             <ArtistLinks artist={song.artist} onOpen={href => leaveTo(router, href)} />
           </Text>
         </View>
-        {/* A friend's song in a room is not yours to like. */}
-        {isRoomTrackId(song.id) ? null : (
-          <IconButton
-            onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
-            label={song.loved ? 'Unlike' : 'Like'}
-            active={song.loved}
-            filled
-          >
-            <Heart
-              size={20}
-              filled={song.loved}
-              color={song.loved ? theme.colors.danger : theme.colors.textPrimary}
-            />
+        <View style={styles.titleButtons}>
+          {/* A friend's song in a room is not yours to like. */}
+          {isRoomTrackId(song.id) ? null : (
+            <IconButton
+              onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
+              label={song.loved ? 'Unlike' : 'Like'}
+              active={song.loved}
+              filled
+            >
+              <Heart
+                size={20}
+                filled={song.loved}
+                color={song.loved ? theme.colors.danger : theme.colors.textPrimary}
+              />
+            </IconButton>
+          )}
+          <IconButton onPress={openQueueSheet} label="Up next" filled testID="now-playing-queue">
+            <UpNext size={20} color={theme.colors.textPrimary} />
           </IconButton>
-        )}
+          <IconButton onPress={onMore} label="More" filled testID="now-playing-more">
+            <More size={20} color={theme.colors.textPrimary} />
+          </IconButton>
+        </View>
       </View>
 
       {/* A room's song says who brought it where a song of your own has its tags. */}
@@ -694,30 +720,6 @@ function CoverView({
             />
           )}
         </IconButton>
-      </View>
-
-      {/*
-        The foot: Lyrics · Sleep · Up next, and the song menu under ⋯ with
-        Devices in it. No page dots: they said to swipe sideways, and the
-        gestures are up for the words and down to close (proposal H1).
-      */}
-      <View style={styles.foot}>
-        <View style={styles.footRow}>
-          <Button label="Lyrics" onPress={onLyrics} />
-          <Button label={sleepLeft ?? 'Sleep'} active={sleepLeft !== null} onPress={onSleep} />
-          <Button
-            icon={<UpNext size={19} color={theme.colors.textPrimary} />}
-            accessibilityLabel="Up next"
-            testID="now-playing-queue"
-            onPress={openQueueSheet}
-          />
-          <Button
-            icon={<More size={19} color={theme.colors.textPrimary} />}
-            accessibilityLabel="More"
-            testID="now-playing-more"
-            onPress={onMore}
-          />
-        </View>
       </View>
     </>
   )
@@ -1059,6 +1061,24 @@ const styles = StyleSheet.create(theme => ({
     gap: space.md,
   },
   titles: { flex: 1, minWidth: 0, gap: 3 },
+  titleButtons: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  headMiddle: { flex: 1, alignItems: 'center' },
+  sleepPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 32,
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+    // The round buttons' own fill either side of it, so it reads on any song's colour.
+    backgroundColor: theme.colors.surface2,
+  },
+  sleepPillPressed: { backgroundColor: theme.colors.surface3 },
+  sleepText: {
+    color: theme.colors.textPrimary,
+    fontSize: type.small,
+    fontWeight: '600',
+  },
   // The song's name is the display face, which carries its own weight.
   title: {
     color: theme.colors.textPrimary,
@@ -1094,18 +1114,14 @@ const styles = StyleSheet.create(theme => ({
     marginTop: space.lg,
     marginBottom: 6,
   },
+  // The page's last line: room under it for the home indicator's swipe.
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: space.xs,
+    paddingBottom: space.xl,
   },
-  foot: {
-    alignItems: 'center',
-    paddingTop: space.lg,
-    paddingBottom: space.sm,
-  },
-  footRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   wordsView: { flex: 1, minHeight: 0 },
   wordsHead: {
     flexDirection: 'row',

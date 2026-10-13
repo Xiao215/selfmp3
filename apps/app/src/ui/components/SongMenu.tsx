@@ -33,6 +33,7 @@ import {
   Heart,
   Info,
   ListMusic,
+  Moon,
   QueueAdd,
   Sparkles,
   Tag as TagIcon,
@@ -43,8 +44,20 @@ import { devicePlace } from '../../features/settings/settings.model'
 import { deviceKind } from '../../ports/device'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
+import { useSleepMinutesLeft } from './SleepMenu'
 import { TagPicker } from './TagPicker'
 import type { PopoverAnchor } from '../rightClick'
+
+/**
+ * Opened from the phone's Now Playing, which shows the song's heart, tags and
+ * ⓘ itself, and is playing it: the menu leaves those out, and Add to Up next,
+ * and ends with a short "This player" group — the sleep timer and the
+ * devices, which the page has no other door to.
+ */
+interface NowPlayingDoors {
+  readonly onSleep: () => void
+  readonly onDevices: () => void
+}
 
 /**
  * The ⋯ menu for a song (docs/ui-mock `P14`): the one song menu, the same
@@ -81,7 +94,7 @@ export function SongMenu({
   onClose,
   anchorRef,
   playlist,
-  onDevices,
+  nowPlaying,
   onRemove,
   onOpen,
 }: {
@@ -97,12 +110,7 @@ export function SongMenu({
    * width the menu hangs off it; without one it is a sheet.
    */
   anchorRef?: RefObject<PopoverAnchor | null>
-  /**
-   * Opened from the phone's Now Playing, which has no other door to the
-   * devices: the menu ends with a short "This player" group for them. Sleep
-   * is not in it, since the page has its own Sleep button.
-   */
-  onDevices?: () => void
+  nowPlaying?: NowPlayingDoors
   /**
    * Who asks about removing, when the question has to outlive the page the
    * menu is on: removing the song playing takes the phone's Now Playing away
@@ -129,7 +137,7 @@ export function SongMenu({
       onClose={onClose}
       playlist={playlist}
       anchorRef={anchorRef}
-      onDevices={onDevices}
+      nowPlaying={nowPlaying}
       onOpen={onOpen}
       onTags={() => {
         setTagging(song.id)
@@ -175,7 +183,7 @@ function Items({
   onRemove,
   playlist,
   anchorRef,
-  onDevices,
+  nowPlaying,
   onOpen,
 }: {
   song: Song
@@ -186,7 +194,7 @@ function Items({
   playlist?: { readonly id: number; readonly name: string }
   /** The ⋯ that opened the menu, where a song sent to Up next flies from. */
   anchorRef?: RefObject<PopoverAnchor | null>
-  onDevices?: () => void
+  nowPlaying?: NowPlayingDoors
   onOpen?: (href: Href) => void
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -232,7 +240,7 @@ function Items({
           <Text style={styles.byline} numberOfLines={1}>
             {byline}
           </Text>
-          {tags.length > 0 ? (
+          {tags.length > 0 && !nowPlaying ? (
             <View style={styles.tags}>
               {tags.map(tag => (
                 <Chip
@@ -247,22 +255,24 @@ function Items({
             </View>
           ) : null}
         </View>
-        <IconButton
-          label={song.loved ? 'Unlike' : 'Like'}
-          active={song.loved}
-          filled
-          size={44}
-          onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
-        >
-          <Heart
-            size={20}
-            filled={song.loved}
-            color={song.loved ? theme.colors.danger : theme.colors.textPrimary}
-          />
-        </IconButton>
+        {nowPlaying ? null : (
+          <IconButton
+            label={song.loved ? 'Unlike' : 'Like'}
+            active={song.loved}
+            filled
+            size={44}
+            onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
+          >
+            <Heart
+              size={20}
+              filled={song.loved}
+              color={song.loved ? theme.colors.danger : theme.colors.textPrimary}
+            />
+          </IconButton>
+        )}
       </View>
 
-      <SheetItem icon={icon(TagIcon)} label="Tags" onPress={onTags} />
+      {nowPlaying ? null : <SheetItem icon={icon(TagIcon)} label="Tags" onPress={onTags} />}
       {/* Opens in place rather than over the menu, so the song stays named above it. */}
       <SheetItem
         icon={icon(ListMusic)}
@@ -288,15 +298,18 @@ function Items({
           )}
         </View>
       ) : null}
-      <SheetItem
-        icon={icon(QueueAdd)}
-        label="Add to Up next"
-        onPress={() => {
-          fly(anchorRef?.current ?? null, [song.id])
-          player.addToQueue([song.id])
-          onClose()
-        }}
-      />
+      {/* The song playing is already in Up next. */}
+      {nowPlaying ? null : (
+        <SheetItem
+          icon={icon(QueueAdd)}
+          label="Add to Up next"
+          onPress={() => {
+            fly(anchorRef?.current ?? null, [song.id])
+            player.addToQueue([song.id])
+            onClose()
+          }}
+        />
+      )}
       <SheetItem
         icon={icon(Sparkles)}
         label="Play similar songs"
@@ -317,11 +330,13 @@ function Items({
           onPress={then(() => requestDownload([song.id]))}
         />
       )}
-      <SheetItem
-        icon={icon(Info)}
-        label="Song details"
-        onPress={then(() => open(songLink(song.id)))}
-      />
+      {nowPlaying ? null : (
+        <SheetItem
+          icon={icon(Info)}
+          label="Song details"
+          onPress={then(() => open(songLink(song.id)))}
+        />
+      )}
 
       {/* What the song is to where the menu was opened. The groups are told
           apart by the room between them, not a line. */}
@@ -335,10 +350,11 @@ function Items({
           />
         </>
       ) : null}
-      {onDevices ? (
+      {nowPlaying ? (
         <>
           <Text style={styles.group}>This player</Text>
-          <SheetItem icon={icon(Devices)} label="Devices" onPress={then(onDevices)} />
+          <SleepItem icon={icon(Moon)} onPress={then(nowPlaying.onSleep)} />
+          <SheetItem icon={icon(Devices)} label="Devices" onPress={then(nowPlaying.onDevices)} />
         </>
       ) : null}
 
@@ -350,6 +366,23 @@ function Items({
         onPress={onRemove}
       />
     </>
+  )
+}
+
+/**
+ * The sleep timer's row, saying how long is left; its own component so only
+ * a menu that shows it ticks with the timer.
+ */
+function SleepItem({ icon, onPress }: { icon: ReactNode; onPress: () => void }): ReactNode {
+  const left = useSleepMinutesLeft()
+  return (
+    <SheetItem
+      icon={icon}
+      label="Sleep timer"
+      detail={left ?? 'Off'}
+      active={left !== null}
+      onPress={onPress}
+    />
   )
 }
 

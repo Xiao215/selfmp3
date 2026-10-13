@@ -210,6 +210,26 @@ describe('Import’s search page', () => {
     expect(mockReplace).toHaveBeenCalledWith('/import')
   })
 
+  it('shows no songs from the last search while the next is on its way, only those picked', async () => {
+    mockParams.q = '孤勇者'
+    await draw('search')
+    await fireEvent.press(await screen.findByLabelText('Select 孤勇者'))
+    let answer: (value: { items: ImportPreviewItem[] }) => void = () => undefined
+    mockSearch.mockImplementationOnce(
+      () => new Promise<{ items: ImportPreviewItem[] }>(resolve => (answer = resolve)),
+    )
+    await type('yorushika')
+    expect(await screen.findByText('Searching for “yorushika”…')).toBeTruthy()
+    // The last search's other song is gone; the one picked from it stays.
+    expect(screen.queryByText('安達組合')).toBeNull()
+    expect(screen.getByLabelText('Deselect 孤勇者')).toBeTruthy()
+
+    await waitFor(() => expect(mockSearch).toHaveBeenCalledWith('yorushika'))
+    answer({ items: ANSWERS['yorushika'] ?? [] })
+    expect(await screen.findByText('又三郎')).toBeTruthy()
+    expect(screen.queryByText('Searching for “yorushika”…')).toBeNull()
+  })
+
   it('stops a song being heard when the page is left', async () => {
     mockParams.q = '孤勇者'
     await draw('search')

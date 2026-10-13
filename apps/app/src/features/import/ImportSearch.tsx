@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
-import { StyleSheet } from 'react-native-unistyles'
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import {
@@ -60,6 +60,7 @@ export function ImportSearch({
   onUnreachable?: () => void
 } = {}): ReactNode {
   const { wide, finePointer } = useLayout()
+  const { theme } = useUnistyles()
   const source = useImportSource(via)
   const key = draftSourceFor(via)
   const [draft, patchDraft] = useImportDraft(key)
@@ -114,8 +115,19 @@ export function ImportSearch({
   const finding = search ? stillFinding(search.review) : 0
   const tags = source.library?.tags ?? []
   const shownFor = search?.query ?? null
-  const kept = search?.picked ?? 0
-  const rows = found.rows
+  /*
+   * Songs found for other words than the field's are not shown while the
+   * field's are looked for: an artist searched for came up as the last
+   * search's songs, for the second or three the answer took, and looked like
+   * the answer. The songs picked stay, all of them, ticked in this search or
+   * before it — they are coming in whatever is searched for next.
+   */
+  const current = query !== null && shownFor === query
+  const pickedRows = search
+    ? found.rows.filter((_, index) => index < search.picked || search.review.chosen.has(index))
+    : []
+  const kept = current ? (search?.picked ?? 0) : pickedRows.length
+  const rows = current ? found.rows : pickedRows
   const closeOpen = wide || found.open === null ? undefined : found.closeRow
 
   return (
@@ -196,7 +208,13 @@ export function ImportSearch({
               ) : null}
             </View>
           ) : null}
-          {query !== null && shownFor === query && !searching.searching && rows.length === kept ? (
+          {query !== null && !current && !searching.error ? (
+            <View style={styles.looking} testID="import-search-looking">
+              <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+              <Text style={styles.lookingText}>Searching for “{query}”…</Text>
+            </View>
+          ) : null}
+          {current && !searching.searching && rows.length === kept ? (
             <Text style={styles.none}>Nothing found for “{query}”.</Text>
           ) : null}
         </Pressable>
@@ -282,6 +300,8 @@ const styles = StyleSheet.create(theme => ({
   apart: { marginTop: 14 },
   more: { alignItems: 'flex-start' },
   none: { color: theme.colors.textSecondary, fontSize: type.sub, paddingVertical: 8 },
+  looking: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14 },
+  lookingText: { color: theme.colors.textSecondary, fontSize: type.sub },
   footPhone: { gap: 10, paddingTop: 8, paddingHorizontal: space.gutter },
   footWide: { gap: 10, paddingTop: 12, paddingHorizontal: space.gutterWide },
   footColumn: { gap: 10 },

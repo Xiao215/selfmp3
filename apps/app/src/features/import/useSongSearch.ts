@@ -13,9 +13,9 @@ const SETTLE_MS = 350
  * Asked once the typing settles, and only about the latest words: an answer
  * to words since changed is dropped. What is found goes into the draft, under
  * the songs ticked in searches before (`withSearchResults`), so it outlives
- * the page; words already searched for are not asked about again. Until the
- * answer comes the last one stays on screen, rather than a blank list
- * flickering at every letter.
+ * the page; words already searched for are not asked about again. The page
+ * shows songs only for the words in its field (ImportSearch.tsx), so the
+ * last search's do not stand in for an answer still on its way.
  */
 export function useSongSearch(
   api: Pick<Api, 'importSearch'>,

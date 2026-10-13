@@ -69,6 +69,7 @@ import { useImportSource } from './importSource'
 import { comingIn, countLabel, reviewName } from './review.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Guide } from '../guide/Guide'
+import { guideSeen } from '../guide/guideMemory'
 import { useGuide, type GuideTarget } from '../guide/useGuide'
 
 /** How many of today's finished imports are listed before "Show all". */
@@ -112,6 +113,12 @@ export function ImportScreen({
   const { theme } = useUnistyles()
   const router = useRouter()
   const { wide } = useLayout()
+  /*
+   * What the paragraph over the box used to say, shown once on the first
+   * visit, pointing at the box (D1, 2026-10-13); the sources row under the
+   * box says the rest every time.
+   */
+  const [boxTarget, boxGuide] = useGuide('import-box', true)
   /** "Show all" under Earlier today: the whole history is read only then. */
   const [showAll, setShowAll] = useState(false)
   const source = useImportSource(via, { history: showAll })
@@ -230,7 +237,12 @@ export function ImportScreen({
        * the commit on the right. It grows with what is pasted, and the whole
        * card carries the focus ring, since the whole card is the control.
        */}
-      <View style={[styles.compose, linksFocused && styles.composeFocused]} testID="import-box">
+      <View
+        ref={boxTarget}
+        collapsable={false}
+        style={[styles.compose, linksFocused && styles.composeFocused]}
+        testID="import-box"
+      >
         <TextInput
           style={[styles.linksInput, { height: Math.max(LINKS_MIN_HEIGHT, linksHeight) }]}
           value={links}
@@ -398,7 +410,11 @@ export function ImportScreen({
   // shown once, on the first such row, when there are two or more to act on.
   const swipeable =
     !wide && folded ? [...folded.failed, ...folded.importing].filter(dismissable) : []
-  const [swipeTarget, swipeGuide] = useGuide('import-rows', swipeable.length >= 2)
+  // After the box's guide, never with it.
+  const [swipeTarget, swipeGuide] = useGuide(
+    'import-rows',
+    swipeable.length >= 2 && guideSeen('import-box') && !boxGuide.shown,
+  )
   const firstSwipe = swipeable[0]?.id ?? null
   const rowProps = (job: ImportJob) => ({
     job,
@@ -515,6 +531,20 @@ export function ImportScreen({
         </View>
         <ChromeSpacer />
       </ScrollView>
+      <Guide
+        guide={boxGuide}
+        at={{ x: 0.3, y: 0.4 }}
+        radius={18}
+        steps={[
+          {
+            gesture: 'tap',
+            text: 'Search for a song, or paste a link',
+            sub: wide
+              ? 'A playlist link brings every song in it. The browser extension sends links here too.'
+              : 'A playlist link brings every song in it. You can also share a link to self.mp3 from YouTube or 网易云音乐.',
+          },
+        ]}
+      />
       <Guide
         guide={swipeGuide}
         steps={[{ gesture: 'swipe-left', text: 'Swipe left for Next and Remove', distance: 120 }]}

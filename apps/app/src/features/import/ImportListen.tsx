@@ -18,6 +18,7 @@ import { createListenAudio } from '../../ports/listen'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Cover } from '../../ui/components/Cover'
 import { useToneColors } from '../../ui/useSongColor'
+import { useSeekHold } from '../../ui/components/SeekBar'
 import { Equalizer } from '../../ui/components/Equalizer'
 import { Play } from '../../ui/components/Icons'
 import {
@@ -254,6 +255,8 @@ export function ListenBar({
 }): ReactNode {
   const [width, setWidth] = useState(0)
   const [dragging, setDragging] = useState<number | null>(null)
+  // Where the finger let go, until the preview says it is there (as the song page's bar).
+  const { held, hold } = useSeekHold(position)
 
   const responder = useMemo(
     () =>
@@ -267,17 +270,19 @@ export function ListenBar({
         onPanResponderMove: event =>
           setDragging(seekAt(event.nativeEvent.locationX, width, duration)),
         onPanResponderRelease: event => {
+          const target = seekAt(event.nativeEvent.locationX, width, duration)
+          hold(target)
           setDragging(null)
-          onSeek(seekAt(event.nativeEvent.locationX, width, duration))
+          onSeek(target)
         },
         onPanResponderTerminate: () => setDragging(null),
       }),
     // Made afresh as the preview ticks, which a drag survives: every handler
     // reads only where the finger is along the bar, never how far it has come.
-    [width, duration, onSeek],
+    [width, duration, onSeek, hold],
   )
 
-  const shown = dragging ?? position
+  const shown = dragging ?? held ?? position
   const ratio = playedRatio(shown, duration)
 
   return (
@@ -294,7 +299,9 @@ export function ListenBar({
       accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
       onAccessibilityAction={event => {
         const step = event.nativeEvent.actionName === 'increment' ? 10 : -10
-        onSeek(clamp(position + step, 0, duration))
+        const target = clamp(position + step, 0, duration)
+        hold(target)
+        onSeek(target)
       }}
       testID="listen-bar"
       {...responder.panHandlers}

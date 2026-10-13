@@ -18,6 +18,40 @@ const SEEK_LANDED_SECONDS = 2.1
 const SEEK_SETTLE_MS = 1000
 
 /**
+ * Where a seek let go, until the player says it is there: `held` while it is
+ * still somewhere else, null once it reports the new time (or a second on).
+ * A phone's engine reports the pre-seek time for a tick or two, and without
+ * this a bar's thumb jumps back to it and forward again. Both scrubbers use
+ * it: this one, and the import preview's (ImportListen.tsx).
+ */
+export function useSeekHold(position: number): {
+  held: number | null
+  hold: (seconds: number) => void
+} {
+  const [pending, setPending] = useState<number | null>(null)
+  // Held only while the player is still somewhere else: once it reports the
+  // new time, the bar follows it again.
+  const held =
+    pending !== null && Math.abs(position - pending) >= SEEK_LANDED_SECONDS ? pending : null
+  /*
+   * The hold lets go on its own, a second after the finger did. The timer is
+   * the effect's rather than the gesture's so that it goes when the bar does:
+   * a scrubbed song closed before it woke had it setting state on a bar that
+   * is no longer there.
+   */
+  useEffect(() => {
+    if (pending === null) return undefined
+    const timer = setTimeout(
+      // This seek only: a later one, made meanwhile, starts its own hold.
+      () => setPending(current => (current === pending ? null : current)),
+      SEEK_SETTLE_MS,
+    )
+    return () => clearTimeout(timer)
+  }, [pending])
+  return { held, hold: setPending }
+}
+
+/**
  * Scrubber: a 6px track with a 16px thumb that is always there, in a hit area
  * big enough to grab while walking.
  *
@@ -53,31 +87,7 @@ export function SeekBar({
   const fill = color ?? accent.accent
   const [width, setWidth] = useState(0)
   const [dragging, setDragging] = useState<number | null>(null)
-  /**
-   * Where the finger let go, until the player says it is there. A phone's
-   * engine reports the pre-seek time for a tick or two, and without this the
-   * thumb jumps back to it and forward again.
-   */
-  const [pending, setPending] = useState<number | null>(null)
-  // Held only while the player is still somewhere else: once it reports the
-  // new time, the bar follows it again.
-  const held =
-    pending !== null && Math.abs(position - pending) >= SEEK_LANDED_SECONDS ? pending : null
-  /*
-   * The hold lets go on its own, a second after the finger did. The timer is
-   * the effect's rather than the gesture's so that it goes when the bar does:
-   * a scrubbed song closed before it woke had it setting state on a bar that
-   * is no longer there.
-   */
-  useEffect(() => {
-    if (pending === null) return undefined
-    const timer = setTimeout(
-      // This seek only: a later one, made meanwhile, starts its own hold.
-      () => setPending(current => (current === pending ? null : current)),
-      SEEK_SETTLE_MS,
-    )
-    return () => clearTimeout(timer)
-  }, [pending])
+  const { held, hold } = useSeekHold(position)
 
   const responder = useMemo(() => {
     // locationX is relative to the view the finger is on. On iOS that is the
@@ -99,13 +109,13 @@ export function SeekBar({
       onPanResponderMove: event => setDragging(secondsAt(event.nativeEvent.locationX)),
       onPanResponderRelease: event => {
         const target = secondsAt(event.nativeEvent.locationX)
-        setPending(target)
+        hold(target)
         setDragging(null)
         onSeek(target)
       },
       onPanResponderTerminate: () => setDragging(null),
     })
-  }, [width, duration, onSeek])
+  }, [width, duration, onSeek, hold])
 
   const shown = dragging ?? held ?? position
   const ratio = duration > 0 ? clamp01(shown / duration) : 0
@@ -140,7 +150,7 @@ export function SeekBar({
     const step =
       event.nativeEvent.actionName === 'increment' ? SEEK_STEP_SECONDS : -SEEK_STEP_SECONDS
     const target = clamp(shown + step, 0, duration)
-    setPending(target)
+    hold(target)
     onSeek(target)
   }
 

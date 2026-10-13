@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router'
 import { artistOr, plural } from '@selfmp3/shared'
 import { useRecentRooms } from '../room/pastRooms.store'
 import { RoomFaces } from '../room/RoomFace'
+import { TogetherCard } from '../room/Together'
 import { useResumeSharedJoin } from '../shared/SharedScreens'
 import type { PastRoom } from '../room/room.model'
 import type { Song, Stats } from '@selfmp3/shared'
@@ -213,6 +214,8 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
             />
           ) : null}
         </View>
+
+        {empty ? null : <TogetherCard />}
 
         {recents.length > 0 || rooms.length > 0 ? (
           <View style={styles.stack}>

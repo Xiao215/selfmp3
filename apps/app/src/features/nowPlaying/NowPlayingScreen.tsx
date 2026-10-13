@@ -29,7 +29,10 @@ import {
   useToggleLoved,
   withAlpha,
 } from '@selfmp3/client'
+import { useRoom } from '../room/room.store'
+import { RoomSheets } from '../room/RoomSheets'
 import { RoomSongLine } from '../room/RoomSongLine'
+import { RoomPill, TogetherButton } from '../room/Together'
 import {
   usePlayer,
   usePlayerCommands,
@@ -131,8 +134,8 @@ export function NowPlayingScreen(): ReactNode {
 }
 
 /**
- * Up next and the toast row, drawn inside the modal while it covers the shell:
- * the sheet over the page's foot, and the toasts after it so a removal's Undo
+ * Up next, a room's sheets and the toast row, drawn inside the modal while it
+ * covers the shell: the sheets over the page's foot, and the toasts after them so a removal's Undo
  * is over the sheet that asked for it. The shell's toast row is still there
  * under the page, with the resume offer that is decided once per launch; this
  * is just the messages.
@@ -144,6 +147,7 @@ function OverTheModal(): ReactNode {
   return (
     <>
       <QueueSheet go={go} />
+      <RoomSheets go={go} />
       <View pointerEvents="box-none" style={[styles.toasts, { bottom: insets.bottom + space.sm }]}>
         <ToastHost />
       </View>
@@ -611,13 +615,19 @@ function CoverView({
   const sleepLeft = useSleepMinutesLeft()
   const sleepLine = player.sleepAtSongEnd ? 'Stops after this song' : `Stops in ${sleepLeft}`
   const tags = (library.data?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
+  // A room shows itself in the head's middle, unless tagging or the sleep
+  // timer has it; then its faces stand in for Together on the right.
+  const inRoom = useRoom().state !== null
+  const middleTaken = tagging !== null || sleepLeft !== null
 
   return (
     <>
       <View style={styles.head}>
-        <IconButton onPress={onClose} label="Close now playing" filled>
-          <ChevronDown size={22} color={theme.colors.textPrimary} />
-        </IconButton>
+        <View style={styles.headSide}>
+          <IconButton onPress={onClose} label="Close now playing" filled>
+            <ChevronDown size={22} color={theme.colors.textPrimary} />
+          </IconButton>
+        </View>
         {/* Play-and-tag takes the head's line: at the top, it stays clear of the editor's sheet. */}
         {tagging ? (
           <TaggingLine line={tagging.line} onStop={tagging.stop} center />
@@ -636,14 +646,22 @@ function CoverView({
               </Text>
             </Pressable>
           </View>
+        ) : inRoom ? (
+          <View style={styles.headMiddle}>
+            <RoomPill />
+          </View>
         ) : (
           <Text style={styles.headLabel} numberOfLines={1}>
             Now playing
           </Text>
         )}
-        <IconButton onPress={onOpenSong} label="Song details" filled testID="now-playing-info">
-          <Info size={20} color={theme.colors.textPrimary} />
-        </IconButton>
+        {/* Both sides as wide, so whatever is in the middle sits in the middle. */}
+        <View style={[styles.headSide, styles.headSideEnd]}>
+          {inRoom && !middleTaken ? null : <TogetherButton filled />}
+          <IconButton onPress={onOpenSong} label="Song details" filled testID="now-playing-info">
+            <Info size={20} color={theme.colors.textPrimary} />
+          </IconButton>
+        </View>
       </View>
 
       <BreathingCover
@@ -1113,6 +1131,9 @@ const styles = StyleSheet.create(theme => ({
   titles: { flex: 1, minWidth: 0, gap: 3 },
   titleButtons: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   headMiddle: { flex: 1, alignItems: 'center' },
+  // Two of the head's round buttons and the gap between them.
+  headSide: { width: 40 * 2 + space.sm, flexDirection: 'row', gap: space.sm },
+  headSideEnd: { justifyContent: 'flex-end' },
   sleepPill: {
     flexDirection: 'row',
     alignItems: 'center',

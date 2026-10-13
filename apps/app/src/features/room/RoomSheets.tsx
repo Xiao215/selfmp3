@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { createContext, useContext, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useRouter } from 'expo-router'
+import { useRouter, type Href } from 'expo-router'
 import {
   artistOr,
   formatRoomCode,
@@ -50,19 +50,33 @@ import { sharedApi, sharedSession } from '../shared/sharedPlaylists'
 import { ScrollView } from '../../ui/components/Scroll'
 
 /**
+ * How a sheet goes to a page: pushed, or — drawn inside the phone's Now
+ * Playing, a native modal — by putting the modal down first (`leaveTo`),
+ * since a page pushed from inside it lands out of sight under it.
+ */
+const RoomGo = createContext<((href: Href) => void) | null>(null)
+
+function useGo(): (href: Href) => void {
+  const router = useRouter()
+  const go = useContext(RoomGo)
+  return go ?? (href => router.push(href))
+}
+
+/**
  * A room's sheets (docs/features/listen-together.md): Together — opening a
  * room, or its invite once you are in one — adding songs, and the people in
- * it. Drawn once by the shell, opened from wherever the room is shown.
+ * it. Drawn once by the shell, opened from wherever the room is shown, and
+ * again inside the phone's Now Playing (with `go`), which covers the shell.
  */
-export function RoomSheets(): ReactNode {
+export function RoomSheets({ go = null }: { go?: ((href: Href) => void) | null }): ReactNode {
   const open = useRoomSheet()
   const { state } = useRoom()
   return (
-    <>
+    <RoomGo.Provider value={go}>
       <TogetherSheet open={open === 'together'} state={state} />
       {state ? <AddSheet open={open === 'add'} state={state} /> : null}
       {state ? <PeopleSheet open={open === 'people'} state={state} /> : null}
-    </>
+    </RoomGo.Provider>
   )
 }
 
@@ -76,7 +90,7 @@ function TogetherSheet({ open, state }: { open: boolean; state: RoomState | null
       title={state ? 'Invite friends' : 'Listen together'}
       subtitle={
         state
-          ? 'They open the link, or type the code in Together.'
+          ? 'They open the link, or type the code in Listen together.'
           : 'Up next becomes a room friends add songs to.'
       }
       testID="room-together"
@@ -158,14 +172,14 @@ function Start(): ReactNode {
 function JoinByCode(): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
-  const router = useRouter()
+  const go = useGo()
   const [code, setCode] = useState('')
   const [focused, setFocused] = useState(false)
   const valid = RoomCodeSchema.safeParse(code).success
   const join = (): void => {
     if (!valid) return
     closeRoomSheet()
-    router.push({ pathname: '/join/[code]', params: { code: normalizeRoomCode(code) } })
+    go({ pathname: '/join/[code]', params: { code: normalizeRoomCode(code) } })
   }
   return (
     <View style={styles.join}>
@@ -662,6 +676,8 @@ function SongPick({
 
 function PeopleSheet({ open, state }: { open: boolean; state: RoomState }): ReactNode {
   const router = useRouter()
+  // Over Now Playing the song carries on there; elsewhere the room's page goes.
+  const overNowPlaying = useContext(RoomGo) !== null
   const host = isHost(state)
   const [confirming, setConfirming] = useState(false)
   const setRight = (key: keyof RoomRights, value: boolean): void => {
@@ -673,7 +689,7 @@ function PeopleSheet({ open, state }: { open: boolean; state: RoomState }): Reac
     setConfirming(false)
     closeRoomSheet()
     await leaveRoom()
-    router.replace('/')
+    if (!overNowPlaying) router.replace('/')
   }
   const people = state.members.filter(member => !member.left)
   return (
@@ -774,7 +790,7 @@ function PeopleSheet({ open, state }: { open: boolean; state: RoomState }): Reac
  * signed in finds it in their Playlists, and can go on adding to it.
  */
 function KeepAsShared({ state }: { state: RoomState }): ReactNode {
-  const router = useRouter()
+  const go = useGo()
   const { pass } = useRoom()
   const [busy, setBusy] = useState(false)
   const [kept, setKept] = useState<string | null>(() => keptAsOf(state.code))
@@ -792,7 +808,7 @@ function KeepAsShared({ state }: { state: RoomState }): ReactNode {
             label: 'Open',
             onPress: () => {
               closeRoomSheet()
-              router.push({ pathname: '/shared/[id]', params: { id: playlist.id } })
+              go({ pathname: '/shared/[id]', params: { id: playlist.id } })
             },
           },
         ],

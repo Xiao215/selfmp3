@@ -16,6 +16,7 @@ import {
 } from '@selfmp3/client'
 import { doormanUrl } from '../../ports/doormanUrl'
 import { prefs } from '../../ports/prefs'
+import { markGuideSeen } from '../guide/guideMemory'
 import { session as cloudSession } from '../../replica'
 
 /**
@@ -248,6 +249,8 @@ function forgetRoom(): void {
 
 function enter(pass: RoomPass, state: RoomState): void {
   prefs.set(PASS_KEY, JSON.stringify(pass))
+  // Been in a room: Home's card that points at Listen together is done.
+  markGuideSeen('together-card')
   samples = []
   set({ pass, state, offset: 0 })
   connectRoom()

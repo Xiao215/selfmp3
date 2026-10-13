@@ -40,7 +40,7 @@ import {
   type QueueRow,
 } from './queue.model'
 import { useQueueEdits } from './useQueueEdits'
-import { RoomList, TogetherButton } from '../room/RoomList'
+import { RoomList } from '../room/RoomList'
 import { useRoom } from '../room/room.store'
 import { SONG_LINE_COVER, SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
@@ -463,7 +463,6 @@ function Rail({
             Up next
           </Text>
           <View style={styles.headButtons}>
-            {inRoom ? null : <TogetherButton />}
             <IconButton onPress={closeQueueSheet} label="Hide Up next" size={28} filled>
               <ChevronRight size={15} color={theme.colors.textSecondary} />
             </IconButton>

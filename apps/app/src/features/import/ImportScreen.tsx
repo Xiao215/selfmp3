@@ -5,7 +5,9 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import Animated, { LayoutAnimationConfig } from 'react-native-reanimated'
-import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable'
+import ReanimatedSwipeable, {
+  type SwipeableMethods,
+} from 'react-native-gesture-handler/ReanimatedSwipeable'
 import {
   plural,
   type ImportJob,
@@ -68,9 +70,9 @@ import { reviewUrls, useRefreshReview } from './useRefreshReview'
 import { useImportSource } from './importSource'
 import { comingIn, countLabel, reviewName } from './review.model'
 import { ScrollView } from '../../ui/components/Scroll'
-import { Guide } from '../guide/Guide'
+import { Guide, useOpenWith } from '../guide/Guide'
 import { guideSeen } from '../guide/guideMemory'
-import { useGuide, type GuideTarget } from '../guide/useGuide'
+import { useGuide, type GuideHandle, type GuideTarget } from '../guide/useGuide'
 
 /** How many of today's finished imports are listed before "Show all". */
 const FINISHED_SHOWN = 5
@@ -418,6 +420,7 @@ export function ImportScreen({
     job,
     tags,
     guideTarget: job.id === firstSwipe ? swipeTarget : undefined,
+    guide: job.id === firstSwipe ? swipeGuide : undefined,
     nextLine: job.id === nextUp && queue ? nextLine(queue.pacing) : null,
     onPause: () => act({ kind: 'pause', id: job.id }, () => api.cancelImport(job.id)),
     onResume: () => act({ kind: 'resume', id: job.id }, () => api.retryImport(job.id)),
@@ -786,11 +789,14 @@ function JobRow({
   onDismiss,
   onNext,
   guideTarget,
+  guide,
 }: {
   job: ImportJob
   tags: readonly Tag[]
   /** Where the swipe guide lights, on the first row that swipes. */
   guideTarget?: GuideTarget
+  /** That guide, which opens the row's swipe as its hand pulls. */
+  guide?: GuideHandle
   /** For the song whose turn is next: when it starts. */
   nextLine: string | null
   onPause: () => void
@@ -899,6 +905,7 @@ function JobRow({
       onNext={onNext}
       testID={`import-dismiss-${job.id}`}
       nextTestID={`import-next-${job.id}`}
+      guide={guide}
     >
       {row}
     </SwipeActions>
@@ -1000,6 +1007,7 @@ function SwipeActions({
   onNext,
   testID,
   nextTestID,
+  guide,
   children,
 }: {
   name: string
@@ -1007,10 +1015,18 @@ function SwipeActions({
   onNext: (() => void) | null
   testID: string
   nextTestID: string
+  guide?: GuideHandle
   children: ReactNode
 }): ReactNode {
+  const swipeable = useRef<SwipeableMethods>(null)
+  useOpenWith(
+    guide ?? null,
+    () => swipeable.current?.openRight(),
+    () => swipeable.current?.close(),
+  )
   return (
     <ReanimatedSwipeable
+      ref={swipeable}
       friction={1.6}
       rightThreshold={40}
       overshootRight={false}

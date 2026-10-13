@@ -10,6 +10,7 @@ import { warmCoverPalette } from '../features/nowPlaying/useCoverPalette'
 import { isRoomTrackId } from '@selfmp3/client'
 import { radius, space, type, useToggleLoved, withAlpha, type SongColors } from '@selfmp3/client'
 import { DevicesSheet } from '../features/devices/DevicesSheet'
+import { TogetherButton } from '../features/room/Together'
 import { UpNextTarget } from '../ui/components/CoverFlight'
 import { toggleQueueSheet, useQueueSheetOpen } from '../features/queue/queueSheet.store'
 import { useArt } from '../offline/useArt'
@@ -268,6 +269,8 @@ export function PlayerBar(): ReactNode {
               <Devices size={17} color={theme.colors.textSecondary} />
             </IconButton>
           </View>
+          {/* Listen together, or the room's faces while you are in one. */}
+          <TogetherButton iconSize={17} color={theme.colors.textSecondary} />
         </View>
       </View>
 

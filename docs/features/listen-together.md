@@ -11,13 +11,26 @@ server.
 
 ## The idea
 
-A **room** is a shared Up next. You press **Together** in Up next's head, and your Up next
-becomes *Xiao's room*. Friends join with a link, a QR code or a six-letter code (`KQ7 482`).
-Every row shows who added it. Nothing about it is a new kind of list:
+A **room** is a shared Up next. You press **Listen together** beside the song playing, and
+your Up next becomes *Xiao's room*. Friends join with a link, a QR code or a six-letter code
+(`KQ7 482`). Every row shows who added it. Nothing about it is a new kind of list:
 
 - while it lasts, it is Up next;
 - when it ends, it is a Recently played tile;
 - Save turns it into a playlist.
+
+**Where it starts (T1 + T3, Xiao 2026-10-13).** On the player, where you are when a friend asks
+what is playing, rather than inside the queue:
+
+- a People button in the phone's Now Playing head and in a computer's player bar, beside
+  Devices. It opens Together: where it plays, or a code to join;
+- in a room, that button is the room's faces. On the phone's Now Playing the room takes the
+  head's middle as *Xiao's room* (unless the sleep timer or play-and-tag has it). Either opens
+  the invite;
+- on Home, a **Listen together** card until this device has been in a room or was told
+  *Not now*. It is kept with the guides (`together-card`), so Show tips again brings it back.
+
+Up next lists the room while you are in one; it is no longer the way in.
 
 | Who | How they join | What they can add |
 |---|---|---|
@@ -177,6 +190,7 @@ share sheet; where there is none (the desktop app), it copies the link.
 | The host's player playing the room; everyone's phones following it | `apps/app/src/features/room/RoomProvider.tsx` |
 | The room in Up next (phone sheet, computer rail, the room's page) | `apps/app/src/features/room/RoomList.tsx` |
 | Together and the invite, Add songs (Mine, In the room, A link), People | `apps/app/src/features/room/RoomSheets.tsx` |
+| The way in: the player's button, the room's pill, Home's card | `apps/app/src/features/room/Together.tsx` |
 | `/join/<code>`, `/room`, `/past-room/<code>` | `apps/app/src/features/room/RoomScreens.tsx` |
 | The invite's QR code | `apps/app/src/features/room/qr.model.ts`, `RoomQr.tsx` |
 | Sound vectors: reading a pack, packing, closeness | `packages/shared/src/soundVectors.ts` |

@@ -6,9 +6,11 @@ How self.mp3 teaches a gesture that nothing on screen shows. Decided 2026-10-13 
 ## What a guide is
 
 It works the way 网易云音乐's guides do. The whole screen goes dark, a spotlight with a dashed
-ring is cut around the real thing the gesture works on, and a hand (a pointer with a mouse)
-acts the gesture out over it. Where it can, the lit thing moves with the hand: the row lifts
-and goes one place down, the cover rises, the row slides open. One line says the gesture, with
+ring is cut around the real thing the gesture works on, and a touch acts the gesture out over
+it: a finger's circle, as iOS draws one in a screen recording, leaving a fading streak where
+it swipes (H1, 2026-10-13, in place of a drawn hand); with a mouse, the pointer. Where it can,
+the lit thing moves with the touch: the row lifts and goes one place down, the cover rises,
+the row slides off its red Remove (Import's opens its real swipe, `useOpenWith`). One line says the gesture, with
 at most one short line under it. **A tap anywhere closes it** and does nothing else, so the song
 under the spotlight does not start. Escape closes it on a computer. A guide with two gestures
 has two steps; the first tap moves on.
@@ -17,11 +19,11 @@ has two steps; the first tap moves on.
   `guides`: the names seen, comma-separated, or `*` for all of them.
 - Settings › About › Tips › **Show tips again** forgets them all (B3).
 - Only when the gesture would work right now, about 0.7 s after the page settles, and one at a
-  time. Under Reduce Motion the hand stands still.
+  time. Under Reduce Motion the touch stands still.
 - Per device on purpose: a phone teaches holding and swiping, a computer dragging.
 
 Code: `apps/app/src/features/guide/` (`guide.model.ts` the pure half, `guideMemory.ts` what is
-remembered, `useGuide.ts` when one shows and what it lights, `Guide.tsx` the layer, the hand
+remembered, `useGuide.ts` when one shows and what it lights, `Guide.tsx` the layer, the touch
 and the helpers a screen moves its lit thing with). A guide on a page that is a native modal
 (Now Playing, the Up next sheet over it) is drawn `inline`, since the root layer sits under the
 modal.

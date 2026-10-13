@@ -20,8 +20,7 @@ import { tip } from '../../ui/tip'
 import { useSongColor } from '../../ui/useSongColor'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
-import { IconButton } from '../../ui/components/IconButton'
-import { More, Next, People, Plus, ToTop, X } from '../../ui/components/Icons'
+import { More, Next, Plus, ToTop, X } from '../../ui/components/Icons'
 import { PlayPauseIcon } from '../../ui/components/PlayPauseIcon'
 import { Toggle } from '../../ui/components/Toggle'
 import { RoomFace, RoomFaces } from './RoomFace'
@@ -384,37 +383,6 @@ function RowButton({
     >
       {children}
     </Pressable>
-  )
-}
-
-/**
- * Together, in Up next's head (E1): opens a room from what is playing, or its
- * invite once you are in one. Round beside the title on a computer's rail;
- * on a phone, where Shuffle and Clear the rest fill the title's line, it sits
- * on the line under it with its name (`labelled`).
- */
-export function TogetherButton({ labelled = false }: { labelled?: boolean }): ReactNode {
-  const { theme } = useUnistyles()
-  if (labelled) {
-    return (
-      <Button
-        label="Together"
-        icon={<People size={16} color={theme.colors.textPrimary} />}
-        onPress={() => openRoomSheet('together')}
-        testID="queue-together"
-      />
-    )
-  }
-  return (
-    <IconButton
-      label="Listen together"
-      caption="Together"
-      filled
-      onPress={() => openRoomSheet('together')}
-      testID="queue-together"
-    >
-      <People size={18} color={theme.colors.textPrimary} />
-    </IconButton>
   )
 }
 

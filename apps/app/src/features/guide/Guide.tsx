@@ -2,18 +2,21 @@ import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Easing, Pressable, Text, View, useWindowDimensions } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { Path, Rect, Svg } from 'react-native-svg'
+import { Defs, LinearGradient, Path, Rect, Stop, Svg } from 'react-native-svg'
 import { leading, motion, space, type } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
 import { nativeDriver, useMotionReduced, usePresence } from '../../ui/motion'
 import { Music } from '../../ui/components/Icons'
+import { useSvgId } from '../../ui/useSvgId'
 import { holeAround, layerPath, placeWords, type Box } from './guide.model'
 import type { GuideHandle } from './useGuide'
 
 /**
- * What the hand acts out.
+ * What the touch acts out: a finger's circle, the way iOS draws one in a
+ * screen recording (H1, Xiao 2026-10-13, over a drawn hand that read as clip
+ * art), leaving a fading streak where it swipes.
  *
  * - `hold-move`: press, then carry the thing one `distance` down and back.
  * - `hold`: press and keep pressing.
@@ -23,7 +26,7 @@ import type { GuideHandle } from './useGuide'
  * - `drag-to`: carry a song from `from` (points off the spotlight's centre)
  *   into the spotlight.
  *
- * With a mouse the hand is a pointer, and holding is just pressing.
+ * With a mouse it is a pointer, and holding is just pressing.
  */
 type GuideGesture = 'hold-move' | 'hold' | 'tap' | 'swipe-left' | 'swipe-up' | 'drag-to'
 
@@ -42,9 +45,11 @@ const LAYER = 'rgba(5, 6, 10, 0.86)'
 const INK = '#ffffff'
 const INK_SOFT = 'rgba(255, 255, 255, 0.74)'
 
-const HAND = 46
-/** Where the fingertip sits in the hand, so the tip and not the corner lands on the spot. */
-const TIP = { x: 22, y: 11 }
+const TOUCH = 30
+/** The touch's middle, so its middle and not its corner lands on the spot. */
+const TIP = { x: TOUCH / 2, y: TOUCH / 2 }
+/** How thick a swipe's streak is. */
+const STREAK = 14
 const POINTER = 22
 const POINTER_TIP = { x: 4, y: 2 }
 
@@ -74,6 +79,35 @@ export function slideWith(guide: GuideHandle, distance: number): object {
   return { transform: [{ translateX: guide.demo.interpolate(frames.slide(-distance)) }] }
 }
 
+/**
+ * A swipeable the guide opens and shuts in step with the hand, for a row
+ * whose actions only the swipeable itself can show (Import's Next and
+ * Remove): opened as the hand pulls left, shut as it lets go.
+ */
+export function useOpenWith(guide: GuideHandle | null, open: () => void, shut: () => void): void {
+  const acts = useRef({ open, shut })
+  useEffect(() => {
+    acts.current = { open, shut }
+  })
+  const on = guide !== null && guide.shown && guide.step === 0
+  const demo = guide?.demo
+  useEffect(() => {
+    if (!on || demo === undefined) return undefined
+    let opened = false
+    const listener = demo.addListener(({ value }) => {
+      const want = value >= PULL && value < LET_GO
+      if (want === opened) return
+      opened = want
+      if (want) acts.current.open()
+      else acts.current.shut()
+    })
+    return () => {
+      demo.removeListener(listener)
+      acts.current.shut()
+    }
+  }, [on, demo])
+}
+
 /** The cover a flick up lifts a little, the way the real pull begins. */
 export function riseWith(guide: GuideHandle, distance: number): object {
   return {
@@ -88,13 +122,17 @@ export function riseWith(guide: GuideHandle, distance: number): object {
   }
 }
 
+/** When in a round a swipe's hand starts pulling, and when it lets go. */
+const PULL = 0.2
+const LET_GO = 0.6
+
 const frames = {
   move: (d: number) => ({
     inputRange: [0, 0.28, 0.48, 0.62, 0.8, 1],
     outputRange: [0, 0, d, d, 0, 0],
   }),
   slide: (d: number) => ({
-    inputRange: [0, 0.2, 0.46, 0.6, 0.8, 1],
+    inputRange: [0, PULL, 0.46, LET_GO, 0.8, 1],
     outputRange: [0, 0, d, d, 0, 0],
   }),
   press: { inputRange: [0, 0.08, 0.16, 0.78, 0.86, 1], outputRange: [1, 1, 0.88, 0.88, 1, 1] },
@@ -257,7 +295,7 @@ function Gesture({
   pointer: boolean
 }): ReactNode {
   const d = step.distance ?? 56
-  const size = pointer ? POINTER : HAND
+  const size = pointer ? POINTER : TOUCH
   const tip = pointer ? POINTER_TIP : TIP
 
   if (step.gesture === 'drag-to') {
@@ -294,7 +332,7 @@ function Gesture({
           <Music size={14} color={INK} />
           <View style={styles.ghostLine} />
         </View>
-        <View style={styles.ghostHand}>{pointer ? <PointerShape /> : <HandShape />}</View>
+        <View style={styles.ghostHand}>{pointer ? <PointerShape /> : <TouchShape />}</View>
       </Animated.View>
     )
   }
@@ -325,6 +363,11 @@ function Gesture({
   const ring = step.gesture === 'tap' ? frames.tapRing : frames.ring
   return (
     <>
+      {pointer ? null : step.gesture === 'swipe-left' ? (
+        <Streak spot={spot} length={d} demo={demo} across />
+      ) : step.gesture === 'swipe-up' ? (
+        <Streak spot={spot} length={d} demo={demo} across={false} />
+      ) : null}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -349,7 +392,7 @@ function Gesture({
           transform: [...motionStyle, { scale: press }],
         }}
       >
-        {pointer ? <PointerShape /> : <HandShape />}
+        {pointer ? <PointerShape /> : <TouchShape />}
       </Animated.View>
     </>
   )
@@ -357,17 +400,69 @@ function Gesture({
 
 const RING = 34
 
-/** A pointing hand, its fingertip touching: drawn on the 24 grid like the app's icons. */
-function HandShape(): ReactNode {
+/** A finger on the glass: a pale disc with a bright rim. */
+function TouchShape(): ReactNode {
+  return <View style={styles.touch} />
+}
+
+/**
+ * Where a swipe has been: a streak from the spot to the touch, brightest at
+ * the touch, growing with it and fading once it lets go. `across` for a swipe
+ * left; otherwise a flick up.
+ */
+function Streak({
+  spot,
+  length,
+  demo,
+  across,
+}: {
+  spot: { x: number; y: number }
+  length: number
+  demo: Animated.Value
+  across: boolean
+}): ReactNode {
+  const id = useSvgId('streak')
+  // When in the round it starts, is longest, and is gone: the gesture's own frames.
+  const at = across
+    ? { start: PULL, full: 0.46, gone: LET_GO }
+    : { start: 0.16, full: 0.46, gone: 0.56 }
+  // Never quite 0: a transform scaled to nothing cannot be inverted on iOS.
+  const grown = demo.interpolate({
+    inputRange: [0, at.start, at.full, at.gone + 0.04, at.gone + 0.05, 1],
+    outputRange: [0.001, 0.001, 1, 1, 0.001, 0.001],
+  })
+  // Scaled about its middle, then moved so the end at the spot stays put.
+  const keep = Animated.multiply(Animated.add(1, Animated.multiply(grown, -1)), length / 2)
+  const seen = demo.interpolate({
+    inputRange: [0, at.start, at.start + 0.03, at.full, at.gone, 1],
+    outputRange: [0, 0, 1, 1, 0, 0],
+  })
   return (
-    <Svg width={HAND} height={HAND} viewBox="0 0 24 24">
-      <Path
-        fill={INK}
-        stroke="#0b0d12"
-        strokeWidth={0.5}
-        d="M9 11.24V7.5C9 6.12 10.12 5 11.5 5S14 6.12 14 7.5v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zm9.84 4.63l-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6c0-.83-.67-1.5-1.5-1.5S10 6.67 10 7.5v10.74l-3.43-.72c-.08-.01-.15-.03-.24-.03-.31 0-.59.13-.79.33l-.79.8 4.94 4.94c.27.27.65.44 1.06.44h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27c.01-.07.02-.14.02-.2 0-.62-.38-1.16-.91-1.38z"
-      />
-    </Svg>
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        across
+          ? { left: spot.x - length, top: spot.y - STREAK / 2, width: length, height: STREAK }
+          : { left: spot.x - STREAK / 2, top: spot.y - length, width: STREAK, height: length },
+        styles.streak,
+        {
+          opacity: seen,
+          transform: across
+            ? [{ translateX: keep }, { scaleX: grown }]
+            : [{ translateY: keep }, { scaleY: grown }],
+        },
+      ]}
+    >
+      <Svg width="100%" height="100%" viewBox="0 0 1 1" preserveAspectRatio="none">
+        <Defs>
+          <LinearGradient id={id} x1="0" y1="0" x2={across ? '1' : '0'} y2={across ? '0' : '1'}>
+            <Stop offset="0" stopColor={INK} stopOpacity={0} />
+            <Stop offset="1" stopColor={INK} stopOpacity={0.5} />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="1" height="1" fill={`url(#${id})`} />
+      </Svg>
+    </Animated.View>
   )
 }
 
@@ -402,10 +497,11 @@ const styles = StyleSheet.create({
     borderColor: INK,
   },
   carry: { position: 'absolute', flexDirection: 'row', alignItems: 'flex-start' },
+  // Under the touch's middle, its music note just left of it.
   ghost: {
     position: 'absolute',
-    left: -18,
-    top: -14,
+    left: -11,
+    top: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -416,4 +512,14 @@ const styles = StyleSheet.create({
   },
   ghostLine: { width: 72, height: 6, borderRadius: 3, backgroundColor: 'rgba(255, 255, 255, 0.5)' },
   ghostHand: { position: 'absolute', left: 0, top: 0 },
+  touch: {
+    width: TOUCH,
+    height: TOUCH,
+    borderRadius: TOUCH / 2,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: 'rgba(255, 255, 255, 0.42)',
+    boxShadow: '0 4px 14px rgba(0, 0, 0, 0.45)',
+  },
+  streak: { position: 'absolute', borderRadius: STREAK / 2, overflow: 'hidden' },
 })

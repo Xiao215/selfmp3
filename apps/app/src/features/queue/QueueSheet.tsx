@@ -56,7 +56,7 @@ import {
   type QueueRow,
 } from './queue.model'
 import { useQueueEdits } from './useQueueEdits'
-import { RoomList, TogetherButton } from '../room/RoomList'
+import { RoomList } from '../room/RoomList'
 import { useRoom } from '../room/room.store'
 import { ScrollView } from '../../ui/components/Scroll'
 
@@ -321,18 +321,20 @@ function SheetPanel({
         tags={tagsOf(entry.song)}
         hideTagIds={fromTags}
         actions={actions}
+        // The swipe guide pulls this row off its ground, so the red Remove
+        // shows from the right as it does under a finger.
+        peek={
+          movable && entry.index === first && guide.shown && guide.step === 0
+            ? slideWith(guide, 110)
+            : null
+        }
       />
     )
     if (!movable || entry.index !== first) return sheetRow
     return (
-      <Animated.View
-        key={entry.song.id}
-        ref={firstTarget}
-        collapsable={false}
-        style={guide.shown && guide.step === 0 ? slideWith(guide, 110) : null}
-      >
+      <View key={entry.song.id} ref={firstTarget} collapsable={false}>
         {sheetRow}
-      </Animated.View>
+      </View>
     )
   }
 
@@ -412,14 +414,7 @@ function SheetPanel({
                 </View>
               </View>
             )}
-            {inRoom ? null : (
-              <View style={styles.sourceRow}>
-                <View style={styles.source}>
-                  <UpNextSource onOpen={closeQueueSheet} go={go} />
-                </View>
-                <TogetherButton labelled />
-              </View>
-            )}
+            {inRoom ? null : <UpNextSource onOpen={closeQueueSheet} go={go} />}
           </View>
         </GestureDetector>
 
@@ -519,6 +514,7 @@ const SheetRow = memo(function SheetRow({
   tags,
   hideTagIds,
   actions,
+  peek,
 }: {
   song: Song
   index: number
@@ -542,6 +538,8 @@ const SheetRow = memo(function SheetRow({
   /** The tags Up next is playing from, whose chips are left off. */
   hideTagIds: readonly number[]
   actions: SheetRowActions
+  /** The swipe guide's pull, over the ground (`slideWith`). */
+  peek: object | null
 }): ReactNode {
   const onHolding = useCallback(
     (holding: boolean) => actions.holding(song.id, holding),
@@ -573,7 +571,7 @@ const SheetRow = memo(function SheetRow({
             : null
       }
     >
-      <SwipeToRemove enabled={!carrying} onRemove={onRemove}>
+      <SwipeToRemove enabled={!carrying} onRemove={onRemove} peek={peek}>
         <HoldToReorder
           enabled={movable}
           onHolding={onHolding}
@@ -714,10 +712,13 @@ function PlayingLine({ artist }: { artist: string }): ReactNode {
 function SwipeToRemove({
   enabled,
   onRemove,
+  peek,
   children,
 }: {
   enabled: boolean
   onRemove: () => void
+  /** The guide pulling the row, the way a finger would: the ground stays put. */
+  peek: object | null
   children: ReactNode
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -804,8 +805,10 @@ function SwipeToRemove({
           <X size={16} color={theme.colors.textPrimary} />
           <Text style={styles.groundText}>Remove</Text>
         </View>
-        <Animated.View style={[styles.swipeRow, { transform: [{ translateX: x }] }]}>
-          {children}
+        {/* The finger's pull outside, the guide's inside; only the inner one is
+            opaque, so either uncovers the ground. */}
+        <Animated.View style={{ transform: [{ translateX: x }] }}>
+          <Animated.View style={[styles.swipeRow, peek]}>{children}</Animated.View>
         </Animated.View>
       </View>
     </GestureDetector>
@@ -848,8 +851,6 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface3,
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sourceRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  source: { flex: 1, minWidth: 0 },
   title: {
     color: theme.colors.textPrimary,
     fontFamily: fonts.display,

@@ -170,8 +170,8 @@ export function RoomScreen(): ReactNode {
             You are not in a room
           </Text>
           <Text style={styles.text}>
-            A room is Up next, shared: open one from Together in Up next, or join with a friend’s
-            code.
+            A room is Up next, shared: open one with Listen together beside the song playing, or
+            join with a friend’s code.
           </Text>
           {status === 'ready' ? <Button label="Home" onPress={() => router.replace('/')} /> : null}
         </View>

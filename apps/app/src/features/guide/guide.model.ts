@@ -20,6 +20,8 @@ export type GuideName =
   | 'tag-hold'
   | 'import-review'
   | 'import-box'
+  /** Not a guide but kept as one: Home's Listen together card (`TogetherCard`). */
+  | 'together-card'
 
 /**
  * What the device keeps: the names seen, comma-separated. `*` stands for all

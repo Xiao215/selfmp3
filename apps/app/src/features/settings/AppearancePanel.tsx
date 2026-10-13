@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { View } from 'react-native'
+import type { View } from 'react-native'
 import { useUnistyles } from 'react-native-unistyles'
 import { buildAccent } from '@selfmp3/client'
 import { ACCENT_PRESETS, useAccent } from '../../ui/accent'

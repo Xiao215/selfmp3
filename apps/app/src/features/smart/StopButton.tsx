@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
-import { Pressable } from 'react-native'
-import { StyleSheet } from 'react-native-unistyles'
+import { IconButton } from '../../ui/components/IconButton'
 import { Stop } from '../../ui/components/Icons'
 
 /**
@@ -18,28 +17,8 @@ export function StopButton({
   testID?: string
 }): ReactNode {
   return (
-    <Pressable
-      onPress={onPress}
-      hitSlop={8}
-      accessibilityRole="button"
-      accessibilityLabel="Stop"
-      style={({ pressed }) => [
-        styles.button,
-        { width: size, height: size, borderRadius: size / 2 },
-        pressed && styles.pressed,
-      ]}
-      testID={testID}
-    >
+    <IconButton label="Stop" filled="primary" size={size} onPress={onPress} testID={testID}>
       <Stop size={Math.round(size * 0.62)} tone="onPrimary" />
-    </Pressable>
+    </IconButton>
   )
 }
-
-const styles = StyleSheet.create(theme => ({
-  button: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.textPrimary,
-  },
-  pressed: { opacity: 0.6 },
-}))

@@ -6,6 +6,7 @@ import { plural } from '@selfmp3/shared'
 import type { Playlist, Tag } from '@selfmp3/shared'
 import { radius, space, type, useStopFollowing, useUpdatePlaylist } from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
+import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { Plus } from '../../ui/components/Icons'
 import { ListenTags } from '../../ui/components/ListenTags'
@@ -88,26 +89,20 @@ export function FollowsRow({
 
       <View style={styles.spacer} />
 
-      <Pressable
+      <Button
+        size="small"
+        variant="text"
+        label={stop.isPending ? 'Stopping…' : 'Stop filling'}
+        accessibilityLabel="Stop filling from these tags, keeping every song"
+        busy={stop.isPending}
         onPress={() => {
           stop.mutate(playlist.id, {
             onSuccess: () =>
               showToast(`“${playlist.name}” keeps its songs and stops adding more`, 'good'),
           })
         }}
-        disabled={stop.isPending}
-        accessibilityRole="button"
-        accessibilityLabel="Stop filling from these tags, keeping every song"
-        style={({ pressed }) => [
-          styles.stop,
-          pressed && { backgroundColor: theme.colors.surface2 },
-        ]}
         testID="stop-following"
-      >
-        <Text style={[styles.stopLabel, stop.isPending && { color: theme.colors.textMuted }]}>
-          {stop.isPending ? 'Stopping…' : 'Stop filling'}
-        </Text>
-      </Pressable>
+      />
 
       {choosing ? (
         <View style={styles.panel}>
@@ -151,7 +146,6 @@ const styles = StyleSheet.create(theme => ({
     borderColor: theme.colors.borderStrong,
   },
   addLabel: { color: theme.colors.textMuted, fontSize: type.tiny },
-  stop: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill },
   stopLabel: { color: theme.colors.textSecondary, fontSize: type.small },
   panel: { width: '100%' },
 }))

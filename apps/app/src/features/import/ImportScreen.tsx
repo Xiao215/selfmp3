@@ -698,17 +698,15 @@ function FoldAction({
   testID?: string
 }): ReactNode {
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
+    <Button
+      size="small"
+      variant="text"
+      label={label}
       accessibilityLabel={accessibilityLabel}
-      accessibilityState={expanded === undefined ? undefined : { expanded }}
-      hitSlop={{ top: 8, bottom: 8 }}
-      style={({ pressed }) => [styles.foldAction, pressed && styles.pressed]}
+      expanded={expanded}
+      onPress={onPress}
       testID={testID}
-    >
-      <Text style={styles.foldActionText}>{label}</Text>
-    </Pressable>
+    />
   )
 }
 
@@ -1064,8 +1062,6 @@ const styles = StyleSheet.create(theme => ({
   jobs: { gap: 6 },
   groupApart: { marginTop: 12 },
   groupActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },
-  foldAction: { alignSelf: 'flex-start', paddingVertical: 4 },
-  foldActionText: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '600' },
   job: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 62 },
   jobMeta: { flex: 1, minWidth: 0, gap: 3 },
   jobTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },

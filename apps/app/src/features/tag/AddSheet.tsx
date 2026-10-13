@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
-import { Pressable, Text, useWindowDimensions, View } from 'react-native'
+import { Text, useWindowDimensions, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { plural, libraryArtists } from '@selfmp3/shared'
 import { tagColors, type, useLibrary } from '@selfmp3/client'
 import { useRecentTagIds } from '../library/recentTags.store'
 import { songsById } from '../../ui/songsById'
 import { ArtistFace } from './ArtistFace'
-import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { Chip } from '../../ui/components/Chip'
@@ -68,7 +67,6 @@ function AddSheetBody({
   chosen: readonly Place[]
   onShow: (places: readonly Place[]) => void
 }): ReactNode {
-  const accent = useAccent()
   const window = useWindowDimensions()
   const { data: library } = useLibrary()
   const recentTagIds = useRecentTagIds()
@@ -142,9 +140,7 @@ function AddSheetBody({
           style={styles.search}
         />
         {draft.length > 0 ? (
-          <Pressable onPress={() => setDraft([])} accessibilityRole="button" hitSlop={8}>
-            <Text style={[styles.clear, { color: accent.accent }]}>Clear all</Text>
-          </Pressable>
+          <Button size="small" variant="text" label="Clear all" onPress={() => setDraft([])} />
         ) : null}
       </View>
 
@@ -220,7 +216,6 @@ const styles = StyleSheet.create(theme => ({
   body: { gap: 10, paddingBottom: 8 },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 },
   search: { flex: 1 },
-  clear: { fontSize: type.body, fontWeight: '600' },
   chosenRow: { flexGrow: 0 },
   chosen: { gap: 8, paddingHorizontal: 16 },
   segment: { paddingHorizontal: 16 },

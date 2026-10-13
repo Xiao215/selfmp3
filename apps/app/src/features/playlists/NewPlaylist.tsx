@@ -18,6 +18,7 @@ import {
 import { ServerAway } from '../../connection/ServerAway'
 import { TextField } from '../../ui/components/TextField'
 import { Button } from '../../ui/components/Button'
+import { StatusLine } from '../../ui/components/StatusLine'
 import { Chip } from '../../ui/components/Chip'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { ListMusic, Sparkle, Tag as TagIcon } from '../../ui/components/Icons'
@@ -29,6 +30,7 @@ import { SongsAnswer } from '../smart/SongsAnswer'
 import { useSmartServer } from '../smart/useSmartServer'
 import { newPlaylist } from './playlists.model'
 import { ScrollView } from '../../ui/components/Scroll'
+import { AnswerActions } from '../smart/AnswerParts'
 
 /** Where the sheet is: the kind first, then what the kind needs, then the name. */
 type Step = 'kind' | 'tags' | 'describe' | 'name'
@@ -306,12 +308,12 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
         {describe.error && server.reach.state !== 'reachable' ? (
           <ServerAway reach={server.reach} need="ai" testID="new-playlist-server" />
         ) : describe.error ? (
-          <Text style={styles.error}>{failureText('Couldn’t pick songs', describe.error)}</Text>
+          <StatusLine>{failureText('Couldn’t pick songs', describe.error)}</StatusLine>
         ) : null}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <StatusLine>{error}</StatusLine> : null}
 
         {answer ? null : (
-          <View style={styles.actions}>
+          <AnswerActions>
             {step === 'kind' ? (
               <Button label="Cancel" onPress={cancel} />
             ) : (
@@ -343,7 +345,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
                 testID="new-playlist-next"
               />
             ) : null}
-          </View>
+          </AnswerActions>
         )}
       </View>
     </Sheet>
@@ -400,7 +402,6 @@ const styles = StyleSheet.create(theme => ({
     flexShrink: 1,
     paddingHorizontal: 4,
   },
-  error: { color: theme.colors.danger, fontSize: type.small },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -420,10 +421,4 @@ const styles = StyleSheet.create(theme => ({
   optionText: { flex: 1, minWidth: 0 },
   optionTitle: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
   optionSub: { color: theme.colors.textMuted, fontSize: type.small },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: space.sm,
-    marginTop: space.xs,
-  },
 }))

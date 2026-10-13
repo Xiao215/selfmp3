@@ -256,14 +256,7 @@ export function ImportReview({
             />
           </View>
           {wide ? (
-            <Pressable
-              onPress={() => leave({ imported: false })}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel"
-              style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}
-            >
-              <Text style={styles.cancelText}>Cancel</Text>
-            </Pressable>
+            <Button label="Cancel" variant="text" onPress={() => leave({ imported: false })} />
           ) : null}
           {importButton}
         </View>
@@ -293,7 +286,6 @@ const styles = StyleSheet.create(theme => ({
   ground: { flexGrow: 1 },
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   scroll: { flex: 1 },
-  pressed: { opacity: 0.6 },
   // As Import's head: the button, the words under it on the left, room above and below.
   headPhone: { ...pageFrame(false), paddingBottom: 14 },
   count: { color: theme.colors.textSecondary, fontSize: type.sub, fontVariant: ['tabular-nums'] },
@@ -330,6 +322,4 @@ const styles = StyleSheet.create(theme => ({
   footColumn: { gap: 10 },
   footRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   tagsWide: { flex: 1, minWidth: 0 },
-  cancel: { paddingHorizontal: 8, paddingVertical: 8 },
-  cancelText: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '600' },
 }))

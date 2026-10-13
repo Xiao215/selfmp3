@@ -8,6 +8,7 @@ import { useAccent } from '../../ui/accent'
 import { ChevronRight, Sparkle } from '../../ui/components/Icons'
 import { useArrival, useFade } from '../../ui/motion'
 import { StopButton } from './StopButton'
+import { IconButton } from '../../ui/components/IconButton'
 import { changeAnswer, showAnswerStep, useKeptAnswer } from './answers.store'
 import { newTicket, useAskProgress } from './useAskProgress'
 import { useSmartServer } from './useSmartServer'
@@ -226,20 +227,15 @@ export function ChangeField({
           style={[styles.input, large && styles.inputLarge]}
         />
         <Animated.View style={sendStyle} pointerEvents={value.trim() ? 'auto' : 'none'}>
-          <Pressable
+          <IconButton
+            label={sendLabel}
+            filled="accent"
+            size={large ? 36 : 28}
             onPress={onSend}
-            accessibilityRole="button"
-            accessibilityLabel={sendLabel}
-            style={({ pressed }) => [
-              styles.send,
-              large && styles.sendLarge,
-              { backgroundColor: accent.accent },
-              pressed && styles.pressed,
-            ]}
             testID={`${testID}-send`}
           >
             <ChevronRight size={14} color={theme.colors.onPrimary} />
-          </Pressable>
+          </IconButton>
         </Animated.View>
       </Animated.View>
       <Animated.View
@@ -334,7 +330,6 @@ const styles = StyleSheet.create(theme => ({
     borderColor: theme.colors.surface3,
   },
   inputLarge: { fontSize: type.body },
-  sendLarge: { width: 36, height: 36 },
   fieldWorking: { backgroundColor: theme.colors.surface2, borderColor: theme.colors.surface2 },
   layer: {
     position: 'absolute',
@@ -357,13 +352,6 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textPrimary,
     fontSize: type.body,
     paddingVertical: 8,
-  },
-  send: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   doing: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '500', flexShrink: 0 },
   words: { color: theme.colors.textMuted, fontSize: type.sub, flexShrink: 1 },

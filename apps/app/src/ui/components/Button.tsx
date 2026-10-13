@@ -6,7 +6,7 @@ import { useLayoutValue } from '../../shell/useLayout'
 import { useMinimumBusy, usePresence } from '../motion'
 import { tip } from '../tip'
 import { Press } from './Press'
-import { HIT_TARGET, motion, radius, type } from '@selfmp3/client'
+import { HIT_TARGET, motion, radius, type, withAlpha } from '@selfmp3/client'
 
 /**
  * A button, in one of the design's shapes and no others (docs/ui-mock `S2`,
@@ -22,9 +22,13 @@ import { HIT_TARGET, motion, radius, type } from '@selfmp3/client'
  * The fourth shape, the round white Play, is `PlayButton` below; a page has at
  * most one.
  *
- * 44 high with a finger, 36 where there is a mouse (`useLayoutValue`, `dense`). An
- * icon goes before the label; with no label at all it is round. Everything
- * sinks to 0.96 on the spring while pressed.
+ * 44 high with a finger, 36 where there is a mouse (`useLayoutValue`, `dense`).
+ * `size="small"` is the quiet one in a line of words: 28 high, its label a
+ * size down — Import's "Show 4 more", the tag sheet's "Clear all", Now
+ * Playing's Stop. `ground="translucent"` gives a pill a veil of the ink
+ * rather than a surface, for a pill over a song-coloured page, where a solid
+ * one reads as a dark box. An icon goes before the label; with no label at
+ * all it is round. Everything sinks to 0.96 on the spring while pressed.
  *
  * Busy, the spinner crossfades with the icon over `motion.fast` rather than
  * cutting it out, and once shown it stays for at least `MOVE_MS.busyHold`
@@ -41,6 +45,9 @@ export function Button({
   busy = false,
   grow = false,
   active = false,
+  size = 'regular',
+  ground = 'solid',
+  expanded,
   accessibilityLabel,
 }: {
   testID?: string
@@ -54,10 +61,17 @@ export function Button({
   grow?: boolean
   /** On: white, as a chosen chip is, for a button that toggles a mode. */
   active?: boolean
+  /** The quiet one in a line of words: 28 high, a size down. */
+  size?: 'regular' | 'small'
+  /** A veil of the ink instead of the control surface, over a song's colour. */
+  ground?: 'solid' | 'translucent'
+  /** For a button that shows or hides more: whether it is showing it. */
+  expanded?: boolean
   /** What a screen reader says when there is no label, or a fuller one: a square icon button. */
   accessibilityLabel?: string
 }): ReactNode {
   const dense = useLayoutValue(layout => layout.dense)
+  const small = size === 'small'
   // What the button *does* follows `busy`; what it *shows* follows the held
   // spinner, so the extra moment a spinner is kept never blocks a second press.
   const inactive = disabled || busy
@@ -93,20 +107,26 @@ export function Button({
       accessibilityLabel={accessibilityLabel ?? label}
       // An icon-only button has nothing on it to read; one with a label has said it.
       {...tip(label === undefined ? accessibilityLabel : undefined)}
-      accessibilityState={{ disabled: inactive, selected: active }}
+      accessibilityState={{ disabled: inactive, selected: active, expanded }}
+      hitSlop={small ? { top: 8, bottom: 8 } : undefined}
       style={({ pressed }) => [
         styles.button,
         dense && styles.buttonDense,
-        label === undefined && (dense ? styles.squareDense : styles.square),
+        small && styles.small,
+        label === undefined &&
+          (small ? styles.squareSmall : dense ? styles.squareDense : styles.square),
         grow && styles.grow,
+        ground === 'translucent' && styles.translucent,
         variant === 'primary' && styles.primary,
-        variant === 'text' && styles.text,
+        variant === 'text' && (small ? styles.textSmall : styles.text),
         active && styles.active,
-        pressed && !inactive && styles.pressed,
+        pressed &&
+          !inactive &&
+          (ground === 'translucent' ? styles.translucentPressed : styles.pressed),
         inactive && styles.disabled,
       ]}
     >
-      <View style={styles.content}>
+      <View style={[styles.content, small && styles.contentSmall]}>
         {/* Busy takes the icon's place and leaves the label, so a button can
           say what it is doing — "Removing…" — while it spins. With no label
           there is nothing to say and the spinner is the whole button.
@@ -124,7 +144,7 @@ export function Button({
           </View>
         ) : null}
         {label !== undefined ? (
-          <Text style={[styles.label, ink]} numberOfLines={1}>
+          <Text style={[styles.label, small && styles.labelSmall, ink]} numberOfLines={1}>
             {label}
           </Text>
         ) : null}
@@ -215,6 +235,13 @@ const styles = StyleSheet.create(theme => ({
     width: 36,
     paddingHorizontal: 0,
   },
+  small: { minHeight: 28, paddingHorizontal: 10 },
+  squareSmall: { width: 28, paddingHorizontal: 0 },
+  textSmall: { backgroundColor: 'transparent', paddingHorizontal: 4 },
+  contentSmall: { gap: 4 },
+  labelSmall: { fontSize: type.small },
+  translucent: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.08) },
+  translucentPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.14) },
   text: {
     backgroundColor: 'transparent',
     paddingHorizontal: 8,

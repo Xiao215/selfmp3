@@ -16,6 +16,7 @@ import type { AnswerKeys } from './answerKeys'
 import { keptSongs, leftOutKey, reviewBands, tickedAtFirst, type Reviewed } from './smart.model'
 import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
+import { AnswerActions, AnswerNote } from './AnswerParts'
 
 /**
  * The steps the list is drawn in. A band's tick, then its title, note and
@@ -423,14 +424,12 @@ export function Review<T extends Reviewed>({
     <View style={styles.body} testID={`${testID}-review`}>
       <View style={styles.top}>
         <Text style={styles.head}>{head}</Text>
-        <Text style={styles.note}>
+        <AnswerNote>
           {approved.length === 0 ? 'Nothing ticked yet.' : tickedText(approved, leftOut)}
           {waiting ? ' The ✦ ones wait for you.' : ''}
-        </Text>
+        </AnswerNote>
         {(notes ?? []).map(note => (
-          <Text key={note} style={styles.note}>
-            {note}
-          </Text>
+          <AnswerNote key={note}>{note}</AnswerNote>
         ))}
       </View>
       <ScrollView
@@ -503,7 +502,7 @@ export function Review<T extends Reviewed>({
           )
         })}
       </ScrollView>
-      <View style={styles.actions}>
+      <AnswerActions>
         {onClose ? <Button label="Close" onPress={onClose} /> : null}
         <Button
           label={applyLabel(approved, leftOut)}
@@ -513,7 +512,7 @@ export function Review<T extends Reviewed>({
           onPress={() => void apply()}
           testID={`${testID}-apply`}
         />
-      </View>
+      </AnswerActions>
     </View>
   )
 }
@@ -572,8 +571,6 @@ export const reviewText = StyleSheet.create(theme => ({
   },
   arrow: { color: theme.colors.textMuted },
   meta: { color: theme.colors.textMuted, fontSize: type.small },
-  line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
-  note: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
   /** The model's own words about what was asked. */
   reply: { color: theme.colors.textPrimary, fontSize: type.body, lineHeight: leading.body },
 }))
@@ -582,7 +579,6 @@ const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm },
   top: { gap: 2 },
   head: { color: theme.colors.textPrimary, fontSize: type.title, fontWeight: '600' },
-  note: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
   list: { gap: space.sm },
   // Tints rather than surfaces: the palette is surface1 and the sheet surface2.
   band: {
@@ -657,6 +653,5 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.coverSm,
   },
   moreText: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '500' },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
   pressed: { opacity: 0.7 },
 }))

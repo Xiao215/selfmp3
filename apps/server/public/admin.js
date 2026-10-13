@@ -360,10 +360,17 @@ function waitingForGoogle(cloud) {
     ${cloud.lastError ? `<p class="notice error">${escape(cloud.lastError)}</p>` : ''}`
 }
 
+/** `@selfmp3/shared`'s `bucketPlace`, held to it by admin.format.test.ts. */
+function bucketPlace(target) {
+  return {
+    host: target.endpoint.replace(/^https?:\/\//, ''),
+    folder: target.prefix ? `${target.bucket}/${target.prefix}` : target.bucket,
+  }
+}
+
 function connected(cloud) {
   const target = cloud.target
-  const host = target ? target.endpoint.replace(/^https?:\/\//, '') : ''
-  const folder = target ? (target.prefix ? `${target.bucket}/${target.prefix}` : target.bucket) : ''
+  const { host, folder } = target ? bucketPlace(target) : { host: '', folder: '' }
   const syncing = cloud.state === 'syncing'
   const progress = cloud.progress
 

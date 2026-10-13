@@ -1,12 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { AUDIO_EXTENSIONS, LYRIC_EXTENSIONS } from '@selfmp3/shared'
+import { messageOf, AUDIO_EXTENSIONS, LYRIC_EXTENSIONS } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { SettingsRepository } from '../repositories/settings.js'
 import type { ScannerService } from './scanner.js'
 import { debounce, type Debounced } from './debounce.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * Watch the library folder and rescan when something changes.

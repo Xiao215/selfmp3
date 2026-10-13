@@ -2,9 +2,9 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
+import { messageOf } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * Disk cache for things derived from lyrics: today, romanization.

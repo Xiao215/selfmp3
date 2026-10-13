@@ -1,4 +1,5 @@
 import type { BulkDeleteFailure, Song } from '@selfmp3/shared'
+import { messageOf } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
 import type { CloudRepository } from '../repositories/cloud.js'
@@ -10,7 +11,6 @@ import type { LyricsCache } from './lyricsCache.js'
 import type { MotionStore } from './motionStore.js'
 import type { LyricsIndexService } from './lyricsIndex.js'
 import { removeFolderIfEmpty } from './libraryLayout.js'
-import { messageOf } from '../util/errors.js'
 
 /** What became of a request to remove some songs. */
 interface RemovalResult {

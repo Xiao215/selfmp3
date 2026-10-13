@@ -129,3 +129,13 @@ export function answerRange({
         headers: { ...common, 'Content-Length': String(length) },
       }
 }
+
+/**
+ * A file's ETag from its size and modification time: a new file under the
+ * same name is a new tag. The one formula for every file a server or the
+ * desktop shell sends — the audio, a stored image, the sync manifest's
+ * entries — so a tag one of them hands out is the tag the other would.
+ */
+export function fileEtag(sizeBytes: number, mtimeMs: number): string {
+  return `"${sizeBytes.toString(16)}-${Math.floor(mtimeMs).toString(16)}"`
+}

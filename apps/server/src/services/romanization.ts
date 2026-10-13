@@ -1,4 +1,5 @@
 import {
+  messageOf,
   detectLyricsLanguage,
   parseLyrics,
   planRomanization,
@@ -6,7 +7,6 @@ import {
   type RomanizedLyrics,
 } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * Romanization, fully offline.

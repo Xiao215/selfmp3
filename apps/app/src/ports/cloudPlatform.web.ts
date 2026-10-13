@@ -1,3 +1,4 @@
+import { decodeBucketText } from '@selfmp3/shared'
 import type { CloudPlatform, DeviceStore, TextCache } from '@selfmp3/replica'
 import { CLOUD_FILES_CACHE, PLAYED_CACHE } from '../../sw/names'
 import { appPath } from './appPath'
@@ -121,19 +122,7 @@ export const cloudPlatform: CloudPlatform = {
     })
   },
 
-  /**
-   * Snapshots are stored gzip-compressed. The browser undoes that itself when
-   * the doorman passes the encoding on, and this does it when it does not.
-   */
-  decodeText: async bytes => {
-    if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
-      // A copy, because a Uint8Array may be backed by a SharedArrayBuffer,
-      // which BlobPart does not accept.
-      const stream = new Blob([bytes.slice()]).stream().pipeThrough(new DecompressionStream('gzip'))
-      return new Response(stream).text()
-    }
-    return new TextDecoder().decode(bytes)
-  },
+  decodeText: decodeBucketText,
 
   textCache,
   warn: message => console.warn(`self.mp3: ${message}`),

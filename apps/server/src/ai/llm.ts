@@ -1,6 +1,6 @@
 import { z } from 'zod/v4'
+import { messageOf } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
-import { messageOf } from '../util/errors.js'
 import { sha256 } from '../util/hash.js'
 
 /**

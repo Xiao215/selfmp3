@@ -4,9 +4,9 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import { AUDIO_EXTENSIONS } from '@selfmp3/shared'
+import { fileEtag, AUDIO_EXTENSIONS } from '@selfmp3/shared'
 import type { RangeSource } from '../http/range.js'
-import { fileEtag, normalizeKey, type StorageDriver, type StorageStat } from './driver.js'
+import { normalizeKey, type StorageDriver, type StorageStat } from './driver.js'
 
 const AUDIO_EXTENSION_SET = new Set<string>(AUDIO_EXTENSIONS)
 

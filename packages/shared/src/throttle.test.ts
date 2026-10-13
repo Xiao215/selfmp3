@@ -64,4 +64,24 @@ describe('createThrottle', () => {
     throttle.request()
     expect(delivered).toBe(1)
   })
+
+  it('delivers a held-back request when flushed, and nothing when none was held', () => {
+    let now = 0
+    let delivered = 0
+    const throttle = createThrottle(
+      () => (delivered += 1),
+      250,
+      () => now,
+    )
+    throttle.flush()
+    expect(delivered).toBe(0)
+    throttle.request()
+    now = 100
+    throttle.request()
+    throttle.flush()
+    // The bytes since the last report were never sent, so the final one is.
+    expect(delivered).toBe(2)
+    throttle.flush()
+    expect(delivered).toBe(2)
+  })
 })

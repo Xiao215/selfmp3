@@ -1,5 +1,6 @@
 import { Readable } from 'node:stream'
 import {
+  messageOf,
   DoormanClaimResultSchema,
   CHANGES_HEADER,
   DoormanChangesSchema,
@@ -21,7 +22,6 @@ import {
   type CloudPutOptions,
   type CloudStore,
 } from './store.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * Talking to the doorman (docs/SYNC.md; the Worker is apps/doorman).

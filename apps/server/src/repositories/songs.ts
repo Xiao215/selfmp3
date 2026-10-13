@@ -1,8 +1,7 @@
-import type { CoverTone, Song, SongPatch } from '@selfmp3/shared'
+import { fileEtag, type CoverTone, type Song, type SongPatch } from '@selfmp3/shared'
 import type Database from 'better-sqlite3'
 import type { Db } from '../db/index.js'
 import { toSong, type SongRow } from '../db/rows.js'
-import { fileEtag } from '../storage/driver.js'
 
 /**
  * All SQL that touches the `songs` table lives here.

@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import fsp from 'node:fs/promises'
 import { constants as fsConstants } from 'node:fs'
 import {
+  youtubeWatchUrl,
   DAY_MS,
   cleanArtist,
   isNeteaseUrl,
@@ -292,7 +293,7 @@ export function toProbedTrack(json: YtDlpJson, fallbackUrl: string): ProbedTrack
     (json.url && /^https?:/.test(json.url)
       ? json.url
       : json.id
-        ? `https://www.youtube.com/watch?v=${json.id}`
+        ? youtubeWatchUrl(json.id)
         : fallbackUrl)
 
   // `track` and `artist` are the song's own when YouTube has music metadata.

@@ -1,4 +1,12 @@
-import { artistOr, DAY_MS, fromSqliteTime, mainArtist, type Song, type Tag } from '@selfmp3/shared'
+import {
+  artistOr,
+  DAY_MS,
+  formatDuration,
+  fromSqliteTime,
+  mainArtist,
+  type Song,
+  type Tag,
+} from '@selfmp3/shared'
 import { tally } from './text.js'
 
 /**
@@ -85,11 +93,6 @@ export function libraryShape(songs: readonly Song[], tags: readonly Tag[]): stri
   ].join('\n')
 }
 
-function minutes(seconds: number): string {
-  const s = Math.round(seconds)
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
-}
-
 function daysAgo(iso: string | null, now: number): string {
   if (!iso) return 'never played'
   const days = Math.floor((now - fromSqliteTime(iso)) / DAY_MS)
@@ -125,7 +128,7 @@ export function songTable(
           .join(', ') || 'no tags',
         features?.energy != null ? `energy ${features.energy.toFixed(2)}` : 'energy ?',
         features?.bpm != null ? `${Math.round(features.bpm)} bpm` : 'bpm ?',
-        minutes(song.duration),
+        formatDuration(song.duration),
         hasWords(song) ? 'words' : 'no words',
         `${song.playCount} plays, ${daysAgo(song.lastPlayedAt, now)}`,
         ...(extra ? [extra(song)] : []),

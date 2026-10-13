@@ -1,4 +1,5 @@
 import {
+  messageOf,
   isSynced,
   LYRIC_EXTENSIONS,
   neteaseLink,
@@ -11,7 +12,6 @@ import { USER_AGENT } from '../config.js'
 import type { FetchLike } from './fetching.js'
 import type { YouTubeMusicLyrics } from './youtubeMusic.js'
 import type { NeteaseMusic } from './netease.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * Lyrics come from four places, in order of trust:

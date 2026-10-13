@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express'
+import { messageOf } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * One error type for the whole server.

@@ -1,4 +1,5 @@
 import {
+  messageOf,
   extractUrls,
   isNeteaseUrl,
   spotifyLink,
@@ -27,7 +28,6 @@ import type { NeteaseMusic, NeteaseTrack } from './netease.js'
 import type { SpotifyLists } from './spotify.js'
 import { parseTrackList, type ListedTrack } from './trackLists.js'
 import type { YouTubeMatcher } from './youtubeMatch.js'
-import { messageOf } from '../util/errors.js'
 
 type PreviewDeps = {
   ytdlp: Pick<YtDlpService, 'status' | 'probe'>

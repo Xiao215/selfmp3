@@ -1,9 +1,9 @@
 import type { ImportJob, ImportPreview } from '@selfmp3/shared'
+import { messageOf } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { ImportRequest, ImportRequestRepository } from '../repositories/importRequests.js'
 import type { ImportRepository } from '../repositories/imports.js'
 import type { SyncRepository } from '../repositories/sync.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * Links other devices asked this server to import (docs/SYNC.md).

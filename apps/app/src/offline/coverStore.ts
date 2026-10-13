@@ -1,5 +1,6 @@
 import { doormanAuth, doormanFileUrl, library, session as cloudSession } from '../replica'
 import { bucketHold } from '@selfmp3/replica'
+import { HASH_FILE_NAME, messageOf } from '@selfmp3/shared'
 import { createCoverChanges } from './coverChanges'
 
 /**
@@ -116,7 +117,7 @@ function nameFromKey(key: string): string {
 }
 
 /** A picture from the bucket, as it is kept: the hash its key is named by, and the extension. */
-const BUCKET_PICTURE = /^[0-9a-f]{64}\.[a-z0-9]{1,5}$/
+const BUCKET_PICTURE = new RegExp(`^${HASH_FILE_NAME}$`)
 
 /** A server's cover, named so that priming can read the song and revision back. */
 function servedName(songId: number, rev: string): string {
@@ -280,11 +281,7 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
       return uri
     } catch (error) {
       failedPictures.set(name, Date.now())
-      console.warn(
-        `self.mp3: could not fetch a picture (${name}): ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      )
+      console.warn(`self.mp3: could not fetch a picture (${name}): ${messageOf(error)}`)
       return null
     }
   }
@@ -396,11 +393,7 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
         // A missing cover is survivable — the letter tile is behind it — but it
         // should not be silent: swallowing this is what made an expo-file-system
         // mistake look like "the bucket has no artwork" for an hour.
-        console.warn(
-          `self.mp3: could not fetch a cover for song ${songId}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        )
+        console.warn(`self.mp3: could not fetch a cover for song ${songId}: ${messageOf(error)}`)
         return null
       }
     })()

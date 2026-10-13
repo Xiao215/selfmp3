@@ -9,6 +9,7 @@ import {
   type RoomMember,
   type RoomSong,
   type RoomState,
+  shuffleArray,
 } from '@selfmp3/shared'
 import { roomTrackId, roomTrackSong, yoursOf, type LibraryIndex } from '@selfmp3/client'
 import type { RoomTrack } from '../../player/roomTracks'
@@ -302,7 +303,7 @@ export function keepGoingPicks(
   const queues = [...byPerson.values()].map(list => {
     const heard = list.filter(pick => pick.near !== null)
     heard.sort((a, b) => (b.near ?? 0) - (a.near ?? 0))
-    const unheard = shuffled(
+    const unheard = shuffleArray(
       list.filter(pick => pick.near === null),
       random,
     )
@@ -325,19 +326,6 @@ export function keepGoingPicks(
 
 function keyOf(song: RoomSong): string {
   return song.audio?.key ?? song.link ?? song.title
-}
-
-function shuffled<T>(items: readonly T[], random: () => number): T[] {
-  const out = [...items]
-  for (let index = out.length - 1; index > 0; index--) {
-    const other = Math.floor(random() * (index + 1))
-    const held = out[index]
-    const swapped = out[other]
-    if (held === undefined || swapped === undefined) continue
-    out[index] = swapped
-    out[other] = held
-  }
-  return out
 }
 
 // --- after ----------------------------------------------------------------------

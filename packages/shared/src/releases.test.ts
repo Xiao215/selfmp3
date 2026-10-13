@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { isNewer, macInstallers, RELEASES_URL, versionFromTag } from './releases.js'
+import {
+  fetchLatestRelease,
+  isNewer,
+  macInstallers,
+  RELEASES_URL,
+  versionFromTag,
+} from './releases.js'
 
 /**
  * The release rules, without a network or an app.
@@ -78,5 +84,29 @@ describe('macInstallers', () => {
   it('answers null for a body that is not a release', () => {
     expect(macInstallers({ message: 'Not Found' })).toBeNull()
     expect(macInstallers(null)).toBeNull()
+  })
+})
+
+describe('fetchLatestRelease', () => {
+  const answering = (status: number, body: unknown = {}) =>
+    (() => Promise.resolve(new Response(JSON.stringify(body), { status }))) as typeof fetch
+
+  it('is null when there is no release yet, for the app and the browser alike', async () => {
+    await expect(fetchLatestRelease(answering(404, { message: 'Not Found' }))).resolves.toBeNull()
+  })
+
+  it('reads the release it is given', async () => {
+    const release = {
+      tag_name: 'desktop-v1.2.0',
+      html_url: `${RELEASES_URL}/tag/desktop-v1.2.0`,
+      assets: [],
+    }
+    await expect(fetchLatestRelease(answering(200, release))).resolves.toMatchObject({
+      version: '1.2.0',
+    })
+  })
+
+  it('throws anything else, for the asker to say', async () => {
+    await expect(fetchLatestRelease(answering(503))).rejects.toThrow('GitHub answered 503')
   })
 })

@@ -3,12 +3,12 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import sharp from 'sharp'
+import { messageOf } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
 import { readCapped } from './fetching.js'
 import { squareCover } from './squareCover.js'
-import { messageOf } from '../util/errors.js'
 
 /**
  * This server's copy of every cover, in `data/covers/<id>`.

@@ -1,4 +1,5 @@
 import {
+  localDayKey,
   toSqliteTime,
   type DailyPlays,
   type HourlyPlays,
@@ -323,7 +324,7 @@ export class StatsRepository {
     const { longest, last } = runs(dates)
     const lastDate = dates.at(-1)
     if (lastDate === undefined) return { current: 0, longest }
-    return { current: dayGap(lastDate, localDate(new Date())) <= 1 ? last : 0, longest }
+    return { current: dayGap(lastDate, localDayKey(new Date())) <= 1 ? last : 0, longest }
   }
 
   /** Recent plays, newest first. Powers the history list. */
@@ -341,13 +342,6 @@ export class StatsRepository {
   }
 }
 
-function localDate(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
 /** Insert zero rows for days with no plays, so charts show a continuous axis. */
 function zeroFill(rows: readonly DailyPlays[], days: number): DailyPlays[] {
   const byDate = new Map(rows.map(row => [row.date, row]))
@@ -356,7 +350,7 @@ function zeroFill(rows: readonly DailyPlays[], days: number): DailyPlays[] {
   for (let offset = days - 1; offset >= 0; offset--) {
     const day = new Date(today)
     day.setDate(day.getDate() - offset)
-    const key = localDate(day)
+    const key = localDayKey(day)
     out.push(byDate.get(key) ?? { date: key, plays: 0, minutes: 0 })
   }
   return out

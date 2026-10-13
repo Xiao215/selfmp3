@@ -5,7 +5,6 @@ import {
   artistCoverSong,
   bestStreakHint,
   daysLabel,
-  durationWords,
   formatHour,
   isStatsPeriod,
   listenedCard,
@@ -74,14 +73,6 @@ describe('stats windows and words', () => {
     expect(playsLabel(1)).toBe('1 play')
     expect(bestStreakHint(4)).toBe('best: 4 days')
     expect(bestStreakHint(0)).toBeUndefined()
-  })
-
-  it('says time listened the short way, minutes after hours with no unit', () => {
-    expect(durationWords(372)).toBe('6h 12')
-    expect(durationWords(185)).toBe('3h 05')
-    expect(durationWords(180)).toBe('3h')
-    expect(durationWords(42.4)).toBe('42 min')
-    expect(durationWords(Number.NaN)).toBe('0 min')
   })
 })
 

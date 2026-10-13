@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-import { formatBytes, formatRelative, newUid, plural } from '@selfmp3/shared'
+import { bucketPlace, formatBytes, formatRelative, newUid, plural } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 
 /**
@@ -110,5 +110,23 @@ describe('admin.js attemptId', () => {
       crypto,
     ) as () => string
     expect(attemptId()).toBe(newUid(fill))
+  })
+})
+
+describe('admin.js bucketPlace', () => {
+  it('agrees with @selfmp3/shared', () => {
+    const text = readFileSync(ADMIN_JS, 'utf8')
+    const start = text.indexOf('function bucketPlace(')
+    const end = text.indexOf('\n}\n', start)
+    if (start < 0 || end < start) throw new Error('admin.js has moved bucketPlace')
+    const place = new Function(`${text.slice(start, end + 2)}\nreturn bucketPlace`)() as (
+      target: Parameters<typeof bucketPlace>[0],
+    ) => ReturnType<typeof bucketPlace>
+    const targets = [
+      { endpoint: 'https://s3.us-west-004.backblazeb2.com', bucket: 'music', prefix: 'selfmp3' },
+      { endpoint: 'http://localhost:9000', bucket: 'music', prefix: '' },
+      { endpoint: 'r2.example.com', bucket: 'b', prefix: 'a/b' },
+    ]
+    for (const target of targets) expect(place(target)).toEqual(bucketPlace(target))
   })
 })

@@ -1,13 +1,7 @@
-import { plural, type Stats } from '@selfmp3/shared'
+import { formatListenTime, plural, type Stats } from '@selfmp3/shared'
 import { unreachableLabel } from '../library/library.model'
 import type { DevicePlace } from '../settings/settings.model'
-import {
-  durationWords,
-  formatHour,
-  peakHour,
-  peakHourWords,
-  REPORT_HINT,
-} from '../stats/stats.model'
+import { formatHour, peakHour, peakHourWords, REPORT_HINT } from '../stats/stats.model'
 
 /**
  * The Profile page, without the screen (`P31`): who you are and how big your
@@ -144,7 +138,7 @@ export function monthCard(stats: Stats | undefined): MonthCard | null {
 
 /** The time listened, split into the number and the word after it where there is one. */
 function listenedFigure(minutes: number): { listened: string; listenedUnit?: string } {
-  const whole = durationWords(minutes)
+  const whole = formatListenTime(minutes)
   const split = /^(\d+) (min)$/.exec(whole)
   return split ? { listened: split[1] ?? whole, listenedUnit: split[2] } : { listened: whole }
 }

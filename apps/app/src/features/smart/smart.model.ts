@@ -1,5 +1,5 @@
 import { ApiError } from '@selfmp3/client'
-import { plural, formatLongDuration } from '@selfmp3/shared'
+import { plural, formatLongDuration, messageOf } from '@selfmp3/shared'
 import type {
   AiCheck,
   AskAnswer,
@@ -300,7 +300,7 @@ export function serverHop(result: { ms: number } | { error: unknown }): Hop {
   return {
     ok: false,
     line: 'Your server answered with an error.',
-    detail: error instanceof Error ? error.message : String(error),
+    detail: messageOf(error),
   }
 }
 

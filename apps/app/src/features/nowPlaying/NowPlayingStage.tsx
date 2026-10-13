@@ -876,6 +876,7 @@ function Stage({
         song={menuOpen ? song : null}
         anchorRef={moreRef}
         onClose={() => setMenuOpen(false)}
+        context="nowPlaying"
       />
     </Animated.View>
   )

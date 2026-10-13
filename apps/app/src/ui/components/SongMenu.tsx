@@ -6,6 +6,7 @@ import { useRouter, type Href } from 'expo-router'
 import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
 import {
   isDownloaded,
+  isRoomTrackId,
   space,
   type,
   useAddToPlaylist,
@@ -49,12 +50,11 @@ import { TagPicker } from './TagPicker'
 import type { PopoverAnchor } from '../rightClick'
 
 /**
- * Opened from the phone's Now Playing, which shows the song's heart, tags and
- * ⓘ itself, and is playing it: the menu leaves those out, and Add to Up next,
- * and ends with a short "This player" group — the sleep timer and the
- * devices, which the page has no other door to.
+ * The phone's Now Playing ends its menu with a short "This player" group — the
+ * sleep timer and the devices — because the page has no other door to them. A
+ * computer has both on the player bar, so its stage passes none.
  */
-interface NowPlayingDoors {
+interface PlayerDoors {
   readonly onSleep: () => void
   readonly onDevices: () => void
 }
@@ -64,6 +64,14 @@ interface NowPlayingDoors {
  * items in the same order wherever a song is — a row's ⋯, a held row, a
  * right-click, Now Playing's ⋯ on a phone or a computer. People learn one
  * menu and find it everywhere.
+ *
+ * Opened on Now Playing (`context="nowPlaying"`), on a phone or a computer
+ * alike, it leaves out what that page already shows — the heart, the tags,
+ * Tags and Song details — and Add to Up next, since the song is playing.
+ *
+ * A friend's song in a room (`isRoomTrackId`) is not in your library: it
+ * cannot be liked, tagged, listed, kept, looked up or deleted, so the menu
+ * offers none of that, only the page's own doors when it has them.
  *
  * At phone width this is a row's only set of actions, so everything a row can
  * do has to be reachable from here, tagging included. The song heads it —
@@ -94,7 +102,8 @@ export function SongMenu({
   onClose,
   anchorRef,
   playlist,
-  nowPlaying,
+  context,
+  extras,
   onRemove,
   onOpen,
 }: {
@@ -110,7 +119,10 @@ export function SongMenu({
    * width the menu hangs off it; without one it is a sheet.
    */
   anchorRef?: RefObject<PopoverAnchor | null>
-  nowPlaying?: NowPlayingDoors
+  /** Opened on Now Playing, which shows the song's heart, tags and details itself. */
+  context?: 'nowPlaying'
+  /** The phone's Now Playing: its sleep timer and devices, last. */
+  extras?: PlayerDoors
   /**
    * Who asks about removing, when the question has to outlive the page the
    * menu is on: removing the song playing takes the phone's Now Playing away
@@ -137,7 +149,8 @@ export function SongMenu({
       onClose={onClose}
       playlist={playlist}
       anchorRef={anchorRef}
-      nowPlaying={nowPlaying}
+      onNowPlaying={context === 'nowPlaying'}
+      extras={extras}
       onOpen={onOpen}
       onTags={() => {
         setTagging(song.id)
@@ -183,7 +196,8 @@ function Items({
   onRemove,
   playlist,
   anchorRef,
-  nowPlaying,
+  onNowPlaying,
+  extras,
   onOpen,
 }: {
   song: Song
@@ -194,7 +208,8 @@ function Items({
   playlist?: { readonly id: number; readonly name: string }
   /** The ⋯ that opened the menu, where a song sent to Up next flies from. */
   anchorRef?: RefObject<PopoverAnchor | null>
-  nowPlaying?: NowPlayingDoors
+  onNowPlaying: boolean
+  extras?: PlayerDoors
   onOpen?: (href: Href) => void
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -222,6 +237,11 @@ function Items({
     .filter(Boolean)
     .join(' · ')
 
+  // A friend's song in a room: nothing the library does applies to it.
+  const yours = !isRoomTrackId(song.id)
+  // What the page it was opened on already shows, or what a room's song cannot have.
+  const showsOwn = onNowPlaying || !yours
+
   const then = (run: () => void) => (): void => {
     run()
     onClose()
@@ -240,7 +260,7 @@ function Items({
           <Text style={styles.byline} numberOfLines={1}>
             {byline}
           </Text>
-          {tags.length > 0 && !nowPlaying ? (
+          {tags.length > 0 && !showsOwn ? (
             <View style={styles.tags}>
               {tags.map(tag => (
                 <Chip
@@ -255,7 +275,7 @@ function Items({
             </View>
           ) : null}
         </View>
-        {nowPlaying ? null : (
+        {showsOwn ? null : (
           <IconButton
             label={song.loved ? 'Unlike' : 'Like'}
             active={song.loved}
@@ -272,16 +292,18 @@ function Items({
         )}
       </View>
 
-      {nowPlaying ? null : <SheetItem icon={icon(TagIcon)} label="Tags" onPress={onTags} />}
+      {showsOwn ? null : <SheetItem icon={icon(TagIcon)} label="Tags" onPress={onTags} />}
       {/* Opens in place rather than over the menu, so the song stays named above it. */}
-      <SheetItem
-        icon={icon(ListMusic)}
-        label="Add to playlist"
-        detail={playlistsOpen ? '⌄' : '›'}
-        active={playlistsOpen}
-        onPress={() => setPlaylistsOpen(open => !open)}
-      />
-      {playlistsOpen ? (
+      {yours ? (
+        <SheetItem
+          icon={icon(ListMusic)}
+          label="Add to playlist"
+          detail={playlistsOpen ? '⌄' : '›'}
+          active={playlistsOpen}
+          onPress={() => setPlaylistsOpen(open => !open)}
+        />
+      ) : null}
+      {yours && playlistsOpen ? (
         <View style={styles.nested}>
           {manualPlaylists.length === 0 ? (
             <Text style={styles.hint}>No playlists yet.</Text>
@@ -299,7 +321,7 @@ function Items({
         </View>
       ) : null}
       {/* The song playing is already in Up next. */}
-      {nowPlaying ? null : (
+      {showsOwn ? null : (
         <SheetItem
           icon={icon(QueueAdd)}
           label="Add to Up next"
@@ -310,13 +332,15 @@ function Items({
           }}
         />
       )}
-      <SheetItem
-        icon={icon(Sparkles)}
-        label="Play similar songs"
-        onPress={then(() => playSimilar(player, song))}
-      />
+      {yours ? (
+        <SheetItem
+          icon={icon(Sparkles)}
+          label="Play similar songs"
+          onPress={then(() => playSimilar(player, song))}
+        />
+      ) : null}
       {/* A browser streams; only an installed app keeps songs. */}
-      {!installed ? null : held ? (
+      {!installed || !yours ? null : held ? (
         <SheetItem
           icon={icon(CloudRemove)}
           label={`Remove from this ${devicePlace(deviceKind())}`}
@@ -330,7 +354,7 @@ function Items({
           onPress={then(() => requestDownload([song.id]))}
         />
       )}
-      {nowPlaying ? null : (
+      {showsOwn ? null : (
         <SheetItem
           icon={icon(Info)}
           label="Song details"
@@ -350,21 +374,25 @@ function Items({
           />
         </>
       ) : null}
-      {nowPlaying ? (
+      {extras ? (
         <>
           <Text style={styles.group}>This player</Text>
-          <SleepItem icon={icon(Moon)} onPress={then(nowPlaying.onSleep)} />
-          <SheetItem icon={icon(Devices)} label="Devices" onPress={then(nowPlaying.onDevices)} />
+          <SleepItem icon={icon(Moon)} onPress={then(extras.onSleep)} />
+          <SheetItem icon={icon(Devices)} label="Devices" onPress={then(extras.onDevices)} />
         </>
       ) : null}
 
-      <View style={styles.gap} />
-      <SheetItem
-        icon={<Trash size={16} color={theme.colors.danger} />}
-        label="Delete from library…"
-        danger
-        onPress={onRemove}
-      />
+      {yours ? (
+        <>
+          <View style={styles.gap} />
+          <SheetItem
+            icon={<Trash size={16} color={theme.colors.danger} />}
+            label="Delete from library…"
+            danger
+            onPress={onRemove}
+          />
+        </>
+      ) : null}
     </>
   )
 }

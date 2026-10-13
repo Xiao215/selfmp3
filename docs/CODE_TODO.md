@@ -635,7 +635,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 ### Bugs the duplication caused (fix with the merge that removes the copy)
 
 - [ ] **T-376** Computer Now Playing shows tags and "Edit tags" for a friend's room song (`NowPlayingStage` has no `isRoomTrackId`). → E
-- [ ] **T-377** Computer Now Playing's ⋯ menu offers Add to Up next, Like, Tags, Song details for the playing song (`nowPlaying` prop not passed); the song menu has no room-track guard on either layout. → E
+- [x] **T-377** Computer Now Playing's ⋯ menu offers Add to Up next, Like, Tags, Song details for the playing song (`nowPlaying` prop not passed); the song menu has no room-track guard on either layout. → E
+  - `SongMenu` takes `context="nowPlaying"` (trims on every layout) apart from `extras` (the phone's Sleep and Devices). A room's song gets none of the library's items — no Like, Tags, playlist, similar, Download, details or Delete — only the page's own doors.
 - [ ] **T-378** Removing the playing song on a computer unmounts the stage mid-request: the toast and errors are lost and the page sits on "Nothing playing". → E
 - [ ] **T-379** Computer Up next (`QueueRail`) has no "Clear the rest", no unavailable/offline marks, no tag chips, no "Played" end state; the phone sheet stops at 60 upcoming songs. → E
 - [ ] **T-380** The stall spinner (`busy`) is missing on phone Now Playing's Play (cover and words views), the queue sheet's card and the room card. → E

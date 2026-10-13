@@ -473,7 +473,8 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
       <SongMenu
         song={moreOpen ? song : null}
         onClose={() => setMoreOpen(false)}
-        nowPlaying={{ onSleep: () => setSleepOpen(true), onDevices: () => setDevicesOpen(true) }}
+        context="nowPlaying"
+        extras={{ onSleep: () => setSleepOpen(true), onDevices: () => setDevicesOpen(true) }}
         onRemove={onRemove}
         onOpen={href => leaveTo(router, href)}
       />

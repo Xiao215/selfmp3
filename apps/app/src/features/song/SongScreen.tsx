@@ -25,7 +25,7 @@ import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
 import { CoverLight } from '../../ui/components/CoverLight'
 import { IconButton } from '../../ui/components/IconButton'
-import { ChevronLeft, Heart, Mic, More, Next, Sparkles } from '../../ui/components/Icons'
+import { ChevronLeft, Heart, Mic, More, Next } from '../../ui/components/Icons'
 import { PlayPauseIcon } from '../../ui/components/PlayPauseIcon'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SongMenu } from '../../ui/components/SongMenu'
@@ -33,12 +33,11 @@ import { TagPicker } from '../../ui/components/TagPicker'
 import { artShadow, card, label as labelText, pageTitle, serif } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { useSongColor } from '../../ui/useSongColor'
-import { FixMetadata } from '../metadata/FixMetadata'
 import { ArtistLinks } from '../nowPlaying/ArtistLinks'
 import { SimilarShelf } from './SimilarShelf'
 import { useHistoryFor, useStatsSongs } from '../stats/statsSource'
 import { tagLink } from '../tag/placeLinks'
-import { SongFacts } from './SongFacts'
+import { SongAbout } from './SongAbout'
 import {
   bylineRest,
   playStrip,
@@ -101,7 +100,6 @@ function SongPage({ song }: { song: Song }): ReactNode {
   const similarSongs = similar.isPlaceholderData ? [] : (similar.data?.songs ?? [])
   const [menuOpen, setMenuOpen] = useState(false)
   const [tagging, setTagging] = useState(false)
-  const [fixing, setFixing] = useState(false)
   const moreRef = useRef<View>(null)
   const addTagRef = useRef<View>(null)
   const toggleLoved = useToggleLoved()
@@ -256,16 +254,7 @@ function SongPage({ song }: { song: Song }): ReactNode {
           />
         ) : null}
 
-        <View style={styles.facts}>
-          <SongFacts song={song} plays={false} />
-          <View style={styles.fix}>
-            <Button
-              label="Fix song info…"
-              icon={<Sparkles size={15} tone="textSecondary" />}
-              onPress={() => setFixing(true)}
-            />
-          </View>
-        </View>
+        <SongAbout song={song} plays={false} style={styles.facts} />
       </ScrollView>
 
       <SongMenu
@@ -278,7 +267,6 @@ function SongPage({ song }: { song: Song }): ReactNode {
         anchorRef={addTagRef}
         onClose={() => setTagging(false)}
       />
-      {fixing ? <FixMetadata song={song} onClose={() => setFixing(false)} /> : null}
     </View>
   )
 }
@@ -413,7 +401,6 @@ const styles = StyleSheet.create(theme => ({
   },
   barPeak: { backgroundColor: theme.colors.accent },
   facts: { maxWidth: 600, paddingTop: space.sm },
-  fix: { alignItems: 'flex-start' },
   missing: { padding: 24, gap: 12, alignItems: 'flex-start' },
   missingTitle: pageTitle(theme.colors),
   missingText: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },

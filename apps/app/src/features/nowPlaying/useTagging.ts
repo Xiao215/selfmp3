@@ -118,6 +118,32 @@ export function useTagging(): Tagging {
   }
 }
 
+/**
+ * The tag window on Now Playing, from the song's add chip: up and away on
+ * each press, on a phone and a computer alike. In play-and-tag the chip is
+ * the mode's editor instead, raised again or put away; `ready` holds the
+ * mode's editor back until the page can show it (the stage waits until it has
+ * come to rest, and has nowhere to hang it in Focus).
+ */
+export function useTagEditor(
+  tagging: Tagging,
+  ready = true,
+): { shown: boolean; toggle: () => void; close: () => void } {
+  const [open, setOpen] = useState(false)
+  return {
+    shown: open || (tagging.open && ready),
+    toggle: () => {
+      if (!tagging.on) setOpen(now => !now)
+      else if (tagging.open) tagging.close()
+      else tagging.raise()
+    },
+    close: () => {
+      setOpen(false)
+      if (tagging.open) tagging.close()
+    },
+  }
+}
+
 function isTagsFor(variables: unknown, songId: number | null): boolean {
   if (songId === null || typeof variables !== 'object' || variables === null) return false
   const sent = variables as { songId?: unknown; tagIds?: unknown }

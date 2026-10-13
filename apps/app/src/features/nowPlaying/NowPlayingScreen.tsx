@@ -23,11 +23,9 @@ import {
   radius,
   space,
   type,
-  useLibrary,
   useToggleLoved,
   withAlpha,
 } from '@selfmp3/client'
-import { RoomSongLine } from '../room/RoomSongLine'
 import {
   usePlayer,
   usePlayerCommands,
@@ -40,8 +38,6 @@ import { MOVE_MS, PULL } from '../../ui/motion.model'
 import { takeCoverHandoff, type CoverFrame } from '../../ui/coverHandoff'
 import { setStageExit } from '../../shell/stageExit'
 import { PlayButton } from '../../ui/components/Button'
-import { Chip } from '../../ui/components/Chip'
-import { RemoveSongs } from '../../ui/components/ConfirmRemoveSongs'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import {
@@ -51,12 +47,9 @@ import {
   Moon,
   More,
   Next,
-  Plus,
   Prev,
-  Refresh,
   Repeat,
   RepeatOne,
-  Romanize,
   Shuffle,
   UpNext,
 } from '../../ui/components/Icons'
@@ -76,22 +69,19 @@ import { DevicesSheet } from '../devices/DevicesSheet'
 import { QueueSheet } from '../queue/QueueSheet'
 import { openQueueSheet } from '../queue/queueSheet.store'
 import { songLink } from '../song/song.model'
-import { tagLink } from '../tag/placeLinks'
 import { ArtistLinks } from './ArtistLinks'
 import { leaveTo, putAway } from './leaveNowPlaying'
-import { NothingPlaying } from './NothingPlaying'
+import { EmptyNowPlaying } from './EmptyNowPlaying'
+import { canRomanize, FindLyricsButton, RomanizeButton } from './LyricsTools'
+import { SongTagsLine } from './SongTagsLine'
+import { lyricsStatusText } from './stageLyrics.model'
+import { useNowPlayingSong } from './useNowPlayingSong'
 import { NowPlayingStage } from './NowPlayingStage'
-import {
-  parseView,
-  PAUSED_COVER_SCALE,
-  romanName,
-  swipeOutcome,
-  type PhoneView,
-} from './nowPlaying.model'
+import { parseView, PAUSED_COVER_SCALE, swipeOutcome, type PhoneView } from './nowPlaying.model'
 import { StageLyrics } from './StageLyrics'
 import { TaggingLine } from './TaggingLine'
 import { useSongWords } from './useSongWords'
-import { useTagging } from './useTagging'
+import { useTagEditor, useTagging } from './useTagging'
 
 /**
  * Now Playing: the computer's stage, or the phone's own full-screen page.
@@ -149,60 +139,14 @@ function OverTheModal(): ReactNode {
 }
 
 function PhoneNowPlaying(): ReactNode {
-  const { theme } = useUnistyles()
-  const player = usePlayer()
   const router = useRouter()
-  const insets = useSafeAreaInsets()
-  const song = player.current
-  /*
-   * Asked here, above the page, rather than in it: removing the song playing
-   * moves the player on, and with nothing after it there is no page left for
-   * the dialog to be in before the server has answered.
-   */
-  const [removing, setRemoving] = useState<Song | null>(null)
-  const removeDialog = removing ? (
-    <RemoveSongs
-      songs={[removing]}
-      onCancel={() => setRemoving(null)}
-      onDone={() => setRemoving(null)}
-    />
-  ) : null
-  /*
-   * The song playing went — removed here, with nothing after it — so there is
-   * nothing left to be the page of. It puts itself away rather than staying
-   * up to say "Nothing playing" (Xiao, 2026-10-04); a page opened with
-   * nothing playing in the first place still says so. Not before the
-   * dialog has closed: it is this page's, and its "Removed …" comes when the
-   * server answers.
-   */
-  const hadSong = useRef(song !== null)
-  useEffect(() => {
-    if (song !== null) hadSong.current = true
-    else if (hadSong.current && removing === null) putAway(router)
-  }, [song, removing, router])
-  /*
-   * The dialog stays where it is whichever page is under it. Inside the empty
-   * page it was a different element from the one beside the song's page, so
-   * the song going — which is what removing it does — remounted it: the new
-   * one never heard the server answer, and stayed up asking again over
-   * "Nothing playing" with the song already gone.
-   */
+  const { song, onRemove, removeDialog } = useNowPlayingSong()
   return (
     <>
       {song === null ? (
-        <View
-          style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
-          accessibilityLabel="Now playing"
-        >
-          <View style={styles.head}>
-            <IconButton onPress={() => putAway(router)} label="Close now playing" filled>
-              <ChevronDown size={22} color={theme.colors.textPrimary} />
-            </IconButton>
-          </View>
-          <NothingPlaying />
-        </View>
+        <EmptyNowPlaying onClose={() => putAway(router)} />
       ) : (
-        <PhonePage song={song} onRemove={setRemoving} />
+        <PhonePage song={song} onRemove={onRemove} />
       )}
       {removeDialog}
     </>
@@ -247,9 +191,9 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
   const [sleepOpen, setSleepOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   const [devicesOpen, setDevicesOpen] = useState(false)
-  const [tagsOpen, setTagsOpen] = useState(false)
   // Play-and-tag, from All tags' untagged card: the tag editor up for each song in turn.
   const tagging = useTagging()
+  const tagEditor = useTagEditor(tagging)
 
   const setView = (next: PhoneView): void => {
     router.setParams({ view: next === 'lyrics' ? 'lyrics' : undefined })
@@ -443,7 +387,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
             onClose={close}
             onOpenSong={openSong}
             onLyrics={() => setView('lyrics')}
-            onTags={() => (tagging.on ? tagging.raise() : setTagsOpen(true))}
+            onTags={tagEditor.toggle}
             onSleep={() => setSleepOpen(true)}
             onMore={() => setMoreOpen(true)}
             opening={arrival}
@@ -484,13 +428,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
         A sheet from the foot of the page, as the picker is on a phone: the
         cover and the head, with the tagging line in it, stay in sight above it.
       */}
-      <TagPicker
-        song={tagsOpen || tagging.open ? song : null}
-        onClose={() => {
-          setTagsOpen(false)
-          if (tagging.open) tagging.close()
-        }}
-      />
+      <TagPicker song={tagEditor.shown ? song : null} onClose={tagEditor.close} />
     </Animated.View>
   )
 }
@@ -573,12 +511,10 @@ function CoverView({
   const { theme } = useUnistyles()
   const player = usePlayer()
   const router = useRouter()
-  const library = useLibrary()
   const toggleLoved = useToggleLoved()
   // While a timer runs the header says how long is left, and is the way to change it.
   const sleepLeft = useSleepMinutesLeft()
   const sleepLine = player.sleepAtSongEnd ? 'Stops after this song' : `Stops in ${sleepLeft}`
-  const tags = (library.data?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
 
   return (
     <>
@@ -650,35 +586,15 @@ function CoverView({
         </View>
       </View>
 
-      {/* A room's song says who brought it where a song of your own has its tags. */}
-      {isRoomTrackId(song.id) ? <RoomSongLine song={song} /> : null}
-      {/* The song's tags, quietly: each chip is a door to its tag, and + adds one. */}
-      {isRoomTrackId(song.id) ? null : (
-        <View style={styles.tags}>
-          {tags.map(tag => (
-            <Chip
-              key={tag.id}
-              label={tag.name}
-              hue={tag.hue}
-              selected={false}
-              compact
-              // A page of the app, so the modal goes down first, as the song's
-              // own page does (`openSong`): pushed from inside it, the tag's page
-              // landed under the modal, out of sight.
-              onPress={() => leaveTo(router, tagLink(tag.name))}
-            />
-          ))}
-          <Pressable
-            onPress={onTags}
-            accessibilityRole="button"
-            accessibilityLabel={tags.length > 0 ? 'Edit tags' : 'Add a tag'}
-            hitSlop={8}
-            style={({ pressed }) => [styles.addTag, pressed && styles.addTagPressed]}
-          >
-            <Plus size={13} color={theme.colors.textSecondary} />
-          </Pressable>
-        </View>
-      )}
+      <SongTagsLine
+        song={song}
+        // A page of the app, so the modal goes down first, as the song's own
+        // page does (`openSong`): pushed from inside it, the tag's page landed
+        // under the modal, out of sight.
+        onOpen={href => leaveTo(router, href)}
+        onEdit={onTags}
+        style={styles.tags}
+      />
 
       <View style={styles.progress}>
         <PhoneSeek color={color} />
@@ -882,7 +798,6 @@ function WordsView({
   // The app's own width, not the window's (`shell/rootWidth.ts`).
   const { width } = useLayout()
   const words = lyrics.words
-  const on = lyrics.romanizationOn
   const fontSize = Math.min(28, Math.max(22, width * 0.064))
 
   return (
@@ -900,28 +815,10 @@ function WordsView({
             {artistOr(song.artist)}
           </Text>
         </View>
-        {words.status === 'lyrics' && lyrics.language !== 'none' ? (
-          <Pressable
-            role="button"
-            aria-pressed={on}
-            onPress={() => lyrics.setRomanization(!on)}
-            style={[styles.tool, on && styles.toolOn]}
-          >
-            <Romanize size={15} color={on ? theme.colors.onPrimary : theme.colors.textPrimary} />
-            <Text style={[styles.toolText, on && styles.toolTextOn]}>
-              {romanName(lyrics.language)}
-            </Text>
-          </Pressable>
+        {canRomanize(lyrics) ? (
+          <RomanizeButton lyrics={lyrics} />
         ) : noLyrics ? (
-          <Pressable
-            onPress={lyrics.lookAgain}
-            accessibilityRole="button"
-            accessibilityLabel="Look for lyrics again"
-            style={styles.tool}
-          >
-            <Refresh size={14} color={theme.colors.textSecondary} />
-            <Text style={styles.toolText}>Find lyrics</Text>
-          </Pressable>
+          <FindLyricsButton onPress={lyrics.lookAgain} />
         ) : null}
       </View>
 
@@ -941,13 +838,7 @@ function WordsView({
             fontSize={fontSize}
           />
         ) : (
-          <Text style={styles.wordsStatus}>
-            {noLyrics
-              ? 'No lyrics for this song.'
-              : words.status === 'loading'
-                ? 'Looking for lyrics…'
-                : 'Lyrics need your library — they’ll show once it’s reachable.'}
-          </Text>
+          <Text style={styles.wordsStatus}>{lyricsStatusText(words)}</Text>
         )}
       </View>
 
@@ -1092,25 +983,7 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textSecondary,
     fontSize: type.body,
   },
-  tags: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: space.md,
-  },
-  // The add chip, round: a place a tag will go, drawn by its dashed edge (`S2`).
-  addTag: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: theme.colors.borderStrong,
-  },
-  addTagPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.1) },
+  tags: { marginTop: space.md },
   progress: {
     marginTop: space.lg,
     marginBottom: 6,
@@ -1170,16 +1043,4 @@ const styles = StyleSheet.create(theme => ({
     gap: 26,
     paddingBottom: space.sm,
   },
-  tool: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    height: 32,
-    paddingHorizontal: 12,
-    borderRadius: radius.pill,
-    backgroundColor: withAlpha(theme.colors.textPrimary, 0.12),
-  },
-  toolOn: { backgroundColor: theme.colors.textPrimary },
-  toolText: { color: theme.colors.textPrimary, fontSize: type.small, fontWeight: '600' },
-  toolTextOn: { color: theme.colors.onPrimary },
 }))

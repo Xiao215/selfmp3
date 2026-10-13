@@ -17,43 +17,28 @@ import Svg, { Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from '
 import type { Song } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
 import type { Rgb } from '@selfmp3/client'
-import { fonts, motion, radius, rgba, type, useLibrary, withAlpha } from '@selfmp3/client'
+import { fonts, isRoomTrackId, motion, radius, rgba, type, withAlpha } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerCommands, usePlayerProgress } from '../../player/PlayerProvider'
 import { setStageExit } from '../../shell/stageExit'
 import { setStageArriving } from '../../shell/stageArrival'
 import { stackMoves } from '../../ports/stackMoves'
-import { titleBarInset } from '../../ports/titleBarInset'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { setStageIdle } from '../../shell/stageIdle'
 import { useEscape } from '../../shell/useEscape'
 import { Cover } from '../../ui/components/Cover'
 import { useCrossfade } from '../../ui/components/CoverLight'
-import { Chip } from '../../ui/components/Chip'
-import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
-import {
-  ChevronDown,
-  Collapse,
-  Expand,
-  More,
-  Next,
-  Refresh,
-  Romanize,
-  Sparkles,
-  TagPlus,
-} from '../../ui/components/Icons'
-import { FixMetadata } from '../metadata/FixMetadata'
+import { ChevronDown, Collapse, Expand, More, Next } from '../../ui/components/Icons'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { TagPicker } from '../../ui/components/TagPicker'
-import { SongFacts } from '../song/SongFacts'
+import { SongAbout } from '../song/SongAbout'
 import { songLink } from '../song/song.model'
 import {
   contextLine,
   parseMode,
   parseTab,
-  romanName,
   stageGeometry,
   upNextSeconds,
   type PageMode,
@@ -74,22 +59,18 @@ import { useIdle } from './useIdle'
 import { useSongWords } from './useSongWords'
 import { ArtistLinks } from './ArtistLinks'
 import { putAway } from './leaveNowPlaying'
-import { NothingPlaying } from './NothingPlaying'
+import { EmptyNowPlaying } from './EmptyNowPlaying'
+import { canRomanize, FindLyricsButton, RomanizeButton } from './LyricsTools'
+import { SongTagsLine } from './SongTagsLine'
+import { HEAD_LEFT } from './stageHead'
+import { lyricsStatusText } from './stageLyrics.model'
+import { useNowPlayingSong } from './useNowPlayingSong'
 import { TaggingLine } from './TaggingLine'
 import { useSvgId } from '../../ui/useSvgId'
-import { useTagging, type Tagging } from './useTagging'
-import { tagLink } from '../tag/placeLinks'
+import { useTagEditor, useTagging, type Tagging } from './useTagging'
 import { tip } from '../../ui/tip'
 import { artShadow, floating, label } from '../../ui/surfaces'
 import { ScrollView } from '../../ui/components/Scroll'
-
-/*
- * Where the top row starts. The page covers the sidebar, which is what keeps
- * everything else clear of the Mac's traffic lights, and they sit on this
- * row's own line — so on the installed desktop app the row starts to their right
- * rather than under them. Twenty everywhere without an inset title bar.
- */
-const HEAD_LEFT = titleBarInset > 0 ? 84 : 20
 
 /**
  * The page for the song that is playing, on a computer.
@@ -111,45 +92,34 @@ const HEAD_LEFT = titleBarInset > 0 ? 84 : 20
  * move under your hand. Which tab and mode are showing live in the address.
  */
 export function NowPlayingStage(): ReactNode {
-  const player = usePlayer()
   const router = useRouter()
   const params = useLocalSearchParams<{ tab?: string; mode?: string }>()
   const tab = parseTab(params.tab)
   const mode = parseMode(params.mode)
-  const song = player.current
+  const { song, onRemove, removeDialog } = useNowPlayingSong()
   // Asked here rather than on the stage, so a queue that runs out ends it too.
   const tagging = useTagging()
 
   const close = (): void => putAway(router)
 
-  if (!song) return <EmptyStage onClose={close} />
-
   return (
-    <Stage
-      song={song}
-      tab={tab}
-      mode={mode}
-      tagging={tagging}
-      onClose={close}
-      onTab={next => router.setParams({ tab: next })}
-      onMode={next => router.setParams({ mode: next })}
-    />
-  )
-}
-
-function EmptyStage({ onClose }: { onClose: () => void }): ReactNode {
-  const { theme } = useUnistyles()
-  const { top } = useSafeAreaInsets()
-  useEscape(true, onClose)
-  return (
-    <View style={styles.page} accessibilityLabel="Now playing">
-      <View style={[styles.head, { top }]}>
-        <IconButton onPress={onClose} label="Close">
-          <ChevronDown size={22} color={theme.colors.textSecondary} />
-        </IconButton>
-      </View>
-      <NothingPlaying />
-    </View>
+    <>
+      {song ? (
+        <Stage
+          song={song}
+          tab={tab}
+          mode={mode}
+          tagging={tagging}
+          onClose={close}
+          onRemove={onRemove}
+          onTab={next => router.setParams({ tab: next })}
+          onMode={next => router.setParams({ mode: next })}
+        />
+      ) : (
+        <EmptyNowPlaying onClose={close} />
+      )}
+      {removeDialog}
+    </>
   )
 }
 
@@ -276,6 +246,7 @@ function Stage({
   mode,
   tagging,
   onClose,
+  onRemove,
   onTab,
   onMode,
 }: {
@@ -284,6 +255,7 @@ function Stage({
   mode: PageMode
   tagging: Tagging
   onClose: () => void
+  onRemove: (song: Song) => void
   onTab: (tab: StageTab) => void
   onMode: (mode: PageMode) => void
 }): ReactNode {
@@ -294,15 +266,11 @@ function Stage({
   const player = usePlayer()
   const router = useRouter()
   const artFor = useArt()
-  const library = useLibrary()
   const lyrics = useSongWords(song)
   const uri = artFor(song)
   const palette = useCoverPalette(song, uri)
   const window = useWindowDimensions()
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
-  const [tagsOpen, setTagsOpen] = useState(false)
-  /** "Fix song info…" under Details: the same dialog the song's page opens. */
-  const [fixing, setFixing] = useState(false)
   // The song's ⋯ menu, the one its rows and its page have: without it the page
   // playing a song was the one place that song could not be removed or listed.
   const [menuOpen, setMenuOpen] = useState(false)
@@ -312,6 +280,8 @@ function Stage({
   // The tag window hangs from its button, so play-and-tag raises it only once
   // the page has come to rest: measured mid-rise, it sat below its button.
   const [entered, setEntered] = useState(false)
+  // Focus has no tag button to hang it from: play-and-tag waits for the full page.
+  const tagEditor = useTagEditor(tagging, entered && mode !== 'focus')
 
   const focus = mode === 'focus'
   const shownTab: StageTab = focus ? 'lyrics' : tab
@@ -408,7 +378,6 @@ function Stage({
   useEscape(true, onEscape)
 
   const words = lyrics.words
-  const hasLyrics = words.status === 'lyrics'
   // Not while offline: the words may exist, and there is text to say why they are not here.
   const noLyrics = words.status === 'missing' && !words.offline
   // Only on its own tab: Details is text, and wants the calm ground.
@@ -451,7 +420,6 @@ function Stage({
     ['lyrics', noLyrics ? 'Visual' : 'Lyrics'],
     ['about', 'Details'],
   ]
-  const tags = (library.data?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
   /*
    * The chrome while nothing moves. One value for all of it — the head, the
    * cover, the tool rows, the expand button and the lift of the Up next card —
@@ -474,18 +442,7 @@ function Stage({
   // saved that the song has none. Beside Visual and Details on the stage; in
   // Focus, where the tabs are put away, at the top right where the romaji
   // switch sits for a song with words.
-  const lookAgainPill = showVisual ? (
-    <Pressable
-      onPress={lyrics.lookAgain}
-      accessibilityRole="button"
-      accessibilityLabel="Look for lyrics again"
-      {...tip('Look for lyrics again')}
-      style={({ pressed }) => [styles.tool, pressed && styles.toolPressed]}
-    >
-      <Refresh size={13} color={theme.colors.textSecondary} />
-      <Text style={styles.toolText}>Find lyrics</Text>
-    </Pressable>
-  ) : null
+  const lookAgainPill = showVisual ? <FindLyricsButton onPress={lyrics.lookAgain} /> : null
 
   const tabList = (
     <View style={styles.tabs} role="tablist" aria-label="Show">
@@ -620,35 +577,15 @@ function Stage({
               .map(part => ` · ${part}`)
               .join('')}
           </Text>
-          <View style={styles.tags}>
-            {/* Each tag is a place of its own: its chip opens its page. */}
-            {tags.map(tag => (
-              <Chip
-                key={tag.id}
-                label={tag.name}
-                hue={tag.hue}
-                selected={false}
-                compact
-                onPress={() => router.navigate(tagLink(tag.name))}
-              />
-            ))}
-            <Pressable
-              ref={tagsButtonRef}
-              // In play-and-tag the button is the mode's editor, raised again or put away.
-              onPress={() =>
-                tagging.on
-                  ? tagging.open
-                    ? tagging.close()
-                    : tagging.raise()
-                  : setTagsOpen(open => !open)
-              }
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.tagButton, pressed && styles.tagButtonPressed]}
-            >
-              <TagPlus size={14} color={theme.colors.textSecondary} />
-              <Text style={styles.tagButtonText}>{tags.length > 0 ? 'Edit tags' : 'Add tags'}</Text>
-            </Pressable>
-          </View>
+          {/* Each tag is a place of its own: its chip opens its page. */}
+          <SongTagsLine
+            song={song}
+            onOpen={href => router.navigate(href)}
+            onEdit={tagEditor.toggle}
+            editing={tagEditor.shown}
+            editRef={tagsButtonRef}
+            labelled
+          />
           {tagging.on ? <TaggingLine line={tagging.line} onStop={tagging.stop} /> : null}
         </View>
       )}
@@ -695,12 +632,7 @@ function Stage({
         ]}
       >
         {shownTab === 'lyrics' ? (
-          words.status === 'loading' ? (
-            <View style={styles.status}>
-              <ActivityIndicator size="small" color={theme.colors.textMuted} />
-              <Text style={styles.statusText}>Looking for lyrics…</Text>
-            </View>
-          ) : words.status === 'lyrics' ? (
+          words.status === 'lyrics' ? (
             <StageLyrics
               parsed={words.parsed}
               roman={words.roman}
@@ -709,24 +641,20 @@ function Stage({
             />
           ) : noLyrics ? null : (
             <View style={styles.status}>
-              <Text style={styles.statusText}>
-                Lyrics need your library — reconnect to look them up
-              </Text>
+              {words.status === 'loading' ? (
+                <ActivityIndicator size="small" color={theme.colors.textMuted} />
+              ) : null}
+              <Text style={styles.statusText}>{lyricsStatusText(words)}</Text>
             </View>
           )
         ) : (
           <ScrollView contentContainerStyle={styles.about}>
-            <View style={styles.aboutBody}>
-              <SongFacts song={song} />
-              <View style={styles.fix}>
-                <Button
-                  label="Fix song info…"
-                  icon={<Sparkles size={15} tone="textSecondary" />}
-                  onPress={() => setFixing(true)}
-                  testID="now-playing-fix-metadata"
-                />
-              </View>
-            </View>
+            <SongAbout
+              song={song}
+              plays
+              testID="now-playing-fix-metadata"
+              style={styles.aboutBody}
+            />
           </ScrollView>
         )}
       </Moving>
@@ -759,20 +687,24 @@ function Stage({
                 {lookAgainPill}
               </>
             )}
-            {/* Last at the top right, where the song's page keeps its ⋯. */}
-            <View
-              ref={moreRef}
-              collapsable={false}
-              style={geometry.stacked ? styles.moreAlone : null}
-            >
-              <IconButton
-                label={`More for ${song.title}`}
-                onPress={() => setMenuOpen(open => !open)}
-                testID="now-playing-more"
+            {/* Last at the top right, where the song's page keeps its ⋯. A
+                friend's song in a room has nothing in it here: the page
+                already says whose it is, and the bar has the rest. */}
+            {isRoomTrackId(song.id) ? null : (
+              <View
+                ref={moreRef}
+                collapsable={false}
+                style={geometry.stacked ? styles.moreAlone : null}
               >
-                <More size={18} color={theme.colors.textSecondary} />
-              </IconButton>
-            </View>
+                <IconButton
+                  label={`More for ${song.title}`}
+                  onPress={() => setMenuOpen(open => !open)}
+                  testID="now-playing-more"
+                >
+                  <More size={18} color={theme.colors.textSecondary} />
+                </IconButton>
+              </View>
+            )}
           </>
         )}
       </Animated.View>
@@ -790,7 +722,7 @@ function Stage({
         </Animated.View>
       ) : null}
 
-      {shownTab === 'lyrics' && hasLyrics && lyrics.language !== 'none' ? (
+      {shownTab === 'lyrics' && canRomanize(lyrics) ? (
         <Animated.View
           style={[
             styles.tools,
@@ -802,21 +734,7 @@ function Stage({
                 : { top: height - 48, right: geometry.right },
           ]}
         >
-          <Pressable
-            role="button"
-            aria-pressed={lyrics.romanizationOn}
-            onPress={() => lyrics.setRomanization(!lyrics.romanizationOn)}
-            accessibilityHint={`${lyrics.romanizationOn ? 'Hide' : 'Show'} ${romanName(lyrics.language).toLowerCase()} under each line`}
-            style={[styles.tool, lyrics.romanizationOn && styles.toolOn]}
-          >
-            <Romanize
-              size={14}
-              color={lyrics.romanizationOn ? theme.colors.onPrimary : theme.colors.textSecondary}
-            />
-            <Text style={[styles.toolText, lyrics.romanizationOn && styles.toolTextOn]}>
-              {romanName(lyrics.language)}
-            </Text>
-          </Pressable>
+          <RomanizeButton lyrics={lyrics} />
         </Animated.View>
       ) : null}
 
@@ -862,21 +780,17 @@ function Stage({
         chromeShown={chromeShown}
       />
 
-      {/* Focus has no tag button to hang it from: play-and-tag waits for the full page. */}
       <TagPicker
-        song={tagsOpen || (tagging.open && entered && !focus) ? song : null}
-        onClose={() => {
-          setTagsOpen(false)
-          if (tagging.open) tagging.close()
-        }}
+        song={tagEditor.shown ? song : null}
+        onClose={tagEditor.close}
         anchorRef={tagsButtonRef}
       />
-      {fixing ? <FixMetadata song={song} onClose={() => setFixing(false)} /> : null}
       <SongMenu
         song={menuOpen ? song : null}
         anchorRef={moreRef}
         onClose={() => setMenuOpen(false)}
         context="nowPlaying"
+        onRemove={onRemove}
       />
     </Animated.View>
   )
@@ -1021,21 +935,6 @@ const styles = StyleSheet.create(theme => ({
   // The display face, which carries its own weight: never bold it.
   title: { color: theme.colors.textPrimary, fontFamily: fonts.display },
   byline: { color: theme.colors.textSecondary, fontSize: type.sub, marginTop: -4 },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
-  tagButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: radius.pill,
-    // The dashed edge is the mark itself: an add chip (`S2`).
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: theme.colors.borderStrong,
-  },
-  tagButtonPressed: { backgroundColor: theme.colors.surface2 },
-  tagButtonText: { color: theme.colors.textSecondary, fontSize: type.small },
   words: { position: 'absolute', zIndex: 1 },
   status: {
     flex: 1,
@@ -1049,22 +948,8 @@ const styles = StyleSheet.create(theme => ({
   visual: { position: 'absolute', overflow: 'hidden', zIndex: 1 },
   visualFull: { left: 0, right: 0, top: 0, bottom: 0 },
   about: { paddingTop: 12, paddingHorizontal: 4, paddingBottom: 40 },
-  aboutBody: { maxWidth: 600, paddingHorizontal: 18, gap: 18 },
-  fix: { alignItems: 'flex-start' },
+  aboutBody: { maxWidth: 600, paddingHorizontal: 18 },
   tools: { position: 'absolute', zIndex: 4, flexDirection: 'row', gap: 6 },
-  tool: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 5,
-    paddingHorizontal: 11,
-    borderRadius: radius.pill,
-    backgroundColor: withAlpha(theme.colors.textPrimary, 0.08),
-  },
-  toolOn: { backgroundColor: theme.colors.textPrimary },
-  toolPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.14) },
-  toolText: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '600' },
-  toolTextOn: { color: theme.colors.onPrimary },
   expandAt: { position: 'absolute', zIndex: 4 },
   expand: {
     width: 36,

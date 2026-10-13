@@ -634,10 +634,12 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 
 ### Bugs the duplication caused (fix with the merge that removes the copy)
 
-- [ ] **T-376** Computer Now Playing shows tags and "Edit tags" for a friend's room song (`NowPlayingStage` has no `isRoomTrackId`). → E
+- [x] **T-376** Computer Now Playing shows tags and "Edit tags" for a friend's room song (`NowPlayingStage` has no `isRoomTrackId`). → E
+  - The stage's tags are `SongTagsLine`, which draws `RoomSongLine` for a room's song; its ⋯ is left out for one (the menu would be empty there), and `SongAbout` has no Fix for it.
 - [x] **T-377** Computer Now Playing's ⋯ menu offers Add to Up next, Like, Tags, Song details for the playing song (`nowPlaying` prop not passed); the song menu has no room-track guard on either layout. → E
   - `SongMenu` takes `context="nowPlaying"` (trims on every layout) apart from `extras` (the phone's Sleep and Devices). A room's song gets none of the library's items — no Like, Tags, playlist, similar, Download, details or Delete — only the page's own doors.
-- [ ] **T-378** Removing the playing song on a computer unmounts the stage mid-request: the toast and errors are lost and the page sits on "Nothing playing". → E
+- [x] **T-378** Removing the playing song on a computer unmounts the stage mid-request: the toast and errors are lost and the page sits on "Nothing playing". → E
+  - `useNowPlayingSong()` holds the remove dialog above both layouts and puts the page away once the song has gone and the dialog has closed.
 - [ ] **T-379** Computer Up next (`QueueRail`) has no "Clear the rest", no unavailable/offline marks, no tag chips, no "Played" end state; the phone sheet stops at 60 upcoming songs. → E
 - [ ] **T-380** The stall spinner (`busy`) is missing on phone Now Playing's Play (cover and words views), the queue sheet's card and the room card. → E
 - [ ] **T-381** `VolumeSlider` announces no value on web and lets a wandering drag be stolen; `ListenBar` adds a CSS rule per tick and steps from the wrong value. → E
@@ -689,7 +691,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 
 ### E — Now Playing, Up next and the transport are one set of pieces
 
-- [ ] **T-415** Shared Now Playing pieces for phone and stage: song tags line (room guard, `noteTagUsed`, one label), lyrics tools (romanize, Find lyrics, status text), About block, remove-the-playing-song hook, one empty state; `SongMenu` gets `context: 'nowPlaying'` (trims on every layout) separate from the phone's extras.
+- [x] **T-415** Shared Now Playing pieces for phone and stage: song tags line (room guard, `noteTagUsed`, one label), lyrics tools (romanize, Find lyrics, status text), About block, remove-the-playing-song hook, one empty state; `SongMenu` gets `context: 'nowPlaying'` (trims on every layout) separate from the phone's extras.
+  - `SongTagsLine` (labels "Add tags"/"Edit tags" on both; the phone keeps the round + chip, the stage the labelled one; `noteTagUsed` on open), `useTagEditor` (the add chip toggles on both), `RomanizeButton`/`FindLyricsButton` + `lyricsStatusText` (the phone's offline wording, the stage's hint and pressed state, one ink), `SongAbout` (also the song page's), `EmptyNowPlaying` ("Close now playing", Escape on both).
 - [ ] **T-416** `PlayPauseButton` (reads stall itself), `TransportControls` (one `REPEAT_LABEL`), `LikeButton` (room guard), `useOpenNowPlaying`, `useSleepTimerStatus`; MiniPlayer and PlayerBar share the wash.
 - [ ] **T-417** Up next: one list body (rows with facts, virtualised, head, auto-mix row) inside the sheet and the rail; `QueueSheet` built on `Sheet`; one `PlayingCard` for the queue and the room.
 - [ ] **T-418** One `Scrubber` for SeekBar, ListenBar and the volume slider.

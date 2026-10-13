@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { PanResponder, Pressable, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import type { LayoutChangeEvent } from 'react-native'
 import { usePathname, useRouter } from 'expo-router'
-import { artistOr, clamp01 } from '@selfmp3/shared'
+import { artistOr } from '@selfmp3/shared'
 import { warmCoverPalette } from '../features/nowPlaying/useCoverPalette'
 import { isRoomTrackId } from '@selfmp3/client'
 import { radius, space, type, withAlpha, type SongColors } from '@selfmp3/client'
@@ -31,6 +30,7 @@ import {
 } from '../ui/components/Icons'
 import { Popover } from '../ui/components/Popover'
 import { SleepMenu, useSleepTimerStatus } from '../ui/components/SleepMenu'
+import { Scrubber } from '../ui/components/Scrubber'
 import { SeekBar } from '../ui/components/SeekBar'
 import { TagPicker } from '../ui/components/TagPicker'
 import { leaveStage } from './stageExit'
@@ -342,13 +342,11 @@ function VolumeControl({ compact, tone }: { compact: boolean; tone: SongColors }
   )
 }
 
-/** What a screen reader can do to the fader; each swipe is one `VOLUME_STEP`. */
-const VOLUME_ACTIONS = [{ name: 'increment' }, { name: 'decrement' }] as const
-
 /**
  * A thin track that fills with the playing song's colour. Flat beside the
  * speaker when the bar has room; upright in the volume pop-up, a fader that
- * fills from the bottom with a handle on top.
+ * fills from the bottom with a handle on top. It follows the finger: each step
+ * of a drag sets the level.
  */
 function VolumeSlider({
   value,
@@ -362,73 +360,24 @@ function VolumeSlider({
   color: string
   vertical?: boolean
 }): ReactNode {
-  // The track's length along the way it slides: its width, or its height upright.
-  const [length, setLength] = useState(0)
-  // Not built from the level: a drag moves it every frame, and the responder
-  // would be built again every frame. A track not measured yet has no
-  // position to give, and a press on it changes nothing.
-  const responder = useMemo(() => {
-    // The track and its fill take no touches, so the position is always the
-    // slider's own (see SeekBar).
-    const moveTo = (x: number, y: number): void => {
-      if (length <= 0) return
-      onChange(clamp01(vertical ? 1 - y / length : x / length))
-    }
-    return PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: event =>
-        moveTo(event.nativeEvent.locationX, event.nativeEvent.locationY),
-      onPanResponderMove: event => moveTo(event.nativeEvent.locationX, event.nativeEvent.locationY),
-    })
-  }, [length, onChange, vertical])
-
   return (
-    <View
+    <Scrubber
+      value={value}
+      max={1}
+      onChange={onChange}
+      onCommit={onChange}
+      label="Volume"
+      step={VOLUME_STEP}
+      spokenScale={100}
+      vertical={vertical}
+      size={vertical ? 'large' : 'small'}
+      thumb={vertical}
+      color={color}
+      caption={vertical ? undefined : `Volume: ${Math.round(value * 100)}%`}
       style={vertical ? styles.sliderUpright : styles.slider}
-      onLayout={(event: LayoutChangeEvent) =>
-        setLength(vertical ? event.nativeEvent.layout.height : event.nativeEvent.layout.width)
-      }
-      accessibilityRole="adjustable"
-      accessibilityLabel="Volume"
-      accessibilityValue={{ min: 0, max: 100, now: Math.round(value * 100) }}
-      accessibilityActions={VOLUME_ACTIONS}
-      onAccessibilityAction={event =>
-        onChange(
-          clamp01(
-            value + (event.nativeEvent.actionName === 'increment' ? VOLUME_STEP : -VOLUME_STEP),
-          ),
-        )
-      }
-      {...tip(vertical ? undefined : `Volume: ${Math.round(value * 100)}%`)}
-      {...responder.panHandlers}
-    >
-      {vertical ? (
-        <View pointerEvents="none" style={styles.sliderTrackUpright}>
-          <View
-            style={[
-              styles.sliderFillUpright,
-              { height: `${value * 100}%`, backgroundColor: color },
-            ]}
-          />
-          <View
-            style={[
-              styles.sliderHandle,
-              { bottom: Math.max(-HANDLE / 2, value * length - HANDLE / 2) },
-            ]}
-          />
-        </View>
-      ) : (
-        <View pointerEvents="none" style={styles.sliderTrack}>
-          <View style={[styles.sliderFill, { width: `${value * 100}%`, backgroundColor: color }]} />
-        </View>
-      )}
-    </View>
+    />
   )
 }
-
-/** The upright fader's handle. */
-const HANDLE = 14
 
 /**
  * The chevron over the cover while Now Playing is open, and the dim under it:
@@ -518,30 +467,7 @@ const styles = StyleSheet.create(theme => ({
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
-  slider: { width: 88, height: 24, justifyContent: 'center', cursor: 'pointer' },
-  sliderTrack: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: theme.colors.surface3,
-    overflow: 'hidden',
-  },
-  sliderFill: { height: 4, borderRadius: 2 },
+  slider: { width: 88, height: 24, paddingVertical: 0 },
   /* Wider than the track, so the handle is easy to catch. */
-  sliderUpright: { width: 32, height: 128, alignItems: 'center', cursor: 'pointer' },
-  sliderTrackUpright: {
-    width: 6,
-    height: '100%',
-    borderRadius: 3,
-    backgroundColor: theme.colors.surface3,
-    justifyContent: 'flex-end',
-  },
-  sliderFillUpright: { width: 6, borderRadius: 3 },
-  sliderHandle: {
-    position: 'absolute',
-    left: 3 - HANDLE / 2,
-    width: HANDLE,
-    height: HANDLE,
-    borderRadius: HANDLE / 2,
-    backgroundColor: theme.colors.textPrimary,
-  },
+  sliderUpright: { width: 32, height: 128 },
 }))

@@ -643,7 +643,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 - [ ] **T-379** Computer Up next (`QueueRail`) has no "Clear the rest", no unavailable/offline marks, no tag chips, no "Played" end state; the phone sheet stops at 60 upcoming songs. → E
 - [x] **T-380** The stall spinner (`busy`) is missing on phone Now Playing's Play (cover and words views), the queue sheet's card and the room card. → E
   - Every play button is `PlayPauseButton`, which reads the stall itself.
-- [ ] **T-381** `VolumeSlider` announces no value on web and lets a wandering drag be stolen; `ListenBar` adds a CSS rule per tick and steps from the wrong value. → E
+- [x] **T-381** `VolumeSlider` announces no value on web and lets a wandering drag be stolen; `ListenBar` adds a CSS rule per tick and steps from the wrong value. → E
+  - Fixed by `Scrubber`: ARIA values (volume in per cent), termination refused, the fill rounded, a screen reader's step from what is shown by `SEEK_STEP_SECONDS`.
 - [ ] **T-382** Search rows never fade songs that cannot play here; three different "unavailable" rules exist (Library, OrderedSongList, QueueSheet). → F
 - [ ] **T-383** "Add to Up next" on the answer page and the songs answer card calls `playNext`. → F
 - [ ] **T-384** Opening a tag from Home, Now Playing, the song menu, the song page, Stats or an artist page skips `noteTagUsed`, so the sidebar's recent tags miss it. Decision: every open counts. → F
@@ -697,7 +698,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 - [x] **T-416** `PlayPauseButton` (reads stall itself), `TransportControls` (one `REPEAT_LABEL`), `LikeButton` (room guard), `useOpenNowPlaying`, `useSleepTimerStatus`; MiniPlayer and PlayerBar share the wash.
   - Decisions: Shuffle is "Shuffle" with its lit state (not "Shuffle on/off"); previous/next/play grey with nothing loaded everywhere; the sleep line is "Stops when this song ends" / "Stops in N min"; the bar's wash uses the theme's `washAlpha` (was 0.2) and its artist ink `textSecondary` (was muted), as the mini player's. `ProgressWash` and `SeekBar` read the player themselves. `warmCoverPalette` stays the bar's alone: only the computer's stage glows.
 - [ ] **T-417** Up next: one list body (rows with facts, virtualised, head, auto-mix row) inside the sheet and the rail; `QueueSheet` built on `Sheet`; one `PlayingCard` for the queue and the room.
-- [ ] **T-418** One `Scrubber` for SeekBar, ListenBar and the volume slider.
+- [x] **T-418** One `Scrubber` for SeekBar, ListenBar and the volume slider.
+  - `Scrubber` (+ `scrubber.model.ts`) owns the responder, the hold, rounding, ARIA and a11y actions; `SeekBar`, `ListenBar` and the bar's `VolumeSlider` are thin wrappers. One look: the preview's knob ring and its own track tone are gone, and every thumb swells on the spring. `Slider(.web)` (the hue slider's native range input) is left as it is.
 
 ### F — Song lists and song actions
 

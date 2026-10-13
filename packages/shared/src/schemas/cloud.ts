@@ -105,6 +105,36 @@ export const CloudSoundSchema = z.object({
 })
 export type CloudSound = z.infer<typeof CloudSoundSchema>
 
+/**
+ * One month of the library's plays, as one file in the bucket beside the
+ * words (`lyrics/<sha256>.plays`, a `CloudPlaysFile`). A snapshot says how
+ * often a song was played; these say when, which is what Stats is made of,
+ * so a server's database holds no history the bucket does not
+ * (docs/features/shared-server.md).
+ */
+export const CloudPlaysSchema = z.object({
+  /** `YYYY-MM`, in UTC, as the plays are stamped. */
+  month: z.string().regex(/^\d{4}-\d{2}$/, 'not a month'),
+  key: fileKey('lyrics'),
+  size: z.number().int().nonnegative(),
+  count: z.number().int().nonnegative(),
+})
+export type CloudPlays = z.infer<typeof CloudPlaysSchema>
+
+/**
+ * What a month's file holds: each play as `[song uid, played at, ms played,
+ * completed, play id]`, `played at` as SQLite's UTC `YYYY-MM-DD HH:MM:SS`.
+ * The id is what makes reading the same play twice count it once.
+ */
+export const CloudPlaysFileSchema = z.object({
+  format: z.literal(1),
+  month: CloudPlaysSchema.shape.month,
+  plays: z.array(
+    z.tuple([UidSchema, z.string(), z.number().int().nonnegative(), z.boolean(), z.string()]),
+  ),
+})
+export type CloudPlaysFile = z.infer<typeof CloudPlaysFileSchema>
+
 export const CloudLyricsSchema = z.object({
   key: fileKey('lyrics'),
   size: z.number().int().nonnegative(),
@@ -294,6 +324,8 @@ export const CloudSnapshotSchema = z.object({
   artists: z.array(CloudArtistSchema),
   /** How every song sounds, as the server heard it; null before it has heard any. */
   sound: CloudSoundSchema.nullable(),
+  /** When each song was played, a file a month; absent before a server first sent any. */
+  plays: z.array(CloudPlaysSchema).optional(),
   /**
    * Tags made twice under one name, on two devices before either heard of
    * the other: the second uid, and the tag it was folded into. A late change

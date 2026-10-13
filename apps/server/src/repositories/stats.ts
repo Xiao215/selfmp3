@@ -91,6 +91,86 @@ export class StatsRepository {
   }
 
   /**
+   * Each month that has plays (UTC `YYYY-MM`), how many, and a signature that
+   * moves whenever a play in it is added, removed or changed — what the
+   * bucket's copy of the month is compared by (docs/features/shared-server.md).
+   */
+  months(): { month: string; count: number; sig: string }[] {
+    return this.#db
+      .prepare<[], { month: string; count: number; last: number; ms: number; done: number }>(
+        `SELECT strftime('%Y-%m', played_at) AS month, COUNT(*) AS count, MAX(id) AS last,
+                SUM(ms_played) AS ms, SUM(completed) AS done
+           FROM play_events GROUP BY month ORDER BY month`,
+      )
+      .all()
+      .map(row => ({
+        month: row.month,
+        count: row.count,
+        sig: `${row.count}.${row.last}.${row.ms}.${row.done}`,
+      }))
+  }
+
+  /** One month's plays, oldest first, by the song's uid. */
+  monthPlays(month: string): {
+    uid: string
+    playedAt: string
+    msPlayed: number
+    completed: boolean
+    id: number
+    clientId: string | null
+  }[] {
+    return this.#db
+      .prepare<
+        [string],
+        {
+          uid: string
+          played_at: string
+          ms_played: number
+          completed: number
+          id: number
+          client_id: string | null
+        }
+      >(
+        `SELECT s.uid, e.played_at, e.ms_played, e.completed, e.id, e.client_id
+           FROM play_events e JOIN songs s ON s.id = e.song_id
+          WHERE strftime('%Y-%m', e.played_at) = ?
+          ORDER BY e.played_at, e.id`,
+      )
+      .all(month)
+      .map(row => ({
+        uid: row.uid,
+        playedAt: row.played_at,
+        msPlayed: row.ms_played,
+        completed: row.completed === 1,
+        id: row.id,
+        clientId: row.client_id,
+      }))
+  }
+
+  /**
+   * Plays read back from the bucket, each counted once however often it is
+   * read: the id it was archived under becomes its `client_id`. Play counts
+   * are left alone — the snapshot already said them. How many were new.
+   */
+  restore(
+    plays: readonly {
+      songId: number
+      playedAt: string
+      msPlayed: number
+      completed: boolean
+      id: string
+    }[],
+  ): number {
+    return this.#db.transaction(() => {
+      let added = 0
+      for (const play of plays) {
+        if (this.record(play.songId, play.msPlayed, play.completed, play.playedAt, play.id)) added++
+      }
+      return added
+    })()
+  }
+
+  /**
    * SQL fragment plus params limiting events to the requested window. `alias`
    * is the events table's, `e.`, where the query joins songs to it.
    */

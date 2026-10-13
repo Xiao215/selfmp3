@@ -278,7 +278,10 @@ describe('a server working for several accounts', () => {
     // Settled: the account known, a grant of its own, the old session ended.
     await until(() => hub.workspaces()[0]?.entry?.grant?.id != null, 'the grant to settle')
     expect(hub.workspaces()[0]?.entry?.account).toMatch(/^[0-9a-f]{32}$/)
-    expect((await doorman.call('/v1/me', { token: serverSession })).status).toBe(401)
+    await until(
+      async () => (await doorman.call('/v1/me', { token: serverSession })).status === 401,
+      'the old session to be signed out',
+    )
     expect((await health(url, token)).ok).toBe(true)
   })
 })

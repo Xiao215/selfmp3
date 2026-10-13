@@ -62,6 +62,7 @@ import { ImportRequestRepository } from './repositories/importRequests.js'
 import { previewFound } from './services/importPreview.js'
 import { LocalEdits, SyncClock } from './services/localEdits.js'
 import { SongRemovalService } from './services/songRemoval.js'
+import { PlaysArchive } from './services/playsArchive.js'
 
 /**
  * Composition root.
@@ -298,6 +299,8 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     artists: artistBackdrops,
     // Every song's sound vector goes up as one file, and comes back to a new server.
     sound,
+    // Every play goes up too, a month a file, and comes back to a new server.
+    plays: new PlaysArchive({ stats, sync: syncRepo, deviceId: () => cloudRepo.deviceId() }),
     // The token is the bucket's owner's already: whoever reads the snapshot
     // is signed in to their own library. This is how every device gets the
     // key without anyone ever typing it — the server always has one now

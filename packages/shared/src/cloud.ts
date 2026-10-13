@@ -97,6 +97,15 @@ export function soundVectorsKey(sha256: string): string {
   return `lyrics/${sha256}.vec`
 }
 
+/**
+ * Where a month of plays goes (`CloudPlaysFileSchema`): beside the words, as
+ * the sound vectors are, since a new top-level folder would need every
+ * doorman redeployed before any server could write to it.
+ */
+export function playsKey(sha256: string): string {
+  return `lyrics/${sha256}.plays`
+}
+
 export const FORMAT_KEY = 'format.json'
 
 /**

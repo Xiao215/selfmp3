@@ -142,16 +142,20 @@ export class Hub {
       )
     }
     const me = await this.#askDoorman(() => this.#doorman!.me(session))
+    const account = me.account
+    if (!account) throw new HttpError(502, 'The doorman is too old to say who you are.', 'doorman')
     if (!me.storage) {
       throw HttpError.conflict('Connect your storage first: this server works in your bucket.')
     }
-    const known = this.#registry.byAccount(me.account)
+    const known = this.#registry.byAccount(account)
     if (known && this.#workspaces.has(known.id)) return this.#answer(known)
 
-    const pending = this.#joining.get(me.account)
+    const pending = this.#joining.get(account)
     if (pending) return pending
-    const joining = this.#makeWorkspace(session, me).finally(() => this.#joining.delete(me.account))
-    this.#joining.set(me.account, joining)
+    const joining = this.#makeWorkspace(session, account, me).finally(() =>
+      this.#joining.delete(account),
+    )
+    this.#joining.set(account, joining)
     return joining
   }
 
@@ -195,7 +199,7 @@ export class Hub {
     this.#byToken.clear()
   }
 
-  async #makeWorkspace(session: string, me: DoormanMe): Promise<CloudServer> {
+  async #makeWorkspace(session: string, account: string, me: DoormanMe): Promise<CloudServer> {
     const registry = this.#registry!
     const doorman = this.#doorman!
     const made = await this.#askDoorman(() =>
@@ -204,10 +208,10 @@ export class Hub {
     const grant = { token: made.token, id: made.grant.id }
     // A library that was here before and was let go, joining again: the same
     // workspace, with the new grant.
-    const known = registry.byAccount(me.account)
+    const known = registry.byAccount(account)
     const entry = known
       ? registry.update(known.id, { grant, email: me.email })
-      : registry.add({ account: me.account, email: me.email, grant })
+      : registry.add({ account, email: me.email, grant })
     this.#open(entry, me)
     this.logger.info('a library joined', { workspace: entry.id, email: me.email })
     return this.#answer(entry)
@@ -312,7 +316,9 @@ export class Hub {
     const doorman = this.#doorman!
     const old = entry.grant!
     const me = await doorman.me(old.token)
-    const other = registry.byAccount(me.account)
+    if (!me.account) throw new Error('the doorman is too old to say which account this is')
+    const account = me.account
+    const other = registry.byAccount(account)
     if (other && other.id !== entry.id) {
       this.logger.warn('two libraries here are for one account; keeping both until one leaves', {
         email: me.email,
@@ -323,7 +329,7 @@ export class Hub {
       const made = await doorman.grant(old.token, this.#name())
       grant = { token: made.token, id: made.grant.id }
     }
-    const settled = registry.update(entry.id, { account: me.account, email: me.email, grant })
+    const settled = registry.update(entry.id, { account, email: me.email, grant })
     if (grant.token !== old.token) {
       this.#close(entry.id)
       this.#open(settled, me)

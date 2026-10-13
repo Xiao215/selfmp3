@@ -6,6 +6,7 @@ import { gunzipSync, gzipSync } from 'node:zlib'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  CloudPlaysFileSchema,
   CloudSnapshotSchema,
   formatHlc,
   logFile,
@@ -48,6 +49,7 @@ import { LyricsService } from './lyrics.js'
 import { MetadataService } from './metadata.js'
 import { ScannerService } from './scanner.js'
 import { SongRemovalService } from './songRemoval.js'
+import { PlaysArchive } from './playsArchive.js'
 import { LyricsCache } from './lyricsCache.js'
 import { SoundVectorsRepository } from '../repositories/soundVectors.js'
 import { SOUND_MODEL, SoundModelFiles } from '../sound/models.js'
@@ -1064,6 +1066,85 @@ describe('CloudSyncService', () => {
       await pass()
       expect(vectors.countHeard(MODEL)).toBe(1)
       expect(latest().sound!.key).toBe(key)
+    })
+  })
+
+  describe('plays', () => {
+    let stats: StatsRepository
+    let archive: PlaysArchive
+
+    beforeEach(() => {
+      stats = new StatsRepository(db)
+      archive = new PlaysArchive({ stats, sync: syncRepo, deviceId: () => cloud.deviceId() })
+    })
+
+    const playsKeys = (): string[] => bucket.keys('lyrics/').filter(key => key.endsWith('.plays'))
+    const playsPuts = (): string[] => bucket.puts.filter(key => key.endsWith('.plays'))
+    const fileOf = (key: string) =>
+      CloudPlaysFileSchema.parse(JSON.parse(gunzipSync(bucket.objects.get(key)!.body).toString()))
+
+    it('puts each month of plays in the bucket, names them in the snapshot, and sends them once', async () => {
+      const one = addSong('A - One', 'one')
+      const two = addSong('B - Two', 'two')
+      stats.record(one, 1000, true, '2026-08-10 10:00:00')
+      stats.record(two, 2000, false, '2026-09-11 09:00:00', 'phone-1')
+      sync = makeSync({ plays: archive })
+      await connect()
+
+      const named = latest().plays!
+      expect(named.map(month => [month.month, month.count])).toEqual([
+        ['2026-08', 1],
+        ['2026-09', 1],
+      ])
+      expect(playsKeys().sort()).toEqual(named.map(month => month.key).sort())
+      expect(fileOf(named[1]!.key).plays).toEqual([
+        [uidOf(two), '2026-09-11 09:00:00', 2000, false, 'phone-1'],
+      ])
+      // A play no device named is named by this server.
+      expect(fileOf(named[0]!.key).plays[0]![4]).toMatch(new RegExp(`^${cloud.deviceId()}-`))
+
+      await pass()
+      expect(playsPuts()).toHaveLength(2)
+    })
+
+    it('sends this month at most once an hour, and lets the file it replaces go', async () => {
+      const one = addSong('A - One', 'one')
+      stats.record(one, 1000, true, '2026-09-11 09:00:00')
+      sync = makeSync({ plays: archive })
+      await connect()
+      const before = latest().plays![0]!.key
+
+      stats.record(one, 1000, true, '2026-09-11 09:30:00')
+      await pass()
+      expect(playsPuts()).toHaveLength(1)
+
+      clock += 61 * 60_000
+      await pass()
+      await vi.waitFor(() => expect(latest().plays![0]!.key).not.toBe(before))
+      expect(latest().plays![0]!.count).toBe(2)
+      await vi.waitFor(() => expect(playsKeys()).toEqual([latest().plays![0]!.key]))
+    })
+
+    it('takes the plays back into a database made again from the bucket', async () => {
+      const one = addSong('A - One', 'one')
+      stats.record(one, 1000, true, '2026-08-10 10:00:00')
+      stats.record(one, 3000, true, '2026-09-11 09:00:00', 'phone-1')
+      sync = makeSync({ plays: archive })
+      await connect()
+      const months = stats.months().map(month => [month.month, month.count])
+
+      // Everything this server knew of its plays, gone; its next start reads the bucket.
+      sync.stop()
+      await sync.whenIdle()
+      db.exec('DELETE FROM play_events; DELETE FROM cloud_plays')
+      sync = makeSync({ plays: archive })
+      await connect()
+
+      expect(stats.months().map(month => [month.month, month.count])).toEqual(months)
+      expect(stats.build('all').totals.plays).toBe(2)
+      // Read back, they are the file's plays: nothing to send again.
+      await pass()
+      expect(playsPuts()).toHaveLength(2)
     })
   })
 

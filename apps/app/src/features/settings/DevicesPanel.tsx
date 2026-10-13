@@ -15,6 +15,7 @@ import {
   useDevices,
   type Api,
   iconSize,
+  space,
 } from '@selfmp3/client'
 import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
@@ -251,15 +252,15 @@ function DevicesList({
 }
 
 const styles = StyleSheet.create(theme => ({
-  devices: { marginTop: 6 },
+  devices: { marginTop: space.tight },
   device: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: space.snug,
     paddingVertical: 9,
   },
-  devicesMore: { paddingTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  devicesNote: { paddingTop: 10 },
+  devicesMore: { paddingTop: space.snug, flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  devicesNote: { paddingTop: space.snug },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.borderStrong },
   dotOnline: { backgroundColor: theme.colors.good },
   deviceName: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7 },
@@ -267,7 +268,7 @@ const styles = StyleSheet.create(theme => ({
   deviceTag: {
     color: theme.colors.textMuted,
     fontSize: type.tiny,
-    paddingHorizontal: 6,
+    paddingHorizontal: space.tight,
     paddingVertical: 1,
     borderRadius: radius.pill,
     backgroundColor: theme.colors.surface3,

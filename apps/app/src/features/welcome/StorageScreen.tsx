@@ -251,11 +251,11 @@ const styles = StyleSheet.create(theme => ({
   account: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   accountText: { flex: 1, minWidth: 0, color: theme.colors.textMuted, fontSize: type.sub },
   hint: hint(theme.colors),
-  helperHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  helperHead: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   helperWords: { flex: 1, minWidth: 0, gap: 1 },
   helperTitle: rowTitle(theme.colors),
   caret: { color: theme.colors.textSecondary, fontSize: type.sub },
-  step: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  step: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
   stepNumber: {
     width: 24,
     height: 24,
@@ -269,12 +269,12 @@ const styles = StyleSheet.create(theme => ({
   stepTitle: { ...rowTitle(theme.colors), ...textStyle('body') },
   stepDetail: lineSub(theme.colors),
   open: { alignItems: 'flex-start' },
-  trying: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  trying: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   tryingText: {
     flex: 1,
     ...lineSub(theme.colors),
   },
-  actions: { marginTop: 'auto', gap: 4, alignItems: 'stretch' },
+  actions: { marginTop: 'auto', gap: space.xs, alignItems: 'stretch' },
   actionsWide: { alignItems: 'flex-start' },
   footnote: { paddingTop: space.sm },
 }))

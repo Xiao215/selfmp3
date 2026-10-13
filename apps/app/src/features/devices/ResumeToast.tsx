@@ -4,7 +4,7 @@ import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Circle, Svg } from 'react-native-svg'
 import { artistOr, pickResumeState, type Device } from '@selfmp3/shared'
-import { handoffTarget, radius, shortDeviceName, type, useLibrary } from '@selfmp3/client'
+import { handoffTarget, radius, shortDeviceName, type, useLibrary, space } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { usePlaybackMemoryState } from '../../player/usePlaybackMemory'
 import { useLayout } from '../../shell/useLayout'
@@ -175,7 +175,7 @@ const styles = StyleSheet.create(theme => ({
   toast: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: space.tight,
     paddingVertical: 5,
     paddingLeft: 5,
     paddingRight: 7,
@@ -186,14 +186,14 @@ const styles = StyleSheet.create(theme => ({
   main: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 8,
+    gap: space.sm,
     minWidth: 0,
     flexShrink: 1,
     paddingVertical: 7,
-    paddingHorizontal: 12,
+    paddingHorizontal: space.md,
     borderRadius: radius.pill,
   },
-  mainTouch: { paddingVertical: 10 },
+  mainTouch: { paddingVertical: space.snug },
   mainHovered: { backgroundColor: theme.colors.surface3 },
   label: { fontSize: type.sub, fontWeight: '600' },
   song: { color: theme.colors.textPrimary, fontSize: type.sub, flexShrink: 1 },

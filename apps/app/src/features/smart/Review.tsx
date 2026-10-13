@@ -591,8 +591,8 @@ const styles = StyleSheet.create(theme => ({
   bandHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 8,
+    gap: space.snug,
+    paddingVertical: space.sm,
     paddingHorizontal: space.xs,
     borderRadius: radius.coverSm,
   },
@@ -617,7 +617,7 @@ const styles = StyleSheet.create(theme => ({
   change: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: space.md,
     paddingVertical: 7,
     paddingLeft: BAND_TEXT,
     paddingRight: space.xs,
@@ -637,8 +637,8 @@ const styles = StyleSheet.create(theme => ({
   song: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 4,
+    gap: space.snug,
+    paddingVertical: space.xs,
     paddingHorizontal: space.xs,
     borderRadius: radius.coverSm,
   },

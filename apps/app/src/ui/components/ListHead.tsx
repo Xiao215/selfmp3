@@ -91,7 +91,7 @@ export function ListHead({
 
 /** The words in a head, as all three pages set them. */
 export const listHeadText = StyleSheet.create(theme => ({
-  kind: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  kind: { flexDirection: 'row', alignItems: 'center', gap: space.tight },
   kindText: labelText(theme.colors),
   name: heroTitle(theme.colors),
   summary: { color: theme.colors.textSecondary, fontSize: type.sub },
@@ -120,8 +120,8 @@ const styles = StyleSheet.create(theme => ({
     ...artShadow(theme.colors),
     borderRadius: radius.card,
   },
-  titles: { gap: 6, flexShrink: 1, minWidth: 0 },
+  titles: { gap: space.tight, flexShrink: 1, minWidth: 0 },
   titlesWide: { flexGrow: 1, flexBasis: 220 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  actionsWide: { marginLeft: 'auto', paddingBottom: 6 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
+  actionsWide: { marginLeft: 'auto', paddingBottom: space.tight },
 }))

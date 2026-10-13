@@ -10,6 +10,7 @@ import {
   type,
   useBulkDeleteSongs,
   textStyle,
+  radius,
 } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -212,9 +213,9 @@ const styles = StyleSheet.create(theme => ({
   strongDestructive: { color: theme.colors.danger },
   list: {
     paddingVertical: space.sm,
-    paddingHorizontal: 10,
+    paddingHorizontal: space.snug,
     backgroundColor: theme.colors.surface0,
-    borderRadius: 12,
+    borderRadius: radius.item,
     gap: 2,
   },
   listItem: { color: theme.colors.textSecondary, fontSize: type.small },

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { type } from '@selfmp3/client'
+import { type, space } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 
 /**
@@ -36,7 +36,7 @@ export function TaggingLine({
 }
 
 const styles = StyleSheet.create(theme => ({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minWidth: 0 },
   rowCenter: { flex: 1, justifyContent: 'center' },
   text: { flexShrink: 1, color: theme.colors.textSecondary, fontSize: type.small },
 }))

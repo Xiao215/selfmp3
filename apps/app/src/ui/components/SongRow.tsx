@@ -763,7 +763,7 @@ const styles = StyleSheet.create(theme => ({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: space.snug,
     paddingVertical: 5,
     paddingLeft: space.lg,
     paddingRight: space.sm,
@@ -777,7 +777,7 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: space.md,
     paddingVertical: 7,
-    paddingHorizontal: 10,
+    paddingHorizontal: space.snug,
     marginHorizontal: space.sm,
     borderRadius: radius.row,
     overflow: 'hidden',
@@ -803,7 +803,7 @@ const styles = StyleSheet.create(theme => ({
   main: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: space.md,
     paddingVertical: 3,
   },
   mainWide: {
@@ -846,11 +846,11 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.sub,
     flexShrink: 1,
   },
-  subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
+  subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: space.tight, minWidth: 0 },
   subtitleWords: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: space.tight,
     flexShrink: 1,
     minWidth: 0,
   },
@@ -936,7 +936,7 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: TAG_GAP,
     borderRadius: radius.pill,
-    paddingVertical: 4,
+    paddingVertical: space.xs,
     paddingHorizontal: CHIP_PADDING_X,
     backgroundColor: theme.colors.surface2,
     // No one name may take the slot: past this it ends in an ellipsis.
@@ -944,7 +944,7 @@ const styles = StyleSheet.create(theme => ({
   },
   rowTagMoreText: { color: theme.colors.textSecondary },
   rowTagText: { fontSize: CHIP_FONT_SIZE, color: theme.colors.textPrimary, flexShrink: 1 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   control: {
     width: HIT_TARGET,
     height: HIT_TARGET,

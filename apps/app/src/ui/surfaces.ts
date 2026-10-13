@@ -1,5 +1,6 @@
 import {
   fonts,
+  HIT_TARGET,
   radius,
   space,
   textStyle,
@@ -111,6 +112,28 @@ export function pageFrame(wide: boolean): typeof FRAME_WIDE | typeof FRAME_PHONE
  */
 export const Z = { pinnedHeader: 10, scrollbar: 11, scrollbarMark: 12, tooltip: 10000 } as const
 
+/**
+ * A line of a menu or a list of choices (`SheetItem`, the tag picker's, the
+ * command palette's): a finger's, 48 tall. `menuItemDense` is the same line in
+ * a panel with a mouse, 8 by 10. Each list drew its own, and the same kind of
+ * line was 40, 44 and 48 tall with a gap of 9 to 12.
+ */
+export const menuItem = {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: space.md,
+  minHeight: HIT_TARGET + 4,
+  paddingHorizontal: space.md,
+  borderRadius: radius.item,
+} as const
+
+export const menuItemDense = {
+  minHeight: 0,
+  gap: space.snug,
+  paddingVertical: space.sm,
+  paddingHorizontal: space.snug,
+} as const
+
 /** A page's title: the display face at 30, on a phone and a computer alike. */
 export function pageTitle(colors: ThemePalette) {
   return {
@@ -132,7 +155,7 @@ export function sectionTitle(colors: ThemePalette) {
     // tracked tighter still it is cut off by the text's own box: "Your tags"
     // loses the tail of its s on a phone. Two points is not enough on a real
     // one; six is, and is still less than the space that follows any heading.
-    paddingRight: 6,
+    paddingRight: space.tight,
   } as const
 }
 

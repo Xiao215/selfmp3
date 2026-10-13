@@ -98,11 +98,11 @@ function Shell({
 const styles = StyleSheet.create(theme => ({
   dialog: dialogPanel(theme.colors, 'form'),
   head: {
-    paddingTop: 16,
-    paddingRight: 14,
-    paddingBottom: 4,
+    paddingTop: space.lg,
+    paddingRight: space.roomy,
+    paddingBottom: space.xs,
     paddingLeft: 22,
   },
-  body: { paddingTop: 4, paddingHorizontal: 22, paddingBottom: 22, gap: 8 },
+  body: { paddingTop: space.xs, paddingHorizontal: 22, paddingBottom: 22, gap: space.sm },
   notice: { marginTop: space.lg },
 }))

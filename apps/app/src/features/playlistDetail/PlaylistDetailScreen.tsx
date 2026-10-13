@@ -14,6 +14,7 @@ import {
   useReorderPlaylist,
   useUpdatePlaylist,
   iconSize,
+  radius,
 } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
@@ -484,7 +485,7 @@ export function PlaylistDetailScreen(): ReactNode {
  * straight after the words rather than pushed to the far end.
  */
 const WIDE = {
-  hero: { flexWrap: 'nowrap', gap: 24 },
+  hero: { flexWrap: 'nowrap', gap: space.xl },
   titles: { flexBasis: 'auto' },
   actions: { marginLeft: 0 },
 } as const
@@ -503,14 +504,14 @@ const styles = StyleSheet.create(theme => ({
   nameInput: {
     paddingVertical: 2,
     paddingHorizontal: space.sm,
-    borderRadius: 12,
+    borderRadius: radius.field,
     backgroundColor: theme.colors.surface2,
   },
   description: lineSub(theme.colors),
   descriptionInput: {
     paddingVertical: 5,
     paddingHorizontal: space.sm,
-    borderRadius: 12,
+    borderRadius: radius.field,
     backgroundColor: theme.colors.surface2,
   },
 }))

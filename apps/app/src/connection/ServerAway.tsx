@@ -131,7 +131,7 @@ export function JoinSharedButton({
 }
 
 const styles = StyleSheet.create(theme => ({
-  looking: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: space.xl },
+  looking: { flexDirection: 'row', alignItems: 'center', gap: space.snug, marginTop: space.xl },
   lookingText: { color: theme.colors.textMuted, fontSize: type.sub },
   card: { marginTop: space.xl },
   join: { gap: space.xs },

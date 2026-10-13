@@ -14,6 +14,7 @@ import {
   textStyle,
   tracking,
   iconSize,
+  space,
 } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -287,6 +288,6 @@ const styles = StyleSheet.create(theme => ({
   stale: { opacity: 0.55 },
   // Words asked run longer than a tag's name: smaller, so three lines still hold them.
   nameLong: { ...textStyle('page'), letterSpacing: tracking.page },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 6 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, paddingTop: space.tight },
   note: { color: theme.colors.textMuted, fontSize: type.small },
 }))

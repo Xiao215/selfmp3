@@ -232,14 +232,14 @@ const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   scroll: { flex: 1 },
   // As Import's head: the button, the words under it on the left, room above and below.
-  headPhone: { ...pageFrame(false), paddingBottom: 14 },
+  headPhone: { ...pageFrame(false), paddingBottom: space.roomy },
   count: { color: theme.colors.textSecondary, fontSize: type.sub, fontVariant: ['tabular-nums'] },
   headWide: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: space.lg,
     ...pageFrame(true),
-    paddingBottom: 14,
+    paddingBottom: space.roomy,
   },
   mosaic: {
     width: 64,
@@ -255,8 +255,8 @@ const styles = StyleSheet.create(theme => ({
   nameWide: pageTitle(theme.colors),
   hint: {
     ...lineSub(theme.colors),
-    paddingTop: 12,
-    paddingBottom: 4,
+    paddingTop: space.md,
+    paddingBottom: space.xs,
   },
   listPhone: { paddingHorizontal: space.gutter, flexGrow: 1 },
   listWide: { paddingHorizontal: 28 },

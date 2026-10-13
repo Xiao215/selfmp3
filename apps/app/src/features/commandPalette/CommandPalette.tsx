@@ -34,7 +34,7 @@ import {
   Sparkle,
   Tag,
 } from '../../ui/components/Icons'
-import { label as labelText, dialogPanel } from '../../ui/surfaces'
+import { label as labelText, dialogPanel, menuItem, menuItemDense } from '../../ui/surfaces'
 import { AskAnswer } from '../smart/AskAnswer'
 import type { AnswerKeys } from '../smart/answerKeys'
 import { ASK_SUB, askable } from '../smart/smart.model'
@@ -618,27 +618,19 @@ const styles = StyleSheet.create(theme => ({
   panel: dialogPanel(theme.colors),
   inputRow: { padding: space.md, paddingBottom: space.sm },
   count: { color: theme.colors.textMuted, fontSize: type.tiny, fontVariant: ['tabular-nums'] },
-  results: { padding: 6 },
-  group: { marginBottom: 6 },
+  results: { padding: space.tight },
+  group: { marginBottom: space.tight },
   groupTitle: {
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'space-between',
-    paddingTop: 8,
-    paddingHorizontal: 10,
+    paddingTop: space.sm,
+    paddingHorizontal: space.snug,
     paddingBottom: 5,
   },
   groupText: labelText(theme.colors),
   groupCount: { opacity: 0.75, letterSpacing: 0 },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-    minHeight: 40,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-  },
+  item: { ...menuItem, ...menuItemDense, minHeight: 40 },
   // The highlighted row is a lighter surface; it no longer has an accent bar.
   itemOn: { backgroundColor: theme.colors.surface3 },
   labelBox: { flex: 1, minWidth: 0 },
@@ -660,9 +652,9 @@ const styles = StyleSheet.create(theme => ({
   foot: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    gap: space.lg,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.lg,
     // Set down a step from the panel: tone, not a rule.
     backgroundColor: theme.colors.surface0,
   },

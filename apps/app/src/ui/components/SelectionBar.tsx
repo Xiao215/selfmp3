@@ -586,17 +586,17 @@ const styles = StyleSheet.create(theme => ({
   // Room between the icons, and a tone of its own: at `surface2` the bar and
   // the mini player under it were two identical slabs.
   barCompact: {
-    gap: 6,
+    gap: space.tight,
     paddingVertical: 7,
     paddingLeft: space.sm,
-    paddingRight: 6,
+    paddingRight: space.tight,
     backgroundColor: theme.colors.surface3,
   },
   countRow: { flexDirection: 'row', alignItems: 'center', gap: 7, minWidth: 0 },
   countPill: {
     minWidth: 22,
     height: 22,
-    paddingHorizontal: 6,
+    paddingHorizontal: space.tight,
     borderRadius: radius.pill,
     backgroundColor: theme.colors.accent,
     alignItems: 'center',
@@ -610,7 +610,13 @@ const styles = StyleSheet.create(theme => ({
   },
   countWord: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '500' },
   leave: { width: 1, height: 20, backgroundColor: theme.colors.border, marginHorizontal: 1 },
-  anchor: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0, flexShrink: 1 },
+  anchor: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.snug,
+    minWidth: 0,
+    flexShrink: 1,
+  },
   all: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   counts: { minWidth: 0 },
   countCompact: { flex: 1, minWidth: 0 },
@@ -620,7 +626,13 @@ const styles = StyleSheet.create(theme => ({
   },
   scope: { color: theme.colors.textMuted, fontSize: type.tiny },
   scopeLink: { textDecorationLine: 'underline' },
-  actions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, minWidth: 0 },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: space.tight,
+    minWidth: 0,
+  },
   doneWide: { marginLeft: 'auto' },
   menuTitle: {
     ...smallTitle(theme.colors),

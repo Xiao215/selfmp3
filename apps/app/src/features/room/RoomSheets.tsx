@@ -795,7 +795,7 @@ const styles = StyleSheet.create(theme => ({
   section: { gap: 2, paddingTop: space.sm },
   sectionHead: { paddingBottom: space.xs },
   shelfMine: { gap: space.sm, paddingBottom: space.sm },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.tight },
   found: { gap: space.sm },
   pickText: textColumn,
   pickTitle: rowTitle(theme.colors),

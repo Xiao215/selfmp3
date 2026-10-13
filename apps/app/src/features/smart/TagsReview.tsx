@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { artistOr, plural, type TagReview } from '@selfmp3/shared'
-import { useLibrary } from '@selfmp3/client'
+import { useLibrary, space } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { useSongsById } from '../../ui/songsById'
 import { showUndoToast } from '../../ui/toast'
@@ -58,7 +58,7 @@ export function TagsReview({
           ? 'Every song here has a tag.'
           : `Nothing to suggest for your ${songCount(review.looked)} without a tag.`
     return (
-      <View style={{ gap: 8 }}>
+      <View style={{ gap: space.sm }}>
         <AnswerLine testID="tags-nothing">{line}</AnswerLine>
         {notes.map(note => (
           <AnswerNote key={note}>{note}</AnswerNote>

@@ -621,8 +621,6 @@ function Foot(): ReactNode {
 /** The round mark on the rail's own row. */
 const AVATAR = 30
 
-/** The corners of a row in the rail: a destination, a playlist, a tag, the status. */
-const ITEM_RADIUS = 12
 /** The type of a row's name in the rail, and of its search and new-tag fields. */
 const ITEM_TEXT = type.sub
 
@@ -672,7 +670,7 @@ const styles = StyleSheet.create(theme => ({
     gap: space.md,
     paddingHorizontal: space.sm,
     paddingVertical: space.sm,
-    borderRadius: ITEM_RADIUS,
+    borderRadius: radius.item,
   },
   label: {
     color: theme.colors.textSecondary,
@@ -698,7 +696,7 @@ const styles = StyleSheet.create(theme => ({
   searchKeys: { flexDirection: 'row', gap: 3 },
   searchKey: {
     minWidth: 18,
-    paddingHorizontal: 4,
+    paddingHorizontal: space.xs,
     textAlign: 'center',
     fontSize: type.tiny,
     fontWeight: '600',
@@ -714,15 +712,15 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: space.sm,
     minHeight: 32,
-    paddingHorizontal: 6,
-    borderRadius: ITEM_RADIUS,
+    paddingHorizontal: space.tight,
+    borderRadius: radius.item,
     // Clear until a song is dragged over: then the dashed edge is the drop
     // target itself.
     borderWidth: 1,
     borderColor: 'transparent',
   },
   playlistName: { flex: 1, color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
-  loadingHint: { paddingHorizontal: 10, paddingVertical: 4 },
+  loadingHint: { paddingHorizontal: space.snug, paddingVertical: space.xs },
   dropping: {
     borderStyle: 'dashed',
     backgroundColor: theme.colors.surface2,
@@ -734,18 +732,18 @@ const styles = StyleSheet.create(theme => ({
   // The radius is the highlight's own: the sliding fill is a view behind the
   // rows, not the row itself, so without it the lit destination would have
   // square corners while every row it slid between was rounded.
-  itemOn: { backgroundColor: theme.colors.surface3, borderRadius: ITEM_RADIUS },
+  itemOn: { backgroundColor: theme.colors.surface3, borderRadius: radius.item },
   labelOn: { color: theme.colors.textPrimary, fontWeight: '600' },
   rowPressed: { backgroundColor: theme.colors.surface2 },
-  dropHint: { fontSize: type.tiny, paddingHorizontal: 10, paddingBottom: 2 },
+  dropHint: { fontSize: type.tiny, paddingHorizontal: space.snug, paddingBottom: 2 },
   /* `.nav-group-grow`: the tag list takes what is left, and scrolls in it. */
   group: { flex: 1, minHeight: 0, gap: 1 },
   groupTitle: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: space.tight,
+    paddingHorizontal: space.snug,
   },
   groupTitleMain: {
     flex: 1,
@@ -764,14 +762,19 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     borderRadius: radius.pill,
   },
-  tagForm: { gap: 6, paddingTop: 4, paddingHorizontal: 10, paddingBottom: space.sm },
+  tagForm: {
+    gap: space.tight,
+    paddingTop: space.xs,
+    paddingHorizontal: space.snug,
+    paddingBottom: space.sm,
+  },
   tagHues: { marginHorizontal: -4 },
   suggestions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
     gap: 5,
-    marginTop: 6,
+    marginTop: space.tight,
   },
   suggestion: {
     backgroundColor: theme.colors.surface3,
@@ -782,21 +785,21 @@ const styles = StyleSheet.create(theme => ({
   suggestionText: { color: theme.colors.textSecondary, fontSize: type.tiny },
   tagList: { flex: 1 },
   tagListContent: { gap: 1 },
-  tagRow: { flexDirection: 'row', alignItems: 'center', borderRadius: ITEM_RADIUS },
+  tagRow: { flexDirection: 'row', alignItems: 'center', borderRadius: radius.item },
   tagMain: {
     flex: 1,
     minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
-    paddingTop: 6,
-    paddingRight: 4,
-    paddingBottom: 6,
-    paddingLeft: 10,
+    paddingTop: space.tight,
+    paddingRight: space.xs,
+    paddingBottom: space.tight,
+    paddingLeft: space.snug,
   },
   tagName: { flex: 1, color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
   count: { color: theme.colors.textMuted, fontSize: type.tiny, fontVariant: ['tabular-nums'] },
-  tagAction: { paddingVertical: 6, paddingHorizontal: 5 },
+  tagAction: { paddingVertical: space.tight, paddingHorizontal: 5 },
   tagRowHovered: {
     backgroundColor: theme.colors.surface2,
     _web: { transitionDuration: `${MOVE_MS.hoverIn}ms` },
@@ -804,9 +807,9 @@ const styles = StyleSheet.create(theme => ({
   tagActionLast: { paddingRight: space.sm },
   tagEmpty: {
     alignItems: 'flex-start',
-    gap: 6,
-    paddingVertical: 14,
-    paddingHorizontal: 10,
+    gap: space.tight,
+    paddingVertical: space.roomy,
+    paddingHorizontal: space.snug,
     marginTop: 2,
     borderWidth: 1,
     borderStyle: 'dashed',
@@ -819,14 +822,14 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.small,
     textDecorationLine: 'underline',
   },
-  foot: { paddingTop: 10, gap: 1 },
+  foot: { paddingTop: space.snug, gap: 1 },
   status: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: ITEM_RADIUS,
+    gap: space.snug,
+    paddingVertical: space.tight,
+    paddingHorizontal: space.snug,
+    borderRadius: radius.item,
   },
   // Whether the library can be reached, as a dot on the avatar's shoulder.
   statusDot: {

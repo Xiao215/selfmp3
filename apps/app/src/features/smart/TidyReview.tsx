@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { artistOr, plural, type Song, type TidyField, type TidyResult } from '@selfmp3/shared'
-import { useBulkEditSongs } from '@selfmp3/client'
+import { useBulkEditSongs, space } from '@selfmp3/client'
 import { useSongsById } from '../../ui/songsById'
 import { showUndoToast } from '../../ui/toast'
 import type { AnswerKeys } from './answerKeys'
@@ -50,7 +50,7 @@ export function TidyReview({
   // Nothing to change is still an answer: what the model said about it comes first.
   if (here.length === 0) {
     return (
-      <View style={{ gap: 8 }}>
+      <View style={{ gap: space.sm }}>
         {result.reply ? (
           <Text style={reviewText.reply} selectable testID="tidy-reply">
             {result.reply}

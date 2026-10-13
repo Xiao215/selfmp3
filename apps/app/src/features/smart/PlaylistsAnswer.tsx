@@ -235,7 +235,7 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
-    paddingVertical: 6,
+    paddingVertical: space.tight,
     paddingHorizontal: space.xs,
     borderRadius: radius.coverSm,
   },

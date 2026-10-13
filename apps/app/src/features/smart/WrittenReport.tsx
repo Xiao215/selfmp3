@@ -103,7 +103,7 @@ const styles = StyleSheet.create(theme => ({
     gap: space.sm,
     borderRadius: radius.card,
   },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: space.tight },
   label: label(theme.colors),
   body: { color: theme.colors.textPrimary, ...textStyle('body') },
   muted: { color: theme.colors.textMuted, fontSize: type.sub },

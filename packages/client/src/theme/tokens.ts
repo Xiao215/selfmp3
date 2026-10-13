@@ -333,16 +333,33 @@ export const radius = {
   row: 14,
   /** A text field that is not a search: a name, a tag's name, a song's details. */
   field: 12,
+  /** A menu's line, a result in a list of them, a hover caption, an icon's tile. */
+  item: 12,
   cover: 10,
   coverSm: 8,
 } as const
 
 /**
- * Room, on a four-point grid. `gutter` is a phone page's side margin and
+ * Room, on a two-point grid. `gutter` is a phone page's side margin and
  * `gutterWide` a computer's: every page lines its content up on one of the
  * two, so they are named rather than written as 20 and 40 at each site.
+ * `card` is a card's own padding. The in-between steps (`tight` 6, `snug` 10,
+ * `roomy` 14) are the ones the screens use most after the grid's own: a
+ * chip row's gap, a list's, a card's.
  */
-export const space = { xs: 4, sm: 8, md: 12, lg: 16, gutter: 20, xl: 24, gutterWide: 40 } as const
+export const space = {
+  xs: 4,
+  tight: 6,
+  sm: 8,
+  snug: 10,
+  md: 12,
+  roomy: 14,
+  lg: 16,
+  card: 18,
+  gutter: 20,
+  xl: 24,
+  gutterWide: 40,
+} as const
 
 /**
  * The type scale: nine sizes and no others. Two sizes a point apart read as a

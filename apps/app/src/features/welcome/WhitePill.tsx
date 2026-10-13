@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { ActivityIndicator, Text } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import Svg, { Path } from 'react-native-svg'
-import { radius, type } from '@selfmp3/client'
+import { radius, type, space } from '@selfmp3/client'
 import { Press } from '../../ui/components/Press'
 
 /**
@@ -81,7 +81,7 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: space.snug,
   },
   disabled: { opacity: 0.45 },
   label: { color: theme.colors.onPrimary, fontSize: type.body, fontWeight: '600' },

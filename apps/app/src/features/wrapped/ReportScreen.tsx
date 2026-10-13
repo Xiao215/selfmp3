@@ -11,6 +11,7 @@ import {
   withAlpha,
   type ServerConnection,
   iconSize,
+  space,
 } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { useConnection } from '../../connection/ConnectionProvider'
@@ -471,28 +472,28 @@ const styles = StyleSheet.create(theme => ({
     opacity: 0.8,
   },
   contentWide: { ...pageFrame(true), paddingBottom: 48, gap: 20 },
-  contentNarrow: { ...pageFrame(false), paddingBottom: 28, gap: 16 },
+  contentNarrow: { ...pageFrame(false), paddingBottom: 28, gap: space.lg },
   bar: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    gap: 16,
+    gap: space.lg,
   },
-  barEnd: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  barEnd: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     minHeight: 44,
   },
-  headerEnd: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerEnd: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   stage: { width: '100%', alignItems: 'center' },
   // The picture floats over the page: the one shadow here.
   object: floating(theme.colors),
   clip: { overflow: 'hidden' },
-  picker: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 14 },
-  pickerNarrow: { justifyContent: 'center', paddingTop: 4 },
+  picker: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: space.roomy },
+  pickerNarrow: { justifyContent: 'center', paddingTop: space.xs },
   pick: { alignItems: 'center', gap: 5 },
   pressed: { opacity: 0.7 },
   // Lifted off the page like the paper it is; firmer than a card's, which

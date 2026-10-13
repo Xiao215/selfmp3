@@ -3,7 +3,7 @@ import { Animated, Pressable, Text } from 'react-native'
 import type { LayoutChangeEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePressScale } from '../motion'
-import { iconSize, radius, type } from '@selfmp3/client'
+import { iconSize, radius, type, space } from '@selfmp3/client'
 import { Check, sizedIcon } from './Icons'
 import { Press } from './Press'
 import { TagDot } from './TagDot'
@@ -157,10 +157,10 @@ const styles = StyleSheet.create(theme => ({
   press: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: space.tight,
   },
-  labelStrip: { paddingHorizontal: 14, paddingVertical: 8 },
-  labelCompact: { paddingHorizontal: 10, paddingVertical: 5 },
+  labelStrip: { paddingHorizontal: space.roomy, paddingVertical: space.sm },
+  labelCompact: { paddingHorizontal: space.snug, paddingVertical: 5 },
   beforeRemove: { paddingRight: 2 },
   pressed: {
     opacity: 0.8,
@@ -170,6 +170,6 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.sub,
     fontWeight: '500',
   },
-  remove: { paddingLeft: 2, paddingRight: 10 },
+  remove: { paddingLeft: 2, paddingRight: space.snug },
   removeGlyph: { fontSize: type.body, opacity: 0.6 },
 }))

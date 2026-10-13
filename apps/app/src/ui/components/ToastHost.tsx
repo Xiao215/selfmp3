@@ -145,7 +145,7 @@ const styles = StyleSheet.create(theme => ({
     maxWidth: 560,
     paddingVertical: space.sm,
     paddingRight: space.sm,
-    paddingLeft: 14,
+    paddingLeft: space.roomy,
     // A floating pill with no edge: its shadow lifts it off the page. An error
     // says so in its red text; the other tones are told by what they say.
     borderRadius: radius.pill,

@@ -224,6 +224,6 @@ const styles = StyleSheet.create(theme => ({
   laneStacked: { gap: space.xs, paddingBottom: space.md },
   laneLabel: labelText(theme.colors),
   laneLabelBeside: { width: 74, paddingTop: 5 },
-  cloud: { flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  cloud: { flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', gap: space.tight },
   hint: { color: theme.colors.textMuted, fontSize: type.small, padding: space.xs },
 }))

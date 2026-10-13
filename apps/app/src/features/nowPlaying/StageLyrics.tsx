@@ -4,7 +4,7 @@ import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { blurLayer } from '../../ports/blurLayer'
 import { activeLineIndex, lyricTextLines, type ParsedLyrics } from '@selfmp3/shared'
-import { radius, withAlpha } from '@selfmp3/client'
+import { radius, withAlpha, space } from '@selfmp3/client'
 import { usePlayerCommands, usePlayerProgress } from '../../player/PlayerProvider'
 import { LYRIC_ANCHOR, LYRIC_LEAD, MANUAL_SCROLL_MS } from './nowPlaying.model'
 import { glideToLine } from './lyricFollow.model'
@@ -195,7 +195,7 @@ const LyricsList = memo(function LyricsList({
         contentContainerStyle={{
           paddingTop: boxHeight * (synced ? LYRIC_ANCHOR : 0.14),
           paddingBottom: boxHeight * 0.55,
-          paddingHorizontal: 6,
+          paddingHorizontal: space.tight,
         }}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={64}

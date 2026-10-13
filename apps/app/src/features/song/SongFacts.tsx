@@ -215,7 +215,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }): Reac
 
 const styles = StyleSheet.create(theme => ({
   // No side padding: the page it sits in has its own gutter.
-  group: { gap: 10, paddingTop: space.md, paddingBottom: space.lg },
+  group: { gap: space.snug, paddingTop: space.md, paddingBottom: space.lg },
   // The groups are told apart by their labels and the room between them.
   groupTitle: labelText(theme.colors),
   fact: { flexDirection: 'row', gap: space.md },
@@ -228,7 +228,7 @@ const styles = StyleSheet.create(theme => ({
     fontVariant: ['tabular-nums'],
   },
   note: { color: theme.colors.textMuted, fontSize: type.small },
-  inline: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  action: { marginTop: 6 },
+  inline: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
+  action: { marginTop: space.tight },
   empty: lineSub(theme.colors),
 }))

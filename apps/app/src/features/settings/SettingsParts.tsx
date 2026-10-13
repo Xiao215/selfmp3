@@ -2,7 +2,7 @@ import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { radius, type } from '@selfmp3/client'
+import { radius, type, space } from '@selfmp3/client'
 import { ChevronDown, ChevronRight } from '../../ui/components/Icons'
 import { Slider } from '../../ui/components/Slider'
 import { card, label as labelText, serif, hint, lineSub } from '../../ui/surfaces'
@@ -162,16 +162,16 @@ export function Details({ children }: { children: ReactNode }): ReactNode {
 
 export const partStyles = StyleSheet.create(theme => ({
   // A notice in a panel (`NoticeCard`, washed): room above and below it, as a row has.
-  notice: { marginVertical: 8 },
+  notice: { marginVertical: space.sm },
   // A field beside a row's words: wide enough for an address or a name.
   field: { minWidth: 220 },
-  progress: { marginVertical: 14, gap: 8 },
+  progress: { marginVertical: space.roomy, gap: space.sm },
   progressText: { color: theme.colors.textSecondary, fontSize: type.sub },
   valueText: { color: theme.colors.textPrimary, fontSize: type.sub },
   input: {
     minWidth: 220,
     paddingVertical: 7,
-    paddingHorizontal: 14,
+    paddingHorizontal: space.roomy,
     fontSize: type.sub,
     color: theme.colors.textPrimary,
     backgroundColor: theme.colors.surface2,
@@ -190,19 +190,19 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    gap: 6,
-    paddingVertical: 8,
-    paddingRight: 8,
+    gap: space.tight,
+    paddingVertical: space.sm,
+    paddingRight: space.sm,
     borderRadius: radius.pill,
   },
   detailsRowPressed: { opacity: 0.7 },
   detailsRowText: { color: theme.colors.textMuted, fontSize: type.sub },
-  group: { gap: 8 },
+  group: { gap: space.sm },
   groupHead: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 10,
-    paddingHorizontal: 4,
+    gap: space.snug,
+    paddingHorizontal: space.xs,
   },
   groupMark: { alignSelf: 'center', marginRight: -4 },
   groupLabel: labelText(theme.colors),
@@ -210,23 +210,23 @@ const styles = StyleSheet.create(theme => ({
   panel: {
     ...card(theme.colors),
     paddingTop: 5,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
+    paddingBottom: space.lg,
+    paddingHorizontal: space.lg,
   },
   hint: { color: theme.colors.textMuted, fontSize: type.small },
   lead: {
     ...lineSub(theme.colors),
-    marginBottom: 12,
+    marginBottom: space.md,
     maxWidth: 520,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 24,
+    gap: space.xl,
     minHeight: 54,
     paddingVertical: 11,
   },
-  rowStacked: { flexDirection: 'column', alignItems: 'stretch', gap: 10 },
+  rowStacked: { flexDirection: 'column', alignItems: 'stretch', gap: space.snug },
   // The card's own padding is below the last row, so it needs none of its own.
   rowLast: { paddingBottom: 0 },
   label: { flex: 1, minWidth: 0, gap: 3 },
@@ -235,7 +235,12 @@ const styles = StyleSheet.create(theme => ({
     ...hint(theme.colors),
     maxWidth: 400,
   },
-  control: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10 },
+  control: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: space.snug,
+  },
   controlStacked: { justifyContent: 'flex-start', flexWrap: 'wrap' },
   value: {
     minWidth: 34,
@@ -244,8 +249,8 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.small,
     fontVariant: ['tabular-nums'],
   },
-  stats: { flexDirection: 'row', gap: 32, marginTop: 16, marginBottom: 12 },
+  stats: { flexDirection: 'row', gap: 32, marginTop: space.lg, marginBottom: space.md },
   statValue: serif(theme.colors, 'page'),
   statLabel: { color: theme.colors.textMuted, fontSize: type.small },
-  buttons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+  buttons: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.roomy },
 }))

@@ -358,7 +358,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.pill,
     backgroundColor: theme.colors.glass,
   },
-  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   badgeText: { color: theme.colors.textPrimary, fontSize: type.tiny, fontWeight: '700' },
   fab: {
     position: 'absolute',

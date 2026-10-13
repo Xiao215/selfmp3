@@ -146,7 +146,7 @@ export function LibraryAnswer({
 
 const styles = StyleSheet.create(theme => ({
   muted: { color: theme.colors.textMuted, fontSize: type.small, fontWeight: '400' },
-  counts: { gap: 4, paddingTop: space.xs },
+  counts: { gap: space.xs, paddingTop: space.xs },
   countRow: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
   title: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '500' },
   more: { alignSelf: 'flex-start', paddingVertical: 5, paddingHorizontal: space.xs },

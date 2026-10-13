@@ -114,8 +114,8 @@ const OUTLINE = [
 ] as const
 
 const styles = StyleSheet.create(theme => ({
-  body: { gap: 10, paddingVertical: space.xs },
-  step: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  body: { gap: space.snug, paddingVertical: space.xs },
+  step: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   mark: {
     width: 18,
     height: 18,
@@ -131,8 +131,14 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.small,
     fontVariant: ['tabular-nums'],
   },
-  outline: { gap: 4, marginTop: space.xs },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6, paddingLeft: 28 },
+  outline: { gap: space.xs, marginTop: space.xs },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingVertical: space.tight,
+    paddingLeft: 28,
+  },
   ring: {
     width: 18,
     height: 18,
@@ -140,7 +146,7 @@ const styles = StyleSheet.create(theme => ({
     borderWidth: 1.5,
     borderColor: theme.colors.borderStrong,
   },
-  lines: { flex: 1, gap: 6 },
+  lines: { flex: 1, gap: space.tight },
   bar: { height: 12, borderRadius: 6, backgroundColor: theme.colors.surface3 },
   thin: { height: 9 },
 }))

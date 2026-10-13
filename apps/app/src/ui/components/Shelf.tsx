@@ -181,7 +181,7 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textPrimary,
     fontSize: type.tiny,
     fontWeight: '600',
-    marginTop: 6,
+    marginTop: space.tight,
   },
   titleLarge: { fontSize: type.small },
   line: { color: theme.colors.textSecondary, fontSize: type.tiny },

@@ -448,13 +448,18 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: 6,
+    gap: space.tight,
   },
   group: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   // The groups are set apart by room, not a rule.
   groupDivided: { paddingLeft: space.md },
   volume: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  volumePopover: { alignItems: 'center', gap: 10, paddingTop: 10, paddingBottom: 2 },
+  volumePopover: {
+    alignItems: 'center',
+    gap: space.snug,
+    paddingTop: space.snug,
+    paddingBottom: 2,
+  },
   readout: {
     color: theme.colors.textSecondary,
     fontSize: type.tiny,

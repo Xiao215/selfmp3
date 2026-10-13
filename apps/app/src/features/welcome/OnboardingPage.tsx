@@ -136,7 +136,7 @@ const styles = StyleSheet.create(theme => ({
   title: nameTitle(theme.colors),
   titleMark: { fontFamily: fonts.serifItalic, color: theme.colors.accent },
   lead: bodyText(theme.colors),
-  card: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14 },
+  card: { ...card(theme.colors, radius.cardLg), padding: space.card, gap: space.roomy },
   footnote: {
     ...hint(theme.colors),
     textAlign: 'center',

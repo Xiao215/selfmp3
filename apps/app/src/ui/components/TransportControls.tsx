@@ -6,6 +6,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { IconButton } from './IconButton'
 import { Next, Prev, Repeat, RepeatOne, Shuffle } from './Icons'
 import { PlayPauseButton } from './PlayPauseButton'
+import { space } from '@selfmp3/client'
 
 /** Said as a sentence, because "Repeat: off" is not what a screen reader wants. */
 const REPEAT_LABEL = {
@@ -97,6 +98,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   page: { justifyContent: 'space-between' },
   words: { justifyContent: 'center', gap: 26 },
-  bar: { gap: 6 },
-  barPlay: { marginHorizontal: 4 },
+  bar: { gap: space.tight },
+  barPlay: { marginHorizontal: space.xs },
 })

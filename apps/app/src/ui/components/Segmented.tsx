@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { radius, type, withAlpha } from '@selfmp3/client'
+import { radius, type, withAlpha, space } from '@selfmp3/client'
 import { useFade } from '../motion'
 import { MOVE_MS } from '../motion.model'
 import { useSlidingHighlight } from './SlidingHighlight'
@@ -172,8 +172,8 @@ const styles = StyleSheet.create(theme => ({
   // Over a song's colour, a veil of the ink: a surface read as a dark box there.
   groupTranslucent: { backgroundColor: theme.colors.veil },
   item: { borderRadius: radius.pill },
-  pad: { paddingVertical: 6, paddingHorizontal: 14 },
-  padSmall: { paddingHorizontal: 12 },
+  pad: { paddingVertical: space.tight, paddingHorizontal: space.roomy },
+  padSmall: { paddingHorizontal: space.md },
   itemHovered: { backgroundColor: theme.colors.surface3 },
   itemVeiled: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.1) },
   itemActive: { backgroundColor: theme.colors.textPrimary, borderRadius: radius.pill },

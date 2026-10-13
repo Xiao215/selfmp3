@@ -622,7 +622,7 @@ const styles = StyleSheet.create(theme => ({
   tagStripWide: { paddingTop: 0 },
   tagStrip: {
     flexDirection: 'row',
-    gap: 6,
+    gap: space.tight,
     paddingHorizontal: space.gutter,
     paddingTop: space.md,
     paddingBottom: space.sm,

@@ -162,9 +162,9 @@ export function ImportFoot({
 }
 
 const styles = StyleSheet.create({
-  footPhone: { gap: 10, paddingTop: 8, paddingHorizontal: space.gutter },
-  footWide: { gap: 10, paddingTop: 12, paddingHorizontal: space.gutterWide },
-  footColumn: { gap: 10 },
-  footRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  footPhone: { gap: space.snug, paddingTop: space.sm, paddingHorizontal: space.gutter },
+  footWide: { gap: space.snug, paddingTop: space.md, paddingHorizontal: space.gutterWide },
+  footColumn: { gap: space.snug },
+  footRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   tagsWide: { flex: 1, minWidth: 0 },
 })

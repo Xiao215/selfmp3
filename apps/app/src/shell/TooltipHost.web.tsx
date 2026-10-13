@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useUnistyles } from 'react-native-unistyles'
-import { motion, type, cssTextStyle } from '@selfmp3/client'
+import { motion, type, cssTextStyle, space, radius } from '@selfmp3/client'
 import { motionMs } from '../ui/motion'
 import { EASE_IN_CSS, EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
 import { floating, Z } from '../ui/surfaces'
@@ -271,12 +271,12 @@ export function TooltipHost(): ReactNode {
           zIndex: Z.tooltip,
           display: 'flex',
           alignItems: 'center',
-          gap: 6,
+          gap: space.tight,
           maxWidth: 'min(320px, calc(100vw - 16px))',
           padding: '4px 8px',
           // A raised control's tone and the floating shadow; no edge.
           background: colors.surface3,
-          borderRadius: 12,
+          borderRadius: radius.item,
           ...floating(colors),
           color: colors.textSecondary,
           fontFamily: FONT_STACK,

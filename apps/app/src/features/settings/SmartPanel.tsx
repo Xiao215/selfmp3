@@ -12,7 +12,7 @@ import { useSmartServer } from '../smart/useSmartServer'
 import { ServerAway } from '../../connection/ServerAway'
 import { Panel, Row } from './SettingsParts'
 import { reachedConnection, viaKey } from '../../connection/via'
-import { type, textStyle, iconSize } from '@selfmp3/client'
+import { type, textStyle, iconSize, space } from '@selfmp3/client'
 import { hint, textColumn } from '../../ui/surfaces'
 
 /**
@@ -263,8 +263,8 @@ const styles = StyleSheet.create(theme => ({
   note: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingLeft: 12,
+    gap: space.sm,
+    paddingLeft: space.md,
     paddingVertical: 2,
     borderLeftWidth: 2,
     borderLeftColor: theme.colors.surface3,
@@ -275,8 +275,8 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textPrimary,
     ...textStyle('sub'),
   },
-  hops: { gap: 8, paddingTop: 4 },
-  hop: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
+  hops: { gap: space.sm, paddingTop: space.xs },
+  hop: { flexDirection: 'row', gap: space.sm, alignItems: 'flex-start' },
   hopMark: { paddingTop: 2 },
   hopText: textColumn,
   hopLine: { color: theme.colors.textPrimary, ...textStyle('sub') },

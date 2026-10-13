@@ -395,19 +395,19 @@ function Option({
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm, padding: space.sm },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.tight },
   // A long tag list scrolls inside the sheet rather than pushing its buttons off.
   tagScroll: { maxHeight: 260 },
   hint: {
     color: theme.colors.textMuted,
     fontSize: type.small,
     flexShrink: 1,
-    paddingHorizontal: 4,
+    paddingHorizontal: space.xs,
   },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: space.snug,
     paddingVertical: 7,
     paddingHorizontal: space.sm,
     borderRadius: radius.coverSm + 4,

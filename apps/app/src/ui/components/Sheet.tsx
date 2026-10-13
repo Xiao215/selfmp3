@@ -5,14 +5,14 @@ import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import { HIT_TARGET, iconSize, motion, radius, space, type } from '@selfmp3/client'
+import { iconSize, motion, radius, space, type } from '@selfmp3/client'
 import { sizedIcon } from './Icons'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { useLayoutValue, useWindowValue } from '../../shell/useLayout'
 import { PanelDenseContext, usePanelDense } from './panel'
 import { Press } from './Press'
-import { floating, rowTitle } from '../surfaces'
+import { floating, rowTitle, menuItem, menuItemDense } from '../surfaces'
 import { ease, spring, timing } from '../motion'
 import { MOVE_MS, overshootRange, PULL } from '../motion.model'
 import { useKeyboardLift } from '../../ports/keyboardLift'
@@ -462,26 +462,14 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textMuted,
     fontSize: type.small,
   },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    minHeight: HIT_TARGET + 4,
-    paddingHorizontal: space.md,
-    borderRadius: 12,
-  },
+  item: menuItem,
   // The chosen line is a lighter surface, not accent ink: the accent is kept
   // for the one button that commits something (`S2`).
   itemActive: {
     backgroundColor: theme.colors.surface2,
   },
   /* In a panel with a mouse: 8 by 10, 13-point type. */
-  itemDense: {
-    minHeight: 0,
-    gap: 9,
-    paddingVertical: space.sm,
-    paddingHorizontal: 10,
-  },
+  itemDense: menuItemDense,
   itemActiveDense: {
     backgroundColor: theme.colors.surface3,
   },

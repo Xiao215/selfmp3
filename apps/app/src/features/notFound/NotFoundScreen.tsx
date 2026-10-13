@@ -128,7 +128,7 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
     gap: space.md,
-    paddingHorizontal: 24,
+    paddingHorizontal: space.xl,
     paddingBottom: 40,
   },
   wave: {
@@ -143,7 +143,7 @@ const styles = StyleSheet.create(theme => ({
   barMissing: {
     height: 2,
     width: 6,
-    marginHorizontal: 8,
+    marginHorizontal: space.sm,
     borderRadius: 1,
     backgroundColor: theme.colors.surface3,
   },
@@ -166,10 +166,10 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 4,
+    gap: space.xs,
     marginTop: space.xs,
   },
-  place: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: radius.pill },
+  place: { paddingVertical: space.xs, paddingHorizontal: space.sm, borderRadius: radius.pill },
   placePressed: { backgroundColor: theme.colors.surface2 },
   placeText: { color: theme.colors.textMuted, fontSize: type.sub },
 }))

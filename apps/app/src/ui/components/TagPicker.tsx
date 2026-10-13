@@ -5,7 +5,6 @@ import { StyleSheet } from 'react-native-unistyles'
 import { fuzzyRank, plural, TAG_NAME_MAX, type Song, type Tag } from '@selfmp3/shared'
 import {
   failureText,
-  HIT_TARGET,
   space,
   type,
   useBulkTag,
@@ -27,6 +26,7 @@ import { tagChanges, tagsAcross, undoTagChange } from './tagPicker.model'
 import { SearchField } from './SearchField'
 import { ScrollView } from './Scroll'
 import { TagDot } from './TagDot'
+import { menuItem } from '../surfaces'
 
 /**
  * Attach tags to a song.
@@ -440,14 +440,7 @@ const styles = StyleSheet.create(theme => ({
   // Gives way, with the list, when a sheet is held above the keyboard.
   root: { flexShrink: 1 },
   list: { maxHeight: 320, flexShrink: 1 },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    minHeight: HIT_TARGET,
-    paddingHorizontal: space.md,
-    borderRadius: 12,
-  },
+  item: menuItem,
   itemPressed: { backgroundColor: theme.colors.surface3 },
   itemLabel: { flex: 1, color: theme.colors.textPrimary, fontSize: type.body },
   count: { color: theme.colors.textMuted, fontSize: type.tiny },

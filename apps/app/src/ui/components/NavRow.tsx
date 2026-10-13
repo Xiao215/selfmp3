@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { iconSize, space, type } from '@selfmp3/client'
+import { iconSize, space, type, radius } from '@selfmp3/client'
 import { card as cardSurface, rowTitle, textColumn } from '../surfaces'
 import { ChevronRight, sizedIcon } from './Icons'
 import { Press } from './Press'
@@ -85,20 +85,20 @@ export function NavRow({
 }
 
 const styles = StyleSheet.create(theme => ({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 60 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.roomy, minHeight: 60 },
   card: {
     ...cardSurface(theme.colors),
     gap: space.md,
     minHeight: 0,
     paddingVertical: space.md,
-    paddingHorizontal: 14,
+    paddingHorizontal: space.roomy,
   },
   pressed: { opacity: 0.6 },
   cardPressed: { backgroundColor: theme.colors.surface2 },
   tile: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: radius.item,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: theme.colors.surface2,

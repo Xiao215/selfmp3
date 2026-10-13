@@ -280,7 +280,7 @@ const styles = StyleSheet.create(theme => ({
   head: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: space.roomy,
     paddingHorizontal: space.xs,
     paddingTop: space.xs,
     paddingBottom: space.md,

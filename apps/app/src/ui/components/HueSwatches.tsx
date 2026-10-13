@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Pressable, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { hueFromString } from '@selfmp3/shared'
-import { radius, tagColors } from '@selfmp3/client'
+import { radius, tagColors, space } from '@selfmp3/client'
 import { Check } from './Icons'
 
 /**
@@ -110,7 +110,7 @@ export function autoTagHue(name: string): number {
 }
 
 const styles = StyleSheet.create(() => ({
-  swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: space.tight },
   // The ring is the mark of the chosen colour, so it keeps its edge.
   swatchRing: {
     borderWidth: 2,

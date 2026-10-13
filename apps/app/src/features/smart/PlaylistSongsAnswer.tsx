@@ -129,7 +129,7 @@ export function PlaylistSongsAnswer({
 
   if (here.songIds.length === 0) {
     return (
-      <View style={{ gap: 4 }}>
+      <View style={{ gap: space.xs }}>
         <AnswerLine testID="ask-playlist-nothing">
           {adding
             ? `Every song that fits is in ${name} already.`

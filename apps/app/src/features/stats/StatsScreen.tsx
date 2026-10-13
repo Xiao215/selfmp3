@@ -5,7 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg'
 import type { Song, Stats, Tag } from '@selfmp3/shared'
-import { motion, radius, type, useLibrary, type ServerConnection } from '@selfmp3/client'
+import { motion, radius, type, useLibrary, type ServerConnection, space } from '@selfmp3/client'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { useArt } from '../../offline/useArt'
@@ -547,47 +547,52 @@ function RankedLine({
 
 const styles = StyleSheet.create(theme => ({
   // A big card on the ground (`S2`: 22 round), told apart by tone, not an edge.
-  card: { ...card(theme.colors, radius.cardLg), padding: 18 },
+  card: { ...card(theme.colors, radius.cardLg), padding: space.card },
   cardWide: { height: 190, paddingHorizontal: 20 },
-  cardRow: { flexDirection: 'row', gap: 12 },
+  cardRow: { flexDirection: 'row', gap: space.md },
   twoCols: { flex: 2, minWidth: 0 },
   oneCol: { flex: 1, minWidth: 0 },
   listened: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: space.md,
   },
   // The words take the card's room before the spark does: squeezed, the number
   // was ellipsised to "2…", which is not a number.
-  listenedWords: { gap: 4, flex: 1, minWidth: 0 },
+  listenedWords: { gap: space.xs, flex: 1, minWidth: 0 },
   cardLabel: label(theme.colors),
   // Big numbers are the serif, which has one weight (`S2`), on the scale's
   // line height, which has room for its tall figures.
   bigNumber: serif(theme.colors),
   cardLine: { color: theme.colors.textSecondary, fontSize: type.sub },
-  small: { height: 150, padding: 16, justifyContent: 'space-between' },
+  small: { height: 150, padding: space.lg, justifyContent: 'space-between' },
   hours: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 44 },
   hoursWide: { height: 60 },
   // An hour with plays is the raised tone; the busiest is the accent.
   hour: { flex: 1, borderRadius: 2, backgroundColor: theme.colors.surface3 },
   hourPeak: { backgroundColor: theme.colors.accent },
-  dots: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  dots: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.surface3 },
   dotPlayed: { backgroundColor: theme.colors.accent },
   dotToday: { backgroundColor: theme.colors.textPrimary },
-  cardFoot: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 8 },
+  cardFoot: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: space.sm },
   midNumber: serif(theme.colors, 'page'),
   cardNote: { color: theme.colors.textSecondary, fontSize: type.small },
-  ranked: { paddingTop: 14, paddingBottom: 8, paddingHorizontal: 16, gap: 8 },
+  ranked: {
+    paddingTop: space.roomy,
+    paddingBottom: space.sm,
+    paddingHorizontal: space.lg,
+    gap: space.sm,
+  },
   rankedWide: { flexDirection: 'row', gap: 36, paddingVertical: 18, paddingHorizontal: 22 },
-  rankedColumn: { flex: 1, minWidth: 0, gap: 4 },
-  columnLabel: { paddingBottom: 4 },
-  listEmpty: { color: theme.colors.textMuted, fontSize: type.sub, paddingVertical: 14 },
+  rankedColumn: { flex: 1, minWidth: 0, gap: space.xs },
+  columnLabel: { paddingBottom: space.xs },
+  listEmpty: { color: theme.colors.textMuted, fontSize: type.sub, paddingVertical: space.roomy },
   line: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: space.snug,
     minHeight: 48,
     borderRadius: radius.cover,
   },
@@ -595,7 +600,7 @@ const styles = StyleSheet.create(theme => ({
   rank: { ...serif(theme.colors, 'section'), width: 18, color: theme.colors.textMuted },
   lead: {
     height: 112,
-    marginBottom: 6,
+    marginBottom: space.tight,
     borderRadius: radius.card,
     overflow: 'hidden',
     justifyContent: 'flex-end',
@@ -607,13 +612,13 @@ const styles = StyleSheet.create(theme => ({
   leadWords: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingBottom: 12,
+    gap: space.snug,
+    paddingHorizontal: space.roomy,
+    paddingBottom: space.md,
   },
   // The serif's figures stand taller than their own size (bigNumber above).
   leadRank: { ...serif(theme.colors), color: theme.colors.accent },
-  leadNames: { flex: 1, minWidth: 0, paddingBottom: 4 },
+  leadNames: { flex: 1, minWidth: 0, paddingBottom: space.xs },
   leadName: { color: theme.colors.textPrimary, fontSize: type.section, fontWeight: '700' },
   leadNote: { color: theme.colors.textSecondary, fontSize: type.small, marginTop: 2 },
   tagSquare: {
@@ -625,7 +630,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface3,
   },
   lineBody: { flex: 1, minWidth: 0, gap: 5 },
-  lineTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  lineTop: { flexDirection: 'row', justifyContent: 'space-between', gap: space.sm },
   // The name takes what is left and ellipsises; the figure beside it never
   // gives up room, or a long title squeezes "3 plays" down to "3" and then
   // past the column's edge (Xiao, 2026-09-21).

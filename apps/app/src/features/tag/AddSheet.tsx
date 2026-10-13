@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from 'react'
 import { Text, useWindowDimensions, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { plural, libraryArtists } from '@selfmp3/shared'
-import { type, useLibrary } from '@selfmp3/client'
+import { type, useLibrary, space } from '@selfmp3/client'
 import { useRecentTagIds } from '../library/recentTags.store'
 import { songsById } from '../../ui/songsById'
 import { ArtistFace } from './ArtistFace'
@@ -215,19 +215,29 @@ function AddSheetBody({
 const FACE = 32
 
 const styles = StyleSheet.create(theme => ({
-  body: { gap: 10, paddingBottom: 8 },
-  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 },
+  body: { gap: space.snug, paddingBottom: space.sm },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingHorizontal: space.lg,
+  },
   search: { flex: 1 },
   chosenRow: { flexGrow: 0 },
-  chosen: { gap: 8, paddingHorizontal: 16 },
-  segment: { paddingHorizontal: 16 },
-  heading: { ...labelText(theme.colors), paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4 },
+  chosen: { gap: space.sm, paddingHorizontal: space.lg },
+  segment: { paddingHorizontal: space.lg },
+  heading: {
+    ...labelText(theme.colors),
+    paddingHorizontal: space.lg,
+    paddingTop: space.snug,
+    paddingBottom: space.xs,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: space.md,
     minHeight: 48,
-    paddingHorizontal: 16,
+    paddingHorizontal: space.lg,
   },
   rowPressed: { backgroundColor: theme.colors.surface2 },
   mark: {
@@ -240,5 +250,5 @@ const styles = StyleSheet.create(theme => ({
   },
   name: { flex: 1, color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '500' },
   size: { color: theme.colors.textMuted, fontSize: type.sub, fontVariant: ['tabular-nums'] },
-  foot: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 6 },
+  foot: { flexDirection: 'row', paddingHorizontal: space.lg, paddingTop: space.tight },
 }))

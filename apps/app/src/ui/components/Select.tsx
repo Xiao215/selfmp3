@@ -161,23 +161,23 @@ const styles = StyleSheet.create(theme => ({
   /* With a mouse: 7 by 10, 13-point type. */
   controlDense: {
     minHeight: 36,
-    paddingLeft: 10,
+    paddingLeft: space.snug,
     paddingRight: 9,
   },
   /* `small`: 5 by 8, 12-point type. */
   controlSmall: {
     minHeight: 30,
-    gap: 6,
+    gap: space.tight,
     paddingLeft: space.sm,
     paddingRight: 7,
   },
   /* `inline`: part of a sentence, on a lighter ground. */
   controlInline: {
     minHeight: 0,
-    gap: 4,
+    gap: space.xs,
     paddingVertical: 2,
-    paddingLeft: 6,
-    paddingRight: 4,
+    paddingLeft: space.tight,
+    paddingRight: space.xs,
     backgroundColor: theme.colors.surface3,
   },
   valueDense: {

@@ -21,6 +21,7 @@ import {
   useCloudSignIn,
   useCloudStatus,
   useCloudSync,
+  space,
 } from '@selfmp3/client'
 import { onSignInCode, signInReturnUrl } from '../../ports/signInReturn'
 import { LINK_GRACE_MS } from '../signIn/signIn.model'
@@ -499,5 +500,5 @@ function BucketForm({
 }
 
 const styles = StyleSheet.create(() => ({
-  where: { marginBottom: 6 },
+  where: { marginBottom: space.tight },
 }))

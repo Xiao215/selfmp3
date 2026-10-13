@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Linking, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { useLibrary, useRemoveServerGrant, useServerGrants } from '@selfmp3/client'
+import { useLibrary, useRemoveServerGrant, useServerGrants, space } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { sharedServerUrl } from '../../ports/sharedServerUrl'
 import { Button } from '../../ui/components/Button'
@@ -203,6 +203,6 @@ function Computers(): ReactNode {
 }
 
 const styles = StyleSheet.create(theme => ({
-  pair: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  pair: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   capped: { color: theme.colors.danger },
 }))

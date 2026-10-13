@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Pressable, Text } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { radius, type, withAlpha, iconSize } from '@selfmp3/client'
+import { radius, type, withAlpha, iconSize, space } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
 import { Refresh, Romanize } from '../../ui/components/Icons'
 import { tip } from '../../ui/tip'
@@ -79,9 +79,9 @@ const styles = StyleSheet.create(theme => ({
   tool: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: space.tight,
     minHeight: 32,
-    paddingHorizontal: 12,
+    paddingHorizontal: space.md,
     borderRadius: radius.pill,
     backgroundColor: theme.colors.veil,
   },

@@ -6,7 +6,7 @@ import { useLayoutValue } from '../../shell/useLayout'
 import { useMinimumBusy, usePresence } from '../motion'
 import { tip } from '../tip'
 import { Press } from './Press'
-import { HIT_TARGET, iconSize, motion, radius, type, withAlpha } from '@selfmp3/client'
+import { HIT_TARGET, iconSize, motion, radius, type, withAlpha, space } from '@selfmp3/client'
 import { sizedIcon } from './Icons'
 
 /**
@@ -246,16 +246,16 @@ const styles = StyleSheet.create(theme => ({
     width: 36,
     paddingHorizontal: 0,
   },
-  small: { minHeight: 28, paddingHorizontal: 10 },
+  small: { minHeight: 28, paddingHorizontal: space.snug },
   squareSmall: { width: 28, paddingHorizontal: 0 },
-  textSmall: { backgroundColor: 'transparent', paddingHorizontal: 4 },
-  contentSmall: { gap: 4 },
+  textSmall: { backgroundColor: 'transparent', paddingHorizontal: space.xs },
+  contentSmall: { gap: space.xs },
   labelSmall: { fontSize: type.small },
   translucent: { backgroundColor: theme.colors.veil },
   translucentPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.14) },
   text: {
     backgroundColor: 'transparent',
-    paddingHorizontal: 8,
+    paddingHorizontal: space.sm,
   },
   square: {
     width: HIT_TARGET,

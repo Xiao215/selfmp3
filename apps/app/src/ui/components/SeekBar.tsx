@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { formatDuration } from '@selfmp3/shared'
-import { type } from '@selfmp3/client'
+import { type, space } from '@selfmp3/client'
 import { usePlayerCommands, usePlayerProgress } from '../../player/PlayerProvider'
 import { SEEK_STEP_SECONDS } from '../../player/progress.model'
 import { Scrubber } from './Scrubber'
@@ -65,7 +65,7 @@ const styles = StyleSheet.create(theme => ({
   inline: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: space.snug,
     width: '100%',
   },
   inlineTrack: { flex: 1, minWidth: 0 },

@@ -208,7 +208,7 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
   },
   moreText: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '600' },
-  keep: { paddingHorizontal: 6, paddingVertical: 4 },
+  keep: { paddingHorizontal: space.tight, paddingVertical: space.xs },
   // At the foot of a phone, where a thumb is; under the switch on a computer.
   continue: { marginTop: 'auto', marginBottom: 60 },
   continueWide: { marginTop: 0, marginBottom: 0 },

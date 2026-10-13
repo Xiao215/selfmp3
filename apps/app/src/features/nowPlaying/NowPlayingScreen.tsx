@@ -850,7 +850,7 @@ const styles = StyleSheet.create(theme => ({
   sleepPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: space.tight,
     minHeight: 32,
     paddingHorizontal: space.md,
     borderRadius: radius.pill,
@@ -872,7 +872,7 @@ const styles = StyleSheet.create(theme => ({
   tags: { marginTop: space.md },
   progress: {
     marginTop: space.lg,
-    marginBottom: 6,
+    marginBottom: space.tight,
   },
   // The page's last line: room under it for the home indicator's swipe.
   controls: {
@@ -915,8 +915,8 @@ const styles = StyleSheet.create(theme => ({
     left: 0,
     right: 0,
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
+    gap: space.sm,
+    paddingHorizontal: space.lg,
   },
   wordsControls: {
     flexDirection: 'row',

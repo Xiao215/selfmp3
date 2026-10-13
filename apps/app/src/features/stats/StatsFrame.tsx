@@ -18,6 +18,7 @@ import { MOVE_MS } from '../../ui/motion.model'
 import { pageFrame } from '../../ui/surfaces'
 import { periodLabel, REPORT_HINT, STATS_PERIODS, type StatsPeriod } from './stats.model'
 import { ScrollView } from '../../ui/components/Scroll'
+import { space } from '@selfmp3/client'
 
 /** How far a set of numbers comes in from. */
 const SWAP_TRAVEL = 26
@@ -180,14 +181,14 @@ function ReportLink({ pill }: { pill: boolean }): ReactNode {
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  content: { paddingBottom: 40, gap: 12 },
-  contentWide: { ...pageFrame(true), gap: 14 },
+  content: { paddingBottom: 40, gap: space.md },
+  contentWide: { ...pageFrame(true), gap: space.roomy },
   contentNarrow: pageFrame(false),
   // The blocks of the page are this view's children, not the scroll content's,
   // so the page's gap has to be repeated here or the cards and the ranking sit
   // flush against each other (Xiao, 2026-09-21).
-  stack: { gap: 12 },
-  stackWide: { gap: 14 },
-  head: { marginBottom: 8 },
-  line: { marginTop: 4 },
+  stack: { gap: space.md },
+  stackWide: { gap: space.roomy },
+  head: { marginBottom: space.sm },
+  line: { marginTop: space.xs },
 }))

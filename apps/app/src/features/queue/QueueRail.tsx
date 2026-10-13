@@ -773,7 +773,7 @@ const styles = StyleSheet.create(theme => ({
     paddingTop: 28,
     paddingHorizontal: 18,
     paddingBottom: space.lg,
-    gap: 10,
+    gap: space.snug,
     // A step up from the page, told apart by tone and not by a line (`S2`).
     backgroundColor: theme.colors.surface1,
   },
@@ -796,8 +796,8 @@ const styles = StyleSheet.create(theme => ({
   },
   hintText: { color: theme.colors.textPrimary, ...textStyle('small') },
   listContent: { paddingBottom: space.md },
-  roomContent: { paddingHorizontal: 6, paddingBottom: space.md },
-  labelInset: { paddingLeft: 6 },
+  roomContent: { paddingHorizontal: space.tight, paddingBottom: space.md },
+  labelInset: { paddingLeft: space.tight },
   // The playing card, a step clear of the first song to come.
   playing: { marginBottom: space.xs },
   slot: { height: ROW_HEIGHT, borderRadius: radius.cover },
@@ -814,7 +814,7 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: radius.cover,
-    paddingRight: 6,
+    paddingRight: space.tight,
   },
   greyed: { opacity: 0.42 },
   unavailable: { opacity: 0.55 },
@@ -822,7 +822,13 @@ const styles = StyleSheet.create(theme => ({
   pressed: { backgroundColor: theme.colors.surface2 },
   // In from the row's edge by the list's bleed, so the covers stand under the
   // heading while a pressed row's shade still reaches past them.
-  face: { flex: 1, minWidth: 0, paddingVertical: 0, paddingHorizontal: 0, paddingLeft: 6 },
+  face: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    paddingLeft: space.tight,
+  },
   gripSlot: {
     width: 24,
     alignSelf: 'stretch',
@@ -847,7 +853,7 @@ const styles = StyleSheet.create(theme => ({
     height: ROW_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingRight: 6,
+    paddingRight: space.tight,
     borderRadius: radius.cover,
     backgroundColor: theme.colors.surface3,
     boxShadow: `0 18px 36px ${theme.colors.floatShadow}`,

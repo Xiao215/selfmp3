@@ -116,7 +116,7 @@ export function TextField({
 }
 
 const styles = StyleSheet.create(theme => ({
-  field: { gap: 6 },
+  field: { gap: space.tight },
   label: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   input: {
@@ -144,8 +144,8 @@ const styles = StyleSheet.create(theme => ({
   /* In a Settings row, beside its words. */
   inputSmall: {
     minHeight: 36,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingHorizontal: space.roomy,
+    paddingVertical: space.tight,
     fontSize: type.sub,
   },
   inputRaised: { backgroundColor: theme.colors.surface3 },

@@ -363,7 +363,7 @@ export function TogetherButton({ labelled = false }: { labelled?: boolean }): Re
 const styles = StyleSheet.create(theme => ({
   root: { gap: space.md },
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
-  headText: { flex: 1, minWidth: 0, gap: 6 },
+  headText: { flex: 1, minWidth: 0, gap: space.tight },
   title: {
     color: theme.colors.textPrimary,
     fontFamily: fonts.display,
@@ -372,7 +372,7 @@ const styles = StyleSheet.create(theme => ({
   },
   people: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   line: { flexShrink: 1, color: theme.colors.textSecondary, fontSize: type.sub },
-  headButtons: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headButtons: { flexDirection: 'row', alignItems: 'center', gap: space.tight },
   round: {
     width: HIT_TARGET,
     height: HIT_TARGET,
@@ -394,7 +394,7 @@ const styles = StyleSheet.create(theme => ({
   actions: { flexDirection: 'row', gap: space.sm, paddingTop: space.sm },
   label: { ...label(theme.colors), paddingBottom: space.xs },
   playedLabel: { paddingTop: space.lg },
-  more: { color: theme.colors.textMuted, fontSize: type.sub, paddingVertical: 10 },
+  more: { color: theme.colors.textMuted, fontSize: type.sub, paddingVertical: space.snug },
   keepGoing: {
     marginTop: space.lg,
     padding: space.md,

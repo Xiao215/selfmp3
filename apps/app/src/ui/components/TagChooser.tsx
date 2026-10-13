@@ -4,7 +4,7 @@ import { Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Tag } from '@selfmp3/shared'
-import { type } from '@selfmp3/client'
+import { type, space } from '@selfmp3/client'
 import { Chip } from './Chip'
 import { Plus } from './Icons'
 import { Sheet } from './Sheet'
@@ -114,6 +114,6 @@ export function TagChooser({
 }
 
 const styles = StyleSheet.create(theme => ({
-  row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.tight },
   lead: { color: theme.colors.textSecondary, fontSize: type.sub },
 }))

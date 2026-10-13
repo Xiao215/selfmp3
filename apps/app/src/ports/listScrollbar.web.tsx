@@ -380,7 +380,7 @@ function Scrollbar({
             maxWidth: 240,
             boxSizing: 'border-box',
             padding: '0 14px',
-            borderRadius: 12,
+            borderRadius: radius.item,
             lineHeight: `${BUBBLE_HEIGHT}px`,
             textAlign: 'center',
             whiteSpace: 'nowrap',

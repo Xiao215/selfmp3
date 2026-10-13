@@ -89,7 +89,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 5,
     flexShrink: 1,
     minWidth: 0,
-    paddingVertical: 4,
+    paddingVertical: space.xs,
     borderRadius: radius.pill,
   },
   label: {
@@ -103,7 +103,7 @@ const styles = StyleSheet.create(theme => ({
     marginLeft: 'auto',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: space.xs,
     paddingHorizontal: space.sm,
   },
   end: { marginLeft: 'auto' },

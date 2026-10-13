@@ -60,7 +60,7 @@ export function PendingImports(): ReactNode {
 
 const styles = StyleSheet.create(theme => ({
   list: { paddingHorizontal: space.lg, paddingBottom: space.sm, gap: 2 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.tight },
   faded: { opacity: 0.55 },
   text: textColumn,
   title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '500' },

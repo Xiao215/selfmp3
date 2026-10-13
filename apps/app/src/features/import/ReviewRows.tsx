@@ -10,7 +10,7 @@ import {
   type ImportPreviewItem,
   type ImportSource,
 } from '@selfmp3/shared'
-import { HIT_TARGET, radius, type, withAlpha, type Review, coverSize } from '@selfmp3/client'
+import { HIT_TARGET, radius, type, withAlpha, type Review, coverSize, space } from '@selfmp3/client'
 import { canListenHere } from '../../ports/listen'
 import { label as groupLabel, rowTitle, textColumn } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
@@ -994,9 +994,9 @@ const styles = StyleSheet.create(theme => ({
   },
   pressed: { opacity: 0.6 },
   // The box, then the cells: the cells dim together when the song is not coming in.
-  grid: { flexDirection: 'row', alignItems: 'center', gap: GAP, paddingHorizontal: 12 },
+  grid: { flexDirection: 'row', alignItems: 'center', gap: GAP, paddingHorizontal: space.md },
   cells: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: GAP },
-  gridHead: { paddingBottom: 6 },
+  gridHead: { paddingBottom: space.tight },
   headLabel: groupLabel(theme.colors),
   colCover: { width: coverSize.rowDense },
   colTitle: { flex: 1.2, minWidth: 0 },
@@ -1010,16 +1010,16 @@ const styles = StyleSheet.create(theme => ({
   endWords: { color: theme.colors.textMuted, fontSize: type.tiny, fontWeight: '600' },
   warn: { color: theme.colors.warning },
   // The open row's choice of where the song comes from: two options side by side.
-  choice: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  choice: { flexDirection: 'row', alignItems: 'center', gap: space.tight, flexWrap: 'wrap' },
   option: {
     flexGrow: 1,
     flexBasis: 0,
     minWidth: 120,
     maxWidth: 260,
     gap: 1,
-    paddingHorizontal: 12,
+    paddingHorizontal: space.md,
     paddingVertical: 7,
-    borderRadius: 12,
+    borderRadius: radius.item,
     backgroundColor: theme.colors.surface0,
   },
   optionOn: { backgroundColor: theme.colors.textPrimary },
@@ -1027,14 +1027,14 @@ const styles = StyleSheet.create(theme => ({
   optionNameOn: { color: theme.colors.surface0 },
   optionWords: { color: theme.colors.textSecondary, fontSize: type.tiny },
   optionWordsOn: { color: withAlpha(theme.colors.surface0, 0.7) },
-  found: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  found: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   foundWords: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: type.small },
   endText: { textAlign: 'right' },
   names2: { flex: 3.2, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: GAP },
   gridRowWrap: { borderRadius: 10, marginBottom: 2 },
   gridRow: { height: 52 },
   lit: { backgroundColor: theme.colors.surface1 },
-  barRow: { paddingTop: 4, paddingBottom: 14 },
+  barRow: { paddingTop: space.xs, paddingBottom: space.roomy },
   dim: { opacity: 0.38 },
   // The boxes, sized as the library's rows size theirs (`SongRow`).
   select: {
@@ -1051,7 +1051,7 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  allPhone: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start' },
+  allPhone: { flexDirection: 'row', alignItems: 'center', gap: space.sm, alignSelf: 'flex-start' },
   allWords: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '600' },
   title: rowTitle(theme.colors),
   artist: { color: theme.colors.textSecondary, fontSize: type.sub },
@@ -1066,28 +1066,28 @@ const styles = StyleSheet.create(theme => ({
   endQuiet: { color: theme.colors.textSecondary, fontSize: type.small, textAlign: 'right' },
   trouble: { color: theme.colors.danger },
   texts: textColumn,
-  phoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 60 },
-  phoneRowBody: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  phoneRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, height: 60 },
+  phoneRowBody: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: space.md },
   // The open row: a card a step up, reaching a little past the list's edges.
   openCard: {
-    gap: 10,
-    padding: 12,
-    marginVertical: 4,
+    gap: space.snug,
+    padding: space.md,
+    marginVertical: space.xs,
     marginHorizontal: -8,
     borderRadius: radius.card,
     backgroundColor: theme.colors.surface1,
   },
-  openTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  openTop: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   // The card's padding less its reach past the list: the box lines up with the closed rows' boxes.
   selectOpen: { marginLeft: -4, marginRight: -4 },
-  fields: { flex: 1, minWidth: 0, gap: 6 },
+  fields: { flex: 1, minWidth: 0, gap: space.tight },
   // A field on the card is sunk to the ground's tone; the focused one carries the accent ring.
   field: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: space.sm,
     height: 38,
-    paddingHorizontal: 10,
+    paddingHorizontal: space.snug,
     borderRadius: 10,
     backgroundColor: theme.colors.surface0,
   },
@@ -1097,7 +1097,7 @@ const styles = StyleSheet.create(theme => ({
   fieldWide: {
     height: 32,
     marginLeft: -8,
-    paddingHorizontal: 8,
+    paddingHorizontal: space.sm,
     borderRadius: 8,
     backgroundColor: theme.colors.surface0,
   },
@@ -1109,7 +1109,7 @@ const styles = StyleSheet.create(theme => ({
   inputTitle: { fontSize: type.body, fontWeight: '600' },
   inputArtist: { fontSize: type.body },
   inputAlbum: { fontSize: type.body },
-  barBlock: { gap: 4 },
-  times: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  barBlock: { gap: space.xs },
+  times: { flexDirection: 'row', justifyContent: 'space-between', gap: space.sm },
   time: { color: theme.colors.textSecondary, fontSize: type.tiny, fontVariant: ['tabular-nums'] },
 }))

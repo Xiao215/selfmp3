@@ -17,6 +17,7 @@ import {
   type ServerConnection,
   textStyle,
   iconSize,
+  space,
 } from '@selfmp3/client'
 import { useMetadataSource } from './metadataSource'
 import { useMetadataSuggestion } from './useMetadataSuggestion'
@@ -363,7 +364,7 @@ export function MetadataDialog({
       <DialogHead
         title="Fix song info"
         onClose={onClose}
-        style={[styles.head, !wide && { paddingTop: 14 + insets.top }]}
+        style={[styles.head, !wide && { paddingTop: space.roomy + insets.top }]}
       />
 
       {wide ? (
@@ -379,7 +380,10 @@ export function MetadataDialog({
       )}
 
       <View
-        style={[styles.foot, !wide && [styles.footNarrow, { paddingBottom: 12 + insets.bottom }]]}
+        style={[
+          styles.foot,
+          !wide && [styles.footNarrow, { paddingBottom: space.md + insets.bottom }],
+        ]}
       >
         {apply.isError ? (
           <Text style={[styles.hint, styles.footLead, { color: theme.colors.warning }]}>
@@ -531,9 +535,9 @@ const styles = StyleSheet.create(theme => ({
   dialogWide: { ...dialogPanel(theme.colors, 'wide'), maxHeight: 760, height: '86%' },
   dialogNarrow: { flex: 1 },
   head: {
-    paddingTop: 14,
-    paddingRight: 14,
-    paddingBottom: 12,
+    paddingTop: space.roomy,
+    paddingRight: space.roomy,
+    paddingBottom: space.md,
     paddingLeft: 22,
   },
   bodyWide: { flex: 1, minHeight: 0, flexDirection: 'row' },
@@ -542,23 +546,23 @@ const styles = StyleSheet.create(theme => ({
   currentScroll: {
     width: 240,
     flexGrow: 0,
-    marginLeft: 12,
-    marginBottom: 4,
+    marginLeft: space.md,
+    marginBottom: space.xs,
     borderRadius: radius.card,
     backgroundColor: theme.colors.surface2,
   },
   candidatesScroll: { flex: 1 },
-  current: { paddingVertical: 18, paddingHorizontal: 20, gap: 14 },
+  current: { paddingVertical: 18, paddingHorizontal: 20, gap: space.roomy },
   currentNarrow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    columnGap: 16,
+    columnGap: space.lg,
     rowGap: 0,
   },
-  fullRow: { width: '100%', marginBottom: 12 },
+  fullRow: { width: '100%', marginBottom: space.md },
   fields: { flex: 1, minWidth: 0, gap: 7 },
   fieldsWide: { flex: 0 },
-  fieldRow: { flexDirection: 'row', gap: 12 },
+  fieldRow: { flexDirection: 'row', gap: space.md },
   fieldLabel: { width: 84, color: theme.colors.textMuted, fontSize: type.sub, paddingTop: 2 },
   fieldValue: { flex: 1, color: theme.colors.textPrimary, fontSize: type.sub },
   // A box only by its underline, so the panel still reads as the song's card.
@@ -570,73 +574,79 @@ const styles = StyleSheet.create(theme => ({
     _web: { outlineStyle: 'none' },
   },
   fieldEdited: { borderBottomColor: theme.colors.accent },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   groupTitle: groupLabel(theme.colors),
-  candidates: { paddingVertical: 18, paddingHorizontal: 20, gap: 12 },
+  candidates: { paddingVertical: 18, paddingHorizontal: 20, gap: space.md },
   hint: hint(theme.colors),
   strong: { color: theme.colors.textPrimary },
   link: { fontSize: type.small, textDecorationLine: 'underline' },
-  list: { gap: 4 },
+  list: { gap: space.xs },
   candidate: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    gap: space.md,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.snug,
     borderRadius: radius.row,
   },
   candidatePressed: { backgroundColor: theme.colors.surface2 },
   // What a model offers is dashed until it is taken (docs/features/ai.md, rule 2).
-  suggestedWrap: { gap: 4 },
+  suggestedWrap: { gap: space.xs },
   suggested: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    gap: space.md,
+    paddingVertical: space.snug,
+    paddingHorizontal: space.md,
     borderRadius: radius.row,
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: theme.colors.surface3,
   },
-  suggestedAsk: { paddingVertical: 12 },
+  suggestedAsk: { paddingVertical: space.md },
   suggestedWhy: {
     color: theme.colors.textSecondary,
     ...textStyle('small'),
     marginTop: 2,
   },
-  suggestedAgain: { alignSelf: 'flex-end', marginRight: 4 },
+  suggestedAgain: { alignSelf: 'flex-end', marginRight: space.xs },
   // The picked suggestion wears the palette's selected-row colour, not an accent edge.
   candidateActive: { backgroundColor: theme.colors.accentSelected },
   candidateMain: textColumn,
   candidateTitle: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '500' },
   candidateSub: { color: theme.colors.textMuted, fontSize: type.small },
-  candidateMeta: { alignItems: 'flex-end', gap: 4 },
+  candidateMeta: { alignItems: 'flex-end', gap: space.xs },
   badge: { paddingVertical: 2, paddingHorizontal: 7, borderRadius: radius.pill },
   badgeText: { fontSize: type.tiny, fontWeight: '700', letterSpacing: 0.5 },
   score: { color: theme.colors.textMuted, fontSize: type.small, fontVariant: ['tabular-nums'] },
   // Space, not a rule, sets the changes apart from the suggestions.
-  diff: { marginTop: 16, gap: 2 },
+  diff: { marginTop: space.lg, gap: 2 },
   diffHead: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 8,
+    gap: space.md,
+    marginBottom: space.sm,
   },
-  diffActions: { flexDirection: 'row', gap: 12 },
+  diffActions: { flexDirection: 'row', gap: space.md },
   diffRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: space.snug,
     paddingVertical: 7,
-    paddingHorizontal: 8,
+    paddingHorizontal: space.sm,
     borderRadius: radius.row,
   },
   diffRowNarrow: { alignItems: 'flex-start', paddingVertical: 9 },
   diffPressed: { backgroundColor: theme.colors.surface2 },
-  diffBodyWide: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  diffBodyWide: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.snug,
+  },
   diffBodyNarrow: textColumn,
   diffLabel: { color: theme.colors.textMuted },
   diffLabelWide: { width: 92, fontSize: type.sub },
@@ -646,7 +656,7 @@ const styles = StyleSheet.create(theme => ({
   old: { color: theme.colors.textMuted, textDecorationLine: 'line-through' },
   arrow: { color: theme.colors.textMuted, fontSize: type.small },
   new: { color: theme.colors.textPrimary },
-  coverChange: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
+  coverChange: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.snug },
   pill: {
     paddingVertical: 1,
     paddingHorizontal: 7,
@@ -663,8 +673,8 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: 8,
-    paddingVertical: 12,
+    gap: space.sm,
+    paddingVertical: space.md,
     paddingHorizontal: 20,
   },
   footNarrow: { flexWrap: 'wrap' },

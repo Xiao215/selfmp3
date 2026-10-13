@@ -4,7 +4,7 @@ import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { Href } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
-import { isRoomTrackId, radius, type, withAlpha, iconSize } from '@selfmp3/client'
+import { isRoomTrackId, radius, type, withAlpha, iconSize, space } from '@selfmp3/client'
 import { useSongTagLookup } from '../../ui/songTags'
 import { Chip } from '../../ui/components/Chip'
 import { Plus, TagPlus } from '../../ui/components/Icons'
@@ -93,7 +93,7 @@ export function SongTagsLine({
 }
 
 const styles = StyleSheet.create(theme => ({
-  tags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.tight },
   addRound: {
     width: 28,
     height: 28,
@@ -107,9 +107,9 @@ const styles = StyleSheet.create(theme => ({
   addLabelled: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: space.tight,
     paddingVertical: 5,
-    paddingHorizontal: 10,
+    paddingHorizontal: space.snug,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderStyle: 'dashed',

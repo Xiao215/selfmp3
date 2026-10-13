@@ -208,19 +208,19 @@ function Row({ row }: { row: ProfileRow }): ReactNode {
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  content: { paddingBottom: 40, gap: 24 },
+  content: { paddingBottom: 40, gap: space.xl },
   contentWide: { ...pageFrame(true), maxWidth: 640 + space.gutterWide * 2 },
   contentNarrow: pageFrame(false),
-  person: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  person: { flexDirection: 'row', alignItems: 'center', gap: space.roomy },
   personWords: { flex: 1, minWidth: 0, gap: 3 },
   name: serif(theme.colors, 'page'),
   line: lineSub(theme.colors),
   // A big card (`S2`: 22 round) on the ground, told apart by tone.
-  month: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14 },
+  month: { ...card(theme.colors, radius.cardLg), padding: space.card, gap: space.roomy },
   monthPressed: { opacity: 0.85 },
   monthHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   monthTitle: label(theme.colors),
   monthLink: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '600' },
-  figures: { flexDirection: 'row', gap: 12 },
-  repeat: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  figures: { flexDirection: 'row', gap: space.md },
+  repeat: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
 }))

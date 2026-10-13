@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { plural, artistOr, formatRelative, type Song } from '@selfmp3/shared'
-import { space, type, useGems } from '@selfmp3/client'
+import { space, type, useGems, radius } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -135,20 +135,20 @@ const styles = StyleSheet.create(theme => ({
   row: {
     marginHorizontal: space.lg,
     marginBottom: space.lg,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: space.snug,
+    paddingHorizontal: space.md,
     ...card(theme.colors),
   },
-  list: { marginTop: 10, paddingBottom: 4 },
-  listFew: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+  list: { marginTop: space.snug, paddingBottom: space.xs },
+  listFew: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.snug },
   // Grows in the row's wrap; the card fills what its wrap is given.
   cardFewWrap: { flexGrow: 1, flexBasis: 200, maxWidth: 340 },
   cardFew: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    padding: 6,
-    borderRadius: 12,
+    gap: space.snug,
+    padding: space.tight,
+    borderRadius: radius.item,
     backgroundColor: theme.colors.surface2,
   },
   cardTextFew: { flex: 1, minWidth: 0, gap: 1 },

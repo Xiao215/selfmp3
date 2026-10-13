@@ -26,6 +26,7 @@ import {
   withAlpha,
   iconSize,
   coverSize,
+  space,
 } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -891,7 +892,7 @@ const styles = StyleSheet.create(theme => ({
     height: 60,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: space.md,
     paddingLeft: HEAD_LEFT,
     paddingRight: 20,
     zIndex: 4,
@@ -921,7 +922,7 @@ const styles = StyleSheet.create(theme => ({
     ...artShadow(theme.colors),
   },
   coverImage: { width: '100%', height: '100%' },
-  meta: { position: 'absolute', zIndex: 2, gap: 10 },
+  meta: { position: 'absolute', zIndex: 2, gap: space.snug },
   // The display face, which carries its own weight: never bold it.
   title: { color: theme.colors.textPrimary, fontFamily: fonts.display },
   byline: { color: theme.colors.textSecondary, fontSize: type.sub, marginTop: -4 },
@@ -937,9 +938,9 @@ const styles = StyleSheet.create(theme => ({
   statusText: { color: theme.colors.textMuted, fontSize: type.sub },
   visual: { position: 'absolute', overflow: 'hidden', zIndex: 1 },
   visualFull: { left: 0, right: 0, top: 0, bottom: 0 },
-  about: { paddingTop: 12, paddingHorizontal: 4, paddingBottom: 40 },
+  about: { paddingTop: space.md, paddingHorizontal: space.xs, paddingBottom: 40 },
   aboutBody: { maxWidth: 600, paddingHorizontal: 18 },
-  tools: { position: 'absolute', zIndex: 4, flexDirection: 'row', gap: 6 },
+  tools: { position: 'absolute', zIndex: 4, flexDirection: 'row', gap: space.tight },
   expandAt: { position: 'absolute', zIndex: 4 },
   expand: {
     width: 36,
@@ -955,10 +956,10 @@ const styles = StyleSheet.create(theme => ({
     zIndex: 5,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 8,
-    paddingLeft: 8,
-    paddingRight: 12,
+    gap: space.snug,
+    paddingVertical: space.sm,
+    paddingLeft: space.sm,
+    paddingRight: space.md,
     borderRadius: radius.card,
     // It floats over the stage, so it is glass and casts the one shadow.
     backgroundColor: theme.colors.glass,

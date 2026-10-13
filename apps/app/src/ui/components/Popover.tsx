@@ -336,9 +336,9 @@ const styles = StyleSheet.create(theme => ({
   panelTitle: {
     color: theme.colors.textMuted,
     fontSize: type.small,
-    paddingHorizontal: 10,
+    paddingHorizontal: space.snug,
     paddingTop: space.sm,
-    paddingBottom: 6,
+    paddingBottom: space.tight,
   },
   catcher: { position: 'absolute' },
   // A control-toned panel with no edge: it floats, so its shadow and its tone

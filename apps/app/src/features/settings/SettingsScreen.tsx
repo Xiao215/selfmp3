@@ -612,7 +612,7 @@ const styles = StyleSheet.create(theme => ({
   head: { marginBottom: 20 },
   subCapped: { color: theme.colors.danger },
   panels: { gap: 20, maxWidth: 780 },
-  advanced: { gap: 20, paddingTop: 12 },
+  advanced: { gap: 20, paddingTop: space.md },
   indexColumn: {
     position: 'absolute',
     top: COLUMN_TOP,
@@ -622,13 +622,13 @@ const styles = StyleSheet.create(theme => ({
   },
   indexTitle: {
     ...label(theme.colors),
-    paddingTop: 4,
-    paddingHorizontal: 10,
-    paddingBottom: 6,
+    paddingTop: space.xs,
+    paddingHorizontal: space.snug,
+    paddingBottom: space.tight,
   },
   indexItem: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: space.tight,
+    paddingHorizontal: space.snug,
     borderRadius: radius.pill,
   },
   // The section you are on is "on" as a chosen chip is: white, with dark ink
@@ -639,9 +639,9 @@ const styles = StyleSheet.create(theme => ({
   indexTextOn: { color: theme.colors.onPrimary, fontWeight: '600' },
   chipBar: {
     marginHorizontal: -20,
-    paddingVertical: 10,
+    paddingVertical: space.snug,
     marginBottom: CHIPS_GAP,
     backgroundColor: theme.colors.surface0,
   },
-  chips: { gap: 6, paddingHorizontal: space.gutter },
+  chips: { gap: space.tight, paddingHorizontal: space.gutter },
 }))

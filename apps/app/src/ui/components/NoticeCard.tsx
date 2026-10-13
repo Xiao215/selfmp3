@@ -125,7 +125,7 @@ const styles = StyleSheet.create(theme => ({
     padding: space.lg,
     borderRadius: radius.card,
   },
-  compact: { paddingVertical: space.sm, paddingHorizontal: 10 },
+  compact: { paddingVertical: space.sm, paddingHorizontal: space.snug },
   // The × brings its own room on the right.
   dismissable: { paddingRight: space.xs },
   words: { flex: 1, minWidth: 0, gap: space.sm },

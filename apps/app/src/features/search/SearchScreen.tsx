@@ -4,7 +4,7 @@ import { Pressable, Text, type TextInput, View, type ViewStyle } from 'react-nat
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import type { LyricsSearchHit, Song, Tag, Artist } from '@selfmp3/shared'
-import { space, type, useLibrary, iconSize, coverSize } from '@selfmp3/client'
+import { space, type, useLibrary, iconSize, coverSize, radius } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -549,7 +549,7 @@ function LyricResults({
 }
 
 const styles = StyleSheet.create(theme => ({
-  askAfter: { marginTop: 12 },
+  askAfter: { marginTop: space.md },
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   page: { flex: 1 },
   // The field's row starts where every page's first row does (`PAGE_TOP_WIDE`).
@@ -562,8 +562,8 @@ const styles = StyleSheet.create(theme => ({
   head: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
+    gap: space.md,
+    paddingHorizontal: space.lg,
     paddingTop: PAGE_TOP_PHONE,
   },
   field: { flex: 1 },
@@ -573,33 +573,33 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    gap: 6,
-    marginHorizontal: 8,
-    marginVertical: 6,
-    paddingVertical: 8,
-    paddingLeft: 6,
-    paddingRight: 12,
-    borderRadius: 12,
+    gap: space.tight,
+    marginHorizontal: space.sm,
+    marginVertical: space.tight,
+    paddingVertical: space.sm,
+    paddingLeft: space.tight,
+    paddingRight: space.md,
+    borderRadius: radius.item,
   },
   backPressed: { backgroundColor: theme.colors.surface1 },
   backTitle: rowTitle(theme.colors),
   backCount: { color: theme.colors.textMuted, fontSize: type.body },
-  results: { paddingHorizontal: 8, gap: 18 },
+  results: { paddingHorizontal: space.sm, gap: 18 },
   songList: { paddingHorizontal: 0 },
-  section: { gap: 4 },
+  section: { gap: space.xs },
   sectionHead: { paddingHorizontal: space.sm, paddingBottom: space.sm },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 8 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, paddingHorizontal: space.sm },
   // A place's line, the height of a lyric's beside it.
-  place: { paddingVertical: 8 },
+  place: { paddingVertical: space.sm },
   pressed: { backgroundColor: theme.colors.surface1 },
   lyricSong: { color: theme.colors.textSecondary, fontSize: type.sub },
   lyric: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderRadius: 12,
+    gap: space.md,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.sm,
+    borderRadius: radius.item,
   },
   lyricText: textColumn,
   lyricLine: { color: theme.colors.textPrimary, fontSize: type.body },

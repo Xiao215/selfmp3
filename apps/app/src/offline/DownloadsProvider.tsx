@@ -465,7 +465,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
   const hereNow = useCallback(
     (songId: number): boolean =>
       downloadQueue.localUri(songId, rules.current.songsById.get(songId)?.rev) !== null ||
-      recentUri(songId) !== null,
+      recentUri(rules.current.songsById.get(songId)) !== null,
     [],
   )
 
@@ -504,7 +504,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       const song = keepable(songId)
       if (!song) return false
       await keepRecentlyPlayed(song)
-      return recentUri(songId) !== null
+      return recentUri(song) !== null
     },
     [keepable],
   )

@@ -648,7 +648,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 - [ ] **T-387** Settings → Cloud's bucket form signs out without asking; its fields stay editable while checking. → G
 - [ ] **T-388** An iPad registers in the cloud as `iphone` (`ports/cloudPlatform.ts`). → D
 - [ ] **T-389** Phone engine: a song with nowhere to play from leaves the previous song sounding with `playing: true`; repeat-one likely never reports the song's end. → D
-- [ ] **T-390** Phone `adoptRecent` moves a stale (old-hash) played copy into a download; desktop refuses it. Both sides keep playing or keep the old file when a song's audio changes. → D
+- [x] **T-390** Phone `adoptRecent` moves a stale (old-hash) played copy into a download; desktop refuses it. Both sides keep playing or keep the old file when a song's audio changes. → D
+  - Decision: `recentUri` takes the song, so a copy of audio the song no longer has is never played; the next play fetches the new audio and deletes the old file.
 - [ ] **T-391** Cloud mode can null a live playlist's rules (server refuses; replica allows), which empties it on the server. → A
 - [ ] **T-392** Deleting a tag rewrites live rules on devices but leaves the dead id on the server, and `tags.id` can be reused. → A
 - [ ] **T-393** Removing songs prunes empty tags on the server only (and also prunes a tag another device just made). → A
@@ -682,7 +683,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 ### D — Platform twins share their rules
 
 - [ ] **T-411** Engine core shared by `engine.ts` and `engine.web.ts` (idle state, notify-if-changed, subscribe/connect, `volumeChange`, unplayable state and message), with one behaviour test suite run against both.
-- [ ] **T-412** `createRecentCopies(files)` for phone and desktop played copies; one `transfer()` for phone and desktop downloads (desktop keeps lyrics, motion and cover too).
+- [x] **T-412** `createRecentCopies(files)` for phone and desktop played copies; one `transfer()` for phone and desktop downloads (desktop keeps lyrics, motion and cover too).
+  - Shared as `ports/recentCopyFiles.ts` and `ports/downloadTransfer.ts`. Decision: a desktop download now fails, like a phone's, when the words cannot be asked for.
 - [ ] **T-413** `createSchemaCache(name, schema)` for the four offline caches.
 - [ ] **T-414** Smaller twins: StageMove interrupt duration + props, listen watchdog, no-op desktop ports, covers adapter, web key-ownership test, server-event parse, ripples frame maths.
 

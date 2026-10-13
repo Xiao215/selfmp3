@@ -28,6 +28,10 @@ const bridge = {
       return { name, bytes }
     }),
     delete: vi.fn(async (kind: string, name: string) => void disk.delete(`${kind}/${name}`)),
+    stat: vi.fn(async (kind: string, name: string) => {
+      const bytes = disk.get(`${kind}/${name}`)
+      return bytes === undefined ? null : { name, bytes }
+    }),
     list: vi.fn(async (kind: string) =>
       [...disk]
         .filter(([path]) => path.startsWith(`${kind}/`))
@@ -65,9 +69,13 @@ const SHA = 'a'.repeat(64)
 const song = { id: 7, path: `audio/${SHA}.m4a` }
 const NAME = `${SHA}.m4a`
 
-async function fresh(): Promise<typeof import('./recentCopies.desktop')> {
+type Copies = NonNullable<(typeof import('./recentCopies.desktop'))['desktopRecentCopies']>
+
+async function fresh(): Promise<Copies> {
   vi.resetModules()
-  return import('./recentCopies.desktop')
+  const { desktopRecentCopies } = await import('./recentCopies.desktop')
+  if (!desktopRecentCopies) throw new Error('no bridge')
+  return desktopRecentCopies
 }
 
 describe('songs kept because they were played, on the desktop', () => {
@@ -80,7 +88,7 @@ describe('songs kept because they were played, on the desktop', () => {
   })
 
   it('keeps a played song in its own folder and plays it from there', async () => {
-    const { desktopRecentCopies: recent } = await fresh()
+    const recent = await fresh()
 
     await recent.keepRecentlyPlayed(song)
 
@@ -88,50 +96,64 @@ describe('songs kept because they were played, on the desktop', () => {
       expect.objectContaining({ kind: 'recent', name: NAME }),
     )
     expect(recent.recentIds()).toEqual(new Set([7]))
-    expect(recent.recentUri(7)).toBe(`app://selfmp3/_media/recent/${NAME}`)
+    expect(recent.recentUri(song)).toBe(`app://selfmp3/_media/recent/${NAME}`)
   })
 
   it('fetches a song played again from nowhere', async () => {
-    const { desktopRecentCopies: recent } = await fresh()
+    const recent = await fresh()
     await recent.keepRecentlyPlayed(song)
     await recent.keepRecentlyPlayed(song)
     expect(bridge.files.download).toHaveBeenCalledTimes(1)
   })
 
   it('leaves the bucket alone while it is refusing for the day', async () => {
-    const { desktopRecentCopies: recent } = await fresh()
+    const recent = await fresh()
     held = { message: 'past the day’s allowance' }
 
     await recent.keepRecentlyPlayed(song)
 
     expect(bridge.files.download).not.toHaveBeenCalled()
-    expect(recent.recentUri(7)).toBeNull()
+    expect(recent.recentUri(song)).toBeNull()
   })
 
   it('stops offering a copy the folder no longer has', async () => {
     const first = await fresh()
-    await first.desktopRecentCopies.keepRecentlyPlayed(song)
+    await first.keepRecentlyPlayed(song)
     disk.clear()
 
-    const { desktopRecentCopies: recent } = await fresh()
+    const recent = await fresh()
     recent.recentIds()
-    await vi.waitFor(() => expect(recent.recentUri(7)).toBeNull())
+    await vi.waitFor(() => expect(recent.recentUri(song)).toBeNull())
   })
 
   it('turns the copy into a download by moving it, not fetching it again', async () => {
-    const { desktopRecentCopies: recent, adoptRecent } = await fresh()
+    const recent = await fresh()
     await recent.keepRecentlyPlayed(song)
 
-    expect(await adoptRecent(song)).toBe(4_000_000)
+    expect(await recent.adoptRecent(song, 'songs')).toBe(4_000_000)
 
     expect(bridge.files.move).toHaveBeenCalledWith('recent', 'songs', NAME)
     expect(disk.has(`songs/${NAME}`)).toBe(true)
     expect(recent.recentIds()).toEqual(new Set())
-    expect(await adoptRecent(song)).toBeNull()
+    expect(await recent.adoptRecent(song, 'songs')).toBeNull()
+  })
+
+  it('stops playing the old copy once the song has new audio, and fetches the new', async () => {
+    const recent = await fresh()
+    await recent.keepRecentlyPlayed(song)
+    const changed = { id: 7, path: `audio/${'b'.repeat(64)}.m4a` }
+
+    // Refreshing the old copy's play time kept the old audio playing for good.
+    expect(recent.recentUri(changed)).toBeNull()
+    await recent.keepRecentlyPlayed(changed)
+
+    expect(bridge.files.download).toHaveBeenCalledTimes(2)
+    expect(disk.has(`recent/${NAME}`)).toBe(false)
+    expect(recent.recentUri(changed)).toBe(`app://selfmp3/_media/recent/${'b'.repeat(64)}.m4a`)
   })
 
   it('lets the oldest go when the copies outgrow their share of the disk', async () => {
-    const { desktopRecentCopies: recent } = await fresh()
+    const recent = await fresh()
     bridge.files.usage.mockResolvedValue({ songs: 0, covers: 0, free: 50_000_000 })
     nextBytes = 4_000_000
     for (let id = 1; id <= 6; id++) {

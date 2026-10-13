@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /*
- * The index the desktop app keeps beside its songs.
+ * The index the desktop app keeps beside its songs, and what a download keeps
+ * beside its file.
  *
  * Regression. Saving it by handing a `blob:` URL to `files.fetchTo` cannot
  * work: that fetch happens in the *main* process, where a renderer's blob URL
@@ -31,14 +32,34 @@ vi.mock('./bridge', () => ({
 }))
 vi.mock('@selfmp3/replica', () => ({ bucketHold: () => held }))
 vi.mock('../bucketRefusal', () => ({ askWhyRefused: async () => null }))
-vi.mock('./recentCopies.desktop', () => ({ adoptRecent: async () => null }))
+vi.mock('./recentCopies.desktop', () => ({
+  desktopRecentCopies: { adoptRecent: async () => null },
+}))
 vi.mock('../songSource', () => ({
   sourceFor: async () => ({
     url: 'https://doorman.example/v1/files/audio/x.m4a',
     headers: { Authorization: 'Bearer t' },
   }),
 }))
-vi.mock('../../api/client', () => ({ mediaUrlFor: () => ({ stream: () => '' }) }))
+const keptLyrics: number[] = []
+const keptMotion: number[] = []
+vi.mock('../../api/client', () => ({
+  api: {
+    lyrics: async (songId: number) => ({ songId, lines: [] }),
+    motion: async (songId: number) => ({ songId }),
+  },
+  mediaUrlFor: () => ({ stream: () => '', art: () => '' }),
+}))
+vi.mock('../../offline/lyricsCache', () => ({
+  writeCachedLyrics: (songId: number) => void keptLyrics.push(songId),
+}))
+vi.mock('../../offline/motionCache', () => ({
+  writeCachedMotion: (songId: number) => void keptMotion.push(songId),
+}))
+vi.mock('../../offline/covers', () => ({
+  ensureServerCover: async () => undefined,
+  KEPT_COVER_SIZE: 0,
+}))
 vi.mock('../../replica', () => ({
   cloudPlatform: { doormanUrl: 'https://doorman.example' },
   session: { loadSession: async () => null },
@@ -68,6 +89,20 @@ describe('the desktop download index', () => {
     bridge.files.delete.mockResolvedValue(undefined)
     bridge.files.download.mockClear()
     held = null
+    keptLyrics.length = 0
+    keptMotion.length = 0
+  })
+
+  it('keeps the words and the motion curve with the song, as a phone does', async () => {
+    // Left to the catch-up pass, a song downloaded just before the computer
+    // went offline had no words on the plane.
+    const { downloadStorage } = await import('./downloadStorage.desktop')
+    const song = { id: 1, path: 'audio/x.m4a' } as Parameters<typeof downloadStorage.begin>[0]
+
+    await expect(downloadStorage.begin(song, 0, () => undefined).run()).resolves.toBe(1)
+
+    expect(keptLyrics).toEqual([1])
+    await vi.waitFor(() => expect(keptMotion).toEqual([1]))
   })
 
   it('does not ask a bucket refusing for the day for a song', async () => {

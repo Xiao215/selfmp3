@@ -288,6 +288,7 @@ export function ImportScreen({
       {/* What the box takes, named once and quietly: not buttons, only a reminder. */}
       <View
         style={styles.sources}
+        accessible
         accessibilityLabel="Takes YouTube, 网易云音乐, Spotify or a list of names"
       >
         {SOURCES.map(name => (

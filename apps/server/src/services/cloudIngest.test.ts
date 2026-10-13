@@ -501,7 +501,18 @@ describe('CloudIngest', () => {
         addSong('50% Off', { artist: 'Sale_Band' }),
         addSong('Old', { artist: 'Aurora' }),
       ]
-      const [one, two, three, four, five] = ids as [number, number, number, number, number, number]
+      const [one, two, three, four, five, six] = ids as [
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+      ]
+      // Words and a cover this server has read and not put up yet: no phone
+      // can see them, so no rule here may count them either.
+      songs.setLyricsKind(six, 'synced')
+      db.prepare('UPDATE songs SET has_art = 1 WHERE id = ?').run(six)
       songs.patch(one, { loved: true })
       songs.patch(four, { loved: true })
       for (const [id, plays] of [
@@ -542,7 +553,9 @@ describe('CloudIngest', () => {
         { ...base, rules: [{ field: 'duration', op: 'gt', value: 103 }] },
         { ...base, rules: [{ field: 'loved', op: 'is', value: true }] },
         { ...base, rules: [{ field: 'hasLyrics', op: 'is', value: false }] },
+        { ...base, rules: [{ field: 'hasLyrics', op: 'is', value: true }] },
         { ...base, rules: [{ field: 'hasArt', op: 'is', value: true }] },
+        { ...base, rules: [{ field: 'hasArt', op: 'is', value: false }] },
         { ...base, rules: [{ field: 'bpm', op: 'eq', value: 128 }] },
         { ...base, rules: [{ field: 'energy', op: 'lt', value: 0.6 }] },
         { ...base, rules: [{ field: 'loudness', op: 'lte', value: -9 }] },

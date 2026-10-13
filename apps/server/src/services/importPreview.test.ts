@@ -17,7 +17,7 @@ import type { ProbedTrack } from './ytdlp.js'
 import type { ArtistSongs } from './youtubeMusicArtist.js'
 import type { SongList } from './youtubeMusicLists.js'
 
-/** The real schema on an in-memory database, the same way smartPlaylist.test does. */
+/** The real schema on an in-memory database. */
 function makePlaylists(): PlaylistRepository {
   const db = new Database(':memory:')
   db.pragma('foreign_keys = ON')

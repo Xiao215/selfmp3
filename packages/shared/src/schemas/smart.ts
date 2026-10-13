@@ -7,9 +7,8 @@ import { CamelotSchema } from './audioFeatures.js'
  *
  * Each rule is a member of a union discriminated on `field`, so zod can say
  * which rule a bad one failed as, and the evaluators' switches over `field`
- * end in `assertNever`: adding a member here stops the SQL compiler and the
- * in-memory matcher compiling until both handle it, which is exactly the
- * safety net wanted for something that builds queries.
+ * end in `assertNever`: adding a member here stops the evaluator (shared
+ * smartRules.ts) compiling until it handles it.
  */
 
 export const TextRuleSchema = z.object({

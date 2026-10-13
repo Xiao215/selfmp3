@@ -664,10 +664,12 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 
 ### A — Server and replica answer the same API from one set of rules
 
-- [ ] **T-399** Move the edit change builders from `packages/replica/src/edits.ts` into `packages/shared` with the guards (`playlistPatchProblem`, live-playlist add guards, rename clash, create-or-return tag, insert-at-position, kept order, reorder via `reordered`); server routes call the same guards. Delete the private copy in `cloudIngest.test.ts`.
+- [x] **T-399** Move the edit change builders from `packages/replica/src/edits.ts` into `packages/shared` with the guards (`playlistPatchProblem`, live-playlist add guards, rename clash, create-or-return tag, insert-at-position, kept order, reorder via `reordered`); server routes call the same guards. Delete the private copy in `cloudIngest.test.ts`.
+  - Decision: the guards and pure pieces moved (shared `editRules.ts`, `playlistPatchProblem`, generic `reordered`); the change builders stay in the replica, the only side that records changes.
 - [x] **T-400** One contract test: every client route is handled by the replica or marked server-only; the same cases run against both answerers.
   - `packages/client/src/api/contract.test.ts` over `SERVER_ONLY_ROUTES`; the shared cases are the server-vs-phone parity tests in `cloudIngest.test.ts` (extended for each fix here).
-- [ ] **T-401** Smart rules: one evaluator (`shared/smartRules.ts`); hasLyrics/hasArt read the same facts on both sides.
+- [x] **T-401** Smart rules: one evaluator (`shared/smartRules.ts`); hasLyrics/hasArt read the same facts on both sides.
+  - The SQL compiler is gone; the server evaluates over facts read once per database change. Decision: "has lyrics/art" means the bucket has them, as the snapshot says.
 
 ### B1 — The doorman wire is one module
 

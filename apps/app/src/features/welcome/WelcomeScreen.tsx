@@ -46,6 +46,7 @@ import {
   type WelcomeTile,
 } from './welcome.model'
 import { ScrollView } from '../../ui/components/Scroll'
+import { StatusLine } from '../../ui/components/StatusLine'
 
 /**
  * The way in (docs/ui-mock `P01`, `P02`, `C01`): one button, Continue with
@@ -218,9 +219,7 @@ export function WelcomeScreen(): ReactNode {
   const actions =
     stage.kind === 'claiming' ? null : (
       <View style={styles.actions}>
-        {stage.kind === 'idle' && stage.message ? (
-          <Text style={styles.error}>{stage.message}</Text>
-        ) : null}
+        {stage.kind === 'idle' && stage.message ? <StatusLine>{stage.message}</StatusLine> : null}
         {stage.kind === 'idle' || stage.kind === 'lost' ? (
           <WhitePill
             testID="welcome-google"
@@ -408,7 +407,6 @@ const styles = StyleSheet.create(theme => ({
   bodyWide: { fontSize: type.title, lineHeight: leading.title, maxWidth: 420 },
   spinner: { alignSelf: 'flex-start', marginTop: space.sm },
   actions: { gap: space.lg },
-  error: { color: theme.colors.danger, fontSize: type.body },
   footnotes: { gap: 4, alignItems: 'center' },
   footnotesWide: { alignItems: 'flex-start' },
   pressed: { opacity: 0.6 },

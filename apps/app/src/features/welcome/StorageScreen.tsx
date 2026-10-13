@@ -28,6 +28,7 @@ import {
 } from './storage.model'
 import { WhitePill } from './WhitePill'
 import { OnboardingCard, OnboardingFootnote, OnboardingPage } from './OnboardingPage'
+import { StatusLine } from '../../ui/components/StatusLine'
 
 /**
  * Where it lives: the page between the first Google sign-in on an account and
@@ -210,11 +211,7 @@ export function StorageScreen(): ReactNode {
           <Text style={styles.tryingText}>{TRYING}</Text>
         </View>
       ) : null}
-      {error ? (
-        <Text style={styles.error} accessibilityRole="alert">
-          {error}
-        </Text>
-      ) : null}
+      {error ? <StatusLine>{error}</StatusLine> : null}
 
       <View style={[styles.actions, wide && styles.actionsWide]}>
         <WhitePill
@@ -283,7 +280,6 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.sub,
     lineHeight: leading.sub,
   },
-  error: { color: theme.colors.danger, fontSize: type.body, lineHeight: leading.body },
   actions: { marginTop: 'auto', gap: 4, alignItems: 'stretch' },
   actionsWide: { alignItems: 'flex-start' },
   footnote: { paddingTop: space.sm },

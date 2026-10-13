@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { ApiError, normaliseBaseUrl, space, type } from '@selfmp3/client'
+import { ApiError, normaliseBaseUrl, space } from '@selfmp3/client'
 import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
 import { TextField } from '../../ui/components/TextField'
 import { plural } from '@selfmp3/shared'
+import { StatusLine } from '../../ui/components/StatusLine'
 
 /**
  * Connecting to a server by typing its address: development builds only.
@@ -122,17 +123,15 @@ export function ServerAddress({
         returnKeyType="go"
         onSubmitEditing={save}
       />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {note ? <Text style={styles.note}>{note}</Text> : null}
+      {error ? <StatusLine>{error}</StatusLine> : null}
+      {note ? <StatusLine tone="good">{note}</StatusLine> : null}
       <Button testID="welcome-connect" label="Connect" onPress={save} busy={busy} />
     </View>
   )
 }
 
-const styles = StyleSheet.create(theme => ({
+const styles = StyleSheet.create(() => ({
   toggle: { alignItems: 'flex-start' },
   toggleCentred: { alignItems: 'center' },
   form: { gap: space.sm },
-  error: { color: theme.colors.danger, fontSize: type.small },
-  note: { color: theme.colors.good, fontSize: type.small },
 }))

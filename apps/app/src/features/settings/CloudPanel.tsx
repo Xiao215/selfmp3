@@ -24,7 +24,8 @@ import { Popover } from '../../ui/components/Popover'
 import { SheetItem } from '../../ui/components/Sheet'
 import { addressReady, cloudConnectInput, type AddressFields } from '../welcome/storage.model'
 import { BucketAddressFields } from '../welcome/BucketAddressFields'
-import { Lead, Meter, Notice, Panel, partStyles, Row } from './SettingsParts'
+import { Lead, Meter, Panel, partStyles, Row } from './SettingsParts'
+import { NoticeCard } from '../../ui/components/NoticeCard'
 
 /**
  * Settings → Cloud (docs/SYNC.md).
@@ -52,7 +53,11 @@ export function CloudPanel({ anchor }: { anchor: (node: View | null) => void }):
     // Signed in once, but the doorman no longer takes that sign-in.
     body = (
       <>
-        {status.lastError ? <Notice tone="error">{status.lastError}</Notice> : null}
+        {status.lastError ? (
+          <NoticeCard wash style={partStyles.notice} tone="error">
+            {status.lastError}
+          </NoticeCard>
+        ) : null}
         <SignIn status={status} again />
       </>
     )
@@ -157,7 +162,11 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
           onPress={start}
         />
       </Row>
-      {failure ? <Notice tone="error">{failure.message}</Notice> : null}
+      {failure ? (
+        <NoticeCard wash style={partStyles.notice} tone="error">
+          {failure.message}
+        </NoticeCard>
+      ) : null}
     </>
   )
 }
@@ -204,13 +213,13 @@ function SignInReturn(): ReactNode {
   if (!arrived) return null
   const failed = enterCode.isError && !status?.account
   return (
-    <Notice tone={failed ? 'error' : 'good'}>
+    <NoticeCard wash style={partStyles.notice} tone={failed ? 'error' : 'good'}>
       {failed
         ? `Signing in didn’t work: ${enterCode.error?.message ?? 'try again'}`
         : enterCode.isSuccess || status?.account
           ? 'Signed in.'
           : 'Signing in…'}
-    </Notice>
+    </NoticeCard>
   )
 }
 
@@ -261,7 +270,9 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
       ) : null}
 
       {status.state === 'error' && status.lastError ? (
-        <Notice tone="error">{status.lastError}</Notice>
+        <NoticeCard wash style={partStyles.notice} tone="error">
+          {status.lastError}
+        </NoticeCard>
       ) : null}
 
       <Row
@@ -453,7 +464,11 @@ function BucketForm({
         testID="cloud-address"
       />
 
-      {action.error ? <Notice tone="error">{action.error.message}</Notice> : null}
+      {action.error ? (
+        <NoticeCard wash style={partStyles.notice} tone="error">
+          {action.error.message}
+        </NoticeCard>
+      ) : null}
 
       <Row label="" hint="The key is tried before it is saved." last>
         {account && !onCancel ? (

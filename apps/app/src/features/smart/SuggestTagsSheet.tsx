@@ -1,15 +1,15 @@
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQuery } from '@tanstack/react-query'
-import { failureText, space, STALE, type } from '@selfmp3/client'
+import { failureText, space, STALE } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
-import { Button } from '../../ui/components/Button'
 import { Sheet } from '../../ui/components/Sheet'
 import { TagsReview } from './TagsReview'
 import { Working } from './Working'
 import { useSmartServer } from './useSmartServer'
 import { reachedConnection, viaKey } from '../../connection/via'
+import { StatusLine } from '../../ui/components/StatusLine'
 
 /**
  * Suggest tags, from Tags' untagged card: the tag review (docs/features/ai.md,
@@ -49,10 +49,9 @@ export function SuggestTagsSheet({
     )
   } else if (answer.error) {
     body = (
-      <View style={styles.failed}>
-        <Text style={styles.error}>{failureText('Couldn’t suggest tags', answer.error)}</Text>
-        <Button label="Try again" onPress={() => void answer.refetch()} />
-      </View>
+      <StatusLine retry={{ onPress: () => void answer.refetch() }}>
+        {failureText('Couldn’t suggest tags', answer.error)}
+      </StatusLine>
     )
   } else {
     body = <TagsReview review={answer.data} height={440} onClose={onClose} />
@@ -72,8 +71,6 @@ export function SuggestTagsSheet({
   )
 }
 
-const styles = StyleSheet.create(theme => ({
+const styles = StyleSheet.create(() => ({
   body: { padding: space.sm },
-  failed: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  error: { color: theme.colors.danger, fontSize: type.small, flexShrink: 1 },
 }))

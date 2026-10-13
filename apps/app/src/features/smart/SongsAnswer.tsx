@@ -27,6 +27,7 @@ import { describeNotes, onlyTags, parts, picksHere, tagIdsFor } from './smart.mo
 import { useSmartServer } from './useSmartServer'
 import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
+import { StatusLine } from '../../ui/components/StatusLine'
 
 /**
  * Songs picked from a description (docs/features/ai.md): what it understood,
@@ -197,9 +198,9 @@ export function SongsAnswer({
         </Text>
       ) : null}
       {again.error ? (
-        <Text style={styles.error}>{failureText('Couldn’t pick again', again.error)}</Text>
+        <StatusLine>{failureText('Couldn’t pick again', again.error)}</StatusLine>
       ) : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <StatusLine>{error}</StatusLine> : null}
 
       <View style={styles.actions}>
         {onCancel ? <Button label="Cancel" onPress={onCancel} /> : null}
@@ -253,6 +254,5 @@ const styles = StyleSheet.create(theme => ({
   pressed: { opacity: 0.6 },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: 4 },
   checkLabel: { color: theme.colors.textPrimary, fontSize: type.sub, flexShrink: 1 },
-  error: { color: theme.colors.danger, fontSize: type.small },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
 }))

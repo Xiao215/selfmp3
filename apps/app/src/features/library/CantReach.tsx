@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react'
-import { Linking, Text, View } from 'react-native'
+import { Linking } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { leading, space, type } from '@selfmp3/client'
+import { space } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
-import { card } from '../../ui/surfaces'
+import { Refresh } from '../../ui/components/Icons'
+import { NoticeCard } from '../../ui/components/NoticeCard'
 import { BACKBLAZE_CAPS_URL, bucketCapped, unreachableCopy } from './library.model'
 
 /**
@@ -42,43 +43,39 @@ export function CantReach({
   })
 
   return (
-    <View style={[styles.card, !wide && styles.cardCompact]} testID="cant-reach">
-      <View style={styles.titleRow}>
-        <View style={[styles.dot, { backgroundColor: theme.colors.danger }]} />
-        <Text style={styles.title} accessibilityRole="header">
-          {copy.title}
-        </Text>
-      </View>
-      <Text style={styles.body}>{copy.body}</Text>
-      <View style={styles.actions}>
-        <Button label="Try again" onPress={onRetry} />
-        {capped ? (
-          <Button label="Open Backblaze" onPress={() => void Linking.openURL(BACKBLAZE_CAPS_URL)} />
-        ) : (
+    <NoticeCard
+      tone="error"
+      title={copy.title}
+      live
+      style={[styles.card, !wide && styles.cardCompact]}
+      testID="cant-reach"
+      actions={
+        <>
           <Button
-            label={wide ? 'Connection settings' : 'Settings'}
-            onPress={() => router.push({ pathname: '/settings', params: { section: 'account' } })}
+            label="Try again"
+            icon={<Refresh size={13} color={theme.colors.textPrimary} />}
+            onPress={onRetry}
           />
-        )}
-      </View>
-    </View>
+          {capped ? (
+            <Button
+              label="Open Backblaze"
+              onPress={() => void Linking.openURL(BACKBLAZE_CAPS_URL)}
+            />
+          ) : (
+            <Button
+              label={wide ? 'Connection settings' : 'Settings'}
+              onPress={() => router.push({ pathname: '/settings', params: { section: 'account' } })}
+            />
+          )}
+        </>
+      }
+    >
+      {copy.body}
+    </NoticeCard>
   )
 }
 
-const styles = StyleSheet.create(theme => ({
-  card: {
-    alignSelf: 'center',
-    width: '100%',
-    maxWidth: 420,
-    marginTop: space.xl,
-    padding: 18,
-    gap: space.sm,
-    ...card(theme.colors),
-  },
+const styles = StyleSheet.create(() => ({
+  card: { alignSelf: 'center', width: '100%', maxWidth: 420, marginTop: space.xl },
   cardCompact: { maxWidth: undefined },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  body: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.xs },
 }))

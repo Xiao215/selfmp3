@@ -20,6 +20,7 @@ import { Checkbox } from '../../ui/components/Checkbox'
 import { showToast } from '../../ui/toast'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { FOLLOWS_LABEL, isLive, newPlaylist } from '../playlists/playlists.model'
+import { StatusLine } from '../../ui/components/StatusLine'
 
 /** A playlist as it was, so a delete can be undone: its songs in their order, its rules. */
 interface Kept {
@@ -206,7 +207,7 @@ export function PlaylistsAnswer({
           No playlist here is called {answer.unknown.map(name => `“${name}”`).join(' or ')}.
         </Text>
       ) : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <StatusLine>{error}</StatusLine> : null}
       <View style={styles.actions}>
         <Button label="Cancel" onPress={onDone} />
         {renaming ? (
@@ -255,6 +256,5 @@ const styles = StyleSheet.create(theme => ({
   arrow: { color: theme.colors.textMuted },
   meta: { color: theme.colors.textMuted, fontSize: type.small },
   note: { color: theme.colors.textMuted, fontSize: type.small },
-  error: { color: theme.colors.danger, fontSize: type.sub },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
 }))

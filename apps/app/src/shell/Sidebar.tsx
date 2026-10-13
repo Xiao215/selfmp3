@@ -8,7 +8,6 @@ import { usePathname, useRouter } from 'expo-router'
 import { plural, fuzzyRank, type Playlist, type Tag } from '@selfmp3/shared'
 import {
   downloadTally,
-  leading,
   radius,
   railTags,
   space,
@@ -40,6 +39,7 @@ import { onTagPage } from '../features/tag/placePath.model'
 import { existingTag, noTagsLine } from '../features/tag/tag.model'
 import { NEW_TAG_FAILED, TagNameField, useNewTagForm } from '../features/tags/useNewTagForm'
 import { StatusLine } from '../ui/components/StatusLine'
+import { NoticeCard } from '../ui/components/NoticeCard'
 import { useConnection } from '../connection/ConnectionProvider'
 import { BrandMark } from '../ui/components/BrandMark'
 import {
@@ -607,10 +607,17 @@ function Foot(): ReactNode {
   return (
     <View style={styles.foot}>
       {notice ? (
-        <View style={styles.notice} accessibilityLiveRegion="polite" testID="sidebar-notice">
-          <Text style={styles.noticeTitle}>{notice.title}</Text>
-          <Text style={styles.noticeBody}>{notice.body}</Text>
-        </View>
+        <NoticeCard
+          tone="warn"
+          wash
+          compact
+          live
+          title={notice.title}
+          style={styles.notice}
+          testID="sidebar-notice"
+        >
+          {notice.body}
+        </NoticeCard>
       ) : null}
       <Pressable
         style={({ pressed }) => [
@@ -862,17 +869,7 @@ const styles = StyleSheet.create(theme => ({
   },
   // Something needs you: what still works, and what to do. The warning's own
   // tone on a quiet ground, the way a toast says "warn".
-  notice: {
-    gap: 2,
-    marginHorizontal: 2,
-    marginBottom: space.sm,
-    paddingHorizontal: 10,
-    paddingVertical: space.sm,
-    borderRadius: radius.card,
-    backgroundColor: theme.colors.surface2,
-  },
-  noticeTitle: { color: theme.colors.warning, fontSize: type.small, fontWeight: '600' },
-  noticeBody: { color: theme.colors.textSecondary, fontSize: type.tiny, lineHeight: leading.tiny },
+  notice: { marginHorizontal: 2, marginBottom: space.sm },
   footLabel: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
 }))
 

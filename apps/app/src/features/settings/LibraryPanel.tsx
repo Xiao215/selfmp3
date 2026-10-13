@@ -14,7 +14,8 @@ import {
 } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { Refresh, Sparkles, X } from '../../ui/components/Icons'
-import { Notice, Panel, partStyles, Row } from './SettingsParts'
+import { Panel, partStyles, Row } from './SettingsParts'
+import { NoticeCard } from '../../ui/components/NoticeCard'
 import { analysisProgress, scanHint, soundHint, type Confirming } from './settings.model'
 import {
   coverArtHint,
@@ -131,7 +132,11 @@ function CoverArtRow({ songs, last }: { songs: readonly Song[]; last: boolean })
           <Text style={partStyles.progressText}>{coverProgress(status)}</Text>
         </View>
       ) : null}
-      {result ? <Notice tone="good">{result}</Notice> : null}
+      {result ? (
+        <NoticeCard wash style={partStyles.notice} tone="good">
+          {result}
+        </NoticeCard>
+      ) : null}
     </>
   )
 }

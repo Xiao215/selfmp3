@@ -6,9 +6,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Settings } from '@selfmp3/shared'
 import { Button } from '../../ui/components/Button'
 import { Toggle } from '../../ui/components/Toggle'
-import { Check, Refresh, Sparkle, X } from '../../ui/components/Icons'
+import { Check, Sparkle, X } from '../../ui/components/Icons'
 import { modelHop, serverHop, type Hop } from '../smart/smart.model'
 import { useSmartServer } from '../smart/useSmartServer'
+import { ServerAway } from '../../connection/ServerAway'
 import { Panel, Row } from './SettingsParts'
 import { reachedConnection, viaKey } from '../../connection/via'
 import { leading, type } from '@selfmp3/client'
@@ -81,7 +82,7 @@ export function SmartPanel({
       anchor={anchor}
     >
       {server.reach.state !== 'reachable' ? (
-        <ServerAwayRow reach={server.reach} />
+        <ServerAway reach={server.reach} need="ai" row testID="smart-server" />
       ) : (
         <>
           {settings
@@ -172,7 +173,7 @@ export function SmartModelPanel({ anchor }: { anchor: (node: View | null) => voi
   return (
     <Panel title="Model" mark={<Sparkle size={12} />} hint="for smart features" anchor={anchor}>
       {server.reach.state !== 'reachable' ? (
-        <ServerAwayRow reach={server.reach} />
+        <ServerAway reach={server.reach} need="ai" row testID="smart-server" />
       ) : (
         <>
           <Row label="Model address" hint={addressHint(setup.data, setup.error)}>
@@ -227,34 +228,6 @@ export function SmartModelPanel({ anchor }: { anchor: (node: View | null) => voi
         </>
       )}
     </Panel>
-  )
-}
-
-/** The server not answering, or not found yet: said the same in both panels. */
-function ServerAwayRow({
-  reach,
-}: {
-  reach: ReturnType<typeof useSmartServer>['reach']
-}): ReactNode {
-  return (
-    <Row
-      label="Your library’s computer"
-      hint={
-        reach.state === 'looking'
-          ? 'Looking for it…'
-          : 'Isn’t answering. Try the same Wi‑Fi or Tailscale.'
-      }
-      last
-    >
-      {reach.state === 'away' ? (
-        <Button
-          label="Look again"
-          icon={<Refresh size={13} tone="textPrimary" />}
-          onPress={reach.lookAgain}
-          testID="smart-look-again"
-        />
-      ) : null}
-    </Row>
   )
 }
 

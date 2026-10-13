@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
-import { leading, radius, type } from '@selfmp3/client'
+import { radius, space } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
+import { NoticeCard } from '../../ui/components/NoticeCard'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { useServerSongIds } from '../../connection/useServerSongIds'
@@ -54,13 +55,10 @@ function CloudFix({ song, onClose }: { song: Song; onClose: () => void }): React
 function NotOnServer({ onClose }: { onClose: () => void }): ReactNode {
   return (
     <Shell onClose={onClose} testID="metadata-not-on-server">
-      <Text style={styles.cardTitle} accessibilityRole="header">
-        Not ready to look up yet
-      </Text>
-      <Text style={styles.cardBody}>
+      <NoticeCard title="Not ready to look up yet" live style={styles.notice}>
         The lookup reads the song’s file on your library’s computer. This one came from another
         device and that computer hasn’t fetched it yet — it will, and then this works.
-      </Text>
+      </NoticeCard>
     </Shell>
   )
 }
@@ -113,11 +111,5 @@ const styles = StyleSheet.create(theme => ({
     paddingLeft: 22,
   },
   body: { paddingTop: 4, paddingHorizontal: 22, paddingBottom: 22, gap: 8 },
-  cardTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
-    marginTop: 16,
-  },
-  cardBody: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  notice: { marginTop: space.lg },
 }))

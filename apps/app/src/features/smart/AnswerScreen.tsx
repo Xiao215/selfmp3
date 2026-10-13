@@ -39,6 +39,7 @@ import { changeAnswer, reorderAnswer, useKeptAnswer } from './answers.store'
 import { ChangeIt } from './ChangeIt'
 import { answerSongs, describeNotes, parts } from './smart.model'
 import { useSmartServer } from './useSmartServer'
+import { StatusLine } from '../../ui/components/StatusLine'
 
 /**
  * An answer to Ask as a page of its own, `/answer?id=…` (docs/features/lists.md,
@@ -219,7 +220,7 @@ export function AnswerScreen(): ReactNode {
             </Text>
           ))}
           {again.error ? (
-            <Text style={styles.error}>{failureText('Couldn’t pick again', again.error)}</Text>
+            <StatusLine>{failureText('Couldn’t pick again', again.error)}</StatusLine>
           ) : null}
         </>
       }
@@ -318,5 +319,4 @@ const styles = StyleSheet.create(theme => ({
   nameLong: { fontSize: type.page, lineHeight: leading.page, letterSpacing: -0.4 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 6 },
   note: { color: theme.colors.textMuted, fontSize: type.small },
-  error: { color: theme.colors.danger, fontSize: type.sub },
 }))

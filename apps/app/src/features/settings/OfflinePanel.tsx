@@ -16,7 +16,8 @@ import { useConnection } from '../../connection/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
 import { CloudDownload, Trash, X } from '../../ui/components/Icons'
 import { Toggle } from '../../ui/components/Toggle'
-import { ButtonRow, Meter, Notice, Panel, partStyles, Row, Stats } from './SettingsParts'
+import { ButtonRow, Meter, Panel, partStyles, Row, Stats } from './SettingsParts'
+import { NoticeCard } from '../../ui/components/NoticeCard'
 import { devicePlace, type Confirming } from './settings.model'
 import { deviceKind } from '../../ports/device'
 
@@ -154,7 +155,11 @@ export function OfflinePanel({
         </View>
       ) : null}
 
-      {downloads.error ? <Notice tone="error">{downloads.error}</Notice> : null}
+      {downloads.error ? (
+        <NoticeCard wash style={partStyles.notice} tone="error">
+          {downloads.error}
+        </NoticeCard>
+      ) : null}
       {stale !== null && stale.all.length > 0 ? (
         <Text style={partStyles.hint}>{staleHint(stale)}</Text>
       ) : null}

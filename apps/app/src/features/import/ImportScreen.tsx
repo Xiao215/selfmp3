@@ -41,6 +41,7 @@ import {
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
 import { PageHeader } from '../../ui/components/PageHeader'
+import { NoticeCard, NoticeText } from '../../ui/components/NoticeCard'
 import { card, label as groupLabel, pageFrame } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
@@ -292,38 +293,35 @@ export function ImportScreen({
   const notices = (
     <>
       {tools && !tools.ytdlp ? (
-        <View style={styles.notice}>
-          <View style={styles.noticeBody}>
-            <Text style={styles.noticeText}>
-              <Text style={[styles.strong, styles.strongWarn]}>yt-dlp isn’t installed.</Text>{' '}
-              Importing needs it. Install both tools with:
-            </Text>
-            <Text style={styles.code} selectable>
-              brew install yt-dlp ffmpeg
-            </Text>
-          </View>
-          <Button
-            label="Check again"
-            icon={<Refresh size={13} color={theme.colors.textPrimary} />}
-            onPress={() => void refetchTools()}
-          />
-        </View>
+        <NoticeCard
+          tone="warn"
+          title="yt-dlp isn’t installed"
+          actions={
+            <Button
+              label="Check again"
+              icon={<Refresh size={13} color={theme.colors.textPrimary} />}
+              onPress={() => void refetchTools()}
+            />
+          }
+        >
+          <NoticeText>Importing needs it. Install both tools with:</NoticeText>
+          <Text style={styles.code} selectable>
+            brew install yt-dlp ffmpeg
+          </Text>
+        </NoticeCard>
       ) : null}
       {tools?.ytdlp && !tools.ffmpeg ? (
-        <View style={styles.notice}>
-          <Text style={styles.noticeText}>
-            <Text style={styles.strong}>ffmpeg isn’t installed.</Text> Downloads still work, but
-            cover art and tags won’t be embedded. brew install ffmpeg
+        <NoticeCard tone="warn" title="ffmpeg isn’t installed">
+          <NoticeText>Downloads still work, but cover art and tags won’t be embedded.</NoticeText>
+          <Text style={styles.code} selectable>
+            brew install ffmpeg
           </Text>
-        </View>
+        </NoticeCard>
       ) : null}
       {error ? (
-        <View style={[styles.notice, styles.noticeError]} accessibilityRole="alert">
-          <Text style={[styles.noticeText, styles.noticeTextError]}>{error}</Text>
-          <IconButton onPress={() => setError(null)} label="Dismiss">
-            <X size={15} color={theme.colors.textMuted} />
-          </IconButton>
-        </View>
+        <NoticeCard tone="error" onDismiss={() => setError(null)}>
+          {error}
+        </NoticeCard>
       ) : null}
       {/* Songs picked in a search and not imported yet: the search is in the draft, one tap away. */}
       {search && picked > 0 ? (
@@ -492,13 +490,10 @@ export function ImportScreen({
             <View style={styles.formColumn}>
               {form}
               {notices}
-              <View style={styles.otherWays}>
-                <Text style={styles.otherTitle}>Other ways in</Text>
-                <Text style={styles.otherBody}>
-                  Share a link from the browser extension, or to self.mp3 from YouTube or 网易云音乐
-                  itself. It lands here.
-                </Text>
-              </View>
+              <NoticeCard title="Other ways in">
+                Share a link from the browser extension, or to self.mp3 from YouTube or 网易云音乐
+                itself. It lands here.
+              </NoticeCard>
             </View>
             {jobs}
           </View>
@@ -1073,9 +1068,6 @@ const styles = StyleSheet.create(theme => ({
   pasted: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   pastedText: { color: theme.colors.good, fontSize: type.small, fontWeight: '600' },
   searchText: { color: theme.colors.accent },
-  strong: { color: theme.colors.textPrimary, fontWeight: '600' },
-  // With no edge around the notice, its first words carry the warning's colour.
-  strongWarn: { color: theme.colors.warning },
   // On the notice's card, so one step up from it.
   code: {
     marginTop: 6,
@@ -1086,24 +1078,6 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
     borderRadius: radius.coverSm,
   },
-  // A notice is a card; a warning or an error is told by its words, not an edge.
-  notice: {
-    ...card(theme.colors),
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  noticeError: { paddingRight: 4 },
-  noticeBody: { flex: 1 },
-  noticeText: {
-    flex: 1,
-    color: theme.colors.textSecondary,
-    fontSize: type.sub,
-    lineHeight: leading.sub,
-  },
-  noticeTextError: { color: theme.colors.danger },
   linkCard: {
     ...card(theme.colors),
     flexDirection: 'row',
@@ -1116,10 +1090,6 @@ const styles = StyleSheet.create(theme => ({
   linkCardText: { flex: 1, minWidth: 0, gap: 3 },
   linkCardTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   linkCardSub: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
-  // `C13`'s card: the other ways a song gets here.
-  otherWays: { ...card(theme.colors), gap: 6, paddingVertical: 16, paddingHorizontal: 18 },
-  otherTitle: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
-  otherBody: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   shareHint: { color: theme.colors.textMuted, fontSize: type.sub, lineHeight: leading.sub },
   jobs: { gap: 6 },
   groupApart: { marginTop: 12 },

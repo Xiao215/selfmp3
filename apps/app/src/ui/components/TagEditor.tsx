@@ -20,6 +20,7 @@ import { HueSwatches } from './HueSwatches'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 import { label } from '../surfaces'
+import { StatusLine } from './StatusLine'
 
 /**
  * Everything you can do to a tag itself.
@@ -125,7 +126,9 @@ function Editor({
           }
         />
         {rename.error ? (
-          <Text style={styles.error}>{failureText('Couldn’t rename it', rename.error)}</Text>
+          <StatusLine style={styles.error}>
+            {failureText('Couldn’t rename it', rename.error)}
+          </StatusLine>
         ) : null}
       </View>
 
@@ -182,6 +185,6 @@ const styles = StyleSheet.create(theme => ({
   hint: { color: theme.colors.textMuted, fontSize: type.small },
   section: { paddingTop: space.xs, paddingHorizontal: space.xs, paddingBottom: space.sm },
   fieldLabel: { ...label(theme.colors), marginBottom: 5 },
-  error: { color: theme.colors.danger, fontSize: type.small, marginTop: 5 },
+  error: { marginTop: 5 },
   confirm: { paddingHorizontal: space.md, paddingVertical: space.sm },
 }))

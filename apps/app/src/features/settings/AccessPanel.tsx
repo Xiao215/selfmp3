@@ -1,12 +1,12 @@
 import { useState, type ReactNode } from 'react'
-import { Text } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { space, type, useAccess, useUpdateAccess } from '@selfmp3/client'
+import { space, useAccess, useUpdateAccess } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { Toggle } from '../../ui/components/Toggle'
 import { anyoneHint, withEmail, withoutEmail } from './access.model'
 import { TextField } from '../../ui/components/TextField'
 import { Panel, Row } from './SettingsParts'
+import { StatusLine } from '../../ui/components/StatusLine'
 
 /**
  * Who can sign in: the doorman's allow list, for its owner
@@ -92,11 +92,11 @@ export function AccessPanel(): ReactNode {
           }
         />
       </Row>
-      {said ? <Text style={styles.problem}>{said}</Text> : null}
+      {said ? <StatusLine style={styles.problem}>{said}</StatusLine> : null}
     </Panel>
   )
 }
 
-const styles = StyleSheet.create(theme => ({
-  problem: { color: theme.colors.danger, fontSize: type.sub, marginTop: space.sm },
+const styles = StyleSheet.create(() => ({
+  problem: { marginTop: space.sm },
 }))

@@ -18,13 +18,14 @@ import { useBackTo } from '../../ui/useBackTo'
 import { BackButton } from '../../ui/components/BackButton'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { PageLoading } from '../../ui/components/PageLoading'
+import { NoticeCard } from '../../ui/components/NoticeCard'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { Download, Play } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Segmented } from '../../ui/components/Segmented'
 import { Select } from '../../ui/components/Select'
-import { card, floating, pageFrame } from '../../ui/surfaces'
+import { floating, pageFrame } from '../../ui/surfaces'
 import { WrittenReport } from '../smart/WrittenReport'
 import { useStatsFor, useStatsSongs, useWrappedFor } from '../stats/statsSource'
 import { LOOK_VIEWS } from './looks'
@@ -211,11 +212,7 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
 
   return shell(
     <>
-      {shareError ? (
-        <View style={styles.notice} accessibilityRole="alert">
-          <Text style={styles.noticeText}>{shareError}</Text>
-        </View>
-      ) : null}
+      {shareError ? <NoticeCard tone="error">{shareError}</NoticeCard> : null}
       <LookStage
         pageRef={page}
         look={frame.look}
@@ -506,7 +503,4 @@ const styles = StyleSheet.create(theme => ({
   swatchArt: { width: '100%', height: '100%' },
   pickLabel: { fontSize: type.tiny, fontWeight: '600', color: theme.colors.textSecondary },
   pickLabelActive: { color: theme.colors.textPrimary },
-  // A card, with the danger in its ink rather than an edge.
-  notice: { ...card(theme.colors), paddingVertical: 10, paddingHorizontal: 14 },
-  noticeText: { color: theme.colors.danger, fontSize: type.sub },
 }))

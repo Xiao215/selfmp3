@@ -4,25 +4,16 @@ import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { Redirect } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
-import {
-  ApiError,
-  leading,
-  radius,
-  space,
-  type,
-  type Review,
-  type ServerConnection,
-} from '@selfmp3/client'
+import { ApiError, leading, space, type, type Review, type ServerConnection } from '@selfmp3/client'
 import { useFootInset } from '../../shell/bottomInset'
 import { useLayout } from '../../shell/useLayout'
 import { canListenHere } from '../../ports/listen'
 import { label as groupLabel, pageFrame, pageTitle } from '../../ui/surfaces'
 import { PageHeader } from '../../ui/components/PageHeader'
+import { NoticeCard } from '../../ui/components/NoticeCard'
 import { Button } from '../../ui/components/Button'
 import { useBackTo } from '../../ui/useBackTo'
 import { Cover } from '../../ui/components/Cover'
-import { IconButton } from '../../ui/components/IconButton'
-import { X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useListen } from './ImportListen'
 import { TagThem } from './ImportTags'
@@ -243,18 +234,17 @@ export function ImportReview({
         style={[wide ? styles.footWide : styles.footPhone, { paddingBottom: footInset + 12 }]}
       >
         {error ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{error}</Text>
-            <IconButton onPress={() => setError(null)} label="Dismiss">
-              <X size={15} tone="textMuted" />
-            </IconButton>
-          </View>
+          <NoticeCard tone="error" onDismiss={() => setError(null)}>
+            {error}
+          </NoticeCard>
         ) : null}
         {finder.error ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{finder.error}</Text>
-            <Button label="Try again" variant="text" onPress={finder.retry} />
-          </View>
+          <NoticeCard
+            tone="error"
+            actions={<Button label="Try again" variant="text" onPress={finder.retry} />}
+          >
+            {finder.error}
+          </NoticeCard>
         ) : null}
         <View style={wide ? styles.footRow : styles.footColumn}>
           <View style={wide ? styles.tagsWide : null}>
@@ -342,14 +332,4 @@ const styles = StyleSheet.create(theme => ({
   tagsWide: { flex: 1, minWidth: 0 },
   cancel: { paddingHorizontal: 8, paddingVertical: 8 },
   cancelText: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '600' },
-  error: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingLeft: 14,
-    paddingRight: 4,
-    borderRadius: radius.card,
-    backgroundColor: theme.colors.surface1,
-  },
-  errorText: { flex: 1, color: theme.colors.danger, fontSize: type.sub, lineHeight: leading.sub },
 }))

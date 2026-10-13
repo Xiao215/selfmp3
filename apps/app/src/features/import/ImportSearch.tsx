@@ -4,23 +4,14 @@ import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
-import {
-  ApiError,
-  leading,
-  radius,
-  space,
-  type,
-  type Review,
-  type ServerConnection,
-} from '@selfmp3/client'
+import { ApiError, leading, space, type, type Review, type ServerConnection } from '@selfmp3/client'
 import { useFootInset } from '../../shell/bottomInset'
 import { useLayout } from '../../shell/useLayout'
 import { label as groupLabel, pageFrame } from '../../ui/surfaces'
 import { PageHeader } from '../../ui/components/PageHeader'
+import { NoticeCard } from '../../ui/components/NoticeCard'
 import { Button } from '../../ui/components/Button'
 import { useBackTo } from '../../ui/useBackTo'
-import { IconButton } from '../../ui/components/IconButton'
-import { X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SearchField } from '../../ui/components/SearchField'
 import { useListen } from './ImportListen'
@@ -168,10 +159,13 @@ export function ImportSearch({
       >
         <Pressable onPress={closeOpen} accessible={false} style={styles.ground}>
           {searching.error ? (
-            <View style={styles.error} accessibilityRole="alert">
-              <Text style={styles.errorText}>{searching.error}</Text>
-              <Button label="Try again" variant="text" onPress={searching.retry} />
-            </View>
+            <NoticeCard
+              tone="error"
+              style={styles.searchError}
+              actions={<Button label="Try again" variant="text" onPress={searching.retry} />}
+            >
+              {searching.error}
+            </NoticeCard>
           ) : null}
           {search && rows.length > 0 ? (
             <View accessibilityRole="list" accessibilityLabel="Songs found">
@@ -227,18 +221,17 @@ export function ImportSearch({
         style={[wide ? styles.footWide : styles.footPhone, { paddingBottom: footInset + 12 }]}
       >
         {error ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{error}</Text>
-            <IconButton onPress={() => setError(null)} label="Dismiss">
-              <X size={15} tone="textMuted" />
-            </IconButton>
-          </View>
+          <NoticeCard tone="error" onDismiss={() => setError(null)}>
+            {error}
+          </NoticeCard>
         ) : null}
         {finder.error ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{finder.error}</Text>
-            <Button label="Try again" variant="text" onPress={finder.retry} />
-          </View>
+          <NoticeCard
+            tone="error"
+            actions={<Button label="Try again" variant="text" onPress={finder.retry} />}
+          >
+            {finder.error}
+          </NoticeCard>
         ) : null}
         <View style={wide ? styles.footRow : styles.footColumn}>
           <View style={wide ? styles.tagsWide : null}>
@@ -299,15 +292,5 @@ const styles = StyleSheet.create(theme => ({
   footColumn: { gap: 10 },
   footRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   tagsWide: { flex: 1, minWidth: 0 },
-  error: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingLeft: 14,
-    paddingRight: 4,
-    marginBottom: 8,
-    borderRadius: radius.card,
-    backgroundColor: theme.colors.surface1,
-  },
-  errorText: { flex: 1, color: theme.colors.danger, fontSize: type.sub, lineHeight: leading.sub },
+  searchError: { marginBottom: 8 },
 }))

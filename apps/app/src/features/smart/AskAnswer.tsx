@@ -31,6 +31,7 @@ import { newTicket, useAskProgress } from './useAskProgress'
 import { useSmartServer } from './useSmartServer'
 import { reachedConnection, viaKey } from '../../connection/via'
 import { SongLine } from '../../ui/components/SongLine'
+import { StatusLine } from '../../ui/components/StatusLine'
 
 /**
  * An ask's query key: the server it went to, the words first asked, the song
@@ -187,7 +188,7 @@ export function AskAnswer({
     return (
       <View style={styles.body}>
         {trail}
-        <Text style={styles.error}>{failureText('Couldn’t answer that', answer.error)}</Text>
+        <StatusLine>{failureText('Couldn’t answer that', answer.error)}</StatusLine>
         <View style={styles.actions}>
           <Button label="Try again" onPress={() => void answer.refetch()} />
         </View>
@@ -447,7 +448,6 @@ const styles = StyleSheet.create(theme => ({
   line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   answer: { color: theme.colors.textPrimary, fontSize: type.body, lineHeight: leading.body },
   muted: { color: theme.colors.textMuted, fontSize: type.small, fontWeight: '400' },
-  error: { color: theme.colors.danger, fontSize: type.sub },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
   tries: { gap: 6, marginTop: space.xs },
   followUp: { gap: space.sm, marginTop: space.xs },

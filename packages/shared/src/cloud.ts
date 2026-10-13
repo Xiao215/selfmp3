@@ -14,19 +14,31 @@ import type { SmartRules } from './schemas/smart.js'
  */
 
 /**
- * A new uid: 32 random hex characters, the same shape SQLite's
- * `lower(hex(randomblob(16)))` gives an existing row in the migration.
+ * `bytes` random bytes as lowercase hex: every random id a device or the
+ * server draws (a uid, a device id, a hub entry, a sign-in attempt).
  *
  * Uses the platform's cryptographic random source when there is one. React
- * Native's engine may not have it, and there `Math.random` is enough: a uid
- * only has to be unique among the things one person makes.
+ * Native's engine may not have it, and there `Math.random` is enough for an
+ * id that only has to be unique among the things one person makes; one that
+ * must not be guessed passes its platform's source as `random`.
  */
-export function newUid(random: (bytes: Uint8Array<ArrayBuffer>) => void = fillRandom): string {
-  const bytes = new Uint8Array(16)
-  random(bytes)
+export function randomHex(
+  bytes: number,
+  random: (into: Uint8Array<ArrayBuffer>) => void = fillRandom,
+): string {
+  const drawn = new Uint8Array(bytes)
+  random(drawn)
   let out = ''
-  for (const byte of bytes) out += byte.toString(16).padStart(2, '0')
+  for (const byte of drawn) out += byte.toString(16).padStart(2, '0')
   return out
+}
+
+/**
+ * A new uid: 32 random hex characters, the same shape SQLite's
+ * `lower(hex(randomblob(16)))` gives an existing row in the migration.
+ */
+export function newUid(random?: (bytes: Uint8Array<ArrayBuffer>) => void): string {
+  return randomHex(16, random)
 }
 
 function fillRandom(bytes: Uint8Array<ArrayBuffer>): void {

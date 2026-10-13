@@ -129,9 +129,9 @@ function formatRelative(at, now = new Date()) {
   return then.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 }
 
-/** "1 song", "13 songs" — a count with the word that goes with it. */
+/** "1 song", "1,234 songs" — a count, grouped as English writes it, with the word that goes with it. */
 function plural(count, one, many) {
-  return `${count} ${count === 1 ? one : many}`
+  return `${count.toLocaleString('en')} ${count === 1 ? one : many}`
 }
 
 /** Text into markup. Every value below is the server's or the person's, never trusted raw. */

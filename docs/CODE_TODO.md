@@ -657,6 +657,7 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 - [x] **T-396** "Same link" has four rules: 网易云 and `?si=` links are not seen as queued by the extension or `isPending`. → B2
 - [x] **T-397** Two artist splitters with different separators (AI vs app); server Stats/Wrapped group raw artist strings; CarPlay/Android Auto browse groups and sorts its own way. → B2
 - [ ] **T-398** The admin page's `plural` writes "1234 songs"; Home's This week writes "2h 00" and "1234" where You writes "2h" and "1,234". → B2 / H
+  - B2's half done: admin `plural` groups like shared's, parity test tries 999–1,000,000. Home's figures are H's.
 
 ### A — Server and replica answer the same API from one set of rules
 

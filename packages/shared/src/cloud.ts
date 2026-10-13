@@ -97,6 +97,15 @@ export function soundVectorsKey(sha256: string): string {
   return `lyrics/${sha256}.vec`
 }
 
+/**
+ * Where a month of plays goes (`CloudPlaysFileSchema`): beside the words, as
+ * the sound vectors are, since a new top-level folder would need every
+ * doorman redeployed before any server could write to it.
+ */
+export function playsKey(sha256: string): string {
+  return `lyrics/${sha256}.plays`
+}
+
 export const FORMAT_KEY = 'format.json'
 
 /**
@@ -306,6 +315,15 @@ export function isCloudListPrefix(prefix: string): boolean {
  * and changes this one line.
  */
 export const DEFAULT_DOORMAN_URL = 'https://selfmp3-doorman.xiaozhang20030215.workers.dev'
+
+/**
+ * The server that works for anyone signed in, unless told otherwise
+ * (SELFMP3_SERVER_URL when building the app; docs/features/shared-server.md).
+ * An account whose bucket names no server of its own is offered this one: it
+ * imports, keeps Stats and asks the model for whoever joins it, in each
+ * one's own bucket. A fork with no such server sets this to ''.
+ */
+export const DEFAULT_SERVER_URL = 'https://pi.tail3d8516.ts.net'
 
 /**
  * Where the app is, for something that has a server's address but needs to send

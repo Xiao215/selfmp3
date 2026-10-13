@@ -13,30 +13,26 @@ import { searchSongs } from '@selfmp3/client'
 /**
  * Search, without the screen (docs/ui-mock `P18`–`P20`, `C05`; `S3`, "Search").
  *
- * One search, opened from anywhere; the door only picks the scope it starts
- * on — All from Home and the search circle, Songs from Library, Tags from the
- * Tags page. Before anything is typed it offers your tags and what you played
- * last, and it keeps no history. Typed, it finds artists and tags first, then
- * songs, then lines of lyrics.
+ * One search, opened from anywhere, the same whichever door it came through.
+ * Before anything is typed it offers your tags and what you played last, and
+ * it keeps no history. Typed, it shows everything at once — artists and tags,
+ * then songs, then lines of lyrics, a few of each — and a section's "See all"
+ * opens that section alone. There is no row of scopes to pick from first
+ * (2026-10-12): the sections already sort what was found.
  *
  * The command palette is this search with its commands and playlists added
  * (`commandPalette.model.ts`), so the two cannot disagree about what a query
  * finds.
  */
 
-export type SearchScope = 'all' | 'songs' | 'tags' | 'artists' | 'lyrics'
+/** A section of the results, which "See all" opens alone. */
+export type SearchSection = 'places' | 'songs' | 'lyrics'
 
-export const SEARCH_SCOPES: readonly { readonly value: SearchScope; readonly label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'songs', label: 'Songs' },
-  { value: 'tags', label: 'Tags' },
-  { value: 'artists', label: 'Artists' },
-  { value: 'lyrics', label: 'Lyrics' },
-]
-
-/** `?scope=`, read leniently: anything unknown starts on All. */
-export function parseScope(value: unknown): SearchScope {
-  return SEARCH_SCOPES.some(scope => scope.value === value) ? (value as SearchScope) : 'all'
+/** What a section is called, on its head in All and on the way back from it. */
+export const SECTION_TITLES: Readonly<Record<SearchSection, string>> = {
+  places: 'Artists and tags',
+  songs: 'Songs',
+  lyrics: 'Lyrics',
 }
 
 type SearchLibrary = Pick<Library, 'songs' | 'tags'>
@@ -66,43 +62,42 @@ export function searchLibrary(query: string, library: SearchLibrary | undefined)
   }
 }
 
-/** How many each scope holds, for the counts on the scope pills once something is typed. */
-export function scopeCounts(found: SearchFound, lyricLines: number): Record<SearchScope, number> {
+/** How many each section holds, and all of them together. */
+export function sectionCounts(
+  found: SearchFound,
+  lyricLines: number,
+): Record<SearchSection | 'all', number> {
+  const places = found.artists.length + found.tags.length
   const songs = found.songs.length
-  const tags = found.tags.length
-  const artists = found.artists.length
-  return {
-    all: songs + tags + artists + lyricLines,
-    songs,
-    tags,
-    artists,
-    lyrics: lyricLines,
-  }
+  return { all: places + songs + lyricLines, places, songs, lyrics: lyricLines }
 }
 
 /** A place a query found: an artist or a tag, drawn together at the top of All. */
-type SearchPlace =
+export type SearchPlace =
   { readonly kind: 'artist'; readonly artist: Artist } | { readonly kind: 'tag'; readonly tag: Tag }
 
-/** How many of each kind All shows before "See all" is the scope's own page. */
+/** How many of each section All shows before "See all" opens it alone. */
 export const ALL_LIMITS = { places: 4, songs: 5, lyrics: 3 } as const
 
 /**
- * All, in its order: artists and tags, then songs, then lyric lines. An artist
- * comes before a tag of the same name — the place the songs name themselves
- * is the one more often meant — and both are shown, since they are two
- * different places (`P11`).
+ * Every place a query found, artists before tags. An artist comes before a tag
+ * of the same name — the place the songs name themselves is the one more often
+ * meant — and both are shown, since they are two different places (`P11`).
  */
+export function placesOf(found: SearchFound): readonly SearchPlace[] {
+  return [
+    ...found.artists.map(artist => ({ kind: 'artist' as const, artist })),
+    ...found.tags.map(tag => ({ kind: 'tag' as const, tag })),
+  ]
+}
+
+/** All, in its order and a few of each: artists and tags, then songs (lyric lines follow). */
 export function allResults(found: SearchFound): {
   readonly places: readonly SearchPlace[]
   readonly songs: readonly Song[]
 } {
-  const places: SearchPlace[] = [
-    ...found.artists.map(artist => ({ kind: 'artist' as const, artist })),
-    ...found.tags.map(tag => ({ kind: 'tag' as const, tag })),
-  ]
   return {
-    places: places.slice(0, ALL_LIMITS.places),
+    places: placesOf(found).slice(0, ALL_LIMITS.places),
     songs: found.songs.slice(0, ALL_LIMITS.songs),
   }
 }

@@ -2,6 +2,7 @@ import path from 'node:path'
 import { ANALYSIS_VERSION } from '@selfmp3/shared'
 import type { Config, ServingConfig } from './config.js'
 import { createLogger, type Logger } from './logger.js'
+import { createShared, type SharedServices } from './shared.js'
 import { openDatabase, type Db } from './db/index.js'
 import { createStorage, type StorageDriver } from './storage/index.js'
 import { SongRepository } from './repositories/songs.js'
@@ -31,14 +32,14 @@ import { YtThrottleService } from './services/ytThrottle.js'
 import { ThrottleRepository } from './repositories/throttle.js'
 import { ImportQueueService } from './services/importQueue.js'
 import { LibraryWatcherService } from './services/libraryWatcher.js'
-import { MetadataLookupService } from './services/lookup.js'
+import type { MetadataLookupService } from './services/lookup.js'
 import { smartFeaturesFor, type SmartFeatures } from './ai/smart.js'
 import { FixCoversService } from './services/fixCovers.js'
 import { LyricsSearchRepository } from './repositories/lyricsSearch.js'
-import { createKeepAwake, type KeepAwakeService } from './services/keepAwake.js'
+import type { KeepAwakeService } from './services/keepAwake.js'
 import { LyricsCache } from './services/lyricsCache.js'
 import { MotionStore } from './services/motionStore.js'
-import { RomanizationService } from './services/romanization.js'
+import type { RomanizationService } from './services/romanization.js'
 import { romanizedLines } from './services/romanizedLines.js'
 import { publishedAddresses } from './services/addresses.js'
 import { LyricsIndexService } from './services/lyricsIndex.js'
@@ -61,6 +62,7 @@ import { ImportRequestRepository } from './repositories/importRequests.js'
 import { previewFound } from './services/importPreview.js'
 import { LocalEdits, SyncClock } from './services/localEdits.js'
 import { SongRemovalService } from './services/songRemoval.js'
+import { PlaysArchive } from './services/playsArchive.js'
 
 /**
  * Composition root.
@@ -139,6 +141,9 @@ export interface Container {
   libraryVersion(): number
   bumpLibraryVersion(): void
 
+  /** Whether `stop()` has been called: work started before it lets go when it next looks. */
+  stopped(): boolean
+
   /**
    * Stop every background worker: timers, watchers, downloads in flight, the
    * event streams held open for each connected tab. The database stays open,
@@ -150,9 +155,23 @@ export interface Container {
   close(): void
 }
 
-export function createContainer(configured: Config): Container {
-  const logger = createLogger(configured.logLevel)
+interface ContainerOptions {
+  /**
+   * What this library shares with others on the same machine (shared.ts).
+   * Absent, it makes its own, and lets go of it when it closes.
+   */
+  readonly shared?: SharedServices
+  /** Where it logs; the configured level's own when absent. */
+  readonly logger?: Logger
+  /** The doorman stopped taking the library's session (services/cloudSync.ts). */
+  readonly sessionEnded?: () => void
+}
+
+export function createContainer(configured: Config, options: ContainerOptions = {}): Container {
+  const logger = options.logger ?? createLogger(configured.logLevel)
   const db = openDatabase(configured, logger)
+  const ownsShared = options.shared === undefined
+  const shared = options.shared ?? createShared(configured, logger)
 
   /*
    * The API's key, before anything that could answer a request exists.
@@ -184,6 +203,7 @@ export function createContainer(configured: Config): Container {
     config,
     vectors: new SoundVectorsRepository(db),
     logger,
+    host: shared.soundModel,
     // Each song heard goes to the bucket's copy of the vectors; the sync is built below.
     changed: () => cloudSync.soundChanged(),
   })
@@ -243,7 +263,7 @@ export function createContainer(configured: Config): Container {
   // Before the sync, which uploads each song's romaji beside its words.
   const lyricsCache = new LyricsCache(config, logger)
   const motion = new MotionStore(config, logger)
-  const romanization = new RomanizationService(logger)
+  const romanization = shared.romanization
 
   // Before the sync, which puts every artist's picture in the bucket.
   const youtubeMusicArtists = new YouTubeMusicArtists(logger)
@@ -275,12 +295,15 @@ export function createContainer(configured: Config): Container {
     publishAnyway: config.publishAnyway,
     importRequests,
     doormanUrl: config.doormanUrl,
+    ...(options.sessionEnded ? { sessionEnded: options.sessionEnded } : {}),
     romanize: (songId, text) => romanizedLines({ lyricsCache, romanization }, songId, text),
     // Each song's motion curve goes up beside its words, once analysis has made one.
     motion,
     artists: artistBackdrops,
     // Every song's sound vector goes up as one file, and comes back to a new server.
     sound,
+    // Every play goes up too, a month a file, and comes back to a new server.
+    plays: new PlaysArchive({ stats, sync: syncRepo, deviceId: () => cloudRepo.deviceId() }),
     // The token is the bucket's owner's already: whoever reads the snapshot
     // is signed in to their own library. This is how every device gets the
     // key without anyone ever typing it — the server always has one now
@@ -294,6 +317,7 @@ export function createContainer(configured: Config): Container {
   })
 
   let version = 1
+  let stopped = false
   let closed = false
   const bump = (): void => {
     version++
@@ -312,10 +336,12 @@ export function createContainer(configured: Config): Container {
   // How fast this server may ask YouTube for anything. Signed-in sessions get
   // a much higher ceiling, and the cookie setting is read per call, so turning
   // cookies on widens the budget without a restart (services/ytThrottle.ts).
-  const throttle = new YtThrottleService(
-    new ThrottleRepository(db),
-    () => settings.get().ytCookieSource !== 'none',
-  )
+  const throttle =
+    shared.throttle ??
+    new YtThrottleService(
+      new ThrottleRepository(db),
+      () => settings.get().ytCookieSource !== 'none',
+    )
 
   const ytdlp = new YtDlpService(logger, () => settings.get(), throttle)
   const youtubeMusicLists = new YouTubeMusicLists(logger)
@@ -326,7 +352,7 @@ export function createContainer(configured: Config): Container {
 
   // Held while a song is streaming or an import is running, so the server does
   // not idle-sleep out from under whoever is listening (services/keepAwake.ts).
-  const keepAwake = createKeepAwake(logger)
+  const keepAwake = shared.keepAwake
 
   const importQueue = new ImportQueueService({
     config,
@@ -400,7 +426,7 @@ export function createContainer(configured: Config): Container {
     logger,
   })
 
-  const lookup = new MetadataLookupService(logger)
+  const lookup = shared.lookup
   const smart = smartFeaturesFor({
     config,
     logger,
@@ -434,6 +460,8 @@ export function createContainer(configured: Config): Container {
     fetchAudio: songId => cloudSync.fetchAudio(songId),
     sound,
     downloads: new BucketDownloadsRepository(db),
+    // One song at a time across every library on this machine.
+    gate: shared.analysisGate,
     logger,
     // A version bump makes clients refetch; do it in batches, and once at the
     // end, so a long first run does not have every phone re-downloading the
@@ -526,18 +554,21 @@ export function createContainer(configured: Config): Container {
     cloudImports,
     libraryVersion: () => version,
     bumpLibraryVersion: bump,
+    stopped: () => stopped,
     // Every background worker in one place: a shutdown that forgot one would
     // leave a timer or a download holding the process open.
     stop: () => {
+      stopped = true
       libraryWatcher.stop()
       devices.stop()
       analysis.stop()
-      void sound.close()
       coverTones.stop()
       importQueue.stop()
       cloudSync.stop()
-      // Let the machine sleep again even if a stream is still winding down.
-      keepAwake.stop()
+      // The model, and letting the machine sleep again even if a stream is
+      // still winding down — when they are this library's alone. Shared,
+      // they are the machine's to let go (hub/hub.ts).
+      if (ownsShared) void shared.close()
     },
     // Shutdown can arrive here by either of two paths — the server closing
     // cleanly or the timeout giving up on it — and `db.close()` throws the

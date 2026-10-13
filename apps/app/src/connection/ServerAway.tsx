@@ -1,7 +1,16 @@
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { awayCopy, space, type Reach, type ServerNeed, leading, type } from '@selfmp3/client'
+import {
+  awayCopy,
+  space,
+  type Reach,
+  type ServerNeed,
+  leading,
+  type,
+  useJoinSharedServer,
+} from '@selfmp3/client'
+import { sharedServerUrl } from '../ports/sharedServerUrl'
 import { useAccent } from '../ui/accent'
 import { Button } from '../ui/components/Button'
 import { Refresh } from '../ui/components/Icons'
@@ -19,6 +28,10 @@ import { card } from '../ui/surfaces'
  * Saying this is the whole point of the exercise. A feature that is simply not
  * drawn is indistinguishable, from where the user sits, from one that does not
  * exist.
+ *
+ * A library with no computer joins the shared one by itself
+ * (docs/features/shared-server.md); one that removed it here is offered it
+ * again — one tap, and the screen finds it.
  */
 export function ServerAway({
   reach,
@@ -41,7 +54,9 @@ export function ServerAway({
     )
   }
 
-  const copy = awayCopy(reach.state === 'away' && reach.said, need)
+  const said = reach.state === 'away' && reach.said
+  const offered = !said && sharedServerUrl !== ''
+  const copy = awayCopy(said, need, offered)
   return (
     <View style={styles.card} accessibilityLiveRegion="polite" testID={`${testID}-away`}>
       <Text style={styles.cardTitle} accessibilityRole="header">
@@ -49,6 +64,7 @@ export function ServerAway({
       </Text>
       <Text style={styles.cardBody}>{copy.body}</Text>
       <View style={styles.actions}>
+        {offered ? <JoinShared joined={reach.lookAgain} testID={testID} /> : null}
         <Button
           label="Look again"
           icon={<Refresh size={13} color={theme.colors.textPrimary} />}
@@ -57,6 +73,27 @@ export function ServerAway({
         />
       </View>
     </View>
+  )
+}
+
+/**
+ * Use the shared computer: joined, the screen looks again and finds it. Drawn
+ * only where it is offered, so a card for a computer that is only off asks
+ * nothing of the query client.
+ */
+function JoinShared({ joined, testID }: { joined: () => void; testID: string }): ReactNode {
+  const join = useJoinSharedServer()
+  return (
+    <>
+      <Button
+        label={join.isPending ? 'Joining…' : 'Use the shared computer'}
+        variant="primary"
+        disabled={join.isPending}
+        onPress={() => join.mutate(undefined, { onSuccess: joined })}
+        testID={`${testID}-join`}
+      />
+      {join.error ? <Text style={styles.failed}>{join.error.message}</Text> : null}
+    </>
   )
 }
 
@@ -78,5 +115,6 @@ const styles = StyleSheet.create(theme => ({
   },
   cardTitle: { color: theme.colors.textPrimary, fontSize: TEXT.title, fontWeight: '600' },
   cardBody: { color: theme.colors.textSecondary, fontSize: TEXT.body, lineHeight: TEXT.bodyLine },
-  actions: { flexDirection: 'row', marginTop: space.sm },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm },
+  failed: { color: theme.colors.danger, fontSize: TEXT.body, lineHeight: TEXT.bodyLine },
 }))

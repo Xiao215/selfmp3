@@ -189,8 +189,9 @@ describe('starting a sign-in', () => {
 
   it('says so at once when nobody is allowed to sign in', async () => {
     const h = harness()
-    for (const list of [undefined, '', ' ,  ']) {
-      h.env.ALLOWED_EMAILS = list
+    h.allow({})
+    for (const owners of [undefined, '', ' ,  ']) {
+      h.env.OWNER_EMAILS = owners
       const response = await h.call(`/v1/auth/start?attempt=${newAttempt()}`)
       expect(response.status).toBe(403)
       expect(await response.text()).toMatch(/Nobody can sign in yet/)
@@ -404,7 +405,8 @@ describe('coming back from Google', () => {
   it('turns everyone away when the list was emptied during the sign-in', async () => {
     const h = harness()
     const started = await begin(h)
-    h.env.ALLOWED_EMAILS = ''
+    h.env.OWNER_EMAILS = ''
+    h.allow({})
     const response = await finish(h, started)
     expect(response.status).toBe(403)
     expect(await response.text()).toMatch(/Nobody can sign in yet/)
@@ -418,18 +420,15 @@ describe('coming back from Google', () => {
     expect((await h.call('/v1/me', { token })).status).toBe(200)
   })
 
-  it('lets any Google account in when the list says *', async () => {
-    for (const list of ['*', ' * ', 'me@example.com, *']) {
-      const h = harness()
-      h.env.ALLOWED_EMAILS = list
-      const token = await h.signIn({ sub: '9', email: 'stranger@example.org' })
-      expect((await h.call('/v1/me', { token })).status).toBe(200)
-    }
+  it('lets any Google account in when the owner says anyone', async () => {
+    const h = harness()
+    h.allow({ anyone: true })
+    const token = await h.signIn({ sub: '9', email: 'stranger@example.org' })
+    expect((await h.call('/v1/me', { token })).status).toBe(200)
   })
 
-  it('does not read * as part of an address', async () => {
+  it('lets nobody else in when the list does not name them', async () => {
     const h = harness()
-    h.env.ALLOWED_EMAILS = '*@example.com'
     const started = await begin(h)
     const response = await finish(h, started, { ...ME, sub: '9', email: 'stranger@example.com' })
     expect(response.status).toBe(403)
@@ -451,6 +450,7 @@ describe('claiming', () => {
     if (result.status !== 'signed-in') throw new Error('expected a session')
     expect(result.token).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(result.me).toEqual({
+      account: expect.stringMatching(/^[0-9a-f]{32}$/),
       email: ME.email,
       name: ME.name,
       picture: ME.picture,
@@ -514,7 +514,7 @@ describe('claiming', () => {
     const h = harness()
     const started = await begin(h)
     const code = (await signInCodeFrom(await finish(h, started))) ?? ''
-    h.env.ALLOWED_EMAILS = 'friend@example.com'
+    h.env.OWNER_EMAILS = 'someone@example.com'
     const body = await refused(await claim(h, started.attempt, code))
     expect(body.code).toBe('forbidden')
     expect(h.kv.keys()).toEqual([])
@@ -660,13 +660,13 @@ describe('sessions', () => {
   it('are refused while their address is off the list, and back when it is on again', async () => {
     const h = harness()
     const token = await h.signIn({ sub: '2', email: 'friend@example.com' })
-    h.env.ALLOWED_EMAILS = 'me@example.com'
+    h.allow({})
     const refusedNow = await h.call('/v1/me', { token })
     expect(refusedNow.status).toBe(401)
     expect(ErrorBodySchema.parse(await refusedNow.json()).error).toMatch(/no longer allowed/)
-    h.env.ALLOWED_EMAILS = 'me@example.com, friend@example.com'
+    h.allow({ emails: ['friend@example.com'] })
     expect((await h.call('/v1/me', { token })).status).toBe(200)
-    h.env.ALLOWED_EMAILS = '*'
+    h.allow({ anyone: true })
     expect((await h.call('/v1/me', { token })).status).toBe(200)
   })
 

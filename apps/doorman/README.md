@@ -10,6 +10,10 @@ Backblaze B2 bucket. It does three things:
 3. **Passes a signed-in device's reads and writes through to that bucket**,
    so no phone or browser ever holds the bucket's key.
 
+It also hands out **grants**: a session an account gives a server, so that the
+server can work in the account's bucket while none of its devices is open
+([docs/features/shared-server.md](../../docs/features/shared-server.md)).
+
 Why it exists, and how devices use the bucket, is in [docs/SYNC.md](../../docs/SYNC.md).
 The API it serves is the contract in
 [packages/shared/src/schemas/doorman.ts](../../packages/shared/src/schemas/doorman.ts).
@@ -106,9 +110,9 @@ The doorman signs people in with an OAuth client that you own, in the
    To let *anyone* with a Google account in, press **Publish app** here
    instead, so the app is **In production**. Google then wants the home page
    and privacy policy from step 3 before it will show the app to strangers,
-   and the home page verified as yours in Search Console. Then write `*` in
-   `ALLOWED_EMAILS` (step 3 below); Testing's list and the doorman's are two
-   doors, and both have to be open.
+   and the home page verified as yours in Search Console. Then turn on
+   **Anyone with a Google account** in self.mp3's Settings › Who can sign in;
+   Testing's list and the doorman's are two doors, and both have to be open.
 5. **Clients**: **Create client**, application type **Web application**,
    any name ("self.mp3 doorman"). Under **Authorised redirect URIs** add
 
@@ -151,7 +155,7 @@ The doorman signs people in with an OAuth client that you own, in the
    ```sh
    npx wrangler secret put GOOGLE_CLIENT_SECRET   # the client secret from Google
    npx wrangler secret put SEAL_KEY               # what openssl printed
-   npx wrangler secret put ALLOWED_EMAILS         # e.g. you@gmail.com,friend@gmail.com — or * for anyone
+   npx wrangler secret put OWNER_EMAILS           # your Google address: you, always let in
    ```
 
    If the Worker does not exist yet, Wrangler offers to create it; say yes.
@@ -179,19 +183,26 @@ below); the plain command deploys the real doorman.
   account at once, the lost device's included, for good; then sign in again
   where you want to be. It can take up to a minute to reach every Cloudflare
   location.
-- **ALLOWED_EMAILS** is the whole list of who may sign in. Letter case does
-  not matter. If it is empty or missing, nobody can sign in. Taking an address
-  off the list refuses its sessions straight away, but does not end them:
-  putting the address back revives them. To be rid of someone's sessions for
-  good, have them sign out everywhere, or keep them off the list.
-- **`*` in ALLOWED_EMAILS** lets any Google account sign in, on its own or
-  beside addresses. Each account still gets a bucket of its own and sees
+- **Grants** are the servers an account has let into its bucket
+  (`/v1/grants`): sessions of their own, made with a device's session, with no
+  180-day end. Each account sees and removes its own in self.mp3's Settings ›
+  Account › Computers. Signing out everywhere ends them too, and a grant can
+  never make another. Making one costs two KV writes, and so does ending one.
+- **Who may sign in** is the owners (`OWNER_EMAILS`) and a list they keep in
+  self.mp3's Settings › Who can sign in, which only an owner sees
+  (`/v1/access`, kept in KV as `access`). Letter case does not matter. With no
+  owner and nobody on the list, nobody can sign in. Taking an address off the
+  list refuses its sessions, and any server's grant for it, within a minute,
+  but does not end them: putting the address back revives them. To be rid of
+  someone's sessions for good, have them sign out everywhere, or keep them off
+  the list. An owner is always let in, so the list can never lock one out.
+- **Anyone with a Google account**, the switch above the list, lets any
+  Google account sign in. Each account still gets a bucket of its own and sees
   nothing of anyone else's, so what an open doorman gives away is your quota:
   a sign-in is three KV writes of the free plan's thousand a day, and every
   request one of its hundred thousand. Google has to be open too — an OAuth
   app in Testing admits only its test users, whatever this list says (step 2
-  under *Deploying it*). Taking `*` back out refuses every account not
-  listed by name, sessions included, the moment the secret is set.
+  under *Deploying it*).
 - **SEAL_KEY** is where every key the doorman uses comes from: the one that
   seals each account's bucket key, and the ones that sign sign-ins and their
   codes. If you change it, sign-ins in progress stop working, and the doorman

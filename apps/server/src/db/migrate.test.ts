@@ -48,7 +48,9 @@ describe('migrate', () => {
 
     // Run the uid migration (35) again over the rows above, and the ones after
     // it, whose tables go first so they can be made again.
-    db.exec('DROP TABLE cloud_artists; DROP TABLE cloud_sound; DROP TABLE bucket_downloads')
+    db.exec(
+      'DROP TABLE cloud_artists; DROP TABLE cloud_sound; DROP TABLE bucket_downloads; DROP TABLE cloud_plays',
+    )
     db.pragma('user_version = 34')
     migrate(db, createLogger('silent'))
 
@@ -86,9 +88,12 @@ describe('migrate', () => {
         ('b', 'u', 'done', 'tagging'),
         ('c', 'u', 'queued', 'waiting');
     `)
-    db.pragma(`user_version = ${latest - 1}`)
+    // 39 again, and what came after it, whose tables go first.
+    db.exec('DROP TABLE cloud_plays')
+    db.pragma('user_version = 38')
     migrate(db, createLogger('silent'))
 
+    expect(db.pragma('user_version', { simple: true })).toBe(latest)
     expect(db.prepare('SELECT id, status, step FROM import_jobs ORDER BY id').all()).toEqual([
       { id: 'a', status: 'error', step: 'waiting' },
       { id: 'b', status: 'done', step: 'finished' },

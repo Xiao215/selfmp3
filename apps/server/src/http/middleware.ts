@@ -103,7 +103,7 @@ export function isAuthenticated(req: Request, config: Pick<ServingConfig, 'authT
  * The token a request carries: `Authorization: Bearer …`, or `?token=` — the
  * <audio> element cannot send a header, so media URLs carry it in the query.
  */
-function tokenOf(req: Request): string | null {
+export function tokenOf(req: Request): string | null {
   const header = req.headers.authorization
   if (header?.startsWith('Bearer ')) return header.slice(7)
   const fromQuery = req.query['token']

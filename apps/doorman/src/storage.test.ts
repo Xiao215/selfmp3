@@ -164,6 +164,7 @@ describe('/v1/me', () => {
   it('says who is signed in, and that there is no bucket yet', async () => {
     const { h, token } = await signedIn()
     expect(await me(h, token)).toEqual({
+      account: expect.stringMatching(/^[0-9a-f]{32}$/),
       email: ME.email,
       name: ME.name,
       picture: ME.picture,

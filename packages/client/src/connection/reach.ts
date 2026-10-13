@@ -130,9 +130,26 @@ export const SERVER_NEEDS = {
 
 export type ServerNeed = keyof typeof SERVER_NEEDS
 
-/** What the screen says when there is no server behind what it came to show. */
-export function awayCopy(said: boolean, need: ServerNeed): { title: string; body: string } {
+/**
+ * What the screen says when there is no server behind what it came to show.
+ *
+ * `offered` is the server that works for anyone signed in
+ * (docs/features/shared-server.md), when this build offers one: a library
+ * that never had a computer is told one is there for the asking, rather than
+ * to go and start one it may not have.
+ */
+export function awayCopy(
+  said: boolean,
+  need: ServerNeed,
+  offered = false,
+): { title: string; body: string } {
   const { needs, meanwhile } = SERVER_NEEDS[need]
+  if (!said && offered) {
+    return {
+      title: 'No computer works for your library yet',
+      body: `${needs} The shared computer can, working in your own storage — your library stays yours.`,
+    }
+  }
   const waiting = said
     ? 'It answers on the same Wi‑Fi, or over Tailscale. Turn it on, or come back within reach — this screen keeps looking.'
     : 'Devices find it by the address it last left in your storage. Start the current self.mp3 on it and let it run for a minute — this screen keeps looking.'

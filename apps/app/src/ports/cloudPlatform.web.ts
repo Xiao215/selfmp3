@@ -3,6 +3,7 @@ import { CLOUD_FILES_CACHE, PLAYED_CACHE } from '../../sw/names'
 import { appPath } from './appPath'
 import { desktop } from './desktop/bridge'
 import { doormanUrl } from './doormanUrl'
+import { sharedServerUrl } from './sharedServerUrl'
 import {
   deleteStored,
   deleteStoredPrefix,
@@ -84,6 +85,7 @@ const textCache: TextCache =
 
 export const cloudPlatform: CloudPlatform = {
   doormanUrl,
+  sharedServerUrl,
   store,
   // The browser's own, which satisfies CloudFetch by being a superset of it.
   fetch: (url, init) => fetch(url, init as RequestInit),

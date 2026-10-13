@@ -28,7 +28,7 @@ storage — no code runs there — so every rule about how changes combine lives
 | Music, covers, lyrics, snapshots, the change log | [Backblaze B2](https://www.backblaze.com/cloud-storage) | Free up to 10 GB, no card. $0.005/GB-month past that |
 | Signing in, and the bucket's key | The doorman, a [Cloudflare Worker](https://workers.cloudflare.com/) (`apps/doorman`) | Free |
 | The web app | GitHub Pages, at `xiao215.github.io/selfmp3` | Free |
-| Fetching YouTube links (yt-dlp) | The server; later the Android app | — |
+| Fetching YouTube links (yt-dlp) | The server — one that works for anyone signed in ([features/shared-server.md](features/shared-server.md)); later the Android app | — |
 
 **Why B2.** It speaks the S3 API, so the server reaches it with the AWS SDK like any other bucket. It
 needs no card for the free tier. Uploads are free API calls; downloads, reads of a file's
@@ -224,7 +224,9 @@ to it. No device ever holds the key. Only the Google addresses on its list may s
 
 **One Google account, one bucket.** You connect the bucket once, from any device; every
 device you sign in on afterwards gets the same library. Someone else — a friend — signs in
-with their own Google account and connects a bucket of their own; nothing is shared.
+with their own Google account and connects a bucket of their own; nothing is shared. A
+server can work for both of them, each in their own bucket, through a **grant** each
+account gives it ([features/shared-server.md](features/shared-server.md)).
 
 **Signing in** leaves the app for Google and comes back. Where it comes back to depends on
 the device: the same tab on a computer, and on an iPhone home-screen app a sheet with storage
@@ -273,7 +275,11 @@ was due (`apps/app/src/features/import/useSongsLanding.ts`).
 
 The bucket is the library, and the server is one more device — the one with yt-dlp. It keeps
 a database that is its copy of the library's metadata, as every device does, and nothing else
-of the library for longer than it has to.
+of the library for longer than it has to. That includes the plays: each month of them goes to
+the bucket as a file of its own (`lyrics/<sha256>.plays`, named in the snapshot's `plays`),
+so a database made again from the bucket has its Stats back. And it may keep several: a
+server works for every account that joins it, one database each
+([features/shared-server.md](features/shared-server.md)).
 
 **The folder is an inbox, not a library.** An import downloads into `~/Music/selfmp3`, and a
 file dropped there by hand is an import too (`services/scanner.ts` sweeps it, on a watch and
@@ -449,10 +455,9 @@ reason, or called off.
 ### Reaching the server for what only it can do
 
 Some things are the server's and cannot be anyone else's. It runs yt-dlp, so importing is
-its. It keeps `play_events`, so the stats are its — a snapshot says a song has been played
-41 times, never *when*, so there is no history in the bucket to work a streak or a chart
-out of. It asks iTunes and MusicBrainz and downloads the cover you pick, so metadata polish
-is its.
+its. It works the stats out — the history is in the bucket, a file a month, but the queries
+over it are SQL on the server. It asks iTunes and MusicBrainz and downloads the cover you
+pick, so metadata polish is its.
 
 A device signed in to the cloud reaches it directly. Every snapshot carries the addresses
 the server listens on and the token (`CloudServerSchema`); a screen that needs the server
@@ -469,7 +474,9 @@ that finds none rather than waiting to be configured
 (`apps/server/src/repositories/auth.ts`), because an optional lock is an open door.
 
 When no address answers the screen is still drawn, and says why in its own words: not
-answering, or never having said where it is. **A feature that is simply not drawn is
+answering, or never having said where it is. A library that never had a server joins the
+shared one this build knows of (`DEFAULT_SERVER_URL`) by itself
+([features/shared-server.md](features/shared-server.md)). **A feature that is simply not drawn is
 indistinguishable, from where the user sits, from one that does not exist** — which is what
 Stats, the metadata lookup and the untagged inbox all looked like for months.
 
@@ -545,10 +552,6 @@ libraries that deliberately number different songs the same.
 - **Tidying up**: snapshots written from the log, so a new device replays only recent changes;
   audio and words that no song points at and that nothing trashed — an upload whose import
   failed halfway — deleted after 30 days. (Covers nothing names already go.)
-- **Play history in the bucket.** The server's `play_events` table is the only place the
-  *when* of a play survives, so Stats is server-only and dies with the server's disk. One
-  small file per device per month under a `plays/` folder would let any device answer, and
-  let the server hold no user data at all.
 - **A Google Drive driver**, if it is ever wanted.
 
 ## What this gives up

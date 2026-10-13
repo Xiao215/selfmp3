@@ -130,7 +130,9 @@ const config = {
    *
    * The doorman is the one thing the phone cannot work out for itself. Set
    * SELFMP3_DOORMAN_URL when building to point a copy at your own; left alone
-   * it is the one in packages/shared/src/cloud.ts.
+   * it is the one in packages/shared/src/cloud.ts. SELFMP3_SERVER_URL does the
+   * same for the server offered to anyone signed in
+   * (docs/features/shared-server.md).
    */
   extra: {
     // Spread rather than `?? null`: Expo serialises a null in `extra` as `{}`,
@@ -138,6 +140,7 @@ const config = {
     // address becomes the string "[object Object]". Absent is the only way to
     // say absent here.
     ...(process.env.SELFMP3_DOORMAN_URL ? { doormanUrl: process.env.SELFMP3_DOORMAN_URL } : {}),
+    ...(process.env.SELFMP3_SERVER_URL ? { serverUrl: process.env.SELFMP3_SERVER_URL } : {}),
   },
 
   /**

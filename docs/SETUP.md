@@ -260,24 +260,21 @@ sitting at that keyboard can open the database the token lives in, so asking the
 would protect nothing. A request that merely arrives *from* loopback is not enough —
 `tailscale serve` connects from loopback too, and those requests came from the network.
 
-Two places it surfaces. The server prints it in its startup log, which is what you read if
-you ever open its page from another computer. And `selfmp3 --token` wants it when you point
-the command at a server that is not this one:
+Two places it surfaces. The server prints it in its startup log, when it works for one
+library only, which is what you read if you ever open its page from another computer. And
+`selfmp3 --token` wants it when you point the command at a server that is not this one. Each
+library a server works for has its own, in `hub.json` in the data folder
+([features/shared-server.md](features/shared-server.md)):
 
 ```bash
 selfmp3 --url https://nas.tail1a2b.ts.net --token "$SELFMP3_AUTH_TOKEN" scan
 ```
 
-To choose your own instead — say you would rather it lived in the launchd plist than in the
-database — generate one and set `SELFMP3_AUTH_TOKEN`:
-
-```bash
-openssl rand -hex 24
-```
-
-Then add it to the plist and restart the service. The server uses it and leaves its own
-alone. Playing is unaffected either way: the audio comes from the bucket, not the server.
-`/api/health` stays open with no token at all, so a monitor never needs the secret.
+`SELFMP3_AUTH_TOKEN` chooses the token only for a server whose bucket is a folder on its
+own disk (`SELFMP3_CLOUD_DIR`), and for the library of a server from before workspaces, the
+once it moves into one. Playing is unaffected either way: the audio comes from the bucket,
+not the server. `/api/health` stays open with no token at all, so a monitor never needs the
+secret.
 
 ---
 

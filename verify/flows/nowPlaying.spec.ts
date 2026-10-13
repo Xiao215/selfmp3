@@ -84,7 +84,7 @@ test.describe('now playing', () => {
     await expect(bar).toBeVisible()
   })
 
-  test('a phone’s page: no tabs, the foot, the words view, and ⓘ to the song', async ({
+  test('a phone’s page: no tabs, the buttons by the title, the words view, and ⓘ to the song', async ({
     page,
   }, info) => {
     test.skip(info.project.name !== 'phone', 'the phone page')
@@ -97,14 +97,15 @@ test.describe('now playing', () => {
     await expect(page.getByTestId('now-playing-info')).toBeVisible()
     await expect(page.getByRole('tab')).toHaveCount(0)
 
-    // The foot: Lyrics (a phone has no visual, so even for a song with none), Sleep and Up next.
-    const words = page.getByRole('button', { name: 'Lyrics', exact: true })
-    await expect(words).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Sleep', exact: true })).toBeVisible()
+    // Up next and ⋯ beside the title; no Lyrics or Sleep button: the cover opens
+    // the words, and the sleep timer is under ⋯.
     await expect(page.getByTestId('now-playing-queue')).toBeVisible()
+    await expect(page.getByTestId('now-playing-more')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Lyrics', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Sleep', exact: true })).toHaveCount(0)
 
     // The words are a view of the same address, and the chevron goes back to the cover.
-    await words.click()
+    await page.getByRole('button', { name: 'Show the lyrics' }).click()
     await expect(page).toHaveURL(/now-playing\?(.*&)?view=lyrics/)
     await expect(page.getByTestId('now-playing-lyrics-view')).toBeVisible()
     await expect(page.getByLabel('Seek').first()).toBeVisible()
@@ -112,16 +113,23 @@ test.describe('now playing', () => {
     await expect(page.getByTestId('now-playing-lyrics-view')).toHaveCount(0)
     await expect(page).not.toHaveURL(/view=lyrics/)
 
-    // ⋯ is the song menu every row has, with Devices after it and removing the
-    // song last. Sleep has its own button, so it is not repeated there.
+    // ⋯ is the song menu every row has, less what the page shows itself, with the
+    // sleep timer and Devices after it and removing the song last.
     await page.getByTestId('now-playing-more').click()
     const menu = page.getByTestId('song-menu')
     await expect(menu.getByRole('menuitem', { name: /^Add to playlist/ })).toBeVisible()
-    await expect(menu.getByRole('menuitem', { name: 'Song details' })).toBeVisible()
     await expect(menu.getByRole('menuitem', { name: 'Devices' })).toBeVisible()
     await expect(menu.getByRole('menuitem', { name: 'Delete from library…' })).toBeVisible()
-    await expect(menu.getByRole('menuitem', { name: /Sleep/ })).toHaveCount(0)
-    await page.keyboard.press('Escape')
+    await expect(menu.getByRole('menuitem', { name: 'Song details' })).toHaveCount(0)
+    await expect(menu.getByRole('menuitem', { name: 'Add to Up next' })).toHaveCount(0)
+
+    // A timer set from there is in the header, in place of "Now playing".
+    await menu.getByRole('menuitem', { name: /^Sleep timer/ }).click()
+    await page.getByRole('menuitem', { name: '15 minutes' }).click()
+    await expect(page.getByTestId('now-playing-sleep')).toContainText('Stops in 15 min')
+    await page.getByTestId('now-playing-sleep').click()
+    await page.getByRole('menuitem', { name: 'Off' }).click()
+    await expect(page.getByTestId('now-playing-sleep')).toHaveCount(0)
 
     // ⓘ puts the page away and opens the song's own.
     await page.getByTestId('now-playing-info').click()

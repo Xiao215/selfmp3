@@ -6,9 +6,10 @@ import {
   type DoormanClaimResult,
 } from '@selfmp3/shared'
 import { z } from 'zod'
-import { isAllowed, nobodyAllowed, requireSession, type Context } from './context.js'
+import { requireSession, type Context } from './context.js'
 import { randomToken } from './encoding.js'
 import { GoogleError, authUrl, checkIdToken, exchangeCode } from './google.js'
+import { forgetGrants } from './grants.js'
 import { page } from './html.js'
 import {
   DoormanError,
@@ -95,7 +96,7 @@ export async function start(ctx: Context): Promise<Response> {
   const keys = await keysOrNull(ctx)
   if (!google || !keys) return notSetUpPage()
   // Say so before the trip to Google, rather than after it.
-  if (nobodyAllowed(ctx.env.ALLOWED_EMAILS)) return nobodyAllowedPage()
+  if (await ctx.access.nobody()) return nobodyAllowedPage()
 
   const nonce = randomToken()
   const state = await signState(
@@ -179,8 +180,8 @@ export async function callback(ctx: Context): Promise<Response> {
     })
   }
 
-  if (nobodyAllowed(ctx.env.ALLOWED_EMAILS)) return nobodyAllowedPage()
-  if (!isAllowed(identity.email, ctx.env.ALLOWED_EMAILS)) return notAllowedPage(identity.email)
+  if (await ctx.access.nobody()) return nobodyAllowedPage()
+  if (!(await ctx.access.allows(identity.email))) return notAllowedPage(identity.email)
 
   // Google has vouched for an address on the list: the sign-in's first write.
   const signInCode = newSignInCode()
@@ -237,7 +238,7 @@ export async function claim(ctx: Context): Promise<Response> {
     if (record) await ctx.env.KV.delete(key)
     throw wrongCode()
   }
-  if (!isAllowed(live.email, ctx.env.ALLOWED_EMAILS)) {
+  if (!(await ctx.access.allows(live.email))) {
     await ctx.env.KV.delete(key)
     throw forbidden('This Google account is not allowed on this self.mp3.')
   }
@@ -263,11 +264,13 @@ export async function signOut(ctx: Context): Promise<Response> {
 
 /**
  * `POST /v1/auth/signout-everywhere` — every session the account has ends,
- * this one included: what to do about a lost device. One KV write.
+ * this one included, and every server's grant: what to do about a lost
+ * device. One KV write, and a second for an account that had let a server in.
  */
 export async function signOutEverywhere(ctx: Context): Promise<Response> {
   const session = await requireSession(ctx)
   await ctx.accounts.signOutEverywhere(session.sub)
+  await forgetGrants(ctx, session.sub)
   return noContent()
 }
 
@@ -361,8 +364,8 @@ function nobodyAllowedPage(): Promise<Response> {
     status: 403,
     title: 'Nobody can sign in yet',
     lines: [
-      'This self.mp3 does not have a list of Google accounts that may sign in.',
-      'Its owner lists them in the ALLOWED_EMAILS secret, or writes * there to let anyone in.',
+      'This self.mp3 has no owner, and nobody on its list of who may sign in.',
+      'Whoever runs it sets the OWNER_EMAILS secret, then adds people in self.mp3’s Settings.',
     ],
   })
 }

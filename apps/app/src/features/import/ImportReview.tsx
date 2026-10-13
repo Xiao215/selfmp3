@@ -103,7 +103,8 @@ export function ImportReview({
    * Back to Import with the review done. Imported, the draft starts afresh —
    * the links, and the tags too: the tags were for these songs, and the next
    * link arriving tagged the same way was a surprise found only once it had.
-   * Cancelled, the links and the tags stay for another look.
+   * Cancelled, the tags stay for another look; the links went from the box
+   * when they were looked up.
    */
   const leave = ({ imported }: { imported: boolean }): void => {
     setLeaving(true)

@@ -5,6 +5,7 @@ import * as Linking from 'expo-linking'
 import { AppState, Platform } from 'react-native'
 
 import { doormanUrl } from './doormanUrl'
+import { sharedServerUrl } from './sharedServerUrl'
 
 /**
  * What a phone gives `@selfmp3/replica` (packages/replica/src/platform.ts).
@@ -117,6 +118,7 @@ const textCache: TextCache = {
 
 export const cloudPlatform: CloudPlatform = {
   doormanUrl,
+  sharedServerUrl,
   store: documentStore(),
   fetch: (url, init) => fetch(url, init as RequestInit),
 

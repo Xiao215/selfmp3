@@ -26,13 +26,21 @@ import { deviceKind } from '../../ports/device'
 import { useLayout } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
 import { Toggle } from '../../ui/components/Toggle'
-import { label, pageTitle, sectionTitle } from '../../ui/surfaces'
+import {
+  label,
+  PAGE_TOP_PHONE,
+  PAGE_TOP_WIDE,
+  pageTitle,
+  sectionTitle,
+  TITLE_UNDER_BACK,
+} from '../../ui/surfaces'
 import { usePlayer } from '../../player/PlayerProvider'
 import { createValueStore, type ValueStore } from '../../state/valueStore.model'
 import { useValueStore } from '../../state/useValueStore'
 import { menuCommands } from '../../ports/menuKeys'
 import { finePointer } from '../../ports/pointer'
 import { Panel, partStyles, Row, SliderSetting, StackedRows } from './SettingsParts'
+import { AccessPanel } from './AccessPanel'
 import { AppearancePanel } from './AppearancePanel'
 import { CloudPanel } from './CloudPanel'
 import { Confirmations } from './Confirmations'
@@ -65,11 +73,11 @@ const INDEX_COLUMN = 1080
 
 /** The index column itself, and the gutter on either side of it. */
 const INDEX_WIDTH = 172
-const INDEX_GUTTER = 32
+const INDEX_GUTTER = space.gutterWide
 
 /** The page's top padding beside the index column, and on a narrow screen. */
-const COLUMN_TOP = 28
-const NARROW_TOP = 18
+const COLUMN_TOP = PAGE_TOP_WIDE
+const NARROW_TOP = PAGE_TOP_PHONE
 /** The gap under the sticky chips, which a section chosen from them lands below. */
 const CHIPS_GAP = 14
 
@@ -346,6 +354,8 @@ export function SettingsScreen(): ReactNode {
         <StackedRows value={!wide}>
           <View style={styles.panels}>
             <ConnectionPanel anchor={anchorAt('account')} onConfirm={setConfirming} />
+            {/* The doorman's owner only: it draws nothing for anyone else. */}
+            {fromCloud ? <AccessPanel /> : null}
 
             <AppearancePanel anchor={anchorAt('appearance')} />
 
@@ -605,7 +615,7 @@ const styles = StyleSheet.create(theme => ({
   },
   // `S2`'s phone gutter.
   contentNarrow: { paddingTop: NARROW_TOP, paddingHorizontal: space.gutter },
-  head: { marginBottom: 20, gap: 12, alignItems: 'flex-start' },
+  head: { marginBottom: 20, gap: TITLE_UNDER_BACK, alignItems: 'flex-start' },
   title: pageTitle(theme.colors),
   sub: { color: theme.colors.textMuted, fontSize: type.sub, marginTop: 4 },
   subCapped: { color: theme.colors.danger },

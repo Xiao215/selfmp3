@@ -11,7 +11,7 @@ import { getRecord, putRecord, type KvStore } from './kv.js'
  * sign-in with the right code, and goes straight back to that device: KV
  * only ever holds its SHA-256, so the list of sessions cannot be used to sign
  * in even by someone who can read it. Using one also needs its address on
- * ALLOWED_EMAILS and a creation time after the account's last "sign out
+ * allowed in (access.ts) and a creation time after the account's last "sign out
  * everywhere" (see context.ts).
  *
  * A session lasts 180 days from sign-in, and that is fixed: sliding it
@@ -37,6 +37,11 @@ export type Identity = z.infer<typeof IdentitySchema>
 const SessionSchema = IdentitySchema.extend({
   /** Compared with the account's last "sign out everywhere". */
   createdAt: z.string().datetime(),
+  /**
+   * The grant this session is (grants.ts): a server's, not a device's. It
+   * has no end of its own, and it may not make grants itself.
+   */
+  grant: z.string().optional(),
 })
 export type Session = z.infer<typeof SessionSchema>
 
@@ -53,8 +58,11 @@ export class Sessions {
     this.#cache = cache
   }
 
-  /** A new session for someone Google has vouched for, and its token. */
-  async create(identity: Identity): Promise<{ token: string; session: Session }> {
+  /**
+   * A new session for someone Google has vouched for, and its token. With
+   * `grant`, the session is that grant's: it lasts until it is ended.
+   */
+  async create(identity: Identity, grant?: string): Promise<{ token: string; session: Session }> {
     const token = randomToken()
     const session: Session = {
       sub: identity.sub,
@@ -62,8 +70,14 @@ export class Sessions {
       name: identity.name,
       picture: identity.picture,
       createdAt: new Date(this.#now()).toISOString(),
+      ...(grant === undefined ? {} : { grant }),
     }
-    await putRecord(this.#kv, await sessionKey(token), session, SESSION_TTL_SECONDS)
+    await putRecord(
+      this.#kv,
+      await sessionKey(token),
+      session,
+      grant === undefined ? SESSION_TTL_SECONDS : undefined,
+    )
     return { token, session }
   }
 
@@ -79,9 +93,20 @@ export class Sessions {
     // One hash, for the lookup and the delete alike.
     const key = await sessionKey(token)
     if (!(await this.#find(key))) return false
+    await this.endByHash(key.slice(SESSION_PREFIX.length))
+    return true
+  }
+
+  /** The hash a session is kept under, for a record that has to end it later (grants.ts). */
+  async hashOf(token: string): Promise<string> {
+    return (await sessionKey(token)).slice(SESSION_PREFIX.length)
+  }
+
+  /** End the session kept under this hash, whether or not there is one. One KV write. */
+  async endByHash(hash: string): Promise<void> {
+    const key = `${SESSION_PREFIX}${hash}`
     this.#cache.delete(key)
     await this.#kv.delete(key)
-    return true
   }
 
   async #find(key: string): Promise<Session | null> {
@@ -99,8 +124,10 @@ export class Sessions {
   }
 }
 
+const SESSION_PREFIX = 'session:'
+
 async function sessionKey(token: string): Promise<string> {
-  return `session:${await sha256Hex(token)}`
+  return `${SESSION_PREFIX}${await sha256Hex(token)}`
 }
 
 /** The token from `Authorization: Bearer <token>`, or null. */

@@ -1,4 +1,4 @@
-import { DEFAULT_DOORMAN_URL } from '@selfmp3/shared'
+import { DEFAULT_DOORMAN_URL, DEFAULT_SERVER_URL } from '@selfmp3/shared'
 import type { CloudPlatform, DeviceStore } from '@selfmp3/replica'
 import type { KeyValueStore } from './store.js'
 
@@ -51,6 +51,7 @@ export function extensionCloudPlatform({
 }: PlatformDeps): CloudPlatform {
   return {
     doormanUrl: DEFAULT_DOORMAN_URL,
+    sharedServerUrl: DEFAULT_SERVER_URL,
     store: deviceStore(store),
     fetch: (url, init) => fetchImpl(url, init as RequestInit),
     randomBytes: into => crypto.getRandomValues(into),

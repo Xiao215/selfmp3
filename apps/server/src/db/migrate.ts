@@ -830,6 +830,24 @@ const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX idx_import_jobs_request ON import_jobs(request_uid) WHERE request_uid IS NOT NULL;
     `,
   },
+  {
+    // 40. Every play goes to the bucket too, a file a month named in the
+    // snapshot, so the server holds no history only it has: a workspace on a
+    // server that works for several accounts is a cache of its bucket
+    // (docs/features/shared-server.md). One row a month: the file last put up
+    // or read, how many plays it holds, and which plays (`sig`).
+    name: 'play history in the bucket',
+    sql: `
+      CREATE TABLE cloud_plays (
+        month       TEXT    PRIMARY KEY,
+        key         TEXT    NOT NULL,
+        size        INTEGER NOT NULL,
+        count       INTEGER NOT NULL,
+        sig         TEXT    NOT NULL,
+        uploaded_at TEXT    NOT NULL
+      );
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

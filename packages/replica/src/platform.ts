@@ -61,6 +61,11 @@ export interface DeviceStore {
 export interface CloudPlatform {
   /** The doorman this device signs in through. Empty means none is set up. */
   readonly doormanUrl: string
+  /**
+   * The server that works for anyone signed in (`DEFAULT_SERVER_URL`), offered
+   * when the bucket names none of its own. Empty means none is offered.
+   */
+  readonly sharedServerUrl: string
   readonly store: DeviceStore
   readonly fetch: CloudFetch
 

@@ -77,7 +77,8 @@ new_sqlite_classes = ["SharedPlaylist"]
 # Secrets, set once with `npx wrangler secret put <NAME>`, typing the value when asked:
 #   GOOGLE_CLIENT_SECRET  the OAuth client's secret, from the Google Cloud console
 #   SEAL_KEY              `openssl rand -base64 32`; every key the doorman uses comes from it
-#   ALLOWED_EMAILS        the Google addresses that may sign in, comma-separated; * for anyone
+#   OWNER_EMAILS          your Google address (comma-separated for more): always let in, and the
+#                         only ones who may change who else is, in self.mp3's Settings
 
 # `npx wrangler dev --env dev`, on your own computer only: never deployed. The
 # web app's local addresses may call it, and DEV lets it use a bucket on this

@@ -91,18 +91,23 @@ neither falls back to a stand-in drawn from its tempo and energy.
 ## On the phone
 
 No tabs at the top (docs/ui-mock `P21`): the ⌄, the words "Now playing", and ⓘ, which opens
-the song's own page. The cover breathes — a little smaller while paused, full size while
-playing — with the title, the artists (each a link), the tags, the scrubber and the round
-Play under it. The foot is **Lyrics**, **Sleep**, **Up next** and a ⋯: the
-song menu every song has (Tags, Add to playlist, Add to Up next, Play similar songs,
-Download in the app, Song details), then a short "This player" group with Devices, then
-Delete from library…. Sleep is not repeated there; it has its own button. There are no page
-dots: the gestures are up and down, not sideways. Swiping up, the Lyrics pill or a tap on the cover opens the
-lyrics on their own (`/now-playing?view=lyrics`, `P22`); swiping down comes back.
+the song's own page. While a sleep timer runs, "Now playing" becomes "Stops in 12 min" (or
+"Stops after this song"), and tapping it changes the timer. The cover breathes — a little
+smaller while paused, full size while playing — with the title and the artists (each a
+link) under it, and the heart, **Up next** and ⋯ beside them; then the tags, the scrubber and
+the round Play, low on the page where a thumb is. There is no foot (picked 2026-10-12,
+canvas `P4fvs9Sc86E42KpePUVufn`: A4, B1, C1, D1, E1).
+
+⋯ is the song menu every song has, less what the page shows itself or already is: no heart,
+Tags or Song details (the page has them) and no Add to Up next (the song is playing). It ends
+with a short "This player" group — **Sleep timer**, saying how long is left, which opens the
+sleep sheet, and Devices — then Delete from library…. There are no page dots: the gestures are
+up and down, not sideways. Swiping up or a tap on the cover opens the lyrics on their own
+(`/now-playing?view=lyrics`, `P22`); swiping down comes back.
 
 The page is a native modal over the whole app, so the shell's Up next sheet and toast row
-would sit under it, out of sight. While it is up the page draws its own: Up next over its
-foot, and the toasts after it so a removal's Undo shows (`OverTheModal`). Links out of that
+would sit under it, out of sight. While it is up the page draws its own: Up next over the
+page, and the toasts after it so a removal's Undo shows (`OverTheModal`). Links out of that
 Up next — a tag, the source line — take the page down before the page they open is pushed.
 
 ## Files

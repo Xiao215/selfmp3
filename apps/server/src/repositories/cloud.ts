@@ -84,6 +84,27 @@ export interface CloudSoundState {
   readonly uploadedAt: string
 }
 
+/** One month of plays in the bucket (`CloudPlaysSchema`), and which plays went up. */
+export interface CloudPlaysState {
+  /** `YYYY-MM`, UTC. */
+  readonly month: string
+  readonly key: string
+  readonly size: number
+  readonly count: number
+  /** The plays the file holds, as `StatsRepository.months` signs them. */
+  readonly sig: string
+  readonly uploadedAt: string
+}
+
+interface CloudPlaysRow {
+  month: string
+  key: string
+  size: number
+  count: number
+  sig: string
+  uploaded_at: string
+}
+
 interface CloudSoundRow {
   model: string
   key: string
@@ -94,8 +115,8 @@ interface CloudSoundRow {
 
 /**
  * Every file the library names in the bucket: each song's, each artist's
- * picture, and the sound vectors. A file not in this is one nothing points at
- * any more.
+ * picture, the sound vectors and the plays. A file not in this is one nothing
+ * points at any more.
  */
 const NAMED_KEYS = `
   SELECT audio_key AS key FROM cloud_songs
@@ -105,7 +126,8 @@ const NAMED_KEYS = `
   UNION SELECT motion_key FROM cloud_songs WHERE motion_key IS NOT NULL
   UNION SELECT banner_key FROM cloud_artists
   UNION SELECT portrait_key FROM cloud_artists
-  UNION SELECT key FROM cloud_sound`
+  UNION SELECT key FROM cloud_sound
+  UNION SELECT key FROM cloud_plays`
 
 /** What the sync needs to know about a song's files, straight from its row. */
 export interface SongFileInfo {
@@ -226,6 +248,10 @@ export class CloudRepository {
   readonly #sound
   readonly #saveSound
   readonly #dropSound
+  readonly #plays
+  readonly #playsOf
+  readonly #savePlays
+  readonly #dropPlays
   readonly #trashedKeys
   readonly #forgetFile
   readonly #rememberRemoved
@@ -335,6 +361,16 @@ export class CloudRepository {
         sig = excluded.sig, uploaded_at = excluded.uploaded_at
     `)
     this.#dropSound = db.prepare('DELETE FROM cloud_sound')
+    this.#plays = db.prepare<[], CloudPlaysRow>('SELECT * FROM cloud_plays ORDER BY month')
+    this.#playsOf = db.prepare<[string], CloudPlaysRow>('SELECT * FROM cloud_plays WHERE month = ?')
+    this.#savePlays = db.prepare(`
+      INSERT INTO cloud_plays (month, key, size, count, sig, uploaded_at)
+      VALUES (@month, @key, @size, @count, @sig, @uploadedAt)
+      ON CONFLICT (month) DO UPDATE SET
+        key = excluded.key, size = excluded.size, count = excluded.count,
+        sig = excluded.sig, uploaded_at = excluded.uploaded_at
+    `)
+    this.#dropPlays = db.prepare('DELETE FROM cloud_plays WHERE month = ?')
     this.#forgetFile = db.prepare('DELETE FROM cloud_files WHERE key = ?')
     this.#rememberRemoved = db.prepare(
       'INSERT OR IGNORE INTO removed_songs (uid) SELECT uid FROM songs WHERE id = ?',
@@ -423,7 +459,7 @@ export class CloudRepository {
   /** Everything this server knows about one bucket: what it uploaded, and how far it read the logs. */
   #forgetUploads(): void {
     this.#db.exec(
-      'DELETE FROM cloud_songs; DELETE FROM cloud_artists; DELETE FROM cloud_sound; DELETE FROM cloud_files; DELETE FROM cloud_log_cursors; DELETE FROM cloud_trash; DELETE FROM removed_songs;',
+      'DELETE FROM cloud_songs; DELETE FROM cloud_artists; DELETE FROM cloud_sound; DELETE FROM cloud_plays; DELETE FROM cloud_files; DELETE FROM cloud_log_cursors; DELETE FROM cloud_trash; DELETE FROM removed_songs;',
     )
   }
 
@@ -560,6 +596,39 @@ export class CloudRepository {
     })()
   }
 
+  // --- Plays -----------------------------------------------------------------
+
+  /** Every month of plays in the bucket, oldest first. */
+  playsStates(): CloudPlaysState[] {
+    return this.#plays.all().map(row => ({
+      month: row.month,
+      key: row.key,
+      size: row.size,
+      count: row.count,
+      sig: row.sig,
+      uploadedAt: row.uploaded_at,
+    }))
+  }
+
+  /** Record a month's file in the bucket; the one it replaces goes in the trash. */
+  savePlays(state: CloudPlaysState): void {
+    this.#db.transaction(() => {
+      const before = this.#playsOf.get(state.month)
+      this.#savePlays.run(state)
+      if (before) this.#trashReplaced([before.key], [state.key])
+    })()
+  }
+
+  /** A month with no plays left (its songs all removed): its file goes in the trash. */
+  dropPlays(month: string): void {
+    this.#db.transaction(() => {
+      const before = this.#playsOf.get(month)
+      if (!before) return
+      this.#dropPlays.run(month)
+      this.#trashReplaced([before.key], [])
+    })()
+  }
+
   // --- The trash -------------------------------------------------------------
 
   /**
@@ -677,12 +746,13 @@ export class CloudRepository {
         )
         .run().changes
       // An artist whose picture went is sent again too, and so are the sound
-      // vectors; they are not counted as songs.
+      // vectors and a month of plays; they are not counted as songs.
       this.#db.exec(
         `DELETE FROM cloud_artists
           WHERE banner_key NOT IN (SELECT key FROM cloud_files)
              OR portrait_key NOT IN (SELECT key FROM cloud_files);
-         DELETE FROM cloud_sound WHERE key NOT IN (SELECT key FROM cloud_files)`,
+         DELETE FROM cloud_sound WHERE key NOT IN (SELECT key FROM cloud_files);
+         DELETE FROM cloud_plays WHERE key NOT IN (SELECT key FROM cloud_files)`,
       )
       return again
     })()

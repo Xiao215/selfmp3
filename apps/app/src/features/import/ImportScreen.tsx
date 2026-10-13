@@ -37,7 +37,14 @@ import {
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
-import { card, label as groupLabel, pageTitle } from '../../ui/surfaces'
+import {
+  card,
+  label as groupLabel,
+  PAGE_TOP_PHONE,
+  PAGE_TOP_WIDE,
+  pageTitle,
+  TITLE_UNDER_BACK,
+} from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
@@ -152,15 +159,20 @@ export function ImportScreen({
 
   const preview = useMutation({
     mutationFn: (input: string) => api.importPreview(input),
-    onSuccess: result => {
+    onSuccess: (result, input) => {
       const next = reviewFrom(result)
       // A link named like a tag you already have — an artist's page, a search
       // for them — is tagged that way without asking, on top of the tags
       // chosen here for whatever arrives.
       const match = matchingTag(tags, next.playlistTitle)
-      const chosen = new Set(draftFor(key).tagIds)
+      const current = draftFor(key)
+      const chosen = new Set(current.tagIds)
       if (match !== null) chosen.add(match)
-      patchDraft({ review: next, tagIds: chosen })
+      // A link looked up is the review now, offered back by "Go on reviewing";
+      // left in the box it was there again on every visit, looking unlooked-at.
+      // Anything typed while it was looked up is not that link, and stays.
+      const links = current.links.trim() === input ? '' : current.links
+      patchDraft({ review: next, tagIds: chosen, links })
       setError(null)
       router.push('/import/review')
     },
@@ -549,6 +561,7 @@ export function ImportScreen({
       <ScrollView
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentPhone]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         testID="import-screen"
       >
         <View style={styles.head}>
@@ -1146,10 +1159,10 @@ const ON_DANGER = '#fff'
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40 },
-  contentWide: { paddingTop: 40, paddingHorizontal: 48 },
-  contentPhone: { paddingTop: 6, paddingHorizontal: space.gutter },
+  contentWide: { paddingTop: PAGE_TOP_WIDE, paddingHorizontal: space.gutterWide },
+  contentPhone: { paddingTop: PAGE_TOP_PHONE, paddingHorizontal: space.gutter },
   pressed: { opacity: 0.6 },
-  head: { alignItems: 'flex-start', gap: 12, marginBottom: 20 },
+  head: { alignItems: 'flex-start', gap: TITLE_UNDER_BACK, marginBottom: 20 },
   heading: pageTitle(theme.colors),
   formColumn: { gap: 22 },
   stack: { gap: 24 },

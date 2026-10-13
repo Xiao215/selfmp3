@@ -50,16 +50,20 @@ export class ModelUnavailableError extends Error {
   }
 }
 
-export class SoundService {
+/**
+ * The listening model itself, apart from any library's vectors: the files,
+ * the loaded model and when it is let go. One per machine — a server working
+ * for several accounts lends the same one to each of their libraries
+ * (docs/features/shared-server.md), since two loaded copies would be 1.2 GB
+ * on a Pi for nothing.
+ */
+export class SoundModelHost {
   readonly #enabled: boolean
   readonly #threads: number
-  readonly #vectors: SoundVectorsRepository
   readonly #files: SoundModelFiles
   readonly #makeModel: (dir: string, threads: number) => SoundModel
   readonly #logger: Logger
-  readonly #changed: () => void
   #model: SoundModel | null = null
-  #cache: Map<number, Float32Array> | null = null
   readonly #idleMs: number
   /** Uses of the model under way: it is never let go in the middle of one. */
   #inUse = 0
@@ -67,42 +71,27 @@ export class SoundService {
 
   constructor(deps: {
     config: Pick<Config, 'dataDir' | 'sound'>
-    vectors: SoundVectorsRepository
     logger: Logger
     /** The files' source; a test's own. */
     files?: SoundModelFiles
     /** The model on the files; a test's fake. */
     makeModel?: (dir: string, threads: number) => SoundModel
-    /** A song was heard, given up on or forgotten: the bucket's copy is behind. */
-    changed?: () => void
     /** How long the model is kept unused before it is let go (`IDLE_UNLOAD_MS`); a test's own. */
     idleMs?: number
   }) {
     this.#enabled = deps.config.sound.enabled
     this.#threads = deps.config.sound.threads
-    this.#vectors = deps.vectors
     this.#logger = deps.logger.child('sound')
     this.#files = deps.files ?? new SoundModelFiles({ config: deps.config, logger: deps.logger })
     this.#makeModel = deps.makeModel ?? ((dir, threads) => new Clamp3Worker(dir, threads))
-    this.#changed = deps.changed ?? (() => undefined)
     this.#idleMs = deps.idleMs ?? IDLE_UNLOAD_MS
-  }
-
-  /** The model whose vectors these are. */
-  get model(): string {
-    return SOUND_MODEL.name
   }
 
   get enabled(): boolean {
     return this.#enabled
   }
 
-  /**
-   * Whether songs are heard here: the model is on and its files are to hand,
-   * loaded or not — it is let go when idle, and loaded again when wanted. A
-   * song's copy here is kept until it has been heard while this holds, so
-   * hearing it never costs a download.
-   */
+  /** The model is on and its files are to hand, loaded or not. */
   get canHear(): boolean {
     return this.#enabled && (this.#model !== null || this.#files.state === 'ready')
   }
@@ -112,22 +101,12 @@ export class SoundService {
     return this.#enabled ? this.#files.retryAt : null
   }
 
-  status(): AnalysisStatus['sound'] {
-    const state = !this.#enabled
-      ? 'off'
-      : this.canHear
-        ? 'ready'
-        : this.#files.state === 'failed'
-          ? 'failed'
-          : this.#files.state === 'fetching'
-            ? 'fetching'
-            : 'waiting'
-    return {
-      state,
-      heard: this.#vectors.countHeard(SOUND_MODEL.name),
-      pending: this.#enabled ? this.#vectors.countPending(SOUND_MODEL.name) : 0,
-      message: state === 'failed' ? this.#files.message : null,
-    }
+  get filesState(): SoundModelFiles['state'] {
+    return this.#files.state
+  }
+
+  get filesMessage(): string | null {
+    return this.#files.message
   }
 
   /**
@@ -152,7 +131,7 @@ export class SoundService {
   }
 
   /** The model, held for one use: not let go until the use is over, and the idle clock starts after it. */
-  async #using<T>(use: (model: SoundModel) => Promise<T>): Promise<T> {
+  async using<T>(use: (model: SoundModel) => Promise<T>): Promise<T> {
     // Let go since it was made ready — a download that outlasted the idle
     // clock — is loaded again, not a song that cannot be heard.
     if (!this.#model) await this.prepare()
@@ -189,9 +168,110 @@ export class SoundService {
     this.#idleTimer.unref()
   }
 
+  async close(): Promise<void> {
+    if (this.#idleTimer) clearTimeout(this.#idleTimer)
+    this.#idleTimer = null
+    const model = this.#model
+    this.#model = null
+    await model?.close()
+  }
+}
+
+export class SoundService {
+  readonly #host: SoundModelHost
+  /** Whether the host is this library's alone, and so closed with it. */
+  readonly #ownsHost: boolean
+  readonly #vectors: SoundVectorsRepository
+  readonly #changed: () => void
+  #cache: Map<number, Float32Array> | null = null
+
+  constructor(deps: {
+    config: Pick<Config, 'dataDir' | 'sound'>
+    vectors: SoundVectorsRepository
+    logger: Logger
+    /** The machine's model, shared with other libraries; one of its own when absent. */
+    host?: SoundModelHost
+    /** The files' source; a test's own. */
+    files?: SoundModelFiles
+    /** The model on the files; a test's fake. */
+    makeModel?: (dir: string, threads: number) => SoundModel
+    /** A song was heard, given up on or forgotten: the bucket's copy is behind. */
+    changed?: () => void
+    /** How long the model is kept unused before it is let go (`IDLE_UNLOAD_MS`); a test's own. */
+    idleMs?: number
+  }) {
+    this.#ownsHost = deps.host === undefined
+    this.#host =
+      deps.host ??
+      new SoundModelHost({
+        config: deps.config,
+        logger: deps.logger,
+        ...(deps.files ? { files: deps.files } : {}),
+        ...(deps.makeModel ? { makeModel: deps.makeModel } : {}),
+        ...(deps.idleMs === undefined ? {} : { idleMs: deps.idleMs }),
+      })
+    this.#vectors = deps.vectors
+    this.#changed = deps.changed ?? (() => undefined)
+  }
+
+  /** The model whose vectors these are. */
+  get model(): string {
+    return SOUND_MODEL.name
+  }
+
+  get enabled(): boolean {
+    return this.#host.enabled
+  }
+
+  /**
+   * Whether songs are heard here: the model is on and its files are to hand,
+   * loaded or not — it is let go when idle, and loaded again when wanted. A
+   * song's copy here is kept until it has been heard while this holds, so
+   * hearing it never costs a download.
+   */
+  get canHear(): boolean {
+    return this.#host.canHear
+  }
+
+  /** When to try for the model again after it could not be had; null otherwise. */
+  get retryAt(): number | null {
+    return this.#host.retryAt
+  }
+
+  status(): AnalysisStatus['sound'] {
+    const files = this.#host.filesState
+    const state = !this.enabled
+      ? 'off'
+      : this.canHear
+        ? 'ready'
+        : files === 'failed'
+          ? 'failed'
+          : files === 'fetching'
+            ? 'fetching'
+            : 'waiting'
+    return {
+      state,
+      heard: this.#vectors.countHeard(SOUND_MODEL.name),
+      pending: this.enabled ? this.#vectors.countPending(SOUND_MODEL.name) : 0,
+      message: state === 'failed' ? this.#host.filesMessage : null,
+    }
+  }
+
+  /**
+   * Get the model ready, downloading its files the first time. False when it
+   * is off or could not be had; never throws.
+   */
+  prepare(): Promise<boolean> {
+    return this.#host.prepare()
+  }
+
+  #using<T>(use: (model: SoundModel) => Promise<T>): Promise<T> {
+    return this.#host.using(use)
+  }
+
   /** The next song waiting to be heard, newest first, passing over the ones in `skip`. */
   nextPending(skip?: ReadonlySet<number>): number | null {
-    return this.#enabled ? this.#vectors.nextPending(SOUND_MODEL.name, skip) : null
+    return this.enabled ? this.#vectors.nextPending(SOUND_MODEL.name, skip) : null
   }
 
   /** Whether the song has been heard (or found unhearable) by this model. */
@@ -234,7 +314,7 @@ export class SoundService {
 
   /** Whether songs are still waiting to be heard: the bucket's copy is sent less often then. */
   get hearing(): boolean {
-    return this.#enabled && this.#vectors.countPending(SOUND_MODEL.name) > 0
+    return this.enabled && this.#vectors.countPending(SOUND_MODEL.name) > 0
   }
 
   /** Changes whenever `pack` would. */
@@ -275,7 +355,7 @@ export class SoundService {
    */
   async match(text: string, songIds: readonly number[]): Promise<Map<number, number> | null> {
     const all = this.#all()
-    if (!this.#enabled || all.size === 0 || !(await this.prepare())) return null
+    if (!this.enabled || all.size === 0 || !(await this.prepare())) return null
     const query = await this.#using(model => model.readText(text))
     const out = new Map<number, number>()
     for (const id of songIds) {
@@ -329,12 +409,9 @@ export class SoundService {
     return [...scored, ...fallback.filter(song => !heard.has(song.id))].slice(0, limit)
   }
 
+  /** Let the model go, when it is this library's own; a shared one is the machine's to close. */
   async close(): Promise<void> {
-    if (this.#idleTimer) clearTimeout(this.#idleTimer)
-    this.#idleTimer = null
-    const model = this.#model
-    this.#model = null
-    await model?.close()
+    if (this.#ownsHost) await this.#host.close()
   }
 }
 

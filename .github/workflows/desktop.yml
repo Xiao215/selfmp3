@@ -59,6 +59,7 @@ jobs:
         run: npm run build:desktop
         env:
           SELFMP3_DOORMAN_URL: ${{ vars.DOORMAN_URL }}
+          SELFMP3_SERVER_URL: ${{ vars.SERVER_URL }}
           # Set, the build is signed; absent, it is ad-hoc. Both are real.
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}

@@ -21,6 +21,8 @@ import {
   ArtistBackdropSchema,
   DeviceCommandResultSchema,
   DeviceListSchema,
+  DoormanAccessSchema,
+  DoormanGrantsSchema,
   ErrorBodySchema,
   HealthSchema,
   ImportEnqueueResultSchema,
@@ -93,6 +95,7 @@ import {
   type WrappedRange,
   type UpdatePlaylist,
   type UpdateSettings,
+  type DoormanAccessUpdate,
 } from '@selfmp3/shared'
 import type { z } from 'zod'
 import {
@@ -556,6 +559,24 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     /** Where the server behind a cloud library listens, from its last snapshot. */
     cloudServer: () => request('GET', '/api/cloud/server', CloudServerViewSchema),
+
+    /**
+     * Have the shared server work for this account (docs/features/shared-server.md),
+     * for a cloud library whose bucket names no server of its own.
+     */
+    joinSharedServer: () => request('POST', '/api/cloud/server/join', CloudServerViewSchema),
+
+    /** The servers this account has let into its bucket, from the doorman. */
+    serverGrants: () => request('GET', '/api/cloud/grants', DoormanGrantsSchema),
+
+    /** Who may sign in, for the doorman's owner (a 403 for anyone else). */
+    access: () => request('GET', '/api/cloud/access', DoormanAccessSchema),
+
+    updateAccess: (update: DoormanAccessUpdate) =>
+      request('PUT', '/api/cloud/access', DoormanAccessSchema, update),
+
+    /** Take a server's way into the bucket back. */
+    removeServerGrant: (id: string) => request('DELETE', `/api/cloud/grants/${id}`, OkSchema),
 
     /**
      * The uid behind each song id in whichever library answers this — this

@@ -1,0 +1,115 @@
+import {
+  DoormanAccessUpdateSchema,
+  type DoormanAccess,
+  type DoormanAccessUpdate,
+} from '@selfmp3/shared'
+import { recall, remember, type BoundedCache } from './boundedCache.js'
+import type { Context } from './context.js'
+import { forbidden, json, methodNotAllowed, readJson } from './http.js'
+import { getRecord, putRecord, type KvStore } from './kv.js'
+import { requireSession } from './context.js'
+
+/**
+ * Who may sign in: the doorman's owners, and the list they keep
+ * (docs/features/shared-server.md, "Who may sign in").
+ *
+ *   OWNER_EMAILS   a secret: who may change the list, and is always let in
+ *   access         in KV: { anyone, emails } — everyone, or these addresses
+ *
+ * The list is kept where the app can change it — Settings › Who can sign in,
+ * drawn only for an owner — rather than in a secret only `wrangler` can set.
+ * Owners are a secret all the same: whoever deploys the doorman decides who
+ * runs it, and an owner off the list would be an owner locked out.
+ *
+ * Asked on every signed-in request, so each Worker instance remembers the list
+ * for a minute (boundedCache.ts). A change reaches the instance that made it at
+ * once, and the others within the minute, as with signing out.
+ */
+
+const ACCESS_KEY = 'access'
+
+/** Nobody but the owners, until an owner says otherwise. */
+const NOBODY: DoormanAccessUpdate = { anyone: false, emails: [] }
+
+export type AccessCache = BoundedCache<DoormanAccessUpdate>
+
+export class Access {
+  readonly #kv: KvStore
+  readonly #owners: ReadonlySet<string>
+  readonly #now: () => number
+  readonly #cache: AccessCache
+
+  constructor(kv: KvStore, owners: string | undefined, now: () => number, cache: AccessCache) {
+    this.#kv = kv
+    this.#owners = addresses(owners)
+    this.#now = now
+    this.#cache = cache
+  }
+
+  isOwner(email: string): boolean {
+    return this.#owners.has(normal(email))
+  }
+
+  /** Whether this Google address may sign in, and go on using a session it has. */
+  async allows(email: string): Promise<boolean> {
+    if (this.isOwner(email)) return true
+    const list = await this.#list()
+    return list.anyone || list.emails.includes(normal(email))
+  }
+
+  /** Whether nobody at all may sign in, so a sign-in can say so before the trip to Google. */
+  async nobody(): Promise<boolean> {
+    if (this.#owners.size > 0) return false
+    const list = await this.#list()
+    return !list.anyone && list.emails.length === 0
+  }
+
+  async read(): Promise<DoormanAccess> {
+    return { ...(await this.#list()), owners: [...this.#owners] }
+  }
+
+  /** The list replaced, whole. One KV write. */
+  async write(update: DoormanAccessUpdate): Promise<DoormanAccess> {
+    // An owner on the list is noise: they are let in anyway.
+    const emails = [...new Set(update.emails.map(normal))].filter(email => !this.isOwner(email))
+    const list = { anyone: update.anyone, emails }
+    await putRecord(this.#kv, ACCESS_KEY, list)
+    remember(this.#cache, ACCESS_KEY, list, this.#now())
+    return { ...list, owners: [...this.#owners] }
+  }
+
+  async #list(): Promise<DoormanAccessUpdate> {
+    const now = this.#now()
+    const cached = recall(this.#cache, ACCESS_KEY, now)
+    if (cached) return cached
+    const list = (await getRecord(this.#kv, ACCESS_KEY, DoormanAccessUpdateSchema)) ?? NOBODY
+    remember(this.#cache, ACCESS_KEY, list, now)
+    return list
+  }
+}
+
+/** `GET /v1/access` and `PUT /v1/access`: the list, for an owner only. */
+export async function access(ctx: Context): Promise<Response> {
+  const session = await requireSession(ctx)
+  if (!ctx.access.isOwner(session.email)) throw forbidden('only the owner can see who may sign in')
+  if (ctx.request.method === 'GET') return json(await ctx.access.read())
+  if (ctx.request.method === 'PUT') {
+    return json(await ctx.access.write(await readJson(ctx.request, DoormanAccessUpdateSchema)))
+  }
+  return methodNotAllowed(['GET', 'PUT'])
+}
+
+function normal(email: string): string {
+  return email.trim().toLowerCase()
+}
+
+/**
+ * OWNER_EMAILS as lower-cased addresses. Google addresses are not
+ * case-sensitive, and what someone types into a secret may not match what
+ * Google says letter for letter.
+ */
+function addresses(value: string | undefined): ReadonlySet<string> {
+  const found = new Set<string>()
+  for (const entry of (value ?? '').split(/[\s,]+/)) if (entry) found.add(normal(entry))
+  return found
+}

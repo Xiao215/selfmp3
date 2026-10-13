@@ -8,8 +8,10 @@ import type { ZodType, ZodTypeDef } from 'zod'
  *
  *   attempt:<attempt>    a Google sign-in, waiting for its code      10 minutes
  *   session:<sha256>     a signed-in device                          180 days
+ *                        or a server's grant (grants.ts)             for good
  *   bucket:<sub>         a Google account's bucket, sealed           for good
  *   signout:<sub>        when the account last signed out everywhere for good
+ *   grants:<sub>         the servers the account let in              for good
  *
  * The free plan allows about a thousand writes a day and a hundred thousand
  * reads, so writes are kept to the moments something really changes. Nothing

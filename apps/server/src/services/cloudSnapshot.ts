@@ -12,7 +12,12 @@ import {
   type Song,
   type Tag,
 } from '@selfmp3/shared'
-import type { CloudArtistState, CloudSongState, CloudSoundState } from '../repositories/cloud.js'
+import type {
+  CloudArtistState,
+  CloudPlaysState,
+  CloudSongState,
+  CloudSoundState,
+} from '../repositories/cloud.js'
 import type { ImportRequest } from '../repositories/importRequests.js'
 import type { StampRow } from '../repositories/sync.js'
 import { sha256 } from '../util/hash.js'
@@ -33,6 +38,8 @@ interface SnapshotInput {
   readonly artists: readonly CloudArtistState[]
   /** Every song's sound vector, as one file in the bucket; null before there is one. */
   readonly sound?: Pick<CloudSoundState, 'model' | 'key' | 'size'> | null
+  /** When songs were played, a file a month in the bucket. */
+  readonly plays?: readonly Pick<CloudPlaysState, 'month' | 'key' | 'size' | 'count'>[]
   readonly tags: readonly Tag[]
   readonly tagUids: ReadonlyMap<number, string>
   readonly playlists: readonly Playlist[]
@@ -187,6 +194,16 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
     sound: input.sound
       ? { model: input.sound.model, key: input.sound.key, size: input.sound.size }
       : null,
+    ...(input.plays && input.plays.length > 0
+      ? {
+          plays: input.plays.map(month => ({
+            month: month.month,
+            key: month.key,
+            size: month.size,
+            count: month.count,
+          })),
+        }
+      : {}),
     ...(aliases.length > 0 ? { aliases: Object.fromEntries(aliases) } : {}),
     ...(input.imports && input.imports.length > 0
       ? {
@@ -350,7 +367,8 @@ export function storedSnapshotContentHash(body: Buffer): string {
  * What a snapshot says that a device needs promptly, as a hash: all of it but
  * what analysis, the listening model and the picture lookups add after a song
  * has arrived — its cover's colour, its motion curve, its tempo and key, the
- * pointer to every song's sound vector, and artists' pictures. A snapshot that
+ * pointer to every song's sound vector, artists' pictures, and the months of
+ * plays. A snapshot that
  * changes only those can wait a little to be published (cloudSync.ts,
  * `ENRICHMENT_DEFER_MS`): every snapshot is a download for every device, and
  * an import's songs were each published again for each of them.
@@ -360,8 +378,16 @@ export function snapshotCoreHash(snapshot: {
   readonly songs?: readonly object[]
   readonly sound?: unknown
   readonly artists?: unknown
+  readonly plays?: unknown
 }): string {
-  const { writtenAt: _when, sound: _sound, artists: _artists, songs, ...rest } = snapshot
+  const {
+    writtenAt: _when,
+    sound: _sound,
+    artists: _artists,
+    plays: _plays,
+    songs,
+    ...rest
+  } = snapshot
   const core = {
     ...rest,
     songs: (songs ?? []).map(song => {

@@ -161,7 +161,11 @@ export function AddSongsSheet({
           autoFocus
         />
 
-        <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          style={styles.list}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
           {results.length === 0 ? (
             <EmptyState
               compact

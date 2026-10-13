@@ -44,7 +44,7 @@ import { tagLink } from '../tag/placeLinks'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { usePullToRefresh } from './usePullToRefresh'
 import { useSongTagLookup } from '../../ui/songTags'
-import { label, pageTitle } from '../../ui/surfaces'
+import { label, PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageTitle } from '../../ui/surfaces'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
 
 /**
@@ -70,7 +70,7 @@ export function LibraryScreen(): ReactNode {
   const shuffleIconOnly = contentWidth !== null && contentWidth < SHUFFLE_LABEL_WIDTH
   const player = usePlayerCommands()
   const { state: downloads, installed, streamBlocked } = useDownloads()
-  const openSearch = useOpenSearch('songs')
+  const openSearch = useOpenSearch()
 
   // Everything this screen knows is in the model, which draws nothing and is
   // tested without a simulator. What is left here is drawing.
@@ -305,7 +305,7 @@ export function LibraryScreen(): ReactNode {
         search, order and play along from it, with the search giving up width
         before the row wraps.
       */}
-      <View style={[styles.head, headWide && styles.headWide]}>
+      <View style={[styles.head, wide && styles.headGutterWide, headWide && styles.headWide]}>
         {/*
           "Library" and one line under it (docs/ui-mock `P12`, `C04`): how
           many songs, how long, and on an installed app how many are here.
@@ -495,7 +495,11 @@ export function LibraryScreen(): ReactNode {
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.tagStripFrame}
-          contentContainerStyle={[styles.tagStrip, headWide && styles.tagStripWide]}
+          contentContainerStyle={[
+            styles.tagStrip,
+            wide && styles.gutterWide,
+            headWide && styles.tagStripWide,
+          ]}
           keyboardShouldPersistTaps="handled"
           testID="library-tag-strip"
           {...stripDrag}
@@ -587,7 +591,7 @@ export function LibraryScreen(): ReactNode {
         The picker, in the page rather than over it: the head grows, the songs
         move down, and nothing is drawn across the sidebar.
       */}
-      <View style={styles.chooser}>
+      <View style={[styles.chooser, wide && styles.gutterWide]}>
         <ListenTags
           open={choosingTags}
           onClose={closeTagSearch}
@@ -662,16 +666,19 @@ const styles = StyleSheet.create(theme => ({
   subRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 },
   /* Play first, the white round one: it is what picking tags was for. */
   phoneTransport: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  chooser: { paddingHorizontal: space.lg },
+  chooser: { paddingHorizontal: space.gutter },
   screen: {
     flex: 1,
     backgroundColor: theme.colors.surface0,
   },
   head: {
-    paddingHorizontal: space.lg,
-    paddingTop: 18,
+    paddingHorizontal: space.gutter,
+    paddingTop: PAGE_TOP_PHONE,
     gap: space.md,
   },
+  // Where every page's title sits on a computer (`PAGE_TOP_WIDE`).
+  headGutterWide: { paddingHorizontal: space.gutterWide, paddingTop: PAGE_TOP_WIDE },
+  gutterWide: { paddingHorizontal: space.gutterWide },
   heading: pageTitle(theme.colors),
   phoneTitles: { alignSelf: 'stretch' },
   phoneTitleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
@@ -679,7 +686,7 @@ const styles = StyleSheet.create(theme => ({
   phoneTools: { flexDirection: 'row', gap: space.sm },
   orderLabel: {
     ...label(theme.colors),
-    paddingHorizontal: space.lg,
+    paddingHorizontal: space.gutter,
     paddingTop: space.sm,
     paddingBottom: 2,
   },
@@ -761,7 +768,7 @@ const styles = StyleSheet.create(theme => ({
   tagStrip: {
     flexDirection: 'row',
     gap: 6,
-    paddingHorizontal: space.lg,
+    paddingHorizontal: space.gutter,
     paddingTop: space.md,
     paddingBottom: space.sm,
   },
@@ -779,7 +786,7 @@ const styles = StyleSheet.create(theme => ({
     paddingTop: space.xs,
     paddingBottom: space.md,
   },
-  emptyCard: { paddingHorizontal: space.lg },
+  emptyCard: { paddingHorizontal: space.gutter },
   // A line of its own in the empty state, so the way out sits under it.
   inside: {
     width: '100%',

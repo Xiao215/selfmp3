@@ -131,8 +131,22 @@ export const DoormanBackblazeConnectSchema = z.object({
 })
 export type DoormanBackblazeConnect = z.infer<typeof DoormanBackblazeConnectSchema>
 
+/**
+ * An account as the doorman names it to others: 32 hex characters, the same
+ * for every session of one Google account and for no other. Not the Google id
+ * itself, which is the doorman's to keep.
+ */
+export const DoormanAccountSchema = z.string().regex(/^[0-9a-f]{32}$/, 'not an account id')
+
 /** Who is signed in, and the bucket that belongs to their Google account. */
 export const DoormanMeSchema = z.object({
+  /**
+   * Which account this is, for a server that works for several
+   * (docs/features/shared-server.md): its workspaces are kept by this.
+   * Absent from a session a device kept from before the doorman said it, which
+   * still signs in; a server asks the doorman itself, and refuses without it.
+   */
+  account: DoormanAccountSchema.optional(),
   email: z.string(),
   name: z.string().nullable(),
   picture: z.string().nullable(),
@@ -158,6 +172,61 @@ export const DoormanClaimResultSchema = z.discriminatedUnion('status', [
   }),
 ])
 export type DoormanClaimResult = z.infer<typeof DoormanClaimResultSchema>
+
+/**
+ * A grant: a session an account gave a server so it can work on the bucket
+ * while none of the account's devices is there (docs/features/shared-server.md).
+ * It does not run out after 180 days as a device's session does; it lasts until
+ * it is removed, or the account signs out everywhere.
+ */
+export const DoormanGrantSchema = z.object({
+  id: z.string().regex(/^[0-9a-f]{16}$/, 'not a grant id'),
+  /** The server's address, as it gave it. */
+  server: z.string().url().max(300),
+  /** What to call it in a list: the server's own name for itself. */
+  name: z.string().max(100),
+  createdAt: z.string().datetime(),
+})
+export type DoormanGrant = z.infer<typeof DoormanGrantSchema>
+
+/** `POST /v1/grants`: the server asking, with the session a device handed it. */
+export const DoormanGrantRequestSchema = z.object({
+  server: z.string().trim().url().max(300),
+  name: z.string().trim().min(1).max(100),
+})
+export type DoormanGrantRequest = z.infer<typeof DoormanGrantRequestSchema>
+
+/** The grant, and its session's token, which goes to the server and nowhere else. */
+export const DoormanGrantMadeSchema = z.object({
+  grant: DoormanGrantSchema,
+  token: z.string().min(32),
+})
+export type DoormanGrantMade = z.infer<typeof DoormanGrantMadeSchema>
+
+/** `GET /v1/grants`: every server the account has let in. */
+export const DoormanGrantsSchema = z.object({ grants: z.array(DoormanGrantSchema) })
+export type DoormanGrants = z.infer<typeof DoormanGrantsSchema>
+
+/** An address on the allow list: Google's, compared without regard to case. */
+const AllowedEmailSchema = z.string().trim().toLowerCase().email('not an email address').max(254)
+
+/**
+ * Who may sign in to this doorman (`PUT /v1/access`), as its owner sets it in
+ * Settings: everyone, or these addresses. Owners are not on it — they are
+ * always let in, so nobody can lock the doorman's owner out of it.
+ */
+export const DoormanAccessUpdateSchema = z.object({
+  anyone: z.boolean(),
+  emails: z.array(AllowedEmailSchema).max(500),
+})
+export type DoormanAccessUpdate = z.infer<typeof DoormanAccessUpdateSchema>
+
+/** The allow list as its owner sees it (`GET /v1/access`), owners included. */
+export const DoormanAccessSchema = DoormanAccessUpdateSchema.extend({
+  /** OWNER_EMAILS: who may change this, always let in. Set where the doorman is deployed. */
+  owners: z.array(z.string()),
+})
+export type DoormanAccess = z.infer<typeof DoormanAccessSchema>
 
 export const DoormanListSchema = z.object({
   objects: z.array(z.object({ key: z.string(), size: z.number().int().nonnegative() })),

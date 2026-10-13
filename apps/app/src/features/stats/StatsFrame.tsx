@@ -14,7 +14,7 @@ import { Segmented } from '../../ui/components/Segmented'
 import { Select } from '../../ui/components/Select'
 import { ease, timing } from '../../ui/motion'
 import { MOVE_MS } from '../../ui/motion.model'
-import { pageTitle } from '../../ui/surfaces'
+import { PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageTitle } from '../../ui/surfaces'
 import { periodLabel, REPORT_HINT, STATS_PERIODS, type StatsPeriod } from './stats.model'
 
 /** How far a set of numbers comes in from. */
@@ -191,9 +191,8 @@ function ReportLink({ pill }: { pill: boolean }): ReactNode {
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40, gap: 12 },
-  // `S2`'s gutters: 40 to 48 on a computer's page, 20 on a phone's.
-  contentWide: { paddingTop: 40, paddingHorizontal: 44, gap: 14 },
-  contentNarrow: { paddingTop: 18, paddingHorizontal: space.gutter },
+  contentWide: { paddingTop: PAGE_TOP_WIDE, paddingHorizontal: space.gutterWide, gap: 14 },
+  contentNarrow: { paddingTop: PAGE_TOP_PHONE, paddingHorizontal: space.gutter },
   // The blocks of the page are this view's children, not the scroll content's,
   // so the page's gap has to be repeated here or the cards and the ranking sit
   // flush against each other (Xiao, 2026-09-21).

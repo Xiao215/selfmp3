@@ -44,6 +44,8 @@ export interface Clock {
 /** KV in memory, with expiry by the test's clock. Counts reads and writes, as the free plan does. */
 export class FakeKv implements KvStore {
   readonly #entries = new Map<string, { value: string; expires: number | null }>()
+  /** Keys a test put there, which no listing of what the doorman wrote should show. */
+  readonly #seeded = new Set<string>()
   readonly #clock: Clock
   reads = 0
   writes = 0
@@ -63,10 +65,17 @@ export class FakeKv implements KvStore {
     return Promise.resolve(entry.value)
   }
 
+  /** A record the doorman finds already there, as if written long ago: not counted. */
+  seed(key: string, value: unknown): void {
+    this.#entries.set(key, { value: JSON.stringify(value), expires: null })
+    this.#seeded.add(key)
+  }
+
   put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void> {
     const ttl = options?.expirationTtl
     if (ttl !== undefined && ttl < 60) throw new Error('KV needs an expirationTtl of at least 60')
     this.writes++
+    this.#seeded.delete(key)
     this.#entries.set(key, {
       value,
       expires: ttl === undefined ? null : this.#clock.now + ttl * 1000,
@@ -76,13 +85,15 @@ export class FakeKv implements KvStore {
 
   delete(key: string): Promise<void> {
     this.writes++
+    this.#seeded.delete(key)
     this.#entries.delete(key)
     return Promise.resolve()
   }
 
-  /** Every live key, with its value and when it expires. */
+  /** Every live key the doorman wrote, with its value and when it expires. */
   dump(): Array<{ key: string; value: string; ttlSeconds: number | null }> {
     return [...this.#entries.entries()]
+      .filter(([key]) => !this.#seeded.has(key))
       .filter(([, entry]) => entry.expires === null || entry.expires > this.#clock.now)
       .map(([key, entry]) => ({
         key,
@@ -721,6 +732,11 @@ export interface Harness {
   connect(token: string, changes?: Record<string, unknown>): Promise<Response>
   /** Connect it from the key alone, the way the page after sign-in does. */
   connectBackblaze(token: string, changes?: Record<string, unknown>): Promise<Response>
+  /**
+   * Who may sign in besides the owners, as an owner would have set it, and a
+   * minute on, so every Worker instance has let go of the list it remembered.
+   */
+  allow(list: { anyone?: boolean; emails?: string[] }): void
 }
 
 export interface CallInit {
@@ -816,6 +832,8 @@ export function harness(): Harness {
     throw new TypeError('fetch failed')
   }
 
+  // The owner signs in as the owner; a friend is on the list the owner keeps.
+  kv.seed('access', { anyone: false, emails: ['Friend@Example.com'] })
   const env: Harness['env'] = {
     KV: kv,
     CHANGES: changes.namespace(),
@@ -824,7 +842,7 @@ export function harness(): Harness {
     GOOGLE_CLIENT_ID: CLIENT_ID,
     GOOGLE_CLIENT_SECRET: CLIENT_SECRET,
     SEAL_KEY,
-    ALLOWED_EMAILS: 'me@example.com, Friend@Example.com',
+    OWNER_EMAILS: 'Me@Example.com',
     APP_ORIGINS: `${APP_ORIGIN},http://localhost:4600`,
   }
   const logs: Harness['logs'] = []
@@ -915,5 +933,9 @@ export function harness(): Harness {
     signIn,
     connect,
     connectBackblaze,
+    allow: ({ anyone = false, emails = [] }) => {
+      kv.seed('access', { anyone, emails })
+      clock.now += 61_000
+    },
   }
 }

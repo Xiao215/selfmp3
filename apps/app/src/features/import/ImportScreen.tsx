@@ -134,15 +134,20 @@ export function ImportScreen({
 
   const preview = useMutation({
     mutationFn: (input: string) => api.importPreview(input),
-    onSuccess: result => {
+    onSuccess: (result, input) => {
       const next = reviewFrom(result)
       // A link named like a tag you already have — an artist's page, a search
       // for them — is tagged that way without asking, on top of the tags
       // chosen here for whatever arrives.
       const match = matchingTag(tags, next.playlistTitle)
-      const chosen = new Set(draftFor(key).tagIds)
+      const current = draftFor(key)
+      const chosen = new Set(current.tagIds)
       if (match !== null) chosen.add(match)
-      patchDraft({ review: next, tagIds: chosen })
+      // A link looked up is the review now, offered back by "Go on reviewing";
+      // left in the box it was there again on every visit, looking unlooked-at.
+      // Anything typed while it was looked up is not that link, and stays.
+      const links = current.links.trim() === input ? '' : current.links
+      patchDraft({ review: next, tagIds: chosen, links })
       setError(null)
       router.push('/import/review')
     },

@@ -1,47 +1,47 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
-import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
-import { leading, motion, radius, space, type, withAlpha } from '@selfmp3/client'
+import { leading, motion, radius, space, type } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useOverlay } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
 import { ease, spring, timing, usePresence } from '../../ui/motion'
 import { MOVE_MS, roomShift } from '../../ui/motion.model'
-import { label, sectionTitle } from '../../ui/surfaces'
-import { useSongColor } from '../../ui/useSongColor'
-import { Cover } from '../../ui/components/Cover'
-import { Equalizer } from '../../ui/components/Equalizer'
+import { sectionTitle } from '../../ui/surfaces'
 import { IconButton } from '../../ui/components/IconButton'
-import { ChevronRight, Grip } from '../../ui/components/Icons'
+import { ChevronRight, Downloaded, Grip, NotDownloaded } from '../../ui/components/Icons'
 import { HoldToReorder, useLiftScale, useMakeRoom } from '../../ui/components/HoldToReorder'
 import { useSongDropTarget } from '../../ports/songDrag'
-import { usePlayer } from '../../player/PlayerProvider'
 import { Popover } from '../../ui/components/Popover'
 import { SheetItem } from '../../ui/components/Sheet'
-import { Toggle } from '../../ui/components/Toggle'
 import { UpNextSource } from './UpNextSource'
 import { OnlySongEnd, useOnlySongEndNotice } from './OnlySongEnd'
 import { useRailHint } from './useRailHint'
-import { closeQueueSheet, useQueueSheetOpen } from './queueSheet.store'
+import { closeQueueSheet } from './queueSheet.store'
 import {
-  autoMixLine,
   dragOutcome,
   dragTarget,
   draggedOut,
-  nextSummary,
+  nextLabel,
   onlySongEnded,
-  railWindow,
   type QueueRow,
 } from './queue.model'
 import { useQueueEdits } from './useQueueEdits'
+import {
+  AutoMixRow,
+  ClearRestButton,
+  PlayingNow,
+  UpNextList,
+  useQueueRowFacts,
+  useUpNextShown,
+} from './UpNextParts'
 import { RoomList, TogetherButton } from '../room/RoomList'
 import { useRoom } from '../room/room.store'
-import { SONG_LINE_COVER, SongLine } from '../../ui/components/SongLine'
+import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
 
 /** The rail's width (`S2`, "Gutters": up-next rail 288). */
@@ -56,16 +56,6 @@ const BESIDE_MIN = 1060
 const ROW_HEIGHT = 44
 /** How far into the rail's slide the rows begin to fade up: its last third. */
 const ROWS_FADE_FROM = 2 / 3
-/**
- * The scroll the rail redraws its window at, in rows: it notes where it is
- * scrolled to only when that crosses a step this tall, and draws a step's
- * worth of rows past the viewport to cover the rest, so a scroll costs a
- * render every few rows rather than one per frame.
- */
-const SCROLL_STEP_ROWS = 8
-const SCROLL_STEP = SCROLL_STEP_ROWS * ROW_HEIGHT
-/** What the rail assumes of its list's height before the list has been laid out. */
-const VIEWPORT_GUESS = 800
 
 /**
  * Up next on a computer (docs/ui-mock `C11`, `C12`): a rail beside the page,
@@ -85,7 +75,7 @@ const VIEWPORT_GUESS = 800
  * raised here still reaches the queue as it is when pressed (`useQueueEdits`).
  */
 export function QueueRail(): ReactNode {
-  const shown = useQueueRailShown()
+  const shown = useUpNextShown(true)
 
   // Kept up from the moment it is asked for until its exit has played out, as
   // the phone's sheet is: shut, the rail slides away first and only then is it
@@ -100,16 +90,6 @@ export function QueueRail(): ReactNode {
   return mounted ? <Rail shown={shown} onGone={gone} edits={edits} /> : null
 }
 
-/** Whether the rail is up, or on its way: mounted, and sliding in rather than out. */
-function useQueueRailShown(): boolean {
-  const open = useQueueSheetOpen()
-  const { wide } = useLayout()
-  const player = usePlayer()
-  // In a room, Up next is the room's, whether or not this device plays it.
-  const inRoom = useRoom().state !== null
-  return open && wide && (player.current !== null || inRoom)
-}
-
 /**
  * The room the rail takes from the page: its width while it is beside the
  * page or on its way there, and none while it is away or lies over the page.
@@ -117,7 +97,7 @@ function useQueueRailShown(): boolean {
  * for, not frame by frame as the room widens (`Shell`).
  */
 export function useQueueRailRoom(): number {
-  const shown = useQueueRailShown()
+  const shown = useUpNextShown(true)
   const { width } = useLayout()
   return shown && width >= BESIDE_MIN ? RAIL_WIDTH : 0
 }
@@ -164,7 +144,8 @@ function Rail({
   const { theme } = useUnistyles()
   const router = useRouter()
   const artFor = useArt(ROW_COVER_SIZE)
-  const { player, rows, remove } = edits
+  const factsOf = useQueueRowFacts()
+  const { player, rows, remove, clearRest } = edits
   const inRoom = useRoom().state !== null
   // Drag-out made known once (`useRailHint`); anything done in the rail puts it away.
   const hint = useRailHint(shown && rows.next.length > 0)
@@ -327,46 +308,9 @@ function Rail({
 
   const playing = rows.playing
   const ended = onlySongEnded(player)
-
-  /*
-   * Only the rows in view are drawn, and a margin either side (`railWindow`):
-   * the rail is the whole queue, and a shuffled library made that thousands
-   * of rows that took seconds to draw before the rail could slide in. Each run
-   * — the songs to come, the songs played — keeps its full height, so the
-   * scroll bar and a drag's arithmetic are what they would be with every row
-   * there, and draws its window of rows at their places in it. Where the list
-   * is scrolled to is noted only when it crosses a step (`SCROLL_STEP`), so a
-   * scroll redraws the rail every few rows rather than every frame.
-   */
-  const [scrollStep, setScrollStep] = useState(0)
-  const [viewport, setViewport] = useState(VIEWPORT_GUESS)
-  const [playedLabel, setPlayedLabel] = useState(0)
+  // Something besides the song playing, to come or played, for Clear the rest to take.
+  const clearable = player.queue.items.length > 1
   const dismissHint = hint.dismiss
-  const onScroll = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (event.nativeEvent.contentOffset.y > 0) dismissHint()
-      const step = Math.floor(event.nativeEvent.contentOffset.y / SCROLL_STEP)
-      setScrollStep(now => (now === step ? now : step))
-    },
-    [dismissHint],
-  )
-  const scrollTop = scrollStep * SCROLL_STEP
-  const span = viewport + SCROLL_STEP
-  const nextTop = playing ? ROW_HEIGHT : 0
-  const nextAt = railWindow({
-    count: rows.next.length,
-    runTop: nextTop,
-    scrollTop,
-    span,
-    rowHeight: ROW_HEIGHT,
-  })
-  const playedAt = railWindow({
-    count: rows.played.length,
-    runTop: nextTop + rows.next.length * ROW_HEIGHT + playedLabel,
-    scrollTop,
-    span,
-    rowHeight: ROW_HEIGHT,
-  })
 
   /*
    * Open and shut (docs/ui-mock `M3`, 6): 0 is away past the right edge, 1 is
@@ -487,127 +431,95 @@ function Rail({
         ) : (
           <>
             <UpNextSource />
-            <Text style={styles.summary}>{nextSummary(rows.next)}</Text>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summary} numberOfLines={1}>
+                {nextLabel(rows.next)}
+              </Text>
+              <ClearRestButton onPress={clearRest} enabled={clearable} />
+            </View>
 
-            <ScrollView
+            <UpNextList
               style={styles.list}
               contentContainerStyle={styles.listContent}
               // A held row is being moved, not the list under it.
               scrollEnabled={drag === null}
-              onScroll={onScroll}
-              scrollEventThrottle={16}
-              onLayout={event => setViewport(event.nativeEvent.layout.height)}
-            >
-              {playing ? (
-                <PlayingRow
-                  row={playing}
-                  artUri={artFor(playing.song)}
-                  playing={player.isPlaying}
-                  onOpen={() => router.navigate('/now-playing')}
-                  onDropSongs={actions.dropSongs}
-                />
-              ) : null}
-              {ended && playing ? <OnlySongEnd song={playing.song} player={player} /> : null}
-              <Animated.View style={slide.rows}>
-                <View style={{ height: rows.next.length * ROW_HEIGHT }}>
-                  {rows.next.slice(nextAt.start, nextAt.end).map((row, at) => (
-                    <View
-                      key={row.song.id}
-                      style={[styles.placed, { top: (nextAt.start + at) * ROW_HEIGHT }]}
-                    >
-                      <RailRow
-                        song={row.song}
-                        index={row.index}
-                        artUri={artFor(row.song)}
-                        kind="next"
-                        placeholder={drag?.from === row.index}
-                        // A row out past the rail's edge is being removed, not
-                        // moved, so the room it had opened closes again.
-                        shift={drag && !drag.out ? roomShift(row.index, drag.from, drag.over) : 0}
-                        carrying={drag !== null}
-                        settling={lift.wearing === row.song.id}
-                        actions={actions}
-                      />
-                    </View>
-                  ))}
-                </View>
-                {rows.played.length > 0 ? (
+              onScrolled={dismissHint}
+              next={rows.next}
+              played={rows.played}
+              rowHeight={ROW_HEIGHT}
+              runsStyle={slide.rows}
+              labelStyle={styles.labelInset}
+              head={
+                playing ? (
                   <>
-                    <Text
-                      style={styles.label}
-                      onLayout={event => setPlayedLabel(event.nativeEvent.layout.height)}
-                    >
-                      Played
-                    </Text>
-                    <View style={{ height: rows.played.length * ROW_HEIGHT }}>
-                      {rows.played.slice(playedAt.start, playedAt.end).map((row, at) => (
-                        <View
-                          key={row.song.id}
-                          style={[styles.placed, { top: (playedAt.start + at) * ROW_HEIGHT }]}
-                        >
-                          <RailRow
-                            song={row.song}
-                            index={row.index}
-                            artUri={artFor(row.song)}
-                            kind="played"
-                            placeholder={false}
-                            shift={0}
-                            carrying={false}
-                            settling={lift.wearing === row.song.id}
-                            actions={actions}
-                          />
-                        </View>
-                      ))}
-                    </View>
+                    <PlayingDrop row={playing} onDropSongs={actions.dropSongs}>
+                      <PlayingNow
+                        row={playing}
+                        ended={ended}
+                        onOpen={() => router.navigate('/now-playing')}
+                      />
+                    </PlayingDrop>
+                    {ended ? <OnlySongEnd song={playing.song} player={player} /> : null}
                   </>
-                ) : null}
-              </Animated.View>
-              {hintIn.mounted ? (
-                <Animated.View
-                  style={[
-                    styles.hint,
-                    // Under the first song to come, the one it is about; last, so
-                    // it is drawn over the rows.
-                    { top: (playing ? ROW_HEIGHT : 0) + ROW_HEIGHT + 6, opacity: hintIn.progress },
-                  ]}
-                  testID="queue-rail-hint"
-                >
-                  <Pressable
-                    onPress={hint.dismiss}
-                    accessibilityRole="button"
-                    accessibilityHint="Dismisses the tip"
-                    accessibilityLiveRegion="polite"
+                ) : null
+              }
+              renderRow={(row, kind) => {
+                const facts = factsOf(row.song)
+                return (
+                  <RailRow
+                    song={row.song}
+                    index={row.index}
+                    artUri={artFor(row.song)}
+                    kind={kind}
+                    downloaded={facts.downloaded}
+                    notDownloadedMark={facts.notDownloadedMark}
+                    unavailable={facts.unavailable}
+                    placeholder={kind === 'next' && drag?.from === row.index}
+                    // A row out past the rail's edge is being removed, not
+                    // moved, so the room it had opened closes again.
+                    shift={
+                      kind === 'next' && drag && !drag.out
+                        ? roomShift(row.index, drag.from, drag.over)
+                        : 0
+                    }
+                    carrying={kind === 'next' && drag !== null}
+                    settling={lift.wearing === row.song.id}
+                    actions={actions}
+                  />
+                )
+              }}
+              overlay={songsTop =>
+                hintIn.mounted ? (
+                  <Animated.View
+                    style={[
+                      styles.hint,
+                      // Under the first song to come, the one it is about; last,
+                      // so it is drawn over the rows.
+                      { top: songsTop + ROW_HEIGHT + 6, opacity: hintIn.progress },
+                    ]}
+                    testID="queue-rail-hint"
                   >
-                    {/* "right‑click" with a hyphen that does not break, so the bubble
-                    never splits the word across its two lines. A touch has no
-                    right-click to offer. */}
-                    <Text style={styles.hintText}>
-                      {finePointer
-                        ? 'Drag a song out to remove it, or right‑click for more.'
-                        : 'Drag a song out to remove it.'}
-                    </Text>
-                  </Pressable>
-                </Animated.View>
-              ) : null}
-            </ScrollView>
+                    <Pressable
+                      onPress={hint.dismiss}
+                      accessibilityRole="button"
+                      accessibilityHint="Dismisses the tip"
+                      accessibilityLiveRegion="polite"
+                    >
+                      {/* "right‑click" with a hyphen that does not break, so the
+                        bubble never splits the word across its two lines. A
+                        touch has no right-click to offer. */}
+                      <Text style={styles.hintText}>
+                        {finePointer
+                          ? 'Drag a song out to remove it, or right‑click for more.'
+                          : 'Drag a song out to remove it.'}
+                      </Text>
+                    </Pressable>
+                  </Animated.View>
+                ) : null
+              }
+            />
 
-            <View style={styles.autoMix}>
-              <Toggle
-                value={player.autoMix}
-                onChange={player.setAutoMix}
-                label="Auto-mix"
-                testID="auto-mix"
-              />
-              <Text style={styles.autoMixLabel}>Auto-mix</Text>
-              <Text style={styles.autoMixHint} numberOfLines={1}>
-                {autoMixLine({
-                  autoMix: player.autoMix,
-                  canCrossfade: player.canCrossfade,
-                  upcoming: rows.next.length,
-                  nextCrossfadeSeconds: player.nextCrossfadeSeconds,
-                })}
-              </Text>
-            </View>
+            <AutoMixRow player={player} upcoming={rows.next.length} />
           </>
         )}
 
@@ -639,54 +551,31 @@ function Rail({
   )
 }
 
-/** The song playing, at the top of the rail: its colour behind it and the equaliser on its cover. */
-function PlayingRow({
+/**
+ * The song playing, at the top of the rail, as a place to let go of a song
+ * dragged in from a list: it goes straight after the one playing. There is no
+ * "before" to drop into, and doing nothing there read as the drag being broken
+ * (Xiao, 2026-09-22).
+ */
+function PlayingDrop({
   row,
-  artUri,
-  playing,
-  onOpen,
   onDropSongs,
+  children,
 }: {
   row: QueueRow
-  artUri: string | null | undefined
-  playing: boolean
-  onOpen: () => void
   onDropSongs: (at: number, songIds: readonly number[]) => void
+  children: ReactNode
 }): ReactNode {
-  const tone = useSongColor(row.song, artUri)
-  // A song let go over what is playing goes straight after it — there is no
-  // "before" to drop into, and doing nothing there read as the drag being
-  // broken (Xiao, 2026-09-22).
   const playingRef = useRef<View>(null)
   const over = useSongDropTarget(playingRef, {
     enabled: true,
     onDrop: songIds => onDropSongs(row.index + 1, songIds),
   })
   return (
-    <Pressable
-      ref={playingRef}
-      testID={`queue-row-${row.index}`}
-      onPress={onOpen}
-      accessibilityRole="button"
-      accessibilityLabel={`Playing ${row.song.title}. Open now playing`}
-      style={[styles.row, { backgroundColor: withAlpha(tone.color, 0.2) }]}
-    >
+    <View ref={playingRef} collapsable={false} style={styles.playing}>
+      {children}
       {over ? <View style={[styles.dropLine, styles.dropLineFoot]} /> : null}
-      <SongLine
-        style={styles.face}
-        title={row.song.title}
-        titleStyle={{ color: tone.tint }}
-        sub={`${artistOr(row.song.artist)} · ${formatDuration(row.song.duration)}`}
-        cover={
-          <View>
-            <Cover uri={artUri} title={row.song.album || row.song.title} size={SONG_LINE_COVER} />
-            <View style={styles.equalizer} pointerEvents="none">
-              <Equalizer paused={!playing} size={12} color={tone.tint} />
-            </View>
-          </View>
-        }
-      />
-    </Pressable>
+    </View>
   )
 }
 
@@ -707,6 +596,9 @@ const RailRow = memo(function RailRow({
   index,
   artUri,
   kind,
+  downloaded,
+  notDownloadedMark,
+  unavailable,
   placeholder,
   shift,
   carrying,
@@ -718,6 +610,10 @@ const RailRow = memo(function RailRow({
   index: number
   artUri: string | null | undefined
   kind: 'next' | 'played'
+  downloaded: boolean
+  notDownloadedMark: boolean
+  /** Not on this device, with nothing to stream it from now: faded. */
+  unavailable: boolean
   /** This row is out being dragged: its place stays, empty, until it lands. */
   placeholder: boolean
   /** Which way this row steps aside while another is carried past it. */
@@ -795,7 +691,7 @@ const RailRow = memo(function RailRow({
           style={[
             styles.row,
             placeholder && styles.hidden,
-            kind === 'played' && styles.greyed,
+            kind === 'played' ? styles.greyed : unavailable && styles.unavailable,
             settling && { transform: [{ scale: actions.lift }] },
           ]}
         >
@@ -807,7 +703,17 @@ const RailRow = memo(function RailRow({
             style={({ pressed }) => [styles.press, pressed && styles.pressed]}
             {...web}
           >
-            <RowFace song={song} artUri={artUri} />
+            <RowFace
+              song={song}
+              artUri={artUri}
+              mark={
+                downloaded ? (
+                  <Downloaded size={13} tone="good" />
+                ) : notDownloadedMark ? (
+                  <NotDownloaded size={13} tone="textMuted" />
+                ) : null
+              }
+            />
           </Pressable>
         </Animated.View>
       </HoldToReorder>
@@ -820,10 +726,13 @@ function RowFace({
   song,
   artUri,
   grip = false,
+  mark,
 }: {
   song: Song
   artUri: string | null | undefined
   grip?: boolean
+  /** Whether the song is on this device, at the row's end, as a song row says it. */
+  mark?: ReactNode
 }): ReactNode {
   const { theme } = useUnistyles()
   return (
@@ -840,6 +749,7 @@ function RowFace({
       coverTitle={song.album || song.title}
       title={song.title}
       sub={`${artistOr(song.artist)} · ${formatDuration(song.duration)}`}
+      trailing={mark}
     />
   )
 }
@@ -881,7 +791,8 @@ const styles = StyleSheet.create(theme => ({
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headButtons: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   title: sectionTitle(theme.colors),
-  summary: { color: theme.colors.textSecondary, fontSize: type.small, marginTop: -6 },
+  summaryRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: -6 },
+  summary: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: type.small },
   list: { flex: 1, marginHorizontal: -6 },
   hint: {
     position: 'absolute',
@@ -896,10 +807,10 @@ const styles = StyleSheet.create(theme => ({
   hintText: { color: theme.colors.textPrimary, fontSize: type.small, lineHeight: leading.small },
   listContent: { paddingBottom: space.md },
   roomContent: { paddingHorizontal: 6, paddingBottom: space.md },
-  label: { ...label(theme.colors), paddingTop: space.md, paddingBottom: space.xs, paddingLeft: 6 },
+  labelInset: { paddingLeft: 6 },
+  // The playing card, a step clear of the first song to come.
+  playing: { marginBottom: space.xs },
   slot: { height: ROW_HEIGHT, borderRadius: radius.cover },
-  // A drawn row at its place in its run, which keeps the height of every row.
-  placed: { position: 'absolute', left: 0, right: 0, height: ROW_HEIGHT },
   /*
    * The dragged row's place: kept, and empty, until the row lands. No tone of
    * its own any more — the rows below it step up into it while the copy is
@@ -916,6 +827,7 @@ const styles = StyleSheet.create(theme => ({
     paddingRight: 6,
   },
   greyed: { opacity: 0.42 },
+  unavailable: { opacity: 0.55 },
   press: { flex: 1, minWidth: 0, alignSelf: 'stretch', borderRadius: radius.cover },
   pressed: { backgroundColor: theme.colors.surface2 },
   // In from the row's edge by the list's bleed, so the covers stand under the
@@ -926,18 +838,6 @@ const styles = StyleSheet.create(theme => ({
     alignSelf: 'stretch',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  equalizer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.coverSm,
-    // The shade a playing row lays over its cover (`SongRow`).
-    backgroundColor: theme.colors.coverShade,
   },
   dropLineFoot: { top: undefined, bottom: 0 },
   // Let go anywhere else in the rail and the song joins the end: the whole
@@ -973,13 +873,4 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.remove,
   },
   letGoText: { color: theme.colors.textPrimary, fontSize: type.tiny, fontWeight: '600' },
-  autoMix: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  autoMixLabel: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '500' },
-  autoMixHint: {
-    flex: 1,
-    minWidth: 0,
-    textAlign: 'right',
-    color: theme.colors.textMuted,
-    fontSize: type.tiny,
-  },
 }))

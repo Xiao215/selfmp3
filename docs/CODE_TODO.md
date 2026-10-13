@@ -641,7 +641,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 - [x] **T-378** Removing the playing song on a computer unmounts the stage mid-request: the toast and errors are lost and the page sits on "Nothing playing". → E
   - `useNowPlayingSong()` holds the remove dialog above both layouts and puts the page away once the song has gone and the dialog has closed.
 - [ ] **T-379** Computer Up next (`QueueRail`) has no "Clear the rest", no unavailable/offline marks, no tag chips, no "Played" end state; the phone sheet stops at 60 upcoming songs. → E
-- [ ] **T-380** The stall spinner (`busy`) is missing on phone Now Playing's Play (cover and words views), the queue sheet's card and the room card. → E
+- [x] **T-380** The stall spinner (`busy`) is missing on phone Now Playing's Play (cover and words views), the queue sheet's card and the room card. → E
+  - Every play button is `PlayPauseButton`, which reads the stall itself.
 - [ ] **T-381** `VolumeSlider` announces no value on web and lets a wandering drag be stolen; `ListenBar` adds a CSS rule per tick and steps from the wrong value. → E
 - [ ] **T-382** Search rows never fade songs that cannot play here; three different "unavailable" rules exist (Library, OrderedSongList, QueueSheet). → F
 - [ ] **T-383** "Add to Up next" on the answer page and the songs answer card calls `playNext`. → F
@@ -693,7 +694,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 
 - [x] **T-415** Shared Now Playing pieces for phone and stage: song tags line (room guard, `noteTagUsed`, one label), lyrics tools (romanize, Find lyrics, status text), About block, remove-the-playing-song hook, one empty state; `SongMenu` gets `context: 'nowPlaying'` (trims on every layout) separate from the phone's extras.
   - `SongTagsLine` (labels "Add tags"/"Edit tags" on both; the phone keeps the round + chip, the stage the labelled one; `noteTagUsed` on open), `useTagEditor` (the add chip toggles on both), `RomanizeButton`/`FindLyricsButton` + `lyricsStatusText` (the phone's offline wording, the stage's hint and pressed state, one ink), `SongAbout` (also the song page's), `EmptyNowPlaying` ("Close now playing", Escape on both).
-- [ ] **T-416** `PlayPauseButton` (reads stall itself), `TransportControls` (one `REPEAT_LABEL`), `LikeButton` (room guard), `useOpenNowPlaying`, `useSleepTimerStatus`; MiniPlayer and PlayerBar share the wash.
+- [x] **T-416** `PlayPauseButton` (reads stall itself), `TransportControls` (one `REPEAT_LABEL`), `LikeButton` (room guard), `useOpenNowPlaying`, `useSleepTimerStatus`; MiniPlayer and PlayerBar share the wash.
+  - Decisions: Shuffle is "Shuffle" with its lit state (not "Shuffle on/off"); previous/next/play grey with nothing loaded everywhere; the sleep line is "Stops when this song ends" / "Stops in N min"; the bar's wash uses the theme's `washAlpha` (was 0.2) and its artist ink `textSecondary` (was muted), as the mini player's. `ProgressWash` and `SeekBar` read the player themselves. `warmCoverPalette` stays the bar's alone: only the computer's stage glows.
 - [ ] **T-417** Up next: one list body (rows with facts, virtualised, head, auto-mix row) inside the sheet and the rail; `QueueSheet` built on `Sheet`; one `PlayingCard` for the queue and the room.
 - [ ] **T-418** One `Scrubber` for SeekBar, ListenBar and the volume slider.
 

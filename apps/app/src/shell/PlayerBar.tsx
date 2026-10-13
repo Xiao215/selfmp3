@@ -8,18 +8,12 @@ import { usePathname, useRouter } from 'expo-router'
 import { artistOr, clamp01 } from '@selfmp3/shared'
 import { warmCoverPalette } from '../features/nowPlaying/useCoverPalette'
 import { isRoomTrackId } from '@selfmp3/client'
-import { radius, space, type, useToggleLoved, withAlpha, type SongColors } from '@selfmp3/client'
+import { radius, space, type, withAlpha, type SongColors } from '@selfmp3/client'
 import { DevicesSheet } from '../features/devices/DevicesSheet'
 import { UpNextTarget } from '../ui/components/CoverFlight'
 import { toggleQueueSheet, useQueueSheetOpen } from '../features/queue/queueSheet.store'
 import { useArt } from '../offline/useArt'
-import {
-  usePlayer,
-  usePlayerCommands,
-  usePlayerProgress,
-  usePlayerStalled,
-  usePlayerVolume,
-} from '../player/PlayerProvider'
+import { usePlayer, usePlayerCommands, usePlayerVolume } from '../player/PlayerProvider'
 import { VOLUME_STEP } from '../player/progress.model'
 import { useSongColor } from '../ui/useSongColor'
 import { Cover } from '../ui/components/Cover'
@@ -29,28 +23,23 @@ import { IconButton } from '../ui/components/IconButton'
 import {
   ChevronDown,
   Devices,
-  Heart,
   Moon,
-  Next,
-  Prev,
-  Repeat,
-  RepeatOne,
-  Shuffle,
   TagPlus,
   UpNext,
   Volume,
   VolumeMute,
 } from '../ui/components/Icons'
 import { Popover } from '../ui/components/Popover'
-import { SleepMenu, useSleepMinutesLeft } from '../ui/components/SleepMenu'
+import { SleepMenu, useSleepTimerStatus } from '../ui/components/SleepMenu'
 import { SeekBar } from '../ui/components/SeekBar'
 import { TagPicker } from '../ui/components/TagPicker'
 import { leaveStage } from './stageExit'
-import { handOffCover } from '../ui/coverHandoff'
+import { useOpenNowPlaying } from '../ui/useOpenNowPlaying'
 import { Press } from '../ui/components/Press'
 import { useLayoutValue } from './useLayout'
 import { floating } from '../ui/surfaces'
-import { PlayPauseIcon } from '../ui/components/PlayPauseIcon'
+import { LikeButton } from '../ui/components/LikeButton'
+import { TransportControls } from '../ui/components/TransportControls'
 import { goBack } from '../ui/useBackTo'
 
 /**
@@ -74,20 +63,13 @@ const COMPACT_WIDTH = 1160
 /** Below this the song and the transport shrink, so the tools on the right still fit. */
 const TIGHT_WIDTH = 900
 
-const REPEAT_LABEL = {
-  off: 'Repeat off',
-  all: 'Repeat all',
-  one: 'Repeat this song',
-} as const
-
 export function PlayerBar(): ReactNode {
   const { theme } = useUnistyles()
-  // Not the position: that is `PlayedWash` and `BarSeek`'s, so a tick redraws
-  // those two and not the rest of the bar.
+  // Not the position: that is the wash's and the scrubber's own, so a tick
+  // redraws those two and not the rest of the bar.
   const player = usePlayer()
   const artFor = useArt()
   const router = useRouter()
-  const toggleLoved = useToggleLoved()
   const insets = useSafeAreaInsets()
   // An iPad at 834 points has less room than any desktop window the bar was
   // drawn for: the song and the transport give up width before the tools go.
@@ -113,19 +95,7 @@ export function PlayerBar(): ReactNode {
   const pathname = usePathname()
   const onPage = pathname === '/now-playing'
   const closePage = (): void => leaveStage(() => goBack(router, '/'))
-  const coverRef = useRef<View>(null)
-  const openPage = (): void => {
-    // Where the cover is, for the stage's cover to grow from (`M3`, 2).
-    const node = coverRef.current
-    if (!node) {
-      router.push('/now-playing')
-      return
-    }
-    node.measureInWindow((x, y, width) => {
-      handOffCover({ x, y, size: width })
-      router.push('/now-playing')
-    })
-  }
+  const { coverRef, open: openPage } = useOpenNowPlaying()
   const togglePage = (): void => (onPage ? closePage() : openPage())
   // Up next is the rail beside whatever page is open, Now Playing included
   // (docs/ui-mock `C11`), so the button toggles the rail and goes nowhere.
@@ -142,7 +112,7 @@ export function PlayerBar(): ReactNode {
       ]}
       testID="player-bar"
     >
-      {song ? <PlayedWash color={songColor.color} /> : null}
+      {song ? <ProgressWash color={songColor.color} fade={40} line="top" /> : null}
 
       <View style={[styles.left, tight && styles.leftTight]}>
         {song ? (
@@ -178,17 +148,7 @@ export function PlayerBar(): ReactNode {
                 song in a room is not in your library to like or tag. */}
             {tight || isRoomTrackId(song.id) ? null : (
               <>
-                <IconButton
-                  onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
-                  label={song.loved ? 'Unlike' : 'Like'}
-                  active={song.loved}
-                >
-                  <Heart
-                    size={17}
-                    filled={song.loved}
-                    color={song.loved ? theme.colors.danger : theme.colors.textSecondary}
-                  />
-                </IconButton>
+                <LikeButton song={song} />
                 <View ref={tagsRef} collapsable={false}>
                   <IconButton
                     onPress={() => setTagsOpen(open => !open)}
@@ -211,37 +171,9 @@ export function PlayerBar(): ReactNode {
       </View>
 
       <View style={[styles.centre, tight && styles.centreTight]}>
-        <View style={styles.buttons}>
-          <IconButton onPress={player.toggleShuffle} label="Shuffle" active={player.queue.shuffle}>
-            <Shuffle
-              size={17}
-              color={player.queue.shuffle ? songColor.color : theme.colors.textSecondary}
-            />
-          </IconButton>
-          <IconButton onPress={player.previous} label="Previous" disabled={!song}>
-            <Prev size={20} color={theme.colors.textSecondary} />
-          </IconButton>
-          <PlayButton enabled={song !== null} playing={player.isPlaying} onPress={player.toggle} />
-          <IconButton onPress={player.next} label="Next" disabled={!song}>
-            <Next size={20} color={theme.colors.textSecondary} />
-          </IconButton>
-          <IconButton
-            onPress={player.cycleRepeatMode}
-            label={REPEAT_LABEL[player.queue.repeat]}
-            active={player.queue.repeat !== 'off'}
-          >
-            {player.queue.repeat === 'one' ? (
-              <RepeatOne size={17} color={songColor.color} />
-            ) : (
-              <Repeat
-                size={17}
-                color={player.queue.repeat === 'off' ? theme.colors.textSecondary : songColor.color}
-              />
-            )}
-          </IconButton>
-        </View>
+        <TransportControls size="bar" tint={songColor.color} />
         <View style={styles.progress}>
-          <BarSeek onSeek={player.seekTo} color={songColor.color} />
+          <SeekBar inline color={songColor.color} />
         </View>
       </View>
 
@@ -286,68 +218,6 @@ export function PlayerBar(): ReactNode {
   )
 }
 
-/** The bar filling with the song's colour, and the bright line along its top. */
-function PlayedWash({ color }: { color: string }): ReactNode {
-  const { position, duration } = usePlayerProgress()
-  // Not rounded or clamped here: the wash does both, once, and rounding twice
-  // would make its steps coarser than the ones it settles on.
-  const fraction = duration > 0 ? position / duration : 0
-  return <ProgressWash fraction={fraction} color={color} alpha={0.2} fade={40} line="top" />
-}
-
-/** The scrubber with its two times, the other part of the bar that moves each tick. */
-function BarSeek({
-  onSeek,
-  color,
-}: {
-  onSeek: (seconds: number) => void
-  color: string
-}): ReactNode {
-  const { position, duration } = usePlayerProgress()
-  return <SeekBar inline position={position} duration={duration} onSeek={onSeek} color={color} />
-}
-
-/**
- * Play and pause. Its own component for the stall: waiting on the network and
- * recovering is a pair of events a few times a song on a bad link, and each
- * redraws this button rather than the bar.
- */
-function PlayButton({
-  enabled,
-  playing,
-  onPress,
-}: {
-  enabled: boolean
-  playing: boolean
-  onPress: () => void
-}): ReactNode {
-  const { theme } = useUnistyles()
-  const stalled = usePlayerStalled()
-  return (
-    <Press
-      onPress={onPress}
-      disabled={!enabled}
-      accessibilityRole="button"
-      accessibilityLabel={playing ? 'Pause' : 'Play'}
-      {...tip(playing ? 'Pause' : 'Play')}
-      accessibilityState={{ disabled: !enabled, busy: stalled }}
-      style={[
-        styles.playButton,
-        { backgroundColor: enabled ? theme.colors.textPrimary : theme.colors.surface3 },
-      ]}
-    >
-      {/* Streaming, the first second is silence, and a pause glyph through it
-          reads as "already playing" — so the button says it is working. */}
-      <PlayPauseIcon
-        playing={playing}
-        busy={stalled}
-        size={20}
-        color={enabled ? theme.colors.onPrimary : theme.colors.textMuted}
-      />
-    </Press>
-  )
-}
-
 /**
  * A lit control that says its value — "24 min", "End of song" — so a running
  * timer can be read off the bar without opening anything. Shown only while
@@ -385,10 +255,9 @@ function ValuePill({
 
 function SleepButton({ tone }: { tone: SongColors }): ReactNode {
   const { theme } = useUnistyles()
-  const player = usePlayer()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<View>(null)
-  const left = useSleepMinutesLeft()
+  const { left, line } = useSleepTimerStatus()
   const toggle = (): void => setOpen(value => !value)
 
   return (
@@ -398,11 +267,7 @@ function SleepButton({ tone }: { tone: SongColors }): ReactNode {
           tone={tone}
           Icon={Moon}
           value={left}
-          label={
-            player.sleepAtSongEnd
-              ? 'Sleep timer: at the end of this song'
-              : `Sleep timer: ${left} left`
-          }
+          label={`Sleep timer: ${line}`}
           caption="Sleep timer"
           onPress={toggle}
         />
@@ -611,7 +476,8 @@ const styles = StyleSheet.create(theme => ({
   open: { flexDirection: 'row', alignItems: 'center', gap: space.md, flexShrink: 1, minWidth: 0 },
   meta: { flexShrink: 1, minWidth: 0 },
   title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  artist: { color: theme.colors.textMuted, fontSize: type.small },
+  // The mini player's ink: muted, the artist all but went on a song-coloured wash.
+  artist: { color: theme.colors.textSecondary, fontSize: type.small },
   /* A lit control with its value in it: 24 min. */
   pill: {
     flexDirection: 'row',
@@ -630,15 +496,6 @@ const styles = StyleSheet.create(theme => ({
     minWidth: 300,
     alignItems: 'center',
     gap: 2,
-  },
-  buttons: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  playButton: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 4,
   },
   progress: { alignSelf: 'stretch' },
   centreTight: { minWidth: 250 },

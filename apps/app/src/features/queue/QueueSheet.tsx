@@ -32,12 +32,11 @@ import { Cover } from '../../ui/components/Cover'
 import { Equalizer } from '../../ui/components/Equalizer'
 import { HoldToReorder, useLiftScale, useMakeRoom } from '../../ui/components/HoldToReorder'
 import { Shuffle, X } from '../../ui/components/Icons'
-import { PlayPauseIcon } from '../../ui/components/PlayPauseIcon'
+import { PlayPauseButton } from '../../ui/components/PlayPauseButton'
 import { SongRow } from '../../ui/components/SongRow'
 import { useRowTagPicker } from '../../ui/components/useRowTagPicker'
 import { sourceTagIds } from '../lists/lists.model'
 import { Toggle } from '../../ui/components/Toggle'
-import { tip } from '../../ui/tip'
 import { useSwallowSwipeClick } from '../../ports/swipeClick'
 import { closeQueueSheet, useQueueSheetOpen } from './queueSheet.store'
 import { UpNextSource } from './UpNextSource'
@@ -620,7 +619,6 @@ function PlayingCard({
   onOpen: () => void
   onToggle: () => void
 }): ReactNode {
-  const { theme } = useUnistyles()
   const tone = useSongColor(song, artUri)
   return (
     <View style={[styles.card, { backgroundColor: withAlpha(tone.color, 0.2) }]}>
@@ -646,15 +644,7 @@ function PlayingCard({
           <PlayingLine artist={artistOr(song.artist)} />
         </View>
       </Pressable>
-      <Pressable
-        onPress={onToggle}
-        accessibilityRole="button"
-        accessibilityLabel={playing ? 'Pause' : 'Play'}
-        {...tip(playing ? 'Pause' : 'Play')}
-        style={({ pressed }) => [styles.cardPlay, pressed && styles.cardPlayPressed]}
-      >
-        <PlayPauseIcon playing={playing} size={20} color={theme.colors.onPrimary} />
-      </Pressable>
+      <PlayPauseButton size={44} glyph={20} onPress={onToggle} />
     </View>
   )
 }
@@ -872,15 +862,6 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.sub,
     fontVariant: ['tabular-nums'],
   },
-  cardPlay: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.textPrimary,
-  },
-  cardPlayPressed: { transform: [{ scale: 0.96 }] },
   list: { flex: 1 },
   listContent: { paddingBottom: space.lg },
   roomContent: { paddingHorizontal: 18, paddingBottom: space.lg },

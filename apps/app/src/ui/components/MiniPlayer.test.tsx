@@ -33,6 +33,9 @@ jest.mock('../../player/PlayerProvider', () => {
         next: () => undefined,
       }
     },
+    usePlayerCommands: () => ({ toggle: () => undefined }),
+    usePlayerPlaying: () => true,
+    usePlayingSongId: () => mockPlaying.current?.id ?? null,
     usePlayerProgress: () => ({ position: 0, duration: 200 }),
     usePlayerStalled: () => false,
   }

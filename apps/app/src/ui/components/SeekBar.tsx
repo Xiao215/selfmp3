@@ -6,6 +6,7 @@ import { clamp, clamp01, formatDuration } from '@selfmp3/shared'
 import { useAccent } from '../accent'
 import { space, type } from '@selfmp3/client'
 import { spring } from '../motion'
+import { usePlayerCommands, usePlayerProgress } from '../../player/PlayerProvider'
 import { SEEK_STEP_SECONDS } from '../../player/progress.model'
 import { ADJUST_ACTIONS } from './slider.model'
 
@@ -52,7 +53,7 @@ export function useSeekHold(position: number): {
 }
 
 /**
- * Scrubber: a 6px track with a 16px thumb that is always there, in a hit area
+ * The playing song's scrubber: a 6px track with a 16px thumb that is always there, in a hit area
  * big enough to grab while walking.
  *
  * Hand-built on PanResponder rather than a slider package: it is thirty lines,
@@ -65,15 +66,9 @@ export function useSeekHold(position: number): {
  * handler that quietly seeks using the previous track's duration.
  */
 export function SeekBar({
-  position,
-  duration,
-  onSeek,
   inline = false,
   color,
 }: {
-  position: number
-  duration: number
-  onSeek: (seconds: number) => void
   /**
    * The player bar's scrubber: elapsed, a thin track, and the length on
    * one line, rather than the Now Playing page's thick track with the times
@@ -83,6 +78,9 @@ export function SeekBar({
   /** The playing song's colour, for the played part. The accent when not given. */
   color?: string
 }): ReactNode {
+  // Read here, so each tick redraws the scrubber and not the page or the bar around it.
+  const { position, duration } = usePlayerProgress()
+  const onSeek = usePlayerCommands().seekTo
   const accent = useAccent()
   const fill = color ?? accent.accent
   const [width, setWidth] = useState(0)

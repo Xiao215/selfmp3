@@ -11,7 +11,6 @@ import {
   type,
   useAddToPlaylist,
   useLibrary,
-  useToggleLoved,
 } from '@selfmp3/client'
 import { playlistsToAddTo } from '../../features/playlists/playlists.model'
 import { usePlaylistRemoval } from '../../features/playlists/usePlaylistRemoval'
@@ -26,12 +25,11 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Chip } from './Chip'
 import { RemoveSongs } from './ConfirmRemoveSongs'
 import { Cover } from './Cover'
-import { IconButton } from './IconButton'
+import { LikeButton } from './LikeButton'
 import {
   CloudDownload,
   CloudRemove,
   Devices,
-  Heart,
   Info,
   ListMusic,
   Moon,
@@ -45,7 +43,7 @@ import { devicePlace } from '../../features/settings/settings.model'
 import { deviceKind } from '../../ports/device'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
-import { useSleepMinutesLeft } from './SleepMenu'
+import { useSleepTimerStatus } from './SleepMenu'
 import { TagPicker } from './TagPicker'
 import type { PopoverAnchor } from '../rightClick'
 
@@ -222,7 +220,6 @@ function Items({
   const addToPlaylist = useAddToPlaylist()
   const removeFromPlaylist = usePlaylistRemoval()
   const removeDownloads = useDownloadRemoval()
-  const toggleLoved = useToggleLoved()
   const { state: downloads, installed, requestDownload } = useDownloads()
   const [playlistsOpen, setPlaylistsOpen] = useState(false)
 
@@ -275,21 +272,7 @@ function Items({
             </View>
           ) : null}
         </View>
-        {showsOwn ? null : (
-          <IconButton
-            label={song.loved ? 'Unlike' : 'Like'}
-            active={song.loved}
-            filled
-            size={44}
-            onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
-          >
-            <Heart
-              size={20}
-              filled={song.loved}
-              color={song.loved ? theme.colors.danger : theme.colors.textPrimary}
-            />
-          </IconButton>
-        )}
+        {showsOwn ? null : <LikeButton song={song} filled size={44} />}
       </View>
 
       {showsOwn ? null : <SheetItem icon={icon(TagIcon)} label="Tags" onPress={onTags} />}
@@ -402,7 +385,7 @@ function Items({
  * a menu that shows it ticks with the timer.
  */
 function SleepItem({ icon, onPress }: { icon: ReactNode; onPress: () => void }): ReactNode {
-  const left = useSleepMinutesLeft()
+  const { left } = useSleepTimerStatus()
   return (
     <SheetItem
       icon={icon}

@@ -3,10 +3,9 @@ import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useRouter } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
-import { usePlayer, usePlayerProgress, usePlayerStalled } from '../../player/PlayerProvider'
+import { usePlayer } from '../../player/PlayerProvider'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useSongColor } from '../useSongColor'
@@ -19,8 +18,8 @@ import { IconButton } from './IconButton'
 import { ProgressWash } from './ProgressWash'
 import { Next, UpNext } from './Icons'
 import { floating } from '../surfaces'
-import { PlayPauseIcon } from './PlayPauseIcon'
-import { handOffCover } from '../coverHandoff'
+import { PlayPauseButton } from './PlayPauseButton'
+import { useOpenNowPlaying } from '../useOpenNowPlaying'
 import { ease, session, timing, usePressScale } from '../motion'
 import { MOVE_MS, overshootRange, PRESS } from '../motion.model'
 
@@ -39,10 +38,8 @@ function MiniPlayerInner(): ReactNode {
   const { theme } = useUnistyles()
   const artFor = useArt(ROW_COVER_SIZE)
   const player = usePlayer()
-  const router = useRouter()
   const song = player.current
   const insets = useSafeAreaInsets()
-  const stalled = usePlayerStalled()
 
   // The first song of a session: the card rises from under the tab bar and
   // runs a few points past its place before settling (`M1`, 3). After that the
@@ -125,19 +122,8 @@ function MiniPlayerInner(): ReactNode {
     opacity: rise.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
     transform: [{ translateY: rise.interpolate(RISE_RANGE) }, ...press.style.transform],
   }))
-  const coverRef = useRef<View>(null)
-  const open = (): void => {
-    // Where the cover is, for Now Playing's cover to grow from (`M2`, 1).
-    const node = coverRef.current
-    if (!node) {
-      router.push('/now-playing')
-      return
-    }
-    node.measureInWindow((x, y, width) => {
-      handOffCover({ x, y, size: width })
-      router.push('/now-playing')
-    })
-  }
+  // Where the cover is, for Now Playing's cover to grow from (`M2`, 1).
+  const { coverRef, open } = useOpenNowPlaying()
 
   // With the queue emptied, the last song stays drawn until the card has sunk.
   const card = song ?? shown
@@ -155,7 +141,7 @@ function MiniPlayerInner(): ReactNode {
       pointerEvents={song ? 'auto' : 'none'}
     >
       <View style={styles.clip} pointerEvents="none">
-        <MiniProgress color={songColor.color} alpha={theme.colors.washAlpha} />
+        <ProgressWash color={songColor.color} fade={24} line="foot" />
       </View>
 
       <Pressable
@@ -196,20 +182,11 @@ function MiniPlayerInner(): ReactNode {
         than a separate marker element. A marker with nothing in it has no size,
         and a flow does not count a zero-by-zero view as visible.
       */}
-      <IconButton
-        testID={player.isPlaying ? 'mini-player-playing' : 'mini-player-paused'}
-        onPress={player.toggle}
-        label={player.isPlaying ? 'Pause' : 'Play'}
-      >
-        {/* Waiting on the bucket, the button says so rather than showing a
-            pause glyph over silence (`PlayerBar` does the same). */}
-        <PlayPauseIcon
-          playing={player.isPlaying}
-          busy={stalled}
-          size={22}
-          color={theme.colors.textPrimary}
-        />
-      </IconButton>
+      <PlayPauseButton
+        bare
+        glyph={22}
+        testID={playing => (playing ? 'mini-player-playing' : 'mini-player-paused')}
+      />
       <IconButton testID="mini-player-next" onPress={player.next} label="Next">
         <Next size={20} color={theme.colors.textSecondary} />
       </IconButton>
@@ -239,23 +216,6 @@ function Words({ song }: { song: Song }): ReactNode {
         {artistOr(song.artist)}
       </Text>
     </>
-  )
-}
-
-/**
- * The wash, on its own: the one part of the strip that moves with the song.
- * Every tick redraws this and not the cover, the words and the buttons.
- */
-function MiniProgress({ color, alpha }: { color: string; alpha: number }): ReactNode {
-  const { position, duration } = usePlayerProgress()
-  return (
-    <ProgressWash
-      fraction={duration > 0 ? position / duration : 0}
-      color={color}
-      alpha={alpha}
-      fade={24}
-      line="foot"
-    />
   )
 }
 

@@ -22,7 +22,7 @@ import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import { More, Next, People, Plus, ToTop, X } from '../../ui/components/Icons'
-import { PlayPauseIcon } from '../../ui/components/PlayPauseIcon'
+import { PlayPauseButton } from '../../ui/components/PlayPauseButton'
 import { Toggle } from '../../ui/components/Toggle'
 import { RoomFace, RoomFaces } from './RoomFace'
 import {
@@ -161,16 +161,13 @@ function PlayingCard({ state }: { state: RoomState }): ReactNode {
         <RoomClock state={state} artist={artistOr(song.artist)} duration={song.duration} />
       </View>
       {mayToggle ? (
-        <Pressable
+        <PlayPauseButton
+          size={44}
+          glyph={20}
+          playing={playing}
           onPress={() => (host ? commands.toggle() : act({ type: playing ? 'pause' : 'play' }))}
-          accessibilityRole="button"
-          accessibilityLabel={playing ? 'Pause' : 'Play'}
-          {...tip(playing ? 'Pause' : 'Play')}
-          style={({ pressed }) => [styles.cardPlay, pressed && styles.roundPressed]}
           testID="room-toggle"
-        >
-          <PlayPauseIcon playing={playing} size={20} color={theme.colors.onPrimary} />
-        </Pressable>
+        />
       ) : null}
       {maySkip ? (
         <Pressable
@@ -462,14 +459,6 @@ const styles = StyleSheet.create(theme => ({
   cardLabel: label(theme.colors),
   cardTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   cardSub: { color: theme.colors.textSecondary, fontSize: type.sub, fontVariant: ['tabular-nums'] },
-  cardPlay: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.textPrimary,
-  },
   list: { gap: 2 },
   actions: { flexDirection: 'row', gap: space.sm, paddingTop: space.sm },
   label: { ...label(theme.colors), paddingBottom: space.xs },

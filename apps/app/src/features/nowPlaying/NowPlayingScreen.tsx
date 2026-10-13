@@ -14,49 +14,21 @@ import { Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { Song } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
-import {
-  isRoomTrackId,
-  fonts,
-  HIT_TARGET,
-  leading,
-  motion,
-  radius,
-  space,
-  type,
-  useToggleLoved,
-  withAlpha,
-} from '@selfmp3/client'
-import {
-  usePlayer,
-  usePlayerCommands,
-  usePlayerPlaying,
-  usePlayerProgress,
-} from '../../player/PlayerProvider'
+import { fonts, HIT_TARGET, leading, motion, radius, space, type, withAlpha } from '@selfmp3/client'
+import { usePlayer, usePlayerPlaying } from '../../player/PlayerProvider'
 import { useSongColor } from '../../ui/useSongColor'
 import { ease, motionMs, nativeDriver, spring, timing, useEntrance } from '../../ui/motion'
 import { MOVE_MS, PULL } from '../../ui/motion.model'
 import { takeCoverHandoff, type CoverFrame } from '../../ui/coverHandoff'
 import { setStageExit } from '../../shell/stageExit'
-import { PlayButton } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
-import {
-  ChevronDown,
-  Heart,
-  Info,
-  Moon,
-  More,
-  Next,
-  Prev,
-  Repeat,
-  RepeatOne,
-  Shuffle,
-  UpNext,
-} from '../../ui/components/Icons'
-import { PlayPauseIcon } from '../../ui/components/PlayPauseIcon'
+import { ChevronDown, Info, Moon, More, UpNext } from '../../ui/components/Icons'
+import { LikeButton } from '../../ui/components/LikeButton'
 import { SeekBar } from '../../ui/components/SeekBar'
-import { SleepMenu, useSleepMinutesLeft } from '../../ui/components/SleepMenu'
+import { SleepMenu, useSleepTimerStatus } from '../../ui/components/SleepMenu'
 import { SongMenu } from '../../ui/components/SongMenu'
+import { TransportControls } from '../../ui/components/TransportControls'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { artShadow, label } from '../../ui/surfaces'
 import { useArt } from '../../offline/useArt'
@@ -509,12 +481,9 @@ function CoverView({
   onMore: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  const player = usePlayer()
   const router = useRouter()
-  const toggleLoved = useToggleLoved()
   // While a timer runs the header says how long is left, and is the way to change it.
-  const sleepLeft = useSleepMinutesLeft()
-  const sleepLine = player.sleepAtSongEnd ? 'Stops after this song' : `Stops in ${sleepLeft}`
+  const sleep = useSleepTimerStatus()
 
   return (
     <>
@@ -525,18 +494,18 @@ function CoverView({
         {/* Play-and-tag takes the head's line: at the top, it stays clear of the editor's sheet. */}
         {tagging ? (
           <TaggingLine line={tagging.line} onStop={tagging.stop} center />
-        ) : sleepLeft !== null ? (
+        ) : sleep.line !== null ? (
           <View style={styles.headMiddle}>
             <Pressable
               onPress={onSleep}
               accessibilityRole="button"
-              accessibilityLabel={`Sleep timer: ${sleepLine}`}
+              accessibilityLabel={`Sleep timer: ${sleep.line}`}
               testID="now-playing-sleep"
               style={({ pressed }) => [styles.sleepPill, pressed && styles.sleepPillPressed]}
             >
               <Moon size={14} color={theme.colors.accent} />
               <Text style={styles.sleepText} numberOfLines={1}>
-                {sleepLine}
+                {sleep.line}
               </Text>
             </Pressable>
           </View>
@@ -562,21 +531,7 @@ function CoverView({
           </Text>
         </View>
         <View style={styles.titleButtons}>
-          {/* A friend's song in a room is not yours to like. */}
-          {isRoomTrackId(song.id) ? null : (
-            <IconButton
-              onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
-              label={song.loved ? 'Unlike' : 'Like'}
-              active={song.loved}
-              filled
-            >
-              <Heart
-                size={20}
-                filled={song.loved}
-                color={song.loved ? theme.colors.danger : theme.colors.textPrimary}
-              />
-            </IconButton>
-          )}
+          <LikeButton song={song} filled />
           <IconButton onPress={openQueueSheet} label="Up next" filled testID="now-playing-queue">
             <UpNext size={20} color={theme.colors.textPrimary} />
           </IconButton>
@@ -597,47 +552,11 @@ function CoverView({
       />
 
       <View style={styles.progress}>
-        <PhoneSeek color={color} />
+        <SeekBar color={color} />
       </View>
 
-      <View style={styles.controls}>
-        <IconButton
-          onPress={player.toggleShuffle}
-          label={`Shuffle ${player.queue.shuffle ? 'on' : 'off'}`}
-          active={player.queue.shuffle}
-        >
-          <Shuffle size={19} color={player.queue.shuffle ? color : theme.colors.textSecondary} />
-        </IconButton>
-        <IconButton onPress={player.previous} label="Previous" size={52}>
-          <Prev size={32} color={theme.colors.textPrimary} />
-        </IconButton>
-        {/* The round white Play (`S2`): the page's one primary. */}
-        <PlayButton
-          onPress={player.toggle}
-          label={player.isPlaying ? 'Pause' : 'Play'}
-          size={72}
-          icon={
-            <PlayPauseIcon playing={player.isPlaying} size={30} color={theme.colors.onPrimary} />
-          }
-        />
-        <IconButton onPress={player.next} label="Next" size={52}>
-          <Next size={32} color={theme.colors.textPrimary} />
-        </IconButton>
-        <IconButton
-          onPress={player.cycleRepeatMode}
-          label={REPEAT_LABEL[player.queue.repeat]}
-          active={player.queue.repeat !== 'off'}
-        >
-          {player.queue.repeat === 'one' ? (
-            <RepeatOne size={19} color={color} />
-          ) : (
-            <Repeat
-              size={19}
-              color={player.queue.repeat === 'off' ? theme.colors.textSecondary : color}
-            />
-          )}
-        </IconButton>
-      </View>
+      {/* The round white Play (`S2`) is the page's one primary. */}
+      <TransportControls size="page" tint={color} style={styles.controls} />
     </>
   )
 }
@@ -793,8 +712,6 @@ function WordsView({
   fingerOnWords: Flag
 }): ReactNode {
   const { theme } = useUnistyles()
-  const player = usePlayerCommands()
-  const playing = usePlayerPlaying()
   // The app's own width, not the window's (`shell/rootWidth.ts`).
   const { width } = useLayout()
   const words = lyrics.words
@@ -843,49 +760,15 @@ function WordsView({
       </View>
 
       <View style={styles.progress}>
-        <PhoneSeek color={theme.colors.textPrimary} />
+        <SeekBar color={theme.colors.textPrimary} />
       </View>
-      <View style={styles.wordsControls}>
-        <IconButton onPress={player.previous} label="Previous">
-          <Prev size={28} color={theme.colors.textPrimary} />
-        </IconButton>
-        <PlayButton
-          onPress={player.toggle}
-          label={playing ? 'Pause' : 'Play'}
-          size={60}
-          icon={<PlayPauseIcon playing={playing} size={26} color={theme.colors.onPrimary} />}
-        />
-        <IconButton onPress={player.next} label="Next">
-          <Next size={28} color={theme.colors.textPrimary} />
-        </IconButton>
-      </View>
+      <TransportControls
+        size="words"
+        tint={theme.colors.textPrimary}
+        style={styles.wordsControls}
+      />
     </View>
   )
-}
-
-/**
- * The scrubber, which is the only thing on the page that moves with the song.
- * It reads the position itself, so each tick redraws the scrubber and not the
- * blurred cover, the controls, the foot and the sheets around it.
- */
-function PhoneSeek({ color }: { color: string }): ReactNode {
-  const player = usePlayerCommands()
-  const progress = usePlayerProgress()
-  return (
-    <SeekBar
-      color={color}
-      position={progress.position}
-      duration={progress.duration}
-      onSeek={player.seekTo}
-    />
-  )
-}
-
-/** Said as a sentence, because "Repeat: off" is not what a screen reader wants. */
-const REPEAT_LABEL: Record<'off' | 'all' | 'one', string> = {
-  off: 'Repeat off',
-  all: 'Repeat all',
-  one: 'Repeat this song',
 }
 
 /**

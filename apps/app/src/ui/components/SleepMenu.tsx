@@ -41,7 +41,7 @@ export function SleepMenu({
       : formatDuration(Math.max(0, player.sleepTimerEndsAt - now) / 1000)
   const off = player.sleepTimerEndsAt === null && !player.sleepAtSongEnd
   const status = player.sleepAtSongEnd
-    ? 'Stops when this song ends'
+    ? AT_SONG_END
     : player.sleepTimerEndsAt !== null
       ? `Stops in ${remaining}`
       : undefined
@@ -103,17 +103,25 @@ export function SleepMenu({
   )
 }
 
+/** What a timer waiting for the song to end says, wherever it is said. */
+const AT_SONG_END = 'Stops when this song ends'
+
 /**
- * "24 min" until the timer runs out, "End of song" while it waits for the song
- * to end, or null with none set: the label a button wears while the timer runs.
- * Whole minutes rounded up, so it never says 0.
+ * A running timer, in the words every place that shows it uses: `left`, what a
+ * button wears ("24 min", "End of song"), and `line`, the sentence ("Stops in
+ * 24 min", "Stops when this song ends"). Both null with no timer set. Whole
+ * minutes rounded up, so it never says 0.
+ *
+ * Now Playing's head said "Stops after this song" and the player bar "at the
+ * end of this song" for the same timer; this is the one answer.
  */
-export function useSleepMinutesLeft(): string | null {
+export function useSleepTimerStatus(): { left: string | null; line: string | null } {
   const { sleepAtSongEnd, sleepTimerEndsAt: endsAt } = usePlayer()
   const now = useClock(endsAt, 5_000, true)
-  if (sleepAtSongEnd) return 'End of song'
-  if (endsAt === null) return null
-  return `${Math.max(1, Math.ceil((endsAt - now) / 60_000))} min`
+  if (sleepAtSongEnd) return { left: 'End of song', line: AT_SONG_END }
+  if (endsAt === null) return { left: null, line: null }
+  const left = `${Math.max(1, Math.ceil((endsAt - now) / 60_000))} min`
+  return { left, line: `Stops in ${left}` }
 }
 
 /**

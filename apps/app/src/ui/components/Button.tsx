@@ -144,6 +144,7 @@ export function PlayButton({
   onPress,
   size = 56,
   disabled = false,
+  busy = false,
 }: {
   testID?: string
   /** What a screen reader says: "Play", "Pause", "Play Evening". */
@@ -152,6 +153,8 @@ export function PlayButton({
   onPress: () => void
   size?: number
   disabled?: boolean
+  /** Waiting on the track: said to a screen reader; the icon draws it (`PlayPauseButton`). */
+  busy?: boolean
 }): ReactNode {
   return (
     <Press
@@ -162,7 +165,7 @@ export function PlayButton({
       accessibilityRole="button"
       accessibilityLabel={label}
       {...tip(label)}
-      accessibilityState={{ disabled }}
+      accessibilityState={{ disabled, busy }}
       style={[
         styles.play,
         { width: size, height: size, borderRadius: size / 2 },

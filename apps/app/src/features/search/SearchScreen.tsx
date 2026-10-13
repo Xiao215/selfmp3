@@ -45,7 +45,7 @@ import {
 } from './search.model'
 import { useSongsById } from '../../ui/songsById'
 import { useGoBack } from '../../ui/useBackTo'
-import { PAGE_TOP_PHONE, PAGE_TOP_WIDE } from '../../ui/surfaces'
+import { PAGE_TOP_PHONE, PAGE_TOP_WIDE, rowTitle, textColumn } from '../../ui/surfaces'
 import { NavRow } from '../../ui/components/NavRow'
 import { ScrollView } from '../../ui/components/Scroll'
 
@@ -583,7 +583,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: 12,
   },
   backPressed: { backgroundColor: theme.colors.surface1 },
-  backTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  backTitle: rowTitle(theme.colors),
   backCount: { color: theme.colors.textMuted, fontSize: type.body },
   results: { paddingHorizontal: 8, gap: 18 },
   songList: { paddingHorizontal: 0 },
@@ -602,6 +602,6 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: 8,
     borderRadius: 12,
   },
-  lyricText: { flex: 1, minWidth: 0, gap: 2 },
+  lyricText: textColumn,
   lyricLine: { color: theme.colors.textPrimary, fontSize: type.body },
 }))

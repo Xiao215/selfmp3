@@ -16,7 +16,6 @@ import {
   libraryIndex,
   queryKeys,
   space,
-  type,
   useCreatePlaylist,
   useLibrary,
   yoursOf,
@@ -25,7 +24,7 @@ import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { prefs } from '../../ports/prefs'
-import { label, pageTitle } from '../../ui/surfaces'
+import { label, pageTitle, lineSub } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { BackButton } from '../../ui/components/BackButton'
 import { MissingPage } from '../../ui/components/MissingPage'
@@ -388,7 +387,7 @@ const styles = StyleSheet.create(theme => ({
   },
   big: pageTitle(theme.colors),
   label: label(theme.colors),
-  text: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: 18 },
+  text: lineSub(theme.colors),
   link: { color: theme.colors.textPrimary, fontWeight: '600', textDecorationLine: 'underline' },
   pastHead: { gap: space.sm },
   people: { flexDirection: 'row', alignItems: 'center', gap: space.sm },

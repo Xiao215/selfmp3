@@ -37,7 +37,7 @@ import { leaveStage } from './stageExit'
 import { useOpenNowPlaying } from '../ui/useOpenNowPlaying'
 import { Press } from '../ui/components/Press'
 import { useLayoutValue } from './useLayout'
-import { floating } from '../ui/surfaces'
+import { floating, rowTitle } from '../ui/surfaces'
 import { LikeButton } from '../ui/components/LikeButton'
 import { TransportControls } from '../ui/components/TransportControls'
 import { goBack } from '../ui/useBackTo'
@@ -424,7 +424,7 @@ const styles = StyleSheet.create(theme => ({
   },
   open: { flexDirection: 'row', alignItems: 'center', gap: space.md, flexShrink: 1, minWidth: 0 },
   meta: { flexShrink: 1, minWidth: 0 },
-  title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  title: rowTitle(theme.colors),
   // The mini player's ink: muted, the artist all but went on a song-coloured wash.
   artist: { color: theme.colors.textSecondary, fontSize: type.small },
   /* A lit control with its value in it: 24 min. */

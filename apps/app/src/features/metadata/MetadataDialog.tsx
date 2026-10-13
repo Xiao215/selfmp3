@@ -11,11 +11,11 @@ import {
 } from '@selfmp3/shared'
 import {
   failureText,
-  leading,
   oklchToHexAlpha,
   radius,
   type,
   type ServerConnection,
+  textStyle,
 } from '@selfmp3/client'
 import { useMetadataSource } from './metadataSource'
 import { useMetadataSuggestion } from './useMetadataSuggestion'
@@ -39,7 +39,7 @@ import {
 import { useArt } from '../../offline/useArt'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
-import { floating, label as groupLabel } from '../../ui/surfaces'
+import { floating, label as groupLabel, hint, textColumn } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
@@ -579,7 +579,7 @@ const styles = StyleSheet.create(theme => ({
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   groupTitle: groupLabel(theme.colors),
   candidates: { paddingVertical: 18, paddingHorizontal: 20, gap: 12 },
-  hint: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
+  hint: hint(theme.colors),
   strong: { color: theme.colors.textPrimary },
   link: { fontSize: type.small, textDecorationLine: 'underline' },
   list: { gap: 4 },
@@ -608,14 +608,13 @@ const styles = StyleSheet.create(theme => ({
   suggestedAsk: { paddingVertical: 12 },
   suggestedWhy: {
     color: theme.colors.textSecondary,
-    fontSize: type.small,
-    lineHeight: leading.small,
+    ...textStyle('small'),
     marginTop: 2,
   },
   suggestedAgain: { alignSelf: 'flex-end', marginRight: 4 },
   // The picked suggestion wears the palette's selected-row colour, not an accent edge.
   candidateActive: { backgroundColor: theme.colors.accentSelected },
-  candidateMain: { flex: 1, minWidth: 0, gap: 2 },
+  candidateMain: textColumn,
   candidateTitle: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '500' },
   candidateSub: { color: theme.colors.textMuted, fontSize: type.small },
   candidateMeta: { alignItems: 'flex-end', gap: 4 },
@@ -644,7 +643,7 @@ const styles = StyleSheet.create(theme => ({
   diffRowNarrow: { alignItems: 'flex-start', paddingVertical: 9 },
   diffPressed: { backgroundColor: theme.colors.surface2 },
   diffBodyWide: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  diffBodyNarrow: { flex: 1, minWidth: 0, gap: 2 },
+  diffBodyNarrow: textColumn,
   diffLabel: { color: theme.colors.textMuted },
   diffLabelWide: { width: 92, fontSize: type.sub },
   diffLabelNarrow: { fontSize: type.tiny, fontWeight: '600', letterSpacing: 0.55 },

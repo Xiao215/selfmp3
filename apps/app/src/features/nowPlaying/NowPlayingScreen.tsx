@@ -14,7 +14,7 @@ import { Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { Song } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
-import { fonts, HIT_TARGET, leading, motion, radius, space, type, withAlpha } from '@selfmp3/client'
+import { HIT_TARGET, motion, radius, space, type, withAlpha } from '@selfmp3/client'
 import { usePlayer, usePlayerPlaying } from '../../player/PlayerProvider'
 import { useSongColor } from '../../ui/useSongColor'
 import { ease, motionMs, nativeDriver, spring, timing, useEntrance } from '../../ui/motion'
@@ -30,7 +30,7 @@ import { SleepMenu, useSleepTimerStatus } from '../../ui/components/SleepMenu'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { TransportControls } from '../../ui/components/TransportControls'
 import { TagPicker } from '../../ui/components/TagPicker'
-import { artShadow, label } from '../../ui/surfaces'
+import { artShadow, label, rowTitle, heroTitle } from '../../ui/surfaces'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { OverlayProvider } from '../../shell/Overlay'
@@ -855,13 +855,7 @@ const styles = StyleSheet.create(theme => ({
     fontWeight: '600',
   },
   // The song's name is the display face, which carries its own weight.
-  title: {
-    color: theme.colors.textPrimary,
-    fontFamily: fonts.display,
-    fontSize: type.large,
-    lineHeight: leading.large,
-    letterSpacing: -0.3,
-  },
+  title: heroTitle(theme.colors, 'large'),
   artist: {
     color: theme.colors.textSecondary,
     fontSize: type.body,
@@ -888,11 +882,7 @@ const styles = StyleSheet.create(theme => ({
     minHeight: HIT_TARGET + space.sm,
   },
   wordsTitles: { flex: 1, minWidth: 0, gap: 1 },
-  wordsTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
-  },
+  wordsTitle: rowTitle(theme.colors),
   wordsArtist: {
     color: theme.colors.textSecondary,
     fontSize: type.small,

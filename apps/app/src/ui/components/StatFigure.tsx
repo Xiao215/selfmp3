@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { type } from '@selfmp3/client'
-import { serif } from '../surfaces'
+import { serif, textColumn } from '../surfaces'
 
 /**
  * One headline number on a card: big in the serif, its unit set smaller beside
@@ -30,8 +30,8 @@ export function StatFigure({
 }
 
 const styles = StyleSheet.create(theme => ({
-  figure: { flex: 1, minWidth: 0, gap: 2 },
-  value: { ...serif(theme.colors, type.page), lineHeight: 34 },
+  figure: textColumn,
+  value: serif(theme.colors, 'page'),
   unit: { fontSize: type.section, color: theme.colors.textSecondary },
   caption: { color: theme.colors.textSecondary, fontSize: type.small },
 }))

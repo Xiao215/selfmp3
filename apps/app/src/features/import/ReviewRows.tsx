@@ -12,7 +12,7 @@ import {
 } from '@selfmp3/shared'
 import { HIT_TARGET, radius, type, withAlpha, type Review } from '@selfmp3/client'
 import { canListenHere } from '../../ports/listen'
-import { label as groupLabel } from '../../ui/surfaces'
+import { label as groupLabel, rowTitle, textColumn } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
@@ -1048,7 +1048,7 @@ const styles = StyleSheet.create(theme => ({
   },
   allPhone: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start' },
   allWords: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '600' },
-  title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  title: rowTitle(theme.colors),
   artist: { color: theme.colors.textSecondary, fontSize: type.sub },
   album: { color: theme.colors.textMuted, fontSize: type.small },
   struck: { textDecorationLine: 'line-through' },
@@ -1060,7 +1060,7 @@ const styles = StyleSheet.create(theme => ({
   },
   endQuiet: { color: theme.colors.textSecondary, fontSize: type.small, textAlign: 'right' },
   trouble: { color: theme.colors.danger },
-  texts: { flex: 1, minWidth: 0, gap: 2 },
+  texts: textColumn,
   phoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 60 },
   phoneRowBody: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
   // The open row: a card a step up, reaching a little past the list's edges.

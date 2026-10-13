@@ -4,14 +4,14 @@ import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
 import { clamp, plural, artistOr } from '@selfmp3/shared'
-import { leading, onMac, radius, space, type, withAlpha } from '@selfmp3/client'
+import { onMac, radius, space, type, withAlpha, textStyle } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { Button } from '../../ui/components/Button'
 import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { ChevronDown, ChevronRight, Sparkle } from '../../ui/components/Icons'
 import { useSongsById } from '../../ui/songsById'
-import { label as labelText } from '../../ui/surfaces'
+import { label as labelText, textColumn, rowTitle, hint } from '../../ui/surfaces'
 import type { AnswerKeys } from './answerKeys'
 import { keptSongs, leftOutKey, reviewBands, tickedAtFirst, type Reviewed } from './smart.model'
 import { SongLine } from '../../ui/components/SongLine'
@@ -557,7 +557,7 @@ function More({
 
 /** The words of a change: a name line and a quiet line under it, as both reviews draw them. */
 export const reviewText = StyleSheet.create(theme => ({
-  name: { color: theme.colors.textPrimary, fontSize: type.sub, lineHeight: leading.sub },
+  name: { color: theme.colors.textPrimary, ...textStyle('sub') },
   gone: {
     color: theme.colors.danger,
     textDecorationLine: 'line-through',
@@ -572,7 +572,7 @@ export const reviewText = StyleSheet.create(theme => ({
   arrow: { color: theme.colors.textMuted },
   meta: { color: theme.colors.textMuted, fontSize: type.small },
   /** The model's own words about what was asked. */
-  reply: { color: theme.colors.textPrimary, fontSize: type.body, lineHeight: leading.body },
+  reply: { color: theme.colors.textPrimary, ...textStyle('body') },
 }))
 
 const styles = StyleSheet.create(theme => ({
@@ -596,12 +596,10 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.xs,
     borderRadius: radius.coverSm,
   },
-  bandTitle: { flex: 1, color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  bandTitle: { flex: 1, ...rowTitle(theme.colors) },
   count: { color: theme.colors.textMuted, fontSize: type.small, fontVariant: ['tabular-nums'] },
   bandNote: {
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    lineHeight: leading.small,
+    ...hint(theme.colors),
     paddingLeft: BAND_TEXT,
     paddingBottom: space.xs,
   },
@@ -626,7 +624,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.coverSm,
   },
   at: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.07) },
-  words: { flex: 1, minWidth: 0, gap: 2 },
+  words: textColumn,
   open: {
     width: 26,
     height: 26,

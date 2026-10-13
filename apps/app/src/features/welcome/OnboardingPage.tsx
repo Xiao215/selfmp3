@@ -2,13 +2,13 @@ import type { ReactNode } from 'react'
 import { KeyboardAvoidingView, Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { fonts, leading, radius, space, type } from '@selfmp3/client'
+import { fonts, radius, space, textStyle } from '@selfmp3/client'
 import { keyboardAvoidBehavior } from '../../ports/keyboard'
 import { titleBarInset } from '../../ports/titleBarInset'
 import { useLayoutValue } from '../../shell/useLayout'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ScrollView } from '../../ui/components/Scroll'
-import { card, serif } from '../../ui/surfaces'
+import { card, bodyText, nameTitle, hint } from '../../ui/surfaces'
 
 /**
  * The side margin of every page on the way in — Welcome, Where it lives and
@@ -76,9 +76,8 @@ export function OnboardingTitle({
   children: ReactNode
   mark?: string
 }): ReactNode {
-  const wide = useLayoutValue(layout => layout.wide)
   return (
-    <Text style={[styles.title, wide && styles.titleWide]} accessibilityRole="header">
+    <Text style={styles.title} accessibilityRole="header">
       {children}
       <Text style={styles.titleMark}>{mark}</Text>
     </Text>
@@ -134,17 +133,14 @@ const styles = StyleSheet.create(theme => ({
   column: { flexGrow: 1, gap: space.xl },
   columnWide: { flexGrow: 0, width: 560, maxWidth: '100%' },
   head: { gap: space.sm },
-  title: { ...serif(theme.colors, type.display), lineHeight: 48, letterSpacing: -0.6 },
-  titleWide: { lineHeight: leading.display, letterSpacing: -0.8 },
+  title: nameTitle(theme.colors),
   titleMark: { fontFamily: fonts.serifItalic, color: theme.colors.accent },
-  lead: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
+  lead: bodyText(theme.colors),
   card: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14 },
   footnote: {
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    lineHeight: leading.small,
+    ...hint(theme.colors),
     textAlign: 'center',
   },
-  footnoteWide: { fontSize: type.sub, lineHeight: leading.sub, maxWidth: 420, textAlign: 'left' },
+  footnoteWide: { ...textStyle('sub'), maxWidth: 420, textAlign: 'left' },
   footnoteLink: { color: theme.colors.textSecondary, textDecorationLine: 'underline' },
 }))

@@ -2,7 +2,8 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { leading, space, type } from '@selfmp3/client'
+import { space, textStyle } from '@selfmp3/client'
+import { lineSub } from '../surfaces'
 
 /**
  * What stands where a list would be, when there is nothing in it: an optional
@@ -56,15 +57,12 @@ const styles = StyleSheet.create(theme => ({
   icon: { marginBottom: space.xs },
   title: {
     color: theme.colors.textPrimary,
-    fontSize: type.body,
-    lineHeight: leading.body,
+    ...textStyle('body'),
     fontWeight: '600',
     textAlign: 'center',
   },
   line: {
-    color: theme.colors.textSecondary,
-    fontSize: type.sub,
-    lineHeight: leading.sub,
+    ...lineSub(theme.colors),
     textAlign: 'center',
     maxWidth: 340,
   },

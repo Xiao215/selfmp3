@@ -18,7 +18,7 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { roomTrack, setTrackSource } from '../../player/roomTracks'
 import { prefs } from '../../ports/prefs'
 import { appAddress, shareLink } from '../../ports/shareLink'
-import { label, pageTitle } from '../../ui/surfaces'
+import { label, pageTitle, lineSub } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { BackButton } from '../../ui/components/BackButton'
 import { MissingPage } from '../../ui/components/MissingPage'
@@ -456,7 +456,7 @@ const styles = StyleSheet.create(theme => ({
   head: { gap: space.sm },
   big: pageTitle(theme.colors),
   label: label(theme.colors),
-  text: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: 18 },
+  text: lineSub(theme.colors),
   people: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   sheetBody: { gap: space.md, paddingBottom: space.sm },

@@ -4,7 +4,7 @@ import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
-import { leading, radius, space, type } from '@selfmp3/client'
+import { radius, space, type } from '@selfmp3/client'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { ChevronRight, Play } from '../../ui/components/Icons'
@@ -17,6 +17,7 @@ import { keepAnswer, useKeptAnswer } from './answers.store'
 import { ChangeIt } from './ChangeIt'
 import { answerSongs } from './smart.model'
 import { useSmartServer } from './useSmartServer'
+import { rowTitle, lineSub, textColumn } from '../../ui/surfaces'
 
 /**
  * Ask's answer when it is songs, as it sits in Search (docs/features/lists.md,
@@ -138,8 +139,8 @@ const styles = StyleSheet.create(theme => ({
   },
   opens: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: space.md },
   pressed: { opacity: 0.8 },
-  text: { flex: 1, minWidth: 0, gap: 2 },
-  title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  text: textColumn,
+  title: rowTitle(theme.colors),
   meta: { color: theme.colors.textMuted, fontSize: type.small },
-  line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  line: lineSub(theme.colors),
 }))

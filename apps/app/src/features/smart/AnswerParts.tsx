@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { leading, space, type } from '@selfmp3/client'
+import { space } from '@selfmp3/client'
+import { rowTitle, lineSub, hint } from '../../ui/surfaces'
 
 /**
  * The words every Ask answer is made of, so each kind of answer says itself
@@ -64,8 +65,8 @@ export function AnswerActions({ children }: { children: ReactNode }): ReactNode 
 }
 
 const styles = StyleSheet.create(theme => ({
-  head: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
-  note: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
+  head: rowTitle(theme.colors),
+  line: lineSub(theme.colors),
+  note: hint(theme.colors),
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
 }))

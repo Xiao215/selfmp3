@@ -24,7 +24,6 @@ import {
   jobAction,
   jobSubtitle,
   jobTone,
-  leading,
   matchingTag,
   queueControls,
   radius,
@@ -36,6 +35,7 @@ import {
   type,
   type QueueChange,
   type ServerConnection,
+  textStyle,
 } from '@selfmp3/client'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
@@ -43,7 +43,7 @@ import { PageHeader } from '../../ui/components/PageHeader'
 import { NavRow } from '../../ui/components/NavRow'
 import { ProgressBar } from '../../ui/components/ProgressBar'
 import { NoticeCard, NoticeText } from '../../ui/components/NoticeCard'
-import { card, pageFrame } from '../../ui/surfaces'
+import { card, pageFrame, rowTitle, lineSub } from '../../ui/surfaces'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
@@ -999,7 +999,7 @@ const styles = StyleSheet.create(theme => ({
   formColumn: { gap: 22 },
   stack: { gap: 24 },
   form: { gap: 10 },
-  explain: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  explain: lineSub(theme.colors),
   // The compose card: the links' room, then its foot. Focused, the card wears the accent ring.
   compose: {
     ...card(theme.colors),
@@ -1013,8 +1013,7 @@ const styles = StyleSheet.create(theme => ({
   },
   linksInput: {
     color: theme.colors.textPrimary,
-    fontSize: type.body,
-    lineHeight: leading.body,
+    ...textStyle('body'),
     _web: { outlineStyle: 'none' },
   },
   composeFoot: {
@@ -1039,13 +1038,13 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
     borderRadius: radius.coverSm,
   },
-  shareHint: { color: theme.colors.textMuted, fontSize: type.sub, lineHeight: leading.sub },
+  shareHint: { color: theme.colors.textMuted, ...textStyle('sub') },
   jobs: { gap: 6 },
   groupApart: { marginTop: 12 },
   groupActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },
   job: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 62 },
   jobMeta: { flex: 1, minWidth: 0, gap: 3 },
-  jobTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  jobTitle: rowTitle(theme.colors),
   mutedText: { color: theme.colors.textMuted },
   jobSub: { color: theme.colors.textSecondary, fontSize: type.sub },
   running: { color: theme.colors.accent },

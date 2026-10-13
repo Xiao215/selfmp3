@@ -5,7 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg'
 import type { Song, Stats, Tag } from '@selfmp3/shared'
-import { leading, motion, radius, type, useLibrary, type ServerConnection } from '@selfmp3/client'
+import { motion, radius, type, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { useArt } from '../../offline/useArt'
@@ -13,7 +13,7 @@ import { Cover } from '../../ui/components/Cover'
 import { TagDot } from '../../ui/components/TagDot'
 import { Segmented } from '../../ui/components/Segmented'
 import { useFade } from '../../ui/motion'
-import { card, label, serif } from '../../ui/surfaces'
+import { card, label, serif, rowTitle } from '../../ui/surfaces'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { songLink } from '../song/song.model'
 import { artistLink } from '../tag/placeLinks'
@@ -97,7 +97,7 @@ function Cards({ stats }: { stats: Stats }): ReactNode {
     <View style={[styles.card, styles.listened, wide && styles.cardWide]} testID="stats-listened">
       <View style={styles.listenedWords}>
         <Text style={styles.cardLabel}>Listened</Text>
-        <Text style={[styles.bigNumber, wide && styles.bigNumberWide]} numberOfLines={1}>
+        <Text style={styles.bigNumber} numberOfLines={1}>
           {listened.value}
         </Text>
         <Text style={styles.cardLine}>{listened.line}</Text>
@@ -564,13 +564,9 @@ const styles = StyleSheet.create(theme => ({
   // was ellipsised to "2…", which is not a number.
   listenedWords: { gap: 4, flex: 1, minWidth: 0 },
   cardLabel: label(theme.colors),
-  // Big numbers are the serif, which has one weight (`S2`).
-  /*
-   * The serif's figures stand taller than their own line, so a line box the
-   * size of the type cut the top off "20". A fifth again is room for the ink.
-   */
-  bigNumber: { ...serif(theme.colors, type.display), lineHeight: 55 },
-  bigNumberWide: { fontSize: type.display, lineHeight: leading.display },
+  // Big numbers are the serif, which has one weight (`S2`), on the scale's
+  // line height, which has room for its tall figures.
+  bigNumber: serif(theme.colors),
   cardLine: { color: theme.colors.textSecondary, fontSize: type.sub },
   small: { height: 150, padding: 16, justifyContent: 'space-between' },
   hours: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 44 },
@@ -583,7 +579,7 @@ const styles = StyleSheet.create(theme => ({
   dotPlayed: { backgroundColor: theme.colors.accent },
   dotToday: { backgroundColor: theme.colors.textPrimary },
   cardFoot: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 8 },
-  midNumber: { ...serif(theme.colors, type.page), lineHeight: 32 },
+  midNumber: serif(theme.colors, 'page'),
   cardNote: { color: theme.colors.textSecondary, fontSize: type.small },
   ranked: { paddingTop: 14, paddingBottom: 8, paddingHorizontal: 16, gap: 8 },
   rankedWide: { flexDirection: 'row', gap: 36, paddingVertical: 18, paddingHorizontal: 22 },
@@ -598,7 +594,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.cover,
   },
   linePressed: { opacity: 0.7 },
-  rank: { ...serif(theme.colors, type.section), width: 18, color: theme.colors.textMuted },
+  rank: { ...serif(theme.colors, 'section'), width: 18, color: theme.colors.textMuted },
   lead: {
     height: 112,
     marginBottom: 6,
@@ -618,7 +614,7 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: 12,
   },
   // The serif's figures stand taller than their own size (bigNumber above).
-  leadRank: { ...serif(theme.colors, type.display), lineHeight: 50, color: theme.colors.accent },
+  leadRank: { ...serif(theme.colors), color: theme.colors.accent },
   leadNames: { flex: 1, minWidth: 0, paddingBottom: 4 },
   leadName: { color: theme.colors.textPrimary, fontSize: type.section, fontWeight: '700' },
   leadNote: { color: theme.colors.textSecondary, fontSize: type.small, marginTop: 2 },
@@ -638,9 +634,7 @@ const styles = StyleSheet.create(theme => ({
   lineName: {
     flexShrink: 1,
     minWidth: 0,
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
+    ...rowTitle(theme.colors),
   },
   lineTrailing: { flexShrink: 0, color: theme.colors.textSecondary, fontSize: type.small },
   track: {

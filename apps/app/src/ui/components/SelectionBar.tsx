@@ -22,7 +22,7 @@ import { Popover } from './Popover'
 import { SelectionTagPicker } from './TagPicker'
 import { SheetItem } from './Sheet'
 import { SongActionItems } from './SongActionItems'
-import { floating } from '../surfaces'
+import { floating, smallTitle } from '../surfaces'
 import { useFloatingChrome } from '../../shell/bottomInset'
 
 /** What Up next is called when the ticked songs are played: they can be saved from there. */
@@ -615,9 +615,7 @@ const styles = StyleSheet.create(theme => ({
   counts: { minWidth: 0 },
   countCompact: { flex: 1, minWidth: 0 },
   count: {
-    color: theme.colors.textPrimary,
-    fontSize: type.sub,
-    fontWeight: '600',
+    ...smallTitle(theme.colors),
     fontVariant: ['tabular-nums'],
   },
   scope: { color: theme.colors.textMuted, fontSize: type.tiny },
@@ -625,9 +623,7 @@ const styles = StyleSheet.create(theme => ({
   actions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, minWidth: 0 },
   doneWide: { marginLeft: 'auto' },
   menuTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: type.sub,
-    fontWeight: '600',
+    ...smallTitle(theme.colors),
     paddingHorizontal: space.md,
     paddingTop: space.xs,
   },

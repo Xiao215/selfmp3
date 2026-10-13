@@ -70,7 +70,7 @@ import { TaggingLine } from './TaggingLine'
 import { useSvgId } from '../../ui/useSvgId'
 import { useTagEditor, useTagging, type Tagging } from './useTagging'
 import { tip } from '../../ui/tip'
-import { artShadow, floating, label } from '../../ui/surfaces'
+import { artShadow, floating, label, smallTitle } from '../../ui/surfaces'
 import { ScrollView } from '../../ui/components/Scroll'
 
 /**
@@ -960,6 +960,6 @@ const styles = StyleSheet.create(theme => ({
     ...label(theme.colors),
     fontVariant: ['tabular-nums'],
   },
-  upNextTitle: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
+  upNextTitle: smallTitle(theme.colors),
   upNextArtist: { color: theme.colors.textMuted, fontSize: type.small },
 }))

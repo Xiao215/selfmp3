@@ -6,11 +6,11 @@ import { plural, type Song } from '@selfmp3/shared'
 import {
   failureText,
   HIT_TARGET,
-  leading,
   radius,
   space,
   type,
   useBulkDeleteSongs,
+  textStyle,
 } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -18,7 +18,7 @@ import { useLayoutValue } from '../../shell/useLayout'
 import { showToast } from '../toast'
 import { Button } from './Button'
 import { Dialog, DialogHead } from './Dialog'
-import { floating } from '../surfaces'
+import { floating, lineSub } from '../surfaces'
 import { Trash } from './Icons'
 import { devicePlace } from '../../features/settings/settings.model'
 import { deviceKind } from '../../ports/device'
@@ -211,13 +211,12 @@ const styles = StyleSheet.create(theme => ({
   title: {
     flex: 1,
     color: theme.colors.textPrimary,
-    fontSize: type.title,
-    lineHeight: leading.title,
+    ...textStyle('title'),
     fontWeight: '700',
     paddingTop: space.sm,
   },
   body: { paddingVertical: space.lg, paddingHorizontal: 18, gap: space.md },
-  lede: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  lede: lineSub(theme.colors),
   strong: { color: theme.colors.textPrimary, fontWeight: '600' },
   strongDestructive: { color: theme.colors.danger },
   list: {
@@ -229,7 +228,7 @@ const styles = StyleSheet.create(theme => ({
   },
   listItem: { color: theme.colors.textSecondary, fontSize: type.small },
   listRest: { color: theme.colors.textMuted, fontStyle: 'italic' },
-  error: { color: theme.colors.danger, fontSize: type.small, lineHeight: leading.small },
+  error: { color: theme.colors.danger, ...textStyle('small') },
   actions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',

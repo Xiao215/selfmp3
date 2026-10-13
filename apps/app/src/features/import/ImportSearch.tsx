@@ -4,9 +4,9 @@ import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
-import { leading, space, type, type Review, type ServerConnection } from '@selfmp3/client'
+import { space, type, type Review, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
-import { pageFrame } from '../../ui/surfaces'
+import { pageFrame, lineSub } from '../../ui/surfaces'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { NoticeCard } from '../../ui/components/NoticeCard'
@@ -230,7 +230,7 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: 10,
   },
   field: { alignSelf: 'stretch', maxWidth: 720 },
-  status: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  status: lineSub(theme.colors),
   listPhone: { paddingHorizontal: space.gutter, flexGrow: 1 },
   listWide: { paddingHorizontal: 28 },
   group: { paddingTop: 8, paddingBottom: 4 },

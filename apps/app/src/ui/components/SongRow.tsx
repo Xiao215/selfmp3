@@ -34,7 +34,7 @@ import { Equalizer } from './Equalizer'
 import { TagDot } from './TagDot'
 import { useFade, usePresence, usePressScale } from '../motion'
 import { EASE_OUT_CSS, MOVE_MS, PRESS } from '../motion.model'
-import { floating } from '../surfaces'
+import { floating, rowTitle } from '../surfaces'
 import { Downloaded, More, NotDownloaded, Play, Plus } from './Icons'
 import { useSvgId } from '../useSvgId'
 
@@ -850,16 +850,10 @@ const styles = StyleSheet.create(theme => ({
     minWidth: 0,
     gap: 1,
   },
-  title: {
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
-  },
+  title: rowTitle(theme.colors),
   titleWide: {
     flexShrink: 1,
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
+    ...rowTitle(theme.colors),
   },
   subtitle: {
     color: theme.colors.textSecondary,

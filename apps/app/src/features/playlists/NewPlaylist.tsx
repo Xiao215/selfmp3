@@ -31,6 +31,7 @@ import { useSmartServer } from '../smart/useSmartServer'
 import { newPlaylist } from './playlists.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { AnswerActions } from '../smart/AnswerParts'
+import { smallTitle } from '../../ui/surfaces'
 
 /** Where the sheet is: the kind first, then what the kind needs, then the name. */
 type Step = 'kind' | 'tags' | 'describe' | 'name'
@@ -419,6 +420,6 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
   },
   optionText: { flex: 1, minWidth: 0 },
-  optionTitle: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
+  optionTitle: smallTitle(theme.colors),
   optionSub: { color: theme.colors.textMuted, fontSize: type.small },
 }))

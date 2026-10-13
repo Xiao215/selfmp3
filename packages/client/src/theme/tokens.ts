@@ -323,7 +323,7 @@ export const space = { xs: 4, sm: 8, md: 12, lg: 16, gutter: 20, xl: 24, gutterW
  * mistake rather than as a step.
  *
  * - `tiny` 11: counts, times, the small uppercase heading (`label()`, tracked
- *   `labelTracking`).
+ *   `tracking.label`).
  * - `small` 12: captions and hints.
  * - `sub` 13: the line under a title, a chip, secondary words.
  * - `body` 15: body text, a song row's title, a button, a field.
@@ -370,8 +370,41 @@ export const leading: { readonly [step in keyof typeof type]: number } = {
  */
 export const iconSize = { small: 14, medium: 18, large: 22 } as const
 
-/** The letter-spacing of the small uppercase heading (`type.tiny`), which is always uppercase. */
-export const labelTracking = 0.9
+/** A step of the type scale, by name. */
+export type TypeStep = keyof typeof type
+
+/**
+ * A size and its line height together, for words that may wrap. Written as two
+ * keys at each site they drifted apart — the same step set 18 in one room
+ * sheet and 19 everywhere else — so a step is asked for once and comes with
+ * both.
+ */
+export function textStyle(step: TypeStep): { fontSize: number; lineHeight: number } {
+  return { fontSize: type[step], lineHeight: leading[step] }
+}
+
+/**
+ * `textStyle` for a style a browser reads itself (an inline DOM style rather
+ * than react-native-web's): there a bare line height is a multiple of the font
+ * size, and the scale's 17 drew a hover caption 200 pixels tall (3a7c006d). Both
+ * are pixels here.
+ */
+export function cssTextStyle(step: TypeStep): { fontSize: string; lineHeight: string } {
+  return { fontSize: `${type[step]}px`, lineHeight: `${leading[step]}px` }
+}
+
+/**
+ * Letter-spacing, by what wears it. The small uppercase heading opens up; the
+ * display face closes in as it grows (a heading, a page's title, the name at
+ * the top of a page), and the serif closes in a little at display size.
+ */
+export const tracking = {
+  label: 0.9,
+  heading: -0.2,
+  page: -0.4,
+  hero: -0.8,
+  serif: -0.5,
+} as const
 
 /**
  * The two faces the design adds to the system font (`S2`, "Type"). They are

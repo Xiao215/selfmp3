@@ -11,7 +11,7 @@ import { useEscape } from '../../shell/useEscape'
 import { useLayoutValue, useWindowValue } from '../../shell/useLayout'
 import { PanelDenseContext, usePanelDense } from './panel'
 import { Press } from './Press'
-import { floating } from '../surfaces'
+import { floating, rowTitle } from '../surfaces'
 import { ease, spring, timing } from '../motion'
 import { MOVE_MS, overshootRange, PULL } from '../motion.model'
 import { useKeyboardLift } from '../../ports/keyboardLift'
@@ -456,11 +456,7 @@ const styles = StyleSheet.create(theme => ({
     fontWeight: '400',
     color: theme.colors.textMuted,
   },
-  title: {
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
-  },
+  title: rowTitle(theme.colors),
   subtitle: {
     color: theme.colors.textMuted,
     fontSize: type.small,

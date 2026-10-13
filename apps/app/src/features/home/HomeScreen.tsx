@@ -11,7 +11,7 @@ import { FacesCover } from '../room/RoomFace'
 import { useResumeSharedJoin } from '../shared/SharedScreens'
 import type { PastRoom } from '../room/room.model'
 import type { Song, Stats } from '@selfmp3/shared'
-import { fonts, leading, radius, tagColors, type, useLibrary } from '@selfmp3/client'
+import { fonts, radius, tagColors, type, useLibrary, textStyle, tracking } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { Avatar } from '../../ui/components/Avatar'
 import { useAccount } from '../profile/useAccount'
@@ -34,7 +34,17 @@ import { useSongColor } from '../../ui/useSongColor'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { session, useArrival, usePressScale } from '../../ui/motion'
 import { handOffPlace } from '../../ui/coverHandoff'
-import { artShadow, card, pageFrame, sectionTitle, serif } from '../../ui/surfaces'
+import {
+  artShadow,
+  card,
+  pageFrame,
+  sectionTitle,
+  serif,
+  rowTitle,
+  nameTitle,
+  label,
+  lineSub,
+} from '../../ui/surfaces'
 import { useOpenTag } from '../tag/useOpenTag'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import {
@@ -893,7 +903,7 @@ const styles = StyleSheet.create(theme => ({
   // A phone's room is under its header; a computer's greeting starts where
   // every page's title does.
   greetingBlockWide: { paddingTop: 0 },
-  greeting: { ...serif(theme.colors, type.display), lineHeight: 50, letterSpacing: -0.5 },
+  greeting: nameTitle(theme.colors),
   greetingDot: { fontFamily: fonts.serifItalic, color: theme.colors.accent },
   subline: { color: theme.colors.textSecondary, fontSize: type.body },
   // The Sunday card (`P06`, E): the week's number one, under the greeting.
@@ -907,7 +917,7 @@ const styles = StyleSheet.create(theme => ({
   },
   sundayCover: { ...artShadow(theme.colors, 'lean'), borderRadius: radius.cover },
   sundayText: { flex: 1, minWidth: 0, gap: 3 },
-  kicker: { fontSize: type.tiny, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+  kicker: label(theme.colors),
   sundayTitle: { ...sectionTitle(theme.colors), fontSize: type.title },
   sundayLine: { color: theme.colors.textSecondary, fontSize: type.sub },
   linkSmall: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '600' },
@@ -921,12 +931,11 @@ const styles = StyleSheet.create(theme => ({
   tileWide: { height: 118, padding: 16 },
   tileName: {
     fontFamily: fonts.display,
-    fontSize: type.large,
-    lineHeight: leading.large,
-    letterSpacing: -0.3,
+    ...textStyle('large'),
+    letterSpacing: tracking.heading,
     paddingRight: 36,
   },
-  tileNameSmall: { fontSize: type.section, lineHeight: leading.section },
+  tileNameSmall: { ...textStyle('section') },
   tileCount: { fontSize: type.small, fontWeight: '500' },
   tileCover: {
     position: 'absolute',
@@ -954,11 +963,9 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     marginBottom: 6,
   },
-  firstTitle: { ...serif(theme.colors, type.page), lineHeight: 36, letterSpacing: -0.3 },
+  firstTitle: serif(theme.colors, 'page'),
   firstBody: {
-    color: theme.colors.textSecondary,
-    fontSize: type.sub,
-    lineHeight: leading.sub,
+    ...lineSub(theme.colors),
     maxWidth: 440,
   },
   firstAction: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
@@ -977,7 +984,7 @@ const styles = StyleSheet.create(theme => ({
   },
   weekCard: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14, overflow: 'hidden' },
   readyHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  readyTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  readyTitle: rowTitle(theme.colors),
   readyButton: {
     height: 36,
     borderRadius: radius.pill,
@@ -1003,6 +1010,6 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
   },
   importText: { flex: 1, gap: 2 },
-  importTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  importTitle: rowTitle(theme.colors),
   importBody: { color: theme.colors.textSecondary, fontSize: type.small },
 }))

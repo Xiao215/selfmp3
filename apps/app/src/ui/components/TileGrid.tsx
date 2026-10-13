@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Animated, Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { fonts, space, type } from '@selfmp3/client'
+import { fonts, space, type, tracking } from '@selfmp3/client'
 import { useContentWidth } from '../../shell/contentWidth'
 import { tabbing } from '../../shell/FocusStyle'
 import { useLayout } from '../../shell/useLayout'
@@ -12,6 +12,7 @@ import { MOVE_MS } from '../motion.model'
 import { rightClick, type PopoverAnchor } from '../rightClick'
 import { tip } from '../tip'
 import { Press } from './Press'
+import { rowTitle } from '../surfaces'
 
 /** A phone's grid is two across, whatever the tiles. */
 const PHONE_COLUMNS = 2
@@ -266,16 +267,14 @@ const styles = StyleSheet.create(theme => ({
   nameRowDisplay: { marginTop: 11 },
   name: {
     flexShrink: 1,
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
+    ...rowTitle(theme.colors),
   },
   nameDisplay: {
     flexShrink: 1,
     color: theme.colors.textPrimary,
     fontFamily: fonts.display,
     fontSize: type.title,
-    letterSpacing: -0.2,
+    letterSpacing: tracking.heading,
   },
   sub: {
     marginTop: 1,

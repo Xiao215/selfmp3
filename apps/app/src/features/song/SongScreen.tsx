@@ -4,16 +4,7 @@ import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
-import {
-  fonts,
-  leading,
-  radius,
-  space,
-  type,
-  useLibrary,
-  useSimilar,
-  withAlpha,
-} from '@selfmp3/client'
+import { radius, space, type, useLibrary, useSimilar, withAlpha } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -32,7 +23,15 @@ import { MissingPage } from '../../ui/components/MissingPage'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { SONG_ACTION_LABELS } from '../../ui/songActions.model'
 import { TagPicker } from '../../ui/components/TagPicker'
-import { artShadow, card, label as labelText, pageFrame, serif } from '../../ui/surfaces'
+import {
+  artShadow,
+  card,
+  label as labelText,
+  pageFrame,
+  serif,
+  bodyText,
+  heroTitle,
+} from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { useSongColor } from '../../ui/useSongColor'
 import { ArtistLinks } from '../nowPlaying/ArtistLinks'
@@ -350,22 +349,16 @@ const styles = StyleSheet.create(theme => ({
     ...artShadow(theme.colors),
   },
   titles: { flex: 1, minWidth: 0, gap: 6 },
-  title: {
-    color: theme.colors.textPrimary,
-    fontFamily: fonts.display,
-    fontSize: type.page,
-    lineHeight: leading.page,
-    letterSpacing: -0.4,
-  },
-  titleWide: { fontSize: type.display, lineHeight: leading.display, letterSpacing: -0.8 },
+  title: heroTitle(theme.colors, 'page'),
+  titleWide: heroTitle(theme.colors),
   byline: { color: theme.colors.textSecondary, fontSize: type.body },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
   plus: { color: theme.colors.textSecondary, fontSize: type.sub },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   card: { ...card(theme.colors), padding: space.lg, gap: space.md },
   cardLabel: labelText(theme.colors),
-  story: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
-  count: serif(theme.colors, type.large),
+  story: bodyText(theme.colors),
+  count: serif(theme.colors, 'large'),
   bright: { color: theme.colors.textPrimary },
   strip: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 28 },
   bar: {

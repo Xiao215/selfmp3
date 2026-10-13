@@ -4,7 +4,7 @@ import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Stats } from '@selfmp3/shared'
-import { leading, radius, space, type, useLibrary, type ServerConnection } from '@selfmp3/client'
+import { radius, space, type, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
 import { Download, Settings, Sparkles } from '../../ui/components/Icons'
@@ -14,7 +14,7 @@ import { Avatar } from '../../ui/components/Avatar'
 import { NavRow } from '../../ui/components/NavRow'
 import { useAccount } from './useAccount'
 import { deviceKind } from '../../ports/device'
-import { card, label, pageFrame, serif } from '../../ui/surfaces'
+import { card, label, pageFrame, serif, lineSub } from '../../ui/surfaces'
 import { devicePlace } from '../settings/settings.model'
 import { useStatsFor, useStatsSongs } from '../stats/statsSource'
 import {
@@ -213,8 +213,8 @@ const styles = StyleSheet.create(theme => ({
   contentNarrow: pageFrame(false),
   person: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   personWords: { flex: 1, minWidth: 0, gap: 3 },
-  name: { ...serif(theme.colors, type.page), lineHeight: 34 },
-  line: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  name: serif(theme.colors, 'page'),
+  line: lineSub(theme.colors),
   // A big card (`S2`: 22 round) on the ground, told apart by tone.
   month: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14 },
   monthPressed: { opacity: 0.85 },

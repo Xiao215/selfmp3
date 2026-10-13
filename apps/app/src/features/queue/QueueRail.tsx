@@ -4,7 +4,7 @@ import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
-import { leading, motion, radius, space, type } from '@selfmp3/client'
+import { motion, radius, space, type, textStyle } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useOverlay } from '../../shell/Overlay'
@@ -801,7 +801,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface3,
     boxShadow: `0 10px 28px ${theme.colors.floatShadow}`,
   },
-  hintText: { color: theme.colors.textPrimary, fontSize: type.small, lineHeight: leading.small },
+  hintText: { color: theme.colors.textPrimary, ...textStyle('small') },
   listContent: { paddingBottom: space.md },
   roomContent: { paddingHorizontal: 6, paddingBottom: space.md },
   labelInset: { paddingLeft: 6 },

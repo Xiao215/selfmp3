@@ -7,13 +7,13 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { useRouter, type Href } from 'expo-router'
 import type { Song, Tag } from '@selfmp3/shared'
-import { fonts, motion, radius, space, type } from '@selfmp3/client'
+import { fonts, motion, radius, space, type, tracking } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { useEscape } from '../../shell/useEscape'
 import { ease, motionMs, spring, timing } from '../../ui/motion'
 import { MOVE_MS, overshootRange, roomShift } from '../../ui/motion.model'
-import { label } from '../../ui/surfaces'
+import { label, rowTitle } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { HoldToReorder, useLiftScale, useMakeRoom } from '../../ui/components/HoldToReorder'
 import { Shuffle, X } from '../../ui/components/Icons'
@@ -651,7 +651,7 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textPrimary,
     fontFamily: fonts.display,
     fontSize: type.large,
-    letterSpacing: -0.2,
+    letterSpacing: tracking.heading,
   },
   pills: { flexDirection: 'row', gap: 6 },
   card: { marginHorizontal: 12 },
@@ -676,7 +676,7 @@ const styles = StyleSheet.create(theme => ({
     paddingRight: 22,
     backgroundColor: theme.colors.remove,
   },
-  groundText: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  groundText: rowTitle(theme.colors),
   // Opaque, so the ground shows only where the row has been swiped off it.
   swipeRow: { backgroundColor: theme.colors.surface1 },
   autoMix: { paddingTop: space.lg, paddingHorizontal: 18 },

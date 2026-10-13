@@ -4,7 +4,7 @@ import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Tag } from '@selfmp3/shared'
-import { leading, radius, space, type, useLibrary } from '@selfmp3/client'
+import { radius, space, type, useLibrary, textStyle } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
@@ -29,7 +29,7 @@ import { usePressScale } from '../../ui/motion'
 import { MOVE_MS } from '../../ui/motion.model'
 import { rightClick } from '../../ui/rightClick'
 import { GridTile, TileGrid, useTileGrid, type TileFocus } from '../../ui/components/TileGrid'
-import { card, label, pageFrame } from '../../ui/surfaces'
+import { card, label, pageFrame, rowTitle, hint, textColumn } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { noteTagUsed } from '../library/recentTags.store'
 import { artistLink } from '../tag/placeLinks'
@@ -695,12 +695,12 @@ const styles = StyleSheet.create(theme => ({
   content: { gap: space.lg },
   contentNarrow: pageFrame(false),
   contentWide: { ...pageFrame(true), width: '100%' },
-  hint: { color: theme.colors.textMuted, fontSize: type.sub, lineHeight: leading.sub },
+  hint: { color: theme.colors.textMuted, ...textStyle('sub') },
   newCard: { gap: space.sm, padding: space.md, ...card(theme.colors) },
   newHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   fieldLabel: label(theme.colors),
   newColour: { gap: 6 },
-  newHint: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
+  newHint: hint(theme.colors),
   untagged: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -721,9 +721,9 @@ const styles = StyleSheet.create(theme => ({
   // A ring of the card's own colour, so each cover sits on top of the one before.
   stackCover: { borderRadius: 11, borderWidth: 2, borderColor: theme.colors.surface1 },
   stackOverlap: { marginLeft: -16 },
-  untaggedText: { flex: 1, minWidth: 0, gap: 2 },
+  untaggedText: textColumn,
   untaggedSuggest: { flexDirection: 'row', justifyContent: 'flex-end' },
-  untaggedTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  untaggedTitle: rowTitle(theme.colors),
   untaggedSub: { color: theme.colors.textSecondary, fontSize: type.sub },
   artistLink: {
     color: theme.colors.textPrimary,
@@ -767,9 +767,7 @@ const styles = StyleSheet.create(theme => ({
   insideName: {
     flex: 1,
     minWidth: 0,
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
+    ...rowTitle(theme.colors),
   },
   insideNameCompact: { fontSize: type.sub },
   insideCount: {
@@ -780,9 +778,7 @@ const styles = StyleSheet.create(theme => ({
   insideCountCompact: { fontSize: type.tiny },
   insideNote: {
     marginTop: 11,
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    lineHeight: leading.small,
+    ...hint(theme.colors),
   },
   footer: {
     color: theme.colors.textMuted,

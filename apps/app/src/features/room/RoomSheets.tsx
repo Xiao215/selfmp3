@@ -19,7 +19,7 @@ import { useAccent } from '../../ui/accent'
 import { usePlayer } from '../../player/PlayerProvider'
 import { appAddress, shareLink } from '../../ports/shareLink'
 import { library as cloudLibrary } from '../../replica'
-import { label } from '../../ui/surfaces'
+import { label, rowTitle, lineSub, textColumn } from '../../ui/surfaces'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { showToast } from '../../ui/toast'
 import { Button } from '../../ui/components/Button'
@@ -762,7 +762,7 @@ const styles = StyleSheet.create(theme => ({
   body: { gap: space.md, paddingBottom: space.sm },
   tab: { gap: space.md },
   label: label(theme.colors),
-  text: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: 18 },
+  text: lineSub(theme.colors),
   choice: {
     gap: 2,
     padding: space.md,
@@ -771,7 +771,7 @@ const styles = StyleSheet.create(theme => ({
     borderColor: 'transparent',
     backgroundColor: theme.colors.surface2,
   },
-  choiceTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  choiceTitle: rowTitle(theme.colors),
   choiceSub: { color: theme.colors.textSecondary, fontSize: type.sub },
   pressed: { transform: [{ scale: 0.98 }] },
   join: { gap: space.sm, paddingTop: space.md },
@@ -797,8 +797,8 @@ const styles = StyleSheet.create(theme => ({
   shelfMine: { gap: space.sm, paddingBottom: space.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   found: { gap: space.sm },
-  pickText: { flex: 1, minWidth: 0, gap: 2 },
-  pickTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  pickText: textColumn,
+  pickTitle: rowTitle(theme.colors),
   pickSub: { color: theme.colors.textSecondary, fontSize: type.sub },
   person: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 56 },
   rights: {

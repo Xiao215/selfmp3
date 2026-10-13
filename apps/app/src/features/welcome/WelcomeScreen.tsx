@@ -12,7 +12,7 @@ import {
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { DOORMAN_ERROR, DoormanError, PRIVACY_POLICY_URL } from '@selfmp3/shared'
-import { fonts, leading, radius, space, tagColors, type } from '@selfmp3/client'
+import { fonts, radius, space, tagColors, type, textStyle, tracking } from '@selfmp3/client'
 import { session as cloud } from '../../replica'
 import { keptCovers } from '../../offline/covers'
 import { deviceWord } from '../../ports/device'
@@ -25,7 +25,7 @@ import { BrandMark } from '../../ui/components/BrandMark'
 import { Button } from '../../ui/components/Button'
 import { CoverLight } from '../../ui/components/CoverLight'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { floating, sectionTitle } from '../../ui/surfaces'
+import { floating, sectionTitle, bodyText } from '../../ui/surfaces'
 import {
   afterCheck,
   copyFor,
@@ -402,8 +402,8 @@ const styles = StyleSheet.create(theme => ({
   words: { gap: 10 },
   brand: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   brandName: sectionTitle(theme.colors),
-  body: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
-  bodyWide: { fontSize: type.title, lineHeight: leading.title, maxWidth: 420 },
+  body: bodyText(theme.colors),
+  bodyWide: { ...textStyle('title'), maxWidth: 420 },
   spinner: { alignSelf: 'flex-start', marginTop: space.sm },
   actions: { gap: space.lg },
   footnotes: { gap: 4, alignItems: 'center' },
@@ -437,7 +437,7 @@ const styles = StyleSheet.create(theme => ({
     ...floating(theme.colors),
   },
   tileWide: { width: 170, height: 120, padding: 16 },
-  tileName: { fontFamily: fonts.display, fontSize: type.section, letterSpacing: -0.2 },
+  tileName: { fontFamily: fonts.display, fontSize: type.section, letterSpacing: tracking.heading },
   tileSquares: { flexDirection: 'row', gap: 3 },
   tileSquare: { width: 16, height: 16, borderRadius: 4 },
   fan: { flexDirection: 'row', gap: 10, marginBottom: 10 },

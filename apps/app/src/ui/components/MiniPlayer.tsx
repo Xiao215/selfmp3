@@ -17,7 +17,7 @@ import { UpNextTarget } from './CoverFlight'
 import { IconButton } from './IconButton'
 import { ProgressWash } from './ProgressWash'
 import { Next, UpNext } from './Icons'
-import { floating } from '../surfaces'
+import { floating, rowTitle } from '../surfaces'
 import { PlayPauseButton } from './PlayPauseButton'
 import { useOpenNowPlaying } from '../useOpenNowPlaying'
 import { ease, session, timing, usePressScale } from '../motion'
@@ -263,11 +263,7 @@ const styles = StyleSheet.create(theme => ({
   },
   // The leaving words, over the arriving ones' place.
   wordsGone: { position: 'absolute', top: 0, left: 0, right: 0, gap: 1 },
-  title: {
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
-  },
+  title: rowTitle(theme.colors),
   artist: {
     color: theme.colors.textSecondary,
     fontSize: type.small,

@@ -2,10 +2,10 @@ import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { leading, radius, type } from '@selfmp3/client'
+import { radius, type } from '@selfmp3/client'
 import { ChevronDown, ChevronRight } from '../../ui/components/Icons'
 import { Slider } from '../../ui/components/Slider'
-import { card, label as labelText, serif } from '../../ui/surfaces'
+import { card, label as labelText, serif, hint, lineSub } from '../../ui/surfaces'
 
 /**
  * The pieces every Settings section is made of: one row anatomy — name, a
@@ -177,7 +177,7 @@ export const partStyles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
     borderRadius: radius.pill,
   },
-  hint: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
+  hint: hint(theme.colors),
   code: {
     fontSize: type.small,
     color: theme.colors.textPrimary,
@@ -215,9 +215,7 @@ const styles = StyleSheet.create(theme => ({
   },
   hint: { color: theme.colors.textMuted, fontSize: type.small },
   lead: {
-    color: theme.colors.textSecondary,
-    fontSize: type.sub,
-    lineHeight: leading.sub,
+    ...lineSub(theme.colors),
     marginBottom: 12,
     maxWidth: 520,
   },
@@ -234,9 +232,7 @@ const styles = StyleSheet.create(theme => ({
   label: { flex: 1, minWidth: 0, gap: 3 },
   name: { color: theme.colors.textPrimary, fontSize: type.body },
   rowHint: {
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    lineHeight: leading.small,
+    ...hint(theme.colors),
     maxWidth: 400,
   },
   control: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10 },
@@ -249,7 +245,7 @@ const styles = StyleSheet.create(theme => ({
     fontVariant: ['tabular-nums'],
   },
   stats: { flexDirection: 'row', gap: 32, marginTop: 16, marginBottom: 12 },
-  statValue: serif(theme.colors, type.page),
+  statValue: serif(theme.colors, 'page'),
   statLabel: { color: theme.colors.textMuted, fontSize: type.small },
   buttons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
 }))

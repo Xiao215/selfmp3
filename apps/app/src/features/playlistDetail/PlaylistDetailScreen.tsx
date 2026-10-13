@@ -6,9 +6,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { plural, type Song, NameSchema } from '@selfmp3/shared'
 import {
   failureText,
-  leading,
   space,
-  type,
   useCreatePlaylist,
   useDeletePlaylist,
   useLibrary,
@@ -50,6 +48,7 @@ import { usePlaylistPlayback } from '../playlists/usePlaylistPlayback'
 import { AddSongsSheet } from './AddSongsSheet'
 import { FollowsRow } from './FollowsRow'
 import { usePageBack } from '../../ui/useBackTo'
+import { lineSub } from '../../ui/surfaces'
 
 /**
  * One playlist (docs/ui-mock `P17`, `C08`): the same kind of page as a tag's
@@ -210,7 +209,7 @@ export function PlaylistDetailScreen(): ReactNode {
       </View>
       {renaming ? (
         <TextInput
-          style={[listHeadText.name, wide && styles.nameWide, styles.nameInput]}
+          style={[listHeadText.name, styles.nameInput]}
           value={draftName ?? playlist?.name ?? ''}
           onChangeText={setDraftName}
           onSubmitEditing={saveName}
@@ -227,7 +226,7 @@ export function PlaylistDetailScreen(): ReactNode {
           accessibilityRole="header"
           {...(finePointer ? tip('Rename') : {})}
         >
-          <Text style={[listHeadText.name, wide && styles.nameWide]} numberOfLines={2}>
+          <Text style={listHeadText.name} numberOfLines={2}>
             {name}
           </Text>
         </Pressable>
@@ -499,7 +498,6 @@ const styles = StyleSheet.create(theme => ({
   // this page. The head and the empty state take it themselves.
   content: { paddingBottom: space.xl },
   gutter: { paddingHorizontal: space.lg },
-  nameWide: { fontSize: type.display, lineHeight: leading.display, letterSpacing: -1.5 },
   // A field in place of the name: the control surface, and no edge.
   nameInput: {
     paddingVertical: 2,
@@ -507,7 +505,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: 12,
     backgroundColor: theme.colors.surface2,
   },
-  description: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  description: lineSub(theme.colors),
   descriptionInput: {
     paddingVertical: 5,
     paddingHorizontal: space.sm,

@@ -11,6 +11,7 @@ import { Popover } from '../../ui/components/Popover'
 import { SheetItem } from '../../ui/components/Sheet'
 import { Devices, Remote } from '../../ui/components/Icons'
 import { useDeviceContext } from './DevicesProvider'
+import { rowTitle } from '../../ui/surfaces'
 
 /**
  * What else is playing, and what to do about it.
@@ -143,9 +144,7 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: space.sm,
   },
   selfName: {
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
+    ...rowTitle(theme.colors),
     flexShrink: 1,
   },
   selfNote: {

@@ -3,7 +3,7 @@ import { Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { space, type } from '@selfmp3/client'
-import { card as cardSurface } from '../surfaces'
+import { card as cardSurface, rowTitle, textColumn } from '../surfaces'
 import { ChevronRight } from './Icons'
 import { Press } from './Press'
 
@@ -100,7 +100,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
   },
   tileAccent: { backgroundColor: theme.colors.accentPill },
-  words: { flex: 1, minWidth: 0, gap: 2 },
-  title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  words: textColumn,
+  title: rowTitle(theme.colors),
   hint: { color: theme.colors.textSecondary, fontSize: type.small },
 }))

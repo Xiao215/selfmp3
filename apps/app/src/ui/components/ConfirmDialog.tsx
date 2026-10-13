@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { leading, radius, space, type } from '@selfmp3/client'
+import { radius, space, textStyle } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
 import { Button } from './Button'
 import { Dialog } from './Dialog'
-import { floating } from '../surfaces'
+import { floating, lineSub } from '../surfaces'
 
 /**
  * A plain yes-or-no question before something that cannot be taken back.
@@ -120,13 +120,8 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.sheet,
     ...floating(theme.colors),
   },
-  title: {
-    color: theme.colors.textPrimary,
-    fontSize: type.title,
-    fontWeight: '700',
-    lineHeight: leading.title,
-  },
-  body: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  title: { color: theme.colors.textPrimary, fontWeight: '700', ...textStyle('title') },
+  body: lineSub(theme.colors),
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
   actionsCompact: { flexDirection: 'column-reverse' },
 }))

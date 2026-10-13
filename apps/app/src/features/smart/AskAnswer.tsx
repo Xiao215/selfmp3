@@ -5,7 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { artistOr, plural, type AskAnswer as Answer } from '@selfmp3/shared'
-import { failureText, leading, radius, space, STALE, type } from '@selfmp3/client'
+import { failureText, radius, space, STALE, type, textStyle } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -445,7 +445,7 @@ function SongPicks({
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.sm },
-  answer: { color: theme.colors.textPrimary, fontSize: type.body, lineHeight: leading.body },
+  answer: { color: theme.colors.textPrimary, ...textStyle('body') },
   muted: { color: theme.colors.textMuted, fontSize: type.small, fontWeight: '400' },
   tries: { gap: 6, marginTop: space.xs },
   followUp: { gap: space.sm, marginTop: space.xs },

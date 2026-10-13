@@ -3,8 +3,8 @@ import { Animated, View } from 'react-native'
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { fonts, leading, radius, space, type } from '@selfmp3/client'
-import { artShadow, label as labelText, pageFrame } from '../surfaces'
+import { radius, space, type } from '@selfmp3/client'
+import { artShadow, label as labelText, pageFrame, heroTitle } from '../surfaces'
 import { CoverLight } from './CoverLight'
 
 /** What a page may change of the head's computer layout; a tag's page is the default. */
@@ -93,13 +93,7 @@ export function ListHead({
 export const listHeadText = StyleSheet.create(theme => ({
   kind: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   kindText: labelText(theme.colors),
-  name: {
-    color: theme.colors.textPrimary,
-    fontFamily: fonts.display,
-    fontSize: type.display,
-    lineHeight: leading.display,
-    letterSpacing: -0.8,
-  },
+  name: heroTitle(theme.colors),
   summary: { color: theme.colors.textSecondary, fontSize: type.sub },
 }))
 

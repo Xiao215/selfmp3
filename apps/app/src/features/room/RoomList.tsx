@@ -10,12 +10,12 @@ import {
   type RoomAction,
   type RoomState,
 } from '@selfmp3/shared'
-import { HIT_TARGET, fonts, radius, roomTrackSong, space, type } from '@selfmp3/client'
+import { HIT_TARGET, fonts, radius, roomTrackSong, space, type, tracking } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands, usePlayerPlaying } from '../../player/PlayerProvider'
 import { roomTrack } from '../../player/roomTracks'
-import { label } from '../../ui/surfaces'
+import { label, rowTitle, lineSub } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
@@ -359,7 +359,7 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textPrimary,
     fontFamily: fonts.display,
     fontSize: type.large,
-    letterSpacing: -0.2,
+    letterSpacing: tracking.heading,
   },
   people: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   line: { flexShrink: 1, color: theme.colors.textSecondary, fontSize: type.sub },
@@ -379,8 +379,8 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.mini,
     backgroundColor: theme.colors.surface2,
   },
-  emptyTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  emptyText: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: 18 },
+  emptyTitle: rowTitle(theme.colors),
+  emptyText: lineSub(theme.colors),
   list: { gap: 2 },
   actions: { flexDirection: 'row', gap: space.sm, paddingTop: space.sm },
   label: { ...label(theme.colors), paddingBottom: space.xs },

@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { radius, space, type } from '@selfmp3/client'
 import { Cover } from './Cover'
 import { Press } from './Press'
+import { smallTitle } from '../surfaces'
 
 /** A song line's cover: one size wherever a song is drawn small. */
 export const SONG_LINE_COVER = 36
@@ -113,6 +114,6 @@ const styles = StyleSheet.create(theme => ({
   },
   pressed: { backgroundColor: theme.colors.surface2 },
   text: { flex: 1, minWidth: 0, gap: 1 },
-  title: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
+  title: smallTitle(theme.colors),
   sub: { color: theme.colors.textSecondary, fontSize: type.small },
 }))

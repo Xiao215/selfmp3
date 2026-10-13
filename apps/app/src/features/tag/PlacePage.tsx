@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { useNavigation, useRouter } from 'expo-router'
 import type { NativeStackNavigationProp } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
-import { fonts, space, type, useLibrary } from '@selfmp3/client'
+import { space, type, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
@@ -49,6 +49,7 @@ import {
   togglePlace,
   type Place,
 } from './tag.model'
+import { nameTitle, rowTitle } from '../../ui/surfaces'
 
 /**
  * A place's page (docs/ui-mock `P08`, `P10`, `C06`): a tag, an artist, or
@@ -495,12 +496,7 @@ function AlbumHeading({
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   listArea: { flex: 1, minHeight: 0 },
-  nameSerif: {
-    fontFamily: fonts.serif,
-    fontSize: type.display,
-    lineHeight: 53,
-    letterSpacing: -0.5,
-  },
+  nameSerif: nameTitle(theme.colors),
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 6 },
   plus: { color: theme.colors.textSecondary, fontSize: type.sub },
   album: {
@@ -512,9 +508,7 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: 6,
   },
   albumName: {
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
+    ...rowTitle(theme.colors),
     flexShrink: 1,
   },
   albumYear: { color: theme.colors.textMuted, fontSize: type.sub },

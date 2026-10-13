@@ -8,10 +8,11 @@ import { formatLongDuration, plural, type Understanding } from '@selfmp3/shared'
 import {
   ApiError,
   failureText,
-  leading,
   type,
   useCreatePlaylist,
   useLibrary,
+  textStyle,
+  tracking,
 } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -284,7 +285,7 @@ const styles = StyleSheet.create(theme => ({
   listArea: { flex: 1, minHeight: 0 },
   stale: { opacity: 0.55 },
   // Words asked run longer than a tag's name: smaller, so three lines still hold them.
-  nameLong: { fontSize: type.page, lineHeight: leading.page, letterSpacing: -0.4 },
+  nameLong: { ...textStyle('page'), letterSpacing: tracking.page },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 6 },
   note: { color: theme.colors.textMuted, fontSize: type.small },
 }))

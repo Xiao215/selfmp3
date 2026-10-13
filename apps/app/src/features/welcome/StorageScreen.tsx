@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { ActivityIndicator, Linking, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { leading, radius, space, type } from '@selfmp3/client'
+import { radius, space, type, textStyle } from '@selfmp3/client'
 import { session as cloud } from '../../replica'
 import { deviceWord } from '../../ports/device'
 import { installedApp } from '../../ports/install'
@@ -29,6 +29,7 @@ import {
 import { WhitePill } from './WhitePill'
 import { OnboardingCard, OnboardingFootnote, OnboardingPage } from './OnboardingPage'
 import { StatusLine } from '../../ui/components/StatusLine'
+import { rowTitle, lineSub, hint, textColumn } from '../../ui/surfaces'
 
 /**
  * Where it lives: the page between the first Google sign-in on an account and
@@ -249,10 +250,10 @@ export function StorageScreen(): ReactNode {
 const styles = StyleSheet.create(theme => ({
   account: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   accountText: { flex: 1, minWidth: 0, color: theme.colors.textMuted, fontSize: type.sub },
-  hint: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
+  hint: hint(theme.colors),
   helperHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   helperWords: { flex: 1, minWidth: 0, gap: 1 },
-  helperTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  helperTitle: rowTitle(theme.colors),
   caret: { color: theme.colors.textSecondary, fontSize: type.sub },
   step: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   stepNumber: {
@@ -264,21 +265,14 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
   },
   stepNumberText: { color: theme.colors.textPrimary, fontSize: type.small, fontWeight: '600' },
-  stepWords: { flex: 1, minWidth: 0, gap: 2 },
-  stepTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    fontWeight: '600',
-    lineHeight: leading.body,
-  },
-  stepDetail: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  stepWords: textColumn,
+  stepTitle: { ...rowTitle(theme.colors), ...textStyle('body') },
+  stepDetail: lineSub(theme.colors),
   open: { alignItems: 'flex-start' },
   trying: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   tryingText: {
     flex: 1,
-    color: theme.colors.textSecondary,
-    fontSize: type.sub,
-    lineHeight: leading.sub,
+    ...lineSub(theme.colors),
   },
   actions: { marginTop: 'auto', gap: 4, alignItems: 'stretch' },
   actionsWide: { alignItems: 'flex-start' },

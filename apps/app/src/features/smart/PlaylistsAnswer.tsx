@@ -21,6 +21,7 @@ import { PlaylistCover } from '../playlists/PlaylistCover'
 import { FOLLOWS_LABEL, isLive, newPlaylist } from '../playlists/playlists.model'
 import { StatusLine } from '../../ui/components/StatusLine'
 import { AnswerActions, AnswerHead, AnswerLine, AnswerNote } from './AnswerParts'
+import { textColumn } from '../../ui/surfaces'
 
 /** A playlist as it was, so a delete can be undone: its songs in their order, its rules. */
 interface Kept {
@@ -239,7 +240,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.coverSm,
   },
   pressed: { opacity: 0.7 },
-  text: { flex: 1, minWidth: 0, gap: 2 },
+  text: textColumn,
   name: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '500' },
   old: { color: theme.colors.textMuted, fontWeight: '400' },
   arrow: { color: theme.colors.textMuted },

@@ -12,7 +12,8 @@ import { useSmartServer } from '../smart/useSmartServer'
 import { ServerAway } from '../../connection/ServerAway'
 import { Panel, Row } from './SettingsParts'
 import { reachedConnection, viaKey } from '../../connection/via'
-import { leading, type } from '@selfmp3/client'
+import { type, textStyle } from '@selfmp3/client'
+import { hint, textColumn } from '../../ui/surfaces'
 
 /**
  * Smart features (docs/features/ai.md), in Settings.
@@ -263,14 +264,13 @@ const styles = StyleSheet.create(theme => ({
     flex: 1,
     minWidth: 0,
     color: theme.colors.textPrimary,
-    fontSize: type.sub,
-    lineHeight: leading.sub,
+    ...textStyle('sub'),
   },
   hops: { gap: 8, paddingTop: 4 },
   hop: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   hopMark: { paddingTop: 2 },
-  hopText: { flex: 1, minWidth: 0, gap: 2 },
-  hopLine: { color: theme.colors.textPrimary, fontSize: type.sub, lineHeight: leading.sub },
+  hopText: textColumn,
+  hopLine: { color: theme.colors.textPrimary, ...textStyle('sub') },
   hopFailed: { color: theme.colors.danger },
-  hopDetail: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
+  hopDetail: hint(theme.colors),
 }))

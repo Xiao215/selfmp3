@@ -6,7 +6,6 @@ import {
   formatAddedDate,
   formatName,
   isDownloaded,
-  leading,
   sourceName,
   space,
   tempoMark,
@@ -20,7 +19,7 @@ import { useSongColor } from '../../ui/useSongColor'
 import { Button } from '../../ui/components/Button'
 import { CloudRemove } from '../../ui/components/Icons'
 import { EnergyWave } from '../../ui/components/EnergyWave'
-import { label as labelText } from '../../ui/surfaces'
+import { label as labelText, lineSub } from '../../ui/surfaces'
 import { deviceKind } from '../../ports/device'
 import { devicePlace, onThisDevice } from '../settings/settings.model'
 
@@ -231,5 +230,5 @@ const styles = StyleSheet.create(theme => ({
   note: { color: theme.colors.textMuted, fontSize: type.small },
   inline: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   action: { marginTop: 6 },
-  empty: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  empty: lineSub(theme.colors),
 }))

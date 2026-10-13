@@ -3,9 +3,10 @@ import type { ReactNode } from 'react'
 import { Animated, Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { leading, space, type } from '@selfmp3/client'
+import { space } from '@selfmp3/client'
 import { spring } from '../motion'
 import { Press } from './Press'
+import { rowTitle, lineSub, textColumn } from '../surfaces'
 
 /**
  * On or off.
@@ -179,7 +180,7 @@ const styles = StyleSheet.create(theme => ({
   knobOff: { ...KNOB, backgroundColor: theme.colors.textPrimary },
   disabled: { opacity: 0.45 },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 48 },
-  words: { flex: 1, minWidth: 0, gap: 2 },
-  name: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  hint: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  words: textColumn,
+  name: rowTitle(theme.colors),
+  hint: lineSub(theme.colors),
 }))

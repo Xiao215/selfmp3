@@ -76,7 +76,7 @@ code {
   margin: 0;
   font-size: var(--type-tiny);
   font-weight: 600;
-  letter-spacing: var(--label-tracking);
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--text-muted);
 }

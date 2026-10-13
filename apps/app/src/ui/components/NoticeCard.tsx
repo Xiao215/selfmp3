@@ -2,8 +2,8 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { iconSize, leading, radius, space, type, withAlpha } from '@selfmp3/client'
-import { card } from '../surfaces'
+import { iconSize, radius, space, type, withAlpha, textStyle } from '@selfmp3/client'
+import { card, rowTitle, lineSub } from '../surfaces'
 import { IconButton } from './IconButton'
 import { X } from './Icons'
 
@@ -131,12 +131,12 @@ const styles = StyleSheet.create(theme => ({
   words: { flex: 1, minWidth: 0, gap: space.sm },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  title: rowTitle(theme.colors),
   titleCompact: { fontSize: type.small },
-  body: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
-  bodyError: { color: theme.colors.danger, fontSize: type.sub, lineHeight: leading.sub },
-  bodyGood: { color: theme.colors.good, fontSize: type.sub, lineHeight: leading.sub },
-  bodyCompact: { fontSize: type.tiny, lineHeight: leading.tiny },
+  body: lineSub(theme.colors),
+  bodyError: { color: theme.colors.danger, ...textStyle('sub') },
+  bodyGood: { color: theme.colors.good, ...textStyle('sub') },
+  bodyCompact: { ...textStyle('tiny') },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.xs },
 }))
 

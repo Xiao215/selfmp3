@@ -1,4 +1,13 @@
-import { fonts, labelTracking, radius, space, type, type ThemePalette } from '@selfmp3/client'
+import {
+  fonts,
+  radius,
+  space,
+  textStyle,
+  tracking,
+  type,
+  type ThemePalette,
+  type TypeStep,
+} from '@selfmp3/client'
 
 /**
  * The few shapes every screen repeats, from docs/ui-mock `S2`, so a card or a
@@ -75,7 +84,7 @@ export function pageTitle(colors: ThemePalette) {
     color: colors.textPrimary,
     fontFamily: fonts.display,
     fontSize: type.page,
-    letterSpacing: -0.4,
+    letterSpacing: tracking.page,
   } as const
 }
 
@@ -85,7 +94,7 @@ export function sectionTitle(colors: ThemePalette) {
     color: colors.textPrimary,
     fontFamily: fonts.display,
     fontSize: type.section,
-    letterSpacing: -0.2,
+    letterSpacing: tracking.heading,
     // The display face's last glyph leans past its own advance width, and
     // tracked tighter still it is cut off by the text's own box: "Your tags"
     // loses the tail of its s on a phone. Two points is not enough on a real
@@ -100,12 +109,77 @@ export function label(colors: ThemePalette) {
     color: colors.textMuted,
     fontSize: type.tiny,
     fontWeight: '600',
-    letterSpacing: labelTracking,
+    letterSpacing: tracking.label,
     textTransform: 'uppercase',
   } as const
 }
 
-/** A big number, or a greeting: the serif. It has one weight; never bold it. */
-export function serif(colors: ThemePalette, size: number = type.display) {
-  return { color: colors.textPrimary, fontFamily: fonts.serif, fontSize: size } as const
+/**
+ * A big number: the serif, on its step's line height. It has one weight; never
+ * bold it. The serif's figures stand taller than a line the size of the type,
+ * which cut the top off "20"; the scale's line height has room for them.
+ */
+export function serif(colors: ThemePalette, step: TypeStep = 'display') {
+  return { color: colors.textPrimary, fontFamily: fonts.serif, ...textStyle(step) } as const
 }
+
+/**
+ * The name at the top of a page, in the display face and big enough to wrap:
+ * a tag's, a playlist's, a song's. A song's page sets it a step down on a
+ * phone (`'page'`), and Now Playing's song a step further (`'large'`). The
+ * pages each wrote these and their tracking drifted from -0.8 to -1.5.
+ */
+export function heroTitle(colors: ThemePalette, step: keyof typeof HERO_TRACKING = 'display') {
+  return {
+    color: colors.textPrimary,
+    fontFamily: fonts.display,
+    ...textStyle(step),
+    letterSpacing: HERO_TRACKING[step],
+  } as const
+}
+
+const HERO_TRACKING = {
+  large: tracking.heading,
+  page: tracking.page,
+  display: tracking.hero,
+} as const
+
+/**
+ * A greeting, or a person's or an artist's name at the top of their page: the
+ * serif at display size. Home, a place page and onboarding each set it on
+ * their own line height (48, 50, 53) and tracking (-0.5, -0.6, -0.8).
+ */
+export function nameTitle(colors: ThemePalette) {
+  return { ...serif(colors, 'display'), letterSpacing: tracking.serif } as const
+}
+
+/** A row's or a card's title: one line of body text, set heavier. */
+export function rowTitle(colors: ThemePalette) {
+  return { color: colors.textPrimary, fontSize: type.body, fontWeight: '600' } as const
+}
+
+/** `rowTitle` a step down, for a line beside a small cover or in a dense card. */
+export function smallTitle(colors: ThemePalette) {
+  return { color: colors.textPrimary, fontSize: type.sub, fontWeight: '600' } as const
+}
+
+/** The words under a title, which may wrap: a card's or a dialog's explanation. */
+export function lineSub(colors: ThemePalette) {
+  return { color: colors.textSecondary, ...textStyle('sub') } as const
+}
+
+/** A paragraph of body text that is not the point of the page: a lead, a story. */
+export function bodyText(colors: ThemePalette) {
+  return { color: colors.textSecondary, ...textStyle('body') } as const
+}
+
+/** The quietest words, under a field or a setting: a caption that may wrap. */
+export function hint(colors: ThemePalette) {
+  return { color: colors.textMuted, ...textStyle('small') } as const
+}
+
+/**
+ * A title and the lines under it beside a cover or an icon: taking the row's
+ * spare width, allowed to shrink so its words truncate rather than push.
+ */
+export const textColumn = { flex: 1, minWidth: 0, gap: 2 } as const

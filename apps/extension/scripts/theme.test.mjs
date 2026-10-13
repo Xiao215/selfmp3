@@ -8,7 +8,7 @@ import {
   DEFAULT_ACCENT_HUE,
   darkPalette,
   fonts,
-  labelTracking,
+  tracking,
   leading,
   lightPalette,
   motion,
@@ -30,7 +30,7 @@ const tokens = {
   space,
   type,
   leading,
-  labelTracking,
+  tracking,
   fonts,
   motion,
 }
@@ -76,7 +76,7 @@ describe('the generated theme', () => {
     expect(dark.get('type-tiny')).toBe('11px')
     expect(dark.get('leading-body')).toBe('21px')
     expect(dark.get('space-gutter-wide')).toBe('40px')
-    expect(dark.get('label-tracking')).toBe('0.9px')
+    expect(dark.get('tracking-label')).toBe('0.9px')
     expect(dark.get('font-serif')).toMatch(/^'InstrumentSerif_400Regular', /)
     expect(dark.get('font-display')).toMatch(/^'BricolageGrotesque_600SemiBold', /)
     expect(dark.get('motion-base')).toBe('140ms')

@@ -7,7 +7,7 @@ import { artistOr, formatDuration, type Tag } from '@selfmp3/shared'
 import { HIT_TARGET, radius, space, type } from '@selfmp3/client'
 import { usePlayer, usePlayerProgress, type PlayerApi } from '../../player/PlayerProvider'
 import { useLayoutValue } from '../../shell/useLayout'
-import { label } from '../../ui/surfaces'
+import { label, smallTitle } from '../../ui/surfaces'
 import { useSongTagLookup } from '../../ui/songTags'
 import type { RowAvailability } from '../../ui/rowAvailability.model'
 import { useRowAvailability } from '../../ui/useRowAvailability'
@@ -323,7 +323,7 @@ const styles = StyleSheet.create(theme => ({
   clearDense: { height: 28, paddingHorizontal: 10 },
   clearPressed: { backgroundColor: theme.colors.surface3 },
   clearOff: { opacity: 0.4 },
-  clearText: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
+  clearText: smallTitle(theme.colors),
   clearTextDense: { fontSize: type.small },
   autoMix: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   autoMixLabel: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '500' },

@@ -7,6 +7,7 @@ import { radius, type } from '@selfmp3/client'
 import { TagChipRow } from '../../ui/components/TagChooser'
 import { Sheet } from '../../ui/components/Sheet'
 import { TagSearchList } from '../../ui/components/TagPicker'
+import { smallTitle } from '../../ui/surfaces'
 
 /**
  * The tags an import arrives with, which is all an import can add: it never
@@ -161,9 +162,7 @@ const styles = StyleSheet.create(theme => ({
   pressed: { backgroundColor: theme.colors.surface3 },
   pillText: {
     flexShrink: 1,
-    color: theme.colors.textPrimary,
-    fontSize: type.sub,
-    fontWeight: '600',
+    ...smallTitle(theme.colors),
   },
   caret: { color: theme.colors.textMuted, fontSize: type.small },
 }))

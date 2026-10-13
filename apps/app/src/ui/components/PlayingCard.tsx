@@ -5,7 +5,7 @@ import type { Song } from '@selfmp3/shared'
 import { radius, space, type, withAlpha } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
-import { label as labelText } from '../surfaces'
+import { label as labelText, rowTitle, textColumn } from '../surfaces'
 import { useSongColor } from '../useSongColor'
 import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
@@ -119,9 +119,9 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.coverShade,
   },
   badge: { position: 'absolute', right: -5, bottom: -5 },
-  text: { flex: 1, minWidth: 0, gap: 2 },
+  text: textColumn,
   label: labelText(theme.colors),
-  title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  title: rowTitle(theme.colors),
   line: {
     color: theme.colors.textSecondary,
     fontSize: type.sub,

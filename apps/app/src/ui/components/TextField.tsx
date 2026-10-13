@@ -3,9 +3,10 @@ import type { ReactNode, Ref } from 'react'
 import { Text, TextInput, View } from 'react-native'
 import type { StyleProp, TextInputProps, ViewStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { HIT_TARGET, leading, radius, space, type } from '@selfmp3/client'
+import { HIT_TARGET, radius, space, type } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
 import { useAccent } from '../accent'
+import { hint } from '../surfaces'
 
 /**
  * The one text field that is not a search (`SearchField` is that): a name, a
@@ -149,5 +150,5 @@ const styles = StyleSheet.create(theme => ({
   },
   inputRaised: { backgroundColor: theme.colors.surface3 },
   disabled: { opacity: 0.6 },
-  hint: { color: theme.colors.textMuted, fontSize: type.small, lineHeight: leading.small },
+  hint: hint(theme.colors),
 }))

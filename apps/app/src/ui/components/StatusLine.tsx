@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { leading, space, type } from '@selfmp3/client'
+import { space, textStyle } from '@selfmp3/client'
 import { Button } from './Button'
 
 /**
@@ -55,7 +55,7 @@ export function StatusLine({
 
 const styles = StyleSheet.create(theme => ({
   line: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: space.sm },
-  text: { flexShrink: 1, fontSize: type.sub, lineHeight: leading.sub },
+  text: { flexShrink: 1, ...textStyle('sub') },
   error: { color: theme.colors.danger },
   good: { color: theme.colors.good },
   plain: { color: theme.colors.textSecondary },

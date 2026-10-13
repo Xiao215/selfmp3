@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { HIT_TARGET, isDownloaded, leading, radius, space, type } from '@selfmp3/client'
+import { HIT_TARGET, isDownloaded, radius, space, type, textStyle } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button, PlayButton } from '../../ui/components/Button'
@@ -611,8 +611,7 @@ const styles = StyleSheet.create(theme => ({
   },
   directionArrow: {
     color: theme.colors.textPrimary,
-    fontSize: type.title,
-    lineHeight: leading.title,
+    ...textStyle('title'),
   },
   transport: {
     flexDirection: 'row',

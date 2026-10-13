@@ -31,6 +31,7 @@ import { rememberFirstSyncSeen } from './firstSyncMemory'
 import { WhitePill } from './WhitePill'
 import { ProgressBar } from '../../ui/components/ProgressBar'
 import { OnboardingCard, OnboardingPage } from './OnboardingPage'
+import { rowTitle, textColumn } from '../../ui/surfaces'
 
 /**
  * First sync (docs/ui-mock `P03`, `C02`): the page between the first Google
@@ -195,8 +196,8 @@ function Stack({
 
 const styles = StyleSheet.create(theme => ({
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  cardWords: { flex: 1, minWidth: 0, gap: 2 },
-  summary: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  cardWords: textColumn,
+  summary: rowTitle(theme.colors),
   detail: { color: theme.colors.textSecondary, fontSize: type.sub },
   stack: { flexDirection: 'row' },
   stacked: { marginLeft: -18 },

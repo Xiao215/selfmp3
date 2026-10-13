@@ -2,9 +2,9 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Href } from 'expo-router'
-import { leading, space, type } from '@selfmp3/client'
+import { space } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
-import { pageFrame, pageTitle } from '../surfaces'
+import { pageFrame, pageTitle, bodyText } from '../surfaces'
 import { BackButton } from './BackButton'
 import { Button } from './Button'
 import { SafeAreaView } from './SafeAreaView'
@@ -58,9 +58,7 @@ const styles = StyleSheet.create(theme => ({
   body: { gap: space.md, alignItems: 'flex-start' },
   title: pageTitle(theme.colors),
   line: {
-    color: theme.colors.textSecondary,
-    fontSize: type.body,
-    lineHeight: leading.body,
+    ...bodyText(theme.colors),
     maxWidth: 460,
   },
 }))

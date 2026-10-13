@@ -4,10 +4,10 @@ import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { Redirect } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
-import { leading, space, type, type Review, type ServerConnection } from '@selfmp3/client'
+import { space, type, type Review, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { canListenHere } from '../../ports/listen'
-import { label as groupLabel, pageFrame, pageTitle } from '../../ui/surfaces'
+import { label as groupLabel, pageFrame, pageTitle, textColumn, lineSub } from '../../ui/surfaces'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { Cover } from '../../ui/components/Cover'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -250,13 +250,11 @@ const styles = StyleSheet.create(theme => ({
     overflow: 'hidden',
     backgroundColor: theme.colors.surface2,
   },
-  names: { flex: 1, minWidth: 0, gap: 2 },
+  names: textColumn,
   kicker: { ...groupLabel(theme.colors), fontSize: type.small, color: theme.colors.textSecondary },
   nameWide: pageTitle(theme.colors),
   hint: {
-    color: theme.colors.textSecondary,
-    fontSize: type.sub,
-    lineHeight: leading.sub,
+    ...lineSub(theme.colors),
     paddingTop: 12,
     paddingBottom: 4,
   },

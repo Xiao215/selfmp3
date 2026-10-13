@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { SMART_NOTES_MAX } from '@selfmp3/shared'
-import { leading, space, type, useSettings, useUpdateSettings } from '@selfmp3/client'
+import { space, useSettings, useUpdateSettings, textStyle } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { showToast } from '../../ui/toast'
 import { AnswerActions, AnswerHead, AnswerLine } from './AnswerParts'
@@ -60,5 +60,5 @@ export function RememberAnswer({ note, onDone }: { note: string; onDone: () => v
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm },
-  note: { color: theme.colors.textPrimary, fontSize: type.body, lineHeight: leading.body },
+  note: { color: theme.colors.textPrimary, ...textStyle('body') },
 }))

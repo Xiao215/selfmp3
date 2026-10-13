@@ -646,7 +646,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 - [ ] **T-385** Sidebar tabs never announce the selected one (`aria-selected` only in BottomNav); pressing the lit sidebar item does not go back to its root page. → H
 - [ ] **T-386** The sidebar's new-tag field has no `maxLength`, no focus ring, swallows create errors, and checks duplicates differently from the Tags page. → G
 - [ ] **T-387** Settings → Cloud's bucket form signs out without asking; its fields stay editable while checking. → G
-- [ ] **T-388** An iPad registers in the cloud as `iphone` (`ports/cloudPlatform.ts`). → D
+- [x] **T-388** An iPad registers in the cloud as `iphone` (`ports/cloudPlatform.ts`). → D
+  - `deviceModel()` in the device port names the kind on both twins; `returnUrl` is `signInReturnUrl('welcome')`.
 - [x] **T-389** Phone engine: a song with nowhere to play from leaves the previous song sounding with `playing: true`; repeat-one likely never reports the song's end. → D
   - Decision: neither engine lines up the song that is sounding behind itself, so repeat-one on a phone loops by the provider's seek back to the top (a beat of silence, as in a browser) and the end is always reported.
 - [x] **T-390** Phone `adoptRecent` moves a stale (old-hash) played copy into a download; desktop refuses it. Both sides keep playing or keep the old file when a song's audio changes. → D

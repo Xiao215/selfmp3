@@ -2,10 +2,12 @@ import type { CloudPlatform, DeviceStore, TextCache } from '@selfmp3/replica'
 import * as Crypto from 'expo-crypto'
 import { Directory, File, Paths } from 'expo-file-system'
 import * as Linking from 'expo-linking'
-import { AppState, Platform } from 'react-native'
+import { AppState } from 'react-native'
 
+import { deviceModel } from './device'
 import { doormanUrl } from './doormanUrl'
 import { sharedServerUrl } from './sharedServerUrl'
+import { signInReturnUrl } from './signInReturn'
 
 /**
  * What a phone gives `@selfmp3/replica` (packages/replica/src/platform.ts).
@@ -135,14 +137,14 @@ export const cloudPlatform: CloudPlatform = {
    * That is the whole reason the code exists, and why this is safe on a phone
    * where iOS lets any app register any scheme.
    */
-  returnUrl: 'selfmp3://welcome',
+  returnUrl: signInReturnUrl('welcome'),
   // The promise is returned, not dropped. `openSignIn` may fail — no browser,
   // a refusal from the OS — and a floating promise turns that into an uncaught
   // rejection nobody sees, leaving the screen saying "Waiting for Google…"
   // forever about a Google that was never opened.
   openSignIn: url => Linking.openURL(url).then(() => undefined),
 
-  deviceKind: Platform.OS === 'ios' ? 'iphone' : 'android',
+  deviceKind: deviceModel(),
 
   /** Coming back to the front is this device's "the network might be back". */
   onWake: run => {

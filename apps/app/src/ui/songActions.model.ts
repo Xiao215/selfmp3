@@ -19,6 +19,7 @@ export const SONG_ACTION_LABELS = {
   addToUpNext: 'Add to Up next',
   playNext: 'Play next',
   playSimilar: 'Play similar songs',
+  share: 'Share link',
   details: 'Song details',
   removeFromPlaylist: 'Remove from this playlist',
   fixInfo: 'Fix song info…',
@@ -32,6 +33,7 @@ export type SongActionId =
   | 'addToPlaylist'
   | 'addToUpNext'
   | 'playSimilar'
+  | 'share'
   | 'download'
   | 'removeDownload'
   | 'details'
@@ -56,6 +58,8 @@ interface SongActionFacts {
   readonly nowPlaying: boolean
   /** What this device is called in "Remove from this phone". */
   readonly place: string
+  /** Signed in with a bucket, which a share link lends from (docs/features/share-links.md). */
+  readonly shareable: boolean
 }
 
 /** One thing to offer, by name, and the group it sits in: groups are set apart by room. */
@@ -89,6 +93,7 @@ export function songActions(facts: SongActionFacts): readonly SongAction[] {
   // The song playing is already in Up next.
   if (!facts.nowPlaying) add('addToUpNext', SONG_ACTION_LABELS.addToUpNext, 'song')
   if (!many) add('playSimilar', SONG_ACTION_LABELS.playSimilar, 'song')
+  if (facts.shareable) add('share', SONG_ACTION_LABELS.share, 'song')
   // A browser streams; only an installed app keeps songs.
   if (facts.installed && held < count) {
     add('download', many ? `Download ${held > 0 ? 'the rest' : 'all'}` : 'Download', 'song')

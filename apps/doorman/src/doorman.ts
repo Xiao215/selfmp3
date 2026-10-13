@@ -16,6 +16,7 @@ import * as files from './files.js'
 import { grants } from './grants.js'
 import { rooms } from './rooms.js'
 import { shared } from './sharedRoutes.js'
+import { share } from './shareRoutes.js'
 import {
   errorResponse,
   forbidden,
@@ -79,7 +80,7 @@ const ROUTES: Readonly<Record<string, Readonly<Record<string, Route>>>> = {
   [DOORMAN_PATHS.changes]: { GET: files.changes },
 }
 
-const { files: FILES, grants: GRANTS, rooms: ROOMS, shared: SHARED } = DOORMAN_PATHS
+const { files: FILES, grants: GRANTS, rooms: ROOMS, shared: SHARED, share: SHARE } = DOORMAN_PATHS
 
 /** Errors from the bucket, as a device sees them: the doorman's own upstream failed. */
 const BUCKET_CODES: Readonly<Record<BucketErrorKind, DoormanErrorCode>> = {
@@ -158,6 +159,7 @@ async function route(ctx: Context): Promise<Response> {
   if (path === GRANTS || path.startsWith(`${GRANTS}/`)) return grants(ctx)
   if (path === ROOMS || path.startsWith(`${ROOMS}/`)) return rooms(ctx)
   if (path === SHARED || path.startsWith(`${SHARED}/`)) return shared(ctx)
+  if (path === SHARE || path.startsWith(`${SHARE}/`)) return share(ctx)
 
   // Own properties only: a request whose method is `constructor` or
   // `toString` must not find its way to Object.prototype.

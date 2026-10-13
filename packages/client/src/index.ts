@@ -64,6 +64,7 @@ export * from './room/roomApi.js'
 export * from './room/roomClock.js'
 export * from './room/roomTracks.js'
 export * from './room/sharedApi.js'
+export * from './room/shareApi.js'
 
 /** The colours a cover lends Now Playing. */
 export * from './art/palette.js'

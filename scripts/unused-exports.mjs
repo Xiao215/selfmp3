@@ -105,6 +105,11 @@ const ALLOWED = new Map([
     'SharedObject',
     'exported from the doorman’s index.ts as SharedPlaylist, the name wrangler.toml binds',
   ],
+  ['ShareLink', 'the doorman’s share link Durable Object class, bound by name in wrangler.toml'],
+  [
+    'ShareObject',
+    'exported from the doorman’s index.ts as ShareLink, the name wrangler.toml binds',
+  ],
   // Module state a test empties between cases; nothing the app runs needs it.
   ['forgetChipWidths', 'rowTags.ts, emptied between its tests'],
   ['resetImportDraft', 'importDraft.ts, emptied between the review tests'],

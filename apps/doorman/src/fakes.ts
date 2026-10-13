@@ -6,6 +6,7 @@ import type { Env } from './context.js'
 import { createDoorman, type Doorman } from './doorman.js'
 import { Room, type RoomSocket } from './room.js'
 import { Shared } from './shared.js'
+import { Share } from './share.js'
 import { secureHex, toBase64, toBase64Url, utf8 } from './encoding.js'
 import type { KvStore } from './kv.js'
 
@@ -705,6 +706,76 @@ export class FakeShared {
   }
 }
 
+/**
+ * A Durable Object namespace of real share links, each with storage in a map
+ * and an alarm a test runs when it likes (`runAlarms`).
+ */
+export class FakeShares {
+  readonly links = new Map<
+    string,
+    { share: Share; values: Map<string, unknown>; alarm: number | null }
+  >()
+
+  constructor(readonly clock: Clock) {}
+
+  namespace(): DurableObjectNamespace {
+    const get = (id: { name: string }) => ({
+      fetch: (input: string | Request, init?: RequestInit): Promise<Response> =>
+        this.#link(id.name).share.fetch(new Request(input, init)),
+    })
+    return { idFromName: (name: string) => ({ name }), get } as unknown as DurableObjectNamespace
+  }
+
+  stored(id: string): Map<string, unknown> {
+    return this.#link(id).values
+  }
+
+  /** Every alarm that is due by the clock, as the runtime would ring them. */
+  async runAlarms(): Promise<void> {
+    for (const held of this.links.values()) {
+      if (held.alarm !== null && held.alarm <= this.clock.now) {
+        held.alarm = null
+        await held.share.alarm()
+      }
+    }
+  }
+
+  #link(name: string) {
+    let held = this.links.get(name)
+    if (!held) {
+      const values = new Map<string, unknown>()
+      const entry: { share: Share; values: Map<string, unknown>; alarm: number | null } = {
+        values,
+        alarm: null,
+        share: null as unknown as Share,
+      }
+      entry.share = new Share({
+        storage: {
+          get: <T>(key: string) =>
+            Promise.resolve(structuredClone(values.get(key)) as T | undefined),
+          put: <T>(key: string, value: T) => {
+            values.set(key, structuredClone(value))
+            return Promise.resolve()
+          },
+          deleteAll: () => {
+            values.clear()
+            entry.alarm = null
+            return Promise.resolve()
+          },
+          setAlarm: when => {
+            entry.alarm = when
+            return Promise.resolve()
+          },
+        },
+        now: () => this.clock.now,
+      })
+      held = entry
+      this.links.set(name, held)
+    }
+    return held
+  }
+}
+
 // --- The harness -----------------------------------------------------------------
 
 export interface Harness {
@@ -717,6 +788,7 @@ export interface Harness {
   readonly changes: FakeChanges
   readonly rooms: FakeRooms
   readonly shared: FakeShared
+  readonly shares: FakeShares
   readonly clock: Clock
   /** Any other host a test puts on the internet: a room host's server, say. */
   readonly elsewhere: Map<string, (request: Request) => Response | Promise<Response>>
@@ -813,6 +885,7 @@ export function harness(): Harness {
   const changes = new FakeChanges()
   const rooms = new FakeRooms(clock)
   const shared = new FakeShared(clock)
+  const shares = new FakeShares(clock)
   const outside: Harness['outside'] = []
   const elsewhere: Harness['elsewhere'] = new Map()
 
@@ -837,6 +910,7 @@ export function harness(): Harness {
     CHANGES: changes.namespace(),
     ROOMS: rooms.namespace(),
     SHARED: shared.namespace(),
+    SHARES: shares.namespace(),
     GOOGLE_CLIENT_ID: CLIENT_ID,
     GOOGLE_CLIENT_SECRET: CLIENT_SECRET,
     SEAL_KEY,
@@ -925,6 +999,7 @@ export function harness(): Harness {
     changes,
     rooms,
     shared,
+    shares,
     elsewhere,
     clock,
     outside,

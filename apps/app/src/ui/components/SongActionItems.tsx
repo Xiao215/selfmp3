@@ -22,6 +22,8 @@ import { usePlaylistRemoval } from '../../features/playlists/usePlaylistRemoval'
 import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
 import { devicePlace } from '../../features/settings/settings.model'
 import { playSimilar } from '../../features/song/playSimilar'
+import { openShareSheet } from '../../features/share/shareSheet.store'
+import { useConnection } from '../../connection/ConnectionProvider'
 import { songLink } from '../../features/song/song.model'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useDownloadRemoval } from '../../offline/useDownloadRemoval'
@@ -38,6 +40,7 @@ import {
   ListMusic,
   Plus,
   QueueAdd,
+  ShareOut,
   Sparkles,
   Tag as TagIcon,
   Trash,
@@ -53,6 +56,7 @@ const ICON: Record<SongActionId, ReactNode> = {
   addToPlaylist: <ListMusic size={iconSize.item} tone="textSecondary" />,
   addToUpNext: <QueueAdd size={iconSize.item} tone="textSecondary" />,
   playSimilar: <Sparkles size={iconSize.item} tone="textSecondary" />,
+  share: <ShareOut size={iconSize.item} tone="textSecondary" />,
   download: <CloudDownload size={iconSize.item} tone="textSecondary" />,
   removeDownload: <CloudRemove size={iconSize.item} tone="textSecondary" />,
   details: <Info size={iconSize.item} tone="textSecondary" />,
@@ -115,6 +119,7 @@ export function SongActionItems({
   const removeDownloads = useDownloadRemoval()
   const { state: downloads, installed, requestDownload } = useDownloads()
   const [playlistsOpen, setPlaylistsOpen] = useState(false)
+  const { fromCloud, needsStorage } = useConnection()
 
   const ids = songs.map(song => song.id)
   const held = songs.filter(song => isDownloaded(downloads.index, song.id))
@@ -129,6 +134,7 @@ export function SongActionItems({
     inPlaylist: playlist !== undefined,
     nowPlaying,
     place: devicePlace(deviceKind()),
+    shareable: fromCloud && !needsStorage,
   }).filter(action => !leave.includes(action.id))
   // The one played last first; not the playlist this is, and never a live one.
   const manualPlaylists = playlistsToAddTo(library?.playlists ?? [], playlist?.id)
@@ -181,6 +187,15 @@ export function SongActionItems({
     playSimilar: () => {
       if (songs[0]) playSimilar(player, songs[0])
     },
+    share: () =>
+      openShareSheet({
+        songIds: ids,
+        name:
+          count === 1
+            ? (songs[0]?.title ?? '')
+            : `${songs[0]?.title ?? ''} and ${plural(count - 1, 'more', 'more')}`,
+        kind: count === 1 ? 'song' : 'list',
+      }),
     // By hand: picked songs stay, a song removed by hand comes back, and
     // mobile data or a large total is asked about first.
     download: () => requestDownload(ids),

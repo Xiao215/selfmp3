@@ -39,6 +39,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { SearchField } from '../../ui/components/SearchField'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { Shelf, ShelfCard, SongCard } from '../../ui/components/Shelf'
+import { FromFriends, ShareAsks } from '../share/FromFriends'
 import { TileGrid, useTileGrid } from '../../ui/components/TileGrid'
 import { ChevronRight, Download, Plus, Sparkle } from '../../ui/components/Icons'
 import { useAccent } from '../../ui/accent'
@@ -239,6 +240,9 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
         </View>
 
         {empty ? null : <TogetherCard />}
+
+        <ShareAsks />
+        <FromFriends wide={wide} />
 
         {recents.length > 0 || rooms.length > 0 ? (
           <View style={styles.stack}>

@@ -1,12 +1,13 @@
 import { doormanRequest, type DoormanFetch } from '@selfmp3/shared'
 
 /**
- * One request to a room or a shared playlist, for roomApi.ts and sharedApi.ts:
- * packages/shared's doorman client, and the answer parsed by its schema. A GET
- * unless there is a body, which is a POST unless said otherwise. A refusal
- * throws shared's `DoormanError`, the doorman's own code and words in it.
+ * One request to a room, a shared playlist or a share link, for roomApi.ts,
+ * sharedApi.ts and shareApi.ts: packages/shared's doorman client, and the
+ * answer parsed by its schema. A GET unless there is a body, which is a POST
+ * unless said otherwise. A refusal throws shared's `DoormanError`, the
+ * doorman's own code and words in it.
  *
- * The two used to have a `send` each, near enough the same, each building its
+ * The first two used to have a `send` each, near enough the same, each building its
  * own error from the answer's body.
  */
 export function doormanSend(doormanUrl: string, fetch: DoormanFetch) {

@@ -179,7 +179,7 @@ export function PlacePage({
   })
   const heroRef = useRef<View>(null)
   const heroPlaced = useRef(false)
-  const listActions = useListActions(ids, { heroRef, selection })
+  const listActions = useListActions(ids, { heroRef, selection, shareAs: title })
   /** The hero's way between the tile and where it is laid out now. */
   const aimAtTile = (
     tile: NonNullable<typeof handed>,

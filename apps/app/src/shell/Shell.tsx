@@ -38,6 +38,7 @@ import { usePlayerCommands, useSongLoaded } from '../player/PlayerProvider'
 import { SEEK_STEP_SECONDS, VOLUME_STEP } from '../player/progress.model'
 import { QueueRail, useQueueRailRoom } from '../features/queue/QueueRail'
 import { RoomSheets } from '../features/room/RoomSheets'
+import { ShareSheet } from '../features/share/ShareSheet'
 import { QueueSheet } from '../features/queue/QueueSheet'
 import { ContentWidthContext } from './contentWidth'
 import { createValueStore } from '../state/valueStore.model'
@@ -200,9 +201,11 @@ function Frame({
           page (Now Playing, the import review) has nowhere else to land, and
           the row already drops to the foot when there is no chrome to sit on. */}
       {wide ? null : <Toasts />}
-      {/* A listening room's sheets: Together, Add songs, People. Drawn by
-          the phone's Now Playing instead while it covers the shell. */}
+      {/* A listening room's sheets: Together, Add songs, People; and the
+          share sheet. Drawn by the phone's Now Playing instead while it
+          covers the shell. */}
       {covered ? null : <RoomSheets />}
+      {covered ? null : <ShareSheet />}
     </View>
   )
 }

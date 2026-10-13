@@ -37,6 +37,9 @@ jest.mock('@selfmp3/client', () => ({
   useToggleLoved: () => ({ mutate: jest.fn() }),
   clientApi: () => ({ similar: () => Promise.resolve({ songs: [] }) }),
 }))
+jest.mock('../../connection/ConnectionProvider', () => ({
+  useConnection: () => ({ fromCloud: false, needsStorage: false }),
+}))
 jest.mock('../../offline/DownloadsProvider', () => ({
   useDownloads: () => ({
     state: { index: mockIndex },

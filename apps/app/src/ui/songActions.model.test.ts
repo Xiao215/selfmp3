@@ -11,6 +11,7 @@ const one = {
   inPlaylist: false,
   nowPlaying: false,
   place: 'phone',
+  shareable: false,
 }
 
 const ids = (facts: typeof one): string[] => songActions(facts).map(action => action.id)
@@ -66,8 +67,23 @@ describe('what can be done to songs', () => {
     ])
   })
 
+  it('shares songs as a link once signed in with a bucket, one song or many', () => {
+    expect(labels({ ...one, shareable: true })).toEqual([
+      'Tags…',
+      'Add to playlist',
+      'Add to Up next',
+      'Play similar songs',
+      'Share link',
+      'Download',
+      'Song details',
+      'Delete from library…',
+    ])
+    expect(ids({ ...one, count: 3, shareable: true })).toContain('share')
+    expect(ids({ ...one, nowPlaying: true, shareable: true })).toContain('share')
+  })
+
   it('offers nothing of the library for a friend’s song in a room', () => {
-    expect(songActions({ ...one, roomSong: true })).toEqual([])
+    expect(songActions({ ...one, roomSong: true, shareable: true })).toEqual([])
     expect(songActions({ ...one, count: 0 })).toEqual([])
   })
 })

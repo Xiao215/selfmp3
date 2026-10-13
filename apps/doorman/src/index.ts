@@ -14,3 +14,4 @@ export default createDoorman() satisfies ExportedHandler<Env>
 export { ChangesObject as Changes } from './changes.js'
 export { RoomObject as Room } from './room.js'
 export { SharedObject as SharedPlaylist } from './shared.js'
+export { ShareObject as ShareLink } from './share.js'

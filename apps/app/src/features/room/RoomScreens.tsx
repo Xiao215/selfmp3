@@ -4,13 +4,7 @@ import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
-import {
-  formatRoomCode,
-  plural,
-  RoomCodeSchema,
-  type RoomSong,
-  RoomMemberNameSchema,
-} from '@selfmp3/shared'
+import { formatRoomCode, plural, RoomCodeSchema, RoomMemberNameSchema } from '@selfmp3/shared'
 import {
   failureText,
   libraryIndex,
@@ -20,9 +14,7 @@ import {
   useLibrary,
   yoursOf,
 } from '@selfmp3/client'
-import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
-import { useServerDirect } from '../../connection/useServerDirect'
 import { prefs } from '../../ports/prefs'
 import { label, pageTitle, lineSub } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
@@ -38,6 +30,7 @@ import { RoomFaces } from './RoomFace'
 import { RoomEntryLine } from './RoomEntryLine'
 import { RoomHead, RoomList } from './RoomList'
 import { sayRoomFailure } from './roomFailure'
+import { useGetSongs } from './useGetSongs'
 import { joinRoom, leaveRoom, useRoom } from './room.store'
 import { ScrollView } from '../../ui/components/Scroll'
 
@@ -196,9 +189,8 @@ export function PastRoomScreen(): ReactNode {
   const past = usePastRooms().find(room => room.code === code)
   const { data: library } = useLibrary()
   const index = useMemo(() => libraryIndex(library?.songs ?? []), [library?.songs])
-  const server = useServerDirect()
+  const { getting, get } = useGetSongs()
   const { mutateAsync: createPlaylist } = useCreatePlaylist()
-  const [getting, setGetting] = useState<ReadonlySet<string>>(new Set())
   const [saving, setSaving] = useState(false)
 
   if (!past) {
@@ -216,43 +208,6 @@ export function PastRoomScreen(): ReactNode {
   const gettable = past.songs.filter(
     (entry, at) => yours[at] === null && entry.song.sourceUrl !== null,
   )
-
-  const get = async (songs: readonly RoomSong[]): Promise<void> => {
-    if (server.state !== 'reachable') {
-      showToast('Get it needs your library’s computer, and it can’t be reached from here', 'warn')
-      return
-    }
-    const keys = songs.map(song => song.sourceUrl ?? '')
-    setGetting(before => new Set([...before, ...keys]))
-    try {
-      await apiFor(server.connection).importEnqueue({
-        items: songs.flatMap(song =>
-          song.sourceUrl
-            ? [
-                {
-                  url: song.sourceUrl,
-                  title: song.title,
-                  artist: song.artist,
-                  album: song.album,
-                  thumbnail: null,
-                  duration: song.duration,
-                },
-              ]
-            : [],
-        ),
-        tagIds: [],
-        playlistId: null,
-        createPlaylistName: null,
-      })
-      showToast(
-        `Getting ${plural(songs.length, 'song', 'songs')}. They arrive in your library as they import.`,
-        'good',
-      )
-    } catch (error) {
-      setGetting(before => new Set([...before].filter(key => !keys.includes(key))))
-      showToast(failureText('Couldn’t get that', error), 'error')
-    }
-  }
 
   const save = async (): Promise<void> => {
     const input = newPlaylist('manual', past.title)

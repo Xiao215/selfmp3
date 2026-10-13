@@ -2,6 +2,8 @@ import type { RefObject } from 'react'
 import type { View } from 'react-native'
 import { formatBytes } from '@selfmp3/shared'
 import { bytesToDownload, isDownloaded, useManifest } from '@selfmp3/client'
+import { useConnection } from '../../connection/ConnectionProvider'
+import { openShareSheet } from '../../features/share/shareSheet.store'
 import { devicePlace } from '../../features/settings/settings.model'
 import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
 import { useDownloads } from '../../offline/DownloadsProvider'
@@ -10,14 +12,16 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { deviceKind } from '../../ports/device'
 import type { Selection } from '../../selection/useSelection'
 import { SONG_ACTION_LABELS } from '../songActions.model'
-import { CheckSquare, CloudDownload, CloudRemove, Next, QueueAdd } from './Icons'
+import { CheckSquare, CloudDownload, CloudRemove, Next, QueueAdd, ShareOut } from './Icons'
 import type { MenuItem } from './MoreMenu'
 
 /**
  * What a list page's ⋯ offers for all its songs — a tag's, an artist's, a
  * playlist's, an answer's: Select songs, Play next, Add to Up next with its
- * covers flying from the head, and keeping them on this device or letting
- * them go. The page adds what is its own after these (`MoreMenu`).
+ * covers flying from the head, keeping them on this device or letting them
+ * go, and sending them as a share link (docs/features/share-links.md) when
+ * the page names them. The page adds what is its own after these
+ * (`MoreMenu`).
  *
  * The answer page's Add to Up next had played the songs next instead
  * (T-383), and only a playlist could be downloaded from its page.
@@ -27,11 +31,14 @@ export function useListActions(
   {
     heroRef,
     selection,
+    shareAs,
   }: {
     /** The head's picture, which the covers fly from. */
     heroRef?: RefObject<View | null>
     /** The page's selection, which Select songs starts. */
     selection?: Selection
+    /** The tag's or playlist's name, for Share link; left out, the page offers none. */
+    shareAs?: string
   } = {},
 ): readonly MenuItem[] {
   const player = usePlayerCommands()
@@ -40,6 +47,7 @@ export function useListActions(
   const { state: downloads, installed, requestDownload, removing } = useDownloads()
   // Taking them off this device can be undone, as one song's can.
   const removeDownloads = useDownloadRemoval()
+  const { fromCloud, needsStorage } = useConnection()
 
   const nothing = songIds.length === 0
   const allHere = !nothing && songIds.every(id => isDownloaded(downloads.index, id))
@@ -101,5 +109,17 @@ export function useListActions(
               onPress: () => requestDownload(songIds),
             },
           ]),
+    // A link lends from your bucket, so there has to be one.
+    ...(shareAs !== undefined && fromCloud && !needsStorage
+      ? [
+          {
+            key: 'share',
+            label: SONG_ACTION_LABELS.share,
+            icon: <ShareOut tone="textSecondary" />,
+            disabled: nothing,
+            onPress: () => openShareSheet({ songIds, name: shareAs, kind: 'list' }),
+          },
+        ]
+      : []),
   ]
 }

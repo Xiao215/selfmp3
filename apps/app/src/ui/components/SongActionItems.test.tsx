@@ -31,6 +31,9 @@ jest.mock('@selfmp3/client', () => ({
   useBulkLoved: () => ({ mutate: jest.fn() }),
   useCreatePlaylist: () => ({ mutateAsync: jest.fn() }),
 }))
+jest.mock('../../connection/ConnectionProvider', () => ({
+  useConnection: () => ({ fromCloud: false, needsStorage: false }),
+}))
 jest.mock('../../offline/DownloadsProvider', () => ({
   useDownloads: () => ({
     state: {

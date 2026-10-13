@@ -20,6 +20,7 @@ import {
 } from '@selfmp3/client'
 import { useRoom } from '../room/room.store'
 import { RoomSheets } from '../room/RoomSheets'
+import { ShareSheet } from '../share/ShareSheet'
 import { RoomPill, TogetherButton } from '../room/Together'
 import { usePlayer, usePlayerPlaying } from '../../player/PlayerProvider'
 import { useSongColor } from '../../ui/useSongColor'
@@ -97,11 +98,11 @@ export function NowPlayingScreen(): ReactNode {
 }
 
 /**
- * Up next, a room's sheets and the toast row, drawn inside the modal while it
- * covers the shell: the sheets over the page's foot, and the toasts after them so a removal's Undo
- * is over the sheet that asked for it. The shell's toast row is still there
- * under the page, with the resume offer that is decided once per launch; this
- * is just the messages.
+ * Up next, a room's sheets, the share sheet and the toast row, drawn inside
+ * the modal while it covers the shell: the sheets over the page's foot, and
+ * the toasts after them so a removal's Undo is over the sheet that asked for
+ * it. The shell's toast row is still there under the page, with the resume
+ * offer that is decided once per launch; this is just the messages.
  */
 function OverTheModal(): ReactNode {
   const insets = useSafeAreaInsets()
@@ -111,6 +112,7 @@ function OverTheModal(): ReactNode {
     <>
       <QueueSheet go={go} />
       <RoomSheets go={go} />
+      <ShareSheet go={go} />
       <View pointerEvents="box-none" style={[styles.toasts, { bottom: insets.bottom + space.sm }]}>
         <ToastHost />
       </View>

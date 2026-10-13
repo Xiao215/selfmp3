@@ -90,6 +90,7 @@ export function ShelfCard({
   label,
   caption,
   onMenu,
+  onLongPress,
   testID,
 }: {
   width: number
@@ -103,12 +104,15 @@ export function ShelfCard({
   caption?: string
   /** Opened by a right-click, at the pointer. */
   onMenu?: (at: PopoverAnchor) => void
+  /** Pressed and held: a phone's way to what a right-click opens. */
+  onLongPress?: () => void
   testID?: string
 }): ReactNode {
   const large = width >= LARGE_CARD
   return (
     <Press
       onPress={onPress}
+      onLongPress={onLongPress}
       accessibilityRole="button"
       accessibilityLabel={label}
       {...tip(caption)}

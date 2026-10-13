@@ -3,15 +3,13 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
-import { failureText, space, type } from '@selfmp3/client'
-import { apiFor } from '../../api/client'
-import { useServerDirect } from '../../connection/useServerDirect'
+import { space, type } from '@selfmp3/client'
 import { roomTrack } from '../../player/roomTracks'
-import { showToast } from '../../ui/toast'
 import { Button } from '../../ui/components/Button'
 import { RoomFace } from './RoomFace'
 import { entryOfTrack, memberOf, nameOf } from './room.model'
 import { useRoom } from './room.store'
+import { useGetSongs } from './useGetSongs'
 
 /**
  * Under a room's song in Now Playing, where a library song has its tags
@@ -27,34 +25,13 @@ export function RoomSongLine({ song }: { song: Song }): ReactNode {
   const owner = state && entry ? memberOf(state, entry.owner) : undefined
   const yours = track?.yours !== null && track?.yours !== undefined
   const source = entry?.song.sourceUrl ?? null
-  const server = useServerDirect({ enabled: !yours && source !== null })
+  const { reachable, get } = useGetSongs({ enabled: !yours && source !== null })
   const [asked, setAsked] = useState(false)
   if (!state || !entry) return null
 
   const getIt = async (): Promise<void> => {
-    if (!source || server.state !== 'reachable') return
     setAsked(true)
-    try {
-      await apiFor(server.connection).importEnqueue({
-        items: [
-          {
-            url: source,
-            title: entry.song.title,
-            artist: entry.song.artist,
-            album: entry.song.album,
-            thumbnail: null,
-            duration: entry.song.duration,
-          },
-        ],
-        tagIds: [],
-        playlistId: null,
-        createPlaylistName: null,
-      })
-      showToast(`Getting “${entry.song.title}”. It arrives in your library as it imports.`, 'good')
-    } catch (error) {
-      setAsked(false)
-      showToast(failureText('Couldn’t get it', error), 'error')
-    }
+    if (!(await get([entry.song]))) setAsked(false)
   }
 
   const whose = owner && owner.id !== state.you ? owner : by
@@ -73,7 +50,7 @@ export function RoomSongLine({ song }: { song: Song }): ReactNode {
       <Text style={styles.text} numberOfLines={1}>
         {line}
       </Text>
-      {!yours && source && server.state === 'reachable' && whose?.id !== state.you ? (
+      {!yours && source && reachable && whose?.id !== state.you ? (
         <Button
           label={asked ? 'Getting' : 'Get it'}
           disabled={asked}

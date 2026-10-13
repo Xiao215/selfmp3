@@ -389,6 +389,15 @@ export const More = icon(color => (
   </>
 ))
 
+/** An arrow out of a box: sending a link to someone. */
+export const ShareOut = icon(() => (
+  <>
+    <Path d="M12 3v12" />
+    <Path d="M8 7l4-4 4 4" />
+    <Path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1" />
+  </>
+))
+
 /** Two sheets: a copy. */
 export const Copy = icon(() => (
   <>

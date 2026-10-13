@@ -124,7 +124,11 @@ export function PlaylistDetailScreen(): ReactNode {
   const light = useSongColor(lead, leadArt)
 
   const selection = useSelection(songIds)
-  const listActions = useListActions(songIds, { heroRef, selection })
+  const listActions = useListActions(songIds, {
+    heroRef,
+    selection,
+    shareAs: playlist?.name ?? 'Playlist',
+  })
   /*
    * The selection bar takes a lane above the songs, so it covers none of them.
    * Left mounted while there is a playlist at all and told whether it belongs

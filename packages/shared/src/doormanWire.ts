@@ -76,6 +76,11 @@ export const DOORMAN_ERROR = {
   sharedEnded: 'shared_ended',
   sharedInvalid: 'shared_invalid',
   sharedUnauthorized: 'shared_unauthorized',
+  shareMissing: 'share_missing',
+  shareForbidden: 'share_forbidden',
+  shareEnded: 'share_ended',
+  shareInvalid: 'share_invalid',
+  shareTaken: 'share_taken',
 
   // Never sent by the doorman: what a client calls a request it did not answer.
   /** No answer at all — offline, or the doorman down. Always status 0. */
@@ -165,6 +170,7 @@ const FILES = '/v1/files/'
 const LIST = '/v1/list'
 const ROOMS = '/v1/rooms'
 const SHARED = '/v1/shared'
+const SHARE = '/v1/share'
 const GRANTS = '/v1/grants'
 
 /**
@@ -188,6 +194,7 @@ export const DOORMAN_PATHS = {
   grants: GRANTS,
   rooms: ROOMS,
   shared: SHARED,
+  share: SHARE,
 
   /** One page of a folder: `/v1/list?prefix=log/&cursor=…`. */
   listing: (prefix: string, cursor?: string | null): string =>
@@ -204,6 +211,12 @@ export const DOORMAN_PATHS = {
   /** A shared playlist, or something in it, with its listen token for a song's file. */
   sharedPlaylist: (id: string, rest = '', token?: string): string =>
     `${SHARED}/${encodeURIComponent(id)}${rest}${query({ t: token })}`,
+  /**
+   * A share link, or something in it, with its key where the request needs
+   * one, and the signed-out device that opens it (`visitor`).
+   */
+  shareLink: (id: string, rest = '', key?: string, visitor?: string): string =>
+    `${SHARE}/${encodeURIComponent(id)}${rest}${query({ k: key, v: visitor })}`,
 } as const
 
 /**

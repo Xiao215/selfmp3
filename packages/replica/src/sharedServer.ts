@@ -1,7 +1,10 @@
 import {
   CloudServerSchema,
+  DoormanAccessSchema,
   DoormanGrantsSchema,
   type CloudServer,
+  type DoormanAccess,
+  type DoormanAccessUpdate,
   type DoormanGrants,
 } from '@selfmp3/shared'
 import { z } from 'zod'
@@ -56,6 +59,9 @@ interface SharedServerApi {
   join: (session: CloudSession) => Promise<CloudServer>
   grants: (session: CloudSession) => Promise<DoormanGrants>
   removeGrant: (session: CloudSession, id: string) => Promise<void>
+  /** Who may sign in, for the doorman's owner; a 403 for anyone else. */
+  access: (session: CloudSession) => Promise<DoormanAccess>
+  updateAccess: (session: CloudSession, update: DoormanAccessUpdate) => Promise<DoormanAccess>
 }
 
 export function createSharedServer(
@@ -139,6 +145,24 @@ export function createSharedServer(
     }
   }
 
+  async function access(session: CloudSession): Promise<DoormanAccess> {
+    const response = await sessionApi.doormanFetch(session, '/v1/access')
+    if (!response.ok) throw new DoormanError(response.status, await errorOf(response))
+    return DoormanAccessSchema.parse(await response.json())
+  }
+
+  async function updateAccess(
+    session: CloudSession,
+    update: DoormanAccessUpdate,
+  ): Promise<DoormanAccess> {
+    const response = await sessionApi.doormanFetch(session, '/v1/access', {
+      method: 'PUT',
+      json: update,
+    })
+    if (!response.ok) throw new DoormanError(response.status, await errorOf(response))
+    return DoormanAccessSchema.parse(await response.json())
+  }
+
   /** One request to the shared server, its refusals in its own words. */
   async function call(url: string, method: string, token: string): Promise<unknown> {
     let response
@@ -156,7 +180,7 @@ export function createSharedServer(
     return response.json()
   }
 
-  return { joined, automatic, join, grants, removeGrant }
+  return { joined, automatic, join, grants, removeGrant, access, updateAccess }
 }
 
 /** The answer's own message, when it has one. */

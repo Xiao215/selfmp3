@@ -1,5 +1,6 @@
 import type { DoormanHealth } from '@selfmp3/shared'
 import { version as DOORMAN_VERSION } from '../package.json'
+import { Access, access, type AccessCache } from './access.js'
 import { Accounts, newAccountCache } from './accounts.js'
 import * as auth from './auth.js'
 import { BucketError, type BucketErrorKind, type Fetch } from './bucket.js'
@@ -65,6 +66,7 @@ const ROUTES: Readonly<Record<string, Readonly<Record<string, Route>>>> = {
   '/v1/auth/signout': { POST: auth.signOut },
   '/v1/auth/signout-everywhere': { POST: auth.signOutEverywhere },
   '/v1/me': { GET: storage.me },
+  '/v1/access': { GET: access, PUT: access },
   '/v1/storage': { PUT: storage.connect, DELETE: storage.disconnect },
   '/v1/storage/backblaze': { POST: storage.connectBackblaze },
   '/v1/list': { GET: files.list },
@@ -91,6 +93,7 @@ export function createDoorman(deps: DoormanDeps = {}): Doorman {
   const log = deps.log ?? consoleLog
   const sessionCache: SessionCache = new Map()
   const accountCache = newAccountCache()
+  const accessCache: AccessCache = new Map()
   const signingKeys = new Map<string, ArrayBuffer>()
   let derived: { secret: string | undefined; keys: Promise<DoormanKeys> } | null = null
 
@@ -119,6 +122,7 @@ export function createDoorman(deps: DoormanDeps = {}): Doorman {
         keys,
         sessions: new Sessions(env.KV, now, sessionCache),
         accounts: new Accounts(env.KV, now, accountCache, keys, log),
+        access: new Access(env.KV, env.OWNER_EMAILS, now, accessCache),
         bucketDeps: { fetch: fetcher, now, signingKeys },
       }
 

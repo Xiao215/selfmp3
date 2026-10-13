@@ -40,6 +40,7 @@ import { useValueStore } from '../../state/useValueStore'
 import { menuCommands } from '../../ports/menuKeys'
 import { finePointer } from '../../ports/pointer'
 import { Panel, partStyles, Row, SliderSetting, StackedRows } from './SettingsParts'
+import { AccessPanel } from './AccessPanel'
 import { AppearancePanel } from './AppearancePanel'
 import { CloudPanel } from './CloudPanel'
 import { Confirmations } from './Confirmations'
@@ -353,6 +354,8 @@ export function SettingsScreen(): ReactNode {
         <StackedRows value={!wide}>
           <View style={styles.panels}>
             <ConnectionPanel anchor={anchorAt('account')} onConfirm={setConfirming} />
+            {/* The doorman's owner only: it draws nothing for anyone else. */}
+            {fromCloud ? <AccessPanel /> : null}
 
             <AppearancePanel anchor={anchorAt('appearance')} />
 

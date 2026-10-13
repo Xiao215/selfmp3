@@ -7,6 +7,7 @@ import {
   CreatePlaylistSchema,
   CreateTagSchema,
   DEFAULT_SETTINGS,
+  DoormanAccessUpdateSchema,
   DoormanHealthSchema,
   GemsQuerySchema,
   PlayEventSchema,
@@ -485,6 +486,14 @@ export function createCloudRoutes(
       'POST',
       '/api/cloud/server/join',
       async ({ session }) => ({ server: await shared.join(session) }),
+    ],
+    // Who may sign in, for the doorman's owner (apps/doorman/src/access.ts).
+    ['GET', '/api/cloud/access', ({ session }) => shared.access(session)],
+    [
+      'PUT',
+      '/api/cloud/access',
+      ({ session, body }) =>
+        shared.updateAccess(session, parseInput(DoormanAccessUpdateSchema, body)),
     ],
     // The servers this account has let into its bucket, from the doorman.
     ['GET', '/api/cloud/grants', ({ session }) => shared.grants(session)],

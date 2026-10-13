@@ -21,6 +21,7 @@ import {
   ArtistBackdropSchema,
   DeviceCommandResultSchema,
   DeviceListSchema,
+  DoormanAccessSchema,
   DoormanGrantsSchema,
   ErrorBodySchema,
   HealthSchema,
@@ -93,6 +94,7 @@ import {
   type WrappedRange,
   type UpdatePlaylist,
   type UpdateSettings,
+  type DoormanAccessUpdate,
 } from '@selfmp3/shared'
 import type { z } from 'zod'
 import {
@@ -562,6 +564,12 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     /** The servers this account has let into its bucket, from the doorman. */
     serverGrants: () => request('GET', '/api/cloud/grants', DoormanGrantsSchema),
+
+    /** Who may sign in, for the doorman's owner (a 403 for anyone else). */
+    access: () => request('GET', '/api/cloud/access', DoormanAccessSchema),
+
+    updateAccess: (update: DoormanAccessUpdate) =>
+      request('PUT', '/api/cloud/access', DoormanAccessSchema, update),
 
     /** Take a server's way into the bucket back. */
     removeServerGrant: (id: string) => request('DELETE', `/api/cloud/grants/${id}`, OkSchema),

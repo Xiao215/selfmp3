@@ -11,7 +11,7 @@ import { getRecord, putRecord, type KvStore } from './kv.js'
  * sign-in with the right code, and goes straight back to that device: KV
  * only ever holds its SHA-256, so the list of sessions cannot be used to sign
  * in even by someone who can read it. Using one also needs its address on
- * ALLOWED_EMAILS and a creation time after the account's last "sign out
+ * allowed in (access.ts) and a creation time after the account's last "sign out
  * everywhere" (see context.ts).
  *
  * A session lasts 180 days from sign-in, and that is fixed: sliding it

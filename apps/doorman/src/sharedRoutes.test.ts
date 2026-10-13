@@ -44,7 +44,7 @@ interface Setup {
 
 async function setup(): Promise<Setup> {
   const h = harness()
-  h.env.ALLOWED_EMAILS = '*'
+  h.allow({ anyone: true })
   const me = await h.signIn()
   const mia = await h.signIn(MIA)
   const ken = await h.signIn(KEN)

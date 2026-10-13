@@ -6,8 +6,9 @@ working copy of it and nothing it could not get back from the bucket. Agreed wit
 2026-10-12, after a friend signed in and found no server: each Google account has its own
 bucket, and a server's address only ever reached the devices that read *its* bucket.
 
-Xiao chose **a revocable grant** for the server's way into each bucket, and **anyone
-signed in** for who may use it.
+Xiao chose **a revocable grant** for the server's way into each bucket, and anyone
+signed in for who may use it — then, on 2026-10-13, an **allow list** for who may sign in
+at all, kept by the doorman's owner in Settings (below).
 
 **Where:** the server (`apps/server/src/hub/`), the doorman (`apps/doorman/src/grants.ts`),
 and every app, which knows the shared server's address the way it knows the doorman's
@@ -145,11 +146,20 @@ A data folder holding `selfmp3.db` and no `hub.json` is a server from before wor
    days, for a grant, opens the workspace again on the grant, and signs the old session
    out. A doorman too old to say asks again in an hour.
 
+## Who may sign in
+
+The doorman decides, and the server takes its word. Its owners — the `OWNER_EMAILS` secret,
+set where the doorman is deployed — are always let in. Everyone else is on a list the owner
+keeps in **Settings › Who can sign in**, a panel only an owner is shown (`/v1/access`,
+`apps/doorman/src/access.ts`, kept in KV), or the owner turns on **Anyone with a Google
+account**. Taking someone off refuses their next request within a minute, and with it any
+server's grant for them: the server can no longer reach their bucket.
+
 ## Cost and risk
 
 - **Anyone signed in may join.** Every import goes out from the server's address to YouTube,
   and every Smart feature runs on the server's model. YouTube has blocked this home's IPv6
-  range before (yt-dlp now pins IPv4). The doorman's `ALLOWED_EMAILS` and the Google OAuth app's
+  range before (yt-dlp now pins IPv4). The doorman's allow list (Settings › Who can sign in, owner only) and the Google OAuth app's
   publishing state are what decide who can sign in at all.
 - **The Pi's memory.** A workspace is a SQLite database with a 64 MB page cache at most, and
   a few timers. The model is shared, so the cost of a friend is mostly their library's

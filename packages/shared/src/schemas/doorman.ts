@@ -207,6 +207,27 @@ export type DoormanGrantMade = z.infer<typeof DoormanGrantMadeSchema>
 export const DoormanGrantsSchema = z.object({ grants: z.array(DoormanGrantSchema) })
 export type DoormanGrants = z.infer<typeof DoormanGrantsSchema>
 
+/** An address on the allow list: Google's, compared without regard to case. */
+const AllowedEmailSchema = z.string().trim().toLowerCase().email('not an email address').max(254)
+
+/**
+ * Who may sign in to this doorman (`PUT /v1/access`), as its owner sets it in
+ * Settings: everyone, or these addresses. Owners are not on it — they are
+ * always let in, so nobody can lock the doorman's owner out of it.
+ */
+export const DoormanAccessUpdateSchema = z.object({
+  anyone: z.boolean(),
+  emails: z.array(AllowedEmailSchema).max(500),
+})
+export type DoormanAccessUpdate = z.infer<typeof DoormanAccessUpdateSchema>
+
+/** The allow list as its owner sees it (`GET /v1/access`), owners included. */
+export const DoormanAccessSchema = DoormanAccessUpdateSchema.extend({
+  /** OWNER_EMAILS: who may change this, always let in. Set where the doorman is deployed. */
+  owners: z.array(z.string()),
+})
+export type DoormanAccess = z.infer<typeof DoormanAccessSchema>
+
 export const DoormanListSchema = z.object({
   objects: z.array(z.object({ key: z.string(), size: z.number().int().nonnegative() })),
   /** Pass back to get the next page; null on the last one. */

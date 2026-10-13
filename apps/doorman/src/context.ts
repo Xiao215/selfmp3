@@ -1,3 +1,4 @@
+import type { Access } from './access.js'
 import type { Accounts } from './accounts.js'
 import { Bucket, type BucketDeps, type Fetch } from './bucket.js'
 import { changeCounter, type ChangeCounter } from './changes.js'
@@ -34,8 +35,11 @@ export interface Env {
   readonly GOOGLE_CLIENT_SECRET?: string
   /** base64 of 32 random bytes; every key the doorman uses comes from it. See keys.ts. */
   readonly SEAL_KEY?: string
-  /** Comma-separated Google addresses that may sign in. Empty lets nobody in. */
-  readonly ALLOWED_EMAILS?: string
+  /**
+   * Comma-separated Google addresses that own this doorman: always let in,
+   * and the only ones who may change who else is (access.ts).
+   */
+  readonly OWNER_EMAILS?: string
   /** Comma-separated origins of the web app, for CORS and for going back after sign-in. */
   readonly APP_ORIGINS?: string
   /**
@@ -69,47 +73,17 @@ export interface Context {
   readonly keys: () => Promise<DoormanKeys>
   readonly sessions: Sessions
   readonly accounts: Accounts
+  /** Who may sign in: the owners, and the list they keep. */
+  readonly access: Access
   readonly bucketDeps: BucketDeps
-}
-
-/**
- * The one entry in ALLOWED_EMAILS that is not an address: on its own or among
- * addresses, it lets any Google account in. Google still decides who can
- * reach the doorman at all — an OAuth app left in Testing admits only its
- * test users, whatever this list says.
- */
-const EVERYONE = '*'
-
-/**
- * ALLOWED_EMAILS as a set of lower-cased addresses. Google addresses are not
- * case-sensitive, and what someone types into a secret may not match what
- * Google says letter for letter. An unset or empty list lets nobody in: the
- * doorman is never open by default, and opening it takes writing `*`.
- */
-function allowedEmails(value: string | undefined): ReadonlySet<string> {
-  const emails = new Set<string>()
-  for (const entry of (value ?? '').split(/[\s,]+/)) {
-    if (entry) emails.add(entry.toLowerCase())
-  }
-  return emails
-}
-
-/** Whether the list lets nobody in at all, so a sign-in can say so before the trip to Google. */
-export function nobodyAllowed(value: string | undefined): boolean {
-  return allowedEmails(value).size === 0
-}
-
-export function isAllowed(email: string, value: string | undefined): boolean {
-  const allowed = allowedEmails(value)
-  return allowed.has(EVERYONE) || allowed.has(email.trim().toLowerCase())
 }
 
 /**
  * The session the request brings, if it is still good. Two things can end a
  * session before its 180 days are up, and both are checked every time:
  *
- * - its address is no longer on ALLOWED_EMAILS. That refuses the session
- *   while the address is off the list; putting it back revives it.
+ * - its address is no longer allowed in (access.ts). That refuses the
+ *   session while the address is off the list; putting it back revives it.
  * - the account signed out everywhere after the session was made. That ends
  *   it for good, and is what to do about a lost device.
  */
@@ -117,7 +91,7 @@ export async function requireSession(ctx: Context): Promise<Session> {
   const token = bearerToken(ctx.request)
   const session = token ? await ctx.sessions.find(token) : null
   if (!session) throw unauthorized()
-  if (!isAllowed(session.email, ctx.env.ALLOWED_EMAILS)) {
+  if (!(await ctx.access.allows(session.email))) {
     throw unauthorized('this Google account is no longer allowed on this self.mp3')
   }
   const cutoff = await ctx.accounts.sessionsValidAfter(session.sub)

@@ -227,9 +227,9 @@ never enters into it.
 
 For them to use your library they have to be *on* your bucket:
 
-1. Add their address to the doorman's `ALLOWED_EMAILS` (`apps/doorman/README.md`), or the
-   door does not open at all. (`*` there opens it to any Google account; the README says
-   what that costs.)
+1. Add their address in Settings › Who can sign in, which only the doorman's owner sees
+   (`apps/doorman/README.md`), or the door does not open at all. (Its **Anyone with a
+   Google account** switch opens it to everyone; the README says what that costs.)
 2. Give them the bucket's keys, which they connect in the app's Settings the same way you
    did.
 

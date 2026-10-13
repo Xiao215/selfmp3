@@ -14,7 +14,16 @@ import { Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { Song } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
-import { HIT_TARGET, motion, radius, space, type, withAlpha, iconSize } from '@selfmp3/client'
+import {
+  HIT_TARGET,
+  motion,
+  radius,
+  space,
+  type,
+  withAlpha,
+  iconSize,
+  coverSize,
+} from '@selfmp3/client'
 import { usePlayer, usePlayerPlaying } from '../../player/PlayerProvider'
 import { useSongColor } from '../../ui/useSongColor'
 import { ease, motionMs, nativeDriver, spring, timing, useEntrance } from '../../ui/motion'
@@ -723,7 +732,7 @@ function WordsView({
         <IconButton onPress={onBack} label="Back to the cover" filled>
           <ChevronDown size={iconSize.large} color={theme.colors.textPrimary} />
         </IconButton>
-        <Cover uri={uri} title={song.album || song.title} size={40} />
+        <Cover uri={uri} title={song.album || song.title} size={coverSize.rowDense} />
         <View style={styles.wordsTitles}>
           <Text style={styles.wordsTitle} numberOfLines={1}>
             {song.title}

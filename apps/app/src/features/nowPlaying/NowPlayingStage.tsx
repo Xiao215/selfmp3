@@ -26,6 +26,7 @@ import {
   type,
   withAlpha,
   iconSize,
+  coverSize,
 } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -853,7 +854,7 @@ function StageUpNext({
       accessibilityLabel={`Skip to the next song: ${upNext.title}`}
       style={[styles.upNext, { right, bottom }, lowered]}
     >
-      <Cover uri={artFor(upNext)} title={upNext.album || upNext.title} size={40} />
+      <Cover uri={artFor(upNext)} title={upNext.album || upNext.title} size={coverSize.rowDense} />
       <View style={styles.upNextText}>
         <Text style={styles.upNextLabel}>NEXT · IN {nextIn} S</Text>
         <Text style={styles.upNextTitle} numberOfLines={1}>

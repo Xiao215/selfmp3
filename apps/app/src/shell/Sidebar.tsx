@@ -58,6 +58,7 @@ import { setPaletteOpen } from './palette'
 import { label as labelText } from '../ui/surfaces'
 import { ScrollView } from '../ui/components/Scroll'
 import { TagDot } from '../ui/components/TagDot'
+import { SIDEBAR_WIDTH } from './widths'
 
 /**
  * The desktop's left rail.
@@ -84,8 +85,6 @@ const ROWS = NAV.filter(place => place.rail === 'row')
 
 /** How many playlists the rail lists: the ones played last. The header opens them all. */
 const RAIL_PLAYLISTS = 4
-
-export const SIDEBAR_WIDTH = 244
 
 function SidebarInner(): ReactNode {
   // On an iPad the rail runs up under the status bar, which a phone's tab bar never did.

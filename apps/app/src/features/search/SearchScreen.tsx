@@ -4,7 +4,7 @@ import { Pressable, Text, type TextInput, View, type ViewStyle } from 'react-nat
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import type { LyricsSearchHit, Song, Tag, Artist } from '@selfmp3/shared'
-import { space, type, useLibrary, iconSize } from '@selfmp3/client'
+import { space, type, useLibrary, iconSize, coverSize } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -18,7 +18,6 @@ import { ChevronLeft, Sparkle } from '../../ui/components/Icons'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { SearchField } from '../../ui/components/SearchField'
 import { SectionHead } from '../../ui/components/SectionHead'
-import { SONG_LINE_COVER } from '../../ui/components/SongLine'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SongList } from '../../ui/components/SongList'
 import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
@@ -530,7 +529,7 @@ function LyricResults({
             accessibilityLabel={`${hit.title}: ${hit.line}`}
             style={({ pressed }) => [styles.lyric, pressed && styles.pressed]}
           >
-            <Cover uri={song ? artFor(song) : null} title={hit.title} size={SONG_LINE_COVER} />
+            <Cover uri={song ? artFor(song) : null} title={hit.title} size={coverSize.line} />
             <View style={styles.lyricText}>
               <Text style={styles.lyricLine} numberOfLines={2}>
                 {hit.before}

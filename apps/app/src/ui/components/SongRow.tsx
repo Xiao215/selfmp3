@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import type { GestureResponderEvent, StyleProp, ViewStyle } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { plural, artistOr, formatDuration, type Song, type Tag } from '@selfmp3/shared'
-import { HIT_TARGET, motion, radius, space, type, iconSize } from '@selfmp3/client'
+import { HIT_TARGET, motion, radius, space, type, iconSize, coverSize } from '@selfmp3/client'
 import {
   chipBudget,
   CHIP_DOT,
@@ -23,7 +23,6 @@ import {
 import { useSongPlayback } from '../../player/PlayerProvider'
 import { useSongDragSource } from '../../ports/songDrag'
 import { useContentWidthValue } from '../../shell/contentWidth'
-import { SIDEBAR_WIDTH } from '../../shell/Sidebar'
 import { useLayoutValue, useWindowValue } from '../../shell/useLayout'
 import { tip } from '../tip'
 import { rightClick, type PopoverAnchor } from '../rightClick'
@@ -37,20 +36,7 @@ import { EASE_OUT_CSS, MOVE_MS, PRESS } from '../motion.model'
 import { floating, rowTitle } from '../surfaces'
 import { Downloaded, More, NotDownloaded, Play, Plus } from './Icons'
 import { useSvgId } from '../useSvgId'
-
-/**
- * Past this width of page the album leaves the second line for a column of its
- * own. Measured against the page itself rather than the window, so it stays
- * right when Up next's rail narrows the page.
- */
-const ALBUM_COLUMN_CONTENT_WIDTH = 916
-/**
- * And past this much, a row has room for its tags as chips — well below the
- * album's column, because an iPad in portrait has 590 points of page and a
- * tag added to a song there should still appear on its row. `RowTags` fits
- * what it can into the room and counts the rest.
- */
-const TAG_CHIPS_CONTENT_WIDTH = 520
+import { COLUMN_WIDTH, SIDEBAR_WIDTH } from '../../shell/widths'
 
 /**
  * One song in a list: one row everywhere (docs/ui-mock `S3`) — cover, title,
@@ -349,7 +335,7 @@ export const SongRow = memo(function SongRow({
             {target(StyleSheet.absoluteFill)}
             <View style={styles.main} pointerEvents="box-none">
               <View style={styles.art} pointerEvents="none" {...UNREAD}>
-                <Cover uri={artUri} title={song.album || song.title} size={48} />
+                <Cover uri={artUri} title={song.album || song.title} size={coverSize.row} />
                 {equalizer(12, styles.playingOverlay)}
               </View>
 
@@ -430,7 +416,7 @@ export const SongRow = memo(function SongRow({
         {target(
           styles.mainWide,
           <>
-            <Cover uri={artUri} title={song.album || song.title} size={40} />
+            <Cover uri={artUri} title={song.album || song.title} size={coverSize.rowDense} />
             <View style={styles.text}>
               {title}
               <View style={styles.subtitleRow}>
@@ -498,9 +484,9 @@ export const SongRow = memo(function SongRow({
  * 48-point cover. Desktop: 7 above and below, and the ⋯ at 44 with a
  * finger or 34 with a mouse, beside a 40-point cover.
  */
-const PHONE_ROW_HEIGHT = 5 * 2 + 3 * 2 + 48
+const PHONE_ROW_HEIGHT = 5 * 2 + 3 * 2 + coverSize.row
 const TOUCH_WIDE_ROW_HEIGHT = 7 * 2 + HIT_TARGET
-const DENSE_ROW_HEIGHT = 7 * 2 + 40
+const DENSE_ROW_HEIGHT = 7 * 2 + coverSize.rowDense
 
 /**
  * The row height for this layout, or null when it cannot be promised: text
@@ -524,7 +510,7 @@ const isDense = (layout: { dense: boolean }): boolean => layout.dense
  * margins and padding, the cover and the gap after it; the ⋯ and the gap
  * before it; the checkbox's column while selecting, and its gap.
  */
-const PHONE_ROW_CHROME = space.xs * 2 + space.lg + space.sm + 48 + 12
+const PHONE_ROW_CHROME = space.xs * 2 + space.lg + space.sm + coverSize.row + 12
 const PHONE_MORE = HIT_TARGET + 10
 const PHONE_SELECT = 34 - 6 + 10
 
@@ -547,8 +533,8 @@ const ROOM_FOR_CHIPS = 2
 
 function roomFor(page: number): number {
   return (
-    (page >= ALBUM_COLUMN_CONTENT_WIDTH ? ROOM_FOR_ALBUM : 0) |
-    (page >= TAG_CHIPS_CONTENT_WIDTH ? ROOM_FOR_CHIPS : 0)
+    (page >= COLUMN_WIDTH.rowAlbum ? ROOM_FOR_ALBUM : 0) |
+    (page >= COLUMN_WIDTH.rowTagChips ? ROOM_FOR_CHIPS : 0)
   )
 }
 

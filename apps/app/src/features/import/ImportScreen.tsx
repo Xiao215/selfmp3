@@ -37,6 +37,7 @@ import {
   type ServerConnection,
   textStyle,
   iconSize,
+  coverSize,
 } from '@selfmp3/client'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
@@ -641,7 +642,7 @@ function Finished({
       </Animated.View>
       {shown.map(job => (
         <Animated.View key={job.id} {...motion} style={styles.job}>
-          <Cover uri={job.thumbnail} title={job.title || job.url} size={46} />
+          <Cover uri={job.thumbnail} title={job.title || job.url} size={coverSize.row} />
           <View style={styles.jobMeta}>
             <Text style={styles.jobTitle} numberOfLines={1}>
               {job.title || job.url}
@@ -787,7 +788,7 @@ function JobRow({
       onPointerEnter={wide && dense ? () => setHovered(true) : undefined}
       onPointerLeave={wide && dense ? () => setHovered(false) : undefined}
     >
-      <Cover uri={job.thumbnail} title={job.title || job.url} size={46} />
+      <Cover uri={job.thumbnail} title={job.title || job.url} size={coverSize.row} />
       <View style={styles.jobMeta}>
         <Text style={[styles.jobTitle, tone === 'cancelled' && styles.mutedText]} numberOfLines={1}>
           {job.title || job.url}

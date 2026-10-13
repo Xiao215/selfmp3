@@ -5,8 +5,9 @@ import { artistOr } from '@selfmp3/shared'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import { X } from '../../ui/components/Icons'
-import { SONG_LINE_COVER, SongLine } from '../../ui/components/SongLine'
+import { SongLine } from '../../ui/components/SongLine'
 import { RoomFace } from './RoomFace'
+import { coverSize } from '@selfmp3/client'
 
 /** Whose song it is, as a face on its cover's corner. */
 interface Face {
@@ -67,7 +68,7 @@ export function RoomEntryLine({
       style={dim ? styles.dim : undefined}
       cover={
         <FaceBadge face={face}>
-          <Cover uri={uri} title={song.album || song.title} size={SONG_LINE_COVER} />
+          <Cover uri={uri} title={song.album || song.title} size={coverSize.line} />
         </FaceBadge>
       }
       title={song.title}

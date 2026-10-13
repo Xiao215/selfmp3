@@ -38,12 +38,10 @@ import {
 import { useSvgId } from '../../ui/useSvgId'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { PageLoading } from '../../ui/components/PageLoading'
+import { COLUMN_WIDTH } from '../../shell/widths'
 
 /** The line beside Listened, in its own box's units. */
 const SPARK = { width: 120, height: 56 }
-
-/** The page column's width from which the three lists fit side by side. */
-const THREE_LISTS = 860
 
 /**
  * Stats (`P32`, `C15`): Listened, Peak hour and Streak as cards, each one big
@@ -213,7 +211,7 @@ function Ranked({ stats, via }: { stats: Stats; via: ServerConnection | undefine
   const column = useContentWidth()
   const [kind, setKind] = useState<RankKind>('songs')
 
-  if (column !== null && column >= THREE_LISTS) {
+  if (column !== null && column >= COLUMN_WIDTH.statsLists) {
     return (
       <View style={[styles.card, styles.rankedWide]} testID="stats-ranked">
         {RANK_KINDS.map(option => (

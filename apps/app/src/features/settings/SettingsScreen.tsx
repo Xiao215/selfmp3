@@ -23,6 +23,7 @@ import { bucketCapped } from '../library/library.model'
 import { useBucketHold } from '../profile/useBucketHold'
 import { deviceKind } from '../../ports/device'
 import { useLayout } from '../../shell/useLayout'
+import { useContentWidthValue } from '../../shell/contentWidth'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { Chip } from '../../ui/components/Chip'
 import { Toggle } from '../../ui/components/Toggle'
@@ -62,9 +63,7 @@ import {
   type SectionId,
 } from './settings.model'
 import { ScrollView } from '../../ui/components/Scroll'
-
-/** At this width the index is a column beside the panels; below it, a row of chips. */
-const INDEX_COLUMN = 1080
+import { COLUMN_WIDTH } from '../../shell/widths'
 
 /** The index column itself, and the gutter on either side of it. */
 const INDEX_WIDTH = 172
@@ -101,7 +100,7 @@ export function SettingsScreen(): ReactNode {
   const { fromCloud } = useConnection()
   const pinyinOn = useRomanizationOn('zh')
   const romajiOn = useRomanizationOn('ja')
-  const { width, wide } = useLayout()
+  const { wide } = useLayout()
   const settings = useSettings()
   const updateSettings = useUpdateSettings()
   const health = useHealth()
@@ -124,7 +123,8 @@ export function SettingsScreen(): ReactNode {
   const shortcuts = sections.some(section => section.id === 'shortcuts') ? menuCommands : null
   const indexed = settingsIndex(sections)
   const shown = (id: SectionId): boolean => sections.some(section => section.id === id)
-  const column = width >= INDEX_COLUMN
+  // The index is a column beside the panels where the page has room; a row of chips below.
+  const column = useContentWidthValue(page => page !== null && page >= COLUMN_WIDTH.settingsIndex)
   const scrollRef = useRef<ScrollView>(null)
   // Each shown panel's view, kept by `anchorAt`, and where it was last measured
   // in the scroll content.

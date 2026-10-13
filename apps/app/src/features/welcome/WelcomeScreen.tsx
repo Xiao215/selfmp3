@@ -46,6 +46,7 @@ import {
 } from './welcome.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { StatusLine } from '../../ui/components/StatusLine'
+import { WINDOW_WIDTH } from '../../shell/widths'
 
 /**
  * The way in (docs/ui-mock `P01`, `P02`, `C01`): one button, Continue with
@@ -74,9 +75,6 @@ function pageOrigin(): string | null {
 
 /** How often to ask the doorman whether Google has finished. */
 const POLL_MS = 2_000
-
-/** A window wide enough for the text half's full margin. */
-const ROOMY = 1100
 
 export function WelcomeScreen(): ReactNode {
   const { theme } = useUnistyles()
@@ -196,7 +194,7 @@ export function WelcomeScreen(): ReactNode {
   const device = deviceWord({ wide, finePointer })
   // Two halves on a wide screen. An iPad in portrait is barely past the
   // breakpoint, so the text half's margin and the button give way there.
-  const margin = width >= ROOMY ? 96 : 48
+  const margin = width >= WINDOW_WIDTH.welcomeRoomy ? 96 : 48
   const pill = Math.min(320, width / 2 - margin * 2)
 
   const words = (

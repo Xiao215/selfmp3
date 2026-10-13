@@ -2,13 +2,10 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import type { AccessibilityRole, StyleProp, TextStyle, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { radius, space, type } from '@selfmp3/client'
+import { radius, space, type, coverSize } from '@selfmp3/client'
 import { Cover } from './Cover'
 import { Press } from './Press'
 import { smallTitle } from '../surfaces'
-
-/** A song line's cover: one size wherever a song is drawn small. */
-export const SONG_LINE_COVER = 36
 
 /**
  * The compact song line: a 36 cover, the title, a line under it, and whatever
@@ -65,7 +62,7 @@ export function SongLine({
         <Cover
           uri={artUri}
           title={coverTitle ?? (typeof title === 'string' ? title : '')}
-          size={SONG_LINE_COVER}
+          size={coverSize.line}
         />
       )}
       <View style={styles.text}>

@@ -43,15 +43,8 @@ import { RoomList, TogetherButton } from '../room/RoomList'
 import { useRoom } from '../room/room.store'
 import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
+import { RAIL_WIDTH, WINDOW_WIDTH } from '../../shell/widths'
 
-/** The rail's width (`S2`, "Gutters": up-next rail 288). */
-const RAIL_WIDTH = 288
-/**
- * The narrowest window that keeps the rail beside the page: the sidebar, a
- * page a list still reads in, and the rail. Narrower (an iPad in portrait),
- * the rail lies over the page instead, as the board draws it.
- */
-const BESIDE_MIN = 1060
 /** Every row of the rail is this tall, so a drag is counted in rows by arithmetic. */
 const ROW_HEIGHT = 44
 /** How far into the rail's slide the rows begin to fade up: its last third. */
@@ -99,7 +92,7 @@ export function QueueRail(): ReactNode {
 export function useQueueRailRoom(): number {
   const shown = useUpNextShown(true)
   const { width } = useLayout()
-  return shown && width >= BESIDE_MIN ? RAIL_WIDTH : 0
+  return shown && width >= WINDOW_WIDTH.railBeside ? RAIL_WIDTH : 0
 }
 
 /** A drag under way: the row it started on, where it would land, and whether it is out. */
@@ -378,7 +371,7 @@ function Rail({
    * over the page instead, as the board draws it, and slides in over a page
    * that keeps its width rather than taking room of its own.
    */
-  const over = width < BESIDE_MIN
+  const over = width < WINDOW_WIDTH.railBeside
 
   /*
    * The rail itself takes a drop, under the rows: let go anywhere in it — the

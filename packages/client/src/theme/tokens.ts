@@ -392,6 +392,15 @@ export const iconSize = {
   hero: 24,
 } as const
 
+/**
+ * A cover's side beside a song's words: a list's row on a phone (`row`), on a
+ * computer (`rowDense`, beside a 34–44 ⋯), and the compact song line in a
+ * search result, a room or a shelf (`line`). Rows that sit beside a song list
+ * — an import, a song on its way — take the list's, so the two line up; they
+ * had drifted to 44 and 46 beside rows of 48.
+ */
+export const coverSize = { row: 48, rowDense: 40, line: 36 } as const
+
 /** A step of the type scale, by name. */
 export type TypeStep = keyof typeof type
 

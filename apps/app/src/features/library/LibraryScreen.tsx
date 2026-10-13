@@ -40,6 +40,7 @@ import { PageHeader } from '../../ui/components/PageHeader'
 import { PageLoading } from '../../ui/components/PageLoading'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
 import { ScrollView } from '../../ui/components/Scroll'
+import { COLUMN_WIDTH } from '../../shell/widths'
 
 /**
  * The library, at every width.
@@ -59,8 +60,8 @@ export function LibraryScreen(): ReactNode {
   // sidebar is 590, so there it stacks as a phone's does. Before the column is
   // measured the row is kept, so a desktop never flashes.
   const contentWidth = useContentWidth()
-  const headWide = wide && (contentWidth === null || contentWidth >= HEAD_ROW_WIDTH)
-  const shuffleIconOnly = contentWidth !== null && contentWidth < SHUFFLE_LABEL_WIDTH
+  const headWide = wide && (contentWidth === null || contentWidth >= COLUMN_WIDTH.libraryHeadRow)
+  const shuffleIconOnly = contentWidth !== null && contentWidth < COLUMN_WIDTH.libraryShuffleLabel
   const player = usePlayerCommands()
   const { state: downloads, installed } = useDownloads()
   const openSearch = useOpenSearch()
@@ -531,15 +532,6 @@ export function LibraryScreen(): ReactNode {
     </SafeAreaView>
   )
 }
-
-/**
- * The narrowest page column that takes the header on one row. Up next's rail
- * beside a small window leaves less than this, and a head that stacked into
- * three rows there pushed the songs down each time the rail opened.
- */
-const HEAD_ROW_WIDTH = 600
-/** Below this the head's Shuffle is its icon alone, with the word as its caption. */
-const SHUFFLE_LABEL_WIDTH = 760
 
 const styles = StyleSheet.create(theme => ({
   /* Play first, the white round one: it is what picking tags was for. */

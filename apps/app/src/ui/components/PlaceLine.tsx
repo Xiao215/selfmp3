@@ -3,9 +3,9 @@ import { Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { plural, type Artist, type Tag } from '@selfmp3/shared'
-import { radius, type, iconSize } from '@selfmp3/client'
+import { radius, type, iconSize, coverSize } from '@selfmp3/client'
 import { User } from './Icons'
-import { SONG_LINE_COVER, SongLine } from './SongLine'
+import { SongLine } from './SongLine'
 import { TagDot } from './TagDot'
 
 /** A tag or an artist, as a search finds one. */
@@ -56,8 +56,8 @@ export function PlaceLine({
 const styles = StyleSheet.create(theme => ({
   // A round the size of a song line's cover.
   figure: {
-    width: SONG_LINE_COVER,
-    height: SONG_LINE_COVER,
+    width: coverSize.line,
+    height: coverSize.line,
     borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,
     alignItems: 'center',

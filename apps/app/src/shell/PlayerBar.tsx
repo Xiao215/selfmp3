@@ -41,6 +41,7 @@ import { floating, rowTitle } from '../ui/surfaces'
 import { LikeButton } from '../ui/components/LikeButton'
 import { TransportControls } from '../ui/components/TransportControls'
 import { goBack } from '../ui/useBackTo'
+import { WINDOW_WIDTH } from './widths'
 
 /**
  * The transport across the foot of the desktop layout.
@@ -58,11 +59,6 @@ import { goBack } from '../ui/useBackTo'
  */
 export const PLAYER_BAR_HEIGHT = 84
 
-/** Below this the volume slider folds into a popover on the speaker. */
-const COMPACT_WIDTH = 1160
-/** Below this the song and the transport shrink, so the tools on the right still fit. */
-const TIGHT_WIDTH = 900
-
 export function PlayerBar(): ReactNode {
   const { theme } = useUnistyles()
   // Not the position: that is the wash's and the scrubber's own, so a tick
@@ -75,8 +71,8 @@ export function PlayerBar(): ReactNode {
   // drawn for: the song and the transport give up width before the tools go.
   // Asked as answers, so a window being dragged redraws the bar only as it
   // crosses one of these lines.
-  const tight = useLayoutValue(layout => layout.width < TIGHT_WIDTH)
-  const compact = useLayoutValue(layout => layout.width < COMPACT_WIDTH)
+  const tight = useLayoutValue(layout => layout.width < WINDOW_WIDTH.barTight)
+  const compact = useLayoutValue(layout => layout.width < WINDOW_WIDTH.barCompact)
   const song = player.current
   // Asked once here and handed to every control that draws in it, rather than
   // each asking the player and the covers again for the same colour.

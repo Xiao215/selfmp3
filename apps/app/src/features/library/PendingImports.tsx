@@ -2,8 +2,9 @@ import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { space, type, useCloudImports, useLibrary } from '@selfmp3/client'
+import { space, type, useCloudImports, useLibrary, coverSize } from '@selfmp3/client'
 import { Cover } from '../../ui/components/Cover'
+import { useLayoutValue } from '../../shell/useLayout'
 import { pendingImports } from './pendingImports.model'
 import { textColumn } from '../../ui/surfaces'
 
@@ -17,6 +18,8 @@ export function PendingImports(): ReactNode {
   const { theme } = useUnistyles()
   const { data } = useCloudImports()
   const library = useLibrary()
+  // The size of the library's own rows below, so the two line up.
+  const wide = useLayoutValue(layout => layout.wide)
   const rows = useMemo(
     () =>
       pendingImports(
@@ -32,7 +35,11 @@ export function PendingImports(): ReactNode {
       {rows.map(row => (
         <View key={row.uid} style={styles.row} testID={`pending-import-${row.uid}`}>
           <View style={styles.faded}>
-            <Cover uri={row.thumbnail} title={row.title} size={44} />
+            <Cover
+              uri={row.thumbnail}
+              title={row.title}
+              size={wide ? coverSize.rowDense : coverSize.row}
+            />
           </View>
           <View style={[styles.text, styles.faded]}>
             <Text style={styles.title} numberOfLines={1}>

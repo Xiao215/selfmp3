@@ -23,7 +23,7 @@ import { OverlayProvider } from './Overlay'
 import { PLAYER_BAR_HEIGHT, PlayerBar } from './PlayerBar'
 import { FocusStyle } from './FocusStyle'
 import { TooltipHost } from './TooltipHost'
-import { Sidebar, SIDEBAR_WIDTH } from './Sidebar'
+import { Sidebar } from './Sidebar'
 import { useFloatingChrome } from './bottomInset'
 import { stageIdle, subscribeStageIdle } from './stageIdle'
 import { useCommands } from './useCommands'
@@ -42,6 +42,7 @@ import { QueueSheet } from '../features/queue/QueueSheet'
 import { ContentWidthContext } from './contentWidth'
 import { createValueStore } from '../state/valueStore.model'
 import { setPaletteOpen, usePaletteOpen } from './palette'
+import { SIDEBAR_WIDTH } from './widths'
 
 /**
  * The frame around every screen, and the only thing that knows the width.

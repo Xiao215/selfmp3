@@ -83,6 +83,7 @@ import {
 import { useSvgId } from '../../ui/useSvgId'
 import { useVia } from '../../connection/via'
 import { ScrollView } from '../../ui/components/Scroll'
+import { COLUMN_WIDTH } from '../../shell/widths'
 
 /**
  * Home: where the app opens (docs/ui-mock `P04`, `C03`).
@@ -876,17 +877,10 @@ const WIDE_TILE_MIN = 190
 /** The card column beside the tiles. */
 const SIDE_COLUMN = 300
 const COLUMN_GAP = 30
-/**
- * The narrowest page that keeps the card column beside the tiles. Below it (an
- * iPad in portrait, a narrow window) the cards go under the tiles, which then
- * take the page's whole width rather than a sliver of it.
- */
-const BESIDE_MIN = 880
-
 /** Whether the card column sits beside the tiles, or under them. */
 function useCardsBeside(wide: boolean): boolean {
   const column = useContentWidth()
-  return wide && (column === null || column >= BESIDE_MIN)
+  return wide && (column === null || column >= COLUMN_WIDTH.homeCardsBeside)
 }
 
 const styles = StyleSheet.create(theme => ({

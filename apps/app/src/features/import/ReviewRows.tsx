@@ -10,7 +10,7 @@ import {
   type ImportPreviewItem,
   type ImportSource,
 } from '@selfmp3/shared'
-import { HIT_TARGET, radius, type, withAlpha, type Review } from '@selfmp3/client'
+import { HIT_TARGET, radius, type, withAlpha, type Review, coverSize } from '@selfmp3/client'
 import { canListenHere } from '../../ports/listen'
 import { label as groupLabel, rowTitle, textColumn } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
@@ -806,7 +806,7 @@ const PhoneRow = memo(function PhoneRow({
         ]}
       >
         <View style={styles.coverWrap}>
-          <Cover uri={item.thumbnail} title={item.title} size={44} />
+          <Cover uri={item.thumbnail} title={item.title} size={coverSize.row} />
           {opening ? (
             <View style={styles.coverWait} pointerEvents="none">
               <ActivityIndicator size="small" color={theme.colors.textPrimary} />
@@ -883,7 +883,7 @@ const GridRow = memo(function GridRow({
                 shown={reveal}
               />
             ) : (
-              <Cover uri={item.thumbnail} title={item.title} size={40} />
+              <Cover uri={item.thumbnail} title={item.title} size={coverSize.rowDense} />
             )}
           </View>
           {open ? (
@@ -976,7 +976,12 @@ const GAP = 14
 
 const styles = StyleSheet.create(theme => ({
   // A closed row's cover, and the wait drawn over it while its song is fetched (as ListenCover's).
-  coverWrap: { width: 44, height: 44, borderRadius: radius.coverSm, overflow: 'hidden' },
+  coverWrap: {
+    width: coverSize.row,
+    height: coverSize.row,
+    borderRadius: radius.coverSm,
+    overflow: 'hidden',
+  },
   coverWait: {
     position: 'absolute',
     top: 0,
@@ -993,7 +998,7 @@ const styles = StyleSheet.create(theme => ({
   cells: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: GAP },
   gridHead: { paddingBottom: 6 },
   headLabel: groupLabel(theme.colors),
-  colCover: { width: 40 },
+  colCover: { width: coverSize.rowDense },
   colTitle: { flex: 1.2, minWidth: 0 },
   colArtist: { flex: 1, minWidth: 0 },
   colAlbum: { flex: 1, minWidth: 0 },

@@ -4,7 +4,15 @@ import { Pressable, Text, type TextInput, useWindowDimensions, View } from 'reac
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { artistOr, formatDuration, plural } from '@selfmp3/shared'
-import { radius, space, type, useLibrary, useScanLibrary, iconSize } from '@selfmp3/client'
+import {
+  radius,
+  space,
+  type,
+  useLibrary,
+  useScanLibrary,
+  iconSize,
+  coverSize,
+} from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -49,7 +57,7 @@ import {
 import { EmptyState } from '../../ui/components/EmptyState'
 import { SearchField } from '../../ui/components/SearchField'
 import { PlaceLine } from '../../ui/components/PlaceLine'
-import { SONG_LINE_COVER, SongLine } from '../../ui/components/SongLine'
+import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Kbd } from '../../ui/components/Kbd'
 
@@ -643,8 +651,8 @@ const styles = StyleSheet.create(theme => ({
   songLine: { flex: 1, minWidth: 0, paddingVertical: 0, paddingHorizontal: 0 },
   // The Ask's sparkle, in a round the size of a row's cover, as a place's figure is.
   figure: {
-    width: SONG_LINE_COVER,
-    height: SONG_LINE_COVER,
+    width: coverSize.line,
+    height: coverSize.line,
     borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,
     alignItems: 'center',

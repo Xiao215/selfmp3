@@ -7,9 +7,8 @@ import { formatRelative } from '@selfmp3/shared'
 
 import { ServerAway } from '../../connection/ServerAway'
 import { usePlayer } from '../../player/PlayerProvider'
-import { useLayout } from '../../shell/useLayout'
 import { Popover } from '../../ui/components/Popover'
-import { Sheet, SheetItem } from '../../ui/components/Sheet'
+import { SheetItem } from '../../ui/components/Sheet'
 import { Devices, Remote } from '../../ui/components/Icons'
 import { useDeviceContext } from './DevicesProvider'
 
@@ -17,9 +16,7 @@ import { useDeviceContext } from './DevicesProvider'
  * What else is playing, and what to do about it.
  *
  * The devices list: beside the control that opened it at desktop width, and a
- * sheet below the breakpoint. It is a `Sheet` directly rather than a `Popover`
- * because on a phone that control lives in the mini player, which has no
- * anchor worth measuring.
+ * sheet below the breakpoint or with nothing to hang from (`Popover`).
  *
  * Two actions per device, and they are opposites: **Play here** pulls that
  * device's queue and position over and stops it there; **Play there** pushes
@@ -53,7 +50,6 @@ export function DevicesSheet({
   const { theme } = useUnistyles()
   const devices = useDeviceContext()
   const player = usePlayer()
-  const { wide } = useLayout()
   // Something is loaded here, but no other device could be told which song.
   const unshareable = player.current !== null && !devices.canPlayOn
 
@@ -123,25 +119,18 @@ export function DevicesSheet({
     </>
   )
 
-  if (wide && anchorRef) {
-    return (
-      <Popover
-        open={open}
-        onClose={onClose}
-        anchorRef={anchorRef}
-        placement="above"
-        width={300}
-        testID="devices-sheet"
-      >
-        {list}
-      </Popover>
-    )
-  }
-
   return (
-    <Sheet open={open} onClose={onClose} title="Devices" testID="devices-sheet">
+    <Popover
+      open={open}
+      onClose={onClose}
+      anchorRef={anchorRef}
+      placement="above"
+      title="Devices"
+      width={300}
+      testID="devices-sheet"
+    >
       {list}
-    </Sheet>
+    </Popover>
   )
 }
 

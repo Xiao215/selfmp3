@@ -24,8 +24,10 @@ import { plural } from '@selfmp3/shared'
  * `count` puts the tag's song count on the pill, dimmed.
  *
  * A finger's target on a phone: 8 by 14 around 13-point text. `compact` is
- * the smaller chip for a row with a mouse. `onRemove` adds the ×. `dashed` is
- * the add chip: an outline and no fill, for "+ tag".
+ * the smaller chip for a row with a mouse. `onRemove` adds the ×, which says
+ * "Remove tag <name>" unless `removeLabel` says better (an artist's chip).
+ * `dashed` is the add chip: an outline and no fill, for "+ tag", whose
+ * `accessibilityLabel` can say more than its two words.
  *
  * A chip is a toggle; `role="link"` makes it a way to a place instead — the
  * Settings index on a phone, whose lit chip is the section on screen.
@@ -44,6 +46,8 @@ export function Chip({
   dashed = false,
   onPress,
   onRemove,
+  removeLabel,
+  accessibilityLabel,
   onLayout,
   role = 'button',
 }: {
@@ -58,6 +62,10 @@ export function Chip({
   dashed?: boolean
   onPress: () => void
   onRemove?: () => void
+  /** What the × says: "Remove tag <name>" by default. */
+  removeLabel?: string
+  /** What the chip says, when its label is too short to: "Add a tag it fills from". */
+  accessibilityLabel?: string
   onLayout?: (event: LayoutChangeEvent) => void
   role?: 'button' | 'link'
 }): ReactNode {
@@ -89,7 +97,8 @@ export function Chip({
         onPress={onPress}
         accessibilityRole={role}
         accessibilityLabel={
-          count === undefined ? label : `${label}, ${plural(count, 'song', 'songs')}`
+          accessibilityLabel ??
+          (count === undefined ? label : `${label}, ${plural(count, 'song', 'songs')}`)
         }
         accessibilityState={{ selected }}
         // react-native-web does not turn `accessibilityState` into anything a
@@ -117,7 +126,7 @@ export function Chip({
           depth="control"
           onPress={onRemove}
           accessibilityRole="button"
-          accessibilityLabel={`Remove tag ${label}`}
+          accessibilityLabel={removeLabel ?? `Remove tag ${label}`}
           hitSlop={6}
           style={({ pressed }) => [styles.remove, pressed && styles.pressed]}
         >

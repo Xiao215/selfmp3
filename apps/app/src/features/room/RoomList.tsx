@@ -22,7 +22,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { More, Next, People, Plus, ToTop } from '../../ui/components/Icons'
 import { PlayingCard } from '../../ui/components/PlayingCard'
 import { PlayPauseButton } from '../../ui/components/PlayPauseButton'
-import { Toggle } from '../../ui/components/Toggle'
+import { ToggleRow } from '../../ui/components/Toggle'
 import { RoomFace, RoomFaces } from './RoomFace'
 import { RoomEntryLine } from './RoomEntryLine'
 import {
@@ -278,20 +278,15 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
       ) : null}
 
       {host ? (
-        <View style={styles.keepGoing}>
-          <Toggle
-            value={state.keepGoing}
-            onChange={keepGoing => act({ type: 'settings', keepGoing })}
-            label="Keep it going"
-            testID="room-keep-going"
-          />
-          <View style={styles.keepGoingText}>
-            <Text style={styles.keepGoingTitle}>Keep it going</Text>
-            <Text style={styles.keepGoingHint} numberOfLines={3}>
-              Near the end, adds songs from what people brought, taking turns
-            </Text>
-          </View>
-        </View>
+        <ToggleRow
+          label="Keep it going"
+          hint="Near the end, adds songs from what people brought, taking turns"
+          hintLines={3}
+          value={state.keepGoing}
+          onChange={keepGoing => act({ type: 'settings', keepGoing })}
+          testID="room-keep-going"
+          style={styles.keepGoing}
+        />
       ) : null}
     </View>
   )
@@ -392,15 +387,9 @@ const styles = StyleSheet.create(theme => ({
   playedLabel: { paddingTop: space.lg },
   more: { color: theme.colors.textMuted, fontSize: type.sub, paddingVertical: 10 },
   keepGoing: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
     marginTop: space.lg,
     padding: space.md,
     borderRadius: radius.mini,
     backgroundColor: theme.colors.surface2,
   },
-  keepGoingText: { flex: 1, minWidth: 0, gap: 2 },
-  keepGoingTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  keepGoingHint: { color: theme.colors.textSecondary, fontSize: type.small },
 }))

@@ -156,6 +156,7 @@ function AddSheetBody({
               compact
               onPress={() => setDraft(current => togglePlace(current, place))}
               onRemove={() => setDraft(current => togglePlace(current, place))}
+              removeLabel={place.kind === 'artist' ? `Remove ${placeName(place)}` : undefined}
             />
           ))}
         </SideScroll>

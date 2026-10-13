@@ -30,6 +30,7 @@ import { useEscape } from '../../shell/useEscape'
 import { Cover } from '../../ui/components/Cover'
 import { useCrossfade } from '../../ui/components/CoverLight'
 import { IconButton } from '../../ui/components/IconButton'
+import { Segmented } from '../../ui/components/Segmented'
 import { ChevronDown, Collapse, Expand, More, Next } from '../../ui/components/Icons'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { TagPicker } from '../../ui/components/TagPicker'
@@ -445,23 +446,16 @@ function Stage({
   const lookAgainPill = showVisual ? <FindLyricsButton onPress={lyrics.lookAgain} /> : null
 
   const tabList = (
-    <View style={styles.tabs} role="tablist" aria-label="Show">
-      {tabs.map(([value, label]) => (
-        <Pressable
-          key={value}
-          role="tab"
-          aria-selected={shownTab === value}
-          onPress={() => onTab(value)}
-          style={({ pressed }) => [
-            styles.tab,
-            pressed && styles.tabPressed,
-            shownTab === value && styles.tabActive,
-          ]}
-        >
-          <Text style={[styles.tabText, shownTab === value && styles.tabTextActive]}>{label}</Text>
-        </Pressable>
-      ))}
-    </View>
+    <Segmented
+      tabs
+      size="small"
+      ground="translucent"
+      label="Show"
+      value={shownTab}
+      options={tabs.map(([value, label]) => ({ value, label }))}
+      onChange={onTab}
+      style={styles.tabs}
+    />
   )
   // Stacked (`T05`), the tabs leave the head for a row under the cover, with
   // Romaji and expand at its other end.
@@ -905,22 +899,9 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textMuted,
     fontSize: type.small,
   },
-  tabs: {
-    marginLeft: 'auto',
-    flexDirection: 'row',
-    gap: 2,
-    padding: 3,
-    borderRadius: radius.pill,
-    backgroundColor: withAlpha(theme.colors.textPrimary, 0.07),
-  },
-  tab: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: radius.pill },
+  tabs: { marginLeft: 'auto' },
   // Stacked, the tabs have gone down under the cover and nothing pushes it right.
   moreAlone: { marginLeft: 'auto' },
-  // The chosen tab is white, as a chosen segment and a chosen chip are (P1).
-  tabActive: { backgroundColor: theme.colors.textPrimary },
-  tabPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.1) },
-  tabText: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '600' },
-  tabTextActive: { color: theme.colors.onPrimary },
   // The box the cover is laid out in: where the stage puts it, and where its
   // travel from the player bar and the idle fade are applied.
   coverLift: { position: 'absolute', zIndex: 3 },

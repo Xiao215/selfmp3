@@ -29,7 +29,7 @@ import { SongLine } from '../../ui/components/SongLine'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { Segmented } from '../../ui/components/Segmented'
 import { Sheet } from '../../ui/components/Sheet'
-import { Toggle } from '../../ui/components/Toggle'
+import { ToggleRow } from '../../ui/components/Toggle'
 import { useCloudSession } from '../profile/useCloudSession'
 import { lookUpLink, playableLink } from './linkSong'
 import { RoomFace } from './RoomFace'
@@ -748,26 +748,14 @@ function KeepAsShared({ state }: { state: RoomState }): ReactNode {
   )
 }
 
-function Right({
-  label: name,
-  hint,
-  value,
-  onChange,
-}: {
+/** One thing friends may do in the room, its switch at the end of the list's line. */
+function Right(props: {
   label: string
   hint?: string
   value: boolean
   onChange: (value: boolean) => void
 }): ReactNode {
-  return (
-    <View style={styles.right}>
-      <View style={styles.pickText}>
-        <Text style={styles.pickTitle}>{name}</Text>
-        {hint ? <Text style={styles.pickSub}>{hint}</Text> : null}
-      </View>
-      <Toggle value={value} onChange={onChange} label={name} />
-    </View>
-  )
+  return <ToggleRow {...props} at="end" />
 }
 
 const styles = StyleSheet.create(theme => ({
@@ -820,5 +808,4 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
   },
   keep: { gap: space.xs },
-  right: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 48 },
 }))

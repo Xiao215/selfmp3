@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated } from 'react-native'
+import { Animated, Text, View } from 'react-native'
+import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
+import { leading, space, type } from '@selfmp3/client'
 import { spring } from '../motion'
 import { Press } from './Press'
 
@@ -81,6 +83,55 @@ export function Toggle({
   )
 }
 
+/**
+ * A switch with its words: the name, and a line on what it does. The switch
+ * stands before them on a card of its own — Keep it going, a first sync's
+ * keep this device in step — or at the end of a list of them (`at="end"`), as
+ * a room's "Friends can" does. Settings' rows have their own table
+ * (`SettingsParts`' `Row`), where every kind of control sits at the end.
+ */
+export function ToggleRow({
+  label,
+  hint,
+  value,
+  onChange,
+  at = 'start',
+  hintLines,
+  disabled,
+  testID,
+  style,
+}: {
+  label: string
+  hint?: string
+  value: boolean
+  onChange: (value: boolean) => void
+  at?: 'start' | 'end'
+  /** How many lines the hint may take before it is cut. */
+  hintLines?: number
+  disabled?: boolean
+  /** The switch's. */
+  testID?: string
+  style?: StyleProp<ViewStyle>
+}): ReactNode {
+  const toggle = (
+    <Toggle value={value} onChange={onChange} label={label} disabled={disabled} testID={testID} />
+  )
+  return (
+    <View style={[styles.row, style]}>
+      {at === 'start' ? toggle : null}
+      <View style={styles.words}>
+        <Text style={styles.name}>{label}</Text>
+        {hint ? (
+          <Text style={styles.hint} numberOfLines={hintLines}>
+            {hint}
+          </Text>
+        ) : null}
+      </View>
+      {at === 'end' ? toggle : null}
+    </View>
+  )
+}
+
 /** The track, and the knob that sits inside it with `KNOB_INSET` all round. */
 const TRACK = { width: 42, height: 24 } as const
 const KNOB_SIZE = 18
@@ -127,4 +178,8 @@ const styles = StyleSheet.create(theme => ({
   knobOn: { ...KNOB, backgroundColor: theme.colors.onAccent },
   knobOff: { ...KNOB, backgroundColor: theme.colors.textPrimary },
   disabled: { opacity: 0.45 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 48 },
+  words: { flex: 1, minWidth: 0, gap: 2 },
+  name: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  hint: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
 }))

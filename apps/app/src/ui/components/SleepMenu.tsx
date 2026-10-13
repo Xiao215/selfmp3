@@ -1,12 +1,10 @@
 import { useLayoutEffect, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { Text, type View } from 'react-native'
-import { StyleSheet } from 'react-native-unistyles'
+import type { View } from 'react-native'
 import { formatDuration } from '@selfmp3/shared'
-import { space, type } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { Popover } from './Popover'
-import { Sheet, SheetItem } from './Sheet'
+import { SheetItem } from './Sheet'
 
 const SLEEP_OPTIONS = [15, 30, 45, 60, 90] as const
 
@@ -72,20 +70,6 @@ export function SleepMenu({
     </>
   )
 
-  if (!anchorRef) {
-    return (
-      <Sheet
-        open={open}
-        onClose={onClose}
-        title="Sleep timer"
-        subtitle={status}
-        testID="sleep-menu"
-      >
-        {items}
-      </Sheet>
-    )
-  }
-
   return (
     <Popover
       open={open}
@@ -93,11 +77,11 @@ export function SleepMenu({
       anchorRef={anchorRef}
       placement="above"
       title="Sleep timer"
-      titleTone="label"
+      subtitle={status}
+      panelTitle={status ?? 'Sleep timer'}
       width={200}
       testID="sleep-menu"
     >
-      <Text style={styles.menuTitle}>{status ?? 'Sleep timer'}</Text>
       {items}
     </Popover>
   )
@@ -141,13 +125,3 @@ function useClock(endsAt: number | null, everyMs: number, ticking: boolean): num
   }, [endsAt, everyMs, ticking])
   return now
 }
-
-const styles = StyleSheet.create(theme => ({
-  menuTitle: {
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    paddingHorizontal: 10,
-    paddingTop: space.sm,
-    paddingBottom: 6,
-  },
-}))

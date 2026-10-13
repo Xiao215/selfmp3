@@ -55,7 +55,7 @@ const ICON: Record<SongActionId, ReactNode> = {
   download: <CloudDownload size={iconSize.item} tone="textSecondary" />,
   removeDownload: <CloudRemove size={iconSize.item} tone="textSecondary" />,
   details: <Info size={iconSize.item} tone="textSecondary" />,
-  removeFromPlaylist: <X size={16} tone="textSecondary" />,
+  removeFromPlaylist: <X size={iconSize.item} tone="textSecondary" />,
   delete: <Trash size={iconSize.item} tone="danger" />,
 }
 

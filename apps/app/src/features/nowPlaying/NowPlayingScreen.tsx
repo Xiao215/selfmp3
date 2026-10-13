@@ -1,14 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  Animated,
-  Image,
-  PanResponder,
-  Pressable,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native'
+import { Animated, Image, PanResponder, Text, useWindowDimensions, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -63,6 +55,7 @@ import { StageLyrics } from './StageLyrics'
 import { TaggingLine } from './TaggingLine'
 import { useSongWords } from './useSongWords'
 import { useTagEditor, useTagging } from './useTagging'
+import { Press } from '../../ui/components/Press'
 
 /**
  * Now Playing: the computer's stage, or the phone's own full-screen page.
@@ -505,7 +498,7 @@ function CoverView({
           <TaggingLine line={tagging.line} onStop={tagging.stop} center />
         ) : sleep.line !== null ? (
           <View style={styles.headMiddle}>
-            <Pressable
+            <Press
               onPress={onSleep}
               accessibilityRole="button"
               accessibilityLabel={`Sleep timer: ${sleep.line}`}
@@ -516,7 +509,7 @@ function CoverView({
               <Text style={styles.sleepText} numberOfLines={1}>
                 {sleep.line}
               </Text>
-            </Pressable>
+            </Press>
           </View>
         ) : (
           <Text style={styles.headLabel} numberOfLines={1}>
@@ -685,13 +678,14 @@ function BreathingCover({
       }}
     >
       <Animated.View style={[styles.artShadow, { transform }]}>
-        <Pressable
+        <Press
+          depth="row"
           onPress={onPress}
           accessibilityRole="button"
           accessibilityLabel="Show the lyrics"
         >
           <Cover uri={uri} title={song.album || song.title} size={size} />
-        </Pressable>
+        </Press>
       </Animated.View>
     </View>
   )

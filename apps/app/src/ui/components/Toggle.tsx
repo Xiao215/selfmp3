@@ -3,8 +3,9 @@ import type { ReactNode } from 'react'
 import { Animated, Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { space } from '@selfmp3/client'
+import { hitSlopFor, space } from '@selfmp3/client'
 import { spring } from '../motion'
+import { OPACITY } from '../motion.model'
 import { Press } from './Press'
 import { rowTitle, lineSub, textColumn } from '../surfaces'
 
@@ -61,7 +62,12 @@ export function Toggle({
       disabled={disabled}
       // The track is 42 by 24; the slop brings the target up to the 44-point
       // minimum without changing what is drawn.
-      hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+      hitSlop={{
+        top: hitSlopFor(TRACK.height),
+        bottom: hitSlopFor(TRACK.height),
+        left: hitSlopFor(TRACK.width),
+        right: hitSlopFor(TRACK.width),
+      }}
       role="switch"
       aria-checked={value}
       accessibilityState={{ checked: value, disabled }}
@@ -178,7 +184,7 @@ const styles = StyleSheet.create(theme => ({
   },
   knobOn: { ...KNOB, backgroundColor: theme.colors.onAccent },
   knobOff: { ...KNOB, backgroundColor: theme.colors.textPrimary },
-  disabled: { opacity: 0.45 },
+  disabled: { opacity: OPACITY.disabled },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 48 },
   words: textColumn,
   name: rowTitle(theme.colors),

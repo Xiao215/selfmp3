@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import type { StyleProp, TextStyle, ViewStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { motion, space } from '@selfmp3/client'
+import { motion, space, iconSize } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { usePresence } from '../motion'
@@ -172,7 +172,7 @@ export function DialogHead({
         {title}
       </Text>
       <IconButton onPress={onClose} label={closeLabel}>
-        <X size={16} color={theme.colors.textSecondary} />
+        <X size={iconSize.item} color={theme.colors.textSecondary} />
       </IconButton>
     </View>
   )

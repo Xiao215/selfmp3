@@ -1,13 +1,13 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, View, useWindowDimensions } from 'react-native'
+import { Animated, Text, View, useWindowDimensions } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { useRouter, type Href } from 'expo-router'
 import type { Song, Tag } from '@selfmp3/shared'
-import { fonts, motion, radius, space, type, tracking } from '@selfmp3/client'
+import { fonts, hitSlopFor, motion, radius, space, type, tracking, iconSize } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { useEscape } from '../../shell/useEscape'
@@ -47,6 +47,7 @@ import {
 import { RoomList, TogetherButton } from '../room/RoomList'
 import { useRoom } from '../room/room.store'
 import { ScrollView } from '../../ui/components/Scroll'
+import { Press } from '../../ui/components/Press'
 
 /** How far below the status bar the sheet's top edge sits (`P25`: the page's title peeks out). */
 const SHEET_TOP = 16
@@ -294,16 +295,17 @@ function SheetPanel({
         <GestureDetector gesture={pullDown}>
           <View collapsable={false} style={styles.head}>
             {/* The grabber is also a button: a pull is hard to find with a screen reader. */}
-            <Pressable
+            <Press
+              feedback="dim"
               onPress={closeQueueSheet}
               accessibilityRole="button"
               accessibilityLabel="Close Up next"
               testID="queue-sheet-close"
-              hitSlop={12}
+              hitSlop={hitSlopFor(GRABBER_HIT)}
               style={styles.grabberHit}
             >
               <SheetGrabber />
-            </Pressable>
+            </Press>
             {inRoom ? null : (
               <View style={styles.titleRow}>
                 <Text style={styles.title} accessibilityRole="header">
@@ -613,7 +615,7 @@ function SwipeToRemove({
         onLayout={event => setWidth(event.nativeEvent.layout.width)}
       >
         <View style={styles.ground} pointerEvents="none">
-          <X size={16} color={theme.colors.textPrimary} />
+          <X size={iconSize.item} color={theme.colors.textPrimary} />
           <Text style={styles.groundText}>Remove</Text>
         </View>
         <Animated.View style={[styles.swipeRow, { transform: [{ translateX: x }] }]}>
@@ -623,6 +625,9 @@ function SwipeToRemove({
     </GestureDetector>
   )
 }
+
+/** The grabber's button: the 4-point bar and the 2 above and below it. */
+const GRABBER_HIT = 8
 
 /** A row's height before the first has been measured, where a song row's cannot be promised. */
 const ROW_HEIGHT_GUESS = 64

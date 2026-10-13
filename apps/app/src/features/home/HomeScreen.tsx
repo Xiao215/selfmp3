@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, View } from 'react-native'
+import { Animated, Text, View } from 'react-native'
 import type { ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
@@ -33,6 +33,7 @@ import { useLayout } from '../../shell/useLayout'
 import { noTagsLine } from '../tag/tag.model'
 import { Cover } from '../../ui/components/Cover'
 import { EmptyState } from '../../ui/components/EmptyState'
+import { Press } from '../../ui/components/Press'
 import { IconButton } from '../../ui/components/IconButton'
 import { SearchField } from '../../ui/components/SearchField'
 import { SectionHead } from '../../ui/components/SectionHead'
@@ -42,7 +43,7 @@ import { ChevronRight, Download, Plus, Sparkle } from '../../ui/components/Icons
 import { useAccent } from '../../ui/accent'
 import { useSongColor } from '../../ui/useSongColor'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { session, useArrival, usePressScale } from '../../ui/motion'
+import { session, useArrival } from '../../ui/motion'
 import { handOffPlace } from '../../ui/coverHandoff'
 import {
   artShadow,
@@ -268,33 +269,30 @@ function SundayLead({
   onOpen: () => void
 }): ReactNode {
   const tone = useSundayTone(song)
-  const press = usePressScale(0.98)
   const lead = card.song
   return (
-    <Animated.View style={press.style}>
-      <Pressable
-        testID="home-sunday"
-        onPress={onOpen}
-        {...press.handlers}
-        accessibilityRole="link"
-        accessibilityLabel={sundaySpoken(card)}
-        style={styles.sunday}
-      >
-        <ToneWash color={tone.color} />
-        {song ? <SundaySong song={song} tone={tone} size={SUNDAY_COVER} /> : null}
-        {/* Without a song, the week says itself: the title, then how long and whose. */}
-        <View style={styles.sundayText}>
-          {lead ? <Text style={[styles.kicker, { color: tone.tint }]}>{card.title}</Text> : null}
-          <Text style={styles.sundayTitle} numberOfLines={1}>
-            {lead ? lead.title : card.title}
-          </Text>
-          <Text style={styles.sundayLine} numberOfLines={1}>
-            {lead ? lead.note : card.line}
-          </Text>
-        </View>
-        <ChevronRight size={iconSize.item} color={tone.tint} />
-      </Pressable>
-    </Animated.View>
+    <Press
+      depth="row"
+      testID="home-sunday"
+      onPress={onOpen}
+      accessibilityRole="link"
+      accessibilityLabel={sundaySpoken(card)}
+      style={styles.sunday}
+    >
+      <ToneWash color={tone.color} />
+      {song ? <SundaySong song={song} tone={tone} size={SUNDAY_COVER} /> : null}
+      {/* Without a song, the week says itself: the title, then how long and whose. */}
+      <View style={styles.sundayText}>
+        {lead ? <Text style={[styles.kicker, { color: tone.tint }]}>{card.title}</Text> : null}
+        <Text style={styles.sundayTitle} numberOfLines={1}>
+          {lead ? lead.title : card.title}
+        </Text>
+        <Text style={styles.sundayLine} numberOfLines={1}>
+          {lead ? lead.note : card.line}
+        </Text>
+      </View>
+      <ChevronRight size={iconSize.item} color={tone.tint} />
+    </Press>
   )
 }
 
@@ -335,34 +333,31 @@ function ToneWash({ color }: { color: string }): ReactNode {
  */
 function FirstSong({ onPress }: { onPress: () => void }): ReactNode {
   const accent = useAccent()
-  const press = usePressScale(0.98)
   return (
-    <Animated.View style={press.style}>
-      <Pressable
-        testID="home-first-song"
-        onPress={onPress}
-        {...press.handlers}
-        accessibilityRole="button"
-        accessibilityLabel="Import a link. Silence, for now: paste a YouTube link and your library starts here."
-        style={[styles.firstCard, { backgroundColor: accent.accentPill }]}
-      >
-        <View style={styles.firstMark}>
-          <Plus size={iconSize.large} color={accent.accent} />
-        </View>
-        <Text style={styles.firstTitle}>
-          Silence, for now
-          <Text style={styles.greetingDot}>.</Text>
-        </Text>
-        <Text style={styles.firstBody}>
-          Paste a YouTube link and your library starts here. The tags you play most, what you played
-          last and your week in numbers all follow from the first song.
-        </Text>
-        <View style={styles.firstAction}>
-          <Text style={[styles.firstActionLabel, { color: accent.accent }]}>Import a link</Text>
-          <ChevronRight size={iconSize.item} color={accent.accent} />
-        </View>
-      </Pressable>
-    </Animated.View>
+    <Press
+      depth="row"
+      testID="home-first-song"
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Import a link. Silence, for now: paste a YouTube link and your library starts here."
+      style={[styles.firstCard, { backgroundColor: accent.accentPill }]}
+    >
+      <View style={styles.firstMark}>
+        <Plus size={iconSize.large} color={accent.accent} />
+      </View>
+      <Text style={styles.firstTitle}>
+        Silence, for now
+        <Text style={styles.greetingDot}>.</Text>
+      </Text>
+      <Text style={styles.firstBody}>
+        Paste a YouTube link and your library starts here. The tags you play most, what you played
+        last and your week in numbers all follow from the first song.
+      </Text>
+      <View style={styles.firstAction}>
+        <Text style={[styles.firstActionLabel, { color: accent.accent }]}>Import a link</Text>
+        <ChevronRight size={iconSize.item} color={accent.accent} />
+      </View>
+    </Press>
   )
 }
 
@@ -385,14 +380,14 @@ function PhoneHeader(): ReactNode {
         >
           <Download tone="textPrimary" />
         </IconButton>
-        <Pressable
+        <Press
           testID="home-you"
           onPress={() => router.navigate('/profile')}
           accessibilityRole="button"
           accessibilityLabel="Profile"
         >
           <Avatar account={account} size={AVATAR} />
-        </Pressable>
+        </Press>
       </View>
     </View>
   )
@@ -512,7 +507,6 @@ function Tile({
   onPress: () => void
 }): ReactNode {
   const { wide } = useLayout()
-  const press = usePressScale()
   const arrival = useArrival(index, arrive, count)
   const colours = tagColors(tile.tag.hue)
   const ref = useRef<View>(null)
@@ -531,38 +525,35 @@ function Tile({
   return (
     // Two views, because the arrival and the press each carry a transform.
     <Animated.View style={arrival}>
-      <Animated.View style={press.style}>
-        <Pressable
-          ref={ref}
-          testID={`home-tile-${index}`}
-          onPress={open}
-          {...press.handlers}
-          accessibilityRole="button"
-          accessibilityLabel={`${tile.tag.name}, ${plural(tile.songs, 'song', 'songs')}`}
-          style={[styles.tile, wide && styles.tileWide, { backgroundColor: colours.tile }]}
+      <Press
+        ref={ref}
+        testID={`home-tile-${index}`}
+        onPress={open}
+        accessibilityRole="button"
+        accessibilityLabel={`${tile.tag.name}, ${plural(tile.songs, 'song', 'songs')}`}
+        style={[styles.tile, wide && styles.tileWide, { backgroundColor: colours.tile }]}
+      >
+        {/* Two lines before it is cut: "night drive" whole rather than "night dri…". */}
+        <Text
+          style={[styles.tileName, small && styles.tileNameSmall, { color: colours.tileInk }]}
+          numberOfLines={2}
         >
-          {/* Two lines before it is cut: "night drive" whole rather than "night dri…". */}
-          <Text
-            style={[styles.tileName, small && styles.tileNameSmall, { color: colours.tileInk }]}
-            numberOfLines={2}
-          >
-            {tile.tag.name}
-          </Text>
-          <Text style={[styles.tileCount, { color: colours.tileInk }]}>
-            {plural(tile.songs, 'song', 'songs')}
-          </Text>
-          {tile.cover ? (
-            <View style={[styles.tileCover, wide && styles.tileCoverWide]} pointerEvents="none">
-              <Cover
-                uri={artUri}
-                title={tile.cover.album || tile.cover.title}
-                size={wide ? 64 : 58}
-                radius={12}
-              />
-            </View>
-          ) : null}
-        </Pressable>
-      </Animated.View>
+          {tile.tag.name}
+        </Text>
+        <Text style={[styles.tileCount, { color: colours.tileInk }]}>
+          {plural(tile.songs, 'song', 'songs')}
+        </Text>
+        {tile.cover ? (
+          <View style={[styles.tileCover, wide && styles.tileCoverWide]} pointerEvents="none">
+            <Cover
+              uri={artUri}
+              title={tile.cover.album || tile.cover.title}
+              size={wide ? 64 : 58}
+              radius={12}
+            />
+          </View>
+        ) : null}
+      </Press>
     </Animated.View>
   )
 }
@@ -740,9 +731,13 @@ function ThisWeek({
           {sunday ? (
             <OpenWeek card={sunday} tone={tone} onOpen={onOpenWeek} />
           ) : (
-            <Pressable onPress={() => router.navigate('/stats')} accessibilityRole="link">
+            <Press
+              feedback="dim"
+              onPress={() => router.navigate('/stats')}
+              accessibilityRole="link"
+            >
               <Text style={styles.linkSmall}>Stats and report</Text>
-            </Pressable>
+            </Press>
           )}
         </View>
         <ImportsHint style={half} />
@@ -824,20 +819,16 @@ function OpenWeek({
   onOpen: () => void
 }): ReactNode {
   return (
-    <Pressable
+    <Press
       testID="home-sunday"
       onPress={onOpen}
       accessibilityRole="link"
       // The button's own words first, then what the card says: the phone's card says the same.
       accessibilityLabel={`Open the report. ${sundaySpoken(card)}`}
-      style={({ pressed }) => [
-        styles.readyButton,
-        { backgroundColor: tone.tint },
-        pressed && styles.readyButtonPressed,
-      ]}
+      style={[styles.readyButton, { backgroundColor: tone.tint }]}
     >
       <Text style={styles.readyButtonLabel}>Open the report</Text>
-    </Pressable>
+    </Press>
   )
 }
 
@@ -845,10 +836,11 @@ function OpenWeek({
 function ImportsHint({ style }: { style?: ViewStyle | null }): ReactNode {
   const router = useRouter()
   return (
-    <Pressable
+    <Press
       onPress={() => router.navigate('/import')}
       accessibilityRole="link"
-      style={[styles.importCard, style]}
+      wrap={style}
+      style={styles.importCard}
     >
       <View style={styles.importIcon}>
         <Download size={iconSize.item} tone="textPrimary" />
@@ -857,7 +849,7 @@ function ImportsHint({ style }: { style?: ViewStyle | null }): ReactNode {
         <Text style={styles.importTitle}>Import a link</Text>
         <Text style={styles.importBody}>A song or a playlist from YouTube</Text>
       </View>
-    </Pressable>
+    </Press>
   )
 }
 
@@ -1005,11 +997,12 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  readyButtonPressed: { opacity: 0.85 },
   readyButtonLabel: { color: theme.colors.surface0, fontSize: type.sub, fontWeight: '600' },
   weekNumbers: { flexDirection: 'row', gap: space.md },
   importCard: {
     ...card(theme.colors),
+    // Filling the wrapper the press sinks, which the card beside it stretches.
+    flexGrow: 1,
     padding: space.roomy,
     flexDirection: 'row',
     alignItems: 'center',

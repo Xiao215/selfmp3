@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, type TextInput, useWindowDimensions, View } from 'react-native'
+import { Text, type TextInput, useWindowDimensions, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { artistOr, formatDuration, plural } from '@selfmp3/shared'
@@ -60,6 +60,7 @@ import { PlaceLine } from '../../ui/components/PlaceLine'
 import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Kbd } from '../../ui/components/Kbd'
+import { Press } from '../../ui/components/Press'
 
 /** One selectable row: what it is drawn as, what it is read out as, and what Enter does. */
 interface Row {
@@ -410,7 +411,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const drawRow = (row: Row, index: number): ReactNode => {
     const on = index === active
     return (
-      <Pressable
+      <Press
+        feedback="wash"
         key={row.key}
         ref={node => {
           rowNodes.current.set(index, node)
@@ -423,7 +425,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         style={[styles.item, on && styles.itemOn]}
       >
         {row.node}
-      </Pressable>
+      </Press>
     )
   }
   // Each group's rows are numbered on from the last group's, so a row's index

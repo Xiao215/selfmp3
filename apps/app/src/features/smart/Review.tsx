@@ -1,10 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
 import { clamp, plural, artistOr } from '@selfmp3/shared'
-import { onMac, radius, space, type, withAlpha, textStyle, iconSize } from '@selfmp3/client'
+import {
+  hitSlopFor,
+  onMac,
+  radius,
+  space,
+  type,
+  withAlpha,
+  textStyle,
+  iconSize,
+} from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { Button } from '../../ui/components/Button'
@@ -17,6 +26,7 @@ import { keptSongs, leftOutKey, reviewBands, tickedAtFirst, type Reviewed } from
 import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
 import { AnswerActions, AnswerNote } from './AnswerParts'
+import { Press } from '../../ui/components/Press'
 
 /**
  * The steps the list is drawn in. A band's tick, then its title, note and
@@ -25,6 +35,9 @@ import { AnswerActions, AnswerNote } from './AnswerParts'
  */
 const BAND_TEXT = 32
 const CHANGE_TEXT = BAND_TEXT + 18 + 12
+
+/** The round that opens a change's songs. */
+const OPEN = 26
 
 /** How many changes a heading shows before "N more". */
 const SECTION_SHOWS = 3
@@ -334,11 +347,8 @@ export function Review<T extends Reviewed>({
             setAt(null)
             flip([each], !full)
           }}
-          style={({ pressed }) => [
-            styles.change,
-            at === id && styles.at,
-            pressed && styles.pressed,
-          ]}
+          feedback="dim"
+          style={[styles.change, at === id && styles.at]}
           testID={`${testID}-change`}
         >
           <Checkbox checked={full} mixed={on && !full} />
@@ -346,7 +356,8 @@ export function Review<T extends Reviewed>({
             {drawChange(each, { on, full, kept: keptSongs(each, leftOut) })}
           </View>
           {many ? (
-            <Pressable
+            <Press
+              feedback="dim"
               onPress={() => {
                 setAt(null)
                 setOpen(toggle(open, change.key))
@@ -357,8 +368,8 @@ export function Review<T extends Reviewed>({
                   ? 'Hide the songs'
                   : `Show the ${plural(each.songIds.length, 'song', 'songs')}`
               }
-              hitSlop={8}
-              style={({ pressed }) => [styles.open, pressed && styles.pressed]}
+              hitSlop={hitSlopFor(OPEN)}
+              style={styles.open}
               testID={`${testID}-open`}
             >
               {opened ? (
@@ -366,7 +377,7 @@ export function Review<T extends Reviewed>({
               ) : (
                 <ChevronRight size={iconSize.button} tone="textMuted" />
               )}
-            </Pressable>
+            </Press>
           ) : null}
         </CheckRow>
         {opened ? (
@@ -386,11 +397,8 @@ export function Review<T extends Reviewed>({
                     setAt(null)
                     flipSong(each, songId)
                   }}
-                  style={({ pressed }) => [
-                    styles.song,
-                    at === songStop && styles.at,
-                    pressed && styles.pressed,
-                  ]}
+                  feedback="dim"
+                  style={[styles.song, at === songStop && styles.at]}
                   testID={`${testID}-song`}
                 >
                   <SongLine
@@ -455,11 +463,8 @@ export function Review<T extends Reviewed>({
                   setAt(null)
                   flip(list, !all)
                 }}
-                style={({ pressed }) => [
-                  styles.bandHead,
-                  at === id && styles.at,
-                  pressed && styles.pressed,
-                ]}
+                feedback="dim"
+                style={[styles.bandHead, at === id && styles.at]}
                 testID={`${testID}-section`}
               >
                 <Checkbox checked={all} mixed={on > 0 && !all} />
@@ -539,19 +544,15 @@ function More({
   onPress: () => void
 }): ReactNode {
   return (
-    <Pressable
+    <Press
+      feedback="dim"
       ref={place(stop)}
       onPress={onPress}
       accessibilityRole="button"
-      style={({ pressed }) => [
-        styles.more,
-        { marginLeft: indent - space.sm },
-        at === stop && styles.at,
-        pressed && styles.pressed,
-      ]}
+      style={[styles.more, { marginLeft: indent - space.sm }, at === stop && styles.at]}
     >
       <Text style={styles.moreText}>{text}</Text>
-    </Pressable>
+    </Press>
   )
 }
 
@@ -626,8 +627,8 @@ const styles = StyleSheet.create(theme => ({
   at: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.07) },
   words: textColumn,
   open: {
-    width: 26,
-    height: 26,
+    width: OPEN,
+    height: OPEN,
     marginTop: -3,
     borderRadius: radius.pill,
     alignItems: 'center',
@@ -651,5 +652,4 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.coverSm,
   },
   moreText: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '500' },
-  pressed: { opacity: 0.7 },
 }))

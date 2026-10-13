@@ -1,12 +1,14 @@
 import { useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Animated, Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { Animated, Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import { useLayoutValue } from '../../shell/useLayout'
 import { useMinimumBusy, usePresence } from '../motion'
 import { tip } from '../tip'
 import { Press } from './Press'
-import { HIT_TARGET, iconSize, motion, radius, type, withAlpha, space } from '@selfmp3/client'
+import { Spinner } from './Spinner'
+import { HIT_TARGET, hitSlopFor, motion, radius, type, space, iconSize } from '@selfmp3/client'
+import { OPACITY } from '../motion.model'
 import { sizedIcon } from './Icons'
 
 /**
@@ -109,7 +111,7 @@ export function Button({
       // An icon-only button has nothing on it to read; one with a label has said it.
       {...tip(label === undefined ? accessibilityLabel : undefined)}
       accessibilityState={{ disabled: inactive, selected: active, expanded }}
-      hitSlop={small ? { top: 8, bottom: 8 } : undefined}
+      hitSlop={small ? { top: hitSlopFor(SMALL), bottom: hitSlopFor(SMALL) } : undefined}
       style={({ pressed }) => [
         styles.button,
         dense && styles.buttonDense,
@@ -143,7 +145,15 @@ export function Button({
             ) : null}
             {spinner.mounted ? (
               <Animated.View style={[icon ? styles.overIcon : undefined, spinnerFade]}>
-                <Spinner variant={variant} />
+                <Spinner
+                  tone={
+                    variant === 'primary'
+                      ? 'onAccent'
+                      : variant === 'danger'
+                        ? 'danger'
+                        : 'textPrimary'
+                  }
+                />
               </Animated.View>
             ) : null}
           </View>
@@ -208,26 +218,8 @@ export function PlayButton({
   )
 }
 
-/**
- * The busy spinner, which is the one thing on a button whose colour has to be
- * a prop rather than a style. Kept apart so that reading the theme for it
- * re-renders a spinner nobody can see standing still, rather than every button
- * on the screen, on every step of a drag on the accent picker.
- */
-function Spinner({ variant }: { variant: 'primary' | 'secondary' | 'danger' | 'text' }): ReactNode {
-  const { theme } = useUnistyles()
-  return (
-    <ActivityIndicator
-      color={
-        variant === 'primary'
-          ? theme.colors.onAccent
-          : variant === 'danger'
-            ? theme.colors.danger
-            : theme.colors.textPrimary
-      }
-    />
-  )
-}
+/** `size="small"`'s height, which the slop brings up to a finger's. */
+const SMALL = 28
 
 const styles = StyleSheet.create(theme => ({
   button: {
@@ -246,13 +238,13 @@ const styles = StyleSheet.create(theme => ({
     width: 36,
     paddingHorizontal: 0,
   },
-  small: { minHeight: 28, paddingHorizontal: space.snug },
-  squareSmall: { width: 28, paddingHorizontal: 0 },
+  small: { minHeight: SMALL, paddingHorizontal: space.snug },
+  squareSmall: { width: SMALL, paddingHorizontal: 0 },
   textSmall: { backgroundColor: 'transparent', paddingHorizontal: space.xs },
   contentSmall: { gap: space.xs },
   labelSmall: { fontSize: type.small },
   translucent: { backgroundColor: theme.colors.veil },
-  translucentPressed: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.14) },
+  translucentPressed: { backgroundColor: theme.colors.veilPressed },
   text: {
     backgroundColor: 'transparent',
     paddingHorizontal: space.sm,
@@ -292,7 +284,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface3,
   },
   disabled: {
-    opacity: 0.45,
+    opacity: OPACITY.disabled,
   },
   label: {
     fontSize: type.body,

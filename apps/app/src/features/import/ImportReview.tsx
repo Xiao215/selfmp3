@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { Redirect } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
@@ -27,6 +27,7 @@ import {
 } from './review.model'
 import { AllBox, ReviewGridHead, useReviewRows } from './ReviewRows'
 import { ScrollView } from '../../ui/components/Scroll'
+import { TapAway } from '../../ui/components/TapAway'
 
 /**
  * Reviewing what a link holds, before any of it downloads (`/import/review`,
@@ -130,11 +131,7 @@ export function ImportReview({
           </Text>
         </View>
       ) : (
-        <Pressable
-          onPress={open === null ? undefined : closeRow}
-          accessible={false}
-          style={styles.headPhone}
-        >
+        <TapAway onPress={open === null ? undefined : closeRow} style={styles.headPhone}>
           {/*
            * The head every page opened from another has on a phone: the round
            * ‹ (`BackButton`, as Import's own head), the name under it on the
@@ -147,7 +144,7 @@ export function ImportReview({
             subtitleTestID="import-count"
             back={{ to: '/import', testID: 'import-review-back' }}
           />
-        </Pressable>
+        </TapAway>
       )}
 
       {/*
@@ -164,11 +161,7 @@ export function ImportReview({
         contentContainerStyle={wide ? styles.listWide : styles.listPhone}
         testID="import-review"
       >
-        <Pressable
-          onPress={wide || open === null ? undefined : closeRow}
-          accessible={false}
-          style={styles.ground}
-        >
+        <TapAway onPress={wide || open === null ? undefined : closeRow} style={styles.ground}>
           {wide ? (
             <ReviewGridHead
               leading={<AllBox review={review} onChange={chooseAll} wide />}
@@ -187,7 +180,7 @@ export function ImportReview({
           <View accessibilityRole="list" accessibilityLabel="Songs to import">
             {rows}
           </View>
-        </Pressable>
+        </TapAway>
       </ScrollView>
 
       <ImportFoot

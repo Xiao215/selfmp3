@@ -35,6 +35,7 @@ export function MoreButton({
   anchorRef,
   active = false,
   filled = true,
+  disabled = false,
   caption,
   testID,
 }: {
@@ -45,8 +46,9 @@ export function MoreButton({
   anchorRef: RefObject<View | null>
   /** Its menu is open. */
   active?: boolean
-  /** On the control surface, as a button standing on its own in a header is. */
+  /** On the control surface, as a button standing on its own in a header is; bare on a row. */
   filled?: boolean
+  disabled?: boolean
   /** A hover caption, where the head has room to say it. */
   caption?: string
   testID?: string
@@ -59,19 +61,78 @@ export function MoreButton({
         onPress={onPress}
         active={active}
         filled={filled}
+        disabled={disabled}
         testID={testID}
       >
-        <More size={18} tone="textPrimary" />
+        <More tone={filled ? 'textPrimary' : 'textSecondary'} />
       </IconButton>
     </View>
   )
 }
 
 /**
- * A page's ⋯ and the menu it opens: what can be done to the page's songs
- * (`useListActions`) and what the page adds of its own. Every item closes the
- * menu, then acts. One width and one look for every list page's menu, which
- * had been four menus drawn four ways.
+ * The menu itself, hung off whatever opened it: a ⋯ (`MoreMenu`), or a row
+ * right-clicked in Up next. Every item closes the menu, then acts; groups are
+ * set apart by room. One width and one look for every menu of things to do.
+ */
+export function Menu({
+  open,
+  onClose,
+  anchorRef,
+  items,
+  title,
+  align = 'end',
+  testID,
+}: {
+  open: boolean
+  onClose: () => void
+  anchorRef: RefObject<View | null>
+  items: readonly MenuItem[]
+  /** Shown over the items when the menu is a phone's sheet. */
+  title?: string
+  /** `start` for a menu that would otherwise hang back over what is beside its anchor. */
+  align?: 'start' | 'end'
+  testID?: string
+}): ReactNode {
+  return (
+    <Popover
+      open={open}
+      onClose={onClose}
+      anchorRef={anchorRef}
+      title={title}
+      width={MENU_WIDTH}
+      align={align}
+      testID={testID}
+    >
+      {items.map((item, index) => (
+        <Fragment key={item.key}>
+          {item.apart && index > 0 ? <View style={styles.gap} /> : null}
+          <SheetItem
+            icon={item.icon}
+            label={item.label}
+            detail={item.detail}
+            disabled={item.disabled}
+            danger={item.danger}
+            testID={item.testID}
+            onPress={() => {
+              onClose()
+              item.onPress()
+            }}
+          />
+        </Fragment>
+      ))}
+    </Popover>
+  )
+}
+
+/**
+ * A ⋯ and the menu it opens: on a list page, what can be done to the page's
+ * songs (`useListActions`) and what the page adds of its own; on a row, what
+ * can be done to the row. One width and one look for every one of them, which
+ * had been seven menus drawn seven ways.
+ *
+ * It keeps whether it is open itself, unless `open` and `onOpenChange` are
+ * given: an import's row lights while its menu is open, so the row holds it.
  */
 export function MoreMenu({
   name,
@@ -79,6 +140,10 @@ export function MoreMenu({
   title,
   anchorRef,
   align = 'end',
+  filled = true,
+  disabled = false,
+  open: openProp,
+  onOpenChange,
   caption,
   testID,
   menuTestID,
@@ -95,50 +160,45 @@ export function MoreMenu({
   anchorRef?: RefObject<View | null>
   /** `start` for a ⋯ beside the head's buttons, whose menu would otherwise hang back over them. */
   align?: 'start' | 'end'
+  /** The ⋯ on the control surface (a page's head, the default) or bare (a row's). */
+  filled?: boolean
+  disabled?: boolean
+  /** Whether the menu is open, for a caller that holds it; with `onOpenChange`. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   caption?: string
   testID?: string
   menuTestID?: string
 }): ReactNode {
-  const [open, setOpen] = useState(false)
+  const [ownOpen, setOwnOpen] = useState(false)
+  const open = openProp ?? ownOpen
+  const setOpen = (next: boolean): void => {
+    setOwnOpen(next)
+    onOpenChange?.(next)
+  }
   const own = useRef<View>(null)
   const anchor = anchorRef ?? own
   return (
     <>
       <MoreButton
         name={name}
-        onPress={() => setOpen(was => !was)}
+        onPress={() => setOpen(!open)}
         anchorRef={anchor}
         active={open}
+        filled={filled}
+        disabled={disabled}
         caption={caption}
         testID={testID}
       />
-      <Popover
+      <Menu
         open={open}
         onClose={() => setOpen(false)}
         anchorRef={anchor}
+        items={items}
         title={title}
-        width={MENU_WIDTH}
         align={align}
         testID={menuTestID}
-      >
-        {items.map((item, index) => (
-          <Fragment key={item.key}>
-            {item.apart && index > 0 ? <View style={styles.gap} /> : null}
-            <SheetItem
-              icon={item.icon}
-              label={item.label}
-              detail={item.detail}
-              disabled={item.disabled}
-              danger={item.danger}
-              testID={item.testID}
-              onPress={() => {
-                setOpen(false)
-                item.onPress()
-              }}
-            />
-          </Fragment>
-        ))}
-      </Popover>
+      />
     </>
   )
 }

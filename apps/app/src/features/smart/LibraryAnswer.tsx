@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { artistOr, formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
 import { space, type, useLibrary, iconSize } from '@selfmp3/client'
@@ -16,6 +16,7 @@ import { useSmartServer } from './useSmartServer'
 import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
 import { AnswerActions, AnswerHead, AnswerLine } from './AnswerParts'
+import { Press } from '../../ui/components/Press'
 
 /**
  * A question about what is in the library ("how many YOASOBI songs do I
@@ -119,7 +120,8 @@ export function LibraryAnswer({
             />
           ))}
           {shown.length < songs.length ? (
-            <Pressable
+            <Press
+              feedback="dim"
               onPress={() => setShows(shown.length + SONGS_MORE)}
               accessibilityRole="button"
               style={styles.more}
@@ -127,7 +129,7 @@ export function LibraryAnswer({
               <Text style={styles.moreText}>
                 Show {Math.min(SONGS_MORE, songs.length - shown.length)} more
               </Text>
-            </Pressable>
+            </Press>
           ) : null}
         </ScrollView>
       )}

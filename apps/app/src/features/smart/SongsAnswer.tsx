@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useMutation } from '@tanstack/react-query'
 import type { DescribeResult, Understanding } from '@selfmp3/shared'
@@ -8,11 +8,11 @@ import { artistOr } from '@selfmp3/shared'
 import {
   ApiError,
   failureText,
-  radius,
   space,
   type,
   useCreatePlaylist,
   useLibrary,
+  iconSize,
 } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -30,6 +30,7 @@ import { ScrollView } from '../../ui/components/Scroll'
 import { StatusLine } from '../../ui/components/StatusLine'
 import { label } from '../../ui/surfaces'
 import { AnswerActions } from './AnswerParts'
+import { IconButton } from '../../ui/components/IconButton'
 
 /**
  * Songs picked from a description (docs/features/ai.md): what it understood,
@@ -166,14 +167,13 @@ export function SongsAnswer({
                 title={song.title}
                 sub={each.why ?? artistOr(song.artist)}
                 trailing={
-                  <Pressable
+                  <IconButton
+                    size={LEAVE}
                     onPress={() => setLeft(current => new Set([...current, song.id]))}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Leave out ${song.title}`}
-                    style={({ pressed }) => [styles.leave, pressed && styles.pressed]}
+                    label={`Leave out ${song.title}`}
                   >
-                    <X size={14} color={theme.colors.textMuted} />
-                  </Pressable>
+                    <X size={iconSize.field} color={theme.colors.textMuted} />
+                  </IconButton>
                 }
               />
             )
@@ -229,6 +229,9 @@ export function SongsAnswer({
   )
 }
 
+/** The × that leaves a song out of the answer. */
+const LEAVE = 30
+
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm },
   understood: { gap: space.tight },
@@ -239,14 +242,6 @@ const styles = StyleSheet.create(theme => ({
   // Short enough that the buttons under it stay on a laptop's screen.
   list: { maxHeight: 220 },
   row: { paddingHorizontal: 0 },
-  leave: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pressed: { opacity: 0.6 },
   checkRow: {
     flexDirection: 'row',
     alignItems: 'center',

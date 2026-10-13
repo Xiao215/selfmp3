@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { radius, type, withAlpha, space } from '@selfmp3/client'
+import { radius, type, space } from '@selfmp3/client'
 import { useFade } from '../motion'
 import { MOVE_MS } from '../motion.model'
 import { useSlidingHighlight } from './SlidingHighlight'
@@ -175,7 +175,7 @@ const styles = StyleSheet.create(theme => ({
   pad: { paddingVertical: space.tight, paddingHorizontal: space.roomy },
   padSmall: { paddingHorizontal: space.md },
   itemHovered: { backgroundColor: theme.colors.surface3 },
-  itemVeiled: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.1) },
+  itemVeiled: { backgroundColor: theme.colors.veilPressed },
   itemActive: { backgroundColor: theme.colors.textPrimary, borderRadius: radius.pill },
   hover: { ...FILL, borderRadius: radius.pill, backgroundColor: theme.colors.surface3 },
   labelLayer: { ...FILL, alignItems: 'center', justifyContent: 'center' },

@@ -9,6 +9,7 @@ import {
   colors,
   darkPalette,
   DEFAULT_ACCENT_HUE,
+  hitSlopFor,
   leading,
   lightPalette,
   radius,
@@ -222,5 +223,14 @@ describe('the widget', () => {
   // Its Xcode target is coloured at prebuild time from @selfmp3/shared.
   it('is tinted with the accent the app starts on', () => {
     expect(buildAccent(DEFAULT_ACCENT_HUE, 'dark').accent).toBe(NATIVE_ACCENT)
+  })
+})
+
+describe('hitSlopFor', () => {
+  it('pads a small target out to the 44-point minimum, and a big one not at all', () => {
+    expect(hitSlopFor(28)).toBe(8)
+    expect(hitSlopFor(20)).toBe(12)
+    expect(hitSlopFor(44)).toBe(0)
+    expect(hitSlopFor(56)).toBe(0)
   })
 })

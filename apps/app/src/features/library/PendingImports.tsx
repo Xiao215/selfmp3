@@ -6,6 +6,7 @@ import { space, type, useCloudImports, useLibrary, coverSize } from '@selfmp3/cl
 import { Cover } from '../../ui/components/Cover'
 import { useLayoutValue } from '../../shell/useLayout'
 import { pendingImports } from './pendingImports.model'
+import { OPACITY } from '../../ui/motion.model'
 import { textColumn } from '../../ui/surfaces'
 
 /**
@@ -61,7 +62,7 @@ export function PendingImports(): ReactNode {
 const styles = StyleSheet.create(theme => ({
   list: { paddingHorizontal: space.lg, paddingBottom: space.sm, gap: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.tight },
-  faded: { opacity: 0.55 },
+  faded: { opacity: OPACITY.dim },
   text: textColumn,
   title: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '500' },
   status: { color: theme.colors.textMuted, fontSize: type.small },

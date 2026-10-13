@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Linking, Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { Linking, Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import * as Crypto from 'expo-crypto'
 import {
   bucketPlace,
@@ -27,15 +27,14 @@ import { onSignInCode, signInReturnUrl } from '../../ports/signInReturn'
 import { LINK_GRACE_MS } from '../signIn/signIn.model'
 import { Button } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
-import { IconButton } from '../../ui/components/IconButton'
-import { CloudUpload, More, Refresh, Trash, X } from '../../ui/components/Icons'
-import { Popover } from '../../ui/components/Popover'
-import { SheetItem } from '../../ui/components/Sheet'
+import { CloudUpload, Refresh, Trash, X } from '../../ui/components/Icons'
 import { addressReady, cloudConnectInput, type AddressFields } from '../welcome/storage.model'
 import { BucketAddressFields } from '../welcome/BucketAddressFields'
 import { Lead, Panel, partStyles, Row } from './SettingsParts'
 import { ProgressBar } from '../../ui/components/ProgressBar'
 import { NoticeCard } from '../../ui/components/NoticeCard'
+import { Spinner } from '../../ui/components/Spinner'
+import { MoreMenu } from '../../ui/components/MoreMenu'
 
 /**
  * Settings → Cloud (docs/SYNC.md).
@@ -114,7 +113,6 @@ const attemptId = (): string => newUid(into => into.set(Crypto.getRandomBytes(in
  * `SignInReturn` hands it to the server. Nobody types it.
  */
 function SignIn({ status, again = false }: { status: CloudStatus; again?: boolean }): ReactNode {
-  const { theme } = useUnistyles()
   const signIn = useCloudSignIn()
   const cancelSignIn = useCloudCancelSignIn()
   const enterCode = useCloudEnterCode()
@@ -145,7 +143,7 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
   if (status.signingIn) {
     return (
       <Row label="Waiting for Google" hint="Finish signing in where Google opened." last>
-        <ActivityIndicator color={theme.colors.textMuted} />
+        <Spinner />
         {cancel}
       </Row>
     )
@@ -357,39 +355,24 @@ function AccountMenu({
   disabled: boolean
   onSignOut: () => void
 }): ReactNode {
-  const [open, setOpen] = useState(false)
-  const anchorRef = useRef<View>(null)
   return (
-    <View ref={anchorRef} collapsable={false}>
-      <IconButton
-        onPress={() => setOpen(value => !value)}
-        label="More for this Google account"
-        caption="More"
-        active={open}
-        disabled={disabled}
-      >
-        <More size={17} tone="textSecondary" />
-      </IconButton>
-      <Popover
-        open={open}
-        onClose={() => setOpen(false)}
-        anchorRef={anchorRef}
-        title="Google account"
-        titleTone="label"
-        width={180}
-        testID="cloud-account-menu"
-      >
-        <SheetItem
-          label="Sign out"
-          icon={<Trash tone="danger" />}
-          danger
-          onPress={() => {
-            setOpen(false)
-            onSignOut()
-          }}
-        />
-      </Popover>
-    </View>
+    <MoreMenu
+      name="this Google account"
+      filled={false}
+      disabled={disabled}
+      caption="More"
+      title="Google account"
+      items={[
+        {
+          key: 'sign-out',
+          label: 'Sign out',
+          icon: <Trash tone="danger" />,
+          danger: true,
+          onPress: onSignOut,
+        },
+      ]}
+      menuTestID="cloud-account-menu"
+    />
   )
 }
 

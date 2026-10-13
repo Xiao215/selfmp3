@@ -219,7 +219,7 @@ export function SmartModelPanel({ anchor }: { anchor: (node: View | null) => voi
                     {hop.ok ? (
                       <Check size={iconSize.field} tone="good" />
                     ) : (
-                      <X size={14} tone="danger" />
+                      <X size={iconSize.field} tone="danger" />
                     )}
                   </View>
                   <View style={styles.hopText}>

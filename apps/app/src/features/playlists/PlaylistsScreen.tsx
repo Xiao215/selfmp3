@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import {
@@ -44,6 +44,7 @@ import {
 } from './playlists.model'
 import { usePlaylistPlayback } from './usePlaylistPlayback'
 import { ScrollView } from '../../ui/components/Scroll'
+import { Press } from '../../ui/components/Press'
 
 /** Tiles at least this wide at desktop width, as many as fit; two across on a phone. */
 const TILE_MIN_WIDTH = 176
@@ -317,20 +318,17 @@ const PlaylistTile = memo(function PlaylistTile({
       overlay={
         width > 0
           ? (focus: TileFocus) => (
-              <Pressable
+              <Press
                 onPress={() => onPlay(playlist.id)}
                 {...focus}
                 accessibilityRole="button"
                 accessibilityLabel={`Play ${playlist.name}`}
                 {...tip('Play')}
-                style={({ pressed }) => [
-                  styles.fab,
-                  { top: width - FAB - 8 },
-                  pressed && styles.fabPressed,
-                ]}
+                wrap={[styles.fabPlace, { top: width - FAB - 8 }]}
+                style={styles.fab}
               >
                 <Play size={iconSize.button} color={theme.colors.onPrimary} />
-              </Pressable>
+              </Press>
             )
           : undefined
       }
@@ -360,9 +358,8 @@ const styles = StyleSheet.create(theme => ({
   },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   badgeText: { color: theme.colors.textPrimary, fontSize: type.tiny, fontWeight: '700' },
+  fabPlace: { position: 'absolute', right: 8 },
   fab: {
-    position: 'absolute',
-    right: 8,
     width: FAB,
     height: FAB,
     borderRadius: FAB / 2,
@@ -372,5 +369,4 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.textPrimary,
     ...floating(theme.colors),
   },
-  fabPressed: { transform: [{ scale: 0.95 }] },
 }))

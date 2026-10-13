@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Text } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { motion, radius, space, type } from '@selfmp3/client'
+import { hitSlopFor, leading, motion, radius, space, type, iconSize } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { currentToasts, dismissToast, subscribeToasts, type Toast } from '../toast'
@@ -112,16 +112,16 @@ function ToastItem({
       {toast.actions.map(action => (
         <Press
           key={action.label}
-          depth="control"
+          feedback="wash"
           onPress={() => {
             // The message has been answered; leaving it up invites a second press.
             dismissToast(toast.id)
             action.onPress()
           }}
-          hitSlop={8}
+          hitSlop={hitSlopFor(leading.sub + space.xs * 2)}
           accessibilityRole="button"
           accessibilityLabel={action.label}
-          style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+          style={styles.action}
         >
           <Text style={[styles.actionLabel, { color: accent.accent }]}>{action.label}</Text>
         </Press>
@@ -131,7 +131,7 @@ function ToastItem({
         label="Dismiss"
         size={finePointer ? 28 : 40}
       >
-        <X size={14} color={theme.colors.textMuted} />
+        <X size={iconSize.field} color={theme.colors.textMuted} />
       </IconButton>
     </Animated.View>
   )
@@ -154,6 +154,5 @@ const styles = StyleSheet.create(theme => ({
   },
   text: { color: theme.colors.textPrimary, fontSize: type.sub, flexShrink: 1 },
   action: { paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: radius.pill },
-  actionPressed: { backgroundColor: theme.colors.surface3 },
   actionLabel: { fontSize: type.sub, fontWeight: '600' },
 }))

@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  ActivityIndicator,
-  AppState,
-  Image,
-  KeyboardAvoidingView,
-  Linking,
-  Pressable,
-  Text,
-  View,
-} from 'react-native'
+import { AppState, Image, KeyboardAvoidingView, Linking, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { DOORMAN_ERROR, DoormanError, PRIVACY_POLICY_URL } from '@selfmp3/shared'
-import { fonts, radius, space, tagColors, type, textStyle, tracking } from '@selfmp3/client'
+import {
+  fonts,
+  hitSlopFor,
+  leading,
+  radius,
+  space,
+  tagColors,
+  type,
+  tracking,
+  textStyle,
+} from '@selfmp3/client'
 import { session as cloud } from '../../replica'
 import { keptCovers } from '../../offline/covers'
 import { deviceWord } from '../../ports/device'
@@ -46,6 +47,8 @@ import {
 } from './welcome.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { StatusLine } from '../../ui/components/StatusLine'
+import { Press } from '../../ui/components/Press'
+import { Spinner } from '../../ui/components/Spinner'
 import { WINDOW_WIDTH } from '../../shell/widths'
 
 /**
@@ -209,7 +212,7 @@ export function WelcomeScreen(): ReactNode {
         {copy.rest}
       </OnboardingTitle>
       {copy.body ? <Text style={[styles.body, wide && styles.bodyWide]}>{copy.body}</Text> : null}
-      {busy ? <ActivityIndicator color={theme.colors.accent} style={styles.spinner} /> : null}
+      {busy ? <Spinner tone="accent" style={styles.spinner} /> : null}
     </View>
   )
 
@@ -232,15 +235,15 @@ export function WelcomeScreen(): ReactNode {
           <View style={[styles.footnotes, wide && styles.footnotesWide]}>
             <OnboardingFootnote>{welcomeFootnote(device)}</OnboardingFootnote>
             {/* What signing in with Google keeps, on the page the app is published from. */}
-            <Pressable
+            <Press
+              feedback="dim"
               onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
               accessibilityRole="link"
               accessibilityLabel="Privacy policy"
-              hitSlop={8}
-              style={({ pressed }) => pressed && styles.pressed}
+              hitSlop={hitSlopFor(leading.small)}
             >
               <OnboardingFootnote link>Privacy policy</OnboardingFootnote>
-            </Pressable>
+            </Press>
           </View>
         ) : (
           <Button label="Cancel" onPress={() => setStage({ kind: 'idle', message: null })} />
@@ -406,7 +409,6 @@ const styles = StyleSheet.create(theme => ({
   actions: { gap: space.lg },
   footnotes: { gap: space.xs, alignItems: 'center' },
   footnotesWide: { alignItems: 'flex-start' },
-  pressed: { opacity: 0.6 },
   tiles: {
     flexDirection: 'row',
     flexWrap: 'wrap',

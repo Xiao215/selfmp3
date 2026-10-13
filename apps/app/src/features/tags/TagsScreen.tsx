@@ -1,10 +1,10 @@
 import { useEffect, useCallback, memo, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Tag } from '@selfmp3/shared'
-import { radius, space, type, useLibrary, textStyle, iconSize } from '@selfmp3/client'
+import { hitSlopFor, radius, space, type, useLibrary, iconSize, textStyle } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
@@ -25,7 +25,7 @@ import {
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { HueSwatches } from '../../ui/components/HueSwatches'
 import { TagEditor } from '../../ui/components/TagEditor'
-import { usePressScale } from '../../ui/motion'
+import { Press } from '../../ui/components/Press'
 import { MOVE_MS } from '../../ui/motion.model'
 import { rightClick } from '../../ui/rightClick'
 import { GridTile, TileGrid, useTileGrid, type TileFocus } from '../../ui/components/TileGrid'
@@ -297,14 +297,15 @@ function NewTag({
     <View style={styles.newCard} testID="tags-new-form">
       <View style={styles.newHeadRow}>
         <Text style={styles.fieldLabel}>New tag</Text>
-        <Pressable
+        <Press
+          feedback="dim"
           onPress={onClose}
-          hitSlop={10}
+          hitSlop={hitSlopFor(14)}
           accessibilityRole="button"
           accessibilityLabel="Close new tag"
         >
-          <X size={14} color={theme.colors.textMuted} />
-        </Pressable>
+          <X size={iconSize.field} color={theme.colors.textMuted} />
+        </Press>
       </View>
       <TagNameField
         form={form}
@@ -368,7 +369,6 @@ function UntaggedCard({
   onArtist: (name: string) => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  const press = usePressScale(0.98)
   const art = useArt(COVER_STACK)
   const named = wide ? artists : artists.slice(0, PHONE_WAITING_SHOWN)
   const title = untaggedCardTitle(count)
@@ -454,9 +454,9 @@ function UntaggedCard({
     )
   }
   return (
-    <Animated.View style={press.style}>
-      <Pressable
-        {...press.handlers}
+    <View>
+      <Press
+        depth="row"
         onPress={onStart}
         accessibilityRole="button"
         accessibilityLabel={`${title}. ${line}`}
@@ -467,9 +467,9 @@ function UntaggedCard({
         {covers}
         {words}
         <ChevronRight size={iconSize.item} tone="textMuted" />
-      </Pressable>
+      </Press>
       {onSuggest ? <View style={styles.untaggedSuggest}>{suggest('text')}</View> : null}
-    </Animated.View>
+    </View>
   )
 }
 
@@ -572,8 +572,10 @@ const TagTile = memo(function TagTile({
       testID={`tags-row-${index}`}
       overlay={(focus: TileFocus) => (
         <>
-          {/* The record itself is Play: what is out of the sleeve, right of it. */}
-          <Pressable
+          {/* The record itself is Play: what is out of the sleeve, right of it.
+            Laid over the record and drawing nothing itself, so no sink. */}
+          <Press
+            feedback="dim"
             onPress={() => onPlay(standing)}
             {...focus}
             disabled={standing.songs.length === 0}
@@ -584,18 +586,18 @@ const TagTile = memo(function TagTile({
             style={[styles.playZone, { left: height, width: width - height, height }]}
           />
           <View style={styles.more}>
-            <Pressable
+            <Press
               onPress={() => onEdit(tag)}
               {...focus}
               accessibilityRole="button"
               accessibilityLabel={`Rename, recolour or delete ${tag.name}`}
               {...tip('Edit tag')}
               testID={`tags-more-${index}`}
-              hitSlop={6}
-              style={({ pressed }) => [styles.moreButton, pressed && styles.pressed]}
+              hitSlop={hitSlopFor(MORE_BUTTON)}
+              style={styles.moreButton}
             >
               <More size={iconSize.item} tone="textPrimary" />
-            </Pressable>
+            </Press>
           </View>
         </>
       )}
@@ -640,17 +642,18 @@ function InsidePanel({
             const index = order.get(tag.id) ?? 0
             return (
               <View key={tag.id} ref={node => rowRef(tag.id, node)} collapsable={false}>
-                <Pressable
+                <Press
+                  feedback="wash"
                   onPress={() => onOpen(standing)}
                   onLongPress={() => onEdit(tag)}
                   delayLongPress={MOVE_MS.hold}
                   accessibilityRole="link"
                   accessibilityLabel={`${tag.name}, ${tagLine(standing)}`}
                   testID={`tags-row-${index}`}
-                  style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+                  style={({ hovered }: { pressed: boolean; hovered?: boolean }) => [
                     styles.insideRow,
                     compact && styles.insideRowCompact,
-                    (pressed || hovered) && styles.insideRowOn,
+                    hovered && styles.insideRowOn,
                   ]}
                   {...rightClick(() => onEdit(tag))}
                 >
@@ -670,7 +673,7 @@ function InsidePanel({
                   <Text style={[styles.insideCount, compact && styles.insideCountCompact]}>
                     {standing.songs.length.toLocaleString()}
                   </Text>
-                </Pressable>
+                </Press>
               </View>
             )
           })}
@@ -685,6 +688,8 @@ function InsidePanel({
 
 /** The side of each cover in the untagged card's stack. */
 const COVER_STACK = 40
+/** A tile's ⋯, round on its glass. */
+const MORE_BUTTON = 30
 /** The side of an inside tag's cover in a holder's panel. */
 const INSIDE_COVER = 30
 /** A holder's panel narrower than this (a phone's) drops its label and tightens its rows. */
@@ -735,12 +740,11 @@ const styles = StyleSheet.create(theme => ({
   runLabel: { ...label(theme.colors), marginBottom: -space.sm },
   runLabelSub: { fontSize: type.small, fontWeight: '400', letterSpacing: 0, textTransform: 'none' },
   holder: { flexDirection: 'row', gap: GAP },
-  pressed: { opacity: 0.75 },
   playZone: { position: 'absolute', top: 0, borderRadius: radius.pill },
   more: { position: 'absolute', top: 8, right: 8 },
   moreButton: {
-    width: 30,
-    height: 30,
+    width: MORE_BUTTON,
+    height: MORE_BUTTON,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',

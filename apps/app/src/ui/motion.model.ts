@@ -156,6 +156,15 @@ export const EASE_IN_CSS = css(EASE_IN_POINTS)
 export const PRESS = { control: 0.96, row: 0.985 } as const
 
 /**
+ * The opacities a press and a state are drawn with, one set for the app:
+ * `pressed`, bare ink under the finger (`Press` `feedback="dim"`);
+ * `disabled`, anything that cannot be pressed now; `dim`, what is there but
+ * not live — a song that cannot play here, a step still to come. A pressed
+ * veil (`feedback="wash"`) is a colour, the palette's `veilPressed`.
+ */
+export const OPACITY = { pressed: 0.6, disabled: 0.4, dim: 0.55 } as const
+
+/**
  * A curve that runs a little past its end and settles back: Penner's "back
  * out". `s` sets how far past; 1.2 goes about five per cent over, which is the
  * mini player's few points on the board. As a plain function of time, so a

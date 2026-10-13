@@ -180,7 +180,7 @@ nothing uses `title`; a control that wants a caption spreads `tip()` from `ui/ti
 React Native for web turns into a `data-tip` attribute (a phone ignores it):
 
 ```tsx
-<Pressable accessibilityLabel="Add to Up next" {...tip('Add to Up next')}>…</Pressable>
+<Press accessibilityLabel="Add to Up next" {...tip('Add to Up next')}>…</Press>
 ```
 
 `TooltipHost` (`shell/TooltipHost.web.tsx`), mounted once in the shell, listens on the document and draws the caption
@@ -345,9 +345,17 @@ is a mistake. The rules, and what moves (docs/ui-mock `M1`–`M3`):
   are siblings of the rows, never a box around them, since a browser animates a box whose
   height changed by stretching it. What changed is drawn before the server answers
   (`changeQueue`), so the row moves under the finger, not a poll later.
-- **One press.** `ui/components/Press` is the Pressable: everything you can tap sinks on the
-  spring and comes back on release, a control to 0.96 and a row to 0.985 (`PRESS`). A
-  `pressed` style may add a tint; it never scales.
+- **One press.** `ui/components/Press` is the Pressable, and answers a press one of three
+  ways (`feedback`): `sink`, the default, on the spring and back on release, a control to
+  0.96 and a row to 0.985 (`PRESS`) — anything with a shape of its own; `wash`, the ink's
+  veil over a bare row (`OPACITY.wash`); `dim`, bare ink fading to `OPACITY.pressed`. A
+  `pressed` style may add a tint; it never scales. What cannot be pressed now is drawn at
+  `OPACITY.disabled`, and what is there but not live (a song that cannot play here) at
+  `OPACITY.dim`. A small target reaches the 44-point minimum by `hitSlopFor(size)`. Screens
+  never draw React Native's `Pressable`, `TextInput` or `ActivityIndicator` themselves: the
+  app's lint refuses them in `features/` and `shell/`, pointing at `Press`, `TextField` or
+  `SearchField`, and `PageLoading`, a busy `Button` or `Spinner`. A ground that only closes
+  what is open is `TapAway`.
 - **What changes together moves together.** A colour that goes with a position rides the
   same value, as an overlay whose opacity follows it on the native driver: the toggle's
   track, a tab's ink, a checkbox's fill. In a browser a row warms under the pointer through a

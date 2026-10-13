@@ -107,9 +107,9 @@ appId: com.selfmp3.app
 # its container: a sheet is a `Modal`, its own window on iOS, and container
 # views inside it are unreliable for the visibility check. The items are not.
 - extendedWaitUntil:
-    visible: 'Add to queue'
+    visible: 'Add to Up next'
     timeout: 5000
-- tapOn: 'Add to queue'
+- tapOn: 'Add to Up next'
 
 # --- download ----------------------------------------------------------------
 # Keeping one playlist on the phone is in its ⋯ (docs/UI-MIGRATION.md, Open

@@ -3,7 +3,7 @@ import { Animated, Pressable, Text } from 'react-native'
 import type { LayoutChangeEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePressScale } from '../motion'
-import { iconSize, radius, type, space } from '@selfmp3/client'
+import { hitSlopFor, leading, radius, type, iconSize, space } from '@selfmp3/client'
 import { Check, sizedIcon } from './Icons'
 import { Press } from './Press'
 import { TagDot } from './TagDot'
@@ -122,15 +122,14 @@ export function Chip({
         {count === undefined ? null : <Text style={[styles.count, { color: text }]}>{count}</Text>}
       </Pressable>
       {onRemove ? (
-        // Its own press, sinking on the spring like everything else pressable:
-        // the chip around it is a separate target with a separate answer.
+        // Its own press: the chip around it is a separate target with a separate answer.
         <Press
-          depth="control"
+          feedback="dim"
           onPress={onRemove}
           accessibilityRole="button"
           accessibilityLabel={removeLabel ?? `Remove tag ${label}`}
-          hitSlop={6}
-          style={({ pressed }) => [styles.remove, pressed && styles.pressed]}
+          hitSlop={hitSlopFor(leading.body)}
+          style={styles.remove}
         >
           <Text style={[styles.removeGlyph, { color: text }]}>×</Text>
         </Press>

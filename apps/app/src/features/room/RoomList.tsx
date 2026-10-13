@@ -1,6 +1,6 @@
 import { memo, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import {
   artistOr,
@@ -49,6 +49,8 @@ import {
 import { openRoomSheet } from './roomSheets.store'
 import { sayRoomFailure } from './roomFailure'
 import { currentRoom, roomAct, useRoom } from './room.store'
+import { Press } from '../../ui/components/Press'
+import { SONG_ACTION_LABELS } from '../../ui/songActions.model'
 
 /** Rows of what is next drawn at once; a room's list is rarely longer. */
 const SHOWN_NEXT = 40
@@ -102,16 +104,16 @@ export function RoomHead({
         </View>
       </View>
       <View style={styles.headButtons}>
-        <Pressable
+        <Press
           onPress={() => openRoomSheet('people')}
           accessibilityRole="button"
           accessibilityLabel="People and room options"
           {...tip('People')}
           testID="room-people"
-          style={({ pressed }) => [styles.round, pressed && styles.roundPressed]}
+          style={styles.round}
         >
-          <More size={18} color={theme.colors.textPrimary} />
-        </Pressable>
+          <More size={iconSize.medium} color={theme.colors.textPrimary} />
+        </Press>
       </View>
     </View>
   )
@@ -167,16 +169,16 @@ function RoomPlaying({ state }: { state: RoomState }): ReactNode {
         />
       ) : null}
       {maySkip ? (
-        <Pressable
+        <Press
           onPress={() => act({ type: 'skip' })}
           accessibilityRole="button"
           accessibilityLabel="Skip"
           {...tip('Skip')}
-          style={({ pressed }) => [styles.round, pressed && styles.roundPressed]}
+          style={styles.round}
           testID="room-skip"
         >
           <Next size={iconSize.medium} color={theme.colors.textPrimary} />
-        </Pressable>
+        </Press>
       ) : null}
     </PlayingCard>
   )
@@ -225,7 +227,7 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
             host && index > 0 ? (
               <IconButton
                 label={`Play ${row.entry.song.title} next`}
-                caption="Play next"
+                caption={SONG_ACTION_LABELS.playNext}
                 filled
                 onPress={() => act({ type: 'move', entryId: row.entry.id, to: 0 })}
               >
@@ -381,7 +383,6 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     backgroundColor: theme.colors.surface3,
   },
-  roundPressed: { transform: [{ scale: 0.96 }] },
   empty: {
     gap: space.xs,
     padding: space.lg,

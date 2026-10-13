@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Linking, Pressable, Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { Linking, Text, View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { radius, space, type, textStyle } from '@selfmp3/client'
 import { session as cloud } from '../../replica'
@@ -29,6 +29,8 @@ import {
 import { WhitePill } from './WhitePill'
 import { OnboardingCard, OnboardingFootnote, OnboardingPage } from './OnboardingPage'
 import { StatusLine } from '../../ui/components/StatusLine'
+import { Press } from '../../ui/components/Press'
+import { Spinner } from '../../ui/components/Spinner'
 import { rowTitle, lineSub, hint, textColumn } from '../../ui/surfaces'
 
 /**
@@ -48,7 +50,6 @@ import { rowTitle, lineSub, hint, textColumn } from '../../ui/surfaces'
  * person may reach with the wrong Google account and nothing else to go by.
  */
 export function StorageScreen(): ReactNode {
-  const { theme } = useUnistyles()
   const router = useRouter()
   const { wide, finePointer } = useLayout()
   const { storageConnected } = useConnection()
@@ -149,7 +150,8 @@ export function StorageScreen(): ReactNode {
 
   const helper = (
     <OnboardingCard>
-      <Pressable
+      <Press
+        feedback="dim"
         onPress={() => setHelperOpen(open => !open)}
         accessibilityRole="button"
         accessibilityState={{ expanded: helperOpen }}
@@ -164,7 +166,7 @@ export function StorageScreen(): ReactNode {
           )}
         </View>
         <Text style={styles.caret}>{helperOpen ? '▴' : '▾'}</Text>
-      </Pressable>
+      </Press>
       {helperOpen ? (
         <>
           {HELPER_STEPS.map((step, index) => (
@@ -208,7 +210,7 @@ export function StorageScreen(): ReactNode {
 
       {busy ? (
         <View style={styles.trying}>
-          <ActivityIndicator color={theme.colors.accent} />
+          <Spinner tone="accent" />
           <Text style={styles.tryingText}>{TRYING}</Text>
         </View>
       ) : null}

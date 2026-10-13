@@ -7,7 +7,8 @@ import { IconButton } from '../../ui/components/IconButton'
 import { X } from '../../ui/components/Icons'
 import { SongLine } from '../../ui/components/SongLine'
 import { RoomFace } from './RoomFace'
-import { coverSize } from '@selfmp3/client'
+import { OPACITY } from '../../ui/motion.model'
+import { coverSize, iconSize } from '@selfmp3/client'
 
 /** Whose song it is, as a face on its cover's corner. */
 interface Face {
@@ -86,7 +87,7 @@ export function RoomEntryLine({
               filled
               onPress={onRemove}
             >
-              <X size={16} tone="textSecondary" />
+              <X size={iconSize.item} tone="textSecondary" />
             </IconButton>
           ) : null}
         </>
@@ -97,5 +98,5 @@ export function RoomEntryLine({
 
 const styles = StyleSheet.create({
   badge: { position: 'absolute', right: -5, bottom: -5 },
-  dim: { opacity: 0.55 },
+  dim: { opacity: OPACITY.dim },
 })

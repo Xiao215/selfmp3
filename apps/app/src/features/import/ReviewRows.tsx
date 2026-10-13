@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native'
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- a name edited in place, drawn as the text it is
+import { Text, TextInput, View } from 'react-native'
 import type { StyleProp, TextStyle, ViewStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useFocusEffect } from 'expo-router'
@@ -16,6 +17,9 @@ import { label as groupLabel, rowTitle, textColumn } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
+import { Press } from '../../ui/components/Press'
+import { Spinner } from '../../ui/components/Spinner'
+import { OPACITY } from '../../ui/motion.model'
 import type { ValueStore } from '../../state/valueStore.model'
 import { useValueStore } from '../../state/useValueStore'
 import { useToneColors } from '../../ui/useSongColor'
@@ -30,6 +34,7 @@ import {
   type Listening,
 } from './listen.model'
 import { chosenState, rowState, sourceWords, type Rename, type RowState } from './review.model'
+import { TapAway } from '../../ui/components/TapAway'
 
 /**
  * A review's rows (docs/ui-mock `P30` and `C14`): the review's own page
@@ -287,22 +292,20 @@ export function AllBox({
   const state = chosenState(review)
   const all = state === 'all'
   return (
-    <Pressable
+    <Press
+      feedback="dim"
       onPress={() => onChange(!all)}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: all ? true : state === 'some' ? 'mixed' : false }}
       aria-checked={all ? true : state === 'some' ? 'mixed' : false}
       accessibilityLabel={all ? 'Deselect all' : 'Select all'}
-      style={({ pressed }) => [
-        wide ? styles.selectWide : styles.allPhone,
-        pressed && styles.pressed,
-      ]}
+      style={wide ? styles.selectWide : styles.allPhone}
     >
       <View style={wide ? null : styles.select}>
         <Checkbox checked={all} mixed={state === 'some'} />
       </View>
       {wide ? null : <Text style={styles.allWords}>All songs</Text>}
-    </Pressable>
+    </Press>
   )
 }
 
@@ -473,24 +476,20 @@ function SourceOption({
   onPress: () => void
 }): ReactNode {
   return (
-    <Pressable
+    <Press
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="radio"
       accessibilityState={{ checked: on, disabled }}
       accessibilityLabel={`${name}: ${words}`}
-      style={({ pressed }) => [
-        styles.option,
-        on && styles.optionOn,
-        disabled && styles.dim,
-        pressed && styles.pressed,
-      ]}
+      wrap={styles.optionPlace}
+      style={[styles.option, on && styles.optionOn, disabled && styles.dim]}
     >
       <Text style={[styles.optionName, on && styles.optionNameOn]}>{name}</Text>
       <Text style={[styles.optionWords, on && styles.optionWordsOn]} numberOfLines={1}>
         {words}
       </Text>
-    </Pressable>
+    </Press>
   )
 }
 
@@ -725,7 +724,6 @@ const PhoneRow = memo(function PhoneRow({
   onSource,
   onLookAgain,
 }: RowProps): ReactNode {
-  const { theme } = useUnistyles()
   const colors = useToneColors(listening?.tone ?? null)
   if (open) {
     const bar = (at: number): ReactNode => {
@@ -749,12 +747,8 @@ const PhoneRow = memo(function PhoneRow({
       )
     }
     return (
-      <Pressable
-        onPress={() => undefined}
-        accessible={false}
-        style={styles.openCard}
-        testID={`import-row-${index}`}
-      >
+      // Keeps a tap on the open card from reaching the list's tap-away, which would close it.
+      <TapAway onPress={() => undefined} style={styles.openCard} testID={`import-row-${index}`}>
         <View style={styles.openTop}>
           {/* The row's box stays where it was, so a song liked while hearing it is ticked from here. */}
           <View style={styles.selectOpen}>
@@ -782,7 +776,7 @@ const PhoneRow = memo(function PhoneRow({
         ) : (
           bar(0)
         )}
-      </Pressable>
+      </TapAway>
     )
   }
 
@@ -795,21 +789,18 @@ const PhoneRow = memo(function PhoneRow({
         onToggleChosen={onToggleChosen}
         wide={false}
       />
-      <Pressable
+      <Press
+        feedback="dim"
         onPress={state === 'yours' ? undefined : () => onOpen(index)}
         disabled={state === 'yours'}
         {...rowA11y(item, state, opening)}
-        style={({ pressed }) => [
-          styles.phoneRowBody,
-          state !== 'in' && state !== 'picking' && styles.dim,
-          pressed && styles.pressed,
-        ]}
+        style={[styles.phoneRowBody, state !== 'in' && state !== 'picking' && styles.dim]}
       >
         <View style={styles.coverWrap}>
           <Cover uri={item.thumbnail} title={item.title} size={coverSize.row} />
           {opening ? (
             <View style={styles.coverWait} pointerEvents="none">
-              <ActivityIndicator size="small" color={theme.colors.textPrimary} />
+              <Spinner tone="textPrimary" />
             </View>
           ) : null}
         </View>
@@ -820,7 +811,7 @@ const PhoneRow = memo(function PhoneRow({
           </Text>
         </View>
         <EndWords item={item} state={state} words={words} wordsWarn={wordsWarn} />
-      </Pressable>
+      </Press>
     </View>
   )
 })
@@ -895,7 +886,8 @@ const GridRow = memo(function GridRow({
               columns={{ title: styles.colTitle, artist: styles.colArtist, album: styles.colAlbum }}
             />
           ) : (
-            <Pressable
+            <Press
+              feedback="dim"
               onPress={state === 'yours' ? undefined : () => onOpen(index)}
               disabled={state === 'yours'}
               {...rowA11y(item, state, opening)}
@@ -908,7 +900,7 @@ const GridRow = memo(function GridRow({
               <Text style={[styles.album, styles.colAlbum]} numberOfLines={1}>
                 {item.album}
               </Text>
-            </Pressable>
+            </Press>
           )}
           {showFrom ? <FromWords words={words} warn={wordsWarn} /> : null}
           <View style={styles.colEnd}>
@@ -992,7 +984,6 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     backgroundColor: withAlpha(theme.colors.surface0, 0.55),
   },
-  pressed: { opacity: 0.6 },
   // The box, then the cells: the cells dim together when the song is not coming in.
   grid: { flexDirection: 'row', alignItems: 'center', gap: GAP, paddingHorizontal: space.md },
   cells: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: GAP },
@@ -1011,11 +1002,8 @@ const styles = StyleSheet.create(theme => ({
   warn: { color: theme.colors.warning },
   // The open row's choice of where the song comes from: two options side by side.
   choice: { flexDirection: 'row', alignItems: 'center', gap: space.tight, flexWrap: 'wrap' },
+  optionPlace: { flexGrow: 1, flexBasis: 0, minWidth: 120, maxWidth: 260 },
   option: {
-    flexGrow: 1,
-    flexBasis: 0,
-    minWidth: 120,
-    maxWidth: 260,
     gap: 1,
     paddingHorizontal: space.md,
     paddingVertical: 7,
@@ -1035,7 +1023,7 @@ const styles = StyleSheet.create(theme => ({
   gridRow: { height: 52 },
   lit: { backgroundColor: theme.colors.surface1 },
   barRow: { paddingTop: space.xs, paddingBottom: space.roomy },
-  dim: { opacity: 0.38 },
+  dim: { opacity: OPACITY.disabled },
   // The boxes, sized as the library's rows size theirs (`SongRow`).
   select: {
     width: 34,

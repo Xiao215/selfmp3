@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, TextInput, View } from 'react-native'
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- the name and the description are edited in place, in the head's own type
+import { Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { plural, type Song, NameSchema } from '@selfmp3/shared'
@@ -50,6 +51,7 @@ import { usePlaylistPlayback } from '../playlists/usePlaylistPlayback'
 import { AddSongsSheet } from './AddSongsSheet'
 import { FollowsRow } from './FollowsRow'
 import { usePageBack } from '../../ui/useBackTo'
+import { Press } from '../../ui/components/Press'
 import { lineSub } from '../../ui/surfaces'
 
 /**
@@ -222,7 +224,8 @@ export function PlaylistDetailScreen(): ReactNode {
           accessibilityLabel="Playlist name"
         />
       ) : (
-        <Pressable
+        <Press
+          feedback="dim"
           onPress={() => setRenaming(true)}
           disabled={!finePointer || !playlist}
           accessibilityRole="header"
@@ -231,7 +234,7 @@ export function PlaylistDetailScreen(): ReactNode {
           <Text style={listHeadText.name} numberOfLines={2}>
             {name}
           </Text>
-        </Pressable>
+        </Press>
       )}
       {describing ? (
         <TextInput
@@ -277,7 +280,7 @@ export function PlaylistDetailScreen(): ReactNode {
               {
                 key: 'save-copy',
                 label: 'Save a copy as playlist',
-                icon: <Copy size={iconSize.item} tone="textSecondary" />,
+                icon: <Copy tone="textSecondary" />,
                 disabled: songs.length === 0,
                 apart: true,
                 onPress: () => void makeCopy('manual'),
@@ -287,26 +290,26 @@ export function PlaylistDetailScreen(): ReactNode {
         {
           key: 'rename',
           label: 'Rename',
-          icon: <Pencil size={iconSize.item} tone="textSecondary" />,
+          icon: <Pencil tone="textSecondary" />,
           apart: !live,
           onPress: () => setRenaming(true),
         },
         {
           key: 'describe',
           label: playlist?.description ? 'Edit description' : 'Add a description',
-          icon: <Pencil size={iconSize.item} tone="textSecondary" />,
+          icon: <Pencil tone="textSecondary" />,
           onPress: () => setDescribing(true),
         },
         {
           key: 'duplicate',
           label: 'Duplicate',
-          icon: <Copy size={iconSize.item} tone="textSecondary" />,
+          icon: <Copy tone="textSecondary" />,
           onPress: () => void makeCopy(live ? 'live' : 'manual'),
         },
         {
           key: 'delete',
           label: 'Delete playlist…',
-          icon: <Trash size={iconSize.item} tone="danger" />,
+          icon: <Trash tone="danger" />,
           danger: true,
           apart: true,
           onPress: () => setConfirmingDelete(true),

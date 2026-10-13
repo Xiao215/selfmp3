@@ -1,6 +1,6 @@
 import { memo, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, View } from 'react-native'
+import { Animated, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLayoutValue } from './useLayout'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -58,6 +58,8 @@ import { setPaletteOpen } from './palette'
 import { label as labelText } from '../ui/surfaces'
 import { ScrollView } from '../ui/components/Scroll'
 import { TagDot } from '../ui/components/TagDot'
+import { Press } from '../ui/components/Press'
+import { IconButton } from '../ui/components/IconButton'
 import { SIDEBAR_WIDTH } from './widths'
 
 /**
@@ -129,8 +131,9 @@ function SidebarInner(): ReactNode {
           const active = row.href === lit
           const Icon = NAV_ICON[row.id]
           return (
-            <Pressable
+            <Press
               key={row.href}
+              feedback="wash"
               onLayout={slide.measure(row.href)}
               style={[styles.item, active && !slide.placed && styles.itemOn]}
               onPress={() => {
@@ -146,7 +149,7 @@ function SidebarInner(): ReactNode {
               <Text style={[styles.label, active && styles.labelOn]} numberOfLines={1}>
                 {row.label}
               </Text>
-            </Pressable>
+            </Press>
           )
         })}
       </View>
@@ -182,14 +185,15 @@ function SearchRow(): ReactNode {
   const { theme } = useUnistyles()
   const [hovered, setHovered] = useState(false)
   return (
-    <Pressable
+    <Press
+      feedback="wash"
       onPress={() => setPaletteOpen(true)}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
       accessibilityRole="button"
       accessibilityLabel="Search"
       testID="nav-search"
-      style={({ pressed }) => [styles.search, (pressed || hovered) && styles.searchHovered]}
+      style={[styles.search, hovered && styles.searchHovered]}
     >
       <Search size={iconSize.button} color={theme.colors.textMuted} />
       <Text style={styles.searchText}>Search</Text>
@@ -202,7 +206,7 @@ function SearchRow(): ReactNode {
           ))}
         </View>
       ) : null}
-    </Pressable>
+    </Press>
   )
 }
 
@@ -227,7 +231,8 @@ function Playlists(): ReactNode {
         any of the three kinds.
       */}
       <View style={styles.groupTitle}>
-        <Pressable
+        <Press
+          feedback="dim"
           onPress={() => {
             if (!navGoes(pathname, '/playlists')) return
             enterFromSidebar()
@@ -240,16 +245,14 @@ function Playlists(): ReactNode {
         >
           <Text style={[styles.groupTitleText, onPage && styles.groupTitleOn]}>PLAYLISTS</Text>
           {listed.length > 0 ? <Text style={styles.groupAll}>All {listed.length}</Text> : null}
-        </Pressable>
-        <Pressable
-          style={styles.tinyButton}
+        </Press>
+        <IconButton
+          size={TINY_BUTTON}
           onPress={() => setNewOpen(open => !open)}
-          accessibilityRole="button"
-          accessibilityLabel="New playlist"
-          {...tip('New playlist')}
+          label="New playlist"
         >
           <Plus size={iconSize.field} tone="textMuted" />
-        </Pressable>
+        </IconButton>
       </View>
 
       {recent.map(playlist => (
@@ -303,24 +306,20 @@ function RailPlaylist({
 
   return (
     <Animated.View ref={ref} collapsable={false} style={dim}>
-      <Pressable
+      <Press
+        feedback="wash"
         onPress={onOpen}
         accessibilityRole="link"
         accessibilityLabel={playlist.name}
         accessibilityState={{ selected: active }}
-        style={({ pressed }) => [
-          styles.playlistRow,
-          active && styles.itemOn,
-          pressed && !active && styles.rowPressed,
-          over && styles.dropping,
-        ]}
+        style={[styles.playlistRow, active && styles.itemOn, over && styles.dropping]}
       >
         <PlaylistCover playlist={playlist} size={22} />
         <Text style={[styles.playlistName, active && styles.labelOn]} numberOfLines={1}>
           {playlist.name}
         </Text>
         {live ? <Live size={iconSize.sub} tone="textMuted" /> : null}
-      </Pressable>
+      </Press>
       {over ? <Text style={[styles.dropHint, styles.labelOn]}>Drop to add</Text> : null}
     </Animated.View>
   )
@@ -368,7 +367,8 @@ function Tags(): ReactNode {
   return (
     <View style={styles.group}>
       <View style={styles.groupTitle}>
-        <Pressable
+        <Press
+          feedback="dim"
           onPress={() => {
             enterFromSidebar()
             router.navigate('/tags')
@@ -382,16 +382,10 @@ function Tags(): ReactNode {
             TAGS
           </Text>
           {tags.length > 0 ? <Text style={styles.groupAll}>All {tags.length}</Text> : null}
-        </Pressable>
-        <Pressable
-          style={styles.tinyButton}
-          onPress={() => setAdding(isOpen => !isOpen)}
-          accessibilityRole="button"
-          accessibilityLabel="New tag"
-          {...tip('New tag')}
-        >
+        </Press>
+        <IconButton size={TINY_BUTTON} onPress={() => setAdding(isOpen => !isOpen)} label="New tag">
           <Plus size={iconSize.field} color={theme.colors.textMuted} />
-        </Pressable>
+        </IconButton>
       </View>
 
       {adding ? (
@@ -414,7 +408,7 @@ function Tags(): ReactNode {
             <View style={styles.suggestions}>
               <Text style={styles.hint}>{exact ? 'already exists:' : 'similar:'}</Text>
               {suggestions.map(({ item }) => (
-                <Pressable
+                <Press
                   key={item.id}
                   style={styles.suggestion}
                   onPress={() => {
@@ -424,7 +418,7 @@ function Tags(): ReactNode {
                   accessibilityRole="button"
                 >
                   <Text style={styles.suggestionText}>{item.name}</Text>
-                </Pressable>
+                </Press>
               ))}
             </View>
           ) : null}
@@ -449,9 +443,9 @@ function Tags(): ReactNode {
           <View style={styles.tagEmpty}>
             <TagIcon size={iconSize.item} color={theme.colors.textMuted} />
             <Text style={styles.hint}>No tags yet. {noTagsLine(true)}</Text>
-            <Pressable onPress={() => setAdding(true)} accessibilityRole="button">
+            <Press feedback="dim" onPress={() => setAdding(true)} accessibilityRole="button">
               <Text style={styles.link}>Add your first tag</Text>
-            </Pressable>
+            </Press>
           </View>
         ) : null}
       </ScrollView>
@@ -494,7 +488,8 @@ function TagRow({
       // A right-click opens the same editor, from the row's ⋯ (B1).
       {...rightClick(() => setEditing(true))}
     >
-      <Pressable
+      <Press
+        feedback="dim"
         style={styles.tagMain}
         onPress={onOpen}
         accessibilityRole="link"
@@ -506,10 +501,11 @@ function TagRow({
           {tag.name}
         </Text>
         <Text style={styles.count}>{tag.songCount}</Text>
-      </Pressable>
+      </Press>
 
       <Animated.View ref={moreRef} collapsable={false} style={{ opacity: reveal }}>
-        <Pressable
+        <Press
+          feedback="dim"
           style={[styles.tagAction, styles.tagActionLast]}
           onPress={() => setEditing(isOpen => !isOpen)}
           accessibilityRole="button"
@@ -518,7 +514,7 @@ function TagRow({
           accessibilityState={{ expanded: editing }}
         >
           <More size={iconSize.sub} color={theme.colors.textMuted} />
-        </Pressable>
+        </Press>
       </Animated.View>
 
       <TagEditor tag={editing ? tag : null} anchorRef={moreRef} onClose={() => setEditing(false)} />
@@ -592,12 +588,9 @@ function Foot(): ReactNode {
           {notice.body}
         </NoticeCard>
       ) : null}
-      <Pressable
-        style={({ pressed }) => [
-          styles.status,
-          pathname === '/profile' && styles.itemOn,
-          pressed && styles.rowPressed,
-        ]}
+      <Press
+        feedback="wash"
+        style={[styles.status, pathname === '/profile' && styles.itemOn]}
         onPress={() => {
           enterFromSidebar()
           router.navigate('/profile')
@@ -613,10 +606,13 @@ function Foot(): ReactNode {
         <Text style={styles.footLabel} numberOfLines={1}>
           {name}
         </Text>
-      </Pressable>
+      </Press>
     </View>
   )
 }
+
+/** The ＋ beside a section's header. */
+const TINY_BUTTON = 24
 
 /** The round mark on the rail's own row. */
 const AVATAR = 30
@@ -734,7 +730,6 @@ const styles = StyleSheet.create(theme => ({
   // square corners while every row it slid between was rounded.
   itemOn: { backgroundColor: theme.colors.surface3, borderRadius: radius.item },
   labelOn: { color: theme.colors.textPrimary, fontWeight: '600' },
-  rowPressed: { backgroundColor: theme.colors.surface2 },
   dropHint: { fontSize: type.tiny, paddingHorizontal: space.snug, paddingBottom: 2 },
   /* `.nav-group-grow`: the tag list takes what is left, and scrolls in it. */
   group: { flex: 1, minHeight: 0, gap: 1 },
@@ -755,13 +750,6 @@ const styles = StyleSheet.create(theme => ({
   groupTitleText: labelText(theme.colors),
   groupTitleOn: { color: theme.colors.textPrimary },
   groupAll: { color: theme.colors.textMuted, fontSize: type.tiny, fontWeight: '600' },
-  tinyButton: {
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-  },
   tagForm: {
     gap: space.tight,
     paddingTop: space.xs,

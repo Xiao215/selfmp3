@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
@@ -33,6 +33,7 @@ import { reachedConnection, viaKey } from '../../connection/via'
 import { SongLine } from '../../ui/components/SongLine'
 import { StatusLine } from '../../ui/components/StatusLine'
 import { AnswerActions, AnswerHead, AnswerLine } from './AnswerParts'
+import { Press } from '../../ui/components/Press'
 
 /**
  * An ask's query key: the server it went to, the words first asked, the song
@@ -354,19 +355,20 @@ function Drawn({
             <View style={styles.tries}>
               <Text style={styles.muted}>Try</Text>
               {answer.try.map(each => (
-                <Pressable
+                <Press
                   key={each}
                   onPress={() => onAsk(each)}
                   accessibilityRole="button"
                   accessibilityLabel={`Ask: ${each}`}
-                  style={({ pressed }) => [styles.try, pressed && styles.pressed]}
+                  wrap={styles.tryPlace}
+                  style={styles.try}
                   testID="ask-try"
                 >
                   <Sparkle size={iconSize.sub} />
                   <Text style={styles.tryText} numberOfLines={2}>
                     {each}
                   </Text>
-                </Pressable>
+                </Press>
               ))}
             </View>
           ) : null}
@@ -456,17 +458,15 @@ const styles = StyleSheet.create(theme => ({
     columnGap: space.tight,
     rowGap: space.xs,
   },
+  tryPlace: { alignSelf: 'flex-start', maxWidth: '100%' },
   try: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
-    alignSelf: 'flex-start',
-    maxWidth: '100%',
     paddingVertical: 7,
     paddingHorizontal: space.md,
     borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,
   },
   tryText: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: type.sub },
-  pressed: { opacity: 0.6 },
 }))

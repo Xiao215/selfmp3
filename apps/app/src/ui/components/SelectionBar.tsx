@@ -5,7 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { artistOr } from '@selfmp3/shared'
 import type { Song } from '@selfmp3/shared'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { motion, radius, space, type } from '@selfmp3/client'
+import { motion, radius, space, type, iconSize } from '@selfmp3/client'
 import { usePlaylistRemoval } from '../../features/playlists/usePlaylistRemoval'
 import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -325,7 +325,7 @@ export function SelectionBar({
 
   const done = (
     <IconButton onPress={onDone} label="Done selecting" testID="selection-done">
-      <X size={16} color={theme.colors.textSecondary} />
+      <X size={iconSize.item} color={theme.colors.textSecondary} />
     </IconButton>
   )
   const countWords = count === 0 ? 'None selected' : `${count} selected`

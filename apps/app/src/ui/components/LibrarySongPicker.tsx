@@ -13,6 +13,7 @@ import { Check, Plus } from './Icons'
 import { ScrollView } from './Scroll'
 import { SearchField } from './SearchField'
 import { SongLine } from './SongLine'
+import { OPACITY } from '../motion.model'
 
 /** Enough to scroll through; a search narrows past it. */
 const SHOWN = 60
@@ -185,7 +186,7 @@ export function PickMark({
 const styles = StyleSheet.create(theme => ({
   list: { maxHeight: 380 },
   row: { paddingHorizontal: space.xs },
-  has: { opacity: 0.55 },
+  has: { opacity: OPACITY.dim },
   state: { color: theme.colors.textMuted, fontSize: type.small, fontWeight: '600' },
   addedMark: {
     flexDirection: 'row',

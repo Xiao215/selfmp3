@@ -1,11 +1,12 @@
 import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { radius, type, space } from '@selfmp3/client'
+import { radius, type, space, iconSize } from '@selfmp3/client'
 import { ChevronDown, ChevronRight } from '../../ui/components/Icons'
 import { Slider } from '../../ui/components/Slider'
-import { card, label as labelText, serif, hint, lineSub } from '../../ui/surfaces'
+import { card, label as labelText, serif, lineSub, hint } from '../../ui/surfaces'
+import { Press } from '../../ui/components/Press'
 
 /**
  * The pieces every Settings section is made of: one row anatomy — name, a
@@ -146,15 +147,16 @@ export function Details({ children }: { children: ReactNode }): ReactNode {
   const Chevron = open ? ChevronDown : ChevronRight
   return (
     <>
-      <Pressable
+      <Press
+        feedback="dim"
         onPress={() => setOpen(value => !value)}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
-        style={({ pressed }) => [styles.detailsRow, pressed && styles.detailsRowPressed]}
+        style={styles.detailsRow}
       >
-        <Chevron size={14} tone="textMuted" />
+        <Chevron size={iconSize.field} tone="textMuted" />
         <Text style={styles.detailsRowText}>Details</Text>
-      </Pressable>
+      </Press>
       {open ? children : null}
     </>
   )
@@ -195,7 +197,6 @@ const styles = StyleSheet.create(theme => ({
     paddingRight: space.sm,
     borderRadius: radius.pill,
   },
-  detailsRowPressed: { opacity: 0.7 },
   detailsRowText: { color: theme.colors.textMuted, fontSize: type.sub },
   group: { gap: space.sm },
   groupHead: {

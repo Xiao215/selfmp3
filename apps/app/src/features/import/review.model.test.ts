@@ -179,6 +179,18 @@ describe('a list from 网易云', () => {
     expect(reviewKicker(review)).toBe('From 网易云 · playlist')
   })
 
+  it('says where each of a search’s songs comes from, in amber where 网易云 only previews it', () => {
+    const search = reviewFrom({
+      from: 'search',
+      kind: 'playlist',
+      playlistTitle: '孤勇者',
+      items: [],
+    })
+    expect(sourceWords(search, item(2))).toEqual({ words: 'YouTube', tone: 'quiet' })
+    expect(sourceWords(search, free)).toEqual({ words: '网易云', tone: 'quiet' })
+    expect(sourceWords(search, vip('sure'))).toEqual({ words: 'YouTube', tone: 'warn' })
+  })
+
   it('says nothing of the source where every song comes from where it was linked', () => {
     expect(sourceWords(theBook(), item(2))).toBeNull()
   })

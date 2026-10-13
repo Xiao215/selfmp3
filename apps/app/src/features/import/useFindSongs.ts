@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { failureText, lookingFor, type Api, type Review } from '@selfmp3/client'
 import { draftFor, foundIn } from './importDraft'
-import type { DraftSource } from './importDraft.model'
+import type { DraftList, DraftSource } from './importDraft.model'
 
 /** Songs asked about in one request: a few seconds' work for the server, well inside a phone's patience. */
 const BATCH = 8
@@ -19,11 +19,15 @@ const BATCH = 8
  * One request at a time, then the next: the server looks for each batch's
  * songs side by side already (youtubeMatch.ts). A request that fails stops
  * the search and says so, and `retry` starts it again.
+ *
+ * A search's songs are found the same way (`list`): a 网易云 song it only
+ * gives a preview of, with no answer from YouTube Music surely the same.
  */
 export function useFindSongs(
   api: Pick<Api, 'importFind'>,
   key: DraftSource,
   review: Review | null,
+  list: DraftList = 'review',
 ): { error: string | null; retry: () => void } {
   const [error, setError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
@@ -36,7 +40,8 @@ export function useFindSongs(
 
   useEffect(() => {
     if (question === '' || error !== null) return undefined
-    const current = draftFor(key).review
+    const draft = draftFor(key)
+    const current = list === 'review' ? draft.review : (draft.search?.review ?? null)
     if (!current) return undefined
     const asked = lookingFor(current)
       .slice(0, BATCH)
@@ -61,6 +66,7 @@ export function useFindSongs(
           key,
           asked.map(({ index, title, artist }) => ({ index, title, artist })),
           found,
+          list,
         )
       })
       .catch((reason: unknown) => {
@@ -71,7 +77,7 @@ export function useFindSongs(
       stale = true
     }
     // `question` stands for the rows asked about; `attempt` is a retry.
-  }, [api, key, question, error, attempt])
+  }, [api, key, list, question, error, attempt])
 
   return {
     error,

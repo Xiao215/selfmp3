@@ -155,6 +155,25 @@ describe('NeteaseMusic', () => {
     await expect(netease.list({ kind: 'artist', id: '1' })).rejects.toThrow(/did not answer/)
   })
 
+  it('searches with what this server may play of each song, carried on the answer', async () => {
+    const search = `${API}cloudsearch/pc ${new URLSearchParams({ s: '孤勇者', type: '1', limit: '8', offset: '0' }).toString()}`
+    const { netease } = fakeApi({
+      [search]: {
+        code: 200,
+        result: {
+          songs: songs
+            .slice(0, 2)
+            .map((song, at) => ({ ...song, privilege: { ...privileges[at], id: undefined } })),
+        },
+      },
+    })
+    const found = await netease.search('孤勇者')
+    expect(found.map(track => [track.title, track.free])).toEqual([
+      ['海屿你', true],
+      ['孤勇者', false],
+    ])
+  })
+
   it('says so when 网易云 does not answer, or answers with its own refusal', async () => {
     const { netease } = fakeApi({
       [`${API}v6/playlist/detail?id=1&n=100000`]: { code: -447 },

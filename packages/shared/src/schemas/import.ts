@@ -116,8 +116,12 @@ export const ImportPreviewItemSchema = z.object({
 })
 export type ImportPreviewItem = z.infer<typeof ImportPreviewItemSchema>
 
-/** What a review's songs were listed by: what was pasted, which `from` says on the review. */
-export const ImportFromSchema = z.enum(['youtube', 'netease', 'spotify', 'list'])
+/**
+ * What a review's songs were listed by: what was pasted, which `from` says on
+ * the review — or a search typed into Import's box, whose songs come from
+ * YouTube Music and 网易云 both.
+ */
+export const ImportFromSchema = z.enum(['youtube', 'netease', 'spotify', 'list', 'search'])
 export type ImportFrom = z.infer<typeof ImportFromSchema>
 
 export const ImportPreviewSchema = z.object({
@@ -163,6 +167,25 @@ export const ImportFindResultSchema = z.object({
   found: z.array(ImportFoundSchema.nullable()),
 })
 export type ImportFindResult = z.infer<typeof ImportFindResultSchema>
+
+/**
+ * Words typed into Import's box, looked for on YouTube Music and 网易云 at once
+ * (docs/features/import-sources.md, "Searching").
+ */
+export const ImportSearchRequestSchema = z.object({
+  query: z.string().trim().min(1).max(200),
+})
+export type ImportSearchRequest = z.infer<typeof ImportSearchRequestSchema>
+
+/**
+ * What a search found, as review rows, best first: a song both places have
+ * is one row, from 网易云 when it gives the whole song and from YouTube when
+ * it would give a preview, as on a 网易云 list's review.
+ */
+export const ImportSearchResultSchema = z.object({
+  items: z.array(ImportPreviewItemSchema),
+})
+export type ImportSearchResult = z.infer<typeof ImportSearchResultSchema>
 
 /**
  * Which of these tracks the library has now, asked again for a review that

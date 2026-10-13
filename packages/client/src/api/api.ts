@@ -27,6 +27,7 @@ import {
   AlreadyHaveResponseSchema,
   ImportCoverToneSchema,
   ImportFindResultSchema,
+  ImportSearchResultSchema,
   ImportPreviewSchema,
   ImportQueueSchema,
   ImportsClearedSchema,
@@ -455,6 +456,9 @@ export function createApi({ context, fetch }: ApiOptions) {
     importPreview: (url: string) =>
       request('POST', '/api/import/preview', ImportPreviewSchema, { url }),
 
+    /** Words looked for on YouTube Music and 网易云 at once, as review rows (`/import/search`). */
+    importSearch: (query: string) =>
+      request('POST', '/api/import/search', ImportSearchResultSchema, { query }),
     /** Songs a review knows by name, found on YouTube, a few at a time (`/import/find`). */
     importFind: (tracks: ImportFindRequest['tracks']) =>
       request('POST', '/api/import/find', ImportFindResultSchema, { tracks }),

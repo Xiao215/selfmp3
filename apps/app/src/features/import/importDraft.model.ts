@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ImportFromSchema, ImportPreviewItemSchema } from '@selfmp3/shared'
+import { ImportFromSchema, ImportPreviewItemSchema, type ImportPreviewItem } from '@selfmp3/shared'
 import type { Review, ServerConnection } from '@selfmp3/client'
 
 /**
@@ -25,32 +25,89 @@ export function draftSourceFor(via: ServerConnection | undefined): DraftSource {
   return via === undefined ? 'own' : 'cloud'
 }
 
+/**
+ * Words typed into the box, and what they found (docs/features/import-sources.md,
+ * "Searching"): the review's rows, ticked to import, under the box. Songs
+ * ticked in an earlier search stay ticked above a new search's songs, so a
+ * few songs can be gathered one search at a time; `picked` is how many rows
+ * at the top are those.
+ */
+interface DraftSearch {
+  readonly query: string
+  readonly review: Review
+  readonly picked: number
+}
+
 export interface ImportDraft {
   readonly source: DraftSource
   readonly links: string
   readonly review: Review | null
+  readonly search: DraftSearch | null
   readonly tagIds: ReadonlySet<number>
 }
+
+/** Which of the draft's lists a change is to: a looked-up link's review, or a search's songs. */
+export type DraftList = 'review' | 'search'
+
+/**
+ * A new search's songs, under the songs ticked in the searches before it.
+ * Nothing found is ticked: a search is browsing, and what it found is
+ * yours to pick. A song ticked before and found again is the ticked one,
+ * kept above, not a second row: the same song by its 网易云 link, else by its
+ * YouTube one, as either may be what it downloads from now.
+ */
+export function withSearchResults(
+  previous: DraftSearch | null,
+  query: string,
+  items: readonly ImportPreviewItem[],
+): DraftSearch {
+  const before = previous?.review
+  const kept = before ? before.items.filter((_, index) => before.chosen.has(index)) : []
+  const keys = new Set(kept.map(songKey))
+  const found = items.filter(item => !keys.has(songKey(item)))
+  return {
+    query,
+    picked: kept.length,
+    review: {
+      items: [...kept, ...found],
+      chosen: new Set(kept.map((_, index) => index)),
+      playlistTitle: query,
+      from: 'search',
+    },
+  }
+}
+
+const songKey = (item: ImportPreviewItem): string =>
+  item.netease?.url ?? item.youtube?.url ?? item.url
 
 export type DraftChanges = Partial<Omit<ImportDraft, 'source'>>
 
 export function emptyDraft(source: DraftSource): ImportDraft {
-  return { source, links: '', review: null, tagIds: new Set() }
+  return { source, links: '', review: null, search: null, tagIds: new Set() }
 }
 
 /** The `prefs` key the draft is kept under. */
 export const IMPORT_DRAFT_KEY = 'import-draft'
 
+/** A review as it is written down: its ticks as an array. */
+const StoredReviewSchema = z.object({
+  items: z.array(ImportPreviewItemSchema),
+  chosen: z.array(z.number().int().nonnegative()),
+  playlistTitle: z.string().nullable(),
+  from: ImportFromSchema,
+})
+type StoredReview = z.infer<typeof StoredReviewSchema>
+
 /** The draft as it is written down: sets as arrays, and nothing else changed. */
 const StoredDraftSchema = z.object({
   source: z.enum(['own', 'cloud']),
   links: z.string(),
-  review: z
+  review: StoredReviewSchema.nullable(),
+  search: z
     .object({
-      items: z.array(ImportPreviewItemSchema),
-      chosen: z.array(z.number().int().nonnegative()),
-      playlistTitle: z.string().nullable(),
-      from: ImportFromSchema,
+      query: z.string(),
+      review: StoredReviewSchema,
+      picked: z.number().int().nonnegative(),
     })
     .nullable(),
   tagIds: z.array(z.number().int()),
@@ -73,20 +130,38 @@ export function parseImportDraft(raw: string | null): ImportDraft | null {
   }
   const result = StoredDraftSchema.safeParse(stored)
   if (!result.success) return null
-  const { source, links, review, tagIds } = result.data
+  const { source, links, review, search, tagIds } = result.data
   return {
     source,
     links,
-    review:
-      review === null
+    review: review === null ? null : readReview(review),
+    search:
+      search === null
         ? null
         : {
-            items: review.items,
-            chosen: new Set(review.chosen.filter(index => index < review.items.length)),
-            playlistTitle: review.playlistTitle,
-            from: review.from,
+            query: search.query,
+            review: readReview(search.review),
+            picked: Math.min(search.picked, search.review.items.length),
           },
     tagIds: new Set(tagIds),
+  }
+}
+
+function readReview(review: StoredReview): Review {
+  return {
+    items: review.items,
+    chosen: new Set(review.chosen.filter(index => index < review.items.length)),
+    playlistTitle: review.playlistTitle,
+    from: review.from,
+  }
+}
+
+function writeReview(review: Review): StoredReview {
+  return {
+    items: [...review.items],
+    chosen: [...review.chosen],
+    playlistTitle: review.playlistTitle,
+    from: review.from,
   }
 }
 
@@ -94,15 +169,9 @@ export function serialiseImportDraft(draft: ImportDraft): string {
   return JSON.stringify({
     source: draft.source,
     links: draft.links,
-    review:
-      draft.review === null
-        ? null
-        : {
-            items: draft.review.items,
-            chosen: [...draft.review.chosen],
-            playlistTitle: draft.review.playlistTitle,
-            from: draft.review.from,
-          },
+    review: draft.review === null ? null : writeReview(draft.review),
+    search:
+      draft.search === null ? null : { ...draft.search, review: writeReview(draft.search.review) },
     tagIds: [...draft.tagIds],
   })
 }

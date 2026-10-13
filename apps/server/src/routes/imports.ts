@@ -10,6 +10,7 @@ import {
   isYouTubeUrl,
   ImportEnqueueSchema,
   ImportPreviewRequestSchema,
+  ImportSearchRequestSchema,
   ImportShareRequestSchema,
   type AlreadyHaveResponse,
   type ImportCoverTone,
@@ -17,6 +18,7 @@ import {
   type ImportEnqueueResult,
   type ImportFindResult,
   type ImportPreview,
+  type ImportSearchResult,
   type ImportQueue,
   type ImportShareResult,
   type Ok,
@@ -41,6 +43,7 @@ import {
 } from '../services/importPreview.js'
 import { alreadyHave, libraryIndex, normaliseUrl } from '../services/alreadyHave.js'
 import { importRun } from '../services/importRun.js'
+import { searchSongs } from '../services/importSearch.js'
 import { isCoverUrl } from '../services/previewCoverTone.js'
 import { messageOf } from '../util/errors.js'
 
@@ -141,6 +144,18 @@ export function importRoutes(container: Container): Router {
       )
       return preview
     }),
+  )
+
+  /**
+   * Words typed into Import's box, looked for on YouTube Music and 网易云 at
+   * once (services/importSearch.ts). Asked as a person types, so nothing is
+   * warmed for listening: most of what is asked is never looked at.
+   */
+  router.post(
+    '/import/search',
+    route({ body: ImportSearchRequestSchema }, async ({ body }): Promise<ImportSearchResult> => ({
+      items: await searchSongs(container, body.query),
+    })),
   )
 
   /**

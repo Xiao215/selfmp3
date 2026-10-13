@@ -289,7 +289,7 @@ const SPOTIFY_KINDS = { track: 'song', album: 'album', playlist: 'playlist' } as
 export function describePaste(text: string): string | null {
   if (!text.trim()) return null
   const urls = extractUrls(text)
-  if (urls.length === 0) return 'A list of song names'
+  if (urls.length === 0) return searchQuery(text) ? 'Search' : 'A list of song names'
   if (urls.length > 1) return `${urls.length} links`
   const url = urls[0] as string
   const netease = neteaseLink(url)
@@ -303,6 +303,22 @@ export function describePaste(text: string): string | null {
   if (youtubeChannel(url)) return 'YouTube artist'
   if (youtubeVideoId(url)) return 'YouTube song'
   return 'A link'
+}
+
+/**
+ * What Import's box asks to search for, when it is a search: one line of
+ * words with no link (docs/features/import-sources.md, "Searching"). Two
+ * lines or more are a list of songs, each found by its name, as before; a
+ * blank line after the words — a Return pressed out of habit — is not a
+ * second song. Null for anything else.
+ */
+export function searchQuery(text: string): string | null {
+  const lines = text
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean)
+  if (lines.length !== 1 || extractUrls(text, 1).length > 0) return null
+  return lines[0] ?? null
 }
 
 /**

@@ -1,7 +1,8 @@
 # Import sources
 
-Import's one box takes a link from YouTube, YouTube Music, 网易云音乐 or Spotify, or a list
-of song names, and shows every song on the same review before anything downloads. Under
+Import's one box takes words to search for, a link from YouTube, YouTube Music, 网易云音乐
+or Spotify, or a list of song names. A search shows what it found under the box as it is
+typed; anything else shows every song on the same review before anything downloads. Under
 the box it says what it read ("网易云 playlist", "Spotify album", "A list of song names").
 
 Each song comes from one of two places: YouTube, or 网易云 itself. Spotify's audio cannot
@@ -43,6 +44,38 @@ A public playlist, album or track link. The server reads the names and lengths f
 Spotify's embed page (`services/spotify.ts`), which needs no sign-in; a private playlist
 says so, with the way round it: paste its songs as a list, or a CSV from
 [Exportify](https://exportify.net).
+
+## Searching
+
+One line of words with no link in it is a search (`searchQuery`). A blank line after the
+words does not count, so a Return pressed out of habit keeps it a search; a second line of
+words makes it a list of names, below.
+
+The server asks YouTube Music's song search and 网易云's at once (`services/importSearch.ts`,
+ten answers each) and makes them one list. A song both places have is one row, from where a
+网易云 list's review would take it: 网易云 when it gives the whole song out, YouTube when it
+would give a preview. Pairing two answers as one song is careful, since a wrong pair
+downloads someone else's recording: a hit's covers share its name and nearly its length,
+and YouTube often spells the original artist in another script (陈奕迅 is Eason Chan):
+
+- a 网易云 song it gives out whole pairs only with a YouTube answer by the same artist, of
+  the same name and length; unpaired, it is its own row, from 网易云;
+- a 网易云 song it only previews pairs with the YouTube answer the matcher (below) is sure
+  of; short of that it is a row looking for itself on YouTube, as on a 网易云 list.
+
+The two lists take turns, YouTube Music's first: for a song 网易云 has no rights to, its
+first answers are other people's covers. 网易云's search says on each song what this server
+may play of it, so free or VIP needs no second request.
+
+The results are the review's rows, under the box (`ImportScreen.tsx`, `ReviewRows.tsx`):
+tap a cover to hear it, open a row to fix its name or switch between 网易云 and YouTube,
+"In library" for a song you have. Nothing starts ticked, and an unticked row looks like any
+other; only its box says. Ticked songs stay ticked above the next search's songs under
+**Picked**, so a few songs can be gathered over several searches. The foot of the page
+says what is picked and imports it, with the box's Tag it tags; then the box starts afresh.
+
+The search is asked once typing settles (350 ms), only for the latest words, and kept in
+the import draft with its ticks, so it outlives the page and a reload.
 
 ## A list of song names
 
@@ -106,6 +139,7 @@ source link, a 网易云 song in any spelling, or the name and length.
 | Method | Path | Notes |
 |---|---|---|
 | `POST` | `/api/import/preview` | `{ url }`: links or song names → `{ kind, playlistTitle, from, items }`. Each item says its `source`, its `netease` song, and its `youtube` match (`looking` until found). |
+| `POST` | `/api/import/search` | `{ query }`: words → `{ items }`, review rows from YouTube Music and 网易云, a song both have once. |
 | `POST` | `/api/import/find` | `{ tracks }` (up to 25) → `{ found }`, one YouTube match or null per track. |
 | `GET` | `/api/import/listen?url=` | A YouTube or 网易云 song's audio, for hearing it on the review. |
 
@@ -118,5 +152,8 @@ source link, a 网易云 song in any spelling, or the name and length.
 - `apps/server/src/services/trackLists.ts` — text and CSV.
 - `apps/server/src/services/youtubeMatch.ts` — scoring and the YouTube Music search.
 - `apps/server/src/services/importPreview.ts` — every kind of paste into one review.
-- `packages/client/src/import/model.ts` — `describePaste`, `withFound`, `chooseSource`, `lookAgain`.
+- `apps/server/src/services/importSearch.ts` — a search's two lists as one.
+- `packages/client/src/import/model.ts` — `describePaste`, `searchQuery`, `withFound`, `chooseSource`, `lookAgain`.
 - `apps/app/src/features/import/useFindSongs.ts`, `ImportReview.tsx` — the review.
+- `apps/app/src/features/import/ReviewRows.tsx` — the review's rows, which a search's songs share.
+- `apps/app/src/features/import/useSongSearch.ts`, `importDraft.model.ts` (`withSearchResults`) — searching.

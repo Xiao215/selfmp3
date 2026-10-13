@@ -82,6 +82,8 @@ interface SongJson {
   dt?: number
   ar?: { name?: string }[]
   al?: { name?: string; picUrl?: string }
+  /** What this server may play of it: a search's answer carries it on each song. */
+  privilege?: PrivilegeJson
 }
 
 interface PrivilegeJson {
@@ -159,7 +161,9 @@ export class NeteaseMusic {
   /**
    * Songs 网易云 lists for some words, best first: the search its own site's
    * app uses. Its names are the publisher's, often in two languages
-   * ("丹砂巍巍 Wordless Cliffs"). Empty when it did not answer.
+   * ("丹砂巍巍 Wordless Cliffs"). Each answer says what this server may play
+   * of it, so `free` is known without asking again. Empty when it did not
+   * answer.
    */
   async search(words: string, limit = 8): Promise<NeteaseTrack[]> {
     const page = (await this.#post('cloudsearch/pc', {
@@ -168,7 +172,11 @@ export class NeteaseMusic {
       limit: String(limit),
       offset: '0',
     })) as { result?: { songs?: SongJson[] } } | null
-    return toTracks(page?.result?.songs ?? [], [])
+    const songs = page?.result?.songs ?? []
+    return toTracks(
+      songs,
+      songs.flatMap(song => (song.privilege ? [{ ...song.privilege, id: song.id }] : [])),
+    )
   }
 
   /** Albums 网易云 lists for some words, best first; empty when it did not answer. */

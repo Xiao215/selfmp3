@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { ImportPreviewItem } from '@selfmp3/shared'
 import { reviewFrom } from '@selfmp3/client'
 import type { PrefStore } from '../../ports/prefs'
-import { IMPORT_DRAFT_KEY, parseImportDraft } from './importDraft.model'
+import { IMPORT_DRAFT_KEY, parseImportDraft, withSearchResults } from './importDraft.model'
 import { createImportDraftStore } from './importDraft.store'
-import { comingIn, rowState } from './review.model'
+import { comingIn, rowState, toggleChosen } from './review.model'
 
 /** The `prefs` port with nothing behind it but a map: what a device remembers, without the device. */
 function memoryPrefs(): PrefStore & { readonly kept: Map<string, string> } {
@@ -161,5 +161,64 @@ describe('the import draft', () => {
     expect(store.draftFor('cloud')).toMatchObject({ links: '', review: null })
     // Forgotten on the device too, not only until the next launch.
     expect(createImportDraftStore(prefs).draftFor('cloud').review).toBeNull()
+  })
+
+  it('keeps a search’s songs and ticks across a reload, and changes them as a review’s', () => {
+    const prefs = memoryPrefs()
+    const before = createImportDraftStore(prefs)
+    before.patchDraft('own', {
+      links: '孤勇者',
+      search: withSearchResults(null, '孤勇者', [item(1), item(2)]),
+    })
+    before.toggleChosenIn('own', 1, 'search')
+    before.renameIn('own', 1, { title: '孤勇者 (Live)' }, 'search')
+    // The review, a list of its own, is not what changed.
+    expect(before.draftFor('own').review).toBeNull()
+
+    const search = createImportDraftStore(prefs).draftFor('own').search!
+    expect(search.query).toBe('孤勇者')
+    expect(search.review.items[1]!.title).toBe('孤勇者 (Live)')
+    expect(rowState(search.review, 1)).toBe('in')
+    expect(rowState(search.review, 0)).toBe('out')
+  })
+})
+
+describe('a search', () => {
+  const netease = (n: number, free: boolean) =>
+    item(n, {
+      url: free ? `https://music.163.com/song?id=${n}` : `https://www.youtube.com/watch?v=${n}`,
+      source: free ? 'netease' : 'youtube',
+      netease: { url: `https://music.163.com/song?id=${n}`, free },
+      youtube: { url: `https://www.youtube.com/watch?v=${n}`, match: 'sure' },
+    })
+
+  it('ticks nothing it found', () => {
+    const search = withSearchResults(null, 'yorushika', [item(1), item(2)])
+    expect(search).toMatchObject({ query: 'yorushika', picked: 0 })
+    expect(search.review.chosen.size).toBe(0)
+    expect(search.review.from).toBe('search')
+  })
+
+  it('keeps the songs ticked before above the next search’s, ticked, and each song once', () => {
+    let search = withSearchResults(null, '孤勇者', [netease(1, false), item(2), item(3)])
+    search = { ...search, review: toggleChosen(toggleChosen(search.review, 0), 2) }
+    // Switched to 网易云 before the next search: still the same song by its 网易云 link.
+    const next = withSearchResults(search, 'yorushika', [item(4), netease(1, true), item(5)])
+    expect(next.picked).toBe(2)
+    expect(next.review.items.map(each => each.title)).toEqual([
+      'Song 1',
+      'Song 3',
+      'Song 4',
+      'Song 5',
+    ])
+    expect([...next.review.chosen]).toEqual([0, 1])
+  })
+
+  it('lets go of a song unticked before the next search', () => {
+    let search = withSearchResults(null, 'a', [item(1)])
+    search = { ...search, review: toggleChosen(search.review, 0) }
+    search = withSearchResults(search, 'b', [item(2)])
+    search = { ...search, review: toggleChosen(search.review, 0) }
+    expect(withSearchResults(search, 'c', [item(3)]).review.items).toEqual([item(3)])
   })
 })

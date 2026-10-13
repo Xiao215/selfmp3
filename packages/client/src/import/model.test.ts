@@ -8,6 +8,7 @@ import {
   chooseSource,
   chosenItems,
   describePaste,
+  searchQuery,
   dismissable,
   enqueueRequest,
   finishedLabel,
@@ -513,6 +514,16 @@ describe('what the box holds', () => {
     expect(canLookUp('  \n ')).toBe(false)
   })
 
+  it('takes one line of words with no link for a search, and anything else for what it was', () => {
+    expect(searchQuery('  孤勇者 ')).toBe('孤勇者')
+    // A Return pressed after the words is not a second song.
+    expect(searchQuery('yorushika\n\n')).toBe('yorushika')
+    expect(searchQuery('Daft Punk - Get Lucky\nRadiohead - Creep')).toBeNull()
+    expect(searchQuery('https://youtu.be/dGZqpVCJP3k')).toBeNull()
+    expect(searchQuery('listen to https://youtu.be/dGZqpVCJP3k')).toBeNull()
+    expect(searchQuery('  \n ')).toBeNull()
+  })
+
   it('says what was pasted, before it is looked up', () => {
     expect(describePaste('')).toBeNull()
     expect(
@@ -535,6 +546,7 @@ describe('what the box holds', () => {
     expect(describePaste('https://youtu.be/dGZqpVCJP3k')).toBe('YouTube song')
     expect(describePaste('https://youtu.be/a\nhttps://youtu.be/b')).toBe('2 links')
     expect(describePaste('Daft Punk - Get Lucky\nRadiohead - Creep')).toBe('A list of song names')
+    expect(describePaste('孤勇者')).toBe('Search')
   })
 })
 

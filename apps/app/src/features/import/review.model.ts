@@ -99,7 +99,9 @@ export function importLabel(count: number, finding = 0): string {
 
 /**
  * Where a row's song comes from, said at its end when the review mixes
- * places: a 网易云 list, whose VIP songs come from YouTube. "Not sure" when
+ * places: a 网易云 list, whose VIP songs come from YouTube, or a search,
+ * whose songs come from either. A 网易云 song taken from YouTube instead is
+ * said in amber, as on a 网易云 list. "Not sure" when
  * the song was found on YouTube by its name and the match is weak, so it is
  * worth a listen; "Looking…" while it is being found. Null when there is
  * nothing to say: every song from where it was linked.
@@ -110,15 +112,22 @@ export function sourceWords(
 ): { words: string; tone: 'quiet' | 'warn' } | null {
   if (stillLooking(item) && item.source === 'youtube') return { words: 'Looking…', tone: 'quiet' }
   if (notFound(item)) return { words: 'Not found', tone: 'quiet' }
-  const mixed = review.from === 'netease'
+  const mixed = review.from === 'netease' || review.from === 'search'
   const unsure = item.source === 'youtube' && item.youtube?.match === 'unsure'
   if (item.source === 'netease') return mixed ? { words: '网易云', tone: 'quiet' } : null
   if (unsure) return { words: mixed ? 'YouTube · not sure' : 'Not sure', tone: 'warn' }
-  return mixed ? { words: 'YouTube', tone: 'warn' } : null
+  if (!mixed) return null
+  return { words: 'YouTube', tone: item.netease ? 'warn' : 'quiet' }
 }
 
 /** What the place a review's songs were listed by is called. */
-const PLACES = { youtube: 'this link', netease: '网易云', spotify: 'Spotify', list: 'your list' }
+const PLACES = {
+  youtube: 'this link',
+  netease: '网易云',
+  spotify: 'Spotify',
+  list: 'your list',
+  search: 'your search',
+}
 
 /**
  * What the review is called: the playlist's own name when the link was one,

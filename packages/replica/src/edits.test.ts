@@ -154,6 +154,20 @@ describe('editing songs', () => {
     expect(view.playlistSongs[d.idOf('playlists', '7')]).toEqual([d.idOf('songs', 'b')])
   })
 
+  it('takes the tags only those songs had with them, as the server does, and no others', () => {
+    // "chill" was on song a alone; "rain" was on nothing, and stays to be filled.
+    const d = device()
+    const changes = edits.removeSongs(d.ctx(), [d.idOf('songs', 'a')])
+    expect(changes.map(change => [change.type, change.uid])).toEqual([
+      ['songRemoved', uid('a')],
+      ['tagRemoved', uid('1')],
+    ])
+    expect(d.apply(changes).library.tags.map(tag => tag.name)).toEqual(['rain'])
+    expect(edits.removeSongs(d.ctx(), [d.idOf('songs', 'b')]).map(c => c.type)).toEqual([
+      'songRemoved',
+    ])
+  })
+
   it('counts a play under the play outbox’s own id, so a resend counts once', () => {
     const d = device()
     const play = { msPlayed: 1000, completed: true, clientId: 'outbox-123456' }

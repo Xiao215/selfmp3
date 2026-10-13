@@ -1,4 +1,4 @@
-import type { BulkDeleteFailure, Song } from '@selfmp3/shared'
+import { tagsEmptiedBy, type BulkDeleteFailure, type Song } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
 import type { CloudRepository } from '../repositories/cloud.js'
@@ -48,7 +48,7 @@ interface RemovedElsewhere {
 export class SongRemovalService {
   readonly #storage: StorageDriver
   readonly #songs: SongRepository
-  readonly #tags: Pick<TagRepository, 'pruneEmpty'>
+  readonly #tags: Pick<TagRepository, 'all' | 'delete'>
   readonly #cloud: Pick<CloudRepository, 'trashSong'>
   readonly #lyrics: Pick<LyricsService, 'deleteSidecar'>
   readonly #covers: Pick<CoverService, 'delete'>
@@ -61,7 +61,7 @@ export class SongRemovalService {
   constructor(deps: {
     storage: StorageDriver
     songs: SongRepository
-    tags: Pick<TagRepository, 'pruneEmpty'>
+    tags: Pick<TagRepository, 'all' | 'delete'>
     /** Where a removed song's bucket files wait to be deleted. */
     cloud: Pick<CloudRepository, 'trashSong'>
     lyrics: Pick<LyricsService, 'deleteSidecar'>
@@ -108,13 +108,22 @@ export class SongRemovalService {
       if (problem) failed.push({ songId: song.id, reason: problem, removed: true })
     }
 
+    // Each tag's count before the rows go, to tell which ones they empty.
+    const tags = this.#tags.all()
     // The bucket's files first, from the bookkeeping the row's deletion takes
     // with it; then the rows, in one transaction.
     for (const song of songs) this.#cloud.trashSong(song.id)
     const { removed } = this.#songs.deleteMany(songs.map(song => song.id))
     if (removed.length > 0) {
-      // A tag these were the last songs of goes too.
-      this.#tags.pruneEmpty()
+      // A tag these were the last songs of goes too — only those, as a device
+      // removing them takes them (shared `tagsEmptiedBy`): an empty tag made a
+      // moment ago is nobody's leftover.
+      const gone = new Set(removed)
+      const emptied = tagsEmptiedBy(
+        tags,
+        songs.filter(song => gone.has(song.id)),
+      )
+      for (const tagId of emptied) this.#tags.delete(tagId)
       this.#onChange()
     }
     return { removed, failed }
@@ -123,9 +132,9 @@ export class SongRemovalService {
   /**
    * Tidy after rows another device removed.
    *
-   * The cloud pass deleted them inside its own transaction, trashed their
-   * bucket files and pruned the tags there, so only what hung off each row is
-   * left to do. Nothing here is fatal: a cover left behind is not worth
+   * The cloud pass deleted them inside its own transaction and trashed their
+   * bucket files, and the tags they emptied came as changes of their own, so
+   * only what hung off each row is left to do. Nothing here is fatal: a cover left behind is not worth
    * stopping the pass over, and the version bump is the pass's to make.
    */
   async tidyAfter(removed: readonly RemovedElsewhere[]): Promise<void> {

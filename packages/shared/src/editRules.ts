@@ -116,3 +116,25 @@ export function tagFlips<T>(had: readonly T[], wanted: readonly T[]): { on: T[];
     off: [...before].filter(tag => !after.has(tag)),
   }
 }
+
+// --- Removing songs --------------------------------------------------------------
+
+/**
+ * The tags that removing these songs leaves with none: those whose every song
+ * is among them. They go with the songs, everywhere — as a change of their
+ * own in the log, so every device and the server lose exactly these — rather
+ * than linger at 0 in every sidebar. A tag that had no songs to begin with is
+ * not among them: one just made, here or on another device, is yours to fill.
+ */
+export function tagsEmptiedBy(
+  tags: readonly { readonly id: number; readonly songCount: number }[],
+  removed: readonly { readonly tagIds: readonly number[] }[],
+): number[] {
+  const losing = new Map<number, number>()
+  for (const song of removed) {
+    for (const tagId of new Set(song.tagIds)) losing.set(tagId, (losing.get(tagId) ?? 0) + 1)
+  }
+  return tags
+    .filter(tag => tag.songCount > 0 && (losing.get(tag.id) ?? 0) >= tag.songCount)
+    .map(tag => tag.id)
+}

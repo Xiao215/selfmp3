@@ -376,6 +376,26 @@ describe('CloudIngest', () => {
     expect(comparable(serverSnapshot())).toEqual(comparable(replayed(before, changes)))
   })
 
+  it('takes the tags a removal emptied, and leaves one another device has just made', () => {
+    const a = addSong('Alpha')
+    const b = addSong('Bravo')
+    const chill = tags.create('chill').id
+    tags.setSongTags(a, [chill])
+    const before = serverSnapshot()
+    const made = 'f'.repeat(31) + '4'
+    const changes: Change[] = [
+      // Made on one phone, to be filled in a moment…
+      { type: 'tagCreated', hlc: at(1, 'web-cccc2222'), uid: made, name: 'later', hue: 90 },
+      // …while another removed a song, and the tag it was the last song of.
+      { type: 'songRemoved', hlc: at(2), uid: uidOf('songs', a) },
+      { type: 'tagRemoved', hlc: at(3), uid: uidOf('tags', chill) },
+    ]
+    ingest.apply(changes)
+    expect(tags.all().map(tag => tag.name)).toEqual(['later'])
+    expect(songs.byId(b)).not.toBeNull()
+    expect(comparable(serverSnapshot())).toEqual(comparable(replayed(before, changes)))
+  })
+
   it('applies a change arriving late only where nothing later has been', () => {
     const a = addSong('Alpha')
     const A = uidOf('songs', a)

@@ -118,9 +118,9 @@ export class CloudIngest {
           })
         }
       }
-      // A tag whose last song another device removed goes too, as it would
-      // had the song been removed here.
-      if (removed.length > 0) this.#tags.pruneEmpty()
+      // A tag whose last song another device removed is not pruned here: that
+      // device sent its own `tagRemoved` for it (shared `tagsEmptiedBy`), and
+      // a sweep would also take a tag another device has only just made.
       alongside()
     })()
     return { applied, removed, requested }

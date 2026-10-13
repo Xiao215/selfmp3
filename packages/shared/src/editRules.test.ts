@@ -8,6 +8,7 @@ import {
   tagFlips,
   tagNamed,
   tagRenameProblem,
+  tagsEmptiedBy,
 } from './editRules.js'
 import { hueFromString } from './format.js'
 import { playlistPatchProblem } from './schemas/playlist.js'
@@ -91,5 +92,16 @@ describe('tags', () => {
   it('set on a song all at once are the ones that go on and the ones that come off', () => {
     expect(tagFlips([1, 2, 3], [3, 4, 4])).toEqual({ on: [4], off: [1, 2] })
     expect(tagFlips([1], [1])).toEqual({ on: [], off: [] })
+  })
+
+  it('go with removed songs when those were all they had, and not when they had none', () => {
+    const counts = [
+      { id: 1, songCount: 2 },
+      { id: 2, songCount: 3 },
+      { id: 3, songCount: 0 },
+    ]
+    const removed = [{ tagIds: [1, 2] }, { tagIds: [1, 1] }]
+    expect(tagsEmptiedBy(counts, removed)).toEqual([1])
+    expect(tagsEmptiedBy(counts, [])).toEqual([])
   })
 })

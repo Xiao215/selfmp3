@@ -8,6 +8,7 @@ import {
   tagFlips,
   tagNamed,
   tagRenameProblem,
+  tagsEmptiedBy,
   toCloudRules,
   type Change,
   type CreatePlaylist,
@@ -141,13 +142,20 @@ export function tagSongs(
   }))
 }
 
-/** Out of the library, on every device. */
+/**
+ * Out of the library, on every device — with each tag only these songs had,
+ * as the server's own removal takes them (`tagsEmptiedBy`).
+ */
 export function removeSongs(ctx: EditContext, ids: readonly number[]): Change[] {
-  return knownSongs(ctx, ids).map(([, uid]) => ({
-    type: 'songRemoved' as const,
-    hlc: ctx.stamp(),
-    uid,
-  }))
+  const known = knownSongs(ctx, ids)
+  const emptied = tagsEmptiedBy(
+    ctx.view.library.tags,
+    known.flatMap(([id]) => ctx.view.byId.songs.get(id) ?? []),
+  )
+  return [
+    ...known.map(([, uid]) => ({ type: 'songRemoved' as const, hlc: ctx.stamp(), uid })),
+    ...emptied.map(id => ({ type: 'tagRemoved' as const, hlc: ctx.stamp(), uid: tagUid(ctx, id) })),
+  ]
 }
 
 export function playSong(ctx: EditContext, id: number, event: PlayEvent): Change[] {

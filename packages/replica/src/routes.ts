@@ -290,13 +290,14 @@ export function createCloudRoutes(
       ({ session, body }) => {
         const input = parseInput(BulkDeleteSongsSchema, body)
         return recordChanges(session, ctx => {
-          const changes = edits.removeSongs(ctx, input.songIds)
-          const failed = [...new Set(input.songIds)]
+          const asked = [...new Set(input.songIds)]
+          const removed = asked.filter(songId => ctx.view.uids.songs.has(songId)).length
+          const failed = asked
             .filter(songId => !ctx.view.uids.songs.has(songId))
             .map(songId => ({ songId, reason: `no song with id ${songId}`, removed: false }))
           return {
-            changes,
-            answer: () => ({ removed: changes.length, failed }),
+            changes: edits.removeSongs(ctx, input.songIds),
+            answer: () => ({ removed, failed }),
           }
         })
       },

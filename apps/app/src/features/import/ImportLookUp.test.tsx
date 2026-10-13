@@ -6,7 +6,21 @@ import { ApiError } from '@selfmp3/client'
 import { ImportScreen } from './ImportScreen'
 import { resetImportDraft } from './importDraft'
 
+// A search's songs are heard through the preview player; nothing is searched for here.
+jest.mock('./ImportListen', () => ({
+  ...jest.requireActual('./ImportListen'),
+  useListen: () => mockListen,
+}))
+const mockListen = {
+  listening: null,
+  toggle: () => undefined,
+  seek: () => undefined,
+  close: () => undefined,
+}
+
 jest.mock('expo-router', () => ({
+  // The search's rows stop their preview when the page is left; here it never is.
+  useFocusEffect: () => undefined,
   useRouter: () => ({
     push: () => undefined,
     back: () => undefined,
